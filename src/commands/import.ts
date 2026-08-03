@@ -55,7 +55,7 @@ import { getLogger } from '../logger'
 import { writeFileWithHash } from '../content-hash'
 import { isPathWithinDir } from '../path-validation'
 import { getDecksDir } from '../ritual-config'
-import { listFilePath } from '../resolve-list'
+import { listFilePath, normalizeListName } from '../resolve-list'
 import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list-type'
 import { ask, promptListType } from './prompts-helpers'
 import { isNoInput, promptsUnavailable } from '../no-input'
@@ -260,10 +260,19 @@ export async function saveDeck(
     }
   }
 
-  // If no ID conflict, check Filename conflict
-  if (!conflictFile && existingFiles.includes(fileName)) {
-    conflictFile = fileName
-    conflictReason = 'name'
+  // If no ID conflict, check Filename conflict — by the resolver's folding, not
+  // by a byte-exact file name: importing `atraxa superfriends` beside
+  // `Atraxa Superfriends.md` would otherwise create a pair that every
+  // name-resolving command reports as ambiguous, which `new` and `rename` refuse.
+  if (!conflictFile) {
+    const normalized = normalizeListName(path.basename(fileName, '.md'))
+    const folded = existingFiles.find(
+      (f) => normalizeListName(path.basename(f, '.md')) === normalized,
+    )
+    if (folded !== undefined) {
+      conflictFile = folded
+      conflictReason = 'name'
+    }
   }
 
   let filePath = path.join(decksDir, fileName)

@@ -19,11 +19,12 @@ import { matchByNormalizedName } from '../term-match'
 import { type ListType } from '../list-type'
 import {
   formatResolveListError,
+  isListArgumentConflict,
   isResolveListError,
   listLocations,
   listTypeFromFlags,
-  parseListArgument,
   resolveList,
+  resolveListArgument,
   type ListTypeFlags,
   type ResolveListError,
 } from '../resolve-list'
@@ -145,9 +146,10 @@ function resolveErrorToCommandError(error: ResolveListError): CardCommandError {
 /**
  * Resolve the target list for a card command. When `listName` is given it is
  * matched via the shared resolver — an optional `deck:`/`collection:`/`wanted:`
- * prefix overrides `type` (from a type flag), matching is case-insensitive, and
- * ambiguity is a usage error. When `listName` is omitted, the user picks
- * interactively from the lists in scope.
+ * prefix supplies `type` when no type flag was passed and is a usage error when
+ * it contradicts one, matching is case-insensitive, and ambiguity is a usage
+ * error. When `listName` is omitted, the user picks interactively from the lists
+ * in scope.
  *
  * **Precondition:** the calling command registers `--deck`/`--collection`/`--wanted`
  * — the ambiguity error advises those flags. Every one-shot card command
@@ -159,8 +161,11 @@ export async function resolveListSelection(
   type: ListType | undefined,
 ): Promise<ResolvedList> {
   if (listName !== undefined) {
-    const arg = parseListArgument(listName)
-    const resolved = await resolveList(arg.name, arg.type ?? type)
+    const arg = resolveListArgument(listName, type)
+    if (isListArgumentConflict(arg)) {
+      throw new CardCommandError('usage_error', arg.message, ExitCode.UsageError)
+    }
+    const resolved = await resolveList(arg.name, arg.type)
     if (isResolveListError(resolved)) throw resolveErrorToCommandError(resolved)
     return { type: resolved.type, filePath: resolved.filePath }
   }

@@ -3,6 +3,7 @@ import path from 'node:path'
 import { adminUserExists, isTotpEnabled } from '../auth'
 import { parseDeckFrontMatter } from '../../deck-file'
 import { getDecksDir } from '../../ritual-config'
+import { isListMarkdownFile } from '../../list-file-name'
 
 interface StatusResponse {
   ok: boolean
@@ -27,9 +28,7 @@ export async function handleListDecks(): Promise<Response> {
   const decksDir = getDecksDir()
   try {
     const files = await fs.readdir(decksDir)
-    const deckFiles = files.filter(
-      (f) => f.endsWith('.md') && !f.endsWith('.changes.md') && !f.endsWith('.primer.md'),
-    )
+    const deckFiles = files.filter(isListMarkdownFile)
     const decks = await Promise.all(
       deckFiles.map(async (f) => {
         const slug = f.replace(/\.md$/, '')

@@ -20,15 +20,18 @@ import {
   newListSession,
   NEW_LIST_TITLES,
   openListSession,
+  pendingListCollision,
   type OpenList,
   type UnifiedListRef,
 } from './edit-lists'
 import { isUsableFileName, unusableFileNameMessage } from '../list-file-name'
+import { listNameCollision } from '../list-lifecycle'
 import {
+  isListArgumentConflict,
   isResolveListError,
   listFilePath,
-  parseListArgument,
   resolveList,
+  resolveListArgument,
   type ListLocation,
   type ListTypeFlags,
 } from '../resolve-list'
@@ -173,23 +176,6 @@ async function promptNewListName(type: ListType): Promise<string | null> {
   return name ?? null
 }
 
-/** A direct-open request: the list name to resolve plus the type to restrict to. */
-export type DirectListQuery = { name: string; type?: ListType }
-
-/**
- * Interpret the optional `[listName]` argument against the already-resolved
- * type flag. A recognized `deck:` / `collection:` / `wanted:` prefix on the
- * name overrides the flag. Conflicting type flags are rejected up front by
- * {@link resolveListTypeFlag}, before this runs.
- */
-export function parseDirectListArgument(
-  raw: string,
-  flagType: ListType | undefined,
-): DirectListQuery {
-  const parsed = parseListArgument(raw)
-  return { name: parsed.name, type: parsed.type ?? flagType }
-}
-
 /**
  * The unified-list ref for a directly-opened list. A deck is displayed by its
  * front-matter name (matching the selection menu), even though the argument
@@ -231,7 +217,14 @@ export function registerEditCommand(program: Command): void {
     // name fails fast instead of after a potential cache download prompt.
     let directRef: UnifiedListRef | undefined
     if (listNameArg !== undefined) {
-      const query = parseDirectListArgument(listNameArg, flagType)
+      // A `deck:`/`collection:`/`wanted:` prefix supplies the type; one that
+      // contradicts the type flag is a usage error, not a silent override.
+      const query = resolveListArgument(listNameArg, flagType)
+      if (isListArgumentConflict(query)) {
+        emitError('usage_error', query.message, PLAIN_TEXT_OUTPUT)
+        process.exitCode = ExitCode.UsageError
+        return
+      }
       const resolved = await resolveList(query.name, query.type)
       if (isResolveListError(resolved)) {
         emitResolveListError(resolved, PLAIN_TEXT_OUTPUT, 'type-flags')
@@ -295,8 +288,27 @@ export function registerEditCommand(program: Command): void {
       // The prompt already rejected a name with no usable filename characters.
       const file = listFilePath(type, name)
       if (!file) return undefined
-      if (openLists.has(file) || (await Bun.file(file).exists())) {
+      if (openLists.has(file)) {
         console.error(`A ${listTypeLabel(type)} already exists at ${file}.`)
+        return undefined
+      }
+      // Lists created earlier in this session are not on disk yet, so
+      // `listNameCollision` cannot see them — but two of them that fold together
+      // would both be written on save, re-creating the mutually-unaddressable
+      // pair the refusal exists to prevent. Check the session first.
+      const pending = pendingListCollision(openLists.values(), type, name)
+      if (pending) {
+        console.error(
+          `A ${listTypeLabel(type)} named '${pending.ref.name}' is already open in this session ` +
+            `(it matches '${name}' under list-name folding).`,
+        )
+        return undefined
+      }
+      // The same refusal `new` and the admin route give, so a list created here
+      // can never land beside one whose name only folds to the same thing.
+      const collision = await listNameCollision(type, name)
+      if (collision) {
+        console.error(collision.message)
         return undefined
       }
       const format = type === 'deck' ? await promptDeckFormat({ current: 'commander' }) : null

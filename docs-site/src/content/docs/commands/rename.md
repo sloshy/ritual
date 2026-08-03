@@ -43,19 +43,24 @@ Rename a collection and capture the result as JSON:
 ./ritual rename --collection main "Trade Binder" --output json
 ```
 
-The JSON payload is `{ type, oldSlug, newSlug, name }`.
+The JSON payload is `{ type, oldSlug, newSlug, name, newFilePath, oldFilePath }` — the same
+paths the text output prints, so a script never has to rebuild them from the slug.
 
 ## Behavior
 
 The new file name is derived from the new name by the same sanitization every surface uses (see [List file names](/commands/new/#list-file-names)), and the display name inside the file is rewritten — a deck's front-matter `name:` (plus a legacy `# H1` matching the old name), a flat list's first `# H1`. When the new name sanitizes to the slug the list already has, the file is updated in place.
 
-On a file move, the list's sidecars move with it: the `.changes.md` changelog and — for decks — the `.primer.md` primer are renamed alongside, the old `.sha256` content hash is removed, and a fresh one is written for the new file. Renaming onto a slug that already exists is refused.
+On a file move, the list's sidecars move with it: the `.changes.md` changelog and — for decks — the `.primer.md` primer are renamed alongside, and the old `.sha256` content hash is removed. A fresh hash is written only when the old sidecar still matched the file — a hand-edited list is left with no sidecar, so [`detect-changes`](/commands/detect-changes/) still records its edits.
+
+Renaming onto a name that already [resolves](/commands/list-resolution/#names-that-would-collide-are-refused-at-creation) to another list of the same type is refused — including a name that merely folds onto it (`atraxa superfriends` onto `Atraxa Superfriends`), which would otherwise leave two lists sharing one addressable name.
+
+Renaming a list to a different spelling of **its own** name is never a collision. Changing only capitalization (`burn` → `Burn`) or punctuation is a display-name change: on a case-insensitive file system (macOS, Windows) the new path names the very same file, so the list and each of its sidecars are moved through a temporary name to make the new spelling stick. A failure part-way puts everything back.
 
 ## Exit Codes
 
-| Code | Meaning                                                                                        |
-| ---- | ---------------------------------------------------------------------------------------------- |
-| `0`  | Success                                                                                        |
-| `2`  | Usage error (conflicting type flags, ambiguous list, unusable new name, target already exists) |
-| `3`  | Not found (no list matches `<list>`)                                                           |
-| `1`  | Runtime error                                                                                  |
+| Code | Meaning                                                                                                                                                                                   |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success                                                                                                                                                                                   |
+| `2`  | Usage error (conflicting type flags, a `deck:`/`collection:`/`wanted:` prefix contradicting a type flag, ambiguous list, unusable new name, a name that already resolves to another list) |
+| `3`  | Not found (no list matches `<list>`)                                                                                                                                                      |
+| `1`  | Runtime error                                                                                                                                                                             |

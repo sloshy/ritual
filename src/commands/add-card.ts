@@ -56,9 +56,10 @@ import {
 } from '../term-match'
 import {
   formatResolveListError,
+  isListArgumentConflict,
   isResolveListError,
-  parseListArgument,
   resolveList,
+  resolveListArgument,
   type ListTypeFlags,
 } from '../resolve-list'
 import {
@@ -277,9 +278,13 @@ async function runAddCard(input: RunInput, scripting: ScriptingOptions): Promise
   const pin = resolvePrintingPinFlags(options.set, options.collectorNumber)
 
   // Same list-addressing convention as the sibling one-shot commands: an
-  // optional `deck:`/`collection:`/`wanted:` prefix overrides the type flag.
-  const listArg = parseListArgument(input.targetName)
-  const type = listArg.type ?? input.type
+  // optional `deck:`/`collection:`/`wanted:` prefix supplies the type, and
+  // contradicting the type flag is a usage error rather than a silent override.
+  const listArg = resolveListArgument(input.targetName, input.type)
+  if (isListArgumentConflict(listArg)) {
+    throw new CardCommandError('usage_error', listArg.message, ExitCode.UsageError)
+  }
+  const type = listArg.type
 
   // Every check that can refuse the run happens before anything is written —
   // the target list is only *resolved* here, never created (see

@@ -8,6 +8,7 @@ import { WANTED_CARD_LINE_RE } from './commands/wanted-helpers'
 import { createFenceTracker } from './markdown-fence'
 import { getErrorMessage, hasErrorCode } from './errors'
 import { getCollectionsDir, getDecksDir, getWantedDir } from './ritual-config'
+import { isListMarkdownFile } from './list-file-name'
 
 export type EnsureIdsResult = { content: string; added: number }
 
@@ -80,10 +81,6 @@ export function ensureWantedIdsInContent(content: string): EnsureIdsResult {
   return ensureIds(content, { cardLineRe: WANTED_CARD_LINE_RE, skipFrontMatter: false })
 }
 
-function isListMarkdown(filename: string): boolean {
-  return filename.endsWith('.md') && !filename.endsWith('.changes.md')
-}
-
 async function ensureIdsInDir(
   dir: string,
   ensureFn: (content: string) => EnsureIdsResult,
@@ -131,6 +128,6 @@ async function ensureIdsInDir(
  */
 export async function ensureCardIdsForAllLists(): Promise<void> {
   await ensureIdsInDir(getDecksDir(), ensureDeckIdsInContent, isDeckFile)
-  await ensureIdsInDir(getCollectionsDir(), ensureCollectionIdsInContent, isListMarkdown)
-  await ensureIdsInDir(getWantedDir(), ensureWantedIdsInContent, isListMarkdown)
+  await ensureIdsInDir(getCollectionsDir(), ensureCollectionIdsInContent, isListMarkdownFile)
+  await ensureIdsInDir(getWantedDir(), ensureWantedIdsInContent, isListMarkdownFile)
 }

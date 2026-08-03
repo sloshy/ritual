@@ -5,14 +5,10 @@ import matter from 'gray-matter'
 import { isFinish, isCondition } from '../commands/collection-helpers'
 import { parseDeckFormat } from '../deck-format'
 import { createFenceTracker } from '../markdown-fence'
+import { isListMarkdownFile } from '../list-file-name'
 
-export function isDeckFile(filename: string): boolean {
-  return (
-    filename.endsWith('.md') &&
-    !filename.endsWith('.primer.md') &&
-    !filename.endsWith('.changes.md')
-  )
-}
+/** A deck directory entry that is a deck's own file. Decks share the one list-file predicate. */
+export const isDeckFile = isListMarkdownFile
 
 export async function listDeckFiles(decksDir: string): Promise<string[]> {
   return (await readdir(decksDir)).filter(isDeckFile)

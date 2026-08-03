@@ -188,15 +188,28 @@ describe('add-card CLI (Integration)', () => {
       expect(err.error.message).toContain('together')
     })
 
-    test('a type prefix on the target name overrides the type flag', async () => {
-      // deck: prefix beats --wanted; the deck add path needs no printing prompt.
+    test('a type prefix supplies the type when no type flag is passed', async () => {
+      // The deck add path needs no printing prompt.
       const result = await runCli(
-        ['add-card', '--wanted', 'deck:test', 'Sol', 'Ring', '--exact', '--output', 'json'],
+        ['add-card', 'deck:test', 'Sol', 'Ring', '--exact', '--output', 'json'],
         dir,
       )
       expect(result.exitCode).toBe(0)
       const payload = JSON.parse(result.stdout) as { type: string; list: string }
       expect(payload.type).toBe('deck')
+    })
+
+    test('a type prefix contradicting the type flag is a usage error, writing nothing', async () => {
+      const before = await snapshotTree(dir)
+      const result = await runCli(
+        ['add-card', '--wanted', 'deck:test', 'Sol', 'Ring', '--exact', '--output', 'json'],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      const err = JSON.parse(result.stderr) as CliErrorPayload
+      expect(err.error.code).toBe('usage_error')
+      expect(err.error.message).toContain('--wanted')
+      expect(await snapshotTree(dir)).toEqual(before)
     })
 
     test('rejects --name-only on a deck target', async () => {

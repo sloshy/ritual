@@ -44,6 +44,9 @@ type SuccessBody = {
   message: string
   slug?: string
   newSlug?: string
+  newFilePath?: string
+  oldFilePath?: string
+  deletedFiles?: string[]
 }
 
 function makeRequest(method: string, urlPath: string, body?: unknown): Request {
@@ -115,6 +118,18 @@ describe('list-lifecycle create handler', () => {
     expect(data.message).toContain('already exists')
   })
 
+  test('returns 409 for a name that only folds onto an existing list', async () => {
+    await Bun.write(path.join(collectionsDir, 'Trade Binder.md'), '# Trade Binder\n')
+
+    const req = makeRequest('POST', '/api/collection/create', { name: 'trade-binder' })
+    const resp = await handleListCreate(req, COLLECTION_CFG)
+    const data = (await resp.json()) as SuccessBody
+
+    expect(resp.status).toBe(409)
+    expect(data.message).toContain("A collection named 'Trade Binder' already exists")
+    expect(await Bun.file(path.join(collectionsDir, 'trade-binder.md')).exists()).toBe(false)
+  })
+
   test('strips reserved filesystem characters from the slug', async () => {
     const req = makeRequest('POST', '/api/collection/create', { name: 'Foo/Bar:Baz' })
     const resp = await handleListCreate(req, COLLECTION_CFG)
@@ -143,6 +158,8 @@ describe('list-lifecycle rename handler', () => {
     expect(resp.status).toBe(200)
     expect(data.success).toBe(true)
     expect(data.newSlug).toBe('New Collection')
+    expect(data.oldFilePath).toBe(path.join(collectionsDir, 'old-collection.md'))
+    expect(data.newFilePath).toBe(path.join(collectionsDir, 'New Collection.md'))
 
     const newExists = await Bun.file(path.join(collectionsDir, 'New Collection.md')).exists()
     expect(newExists).toBe(true)
@@ -236,6 +253,7 @@ describe('list-lifecycle delete handler', () => {
 
     expect(resp.status).toBe(200)
     expect(data.success).toBe(true)
+    expect(data.deletedFiles).toEqual([path.join(collectionsDir, 'My Collection.md')])
     const exists = await Bun.file(path.join(collectionsDir, 'My Collection.md')).exists()
     expect(exists).toBe(false)
   })

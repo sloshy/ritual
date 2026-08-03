@@ -3,9 +3,13 @@
  * wanted-list file. This is the single source of truth for how the CLI turns a bare
  * name into a file, so every command that loads a list by name behaves identically:
  *
- * - Matching ignores case, diacritics, and separators (so `cafe` matches `Café`, and
- *   `winota-stax` matches `Winota Stax`).
- * - An exact (normalized) name match wins outright.
+ * - A **byte-exact** file-name match wins outright, before any folding — so a list
+ *   can always be targeted by typing its name exactly as it appears, even when
+ *   another list folds to the same normalized form.
+ * - Failing that, matching ignores case, diacritics, separators, filename-illegal
+ *   punctuation, and apostrophes (so `cafe` matches `Café`, `winota-stax` matches
+ *   `Winota Stax`, and `Atraxa: Praetors' Voice` matches `Atraxa Praetors' Voice`).
+ * - An exact (normalized) name match wins next.
  * - Failing that, a single normalized substring match is accepted.
  * - **Any** ambiguity at the chosen tier is an error — the caller must disambiguate
  *   (e.g. with a `--deck` / `--collection` / `--wanted` flag) rather than the resolver
@@ -24,9 +28,15 @@ import path from 'node:path'
 import { listDeckFiles } from './importers/text-file'
 import { getCollectionsDir, getDecksDir, getWantedDir } from './ritual-config'
 import { isPathWithinDir } from './path-validation'
-import { listFileName } from './list-file-name'
+import { isListMarkdownFile, listFileName, normalizeListName } from './list-file-name'
 import { LIST_TYPES, LIST_TYPE_DISPLAY, isListType, type ListType } from './list-type'
-import { normalizeForSearch } from './term-match'
+
+/**
+ * The folding every tier below the byte-exact one matches in. Defined in
+ * `list-file-name.ts` (which is browser-safe and owns the sanitizer it folds
+ * through) and re-exported here, where server callers expect to find it.
+ */
+export { normalizeListName } from './list-file-name'
 
 /** A concrete list file on disk. */
 export type ListLocation = {
@@ -57,8 +67,15 @@ export type ListArgument = { type?: ListType; name: string }
 
 /**
  * Split an optional list-type prefix off a list-name argument. A recognized
- * prefix overrides any `--deck`/`--collection`/`--wanted` flag; unknown
- * prefixes are kept as part of the literal name.
+ * prefix pins the type; unknown prefixes are kept as part of the literal name.
+ *
+ * Commands that also take `--deck`/`--collection`/`--wanted` must go through
+ * {@link resolveListArgument}, which refuses a prefix that contradicts the flag.
+ *
+ * The grammar necessarily shadows a display name whose first word *is* a list
+ * type: `Wanted: Dead or Alive` parses as the wanted list `Dead or Alive`, not
+ * as the literal name. Such a list is still reachable by its file name
+ * (`Wanted Dead or Alive`), which is what the colon was stripped to anyway.
  */
 export function parseListArgument(raw: string): ListArgument {
   const match = raw.match(/^([a-z]+):(.+)$/)
@@ -67,6 +84,39 @@ export function parseListArgument(raw: string): ListArgument {
     return { type: prefix, name: match[2]! }
   }
   return { name: raw }
+}
+
+/** A `deck:`/`collection:`/`wanted:` prefix contradicting the command's type flag. */
+export type ListArgumentConflict = { kind: 'type-conflict'; message: string }
+
+export type ListArgumentResult = ListArgument | ListArgumentConflict
+
+/** Type guard: the argument's prefix and the command's type flag disagree. */
+export function isListArgumentConflict(result: ListArgumentResult): result is ListArgumentConflict {
+  return 'kind' in result && result.kind === 'type-conflict'
+}
+
+/**
+ * Combine a list argument with the command's `--deck`/`--collection`/`--wanted`
+ * flag. The prefix wins when the flag is absent or agrees with it; when the two
+ * name **different** types the request is self-contradictory, so it is refused
+ * rather than silently resolved one way (the flag used to lose in silence, so
+ * `delete deck:'Trade Binder' --collection` reported that no *deck* existed).
+ */
+export function resolveListArgument(
+  raw: string,
+  flagType: ListType | undefined,
+): ListArgumentResult {
+  const arg = parseListArgument(raw)
+  if (arg.type !== undefined && flagType !== undefined && arg.type !== flagType) {
+    return {
+      kind: 'type-conflict',
+      message:
+        `'${raw}' selects a ${typeNoun(arg.type)}, which conflicts with --${flagType}. ` +
+        `Drop the '${arg.type}:' prefix or the --${flagType} flag.`,
+    }
+  }
+  return { type: arg.type ?? flagType, name: arg.name }
 }
 
 /** The configured directory that holds list files of the given type. */
@@ -95,7 +145,7 @@ async function locationsForType(type: ListType): Promise<ListLocation[]> {
     files =
       type === 'deck'
         ? await listDeckFiles(dir)
-        : (await fs.readdir(dir)).filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
+        : (await fs.readdir(dir)).filter(isListMarkdownFile)
   } catch {
     // Directory may not exist yet.
     return []
@@ -137,32 +187,37 @@ export function matchList(
 ): ResolveListResult {
   if (candidates.length === 0) return { kind: 'no-lists', type }
 
-  const cleaned = query.replace(/\.md$/i, '').trim()
+  // Trim first: a `.md` the user pasted with trailing whitespace is still an
+  // extension, and the byte-exact tier compares what is left character for
+  // character.
+  const cleaned = query.trim().replace(/\.md$/i, '').trim()
   const normalized = normalizeListName(cleaned)
 
-  const exact = candidates.filter((c) => normalizeListName(c.name) === normalized)
-  if (exact.length === 1) return exact[0]!
-  if (exact.length > 1) return { kind: 'ambiguous', query: cleaned, matches: exact }
+  // Tried in order; the first tier with any hit decides, and more than one hit
+  // in that tier is the ambiguity error. Stated as data so the order and the
+  // ambiguity rule are each written once.
+  const tiers: readonly MatchTier[] = [
+    // Byte-exact first, and deliberately before any folding: two files whose
+    // names fold together (`Atraxa Superfriends.md` and `atraxa superfriends.md`)
+    // are each still addressable by typing the name exactly. Only the
+    // pathological cross-type case — the same basename under two list types —
+    // can be ambiguous here, since one directory cannot hold two identical names.
+    { label: 'byte-exact', matches: (c) => c.name === cleaned },
+    { label: 'folded-exact', matches: (c) => normalizeListName(c.name) === normalized },
+    { label: 'folded-substring', matches: (c) => normalizeListName(c.name).includes(normalized) },
+  ]
 
-  const substring = candidates.filter((c) => normalizeListName(c.name).includes(normalized))
-  if (substring.length === 1) return substring[0]!
-  if (substring.length > 1) return { kind: 'ambiguous', query: cleaned, matches: substring }
+  for (const tier of tiers) {
+    const hits = candidates.filter(tier.matches)
+    if (hits.length === 1) return hits[0]!
+    if (hits.length > 1) return { kind: 'ambiguous', query: cleaned, matches: hits }
+  }
 
   return { kind: 'not-found', query: cleaned, type }
 }
 
-/**
- * The form a list name is matched in: case- and diacritic-insensitive (see
- * {@link normalizeForSearch}), with hyphens and underscores folded to spaces.
- *
- * The separator folding is what lets a name be typed the way it reads regardless
- * of how its file happens to be punctuated — `winota-stax` finds `Winota Stax.md`,
- * and `Black Panther` finds a `black-panther.md` left over from before list files
- * were named as entered.
- */
-export function normalizeListName(name: string): string {
-  return normalizeForSearch(name).replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim()
-}
+/** One matching tier of {@link matchList}: a label for reading, and its predicate. */
+type MatchTier = { readonly label: string; readonly matches: (c: ListLocation) => boolean }
 
 /**
  * Resolve a user-supplied list name to a single list file. When `type` is given,
@@ -222,18 +277,32 @@ export type ResolveHint = (typeof RESOLVE_HINTS)[number]
 
 /**
  * "Type more of the name" advice. The example must be a name that would actually
- * resolve: when two list files normalize to the same name (`Storm Crow.md` and
- * `storm-crow.md`), suggesting either one just reproduces this same error, so no
- * example is offered at all.
+ * resolve, which the byte-exact tier in {@link matchList} makes almost always
+ * possible:
+ *
+ * - A match with a unique *normalized* name resolves from a longer prefix, so the
+ *   advice asks for more of the name and quotes it.
+ * - When every match folds together (`Storm Crow.md` and `storm-crow.md`), typing
+ *   more never helps — but the full name, byte for byte, does, so the advice asks
+ *   for exactly that.
+ * - Only when the matches are byte-identical (the same basename under two list
+ *   types) can no name break the tie, and no example is offered.
  */
 function typeMoreAdvice(matches: ListLocation[]): string {
-  const example = matches.find(
+  const byteUnique = matches.filter(
+    (m) => matches.filter((other) => other.name === m.name).length === 1,
+  )
+  const narrowing = byteUnique.find(
     (m) =>
       matches.filter((other) => normalizeListName(other.name) === normalizeListName(m.name))
         .length === 1,
-  )?.name
-  const suffix = example === undefined ? '' : ` (e.g. '${example}')`
-  return `Type more of the name to narrow the match${suffix}.`
+  )
+  if (narrowing) return `Type more of the name to narrow the match (e.g. '${narrowing.name}').`
+  const exact = byteUnique[0]
+  if (exact) {
+    return `Type one list's exact full name, spelled and capitalized as its file is (e.g. '${exact.name}').`
+  }
+  return 'Type more of the name to narrow the match.'
 }
 
 /**

@@ -972,19 +972,22 @@ export const REMOVE_SELECTED_CARDS_OUTPUT: JsonSchemaType = obj(
 )
 
 export const RENAME_LIST_OUTPUT: JsonSchemaType = obj(
-  { message: str(), newSlug: str('Address the list by this from now on.') },
-  ['message', 'newSlug'],
+  {
+    message: str(),
+    newSlug: str('Address the list by this from now on.'),
+    newFilePath: str('The list’s file path after the rename.'),
+    oldFilePath: str('The path it occupied before the rename.'),
+  },
+  ['message', 'newSlug', 'newFilePath', 'oldFilePath'],
 )
 
-/**
- * Two tools now answer with a bare `{ message }`, and they keep separate
- * declarations rather than sharing one. They are unrelated operations whose
- * responses are free to grow independently — which is not a hypothetical:
- * `build_site` was the third member of this group until it grew `outDir` and
- * `durationMs` below, and a shared const would have made that a change to all
- * three. Exactly the coupling `$defs` reuse should never introduce.
- */
-export const DELETE_LIST_OUTPUT: JsonSchemaType = obj({ message: str() }, ['message'])
+export const DELETE_LIST_OUTPUT: JsonSchemaType = obj(
+  {
+    message: str(),
+    deletedFiles: arr(str(), 'Every file removed: the list plus whichever sidecars it had.'),
+  },
+  ['message', 'deletedFiles'],
+)
 
 export const REWRITE_HISTORY_OUTPUT: JsonSchemaType = obj(
   { message: str(), setCount: int('Change sets written.') },
@@ -1000,6 +1003,14 @@ export const BUILD_SITE_OUTPUT: JsonSchemaType = obj(
   ['message', 'outDir', 'durationMs'],
 )
 
+/**
+ * A bare `{ message }` result keeps its own declaration rather than sharing one
+ * with the other tools that happen to answer the same way today. Unrelated
+ * operations' responses are free to grow independently — not a hypothetical:
+ * `build_site` and `delete_list` both started here and grew fields of their own,
+ * and a shared const would have made each of those a change to every member.
+ * Exactly the coupling `$defs` reuse should never introduce.
+ */
 export const REFRESH_CACHE_OUTPUT: JsonSchemaType = obj({ message: str() }, ['message'])
 
 const SYNC_DIRECTION = enumOf(['pull', 'push'])

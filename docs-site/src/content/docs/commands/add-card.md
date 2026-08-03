@@ -12,7 +12,7 @@ Uses the local card cache for fast autocomplete-based card selection. If the cac
 ./ritual add-card <targetName> <cardName...> [options]
 ```
 
-The target list is resolved from `<targetName>` across all three list types (see [List Resolution](/commands/list-resolution/)). Pass a `--deck`, `--collection`, or `--wanted` flag to pin the type — required when the name is ambiguous, and required to **create** a missing collection or wanted list. A `deck:`/`collection:`/`wanted:` prefix on the name (e.g. `collection:Main Binder`) works too and overrides the type flag.
+The target list is resolved from `<targetName>` across all three list types (see [List Resolution](/commands/list-resolution/)). Pass a `--deck`, `--collection`, or `--wanted` flag to pin the type — required when the name is ambiguous, and required to **create** a missing collection or wanted list. A `deck:`/`collection:`/`wanted:` prefix on the name (e.g. `collection:Main Binder`) supplies the type when no flag is given; a prefix that **contradicts** the flag is a usage error (exit `2`) naming both, rather than one silently winning.
 
 ## Arguments
 
@@ -232,9 +232,9 @@ Deck adds include `quantity` (the number of copies added, not the merged line's 
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                                                              |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `0`  | Card added (or, under `--dry-run`, the add reported with nothing written)                                                                                                                                                            |
-| `1`  | Runtime error (card cache unavailable, printing unresolvable in the specific flow, file write failure)                                                                                                                               |
-| `2`  | Usage error (invalid or conflicting flags, unknown printing pin, unavailable finish, cancelled prompt, or a missing `--finish`/`--condition`/wanted-specificity flag when [prompts are unavailable](/#when-prompts-are-unavailable)) |
-| `3`  | Not found (missing deck, no exact card-name match, no cards matching the search)                                                                                                                                                     |
+| Code | Meaning                                                                                                                                                                                                                                                                       |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Card added (or, under `--dry-run`, the add reported with nothing written)                                                                                                                                                                                                     |
+| `1`  | Runtime error (card cache unavailable, printing unresolvable in the specific flow, file write failure)                                                                                                                                                                        |
+| `2`  | Usage error (invalid or conflicting flags, a type prefix contradicting a type flag, unknown printing pin, unavailable finish, cancelled prompt, or a missing `--finish`/`--condition`/wanted-specificity flag when [prompts are unavailable](/#when-prompts-are-unavailable)) |
+| `3`  | Not found (missing deck, no exact card-name match, no cards matching the search)                                                                                                                                                                                              |

@@ -375,6 +375,9 @@ describe('export command (Integration)', () => {
     ['unknown column', ['export', '--all', '--columns', 'name,bogus'], 2],
     ['unresolved list', ['export', 'no-such-list'], 3],
     ['conflicting type flags', ['export', '--deck', '--collection'], 2],
+    // A per-argument prefix that contradicts the whole-command flag used to win
+    // silently, so this reported that no *deck* named 'binder' exists.
+    ['a prefix contradicting a type flag', ['export', 'deck:binder', '--collection'], 2],
     ['invalid finish', ['export', '--all', '--finish', 'shiny'], 2],
     ['invalid condition', ['export', '--all', '--condition', 'OK'], 2],
     ['invalid export format', ['export', '--all', '--format', 'xml'], 2],

@@ -28,7 +28,10 @@ export function registerNewCommand(program: Command): void {
       .description('Create a new deck, collection, or wanted list')
       .argument('<type>', "List type: 'deck', 'collection', or 'wanted'")
       .argument('<name...>', 'Name of the list')
-      .option('-f, --format <format>', 'Deck format (decks only; e.g., standard, commander)'),
+      .option(
+        '-f, --format <format>',
+        'Deck format (decks only; default: commander). Pass an invalid value to list every accepted format, or see the new command docs.',
+      ),
     'text',
   ).action(async (rawType: string, nameParts: string[], options: NewOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')

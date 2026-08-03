@@ -53,7 +53,8 @@ are ignored, since the selection menu already covers every type.
 menu. The name is resolved across all three list types with the shared
 [list resolution](/commands/list-resolution/) rules (case- and accent-insensitive, exact match
 first, then a unique substring). Narrow the search with a type flag, or with a
-`deck:` / `collection:` / `wanted:` prefix on the name itself — the prefix wins over the flag:
+`deck:` / `collection:` / `wanted:` prefix on the name itself. The prefix supplies the type when no
+flag is given; a prefix that **contradicts** the flag is a usage error (exit `2`) naming both:
 
 ```bash
 ./ritual edit Burn                # any list named Burn
@@ -138,7 +139,10 @@ A new deck prompts for its [format](#deck-format) and is written with the same Y
 [`new deck`](/commands/new/); new collections and wanted lists get a `# Title` heading. Every
 list type's file is named as the list is named — see
 [List file names](/commands/new/#list-file-names). A name with no usable file-name characters
-is rejected at the prompt, and creating a list whose file already exists is refused.
+is rejected at the prompt, and so is a name that would
+[collide with an existing list](/commands/list-resolution/#names-that-would-collide-are-refused-at-creation)
+— including one that merely folds onto it, and including a list created earlier in the same session
+that has not been saved yet.
 
 Lists can be created from two places: the `➕ New …` items in the list selection menu, and the same
 items in the `Add to which list?` prompt of a [multi-list mode](#multi-list-modes) — where the card you
@@ -671,8 +675,8 @@ Collector-number entry with sets pre-loaded:
 The failure codes apply only to startup — [opening a list directly](#opening-a-list-directly) and
 the interactivity requirement; once open, the interactive editor itself always exits `0`.
 
-| Code | Meaning                                                                                                                                  |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Editor exited normally                                                                                                                   |
-| `2`  | Usage error (conflicting type flags, `[listName]` matched more than one list, or prompts are unavailable — no terminal, or `--no-input`) |
-| `3`  | Not found (`[listName]` matched nothing, or no lists exist in the searched scope)                                                        |
+| Code | Meaning                                                                                                                                                                           |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Editor exited normally                                                                                                                                                            |
+| `2`  | Usage error (conflicting type flags, a type prefix contradicting a type flag, `[listName]` matched more than one list, or prompts are unavailable — no terminal, or `--no-input`) |
+| `3`  | Not found (`[listName]` matched nothing, or no lists exist in the searched scope)                                                                                                 |

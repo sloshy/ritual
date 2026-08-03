@@ -2,7 +2,7 @@ import { Command, Option } from 'commander'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from '../base-dir'
-import { hashPath, writeFileWithHash } from '../content-hash'
+import { isRitualClean, writeFileWithHash } from '../content-hash'
 import { listFileName, unusableFileNameMessage } from '../list-file-name'
 import { listLocations, type ListLocation } from '../resolve-list'
 import type { ListType } from '../list-type'
@@ -16,7 +16,9 @@ import { parseDeckFrontMatter, serializeDeckToMarkdown, type DeckFrontMatter } f
 import type { DeckData } from '../types'
 import { unreadableLines } from '../markdown-fence'
 import { parseDeckText } from '../importers/text-file'
-import { moveListSidecars } from '../list-sidecars'
+import { listNameCollision } from '../list-lifecycle'
+import { moveListFileAndSidecars, renameListThroughTemp } from '../list-sidecars'
+import { isSameFile as statSameFile, type SameFileCheck } from '../same-file'
 import { collectionToMarkdown, wantedToMarkdown } from '../editor/list-export'
 import { CardCommandError, getErrorMessage } from '../errors'
 import { runCommandAction } from './card-target'
@@ -60,6 +62,12 @@ export type CleanupOptions = {
    * every such deck is left unset and reported.
    */
   chooseFormat?: (deckName: string, signal: DeckFormatSignal) => Promise<DeckFormatKey | null>
+  /**
+   * The same seam `renameList` takes: how "is the destination this very file?"
+   * is decided. Defaults to a device+inode comparison; injectable so the
+   * case-insensitive-file-system path can be exercised on a case-sensitive one.
+   */
+  isSameFile?: SameFileCheck
 }
 
 /** What cleanup did (or, under dry-run, would do) to one list file. */
@@ -229,31 +237,6 @@ async function readWantedDocument(location: ListLocation): Promise<ListDocument>
   }
 }
 
-/**
- * Whether two paths refer to the same file on disk. Distinguishes a case-only
- * rename on a case-insensitive file system (same file — fine to rename) from a
- * genuine collision with a different list whose name differs only in case.
- */
-async function isSameFile(a: string, b: string): Promise<boolean> {
-  try {
-    const [statA, statB] = await Promise.all([fs.stat(a), fs.stat(b)])
-    return statA.ino === statB.ino && statA.dev === statB.dev
-  } catch {
-    return false
-  }
-}
-
-/** Move a list file and every sidecar it has to the renamed path. */
-async function renameListFile(oldPath: string, newPath: string): Promise<void> {
-  await fs.rename(oldPath, newPath)
-  // A rename-only cleanup does not rewrite content, so the still-valid hash
-  // sidecar moves with the file rather than being recomputed.
-  if (await Bun.file(hashPath(oldPath)).exists()) {
-    await fs.rename(hashPath(oldPath), hashPath(newPath))
-  }
-  await moveListSidecars(oldPath, newPath)
-}
-
 /** Record a file the cleanup could not read, and skip it. */
 function markUnreadable(result: CleanupResult, error: unknown): CleanupResult {
   result.unreadable = true
@@ -307,16 +290,28 @@ export async function cleanupList(
   const currentBase = path.basename(location.filePath)
   const targetBase = listFileName(document.displayName)
   let targetPath = location.filePath
+  let sameFileTarget = false
+  const sameFile = options.isSameFile ?? statSameFile
   if (targetBase === null) {
     result.warnings.push(unusableFileNameMessage(document.displayName))
   } else if (targetBase !== currentBase) {
     const candidate = path.join(dir, targetBase)
-    // An existing target is a conflict unless it is this very file — which it is
-    // on a case-insensitive file system when the rename only changes casing.
-    const occupied =
-      (await Bun.file(candidate).exists()) && !(await isSameFile(candidate, location.filePath))
+    // The destination can name this very file — which it does on a
+    // case-insensitive file system when the rename only changes casing. That is
+    // this list's own rename, not a conflict, but it needs the two-step move
+    // below, since a direct rename would be a no-op there.
+    sameFileTarget =
+      (await Bun.file(candidate).exists()) && (await sameFile(candidate, location.filePath))
+    const occupied = (await Bun.file(candidate).exists()) && !sameFileTarget
+    // Renaming onto a name that merely *folds* onto another list would leave the
+    // two mutually unaddressable — the same refusal `new` and `rename` give.
+    const collision = occupied
+      ? null
+      : await listNameCollision(location.type, document.displayName, location.filePath, sameFile)
     if (occupied) {
       result.warnings.push(`not renamed to '${targetBase}': another list already has that file`)
+    } else if (collision) {
+      result.warnings.push(`not renamed to '${targetBase}': ${collision.message}`)
     } else {
       targetPath = candidate
       result.renamedTo = targetBase
@@ -343,10 +338,25 @@ export async function cleanupList(
   if (options.dryRun) return result
 
   if (targetPath !== location.filePath) {
-    await renameListFile(location.filePath, targetPath)
+    // A rename-only cleanup does not rewrite content, so the still-valid hash
+    // sidecar travels with the file — the shared movers own that, and the whole
+    // sidecar set, so a future sidecar kind cannot be left behind here.
+    if (sameFileTarget) {
+      await renameListThroughTemp(location.filePath, targetPath)
+    } else {
+      await moveListFileAndSidecars(location.filePath, targetPath)
+    }
   }
   if (result.rewritten) {
-    await writeFileWithHash(targetPath, document.canonical)
+    // Refresh the `.sha256` only when it matched the file before cleanup ran.
+    // Stamping a file that holds unrecorded hand edits would make detect-changes
+    // skip it and drop the edits' changelog entries — cleanup canonicalizes
+    // formatting, it does not get to declare someone else's edits recorded.
+    if (await isRitualClean(targetPath, document.original)) {
+      await writeFileWithHash(targetPath, document.canonical)
+    } else {
+      await fs.writeFile(targetPath, document.canonical)
+    }
   }
   return result
 }

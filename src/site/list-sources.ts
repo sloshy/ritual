@@ -5,6 +5,7 @@ import { parseTitleFromContent } from '../section-format'
 import { listDeckFiles, readDeckName } from '../importers/text-file'
 import { normalizeListName } from '../resolve-list'
 import { filterBySelection, includesAllLists } from './list-selection'
+import { isListMarkdownFile } from '../list-file-name'
 
 /** A list file discovered on disk, with both names a selection can match on. */
 export type ListSourceEntry = {
@@ -57,9 +58,7 @@ export async function discoverListSources(
       basenames = (await listDeckFiles(dir)).map((f) => f.slice(0, -3))
     } else {
       const files = await fs.readdir(dir)
-      basenames = files
-        .filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
-        .map((f) => f.slice(0, -3))
+      basenames = files.filter(isListMarkdownFile).map((f) => f.slice(0, -3))
     }
   } catch {
     return []

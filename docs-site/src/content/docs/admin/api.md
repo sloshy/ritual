@@ -62,15 +62,26 @@ returns `400` and the deck is not created.
 Create, rename, and delete answer identically for **every** list type — decks, collections, and
 wanted lists share one handler apiece, differing only in how a slug resolves to a file:
 
-| Operation | Success body                          |
-| --------- | ------------------------------------- |
-| Create    | `{ success: true, message, slug }`    |
-| Rename    | `{ success: true, message, newSlug }` |
-| Delete    | `{ success: true, message }`          |
+| Operation | Success body                                                    |
+| --------- | --------------------------------------------------------------- |
+| Create    | `{ success: true, message, slug }`                              |
+| Rename    | `{ success: true, message, newSlug, newFilePath, oldFilePath }` |
+| Delete    | `{ success: true, message, deletedFiles }`                      |
+
+`newFilePath`/`oldFilePath` are the list's paths after and before the rename; `deletedFiles` is
+every path the delete removed (the list plus whichever sidecars it had).
 
 A refusal is the shared error envelope (`{ success: false, message }`) at the status the refusal
 carries: `400` for a missing or invalid argument, `404` for a list that is not there, `409` for a
 target name already taken.
+
+`409` covers more than a byte-identical file name: create and rename refuse any name that
+[resolves](/commands/list-resolution/#names-that-would-collide-are-refused-at-creation) to an
+existing list of the same type — `atraxa superfriends` is refused while `Atraxa Superfriends`
+exists, with `A deck named 'Atraxa Superfriends' already exists (it matches 'atraxa superfriends'
+under list-name folding).` Renaming a list to another spelling of its own name (a capitalization
+or punctuation fix) is not a collision and succeeds, moving the file and its sidecars even on a
+case-insensitive file system.
 
 ## Rename Deck
 
@@ -94,7 +105,9 @@ Rename a deck. Updates the frontmatter `name` field and renames the file to matc
 {
   "success": true,
   "message": "Renamed deck to 'New Deck Name'",
-  "newSlug": "New Deck Name"
+  "newSlug": "New Deck Name",
+  "newFilePath": "decks/New Deck Name.md",
+  "oldFilePath": "decks/My Commander Deck.md"
 }
 ```
 
@@ -121,7 +134,8 @@ The `confirmName` must match the deck's `name` field exactly. Returns `400` if t
 ```json
 {
   "success": true,
-  "message": "Deleted deck 'My Commander Deck'"
+  "message": "Deleted deck 'My Commander Deck'",
+  "deletedFiles": ["decks/My Commander Deck.md", "decks/My Commander Deck.md.sha256"]
 }
 ```
 
@@ -751,7 +765,7 @@ Create a new collection file, named as the collection is named — see
 POST /api/collection/:slug/rename
 ```
 
-Rename a collection. Replaces the first `# <Title>` line in the file and renames both the `.md` and any `.changes.md` sidecar.
+Rename a collection. Replaces the first `# <Title>` line in the file and renames the `.md` together with every sidecar it has — see [List lifecycle responses](#list-lifecycle-responses).
 
 **Request Body:**
 
@@ -767,7 +781,9 @@ Rename a collection. Replaces the first `# <Title>` line in the file and renames
 {
   "success": true,
   "message": "Renamed collection to 'Renamed Collection'",
-  "newSlug": "Renamed Collection"
+  "newSlug": "Renamed Collection",
+  "newFilePath": "collections/Renamed Collection.md",
+  "oldFilePath": "collections/My Collection.md"
 }
 ```
 
@@ -777,7 +793,7 @@ Rename a collection. Replaces the first `# <Title>` line in the file and renames
 DELETE /api/collection/:slug
 ```
 
-Delete a collection file (and its `.changes.md` sidecar if present). Requires `confirmName` to match the parsed `# Title` exactly.
+Delete a collection file (and every sidecar it has — see [List lifecycle responses](#list-lifecycle-responses)). Requires `confirmName` to match the parsed `# Title` exactly.
 
 **Request Body:**
 
@@ -792,7 +808,8 @@ Delete a collection file (and its `.changes.md` sidecar if present). Requires `c
 ```json
 {
   "success": true,
-  "message": "Deleted collection 'My Collection'"
+  "message": "Deleted collection 'My Collection'",
+  "deletedFiles": ["collections/My Collection.md", "collections/My Collection.md.sha256"]
 }
 ```
 
@@ -904,7 +921,7 @@ Create a new wanted list file, named as the wanted list is named — see
 POST /api/wanted/:slug/rename
 ```
 
-Rename a wanted list. Replaces the first `# <Title>` line in the file and renames both the `.md` and any `.changes.md` sidecar.
+Rename a wanted list. Replaces the first `# <Title>` line in the file and renames the `.md` together with every sidecar it has — see [List lifecycle responses](#list-lifecycle-responses).
 
 **Request Body:**
 
@@ -920,7 +937,9 @@ Rename a wanted list. Replaces the first `# <Title>` line in the file and rename
 {
   "success": true,
   "message": "Renamed wanted list to 'Renamed Wishlist'",
-  "newSlug": "Renamed Wishlist"
+  "newSlug": "Renamed Wishlist",
+  "newFilePath": "wanted/Renamed Wishlist.md",
+  "oldFilePath": "wanted/Holiday Wishlist.md"
 }
 ```
 
@@ -930,7 +949,7 @@ Rename a wanted list. Replaces the first `# <Title>` line in the file and rename
 DELETE /api/wanted/:slug
 ```
 
-Delete a wanted list file (and its `.changes.md` sidecar if present). Requires `confirmName` to match the parsed `# Title` exactly.
+Delete a wanted list file (and every sidecar it has — see [List lifecycle responses](#list-lifecycle-responses)). Requires `confirmName` to match the parsed `# Title` exactly.
 
 **Request Body:**
 
@@ -945,7 +964,8 @@ Delete a wanted list file (and its `.changes.md` sidecar if present). Requires `
 ```json
 {
   "success": true,
-  "message": "Deleted wanted list 'Holiday Wishlist'"
+  "message": "Deleted wanted list 'Holiday Wishlist'",
+  "deletedFiles": ["wanted/Holiday Wishlist.md", "wanted/Holiday Wishlist.md.sha256"]
 }
 ```
 

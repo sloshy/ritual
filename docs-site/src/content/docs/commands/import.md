@@ -97,7 +97,10 @@ For URL and text-file imports:
 - A text file import without `--type` defaults to a **deck** (logged, so the defaulting is
   visible). Pass `--type` to import a collection or wanted list.
 - A name/ID conflict with an existing list fails with a usage error (exit code `2`) instead of
-  prompting — pass `--overwrite` or `--yes` to replace the existing list. The same error and
+  prompting — pass `--overwrite` or `--yes` to replace the existing list. A name conflict is
+  judged by [list-name folding](/commands/list-resolution/#names-that-would-collide-are-refused-at-creation),
+  not by the file name alone, so importing `atraxa superfriends` beside `Atraxa Superfriends.md`
+  is a conflict rather than a second, mutually-unaddressable list. The same error and
   exit code apply whenever [prompts are unavailable](/#when-prompts-are-unavailable), including
   a plain piped run without `--no-input`.
 
@@ -236,7 +239,9 @@ and CSV. Under `--dry-run` the preview line says it instead
 (`[dry-run] Would overwrite collection 'Red Binder' with 12 card(s): ...`), and the JSON
 payload carries `replacesExisting: true`.
 
-By default the import **creates** a new list and refuses to touch an existing one. Pass
+By default the import **creates** a new list and refuses to touch an existing one — including a
+list whose name merely [folds onto](/commands/list-resolution/#names-that-would-collide-are-refused-at-creation)
+the one being imported. Pass
 `--overwrite` to replace an existing list, or `--append` to add the cards to it
 (`--overwrite` and `--append` are mutually exclusive). `--yes` auto-answers an existing-file
 conflict with overwrite, like it does for URL and text-file imports. Interactively, when a

@@ -3,8 +3,11 @@ import {
   matchList,
   listTypeFromFlags,
   formatResolveListError,
+  isListArgumentConflict,
   isResolveListError,
+  normalizeListName,
   parseListArgument,
+  resolveListArgument,
   RESOLVE_HINTS,
   type ListLocation,
   type ResolveListError,
@@ -57,6 +60,57 @@ describe('matchList', () => {
 
     const kebab = loc('deck', 'black-panther')
     expect(matchList([kebab], 'Black Panther')).toBe(kebab)
+  })
+
+  it('takes a byte-exact name over a folded collision', () => {
+    // The trap this tier exists for: two decks that fold to the same name. Each
+    // is still addressable by its own exact spelling.
+    const titled = loc('deck', 'Atraxa Superfriends')
+    const lower = loc('deck', 'atraxa superfriends')
+    expect(matchList([titled, lower], 'Atraxa Superfriends')).toBe(titled)
+    expect(matchList([titled, lower], 'atraxa superfriends')).toBe(lower)
+    // Anything that is neither spelling stays ambiguous.
+    expect(isResolveListError(matchList([titled, lower], 'ATRAXA SUPERFRIENDS'))).toBe(true)
+  })
+
+  it('applies the byte-exact tier after the .md/whitespace clean-up only', () => {
+    const exact = loc('deck', 'Burn')
+    const folded = loc('deck', 'burn')
+    expect(matchList([exact, folded], '  Burn.md  ')).toBe(exact)
+  })
+
+  it('lets a byte-exact match beat a folded-exact match on another list', () => {
+    const kebab = loc('deck', 'mono-red')
+    const spaced = loc('deck', 'Mono Red')
+    expect(matchList([kebab, spaced], 'mono-red')).toBe(kebab)
+  })
+
+  it('lets a byte-exact match win over candidates it is a substring of', () => {
+    // Discriminating: `Burn` and `burn` fold together, so without the byte-exact
+    // tier this is ambiguous rather than a hit.
+    const short = loc('deck', 'Burn')
+    const lower = loc('deck', 'burn')
+    const longer = loc('deck', 'Burn Incremental')
+    expect(matchList([short, lower, longer], 'Burn')).toBe(short)
+  })
+
+  it('is ambiguous when byte-identical names exist in two types', () => {
+    const deck = loc('deck', 'Staples')
+    const collection = loc('collection', 'Staples')
+    expect(matchList([deck, collection], 'Staples')).toEqual({
+      kind: 'ambiguous',
+      query: 'Staples',
+      matches: [deck, collection],
+    })
+  })
+
+  it('resolves a display name whose filename-illegal punctuation was stripped', () => {
+    // `new deck "Atraxa: Praetors' Voice"` writes this file; the name the user
+    // typed has to find it again.
+    const list = loc('deck', "Atraxa Praetors' Voice")
+    expect(matchList([list], "Atraxa: Praetors' Voice")).toBe(list)
+    expect(matchList([list], 'Atraxa Praetors Voice')).toBe(list)
+    expect(matchList([list], "atraxa: praetors' voice")).toBe(list)
   })
 
   it('reports a hyphen/space collision as ambiguous rather than guessing', () => {
@@ -235,15 +289,23 @@ describe('formatResolveListError', () => {
     )
   })
 
-  it('offers no example name when every match normalizes to the query', () => {
-    // `Storm Crow.md` and `storm-crow.md` normalize identically, so suggesting
-    // either one would reproduce this same error.
+  it('asks for an exact full name when every match folds to the query', () => {
+    // `Storm Crow.md` and `storm-crow.md` fold identically, so a longer name
+    // cannot help — but either spelled exactly resolves via the byte-exact tier.
     const err = ambiguous('Storm Crow', [loc('deck', 'Storm Crow'), loc('deck', 'storm-crow')])
     for (const hint of RESOLVE_HINTS) {
       expect(formatResolveListError(err, hint)).toEndWith(
-        'Type more of the name to narrow the match.',
+        "Type one list's exact full name, spelled and capitalized as its file is (e.g. 'Storm Crow').",
       )
     }
+  })
+
+  it('offers no example name when the matches are byte-identical', () => {
+    // The same file name under two list types: no name breaks this tie.
+    const err = ambiguous('Staples', [loc('deck', 'Staples'), loc('collection', 'Staples')])
+    expect(formatResolveListError(err, 'none')).toEndWith(
+      'Type more of the name to narrow the match.',
+    )
   })
 
   it('skips a self-referential example in favor of one that would resolve', () => {
@@ -267,6 +329,63 @@ describe('formatResolveListError', () => {
     expect(formatResolveListError(err, 'type-prefix')).toEndWith(
       "Type more of the name to narrow the match (e.g. 'Burn').",
     )
+  })
+})
+
+describe('normalizeListName', () => {
+  const cases: [string, string][] = [
+    ['Goblins', 'goblins'],
+    ['Café Standard', 'cafe standard'],
+    ['winota-stax', 'winota stax'],
+    ['winota_stax', 'winota stax'],
+    ['  Mono   Red  ', 'mono red'],
+    ["Atraxa: Praetors' Voice", 'atraxa praetors voice'],
+    ['Atraxa Praetors Voice', 'atraxa praetors voice'],
+    ['Jace’s Archive', 'jaces archive'],
+    ['What? Why* "Now"', 'what why now'],
+    ['A/B<C>D|E', 'abcde'],
+    ['A\\B', 'ab'],
+    // The sanitizer collapses dot runs and trims edge dots, so the fold must too
+    // — `new deck "Mono-U Tron... Redux"` writes `Mono-U Tron. Redux.md`.
+    ['Mono-U Tron... Redux', 'mono u tron. redux'],
+    ['.Hidden.', 'hidden'],
+  ]
+  for (const [input, expected] of cases) {
+    it(`folds ${JSON.stringify(input)} to ${JSON.stringify(expected)}`, () => {
+      expect(normalizeListName(input)).toBe(expected)
+    })
+  }
+})
+
+describe('resolveListArgument', () => {
+  it('takes the prefix when no type flag is set', () => {
+    expect(resolveListArgument('deck:Burn', undefined)).toEqual({ type: 'deck', name: 'Burn' })
+  })
+
+  it('takes the flag when the name has no prefix', () => {
+    expect(resolveListArgument('Burn', 'collection')).toEqual({
+      type: 'collection',
+      name: 'Burn',
+    })
+  })
+
+  it('accepts a prefix that agrees with the flag', () => {
+    expect(resolveListArgument('deck:Burn', 'deck')).toEqual({ type: 'deck', name: 'Burn' })
+  })
+
+  it('refuses a prefix that contradicts the flag, naming both', () => {
+    const result = resolveListArgument('deck:Trade Binder', 'collection')
+    expect(isListArgumentConflict(result)).toBe(true)
+    if (!isListArgumentConflict(result)) throw new Error('expected a conflict')
+    expect(result.message).toContain("'deck:Trade Binder'")
+    expect(result.message).toContain('--collection')
+  })
+
+  it('treats an unknown prefix as part of the name, flag intact', () => {
+    expect(resolveListArgument('binder:Trades', 'collection')).toEqual({
+      type: 'collection',
+      name: 'binder:Trades',
+    })
   })
 })
 

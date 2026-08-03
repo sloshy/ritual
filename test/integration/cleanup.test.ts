@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { cleanupAllLists, type CleanupResult } from '../../src/commands/cleanup'
+import { cleanupAllLists, cleanupList, type CleanupResult } from '../../src/commands/cleanup'
 import { parseDeckFrontMatter } from '../../src/deck-file'
 import type { DeckFormatSignal } from '../../src/deck-format'
-import { hashPath } from '../../src/content-hash'
+import { computeHash, hashPath, writeFileWithHash } from '../../src/content-hash'
 import { runCli } from './helpers/cli'
 import {
   bindWorkspace,
@@ -45,8 +45,22 @@ describe('cleanup (Integration)', () => {
     const content = await fs.readFile(filePath, 'utf-8')
     // Title from the file name, uppercase set code, default finish/condition omitted.
     expect(content).toBe('# Binder\n\n## Main\n- Sol Ring (LTC:284) &1\n')
-    // The hash sidecar is written alongside the rewrite.
-    expect(await Bun.file(hashPath(filePath)).exists()).toBeTrue()
+    // The file was hand-written, so it had no matching sidecar and gets none:
+    // stamping one would make detect-changes call the hand-added card recorded.
+    expect(await Bun.file(hashPath(filePath)).exists()).toBeFalse()
+  })
+
+  test('refreshes the hash sidecar of a file that was already Ritual-clean', async () => {
+    const filePath = path.join(dir(), 'collections', 'Binder.md')
+    const original = '# Binder\n\n## Main\n- Sol Ring (ltc:284) [nonfoil] &1\n'
+    await writeFileWithHash(filePath, original)
+
+    const results = await cleanupAllLists()
+
+    expect(resultFor(results, 'Binder.md')).toMatchObject({ rewritten: true })
+    const content = await fs.readFile(filePath, 'utf-8')
+    expect(content).toBe('# Binder\n\n## Main\n- Sol Ring (LTC:284) &1\n')
+    expect(await Bun.file(hashPath(filePath)).text()).toBe(computeHash(content) + '\n')
   })
 
   test('reports a quantity-prefixed line without refusing to rewrite the file', async () => {
@@ -116,6 +130,20 @@ describe('cleanup (Integration)', () => {
       renamedTo: 'Trade Binder.md',
     })
     expect(await Bun.file(path.join(dir(), 'collections', 'Trade Binder.md')).exists()).toBeTrue()
+  })
+
+  test('refuses a name-derived rename that would fold onto another list', async () => {
+    // Renaming `trade binder.md` to `Trade-Binder.md` would leave the two lists
+    // mutually unaddressable, so cleanup reports it instead.
+    await writeCollectionFile(dir(), 'trade binder', { title: 'Trade-Binder', entries: [] })
+    await writeCollectionFile(dir(), 'Trade Binder', { title: 'Trade Binder', entries: [] })
+
+    const results = await cleanupAllLists()
+
+    const result = resultFor(results, 'trade binder.md')
+    expect(result.renamedTo).toBeUndefined()
+    expect(result.warnings.join('\n')).toContain('already exists')
+    expect(await Bun.file(path.join(dir(), 'collections', 'trade binder.md')).exists()).toBeTrue()
   })
 
   test('prompts for a commander deck instead of silently inferring its format', async () => {
@@ -229,6 +257,32 @@ describe('cleanup (Integration)', () => {
     expect(await Bun.file(keptPath).exists()).toBeTrue()
     expect(await fs.readFile(keptPath, 'utf-8')).toContain('Winota, Joiner of Forces')
     expect(await fs.readFile(occupiedPath, 'utf-8')).toBe(occupiedContent)
+  })
+
+  test('a case-only rename onto the same file actually changes the spelling on disk', async () => {
+    // What a case-insensitive file system produces: the destination path names
+    // the source file. The seam makes the branch reachable on a case-sensitive
+    // one — where the outcome is indistinguishable from a direct rename, so
+    // this pins that cleanup takes the two-step path and leaves no temp file,
+    // not that the two paths differ here.
+    const filePath = await writeDeckFile(dir(), 'winota stax', {
+      frontMatter: { name: 'Winota Stax', format: 'commander' },
+      cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+    })
+    const originalInode = (await fs.stat(filePath)).ino
+
+    const result = await cleanupList(
+      { type: 'deck', name: 'winota stax', filePath },
+      { isSameFile: async () => true },
+    )
+
+    expect(result.renamedTo).toBe('Winota Stax.md')
+    const newPath = path.join(dir(), 'decks', 'Winota Stax.md')
+    expect(await Bun.file(newPath).exists()).toBeTrue()
+    expect((await fs.stat(newPath)).ino).toBe(originalInode)
+    expect(
+      (await fs.readdir(path.join(dir(), 'decks'))).filter((f) => f.startsWith('.ritual-rename')),
+    ).toEqual([])
   })
 
   test('refuses a rename onto a distinct list whose name differs only in case', async () => {

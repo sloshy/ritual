@@ -65,12 +65,17 @@ describe('rename CLI (Integration)', () => {
         oldSlug: string
         newSlug: string
         name: string
+        newFilePath: string
+        oldFilePath: string
       }
+      const filePath = path.join(dir, 'collections', 'main.md')
       expect(payload).toEqual({
         type: 'collection',
         oldSlug: 'main',
         newSlug: 'main',
         name: 'main',
+        newFilePath: filePath,
+        oldFilePath: filePath,
       })
 
       const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
@@ -87,6 +92,61 @@ describe('rename CLI (Integration)', () => {
       expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain('already exists')
       expect(await exists(path.join(dir, 'collections', 'a.md'))).toBe(true)
+    })
+  })
+
+  test('the JSON payload carries both file paths on a move', async () => {
+    await withWorkspace(async (dir) => {
+      await writeCollectionFile(dir, 'main', { title: 'Main', entries: [] })
+
+      const result = await runCli(
+        ['rename', 'collection:main', 'Trade Binder', '--output', 'json'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      const payload = JSON.parse(result.stdout) as { newFilePath: string; oldFilePath: string }
+      expect(payload.oldFilePath).toBe(path.join(dir, 'collections', 'main.md'))
+      expect(payload.newFilePath).toBe(path.join(dir, 'collections', 'Trade Binder.md'))
+    })
+  })
+
+  test('refuses a rename onto a name that merely folds onto another list', async () => {
+    await withWorkspace(async (dir) => {
+      await writeCollectionFile(dir, 'Trade Binder', { title: 'Trade Binder', entries: [] })
+      await writeCollectionFile(dir, 'Spares', { title: 'Spares', entries: [] })
+
+      const result = await runCli(['rename', 'collection:Spares', 'trade-binder'], dir)
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain("A collection named 'Trade Binder' already exists")
+      expect(await exists(path.join(dir, 'collections', 'Spares.md'))).toBe(true)
+    })
+  })
+
+  test('re-spelling a list under its own folded name is allowed, sidecars following', async () => {
+    // On Linux the destination is a different file, so this exercises the
+    // ordinary move path — the same-file two-step is unit-tested with the seam.
+    await withWorkspace(async (dir) => {
+      await seedDeckWithSidecars(dir)
+      const decksDir = path.join(dir, 'decks')
+
+      const result = await runCli(['rename', 'deck:test', 'TEST'], dir)
+      expect(result.exitCode).toBe(0)
+      expect(await exists(path.join(decksDir, 'TEST.md'))).toBe(true)
+      expect(await exists(path.join(decksDir, 'TEST.changes.md'))).toBe(true)
+      expect(await exists(path.join(decksDir, 'TEST.primer.md'))).toBe(true)
+      expect(await exists(path.join(decksDir, 'test.md'))).toBe(false)
+    })
+  })
+
+  test('a type prefix contradicting a type flag is a usage error naming both', async () => {
+    await withWorkspace(async (dir) => {
+      await writeCollectionFile(dir, 'Trade Binder', { title: 'Trade Binder', entries: [] })
+
+      const result = await runCli(['rename', 'deck:Trade Binder', 'Whatever', '--collection'], dir)
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain("'deck:Trade Binder'")
+      expect(result.stderr).toContain('--collection')
+      expect(await exists(path.join(dir, 'collections', 'Trade Binder.md'))).toBe(true)
     })
   })
 
@@ -109,8 +169,24 @@ describe('delete CLI (Integration)', () => {
       )
       expect(result.exitCode).toBe(0)
 
-      const payload = JSON.parse(result.stdout) as { type: string; slug: string; deleted: boolean }
-      expect(payload).toEqual({ type: 'deck', slug: 'test', deleted: true })
+      const decksDirForPayload = path.join(dir, 'decks')
+      const payload = JSON.parse(result.stdout) as {
+        type: string
+        slug: string
+        deleted: boolean
+        deletedFiles: string[]
+      }
+      expect(payload).toEqual({
+        type: 'deck',
+        slug: 'test',
+        deleted: true,
+        deletedFiles: [
+          path.join(decksDirForPayload, 'test.md'),
+          path.join(decksDirForPayload, 'test.md.sha256'),
+          path.join(decksDirForPayload, 'test.changes.md'),
+          path.join(decksDirForPayload, 'test.primer.md'),
+        ],
+      })
 
       // All four files are gone — the .sha256 sidecar is not orphaned.
       const decksDir = path.join(dir, 'decks')
@@ -140,6 +216,20 @@ describe('delete CLI (Integration)', () => {
       expect(result.exitCode).toBe(2)
       expect(result.stderr).toContain('--confirm')
       expect(await exists(filePath)).toBe(true)
+    })
+  })
+
+  test('a type prefix contradicting a type flag is a usage error, deleting nothing', async () => {
+    await withWorkspace(async (dir) => {
+      await writeCollectionFile(dir, 'Trade Binder', { title: 'Trade Binder', entries: [] })
+
+      const result = await runCli(
+        ['delete', 'deck:Trade Binder', '--collection', '--confirm', 'Trade Binder'],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('--collection')
+      expect(await exists(path.join(dir, 'collections', 'Trade Binder.md'))).toBe(true)
     })
   })
 

@@ -23,6 +23,7 @@ import {
   type StagedFile,
 } from './move-io'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
+import { isListMarkdownFile } from '../list-file-name'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -101,7 +102,7 @@ export async function loadAllLists(): Promise<ListEntry[]> {
   const collectionsDir = getCollectionsDir()
   try {
     const files = await fs.readdir(collectionsDir)
-    for (const fileName of files.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))) {
+    for (const fileName of files.filter(isListMarkdownFile)) {
       const filePath = path.join(collectionsDir, fileName)
       const name = await listDisplayName('collection', filePath)
       lists.push({ ref: { type: 'collection', name }, filePath })
@@ -113,7 +114,7 @@ export async function loadAllLists(): Promise<ListEntry[]> {
   const wantedDir = getWantedDir()
   try {
     const files = await fs.readdir(wantedDir)
-    for (const fileName of files.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))) {
+    for (const fileName of files.filter(isListMarkdownFile)) {
       const filePath = path.join(wantedDir, fileName)
       const name = await listDisplayName('wanted', filePath)
       lists.push({ ref: { type: 'wanted', name }, filePath })

@@ -19,6 +19,10 @@ type RenameResult = {
   oldSlug: string
   newSlug: string
   name: string
+  /** Where the list lives now — the path the text output prints. */
+  newFilePath: string
+  /** Where it lived before, so a script can follow the move without rebuilding it. */
+  oldFilePath: string
 }
 
 export function registerRenameCommand(program: Command): void {
@@ -72,6 +76,8 @@ async function runRename(
     oldSlug,
     newSlug: result.newSlug,
     name: newName,
+    newFilePath: result.newFilePath,
+    oldFilePath: result.oldFilePath,
   }
   emitOutput(payload, scripting)
 }

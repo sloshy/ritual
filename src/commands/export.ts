@@ -28,11 +28,12 @@ import {
 } from '../export/presets'
 import { renderExport, saveExportPreset } from '../export/output'
 import {
+  isListArgumentConflict,
   isResolveListError,
   listLocations,
   listTypeFromFlags,
-  parseListArgument,
   resolveList,
+  resolveListArgument,
   type ListLocation,
 } from '../resolve-list'
 import { getExportPresets } from '../ritual-config'
@@ -257,8 +258,16 @@ async function runFlagExport(
   // Selected lists: named args, or every list in scope when --all (or nothing) was given.
   const selected: ListLocation[] = []
   for (const raw of listArgs) {
-    const arg = parseListArgument(raw)
-    const resolved = await resolveList(arg.name, arg.type ?? type)
+    // A `deck:`/`collection:`/`wanted:` prefix supplies the type; one that
+    // contradicts the whole-command type flag is a usage error, not a silent
+    // override of the flag.
+    const arg = resolveListArgument(raw, type)
+    if (isListArgumentConflict(arg)) {
+      emitError('usage_error', arg.message, textOptions)
+      process.exitCode = ExitCode.UsageError
+      return
+    }
+    const resolved = await resolveList(arg.name, arg.type)
     if (isResolveListError(resolved)) {
       // `export` takes any number of list arguments, so the whole-command type
       // flags cannot scope one of them — the per-argument prefix can.

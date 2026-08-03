@@ -1633,18 +1633,39 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(parsed.cards).toBeUndefined()
   })
 
-  test('rename_list renames a list on disk', async () => {
+  test('rename_list renames a list on disk and reports both file paths', async () => {
     const renamed = await callTool(client, 'rename_list', {
       listType: 'wanted',
       slug: 'wishlist',
       newName: 'Big Wants',
     })
     expect(renamed.isError).toBeFalsy()
+    const paths = toolData<{ newFilePath: string; oldFilePath: string }>(renamed)
+    expect(paths.oldFilePath.endsWith('wishlist.md')).toBe(true)
+    expect(paths.newFilePath.endsWith('Big Wants.md')).toBe(true)
+
     const lists = toolData<{
       lists: { slug: string }[]
     }>(await callTool(client, 'list_lists', { listType: 'wanted' }))
     expect(lists.lists.map((l) => l.slug)).toContain('Big Wants')
     expect(lists.lists.map((l) => l.slug)).not.toContain('wishlist')
+  })
+
+  test('create_list inherits the engine collision refusal', async () => {
+    const created = await callTool(client, 'create_list', {
+      listType: 'collection',
+      name: 'Trade Binder',
+    })
+    expect(created.isError).toBeFalsy()
+
+    // Folds onto the list just created — refused rather than making both
+    // unaddressable by name.
+    const collided = await callTool(client, 'create_list', {
+      listType: 'collection',
+      name: 'trade-binder',
+    })
+    expect(collided.isError).toBe(true)
+    expect(firstText(collided)).toContain("A collection named 'Trade Binder' already exists")
   })
 
   test('delete_list enforces the confirmName guard', async () => {
@@ -1661,6 +1682,8 @@ describe('Ritual MCP server (in-memory transport)', () => {
       confirmName: 'Test Deck',
     })
     expect(right.isError).toBeFalsy()
+    const deleted = toolData<{ deletedFiles: string[] }>(right)
+    expect(deleted.deletedFiles.some((f) => f.endsWith('test-deck.md'))).toBe(true)
 
     const lists = toolData<{
       lists: { slug: string }[]

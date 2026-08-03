@@ -198,9 +198,9 @@ Because the CSV is keyed by Scryfall ID, rows never need name matching — but a
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                                            |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `0`  | Export written                                                                                                                                                                                                     |
-| `1`  | Runtime error (for example, the output file could not be written)                                                                                                                                                  |
-| `2`  | Usage error (conflicting type flags, unknown column or dialect, invalid filter, column/dialect/CSV flags with `--format text`/`--format md`, ambiguous list name, or a bare `export` where the wizard cannot open) |
-| `3`  | Not found (unknown list or preset)                                                                                                                                                                                 |
+| Code | Meaning                                                                                                                                                                                                                                                     |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Export written                                                                                                                                                                                                                                              |
+| `1`  | Runtime error (for example, the output file could not be written)                                                                                                                                                                                           |
+| `2`  | Usage error (conflicting type flags, a type prefix contradicting a type flag, unknown column or dialect, invalid filter, column/dialect/CSV flags with `--format text`/`--format md`, ambiguous list name, or a bare `export` where the wizard cannot open) |
+| `3`  | Not found (unknown list or preset)                                                                                                                                                                                                                          |

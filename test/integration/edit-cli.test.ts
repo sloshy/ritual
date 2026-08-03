@@ -40,6 +40,15 @@ describe('ritual edit [listName] resolution (Integration)', () => {
     expect(result.stderr).toContain("No deck, collection, or wanted list named 'No Such List'")
   })
 
+  test('a type prefix contradicting a type flag is a usage error naming both', async () => {
+    // Distinct wiring from `card-target`'s: `edit` resolves its own argument
+    // before the interactive gate, so it is reachable headlessly.
+    const result = await runCli(['edit', 'deck:Staples', '--collection'], dir)
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain("'deck:Staples'")
+    expect(result.stderr).toContain('--collection')
+  })
+
   test('conflicting type flags exit 2', async () => {
     const result = await runCli(['edit', 'Staples', '--deck', '--wanted'], dir)
     expect(result.exitCode).toBe(2)

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { createAddChange } from '../../src/change-event'
 import { resetCardSessionTracking, saveCardSession } from '../../src/commands/card-session'
-import { newListSession, type OpenList } from '../../src/commands/edit-lists'
+import { newListSession, pendingListCollision, type OpenList } from '../../src/commands/edit-lists'
 import { listFilePath } from '../../src/resolve-list'
 import type { DeckSessionConfig } from '../../src/commands/deck-helpers'
 import type { ListType } from '../../src/list-type'
@@ -143,5 +143,28 @@ describe('a pending list creation as a session change (Integration)', () => {
     expect(dropped).toEqual([file])
     expect(open.strategy.discarded?.()).toBe(true)
     expect(await exists(file)).toBe(false)
+  })
+})
+
+describe('in-session name collisions (Integration)', () => {
+  test('a second new list whose name folds onto the first is refused', async () => {
+    // Neither list is on disk yet, so the on-disk check cannot see the first —
+    // saving both would leave the pair mutually unaddressable.
+    const first = createList('deck', 'Atraxa Superfriends')
+    const open = [first]
+
+    expect(pendingListCollision(open, 'deck', 'atraxa superfriends')).toBe(first)
+    expect(pendingListCollision(open, 'deck', 'Atraxa: Superfriends')).toBe(first)
+    // A different type is a different namespace, and a genuinely different name
+    // is free.
+    expect(pendingListCollision(open, 'collection', 'atraxa superfriends')).toBeUndefined()
+    expect(pendingListCollision(open, 'deck', 'Atraxa Infect')).toBeUndefined()
+  })
+
+  test('a list already on disk is left to the on-disk check', () => {
+    // Only *pending* creations are this check's business; an opened list is
+    // already covered by `listNameCollision`, which enumerates the filesystem.
+    const opened: OpenList = { ...createList('deck', 'Fresh Brew'), isNew: () => false }
+    expect(pendingListCollision([opened], 'deck', 'fresh brew')).toBeUndefined()
   })
 })

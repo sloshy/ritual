@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getCollectionsDir } from '../../ritual-config'
 import { parseTitleFromContent } from '../../section-format'
+import { isListMarkdownFile } from '../../list-file-name'
 
 type CollectionListItem = { slug: string; name: string }
 
@@ -13,7 +14,7 @@ export async function handleListCollections(): Promise<Response> {
   const collectionsDir = getCollectionsDir()
   try {
     const files = await fs.readdir(collectionsDir)
-    const collectionFiles = files.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
+    const collectionFiles = files.filter(isListMarkdownFile)
     const collections = await Promise.all(
       collectionFiles.map(async (f) => {
         const slug = f.replace(/\.md$/, '')

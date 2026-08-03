@@ -125,7 +125,10 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
     'rename_list',
     {
       title: 'Rename list',
-      description: 'Rename a deck, collection, or wanted list (changes its display name and slug).',
+      description:
+        'Rename a deck, collection, or wanted list (changes its display name, slug, and file ' +
+        'path). Refused when another list of that type already resolves under the new name; ' +
+        'changing only the capitalization or punctuation of this list’s own name is allowed.',
       inputSchema: z.object({ listType: listTypeSchema, slug: slugField, newName: newNameField }),
       outputSchema: fromJsonSchema<RenameListResult>(RENAME_LIST_OUTPUT),
       annotations: { destructiveHint: true },
@@ -147,7 +150,8 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
     {
       title: 'Delete list',
       description:
-        'Delete a deck, collection, or wanted list. confirmName must match its display name.',
+        'Delete a deck, collection, or wanted list and every sidecar it has. confirmName must ' +
+        'match its display name exactly; the deleted paths come back in deletedFiles.',
       inputSchema: z.object({
         listType: listTypeSchema,
         slug: slugField,

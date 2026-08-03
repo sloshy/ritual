@@ -21,8 +21,11 @@ Conventions shared by every one-shot command:
 - The first argument is the list **name** (file basename, no \`.md\`). It is resolved
   across all three types unless you pass \`--deck\`, \`--collection\`, or \`--wanted\`
   (or prefix the name: \`deck:burn\`, \`collection:Main Binder\`, \`wanted:To Buy\`).
+  A prefix that contradicts the type flag (\`deck:burn --collection\`) is a usage
+  error, not a silent override — pass one or the other.
   An ambiguous name is an error; when the matches are all the same type, the fix is
-  typing more of the name, not a type flag.
+  typing more of the name (or its full name exactly as the file spells it, which
+  always wins outright), not a type flag.
 - The card is matched by name (case-, accent-, and punctuation-insensitive).
   \`add-card\` matches the name against Scryfall's cards — splitting what you pass on
   whitespace and requiring **every term** to appear in the name, in any order, so

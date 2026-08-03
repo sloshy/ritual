@@ -89,7 +89,35 @@ describe('list-lifecycle engine', () => {
       unwrap(await createList('deck', 'Existing'))
       const error = unwrapError(await createList('deck', 'Existing'))
       expect(error.kind).toBe('already-exists')
-      expect(error.message).toContain("A deck with slug 'Existing' already exists")
+      expect(error.message).toContain("A deck named 'Existing' already exists")
+    })
+
+    test('refuses a name that only folds onto an existing list of the same type', async () => {
+      // The audit's repro: both decks would be permanently unaddressable by the
+      // folded name, so the second creation is refused instead.
+      unwrap(await createList('deck', 'Atraxa Superfriends'))
+      const error = unwrapError(await createList('deck', 'atraxa superfriends'))
+      expect(error.kind).toBe('already-exists')
+      expect(error.message).toBe(
+        "A deck named 'Atraxa Superfriends' already exists (it matches 'atraxa superfriends' under list-name folding).",
+      )
+      expect(await exists(path.join(decksDir, 'atraxa superfriends.md'))).toBe(false)
+    })
+
+    test.each([
+      ['punctuation', 'Mono-Red Burn', 'Mono Red Burn'],
+      ['accents', 'Cafe Standard', 'Café Standard'],
+      ['a stripped colon', 'Atraxa Praetors Voice', "Atraxa: Praetors' Voice"],
+      ['an apostrophe', "Praetors' Voice", 'Praetors Voice'],
+    ])('refuses a second deck differing only by %s', async (_label, first, second) => {
+      unwrap(await createList('deck', first))
+      expect(unwrapError(await createList('deck', second)).kind).toBe('already-exists')
+    })
+
+    test('a folded name in another list type is not a collision', async () => {
+      unwrap(await createList('deck', 'Staples'))
+      const collection = unwrap<CreateListSuccess>(await createList('collection', 'staples'))
+      expect(await exists(collection.filePath)).toBe(true)
     })
   })
 
@@ -207,6 +235,105 @@ describe('list-lifecycle engine', () => {
       expect(error.kind).toBe('already-exists')
     })
 
+    test('refuses a rename onto a name that folds onto another list', async () => {
+      await fs.writeFile(path.join(collectionsDir, 'Trade Binder.md'), '# Trade Binder\n\n')
+      await fs.writeFile(path.join(collectionsDir, 'Spares.md'), '# Spares\n\n')
+
+      const error = unwrapError(
+        await renameList('collection', path.join(collectionsDir, 'Spares.md'), 'trade-binder'),
+      )
+      expect(error.kind).toBe('already-exists')
+      expect(error.message).toContain("A collection named 'Trade Binder' already exists")
+      expect(await exists(path.join(collectionsDir, 'Spares.md'))).toBe(true)
+    })
+
+    test('a folded name held by another list type is not a collision', async () => {
+      await fs.writeFile(path.join(decksDir, 'Staples.md'), '---\nname: Staples\n---\n\n## Main\n')
+      const filePath = path.join(collectionsDir, 'Binder.md')
+      await fs.writeFile(filePath, '# Binder\n\n')
+
+      const result = unwrap<RenameListSuccess>(await renameList('collection', filePath, 'staples'))
+      expect(result.newFilePath).toBe(path.join(collectionsDir, 'staples.md'))
+    })
+
+    test('a case-only rename is not a collision with the list itself', async () => {
+      // On a case-insensitive file system the destination path *is* the source
+      // file. The seam makes that reachable here; the two-step move is what
+      // actually changes the spelling on disk.
+      const filePath = path.join(collectionsDir, 'binder.md')
+      await fs.writeFile(filePath, '# binder\n\n- Sol Ring (C19:221) &1\n')
+      await fs.writeFile(path.join(collectionsDir, 'binder.changes.md'), '# Changelog\n')
+      const originalInode = (await fs.stat(filePath)).ino
+
+      const result = unwrap<RenameListSuccess>(
+        await renameList('collection', filePath, 'Binder', { isSameFile: async () => true }),
+      )
+
+      expect(result.newSlug).toBe('Binder')
+      expect(result.oldFilePath).toBe(filePath)
+      const newPath = path.join(collectionsDir, 'Binder.md')
+      expect(result.newFilePath).toBe(newPath)
+      expect(await fs.readFile(newPath, 'utf-8')).toBe('# Binder\n\n- Sol Ring (C19:221) &1\n')
+      // Every sidecar followed, and no temp file was left behind.
+      expect(await exists(path.join(collectionsDir, 'Binder.changes.md'))).toBe(true)
+      expect(await exists(path.join(collectionsDir, 'binder.changes.md'))).toBe(false)
+      expect(
+        (await fs.readdir(collectionsDir)).filter((f) => f.startsWith('.ritual-rename')),
+      ).toEqual([])
+      // The discriminator between the two rename branches: the two-step move
+      // renames the *same* inode, where the ordinary path writes a new file and
+      // unlinks the old one.
+      expect((await fs.stat(newPath)).ino).toBe(originalInode)
+    })
+
+    test('a same-file destination moves the .sha256 and primer sidecars too', async () => {
+      const filePath = path.join(decksDir, 'burn.md')
+      const content = '---\nname: burn\nformat: modern\n---\n\n# burn\n\n## Main\n'
+      await fs.writeFile(filePath, content)
+      await fs.writeFile(`${filePath}.sha256`, computeHash(content) + '\n')
+      await fs.writeFile(path.join(decksDir, 'burn.primer.md'), '# Primer\n')
+      const originalInode = (await fs.stat(filePath)).ino
+
+      const result = unwrap<RenameListSuccess>(
+        await renameList('deck', filePath, 'Burn', { isSameFile: async () => true }),
+      )
+
+      const newPath = path.join(decksDir, 'Burn.md')
+      expect(result.newFilePath).toBe(newPath)
+      expect(await exists(`${newPath}.sha256`)).toBe(true)
+      expect(await exists(path.join(decksDir, 'Burn.primer.md'))).toBe(true)
+      expect(await exists(path.join(decksDir, 'burn.primer.md'))).toBe(false)
+      // The hash was refreshed for the rewritten display name, so the file stays
+      // Ritual-clean.
+      const renamed = await fs.readFile(newPath, 'utf-8')
+      expect(await fs.readFile(`${newPath}.sha256`, 'utf-8')).toBe(computeHash(renamed) + '\n')
+      expect(result.touchedFiles).toContain(newPath)
+      expect(result.touchedFiles).toContain(filePath)
+      // The two-step move renames the file in place rather than writing a new one.
+      expect((await fs.stat(newPath)).ino).toBe(originalInode)
+    })
+
+    test('a same-file destination drops a stale .sha256 rather than carrying it', async () => {
+      // The one outcome that differs between the two rename branches: a
+      // hand-edited file must not keep a sidecar that would make detect-changes
+      // call it clean and drop its edits' changelog entries.
+      const filePath = path.join(decksDir, 'burn.md')
+      const content = '---\nname: burn\nformat: modern\n---\n\n# burn\n\n## Main\n'
+      await fs.writeFile(filePath, content)
+      await fs.writeFile(`${filePath}.sha256`, computeHash('some earlier content') + '\n')
+      const originalInode = (await fs.stat(filePath)).ino
+
+      const result = unwrap<RenameListSuccess>(
+        await renameList('deck', filePath, 'Burn', { isSameFile: async () => true }),
+      )
+
+      const newPath = path.join(decksDir, 'Burn.md')
+      expect(result.newFilePath).toBe(newPath)
+      expect(await exists(`${newPath}.sha256`)).toBe(false)
+      expect(await exists(`${filePath}.sha256`)).toBe(false)
+      expect((await fs.stat(newPath)).ino).toBe(originalInode)
+    })
+
     test('reports a missing source file as not-found', async () => {
       const error = unwrapError(
         await renameList('collection', path.join(collectionsDir, 'Missing.md'), 'Whatever'),
@@ -227,7 +354,7 @@ describe('list-lifecycle engine', () => {
 
       const result = unwrap<DeleteListSuccess>(await deleteList('deck', filePath))
 
-      expect(result.touchedFiles).toEqual([
+      expect(result.deletedFiles).toEqual([
         filePath,
         `${filePath}.sha256`,
         path.join(decksDir, 'Doomed.changes.md'),
@@ -244,7 +371,7 @@ describe('list-lifecycle engine', () => {
       await fs.writeFile(filePath, '# Bare\n\n')
 
       const result = unwrap<DeleteListSuccess>(await deleteList('collection', filePath))
-      expect(result.touchedFiles).toEqual([filePath])
+      expect(result.deletedFiles).toEqual([filePath])
     })
 
     test('reports a missing file as not-found', async () => {

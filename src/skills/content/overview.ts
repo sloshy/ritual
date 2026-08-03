@@ -29,14 +29,20 @@ workspace if it contains \`decks/\`, \`collections/\`, or \`wanted/\` folders, o
   admin Settings page, or the MCP \`update_config\` tool writes it)
 
 A list is addressed by its **name** = the file basename without \`.md\`
-(e.g. \`decks/Winota Stax.md\` → \`Winota Stax\`). Most commands resolve a name across
-all three types, ignoring case, accents, and separators (so \`cafe\` matches \`Café\`,
-and \`winota-stax\` matches \`Winota Stax\`); when a name matches lists of **different**
+(e.g. \`decks/Winota Stax.md\` → \`Winota Stax\`). A name typed **exactly** as the file
+spells it always selects that one list, before any folding — the escape hatch when
+two names look alike. Otherwise most commands resolve a name across all three types,
+ignoring case, accents, separators, apostrophes, and the punctuation a file name
+cannot hold (so \`cafe\` matches \`Café\`, \`winota-stax\` matches \`Winota Stax\`, and
+\`Atraxa: Praetors' Voice\` matches the \`Atraxa Praetors' Voice.md\` that name created);
+then by unique substring. When a name matches lists of **different**
 types, pass a type flag (\`--deck\`, \`--collection\`, \`--wanted\`) or prefix the name
 (\`deck:staples\`) — commands taking more than one list (\`diff\`'s two sides,
 \`export\`'s list arguments, \`move\`'s \`--from\`/\`--to\`) suggest the prefix, since one
-whole-command flag cannot scope a single argument. When the matches are all the **same** type, no type
-selector can help: type more of the name. The error's last line always names the
+whole-command flag cannot scope a single argument. A prefix that contradicts a type
+flag (\`delete deck:X --collection\`) is a usage error, not a silent override. When the
+matches are all the **same** type, no type selector can help: type more of the name,
+or the full name exactly as spelled. The error's last line always names the
 remedy that actually applies.
 
 **Discovering lists:** \`ritual lists\` is the discovery primitive — it enumerates
@@ -45,10 +51,15 @@ every deck, collection, and wanted list as \`type slug name\` rows. Filter with
 \`{type, slug, name}\` objects. Prefer it over globbing the workspace folders.
 
 **List lifecycle:** \`ritual new <deck|collection|wanted> "<name>"\` creates a list
-(\`-f/--format\` for decks), \`ritual rename <list> "<new name>"\` renames one (file,
-sidecars, and front matter together), and \`ritual delete <list> --confirm "<name>"\`
-deletes one (\`--confirm\` must repeat the display name; without it a terminal
-prompts). \`ritual diff <listA> <listB>\` compares any two lists by card name
+(\`-f/--format\` for decks, default \`commander\`), \`ritual rename <list> "<new name>"\`
+renames one (file, sidecars, and front matter together), and
+\`ritual delete <list> --confirm "<name>"\` deletes one (\`--confirm\` must repeat the
+display name; without it a terminal prompts). \`new\` and \`rename\` **refuse** a name
+that resolves to an existing list of the same type — \`atraxa superfriends\` beside
+\`Atraxa Superfriends\` is an error, not a second deck — so no two lists ever share
+one addressable name; re-spelling a list's own name (capitalization, punctuation) is
+allowed. \`rename --output json\` returns \`newFilePath\`/\`oldFilePath\`, and
+\`delete --output json\` returns \`deletedFiles\`. \`ritual diff <listA> <listB>\` compares any two lists by card name
 (\`--by printing\` for exact printings).
 
 **File naming:** creating a list names its file exactly as the list is named — case,

@@ -28,6 +28,7 @@ import {
 import { writeFileWithHash } from '../content-hash'
 import { unreadableContentMessage, unreadableLines } from '../markdown-fence'
 import { unusableFileNameMessage } from '../list-file-name'
+import { listNameCollision } from '../list-lifecycle'
 import { createAddChange, isSamePrinting, type ChangeEvent } from '../change-event'
 import { appendChangelog } from '../changelog-writer'
 import {
@@ -230,9 +231,18 @@ async function createList(
     return { error: unusableFileNameMessage(target.name) }
   }
 
-  if (target.mode === 'create' && (await Bun.file(filePath).exists())) {
-    return {
-      error: `File already exists: ${filePath}. Use overwrite or append mode to change it.`,
+  if (target.mode === 'create') {
+    if (await Bun.file(filePath).exists()) {
+      return {
+        error: `File already exists: ${filePath}. Use overwrite or append mode to change it.`,
+      }
+    }
+    // A name that merely *folds* onto an existing list would leave the two
+    // mutually unaddressable by every name-resolving command — the same refusal
+    // `new`, `rename`, and the editors give.
+    const collision = await listNameCollision(target.listType, target.name)
+    if (collision) {
+      return { error: `${collision.message} Use overwrite or append mode to change it.` }
     }
   }
 

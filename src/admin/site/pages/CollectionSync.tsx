@@ -16,6 +16,7 @@ import type {
   UnreadableList,
 } from '../../../collection-sync/engine'
 import { describeAmbiguousRemoval, type AmbiguousRemoval } from '../../../collection-sync/describe'
+import { normalizeListName } from '../../../list-file-name'
 import { unreadableConsequence, type SyncDirection } from '../../../sync-common'
 import { AmbiguousRemovalsPanel, RemovalPriorityPicker } from '../components/AmbiguousRemovals'
 import { ArchidektLoginForm, ArchidektSessionAlert } from '../components/ArchidektSession'
@@ -93,22 +94,14 @@ type TargetOption = {
 }
 
 /**
- * Whether two names would name the same list, folding case and separators the
- * way the server's `normalizeListName` does — so a target configured as
- * `Blue Binder` is recognized as the `blue-binder` list rather than as a list
- * that does not exist yet. Mirrored rather than imported: the server's version
- * lives in `resolve-list.ts`, which reads the filesystem and cannot be bundled
- * into the browser.
+ * Whether two names would name the same list, folded exactly as the server folds
+ * them — so a target configured as `Blue Binder` is recognized as the
+ * `blue-binder` list rather than as a list that does not exist yet. The fold is
+ * *imported*, not mirrored: `normalizeListName` lives in the browser-safe
+ * `list-file-name.ts` precisely so this picker cannot drift from the resolver.
  */
 function sameListTarget(a: string, b: string): boolean {
-  const fold = (name: string): string =>
-    name
-      .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '')
-      .toLowerCase()
-      .replace(/[-_\s]+/g, ' ')
-      .trim()
-  return fold(a) === fold(b)
+  return normalizeListName(a) === normalizeListName(b)
 }
 
 /** Whether an option stands for `name`, by the slug it sends or the heading it shows. */

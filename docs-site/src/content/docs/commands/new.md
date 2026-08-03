@@ -19,13 +19,13 @@ Create a new deck, collection, or wanted list file.
 
 ## Options
 
-| Option                  | Description                                         | Default     |
-| ----------------------- | --------------------------------------------------- | ----------- |
-| `-f, --format <format>` | Deck format (decks only; e.g., standard, commander) | `commander` |
-| `--output <format>`     | Output format: `text`, `json`, or `ndjson`          | `text`      |
-| `--quiet`               | Suppress non-essential output                       | `false`     |
+| Option                  | Description                                                                                                                              | Default     |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `-f, --format <format>` | Deck format (decks only) — see [Formats](#formats) below; `--help` points here, and passing an invalid value lists every accepted format | `commander` |
+| `--output <format>`     | Output format: `text`, `json`, or `ndjson`                                                                                               | `text`      |
+| `--quiet`               | Suppress non-essential output                                                                                                            | `false`     |
 
-Passing `--format` for a collection or wanted list is a usage error.
+Passing `--format` for a collection or wanted list is a usage error. Omitting `--format` on a deck creates a **Commander** deck.
 
 ## Formats
 
@@ -83,6 +83,13 @@ escape the directory). So `Atraxa: Praetors' Voice` is stored as
 `decks/Atraxa Praetors' Voice.md`, while the `name:` front matter keeps the colon. A name
 left with nothing usable (`"???"`) is an error, and no file is written.
 
+Because a name is also how you address a list later, `new` refuses a name that would
+[resolve](/commands/list-resolution/#names-that-would-collide-are-refused-at-creation) to a
+list of the same type that already exists — not just one that lands on the same file name.
+Creating `atraxa superfriends` beside an existing `Atraxa Superfriends.md` is refused with
+`A deck named 'Atraxa Superfriends' already exists (it matches 'atraxa superfriends' under
+list-name folding)`, rather than creating a second deck neither name could reach.
+
 Decks, collections, and wanted lists are all named this way, by every surface that creates
 one — the CLI, the editors, imports, and the admin site.
 
@@ -99,8 +106,8 @@ or hand-written deck stops being a guess after its first edit.
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                  |
-| ---- | -------------------------------------------------------------------------------------------------------- |
-| `0`  | Success                                                                                                  |
-| `2`  | Usage error (unknown type, unknown format, `--format` on a non-deck, unusable name, list already exists) |
-| `1`  | Runtime error                                                                                            |
+| Code | Meaning                                                                                                                               |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success                                                                                                                               |
+| `2`  | Usage error (unknown type, unknown format, `--format` on a non-deck, unusable name, a name that already resolves to an existing list) |
+| `1`  | Runtime error                                                                                                                         |

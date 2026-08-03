@@ -19,6 +19,7 @@ import {
   type ScriptingOptions,
 } from './scripting'
 import type { DeckData } from '../types'
+import { isListMarkdownFile } from '../list-file-name'
 
 export type UniqueCardEntry = {
   name: string
@@ -86,7 +87,7 @@ async function readMarkdownFiles(dir: string, ctx: CollectContext): Promise<stri
     }
     return []
   }
-  return files.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
+  return files.filter(isListMarkdownFile)
 }
 
 async function collectFromDecks(dir: string, ctx: CollectContext): Promise<void> {

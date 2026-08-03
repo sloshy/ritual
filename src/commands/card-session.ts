@@ -14,6 +14,7 @@ import { formatSetCodesForDisplay, parseSetCodesInput } from '../set-codes'
 import { matchesAllNameTerms, rankNameMatches } from '../term-match'
 import { promptExitMenu } from './prompts-helpers'
 import { ExitCode } from './scripting'
+import { isListMarkdownFile } from '../list-file-name'
 
 /**
  * Shared engine for the unified `edit` command's interactive card-entry
@@ -301,9 +302,7 @@ export async function ensureListFile(
 export async function listMarkdownNames(dir: string): Promise<string[]> {
   await fs.mkdir(dir, { recursive: true })
   const files = await fs.readdir(dir)
-  return files
-    .filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
-    .map((f) => f.replace('.md', ''))
+  return files.filter(isListMarkdownFile).map((f) => f.replace('.md', ''))
 }
 
 /** The CLI flags every card-entry command shares for its initial session filters. */

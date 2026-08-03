@@ -1,7 +1,7 @@
 import path from 'node:path'
 import type { DeckFormatKey } from '../deck-format'
 import { LIST_TYPE_DISPLAY, listTypeLabel, type ListType } from '../list-type'
-import { dirForType } from '../resolve-list'
+import { dirForType, normalizeListName } from '../resolve-list'
 import type { DeckData } from '../types'
 import {
   createCardSessionContext,
@@ -44,6 +44,29 @@ export type OpenList = {
    * everything else.
    */
   isNew: () => boolean
+}
+
+/**
+ * The list created *earlier in this session* that a new `name` would fold onto,
+ * if any — the in-session twin of `listNameCollision`.
+ *
+ * A list created in the editor exists in memory until the session is saved, so
+ * the on-disk check cannot see it. Without this, two lists created in one
+ * session whose names fold together would both be written on save, leaving the
+ * pair mutually unaddressable by every name-resolving command — the very trap
+ * the creation refusal exists to prevent.
+ */
+export function pendingListCollision(
+  open: Iterable<OpenList>,
+  type: ListType,
+  name: string,
+): OpenList | undefined {
+  const normalized = normalizeListName(name)
+  for (const list of open) {
+    if (!list.isNew() || list.ref.type !== type) continue
+    if (normalizeListName(list.ref.name) === normalized) return list
+  }
+  return undefined
 }
 
 /** A list's icon and name, as shown wherever lists are mixed together. */

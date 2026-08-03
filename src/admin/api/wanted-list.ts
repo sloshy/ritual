@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getWantedDir } from '../../ritual-config'
 import { parseTitleFromContent } from '../../section-format'
+import { isListMarkdownFile } from '../../list-file-name'
 
 type WantedListItem = { slug: string; name: string }
 
@@ -13,7 +14,7 @@ export async function handleListWantedLists(): Promise<Response> {
   const wantedListsDir = getWantedDir()
   try {
     const files = await fs.readdir(wantedListsDir)
-    const wantedListFiles = files.filter((f) => f.endsWith('.md') && !f.endsWith('.changes.md'))
+    const wantedListFiles = files.filter(isListMarkdownFile)
     const wantedLists = await Promise.all(
       wantedListFiles.map(async (f) => {
         const slug = f.replace(/\.md$/, '')

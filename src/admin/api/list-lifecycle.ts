@@ -44,22 +44,24 @@ export interface ListCreateResponse {
   slug: string
 }
 
-/** `POST /api/{deck,collection,wanted}/:slug/rename` — the slug the list moved to. */
+/** `POST /api/{deck,collection,wanted}/:slug/rename` — where the list moved to. */
 export interface ListRenameResponse {
   success: true
   message: string
   newSlug: string
+  /** The list's path after the rename — a client should not have to rebuild it. */
+  newFilePath: string
+  /** Its path before, so a client holding the old path can follow the move. */
+  oldFilePath: string
 }
 
 /** `DELETE /api/{deck,collection,wanted}/:slug` — the list is gone. */
 export interface ListDeleteResponse {
   success: true
   message: string
+  /** Every file removed: the list plus whichever sidecars it had. */
+  deletedFiles: string[]
 }
-
-type CreateRequest = { name: string }
-type RenameRequest = { newName: string }
-type DeleteRequest = { confirmName: string }
 
 /** Map a lifecycle-engine refusal onto the shared error envelope. */
 export function lifecycleErrorResponse(error: ListLifecycleError): Response {
@@ -76,9 +78,11 @@ export function handleListCreate(req: Request, cfg: ListLifecycleConfig): Promis
   return apiHandler(async () => {
     const parsed = await readJsonObjectBody(req)
     if (!parsed.ok) return parsed.response
-    const { name } = parsed.body as unknown as CreateRequest
+    // Left as `unknown` rather than cast to a request shape: the checks below
+    // are what narrow it, so a forgotten one is a compile error.
+    const { name } = parsed.body
 
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    if (typeof name !== 'string' || name.trim().length === 0) {
       return apiError(`${capitalize(cfg.label)} name is required`, 400)
     }
 
@@ -108,9 +112,9 @@ export function handleListRename(req: Request, cfg: ListLifecycleConfig): Promis
 
     const parsed = await readJsonObjectBody(req)
     if (!parsed.ok) return parsed.response
-    const { newName } = parsed.body as unknown as RenameRequest
+    const { newName } = parsed.body
 
-    if (!newName || typeof newName !== 'string' || newName.trim().length === 0) {
+    if (typeof newName !== 'string' || newName.trim().length === 0) {
       return apiError(`New ${cfg.label} name is required`, 400)
     }
 
@@ -131,6 +135,8 @@ export function handleListRename(req: Request, cfg: ListLifecycleConfig): Promis
       success: true,
       message: `Renamed ${cfg.label} to '${trimmedName}'`,
       newSlug: result.newSlug,
+      newFilePath: result.newFilePath,
+      oldFilePath: result.oldFilePath,
     }
     return Response.json(resp)
   })
@@ -143,9 +149,9 @@ export function handleListDelete(req: Request, cfg: ListLifecycleConfig): Promis
 
     const parsed = await readJsonObjectBody(req)
     if (!parsed.ok) return parsed.response
-    const { confirmName } = parsed.body as unknown as DeleteRequest
+    const { confirmName } = parsed.body
 
-    if (!confirmName || typeof confirmName !== 'string') {
+    if (typeof confirmName !== 'string' || confirmName.length === 0) {
       return apiError('confirmName is required', 400)
     }
 
@@ -163,13 +169,14 @@ export function handleListDelete(req: Request, cfg: ListLifecycleConfig): Promis
     // Auto-commit if enabled (git add stages deletions of tracked files).
     await autoCommitAndPush(
       cfg.getDir(),
-      result.touchedFiles,
+      result.deletedFiles,
       `Delete ${cfg.label}: ${displayName}`,
     )
 
     const resp: ListDeleteResponse = {
       success: true,
       message: `Deleted ${cfg.label} '${displayName}'`,
+      deletedFiles: result.deletedFiles,
     }
     return Response.json(resp)
   })
