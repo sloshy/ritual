@@ -56,7 +56,7 @@ export type SetsPromptResponse = { sets?: string }
  * than a `__` prefix check, because real card names can begin with underscores
  * (e.g. the Unstable card `_____ Goblin`) and must not be mistaken for menu items.
  */
-export const MENU_SENTINELS: ReadonlySet<string> = new Set([
+const MENU_SENTINEL_VALUES = [
   '__ADD_ANOTHER__',
   '__ADD_SIMILAR__',
   '__ADD_NOTE__',
@@ -76,11 +76,46 @@ export const MENU_SENTINELS: ReadonlySet<string> = new Set([
   '__UNDO_LAST__',
   '__UNDO_EDIT__',
   '__CHANGES__',
-])
+] as const satisfies readonly `__${string}__`[]
+
+/**
+ * A session-menu shortcut value, as opposed to a card name. Produce menu
+ * choices through {@link menuItem} and compare against a narrowed value of this
+ * type, so a typo'd sentinel is a compile error rather than a string that
+ * silently falls through to the card-name path at runtime.
+ */
+export type MenuSentinel = (typeof MENU_SENTINEL_VALUES)[number]
+
+/** Widened to `Set<string>` so membership checks accept arbitrary prompt input. */
+const MENU_SENTINELS = new Set<string>(MENU_SENTINEL_VALUES)
+
+/** A session-menu choice, its value pinned to a real sentinel. Assignable to {@link Choice}. */
+export type MenuChoice = { title: string; value: MenuSentinel }
+
+/** Build a session-menu choice, constraining the value to a real sentinel. */
+export function menuItem(title: string, value: MenuSentinel): MenuChoice {
+  return { title, value }
+}
+
+/** Whether a prompt value is exactly a known sentinel (vs. a card name or object choice). */
+export function isMenuSentinel(value: unknown): value is MenuSentinel {
+  return typeof value === 'string' && MENU_SENTINELS.has(value)
+}
 
 /** A choice is a menu item (vs. a card) when its value is exactly a known sentinel. */
-export const isMenuChoice = (choice: Choice): boolean =>
-  typeof choice.value === 'string' && MENU_SENTINELS.has(choice.value)
+export const isMenuChoice = (choice: Choice): boolean => isMenuSentinel(choice.value)
+
+/** Narrow a prompt selection to the menu sentinel it is, or null for a card/entry choice. */
+export const asMenuSentinel = (value: unknown): MenuSentinel | null =>
+  isMenuSentinel(value) ? value : null
+
+/**
+ * Suffix a name-mode `!` selection carries on its choice value to force the
+ * option prompts. Not a {@link MenuSentinel}: it rides on a card-name value
+ * rather than being a selection of its own, and is stripped before the name is
+ * used. Menu items never carry it ({@link suggestNameMode} exempts them).
+ */
+const FORCE_SUFFIX = '__FORCE__'
 
 // ── Choice values & prompt responses ────────────────────────────────
 
@@ -227,10 +262,10 @@ export type CardSessionStrategy = {
    */
   saveTarget: ListSaveTarget | null
   sessionConfig: SessionConfig
-  /** Extra menu entries inserted after the note shortcut in both modes (values must be in {@link MENU_SENTINELS}). */
-  extraMenuItems?: () => Choice[]
-  /** Handle a strategy-specific sentinel; returns true when it was handled. */
-  handleSentinel?: (ctx: CardSessionContext, value: string) => Promise<boolean>
+  /** Extra menu entries inserted after the note shortcut in both modes. */
+  extraMenuItems?: () => MenuChoice[]
+  /** Handle a strategy-specific sentinel; any sentinel it does not recognize is ignored. */
+  handleSentinel?: (ctx: CardSessionContext, value: MenuSentinel) => Promise<void>
   /** Re-prompt session filters and return the reloaded card-name list. */
   updateConfig: (excludeDigitalOnly: boolean) => Promise<string[]>
   /** Apply a change to the in-memory list model (not written to disk until {@link persist}). */
@@ -688,7 +723,7 @@ function buildSaveAndSwitchItems(input: MenuBuildInput): Choice[] {
   const { changeCount, multiList } = input
   const currentUnsaved = changeCount > 0 || input.dirty === true
   if (!multiList) {
-    return currentUnsaved ? [{ title: saveLabel(changeCount), value: '__SAVE__' }] : []
+    return currentUnsaved ? [menuItem(saveLabel(changeCount), '__SAVE__')] : []
   }
 
   const items: Choice[] = []
@@ -699,21 +734,22 @@ function buildSaveAndSwitchItems(input: MenuBuildInput): Choice[] {
       multiList.totalChangeCount > 0
         ? `${multiList.totalChangeCount} across ${multiList.listsWithChanges} lists`
         : `${multiList.listsWithChanges} lists`
-    items.push({ title: `💾 Save all changes (${scope})`, value: '__SAVE__' })
+    items.push(menuItem(`💾 Save all changes (${scope})`, '__SAVE__'))
     if (currentUnsaved && !multiList.scoped) {
-      items.push({
-        title:
+      items.push(
+        menuItem(
           changeCount > 0
             ? `💾 Save current list changes (${changeCount})`
             : '💾 Save current list changes',
-        value: '__SAVE_CURRENT__',
-      })
+          '__SAVE_CURRENT__',
+        ),
+      )
     }
   } else if (multiList.listsWithChanges === 1) {
     // Only one list has anything unsaved, so save-all and save-current coincide.
-    items.push({ title: saveLabel(multiList.totalChangeCount), value: '__SAVE__' })
+    items.push(menuItem(saveLabel(multiList.totalChangeCount), '__SAVE__'))
   }
-  items.push({ title: '🔀 Switch List', value: '__SWITCH_LIST__' })
+  items.push(menuItem('🔀 Switch List', '__SWITCH_LIST__'))
   return items
 }
 
@@ -750,28 +786,28 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
   const modeItems: Choice[] =
     mode === 'name'
       ? [
-          { title: '⚙️  Configure Session Filters', value: '__CONFIG__' },
-          { title: '🔢 Switch to Collector Number Mode', value: '__COLLECTOR_MODE__' },
+          menuItem('⚙️  Configure Session Filters', '__CONFIG__'),
+          menuItem('🔢 Switch to Collector Number Mode', '__COLLECTOR_MODE__'),
         ]
       : [
-          {
-            title: `📦 Manage Set Codes (Active: ${activeSet.toUpperCase() || 'none'})`,
-            value: '__MANAGE_SETS__',
-          },
-          { title: '🔤 Switch to Name Mode', value: '__NAME_MODE__' },
+          menuItem(
+            `📦 Manage Set Codes (Active: ${activeSet.toUpperCase() || 'none'})`,
+            '__MANAGE_SETS__',
+          ),
+          menuItem('🔤 Switch to Name Mode', '__NAME_MODE__'),
         ]
 
   const undoItems: Choice[] = [
     ...(sessionAdds.length > 0
       ? [
-          {
-            title: `↩️  Undo Last Add (${sessionAdds[sessionAdds.length - 1]!.name})`,
-            value: '__UNDO_LAST__',
-          },
+          menuItem(
+            `↩️  Undo Last Add (${sessionAdds[sessionAdds.length - 1]!.name})`,
+            '__UNDO_LAST__',
+          ),
         ]
       : []),
     ...(editUndoLabel !== null
-      ? [{ title: `↩️  Undo Last Edit (${editUndoLabel})`, value: '__UNDO_EDIT__' }]
+      ? [menuItem(`↩️  Undo Last Edit (${editUndoLabel})`, '__UNDO_EDIT__')]
       : []),
   ]
 
@@ -779,34 +815,34 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
   // add-mode shortcuts (copies, notes, filters) only make sense while adding.
   const actionItems: Choice[] =
     sessionMode === 'edit'
-      ? [...undoItems, { title: '➕ Switch to Add Mode', value: '__ADD_MODE__' }]
+      ? [...undoItems, menuItem('➕ Switch to Add Mode', '__ADD_MODE__')]
       : [
           ...(lastAdded
             ? [
-                { title: `➕ Add Exact Copy (${lastAdded.name})`, value: '__ADD_ANOTHER__' },
-                {
-                  title: `➕ Add Similar Copy (${lastAdded.name}, choose new options)`,
-                  value: '__ADD_SIMILAR__',
-                },
+                menuItem(`➕ Add Exact Copy (${lastAdded.name})`, '__ADD_ANOTHER__'),
+                menuItem(
+                  `➕ Add Similar Copy (${lastAdded.name}, choose new options)`,
+                  '__ADD_SIMILAR__',
+                ),
                 ...(!lastAdded.hasNote
-                  ? [{ title: `📝 Add Note (${lastAdded.name})`, value: '__ADD_NOTE__' }]
+                  ? [menuItem(`📝 Add Note (${lastAdded.name})`, '__ADD_NOTE__')]
                   : []),
-                { title: `✏️  Edit Previous Card (${lastAdded.name})`, value: '__EDIT_LAST__' },
+                menuItem(`✏️  Edit Previous Card (${lastAdded.name})`, '__EDIT_LAST__'),
               ]
             : []),
           ...undoItems,
           ...extraItems,
           ...modeItems,
-          { title: '🛠️  Switch to Edit Mode (edit existing cards)', value: '__EDIT_MODE__' },
+          menuItem('🛠️  Switch to Edit Mode (edit existing cards)', '__EDIT_MODE__'),
         ]
 
   return [
     ...actionItems,
     ...(sessionChangeCount > 0
-      ? [{ title: `📋 View Session Changes (${sessionChangeCount})`, value: '__CHANGES__' }]
+      ? [menuItem(`📋 View Session Changes (${sessionChangeCount})`, '__CHANGES__')]
       : []),
     ...buildSaveAndSwitchItems(input),
-    { title: '🚪 Exit', value: '__EXIT__' },
+    menuItem('🚪 Exit', '__EXIT__'),
     ...cardChoices,
   ]
 }
@@ -868,7 +904,7 @@ export function suggestNameMode(input: string, choices: Choice[]): Choice[] {
         : {
             ...m,
             title: `${m.title} (Force Options)`,
-            value: `${m.value}__FORCE__`,
+            value: `${m.value}${FORCE_SUFFIX}`,
           },
     )
   }
@@ -1148,14 +1184,17 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
       },
     })) as CardSelectionResponse
 
+    // The menu shortcut this selection is, or null for a card/entry choice.
+    const menuAction = asMenuSentinel(response.cardName)
+
     // In a multi-list session, Esc backs out to the list selection menu (like
     // Switch List) rather than exiting — unsaved changes stay in memory.
-    if (multiList && (isExited || response.cardName === '__SWITCH_LIST__')) {
+    if (multiList && (isExited || menuAction === '__SWITCH_LIST__')) {
       console.log('Returning to list selection.')
       return { reason: 'switch', cardNames }
     }
 
-    if (isExited || response.cardName === '__EXIT__') {
+    if (isExited || menuAction === '__EXIT__') {
       if (multiList) {
         if (!(await confirmMultiListExit(multiList))) continue
         return { reason: 'exit', cardNames }
@@ -1170,22 +1209,19 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
       return { reason: 'exit', cardNames }
     }
 
-    if (response.cardName === '__SAVE__') {
-      // In a multi-list session, Save flushes every open list (saveAll also
-      // resets each list's tracking, including this session's ctx).
-      if (multiList) {
-        await multiList.saveAll()
-        continue
-      }
-      await saveCardSession(strategy, ctx)
-      // Everything up to here is committed: the undo/discard menus reset so a
-      // later undo can never claw back changes that are already on disk.
-      resetCardSessionTracking(strategy, ctx)
+    // In a multi-list session, Save flushes every open list (saveAll also
+    // resets each list's tracking, including this session's ctx).
+    if (menuAction === '__SAVE__' && multiList) {
+      await multiList.saveAll()
       continue
     }
 
-    if (response.cardName === '__SAVE_CURRENT__') {
+    // Save the current list: the single-list Save, or Save Current in a
+    // multi-list session.
+    if (menuAction === '__SAVE__' || menuAction === '__SAVE_CURRENT__') {
       await saveCardSession(strategy, ctx)
+      // Everything up to here is committed: the undo/discard menus reset so a
+      // later undo can never claw back changes that are already on disk.
       resetCardSessionTracking(strategy, ctx)
       continue
     }
@@ -1201,18 +1237,18 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
     }
 
     // ── Menu actions ──────────────────────────────────────────────
-    if (response.cardName === '__ADD_ANOTHER__' && ctx.lastAdded) {
+    if (menuAction === '__ADD_ANOTHER__' && ctx.lastAdded) {
       await strategy.addAnotherCopy(ctx)
       continue
     }
 
-    if (response.cardName === '__ADD_SIMILAR__' && ctx.lastAdded) {
+    if (menuAction === '__ADD_SIMILAR__' && ctx.lastAdded) {
       console.log(`Adding a similar copy of ${ctx.lastAdded.name}:`)
       await strategy.handleCard(ctx, similarCopyInput(ctx.lastAdded))
       continue
     }
 
-    if (response.cardName === '__ADD_NOTE__' && ctx.lastAdded) {
+    if (menuAction === '__ADD_NOTE__' && ctx.lastAdded) {
       const target: LastAdded = ctx.lastAdded
       const noteResponse = (await prompts({
         type: 'text',
@@ -1232,24 +1268,24 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
       continue
     }
 
-    if (response.cardName === '__EDIT_MODE__') {
+    if (menuAction === '__EDIT_MODE__') {
       sessionMode = 'edit'
       console.log('Switched to edit mode. Pick an existing card to change or remove it.')
       continue
     }
 
-    if (response.cardName === '__ADD_MODE__') {
+    if (menuAction === '__ADD_MODE__') {
       sessionMode = 'add'
       console.log('Switched to add mode.')
       continue
     }
 
-    if (response.cardName === '__UNDO_EDIT__') {
+    if (menuAction === '__UNDO_EDIT__') {
       await strategy.undoLastEdit(ctx)
       continue
     }
 
-    if (response.cardName === '__COLLECTOR_MODE__') {
+    if (menuAction === '__COLLECTOR_MODE__') {
       if (sessionConfig.collectorSets.length === 0) {
         const setsResponse = (await prompts({
           type: 'text',
@@ -1268,28 +1304,28 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
       continue
     }
 
-    if (response.cardName === '__NAME_MODE__') {
+    if (menuAction === '__NAME_MODE__') {
       sessionConfig.entryMode = 'name'
       console.log('Switched to name mode.')
       continue
     }
 
-    if (response.cardName === '__MANAGE_SETS__') {
+    if (menuAction === '__MANAGE_SETS__') {
       await manageSetCodes(sessionConfig)
       continue
     }
 
-    if (response.cardName === '__CONFIG__') {
+    if (menuAction === '__CONFIG__') {
       cardNames = await strategy.updateConfig(excludeDigitalOnly)
       continue
     }
 
-    if (response.cardName === '__UNDO_LAST__' && strategy.discardSessionAdd) {
+    if (menuAction === '__UNDO_LAST__' && strategy.discardSessionAdd) {
       if (sessionAdds.length > 0) await strategy.discardSessionAdd(ctx, sessionAdds.length - 1)
       continue
     }
 
-    if (response.cardName === '__CHANGES__') {
+    if (menuAction === '__CHANGES__') {
       await viewSessionChanges(strategy, ctx)
       // The session's own list was discarded, so back out to the selection menu.
       if (strategy.discarded?.()) {
@@ -1299,15 +1335,10 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
       continue
     }
 
-    if (
-      typeof response.cardName === 'string' &&
-      MENU_SENTINELS.has(response.cardName) &&
-      response.cardName !== '__EDIT_LAST__'
-    ) {
-      if (strategy.handleSentinel && (await strategy.handleSentinel(ctx, response.cardName))) {
-        continue
-      }
-      // An unhandled sentinel (e.g. __ADD_ANOTHER__ with no last card) is ignored.
+    if (menuAction && menuAction !== '__EDIT_LAST__') {
+      // A sentinel neither the engine nor the strategy handles (e.g.
+      // __ADD_ANOTHER__ with no last card) is ignored.
+      await strategy.handleSentinel?.(ctx, menuAction)
       continue
     }
 
@@ -1317,11 +1348,11 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
 
     if (typeof response.cardName === 'string') {
       cardName = response.cardName
-      if (cardName.endsWith('__FORCE__')) {
-        cardName = cardName.replace('__FORCE__', '')
+      if (cardName.endsWith(FORCE_SUFFIX)) {
+        cardName = cardName.slice(0, -FORCE_SUFFIX.length)
         forcePrompts = true
       }
-      if (cardName === '__EDIT_LAST__') {
+      if (menuAction === '__EDIT_LAST__') {
         if (!ctx.lastAdded) continue
         cardName = ctx.lastAdded.name
         forcePrompts = true

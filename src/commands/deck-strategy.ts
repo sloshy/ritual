@@ -1,4 +1,3 @@
-import type { Choice } from 'prompts'
 import type { DeckData } from '../types'
 import { promptFinishAndCondition, resolveCardPrinting } from './collection-helpers'
 import {
@@ -25,7 +24,14 @@ import {
   undoDeckEdit,
   type DeckSessionState,
 } from './deck-edit'
-import type { CardSessionContext, CardSessionStrategy, SessionAddItem } from './card-session'
+import {
+  menuItem,
+  type CardSessionContext,
+  type CardSessionStrategy,
+  type MenuChoice,
+  type MenuSentinel,
+  type SessionAddItem,
+} from './card-session'
 import { normalizeBoard } from '../deck-sync/diff'
 import {
   createAddChange,
@@ -145,26 +151,16 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     managerLabel: 'deck manager',
     saveTarget: { filePath: deckFile, listName: deckName },
     sessionConfig,
-    extraMenuItems: (): Choice[] => [
-      {
-        title: `🗂️  Set Target Section (${sessionConfig.targetSection ?? 'prompt every time'})`,
-        value: '__SECTION__',
-      },
-      {
-        title: `🏷️  Change Format (${formatDisplay()})`,
-        value: '__FORMAT__',
-      },
+    extraMenuItems: (): MenuChoice[] => [
+      menuItem(
+        `🗂️  Set Target Section (${sessionConfig.targetSection ?? 'prompt every time'})`,
+        '__SECTION__',
+      ),
+      menuItem(`🏷️  Change Format (${formatDisplay()})`, '__FORMAT__'),
     ],
-    handleSentinel: async (_ctx: CardSessionContext, value: string): Promise<boolean> => {
-      if (value === '__SECTION__') {
-        await promptSetTargetSection(state.deck, sessionConfig)
-        return true
-      }
-      if (value === '__FORMAT__') {
-        await changeFormat()
-        return true
-      }
-      return false
+    handleSentinel: async (_ctx: CardSessionContext, value: MenuSentinel): Promise<void> => {
+      if (value === '__SECTION__') await promptSetTargetSection(state.deck, sessionConfig)
+      if (value === '__FORMAT__') await changeFormat()
     },
     updateConfig: (excludeDigital: boolean) =>
       promptDeckConfigUpdate(state.deck, sessionConfig, excludeDigital),
