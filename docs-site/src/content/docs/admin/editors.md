@@ -204,6 +204,14 @@ The same confirmation also appears automatically whenever you navigate away with
 
 Reloading or closing the browser tab with pending changes triggers the browser's own "leave site?" prompt as a final safeguard.
 
+A save re-serializes the whole file from its parsed cards, so it can only be applied to a file the
+parsers read completely. If the file on disk holds a line the parser cannot read — a stray comment,
+a malformed card line — or a [fenced code block](/commands/edit/#fenced-code-blocks), which parses
+cleanly as prose but which the canonical serializer cannot emit, the save is
+[refused with a `400`](/admin/api/#unreadable-lines-block-a-save) naming each offending piece, and
+nothing is written. Fix or remove it in the file and reload. The same content is reported up front
+in the editor's load, so the problem is visible before you start editing.
+
 ---
 
 ## Deck Editor

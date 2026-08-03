@@ -385,11 +385,59 @@ describe('warnings reach every view', () => {
       },
     )
     expect(status).toBe(400)
-    expect(body.message).toContain('1 line(s) the parser cannot read')
+    expect(body.message).toContain('holds content the parser cannot re-emit')
     expect(body.message).toContain('this is not a card line')
     // The file is exactly as it was.
     expect(await Bun.file(path.join(ws.dir, 'decks', 'burn.md')).text()).toContain(
       'this is not a card line',
     )
+  })
+})
+
+describe('a fenced code block reaches the save gate', () => {
+  let stubbed: StubbedFetch
+  let deckPath: string
+  let original: string
+
+  beforeEach(async () => {
+    // A fenced block parses cleanly — no per-line warning — but the canonical
+    // re-emit cannot reproduce it, so the same gate has to refuse the save.
+    deckPath = path.join(ws.dir, 'decks', 'burn.md')
+    original = `${await Bun.file(deckPath).text()}\n\`\`\`\n1 Fake Card &99\n\`\`\`\n`
+    await Bun.write(deckPath, original)
+    await seedCardNames('Lightning Bolt', 'Lava Spike', 'Smash to Smithereens')
+    stubbed = stubFetch({ 'https://api.scryfall.com': () => Response.json({ data: [] }) })
+  })
+
+  afterEach(() => {
+    stubbed.restore()
+  })
+
+  test('load reports it and save refuses, leaving the file byte-identical', async () => {
+    const { body: loaded } = await callJson<DeckLoadResult & { success: true }>(
+      handleDeckLoad,
+      'GET',
+      '/api/deck/burn?view=cards',
+    )
+    expect(loaded.warnings).toEqual([
+      'Fenced code block content (3 line(s)) — read as prose, but a whole-file rewrite would delete it',
+    ])
+    // The fenced card is not one of the deck's cards.
+    expect(JSON.stringify(loaded.deck)).not.toContain('Fake Card')
+
+    const { status, body } = await callJson<{ message: string }>(
+      handleDeckSave,
+      'POST',
+      '/api/deck/burn/save',
+      {
+        changes: [],
+        deck: loaded.deck,
+        frontMatter: loaded.frontMatter,
+        contentHash: loaded.contentHash,
+      },
+    )
+    expect(status).toBe(400)
+    expect(body.message).toContain('Fenced code block content (3 line(s))')
+    expect(await Bun.file(deckPath).text()).toBe(original)
   })
 })

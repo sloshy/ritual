@@ -440,10 +440,12 @@ already exist, but nothing local can set them:
 
 ## Unreadable Lines
 
-A list file may hold lines the parser cannot read — a stray comment, a malformed card line. Both
-directions refuse to sync such a list without confirmation, because both directions would lose
-those lines: a pull rewrites the file (deleting them), and a push treats the file as the truth (so
-the cards on those lines are deleted from your Archidekt collection).
+A list file may hold lines the parser cannot read — a stray comment, a malformed card line — or a
+[fenced code block](/commands/edit/#fenced-code-blocks), which parses cleanly as prose but which the
+canonical serializer cannot re-emit. Both directions refuse to sync such a list without
+confirmation, because both directions would lose that content: a pull rewrites the file (deleting
+it), and a push treats the file as the truth (so the cards on those lines are deleted from your
+Archidekt collection).
 
 ```
 1 collection list contains lines Ritual cannot read.

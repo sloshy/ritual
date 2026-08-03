@@ -29,6 +29,7 @@ import { serializeCardLine } from '../deck-file'
 import { COMMANDER_SECTION, isCommanderSection, isSideboardSection } from '../deck-format'
 import { DEFAULT_SECTION } from '../types'
 import { hashPath, writeFileWithHash } from '../content-hash'
+import { endsInsideOpenFence, frontMatterBodyStart, markFencedLines } from '../markdown-fence'
 import { appendChangelog } from '../changelog-writer'
 import { allocateNextIdFromContent } from '../card-id'
 import {
@@ -170,6 +171,21 @@ export function applyTargetedChangesToContent(
   return out
 }
 
+/**
+ * Thrown when a new card line would be appended to a file that ends inside an
+ * unclosed code fence. The fence grammar runs an unclosed fence to end of file,
+ * so the appended line would be prose: written, reported, and logged to the
+ * changelog, then invisible to every later parse.
+ */
+export function appendIntoOpenFence(): CardCommandError {
+  return new CardCommandError(
+    'usage_error',
+    'The file ends inside an unclosed code fence, so a new card line appended at the end ' +
+      'would be read as prose. Close the fence first.',
+    ExitCode.UsageError,
+  )
+}
+
 /** Thrown when the resolved target's line has vanished between resolve and apply. */
 function targetLineGone(): CardCommandError {
   return new CardCommandError(
@@ -189,8 +205,12 @@ function requireDeck(type: ListType, action: string): void {
 function findTargetLineIndex(lines: string[], type: ListType, target: EntryRef): number {
   // Deck front matter is opaque data, never card lines — skip it so a YAML
   // value can't be misread as (or replaced by) a card line.
-  const start = type === 'deck' ? bodyStart(lines) : 0
+  const start = type === 'deck' ? frontMatterBodyStart(lines) : 0
+  const fenced = markFencedLines(lines, start)
   for (let i = start; i < lines.length; i++) {
+    // A card line inside a fenced code block is the user's prose example: it is
+    // never a mutation target, so an edit can't land in the middle of a snippet.
+    if (fenced[i]) continue
     if (isMatchingLine(type, lines[i]!.trim(), target)) return i
   }
   return -1
@@ -324,26 +344,17 @@ const DECK_HEADING_RE = /^(#{1,6})\s+(.+?)\s*$/
 type HeadingLine = { index: number; level: number; name: string }
 
 /**
- * Index of the first body line, skipping a leading `---` YAML front-matter
- * block. A `# comment` inside front matter must never read as a deck heading —
- * `parseDeckText` strips front matter before it ever sees the body.
- */
-function bodyStart(lines: string[]): number {
-  if (lines[0]?.trim() !== '---') return 0
-  for (let i = 1; i < lines.length; i++) {
-    if (lines[i]!.trim() === '---') return i + 1
-  }
-  return 0 // Unterminated: treat the whole file as body, as gray-matter does.
-}
-
-/**
  * The deck's section headings. A leading level-1 heading with no card lines of
  * its own is the document title (`# My Deck`), not a section — matching
  * `parseDeckText`, which folds such an H1 into the synthetic Main bucket.
  */
 function deckHeadings(lines: string[]): HeadingLine[] {
   const all: HeadingLine[] = []
-  for (let index = bodyStart(lines); index < lines.length; index++) {
+  const start = frontMatterBodyStart(lines)
+  const fenced = markFencedLines(lines, start)
+  for (let index = start; index < lines.length; index++) {
+    // A `## ...` line inside a fenced code block is prose, not a section.
+    if (fenced[index]) continue
     const m = lines[index]!.trim().match(DECK_HEADING_RE)
     if (m) all.push({ index, level: m[1]!.length, name: m[2]! })
   }
@@ -362,8 +373,9 @@ function sectionHasCardLine(
 ): boolean {
   const next = headings.find((h) => h.index > heading.index)
   const end = next ? next.index : lines.length
+  const fenced = markFencedLines(lines, frontMatterBodyStart(lines))
   for (let i = heading.index + 1; i < end; i++) {
-    if (DECK_CARD_LINE_RE.test(lines[i]!.trim())) return true
+    if (!fenced[i] && DECK_CARD_LINE_RE.test(lines[i]!.trim())) return true
   }
   return false
 }
@@ -386,9 +398,12 @@ function headingAbove(headings: HeadingLine[], lineIdx: number): HeadingLine | n
 function insertionIndexFor(lines: string[], headings: HeadingLine[], heading: HeadingLine): number {
   const nextHeading = headings.find((h) => h.index > heading.index)
   const end = nextHeading ? nextHeading.index : lines.length
+  const fenced = markFencedLines(lines, frontMatterBodyStart(lines))
   let insertAt = heading.index + 1
   for (let i = heading.index + 1; i < end; i++) {
-    if (DECK_CARD_LINE_RE.test(lines[i]!.trim())) insertAt = i + 1
+    // A fenced example line is not the section's last card line: inserting
+    // after it would drop the new card inside the code block.
+    if (!fenced[i] && DECK_CARD_LINE_RE.test(lines[i]!.trim())) insertAt = i + 1
   }
   return insertAt
 }
@@ -451,6 +466,7 @@ function moveTargetLine(lines: string[], target: EntryRef, destination: MoveDest
   }
   // Everything else is appended at the end, per findOrCreateSection /
   // resolveDefaultAddSection.
+  if (endsInsideOpenFence(without.join('\n'))) throw appendIntoOpenFence()
   const trimmedEnd = [...without]
   while (trimmedEnd.length > 0 && trimmedEnd[trimmedEnd.length - 1]!.trim() === '') {
     trimmedEnd.pop()
@@ -603,7 +619,11 @@ function findDeckMergeLineIndex(
   card: EntryRef,
   cardId: number | undefined,
 ): number {
-  for (let i = bodyStart(lines); i < lines.length; i++) {
+  const start = frontMatterBodyStart(lines)
+  const fenced = markFencedLines(lines, start)
+  for (let i = start; i < lines.length; i++) {
+    // Copies never merge onto a fenced example line.
+    if (fenced[i]) continue
     const m = lines[i]!.trim().match(DECK_CARD_LINE_RE)
     if (!m) continue
     const lineId = m[8] ? Number.parseInt(m[8], 10) : undefined
@@ -665,13 +685,16 @@ function insertDeckCardLine(lines: string[], cardLine: string, section?: string)
     // last card line rather than appending a `## Main` that would split the
     // deck into two same-named sections on the next parse.
     let lastCard = -1
-    for (let i = bodyStart(lines); i < lines.length; i++) {
-      if (DECK_CARD_LINE_RE.test(lines[i]!.trim())) lastCard = i
+    const start = frontMatterBodyStart(lines)
+    const fenced = markFencedLines(lines, start)
+    for (let i = start; i < lines.length; i++) {
+      if (!fenced[i] && DECK_CARD_LINE_RE.test(lines[i]!.trim())) lastCard = i
     }
     if (lastCard !== -1) {
       return [...lines.slice(0, lastCard + 1), cardLine, ...lines.slice(lastCard + 1)]
     }
   }
+  if (endsInsideOpenFence(lines.join('\n'))) throw appendIntoOpenFence()
   const trimmedEnd = [...lines]
   while (trimmedEnd.length > 0 && trimmedEnd[trimmedEnd.length - 1]!.trim() === '') {
     trimmedEnd.pop()

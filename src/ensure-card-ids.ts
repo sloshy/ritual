@@ -5,6 +5,7 @@ import { allocateId, createIdPool, parseCardIdsFromContent } from './card-id'
 import { DECK_CARD_LINE_RE, isDeckFile } from './importers/text-file'
 import { COLLECTION_CARD_LINE_RE } from './collection-file'
 import { WANTED_CARD_LINE_RE } from './commands/wanted-helpers'
+import { createFenceTracker } from './markdown-fence'
 import { getErrorMessage, hasErrorCode } from './errors'
 import { getCollectionsDir, getDecksDir, getWantedDir } from './ritual-config'
 
@@ -24,6 +25,9 @@ function ensureIds(content: string, options: EnsureIdsOptions): EnsureIdsResult 
   let inFrontMatter = false
   let frontMatterClosed = false
   let added = 0
+  // A card-looking line inside a fenced code block is prose the user wrote —
+  // stamping an `&N` into it would edit their example and burn an id.
+  const fence = createFenceTracker()
   const newLines = lines.map((line, idx) => {
     if (skipFrontMatter && !frontMatterClosed) {
       if (idx === 0 && line.trim() === '---') {
@@ -38,6 +42,7 @@ function ensureIds(content: string, options: EnsureIdsOptions): EnsureIdsResult 
         return line
       }
     }
+    if (fence.feed(line).opaque) return line
     const trimmed = line.trim()
     const match = cardLineRe.exec(trimmed)
     if (!match) return line

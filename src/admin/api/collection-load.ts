@@ -1,3 +1,4 @@
+import { unreadableLines } from '../../markdown-fence'
 import { parseCollectionFile } from '../../collection-file'
 import { getCollectionsDir } from '../../ritual-config'
 import { handleFlatListLoad, type FlatListLoadConfig, type FlatListParseResult } from './list-load'
@@ -7,12 +8,14 @@ const COLLECTION_LOAD_CFG: FlatListLoadConfig<CollectionEntry> = {
   label: 'collection',
   getDir: getCollectionsDir,
   parse: (content): FlatListParseResult<CollectionEntry> => {
-    const { entries, sectionOrder, warnings } = parseCollectionFile(content)
+    const parsed = parseCollectionFile(content)
+    const { entries, sectionOrder } = parsed
     // Set codes are normalized to lowercase so they match Scryfall card keys.
     return {
       entries: entries.map((entry) => ({ ...entry, set: entry.set.toLowerCase() })),
       sectionOrder,
-      warnings,
+      // Fenced code blocks join the parse warnings — see `deck-load.ts`.
+      warnings: unreadableLines(parsed),
     }
   },
 }

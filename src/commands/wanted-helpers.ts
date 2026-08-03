@@ -2,6 +2,7 @@ import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
 import { DEFAULT_SECTION, type Finish, type ScryfallCard } from '../types'
 import { matchSectionHeader } from '../section-format'
+import { createFenceTracker } from '../markdown-fence'
 import { finishChoices, finishRows, isFinish } from './collection-helpers'
 import { getWantedDir } from '../ritual-config'
 import { listFileName, unusableFileNameMessage } from '../list-file-name'
@@ -25,6 +26,12 @@ export type WantedListParseResult = {
   /** Section names in first-seen order, including empty sections that have no entries. */
   sectionOrder: string[]
   warnings: string[]
+  /**
+   * Lines belonging to fenced code blocks (delimiters included). Fenced content
+   * is prose: it yields no entries and no warnings. See {@link unreadableLines}
+   * for why the whole-file save gates still care.
+   */
+  fencedLines: number
 }
 
 /**
@@ -40,12 +47,20 @@ export function parseWantedListFile(content: string): WantedListParseResult {
   const warnings: string[] = []
   let currentSection = DEFAULT_SECTION
   let titleSeen = false
+  // Fenced code blocks are prose: a bullet or `## Heading` inside one is an
+  // example, not list data, and is not an unreadable line either.
+  const fence = createFenceTracker()
+  let fencedLines = 0
 
   const registerSection = (name: string): void => {
     if (!sectionOrder.includes(name)) sectionOrder.push(name)
   }
 
   for (const line of content.split('\n')) {
+    if (fence.feed(line).opaque) {
+      fencedLines++
+      continue
+    }
     const trimmed = line.trim()
     if (trimmed === '') continue
 
@@ -94,7 +109,7 @@ export function parseWantedListFile(content: string): WantedListParseResult {
       section: currentSection,
     })
   }
-  return { entries, sectionOrder, warnings }
+  return { entries, sectionOrder, warnings, fencedLines }
 }
 
 export async function ensureWantedListFile(name: string): Promise<string> {

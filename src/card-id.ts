@@ -7,6 +7,7 @@
  * then fall back to the next sequential number.
  */
 
+import { createFenceTracker, frontMatterBodyStart } from './markdown-fence'
 import type { DeckData } from './types'
 
 export type CardIdPool = {
@@ -164,10 +165,22 @@ export function repackSessionIds(
   return { remap, releasedId }
 }
 
-/** Parse all &N card IDs from file content (any format). */
+/**
+ * Parse all &N card IDs from file content (any format). Fenced code blocks are
+ * prose — an `&N` in an example line is not an id in use, so it neither blocks
+ * nor seeds an allocation.
+ *
+ * A deck's YAML front matter is skipped before the fence scan starts: a ```
+ * inside a `description:` block scalar must not open a fence over the body, or
+ * every real `&N` would go unseen and the next allocation would duplicate one.
+ */
 export function parseCardIdsFromContent(content: string): number[] {
   const ids: number[] = []
-  for (const line of content.split('\n')) {
+  const lines = content.split('\n')
+  const fence = createFenceTracker()
+  for (let i = frontMatterBodyStart(lines); i < lines.length; i++) {
+    const line = lines[i]!
+    if (fence.feed(line).opaque) continue
     const idMatch = line.match(/&(\d+)\s*$/)
     if (idMatch?.[1]) {
       ids.push(Number.parseInt(idMatch[1], 10))

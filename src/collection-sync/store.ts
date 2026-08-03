@@ -12,6 +12,7 @@
 
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
+import { unreadableLines } from '../markdown-fence'
 import { parseCollectionFile, type CollectionEntry } from '../collection-file'
 import { getErrorMessage } from '../errors'
 import { createList, isListLifecycleError } from '../list-lifecycle'
@@ -118,7 +119,9 @@ export function createDiskCollectionListStore(): CollectionListStore {
         name,
         file: path.basename(location.filePath),
         entries: parsed.entries,
-        warnings: parsed.warnings,
+        // Both sync directions re-serialize the whole file, so a fenced code
+        // block is as much at risk as a line the parser could not read.
+        warnings: unreadableLines(parsed),
       }
     },
 

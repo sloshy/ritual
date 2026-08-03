@@ -437,3 +437,101 @@ describe('applyDeckAddToContent', () => {
     expect(content).toContain('1 Sol Ring {keep} &2')
   })
 })
+
+describe('fenced code blocks are never mutation targets', () => {
+  const fencedDeck = [
+    '---',
+    'name: Fenced Deck',
+    '---',
+    '',
+    '## Main',
+    '1 Sol Ring &1',
+    '',
+    'Example of a deck file:',
+    '',
+    '```',
+    '## Fake Section',
+    '9 Sol Ring &7',
+    '1 Black Lotus (LEA:232) &8',
+    '```',
+    '',
+    '## Sideboard',
+    '1 Pyroblast &3',
+    '',
+  ].join('\n')
+
+  /** The fenced block, exactly as authored — nothing below may alter these bytes. */
+  const fencedBlock = [
+    '```',
+    '## Fake Section',
+    '9 Sol Ring &7',
+    '1 Black Lotus (LEA:232) &8',
+    '```',
+  ].join('\n')
+
+  test('an add merges onto the real line, not the fenced one', () => {
+    const { content, outcome } = applyDeckAddToContent(fencedDeck, { name: 'Sol Ring' }, 2)
+    expect(outcome.merged).toBe(true)
+    expect(outcome.quantity).toBe(3)
+    expect(outcome.section).toBe('Main')
+    expect(content).toContain(fencedBlock)
+    expect(content.split('\n')).toContain('3 Sol Ring &1')
+  })
+
+  test('an add for a card that only exists inside the fence creates a new line outside it', () => {
+    const { content, outcome } = applyDeckAddToContent(
+      fencedDeck,
+      { name: 'Black Lotus', set: 'lea', collectorNumber: '232' },
+      1,
+    )
+    expect(outcome.merged).toBe(false)
+    expect(outcome.section).toBe('Main')
+    expect(content).toContain(fencedBlock)
+    const lines = content.split('\n')
+    // Appended after Main's last real card line, not after the fenced one.
+    // &2 — the fenced example's ids are prose, so only &1 and &3 were in use.
+    expect(lines.indexOf('1 Black Lotus (LEA:232) &2')).toBe(lines.indexOf('1 Sol Ring &1') + 1)
+  })
+
+  test('a set-note targets the real line and leaves the fenced block byte-identical', () => {
+    const result = applyTargetedChangesToContent(
+      fencedDeck,
+      'deck',
+      { name: 'Sol Ring', cardId: 1 },
+      [createSetNoteChange('Sol Ring', { note: 'keep', cardId: 1 })],
+    )
+    expect(result).toContain(fencedBlock)
+    expect(result.split('\n')).toContain('1 Sol Ring {keep} &1')
+  })
+
+  test('a remove for a card that exists only inside the fence has no target', () => {
+    expect(() =>
+      applyTargetedChangesToContent(fencedDeck, 'deck', { name: 'Black Lotus', cardId: 8 }, [
+        createRemoveChange('Black Lotus', { cardId: 8 }),
+      ]),
+    ).toThrow('no longer present')
+  })
+
+  test('an add refuses when the deck ends inside an unclosed fence', () => {
+    // An unclosed fence runs to end of file, so the appended `## Main` + card
+    // line would be prose: written and changelogged, then invisible.
+    const openFenced = ['---', 'name: Open', '---', '', '```', '## Example', ''].join('\n')
+    expect(() => applyDeckAddToContent(openFenced, { name: 'Sol Ring' }, 1)).toThrow(
+      'unclosed code fence',
+    )
+  })
+
+  test('a fenced `## Heading` is not a section a move can land in', () => {
+    const result = applyTargetedChangesToContent(
+      fencedDeck,
+      'deck',
+      { name: 'Sol Ring', cardId: 1 },
+      [createSetSectionChange('Sol Ring', 'Fake Section', 1)],
+    )
+    expect(result).toContain(fencedBlock)
+    const lines = result.split('\n')
+    // A real `## Fake Section` was created at the end of the file instead.
+    expect(lines.lastIndexOf('## Fake Section')).toBeGreaterThan(lines.indexOf('## Sideboard'))
+    expect(lines[lines.lastIndexOf('## Fake Section') + 1]).toBe('1 Sol Ring &1')
+  })
+})

@@ -254,10 +254,11 @@ then the review, save, and exit items.
 Changes accumulate **in memory per list**; nothing is written to any file as you add or edit cards.
 
 A save re-serializes the whole list file in canonical form, so any line the parser could not read —
-prose, comments, malformed card lines — is dropped by the save. Such lines are printed as
-warnings when the session loads the list, so check the session output before saving a hand-edited
-file (or run [`cleanup --check`](/commands/cleanup/) first to find them). For an edit that must
-leave such lines untouched, use the line-preserving one-shot commands
+prose, comments, malformed card lines — is dropped by the save, and so is a
+[fenced code block](#fenced-code-blocks), which the canonical form cannot express. Both are printed
+as warnings when the session loads the list, so check the session output before saving a
+hand-edited file (or run [`cleanup --check`](/commands/cleanup/) first to find them). For an edit
+that must leave such lines untouched, use the line-preserving one-shot commands
 ([`set-card`](/commands/set-card/), [`remove-card`](/commands/remove-card/), [`note`](/commands/note/)).
 
 The save actions cover all open lists:
@@ -568,6 +569,69 @@ Section order is preserved as written. Cards added by this command go to the fil
 section. On the generated site, a list with two or more sections defaults to grouping by section,
 and **Section** appears as a grouping option in the toolbar. Sections are managed from the
 [admin editors](/admin/editors/#sections); pricing commands ignore section headers.
+
+## Fenced Code Blocks
+
+List files are hand-authored markdown, so a deck, collection, or wanted list may carry a fenced
+code block — an example line, a template, a snippet of output. **Everything inside a fence is
+prose.** Card parsing ignores it completely: a card-looking line inside a fence is not a card, a
+`## Heading` inside a fence is not a section, an `&N` inside a fence is not a card ID, and none of
+it is reported as an unreadable line.
+
+````markdown
+# My Binder
+
+## Main
+
+- Sol Ring (C19:221) &1
+
+Cards are written like this:
+
+```
+- Card Name (SET:CN) [finish] [condition] {note} &N
+- Black Lotus (LEA:232) &99
+```
+
+- Lightning Bolt (LEA:161) &2
+````
+
+That file holds two cards. The `- Black Lotus (LEA:232) &99` line is an example: it is not counted,
+not priced, not exported, never offered by a picker, and never the target of `add-card`,
+`set-card`, `remove-card`, `note`, or `move`. `&99` is not "in use", so a future card may be
+assigned that ID. The `&N` backfill leaves fenced lines unstamped, and every line-preserving edit
+leaves the block byte-for-byte as you wrote it.
+
+Both fence styles are recognized: three or more backticks or three or more tildes, indented by up
+to three spaces, with an optional info string (` ```markdown `). The closing fence uses the same
+character, is at least as long, and carries nothing after it. Fences do not nest — tildes inside a
+backtick fence are ordinary content, and vice versa. **An unclosed fence runs to the end of the
+file** (the CommonMark rule), so a stray ` ``` ` hides every card line below it: if cards go
+missing from a list, check for an unbalanced fence.
+
+Inline code spans (`` `like this` ``) and four-space indented blocks are _not_ treated as code —
+only fenced blocks are. A four-space indent is indistinguishable from a nested list item, so an
+indented block's card lines are read as real cards and its ` ``` ` delimiters as unreadable lines.
+Use a fenced block whenever a list file needs to hold prose card lines.
+
+### Whole-file rewrites
+
+The surfaces that rewrite a whole file from its parsed cards cannot re-emit a fenced block, so they
+treat one exactly as they treat an unreadable line:
+
+| Surface                                                                               | Behavior with a fenced block                                                                    |
+| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| The admin editors' save (and the MCP tools that reuse it)                             | Refuses with a `400` and writes nothing                                                         |
+| [`cleanup`](/commands/cleanup/)                                                       | Reports the block and skips the content rewrite; a drifted file name is still corrected         |
+| [`deck-sync`](/commands/deck-sync/) / [`collection-sync`](/commands/collection-sync/) | Held back by the unreadable-lines gate (`-y/--yes` accepts the loss)                            |
+| [`import --append`](/commands/import/)                                                | Refuses and writes nothing                                                                      |
+| A deck on either side of [`move`](/commands/move/)                                    | Refuses and writes nothing                                                                      |
+| `ritual edit` sessions                                                                | **Warns on load and drops the block on the next save** — check the session output before saving |
+
+The one-shot card commands (`add-card`, `set-card`, `remove-card`, `note`) are line-preserving and
+work normally, as does a `move` between two collections or wanted lists. The one exception is an
+**append into an unclosed fence**: because an unclosed fence runs to end of file, a new card line
+appended at the end would be prose, so `add-card` and `move` refuse rather than write a line no
+later parse can see.
 
 ## Examples
 

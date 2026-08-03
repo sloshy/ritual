@@ -100,9 +100,15 @@ export async function applyOutgoingMoves(
   // LOAD: pre-read every destination (absence aborts before any mutation).
   const staged = new Map<string, StagedFile>()
   for (const { listEntry } of byDest.values()) {
-    const file = await loadStagedFile(listEntry.filePath, listEntry.ref.type)
-    if (!file) throw new Error(`Destination file not found, aborting move: ${listEntry.filePath}`)
-    staged.set(listEntry.filePath, file)
+    const loaded = await loadStagedFile(listEntry.filePath, listEntry.ref.type)
+    if (!loaded.ok) {
+      throw new Error(
+        loaded.reason === 'unreadable-file'
+          ? `Destination file not found, aborting move: ${listEntry.filePath}`
+          : `Aborting move: ${loaded.message}`,
+      )
+    }
+    staged.set(listEntry.filePath, loaded.file)
   }
 
   // APPLY: in-memory adds (a bad add — e.g. a printing-less card into a collection — throws here).

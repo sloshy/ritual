@@ -1,3 +1,4 @@
+import { unreadableLines } from '../../markdown-fence'
 import { computeHash } from '../../content-hash'
 import { loadDeckFile } from '../../importers/text-file'
 import { parseDeckFrontMatter } from '../../deck-file'
@@ -34,7 +35,11 @@ export function handleDeckLoad(req: Request): Promise<Response> {
     const { slug, filePath, params } = prologue.value
 
     const rawContent = await Bun.file(filePath).text()
-    const { deck: loaded, warnings } = await loadDeckFile(filePath)
+    const parsed = await loadDeckFile(filePath)
+    const loaded = parsed.deck
+    // Fenced code blocks join the parse warnings: the save routes refuse a
+    // baseline carrying either, so a load must report both.
+    const warnings = unreadableLines(parsed)
     const frontMatter = await parseDeckFrontMatter(filePath)
     // Hashed from the content itself, never read from (or persisted to) the
     // .sha256 sidecar: a load must not stamp a hand-edited file Ritual-clean,

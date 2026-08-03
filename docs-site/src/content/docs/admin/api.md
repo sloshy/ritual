@@ -174,9 +174,9 @@ Load a deck, at the depth `view` asks for. The same parameters apply to [Load Co
 
 Any of `section`, `nameContains`, `limit`, or `offset` makes the body a **slice**: the response then carries `"partial": true` and **no** `contentHash`. That is deliberate — the deck and wanted save routes persist the payload they are handed, so saving a slice back would truncate the file. Reload without the filters to get a hash you can save with. This applies to **every** view, `summary` included: a filtered summary's counts describe the slice, and the hash is the token the save routes read as "this is the whole file".
 
-`warnings` is always present on all three views: the body lines the file's parser could not read — malformed card lines, but also prose, comments, or any other text the list grammar does not model — as an array of messages (empty for a clean file). It is an always-present array rather than an optional one on purpose — a list holding an unreadable line would otherwise load as merely shorter, and a client that never checks an optional field would never learn the difference.
+`warnings` is always present on all three views: everything in the file a re-serializing write would not reproduce, as an array of messages (empty for a clean file). That is the body lines the parser could not read — malformed card lines, but also prose, comments, or any other text the list grammar does not model — plus one summary entry per file holding a [fenced code block](/commands/edit/#fenced-code-blocks) (`Fenced code block content (N line(s)) — …`). A fenced block parses cleanly, so it produces no per-line warning; it is reported here because the canonical serializers cannot emit it. `warnings` is an always-present array rather than an optional one on purpose — a list holding an unreadable line would otherwise load as merely shorter, and a client that never checks an optional field would never learn the difference.
 
-**A non-empty `warnings` also blocks saving that list.** The three save routes re-serialize the whole file from parsed entries, so a line the parse could not read is a line the write would delete — releasing its `&N` id back into the reuse pool for some other card. Rather than let that happen, a save whose _baseline_ (the file as it stands on disk) parses with any warnings is refused with `400`, naming the file, the count, and each warning. The file is left untouched; fix the line and retry. MCP mutations surface the same refusal as a tool error.
+**A non-empty `warnings` also blocks saving that list.** The three save routes re-serialize the whole file from parsed entries, so anything the parse could not carry is content the write would delete — releasing any `&N` ids it held back into the reuse pool for some other card. Rather than let that happen, a save whose _baseline_ (the file as it stands on disk) yields any `warnings` is refused with `400`, naming the file and each entry. The file is left untouched; fix the line (or remove the fenced block) and retry. MCP mutations surface the same refusal as a tool error.
 
 A missing list is a `404` whose message names `GET /api/lists` as the way to find the real slugs. A slug carrying a path separator is a `400` (`Invalid list slug`) on all three routes.
 
@@ -585,7 +585,7 @@ Save deck changes. Writes the updated deck file and appends to the changelog. Pa
 
 ### Unreadable lines block a save
 
-All three save routes parse the file as it stands on disk before applying anything, and refuse with `400` when that parse produces any warnings — a line the parser cannot read is a line the re-serializing write would delete, along with its `&N` id. The message names the file, how many lines are affected, and each warning. Nothing is written. Fix the line (or delete it deliberately) and retry; `GET /api/{type}/:slug` reports the same list in its [`warnings`](#load-deck) field.
+All three save routes parse the file as it stands on disk before applying anything, and refuse with `400` when that parse yields any [`warnings`](#load-deck) — a line the parser cannot read, or a [fenced code block](/commands/edit/#fenced-code-blocks), is content the re-serializing write would delete along with any `&N` ids it held. The message names the file and each entry (each entry states its own extent, so no aggregate line count is claimed). Nothing is written. Fix the line, or remove the fenced block, and retry; `GET /api/{type}/:slug` reports the same list in its `warnings` field.
 
 ### `validateCardNames`
 
@@ -1381,10 +1381,11 @@ response is `401` with `loginRequired: true`.
 | `direction`             | `pull` (Archidekt → local) or `push` (local → Archidekt). Any other value returns `400`.                                                                                                                                      | Yes      |
 | `decks`                 | Deck slugs or names, resolved like CLI list arguments. Omitted or empty syncs every linked deck.                                                                                                                              | No       |
 | `dryRun`                | Report what would sync without writing files or pushing changes (default `false`).                                                                                                                                            | No       |
-| `ignoreUnreadableLines` | Sync decks whose files contain lines the parser cannot read, deleting those lines (default `false`).                                                                                                                          | No       |
+| `ignoreUnreadableLines` | Sync decks whose files hold content a rewrite cannot reproduce — unreadable lines or a fenced code block — deleting it (default `false`).                                                                                     | No       |
 | `only`                  | `additions` or `removals` — apply just one side of each deck's diff, relative to the sync destination (see [Change Filter](/commands/deck-sync/#change-filter)). Omitted applies every change; any other value returns `400`. | No       |
 
-A sync rewrites each deck file, so a line the parser cannot read would be deleted by the save. There
+A sync rewrites each deck file, so a line the parser cannot read — or a
+[fenced code block](/commands/edit/#fenced-code-blocks) — would be deleted by the save. There
 is nobody to prompt over HTTP, so such decks **fail** (`N unreadable lines would be dropped by a
 sync`) unless the request sets `ignoreUnreadableLines` — the API equivalent of the CLI's
 [`--yes`](/commands/deck-sync/#unreadable-lines). The affected decks and their exact lines are

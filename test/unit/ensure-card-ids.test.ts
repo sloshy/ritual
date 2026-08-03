@@ -103,3 +103,41 @@ describe('ensureWantedIdsInContent', () => {
     expect(content).toContain('- Sol Ring &2')
   })
 })
+
+describe('fenced code blocks', () => {
+  test('deck backfill leaves fenced card lines un-stamped', () => {
+    const input = [
+      '---',
+      'name: Fenced Deck',
+      '---',
+      '',
+      '## Main',
+      '1 Sol Ring',
+      '```',
+      '1 Black Lotus',
+      '```',
+      '',
+    ].join('\n')
+    const { content, added } = ensureDeckIdsInContent(input)
+    expect(added).toBe(1)
+    expect(content.split('\n')).toContain('1 Sol Ring &1')
+    expect(content.split('\n')).toContain('1 Black Lotus')
+  })
+
+  test('a fenced &N neither blocks nor seeds an allocation', () => {
+    const input = ['## Main', '```', '- Example (LEA:1) &7', '```', '- Sol Ring (C21:263)'].join(
+      '\n',
+    )
+    const { content, added } = ensureCollectionIdsInContent(input)
+    expect(added).toBe(1)
+    expect(content.split('\n')).toContain('- Sol Ring (C21:263) &1')
+    expect(content.split('\n')).toContain('- Example (LEA:1) &7')
+  })
+
+  test('wanted backfill leaves fenced lines alone', () => {
+    const input = ['~~~', '- Example &4', '~~~', '- Sol Ring'].join('\n')
+    const { content, added } = ensureWantedIdsInContent(input)
+    expect(added).toBe(1)
+    expect(content.split('\n')).toEqual(['~~~', '- Example &4', '~~~', '- Sol Ring &1'])
+  })
+})

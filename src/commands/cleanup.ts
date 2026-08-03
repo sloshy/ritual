@@ -13,6 +13,7 @@ import {
   type DeckFormatSignal,
 } from '../deck-format'
 import { parseDeckFrontMatter, serializeDeckToMarkdown } from '../deck-file'
+import { unreadableLines } from '../markdown-fence'
 import { parseDeckText } from '../importers/text-file'
 import { moveListSidecars } from '../list-sidecars'
 import { collectionToMarkdown, wantedToMarkdown } from '../editor/list-export'
@@ -115,7 +116,11 @@ async function readDeckDocument(
   const original = await fs.readFile(location.filePath, 'utf-8')
   // Parsed directly (not via `loadDeck`) for the skipped-line warnings, which
   // gate the rewrite below — a re-emit would drop what the parser skipped.
-  const { deck, warnings } = parseDeckText(original, location.name)
+  const parsedDeck = parseDeckText(original, location.name)
+  const { deck } = parsedDeck
+  // Fenced code blocks join the parse warnings: the canonical re-emit would
+  // delete them, exactly like a line the parser could not read.
+  const warnings = unreadableLines(parsedDeck)
   // Copy before mutating: gray-matter caches parses by content string, so the
   // parsed front matter object is shared between byte-identical files.
   const frontMatter = { ...(await parseDeckFrontMatter(location.filePath)) }

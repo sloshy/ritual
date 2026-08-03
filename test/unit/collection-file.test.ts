@@ -172,3 +172,36 @@ describe('resolveFinish', () => {
     expect(resolveFinish(makeEntry(), makeScryfallCard({ finishes: ['foil'] }))).toBe('foil')
   })
 })
+
+describe('parseCollectionFile — fenced code blocks', () => {
+  test('fenced bullets and headers are prose: no entries, no warnings', () => {
+    const content = [
+      '# My Collection',
+      '',
+      '## Main',
+      '- Sol Ring (C21:263) &1',
+      '',
+      '```',
+      '## Fake Section',
+      '- Black Lotus (LEA:232) &99',
+      'plain prose that is not a bullet',
+      '```',
+      '',
+      '- Mana Crypt (2XM:270) &2',
+      '',
+    ].join('\n')
+    const { entries, warnings, sectionOrder, fencedLines } = parseCollectionFile(content)
+    expect(warnings).toEqual([])
+    expect(fencedLines).toBe(5)
+    expect(sectionOrder).toEqual(['Main'])
+    expect(entries.map((e) => e.name)).toEqual(['Sol Ring', 'Mana Crypt'])
+  })
+
+  test('an unclosed fence hides the rest of the file', () => {
+    const { entries, warnings } = parseCollectionFile(
+      ['- Sol Ring (C21:263) &1', '~~~', '- Black Lotus (LEA:232) &2'].join('\n'),
+    )
+    expect(warnings).toEqual([])
+    expect(entries.map((e) => e.name)).toEqual(['Sol Ring'])
+  })
+})

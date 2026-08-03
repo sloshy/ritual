@@ -1,11 +1,17 @@
 import * as fs from 'node:fs/promises'
 import { writeFileWithHash } from '../content-hash'
 import { findOrCreateSection, resolveDefaultAddSection } from '../deck-format'
-import { importFromTextFile } from '../importers/text-file'
+import { loadDeckFile } from '../importers/text-file'
 import { formatCollectionLine } from './collection-helpers'
 import { formatWantedListLine } from './wanted-helpers'
 import { serializeDeckToMarkdown, parseDeckFrontMatter } from '../deck-file'
 import { allocateId, collectDeckCardIds, createIdPool, allocateNextIdFromContent } from '../card-id'
+import {
+  endsInsideOpenFence,
+  markFencedLines,
+  unreadableContentMessage,
+  unreadableLines,
+} from '../markdown-fence'
 import type { DeckData } from '../types'
 import type { ListRef } from '../change-event'
 import type { PhysicalCard } from './move-helpers'
@@ -19,29 +25,52 @@ type StagedDeckFile = { kind: 'deck'; data: DeckWithFrontMatter }
 type StagedTextFile = { kind: 'text'; content: string }
 export type StagedFile = StagedDeckFile | StagedTextFile
 
+/**
+ * The outcome of staging a file for a move: the staged state, or the reason the
+ * move must not touch this file at all.
+ */
+export type LoadStagedResult =
+  | { ok: true; file: StagedFile }
+  | { ok: false; reason: 'unreadable-file' | 'unreadable-lines'; message: string }
+
 export async function readDeckAndFrontMatter(
   filePath: string,
 ): Promise<DeckWithFrontMatter | null> {
-  const fm = await parseDeckFrontMatter(filePath).catch(() => null)
-  if (fm === null) return null
-  const deck = await importFromTextFile(filePath).catch(() => null)
-  if (!deck) return null
-  return { deck, frontMatter: fm }
+  const result = await loadStagedDeck(filePath)
+  return result.ok && result.file.kind === 'deck' ? result.file.data : null
 }
 
-/** Load a file into staged in-memory state. Returns null if the file cannot be read. */
+async function loadStagedDeck(filePath: string): Promise<LoadStagedResult> {
+  const fm = await parseDeckFrontMatter(filePath).catch(() => null)
+  const parsed = await loadDeckFile(filePath).catch(() => null)
+  if (fm === null || parsed === null) {
+    return { ok: false, reason: 'unreadable-file', message: `Cannot read deck file: ${filePath}` }
+  }
+  // A deck side of a move is written back by re-serializing the whole file, so
+  // anything the parse could not carry — a skipped line, a fenced code block —
+  // would be deleted by the write. Refuse the move instead.
+  const lost = unreadableLines(parsed)
+  if (lost.length > 0) {
+    return {
+      ok: false,
+      reason: 'unreadable-lines',
+      message: unreadableContentMessage(filePath, lost, 'moving'),
+    }
+  }
+  return { ok: true, file: { kind: 'deck', data: { deck: parsed.deck, frontMatter: fm } } }
+}
+
+/** Load a file into staged in-memory state. */
 export async function loadStagedFile(
   filePath: string,
   type: ListRef['type'],
-): Promise<StagedFile | null> {
-  if (type === 'deck') {
-    const data = await readDeckAndFrontMatter(filePath)
-    if (!data) return null
-    return { kind: 'deck', data }
-  }
+): Promise<LoadStagedResult> {
+  if (type === 'deck') return loadStagedDeck(filePath)
   const content = await fs.readFile(filePath, 'utf-8').catch(() => null)
-  if (content === null) return null
-  return { kind: 'text', content }
+  if (content === null) {
+    return { ok: false, reason: 'unreadable-file', message: `Cannot read file: ${filePath}` }
+  }
+  return { ok: true, file: { kind: 'text', content } }
 }
 
 /** Write a staged file back to disk. */
@@ -93,7 +122,11 @@ function applyRemoveFromDeck(staged: StagedDeckFile, card: PhysicalCard): boolea
 
 function applyRemoveFromText(staged: StagedTextFile, card: PhysicalCard): boolean {
   const lines = staged.content.split('\n')
-  const targetIdx = lines.findIndex((line) => {
+  // A bullet inside a fenced code block is the user's prose example, never a
+  // card a move may take out of the file.
+  const fenced = markFencedLines(lines)
+  const targetIdx = lines.findIndex((line, idx) => {
+    if (fenced[idx]) return false
     const trimmed = line.trim()
     if (!trimmed.startsWith('- ')) return false
     // An ID is authoritative (mirrors the deck removal path): falling through
@@ -118,9 +151,30 @@ function applyRemoveFromText(staged: StagedTextFile, card: PhysicalCard): boolea
   })
   if (targetIdx === -1) return false
   lines.splice(targetIdx, 1)
-  const joined = lines.join('\n').replace(/\n{3,}/g, '\n\n')
-  staged.content = joined.endsWith('\n') ? joined : joined + '\n'
+  staged.content = collapseBlankRuns(lines)
   return true
+}
+
+/**
+ * Join lines back into content, collapsing runs of blank lines left behind by
+ * the removal — but only outside fenced code blocks, whose blank lines are the
+ * user's snippet and must survive byte-for-byte.
+ */
+function collapseBlankRuns(lines: readonly string[]): string {
+  const fenced = markFencedLines(lines)
+  // Split into runs of same-fencedness, collapse only within the unfenced ones,
+  // then rejoin — the run boundaries reproduce the original newlines exactly.
+  const chunks: string[] = []
+  let i = 0
+  while (i < lines.length) {
+    const isFenced = fenced[i]!
+    const start = i
+    while (i < lines.length && fenced[i] === isFenced) i++
+    const text = lines.slice(start, i).join('\n')
+    chunks.push(isFenced ? text : text.replace(/\n{3,}/g, '\n\n'))
+  }
+  const joined = chunks.join('\n')
+  return joined.endsWith('\n') ? joined : joined + '\n'
 }
 
 /**
@@ -213,7 +267,22 @@ function applyAddToDeck(
   return undefined
 }
 
+/**
+ * Refuse to append when the file ends inside an unclosed fence: the appended
+ * card line would land in the opaque region, so it would be written, reported,
+ * and logged — and then be invisible to every subsequent parse.
+ */
+function assertAppendable(content: string, cardName: string): void {
+  if (endsInsideOpenFence(content)) {
+    throw new Error(
+      `Cannot add "${cardName}": the destination file ends inside an unclosed code fence, ` +
+        `so the new card line would be read as prose. Close the fence first.`,
+    )
+  }
+}
+
 function applyAddCollectionLine(content: string, card: PhysicalCard): string {
+  assertAppendable(content, card.name)
   const { nextId: cardId } = allocateNextIdFromContent(content)
   const line = formatCollectionLine(
     card.name,
@@ -228,6 +297,7 @@ function applyAddCollectionLine(content: string, card: PhysicalCard): string {
 }
 
 function applyAddWantedLine(content: string, card: PhysicalCard): string {
+  assertAppendable(content, card.name)
   const { nextId: cardId } = allocateNextIdFromContent(content)
   const printing =
     card.set && card.collectorNumber

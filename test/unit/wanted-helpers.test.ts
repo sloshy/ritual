@@ -198,3 +198,38 @@ describe('formatWantedListLine', () => {
     ).toBe('- Sol Ring (C19:221) {for EDH} &10\n')
   })
 })
+
+describe('parseWantedListFile — fenced code blocks', () => {
+  test('fenced bullets and headers are prose: no entries, no warnings', () => {
+    const content = [
+      '# Needs',
+      '',
+      '## Main',
+      '- Sol Ring &1',
+      '',
+      '```md',
+      '## Fake Section',
+      '- Black Lotus (LEA:232) &99',
+      'plain prose',
+      '```',
+      '',
+      '- Mana Crypt (2XM:270) &2',
+      '',
+    ].join('\n')
+    const { entries, warnings, sectionOrder, fencedLines } = parseWantedListFile(content)
+    expect(warnings).toEqual([])
+    expect(fencedLines).toBe(5)
+    expect(sectionOrder).toEqual(['Main'])
+    expect(entries.map((e) => e.name)).toEqual(['Sol Ring', 'Mana Crypt'])
+  })
+
+  test('an unclosed fence hides the rest of the file', () => {
+    // The wanted parser accepts a bare name as an entry, so an unclosed fence
+    // here is the case most likely to turn prose into card entries.
+    const { entries, warnings } = parseWantedListFile(
+      ['- Sol Ring &1', '~~~', '- Black Lotus (LEA:232) &2', 'just some prose'].join('\n'),
+    )
+    expect(warnings).toEqual([])
+    expect(entries.map((e) => e.name)).toEqual(['Sol Ring'])
+  })
+})

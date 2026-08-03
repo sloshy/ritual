@@ -76,7 +76,7 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     const previous = parseDeckText(hashCheck.content, slug)
     // A line this parse could not read is a line the save would delete, because
     // the write re-serializes the whole deck. Refuse instead.
-    const unreadable = refuseUnreadableBaseline(filePath, previous.warnings)
+    const unreadable = refuseUnreadableBaseline(filePath, previous)
     if (unreadable) return unreadable
     const previousDeck = previous.deck
     const nameError = await refuseUnknownCardNames(

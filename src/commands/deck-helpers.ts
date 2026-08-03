@@ -23,6 +23,7 @@ import {
 } from '../deck-file'
 import { listDeckFiles, loadDeckFile, readDeckName } from '../importers/text-file'
 import { assignMissingDeckCardIds, repackSessionIds } from '../card-id'
+import { unreadableLines } from '../markdown-fence'
 import { applyChangeToDeck } from '../editor/deck-changes'
 import {
   applySessionConfigAnswers,
@@ -121,11 +122,15 @@ export async function promptDeckFormat(
 
 /** Load a deck file into structured data plus its front matter for later re-serialization. */
 export async function loadDeck(filePath: string): Promise<LoadedDeck> {
-  const { deck: parsed, warnings } = await loadDeckFile(filePath)
+  const parseResult = await loadDeckFile(filePath)
+  const { deck: parsed } = parseResult
   // Parity with the flat-list sessions: a session save re-serializes the whole
-  // file, so any line the parser skipped would be dropped by that save. Warn
-  // up front rather than losing them silently.
-  for (const warning of warnings) console.warn(`${path.basename(filePath)}: ${warning}`)
+  // file, so any line the parser skipped — and any fenced code block, which the
+  // canonical serializer cannot emit — would be dropped by that save. Warn up
+  // front rather than losing them silently.
+  for (const warning of unreadableLines(parseResult)) {
+    console.warn(`${path.basename(filePath)}: ${warning}`)
+  }
   const deck = assignMissingDeckCardIds(parsed)
   const frontMatter = await parseDeckFrontMatter(filePath)
   return { deck, frontMatter }

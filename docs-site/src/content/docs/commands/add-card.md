@@ -203,6 +203,14 @@ As with collection adds, a specific-printing add whose printing comes in more th
 
 In the specific flow, a printing that cannot be resolved (no pin and no way to ask) is an **error** — the command never silently degrades a specific request to a name-only entry. Wanted list entries require only the card name; the printing and finish are optional (see the [card states](/commands/edit/#card-states)). A default finish can be specified with `-f`.
 
+### Fenced Code Blocks
+
+An add is line-preserving: a card-looking line inside a
+[fenced code block](/commands/edit/#fenced-code-blocks) is prose, so it is never a merge target and
+the block is left byte-for-byte as written. The one refusal is a file that ends inside an
+**unclosed** fence — an unclosed fence runs to end of file, so the new card line would be appended
+into it and read back as prose. The command exits `2` and writes nothing; close the fence and retry.
+
 ## Output
 
 With `--output json` (or `ndjson`), a successful add prints exactly one machine-readable record — informational chatter (cache counts, price lines) never appears on stdout:

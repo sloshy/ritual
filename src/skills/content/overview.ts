@@ -93,6 +93,18 @@ Deck card lines start with a quantity; collection and wanted lines start with \`
   \`list-all-cards\`, \`history --show\`, ...) and the \`new\`/\`rename\`/\`delete\` lifecycle
   never touch card lines, and \`-n\`/\`--dry-run\` writes nothing, including that backfill.
 
+**Fenced code blocks are prose.** Anything inside a \`\`\`\` \`\`\` \`\`\`\`/\`~~~\` fence in a list file is
+ignored by card parsing: a card-looking line there is not a card, a \`## Heading\` there is
+not a section, an \`&N\` there is not an ID in use, and none of it warns. Fenced lines are
+never a mutation target and never get an ID stamped into them, so a block survives every
+line-preserving edit byte-for-byte. An **unclosed fence extends to the end of the file**
+(CommonMark), so a stray fence hides every card below it — and an \`add-card\`/\`move\` that
+would append past it is refused rather than write a line no parse can see. The whole-file
+rewrite paths cannot re-emit a fenced block: admin editor saves, \`import --append\`, and a
+\`move\` with a deck on either side refuse such a file; \`cleanup\` skips its content rewrite;
+the syncs hold it back behind the unreadable-lines gate. A \`ritual edit\` session warns on
+load but still drops the block on save.
+
 A deck's YAML front matter carries its \`format:\` (a fixed set of keys — see the
 **ritual-decks** skill). A deck with no \`format:\` is treated as Commander when it
 has a \`## Commander\` section, and the tools write that down on the next save.

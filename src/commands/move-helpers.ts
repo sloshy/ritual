@@ -451,16 +451,28 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
 
   for (const { listEntry } of byDest.values()) {
     if (staged.has(listEntry.filePath)) continue
-    const file = await loadStagedFile(listEntry.filePath, listEntry.ref.type)
-    if (!file) throw new Error(`Destination file not found, aborting move: ${listEntry.filePath}`)
-    staged.set(listEntry.filePath, file)
+    const loaded = await loadStagedFile(listEntry.filePath, listEntry.ref.type)
+    if (!loaded.ok) {
+      throw new Error(
+        loaded.reason === 'unreadable-file'
+          ? `Destination file not found, aborting move: ${listEntry.filePath}`
+          : `Aborting move: ${loaded.message}`,
+      )
+    }
+    staged.set(listEntry.filePath, loaded.file)
   }
 
   for (const { listEntry } of bySource.values()) {
     if (staged.has(listEntry.filePath)) continue
-    const file = await loadStagedFile(listEntry.filePath, listEntry.ref.type)
-    if (!file) throw new Error(`Source file not readable, aborting move: ${listEntry.filePath}`)
-    staged.set(listEntry.filePath, file)
+    const loaded = await loadStagedFile(listEntry.filePath, listEntry.ref.type)
+    if (!loaded.ok) {
+      throw new Error(
+        loaded.reason === 'unreadable-file'
+          ? `Source file not readable, aborting move: ${listEntry.filePath}`
+          : `Aborting move: ${loaded.message}`,
+      )
+    }
+    staged.set(listEntry.filePath, loaded.file)
   }
 
   // --- APPLY: Removals in memory ---
@@ -567,9 +579,15 @@ export async function commitAllRemovals(
   const staged = new Map<string, StagedFile>()
   for (const { listEntry } of bySource.values()) {
     if (staged.has(listEntry.filePath)) continue
-    const file = await loadStagedFile(listEntry.filePath, listEntry.ref.type)
-    if (!file) throw new Error(`Source file not readable, aborting remove: ${listEntry.filePath}`)
-    staged.set(listEntry.filePath, file)
+    const loaded = await loadStagedFile(listEntry.filePath, listEntry.ref.type)
+    if (!loaded.ok) {
+      throw new Error(
+        loaded.reason === 'unreadable-file'
+          ? `Source file not readable, aborting remove: ${listEntry.filePath}`
+          : `Aborting remove: ${loaded.message}`,
+      )
+    }
+    staged.set(listEntry.filePath, loaded.file)
   }
 
   // --- APPLY: Removals in memory ---

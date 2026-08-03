@@ -434,4 +434,12 @@ describe('parseTitleFromContent', () => {
   test('trims trailing whitespace', () => {
     expect(parseTitleFromContent('# Title  \n')).toBe('Title')
   })
+
+  test('an H1 inside a fenced code block is prose, not the title', () => {
+    expect(parseTitleFromContent('```\n# Fake Title\n```\n# Real Title\n')).toBe('Real Title')
+  })
+
+  test('a ``` inside front matter does not hide the title', () => {
+    expect(parseTitleFromContent('---\nnote: "```"\n---\n\n# Real Title\n')).toBe('Real Title')
+  })
 })

@@ -26,6 +26,7 @@ import {
   type CardIdPool,
 } from '../card-id'
 import { writeFileWithHash } from '../content-hash'
+import { unreadableContentMessage, unreadableLines } from '../markdown-fence'
 import { unusableFileNameMessage } from '../list-file-name'
 import { createAddChange, isSamePrinting, type ChangeEvent } from '../change-event'
 import { appendChangelog } from '../changelog-writer'
@@ -129,6 +130,15 @@ type FlatEntry = (CollectionEntry | WantedListEntry) & { cardId?: number }
 
 /** A re-serialized list body plus the change events describing what was added. */
 type AppendResult = { content: string; changes: ChangeEvent[] }
+
+/**
+ * An append either produced new content, or found content the canonical
+ * re-serialize would delete. Append rewrites the whole file from parsed
+ * entries, so a skipped line or a fenced code block in the existing file is
+ * content the write would drop — the same gate the admin saves, `cleanup` and
+ * the sync engines apply.
+ */
+type AppendOutcome = AppendResult | { unreadable: string[] }
 
 /** Expand entries into per-copy lines (flat lists store one line per physical card). */
 function expandCopies(entries: ImportCardEntry[], pool: CardIdPool): FlatCopy[] {
@@ -240,8 +250,11 @@ function appendToDeck(
   content: string,
   fallbackName: string,
   entries: ImportCardEntry[],
-): AppendResult {
-  const { deck } = parseDeckText(content, fallbackName)
+): AppendOutcome {
+  const parsedDeck = parseDeckText(content, fallbackName)
+  const lost = unreadableLines(parsedDeck)
+  if (lost.length > 0) return { unreadable: lost }
+  const { deck } = parsedDeck
   const frontMatter = matter(content).data
   const pool = createIdPool(collectDeckCardIds(deck))
   const changes: ChangeEvent[] = []
@@ -293,18 +306,13 @@ function appendToFlatList(
   content: string,
   fallbackTitle: string,
   entries: ImportCardEntry[],
-): AppendResult {
-  let existing: FlatEntry[]
-  let sectionOrder: string[]
-  if (listType === 'collection') {
-    const parsed = parseCollectionFile(content)
-    existing = parsed.entries
-    sectionOrder = parsed.sectionOrder
-  } else {
-    const parsed = parseWantedListFile(content)
-    existing = parsed.entries
-    sectionOrder = parsed.sectionOrder
-  }
+): AppendOutcome {
+  const parsed =
+    listType === 'collection' ? parseCollectionFile(content) : parseWantedListFile(content)
+  const lost = unreadableLines(parsed)
+  if (lost.length > 0) return { unreadable: lost }
+  const existing: FlatEntry[] = parsed.entries
+  const sectionOrder = parsed.sectionOrder
 
   const pool = createIdPool(collectExistingIds(existing))
   const copies = expandCopies(entries, pool)
@@ -344,6 +352,10 @@ async function appendToList(
     target.listType === 'deck'
       ? appendToDeck(content, location.name, entries)
       : appendToFlatList(target.listType, content, location.name, entries)
+
+  if ('unreadable' in result) {
+    return { error: unreadableContentMessage(location.filePath, result.unreadable, 'appending') }
+  }
 
   if (dryRun) {
     return { filePath: location.filePath, cardCount: totalCards(entries), mode: 'append' }

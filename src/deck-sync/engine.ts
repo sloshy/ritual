@@ -11,6 +11,7 @@
 import path from 'node:path'
 import { ArchidektClient, createPacedArchidektClient } from '../clients/ArchidektClient'
 import { listDeckFiles, parseDeckText, type DeckParseResult } from '../importers/text-file'
+import { unreadableLines } from '../markdown-fence'
 import { getErrorMessage } from '../errors'
 import { parseDeckFrontMatter, serializeDeckToMarkdown, type DeckFrontMatter } from '../deck-file'
 import { getDeckFormatLabel } from '../deck-format'
@@ -449,10 +450,13 @@ async function resolveTargetDecks(
       return
     }
     const target: DeckTarget = { filePath, frontMatter, deck: loaded.deck, sourceId }
-    if (loaded.warnings.length > 0) {
+    // Both directions re-serialize the whole file, so a fenced code block is as
+    // much at risk as a line the parser could not read.
+    const blockers = unreadableLines(loaded)
+    if (blockers.length > 0) {
       unreadable.push({
         target,
-        deck: { name, file: path.basename(filePath), warnings: loaded.warnings },
+        deck: { name, file: path.basename(filePath), warnings: blockers },
       })
       return
     }

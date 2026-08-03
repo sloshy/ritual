@@ -72,7 +72,7 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
     const previous = parseWantedListFile(hashCheck.content)
     // A line this parse could not read is a line the save would delete, because
     // the write re-serializes the whole list — refuse instead.
-    const unreadable = refuseUnreadableBaseline(filePath, previous.warnings)
+    const unreadable = refuseUnreadableBaseline(filePath, previous)
     if (unreadable) return unreadable
     const previousEntries = previous.entries
     const nameError = await refuseUnknownCardNames(

@@ -1,3 +1,8 @@
+import {
+  unreadableContentMessage,
+  unreadableLines,
+  type ParsedListContent,
+} from '../../markdown-fence'
 import { computeHash, hashPath, writeFileWithHash } from '../../content-hash'
 import { appendChangelog } from '../../changelog-writer'
 import { isRecord } from '../../json'
@@ -155,19 +160,20 @@ export async function validateContentHash(
  * The refusal is a 400: the request is fine, but this list cannot be saved until
  * its file is readable. MCP mutations surface it as a tool error unchanged.
  *
+ * Fenced code blocks count too: the parsers read them as prose and never touch
+ * them, but the canonical serializers do not emit them, so a whole-file save
+ * would delete the block just as surely as an unreadable line.
+ *
  * @param filePath The list file, named in the refusal so the fix is obvious.
- * @param warnings The baseline parse's warnings; empty means the save may proceed.
+ * @param parsed The baseline parse; no warnings and no fenced lines means the save may proceed.
  */
 export function refuseUnreadableBaseline(
   filePath: string,
-  warnings: readonly string[],
+  parsed: ParsedListContent,
 ): Response | null {
-  if (warnings.length === 0) return null
-  return apiError(
-    `${filePath} has ${warnings.length} line(s) the parser cannot read, and saving would delete them ` +
-      `(releasing their &N ids). Fix the file first — ${warnings.join('; ')}`,
-    400,
-  )
+  const lines = unreadableLines(parsed)
+  if (lines.length === 0) return null
+  return apiError(unreadableContentMessage(filePath, lines, 'saving'), 400)
 }
 
 /**

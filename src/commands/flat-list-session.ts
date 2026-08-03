@@ -11,6 +11,7 @@ import {
 import type { CollectionCardEntry, WantedListCardEntry } from '../site/data-types'
 import { DEFAULT_SECTION, type ScryfallCard } from '../types'
 import { parseTitleFromContent } from '../section-format'
+import { unreadableLines } from '../markdown-fence'
 import { writeFileWithHash } from '../content-hash'
 import {
   allocateId,
@@ -157,7 +158,12 @@ export type ParsedFlatListFile<E extends FlatListEntry> = {
 }
 
 /** What a flat-list parser produces, structurally common to collections and wanted lists. */
-type FlatListParse<Raw> = { entries: Raw[]; sectionOrder: string[]; warnings: string[] }
+type FlatListParse<Raw> = {
+  entries: Raw[]
+  sectionOrder: string[]
+  warnings: string[]
+  fencedLines: number
+}
 
 /**
  * The shared read→parse→map→assign-IDs→title prelude behind every consumer of a
@@ -177,7 +183,9 @@ async function readFlatListFile<Raw, E extends FlatListEntry>(
     title: parseTitleFromContent(content) ?? path.basename(filePath, '.md'),
     entries,
     sectionOrder: parsed.sectionOrder,
-    warnings: parsed.warnings,
+    // Fenced code blocks join the parse warnings here: every consumer of this
+    // read re-serializes the whole file, which would delete the block.
+    warnings: unreadableLines(parsed),
     pool: assignMissingIds(entries),
   }
 }

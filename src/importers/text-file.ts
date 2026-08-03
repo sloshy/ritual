@@ -4,6 +4,7 @@ import { readdir } from 'node:fs/promises'
 import matter from 'gray-matter'
 import { isFinish, isCondition } from '../commands/collection-helpers'
 import { parseDeckFormat } from '../deck-format'
+import { createFenceTracker } from '../markdown-fence'
 
 export function isDeckFile(filename: string): boolean {
   return (
@@ -51,7 +52,16 @@ export const DECK_CARD_LINE_RE =
   /^(\d+)[xX]?\s+(.+?)(?:\s+\(([A-Za-z0-9_]+):([^)]+)\))?(?:\s+\[(nonfoil|foil|etched)\])?(?:\s+\[(NM|LP|MP|HP|DMG)\])?(?:\s+\{(.*)\})?(?:\s+&(\d+))?$/
 
 /** A parsed deck plus a warning for every body line the parser had to skip. */
-export type DeckParseResult = { deck: DeckData; warnings: string[] }
+export type DeckParseResult = {
+  deck: DeckData
+  warnings: string[]
+  /**
+   * Body lines belonging to fenced code blocks (delimiters included). Fenced
+   * content is prose: it yields no cards and no warnings. See
+   * {@link unreadableLines} for why the whole-file save gates still care.
+   */
+  fencedLines: number
+}
 
 /**
  * Parse a deck's markdown/decklist text into structured {@link DeckData}.
@@ -99,8 +109,16 @@ export function parseDeckText(
 
   const lines = parsed.content.split(/\r?\n/)
   const warnings: string[] = []
+  // Fenced code blocks are prose: a card-looking line or a `## Heading` inside
+  // one is an example, not deck data, and must not warn either.
+  const fence = createFenceTracker()
+  let fencedLines = 0
 
   for (const line of lines) {
+    if (fence.feed(line).opaque) {
+      fencedLines++
+      continue
+    }
     const trimmed = line.trim()
     if (!trimmed) continue
 
@@ -171,7 +189,7 @@ export function parseDeckText(
     sourceId,
     sections: validSections,
   }
-  return { deck, warnings }
+  return { deck, warnings, fencedLines }
 }
 
 /**

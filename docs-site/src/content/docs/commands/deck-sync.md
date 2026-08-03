@@ -100,8 +100,10 @@ not being signed in) are emitted as a structured error on stderr.
 ## Unreadable Lines
 
 Both directions rewrite the deck file, so a line the parser cannot read — a stray comment, a
-malformed card line — would be **deleted** by the save. Rather than let that happen silently, a sync
-lists every affected deck and the exact lines at stake, then asks:
+malformed card line — would be **deleted** by the save. A
+[fenced code block](/commands/edit/#fenced-code-blocks) counts too: it parses cleanly as prose, but
+the canonical serializer cannot re-emit it, so a sync would delete it just the same. Rather than let
+that happen silently, a sync lists every affected deck and the exact lines at stake, then asks:
 
 ```
 1 deck contains lines Ritual cannot read.

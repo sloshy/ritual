@@ -1,6 +1,7 @@
 import { DEFAULT_SECTION, type Condition, type Finish, type ScryfallCard } from './types'
 import { matchSectionHeader } from './section-format'
 import { defaultPrintingFinish, isCondition, isFinish } from './finish-condition'
+import { createFenceTracker } from './markdown-fence'
 
 export type CollectionEntry = {
   name: string
@@ -20,6 +21,12 @@ export type CollectionParseResult = {
   /** Section names in first-seen order, including empty sections that have no entries. */
   sectionOrder: string[]
   warnings: string[]
+  /**
+   * Lines belonging to fenced code blocks (delimiters included). Fenced content
+   * is prose: it yields no entries and no warnings. See {@link unreadableLines}
+   * for why the whole-file save gates still care.
+   */
+  fencedLines: number
 }
 
 /**
@@ -35,12 +42,20 @@ export function parseCollectionFile(content: string): CollectionParseResult {
   const warnings: string[] = []
   let currentSection = DEFAULT_SECTION
   let titleSeen = false
+  // Fenced code blocks are prose: a bullet or `## Heading` inside one is an
+  // example, not list data, and is not an unreadable line either.
+  const fence = createFenceTracker()
+  let fencedLines = 0
 
   const registerSection = (name: string): void => {
     if (!sectionOrder.includes(name)) sectionOrder.push(name)
   }
 
   for (const line of content.split('\n')) {
+    if (fence.feed(line).opaque) {
+      fencedLines++
+      continue
+    }
     const trimmed = line.trim()
     if (trimmed === '') continue
 
@@ -92,7 +107,7 @@ export function parseCollectionFile(content: string): CollectionParseResult {
       section: currentSection,
     })
   }
-  return { entries, sectionOrder, warnings }
+  return { entries, sectionOrder, warnings, fencedLines }
 }
 
 /** An entry's recorded finish preference, if any. */

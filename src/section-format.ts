@@ -11,6 +11,8 @@
  * Matches a `## Section Name` header line. Deliberately requires exactly two `#` followed by
  * whitespace, so the `# Title` H1 is never mistaken for a section header.
  */
+import { createFenceTracker, frontMatterBodyStart } from './markdown-fence'
+
 export const SECTION_HEADER_RE = /^##\s+(.+?)\s*$/
 
 /** Returns the section name if `trimmedLine` is a `## Section` header, otherwise null. */
@@ -19,9 +21,18 @@ export function matchSectionHeader(trimmedLine: string): string | null {
   return match ? match[1]!.trim() : null
 }
 
-/** Read the first H1 (`# Title`) line from list-file content, or null if none. */
+/**
+ * Read the first H1 (`# Title`) line from list-file content, or null if none.
+ * A `# ...` line inside a fenced code block is prose, not the list's title.
+ * YAML front matter is skipped before the fence scan, so a ``` inside it cannot
+ * make the rest of the file opaque.
+ */
 export function parseTitleFromContent(content: string): string | null {
-  for (const line of content.split('\n')) {
+  const lines = content.split('\n')
+  const fence = createFenceTracker()
+  for (let i = frontMatterBodyStart(lines); i < lines.length; i++) {
+    const line = lines[i]!
+    if (fence.feed(line).opaque) continue
     if (line.startsWith('# ')) {
       return line.slice(2).trim()
     }

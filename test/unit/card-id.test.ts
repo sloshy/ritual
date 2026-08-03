@@ -302,6 +302,30 @@ describe('parseCardIdsFromContent', () => {
     const content = '1 Card A &3   \n1 Card B &7\n'
     expect(parseCardIdsFromContent(content)).toEqual([3, 7])
   })
+
+  test('an &N inside a fenced code block is prose, not an id in use', () => {
+    expect(parseCardIdsFromContent('- A &1\n```\n- Example &7\n```\n')).toEqual([1])
+  })
+
+  test('a ``` inside deck front matter does not hide the body ids', () => {
+    // Front matter is skipped before the fence scan; otherwise the whole body
+    // would read as fenced and the next allocation would duplicate `&1`.
+    const content = [
+      '---',
+      'name: FM',
+      'description: |',
+      '  Card lines are fenced like:',
+      '  ```',
+      '---',
+      '',
+      '## Main',
+      '1 Sol Ring &1',
+      '1 Pyroblast &2',
+      '',
+    ].join('\n')
+    expect(parseCardIdsFromContent(content)).toEqual([1, 2])
+    expect(allocateNextIdFromContent(content).nextId).toBe(3)
+  })
 })
 
 describe('allocateNextIdFromContent', () => {

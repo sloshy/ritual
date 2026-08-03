@@ -78,7 +78,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     // a line the save would delete, because the write re-serializes the whole
     // list from these entries — refuse instead.
     const parsed = parseCollectionFile(hashCheck.content)
-    const unreadable = refuseUnreadableBaseline(filePath, parsed.warnings)
+    const unreadable = refuseUnreadableBaseline(filePath, parsed)
     if (unreadable) return unreadable
     const cardEntries = toCollectionCardEntries(parsed.entries)
 

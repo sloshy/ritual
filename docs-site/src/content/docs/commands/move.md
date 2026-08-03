@@ -205,6 +205,17 @@ Destination list changelog:
 - Moved "Lightning Bolt" (LEA:161) [foil] &5 from Deck 'Ghyrson Starn Spellslinger'
 ```
 
+## Fenced Code Blocks
+
+Collection and wanted-list sides of a move are line-preserving: a card-looking bullet inside a
+[fenced code block](/commands/edit/#fenced-code-blocks) is prose, never the line a move removes, and
+the block survives byte-for-byte. A **deck** on either side is different — a deck move re-serializes
+the whole deck file, which cannot reproduce a fenced block — so a move touching a deck whose file
+holds one (or holds a line the parser cannot read) is refused before anything is written.
+
+A destination whose file ends inside an **unclosed** fence is also refused: the moved card's line
+would be appended past the fence opener and read back as prose.
+
 ## Exit Codes
 
 Scripted (`--from` + `--to`) invocations follow the standard exit-code contract:

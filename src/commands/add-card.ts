@@ -11,6 +11,7 @@ import {
 } from '../scryfall'
 import { printingsAreComplete } from '../card-printing'
 import {
+  appendIntoOpenFence,
   applyDeckAdd,
   applyDeckAddToContent,
   type DeckAddOutcome,
@@ -37,6 +38,7 @@ import { addRefreshOption, type RefreshMode } from '../refresh'
 import { appendChangelog } from '../changelog-writer'
 import { createAddChange, type ConditionUpdate } from '../change-event'
 import { allocateNextIdFromContent } from '../card-id'
+import { endsInsideOpenFence } from '../markdown-fence'
 import { appendFileWithHash } from '../content-hash'
 import {
   findCheapestPrinting,
@@ -83,7 +85,14 @@ import { CardCommandError } from '../errors'
 import { getCollectionsDir, getDefaultCurrency, getWantedDir } from '../ritual-config'
 import { listFileName } from '../list-file-name'
 
-/** Parse existing &N IDs from a file and allocate the next available ID. */
+/**
+ * Parse existing &N IDs from a file and allocate the next available ID.
+ *
+ * Also the gate on the append itself: flat-list adds append at end of file, and
+ * an unclosed code fence runs to end of file, so appending into one would write
+ * a card line — with an `&N` and a changelog entry — that no later parse can
+ * see. Refuse instead.
+ */
 async function allocateNextIdFromFile(filePath: string): Promise<number> {
   let content = ''
   try {
@@ -91,6 +100,7 @@ async function allocateNextIdFromFile(filePath: string): Promise<number> {
   } catch {
     // File may not exist yet
   }
+  if (endsInsideOpenFence(content)) throw appendIntoOpenFence()
   const { nextId } = allocateNextIdFromContent(content)
   return nextId
 }

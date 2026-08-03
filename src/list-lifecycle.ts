@@ -23,6 +23,7 @@ import { listTypeLabel, type ListType } from './list-type'
 import { isPathWithinDir } from './path-validation'
 import { dirForType } from './resolve-list'
 import { parseTitleFromContent } from './section-format'
+import { frontMatterBodyStart, markFencedLines } from './markdown-fence'
 import { capitalize } from './utils'
 
 /** Structured failure of a lifecycle operation. */
@@ -288,24 +289,36 @@ function renameDeckContent(content: string, oldName: string, newName: string): s
   // parsed front-matter object is shared between byte-identical files.
   const frontMatter = { ...parsed.data, name: newName }
   const updated = matter.stringify(parsed.content, frontMatter)
-  // Function replacer: a plain replacement string would treat `$&`/`$$` in the
-  // new name as substitution patterns.
-  return updated.replace(new RegExp(`^# ${escapeRegex(oldName)}$`, 'm'), () => `# ${newName}`)
+  // A `# Old Name` inside a fenced code block is the user's example, not the
+  // deck's legacy H1 — rewriting it would edit their prose. Scanning line by
+  // line also avoids a regex replacement string treating `$&`/`$$` in the new
+  // name as a substitution pattern.
+  const lines = updated.split('\n')
+  const start = frontMatterBodyStart(lines)
+  const fenced = markFencedLines(lines, start)
+  for (let i = start; i < lines.length; i++) {
+    if (!fenced[i] && lines[i] === `# ${oldName}`) {
+      lines[i] = `# ${newName}`
+      return lines.join('\n')
+    }
+  }
+  return updated
 }
 
-/** Replace the first H1 line in content with `# <newTitle>`. If no H1 exists, prepend one. */
+/**
+ * Replace the first H1 line in content with `# <newTitle>`. If no H1 exists,
+ * prepend one. A `# ...` line inside a fenced code block is prose and is left
+ * alone, matching {@link parseTitleFromContent}.
+ */
 function replaceFirstH1(content: string, newTitle: string): string {
   const lines = content.split('\n')
+  const fenced = markFencedLines(lines)
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
-    if (line !== undefined && line.startsWith('# ')) {
+    if (!fenced[i] && line !== undefined && line.startsWith('# ')) {
       lines[i] = `# ${newTitle}`
       return lines.join('\n')
     }
   }
   return `# ${newTitle}\n\n${content}`
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
