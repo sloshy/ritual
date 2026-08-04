@@ -223,7 +223,7 @@ files. Ritual attaches these to cached cards as plain slug arrays:
   printing's illustration, so different printings of the same card can have
   different art tags.
 
-The derived tag lookup is stored in `cache/tags.json`.
+The derived tag lookup is stored in `cache/tags.json`. (The [`sell`](/commands/sell/) command keeps its Card Kingdom buylist feed in its own file, `cache/cardkingdom.json`, with its own daily freshness — the cache commands here do not manage it.)
 
 ## The cache server
 

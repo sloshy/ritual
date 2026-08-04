@@ -10,8 +10,8 @@ import {
   UNRANKED_EDHREC,
   type PriceListInput,
   type PricedEntry,
-  type PrintingsLookup,
 } from '../../src/price-report'
+import type { CardPrintingsLookup } from '../../src/card-printing'
 import type { ScryfallCard } from '../../src/types'
 import { makeScryfallCard } from '../test-utils'
 
@@ -32,7 +32,7 @@ function makeCard(
   })
 }
 
-function lookupFor(printings: Record<string, ScryfallCard[]>): PrintingsLookup {
+function lookupFor(printings: Record<string, ScryfallCard[]>): CardPrintingsLookup {
   return async (name) => printings[name] ?? []
 }
 
@@ -263,7 +263,7 @@ describe('buildPriceReport pricing rules', () => {
 
   test('each unique card name is looked up exactly once across lists', async () => {
     const calls: string[] = []
-    const lookup: PrintingsLookup = async (name) => {
+    const lookup: CardPrintingsLookup = async (name) => {
       calls.push(name)
       return [makeCard({ name })]
     }

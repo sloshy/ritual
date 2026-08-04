@@ -19,6 +19,8 @@ export const MCP_TOOL_NAMES = [
   'get_card_printings',
   'get_card_price',
   'get_price_report',
+  'get_sell_report',
+  'get_sell_cart',
   'get_history',
   'get_config',
   'get_cache_status',
@@ -43,6 +45,7 @@ export const MCP_TOOL_NAMES = [
   'sync_decks',
   'sync_collection',
   'refresh_cache',
+  'refresh_buylist',
 ] as const
 
 /** Every tool name the server registers, as a type. */

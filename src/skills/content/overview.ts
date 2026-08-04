@@ -105,7 +105,7 @@ Deck card lines start with a quantity; collection and wanted lines start with \`
   Commands that add or edit card lines (editors, card mutations, imports, syncs \`deck-sync pull\`/\`push\`
   and \`collection-sync\` — not \`deck-sync status\`/\`link\` — \`cleanup\`,
   the site build, and the admin/MCP servers) backfill missing IDs on startup and persist
-  them to the files. Read-only commands (\`lists\`, \`diff\`, \`price\`, \`export\`,
+  them to the files. Read-only commands (\`lists\`, \`diff\`, \`price\`, \`sell\`, \`export\`,
   \`list-all-cards\`, \`history --show\`, ...) and the \`new\`/\`rename\`/\`delete\` lifecycle
   never touch card lines, and \`-n\`/\`--dry-run\` writes nothing, including that backfill.
 
@@ -140,7 +140,7 @@ still cleaned — that exits 1 in **every** mode, including \`--dry-run\`. Under
 ## The ritual-* skills
 
 - **ritual-decks** — create, import, sync, and price decks
-- **ritual-collections** — manage, sync (Archidekt), and price collections
+- **ritual-collections** — manage, sync (Archidekt), price, and sell (Card Kingdom buylist) collections
 - **ritual-wanted** — manage and price wanted lists
 - **ritual-edit** — card edits across any list: one-shot non-interactive commands (\`add-card\`, \`remove-card\`, \`set-card\`, \`note\`, scripted \`move\`), the unified interactive editor, and card exports (CSV, JSON, plain text, Markdown)
 - **ritual-cards** — look up cards and run Scryfall searches
@@ -168,10 +168,13 @@ not there — is always **3**, never 1.
   file format or destination. \`json\` emits exactly one document per run (a
   card batch or a multi-page search is still one array); \`ndjson\` streams one
   object per line. Errors go to stderr as
-  \`{"error":{"code","message","details"}}\` in the structured modes. Two
-  exceptions, both deliberate: \`scry\` adds a fourth value \`--output csv\`, and
-  \`export\` has no \`--output\` at all (its stdout payload *is* the export —
-  pick the format with \`--format csv|json|text|md\`, redirect with \`--out\`).
+  \`{"error":{"code","message","details"}}\` in the structured modes. Three
+  exceptions, all deliberate: \`scry\` and \`sell\` add a fourth value
+  \`--output csv\` (Scryfall's server-side CSV and Card Kingdom's sell-cart
+  upload format, respectively — \`sell\`'s csv is a different payload, not the
+  report re-rendered), and \`export\` has no \`--output\` at all (its stdout
+  payload *is* the export — pick the format with \`--format csv|json|text|md\`,
+  redirect with \`--out\`).
 - \`--quiet\` suppresses progress and status chatter **only**. The structured
   payload always emits, so \`--quiet --output json\` is clean JSON with no
   surrounding noise. Errors and data-loss warnings (an unparseable card line, a

@@ -59,6 +59,7 @@ import { handleLists } from './api/lists'
 import { handleDiff } from './api/diff'
 import { handleHistoryLoad, handleHistorySave } from './api/history'
 import { handlePriceSummary, handlePriceList } from './api/price'
+import { handleSellReport, handleSellCart, handleSellRefresh } from './api/sell'
 import {
   handleListCreate,
   handleListRename,
@@ -338,6 +339,9 @@ export const routes: Route[] = [
     handler: handlePriceList,
     requiresAuth: true,
   },
+  { method: 'GET', path: '/api/sell/report', handler: handleSellReport, requiresAuth: true },
+  { method: 'GET', path: '/api/sell/cart', handler: handleSellCart, requiresAuth: true },
+  { method: 'POST', path: '/api/sell/refresh', handler: handleSellRefresh, requiresAuth: true },
 ]
 
 export function getClientIp(req: Request, server: RequestIPServer, trustProxy: boolean): string {

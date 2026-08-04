@@ -2,6 +2,7 @@ import { fromJsonSchema, type McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import type { BuildSiteResponse } from '../../admin/api/build-site'
 import type { CacheRefreshResponse } from '../../admin/api/cache'
+import type { SellRefreshResponse } from '../../admin/api/sell'
 import type {
   CollectionSyncRequest,
   CollectionSyncRunResponse,
@@ -18,6 +19,7 @@ import {
   BUILD_SITE_OUTPUT,
   CONFIG_OUTPUT,
   DELETE_LIST_OUTPUT,
+  REFRESH_BUYLIST_OUTPUT,
   REFRESH_CACHE_OUTPUT,
   RENAME_LIST_OUTPUT,
   REWRITE_HISTORY_OUTPUT,
@@ -43,6 +45,9 @@ export type BuildSiteResult = OmitSuccess<BuildSiteResponse>
 
 /** `refresh_cache` result. */
 export type CacheRefreshResult = OmitSuccess<CacheRefreshResponse>
+
+/** `refresh_buylist` result. */
+export type BuylistRefreshResult = OmitSuccess<SellRefreshResponse>
 
 /** The success arm of a sync run — `callApi` throws on the failure arm. */
 type SyncRunSuccess<T> = Extract<T, { success: true }>
@@ -116,9 +121,10 @@ function ignoreUnreadableDescription(plural: string): string {
  * Register the destructive / administrative tools. rename_list changes a list’s
  * file and slug; delete_list requires a matching `confirmName`; rewrite_history
  * replaces a change log wholesale; update_config persists configuration;
- * build_site, sync_decks, sync_collection, and refresh_cache trigger
- * longer-running operations (both sync tools also write to Archidekt). All are
- * flagged with the SDK’s destructiveHint so clients can gate or confirm them.
+ * build_site, sync_decks, sync_collection, refresh_cache, and refresh_buylist
+ * trigger longer-running operations (both sync tools also write to Archidekt).
+ * All are flagged with the SDK’s destructiveHint so clients can gate or confirm
+ * them.
  */
 export function registerDestructiveTools(server: McpServer, notifier: ListChangeNotifier): void {
   server.registerTool(
@@ -440,6 +446,33 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
           '/api/cache/refresh',
           undefined,
           { onProgress: createToolProgressSink(ctx) },
+        )
+        return data
+      }),
+  )
+
+  server.registerTool(
+    'refresh_buylist',
+    {
+      title: 'Refresh Card Kingdom buylist',
+      description:
+        'Download the Card Kingdom pricelist feed (~70 MB) when the cached copy is stale ' +
+        '(older than a day) or missing; force redownloads regardless. get_sell_report reads ' +
+        'strictly from this cache, so run this first when it errors or looks out of date.',
+      inputSchema: z.object({
+        force: z
+          .boolean()
+          .optional()
+          .describe('Redownload even when the cached feed is still fresh.'),
+      }),
+      outputSchema: fromJsonSchema<BuylistRefreshResult>(REFRESH_BUYLIST_OUTPUT),
+      annotations: { destructiveHint: true, openWorldHint: true },
+    },
+    async ({ force }) =>
+      runTool(async (): Promise<BuylistRefreshResult> => {
+        const data = await callApiData<SellRefreshResponse>(
+          'POST',
+          `/api/sell/refresh${force === true ? '?force=true' : ''}`,
         )
         return data
       }),

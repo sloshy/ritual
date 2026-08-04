@@ -1,17 +1,14 @@
 import { cardCache } from '../../cache'
-import { CACHE_REFRESH_REMEDY } from '../../cache/status'
 import { getErrorMessage } from '../../errors'
 import { isListType, type ListType } from '../../list-type'
 import { parseEnumField } from '../../parse-enum'
 import { VALID_CURRENCIES, type PriceCurrency } from '../../price-currency'
 import type { PriceListDetailPayload, PriceSummaryPayload } from '../../price-report'
 import { loadAndBuildPriceReport } from '../../price-runtime'
-import type { ListLocation } from '../../resolve-list'
 import { getDefaultCurrency } from '../../ritual-config'
-import { resolveListFile } from './list-info'
-import { listSlug } from '../../list-info'
+import { listLocationForSlug } from './list-info'
 import { parseListTarget } from './target'
-import { apiError, badRequest } from './save-helpers'
+import { apiError, badRequest, requireCardCache } from './save-helpers'
 
 /**
  * GET /api/price/summary body — the CLI summary payload plus parser warnings.
@@ -32,21 +29,6 @@ export type PriceListDetailResponse = PriceListDetailPayload & {
   mode: 'list'
   lastRefreshedAt: number | null
   warnings: string[]
-}
-
-/**
- * 503 when the card cache is empty, null when prices are servable. Prices come
- * strictly from the local cache — a handler must never prompt for or trigger a
- * bulk download the way the CLI's `ensureFreshPriceData` flow does.
- */
-async function requireCardCache(): Promise<Response | null> {
-  if (await cardCache.isEmpty()) {
-    return apiError(
-      `The card cache is empty; prices are unavailable. ${CACHE_REFRESH_REMEDY}.`,
-      503,
-    )
-  }
-  return null
 }
 
 /** Resolve `?currency=` (absent → the configured default); 400 on an unknown value. */
@@ -75,7 +57,7 @@ export async function handlePriceSummary(req: Request): Promise<Response> {
     const currency = parseCurrencyParam(url)
     if (currency instanceof Response) return currency
 
-    const unavailable = await requireCardCache()
+    const unavailable = await requireCardCache('prices are unavailable')
     if (unavailable) return unavailable
 
     const lastRefreshedAt = await cardCache.getLastRefreshedAt()
@@ -114,14 +96,13 @@ export async function handlePriceList(req: Request): Promise<Response> {
     const currency = parseCurrencyParam(new URL(req.url))
     if (currency instanceof Response) return currency
 
-    const filePath = await resolveListFile(target.type, target.slug)
-    if (!filePath) return apiError(`List '${target.slug}' not found`, 404)
+    const location = await listLocationForSlug(target.type, target.slug)
+    if (!location) return apiError(`List '${target.slug}' not found`, 404)
 
-    const unavailable = await requireCardCache()
+    const unavailable = await requireCardCache('prices are unavailable')
     if (unavailable) return unavailable
 
     const lastRefreshedAt = await cardCache.getLastRefreshedAt()
-    const location: ListLocation = { type: target.type, name: listSlug(filePath), filePath }
     const { built, warnings } = await loadAndBuildPriceReport(target.type, [location], currency, {
       refresh: 'never',
     })

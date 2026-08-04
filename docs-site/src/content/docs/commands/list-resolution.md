@@ -47,7 +47,7 @@ The refusal is a usage error (exit `2`; HTTP `409` on the admin API) and names t
 
 ## Type flags and disambiguation
 
-Type-agnostic commands (`add-card`, `remove-card`, `set-card`, `note`, `edit`, `history`, `price`, `export`, `rename`, `delete`) search **all three** list types at once. A name that exists in more than one type — say a deck _and_ a collection both called `staples` — is ambiguous. Resolve it with a type flag:
+Type-agnostic commands (`add-card`, `remove-card`, `set-card`, `note`, `edit`, `history`, `price`, `sell`, `export`, `rename`, `delete`) search **all three** list types at once. A name that exists in more than one type — say a deck _and_ a collection both called `staples` — is ambiguous. Resolve it with a type flag:
 
 | Flag           | Restricts the search to |
 | -------------- | ----------------------- |
@@ -63,7 +63,7 @@ The flags are mutually exclusive. A `deck:`/`collection:`/`wanted:` prefix on th
 #   Drop the 'deck:' prefix or the --collection flag.
 ```
 
-Commands that take **more than one** list — [`diff`](/commands/diff/)'s two sides, [`move`](/commands/move/)'s `--from`/`--to`, and [`export`](/commands/export/)'s list arguments — can't be scoped one argument at a time by a single whole-command flag, so the prefix is the mechanism their ambiguity errors suggest. [`lists`](/commands/lists/) doesn't resolve a name at all, but accepts the same three flags to filter which types it enumerates.
+Commands that take **more than one** list — [`diff`](/commands/diff/)'s two sides, [`move`](/commands/move/)'s `--from`/`--to`, and [`export`](/commands/export/)'s and [`sell`](/commands/sell/)'s list arguments — can't be scoped one argument at a time by a single whole-command flag, so the prefix is the mechanism their ambiguity errors suggest. [`lists`](/commands/lists/) doesn't resolve a name at all, but accepts the same three flags to filter which types it enumerates.
 
 Single-type commands (`deck-sync`, `collection-sync`, `get-primer`) already know their type, so they never need a flag — but they match names by the same case- and accent-insensitive, substring, ambiguity-aware rules.
 
@@ -71,14 +71,14 @@ Single-type commands (`deck-sync`, `collection-sync`, `get-primer`) already know
 
 The error always lists every match; the remedy line under it names the mechanism the command you ran actually has:
 
-| Situation                                                                         | Advice                                                                                                  |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| All matches are the **same type** (including single-type commands)                | `Type more of the name to narrow the match (e.g. 'burn').`                                              |
-| Matches that fold together but differ byte-wise                                   | `Type one list's exact full name, spelled and capitalized as its file is (e.g. 'Atraxa Superfriends').` |
-| Matches span types, command takes type flags                                      | `Disambiguate with --deck, --collection, or --wanted.`                                                  |
-| Matches span types, the name takes a type prefix (`move`, `diff`, `export`)       | `Disambiguate with a type prefix, e.g. 'deck:Storm' or 'wanted:Storm'.`                                 |
-| Matches span types, the caller sends a structured type field (`POST /api/export`) | `Set the list's type to 'deck' or 'wanted'.`                                                            |
-| Matches span types, no type selector exists at all                                | `Type more of the name to narrow the match (e.g. 'Storm').`                                             |
+| Situation                                                                           | Advice                                                                                                  |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| All matches are the **same type** (including single-type commands)                  | `Type more of the name to narrow the match (e.g. 'burn').`                                              |
+| Matches that fold together but differ byte-wise                                     | `Type one list's exact full name, spelled and capitalized as its file is (e.g. 'Atraxa Superfriends').` |
+| Matches span types, command takes type flags                                        | `Disambiguate with --deck, --collection, or --wanted.`                                                  |
+| Matches span types, the name takes a type prefix (`move`, `diff`, `export`, `sell`) | `Disambiguate with a type prefix, e.g. 'deck:Storm' or 'wanted:Storm'.`                                 |
+| Matches span types, the caller sends a structured type field (`POST /api/export`)   | `Set the list's type to 'deck' or 'wanted'.`                                                            |
+| Matches span types, no type selector exists at all                                  | `Type more of the name to narrow the match (e.g. 'Storm').`                                             |
 
 A type selector can never break a tie between two lists of the same type, so the same-type case always asks for a longer name. A type is only suggested when it holds exactly **one** match — pinning a type that would just produce a second ambiguity error is never offered, and when no type qualifies the error asks for a longer name instead. The suggested example name is likewise always one that would actually resolve: when two files fold to the same name (`Storm Crow.md` and `storm-crow.md`) a longer name would not help, so the advice asks for one list's exact full name instead — which the byte-exact tier honors. Only when the matches are byte-identical (the same file name under two different list types) is no example offered, because no name can break that tie.
 

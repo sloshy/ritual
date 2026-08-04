@@ -156,7 +156,7 @@ ritual skills list --output json
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ritual`             | Overview, workspace layout, file format, global options, and setup.                                                                                                         |
 | `ritual-decks`       | Create, import, sync, and price decks.                                                                                                                                      |
-| `ritual-collections` | Manage collections, sync them with Archidekt, and price them.                                                                                                               |
+| `ritual-collections` | Manage collections, sync them with Archidekt, price them, and check them against Card Kingdom's buylist.                                                                    |
 | `ritual-wanted`      | Manage and price wanted lists.                                                                                                                                              |
 | `ritual-edit`        | Card edits across any list: non-interactive commands, applying exported change bundles, card exports (CSV, JSON, plain text, Markdown), and the unified interactive editor. |
 | `ritual-cards`       | Card lookup and Scryfall searches.                                                                                                                                          |

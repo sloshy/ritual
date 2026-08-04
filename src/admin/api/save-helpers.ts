@@ -3,6 +3,8 @@ import {
   unreadableLines,
   type ParsedListContent,
 } from '../../markdown-fence'
+import { cardCache } from '../../cache'
+import { CACHE_REFRESH_REMEDY } from '../../cache/status'
 import { computeHash, hashPath, writeFileWithHash } from '../../content-hash'
 import { appendChangelog } from '../../changelog-writer'
 import { isRecord } from '../../json'
@@ -55,6 +57,19 @@ export function apiError(message: string, status: number): Response {
 /** {@link apiError} at the status a refusal almost always carries. */
 export function badRequest(message: string): Response {
   return apiError(message, 400)
+}
+
+/**
+ * 503 when the card cache is empty, null when the handler may proceed. The
+ * shared guard for routes that read strictly from the local cache (`price`,
+ * `sell`): a handler must never prompt for or trigger a bulk download the way
+ * the CLI freshness gates do. `requirement` names what the cache is needed for.
+ */
+export async function requireCardCache(requirement: string): Promise<Response | null> {
+  if (await cardCache.isEmpty()) {
+    return apiError(`The card cache is empty; ${requirement}. ${CACHE_REFRESH_REMEDY}.`, 503)
+  }
+  return null
 }
 
 /**

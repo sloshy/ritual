@@ -16,6 +16,8 @@ import {
   GET_HISTORY_OUTPUT,
   GET_LIST_OUTPUT,
   GET_PRICE_REPORT_OUTPUT,
+  GET_SELL_CART_OUTPUT,
+  GET_SELL_REPORT_OUTPUT,
   GET_SYNC_STATUS_OUTPUT,
   LIST_LISTS_OUTPUT,
   SEARCH_SCRYFALL_OUTPUT,
@@ -24,7 +26,9 @@ import {
   currencySchema,
   finishSchema,
   listRefSchema,
+  listSlugRefSchema,
   listTypeSchema,
+  setCodeField,
   setField,
   slugField,
   type ListRefInput,
@@ -40,6 +44,7 @@ import type { ConfigResponse } from '../../admin/api/config'
 import type { DiffResponseBody } from '../../admin/api/diff'
 import type { HistoryLoadResponse } from '../../admin/api/history'
 import type { PriceListDetailResponse, PriceSummaryResponse } from '../../admin/api/price'
+import type { SellCartResponse, SellReportResponse } from '../../admin/api/sell'
 import type {
   CollectionSyncList,
   CollectionSyncStatusResponse,
@@ -165,6 +170,44 @@ export type AutocompleteResult = OmitSuccess<AutocompleteResponse>
 
 /** `get_price_report` result: the summary or the single-list body, keyed by `mode`. */
 export type PriceReportResult = OmitSuccess<PriceSummaryResponse | PriceListDetailResponse>
+
+/** `get_sell_report` result: entries matched against the Card Kingdom buylist. */
+export type SellReportResult = OmitSuccess<SellReportResponse>
+
+/** `get_sell_cart` result: the CK sell-cart CSV plus its size against their caps. */
+export type SellCartResult = OmitSuccess<SellCartResponse>
+
+/** The scope/filter input shared by `get_sell_report` and `get_sell_cart`. */
+const sellScopeSchema = z.object({
+  listType: listTypeSchema
+    .optional()
+    .describe('Match every list of this type (default: collections).'),
+  lists: z
+    .array(listSlugRefSchema)
+    .optional()
+    .describe('Match exactly these lists instead of a whole type.'),
+  sets: z.array(setCodeField).optional().describe('Only cards from these set codes.'),
+  minPrice: z
+    .number()
+    .min(0)
+    .optional()
+    .describe('Only offers of at least this much per copy (USD).'),
+})
+
+type SellScopeInput = z.infer<typeof sellScopeSchema>
+
+/** The admin sell endpoints' query string for a tool-scope input. */
+function sellScopeQuery(scope: SellScopeInput): string {
+  const params = new URLSearchParams()
+  if (scope.lists !== undefined && scope.lists.length > 0) {
+    params.set('lists', scope.lists.map((ref) => `${ref.listType}:${ref.slug}`).join(','))
+  } else if (scope.listType !== undefined) {
+    params.set('type', scope.listType)
+  }
+  if (scope.sets !== undefined && scope.sets.length > 0) params.set('sets', scope.sets.join(','))
+  if (scope.minPrice !== undefined) params.set('min', String(scope.minPrice))
+  return params.size > 0 ? `?${params}` : ''
+}
 
 /** `get_history` result: a list's change sets plus the default-rewrite lines. */
 export type HistoryResult = OmitSuccess<HistoryLoadResponse>
@@ -565,6 +608,54 @@ export function registerReadTools(server: McpServer): void {
         const query = params.size > 0 ? `?${params}` : ''
         const summary = await callApiData<PriceSummaryResponse>('GET', `/api/price/summary${query}`)
         return summary
+      }),
+  )
+
+  server.registerTool(
+    'get_sell_report',
+    {
+      title: 'Sell report',
+      description:
+        'Match cards against the cached Card Kingdom buylist: what CK is buying, the cash ' +
+        'quote per Near Mint copy, and their quantity caps. Scope with listType (default: ' +
+        'collections) or lists; filter with sets / minPrice. Strictly cache-backed — errors ' +
+        'when the card cache is empty (run refresh_cache) or no buylist feed has been ' +
+        'downloaded (run refresh_buylist).',
+      inputSchema: sellScopeSchema,
+      outputSchema: fromJsonSchema<SellReportResult>(GET_SELL_REPORT_OUTPUT),
+      annotations: { readOnlyHint: true },
+    },
+    async (scope) =>
+      runTool(async (): Promise<SellReportResult> => {
+        const data = await callApiData<SellReportResponse>(
+          'GET',
+          `/api/sell/report${sellScopeQuery(scope)}`,
+        )
+        return data
+      }),
+  )
+
+  server.registerTool(
+    'get_sell_cart',
+    {
+      title: 'Sell-cart CSV',
+      description:
+        'Render the cards CK is buying as their sell-cart CSV import format (card name, ' +
+        'edition, foil, quantity — CK’s own spellings, quantities capped at their buy ' +
+        'limits), over the same scope and filters as get_sell_report. Upload the csv at ' +
+        'cardkingdom.com/static/csvImport; warnings flag CK’s 500-title/5,000-card upload ' +
+        'caps and etched foils the format cannot express.',
+      inputSchema: sellScopeSchema,
+      outputSchema: fromJsonSchema<SellCartResult>(GET_SELL_CART_OUTPUT),
+      annotations: { readOnlyHint: true },
+    },
+    async (scope) =>
+      runTool(async (): Promise<SellCartResult> => {
+        const data = await callApiData<SellCartResponse>(
+          'GET',
+          `/api/sell/cart${sellScopeQuery(scope)}`,
+        )
+        return data
       }),
   )
 

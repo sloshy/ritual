@@ -5,6 +5,7 @@ import type { McpToolName } from './tools/names'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
 import { VALID_CURRENCIES } from '../price-currency'
 import { DIFF_BY_MODES } from '../list-diff'
+import { SELL_ENTRY_STATUSES, SELL_MATCH_VIAS, SELL_NO_MATCH_REASONS } from '../sell-report'
 
 /**
  * Hand-authored JSON Schema for every tool's `outputSchema`.
@@ -764,6 +765,106 @@ export const GET_PRICE_REPORT_OUTPUT: JsonSchemaType = withDefs(
   'PricedEntry',
 )
 
+// ── Sell report ───────────────────────────────────────────────────────
+
+/** The quantity-weighted totals every sell summary carries. */
+const SELL_TOTALS_PROPS = {
+  cardCount: int('Copies considered.'),
+  sellableCount: int('Copies CK will take (capped at their buy limits).'),
+  totalValue: num('Sum of buy price × sellable copies (USD).'),
+  notBuyingCount: int('Copies whose matched product CK is not currently buying.'),
+  noMatchCount: int('Copies with no CK product match at all.'),
+} as const satisfies Properties
+
+const SELL_TOTALS_REQUIRED = [
+  'cardCount',
+  'sellableCount',
+  'totalValue',
+  'notBuyingCount',
+  'noMatchCount',
+] as const
+
+const SELL_ENTRY_SCHEMA: JsonSchemaType = obj(
+  {
+    listType: LIST_TYPE,
+    listName: str(),
+    section: str(),
+    name: str(),
+    quantity: int('Copies the list holds (identical variants aggregated).'),
+    set: str('Set code (lowercase): the entry’s pin, else the quoted printing’s.'),
+    collectorNumber: str(),
+    finish: FINISH,
+    condition: CONDITION,
+    pinned: bool('Whether set/collectorNumber came from the list entry itself.'),
+    status: enumOf(SELL_ENTRY_STATUSES),
+    noMatchReason: enumOf(SELL_NO_MATCH_REASONS),
+    matchVia: enumOf(SELL_MATCH_VIAS, 'Which join key located the CK product.'),
+    ambiguous: bool('Multiple CK products matched; the quote is from the best-paying one.'),
+    ckProductId: int(),
+    ckSku: str(),
+    ckName: str('CK’s own card title (can differ from Scryfall’s).'),
+    ckEdition: str('CK’s edition display name.'),
+    ckVariation: str(),
+    ckUrl: str('CK product page URL.'),
+    ckFinish: enumOf(
+      VALID_FINISHES,
+      'The matched product’s finish — differs from finish on unpinned entries.',
+    ),
+    priceBuy: num('CK’s buylist cash quote per Near Mint copy (USD).'),
+    priceRetail: num('CK’s retail price (USD), for reference.'),
+    qtyBuying: int('Copies CK is currently buying of this product.'),
+    sellableQuantity: int(
+      'Copies CK would take, drawn from a per-product budget; 0 unless buying.',
+    ),
+    value: num('priceBuy × sellableQuantity.'),
+    fileOrder: int(),
+  },
+  [
+    'listType',
+    'listName',
+    'section',
+    'name',
+    'quantity',
+    'pinned',
+    'status',
+    'sellableQuantity',
+    'value',
+    'fileOrder',
+  ],
+)
+
+export const GET_SELL_REPORT_OUTPUT: JsonSchemaType = obj(
+  {
+    feedCreatedAt: str('Card Kingdom’s feed generation stamp, verbatim.'),
+    feedRetrievedAt: int('Epoch ms when the feed was downloaded.'),
+    filters: obj({
+      sets: arr(str(), 'Set codes the entries were filtered to.'),
+      minPrice: num('Minimum per-copy offer the entries were filtered to.'),
+    }),
+    lists: arr(
+      obj({ type: LIST_TYPE, name: str(), ...SELL_TOTALS_PROPS }, [
+        'type',
+        'name',
+        ...SELL_TOTALS_REQUIRED,
+      ]),
+    ),
+    entries: arr(SELL_ENTRY_SCHEMA, 'Matched entries; filtered when filters are active.'),
+    totals: obj({ ...SELL_TOTALS_PROPS, listCount: int() }, [...SELL_TOTALS_REQUIRED, 'listCount']),
+    warnings: arr(str()),
+  },
+  ['feedCreatedAt', 'feedRetrievedAt', 'filters', 'lists', 'entries', 'totals', 'warnings'],
+)
+
+export const GET_SELL_CART_OUTPUT: JsonSchemaType = obj(
+  {
+    csv: str('The sell-cart CSV, header row included.'),
+    titleCount: int('Unique titles in the file (CK imports at most 500 per upload).'),
+    cardCount: int('Total cards in the file (CK imports at most 5,000 per upload).'),
+    warnings: arr(str(), 'Upload-cap overruns and etched foils the format cannot express.'),
+  },
+  ['csv', 'titleCount', 'cardCount', 'warnings'],
+)
+
 export const GET_HISTORY_OUTPUT: JsonSchemaType = withDefs(
   obj(
     {
@@ -1013,6 +1114,20 @@ export const BUILD_SITE_OUTPUT: JsonSchemaType = obj(
  */
 export const REFRESH_CACHE_OUTPUT: JsonSchemaType = obj({ message: str() }, ['message'])
 
+export const REFRESH_BUYLIST_OUTPUT: JsonSchemaType = obj(
+  {
+    refreshed: bool(
+      'Whether a new feed was downloaded. False with empty warnings: the cache was still ' +
+        'fresh; false with a warning: the download failed and the stale cache is in use.',
+    ),
+    feedRetrievedAt: int('Epoch ms of the feed download.'),
+    feedCreatedAt: str('Card Kingdom’s feed generation stamp, verbatim.'),
+    productCount: int('Products in the feed.'),
+    warnings: arr(str(), 'Failures that degraded the result (stale-feed fallback).'),
+  },
+  ['refreshed', 'feedRetrievedAt', 'feedCreatedAt', 'productCount', 'warnings'],
+)
+
 const SYNC_DIRECTION = enumOf(['pull', 'push'])
 
 export const SYNC_DECKS_OUTPUT: JsonSchemaType = obj(
@@ -1083,7 +1198,8 @@ export const SYNC_COLLECTION_OUTPUT: JsonSchemaType = obj(
  * Documented and pinned, but deliberately **not** an arm of any tool's
  * `outputSchema`: the SDK skips output validation entirely for `isError`
  * results, so an error arm would buy zero runtime checking while adding a second
- * shape a client must discriminate on every successful read, on all 34 tools.
+ * shape a client must discriminate on every successful read, on every tool in
+ * the catalogue.
  */
 export const TOOL_ERROR_OUTPUT: JsonSchemaType = obj(
   {
@@ -1119,6 +1235,8 @@ export const TOOL_OUTPUT_SCHEMAS: Readonly<Record<McpToolName, JsonSchemaType>> 
   get_card_printings: GET_CARD_PRINTINGS_OUTPUT,
   get_card_price: GET_CARD_PRICE_OUTPUT,
   get_price_report: GET_PRICE_REPORT_OUTPUT,
+  get_sell_report: GET_SELL_REPORT_OUTPUT,
+  get_sell_cart: GET_SELL_CART_OUTPUT,
   get_history: GET_HISTORY_OUTPUT,
   get_config: CONFIG_OUTPUT,
   get_cache_status: GET_CACHE_STATUS_OUTPUT,
@@ -1143,4 +1261,5 @@ export const TOOL_OUTPUT_SCHEMAS: Readonly<Record<McpToolName, JsonSchemaType>> 
   sync_decks: SYNC_DECKS_OUTPUT,
   sync_collection: SYNC_COLLECTION_OUTPUT,
   refresh_cache: REFRESH_CACHE_OUTPUT,
+  refresh_buylist: REFRESH_BUYLIST_OUTPUT,
 }

@@ -29,7 +29,8 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
 - Card names on writes are validated against the local cache; an unknown one is rejected with the
   closest cached names, and a cold cache says to run refresh_cache.
 - Network vs local, by name: search_scryfall queries Scryfall; find_cards and autocomplete_card
-  read your lists and your local cache.`
+  read your lists and your local cache. get_sell_report reads the locally cached Card Kingdom
+  buylist; refresh_buylist is what downloads it.`
 
 /** How a transport wants the server built. */
 export interface McpServerOptions {

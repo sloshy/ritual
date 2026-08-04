@@ -13,6 +13,7 @@ import {
 } from '../src/interfaces'
 import { cardCache, streamFromBatchResults } from '../src/cache'
 import { MemoryLogger, resetLogger, setLogger } from '../src/logger'
+import type { CardKingdomCacheFile, CardKingdomProduct } from '../src/cardkingdom'
 import type { ScryfallCard } from '../src/types'
 import type { CardData } from '../src/site/card-sorting'
 
@@ -440,4 +441,39 @@ export function stubTty(streams: TtyStubs): void {
     process.stdin.isTTY = original.stdin
     process.stdout.isTTY = original.stdout
   })
+}
+
+/** A parsed Card Kingdom feed product with neutral defaults, for sell fixtures. */
+export function makeCardKingdomProduct(
+  overrides: Partial<CardKingdomProduct> = {},
+): CardKingdomProduct {
+  return {
+    id: 1,
+    sku: 'TST-0001',
+    scryfallId: 'sf-1',
+    url: 'mtg/test-set/test-card',
+    name: 'Test Card',
+    variation: '',
+    edition: 'Test Set',
+    finish: 'nonfoil',
+    priceRetail: 1,
+    priceBuy: 0.5,
+    qtyBuying: 10,
+    ...overrides,
+  }
+}
+
+/** A persisted Card Kingdom cache file wrapping `products`, stamped `retrievedAt`. */
+export function makeCardKingdomCacheFile(
+  products: CardKingdomProduct[],
+  retrievedAt = Date.now(),
+): CardKingdomCacheFile {
+  return {
+    retrievedAt,
+    feed: {
+      createdAt: '2026-08-04 06:06:09',
+      baseUrl: 'https://www.cardkingdom.com/',
+      products,
+    },
+  }
 }

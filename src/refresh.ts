@@ -49,6 +49,15 @@ export function bulkAllowed(mode: RefreshMode): boolean {
   return mode === 'ask' || mode === 'auto'
 }
 
+/**
+ * Structured output must stay parseable, so never mix prompts into it: an
+ * unanswerable `ask` refresh downgrades to `never`. `output` is the command's
+ * `--output` value — anything but `text` is structured (json, ndjson, csv).
+ */
+export function resolveRefreshMode(refresh: RefreshMode, output: string): RefreshMode {
+  return output !== 'text' && refresh === 'ask' ? 'never' : refresh
+}
+
 /** Whether merely-stale (but cached) prices should be refetched per-card. */
 export function refreshStaleAllowed(mode: RefreshMode): boolean {
   return mode !== 'never'

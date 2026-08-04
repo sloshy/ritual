@@ -4,6 +4,7 @@ import { BULK_CACHE_MAX_AGE_MS, PRICE_MAX_AGE_MS } from './constants'
 import { shouldBulkRefresh, type BulkRefreshPrompt, type RefreshMode } from '../refresh'
 import { formatDuration } from '../utils'
 import { getErrorMessage } from '../errors'
+import { getLogger } from '../logger'
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
@@ -244,6 +245,46 @@ export async function ensureCardCacheForUpload(
   return true
 }
 
+/**
+ * Ensure the card cache holds cards at all, offering the bulk download that is
+ * the only way to fill it. The one empty-cache policy shared by every command
+ * that cannot run without card data (`price`, `sell`):
+ *
+ * - `no-bulk`/`never` refuse silently — the caller surfaces the error.
+ * - `auto` downloads outright; `ask` prompts (default yes), declining refuses.
+ * - Messages go through `getLogger()`, so a structured-output run keeps them
+ *   off stdout.
+ *
+ * @param requirement One sentence naming why the cache is needed, appended to
+ *   the empty-cache announcement.
+ * @returns Whether the cache now holds cards.
+ */
+export async function ensureCardCachePresent(
+  mode: RefreshMode,
+  requirement: string,
+  deps: SessionCacheDeps = {},
+): Promise<boolean> {
+  const cache = deps.cache ?? cardCache
+  const preload = deps.preload ?? refreshCardCache
+  const confirm = deps.confirmStaleRefresh ?? ((prompt: BulkRefreshPrompt) => shouldBulkRefresh(mode, prompt))
+
+  if (!(await cache.isEmpty())) return true
+  // The cache can only be filled by a bulk download, so modes that forbid one
+  // leave an empty cache simply unusable — never download, stay quiet.
+  if (mode === 'no-bulk' || mode === 'never') return false
+  getLogger().info(`Card cache is empty. ${requirement}`)
+  const accepted =
+    mode === 'auto' ||
+    (await confirm({ message: 'Would you like to download it now?', initial: true }))
+  if (!accepted) return false
+  const failure = await tryPreload(preload)
+  if (failure !== null) {
+    getLogger().error(failure)
+    return false
+  }
+  return !(await cache.isEmpty())
+}
+
 /** Whether price data exists at all, and when it was last refreshed. */
 export type PriceFreshnessResult = {
   ready: boolean
@@ -273,24 +314,15 @@ export async function ensureFreshPriceData(
     deps.confirmStaleRefresh ?? ((prompt) => shouldBulkRefresh(mode, prompt))
 
   if (await cache.isEmpty()) {
-    // The cache can only be filled by a bulk download, so modes that forbid one
-    // leave an empty cache simply unusable — never download, stay quiet.
-    if (mode === 'no-bulk' || mode === 'never') return { ready: false, lastRefreshedAt: null }
-    console.log('Card cache is empty. Pricing requires the Scryfall card database.')
-    const accepted =
-      mode === 'auto' ||
-      (await confirmStaleRefresh({
-        message: 'Would you like to download it now?',
-        initial: true,
-      }))
-    if (!accepted) return { ready: false, lastRefreshedAt: null }
     // The cache was empty, so a download that failed leaves nothing to price.
-    const failure = await tryPreload(preload)
-    if (failure !== null) {
-      console.error(failure)
-      return { ready: false, lastRefreshedAt: null }
-    }
-    return { ready: true, lastRefreshedAt: await cache.getLastRefreshedAt() }
+    const ready = await ensureCardCachePresent(
+      mode,
+      'Pricing requires the Scryfall card database.',
+      { cache, preload, confirmStaleRefresh },
+    )
+    return ready
+      ? { ready: true, lastRefreshedAt: await cache.getLastRefreshedAt() }
+      : { ready: false, lastRefreshedAt: null }
   }
 
   const lastRefreshed = await cache.getLastRefreshedAt()

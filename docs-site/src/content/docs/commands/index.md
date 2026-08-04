@@ -9,7 +9,7 @@ jump to a category:
 - **Lists** — [lists](/commands/lists/), [new](/commands/new/), [rename](/commands/rename/), [delete](/commands/delete/), [edit](/commands/edit/), [history](/commands/history/), [diff](/commands/diff/), [get-primer](/commands/get-primer/)
 - **Cards** — [add-card](/commands/add-card/), [remove-card](/commands/remove-card/), [set-card](/commands/set-card/), [note](/commands/note/), [move](/commands/move/)
 - **Import & Export** — [import](/commands/import/), [import-account](/commands/import-account/), [import-changes](/commands/import-changes/), [export](/commands/export/)
-- **Lookup & Pricing** — [card](/commands/card/), [scry](/commands/scry/), [price](/commands/price/)
+- **Lookup & Pricing** — [card](/commands/card/), [scry](/commands/scry/), [price](/commands/price/), [sell](/commands/sell/)
 - **Site** — [build-site](/commands/build-site/), [serve](/commands/serve/), [init-site](/commands/init-site/), [admin](/commands/admin/)
 - **Integrations** — [login](/commands/login/), [deck-sync](/commands/deck-sync/), [collection-sync](/commands/collection-sync/), [mcp](/commands/mcp/), [skills](/commands/skills/)
 - **Cache** — [cache](/commands/cache/)

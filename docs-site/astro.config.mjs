@@ -67,7 +67,7 @@ export default defineConfig({
             },
             {
               label: 'Lookup & Pricing',
-              items: ['commands/card', 'commands/scry', 'commands/price'],
+              items: ['commands/card', 'commands/scry', 'commands/price', 'commands/sell'],
             },
             {
               label: 'Site',

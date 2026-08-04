@@ -43,6 +43,8 @@ const EXPECTED_TOOLS = [
   'get_card_printings',
   'get_card_price',
   'get_price_report',
+  'get_sell_report',
+  'get_sell_cart',
   'get_history',
   'get_config',
   'get_cache_status',
@@ -69,6 +71,7 @@ const EXPECTED_TOOLS = [
   'sync_decks',
   'sync_collection',
   'refresh_cache',
+  'refresh_buylist',
 ]
 
 /** Mutation tools whose schemas must never surface the internally-managed content hash. */
@@ -283,6 +286,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
         'sync_decks',
         'sync_collection',
         'refresh_cache',
+        'refresh_buylist',
         'import_deck',
         'import_csv',
         'import_change_bundle',

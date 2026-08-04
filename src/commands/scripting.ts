@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { InvalidArgumentError, type Command } from 'commander'
+import { getBaseDir } from '../base-dir'
 import type { ErrorCode } from '../types'
 import {
   ExitCode,
@@ -24,6 +25,27 @@ export type { ExitCodeValue }
 export const OUTPUT_FORMATS = ['text', 'json', 'ndjson'] as const
 
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number]
+
+/**
+ * The shared vocabulary plus `csv`, for the commands whose `--output` also
+ * offers a CSV payload (`scry`, `sell`). A fourth `--output` value rather than
+ * a separate `--csv` boolean, so exactly one flag owns the format.
+ */
+export const CSV_OUTPUT_FORMATS = [...OUTPUT_FORMATS, 'csv'] as const
+
+export type CsvOutputFormat = (typeof CSV_OUTPUT_FORMATS)[number]
+
+/**
+ * The scripting envelope for a csv-widened command: `csv` has no error dialect
+ * of its own, so it borrows `text`'s — plain messages on stderr.
+ */
+export function csvScriptingOptions(
+  format: CsvOutputFormat | undefined,
+  quiet: boolean,
+): ScriptingOptions {
+  const output: OutputFormat = format === undefined || format === 'csv' ? 'text' : format
+  return { output, quiet }
+}
 
 /**
  * Whether the downstream reader has closed stdout. Once that happens every
@@ -384,6 +406,17 @@ export async function emitToFileOrStdout(
   if (!quiet && confirm?.file) {
     console.log(confirm.file(outPath))
   }
+}
+
+/**
+ * Resolve a shared `--out <file>` value to an absolute destination for
+ * {@link emitToFileOrStdout}: absent or `-` means stdout, and a relative path
+ * resolves against the base directory (not the process cwd), like every other
+ * workspace-relative path.
+ */
+export function resolveOutPath(out: string | undefined): string | undefined {
+  if (out === undefined || out === '-') return undefined
+  return path.isAbsolute(out) ? out : path.join(getBaseDir(), out)
 }
 
 export type FileReadFailure = { errorCode: ErrorCode; exitCode: ExitCodeValue }

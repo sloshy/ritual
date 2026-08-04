@@ -91,6 +91,7 @@ export const REFRESH_SESSION = wrapProse(
  */
 export const REFRESH_COMMANDS = wrapProse(
   `Commands that read the Scryfall card cache (\`add-card\`, \`edit\`, \`price\`, ` +
+    `\`sell\` — where the mode also governs its Card Kingdom buylist cache — ` +
     `\`build-site\`, \`serve --build\`, \`admin\`) share a \`--refresh <mode>\` option ` +
     `controlling cache freshness: \`ask\` (the default — prompt about stale or ` +
     `empty caches, skipping the prompt when prompts are unavailable; ` +

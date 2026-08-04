@@ -15,7 +15,7 @@ import {
 export const collectionsSkill: RitualSkill = {
   name: 'ritual-collections',
   description:
-    'Manage, sync, and price a Magic: The Gathering card collection with Ritual. Use when the user wants to add owned cards to a collection, browse or bulk-add cards interactively, import a collection from a CSV export or text file, sync a collection with Archidekt (pull or push), or get the total value of a collection.',
+    'Manage, sync, price, and sell a Magic: The Gathering card collection with Ritual. Use when the user wants to add owned cards to a collection, browse or bulk-add cards interactively, import a collection from a CSV export or text file, sync a collection with Archidekt (pull or push), get the total value of a collection, or check what Card Kingdom’s buylist pays for their cards.',
   body: `# Managing collections with Ritual
 
 Collections of owned cards live in \`collections/<name>.md\`. See the **ritual**
@@ -354,5 +354,26 @@ ritual price main-binder --prices eur          ${PRICE_CURRENCY_COMMENT}
 
 Collection entries are priced at their exact printing and finish; totals include a
 quantity-weighted unpriced-card count.
+
+## Sell to Card Kingdom
+
+\`sell\` matches cards against Card Kingdom's buylist ("Sell us your cards"): what CK is
+buying, the cash quote per Near Mint copy, and their buy-quantity caps. It works from a
+locally cached copy of CK's pricelist feed (~70 MB, fresh for a day); \`--refresh auto\`
+downloads it when stale or missing. Defaults to every collection; accepts list names of
+any type (\`deck:\`/\`collection:\`/\`wanted:\` prefixes disambiguate).
+
+\`\`\`bash
+ritual sell --refresh auto --output json        # everything CK buys from your collections
+ritual sell main-binder --all --no-input        # one list, including skipped entries
+ritual sell --sets dsk,fdn --min 0.50           # only these sets, offers ≥ $0.50/copy
+ritual sell --output csv --out to-sell.csv      # CK sell-cart CSV (upload at cardkingdom.com/static/csvImport)
+\`\`\`
+
+Entries report \`status\` \`buying\` / \`not-buying\` (CK's buy quantity is 0) / \`no-match\`,
+with \`sellableQuantity = min(owned, CK's cap)\` and \`value\` covering only those copies.
+Quotes are cash for NM copies — played conditions grade down, store credit pays more.
+The \`csv\` output uses CK's own name/edition spellings and warns beyond their upload caps
+(500 titles / 5,000 cards); etched foils export as plain foil with a warning.
 `,
 }

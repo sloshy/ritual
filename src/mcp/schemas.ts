@@ -79,13 +79,27 @@ export const cardIdField = z
   .optional()
   .describe('Disambiguate by the persistent card ID (the &N suffix in list files).')
 
-export const setField = z
+/**
+ * A required set code — the array-element form: `z.array(setCodeField)`.
+ * Wrapping the optional {@link setField} in an array would admit `undefined`
+ * elements.
+ */
+export const setCodeField = z
   .string()
   .toLowerCase()
+  .describe('Set code, e.g. "mkm". Normalized to lowercase.')
+
+export const setField = setCodeField
   .optional()
   .describe(
     'Set code, e.g. "mkm". Normalized to lowercase; pair with collectorNumber to pin a printing.',
   )
+
+/** One list addressed exactly, by type + slug (no name matching). */
+export const listSlugRefSchema = z.object({
+  listType: listTypeSchema,
+  slug: slugField,
+})
 
 export const collectorNumberField = z
   .string()

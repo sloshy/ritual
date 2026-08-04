@@ -29,7 +29,7 @@ Run a raw Scryfall card search, or fetch random cards with `--random`.
 
 `scry` registers no `--quiet`: results are the payload and the truncation notice below is a content-loss warning, and [the convention](/#scripting-conventions) lets `--quiet` hide neither.
 
-`scry` is the one command whose `--output` accepts a fourth value, `csv` — Scryfall renders the CSV server-side, so it is a format of the same payload rather than a separate flag. Everything else follows the [shared scripting conventions](/#scripting-conventions).
+`scry`'s `--output` accepts a fourth value, `csv` — Scryfall renders the CSV server-side, so it is a format of the same payload rather than a separate flag ([`sell`](/commands/sell/) widens the vocabulary the same way, with a different payload). Everything else follows the [shared scripting conventions](/#scripting-conventions).
 
 `--random` cannot be combined with `--pages` or `--output csv`, and `--count` requires `--random`; either combination is rejected with a usage error. Without `--random`, a search query is required.
 

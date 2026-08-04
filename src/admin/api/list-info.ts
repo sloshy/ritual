@@ -2,7 +2,9 @@ import path from 'node:path'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../../ritual-config'
 import { resolveDeckFilePath } from '../../deck-file'
 import { isPathWithinDir } from '../../path-validation'
+import { listSlug } from '../../list-info'
 import type { ListType } from '../../list-type'
+import type { ListLocation } from '../../resolve-list'
 
 /**
  * Resolve a `type` + `slug` pair to a concrete list file path, or null when no
@@ -19,4 +21,18 @@ export async function resolveListFile(type: ListType, slug: string): Promise<str
   if (!isPathWithinDir(filePath, dir)) return null
   if (!(await Bun.file(filePath).exists())) return null
   return filePath
+}
+
+/**
+ * {@link resolveListFile} lifted to a {@link ListLocation}. `name` is
+ * re-derived from the resolved path rather than echoing the slug parameter, so
+ * report output carries the list's canonical name.
+ */
+export async function listLocationForSlug(
+  type: ListType,
+  slug: string,
+): Promise<ListLocation | null> {
+  const filePath = await resolveListFile(type, slug)
+  if (!filePath) return null
+  return { type, name: listSlug(filePath), filePath }
 }

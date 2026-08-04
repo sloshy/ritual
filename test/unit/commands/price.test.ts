@@ -1,9 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  resolveRefreshMode,
-  shouldRunInteractive,
-  type InteractiveTerminal,
-} from '../../../src/commands/price'
+import { shouldRunInteractive, type InteractiveTerminal } from '../../../src/commands/price'
+import { resolveRefreshMode } from '../../../src/refresh'
 import type { ScriptingOptions } from '../../../src/commands/scripting'
 
 const FULL_TERMINAL: InteractiveTerminal = { stdinIsTTY: true, stdoutIsTTY: true, noInput: false }
@@ -63,6 +60,8 @@ describe('resolveRefreshMode', () => {
   test('structured output downgrades an unanswerable ask to never', () => {
     expect(resolveRefreshMode('ask', 'json')).toBe('never')
     expect(resolveRefreshMode('ask', 'ndjson')).toBe('never')
+    // sell's csv payload is as unpromptable as json/ndjson.
+    expect(resolveRefreshMode('ask', 'csv')).toBe('never')
   })
 
   test('structured output leaves explicit modes untouched', () => {

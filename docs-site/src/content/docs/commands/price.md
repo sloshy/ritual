@@ -4,7 +4,7 @@ title: 'price'
 
 Browse the prices of every deck, collection, and wanted list in one place.
 
-The same pricing engine backs the [MCP](/commands/mcp/) `get_price_report` tool.
+The same pricing engine backs the [MCP](/commands/mcp/) `get_price_report` tool. (For what a store would _pay you_ for those cards, see [`sell`](/commands/sell/).)
 
 Run without flags in a terminal, `price` opens an interactive browser. It shows when prices were last updated, each list with its total (and its "lowest price" total for decks and wanted lists), how many cards in each list are unpriced, totals per list type, and a grand total across everything. From the main screen you can drill into a single list, search every list at once, refresh prices, or switch currency.
 

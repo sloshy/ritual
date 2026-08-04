@@ -24,6 +24,7 @@ import { registerLoginCommand } from './src/commands/login'
 import { registerImportAccountCommand } from './src/commands/import-account'
 import { registerImportChangesCommand } from './src/commands/import-changes'
 import { registerScryCommand } from './src/commands/scry'
+import { registerSellCommand } from './src/commands/sell'
 import { registerCardCommand } from './src/commands/card'
 import { registerGetPrimerCommand } from './src/commands/get-primer'
 import { registerInitSiteCommand } from './src/commands/init-site'
@@ -169,6 +170,7 @@ program.commandsGroup('Lookup & Pricing')
 registerCardCommand(program)
 registerScryCommand(program)
 registerPriceCommand(program)
+registerSellCommand(program)
 
 program.commandsGroup('Site')
 registerBuildSiteCommand(program)

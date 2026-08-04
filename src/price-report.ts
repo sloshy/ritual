@@ -22,7 +22,7 @@
  */
 
 import * as fs from 'node:fs/promises'
-import { findPrinting, hasSpecificPrinting } from './card-printing'
+import { findPrinting, hasSpecificPrinting, type CardPrintingsLookup } from './card-printing'
 import { parseCollectionFile, resolveFinish } from './collection-file'
 import { isExtraSection } from './deck-format'
 import { loadDeckFile } from './importers/text-file'
@@ -39,12 +39,16 @@ import { listLocations, type ListLocation } from './resolve-list'
 import { comparePrintings, computeRepresentativePrints, getCardGames } from './scryfall'
 import { parseWantedListFile } from './commands/wanted-helpers'
 import { matchesAllTerms } from './term-match'
-import type { DeckData, Finish, ScryfallCard } from './types'
+import type { Condition, DeckData, Finish, ScryfallCard } from './types'
 
 /** When a card has no EDHREC rank, it sorts after every ranked card. */
 export const UNRANKED_EDHREC = 999999
 
-/** A card line from any list, flattened to the fields pricing needs. */
+/**
+ * A card line from any list, flattened to the fields the report engines need.
+ * Pricing ignores `condition` (Scryfall quotes NM market values); it rides
+ * along for the sell report, which shares this loader.
+ */
 export type PriceListEntry = {
   name: string
   quantity: number
@@ -52,6 +56,7 @@ export type PriceListEntry = {
   set?: string
   collectorNumber?: string
   finish?: Finish
+  condition?: Condition
   section: string
 }
 
@@ -139,12 +144,9 @@ export type PriceReport = {
   totals: PriceReportTotals
 }
 
-/** Resolves a card name to all of its printings (cache-backed in production). */
-export type PrintingsLookup = (name: string) => Promise<ScryfallCard[]>
-
 export type BuildPriceReportOptions = {
   currency: PriceCurrency
-  lookup: PrintingsLookup
+  lookup: CardPrintingsLookup
   /** `set:collectorNumber` keys excluded from representative-printing selection. */
   bannedPrintings?: ReadonlySet<string>
 }
@@ -212,6 +214,7 @@ export function deckPriceEntries(deck: Pick<DeckData, 'sections'>): PriceListEnt
         set: card.set?.toLowerCase(),
         collectorNumber: card.collectorNumber,
         finish: card.finish,
+        condition: card.condition,
         section: section.name,
       })
     }
@@ -236,8 +239,27 @@ export async function loadPriceListInputs(
     }
 
     const content = await fs.readFile(location.filePath, 'utf-8')
-    const parsed =
-      location.type === 'collection' ? parseCollectionFile(content) : parseWantedListFile(content)
+    if (location.type === 'collection') {
+      const parsed = parseCollectionFile(content)
+      warnings.push(...parsed.warnings.map((w) => `${location.name}: ${w}`))
+      inputs.push({
+        type: location.type,
+        name: location.name,
+        entries: parsed.entries.map(
+          (entry): PriceListEntry => ({
+            name: entry.name,
+            quantity: entry.quantity,
+            set: entry.set.toLowerCase(),
+            collectorNumber: entry.collectorNumber,
+            finish: entry.finish,
+            condition: entry.condition,
+            section: entry.section,
+          }),
+        ),
+      })
+      continue
+    }
+    const parsed = parseWantedListFile(content)
     warnings.push(...parsed.warnings.map((w) => `${location.name}: ${w}`))
     inputs.push({
       type: location.type,

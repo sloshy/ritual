@@ -27,15 +27,8 @@ import {
   type ExportPreset,
 } from '../export/presets'
 import { renderExport, saveExportPreset } from '../export/output'
-import {
-  isListArgumentConflict,
-  isResolveListError,
-  listLocations,
-  listTypeFromFlags,
-  resolveList,
-  resolveListArgument,
-  type ListLocation,
-} from '../resolve-list'
+import { listLocations, listTypeFromFlags, type ListLocation } from '../resolve-list'
+import { isListArgumentsFailure, resolveListArguments } from './list-arguments'
 import { getExportPresets } from '../ritual-config'
 import { promptsUnavailable } from '../no-input'
 import {
@@ -256,24 +249,22 @@ async function runFlagExport(
   })
 
   // Selected lists: named args, or every list in scope when --all (or nothing) was given.
-  const selected: ListLocation[] = []
-  for (const raw of listArgs) {
-    // A `deck:`/`collection:`/`wanted:` prefix supplies the type; one that
-    // contradicts the whole-command type flag is a usage error, not a silent
-    // override of the flag.
-    const arg = resolveListArgument(raw, type)
-    if (isListArgumentConflict(arg)) {
-      emitError('usage_error', arg.message, textOptions)
+  // A `deck:`/`collection:`/`wanted:` prefix supplies the type; one that
+  // contradicts the whole-command type flag is a usage error, not a silent
+  // override of the flag. `export` takes any number of list arguments, so the
+  // whole-command type flags cannot scope one of them — the prefix can.
+  const resolvedArgs = await resolveListArguments(listArgs, type)
+  if (isListArgumentsFailure(resolvedArgs)) {
+    if (resolvedArgs.kind === 'conflict') {
+      emitError('usage_error', resolvedArgs.message, textOptions)
       process.exitCode = ExitCode.UsageError
-      return
+    } else {
+      emitResolveListError(resolvedArgs.error, textOptions, 'type-prefix')
     }
-    const resolved = await resolveList(arg.name, arg.type)
-    if (isResolveListError(resolved)) {
-      // `export` takes any number of list arguments, so the whole-command type
-      // flags cannot scope one of them — the per-argument prefix can.
-      emitResolveListError(resolved, textOptions, 'type-prefix')
-      return
-    }
+    return
+  }
+  const selected: ListLocation[] = []
+  for (const resolved of resolvedArgs) {
     if (!selected.some((l) => l.type === resolved.type && l.name === resolved.name)) {
       selected.push(resolved)
     }

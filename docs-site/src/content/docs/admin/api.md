@@ -576,6 +576,130 @@ Price a single list and return its summary plus every priced card entry (in file
 }
 ```
 
+## Sell Report
+
+```
+GET /api/sell/report
+```
+
+Match listed cards against the locally cached [Card Kingdom buylist](/commands/sell/) and report what CK is buying, the cash quote per Near Mint copy, and their quantity caps — the same payload as [`sell --output json`](/commands/sell/). Strictly cache-backed: the card cache **and** a downloaded feed are prerequisites (`503` otherwise, each naming its remedy), and this endpoint never downloads anything — that is [Sell Refresh](#sell-refresh)'s job.
+
+### Parameters
+
+| Parameter | Description                                                                                     | Required |
+| --------- | ----------------------------------------------------------------------------------------------- | -------- |
+| `type`    | Match every `deck`, `collection`, or `wanted` list (default: every collection)                  | No       |
+| `lists`   | Comma-separated `type:slug` refs to match exactly these lists (overrides `type`); unknown → 404 | No       |
+| `sets`    | Comma-separated set codes to filter to                                                          | No       |
+| `min`     | Minimum per-copy offer (USD)                                                                    | No       |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "feedCreatedAt": "2026-08-04 06:06:09",
+  "feedRetrievedAt": 1785850800000,
+  "filters": { "sets": ["fdn"], "minPrice": 0.5 },
+  "lists": [
+    {
+      "type": "collection",
+      "name": "Red Binder",
+      "cardCount": 45,
+      "sellableCount": 12,
+      "totalValue": 123.45,
+      "notBuyingCount": 30,
+      "noMatchCount": 3
+    }
+  ],
+  "entries": [
+    {
+      "listType": "collection",
+      "listName": "Red Binder",
+      "section": "Main",
+      "name": "Arahbo, the First Fang",
+      "quantity": 1,
+      "set": "fdn",
+      "collectorNumber": "294",
+      "finish": "nonfoil",
+      "condition": "NM",
+      "pinned": true,
+      "status": "buying",
+      "matchVia": "scryfall-id",
+      "ckProductId": 316734,
+      "ckSku": "FDN-0294",
+      "ckName": "Arahbo, the First Fang",
+      "ckEdition": "Foundations Variants",
+      "ckVariation": "0294 - Borderless",
+      "ckUrl": "https://www.cardkingdom.com/mtg/foundations-variants/arahbo-the-first-fang",
+      "ckFinish": "nonfoil",
+      "priceBuy": 1.5,
+      "priceRetail": 3.49,
+      "qtyBuying": 25,
+      "sellableQuantity": 1,
+      "value": 1.5,
+      "fileOrder": 1
+    }
+  ],
+  "totals": {
+    "listCount": 1,
+    "cardCount": 45,
+    "sellableCount": 12,
+    "totalValue": 123.45,
+    "notBuyingCount": 30,
+    "noMatchCount": 3
+  },
+  "warnings": []
+}
+```
+
+`status` is `buying`, `not-buying` (the product exists but CK's buy quantity is 0), or `no-match` (with `noMatchReason`: `no-printings`, `printing-not-found`, or `not-on-buylist`). `matchVia` names the join key that located the product (`scryfall-id`, `sku`, or `name`), `ambiguous` is set when several products matched (the quote is the best-paying one), and an entry with `pinned: false` (an unpinned deck/wanted line) is quoted at the best-paying printing, whose set/collector/`ckFinish` it reports. `sellableQuantity` draws from a per-product budget of CK's `qtyBuying` — entries sharing a product never sum past their cap — and `value` prices only those copies.
+
+## Sell Cart
+
+```
+GET /api/sell/cart
+```
+
+The entries CK is buying, rendered as their [sell-cart CSV import format](/commands/sell/#sell-cart-csv-export) (`card name, edition, foil, quantity` — CK's own spellings, quantities capped at their buy limits), over the same `?type=`/`?lists=`/`?sets=`/`?min=` parameters and 503 prerequisites as [Sell Report](#sell-report). The capability behind the CLI's `sell --output csv`.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "csv": "card name,edition,foil,quantity\nArahbo, the First Fang...",
+  "titleCount": 12,
+  "cardCount": 31,
+  "warnings": []
+}
+```
+
+`warnings` flags CK's upload caps (500 unique titles / 5,000 cards) and etched foils the format cannot express (exported as foil).
+
+## Sell Refresh
+
+```
+POST /api/sell/refresh
+```
+
+Download Card Kingdom's pricelist feed (~70 MB) when the cached copy is stale (older than a day) or missing; `?force=true` redownloads regardless. The one sell route that reaches the network.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "refreshed": true,
+  "feedRetrievedAt": 1785850800000,
+  "feedCreatedAt": "2026-08-04 06:06:09",
+  "productCount": 149978,
+  "warnings": []
+}
+```
+
+A failed download returns `502` only when no feed is cached at all; with a stale cache the call answers `200` with the stale feed's stamps, `refreshed: false`, and the failure in `warnings`. So `refreshed: false` with empty `warnings` means the cache was still fresh, and with a warning it means you are still on the stale feed.
+
 ## Save Deck
 
 ```

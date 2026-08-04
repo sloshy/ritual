@@ -9,13 +9,6 @@ import {
 import { BULK_CACHE_MAX_AGE_MS, PRICE_MAX_AGE_MS } from '../../src/cache/constants'
 import type { BulkRefreshPrompt } from '../../src/refresh'
 
-function stubCache(opts: { empty?: boolean; lastRefreshedAt: number | null }): SessionCardCache {
-  return {
-    isEmpty: async () => opts.empty ?? false,
-    getLastRefreshedAt: async () => opts.lastRefreshedAt,
-  }
-}
-
 type Harness = {
   preloadCalls: number
   confirmCalls: BulkRefreshPrompt[]
@@ -38,6 +31,21 @@ function harness(confirmAnswer = false): Harness {
   return h
 }
 
+/**
+ * A cache stub whose emptiness reflects the harness's preloads: an empty cache
+ * that has been preloaded reads as filled, the way a real cache would — the
+ * empty-cache gates re-check after downloading.
+ */
+function stubCacheFor(
+  h: Harness,
+  opts: { empty?: boolean; lastRefreshedAt: number | null },
+): SessionCardCache {
+  return {
+    isEmpty: async () => (opts.empty ?? false) && h.preloadCalls === 0,
+    getLastRefreshedAt: async () => opts.lastRefreshedAt,
+  }
+}
+
 describe('emptyCacheAdvice', () => {
   test('appends the standard remedy line to the caller lead-in', () => {
     expect(emptyCacheAdvice('Card cache is empty.')).toBe(
@@ -50,7 +58,7 @@ describe('refreshCardCacheForSession', () => {
   test('auto refreshes prices when the cache is older than a day', async () => {
     const h = harness()
     await refreshCardCacheForSession('auto', {
-      cache: stubCache({ lastRefreshedAt: Date.now() - PRICE_MAX_AGE_MS - 1 }),
+      cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - PRICE_MAX_AGE_MS - 1 }),
       ...h,
     })
     expect(h.preloadCalls).toBe(1)
@@ -60,7 +68,7 @@ describe('refreshCardCacheForSession', () => {
   test('auto does not refresh prices when the cache is younger than a day', async () => {
     const h = harness()
     await refreshCardCacheForSession('auto', {
-      cache: stubCache({ lastRefreshedAt: Date.now() - 60_000 }),
+      cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - 60_000 }),
       ...h,
     })
     expect(h.preloadCalls).toBe(0)
@@ -70,7 +78,7 @@ describe('refreshCardCacheForSession', () => {
     const h = harness(true)
     // Cache is both over a week old (stale) and over a day old (stale prices).
     await refreshCardCacheForSession('auto', {
-      cache: stubCache({ lastRefreshedAt: Date.now() - BULK_CACHE_MAX_AGE_MS - 1 }),
+      cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - BULK_CACHE_MAX_AGE_MS - 1 }),
       ...h,
     })
     expect(h.preloadCalls).toBe(1)
@@ -80,7 +88,7 @@ describe('refreshCardCacheForSession', () => {
   test('ask prompts to update a cache older than a week and preloads when accepted', async () => {
     const h = harness(true)
     await refreshCardCacheForSession('ask', {
-      cache: stubCache({ lastRefreshedAt: Date.now() - BULK_CACHE_MAX_AGE_MS - 1 }),
+      cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - BULK_CACHE_MAX_AGE_MS - 1 }),
       ...h,
     })
     expect(h.confirmCalls).toHaveLength(1)
@@ -90,7 +98,7 @@ describe('refreshCardCacheForSession', () => {
   test('ask prompts but does not preload when the update is declined', async () => {
     const h = harness(false)
     await refreshCardCacheForSession('ask', {
-      cache: stubCache({ lastRefreshedAt: Date.now() - BULK_CACHE_MAX_AGE_MS - 1 }),
+      cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - BULK_CACHE_MAX_AGE_MS - 1 }),
       ...h,
     })
     expect(h.confirmCalls).toHaveLength(1)
@@ -100,7 +108,7 @@ describe('refreshCardCacheForSession', () => {
   test('never suppresses the stale prompt entirely', async () => {
     const h = harness(true)
     await refreshCardCacheForSession('never', {
-      cache: stubCache({ lastRefreshedAt: Date.now() - BULK_CACHE_MAX_AGE_MS - 1 }),
+      cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - BULK_CACHE_MAX_AGE_MS - 1 }),
       ...h,
     })
     expect(h.confirmCalls).toHaveLength(0)
@@ -110,7 +118,7 @@ describe('refreshCardCacheForSession', () => {
   test('no-bulk never bulk-downloads for a stale cache', async () => {
     const h = harness(true)
     await refreshCardCacheForSession('no-bulk', {
-      cache: stubCache({ lastRefreshedAt: Date.now() - BULK_CACHE_MAX_AGE_MS - 1 }),
+      cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - BULK_CACHE_MAX_AGE_MS - 1 }),
       ...h,
     })
     expect(h.confirmCalls).toHaveLength(0)
@@ -120,7 +128,7 @@ describe('refreshCardCacheForSession', () => {
   test('ask does not prompt when the cache is fresh', async () => {
     const h = harness(true)
     await refreshCardCacheForSession('ask', {
-      cache: stubCache({ lastRefreshedAt: Date.now() - 60_000 }),
+      cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - 60_000 }),
       ...h,
     })
     expect(h.confirmCalls).toHaveLength(0)
@@ -130,7 +138,7 @@ describe('refreshCardCacheForSession', () => {
   test('leaves an empty cache untouched', async () => {
     const h = harness(true)
     await refreshCardCacheForSession('auto', {
-      cache: stubCache({ empty: true, lastRefreshedAt: null }),
+      cache: stubCacheFor(h, { empty: true, lastRefreshedAt: null }),
       ...h,
     })
     expect(h.preloadCalls).toBe(0)
@@ -140,7 +148,7 @@ describe('refreshCardCacheForSession', () => {
   test('does nothing when the cache has never been bulk-refreshed', async () => {
     const h = harness(true)
     await refreshCardCacheForSession('auto', {
-      cache: stubCache({ lastRefreshedAt: null }),
+      cache: stubCacheFor(h, { lastRefreshedAt: null }),
       ...h,
     })
     expect(h.preloadCalls).toBe(0)
@@ -152,7 +160,7 @@ describe('ensureFreshPriceData', () => {
   test('ask offers to download when the cache is empty and preloads on acceptance', async () => {
     const h = harness(true)
     const result = await ensureFreshPriceData('ask', {
-      cache: stubCache({ empty: true, lastRefreshedAt: null }),
+      cache: stubCacheFor(h, { empty: true, lastRefreshedAt: null }),
       ...h,
     })
     expect(h.confirmCalls).toHaveLength(1)
@@ -164,7 +172,7 @@ describe('ensureFreshPriceData', () => {
   test('is not ready when the empty-cache download is declined', async () => {
     const h = harness(false)
     const result = await ensureFreshPriceData('ask', {
-      cache: stubCache({ empty: true, lastRefreshedAt: null }),
+      cache: stubCacheFor(h, { empty: true, lastRefreshedAt: null }),
       ...h,
     })
     expect(h.preloadCalls).toBe(0)
@@ -174,7 +182,7 @@ describe('ensureFreshPriceData', () => {
   test('auto downloads into an empty cache without a prompt', async () => {
     const h = harness(false)
     const result = await ensureFreshPriceData('auto', {
-      cache: stubCache({ empty: true, lastRefreshedAt: null }),
+      cache: stubCacheFor(h, { empty: true, lastRefreshedAt: null }),
       ...h,
     })
     expect(h.confirmCalls).toHaveLength(0)
@@ -186,7 +194,7 @@ describe('ensureFreshPriceData', () => {
     for (const mode of ['never', 'no-bulk'] as const) {
       const h = harness(true)
       const result = await ensureFreshPriceData(mode, {
-        cache: stubCache({ empty: true, lastRefreshedAt: null }),
+        cache: stubCacheFor(h, { empty: true, lastRefreshedAt: null }),
         ...h,
       })
       expect(h.confirmCalls).toHaveLength(0)
@@ -199,7 +207,7 @@ describe('ensureFreshPriceData', () => {
     const h = harness(true)
     const stale = Date.now() - PRICE_MAX_AGE_MS - 60_000
     const result = await ensureFreshPriceData('ask', {
-      cache: stubCache({ lastRefreshedAt: stale }),
+      cache: stubCacheFor(h, { lastRefreshedAt: stale }),
       ...h,
     })
     expect(h.confirmCalls).toHaveLength(1)
@@ -213,7 +221,7 @@ describe('ensureFreshPriceData', () => {
     const h = harness(false)
     const stale = Date.now() - PRICE_MAX_AGE_MS - 60_000
     const result = await ensureFreshPriceData('ask', {
-      cache: stubCache({ lastRefreshedAt: stale }),
+      cache: stubCacheFor(h, { lastRefreshedAt: stale }),
       ...h,
     })
     expect(h.preloadCalls).toBe(0)
@@ -224,7 +232,7 @@ describe('ensureFreshPriceData', () => {
   test('auto refreshes stale prices without prompting', async () => {
     const h = harness(false)
     await ensureFreshPriceData('auto', {
-      cache: stubCache({ lastRefreshedAt: Date.now() - PRICE_MAX_AGE_MS - 1 }),
+      cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - PRICE_MAX_AGE_MS - 1 }),
       ...h,
     })
     expect(h.confirmCalls).toHaveLength(0)
@@ -234,7 +242,7 @@ describe('ensureFreshPriceData', () => {
   test('never suppresses the stale-price prompt', async () => {
     const h = harness(true)
     await ensureFreshPriceData('never', {
-      cache: stubCache({ lastRefreshedAt: Date.now() - PRICE_MAX_AGE_MS - 1 }),
+      cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - PRICE_MAX_AGE_MS - 1 }),
       ...h,
     })
     expect(h.confirmCalls).toHaveLength(0)
@@ -244,7 +252,7 @@ describe('ensureFreshPriceData', () => {
   test('no-bulk leaves stale prices alone (refreshing them means a bulk download)', async () => {
     const h = harness(true)
     const result = await ensureFreshPriceData('no-bulk', {
-      cache: stubCache({ lastRefreshedAt: Date.now() - PRICE_MAX_AGE_MS - 1 }),
+      cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - PRICE_MAX_AGE_MS - 1 }),
       ...h,
     })
     expect(h.confirmCalls).toHaveLength(0)
@@ -256,7 +264,7 @@ describe('ensureFreshPriceData', () => {
     const h = harness(true)
     const fresh = Date.now() - 60_000
     const result = await ensureFreshPriceData('ask', {
-      cache: stubCache({ lastRefreshedAt: fresh }),
+      cache: stubCacheFor(h, { lastRefreshedAt: fresh }),
       ...h,
     })
     expect(h.confirmCalls).toHaveLength(0)
@@ -267,7 +275,7 @@ describe('ensureFreshPriceData', () => {
     const h = harness(true)
     const now = Date.now()
     await ensureFreshPriceData('ask', {
-      cache: stubCache({ lastRefreshedAt: now - PRICE_MAX_AGE_MS }),
+      cache: stubCacheFor(h, { lastRefreshedAt: now - PRICE_MAX_AGE_MS }),
       ...h,
     })
     expect(h.confirmCalls).toHaveLength(0)
@@ -289,7 +297,7 @@ describe('ensureCardCacheForUpload', () => {
     const logged: string[] = []
 
     const ready = await ensureCardCacheForUpload('ask', {
-      cache: stubCache({ lastRefreshedAt: Date.now() - 60_000 }),
+      cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - 60_000 }),
       log: (message) => logged.push(message),
       ...h,
     })
@@ -306,7 +314,7 @@ describe('ensureCardCacheForUpload', () => {
     // No timestamp means the cache was filled by something other than a bulk
     // download — not that it is old.
     const ready = await ensureCardCacheForUpload('never', {
-      cache: stubCache({ lastRefreshedAt: null }),
+      cache: stubCacheFor(h, { lastRefreshedAt: null }),
       ...h,
     })
 
@@ -341,7 +349,7 @@ describe('ensureCardCacheForUpload', () => {
     const h = harness()
 
     const ready = await ensureCardCacheForUpload('auto', {
-      cache: stubCache({ lastRefreshedAt: DAY_OLD() }),
+      cache: stubCacheFor(h, { lastRefreshedAt: DAY_OLD() }),
       log: () => {},
       ...h,
     })
@@ -354,7 +362,7 @@ describe('ensureCardCacheForUpload', () => {
     const h = harness(true)
 
     const ready = await ensureCardCacheForUpload('ask', {
-      cache: stubCache({ lastRefreshedAt: DAY_OLD() }),
+      cache: stubCacheFor(h, { lastRefreshedAt: DAY_OLD() }),
       log: () => {},
       ...h,
     })
@@ -375,7 +383,7 @@ describe('ensureCardCacheForUpload', () => {
     const h = harness(false)
 
     const ready = await ensureCardCacheForUpload('ask', {
-      cache: stubCache({ lastRefreshedAt: DAY_OLD() }),
+      cache: stubCacheFor(h, { lastRefreshedAt: DAY_OLD() }),
       log: () => {},
       ...h,
     })
@@ -390,7 +398,7 @@ describe('ensureCardCacheForUpload', () => {
       const h = harness(true)
 
       const ready = await ensureCardCacheForUpload(mode, {
-        cache: stubCache({ empty: true, lastRefreshedAt: null }),
+        cache: stubCacheFor(h, { empty: true, lastRefreshedAt: null }),
         log: () => {},
         ...h,
       })
@@ -406,8 +414,10 @@ describe('ensureCardCacheForUpload', () => {
   test('a refresh that leaves the cache empty is still a refusal', async () => {
     const h = harness()
 
+    // Deliberately NOT the harness-aware stub: this cache stays empty even
+    // after a "successful" preload, which is the failure being pinned.
     const ready = await ensureCardCacheForUpload('auto', {
-      cache: stubCache({ empty: true, lastRefreshedAt: null }),
+      cache: { isEmpty: async () => true, getLastRefreshedAt: async () => null },
       log: () => {},
       ...h,
     })

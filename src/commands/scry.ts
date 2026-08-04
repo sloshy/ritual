@@ -5,6 +5,8 @@ import { isNoInput } from '../no-input'
 import {
   addFieldsOption,
   addOutputOption,
+  CSV_OUTPUT_FORMATS,
+  csvScriptingOptions,
   emitError,
   emitOutput,
   ExitCode,
@@ -14,7 +16,7 @@ import {
   renderCardSummary,
   writeStderr,
   writeStdout,
-  type OutputFormat,
+  type CsvOutputFormat,
   type ScriptingOptions,
 } from './scripting'
 import { getErrorMessage } from '../errors'
@@ -22,13 +24,12 @@ import { parsePositiveInteger } from '../parse-number'
 import { ask } from './prompts-helpers'
 
 /**
- * `scry` speaks the shared scripting vocabulary plus one extra value: `csv`,
- * which Scryfall itself renders server-side. It is a fourth `--output` value
- * rather than a separate `--csv` boolean so exactly one flag owns the format.
+ * `scry` speaks the shared csv-widened vocabulary; its `csv` is rendered by
+ * Scryfall itself, server-side.
  */
-export const SCRY_OUTPUT_FORMATS = ['text', 'json', 'ndjson', 'csv'] as const
+export const SCRY_OUTPUT_FORMATS = CSV_OUTPUT_FORMATS
 
-export type ScryOutputFormat = (typeof SCRY_OUTPUT_FORMATS)[number]
+export type ScryOutputFormat = CsvOutputFormat
 
 type ScryCommandOptions = {
   random: boolean
@@ -39,17 +40,16 @@ type ScryCommandOptions = {
 }
 
 /**
- * The scripting envelope `scry` reports errors and notices through. `csv` has no
- * error envelope of its own, so it reports like text — plain messages on stderr.
+ * The scripting envelope `scry` reports errors and notices through — the
+ * shared csv-borrows-text rule, with `quiet` pinned off (scry registers no
+ * `--quiet`).
  */
 export type ScryScriptingInput = {
   output?: ScryOutputFormat
 }
 
 export function scryScriptingOptions(options: ScryScriptingInput): ScriptingOptions {
-  const output: OutputFormat =
-    options.output === undefined || options.output === 'csv' ? 'text' : options.output
-  return { output, quiet: false }
+  return csvScriptingOptions(options.output, false)
 }
 
 /** The inputs that decide whether scry offers the page-by-page confirm prompt. */

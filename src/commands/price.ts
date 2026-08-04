@@ -26,7 +26,7 @@ import {
 } from '../resolve-list'
 import { getDefaultCurrency } from '../ritual-config'
 import { refreshCardCache } from '../cache/refresh-source'
-import { addRefreshOption, type RefreshMode } from '../refresh'
+import { addRefreshOption, resolveRefreshMode, type RefreshMode } from '../refresh'
 import { isNoInput } from '../no-input'
 import {
   formatEntryChoiceTitle,
@@ -47,7 +47,6 @@ import {
   installScriptingLogger,
   normalizeScriptingOptions,
   parseEnumFlag,
-  type OutputFormat,
   type ScriptingOptions,
 } from './scripting'
 
@@ -97,14 +96,6 @@ export function shouldRunInteractive(
   if (scriptingOptions.output !== 'text') return false
   if (hasActiveFilters(filters)) return false
   return true
-}
-
-/**
- * Structured output must stay parseable, so never mix prompts into it: an
- * unanswerable `ask` refresh downgrades to `never`.
- */
-export function resolveRefreshMode(refresh: RefreshMode, output: OutputFormat): RefreshMode {
-  return output !== 'text' && refresh === 'ask' ? 'never' : refresh
 }
 
 function sortedEntries(
