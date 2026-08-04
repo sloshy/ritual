@@ -9,9 +9,12 @@ import {
   parseManaValueFilter,
   parsePriceFilter,
   toggleColorSelection,
+  toggleLabelFilterOption,
+  type LabelFilterOption,
   type NumericComparator,
   type NumericFilterParse,
 } from './card-filters'
+import { CARD_LABEL_DISPLAY_NAMES } from '../card-labels'
 import { type PriceCurrency, getCurrencySymbol } from '../price-currency'
 import { formatCardTypeForDisplay, parseCardTypesInput, scanCardTypeInput } from './card-types'
 import {
@@ -168,7 +171,28 @@ export interface FilterMenuProps {
   artTagOptions: string[]
   /** Show the "Hide Extras" toggle (deck pages only). */
   showHideExtras?: boolean
+  /** Show the Labels chip row (collection-bearing views only). */
+  showLabelsFilter?: boolean
 }
+
+/** One labels-filter chip: its filter value, button text, and tooltip. */
+type LabelFilterOptionCopy = { value: LabelFilterOption; label: string; title: string }
+
+/**
+ * The labels filter's chips, in canonical order. `keep` and `none` replace the
+ * whole selection when picked — `toggleLabelFilterOption` enforces it — so the
+ * titles say so rather than letting the chips silently deselect each other.
+ */
+const LABEL_FILTER_OPTION_COPY: readonly LabelFilterOptionCopy[] = [
+  { value: 'sale', label: CARD_LABEL_DISPLAY_NAMES.sale, title: 'Cards labeled for sale' },
+  { value: 'trade', label: CARD_LABEL_DISPLAY_NAMES.trade, title: 'Cards labeled for trade' },
+  {
+    value: 'keep',
+    label: CARD_LABEL_DISPLAY_NAMES.keep,
+    title: 'Cards labeled to keep (never combined with the other labels)',
+  },
+  { value: 'none', label: 'Unlabeled', title: 'Cards with no labels at all' },
+]
 
 type TagFilterRowProps = {
   /** Heading for the row (e.g. "Oracle Tags"). */
@@ -328,6 +352,7 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
           oracleTagOptions={props.oracleTagOptions}
           artTagOptions={props.artTagOptions}
           showHideExtras={props.showHideExtras}
+          showLabelsFilter={props.showLabelsFilter}
         />
       </AdaptiveMenu>
     </div>
@@ -518,6 +543,30 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
           </button>
         </div>
       </div>
+      <Show when={props.showLabelsFilter}>
+        <div class="filter-row">
+          <span class="filter-label">Labels</span>
+          <div class="filter-toggle-group filter-labels" role="group" aria-label="Label filter">
+            <For each={LABEL_FILTER_OPTION_COPY}>
+              {(opt) => (
+                <button
+                  type="button"
+                  classList={{ active: props.filters.filters.labels.includes(opt.value) }}
+                  aria-pressed={props.filters.filters.labels.includes(opt.value)}
+                  title={opt.title}
+                  onClick={() =>
+                    props.filters.update({
+                      labels: toggleLabelFilterOption(props.filters.filters.labels, opt.value),
+                    })
+                  }
+                >
+                  {opt.label}
+                </button>
+              )}
+            </For>
+          </div>
+        </div>
+      </Show>
       <div class="filter-row">
         <div class="filter-type-header">
           <label class="filter-label" for="filter-sets">

@@ -84,7 +84,7 @@ Deck card lines start with a quantity; collection and wanted lines start with \`
 
 \`\`\`
 # My Collection
-- Black Lotus (LEA:232) [foil] [LP] {first edition} &7
+- Black Lotus (LEA:232) [foil] [LP] [keep] {first edition} &7
 \`\`\`
 
 \`\`\`
@@ -101,6 +101,10 @@ Deck card lines start with a quantity; collection and wanted lines start with \`
   \`cleanup\`, and the CLI editors print an advisory naming such a line (a 1-3 digit leading integer; a real name like \`1996 World Champion\`
   is left alone). It is advisory only: the line parses and survives every save, so fix the file.
 - \`[foil]\`/\`[etched]\` is the finish, \`[LP]\`/\`[MP]\`/\`[HP]\`/\`[DMG]\` the condition (the default \`NM\` is not written), \`{...}\` a note.
+- \`[sale]\`/\`[trade]\`/\`[sale,trade]\`/\`[keep]\` (collections only, between condition and note)
+  is a **card label override**: \`sale\` and \`trade\` combine, \`keep\` stands alone. A card's
+  *effective* labels are its own token when present, else the collection's front-matter
+  default — see the **ritual-collections** skill.
 - \`&N\` is a **stable internal card ID**. Never hand-author or renumber these — the tools manage them.
   Commands that add or edit card lines (editors, card mutations, imports, syncs \`deck-sync pull\`/\`push\`
   and \`collection-sync\` — not \`deck-sync status\`/\`link\` — \`cleanup\`,
@@ -124,6 +128,9 @@ load but still drops the block on save.
 A deck's YAML front matter carries its \`format:\` (a fixed set of keys — see the
 **ritual-decks** skill). A deck with no \`format:\` is treated as Commander when it
 has a \`## Commander\` section, and the tools write that down on the next save.
+A **collection's** YAML front matter carries its default card labels
+(\`labels: [sale, trade]\` or \`labels: [keep]\`); wanted lists define no front-matter
+keys. A flat list's block round-trips byte-for-byte through every save.
 
 **Prefer the CLI (or the web admin / MCP server) over hand-editing files**, so the
 \`&N\` IDs and \`.changes.md\` changelog stay correct. Reading files directly for

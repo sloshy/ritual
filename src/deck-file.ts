@@ -7,7 +7,7 @@ import { listDeckFiles } from './importers/text-file'
 import { isResolveListError, matchList, type ListLocation } from './resolve-list'
 import { isPathWithinDir } from './path-validation'
 import { assignMissingDeckCardIds } from './card-id'
-import { computeHash, hashPath, isRitualClean, writeFileWithHash } from './content-hash'
+import { writeListFrontMatter, type ListFrontMatterWrite } from './front-matter-write'
 import { serializeCardLine } from './deck-text'
 
 // Re-exported from `deck-text` (a browser-safe, type-only module) so existing
@@ -186,15 +186,7 @@ export async function parseDeckFrontMatter(filePath: string): Promise<DeckFrontM
 }
 
 /** What a front-matter write produced: the new content hash and the files it touched. */
-export type DeckFrontMatterWrite = {
-  contentHash: string
-  /**
-   * The deck file, plus its `.sha256` sidecar when that sidecar was refreshed.
-   * Callers stage exactly this set, so a sidecar deliberately left stale is not
-   * committed as if it had been rewritten.
-   */
-  writtenFiles: string[]
-}
+export type DeckFrontMatterWrite = ListFrontMatterWrite
 
 /**
  * Rewrite only a deck file's YAML front matter, leaving the markdown body byte
@@ -214,41 +206,12 @@ export type DeckFrontMatterWrite = {
  * named field whose value was not the type that field promises (see
  * {@link validateDeckFrontMatter}), so such values do not survive the round trip.
  *
- * The `.sha256` sidecar is only refreshed when it matched the file *before* this
- * write: a front-matter edit says nothing about card lines, so stamping the
- * sidecar over an unrecorded hand edit would make `detect-changes` treat that
- * edit as already recorded and drop its changelog entries. The returned hash
- * always describes the new content either way — the API's optimistic-concurrency
- * check hashes content, not the sidecar.
+ * The mechanics — gray-matter's file-object form, the `.sha256` sidecar rule —
+ * live in {@link writeListFrontMatter}, shared with the flat-list metadata path.
  */
 export async function writeDeckFrontMatter(
   filePath: string,
   frontMatter: DeckFrontMatter,
 ): Promise<DeckFrontMatterWrite> {
-  const original = await fs.readFile(filePath, 'utf-8')
-  const wasRitualClean = await isRitualClean(filePath, original)
-  const parsed = matter(original)
-  // The file-object form, not `matter.stringify(parsed.content, ...)`: given a
-  // string, gray-matter re-parses it, so a body whose first line is `---` (a
-  // horizontal rule) would be swallowed as a second front-matter block and the
-  // card list silently dropped. `data: {}` is required because stringify does
-  // `Object.assign({}, file.data, data)` — carrying the old data forward would
-  // resurrect exactly the keys this write means to delete.
-  const source: FrontMatterFile = { ...parsed, data: {} }
-  const content = matter.stringify(source, frontMatter)
-  if (wasRitualClean) {
-    return {
-      contentHash: await writeFileWithHash(filePath, content),
-      writtenFiles: [filePath, hashPath(filePath)],
-    }
-  }
-  await fs.writeFile(filePath, content)
-  return { contentHash: computeHash(content), writtenFiles: [filePath] }
+  return writeListFrontMatter(filePath, frontMatter)
 }
-
-/**
- * The parsed-file shape `matter.stringify` reads: the body it re-emits verbatim,
- * the front-matter data it merges the new keys over, and the excerpt it re-emits
- * when one was parsed (always `''` here, since no excerpt option is used).
- */
-type FrontMatterFile = { content: string; data: Record<string, unknown>; excerpt?: string }

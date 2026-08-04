@@ -14,11 +14,13 @@ import {
   createAddChange,
   createAddSectionChange,
   createSetCommanderChange,
+  createSetLabelChange,
   createSetNoteChange,
   createSetSectionChange,
   formatChangeCore,
   type ChangeEvent,
 } from '../change-event'
+import type { CardLabel } from '../card-labels'
 
 /** A single list entry, normalized across decks, collections, and wanted lists. */
 export type SnapshotEntry = {
@@ -27,6 +29,8 @@ export type SnapshotEntry = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Label override — collection entries only. */
+  labels?: CardLabel[]
   note?: string
   cardId?: number
   section: string
@@ -86,6 +90,7 @@ export async function loadListSnapshot(type: ListType, filePath: string): Promis
         collectorNumber: e.collectorNumber,
         finish: e.finish,
         condition: e.condition,
+        labels: e.labels,
         note: e.note,
         cardId: e.cardId,
         section: e.section,
@@ -116,10 +121,11 @@ export async function loadListSnapshot(type: ListType, filePath: string): Promis
  * Build the raw changelog lines for a single "current state" change set. Emits, in
  * order: an add-section line per non-default section, then per entry — one add per
  * copy (matching how the diff logs quantities), a set-commander line for
- * commanders, a set-note line for noted cards, and a set-section line for cards
- * outside the default section. Lines are formatted identically to the changelog
- * writer (past tense, quoted card names) so the result is indistinguishable from
- * an organically written change set.
+ * commanders, a set-note line for noted cards, a set-labels line for cards with a
+ * label override, and a set-section line for cards outside the default section.
+ * Lines are formatted identically to the changelog writer (past tense, quoted
+ * card names) so the result is indistinguishable from an organically written
+ * change set.
  */
 export function buildDefaultChangeLines(snapshot: ListSnapshot): string[] {
   const events: ChangeEvent[] = []
@@ -146,6 +152,9 @@ export function buildDefaultChangeLines(snapshot: ListSnapshot): string[] {
     }
     if (entry.note) {
       events.push(createSetNoteChange(entry.name, { note: entry.note, cardId: entry.cardId }))
+    }
+    if (entry.labels && entry.labels.length > 0) {
+      events.push(createSetLabelChange(entry.name, { labels: entry.labels, cardId: entry.cardId }))
     }
     if (entry.section !== DEFAULT_SECTION) {
       events.push(createSetSectionChange(entry.name, entry.section, entry.cardId))

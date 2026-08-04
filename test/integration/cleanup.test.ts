@@ -15,6 +15,12 @@ import {
   type BoundWorkspace,
 } from './helpers/workspace'
 
+function resultFor(results: CleanupResult[], fileName: string): CleanupResult {
+  const match = results.find((r) => path.basename(r.filePath) === fileName)
+  if (!match) throw new Error(`no cleanup result for ${fileName}`)
+  return match
+}
+
 describe('cleanup (Integration)', () => {
   let workspace: BoundWorkspace
 
@@ -27,12 +33,6 @@ describe('cleanup (Integration)', () => {
   })
 
   const dir = (): string => workspace.dir
-
-  function resultFor(results: CleanupResult[], fileName: string): CleanupResult {
-    const match = results.find((r) => path.basename(r.filePath) === fileName)
-    if (!match) throw new Error(`no cleanup result for ${fileName}`)
-    return match
-  }
 
   test('rewrites a non-canonical collection in canonical form', async () => {
     // Hand-written: no H1, lowercase set code, explicit default finish/condition.
@@ -584,5 +584,60 @@ describe('cleanup CLI (Integration)', () => {
       expect(report.files).toHaveLength(1)
       expect(report.files[0]).toMatchObject({ type: 'wanted', renamedTo: 'Binder.md' })
     })
+  })
+})
+
+describe('cleanup — labels and front matter', () => {
+  let workspace: BoundWorkspace
+
+  beforeEach(async () => {
+    workspace = await bindWorkspace({ init: true })
+  })
+
+  afterEach(async () => {
+    await workspace.dispose()
+  })
+
+  test('a canonical labeled, front-mattered collection is left alone', async () => {
+    const filePath = path.join(workspace.dir, 'collections', 'Binder.md')
+    const canonical =
+      '---\nlabels: [sale, trade]\n---\n\n# Binder\n\n## Main\n- Sol Ring (LTC:284) [keep] &1\n'
+    await fs.writeFile(filePath, canonical)
+
+    const results = await cleanupAllLists()
+
+    expect(resultFor(results, 'Binder.md')).toMatchObject({ rewritten: false, warnings: [] })
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(canonical)
+  })
+
+  test('a non-canonical labels token is normalized with the front matter preserved', async () => {
+    const filePath = path.join(workspace.dir, 'collections', 'Binder.md')
+    await fs.writeFile(
+      filePath,
+      '---\nlabels: [keep]\n---\n\n# Binder\n\n## Main\n- Sol Ring (ltc:284) [trade,sale] &1\n',
+    )
+
+    const results = await cleanupAllLists()
+
+    expect(resultFor(results, 'Binder.md')).toMatchObject({ rewritten: true, warnings: [] })
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(
+      '---\nlabels: [keep]\n---\n\n# Binder\n\n## Main\n- Sol Ring (LTC:284) [sale,trade] &1\n',
+    )
+  })
+
+  test('a conflicting labels token blocks the rewrite and leaves the file untouched', async () => {
+    const filePath = path.join(workspace.dir, 'collections', 'Binder.md')
+    // Non-canonical (lowercase set code) so a rewrite WOULD happen — but the
+    // `[sale,keep]` token is a warning, and warnings block whole-file rewrites
+    // (a re-serialize would silently drop the token).
+    const original = '# Binder\n\n## Main\n- Sol Ring (ltc:284) [sale,keep] &1\n'
+    await fs.writeFile(filePath, original)
+
+    const results = await cleanupAllLists()
+
+    const result = resultFor(results, 'Binder.md')
+    expect(result.rewritten).toBe(false)
+    expect(result.warnings.join('\n')).toContain('Conflicting labels')
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(original)
   })
 })

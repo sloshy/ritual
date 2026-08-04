@@ -14,6 +14,7 @@ import { loadRitualConfig } from '../../ritual-config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { MAX_BODY_SIZE } from '../validation'
 import { normalizeNote } from '../../note-helpers'
+import { parseCardLabelsValue } from '../../card-labels'
 import type { ChangeEvent } from '../../change-event'
 import type { DroppedNote } from '../../commands/move-io'
 import type { SaveEffect } from '../../editor/save-effects'
@@ -213,6 +214,29 @@ export function normalizeRequestNotes(
     const result = normalizeNote(entry.note)
     if (!result.ok) return badRequest(result.error)
     entry.note = result.note === '' ? undefined : result.note
+  }
+  return null
+}
+
+/**
+ * Validate and normalize the labels on every `set-label` (and label-carrying
+ * `add`) change in the request payload, mutating each in place to the
+ * normalized (deduped, canonically ordered) form. The request body is cast
+ * unvalidated, so this is the boundary that keeps an illegal combination —
+ * `keep` alongside `sale`/`trade`, or an unknown token — out of the serializer.
+ * Returns a 400 Response naming the first offender, or null when all are legal.
+ */
+export function normalizeRequestLabels(changes: ChangeEvent[]): Response | null {
+  for (const change of changes) {
+    if (change.action === 'set-label') {
+      const result = parseCardLabelsValue(change.labels, 'labels')
+      if (!result.ok) return badRequest(result.message)
+      change.labels = result.labels
+    } else if (change.action === 'add' && change.labels !== undefined) {
+      const result = parseCardLabelsValue(change.labels, 'labels')
+      if (!result.ok) return badRequest(result.message)
+      change.labels = result.labels.length > 0 ? result.labels : undefined
+    }
   }
   return null
 }

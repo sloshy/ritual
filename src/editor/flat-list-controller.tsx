@@ -1,5 +1,6 @@
 import { type Accessor, type JSX, Show, batch, createSignal } from 'solid-js'
 import { type Finish, type Condition, DEFAULT_SECTION } from '../types'
+import type { CardLabel } from '../card-labels'
 import type { ChangeInput, ListRef, PrintingTuple } from '../change-event'
 import type { SelectedCard } from '../site/useCardSelection'
 import type { CardContextInfo } from './context-menu'
@@ -55,6 +56,11 @@ export type FlatBulkEdit = {
   removeAll: (cards: SelectedCard[]) => void
   /** Set the finish on each selected card that supports it; others are skipped. */
   setFinish: (cards: SelectedCard[], finish: Finish) => void
+  /**
+   * Set (or clear, with `[]`) the label override on every selected card.
+   * Collection editors only — supplied by the collection layer, absent elsewhere.
+   */
+  setLabel?: (cards: SelectedCard[], labels: CardLabel[]) => void
   /** Run the change-printing flow over the selection one card at a time. */
   changePrinting: (cards: SelectedCard[]) => void
   /** Move every selected card into an existing section. */
@@ -288,7 +294,11 @@ export function useFlatListEditController<E extends FlatEntry>(
   }
 }
 
-type FlatListContextMenuProps<E extends FlatEntry> = { ctrl: FlatListController<E> }
+type FlatListContextMenuProps<E extends FlatEntry> = {
+  ctrl: FlatListController<E>
+  /** Open the label picker for the targeted card. Collection editors only. */
+  onSetLabel?: (target: CardContextInfo) => void
+}
 
 /** The flat-list context menu (foil, change printing, section moves) — no commander. */
 export function FlatListContextMenu<E extends FlatEntry>(
@@ -304,6 +314,17 @@ export function FlatListContextMenu<E extends FlatEntry>(
           currentFinish={editor.data()?.find((e) => e.name === menu().cardName)?.finish}
           onSetFoil={editor.handleSetFoil}
           onChangePrinting={props.ctrl.handleChangePrinting}
+          onSetLabel={
+            props.onSetLabel
+              ? () => {
+                  const apply = props.onSetLabel
+                  if (!apply) return
+                  const target = menu()
+                  props.ctrl.closeContextMenu()
+                  apply(target)
+                }
+              : undefined
+          }
           onUnsetCommander={props.ctrl.closeContextMenu}
           anchorRect={menu().anchorRect}
           onClose={props.ctrl.closeContextMenu}
@@ -345,6 +366,10 @@ type FlatListEditorShellProps<E extends FlatEntry> = {
   showDiscard?: boolean
   enableImport?: boolean
   importKind?: ListType
+  /** Open the label picker for a context-menu card. Collection editors only. */
+  onSetLabel?: (target: CardContextInfo) => void
+  /** Open the list-default label editor (admin collection editor only). */
+  onEditLabels?: () => void
   children: JSX.Element
 }
 
@@ -367,7 +392,8 @@ export function FlatListEditorShell<E extends FlatEntry>(
       showDiscard={props.showDiscard}
       enableImport={props.enableImport}
       importKind={props.importKind}
-      contextMenu={<FlatListContextMenu ctrl={props.ctrl} />}
+      onEditLabels={props.onEditLabels}
+      contextMenu={<FlatListContextMenu ctrl={props.ctrl} onSetLabel={props.onSetLabel} />}
     >
       {props.children}
     </EditorShell>

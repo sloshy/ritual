@@ -1,4 +1,5 @@
 import type { Finish, Condition } from './types'
+import { formatCardLabels, type CardLabel } from './card-labels'
 
 /** A specific printing reference (set code + collector number) for a card line. */
 export type CardPrinting = { set: string; collectorNumber: string }
@@ -104,10 +105,11 @@ export function variantKey(
 
 /**
  * Format a single collection card line in the canonical markdown format, e.g.
- * `- Sol Ring (LTC:284) [foil] [LP] {note} &12`. The default NM condition is
- * omitted (matching deck lines) — only non-NM conditions are written. Pure
- * string formatting shared by the CLI, the admin save handlers, and the public
- * editor's export.
+ * `- Sol Ring (LTC:284) [foil] [LP] [keep] {note} &12`. The default NM
+ * condition is omitted (matching deck lines) — only non-NM conditions are
+ * written — and a label override is written only when present (an absent
+ * override means "inherit the list default"). Pure string formatting shared by
+ * the CLI, the admin save handlers, and the public editor's export.
  */
 export function formatCollectionLine(
   cardName: string,
@@ -115,12 +117,14 @@ export function formatCollectionLine(
   collectorNumber: string,
   finish: Finish,
   condition: Condition | undefined,
+  labels?: readonly CardLabel[],
   note?: string,
   cardId?: number,
 ): string {
   let line = `- ${cardName} (${set.toUpperCase()}:${collectorNumber})`
   if (finish !== 'nonfoil') line += ` [${finish}]`
   if (condition && condition !== 'NM') line += ` [${condition}]`
+  if (labels && labels.length > 0) line += ` [${formatCardLabels(labels)}]`
   if (note) line += ` {${note}}`
   if (cardId !== undefined) line += ` &${cardId}`
   return line + '\n'

@@ -138,9 +138,16 @@ describe('handleMetadataSave', () => {
     expect(matter(await fs.readFile(deckPath, 'utf-8')).data.description).toBe('Two')
   })
 
-  test('flat lists carry no front matter, so they are refused with a pointer at rename', async () => {
+  test('a deck-only field on a collection is an unknown field, not silence', async () => {
     await writeCollectionFile(ws.dir, 'binder', { title: 'Binder', entries: [] })
     const { status, body } = await put('collection/binder', { description: 'nope' })
+    expect(status).toBe(400)
+    expect(body).toMatchObject({ success: false })
+    expect(JSON.stringify(body)).toContain("Unknown metadata field 'description'")
+  })
+
+  test('wanted lists carry no metadata, so they are refused with a pointer at rename', async () => {
+    const { status, body } = await put('wanted/anything', { labels: ['sale'] })
     expect(status).toBe(400)
     expect(body).toMatchObject({ success: false })
     expect(JSON.stringify(body)).toContain('rename')

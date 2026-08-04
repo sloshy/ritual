@@ -5,6 +5,7 @@ import { matchSectionHeader } from '../section-format'
 import { createFenceTracker } from '../markdown-fence'
 import { quantityPrefixAdvisory } from '../card-line'
 import { finishChoices, finishRows, isFinish } from './collection-helpers'
+import { parseFlatListFrontMatter, type FlatListFrontMatter } from '../flat-list-front-matter'
 import { getWantedDir } from '../ritual-config'
 import { listFileName, unusableFileNameMessage } from '../list-file-name'
 import { ensureListFile, type SessionConfig } from './card-session'
@@ -26,6 +27,12 @@ export type WantedListParseResult = {
   entries: WantedListEntry[]
   /** Section names in first-seen order, including empty sections that have no entries. */
   sectionOrder: string[]
+  /**
+   * The file's front-matter block, when it opens with one. Round-trips verbatim
+   * on save. Wanted lists define no front-matter keys of their own (card labels
+   * are a collection concept), so the block is carried, never interpreted.
+   */
+  frontMatter?: FlatListFrontMatter
   warnings: string[]
   /**
    * Lines belonging to fenced code blocks (delimiters included). Fenced content
@@ -69,7 +76,12 @@ export function parseWantedListFile(content: string): WantedListParseResult {
     if (!sectionOrder.includes(name)) sectionOrder.push(name)
   }
 
-  for (const line of content.split('\n')) {
+  const lines = content.split('\n')
+  const front = parseFlatListFrontMatter(lines, { validateLabels: false })
+  advisories.push(...front.advisories)
+
+  for (let lineIndex = front.bodyStart; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex]!
     if (fence.feed(line).opaque) {
       fencedLines++
       continue
@@ -125,7 +137,14 @@ export function parseWantedListFile(content: string): WantedListParseResult {
       section: currentSection,
     })
   }
-  return { entries, sectionOrder, warnings, fencedLines, advisories }
+  return {
+    entries,
+    sectionOrder,
+    frontMatter: front.frontMatter,
+    warnings,
+    fencedLines,
+    advisories,
+  }
 }
 
 export async function ensureWantedListFile(name: string): Promise<string> {

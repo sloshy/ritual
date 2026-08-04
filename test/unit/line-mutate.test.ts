@@ -7,6 +7,7 @@ import {
   createRemoveChange,
   createSetCommanderChange,
   createSetFinishChange,
+  createSetLabelChange,
   createSetNoteChange,
   createSetPrintingChange,
   createSetSectionChange,
@@ -533,5 +534,103 @@ describe('fenced code blocks are never mutation targets', () => {
     // A real `## Fake Section` was created at the end of the file instead.
     expect(lines.lastIndexOf('## Fake Section')).toBeGreaterThan(lines.indexOf('## Sideboard'))
     expect(lines[lines.lastIndexOf('## Fake Section') + 1]).toBe('1 Sol Ring &1')
+  })
+})
+
+describe('applyTargetedChangesToContent — labels', () => {
+  const labeledCollection = [
+    '# Binder',
+    '',
+    '## Main',
+    '- Lightning Bolt (LEA:161) [foil] [keep] {my first rare} &1',
+    '- Sol Ring (C21:263) &2',
+    '',
+  ].join('\n')
+
+  test('set-label rewrites only the targeted line', () => {
+    const result = applyTargetedChangesToContent(
+      labeledCollection,
+      'collection',
+      { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 2 },
+      [createSetLabelChange('Sol Ring', { labels: ['sale', 'trade'], cardId: 2 })],
+    )
+    expect(result).toContain('- Sol Ring (C21:263) [sale,trade] &2')
+    expect(result).toContain('- Lightning Bolt (LEA:161) [foil] [keep] {my first rare} &1')
+  })
+
+  test('an empty label set clears the token', () => {
+    const result = applyTargetedChangesToContent(
+      labeledCollection,
+      'collection',
+      {
+        name: 'Lightning Bolt',
+        set: 'lea',
+        collectorNumber: '161',
+        finish: 'foil',
+        note: 'my first rare',
+        cardId: 1,
+      },
+      [createSetLabelChange('Lightning Bolt', { labels: [], cardId: 1 })],
+    )
+    expect(result).toContain('- Lightning Bolt (LEA:161) [foil] {my first rare} &1')
+  })
+
+  test('a note edit on a target resolved without labels preserves the line token', () => {
+    // The target carries no labels (a structurally-resolved EntryRef predating
+    // the token, say) — the rewrite must adopt the line's token, not strip it.
+    const result = applyTargetedChangesToContent(
+      labeledCollection,
+      'collection',
+      { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', finish: 'foil' },
+      [createSetNoteChange('Lightning Bolt', { note: 'signed' })],
+    )
+    expect(result).toContain('- Lightning Bolt (LEA:161) [foil] [keep] {signed} &1')
+  })
+
+  test('set-label on a deck throws', () => {
+    expect(() =>
+      applyTargetedChangesToContent(proseDeck, 'deck', bolt, [
+        createSetLabelChange('Lightning Bolt', { labels: ['sale'], cardId: 1 }),
+      ]),
+    ).toThrow("cannot apply 'set-label' to a deck")
+  })
+
+  test('a conflicting labels token on the target line refuses the rewrite', () => {
+    // `[sale,keep]` matches the token grammar but fails keep-exclusivity, so a
+    // rewrite would silently drop it — the mutation must refuse instead.
+    const conflicted = '# Binder\n\n## Main\n- Sol Ring (C21:263) [sale,keep] &1\n'
+    expect(() =>
+      applyTargetedChangesToContent(
+        conflicted,
+        'collection',
+        { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 },
+        [createSetNoteChange('Sol Ring', { note: 'signed', cardId: 1 })],
+      ),
+    ).toThrow('conflicting labels token [sale,keep]')
+  })
+
+  test('a collection edit never targets a card line inside the front matter', () => {
+    // The YAML sequence item below trims to a byte-for-byte card line; the real
+    // entry sits in the body. The edit must land on the body line, not the block.
+    const withBlock = [
+      '---',
+      'examples:',
+      '  - Sol Ring (C21:263) &1',
+      '---',
+      '',
+      '# Binder',
+      '',
+      '## Main',
+      '- Sol Ring (C21:263) &1',
+      '',
+    ].join('\n')
+    const result = applyTargetedChangesToContent(
+      withBlock,
+      'collection',
+      { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 },
+      [createSetNoteChange('Sol Ring', { note: 'signed', cardId: 1 })],
+    )
+    expect(result).toContain('  - Sol Ring (C21:263) &1')
+    expect(result).toContain('\n- Sol Ring (C21:263) {signed} &1')
   })
 })

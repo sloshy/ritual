@@ -150,6 +150,9 @@ async function applyToCollection(
     slug: path.basename(filePath, '.md'),
   })
   const title = parseTitleFromContent(content) ?? path.basename(filePath, '.md')
-  await writeFileWithHash(filePath, collectionToMarkdown(title, result.data, parsed.sectionOrder))
+  await writeFileWithHash(
+    filePath,
+    collectionToMarkdown(title, result.data, parsed.sectionOrder, parsed.frontMatter),
+  )
   return applied
 }

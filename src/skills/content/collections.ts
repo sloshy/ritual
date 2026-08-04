@@ -47,6 +47,30 @@ is defaulted: a headless add always needs \`-c\`, and needs \`-f\` whenever the
 pinned printing comes in more than one finish — otherwise it exits 2 naming the
 missing flag rather than writing a half-specified line.
 
+## Labels: for sale / for trade / to keep
+
+Collection lists and cards carry **labels** declaring what the owner would do
+with them: \`sale\` and \`trade\` (combinable) or \`keep\` (exclusive of the other
+two). A list-level default lives in the collection's front matter
+(\`labels: [sale, trade]\`); an individual card overrides it with a bracketed
+token on its line (\`[keep]\`, \`[sale,trade]\`). A card's *effective* labels are
+its override when present, else the list default. Labels drive the public
+site's list filters, the collections-index "Labels" view-all menu, and a
+one-time warning when a \`keep\`-labeled card is added to a trade.
+
+\`\`\`bash
+ritual set-card "Main Binder" "Sol Ring" --collection --label keep       # override
+ritual set-card "Main Binder" "Sol Ring" --collection --label sale,trade
+ritual set-card "Main Binder" "Sol Ring" --collection --label none      # back to the list default
+ritual add-card "Main Binder" "Mox Jet" --collection --set lea --collector-number 262 -c LP --label keep
+ritual export --collection --labels trade --columns name,set,collectorNumber,labels
+\`\`\`
+
+The list-level default is set by hand-editing the front matter, through the
+admin editor's **Labels** button, or with the MCP \`set_list_metadata\` tool
+(\`labels\` on a collection; \`null\` clears it). There is no CLI command for it,
+matching deck metadata.
+
 ## Interactive management
 
 ${interactiveEditIntro({
@@ -69,7 +93,7 @@ ${REFRESH_SESSION}
 ${sessionSemantics({
   fileNoun: 'file',
   editScope: "the collection's existing entries",
-  editFields: "change a card's printing, finish, condition, or note, or remove it",
+  editFields: "change a card's printing, finish, condition, label, or note, or remove it",
   undoAddVerb: 'removes',
   changeKinds: 'adds, edits, and removals',
   discardTarget: 'same-card changes',

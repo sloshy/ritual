@@ -235,6 +235,12 @@ export type UseEditorResult<TData, TCardEntry> = {
   data: Accessor<TData | null>
   setData: Setter<TData | null>
   contentHash: Accessor<string>
+  /**
+   * Adopt a fresh content hash mid-session — for out-of-band writes to the same
+   * file that return one (the collection Labels metadata save), so the next
+   * card save doesn't 409 against a change this editor itself made.
+   */
+  setContentHash: (hash: string) => void
   extra: Accessor<Record<string, unknown>>
   /** The currency price displays use (the config's accessor, or a USD constant). */
   currency: Accessor<PriceCurrency>
@@ -901,6 +907,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     data,
     setData,
     contentHash,
+    setContentHash: (hash: string) => setContentHash(hash),
     extra,
     currency,
     getOriginal: () => original,

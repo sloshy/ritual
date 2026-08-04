@@ -81,3 +81,24 @@ describe('applyChangesToCollectionFile (Integration)', () => {
     })
   })
 })
+
+describe('applyChangesToCollectionFile — front matter and labels', () => {
+  test('a whole-file apply preserves the front-matter block and label tokens', async () => {
+    await withTempDir(async (dir) => {
+      const filePath = await writeList(
+        dir,
+        'collections/Binder.md',
+        '---\nlabels: [sale]\n---\n\n# Binder\n\n## Main\n- Lightning Bolt (LEA:161) [keep] &1\n',
+      )
+
+      await applyChangesToCollectionFile(filePath, [
+        createAddChange('Sol Ring', { set: 'c21', collectorNumber: '263' }),
+      ])
+
+      const content = await fs.readFile(filePath, 'utf-8')
+      expect(content.startsWith('---\nlabels: [sale]\n---\n\n# Binder')).toBe(true)
+      expect(content).toContain('- Lightning Bolt (LEA:161) [keep] &1')
+      expect(content).toContain('- Sol Ring (C21:263) &2')
+    })
+  })
+})

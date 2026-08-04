@@ -1,5 +1,6 @@
 import type { Finish, Condition, Board } from './types'
 import type { ListType } from './list-type'
+import { formatCardLabels, sameCardLabels, type CardLabel } from './card-labels'
 
 /**
  * A condition *update*: a grade to record, or `'NONE'` to clear a recorded
@@ -31,6 +32,13 @@ export type AddChange = BaseChange & {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /**
+   * Label override the new card starts with — collections only. Rides the add
+   * event itself (rather than a follow-up set-label) so the label lands on the
+   * added copy and never on a same-named existing entry. Not annotated in the
+   * changelog text line.
+   */
+  labels?: CardLabel[]
   /** Deck board the card was added to. Omitted/`Main` renders without annotation. */
   board?: Board
   /** Section the card was added to. Defaults to `DEFAULT_SECTION` ("Main") when omitted. */
@@ -73,6 +81,13 @@ export type SetNoteChange = BaseChange & {
   action: 'set-note'
   /** The new note text. Empty string clears the note. */
   note: string
+}
+
+/** Collections only — deck and wanted entries carry no labels. */
+export type SetLabelChange = BaseChange & {
+  action: 'set-label'
+  /** The new label override. An empty array clears it (the list default applies again). */
+  labels: CardLabel[]
 }
 
 export type MoveFromChange = BaseChange & {
@@ -136,6 +151,7 @@ export type ChangeEvent =
   | SetFinishChange
   | SetPrintingChange
   | SetNoteChange
+  | SetLabelChange
   | MoveFromChange
   | MoveToChange
   | AddSectionChange
@@ -159,6 +175,7 @@ export const CHANGE_ACTIONS = [
   'set-finish',
   'set-printing',
   'set-note',
+  'set-label',
   'move-from',
   'move-to',
   'add-section',
@@ -200,6 +217,8 @@ export type AddRemoveOptions = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Label override for the new card (collections only). Only consumed by `add`. */
+  labels?: CardLabel[]
   cardId?: number
   /** Deck board the card was added to / removed from (e.g. `Sideboard`, `Maybeboard`). */
   board?: Board
@@ -256,6 +275,13 @@ export type SetNoteOptions = {
   cardId?: number
 }
 
+/** Options for set-label action. */
+export type SetLabelOptions = {
+  /** The new label override; an empty array clears it. */
+  labels: CardLabel[]
+  cardId?: number
+}
+
 /** Options for move-from action. */
 export type MoveFromOptions = {
   set?: string
@@ -288,6 +314,7 @@ export function createAddChange(cardName: string, options?: AddRemoveOptions): A
     collectorNumber: options?.collectorNumber,
     finish: options?.finish,
     condition: options?.condition,
+    labels: options?.labels,
     board: options?.board,
     section: options?.section,
   }
@@ -342,6 +369,10 @@ export function createSetPrintingChange(
 
 export function createSetNoteChange(cardName: string, options: SetNoteOptions): SetNoteChange {
   return { ...makeBase(cardName, options.cardId), action: 'set-note', note: options.note }
+}
+
+export function createSetLabelChange(cardName: string, options: SetLabelOptions): SetLabelChange {
+  return { ...makeBase(cardName, options.cardId), action: 'set-label', labels: options.labels }
 }
 
 export function createMoveFromChange(cardName: string, options: MoveFromOptions): MoveFromChange {
@@ -458,6 +489,46 @@ export type ConsolidateResult = {
   cancelledChange: ChangeEvent | null
 }
 
+/** What one "latest wins" consolidation needs: which action to displace, whether the value actually changed, and how to build the new event. */
+type LatestWinsSpec = {
+  action: ChangeAction
+  /** False when the new value equals the original — the pending change (if any) is dropped and nothing is added. */
+  changed: boolean
+  create: () => ChangeEvent
+}
+
+/**
+ * The shared body of every `consolidateSet*` helper: remove any pending change
+ * of `spec.action` for the same card (matching by cardId when both sides carry
+ * one), then add the new event only when the value genuinely differs from the
+ * original. The three-clause id matcher lives exactly once here.
+ */
+function consolidateLatestWins(
+  changes: ChangeEvent[],
+  cardName: string,
+  cardId: number | undefined,
+  spec: LatestWinsSpec,
+): ConsolidateResult {
+  const existingIdx = changes.findIndex(
+    (c) =>
+      c.action === spec.action &&
+      'cardName' in c &&
+      c.cardName === cardName &&
+      (cardId === undefined || c.cardId === undefined || c.cardId === cardId),
+  )
+  const cancelledChange: ChangeEvent | null =
+    existingIdx !== -1 ? (changes[existingIdx] ?? null) : null
+  let updatedChanges = existingIdx !== -1 ? changes.filter((_, i) => i !== existingIdx) : changes
+
+  let addedChange: ChangeEvent | null = null
+  if (spec.changed) {
+    addedChange = spec.create()
+    updatedChanges = [...updatedChanges, addedChange]
+  }
+
+  return { changes: updatedChanges, addedChange, cancelledChange }
+}
+
 /**
  * Apply a set-finish action with "latest wins" semantics:
  * - Removes any existing set-finish for the same card from the changelog
@@ -474,23 +545,11 @@ export function consolidateSetFinish(
   originalFinish: Finish,
   cardId?: number,
 ): ConsolidateResult {
-  const existingIdx = changes.findIndex(
-    (c) =>
-      c.action === 'set-finish' &&
-      c.cardName === cardName &&
-      (cardId === undefined || c.cardId === undefined || c.cardId === cardId),
-  )
-  const cancelledChange: ChangeEvent | null =
-    existingIdx !== -1 ? (changes[existingIdx] ?? null) : null
-  let updatedChanges = existingIdx !== -1 ? changes.filter((_, i) => i !== existingIdx) : changes
-
-  let addedChange: ChangeEvent | null = null
-  if (finish !== originalFinish) {
-    addedChange = createSetFinishChange(cardName, { finish, cardId })
-    updatedChanges = [...updatedChanges, addedChange]
-  }
-
-  return { changes: updatedChanges, addedChange, cancelledChange }
+  return consolidateLatestWins(changes, cardName, cardId, {
+    action: 'set-finish',
+    changed: finish !== originalFinish,
+    create: () => createSetFinishChange(cardName, { finish, cardId }),
+  })
 }
 
 /**
@@ -511,23 +570,11 @@ export function consolidateSetPrinting(
   original: PrintingTuple,
   cardId?: number,
 ): ConsolidateResult {
-  const existingIdx = changes.findIndex(
-    (c) =>
-      c.action === 'set-printing' &&
-      c.cardName === cardName &&
-      (cardId === undefined || c.cardId === undefined || c.cardId === cardId),
-  )
-  const cancelledChange: ChangeEvent | null =
-    existingIdx !== -1 ? (changes[existingIdx] ?? null) : null
-  let updatedChanges = existingIdx !== -1 ? changes.filter((_, i) => i !== existingIdx) : changes
-
-  let addedChange: ChangeEvent | null = null
-  if (!isSamePrinting(target, original)) {
-    addedChange = createSetPrintingChange(cardName, { ...target, cardId })
-    updatedChanges = [...updatedChanges, addedChange]
-  }
-
-  return { changes: updatedChanges, addedChange, cancelledChange }
+  return consolidateLatestWins(changes, cardName, cardId, {
+    action: 'set-printing',
+    changed: !isSamePrinting(target, original),
+    create: () => createSetPrintingChange(cardName, { ...target, cardId }),
+  })
 }
 
 /**
@@ -546,23 +593,35 @@ export function consolidateSetNote(
   originalNote: string,
   cardId?: number,
 ): ConsolidateResult {
-  const existingIdx = changes.findIndex(
-    (c) =>
-      c.action === 'set-note' &&
-      c.cardName === cardName &&
-      (cardId === undefined || c.cardId === undefined || c.cardId === cardId),
-  )
-  const cancelledChange: ChangeEvent | null =
-    existingIdx !== -1 ? (changes[existingIdx] ?? null) : null
-  let updatedChanges = existingIdx !== -1 ? changes.filter((_, i) => i !== existingIdx) : changes
+  return consolidateLatestWins(changes, cardName, cardId, {
+    action: 'set-note',
+    changed: note !== originalNote,
+    create: () => createSetNoteChange(cardName, { note, cardId }),
+  })
+}
 
-  let addedChange: ChangeEvent | null = null
-  if (note !== originalNote) {
-    addedChange = createSetNoteChange(cardName, { note, cardId })
-    updatedChanges = [...updatedChanges, addedChange]
-  }
-
-  return { changes: updatedChanges, addedChange, cancelledChange }
+/**
+ * Apply a set-label action with "latest wins" semantics, mirroring
+ * {@link consolidateSetNote}:
+ * - Removes any existing set-label for the same card from the changelog
+ * - Does not add a new change if `labels` equals `originalLabels` (override restored)
+ * - Otherwise adds the new set-label change (an empty `labels` clears the override)
+ *
+ * Label sets compare by their canonical serialized form, so `['trade','sale']`
+ * and `['sale','trade']` are the same override.
+ */
+export function consolidateSetLabel(
+  changes: ChangeEvent[],
+  cardName: string,
+  labels: CardLabel[],
+  originalLabels: readonly CardLabel[] | undefined,
+  cardId?: number,
+): ConsolidateResult {
+  return consolidateLatestWins(changes, cardName, cardId, {
+    action: 'set-label',
+    changed: !sameCardLabels(labels, originalLabels),
+    create: () => createSetLabelChange(cardName, { labels, cardId }),
+  })
 }
 
 /**
@@ -579,23 +638,11 @@ export function consolidateSetSection(
   originalSection: string,
   cardId?: number,
 ): ConsolidateResult {
-  const existingIdx = changes.findIndex(
-    (c) =>
-      c.action === 'set-section' &&
-      c.cardName === cardName &&
-      (cardId === undefined || c.cardId === undefined || c.cardId === cardId),
-  )
-  const cancelledChange: ChangeEvent | null =
-    existingIdx !== -1 ? (changes[existingIdx] ?? null) : null
-  let updatedChanges = existingIdx !== -1 ? changes.filter((_, i) => i !== existingIdx) : changes
-
-  let addedChange: ChangeEvent | null = null
-  if (section !== originalSection) {
-    addedChange = createSetSectionChange(cardName, section, cardId)
-    updatedChanges = [...updatedChanges, addedChange]
-  }
-
-  return { changes: updatedChanges, addedChange, cancelledChange }
+  return consolidateLatestWins(changes, cardName, cardId, {
+    action: 'set-section',
+    changed: section !== originalSection,
+    create: () => createSetSectionChange(cardName, section, cardId),
+  })
 }
 
 /**
@@ -626,6 +673,7 @@ export function isAdditiveChange(action: ChangeAction): boolean {
     action === 'set-finish' ||
     action === 'set-printing' ||
     action === 'set-note' ||
+    action === 'set-label' ||
     action === 'add-section' ||
     action === 'rename-section' ||
     action === 'set-section'
@@ -728,6 +776,13 @@ export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions)
         return `${clearVerb} note on ${name}${idInfo}`
       }
       return `Set note on ${name}${idInfo} to "${change.note}"`
+    }
+    case 'set-label': {
+      if (change.labels.length === 0) {
+        const clearVerb = tense === 'past' ? 'Cleared' : 'Clear'
+        return `${clearVerb} labels on ${name}${idInfo}`
+      }
+      return `Set labels on ${name}${idInfo} to [${formatCardLabels(change.labels)}]`
     }
     case 'move-from': {
       const ann = formatPrintingAnnotation(change)

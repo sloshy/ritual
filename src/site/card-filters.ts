@@ -4,9 +4,33 @@ import { matchesAllTerms } from '../term-match'
 import { getFrontFaceName } from '../scryfall/card-utils'
 import { extractCardTypeTags, matchesCardTypes } from './card-types'
 import { matchesTags } from './card-tags'
+import {
+  CARD_LABEL_SELECTIONS,
+  isCardLabelSelection,
+  matchesCardLabelSelection,
+  type CardLabelSelection,
+} from '../card-labels'
 import type { ColorMatchMode, FilterMatchMode, SetCodeFilterMode } from './filter-mode'
 
 export type { ColorMatchMode, FilterMatchMode, SetCodeFilterMode }
+
+/**
+ * One selectable chip in the labels filter. The alias names the site's
+ * chip-specific rule on top of the shared selection vocabulary: here `keep`
+ * and `none` are singleton selections (see {@link toggleLabelFilterOption}),
+ * unlike the export filter, where a selection combines freely.
+ */
+export type LabelFilterOption = CardLabelSelection
+
+/** Every labels-filter option, in canonical UI and URL order. */
+export const LABEL_FILTER_OPTIONS = CARD_LABEL_SELECTIONS
+
+/** The chips that replace the whole selection when picked (and reject URL combos). */
+const EXCLUSIVE_LABEL_OPTIONS = ['keep', 'none'] as const satisfies readonly LabelFilterOption[]
+
+function isExclusiveLabelOption(option: LabelFilterOption): boolean {
+  return (EXCLUSIVE_LABEL_OPTIONS as readonly LabelFilterOption[]).includes(option)
+}
 
 /** A numeric comparison operator shared by the mana value, price, and copies filters. */
 export type NumericComparator = '=' | '<' | '<=' | '>' | '>='
@@ -80,6 +104,14 @@ export interface CardFilters {
    */
   copies: number | null
   copiesOp: CopiesComparator
+  /**
+   * Selected label chips, matched with OR semantics against each card's
+   * *effective* labels (`'none'` matches an empty set). Empty = no label
+   * filtering. `keep` and `none` are singleton selections by construction —
+   * `toggleLabelFilterOption` is the only writer, so an illegal combination
+   * cannot arise from the UI, and the URL parser drops one whole.
+   */
+  labels: LabelFilterOption[]
 }
 
 export function createDefaultCardFilters(): CardFilters {
@@ -105,6 +137,7 @@ export function createDefaultCardFilters(): CardFilters {
     priceOp: '=',
     copies: null,
     copiesOp: '=',
+    labels: [],
   }
 }
 
@@ -260,6 +293,9 @@ export function filterCards<T extends CardData>(cards: T[], filters: CardFilters
       const total = copyCounts.get(normalizeCardName(card.name))!
       if (!compareNumeric(total, filters.copiesOp, filters.copies)) return false
     }
+    if (filters.labels.length > 0 && !matchesCardLabelSelection(card.labels, filters.labels)) {
+      return false
+    }
     return true
   })
 }
@@ -280,6 +316,7 @@ export function countActiveFilters(filters: CardFilters): number {
   if (filters.manaValue !== null) count++
   if (filters.price !== null) count++
   if (filters.copies !== null) count++
+  if (filters.labels.length > 0) count++
   return count
 }
 
@@ -428,4 +465,39 @@ export const parseCopiesFilter = makeNumericFilterParser(
 export function toggleColorSelection(selected: string[], color: string): string[] {
   if (selected.includes(color)) return selected.filter((c) => c !== color)
   return WUBRG.filter((c) => c === color || selected.includes(c))
+}
+
+/**
+ * Toggle a labels-filter chip, enforcing the selection rules so the store can
+ * never hold an illegal combination: `sale` and `trade` combine (OR); `keep`
+ * and `none` are each exclusive selections that replace whatever was picked.
+ * The result is in canonical {@link LABEL_FILTER_OPTIONS} order.
+ */
+export function toggleLabelFilterOption(
+  selected: readonly LabelFilterOption[],
+  option: LabelFilterOption,
+): LabelFilterOption[] {
+  if (selected.includes(option)) return selected.filter((o) => o !== option)
+  if (isExclusiveLabelOption(option)) return [option]
+  const next: readonly LabelFilterOption[] = selected.filter((o) => !isExclusiveLabelOption(o))
+  return LABEL_FILTER_OPTIONS.filter((o) => o === option || next.includes(o))
+}
+
+/**
+ * Parse a `labels=` URL value leniently: lowercase comma-separated tokens,
+ * unknown ones dropped, deduped into canonical order. A combination the chips
+ * cannot produce (`keep` or `none` alongside anything else) invalidates the
+ * whole param — `undefined` — matching the store invariant rather than
+ * silently repairing a hand-edited URL.
+ */
+export function parseLabelsParam(value: string | null): LabelFilterOption[] | undefined {
+  if (value === null) return undefined
+  const tokens = value
+    .split(',')
+    .map((token) => token.trim().toLowerCase())
+    .filter(isCardLabelSelection)
+  const options = LABEL_FILTER_OPTIONS.filter((option) => tokens.includes(option))
+  if (options.length === 0) return undefined
+  if (options.some(isExclusiveLabelOption) && options.length > 1) return undefined
+  return options
 }

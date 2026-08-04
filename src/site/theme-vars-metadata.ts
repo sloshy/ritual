@@ -32,6 +32,7 @@ export type ThemeVarGroupId =
   | 'accent'
   | 'buttons'
   | 'status'
+  | 'labels'
   | 'overlays'
   | 'modals'
   | 'flame'
@@ -91,6 +92,12 @@ export const themeVarGroups: ThemeVarGroup[] = [
     label: 'Flame icon',
     description:
       'Gradient stops for the app’s candle-flame logo and browser-tab favicon. Derived from the accent by default; the flame recolors live as you edit them.',
+  },
+  {
+    id: 'labels',
+    label: 'Labels',
+    description:
+      'Tones for the For sale / For trade / To keep badges on collection cards and trade rows.',
   },
   { id: 'misc', label: 'Misc', description: 'Sizing tokens and other non-color values.' },
 ]
@@ -412,6 +419,30 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     label: 'Warning text',
     description: 'Amber text for cautionary notice banners.',
     group: 'status',
+    type: 'color',
+  },
+
+  // ----- Labels -----
+  {
+    name: '--label-sale',
+    label: 'For sale',
+    description: 'Tone of the SALE badge on collection cards labeled for sale.',
+    group: 'labels',
+    type: 'color',
+  },
+  {
+    name: '--label-trade',
+    label: 'For trade',
+    description: 'Tone of the TRADE badge on collection cards labeled for trade.',
+    group: 'labels',
+    type: 'color',
+  },
+  {
+    name: '--label-keep',
+    label: 'To keep',
+    description:
+      'Tone of the KEEP badge on collection cards labeled to keep, and the Keep tag on trade rows.',
+    group: 'labels',
     type: 'color',
   },
 

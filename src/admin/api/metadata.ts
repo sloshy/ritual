@@ -1,7 +1,12 @@
 import { getErrorMessage } from '../../errors'
 import { getBaseDir } from '../../base-dir'
-import type { DeckFrontMatter } from '../../deck-file'
 import { applyDeckMetadata, DECK_METADATA_KEYS, type DeckMetadataPatch } from '../../deck-metadata'
+import {
+  applyCollectionMetadata,
+  COLLECTION_METADATA_KEYS,
+  type CollectionMetadataPatch,
+} from '../../flat-list-metadata'
+import { parseCardLabelsValue } from '../../card-labels'
 import { checkArchidektLink } from '../../deck-sync/link'
 import { invalidDeckFormatMessage, parseDeckFormat } from '../../deck-format'
 import { parseListTarget } from './target'
@@ -16,9 +21,10 @@ import {
 /**
  * `PUT /api/metadata/:type/:slug` — write a list's front matter.
  *
- * Decks only for now: collections and wanted lists carry no front matter (their
- * serializer would drop any YAML on the next save), so they are refused with a
- * 400 rather than silently accepting a write that would not survive.
+ * Decks accept the deck vocabulary (description/tags/format/source link);
+ * collections accept `labels` (their default card labels). Wanted lists define
+ * no front-matter keys, so they are refused with a 400 rather than silently
+ * accepting a write with nothing to say.
  */
 
 /** The deck front-matter fields this route may write. `null` clears a field. */
@@ -38,12 +44,28 @@ export type ParsedDeckMetadataBody = {
   contentHash?: string
 }
 
+/** The collection front-matter fields this route may write. `null` clears a field. */
+export type CollectionMetadataRequest = {
+  labels?: string[] | null
+  /** Optional optimistic-concurrency token from `GET /api/collection/:slug`. */
+  contentHash?: string
+}
+
+/** The validated collection body: the field patch plus the optional concurrency token. */
+export type ParsedCollectionMetadataBody = {
+  patch: CollectionMetadataPatch
+  contentHash?: string
+}
+
 /** `PUT /api/metadata/:type/:slug` success body. */
 export type MetadataResponse = {
   success: true
   slug: string
-  /** The full front matter after the write. */
-  frontMatter: DeckFrontMatter
+  /**
+   * The full front matter after the write, unknown keys included. Deck writes
+   * produce the `DeckFrontMatter` shape; collection writes the collection one.
+   */
+  frontMatter: Record<string, unknown>
   contentHash: string
 }
 
@@ -59,34 +81,50 @@ const REJECTED_KEYS: Record<string, string> = {
   lastSynced: 'lastSynced is stamped by deck sync and cannot be edited.',
 }
 
+/** The envelope every metadata body shares: the optional concurrency token. */
+type MetadataEnvelope = { contentHash?: string }
+
+/**
+ * The shared prologue of both body parsers: refuse unknown keys — so a typo
+ * silently writing nothing is impossible — and validate the optional
+ * `contentHash` token here rather than letting the handler recover it (a
+ * malformed token must fail the request, not quietly skip the concurrency
+ * check). Per-surface rejection messages come from `rejectedKeys`.
+ */
+function parseMetadataEnvelope(
+  raw: Record<string, unknown>,
+  acceptedKeys: readonly string[],
+  rejectedKeys?: Record<string, string>,
+): MetadataEnvelope | string {
+  for (const key of Object.keys(raw)) {
+    if (key === 'contentHash') continue
+    const rejected = rejectedKeys?.[key]
+    if (rejected !== undefined) return rejected
+    if (!acceptedKeys.includes(key)) {
+      return `Unknown metadata field '${key}'. Accepted fields: ${acceptedKeys.join(', ')}.`
+    }
+  }
+  if (raw.contentHash !== undefined) {
+    if (typeof raw.contentHash !== 'string') return 'contentHash must be a string.'
+    return { contentHash: raw.contentHash }
+  }
+  return {}
+}
+
 /**
  * Validate an untrusted request body object into a {@link ParsedDeckMetadataBody},
  * or return the error message explaining why it is not usable. The object guard
  * itself is the shared route prologue's job ({@link readJsonObjectBody}); this
- * validates the fields. Unknown keys are refused outright so a typo silently
- * writing nothing is impossible, and
- * `contentHash` is validated here rather than recovered by the handler — a
- * malformed token must fail the request, not quietly skip the concurrency check.
+ * validates the fields.
  */
 export function parseDeckMetadataBody(
   raw: Record<string, unknown>,
 ): ParsedDeckMetadataBody | string {
   const patch: DeckMetadataPatch = {}
 
-  for (const key of Object.keys(raw)) {
-    if (key === 'contentHash') continue
-    const rejected = REJECTED_KEYS[key]
-    if (rejected !== undefined) return rejected
-    if (!(DECK_METADATA_KEYS as readonly string[]).includes(key)) {
-      return `Unknown metadata field '${key}'. Accepted fields: ${DECK_METADATA_KEYS.join(', ')}.`
-    }
-  }
-
-  let contentHash: string | undefined
-  if ('contentHash' in raw && raw.contentHash !== undefined) {
-    if (typeof raw.contentHash !== 'string') return 'contentHash must be a string.'
-    contentHash = raw.contentHash
-  }
+  const envelope = parseMetadataEnvelope(raw, DECK_METADATA_KEYS, REJECTED_KEYS)
+  if (typeof envelope === 'string') return envelope
+  const { contentHash } = envelope
 
   if ('description' in raw) {
     if (raw.description === null) {
@@ -160,8 +198,39 @@ export function parseDeckMetadataBody(
 }
 
 /**
+ * Validate an untrusted request body object into a
+ * {@link ParsedCollectionMetadataBody}, or return the error message explaining
+ * why it is not usable. Same contract as {@link parseDeckMetadataBody}: unknown
+ * keys are refused outright, and `contentHash` is validated here.
+ */
+export function parseCollectionMetadataBody(
+  raw: Record<string, unknown>,
+): ParsedCollectionMetadataBody | string {
+  const patch: CollectionMetadataPatch = {}
+
+  const envelope = parseMetadataEnvelope(raw, COLLECTION_METADATA_KEYS)
+  if (typeof envelope === 'string') return envelope
+  const { contentHash } = envelope
+
+  if ('labels' in raw) {
+    if (raw.labels === null) {
+      patch.labels = null
+    } else {
+      const labels = parseCardLabelsValue(raw.labels, 'labels')
+      if (!labels.ok) return labels.message
+      // An empty array says "no default"; clear the key rather than writing `[]`.
+      patch.labels = labels.labels.length === 0 ? null : labels.labels
+    }
+  }
+
+  return contentHash === undefined ? { patch } : { patch, contentHash }
+}
+
+/**
  * `PUT /api/metadata/:type/:slug` — replace the given front-matter fields on a
- * deck, leaving the card lines untouched.
+ * list, leaving the card lines untouched. Decks take the deck vocabulary below;
+ * collections take `labels` (cleared by `null` or `[]`), validated against the
+ * label vocabulary and the keep-exclusivity rule.
  *
  * Only the fields present in the body are written; a field sent as `null` (or an
  * empty string, for `description`) is deleted. Every other key round-trips,
@@ -177,15 +246,45 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
   try {
     const target = parseListTarget(req)
     if (typeof target === 'string') return apiError(target, 400)
-    if (target.type !== 'deck') {
+    if (target.type === 'wanted') {
       return apiError(
-        'Collections and wanted lists carry no metadata. Use POST /api/<type>/:slug/rename to change the display name.',
+        'Wanted lists carry no metadata. Use POST /api/wanted/:slug/rename to change the display name.',
         400,
       )
     }
 
     const read = await readJsonObjectBody(req)
     if (!read.ok) return read.response
+
+    if (target.type === 'collection') {
+      const parsed = parseCollectionMetadataBody(read.body)
+      if (typeof parsed === 'string') return apiError(parsed, 400)
+
+      const filePath = await resolveListFile('collection', target.slug)
+      if (!filePath) return apiError(`Collection '${target.slug}' not found`, 404)
+
+      if (parsed.contentHash !== undefined) {
+        const validation = await validateContentHash(filePath, parsed.contentHash, 'Collection')
+        if (!validation.valid) return validation.response
+      }
+
+      const write = await applyCollectionMetadata(filePath, parsed.patch)
+      if (typeof write === 'string') return apiError(write, 400)
+
+      await autoCommitAndPush(
+        getBaseDir(),
+        write.writtenFiles,
+        `Update metadata for collection ${target.slug}`,
+      )
+
+      const response: MetadataResponse = {
+        success: true,
+        slug: target.slug,
+        frontMatter: write.frontMatter,
+        contentHash: write.contentHash,
+      }
+      return Response.json(response)
+    }
 
     const parsed = parseDeckMetadataBody(read.body)
     if (typeof parsed === 'string') return apiError(parsed, 400)

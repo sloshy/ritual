@@ -22,7 +22,9 @@ import {
   type ConditionFilterValue,
   type ExportEntry,
   type ExportFilters,
+  type LabelFilterValue,
 } from '../export/entries'
+import { CARD_LABEL_DISPLAY_NAMES, CARD_LABEL_SELECTION_NONE, CARD_LABELS } from '../card-labels'
 import { renderExport, saveExportPreset } from '../export/output'
 import {
   EXPORT_FORMAT_EXTENSIONS,
@@ -122,6 +124,9 @@ export function formatFiltersSegment(filters: ExportFilters): string {
   if (filters.finish) parts.push(filters.finish)
   if (filters.conditions && filters.conditions.length > 0) {
     parts.push(filters.conditions.join('/'))
+  }
+  if (filters.labels && filters.labels.length > 0) {
+    parts.push(`labels ${filters.labels.join('/')}`)
   }
   return parts.join(' · ')
 }
@@ -308,31 +313,32 @@ async function promptFinishFilter(current: Finish | undefined): Promise<Finish |
   return pick === 'any' ? undefined : pick
 }
 
+/** One toggleable row in a multi-select filter prompt (the mark is prepended). */
+type ToggleFilterOption<T extends string> = { value: T; title: string }
+
 /**
- * Toggle-loop over condition values (each grade plus "no condition marked"),
- * so any combination can be selected. Returns the new filter value; an empty
- * selection means "any".
+ * Toggle-loop over a fixed option set so any combination can be selected.
+ * Returns the new filter value; an empty selection means "any". The shared
+ * shape behind the condition and labels filters.
  */
-async function promptConditionFilter(
-  current: ConditionFilterValue[] | undefined,
-): Promise<ConditionFilterValue[] | undefined> {
-  const selected = new Set<ConditionFilterValue>(current ?? [])
+async function promptToggleFilter<T extends string>(
+  message: string,
+  options: readonly ToggleFilterOption<T>[],
+  current: readonly T[] | undefined,
+): Promise<T[] | undefined> {
+  const selected = new Set<T>(current ?? [])
   while (true) {
-    const mark = (value: ConditionFilterValue): string => (selected.has(value) ? '◉' : '○')
-    const pick = await ask<ConditionFilterValue | 'any' | 'done'>({
+    const mark = (value: T): string => (selected.has(value) ? '◉' : '○')
+    const pick = await ask<T | 'any' | 'done'>({
       type: 'select',
-      message: 'Show cards with condition (toggle any combination)',
+      message,
       choices: [
         { title: '✔ Done', value: 'done' },
         { title: `Any (clear the filter)${selected.size === 0 ? ' (current)' : ''}`, value: 'any' },
-        ...VALID_CONDITIONS.map((condition) => ({
-          title: `${mark(condition)} ${condition} — ${CONDITION_LABELS[condition]}`,
-          value: condition,
+        ...options.map((option) => ({
+          title: `${mark(option.value)} ${option.title}`,
+          value: option.value,
         })),
-        {
-          title: `${mark(CONDITION_FILTER_NONE)} No condition marked`,
-          value: CONDITION_FILTER_NONE,
-        },
       ],
     })
     if (pick === undefined || pick === 'done') {
@@ -347,9 +353,47 @@ async function promptConditionFilter(
   }
 }
 
+/** Toggle-loop over condition values (each grade plus "no condition marked"). */
+async function promptConditionFilter(
+  current: ConditionFilterValue[] | undefined,
+): Promise<ConditionFilterValue[] | undefined> {
+  return promptToggleFilter(
+    'Show cards with condition (toggle any combination)',
+    [
+      ...VALID_CONDITIONS.map((condition) => ({
+        value: condition,
+        title: `${condition} — ${CONDITION_LABELS[condition]}`,
+      })),
+      { value: CONDITION_FILTER_NONE, title: 'No condition marked' },
+    ],
+    current,
+  )
+}
+
+/**
+ * Toggle-loop over label filter values (each label plus "unlabeled"). A
+ * *filter* may combine `keep` with the others — it selects entries, it doesn't
+ * declare a label — so no exclusivity rule applies here.
+ */
+async function promptLabelsFilter(
+  current: LabelFilterValue[] | undefined,
+): Promise<LabelFilterValue[] | undefined> {
+  return promptToggleFilter(
+    'Show collection cards with labels (toggle any combination)',
+    [
+      ...CARD_LABELS.map((label) => ({
+        value: label,
+        title: `${label} — ${CARD_LABEL_DISPLAY_NAMES[label]}`,
+      })),
+      { value: CARD_LABEL_SELECTION_NONE, title: 'No labels at all' },
+    ],
+    current,
+  )
+}
+
 async function promptFilters(state: ExportWizardState): Promise<void> {
   while (true) {
-    const pick = await ask<'name' | 'set' | 'finish' | 'condition' | 'back'>({
+    const pick = await ask<'name' | 'set' | 'finish' | 'condition' | 'labels' | 'back'>({
       type: 'select',
       message: 'Filters (applied to the whole export)',
       choices: [
@@ -366,6 +410,14 @@ async function promptFilters(state: ExportWizardState): Promise<void> {
               : 'any'
           }`,
           value: 'condition',
+        },
+        {
+          title: `Labels: ${
+            state.filters.labels && state.filters.labels.length > 0
+              ? state.filters.labels.join('/')
+              : 'any'
+          }`,
+          value: 'labels',
         },
         { title: '← Back', value: 'back' },
       ],
@@ -386,6 +438,9 @@ async function promptFilters(state: ExportWizardState): Promise<void> {
         break
       case 'condition':
         state.filters.conditions = await promptConditionFilter(state.filters.conditions)
+        break
+      case 'labels':
+        state.filters.labels = await promptLabelsFilter(state.filters.labels)
         break
     }
   }

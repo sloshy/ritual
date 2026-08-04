@@ -11,6 +11,7 @@ import {
   type NumericComparator,
   createDefaultCardFilters,
   isColorFilterActive,
+  parseLabelsParam,
   parseNonNegativeInteger,
   parsePriceAmount,
 } from './card-filters'
@@ -105,6 +106,7 @@ const KEYS = {
   priceOp: 'priceOp',
   copies: 'copies',
   copiesOp: 'copiesOp',
+  labels: 'labels',
 } as const
 
 function setOrDelete(params: URLSearchParams, key: string, value: string | null): void {
@@ -230,6 +232,10 @@ export function writeListViewParams(
   const hasCopies = f.copies !== null
   setOrDelete(params, KEYS.copies, hasCopies ? String(f.copies) : null)
   setOrDelete(params, KEYS.copiesOp, hasCopies && f.copiesOp !== d.copiesOp ? f.copiesOp : null)
+
+  // Re-normalized on write so URL-seeded state can't persist a non-canonical order.
+  const labels = parseLabelsParam(f.labels.join(','))
+  setOrDelete(params, KEYS.labels, labels ? labels.join(',') : null)
 }
 
 /** True if any list-view parameter is present (used to decide whether to apply overrides). */
@@ -349,6 +355,9 @@ export function parseListViewParams(params: URLSearchParams): ListViewOverrides 
     const copiesOp = oneOf(get(KEYS.copiesOp), NUMERIC_OPS)
     if (copiesOp) filters.copiesOp = copiesOp
   }
+
+  const labels = parseLabelsParam(get(KEYS.labels))
+  if (labels) filters.labels = labels
 
   if (Object.keys(filters).length > 0) overrides.filters = filters
   return overrides

@@ -2,6 +2,7 @@ import { getErrorMessage } from '../../errors'
 import {
   buildExportSelection,
   parseConditionFilterValues,
+  parseLabelFilterValues,
   type ExportFilters,
 } from '../../export/entries'
 import { renderExport } from '../../export/output'
@@ -39,6 +40,8 @@ type ExportRequestFilters = {
   finish?: string
   /** Condition values to match; `'none'` selects entries without one marked. */
   conditions?: string[]
+  /** Label values to match against effective labels; `'none'` selects unlabeled entries. */
+  labels?: string[]
 }
 
 /** `POST /api/export` request body; every field is optional. */
@@ -150,6 +153,14 @@ function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | st
     const conditions = parseConditionFilterValues(raw.conditions)
     if (typeof conditions === 'string') return conditions
     filters.conditions = conditions
+  }
+  if (raw.labels !== undefined) {
+    if (!Array.isArray(raw.labels)) {
+      return 'filters.labels must be an array of label values.'
+    }
+    const labels = parseLabelFilterValues(raw.labels)
+    if (typeof labels === 'string') return labels
+    filters.labels = labels
   }
   return filters
 }

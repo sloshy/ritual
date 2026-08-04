@@ -74,6 +74,11 @@ export interface CardData {
   oracleTags: string[]
   /** Art (illustration) tag slugs for this printing. Empty when untagged. */
   artTags: string[]
+  /**
+   * Effective card labels (the entry's override, else its list's default).
+   * Always empty for deck and wanted cards — labels are a collection concept.
+   */
+  labels: CardLabel[]
   card: ScryfallCard | null
   /**
    * Display name of the list this card came from. Only set in the combined
@@ -89,6 +94,7 @@ export interface CardGroup<T extends CardData = CardData> {
 }
 
 import type { ScryfallCard } from '../types'
+import type { CardLabel } from '../card-labels'
 import type { PriceCurrency } from '../price-currency'
 import { getCurrencySymbol, getCurrencySuffix } from '../price-currency'
 

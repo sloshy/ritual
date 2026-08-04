@@ -6,6 +6,7 @@ import { normalizeCardName } from '../term-match'
 import { addEntryToLeft, addEntryToRight, showTradeToast } from './useTradeState'
 import { resolveCardThumbnailUrl } from './image-sources'
 import { promptForPrinting } from './printing-prompt'
+import { confirmKeepAdd } from './keep-trade-prompt'
 
 /**
  * Bulk "Add to Trade" for a card selection, shared by the per-list toolbar menu
@@ -28,6 +29,7 @@ function baseEntry(card: SelectedCard): TradeSearchEntry {
     collectorNumber: card.collectorNumber,
     finish: card.finish,
     condition: card.condition,
+    labels: card.labels,
     note: card.note,
     price: card.price,
     scryfallCard: card.scryfallCard,
@@ -68,6 +70,11 @@ export async function addSelectionToTrade(
   }
 
   for (const card of cards) {
+    // Keep-labeled cards confirm before their first-ever trade add. The prompt
+    // serializes with the printing prompts below, and the first confirmation in
+    // a batch acknowledges the dialog for the rest (the decided semantics).
+    // Wanted cards go to the *receiving* side and never carry labels.
+    if (card.sourceKind !== 'wanted' && !(await confirmKeepAdd(card.name, card.labels))) continue
     if (cardHasPrinting(card)) {
       noteAdd(addCopies(baseEntry(card), card.quantity, currency), card.scryfallCard)
       continue

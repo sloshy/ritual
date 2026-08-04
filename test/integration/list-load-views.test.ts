@@ -441,3 +441,32 @@ describe('a fenced code block reaches the save gate', () => {
     expect(await Bun.file(deckPath).text()).toBe(original)
   })
 })
+
+describe('labels reach the load bodies', () => {
+  test('a labeled collection carries the list default and per-entry overrides', async () => {
+    await writeCollectionFile(ws.dir, 'labeled', {
+      title: 'Labeled',
+      labels: ['sale', 'trade'],
+      entries: [
+        { name: 'Sol Ring', set: 'c21', collectorNumber: '240', labels: ['keep'], cardId: 1 },
+        { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 2 },
+      ],
+    })
+    const { body } = await callJson<{
+      labels?: string[]
+      entries: { name: string; labels?: string[] }[]
+    }>(handleCollectionLoad, 'GET', '/api/collection/labeled?view=cards')
+    expect(body.labels).toEqual(['sale', 'trade'])
+    expect(body.entries[0]!.labels).toEqual(['keep'])
+    expect(body.entries[1]!.labels).toBeUndefined()
+  })
+
+  test('wanted loads carry no labels field', async () => {
+    const { body } = await callJson<Record<string, unknown>>(
+      handleWantedListLoad,
+      'GET',
+      '/api/wanted/wishlist?view=cards',
+    )
+    expect('labels' in body).toBeFalse()
+  })
+})

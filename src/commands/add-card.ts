@@ -37,6 +37,7 @@ import { emptyCacheAdvice, ensureFreshCardCache } from '../cache/freshness'
 import { addRefreshOption, type RefreshMode } from '../refresh'
 import { appendChangelog } from '../changelog-writer'
 import { createAddChange, type ConditionUpdate } from '../change-event'
+import { parseCardLabelsToken, type CardLabel } from '../card-labels'
 import { allocateNextIdFromContent } from '../card-id'
 import { endsInsideOpenFence } from '../markdown-fence'
 import { appendFileWithHash } from '../content-hash'
@@ -110,6 +111,8 @@ type AddCardOptions = {
   quantity: number
   finish?: Finish
   condition?: ConditionUpdate
+  /** Label override the new card starts with — collections only. */
+  label?: CardLabel[]
   exact?: boolean
   set?: string
   collectorNumber?: string
@@ -145,6 +148,8 @@ type AddCardSuccess = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Collection adds only: the label override the new line carries. */
+  labels?: CardLabel[]
   quantity?: number
   cardId: number
   /** Deck adds only: the section the card's line ended up in. */
@@ -198,6 +203,16 @@ function parseCollectorNumberFlag(value: string): string {
   return normalized
 }
 
+/**
+ * `--label` for a fresh add: a comma-separated label set. Unlike `set-card`'s
+ * flag there is no `none` — absence already means "inherit the list default".
+ */
+function parseAddLabelFlag(value: string): CardLabel[] {
+  const parsed = parseCardLabelsToken(value)
+  if (!parsed.ok) throw new InvalidArgumentError(parsed.message)
+  return parsed.labels
+}
+
 // ── Command registration ──────────────────────────────────────────────────────
 
 export function registerAddCardCommand(program: Command): void {
@@ -218,6 +233,11 @@ export function registerAddCardCommand(program: Command): void {
       '-c, --condition <condition>',
       'Card condition: NM, LP, MP, HP, DMG, or NONE to record no condition (decks and collections only)',
       parseConditionFlag,
+    )
+    .option(
+      '--label <labels>',
+      'Label the new card: sale,trade (combinable) or keep (collections only)',
+      parseAddLabelFlag,
     )
     .option('--section <name>', 'Deck section to add to, created if missing (decks only)')
     .option('--commander', "Add the card to the deck's Commander section (decks only)")
@@ -364,6 +384,13 @@ function validateTargetFlags(
     throw new CardCommandError(
       'usage_error',
       'Wanted list entries do not track condition — --condition applies to decks and collections only.',
+      ExitCode.UsageError,
+    )
+  }
+  if (type !== 'collection' && options.label !== undefined) {
+    throw new CardCommandError(
+      'usage_error',
+      '--label only applies to collections.',
       ExitCode.UsageError,
     )
   }
@@ -688,6 +715,7 @@ async function addToCollection(
     printing.collector_number,
     finishAndCondition.finish,
     finishAndCondition.condition,
+    options.label,
     undefined,
     cardId,
   )
@@ -700,6 +728,7 @@ async function addToCollection(
         collectorNumber: printing.collector_number,
         finish: finishAndCondition.finish,
         condition: finishAndCondition.condition,
+        labels: options.label,
         cardId,
       }),
     ])
@@ -714,6 +743,7 @@ async function addToCollection(
       collectorNumber: printing.collector_number,
       finish: finishAndCondition.finish,
       condition: finishAndCondition.condition,
+      labels: options.label,
       cardId,
     },
     `${addVerb(options.dryRun ?? false)}: ${line.trim()}`,

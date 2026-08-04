@@ -120,8 +120,10 @@ export function applyChangeToWantedList(
     }
 
     case 'set-commander':
-    case 'unset-commander': {
+    case 'unset-commander':
+    case 'set-label': {
       // Not applicable to this list type — report with the applicability reason.
+      // (Labels are a collection-only concept.)
       options?.onMiss?.('not-applicable')
       return entries
     }

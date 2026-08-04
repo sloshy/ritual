@@ -207,6 +207,12 @@ export function applyChangeToDeck(
       return { ...deck, sections }
     }
 
+    case 'set-label': {
+      // Labels are a collection-only concept — never applicable to a deck.
+      options?.onMiss?.('not-applicable')
+      return { ...deck, sections }
+    }
+
     case 'add-section': {
       findOrCreateSection(sections, change.section)
       return { ...deck, sections }

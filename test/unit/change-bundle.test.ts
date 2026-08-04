@@ -132,6 +132,52 @@ describe('parseChangeBundle validation', () => {
     ])
   })
 
+  it('validates labels on set-label and add changes, normalizing the order', () => {
+    const bundle = buildBundle()
+    const withChanges = (changes: unknown[]): string =>
+      JSON.stringify({ ...bundle, lists: [{ ...bundle.lists[0], changes }] })
+
+    const parsed = parseChangeBundle(
+      withChanges([
+        {
+          id: 'l1',
+          timestamp: 1,
+          action: 'set-label',
+          cardName: 'Sol Ring',
+          labels: ['trade', 'sale'],
+        },
+        { id: 'a1', timestamp: 2, action: 'add', cardName: 'Mox Ruby', labels: ['trade', 'sale'] },
+      ]),
+    )
+    if (typeof parsed === 'string') throw new Error(parsed)
+    expect(parsed.lists[0]?.changes.map((c) => ('labels' in c ? c.labels : undefined))).toEqual([
+      ['sale', 'trade'],
+      ['sale', 'trade'],
+    ])
+
+    // A keep conflict is refused on both actions; an add without labels is fine.
+    expect(
+      parseChangeBundle(
+        withChanges([
+          {
+            id: 'l1',
+            timestamp: 1,
+            action: 'set-label',
+            cardName: 'Sol Ring',
+            labels: ['keep', 'sale'],
+          },
+        ]),
+      ),
+    ).toContain("'keep' cannot be combined")
+    expect(
+      parseChangeBundle(
+        withChanges([
+          { id: 'a1', timestamp: 1, action: 'add', cardName: 'Sol Ring', labels: ['bogus'] },
+        ]),
+      ),
+    ).toContain('Change #1')
+  })
+
   it('accepts section-structural changes', () => {
     const bundle = buildBundle()
     const text = JSON.stringify({

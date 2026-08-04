@@ -1,6 +1,7 @@
 import type { ChangeInput } from '../change-event'
 import type { CollectionCardEntry } from '../site/data-types'
 import { DEFAULT_SECTION } from '../types'
+import { normalizeCardLabels } from '../card-labels'
 import { noteOrUndefined } from '../note-helpers'
 import { applyConditionUpdate } from '../finish-condition'
 import { findTargetEntryIndex } from './entry-targeting.js'
@@ -45,6 +46,7 @@ export type CollectionEntrySource = {
   collectorNumber: string
   finish?: CollectionCardEntry['finish']
   condition?: CollectionCardEntry['condition']
+  labels?: CollectionCardEntry['labels']
   section?: string
   note?: string
   cardId?: number
@@ -66,6 +68,7 @@ export function toCollectionCardEntries(
     collectorNumber: e.collectorNumber,
     finish: e.finish ?? 'nonfoil',
     condition: e.condition ?? 'NM',
+    labels: e.labels,
     price: 0,
     fileOrder: i,
     section: e.section ?? DEFAULT_SECTION,
@@ -99,6 +102,10 @@ export function applyChangeToCollection(
         collectorNumber: change.collectorNumber ?? '',
         finish: change.finish ?? 'nonfoil',
         condition: change.condition ?? 'NM',
+        labels:
+          change.labels && change.labels.length > 0
+            ? normalizeCardLabels(change.labels)
+            : undefined,
         price: 0,
         fileOrder: entries.length,
         section: change.section ?? DEFAULT_SECTION,
@@ -154,6 +161,18 @@ export function applyChangeToCollection(
       }
       const note = noteOrUndefined(change.note)
       return entries.map((e, i) => (i === idx ? { ...e, note } : e))
+    }
+
+    case 'set-label': {
+      const idx = findTargetEntryIndex(entries, change)
+      if (idx === -1) {
+        options?.onMiss?.('no-target')
+        return entries
+      }
+      // An empty set clears the override — the entry falls back to its list's
+      // front-matter default. Normalized so the file's token is always canonical.
+      const labels = change.labels.length > 0 ? normalizeCardLabels(change.labels) : undefined
+      return entries.map((e, i) => (i === idx ? { ...e, labels } : e))
     }
 
     case 'set-section': {

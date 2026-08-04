@@ -24,6 +24,8 @@ export type ChangelogAction =
   | 'Set printing'
   | 'Set note'
   | 'Cleared note'
+  | 'Set labels'
+  | 'Cleared labels'
   | 'Added section'
   | 'Removed section'
   | 'Renamed section'
@@ -37,6 +39,8 @@ export type ChangelogChange = {
   finish?: string
   condition?: string
   note?: string
+  /** Label tokens for `Set labels` lines (loose strings, like `finish`). */
+  labels?: string[]
   /** Deck board for add/remove lines that target a non-main board (e.g. `Sideboard`). */
   board?: string
   /** Section name for section-structural lines (add/remove/rename section, move to section). */
@@ -63,6 +67,14 @@ const CHANGE_LINE_REGEX =
 const SET_NOTE_LINE_REGEX = /^-\s+Set\s+note\s+on\s+(.+?)(?:\s+&\d+)?\s+to\s+"(.*)"\s*$/
 /** Matches `Cleared note on Card Name &5`. */
 const CLEARED_NOTE_LINE_REGEX = /^-\s+Cleared\s+note\s+on\s+(.+?)(?:\s+&\d+)?\s*$/
+/**
+ * Matches `Set labels on "Card Name" &5 to [sale,trade]`. The bracketed token
+ * body is the canonical card-line vocabulary, so the alternation mirrors it.
+ */
+const SET_LABELS_LINE_REGEX =
+  /^-\s+Set\s+labels\s+on\s+(.+?)(?:\s+&\d+)?\s+to\s+\[((?:sale|trade|keep)(?:,(?:sale|trade|keep))*)\]\s*$/
+/** Matches `Cleared labels on "Card Name" &5`. */
+const CLEARED_LABELS_LINE_REGEX = /^-\s+Cleared\s+labels\s+on\s+(.+?)(?:\s+&\d+)?\s*$/
 /**
  * Matches `Set "Card Name" printing to M10:146 [foil] [LP] &5` and
  * `Set "Card Name" printing to no specific printing &5`. Card-name group is
@@ -127,6 +139,21 @@ export function parseChangeLine(line: string): ChangelogChange | null {
   const clearedNote = line.match(CLEARED_NOTE_LINE_REGEX)
   if (clearedNote?.[1]) {
     return { action: 'Cleared note', cardName: stripQuotes(clearedNote[1]) }
+  }
+
+  // "Set labels on X to [sale,trade]" carries a bracketed token the generic
+  // regex would misread as a finish/condition — match it directly first.
+  const setLabels = line.match(SET_LABELS_LINE_REGEX)
+  if (setLabels?.[1] && setLabels[2]) {
+    return {
+      action: 'Set labels',
+      cardName: stripQuotes(setLabels[1]),
+      labels: setLabels[2].split(','),
+    }
+  }
+  const clearedLabels = line.match(CLEARED_LABELS_LINE_REGEX)
+  if (clearedLabels?.[1]) {
+    return { action: 'Cleared labels', cardName: stripQuotes(clearedLabels[1]) }
   }
 
   // "Set X printing to ..." carries an unparenthesized `SET:CN` descriptor that the

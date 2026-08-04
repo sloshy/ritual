@@ -270,6 +270,12 @@
   }
 }
 
+/* The Labels filter chips: the toggle-group look, but multi-select and wrappable. */
+.filter-labels {
+  margin-top: 0.25rem;
+  flex-wrap: wrap;
+}
+
 /* Every filter heading: label on the left, its match-mode toggle on the right. */
 .filter-type-header {
   display: flex;

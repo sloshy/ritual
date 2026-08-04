@@ -1,5 +1,6 @@
 import type { ChangeEvent } from '../change-event'
 import { CHANGE_ACTIONS } from '../change-event'
+import { parseCardLabelsValue } from '../card-labels'
 import type { ListType } from '../list-type'
 import { LIST_TYPES } from '../list-type'
 
@@ -104,7 +105,16 @@ function validateChanges(raw: unknown, where: string): ChangeEvent[] | string {
     if (obj.set !== undefined && typeof obj.set !== 'string') {
       return `${where}Change #${i + 1} has an invalid "set".`
     }
-    const normalized = typeof obj.set === 'string' ? { ...obj, set: obj.set.toLowerCase() } : obj
+    // A labels payload is a closed vocabulary with an exclusivity rule —
+    // imported JSON must not smuggle garbage into a serialize. The parsed form
+    // is normalized (deduped, canonical order). On a set-label an empty array
+    // (a clear) is valid; an add either carries an override or omits the field.
+    let normalized = typeof obj.set === 'string' ? { ...obj, set: obj.set.toLowerCase() } : obj
+    if (obj.action === 'set-label' || (obj.action === 'add' && obj.labels !== undefined)) {
+      const labels = parseCardLabelsValue(obj.labels, 'labels')
+      if (!labels.ok) return `${where}Change #${i + 1}: ${labels.message}`
+      normalized = { ...normalized, labels: labels.labels }
+    }
     changes.push(normalized as unknown as ChangeEvent)
   }
   return changes

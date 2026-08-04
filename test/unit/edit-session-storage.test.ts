@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
+import { describe, it, expect } from 'bun:test'
 import type { ChangeBundleList } from '../../src/editor/change-bundle'
 import type { ChangeEvent } from '../../src/change-event'
 import {
@@ -8,29 +8,7 @@ import {
   clearEditSession,
   editSessionKey,
 } from '../../src/site/editor/edit-session-storage'
-
-/** Minimal in-memory localStorage stand-in for the test environment. */
-class MemoryStorage {
-  private map = new Map<string, string>()
-  get length(): number {
-    return this.map.size
-  }
-  getItem(key: string): string | null {
-    return this.map.has(key) ? this.map.get(key)! : null
-  }
-  setItem(key: string, value: string): void {
-    this.map.set(key, value)
-  }
-  removeItem(key: string): void {
-    this.map.delete(key)
-  }
-  clear(): void {
-    this.map.clear()
-  }
-  key(i: number): string | null {
-    return Array.from(this.map.keys())[i] ?? null
-  }
-}
+import { stubLocalStorage } from '../test-utils'
 
 const CHANGES: ChangeEvent[] = [
   { id: '1', timestamp: 1, action: 'add', cardName: 'Sol Ring', cardId: 5 },
@@ -43,17 +21,7 @@ function deckList(slug = 'my-deck'): ChangeBundleList {
 }
 
 describe('edit-session-storage', () => {
-  let original: Storage | undefined
-  beforeEach(() => {
-    original = globalThis.localStorage
-    Object.defineProperty(globalThis, 'localStorage', {
-      value: new MemoryStorage(),
-      configurable: true,
-    })
-  })
-  afterEach(() => {
-    Object.defineProperty(globalThis, 'localStorage', { value: original, configurable: true })
-  })
+  stubLocalStorage()
 
   it('round-trips a saved session through load', () => {
     expect(hasEditSession('deck', 'my-deck')).toBe(false)

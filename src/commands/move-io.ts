@@ -290,6 +290,7 @@ function applyAddCollectionLine(content: string, card: PhysicalCard): string {
     card.collectorNumber!,
     card.finish ?? 'nonfoil',
     card.condition,
+    card.labels,
     card.note,
     cardId,
   )

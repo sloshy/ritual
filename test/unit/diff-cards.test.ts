@@ -449,3 +449,33 @@ describe('diffWantedEntries', () => {
     expect(changes[0]!.cardName).toBe('Mox Ruby')
   })
 })
+
+describe('label changes are invisible to the diff (policy pin)', () => {
+  test('entries differing only in labels produce zero changes', () => {
+    // Labels stay out of the composite key and have no diff rule, exactly like
+    // notes: a hand-edited [keep] token yields no changelog entry from
+    // detect-changes. In-app edits record their own set-label events instead.
+    const oldEntries: CollectionEntry[] = [
+      {
+        name: 'Sol Ring',
+        quantity: 1,
+        set: 'c21',
+        collectorNumber: '263',
+        cardId: 1,
+        section: 'Main',
+      },
+    ]
+    const newEntries: CollectionEntry[] = [
+      {
+        name: 'Sol Ring',
+        quantity: 1,
+        set: 'c21',
+        collectorNumber: '263',
+        labels: ['keep'],
+        cardId: 1,
+        section: 'Main',
+      },
+    ]
+    expect(diffCollectionEntries(oldEntries, newEntries)).toHaveLength(0)
+  })
+})

@@ -706,3 +706,59 @@ describe('set-card CLI (Integration)', () => {
     expect(result.stderr).toContain("Invalid finish 'glossy'")
   })
 })
+
+describe('set-card --label (Integration)', () => {
+  test('sets a normalized label token and logs the changelog line', async () => {
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--label', 'trade,sale', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual(['label → sale, trade'])
+
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Sol Ring (C21:240) [sale,trade] &1')
+
+    const changelog = await fs.readFile(path.join(dir, 'collections', 'main.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Set labels on "Sol Ring" &1 to [sale,trade]')
+  })
+
+  test('--label none clears the override and logs the clear', async () => {
+    await runCli(['set-card', '--collection', 'main', 'Sol Ring', '--label', 'keep'], dir)
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--label', 'none', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual(['label → none (list default)'])
+
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Sol Ring (C21:240) &1')
+    expect(content).not.toContain('[keep]')
+
+    const changelog = await fs.readFile(path.join(dir, 'collections', 'main.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Cleared labels on "Sol Ring" &1')
+  })
+
+  test('rejects --label on a deck target', async () => {
+    const result = await runCli(
+      ['set-card', '--deck', 'test', '--card-id', '3', '--label', 'sale', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as ErrorJson
+    expect(err.error.code).toBe('usage_error')
+    expect(err.error.message).toContain('--label only applies to collections')
+  })
+
+  test('rejects an illegal combination at parse time', async () => {
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--label', 'keep,sale'],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain("'keep' cannot be combined")
+  })
+})

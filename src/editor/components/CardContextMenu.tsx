@@ -20,6 +20,11 @@ interface CardContextMenuProps {
   isCommander?: boolean
   hideCommander?: boolean
   /**
+   * Open the label picker for the targeted card (every copy of the tile).
+   * Collection editors only — labels are a collection concept.
+   */
+  onSetLabel?: () => void
+  /**
    * Open the move-to-section picker for the targeted card. Present whenever section
    * moves apply (the picker offers the other sections plus "New section…").
    */
@@ -75,6 +80,13 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
         {(changePrinting) => (
           <button class="card-context-menu-item" onClick={() => changePrinting()()}>
             Change Printing…
+          </button>
+        )}
+      </Show>
+      <Show when={props.onSetLabel}>
+        {(setLabel) => (
+          <button class="card-context-menu-item" onClick={() => setLabel()()}>
+            Set Label…
           </button>
         )}
       </Show>

@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { parseCollectionFile, resolveFinish, type CollectionEntry } from '../../src/collection-file'
+import {
+  COLLECTION_CARD_LINE_RE,
+  parseCollectionFile,
+  resolveFinish,
+  type CollectionEntry,
+} from '../../src/collection-file'
+import { CARD_LABELS } from '../../src/card-labels'
 import { makeScryfallCard } from '../test-utils'
 
 describe('parseCollectionFile', () => {
@@ -240,5 +246,122 @@ describe('parseCollectionFile — deck-style quantity prefixes', () => {
   test('a bare number is a name, not a quantity', () => {
     const { advisories } = parseCollectionFile('- 60 (UNF:1)\n')
     expect(advisories).toEqual([])
+  })
+})
+
+describe('parseCollectionFile — labels token', () => {
+  test('parses a single label between condition and note', () => {
+    const { entries, warnings } = parseCollectionFile(
+      '- Lightning Bolt (LEA:161) [foil] [LP] [keep] {my first rare} &1\n',
+    )
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.labels).toEqual(['keep'])
+    expect(entries[0]!.finish).toBe('foil')
+    expect(entries[0]!.condition).toBe('LP')
+    expect(entries[0]!.note).toBe('my first rare')
+    expect(entries[0]!.cardId).toBe(1)
+    expect(warnings).toHaveLength(0)
+  })
+
+  test('parses a combined token and normalizes its order', () => {
+    const { entries } = parseCollectionFile('- Sol Ring (C21:263) [trade,sale] &2\n')
+    expect(entries[0]!.labels).toEqual(['sale', 'trade'])
+  })
+
+  test('parses the token with no other annotations', () => {
+    const { entries } = parseCollectionFile('- Sol Ring (C21:263) [sale]\n')
+    expect(entries[0]!.labels).toEqual(['sale'])
+    expect(entries[0]!.finish).toBeUndefined()
+    expect(entries[0]!.condition).toBeUndefined()
+  })
+
+  test('keep-conflict keeps the entry, drops the labels, and warns', () => {
+    const { entries, warnings } = parseCollectionFile('- Sol Ring (C21:263) [sale,keep] &2\n')
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.labels).toBeUndefined()
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('Conflicting labels [sale,keep]')
+    expect(warnings[0]).toContain('rewrite would drop them')
+  })
+
+  test('an uppercase token is not a labels token — the line warns like any unknown bracket', () => {
+    // The unmatched bracket is absorbed into the lazy name group (exactly as
+    // `[FOIL]` behaves), so the entry fails the printing requirement and warns.
+    const { entries, warnings } = parseCollectionFile('- Sol Ring (C21:263) [SALE]\n')
+    expect(entries).toHaveLength(0)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('missing set code')
+  })
+
+  test('absent token leaves labels undefined', () => {
+    const { entries } = parseCollectionFile('- Sol Ring (C21:263) [foil] &3\n')
+    expect(entries[0]!.labels).toBeUndefined()
+  })
+
+  test('the line regex embeds the CARD_LABELS vocabulary', () => {
+    // The token alternation is spelled out in the regex literal; this pins it
+    // to the canonical vocabulary so adding a label cannot silently leave the
+    // grammar behind.
+    expect(COLLECTION_CARD_LINE_RE.source).toContain(CARD_LABELS.join('|'))
+  })
+})
+
+describe('parseCollectionFile — front matter', () => {
+  test('parses the labels default and skips the block without warnings', () => {
+    const content = '---\nlabels: [sale, trade]\n---\n\n# Binder\n\n- Sol Ring (C21:263) &1\n'
+    const parsed = parseCollectionFile(content)
+    expect(parsed.labels).toEqual(['sale', 'trade'])
+    expect(parsed.frontMatter?.raw).toBe('---\nlabels: [sale, trade]\n---\n')
+    expect(parsed.entries).toHaveLength(1)
+    expect(parsed.warnings).toHaveLength(0)
+    expect(parsed.advisories).toHaveLength(0)
+  })
+
+  test('captures unknown keys verbatim without interpreting them', () => {
+    const content = '---\nowner: me\nlabels: [keep]\n---\n\n# Binder\n'
+    const parsed = parseCollectionFile(content)
+    expect(parsed.labels).toEqual(['keep'])
+    expect(parsed.frontMatter?.data.owner).toBe('me')
+    expect(parsed.warnings).toHaveLength(0)
+  })
+
+  test('labels: [] reads as no default while the key round-trips', () => {
+    const content = '---\nlabels: []\n---\n\n# Binder\n'
+    const parsed = parseCollectionFile(content)
+    expect(parsed.labels).toBeUndefined()
+    expect(parsed.frontMatter?.raw).toContain('labels: []')
+  })
+
+  test('an invalid labels value is an advisory, never a warning', () => {
+    const content = '---\nlabels: [sale, keep]\n---\n\n# Binder\n- Sol Ring (C21:263)\n'
+    const parsed = parseCollectionFile(content)
+    expect(parsed.labels).toBeUndefined()
+    expect(parsed.warnings).toHaveLength(0)
+    expect(parsed.advisories).toHaveLength(1)
+    expect(parsed.advisories[0]).toContain("Front matter 'labels' ignored")
+    expect(parsed.entries).toHaveLength(1)
+  })
+
+  test('unreadable YAML is an advisory and the block still round-trips', () => {
+    const content = '---\nlabels: [sale\n---\n\n# Binder\n'
+    const parsed = parseCollectionFile(content)
+    expect(parsed.labels).toBeUndefined()
+    expect(parsed.frontMatter?.raw).toBe('---\nlabels: [sale\n---\n')
+    expect(parsed.warnings).toHaveLength(0)
+    expect(parsed.advisories.some((a) => a.includes('could not be read as YAML'))).toBe(true)
+  })
+
+  test('an unterminated --- block is body, warned as before', () => {
+    const content = '---\nlabels: [sale]\n\n# Binder\n'
+    const parsed = parseCollectionFile(content)
+    expect(parsed.frontMatter).toBeUndefined()
+    expect(parsed.warnings.length).toBeGreaterThan(0)
+  })
+
+  test('a fence inside front matter does not blind the body', () => {
+    const content = '---\ndescription: "```"\n---\n\n# Binder\n\n- Sol Ring (C21:263) &1\n'
+    const parsed = parseCollectionFile(content)
+    expect(parsed.entries).toHaveLength(1)
+    expect(parsed.fencedLines).toBe(0)
   })
 })

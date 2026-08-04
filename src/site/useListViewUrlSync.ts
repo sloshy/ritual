@@ -30,6 +30,12 @@ export type UseListViewUrlSyncConfig<G extends GroupBy> = {
   sortByValues: readonly SortBy[]
   /** When false, the hook is inert — used to limit URL sync to the public read view. */
   enabled?: boolean
+  /**
+   * Whether this page offers the labels filter (collections and the combined
+   * view). Off, an incoming `labels=` param is dropped rather than silently
+   * narrowing the list through a filter the toolbar cannot show or clear.
+   */
+  supportsLabels?: boolean
 }
 
 function currentHashParams(): URLSearchParams {
@@ -79,7 +85,10 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
     }
     if (o.reverseGroups) toolbar.setReverseGroups(true)
     if (o.priceGroupStrategy) toolbar.setPriceGroupStrategy(o.priceGroupStrategy)
-    if (o.filters) filters.update(o.filters)
+    if (o.filters) {
+      if (config.supportsLabels !== true) delete o.filters.labels
+      filters.update(o.filters)
+    }
   }
 
   // Mirror subsequent state changes back into the URL.

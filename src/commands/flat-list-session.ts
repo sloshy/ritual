@@ -34,6 +34,7 @@ import { getDefaultCurrency } from '../ritual-config'
 import { trackAdd, trackAnotherCopy, trackEdit } from '../session-changelog'
 import { parseCollectionFile, type CollectionEntry } from '../collection-file'
 import { parseWantedListFile, type WantedListEntry } from './wanted-helpers'
+import type { FlatListFrontMatter } from '../flat-list-front-matter'
 import type { CardSessionContext, SessionAddItem } from './card-session'
 import type { EditUndoEntry } from './edit-undo'
 import type { ApplyChange } from '../editor/apply-batch'
@@ -56,12 +57,22 @@ export type FlatListSession<E extends FlatListEntry> = {
   entries: E[]
   /** Section names in file order, including empty sections. */
   sectionOrder: string[]
+  /** The file's front-matter block (a collection's `labels:` default), preserved on every save. */
+  frontMatter?: FlatListFrontMatter
   pool: CardIdPool
   /** Whether the in-memory entries differ from what was last written to disk. */
   dirty: boolean
   apply: ApplyChange<E[], ChangeEvent>
-  serialize: (title: string, entries: E[], sectionOrder: string[]) => string
+  serialize: FlatListSerialize<E>
 }
+
+/** A flat list's whole-file serializer: title + entries + sections + preserved front matter. */
+type FlatListSerialize<E> = (
+  title: string,
+  entries: E[],
+  sectionOrder: string[],
+  frontMatter?: FlatListFrontMatter,
+) => string
 
 export type CollectionSession = FlatListSession<CollectionCardEntry>
 export type WantedSession = FlatListSession<WantedListCardEntry>
@@ -93,7 +104,7 @@ function newFlatListSession<E extends FlatListEntry>(
   filePath: string,
   title: string,
   apply: ApplyChange<E[], ChangeEvent>,
-  serialize: (title: string, entries: E[], sectionOrder: string[]) => string,
+  serialize: FlatListSerialize<E>,
 ): FlatListSession<E> {
   return {
     filePath,
@@ -119,6 +130,7 @@ function collectionEntriesFromParse(entries: CollectionEntry[]): CollectionCardE
     collectorNumber: e.collectorNumber,
     finish: e.finish ?? 'nonfoil',
     condition: e.condition ?? 'NM',
+    labels: e.labels,
     price: 0,
     fileOrder: i,
     section: e.section,
@@ -153,6 +165,8 @@ export type ParsedFlatListFile<E extends FlatListEntry> = {
   title: string
   entries: E[]
   sectionOrder: string[]
+  /** The file's front-matter block, carried so every re-serialize preserves it. */
+  frontMatter?: FlatListFrontMatter
   warnings: string[]
   /**
    * Non-blocking notices about lines that parsed but almost certainly do not say
@@ -169,6 +183,7 @@ export type ParsedFlatListFile<E extends FlatListEntry> = {
 type FlatListParse<Raw> = {
   entries: Raw[]
   sectionOrder: string[]
+  frontMatter?: FlatListFrontMatter
   warnings: string[]
   fencedLines: number
   advisories: string[]
@@ -192,6 +207,7 @@ async function readFlatListFile<Raw, E extends FlatListEntry>(
     title: parseTitleFromContent(content) ?? path.basename(filePath, '.md'),
     entries,
     sectionOrder: parsed.sectionOrder,
+    frontMatter: parsed.frontMatter,
     // Fenced code blocks join the parse warnings here: every consumer of this
     // read re-serializes the whole file, which would delete the block.
     warnings: unreadableLines(parsed),
@@ -221,6 +237,7 @@ export async function loadCollectionSession(filePath: string): Promise<Collectio
     title: file.title,
     entries: file.entries,
     sectionOrder: file.sectionOrder,
+    frontMatter: file.frontMatter,
     pool: file.pool,
     dirty: false,
     apply: applyChangeToCollection,
@@ -237,6 +254,7 @@ export async function loadWantedSession(filePath: string): Promise<WantedSession
     title: file.title,
     entries: file.entries,
     sectionOrder: file.sectionOrder,
+    frontMatter: file.frontMatter,
     pool: file.pool,
     dirty: false,
     apply: applyChangeToWantedList,
@@ -281,7 +299,7 @@ export async function persistFlatListSession<E extends FlatListEntry>(
   await fs.mkdir(path.dirname(session.filePath), { recursive: true })
   await writeFileWithHash(
     session.filePath,
-    session.serialize(session.title, session.entries, session.sectionOrder),
+    session.serialize(session.title, session.entries, session.sectionOrder, session.frontMatter),
   )
   session.dirty = false
 }

@@ -1,4 +1,5 @@
 import type { ListCounts, ListSummaryLoadResult } from '../admin/api/load-results'
+import type { CardLabel } from '../card-labels'
 import type { ListType } from '../list-type'
 import type { DeckData } from '../types'
 import { callApi } from './dispatch'
@@ -64,6 +65,8 @@ export type FlatListProjection = {
   slug: string
   entries: CollectionEntry[] | ParsedWantedEntry[]
   sectionOrder?: string[]
+  /** The list's default card labels from its front matter — collections only. */
+  labels?: CardLabel[]
   /** See {@link DeckProjection.totalCount}. */
   totalCount: number
   /** See {@link DeckProjection.warnings}. */
@@ -139,6 +142,7 @@ export async function loadProjectedList(
     slug,
     entries: data.entries,
     sectionOrder: data.sectionOrder,
+    labels: data.labels,
     totalCount: data.totalCount,
     warnings: data.warnings,
   }

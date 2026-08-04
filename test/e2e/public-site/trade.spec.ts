@@ -5,19 +5,7 @@ import {
   PICKER_BASE_PRINTING,
   mockPublicSiteForTrade,
 } from '../helpers/mock-public-site'
-
-/**
- * Type a query into the left column's search input, wait for the suggestion
- * dropdown, and click the first row. Used by the many left-column tests that
- * just need a card on the board to exercise downstream state.
- */
-async function addToLeft(page: Page, query: string): Promise<void> {
-  const leftSearch = page.locator('.trade-col[data-side="left"] .search-input')
-  await leftSearch.fill(query)
-  const suggest = page.locator('.trade-col[data-side="left"] .search-suggest')
-  await expect(suggest).toBeVisible()
-  await suggest.locator('.search-suggest-row').first().click({ force: true })
-}
+import { addToLeft } from '../helpers/trade-page'
 
 /**
  * Right-column (wanted-list mode) equivalent of {@link addToLeft}. A wanted card

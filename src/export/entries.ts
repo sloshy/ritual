@@ -1,5 +1,13 @@
 import * as fs from 'node:fs/promises'
 import { isCondition, VALID_CONDITIONS } from '../finish-condition'
+import {
+  CARD_LABEL_SELECTIONS,
+  effectiveLabels,
+  isCardLabelSelection,
+  matchesCardLabelSelection,
+  type CardLabel,
+  type CardLabelSelection,
+} from '../card-labels'
 import type { Condition, Finish } from '../types'
 import type { ListType } from '../list-type'
 import type { ListLocation } from '../resolve-list'
@@ -27,6 +35,13 @@ export type ExportEntry = {
   finish?: Finish
   /** Never set for wanted entries (the wanted grammar has no condition token). */
   condition?: Condition
+  /**
+   * The card's *effective* labels (its line's override, else the list's
+   * front-matter default) — collections only; absent when the effective set is
+   * empty. Exports flatten away the list file, so the override/default split
+   * would be meaningless here.
+   */
+  labels?: CardLabel[]
   note?: string
   /** Position within its list file; with listType+listName forms a stable identity. */
   fileOrder: number
@@ -87,14 +102,23 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
       const parsed = parseCollectionFile(content)
       warnings.push(...parsed.warnings.map((w) => `${location.name}: ${w}`))
       parsed.entries.forEach((entry, fileOrder) => {
-        entries.push(flatEntry(location, entry, entry.condition, fileOrder))
+        const labels = effectiveLabels(entry.labels, parsed.labels)
+        entries.push(
+          flatEntry(
+            location,
+            entry,
+            entry.condition,
+            labels.length > 0 ? labels : undefined,
+            fileOrder,
+          ),
+        )
       })
       continue
     }
     const parsed = parseWantedListFile(content)
     warnings.push(...parsed.warnings.map((w) => `${location.name}: ${w}`))
     parsed.entries.forEach((entry, fileOrder) => {
-      entries.push(flatEntry(location, entry, undefined, fileOrder))
+      entries.push(flatEntry(location, entry, undefined, undefined, fileOrder))
     })
   }
 
@@ -106,6 +130,7 @@ function flatEntry(
   location: ListLocation,
   entry: CollectionEntry | WantedListEntry,
   condition: Condition | undefined,
+  labels: CardLabel[] | undefined,
   fileOrder: number,
 ): ExportEntry {
   return {
@@ -118,6 +143,7 @@ function flatEntry(
     collectorNumber: entry.collectorNumber,
     finish: entry.finish,
     condition,
+    labels,
     note: entry.note,
     fileOrder,
   }
@@ -212,6 +238,37 @@ export function parseConditionFilterValues(
 }
 
 /**
+ * One labels-filter value: the shared selection vocabulary (`'none'` matches
+ * collection entries whose effective label set is empty). The alias marks the
+ * export-specific semantics: unlike the site's chips, a filter list here may
+ * combine `keep` with the others — it selects, it doesn't declare.
+ */
+export type LabelFilterValue = CardLabelSelection
+
+/** Every labels-filter value, in canonical order, for flag help and validation messages. */
+export const LABEL_FILTER_VALUES = CARD_LABEL_SELECTIONS
+
+/**
+ * Validate a raw labels-filter value list (from a flag or an API body), or an
+ * error message. Labels are matched case-insensitively; `none` selects
+ * unlabeled collection entries.
+ */
+export function parseLabelFilterValues(values: readonly unknown[]): LabelFilterValue[] | string {
+  const labels: LabelFilterValue[] = []
+  for (const value of values) {
+    const lower = typeof value === 'string' ? value.toLowerCase() : undefined
+    if (lower === undefined || !isCardLabelSelection(lower)) {
+      return `Invalid label '${String(value)}'. Use one of: ${LABEL_FILTER_VALUES.join(', ')}.`
+    }
+    if (!labels.includes(lower)) labels.push(lower)
+  }
+  if (labels.length === 0) {
+    return `No labels given. Use one of: ${LABEL_FILTER_VALUES.join(', ')}.`
+  }
+  return labels
+}
+
+/**
  * Filters applied to the assembled export set. All present filters must match
  * (logical AND).
  */
@@ -229,17 +286,28 @@ export type ExportFilters = {
    * match a condition filter.
    */
   conditions?: ConditionFilterValue[]
+  /**
+   * Labels to match (logical OR within the list) against each entry's
+   * *effective* labels; `'none'` matches unlabeled collection entries. Labels
+   * are a collection concept, so deck and wanted entries never match.
+   */
+  labels?: LabelFilterValue[]
 }
 
 export function hasActiveExportFilters(filters: ExportFilters): boolean {
   return Boolean(
-    filters.name || filters.set || filters.finish || (filters.conditions?.length ?? 0) > 0,
+    filters.name ||
+    filters.set ||
+    filters.finish ||
+    (filters.conditions?.length ?? 0) > 0 ||
+    (filters.labels?.length ?? 0) > 0,
   )
 }
 
 export function filterExportEntries(entries: ExportEntry[], filters: ExportFilters): ExportEntry[] {
   const set = filters.set?.toLowerCase()
   const conditions = filters.conditions
+  const labels = filters.labels
   return entries.filter((entry) => {
     if (filters.name && !matchesAllTerms(entry.name, filters.name)) return false
     if (set && entry.set?.toLowerCase() !== set) return false
@@ -247,6 +315,10 @@ export function filterExportEntries(entries: ExportEntry[], filters: ExportFilte
     if (conditions && conditions.length > 0) {
       if (entry.listType === 'wanted') return false
       if (!conditions.includes(entry.condition ?? CONDITION_FILTER_NONE)) return false
+    }
+    if (labels && labels.length > 0) {
+      if (entry.listType !== 'collection') return false
+      if (!matchesCardLabelSelection(entry.labels ?? [], labels)) return false
     }
     return true
   })

@@ -27,7 +27,11 @@ import type { BundleImportResponse } from '../../admin/api/import-changes'
 import type { ImportCsvRequest, ImportCsvResponse } from '../../admin/api/import-csv'
 import type { ImportDeckResponse } from '../../admin/api/import-deck'
 import type { ListCreateResponse } from '../../admin/api/list-lifecycle'
-import type { DeckMetadataRequest, MetadataResponse } from '../../admin/api/metadata'
+import type {
+  CollectionMetadataRequest,
+  DeckMetadataRequest,
+  MetadataResponse,
+} from '../../admin/api/metadata'
 import type { MoveCommitResponse, RemoveCommitResponse } from '../../admin/api/move'
 import { callApi, callApiData } from '../dispatch'
 import type { ListChangeNotifier } from '../notify'
@@ -53,10 +57,13 @@ import {
   conditionSchema,
   conditionUpdateField,
   conditionUpdateSchema,
+  cardLabelSchema,
   copyIndexField,
   deckFormatSchema,
   finishField,
   finishSchema,
+  labelsOverrideField,
+  labelsUpdateField,
   listTypeSchema,
   quantityField,
   refineDeckOnlyFormat,
@@ -209,6 +216,7 @@ const applyChangeSchema = z.discriminatedUnion('action', [
     collectorNumber: collectorNumberField,
     finish: finishSchema.optional(),
     condition: conditionSchema.optional(),
+    labels: labelsOverrideField,
     section: sectionField,
   }),
   z.object({
@@ -234,6 +242,11 @@ const applyChangeSchema = z.discriminatedUnion('action', [
     action: z.literal('set-note'),
     ...changeBase,
     note: z.string().describe('Note text. Empty string clears the note.'),
+  }),
+  z.object({
+    action: z.literal('set-label'),
+    ...changeBase,
+    labels: labelsUpdateField,
   }),
   z.object({ action: z.literal('set-commander'), ...changeBase }),
   z.object({ action: z.literal('unset-commander'), ...changeBase }),
@@ -436,43 +449,60 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
     {
       title: 'Set list metadata',
       description:
-        'Write a deck’s front matter: description, tags, format, and the Archidekt source link. ' +
-        'Only the fields you send are touched; null (or "" for description) clears one. Setting ' +
-        'sourceId together with an archidekt.com sourceUrl is what makes a deck sync-linked, so ' +
-        'it is what sync_decks then operates on; the two must name the SAME Archidekt deck once ' +
-        'merged over what the file already carries, or the call is rejected. Collections and ' +
-        'wanted lists carry no front ' +
-        'matter — use rename_list to change their display name. No changelog entry is recorded: ' +
-        'the changelog is card-level, and metadata is not a card change.',
-      inputSchema: z.object({
-        listType: listTypeSchema.describe(
-          'Decks only today; collections and wanted lists carry no front matter.',
-        ),
-        slug: slugField,
-        description: z.string().nullable().optional().describe('null or "" clears it.'),
-        tags: z.array(z.string().min(1)).nullable().optional().describe('null clears every tag.'),
-        format: deckFormatSchema.nullable().optional(),
-        sourceId: z
-          .string()
-          .min(1)
-          .nullable()
-          .optional()
-          .describe(
-            'The deck’s id on the source service; null unlinks it. For Archidekt it must be the ' +
-              'deck id sourceUrl names.',
+        'Write a list’s front matter. Decks: description, tags, format, and the Archidekt source ' +
+        'link. Collections: labels — the default card labels ("sale"/"trade" combine; "keep" ' +
+        'stands alone) every entry without its own override inherits. Only the fields you send ' +
+        'are touched; null (or "" for description) clears one. Setting sourceId together with an ' +
+        'archidekt.com sourceUrl is what makes a deck sync-linked, so it is what sync_decks then ' +
+        'operates on; the two must name the SAME Archidekt deck once merged over what the file ' +
+        'already carries, or the call is rejected. Wanted lists carry no front matter — use ' +
+        'rename_list to change their display name. No changelog entry is recorded: the changelog ' +
+        'is card-level, and metadata is not a card change.',
+      inputSchema: z
+        .object({
+          listType: listTypeSchema.describe(
+            'Deck fields for decks, labels for collections; wanted lists carry no front matter.',
           ),
-        sourceUrl: z
-          .string()
-          .url()
-          .nullable()
-          .optional()
-          .describe('The deck’s URL on the source service; null unlinks it.'),
-      }),
+          slug: slugField,
+          description: z.string().nullable().optional().describe('null or "" clears it.'),
+          tags: z.array(z.string().min(1)).nullable().optional().describe('null clears every tag.'),
+          format: deckFormatSchema.nullable().optional(),
+          sourceId: z
+            .string()
+            .min(1)
+            .nullable()
+            .optional()
+            .describe(
+              'The deck’s id on the source service; null unlinks it. For Archidekt it must be the ' +
+                'deck id sourceUrl names.',
+            ),
+          sourceUrl: z
+            .string()
+            .url()
+            .nullable()
+            .optional()
+            .describe('The deck’s URL on the source service; null unlinks it.'),
+          labels: z
+            .array(cardLabelSchema)
+            .nullable()
+            .optional()
+            .describe(
+              'The collection’s default card labels; null (or an empty array) clears them. ' +
+                'Collections only.',
+            ),
+        })
+        .superRefine((val, ctx) => {
+          if (val.labels !== undefined && val.listType !== 'collection') {
+            ctx.addIssue({ code: 'custom', message: 'labels apply to collections only.' })
+          }
+        }),
       outputSchema: fromJsonSchema<ListMetadataResult>(SET_LIST_METADATA_OUTPUT),
     },
     async ({ listType, slug, ...patch }) =>
       runTool(async (): Promise<ListMetadataResult> => {
-        const body: DeckMetadataRequest = patch
+        // Deck-field-on-collection misuse (and vice versa) is left to the
+        // route's own 400 — validation lives once, in the handler.
+        const body: DeckMetadataRequest | CollectionMetadataRequest = patch
         const data = (await callApi(
           'PUT',
           `/api/metadata/${listType}/${encodeURIComponent(slug)}`,
@@ -490,7 +520,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'Add a card to any list (decks increment quantity if the same printing already exists). ' +
         'Supply set + collectorNumber to pin the printing. quantity adds that many copies in ' +
         'one save. Collections require set + collectorNumber together — an add without one is ' +
-        'rejected.',
+        'rejected. labels gives the new collection card a label override.',
       inputSchema: z
         .object({
           listType: listTypeSchema,
@@ -500,6 +530,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
           collectorNumber: collectorNumberField,
           finish: finishField,
           condition: conditionField,
+          labels: labelsOverrideField,
           section: sectionField,
           quantity: quantityField,
         })
@@ -509,6 +540,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
               code: 'custom',
               message: 'condition is not tracked on wanted lists.',
             })
+          }
+          if (val.labels !== undefined && val.listType !== 'collection') {
+            ctx.addIssue({ code: 'custom', message: 'labels apply to collections only.' })
           }
         }),
       outputSchema: fromJsonSchema<MutationResult>(MUTATION_OUTPUT),
@@ -521,12 +555,13 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       collectorNumber,
       finish,
       condition,
+      labels,
       section,
       quantity,
     }) =>
       runTool((): Promise<MutationResult> => {
         const changes: ChangeEvent[] = Array.from({ length: quantity }, () =>
-          createAddChange(cardName, { set, collectorNumber, finish, condition, section }),
+          createAddChange(cardName, { set, collectorNumber, finish, condition, labels, section }),
         )
         return applyMutation(listType, slug, changes)
       }),
@@ -625,25 +660,35 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       title: 'Apply changes',
       description:
         'Apply an ordered batch of card-level changes (add/remove/set-finish/set-printing/' +
-        'set-note/set-commander/unset-commander/set-section) to one list atomically: one load, ' +
-        'one save, one changelog block. The batch is all-or-nothing — if any change fails to ' +
-        'match (names are exact and case-sensitive), nothing is saved — but a later change may ' +
-        'target a card an earlier change in the same batch added. Change ids and timestamps are ' +
-        'stamped by the server. On a collection, add and ' +
+        'set-note/set-label/set-commander/unset-commander/set-section) to one list atomically: ' +
+        'one load, one save, one changelog block. The batch is all-or-nothing — if any change ' +
+        'fails to match (names are exact and case-sensitive), nothing is saved — but a later ' +
+        'change may target a card an earlier change in the same batch added. Change ids and ' +
+        'timestamps are stamped by the server. On a collection, add and ' +
         'set-printing require set + collectorNumber together. For cross-list moves use ' +
         'move_selected_cards. ' +
-        'This is also the only way to set or clear a card note (set-note), move a card to a ' +
+        'This is also the only way to set or clear a card note (set-note), set or clear a ' +
+        'collection card’s label override (set-label — collections only), move a card to a ' +
         'section (set-section), and set or clear a deck commander (set-commander/' +
         'unset-commander); the commander actions apply to decks only and fail on a collection ' +
         'or wanted list. ' +
-        'Flagged destructive because a batch CAN remove cards in bulk — the note, section, and ' +
-        'commander actions are themselves additive; the hint reflects worst-case capability, ' +
-        'not what your batch does.',
-      inputSchema: z.object({
-        listType: listTypeSchema,
-        slug: slugField,
-        changes: z.array(applyChangeSchema).min(1).describe('Changes to apply, in order.'),
-      }),
+        'Flagged destructive because a batch CAN remove cards in bulk — the note, label, ' +
+        'section, and commander actions are themselves additive; the hint reflects worst-case ' +
+        'capability, not what your batch does.',
+      inputSchema: z
+        .object({
+          listType: listTypeSchema,
+          slug: slugField,
+          changes: z.array(applyChangeSchema).min(1).describe('Changes to apply, in order.'),
+        })
+        .superRefine((val, ctx) => {
+          if (
+            val.listType !== 'collection' &&
+            val.changes.some((c) => c.action === 'add' && c.labels !== undefined)
+          ) {
+            ctx.addIssue({ code: 'custom', message: 'add labels apply to collections only.' })
+          }
+        }),
       outputSchema: fromJsonSchema<MutationResult>(MUTATION_OUTPUT),
       // Like import_change_bundle: a change batch can remove cards in bulk.
       annotations: { destructiveHint: true },

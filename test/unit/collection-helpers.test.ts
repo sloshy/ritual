@@ -81,6 +81,7 @@ describe('formatCollectionLine', () => {
       card.collectorNumber,
       'foil',
       'LP',
+      undefined,
       'signed',
     )
     expect(line).toBe('- Sol Ring (LEA:232) [foil] [LP] {signed}\n')
@@ -95,6 +96,7 @@ describe('formatCollectionLine', () => {
       'foil',
       'LP',
       undefined,
+      undefined,
       5,
     )
     expect(line).toBe('- Sol Ring (LEA:232) [foil] [LP] &5\n')
@@ -108,6 +110,7 @@ describe('formatCollectionLine', () => {
       card.collectorNumber,
       'foil',
       'LP',
+      undefined,
       'signed',
       42,
     )
@@ -121,6 +124,7 @@ describe('formatCollectionLine', () => {
       card.set,
       card.collectorNumber,
       'nonfoil',
+      undefined,
       undefined,
       undefined,
       1,

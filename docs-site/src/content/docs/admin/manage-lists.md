@@ -56,7 +56,7 @@ You must type the **exact deck name** before the Delete button becomes active. D
 
 ## Collections
 
-A collection is a Markdown file in the configured `collectionsDir` (defaults to `collections/`). Collection files are simpler than decks — there is no YAML frontmatter, just a top-level `# Title` heading followed by card lines, optionally organized under `## Section Name` (H2) headers (see the [collection format](/commands/edit/#sections)).
+A collection is a Markdown file in the configured `collectionsDir` (defaults to `collections/`). Collection files are simpler than decks — an optional YAML front-matter block holding the list's [default card labels](/commands/edit/#collection-front-matter), then a top-level `# Title` heading followed by card lines, optionally organized under `## Section Name` (H2) headers (see the [collection format](/commands/edit/#sections)).
 
 ### Creating a collection
 

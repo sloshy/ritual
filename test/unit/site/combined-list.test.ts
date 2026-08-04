@@ -225,3 +225,30 @@ describe('merge helpers', () => {
     expect(merged['Lightning Bolt']).toEqual([bolt])
   })
 })
+
+describe('buildCombinedCards — labels', () => {
+  test('collection cards resolve effective labels (override beats the list default)', () => {
+    const base = collectionDetail()
+    const detail = base.detail as unknown as {
+      labels?: string[]
+      entries: { labels?: string[]; name: string }[]
+    }
+    detail.labels = ['sale', 'trade']
+    detail.entries.push({
+      ...detail.entries[0],
+      name: 'Sol Ring',
+      labels: ['keep'],
+    })
+
+    const cards = buildCombinedCards([base], 'usd', false)
+    expect(cards[0]!.labels).toEqual(['sale', 'trade'])
+    expect(cards[1]!.labels).toEqual(['keep'])
+    // The selection tile carries the same resolution for the trade keep-guard.
+    expect(cards[1]!.selectedTile.labels).toEqual(['keep'])
+  })
+
+  test('deck and wanted cards are always unlabeled', () => {
+    const cards = buildCombinedCards([deckDetail(), wantedDetail()], 'usd', false)
+    for (const card of cards) expect(card.labels).toEqual([])
+  })
+})

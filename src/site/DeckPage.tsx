@@ -365,6 +365,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           hasPrinting: hasSpecificPrinting(entry),
           oracleTags: card?.oracleTags ?? [],
           artTags: card?.artTags ?? [],
+          labels: [],
           card,
         })
       }

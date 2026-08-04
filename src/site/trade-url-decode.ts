@@ -153,6 +153,10 @@ function decodeCollectionParam(
         collectorNumber: entry.collectorNumber,
         finish: entry.finish,
         condition: entry.condition,
+        // Re-resolved from the loaded entries (the URL carries only card ids),
+        // so a decoded keep card gets its badge — but never the confirm dialog:
+        // decode writes the card signals directly, bypassing the guarded add.
+        labels: entry.labels,
         note: entry.note,
         price: entry.price,
         scryfallCard: entry.scryfallCard,

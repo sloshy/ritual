@@ -1,4 +1,5 @@
 import type { Condition, DeckData, Finish } from '../../types'
+import type { CardLabel } from '../../card-labels'
 import type { ParsedWantedEntry } from '../../editor/wanted-entries'
 import type { DeckCardLoadResult, EntryCardLoadResult } from './card-data-loader'
 import type { ListCounts, ListLoadView, ListSectionCount } from './list-load-params'
@@ -22,6 +23,11 @@ export interface CollectionEntry {
   collectorNumber: string
   finish?: Finish
   condition?: Condition
+  /**
+   * The entry's label override. Effective labels are this when present, else
+   * the list-level `labels` on the load body.
+   */
+  labels?: CardLabel[]
   note?: string
   cardId?: number
   section?: string
@@ -97,6 +103,8 @@ export interface FlatCardsLoadResult<T> extends ListLoadBase {
   view: 'cards'
   entries: T[]
   sectionOrder?: string[]
+  /** The list's default card labels from its front matter — collections only. */
+  labels?: CardLabel[]
 }
 
 /** `view=full` body for a flat list — the cards view plus Scryfall data. */
@@ -104,6 +112,8 @@ export interface FlatFullLoadResult<T> extends ListLoadBase, EntryCardLoadResult
   view: 'full'
   entries: T[]
   sectionOrder?: string[]
+  /** The list's default card labels from its front matter — collections only. */
+  labels?: CardLabel[]
   symbolMap: Record<string, string>
 }
 
@@ -116,11 +126,11 @@ export type CollectionFullLoadResult = FlatFullLoadResult<CollectionEntry>
 /** `GET /api/collection/:slug` — entries plus the section order and content hash. */
 export type CollectionLoadResult = CollectionCardsLoadResult | CollectionFullLoadResult
 
-/** `GET /api/wanted/:slug?view=cards` — entries plus the section order. */
-export type WantedCardsLoadResult = FlatCardsLoadResult<ParsedWantedEntry>
+/** `GET /api/wanted/:slug?view=cards` — entries plus the section order. Never carries `labels`. */
+export type WantedCardsLoadResult = FlatCardsLoadResult<ParsedWantedEntry> & { labels?: never }
 
-/** `GET /api/wanted/:slug` (`view=full`) — the cards view plus Scryfall data. */
-export type WantedFullLoadResult = FlatFullLoadResult<ParsedWantedEntry>
+/** `GET /api/wanted/:slug` (`view=full`) — the cards view plus Scryfall data. Never carries `labels`. */
+export type WantedFullLoadResult = FlatFullLoadResult<ParsedWantedEntry> & { labels?: never }
 
 /** `GET /api/wanted/:slug` — entries plus the section order and content hash. */
 export type WantedLoadResult = WantedCardsLoadResult | WantedFullLoadResult

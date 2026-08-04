@@ -8,6 +8,7 @@ import {
   hasActiveExportFilters,
   loadExportEntries,
   parseConditionFilterValues,
+  parseLabelFilterValues,
   type ExportEntry,
 } from '../../src/export/entries'
 import type { ListLocation } from '../../src/resolve-list'
@@ -197,5 +198,63 @@ describe('parseConditionFilterValues', () => {
   test('rejects unknown values and empty input with an error string', () => {
     expect(parseConditionFilterValues(['OK'])).toContain("Invalid condition 'OK'")
     expect(parseConditionFilterValues([])).toContain('No conditions given')
+  })
+})
+
+describe('labels filter', () => {
+  const labeled = [
+    entry({ name: 'Sale Card', labels: ['sale'] }),
+    entry({ name: 'Both Card', labels: ['sale', 'trade'], fileOrder: 1 }),
+    entry({ name: 'Keep Card', labels: ['keep'], fileOrder: 2 }),
+    entry({ name: 'Plain Card', fileOrder: 3 }),
+    entry({ name: 'Deck Card', listType: 'deck', labels: undefined, fileOrder: 4 }),
+  ]
+
+  test('matches effective labels with OR semantics', () => {
+    const result = filterExportEntries(labeled, { labels: ['sale', 'trade'] })
+    expect(result.map((e) => e.name)).toEqual(['Sale Card', 'Both Card'])
+  })
+
+  test("'none' matches unlabeled collection entries only", () => {
+    const result = filterExportEntries(labeled, { labels: ['none'] })
+    expect(result.map((e) => e.name)).toEqual(['Plain Card'])
+  })
+
+  test('a labels filter may combine keep with the others (it selects, not declares)', () => {
+    const result = filterExportEntries(labeled, { labels: ['keep', 'none'] })
+    expect(result.map((e) => e.name)).toEqual(['Keep Card', 'Plain Card'])
+  })
+
+  test('deck and wanted entries never match a labels filter', () => {
+    const result = filterExportEntries(labeled, { labels: ['sale', 'trade', 'keep', 'none'] })
+    // Positive form: exactly the collection entries survive — 'Deck Card' is out
+    // even though 'none' matches every unlabeled collection entry.
+    expect(result.map((e) => e.name)).toEqual(['Sale Card', 'Both Card', 'Keep Card', 'Plain Card'])
+  })
+
+  test('counts as an active filter', () => {
+    expect(hasActiveExportFilters({ labels: ['sale'] })).toBe(true)
+    expect(hasActiveExportFilters({ labels: [] })).toBe(false)
+  })
+
+  test('the collection loader resolves effective labels from the file', async () => {
+    const content =
+      '---\nlabels: [sale]\n---\n\n# Test List\n\n- Sol Ring (C21:263) [keep] &1\n- Lightning Bolt (LEA:161) &2\n'
+    await withListFile('collection', content, async (location) => {
+      const { entries: loaded } = await loadExportEntries([location])
+      expect(loaded[0]!.labels).toEqual(['keep'])
+      expect(loaded[1]!.labels).toEqual(['sale'])
+    })
+  })
+})
+
+describe('parseLabelFilterValues', () => {
+  test('parses case-insensitively, deduping', () => {
+    expect(parseLabelFilterValues(['SALE', 'sale', 'None'])).toEqual(['sale', 'none'])
+  })
+
+  test('rejects unknown values and empty lists with the vocabulary named', () => {
+    expect(parseLabelFilterValues(['sell'])).toContain("Invalid label 'sell'")
+    expect(parseLabelFilterValues([])).toContain('No labels given')
   })
 })

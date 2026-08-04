@@ -75,6 +75,8 @@ For each changed file, the old version (at the specified commit) and current ver
 - **Commander promotions** (decks only) → `Set as commander` entries
 - **Commander demotions** (decks only) → `Unset as commander` entries
 
+Notes (`{note}`) and collection label overrides (`[labels]`) are deliberately invisible to the diff: hand-editing only a card's note or labels produces no changelog entries (the file still counts as `no card changes detected`).
+
 ### Card Matching
 
 Cards are matched between old and new versions using:

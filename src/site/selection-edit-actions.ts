@@ -1,4 +1,5 @@
 import type { Finish } from '../types'
+import type { CardLabel } from '../card-labels'
 import type { ListRef } from '../change-event'
 import type { SelectionEditActions } from './SelectionMenu'
 import type { CardSelectionControl, SelectedCard } from './useCardSelection'
@@ -16,6 +17,8 @@ export type BulkEditBundle = {
   setFinish: (cards: SelectedCard[], finish: Finish) => void
   changePrinting: (cards: SelectedCard[]) => void
   setCommander?: (cards: SelectedCard[]) => void
+  /** Present only for collections — labels are a collection concept. */
+  setLabel?: (cards: SelectedCard[], labels: CardLabel[]) => void
   moveToSection: (cards: SelectedCard[], section: string) => void
   promptNewSection: (cards: SelectedCard[]) => void
   sections: () => string[]
@@ -40,6 +43,7 @@ export function buildSelectionEditActions(
     fn(selection.selected())
     selection.clear()
   }
+  const setLabel = bulk.setLabel
   return {
     addCopy: apply(bulk.addCopy),
     removeCopy: apply(bulk.removeCopy),
@@ -48,6 +52,12 @@ export function buildSelectionEditActions(
     setNonfoil: apply((cards) => bulk.setFinish(cards, 'nonfoil')),
     changePrinting: apply(bulk.changePrinting),
     setCommander: bulk.setCommander ? apply(bulk.setCommander) : undefined,
+    setLabel: setLabel
+      ? (labels) => {
+          setLabel(selection.selected(), labels)
+          selection.clear()
+        }
+      : undefined,
     moveToSection: (section) => {
       bulk.moveToSection(selection.selected(), section)
       selection.clear()

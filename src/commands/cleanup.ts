@@ -220,7 +220,7 @@ async function readCollectionDocument(location: ListLocation): Promise<ListDocum
   return {
     displayName: file.title,
     original: file.content,
-    canonical: collectionToMarkdown(file.title, file.entries, file.sectionOrder),
+    canonical: collectionToMarkdown(file.title, file.entries, file.sectionOrder, file.frontMatter),
     parseWarnings: file.warnings,
     advisories: file.advisories,
   }
@@ -231,7 +231,7 @@ async function readWantedDocument(location: ListLocation): Promise<ListDocument>
   return {
     displayName: file.title,
     original: file.content,
-    canonical: wantedToMarkdown(file.title, file.entries, file.sectionOrder),
+    canonical: wantedToMarkdown(file.title, file.entries, file.sectionOrder, file.frontMatter),
     parseWarnings: file.warnings,
     advisories: file.advisories,
   }

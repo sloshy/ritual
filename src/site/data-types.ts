@@ -1,4 +1,5 @@
 import type { Condition, DeckData, Finish, ScryfallCard } from '../types'
+import type { CardLabel } from '../card-labels'
 import type { PriceCurrency } from '../price-currency'
 import type { ChangelogPage } from '../changelog-parser'
 import type { DeckFormatKey } from '../deck-format'
@@ -53,6 +54,11 @@ export interface CollectionCardEntry {
   collectorNumber: string
   finish: Finish
   condition: Condition
+  /**
+   * This card's label override, as written on its line. Effective labels are
+   * this when present, else the list's `CollectionDetail.labels` default.
+   */
+  labels?: CardLabel[]
   price: number
   fileOrder: number
   /** Section this entry belongs to. Defaults to `DEFAULT_SECTION` ("Main") when unsectioned. */
@@ -78,6 +84,8 @@ export interface CollectionSummary {
   missingPriceCount?: number
   missingPriceCountEur?: number
   missingPriceCountTix?: number
+  /** The collection's default card labels from its front matter, when declared. */
+  labels?: CardLabel[]
 }
 
 export interface CollectionDetail {
@@ -85,6 +93,8 @@ export interface CollectionDetail {
   entries: CollectionCardEntry[]
   /** Section names in file order, including empty sections. Used to order/render section groups. */
   sectionOrder?: string[]
+  /** The collection's default card labels from its front matter, when declared. */
+  labels?: CardLabel[]
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
@@ -172,6 +182,8 @@ export interface TradeCardEntry {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Effective card labels of the source entry — collection rows only. */
+  labels?: CardLabel[]
   note?: string
   price?: number
   scryfallCard: ScryfallCard | null

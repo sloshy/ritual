@@ -47,12 +47,20 @@ import type { CollectionCardEntry } from '../site/data-types'
 import type { Condition, Finish, ScryfallCard } from '../types'
 import {
   consolidateSetFinish,
+  consolidateSetLabel,
   consolidateSetPrinting,
   createSetFinishChange,
+  createSetLabelChange,
   createSetPrintingChange,
   type ChangeEvent,
   type PrintingTuple,
 } from '../change-event'
+import {
+  CARD_LABEL_CHOICES,
+  formatCardLabels,
+  sameCardLabels,
+  type CardLabel,
+} from '../card-labels'
 
 type ValuePromptResponse = { value?: string }
 
@@ -74,6 +82,36 @@ async function promptFinishChoice(
     initial: Math.max(0, VALID_FINISHES.indexOf(current)),
   })) as ValuePromptResponse
   return isFinish(response.value) ? response.value : null
+}
+
+/**
+ * Pick a label override for an existing entry: the four label states plus
+ * "Use list default" (clear, encoded as `[]`). The current state is marked and
+ * the cursor starts on it. Returns null when cancelled. Choices round-trip
+ * through their canonical serialized form (`''` for the clear row) — a real
+ * domain value, like `promptConditionChoice`'s, rather than an array index.
+ */
+async function promptLabelChoice(
+  current: readonly CardLabel[] | undefined,
+): Promise<CardLabel[] | null> {
+  const currentKey = formatCardLabels(current ?? [])
+  const currentIndex = CARD_LABEL_CHOICES.findIndex(
+    (choice) => formatCardLabels(choice.labels) === currentKey,
+  )
+  const response = (await prompts({
+    type: 'select',
+    name: 'value',
+    message: 'Label:',
+    choices: CARD_LABEL_CHOICES.map((choice, i) => ({
+      title: i === currentIndex ? `${choice.label} (current)` : choice.label,
+      value: formatCardLabels(choice.labels),
+    })),
+    initial: Math.max(0, currentIndex),
+  })) as ValuePromptResponse
+  const key = response.value
+  if (key === undefined) return null
+  const picked = CARD_LABEL_CHOICES.find((choice) => formatCardLabels(choice.labels) === key)
+  return picked ? [...picked.labels] : null
 }
 
 /** Pick a condition for an existing entry, defaulting the cursor to the current one. */
@@ -112,6 +150,7 @@ export function createCollectionStrategy(
         snapshot.options.collectorNumber ?? '',
         snapshot.options.finish ?? 'nonfoil',
         snapshot.options.condition ?? 'NM',
+        undefined,
         snapshot.note,
         cardId,
       ).trim(),
@@ -122,6 +161,7 @@ export function createCollectionStrategy(
         entry.collectorNumber,
         entry.finish,
         entry.condition,
+        entry.labels,
         entry.note,
         entry.cardId,
       ).trim(),
@@ -207,6 +247,7 @@ export function createCollectionStrategy(
         { title: '🖼️  Change Printing', value: 'printing' },
         { title: '✨ Change Finish', value: 'finish' },
         { title: '📋 Change Condition', value: 'condition' },
+        { title: '🏷️  Change Label', value: 'label' },
         { title: '📝 Edit Note', value: 'note' },
         { title: '🗑️  Remove', value: 'remove' },
       ])
@@ -269,6 +310,22 @@ export function createCollectionStrategy(
           inverse: createSetPrintingChange(entry.name, { ...entryPrinting(entry), cardId }),
           consolidate: (changes, original) =>
             consolidateSetPrinting(changes, entry.name, target, entryPrinting(original), cardId),
+        })
+        logUpdated(cardId, entry.name)
+        return
+      }
+
+      if (action === 'label') {
+        const labels = await promptLabelChoice(entry.labels)
+        if (labels === null || sameCardLabels(labels, entry.labels)) {
+          return
+        }
+        applyFlatListFieldEdit(list, ctx, entry, cardId, {
+          label: `labels on ${entry.name}`,
+          change: createSetLabelChange(entry.name, { labels, cardId }),
+          inverse: createSetLabelChange(entry.name, { labels: [...(entry.labels ?? [])], cardId }),
+          consolidate: (changes, original) =>
+            consolidateSetLabel(changes, entry.name, labels, original.labels, cardId),
         })
         logUpdated(cardId, entry.name)
         return

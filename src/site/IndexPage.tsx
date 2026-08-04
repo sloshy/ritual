@@ -1,4 +1,4 @@
-import type { Component } from 'solid-js'
+import type { Component, JSX } from 'solid-js'
 import { createMemo, createSignal, For, Match, Show, Switch } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
 import type { PriceCurrency } from '../price-currency'
@@ -9,6 +9,10 @@ import { CoverCard } from './CoverCard'
 import { IndexToolbar } from './IndexToolbar'
 import type { ListType } from '../list-type'
 import { combinedAllHref } from './combined-list'
+import { CARD_LABEL_DISPLAY_NAMES } from '../card-labels'
+import type { LabelFilterOption } from './card-filters'
+import { AdaptiveMenu } from '../ui/AdaptiveMenu'
+import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import {
   DEFAULT_INDEX_GROUP,
   DEFAULT_INDEX_SORT,
@@ -37,6 +41,8 @@ interface SectionHeaderProps {
   viewAllLabel: string
   /** Hide the "view all" link when there are no lists to combine. */
   show: boolean
+  /** Extra header control rendered beside the view-all link (the Labels menu). */
+  menu?: JSX.Element
 }
 
 const SectionHeader: Component<SectionHeaderProps> = (props) => (
@@ -46,9 +52,67 @@ const SectionHeader: Component<SectionHeaderProps> = (props) => (
       <a href={combinedAllHref(props.viewAllType)} class="btn btn-secondary">
         {props.viewAllLabel}
       </a>
+      {props.menu}
     </Show>
   </div>
 )
+
+/** One pre-filtered "view all collections" destination in the Labels menu. */
+type LabelView = { label: string; query: readonly LabelFilterOption[] }
+
+const LABEL_VIEWS: readonly LabelView[] = [
+  { label: `View all ${CARD_LABEL_DISPLAY_NAMES.sale.toLowerCase()}`, query: ['sale'] },
+  { label: `View all ${CARD_LABEL_DISPLAY_NAMES.trade.toLowerCase()}`, query: ['trade'] },
+  { label: 'View all for sale or trade', query: ['sale', 'trade'] },
+  { label: `View all ${CARD_LABEL_DISPLAY_NAMES.keep.toLowerCase()}`, query: ['keep'] },
+]
+
+/**
+ * The "Labels" dropdown beside "View all collections": each item opens the
+ * combined all-collections view with the labels filter pre-set via the shared
+ * hash-query params (`useListViewUrlSync` applies them on load, and the
+ * combined view's own `all=collection` key survives — `writeListViewParams`
+ * preserves foreign params).
+ */
+const CollectionLabelsMenu: Component = () => {
+  const toggle = useAnchoredToggle()
+  return (
+    <div class="labels-view-menu">
+      <button
+        type="button"
+        ref={toggle.setButtonRef}
+        class="btn btn-secondary"
+        aria-haspopup="true"
+        aria-expanded={toggle.open()}
+        onClick={toggle.toggleOpen}
+      >
+        Labels
+        <span aria-hidden="true">{toggle.open() ? ' ▴' : ' ▾'}</span>
+      </button>
+      <AdaptiveMenu
+        toggle={toggle}
+        width={230}
+        panelClass="selection-menu-panel"
+        title="View labeled cards"
+        role="menu"
+        aria-label="View labeled cards"
+      >
+        <For each={LABEL_VIEWS}>
+          {(view) => (
+            <a
+              role="menuitem"
+              class="selection-menu-item"
+              href={`${combinedAllHref('collection')}&labels=${view.query.join(',')}`}
+              onClick={() => toggle.close()}
+            >
+              {view.label}
+            </a>
+          )}
+        </For>
+      </AdaptiveMenu>
+    </div>
+  )
+}
 
 interface DeckCoverLinkProps {
   deck: DeckSummary
@@ -175,6 +239,7 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
             viewAllType="collection"
             viewAllLabel="View all collections"
             show={props.collections.length > 0}
+            menu={<CollectionLabelsMenu />}
           />
           <IndexToolbar
             sort={collectionSort()}

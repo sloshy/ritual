@@ -80,6 +80,7 @@ export function makeCardData(overrides: Partial<CardData> = {}): CardData {
     hasPrinting: true,
     oracleTags: [],
     artTags: [],
+    labels: [],
     card: null,
     ...overrides,
   }
@@ -440,6 +441,64 @@ export function stubTty(streams: TtyStubs): void {
   bunAfterAll(() => {
     process.stdin.isTTY = original.stdin
     process.stdout.isTTY = original.stdout
+  })
+}
+
+/** Minimal in-memory localStorage stand-in for the test environment. */
+class MemoryStorage {
+  private map = new Map<string, string>()
+  get length(): number {
+    return this.map.size
+  }
+  getItem(key: string): string | null {
+    return this.map.has(key) ? this.map.get(key)! : null
+  }
+  setItem(key: string, value: string): void {
+    this.map.set(key, value)
+  }
+  removeItem(key: string): void {
+    this.map.delete(key)
+  }
+  clear(): void {
+    this.map.clear()
+  }
+  key(i: number): string | null {
+    return Array.from(this.map.keys())[i] ?? null
+  }
+}
+
+/**
+ * Install a fresh in-memory `localStorage` for the current test file — applied
+ * before each test (a case that swaps in a broken or absent storage, e.g. via
+ * {@link denyLocalStorage}, needs no `finally`) and restored when the file
+ * finishes (modeled on {@link stubTty}). `bun test` has no DOM, so browser
+ * modules that persist flags would otherwise find no storage at all.
+ */
+export function stubLocalStorage(): void {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+  bunBeforeEach(() => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: new MemoryStorage(),
+      configurable: true,
+    })
+  })
+  bunAfterAll(() => {
+    if (original) Object.defineProperty(globalThis, 'localStorage', original)
+    else delete (globalThis as { localStorage?: unknown }).localStorage
+  })
+}
+
+/**
+ * Replace `localStorage` with one whose every access throws, to prove a
+ * storage failure degrades gracefully. Scoped to the current test:
+ * {@link stubLocalStorage}'s per-test hook reinstalls the working stub.
+ */
+export function denyLocalStorage(): void {
+  Object.defineProperty(globalThis, 'localStorage', {
+    get() {
+      throw new Error('denied')
+    },
+    configurable: true,
   })
 }
 

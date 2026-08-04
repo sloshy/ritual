@@ -1,7 +1,12 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { createAddChange, createRemoveChange, type ChangeEvent } from '../../src/change-event'
+import {
+  createAddChange,
+  createRemoveChange,
+  createSetLabelChange,
+  type ChangeEvent,
+} from '../../src/change-event'
 import { handleCollectionSave } from '../../src/admin/api/collection-save'
 import type { ListSaveResponse } from '../../src/admin/api/move-save'
 import { computeHash } from '../../src/content-hash'
@@ -138,5 +143,75 @@ describe('POST /api/collection/:slug/save', () => {
       cardId: 1,
       name: 'Lightning Bolt',
     })
+  })
+})
+
+describe('POST /api/collection/:slug/save — labels', () => {
+  test('set-label writes the token and the changelog line', async () => {
+    const resp = await save([
+      createSetLabelChange('Lightning Bolt', { labels: ['trade', 'sale'], cardId: 1 }),
+    ])
+    expect(resp.status).toBe(200)
+
+    const content = await fs.readFile(filePath, 'utf-8')
+    expect(content).toContain('- Lightning Bolt (LEA:161) [sale,trade] &1')
+
+    const changelog = await fs.readFile(
+      path.join(tmpDir, 'collections', 'binder.changes.md'),
+      'utf-8',
+    )
+    expect(changelog).toContain('- Set labels on "Lightning Bolt" &1 to [sale,trade]')
+  })
+
+  test('an empty label set clears the token and logs the clear', async () => {
+    const seed = await save([
+      createSetLabelChange('Lightning Bolt', { labels: ['keep'], cardId: 1 }),
+    ])
+    expect(seed.status).toBe(200)
+    contentHash = ((await seed.json()) as { contentHash: string }).contentHash
+
+    const resp = await save([createSetLabelChange('Lightning Bolt', { labels: [], cardId: 1 })])
+    expect(resp.status).toBe(200)
+
+    const content = await fs.readFile(filePath, 'utf-8')
+    expect(content).toContain('- Lightning Bolt (LEA:161) &1')
+    expect(content).not.toContain('[keep]')
+
+    const changelog = await fs.readFile(
+      path.join(tmpDir, 'collections', 'binder.changes.md'),
+      'utf-8',
+    )
+    expect(changelog).toContain('- Cleared labels on "Lightning Bolt" &1')
+  })
+
+  test('an illegal combination is a 400 that writes nothing', async () => {
+    const before = await fs.readFile(filePath, 'utf-8')
+    const resp = await save([
+      {
+        id: 'x',
+        timestamp: 0,
+        action: 'set-label',
+        cardName: 'Lightning Bolt',
+        cardId: 1,
+        labels: ['keep', 'sale'],
+      },
+    ])
+    expect(resp.status).toBe(400)
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+  })
+
+  test('front matter survives a whole-file save', async () => {
+    await fs.writeFile(
+      filePath,
+      '---\nlabels: [sale]\n---\n\n' + (await fs.readFile(filePath, 'utf-8')),
+    )
+    contentHash = computeHash(await fs.readFile(filePath, 'utf-8'))
+
+    const resp = await save([createAddChange('Sol Ring', { set: 'c21', collectorNumber: '263' })])
+    expect(resp.status).toBe(200)
+
+    const content = await fs.readFile(filePath, 'utf-8')
+    expect(content.startsWith('---\nlabels: [sale]\n---\n\n# Binder')).toBeTrue()
+    expect(content).toContain('- Sol Ring (C21:263) &3')
   })
 })

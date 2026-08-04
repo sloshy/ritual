@@ -10,6 +10,7 @@ import {
   type ListRef,
 } from '../change-event'
 import type { Finish, Condition } from '../types'
+import type { CardLabel } from '../card-labels'
 import { listDeckFiles, importFromTextFile } from '../importers/text-file'
 import { parseCollectionFile } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
@@ -44,6 +45,14 @@ export type PhysicalCard = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /**
+   * Label override — collection entries only. A `ritual move`
+   * collection→collection move carries it (like the note); moves to a deck or
+   * wanted list drop it, since those grammars have no labels token. The editor
+   * sessions' move events do not carry it at all — an editor move drops the
+   * override even between collections, matching the notes precedent.
+   */
+  labels?: CardLabel[]
   note?: string
   cardId?: number
   listEntry: ListEntry
@@ -201,6 +210,7 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
           collectorNumber: entry.collectorNumber,
           finish: entry.finish,
           condition: entry.condition,
+          labels: entry.labels,
           note: entry.note,
           cardId: entry.cardId,
           listEntry,

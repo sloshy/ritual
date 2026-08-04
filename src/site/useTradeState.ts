@@ -4,6 +4,7 @@ import type { PriceCurrency } from '../price-currency'
 import type { TradeSearchEntry } from './useTradeData'
 import { getCardPriceForFinish } from '../price-currency'
 import { resolveTradeFinish } from './trade-finish'
+import { confirmKeepAdd } from './keep-trade-prompt'
 
 // Module-level signals survive page navigation within the same tab.
 const [leftCards, setLeftCards] = createSignal<TradeCardEntry[]>([])
@@ -64,6 +65,7 @@ function tradeCardFromEntry(entry: TradeSearchEntry, currency: PriceCurrency): T
     collectorNumber: entry.collectorNumber,
     finish,
     condition: entry.condition,
+    labels: entry.labels,
     note: entry.note,
     price,
     scryfallCard: entry.scryfallCard,
@@ -143,6 +145,22 @@ export function addEntryToLeft(entry: TradeSearchEntry, currency: PriceCurrency)
     return [...prev, tradeCardFromEntry(entry, currency)]
   })
   return added
+}
+
+/**
+ * {@link addEntryToLeft} behind the "To keep" confirmation: a keep-labeled
+ * entry raises the one-time dialog first (see keep-trade-prompt.ts) and
+ * resolves false without adding when the user declines. Unlabeled entries —
+ * and every add after the dialog has been acknowledged — resolve immediately.
+ * `addEntryToLeft` itself stays synchronous for the paths that must never
+ * prompt (URL decode writes the signal directly and bypasses both).
+ */
+export async function addEntryToLeftGuarded(
+  entry: TradeSearchEntry,
+  currency: PriceCurrency,
+): Promise<boolean> {
+  if (!(await confirmKeepAdd(entry.name, entry.labels))) return false
+  return addEntryToLeft(entry, currency)
 }
 
 /** Attempts to add an entry to the right (receiving) side. Returns true if added or incremented. */

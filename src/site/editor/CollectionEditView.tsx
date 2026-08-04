@@ -12,7 +12,11 @@ import { countsBySection, sectionOfTarget } from '../../editor/section-helpers'
 import { useFlatListEditController } from '../../editor/flat-list-controller'
 import { applyCollectionChangePrinting, collectionPrintingOf } from '../../editor/collection-config'
 import { CollectionEditorBody } from '../../editor/CollectionEditorBody'
-import { collectionToMarkdown, collectionToCsv } from '../../editor/list-export'
+import {
+  collectionToMarkdown,
+  collectionToCsv,
+  frontMatterFromLabels,
+} from '../../editor/list-export'
 import { CollectionPage } from '../CollectionPage'
 import { siteSearch } from './site-search'
 import { backfillImportedCard } from './backfill-added-card'
@@ -117,6 +121,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
               props.detail.name,
               ctrl.editor.data() ?? [],
               ctrl.editor.sectionOrder(),
+              frontMatterFromLabels(props.detail.labels),
             ),
         },
         {
@@ -134,6 +139,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
           currency={props.currency}
           useScryfallImgUrls={props.detail.useScryfallImgUrls}
           name={props.detail.name}
+          listLabels={props.detail.labels}
           showSave={false}
           showDiscard={false}
           fullWidth={false}
@@ -146,6 +152,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
           name={props.detail.name}
           entries={props.detail.entries}
           sectionOrder={props.detail.sectionOrder}
+          listLabels={props.detail.labels}
           cards={props.detail.cards}
           printings={props.detail.printings ?? {}}
           symbolMap={props.detail.symbolMap}

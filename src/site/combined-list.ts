@@ -4,6 +4,7 @@ import { getCardPrice, getCardPriceForFinish } from '../price-currency'
 import { defaultPrintingFinish } from '../finish-condition'
 import { type ListType, isListType } from '../list-type'
 import { hasSpecificPrinting, findPrinting } from '../card-printing'
+import { effectiveLabels } from '../card-labels'
 import { overlayCard } from './session-cache'
 import { resolveCardPreview } from './image-sources'
 import { resolveWantedCardEntry } from './resolve-card'
@@ -240,6 +241,7 @@ function buildDeckCards(
         hasPrinting: specific,
         oracleTags: card?.oracleTags ?? [],
         artTags: card?.artTags ?? [],
+        labels: [],
         card,
         sourceName: name,
         sourceKind: 'deck',
@@ -266,6 +268,8 @@ function buildCollectionCards(
     const price = card ? getCardPriceForFinish(card, entry.finish, currency) : entry.price
     const key = selectKeyFor('collection', name, index)
     const preview = resolveCardPreview(card, useScryfallImgUrls)
+    // Resolved here because the combined view has no per-list context downstream.
+    const labels = effectiveLabels(entry.labels, detail.labels)
     const selectedTile: SelectedCard = {
       key,
       name: entry.name,
@@ -273,6 +277,7 @@ function buildCollectionCards(
       collectorNumber: entry.collectorNumber,
       finish: entry.finish,
       condition: entry.condition,
+      labels,
       note: entry.note,
       quantity: 1,
       groupSize: 1,
@@ -300,6 +305,7 @@ function buildCollectionCards(
       hasPrinting: true,
       oracleTags: card?.oracleTags ?? [],
       artTags: card?.artTags ?? [],
+      labels,
       card,
       sourceName: name,
       sourceKind: 'collection',
@@ -362,6 +368,7 @@ function buildWantedCards(
       hasPrinting: specific,
       oracleTags: card?.oracleTags ?? [],
       artTags: card?.artTags ?? [],
+      labels: [],
       card,
       sourceName: name,
       sourceKind: 'wanted',

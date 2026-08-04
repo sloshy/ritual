@@ -3,11 +3,13 @@ import path from 'node:path'
 import {
   createSetCommanderChange,
   createSetFinishChange,
+  createSetLabelChange,
   createSetPrintingChange,
   createSetSectionChange,
   createUnsetCommanderChange,
   type ConditionUpdate,
 } from '../change-event'
+import { parseCardLabelsToken, type CardLabel } from '../card-labels'
 import type { CardMutationChange } from '../list-mutate'
 import { applyTargetedChanges } from './line-mutate'
 import {
@@ -53,6 +55,8 @@ type SetCardOptions = {
   collectorNumber?: string
   finish?: Finish
   condition?: ConditionUpdate
+  /** The new label override; an empty array (`--label none`) clears it. */
+  label?: CardLabel[]
   section?: string
   /** true = --commander, false = --no-commander, undefined = neither. */
   commander?: boolean
@@ -94,12 +98,26 @@ function parseConditionFlag(value: string): ConditionUpdate {
   return normalized
 }
 
+/**
+ * Commander argParser for `--label`: a comma-separated label set (`sale,trade`,
+ * `keep`), or `none` to clear the override — mapped to the empty array the
+ * set-label event uses as its clear.
+ */
+export function parseLabelFlag(value: string): CardLabel[] {
+  if (value.trim().toLowerCase() === 'none') return []
+  const parsed = parseCardLabelsToken(value)
+  if (!parsed.ok) {
+    throw new InvalidArgumentError(`${parsed.message} Or pass 'none' to clear the override.`)
+  }
+  return parsed.labels
+}
+
 export function registerSetCardCommand(program: Command): void {
   const command = addScriptingOptions(
     program
       .command('set-card')
       .description(
-        "Update a card's printing, finish, condition, section, or commander status in place",
+        "Update a card's printing, finish, condition, label, section, or commander status in place",
       )
       .argument(
         '[listName]',
@@ -117,6 +135,11 @@ export function registerSetCardCommand(program: Command): void {
         '--condition <condition>',
         `New condition: ${VALID_CONDITIONS.join(', ')}, or NONE to clear it (decks and collections only)`,
         parseConditionFlag,
+      )
+      .option(
+        '--label <labels>',
+        'New label override: sale,trade (combinable), keep, or none to clear it (collections only)',
+        parseLabelFlag,
       )
       .option('--section <name>', 'Move the card to this section, created if missing (decks only)')
       .option('--commander', 'Move the card to the Commander section (decks only)')
@@ -140,6 +163,7 @@ export function registerSetCardCommand(program: Command): void {
             collectorNumber: options.collectorNumber,
             finish: options.finish,
             condition: options.condition,
+            label: options.label,
             section: options.section,
             commander: options.commander,
             dryRun: options.dryRun ?? false,
@@ -162,6 +186,8 @@ type RunInput = {
   finish: Finish | undefined
   /** A grade, or `'NONE'` to clear the recorded grade. */
   condition: ConditionUpdate | undefined
+  /** The new label override; an empty array clears it. */
+  label: CardLabel[] | undefined
   section: string | undefined
   commander: boolean | undefined
   dryRun: boolean
@@ -216,12 +242,13 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     input.set !== undefined ||
     input.finish !== undefined ||
     input.condition !== undefined ||
+    input.label !== undefined ||
     input.section !== undefined ||
     input.commander !== undefined
   if (!hasMutation) {
     throw new CardCommandError(
       'usage_error',
-      'Specify at least one change: --set/--collector-number, --finish, --condition, --section, --commander, or --no-commander.',
+      'Specify at least one change: --set/--collector-number, --finish, --condition, --label, --section, --commander, or --no-commander.',
       ExitCode.UsageError,
     )
   }
@@ -240,6 +267,13 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     throw new CardCommandError(
       'usage_error',
       '--section only applies to decks.',
+      ExitCode.UsageError,
+    )
+  }
+  if (type !== 'collection' && input.label !== undefined) {
+    throw new CardCommandError(
+      'usage_error',
+      '--label only applies to collections.',
       ExitCode.UsageError,
     )
   }
@@ -318,6 +352,14 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     applied.push(`finish → ${input.finish}`)
   }
 
+  if (input.label !== undefined) {
+    changes.push(createSetLabelChange(target.name, { labels: input.label, cardId: target.cardId }))
+    applied.push(
+      input.label.length === 0
+        ? 'label → none (list default)'
+        : `label → ${input.label.join(', ')}`,
+    )
+  }
   if (input.section !== undefined) {
     changes.push(createSetSectionChange(target.name, input.section, target.cardId))
     applied.push(`section → ${input.section}`)

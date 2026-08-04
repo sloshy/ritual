@@ -16,6 +16,7 @@ export function isAdditiveAction(action: ChangelogAction): boolean {
     case 'Set finish':
     case 'Set printing':
     case 'Set note':
+    case 'Set labels':
     case 'Added section':
     case 'Renamed section':
     case 'Moved to section':
@@ -23,6 +24,7 @@ export function isAdditiveAction(action: ChangelogAction): boolean {
     case 'Removed':
     case 'Unset as commander':
     case 'Cleared note':
+    case 'Cleared labels':
     case 'Removed section':
       return false
     default:
@@ -88,6 +90,14 @@ export function formatChangeText(change: ChangelogChange): FormattedChange {
       return { prefix: 'Set note on ', suffix: ` to "${change.note}"` }
     case 'Cleared note':
       return { prefix: 'Cleared note on ', suffix: '' }
+    case 'Set labels':
+      // Mirror formatChangeCore: an empty (or absent) label set is a clear.
+      if (!change.labels || change.labels.length === 0) {
+        return { prefix: 'Cleared labels on ', suffix: '' }
+      }
+      return { prefix: 'Set labels on ', suffix: ` to [${change.labels.join(',')}]` }
+    case 'Cleared labels':
+      return { prefix: 'Cleared labels on ', suffix: '' }
     // Section-structural changes carry no card; the section name lives entirely in the prefix
     // (cardName is empty, so the modal's clickable card-name node renders nothing).
     case 'Added section':

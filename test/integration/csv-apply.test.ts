@@ -82,6 +82,39 @@ describe('applyCsvImport', () => {
     expect(changelog).toContain('Added "Lightning Bolt" (LEA:161) [foil] &3')
   })
 
+  test('overwrite replaces the card lines but keeps an existing front-matter block', async () => {
+    await writeCollectionFile(tmpDir, 'Binder', {
+      labels: ['sale', 'trade'],
+      entries: [{ name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+    })
+
+    const { entries } = prepareEntries(
+      'Lightning Bolt,lea,161',
+      'name=1,set=2,collector-number=3',
+      'collection',
+    )
+    const result = await applyCsvImport(
+      { listType: 'collection', name: 'Binder', mode: 'overwrite' },
+      entries,
+    )
+    if ('error' in result) throw new Error(result.error)
+
+    const content = await fs.readFile(result.filePath, 'utf-8')
+    expect(content).toBe(
+      [
+        '---',
+        'labels: [sale, trade]',
+        '---',
+        '',
+        '# Binder',
+        '',
+        '## Main',
+        '- Lightning Bolt (LEA:161) &1',
+        '',
+      ].join('\n'),
+    )
+  })
+
   test('append merges deck quantities for identical printings and keeps frontmatter', async () => {
     const filePath = await writeDeckFile(tmpDir, 'Burn', {
       frontMatter: { name: 'Burn', format: 'modern' },

@@ -1,6 +1,7 @@
 import type { Component } from 'solid-js'
-import { createEffect, createSignal, on, Show } from 'solid-js'
+import { createEffect, createSignal, For, on, Show } from 'solid-js'
 import type { ScryfallCard } from '../types'
+import type { CardLabel } from '../card-labels'
 import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost } from './symbols'
 import type { PriceCurrency } from '../price-currency'
@@ -54,6 +55,12 @@ export interface CardItemProps {
   collectionCondition?: string
   collectionSetCN?: string
   collectionPrice?: number
+  /**
+   * Label badges rendered beside the printing label. List pages pass only the
+   * entry's *override* (the ambient list default would badge every tile);
+   * combined views pass effective labels, since there is no ambient default.
+   */
+  labelBadges?: CardLabel[]
   currency?: PriceCurrency
   /** The entry's persistent card ID, exposed as `data-card-id` for cross-list navigation. */
   cardId?: number
@@ -257,6 +264,21 @@ export const CardItem: Component<CardItemProps> = (props) => {
           return rawFinish ? capitalize(rawFinish) : null
         }
 
+        const labelBadges = () => (props.labelBadges?.length ? props.labelBadges : null)
+
+        /** The compact SALE/TRADE/KEEP tag run, shared by all three view modes. */
+        const badgeRun = () => (
+          <Show when={labelBadges()}>
+            {(labels) => (
+              <span class="card-label-badges">
+                <For each={labels()}>
+                  {(label) => <span class={`card-label-badge label-${label}`}>{label}</span>}
+                </For>
+              </span>
+            )}
+          </Show>
+        )
+
         const binderClass = () => `card-binder${isFoil() ? ' foil-card' : ''}`
         const listClass = () => `card-list${isFoil() ? ' foil-card' : ''}`
         const overlapClass = () => `card-overlap${isFoil() ? ' foil-card' : ''}`
@@ -374,6 +396,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     <Show when={finishLabel()}>
                       <span class="card-label-finish"> ({finishLabel()})</span>
                     </Show>
+                    {badgeRun()}
                   </span>
                   <Show when={showPrice()}>
                     <span class="card-label-price">{formatPrice(displayPrice(), currency())}</span>
@@ -408,6 +431,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                   <Show when={printingLabel()}>
                     <span class="list-printing">{printingLabel()}</span>
                   </Show>
+                  {badgeRun()}
                 </span>
                 <span class="list-mana">
                   <ManaCost card={card()} isDFC={isDFC()} symbolMap={props.symbolMap} />
@@ -553,6 +577,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     <Show when={finishLabel()}>
                       <span class="card-label-finish"> ({finishLabel()})</span>
                     </Show>
+                    {badgeRun()}
                   </span>
                   <Show when={showPrice()}>
                     <span class="card-label-price">{formatPrice(displayPrice(), currency())}</span>

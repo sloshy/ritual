@@ -137,6 +137,22 @@
   margin-bottom: 12px;
 }
 
+/* The default-labels radio list (admin collection editor's Labels modal). */
+.labels-modal-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.75rem 0;
+}
+
+.labels-modal-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
 /* ===== Bottom sheet =====
    Chrome for the <BottomSheet> component (src/ui/BottomSheet.tsx): a native
    <dialog> whose panel slides up from the bottom edge, full width, with a grip

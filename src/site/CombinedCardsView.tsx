@@ -33,6 +33,7 @@ import { useCombinedSelection, type SelectionListId } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
 import type { MetaEntry } from './meta-entry'
 import type { CombinedCardData } from './combined-list'
+import { CARD_LABEL_DISPLAY_NAMES } from '../card-labels'
 
 // The sort fields the combined view offers, in order — shared by the toolbar's
 // dropdown options and the URL sync's validation of incoming sort layers.
@@ -136,6 +137,9 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
     groupByValues: groupByOptions().map((o) => o.value as GroupBy),
     sortByValues: COMBINED_SORT_BYS,
     enabled: props.enableUrlState,
+    // From the selection's list *kinds*, not the loaded cards: the URL params
+    // are applied once at construction, before any card data has arrived.
+    supportsLabels: props.selectionLists.some((l) => l.kind === 'collection'),
   })
 
   const selection = useCombinedSelection(() => props.selectionLists)
@@ -178,6 +182,12 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
     }
     if (tile.finish) parts.push({ label: 'finish', value: capitalize(tile.finish) })
     if (tile.condition) parts.push({ label: 'condition', value: tile.condition })
+    if (t.labels.length > 0) {
+      parts.push({
+        label: 'labels',
+        value: t.labels.map((l) => CARD_LABEL_DISPLAY_NAMES[l]).join(' · '),
+      })
+    }
     if (t.card) parts.push({ label: 'rarity', value: capitalize(t.card.rarity) })
     return parts
   })
@@ -202,6 +212,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
           : undefined
       }
       collectionPrice={c.price}
+      labelBadges={c.labels.length > 0 ? c.labels : undefined}
       currency={props.currency}
       selectable
       selectState={selection.state(c.selectKey)}
@@ -249,6 +260,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
         cardTypeOptions={cardTypeOptions()}
         oracleTagOptions={oracleTagOptions()}
         artTagOptions={artTagOptions()}
+        showLabelsFilter={hasCollections()}
         selectionMenu={
           <SelectionMenu
             selection={selection}

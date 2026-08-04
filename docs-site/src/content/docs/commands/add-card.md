@@ -31,6 +31,7 @@ The target list is resolved from `<targetName>` across all three list types (see
 | `-q, --quantity <num>`     | Number of copies to add (must be a positive integer); passing a value other than 1 to a collection or wanted target is a usage error | `1`     | Deck only                |
 | `-f, --finish <finish>`    | Card finish: `nonfoil`, `foil`, `etched`                                                                                             |         | Deck, Collection, Wanted |
 | `-c, --condition <cond>`   | Card condition: `NM`, `LP`, `MP`, `HP`, `DMG`, or `NONE` to record no condition                                                      |         | Deck, Collection         |
+| `--label <labels>`         | Label the new card: `sale,trade` (combinable) or `keep`; omit to inherit the collection's default                                    |         | Collection only          |
 | `--section <name>`         | Deck section to add to, created at the end of the file if missing                                                                    |         | Deck only                |
 | `--commander`              | Add the card to the deck's Commander section (created at the top if missing)                                                         |         | Deck only                |
 | `-e, --exact`              | Use exact matching (skip selection if name matches)                                                                                  | `false` |                          |
@@ -43,7 +44,7 @@ The target list is resolved from `<targetName>` across all three list types (see
 | `--output <format>`        | Output format: `text`, `json`, or `ndjson`                                                                                           | `text`  |                          |
 | `--quiet`                  | Suppress non-essential output                                                                                                        | `false` |                          |
 
-`--deck`, `--collection`, and `--wanted` are mutually exclusive, as are `--name-only` and `--specific`. Flags that don't apply to the resolved target type (for example `--condition` on a wanted list, `--section` on a collection, or `--name-only` on a deck) are rejected with a usage error rather than silently ignored. Invalid `--finish`, `--condition`, and `--quantity` values are rejected at parse time.
+`--deck`, `--collection`, and `--wanted` are mutually exclusive, as are `--name-only` and `--specific`. Flags that don't apply to the resolved target type (for example `--condition` on a wanted list, `--section` on a collection, `--label` on a deck, or `--name-only` on a deck) are rejected with a usage error rather than silently ignored. Invalid `--finish`, `--condition`, `--label`, and `--quantity` values are rejected at parse time.
 
 ## Examples
 
@@ -228,7 +229,7 @@ With `--output json` (or `ndjson`), a successful add prints exactly one machine-
 }
 ```
 
-Deck adds include `quantity` (the number of copies added, not the merged line's new total) and `section` (where the card's line ended up); wanted adds omit the fields that weren't recorded. A `--dry-run` payload carries `"dryRun": true`, and the text line is prefixed `[dry-run]`. Set codes are lowercase in JSON output (the internal representation). Errors raised after argument parsing (usage, not-found, and runtime errors) are emitted on stderr as `{ "error": { "code", "message", "details" } }`. Invalid flag _values_ and flag conflicts (e.g. `--name-only` with `--set`) are rejected by argument parsing itself and printed as plain text on stderr regardless of `--output` — the exit code is still 2. In text mode, `--quiet` suppresses all non-essential output.
+Deck adds include `quantity` (the number of copies added, not the merged line's new total) and `section` (where the card's line ended up); a collection add made with `--label` includes `labels` (the override the new line carries); wanted adds omit the fields that weren't recorded. A `--dry-run` payload carries `"dryRun": true`, and the text line is prefixed `[dry-run]`. Set codes are lowercase in JSON output (the internal representation). Errors raised after argument parsing (usage, not-found, and runtime errors) are emitted on stderr as `{ "error": { "code", "message", "details" } }`. Invalid flag _values_ and flag conflicts (e.g. `--name-only` with `--set`) are rejected by argument parsing itself and printed as plain text on stderr regardless of `--output` — the exit code is still 2. In text mode, `--quiet` suppresses all non-essential output.
 
 ## Exit Codes
 

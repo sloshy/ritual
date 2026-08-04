@@ -17,6 +17,9 @@ import { serializeDeckToMarkdown } from '../deck-file'
 import { parseCollectionFile, type CollectionEntry } from '../collection-file'
 import { parseWantedListFile, type WantedListEntry } from '../commands/wanted-helpers'
 import { formatCollectionLine, formatWantedListLine } from '../card-line'
+import { withFrontMatter } from '../editor/list-export'
+import { parseFlatListFrontMatter } from '../flat-list-front-matter'
+import type { CardLabel } from '../card-labels'
 import { parseTitleFromContent, serializeSectionedList } from '../section-format'
 import {
   allocateId,
@@ -177,6 +180,8 @@ type FlatLineEntry = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Label override — parsed collection entries only; imported rows never carry one. */
+  labels?: CardLabel[]
   note?: string
   cardId?: number
 }
@@ -190,6 +195,7 @@ function formatFlatListLine(listType: FlatListType, entry: FlatLineEntry): strin
       entry.collectorNumber ?? '',
       entry.finish ?? 'nonfoil',
       entry.condition,
+      entry.labels,
       entry.note,
       entry.cardId,
     )
@@ -254,6 +260,13 @@ async function createList(
     content = buildDeckMarkdown(target.name, target.format, entries)
   } else {
     content = buildFlatListMarkdown(target.listType, target.name, entries)
+    // Overwrite replaces the card lines, not the list's metadata — an existing
+    // front-matter block (a collection's `labels:` default) survives verbatim.
+    if (target.mode === 'overwrite' && (await Bun.file(filePath).exists())) {
+      const existing = await fs.readFile(filePath, 'utf-8')
+      const parsed = parseFlatListFrontMatter(existing.split('\n'), { validateLabels: false })
+      content = withFrontMatter(parsed.frontMatter, content)
+    }
   }
 
   if (!dryRun) {
@@ -355,8 +368,13 @@ function appendToFlatList(
   const title = parseTitleFromContent(content) ?? fallbackTitle
   const all: (FlatEntry | FlatCopy)[] = [...existing, ...copies]
   return {
-    content: serializeSectionedList(title, all, sectionOrder, (entry) =>
-      formatFlatListLine(listType, entry),
+    // The append re-serializes the whole body, so the file's front-matter
+    // block (a collection's `labels:` default, say) must be re-emitted too.
+    content: withFrontMatter(
+      parsed.frontMatter,
+      serializeSectionedList(title, all, sectionOrder, (entry) =>
+        formatFlatListLine(listType, entry),
+      ),
     ),
     changes,
   }

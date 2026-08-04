@@ -141,3 +141,35 @@ describe('fenced code blocks', () => {
     expect(content.split('\n')).toEqual(['~~~', '- Example &4', '~~~', '- Sol Ring &1'])
   })
 })
+
+describe('flat-list front matter', () => {
+  test('collection: never stamps an id into a YAML value that looks like a card line', () => {
+    const input = [
+      '---',
+      'note: - Sol Ring (C21:263)',
+      'labels: [sale]',
+      '---',
+      '',
+      '# Binder',
+      '- Lightning Bolt (LEA:161)',
+      '',
+    ].join('\n')
+    const { content, added } = ensureCollectionIdsInContent(input)
+    expect(added).toBe(1)
+    expect(content).toContain('note: - Sol Ring (C21:263)\n')
+    expect(content).toContain('- Lightning Bolt (LEA:161) &1')
+  })
+
+  test('collection: a labeled line gains its id after the labels token', () => {
+    const { content } = ensureCollectionIdsInContent('- Sol Ring (C21:263) [sale,trade]\n')
+    expect(content).toBe('- Sol Ring (C21:263) [sale,trade] &1\n')
+  })
+
+  test('wanted: front matter is skipped too', () => {
+    const input = ['---', 'x: - Mana Crypt', '---', '- Mana Crypt', ''].join('\n')
+    const { content, added } = ensureWantedIdsInContent(input)
+    expect(added).toBe(1)
+    expect(content).toContain('x: - Mana Crypt\n')
+    expect(content).toContain('- Mana Crypt &1')
+  })
+})

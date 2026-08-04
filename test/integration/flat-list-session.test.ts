@@ -177,3 +177,33 @@ describe('flat-list session models', () => {
     })
   })
 })
+
+describe('session front matter', () => {
+  let tmpDir: string
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-test-'))
+  })
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true })
+  })
+
+  test('a collection session save preserves the block and its entry labels', async () => {
+    const original =
+      '---\nlabels: [sale, trade]\n---\n\n# Binder\n\n## Main\n- Sol Ring (C21:263) [keep] &1\n'
+    const filePath = path.join(tmpDir, 'binder.md')
+    await fs.writeFile(filePath, original)
+
+    // Drive a real edit (not a bare dirty-flag) so the save exercises the whole
+    // serialize path: the block must survive an actual change to a card line.
+    const session = await loadCollectionSession(filePath)
+    expect(session.entries[0]!.labels).toEqual(['keep'])
+    applyFlatListChange(session, createSetNoteChange('Sol Ring', { note: 'signed', cardId: 1 }))
+    await persistFlatListSession(session)
+
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(
+      original.replace('[keep] &1', '[keep] {signed} &1'),
+    )
+  })
+})

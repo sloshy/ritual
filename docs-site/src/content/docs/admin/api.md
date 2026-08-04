@@ -227,7 +227,7 @@ A missing list is a `404` whose message names `GET /api/lists` as the way to fin
 }
 ```
 
-Front matter travels with the deck's `cards` view because the save route re-sends it; a collection or wanted list returns `entries` + `sectionOrder` instead. A narrowed request replaces `contentHash` with `"partial": true`.
+Front matter travels with the deck's `cards` view because the save route re-sends it; a collection or wanted list returns `entries` + `sectionOrder` instead (a collection additionally carries `labels` — its front-matter default — and each entry may carry a `labels` override). A narrowed request replaces `contentHash` with `"partial": true`.
 
 **Response (`view=summary`):**
 
@@ -799,7 +799,7 @@ Returns the list of available collections.
 GET /api/collection/:slug
 ```
 
-Load a collection with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck.
+Load a collection with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck. The top-level `labels` is the collection's [default card labels](/commands/edit/#collection-front-matter) (absent when none are declared), and an entry's own `labels` is its per-card override — effective labels are the override when present, else the default.
 
 **Response:**
 
@@ -807,8 +807,11 @@ Load a collection with full card data, printings, and mana symbol map. Accepts t
 {
   "success": true,
   "view": "full",
-  "entries": [{ "name": "Sol Ring", "set": "2xm", "collectorNumber": "270", "cardId": 1 }],
+  "entries": [
+    { "name": "Sol Ring", "set": "2xm", "collectorNumber": "270", "labels": ["keep"], "cardId": 1 }
+  ],
   "sectionOrder": ["Main"],
+  "labels": ["sale", "trade"],
   "totalCount": 42,
   "cards": { "Sol Ring": {} },
   "printings": { "Sol Ring": [] },
@@ -825,7 +828,7 @@ Load a collection with full card data, printings, and mana symbol map. Accepts t
 POST /api/collection/:slug/save
 ```
 
-Save collection changes. Writes the updated collection file and creates a changelog entry. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. Every collection entry must carry a printing: an `add`, `move-to`, or `set-printing` change missing `set` or `collectorNumber` returns `400` and leaves the file untouched. A change whose target entry does not exist (matching is exact and case-sensitive on name, with `cardId` taking priority) also returns `400` naming the unapplied changes, and nothing is written — a save must never report success while dropping changes. The optional [`validateCardNames`](#validatecardnames) flag applies here too.
+Save collection changes. Writes the updated collection file and creates a changelog entry. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. Every collection entry must carry a printing: an `add`, `move-to`, or `set-printing` change missing `set` or `collectorNumber` returns `400` and leaves the file untouched. A change whose target entry does not exist (matching is exact and case-sensitive on name, with `cardId` taking priority) also returns `400` naming the unapplied changes, and nothing is written — a save must never report success while dropping changes. The optional [`validateCardNames`](#validatecardnames) flag applies here too. `set-label` changes (and label-carrying `add`s) are accepted here — their `labels` are validated against the label vocabulary and the keep-exclusivity rule (`400` on an illegal combination) and normalized to canonical order before the write; the file's front-matter block always rides through a save untouched.
 
 **Request Body:**
 
@@ -1409,11 +1412,11 @@ Overwrite the list's change log with the supplied change sets. Each set needs a 
 PUT /api/metadata/:type/:slug
 ```
 
-Write a list's YAML front matter. **Decks only** — collections and wanted lists carry no front matter (their serializer would drop it on the next save), so `:type` of `collection` or `wanted` is a `400`.
+Write a list's YAML front matter. Decks take the deck vocabulary below; collections take `labels` (their [default card labels](/commands/edit/#collection-front-matter)). Wanted lists define no front-matter keys, so `:type` of `wanted` is a `400`.
 
 Only the fields present in the body are written; every other front-matter key (including user-authored ones) round-trips untouched. A field sent as `null` is deleted, as is a `description` sent as an empty string. The markdown body below the front matter is left byte for byte as it was — card lines are never re-serialized and no card IDs are assigned. **No changelog entry is written**: the change log is card-level, and metadata is not a card change.
 
-**Request Body:**
+**Request Body (deck):**
 
 ```json
 {
@@ -1426,16 +1429,26 @@ Only the fields present in the body are written; every other front-matter key (i
 }
 ```
 
-| Field         | Validation                                                                                                                                           |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `description` | String (trimmed) or `null`; an empty string clears it                                                                                                |
-| `tags`        | Array of non-empty strings (trimmed, deduplicated, order preserved) or `null`                                                                        |
-| `format`      | A [deck format](/commands/new/#deck-format) name, canonicalized (`EDH` → `commander`); `null` clears it and the deck falls back to section inference |
-| `sourceId`    | Non-empty string or `null`                                                                                                                           |
-| `sourceUrl`   | An `http`/`https` URL or `null`                                                                                                                      |
-| `contentHash` | Optional concurrency token from [`GET /api/deck/:slug`](#load-deck); a non-string value is a `400`                                                   |
+**Request Body (collection):**
 
-`name` is rejected with a `400` pointing at [`POST /api/deck/:slug/rename`](#rename-deck), which also renames the file and its sidecars. `created` and `lastSynced` are stamped by Ritual (deck creation and [deck sync](/commands/deck-sync/) respectively) and are likewise rejected, as is any unknown field.
+```json
+{
+  "labels": ["sale", "trade"],
+  "contentHash": "abc123..."
+}
+```
+
+| Field         | Validation                                                                                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `description` | Deck only. String (trimmed) or `null`; an empty string clears it                                                                                                                      |
+| `tags`        | Deck only. Array of non-empty strings (trimmed, deduplicated, order preserved) or `null`                                                                                              |
+| `format`      | Deck only. A [deck format](/commands/new/#deck-format) name, canonicalized (`EDH` → `commander`); `null` clears it and the deck falls back to section inference                       |
+| `sourceId`    | Deck only. Non-empty string or `null`                                                                                                                                                 |
+| `sourceUrl`   | Deck only. An `http`/`https` URL or `null`                                                                                                                                            |
+| `labels`      | Collection only. Array of `sale`/`trade` (combinable) or `keep` (alone), case-insensitive, normalized to canonical order; `null` or `[]` clears the default (removing an empty block) |
+| `contentHash` | Optional concurrency token from the list's load endpoint; a non-string value is a `400`                                                                                               |
+
+`name` is rejected with a `400` pointing at [`POST /api/deck/:slug/rename`](#rename-deck), which also renames the file and its sidecars. `created` and `lastSynced` are stamped by Ritual (deck creation and [deck sync](/commands/deck-sync/) respectively) and are likewise rejected, as is any unknown field — a deck-only field on a collection (and vice versa) is an unknown field. A collection write refuses (`400`) when the file's existing front matter cannot be read as a YAML mapping, since merging over keys it cannot see would clobber them.
 
 Setting `sourceId` together with an `archidekt.com` `sourceUrl` is what makes a deck sync-linked, so these fields change which decks [`POST /api/deck-sync`](#sync-decks) operates on.
 
@@ -1930,7 +1943,13 @@ Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collecti
 {
   "lists": [{ "type": "deck", "name": "Winota Stax" }],
   "cards": ["sol ring"],
-  "filters": { "name": "sol", "set": "c21", "finish": "foil", "conditions": ["NM", "none"] },
+  "filters": {
+    "name": "sol",
+    "set": "c21",
+    "finish": "foil",
+    "conditions": ["NM", "none"],
+    "labels": ["trade"]
+  },
   "format": "csv",
   "columns": ["name", "set", "collectorNumber", "quantity"],
   "header": true,
@@ -1941,7 +1960,7 @@ Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collecti
 }
 ```
 
-`lists` names resolve like CLI list arguments (the optional `type` pins an ambiguous name). Each `cards` entry is whitespace-separated name terms; every entry across all lists whose name matches all terms is added (deduplicated against the selected lists). `filters.conditions` takes condition grades and/or `none` (cards with no condition marked), matching the CLI's `--condition` semantics. `preset` starts from a saved or built-in [export preset](/commands/export/#presets) — the built-in `archidekt` preset needs no config, and a saved preset of that name shadows it; the explicit fields override the preset's values.
+`lists` names resolve like CLI list arguments (the optional `type` pins an ambiguous name). Each `cards` entry is whitespace-separated name terms; every entry across all lists whose name matches all terms is added (deduplicated against the selected lists). `filters.conditions` takes condition grades and/or `none` (cards with no condition marked), matching the CLI's `--condition` semantics; `filters.labels` takes label values (`sale`, `trade`, `keep`) and/or `none` (unlabeled), matched against each collection card's effective labels like the CLI's `--labels`. `preset` starts from a saved or built-in [export preset](/commands/export/#presets) — the built-in `archidekt` preset needs no config, and a saved preset of that name shadows it; the explicit fields override the preset's values.
 
 `format` is one of `csv` (default), `json`, `text` (one flat merged decklist, quantities aggregated), or `md` (canonical list markdown without `&N` ids) — see [export formats](/commands/export/#formats). `columns`, `header`, `quoteAll`, and `dialect` shape `csv`/`json` output only and are ignored for `text`/`md` (unlike the CLI, the route does not reject the combination). `dialect` is the value vocabulary for finish and condition: `ritual` (the default — `nonfoil`/`foil`/`etched`, `NM`…`DMG`) or `archidekt` (`Normal`/`Foil`/`Etched` under a `Variant` header, and `NM|LP|MP|HP|D`) — see [dialects](/commands/export/#dialects). An unknown `dialect` or `preset` is a `400`. A selected `scryfallId` column is resolved from the local Scryfall cache.
 

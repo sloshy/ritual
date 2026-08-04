@@ -10,6 +10,13 @@ import { FilteredPriceStat } from './FilteredPriceStat'
 import type { ScryfallCard } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { CollectionCardEntry } from './data-types'
+import type { MetaEntry } from './meta-entry'
+import {
+  CARD_LABEL_DISPLAY_NAMES,
+  effectiveLabels,
+  formatCardLabels,
+  type CardLabel,
+} from '../card-labels'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPriceForFinish, formatPrice, formatPriceOrNA } from '../price-currency'
@@ -45,7 +52,7 @@ import {
   untaggedAddedCardNames,
 } from './card-filters'
 import { deriveSectionOrder, sectionDefaultGroupBy } from '../section-format'
-import { addEntryToLeft, canAddMoreToLeft, showTradeToast } from './useTradeState'
+import { addEntryToLeftGuarded, canAddMoreToLeft, showTradeToast } from './useTradeState'
 import type { TradeSearchEntry } from './useTradeData'
 import { resolveCardThumbnailUrl, resolveCardPreview } from './image-sources'
 import { useCardSelection, type SelectedCard } from './useCardSelection'
@@ -53,7 +60,12 @@ import { SelectionMenu } from './SelectionMenu'
 import { buildSelectionEditActions } from './selection-edit-actions'
 import type { FlatBulkEdit } from '../editor/flat-list-controller'
 import { ExportMenu, type ExportFormat } from './ExportMenu'
-import { collectionToText, collectionToMarkdown, collectionToCsv } from '../editor/list-export'
+import {
+  collectionToText,
+  collectionToMarkdown,
+  collectionToCsv,
+  frontMatterFromLabels,
+} from '../editor/list-export'
 
 // Collections always have a specific printing, so 'printing' grouping does not apply.
 type CollectionGroupBy = Exclude<GroupBy, 'printing'>
@@ -69,7 +81,6 @@ const COLLECTION_SORT_BYS: readonly SortBy[] = [
   'set-code',
   'edhrec',
 ]
-type MetaEntry = { label: string; value: string }
 type GroupedEntry = { entry: CollectionCardEntry; count: number }
 
 interface CollectionPageProps {
@@ -79,6 +90,8 @@ interface CollectionPageProps {
   entries: CollectionCardEntry[]
   /** Section names in display order, including empty sections. Falls back to entry order. */
   sectionOrder?: string[]
+  /** The list's default card labels; entries without an override inherit these. */
+  listLabels?: CardLabel[]
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
@@ -169,6 +182,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     groupByValues: groupByOptions().map((o) => o.value as CollectionGroupBy),
     sortByValues: COLLECTION_SORT_BYS,
     enabled: props.enableUrlState,
+    supportsLabels: true,
   })
   const [groupDuplicates, setGroupDuplicates] = createSignal(false)
   const [showChangelog, setShowChangelog] = createSignal(false)
@@ -190,12 +204,27 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     return map
   })
 
+  /** An entry's effective labels: its own override, else the list default. */
+  const entryLabels = (entry: CollectionCardEntry): CardLabel[] =>
+    effectiveLabels(entry.labels, props.listLabels)
+
+  /**
+   * Identity of a tile when grouping duplicates: printing + condition plus the
+   * raw label override — labels join the key so a keep-marked copy never merges
+   * into (and mislabels) a stack of otherwise-identical tradable copies. Shared
+   * by the grouped `allCards` builder and `groupCardIds`, so a tile's card IDs
+   * are exactly the entries it visually represents.
+   */
+  const duplicateGroupKey = (entry: CollectionCardEntry): string =>
+    `${entry.name}|${entry.set}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${formatCardLabels(entry.labels ?? [])}`
+
   const buildCollectionSearchEntry = (
     entry: CollectionCardEntry,
     scryfallCard: ScryfallCard | null,
   ): TradeSearchEntry => {
     const groupKey = `${entry.name}|${entry.set.toLowerCase()}|${entry.collectorNumber}|${entry.finish}|${entry.condition}`
     const maxQty = entry.note ? 1 : (collectionQtyMap().get(groupKey) ?? 1)
+    const labels = entryLabels(entry)
     return {
       name: entry.name,
       nameKey: normalizeCardName(entry.name),
@@ -203,6 +232,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       collectorNumber: entry.collectorNumber,
       finish: entry.finish,
       condition: entry.condition,
+      labels: labels.length > 0 ? labels : undefined,
       note: entry.note,
       price: entry.price,
       scryfallCard,
@@ -213,11 +243,13 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     }
   }
 
-  const handleCollectionAddToTrade = (entry: CollectionCardEntry) => {
+  const handleCollectionAddToTrade = async (entry: CollectionCardEntry) => {
     const cardKey = `${entry.set.toLowerCase()}:${entry.collectorNumber}`
     const scryfallCard = props.cards[cardKey] ?? null
     const searchEntry = buildCollectionSearchEntry(entry, scryfallCard)
-    const added = addEntryToLeft(searchEntry, props.currency)
+    // Guarded: a keep-labeled card confirms once before its first trade add.
+    // This one handler covers both the tile "+ Trade" button and the card modal.
+    const added = await addEntryToLeftGuarded(searchEntry, props.currency)
     if (added)
       showTradeToast(
         searchEntry.name,
@@ -250,10 +282,9 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   // Build flat card list from entries
   const allCards = createMemo((): CardData[] => {
     if (groupDuplicates()) {
-      // Group identical entries (same name+set+CN+finish+condition)
       const grouped = new Map<string, GroupedEntry>()
       for (const entry of currencyEntries()) {
-        const key = `${entry.name}|${entry.set}|${entry.collectorNumber}|${entry.finish}|${entry.condition}`
+        const key = duplicateGroupKey(entry)
         const existing = grouped.get(key)
         if (existing) {
           existing.count++
@@ -280,6 +311,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
           hasPrinting: true,
           oracleTags: card?.oracleTags ?? [],
           artTags: card?.artTags ?? [],
+          labels: entryLabels(entry),
           card,
         })
       }
@@ -303,6 +335,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         hasPrinting: true,
         oracleTags: card?.oracleTags ?? [],
         artTags: card?.artTags ?? [],
+        labels: entryLabels(entry),
         card,
       }
     })
@@ -368,7 +401,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   const modalAddToTrade = createMemo(() => {
     const entry = modalEntry()
     if (!entry || props.editMode || props.onCardMove) return undefined
-    return () => handleCollectionAddToTrade(entry)
+    return () => void handleCollectionAddToTrade(entry)
   })
 
   const modalAddToTradeDisabled = createMemo(() => {
@@ -391,20 +424,14 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   }
 
   // All card IDs a tile represents: every entry sharing the grouped tile's
-  // name+set+CN+finish+condition (or just the single entry when not grouping).
+  // duplicateGroupKey (or just the single entry when not grouping).
   const groupCardIds = (entry: CollectionCardEntry): number[] => {
     if (!groupDuplicates()) {
       return entry.cardId !== undefined ? [entry.cardId] : []
     }
+    const key = duplicateGroupKey(entry)
     return currencyEntries()
-      .filter(
-        (e) =>
-          e.name === entry.name &&
-          e.set === entry.set &&
-          e.collectorNumber === entry.collectorNumber &&
-          e.finish === entry.finish &&
-          e.condition === entry.condition,
-      )
+      .filter((e) => duplicateGroupKey(e) === key)
       .map((e) => e.cardId)
       .filter((id): id is number => id !== undefined)
   }
@@ -423,6 +450,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         collectorNumber: entry?.collectorNumber,
         finish: entry?.finish,
         condition: entry?.condition,
+        labels: entry ? entryLabels(entry) : undefined,
         note: entry?.note,
         quantity: c.quantity,
         groupSize: c.quantity,
@@ -463,6 +491,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         collectionCondition={entry?.condition}
         collectionSetCN={entry ? `${entry.set.toUpperCase()}:${entry.collectorNumber}` : undefined}
         collectionPrice={entry?.price}
+        labelBadges={entry?.labels}
         currency={props.currency}
         cardId={entry?.cardId}
         editMode={props.editMode}
@@ -476,7 +505,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
               : undefined
         }
         onMove={props.onCardMove ? (rect) => props.onCardMove!(contextInfo(), rect) : undefined}
-        onAddToTrade={showTrade ? () => handleCollectionAddToTrade(entry) : undefined}
+        onAddToTrade={showTrade ? () => void handleCollectionAddToTrade(entry) : undefined}
         addToTradeDisabled={showTrade ? isCollectionCardAddDisabled(entry) : undefined}
         selectable={entry !== undefined}
         selectState={selection.state(selectKey)}
@@ -504,6 +533,15 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     if (entry.condition) {
       parts.push({ label: 'condition', value: entry.condition })
     }
+    // The modal is the full-truth view, so it shows the *effective* labels —
+    // inherited defaults included — unlike the tiles, which badge overrides only.
+    const labels = entryLabels(entry)
+    if (labels.length > 0) {
+      parts.push({
+        label: 'labels',
+        value: labels.map((l) => CARD_LABEL_DISPLAY_NAMES[l]).join(' · '),
+      })
+    }
     parts.push({
       label: 'rarity',
       value: capitalize(card.rarity),
@@ -520,7 +558,12 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       case 'txt':
         return collectionToText(props.entries)
       case 'md':
-        return collectionToMarkdown(props.name, props.entries, sectionOrder())
+        return collectionToMarkdown(
+          props.name,
+          props.entries,
+          sectionOrder(),
+          frontMatterFromLabels(props.listLabels),
+        )
       case 'csv':
         return collectionToCsv(props.entries)
     }
@@ -601,6 +644,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         cardTypeOptions={cardTypeOptions()}
         oracleTagOptions={oracleTagOptions()}
         artTagOptions={artTagOptions()}
+        showLabelsFilter
         extraToggles={[
           {
             label: 'Group Duplicates',

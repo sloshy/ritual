@@ -1130,3 +1130,62 @@ describe('add-card CLI (Integration)', () => {
     })
   })
 })
+
+describe('add-card --label (Integration)', () => {
+  test('a labeled collection add writes the token and rides the changelog add', async () => {
+    const result = await runCli(
+      [
+        'add-card',
+        '--collection',
+        'main',
+        'Lightning',
+        'Bolt',
+        '--exact',
+        '--set',
+        'sta',
+        '--collector-number',
+        '42',
+        '--finish',
+        'etched',
+        '--condition',
+        'NONE',
+        '--label',
+        'trade,sale',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as AddCardPayload & { labels?: string[] }
+    expect(json.labels).toEqual(['sale', 'trade'])
+
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Lightning Bolt (STA:42) [etched] [sale,trade] &2')
+
+    // The changelog text line stays label-free (labels ride the add event, not
+    // its rendered line), so it must still parse as a plain add.
+    const changelog = await fs.readFile(path.join(dir, 'collections', 'main.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Added "Lightning Bolt" (STA:42) [etched] &2')
+  })
+
+  test('rejects --label on a deck target', async () => {
+    const result = await runCli(
+      ['add-card', '--deck', 'test', 'Sol', 'Ring', '--label', 'sale', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as CliErrorPayload
+    expect(err.error.code).toBe('usage_error')
+    expect(err.error.message).toContain('--label only applies to collections')
+  })
+
+  test('rejects an illegal combination at parse time', async () => {
+    const result = await runCli(
+      ['add-card', '--collection', 'main', 'Sol', 'Ring', '--label', 'keep,sale'],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain("'keep' cannot be combined")
+  })
+})

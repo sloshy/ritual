@@ -54,6 +54,8 @@ interface ToolbarProps {
   artTagOptions: string[]
   /** Show the "Hide Extras" filter toggle (deck pages only). */
   showHideExtras?: boolean
+  /** Show the Labels filter chips (collection-bearing views only). */
+  showLabelsFilter?: boolean
   extraToggles?: ExtraToggle[]
   /** Bulk multi-select actions control; rendered only while cards are selected. */
   selectionMenu?: JSX.Element
@@ -155,6 +157,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
       oracleTagOptions={props.oracleTagOptions}
       artTagOptions={props.artTagOptions}
       showHideExtras={props.showHideExtras}
+      showLabelsFilter={props.showLabelsFilter}
     />
   )
 

@@ -171,7 +171,7 @@ describe('MCP output schemas, as authored', () => {
     expect(listBranches).toHaveLength(3)
     expect(listBranches.map((b) => Object.keys(b.properties ?? {}))).toEqual([
       ['view', 'listType', 'slug', 'warnings', 'deck', 'frontMatter', 'totalCount'],
-      ['view', 'listType', 'slug', 'warnings', 'entries', 'sectionOrder', 'totalCount'],
+      ['view', 'listType', 'slug', 'warnings', 'entries', 'sectionOrder', 'labels', 'totalCount'],
       ['view', 'listType', 'slug', 'warnings', 'counts'],
     ])
     // `warnings` is required on all three arms, not merely present: a client

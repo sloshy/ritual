@@ -13,8 +13,10 @@ import {
   parseManaValueFilter,
   parseNonNegativeInteger,
   parsePriceAmount,
+  parseLabelsParam,
   parsePriceFilter,
   toggleColorSelection,
+  toggleLabelFilterOption,
   untaggedAddedCardNames,
   type CardFilters,
 } from '../../../src/site/card-filters'
@@ -669,5 +671,92 @@ describe('untaggedAddedCardNames', () => {
   test('dedupes repeated card names', () => {
     const cards = [makeCard({ name: 'Dup' }), makeCard({ name: 'Dup' })]
     expect(untaggedAddedCardNames(cards, ['Dup'])).toEqual(['Dup'])
+  })
+})
+
+describe('labels filter', () => {
+  const sale = makeCard({ name: 'Sale Card', labels: ['sale'] })
+  const saleTrade = makeCard({ name: 'Both Card', labels: ['sale', 'trade'] })
+  const keep = makeCard({ name: 'Keep Card', labels: ['keep'] })
+  const plain = makeCard({ name: 'Plain Card' })
+  const all = [sale, saleTrade, keep, plain]
+
+  test('inactive when no chips are selected', () => {
+    expect(filterCards(all, makeFilters())).toEqual(all)
+  })
+
+  test('a single label keeps every card whose effective set includes it', () => {
+    const result = filterCards(all, makeFilters({ labels: ['trade'] }))
+    expect(result.map((c) => c.name)).toEqual(['Both Card'])
+  })
+
+  test('sale + trade is an OR', () => {
+    const result = filterCards(all, makeFilters({ labels: ['sale', 'trade'] }))
+    expect(result.map((c) => c.name)).toEqual(['Sale Card', 'Both Card'])
+  })
+
+  test('keep matches only keep-labeled cards', () => {
+    const result = filterCards(all, makeFilters({ labels: ['keep'] }))
+    expect(result.map((c) => c.name)).toEqual(['Keep Card'])
+  })
+
+  test('none matches only unlabeled cards', () => {
+    const result = filterCards(all, makeFilters({ labels: ['none'] }))
+    expect(result.map((c) => c.name)).toEqual(['Plain Card'])
+  })
+
+  test('counts as one active filter', () => {
+    expect(countActiveFilters(makeFilters({ labels: ['sale', 'trade'] }))).toBe(1)
+  })
+})
+
+describe('toggleLabelFilterOption', () => {
+  test('sale and trade combine in canonical order', () => {
+    expect(toggleLabelFilterOption([], 'trade')).toEqual(['trade'])
+    expect(toggleLabelFilterOption(['trade'], 'sale')).toEqual(['sale', 'trade'])
+  })
+
+  test('re-picking a chip deselects it', () => {
+    expect(toggleLabelFilterOption(['sale', 'trade'], 'sale')).toEqual(['trade'])
+  })
+
+  test('keep replaces the whole selection', () => {
+    expect(toggleLabelFilterOption(['sale', 'trade'], 'keep')).toEqual(['keep'])
+  })
+
+  test('none replaces the whole selection', () => {
+    expect(toggleLabelFilterOption(['sale'], 'none')).toEqual(['none'])
+  })
+
+  test('picking sale while keep is selected drops keep', () => {
+    expect(toggleLabelFilterOption(['keep'], 'sale')).toEqual(['sale'])
+    expect(toggleLabelFilterOption(['none'], 'trade')).toEqual(['trade'])
+  })
+})
+
+describe('parseLabelsParam', () => {
+  test('parses valid combos, deduped into canonical order', () => {
+    expect(parseLabelsParam('trade,sale,trade')).toEqual(['sale', 'trade'])
+    expect(parseLabelsParam('KEEP')).toEqual(['keep'])
+    expect(parseLabelsParam('none')).toEqual(['none'])
+  })
+
+  test('drops junk tokens', () => {
+    expect(parseLabelsParam('sale,bogus')).toEqual(['sale'])
+  })
+
+  test('trims and lowercases tokens before matching', () => {
+    expect(parseLabelsParam(' Sale , TRADE ')).toEqual(['sale', 'trade'])
+  })
+
+  test('a combination the chips cannot produce invalidates the whole param', () => {
+    expect(parseLabelsParam('keep,sale')).toBeUndefined()
+    expect(parseLabelsParam('none,trade')).toBeUndefined()
+  })
+
+  test('null and empty-ish values parse to undefined', () => {
+    expect(parseLabelsParam(null)).toBeUndefined()
+    expect(parseLabelsParam('')).toBeUndefined()
+    expect(parseLabelsParam('bogus')).toBeUndefined()
   })
 })

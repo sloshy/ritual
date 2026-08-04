@@ -36,6 +36,7 @@ import {
   rightCards,
   setRightCards,
   addEntryToLeft,
+  addEntryToLeftGuarded,
   addEntryToRight,
   isAlreadyInLeftList,
   isAlreadyInRightList,
@@ -254,7 +255,9 @@ export const TradePage: Component<TradePageProps> = (props) => {
       void cardSearch.fetchPrintings(entry.name)
       return
     }
-    addEntryToLeft(entry, props.currency)
+    // Guarded: a keep-labeled collection entry confirms once before adding.
+    // (Deck entries reach here too, but never carry labels, so they pass through.)
+    void addEntryToLeftGuarded(entry, props.currency)
   }
 
   /** Every printing any wanted list asks for under this card name. */
@@ -332,6 +335,9 @@ export const TradePage: Component<TradePageProps> = (props) => {
         scryfallCard: printing,
         editable: true,
       }
+      // Unguarded on purpose: the left picker only ever opens for name-only
+      // *deck* entries, which never carry labels — the keep guard is a
+      // collection concern handled in handleLeftSelect.
       if (p.side === 'left') addEntryToLeft(searchEntry, props.currency)
       else addEntryToRight(searchEntry, props.currency)
     } else {

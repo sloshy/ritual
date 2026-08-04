@@ -2,6 +2,7 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { parseCollectionFile, resolveFinish } from '../../collection-file'
 import type { CollectionEntry } from '../../collection-file'
+import type { CardLabel } from '../../card-labels'
 import { parseTitleFromContent } from '../../section-format'
 import type { ChangelogPage } from '../../changelog-parser'
 import { findPrinting } from '../../card-printing'
@@ -22,6 +23,8 @@ export type LoadedCollection = {
   entries: CollectionEntry[]
   /** Section names in file order, including empty sections. */
   sectionOrder: string[]
+  /** The list's default card labels from its front matter, when declared. */
+  labels?: CardLabel[]
   warnings: string[]
   changelog: ChangelogPage[]
   fileMtime?: string
@@ -47,13 +50,13 @@ export async function loadCollectionSource(
     return listReadErrorMessage(error, filePath)
   }
 
-  const { entries, sectionOrder, warnings } = parseCollectionFile(content)
+  const { entries, sectionOrder, labels, warnings } = parseCollectionFile(content)
   const displayName = parseTitleFromContent(content) ?? name
 
   const baseName = name.endsWith('.md') ? name.slice(0, -3) : name
   const { changelog, fileMtime } = await loadListSidecars(collectionsDir, baseName, filePath)
 
-  return { displayName, entries, sectionOrder, warnings, changelog, fileMtime }
+  return { displayName, entries, sectionOrder, labels, warnings, changelog, fileMtime }
 }
 
 export type CollectionArtifacts = {
@@ -128,6 +131,7 @@ export async function buildCollectionArtifacts(
       collectorNumber: entry.collectorNumber,
       finish,
       condition: entry.condition ?? 'NM',
+      labels: entry.labels,
       price,
       fileOrder: i,
       section: entry.section,
@@ -145,6 +149,7 @@ export async function buildCollectionArtifacts(
     name: displayName,
     entries: cardEntries,
     sectionOrder,
+    labels: loaded.labels,
     cards: cardMap,
     printings: printingsMap,
     symbolMap: ctx.symbolMap,
@@ -171,6 +176,7 @@ export async function buildCollectionArtifacts(
     missingPriceCount,
     missingPriceCountEur,
     missingPriceCountTix,
+    labels: loaded.labels,
   }
 
   return { slug, detail, summary }

@@ -27,6 +27,7 @@ export const EXPORT_PROPERTIES = [
   'finish',
   'isFoil',
   'condition',
+  'labels',
   'note',
   'section',
   'listName',
@@ -50,6 +51,7 @@ export const EXPORT_PROPERTY_LABELS: Record<ExportProperty, string> = {
   finish: 'Finish',
   isFoil: 'Is Foil',
   condition: 'Condition',
+  labels: 'Labels',
   note: 'Note',
   section: 'Section',
   listName: 'List',
@@ -65,6 +67,7 @@ export const EXPORT_PROPERTY_HINTS: Partial<Record<ExportProperty, string>> = {
   edition: 'set + collector number',
   scryfallId: 'resolved from the local Scryfall cache',
   isFoil: 'true when foil or etched',
+  labels: "effective labels — the card's override or its list default",
 }
 
 /**
@@ -206,6 +209,10 @@ function propertyValue(
       return dialect === 'archidekt'
         ? archidektCsvCondition(entry.condition ?? 'NM')
         : entry.condition
+    case 'labels':
+      // Same spelling in every dialect — labels are Ritual-specific, so no
+      // foreign importer defines a vocabulary to translate into.
+      return entry.labels?.length ? entry.labels.join(', ') : undefined
     case 'note':
       return entry.note
     case 'section':
@@ -294,6 +301,7 @@ function markdownLine(entry: ExportEntry): string {
       entry.collectorNumber,
       entry.finish ?? 'nonfoil',
       entry.condition,
+      entry.labels,
       entry.note,
     ).replace(/\n$/, '')
   }

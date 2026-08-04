@@ -128,6 +128,7 @@ Key behaviors:
 
 - **Deck moves**: Moving a card from a deck decrements its quantity by 1. The line is removed when quantity reaches 0.
 - **Note preservation**: Notes (`{note}`) on deck, collection, and wanted list entries are carried over to the destination list. The one exception is a quantity-merge onto an existing deck line that already carries a different note — the existing note wins and the dropped note is reported after saving.
+- **Label preservation**: A collection entry's `[labels]` override travels with a collection→collection move; moves to a deck or wanted list drop it, since those formats carry no labels token. (The list _default_ never travels — the destination collection's own front matter applies.)
 - **Name-only wanted entries**: If a card has no set/collector number (i.e., it is a name-only wanted list entry) and the destination requires a printing (e.g., a collection), you will be prompted to resolve a printing before the move is queued. The picker lists each printing's price in your configured `defaultCurrency` — see [Printing and Finish Prices](/commands/edit/#printing-and-finish-prices).
 - **Single destination**: If only one valid destination is configured, the destination prompt is skipped and the card is queued immediately.
 - **Change tracking**: Source files receive a `Moved … to …` changelog entry. Destination files receive a `Moved … from …` changelog entry.

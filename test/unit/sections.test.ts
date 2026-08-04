@@ -91,6 +91,7 @@ const collectionLine = (e: CollectionEntry): string =>
     e.collectorNumber,
     e.finish ?? 'nonfoil',
     e.condition,
+    e.labels,
     e.note,
     e.cardId,
   )

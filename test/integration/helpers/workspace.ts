@@ -8,6 +8,8 @@ import { refreshRitualConfig, resetRitualConfigCache } from '../../../src/ritual
 import { serializeDeckToMarkdown, type DeckFrontMatter } from '../../../src/deck-file'
 import { serializeSectionedList } from '../../../src/section-format'
 import { formatCollectionLine, formatWantedListLine } from '../../../src/card-line'
+import type { CardLabel } from '../../../src/card-labels'
+import { frontMatterFromLabels, withFrontMatter } from '../../../src/editor/list-export'
 import {
   DEFAULT_SECTION,
   type Card,
@@ -166,6 +168,8 @@ export type CollectionFixtureEntry = {
   collectorNumber: string
   finish?: Finish
   condition?: Condition
+  /** Per-card label override (`[keep]`, `[sale,trade]`). */
+  labels?: CardLabel[]
   note?: string
   cardId?: number
   section?: string
@@ -176,11 +180,13 @@ export type CollectionFixture = {
   title?: string
   entries: CollectionFixtureEntry[]
   sectionOrder?: string[]
+  /** The list's default labels, written as `labels: [...]` front matter. */
+  labels?: CardLabel[]
 }
 
 /** The canonical markdown for a collection fixture, via the real line serializer. */
 export function collectionMarkdown(fixture: CollectionFixture & { title: string }): string {
-  return serializeSectionedList(
+  const body = serializeSectionedList(
     fixture.title,
     fixture.entries.map(sectioned),
     fixture.sectionOrder ?? [],
@@ -191,10 +197,12 @@ export function collectionMarkdown(fixture: CollectionFixture & { title: string 
         entry.collectorNumber,
         entry.finish ?? 'nonfoil',
         entry.condition,
+        entry.labels,
         entry.note,
         entry.cardId,
       ),
   )
+  return withFrontMatter(frontMatterFromLabels(fixture.labels), body)
 }
 
 /** Write `<dir>/collections/<fileName>.md` from a collection fixture; returns the file path. */

@@ -3,6 +3,7 @@ import { DECK_FORMAT_KEYS } from '../deck-format'
 import { LIST_TYPES } from '../list-type'
 import type { McpToolName } from './tools/names'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
+import { CARD_LABELS } from '../card-labels'
 import { VALID_CURRENCIES } from '../price-currency'
 import { DIFF_BY_MODES } from '../list-diff'
 import { SELL_ENTRY_STATUSES, SELL_MATCH_VIAS, SELL_NO_MATCH_REASONS } from '../sell-report'
@@ -163,6 +164,7 @@ export type SharedDefName =
 const LIST_TYPE = enumOf(LIST_TYPES)
 const FINISH = enumOf(VALID_FINISHES)
 const CONDITION = enumOf(VALID_CONDITIONS)
+const CARD_LABEL = enumOf(CARD_LABELS)
 
 /**
  * Scryfall's price key set is theirs, not ours, so this stays an open record of
@@ -281,7 +283,16 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
   ),
 
   CollectionEntry: obj(
-    { name: str(), ...ENTRY_PRINTING_PROPS, ...ENTRY_META_PROPS, section: str() },
+    {
+      name: str(),
+      ...ENTRY_PRINTING_PROPS,
+      labels: arr(
+        CARD_LABEL,
+        'Per-card label override; effective labels are this, else the list default.',
+      ),
+      ...ENTRY_META_PROPS,
+      section: str(),
+    },
     ['name', 'set', 'collectorNumber'],
   ),
   // No `condition`: a wanted list records what you want, not the grade of a
@@ -605,6 +616,10 @@ export const GET_LIST_OUTPUT: JsonSchemaType = withDefs(
           ...GET_LIST_COMMON_PROPS,
           entries: arr({ anyOf: [ref('CollectionEntry'), ref('WantedEntry')] }),
           sectionOrder: arr(str(), 'Section names in file order.'),
+          labels: arr(
+            CARD_LABEL,
+            'The collection’s default card labels from front matter (collections only).',
+          ),
           ...GET_LIST_CARDS_PROPS,
         },
         [...GET_LIST_COMMON_REQUIRED, 'entries', 'totalCount'],
@@ -1022,6 +1037,7 @@ export const SET_LIST_METADATA_OUTPUT: JsonSchemaType = obj(
         sourceId: str('The deck’s id on the source service.'),
         sourceUrl: str('The deck’s URL on the source service.'),
         lastSynced: str('ISO-8601 time of the last successful source sync.'),
+        labels: arr(CARD_LABEL, 'The collection’s default card labels (collections only).'),
       },
     },
   },

@@ -57,6 +57,7 @@ import type { SyncableDeck } from '../../deck-sync/engine'
 import { EXPORT_FORMATS } from '../../export/presets'
 import { EXPORT_DIALECTS, EXPORT_PROPERTIES } from '../../export/render'
 import { VALID_CONDITIONS } from '../../finish-condition'
+import { CARD_LABELS } from '../../card-labels'
 import { DIFF_BY_MODES } from '../../list-diff'
 import type { ListInfo } from '../../list-info'
 import type { ListType } from '../../list-type'
@@ -751,8 +752,8 @@ export function registerReadTools(server: McpServer): void {
       description:
         'Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collections, ' +
         'and wanted lists. Select whole lists and/or pick cards by name terms; filter by name, ' +
-        'set, finish, or condition; choose the columns and their order (csv/json only — text ' +
-        'and md have fixed line formats). With no lists and no cards, every list is exported. ' +
+        'set, finish, condition, or labels; choose the columns and their order (csv/json only — ' +
+        'text and md have fixed line formats). With no lists and no cards, every list is exported. ' +
         'By default the rendered export comes back inline and nothing is written to disk; with ' +
         'write: true it instead writes a server-named file under exports/ in the base dir and ' +
         'returns its path (an existing file is never overwritten). Registered with the read tools ' +
@@ -779,6 +780,14 @@ export function registerReadTools(server: McpServer): void {
               .describe(
                 'Only cards with one of these conditions. An explicit grade matches only cards ' +
                   "with it marked; 'none' matches cards without one. Wanted entries never match.",
+              ),
+            labels: z
+              .array(z.enum([...CARD_LABELS, 'none']))
+              .optional()
+              .describe(
+                'Only collection cards whose effective labels (their override, else the list ' +
+                  "default) include one of these; 'none' matches unlabeled cards. Deck and " +
+                  'wanted entries never match.',
               ),
           })
           .optional(),

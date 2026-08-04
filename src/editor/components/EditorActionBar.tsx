@@ -22,6 +22,11 @@ type EditorActionBarProps = {
   onShowShortcuts: () => void
   /** When provided, shows an "Import…" button (admin only) to load an exported change file. */
   onImport?: () => void
+  /**
+   * When provided, shows a "Labels" button opening the list-default label
+   * editor (admin collection editor only).
+   */
+  onEditLabels?: () => void
   /** Show the primary Save button. Defaults to true; the public editor exports via its banner instead. */
   showSave?: boolean
   /** Show the Discard button. Defaults to true; the public editor discards via its banner instead. */
@@ -137,6 +142,11 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
         <button type="button" class="btn-sections" onClick={() => setSectionsOpen(true)}>
           Sections
         </button>
+        <Show when={props.onEditLabels}>
+          <button type="button" class="btn-labels" onClick={() => props.onEditLabels!()}>
+            Labels
+          </button>
+        </Show>
         <Show when={props.onImport}>
           <button type="button" class="btn-import" onClick={() => props.onImport!()}>
             Import…

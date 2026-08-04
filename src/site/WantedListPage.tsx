@@ -290,6 +290,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         hasPrinting: hasSpecificPrinting(entry),
         oracleTags: card?.oracleTags ?? [],
         artTags: card?.artTags ?? [],
+        labels: [],
         card,
       }
     })

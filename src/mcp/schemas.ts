@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { DECK_FORMAT_KEYS } from '../deck-format'
+import { CARD_LABELS } from '../card-labels'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
 import { VALID_CURRENCIES } from '../price-currency'
 
@@ -22,6 +23,32 @@ export const conditionSchema = z.enum(VALID_CONDITIONS)
 export const conditionUpdateSchema = z.enum([...VALID_CONDITIONS, 'NONE'])
 /** Derived from the canonical format list, so the tool schema cannot drift from it. */
 export const deckFormatSchema = z.enum(DECK_FORMAT_KEYS)
+/** Derived from the canonical label vocabulary, so the tool schema cannot drift from it. */
+export const cardLabelSchema = z.enum(CARD_LABELS)
+/**
+ * A label-override *update*: the new override, where `sale` and `trade` combine
+ * and `keep` stands alone, or an empty array to clear the override so the
+ * collection's front-matter default applies again. Collections only.
+ */
+export const labelsUpdateField = z
+  .array(cardLabelSchema)
+  .describe(
+    'New label override: "sale"/"trade" (combinable) or "keep" (exclusive). ' +
+      'An empty array clears the override (the list default applies). Collections only.',
+  )
+/**
+ * A label override attached to a newly added card — unlike
+ * {@link labelsUpdateField} there is no override to clear, so an empty array is
+ * rejected rather than meaning "clear". Collections only.
+ */
+export const labelsOverrideField = z
+  .array(cardLabelSchema)
+  .min(1)
+  .optional()
+  .describe(
+    'Label override for the new card: "sale"/"trade" (combinable) or "keep" ' +
+      '(exclusive). Collections only; omit to inherit the list default.',
+  )
 
 export const DECK_ONLY_FORMAT_MESSAGE = 'format is only valid when listType is "deck".'
 

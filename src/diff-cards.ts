@@ -20,6 +20,10 @@ type CardIdentity = {
   cardId?: number
 }
 
+// Notes and label overrides are deliberately NOT part of the key, and neither
+// has a diff rule: a hand-edited `{note}` or `[keep]` produces no changelog
+// entry from detect-changes — it is absorbed on the next hash stamp. In-app
+// edits record those changes through their own set-note / set-label events.
 function compositeKey(c: CardIdentity): string {
   return [
     c.name,

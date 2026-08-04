@@ -2,7 +2,7 @@
 title: 'set-card'
 ---
 
-Update a card in place — its printing, finish, condition, deck section, or commander status — in a deck, collection, or wanted list, without opening an editor.
+Update a card in place — its printing, finish, condition, collection label, deck section, or commander status — in a deck, collection, or wanted list, without opening an editor.
 
 The edit is line-preserving: only the targeted card's line is rewritten (or moved, for section and commander changes). Everything else in the file — prose, comments, unusual headings, even lines the parser cannot read — stays intact. (A `--section`/`--commander` move may additionally create the destination's `## Section` heading when it does not exist yet.)
 
@@ -33,6 +33,7 @@ The edit is line-preserving: only the targeted card's line is rewritten (or move
 | `--collector-number <cn>` | New collector number — must be given together with `--set`                                                         |         |
 | `--finish <finish>`       | New finish: `nonfoil`, `foil`, or `etched` (case-insensitive)                                                      |         |
 | `--condition <condition>` | New condition: `NM`, `LP`, `MP`, `HP`, `DMG`, or `NONE` to clear it (case-insensitive; decks and collections only) |         |
+| `--label <labels>`        | New label override: `sale,trade` (combinable), `keep`, or `none` to clear it (collections only)                    |         |
 | `--section <name>`        | Move the card to this deck section, creating the section if it does not exist (decks only)                         |         |
 | `--commander`             | Move the card to the deck's Commander section (decks only)                                                         |         |
 | `--no-commander`          | Move the card out of the Commander section back to the main section (decks only)                                   |         |
@@ -74,7 +75,7 @@ Move a deck card to the sideboard section and capture JSON output:
 ./ritual set-card --deck "My Deck" "Winota, Joiner of Forces" --section Sideboard --output json
 ```
 
-The JSON payload is `{ type, list, cardName, cardId, applied }` (plus `dryRun: true` under `--dry-run`), where `applied` is one entry per change made (e.g. `"printing → 2XM:157"`, `"finish → foil"`, `"condition → LP"`, `"section → Sideboard"`, `"commander"`, `"not commander"`).
+The JSON payload is `{ type, list, cardName, cardId, applied }` (plus `dryRun: true` under `--dry-run`), where `applied` is one entry per change made (e.g. `"printing → 2XM:157"`, `"finish → foil"`, `"condition → LP"`, `"label → sale, trade"`, `"section → Sideboard"`, `"commander"`, `"not commander"`).
 
 Make a card the deck's commander:
 
@@ -103,6 +104,14 @@ Validating `--finish` against an entry's **existing** printing is cache-only: no
 ### Condition Updates
 
 Condition applies to decks and collections only (wanted-list entries never track condition). `--condition NONE` clears a recorded grade, matching [`add-card`](/commands/add-card/)'s vocabulary.
+
+`--label` applies to collections only: it sets the card's label override (`sale` and `trade` combine as `sale,trade`; `keep` stands alone), and `--label none` clears it so the collection's front-matter default applies again. See [Collection Files](/commands/edit/#collection-files) for the label semantics.
+
+```bash
+./ritual set-card --collection main "Sol Ring" --label keep
+./ritual set-card --collection main "Sol Ring" --label sale,trade
+./ritual set-card --collection main "Sol Ring" --label none
+```
 
 **`NM` is the unrecorded default.** The line format omits a `[NM]` annotation, so `--condition NM` and `--condition NONE` produce the same line: one with no grade on it. This collapse is intentional — an ungraded card and a card graded Near Mint are one state in Ritual's file format. The success output says so rather than claiming a grade was recorded: `condition → NM (written as an ungraded line — NM is the default)` and `condition → none (grade cleared)`. Internally there is no standalone "set condition" change event — a condition change rides on the same printing-update event the editors use, carrying the card's current set/collector number/finish, so only the condition (and finish, if also given) actually changes. In the changelog this therefore appears as a printing update, e.g. `Set "Mana Crypt" printing to 2XM:1 [foil] [LP] &2`.
 

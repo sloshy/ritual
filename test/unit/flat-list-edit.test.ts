@@ -81,6 +81,7 @@ function harness(entries: CollectionCardEntry[]): Harness {
         e.collectorNumber,
         e.finish,
         e.condition,
+        e.labels,
         e.note,
         e.cardId,
       ).trim(),

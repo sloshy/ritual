@@ -19,6 +19,7 @@ import {
   splitNameTerms,
 } from '../term-match'
 import type { SelectionSourceKind } from './useCardSelection'
+import { effectiveLabels, type CardLabel } from '../card-labels'
 
 /** A single searchable card entry derived from a collection, deck, or wanted list. */
 export interface TradeSearchEntry {
@@ -33,6 +34,12 @@ export interface TradeSearchEntry {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /**
+   * Effective card labels — collection entries only. When note-less duplicates
+   * aggregate into one searchable group, keep dominates: a stack holding one
+   * keep-marked copy is guarded as a whole.
+   */
+  labels?: CardLabel[]
   note?: string
   price?: number
   scryfallCard: ScryfallCard | null
@@ -162,6 +169,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
             const setLower = entry.set.toLowerCase()
             const cardKey = `${setLower}:${entry.collectorNumber}`
             const scryfallCard = detail.cards[cardKey] ?? null
+            const labels = effectiveLabels(entry.labels, detail.labels)
             const mapped: TradeSearchEntry = {
               name: entry.name,
               nameKey: normalizeCardName(entry.name),
@@ -169,6 +177,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
               collectorNumber: entry.collectorNumber,
               finish: entry.finish,
               condition: entry.condition,
+              labels: labels.length > 0 ? labels : undefined,
               note: entry.note,
               price: entry.price,
               scryfallCard,
@@ -186,6 +195,10 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
             if (existing) {
               existing.maxQty += 1
               if (entry.cardId !== undefined) existing.cardIds.push(entry.cardId)
+              // Keep dominates on merge: one keep-marked copy in a stack of
+              // otherwise-identical cards guards the whole stack's add. Safety
+              // over precision — the alternative silently trades the keepsake.
+              if (labels.includes('keep')) existing.labels = ['keep']
             } else {
               groups.set(groupKey, mapped)
             }

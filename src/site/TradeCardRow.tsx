@@ -77,6 +77,11 @@ export const TradeCardRow: Component<TradeCardRowProps> = (props) => {
             <span>{setCN()}</span>
           </Show>
           <span class={`src-tag ${SOURCE_TAG_CLASSES[props.card.source]}`}>{sourceLabel()}</span>
+          {/* An explicit reminder that this card is labeled "To keep" — shown
+              always, whether or not the add-time dialog has been acknowledged. */}
+          <Show when={props.card.labels?.includes('keep')}>
+            <span class="src-tag label-keep-tag">Keep</span>
+          </Show>
         </span>
       </div>
       {/* Reserves the edit-button column even when the card isn't editable, so

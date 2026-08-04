@@ -9,9 +9,11 @@ import {
   createChangeId,
   areOppositeChanges,
   consolidateSetFinish,
+  consolidateSetLabel,
   consolidateSetPrinting,
   consolidateSetSection,
 } from '../change-event'
+import type { CardLabel } from '../card-labels'
 
 /**
  * Stores enough context to fully reverse a single user action.
@@ -59,6 +61,13 @@ export type UseCardChangesResult<T = unknown> = {
     cardId?: number,
   ) => void
   setSection: (cardName: string, section: string, originalSection: string, cardId?: number) => void
+  /** Set (or, with `[]`, clear) a collection card's label override — latest wins. */
+  setLabel: (
+    cardName: string,
+    labels: CardLabel[],
+    originalLabels: readonly CardLabel[] | undefined,
+    cardId?: number,
+  ) => void
 }
 
 export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
@@ -68,8 +77,6 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
   let undoStackRef: UndoEntry<T>[] = []
 
   function addChange(partial: ChangeInput, removedCardData?: T): ChangeEvent | null {
-    // The spread of a discriminated-union input with id+timestamp is structurally
-    // correct at runtime but TypeScript can't verify it; a type assertion is needed.
     const newEvent = {
       ...partial,
       id: createChangeId(),
@@ -206,6 +213,25 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     }
   }
 
+  function setLabel(
+    cardName: string,
+    labels: CardLabel[],
+    originalLabels: readonly CardLabel[] | undefined,
+    cardId?: number,
+  ) {
+    const {
+      changes: newChanges,
+      addedChange,
+      cancelledChange,
+    } = consolidateSetLabel(changesRef, cardName, labels, originalLabels, cardId)
+    if (addedChange !== null || cancelledChange !== null) {
+      changesRef = newChanges
+      undoStackRef = [...undoStackRef, { addedChange, cancelledChange }]
+      setChanges([...changesRef])
+      setUndoStack([...undoStackRef])
+    }
+  }
+
   const changeCount = createMemo(() => changes().length)
   const canUndo = createMemo(() => undoStack().length > 0)
 
@@ -226,5 +252,6 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     setFinish,
     setPrinting,
     setSection,
+    setLabel,
   }
 }

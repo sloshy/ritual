@@ -44,6 +44,8 @@ type EditorShellProps<TData, TCardEntry> = {
   enableImport?: boolean
   /** The list kind for import validation; required when `enableImport` is set. */
   importKind?: ListType
+  /** Open the list-default label editor (admin collection editor only). */
+  onEditLabels?: () => void
   contextMenu?: JSX.Element
   children: JSX.Element
 }
@@ -195,6 +197,7 @@ export function EditorShell<TData, TCardEntry>(
           onRemoveSection={editor.handleRemoveSection}
           onShowShortcuts={() => setShowShortcuts(true)}
           onImport={props.enableImport ? editor.dialogs.openImport : undefined}
+          onEditLabels={props.onEditLabels}
           showSave={props.showSave}
           showDiscard={props.showDiscard}
           barRef={(el) => (actionBarEl = el)}

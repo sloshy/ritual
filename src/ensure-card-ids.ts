@@ -5,44 +5,28 @@ import { allocateId, createIdPool, parseCardIdsFromContent } from './card-id'
 import { DECK_CARD_LINE_RE, isDeckFile } from './importers/text-file'
 import { COLLECTION_CARD_LINE_RE } from './collection-file'
 import { WANTED_CARD_LINE_RE } from './commands/wanted-helpers'
-import { createFenceTracker } from './markdown-fence'
+import { createFenceTracker, frontMatterBodyStart } from './markdown-fence'
 import { getErrorMessage, hasErrorCode } from './errors'
 import { getCollectionsDir, getDecksDir, getWantedDir } from './ritual-config'
 import { isListMarkdownFile } from './list-file-name'
 
 export type EnsureIdsResult = { content: string; added: number }
 
-interface EnsureIdsOptions {
-  cardLineRe: RegExp
-  skipFrontMatter: boolean
-}
-
-function ensureIds(content: string, options: EnsureIdsOptions): EnsureIdsResult {
-  const { cardLineRe, skipFrontMatter } = options
+function ensureIds(content: string, cardLineRe: RegExp): EnsureIdsResult {
   const lines = content.split('\n')
   const pool = createIdPool(parseCardIdsFromContent(content))
   const seenIds = new Set<number>()
 
-  let inFrontMatter = false
-  let frontMatterClosed = false
+  // Front matter is opaque YAML — a value that happens to look like a card
+  // line must never be stamped. One detector (frontMatterBodyStart) for the
+  // whole codebase, so this scanner can't disagree with the parsers.
+  const bodyStart = frontMatterBodyStart(lines)
   let added = 0
   // A card-looking line inside a fenced code block is prose the user wrote —
   // stamping an `&N` into it would edit their example and burn an id.
   const fence = createFenceTracker()
   const newLines = lines.map((line, idx) => {
-    if (skipFrontMatter && !frontMatterClosed) {
-      if (idx === 0 && line.trim() === '---') {
-        inFrontMatter = true
-        return line
-      }
-      if (inFrontMatter) {
-        if (line.trim() === '---') {
-          inFrontMatter = false
-          frontMatterClosed = true
-        }
-        return line
-      }
-    }
+    if (idx < bodyStart) return line
     if (fence.feed(line).opaque) return line
     const trimmed = line.trim()
     const match = cardLineRe.exec(trimmed)
@@ -70,15 +54,15 @@ function ensureIds(content: string, options: EnsureIdsOptions): EnsureIdsResult 
 }
 
 export function ensureDeckIdsInContent(content: string): EnsureIdsResult {
-  return ensureIds(content, { cardLineRe: DECK_CARD_LINE_RE, skipFrontMatter: true })
+  return ensureIds(content, DECK_CARD_LINE_RE)
 }
 
 export function ensureCollectionIdsInContent(content: string): EnsureIdsResult {
-  return ensureIds(content, { cardLineRe: COLLECTION_CARD_LINE_RE, skipFrontMatter: false })
+  return ensureIds(content, COLLECTION_CARD_LINE_RE)
 }
 
 export function ensureWantedIdsInContent(content: string): EnsureIdsResult {
-  return ensureIds(content, { cardLineRe: WANTED_CARD_LINE_RE, skipFrontMatter: false })
+  return ensureIds(content, WANTED_CARD_LINE_RE)
 }
 
 async function ensureIdsInDir(

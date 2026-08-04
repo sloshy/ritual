@@ -38,6 +38,7 @@ The list toolbar (shared with the public site pages) groups all card filters und
 - **Color Identity** — toggle any combination of the five colors plus a **Colorless** swatch (select it alone to find cards with no color identity), then pick a match mode: **Subset** (the default) matches any card that could be played in a deck of the selected colors, **Include** matches cards using at least one of them, **Exclude** matches cards using none of them, and **Exact** matches cards whose identity is exactly the selection
 - **Sets** — a tag input filtering by set code; type a code (space or comma finishes the tag) or pick from the autocomplete list of codes present in the list. **Include** (the default) keeps the selected sets; **Exclude** drops them
 - **Card Type** / **Oracle Tags** / **Art Tags** — tag inputs sharing the same **Include / Exclude / Exact** match mode, defaulting to **Exact** (a card must carry every selected value)
+- **Labels** — collection pages only; chips for **For Sale** / **For Trade** / **To Keep** / **Unlabeled**, matched against each card's effective [labels](#card-labels) (see the public-site [filtering](/public-site/filtering/#labels) page for the selection rules)
 - **Mana Value** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against a non-negative value (0 is valid)
 
 Filters combine, and the **Clear** action at the top of the panel resets everything. On deck pages the commander section is never filtered.
@@ -67,6 +68,7 @@ While a list is open in edit mode, the **Selected (N)** menu also gains an **edi
 - **Set as Foil** / **Set as Nonfoil** — set the finish on each selected card that supports it (others are skipped)
 - **Change Printing…** — runs the printing picker over the selected cards one at a time (cancelling skips that card and continues)
 - **Set as Commander** — decks only; marks each selected card as a commander
+- **Set Label…** — collections only; opens the [label picker](#card-labels) and applies the chosen override to every selected card
 - **Move to section…** — opens a picker to move every selected card into an existing section, or **New section…** to name a new one
 - **Move to list…** — opens a picker to move every selected card into another list
 
@@ -140,7 +142,7 @@ A deck folds the added copies into one entry with a quantity; collections and wa
 
 ### Context Menu
 
-Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil**, **Change Printing…**, and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**.
+Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil**, **Change Printing…**, and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**; the Collection Editor offers [**Set Label…**](#card-labels).
 
 #### Move to Section
 
@@ -265,6 +267,13 @@ Collections correspond to `.md` files in the `collections/` directory.
 - **Printing required** — the **No specific printing** shortcut is not available; a specific printing must be selected
 - **Finish & condition required** — both must be set for collection entries
 
+### Card Labels
+
+Collections carry [card labels](/commands/edit/#collection-files) (For sale / For trade / To keep), and the collection editor is where they're edited:
+
+- **Set Label…** in a card's `⋯` context menu (and in the multi-select **Selected** menu) opens a picker with the four label states plus **Use list default**, which clears the card's override. The change is a pending `set-label` edit like any other — undoable, listed in **Changes**, and written on save. Tiles badge cards whose _override_ differs from the list default.
+- The action bar's **Labels** button opens the **Default Labels** modal, which writes the collection's front-matter `labels:` default through the [List Metadata](/admin/api/#list-metadata) route immediately (front matter is not part of the card-change pipeline, so it needs no save — and the editor adopts the returned content hash, so pending card edits still save cleanly afterward).
+
 ---
 
 ## Wanted List Editor
@@ -291,6 +300,7 @@ Wanted lists correspond to `.md` files in the `wanted/` directory.
 | No specific printing      | ✅ Allowed              | ❌ Must select    | ✅ Allowed         |
 | Condition field           | ✅ Optional             | ✅ Required       | ❌ Not applicable  |
 | Finish field              | ✅ Optional             | ✅ Required       | ✅ Optional        |
+| Card labels               | ❌                      | ✅ + list default | ❌                 |
 | Sections                  | ✅ + reserved Commander | ✅ User-named     | ✅ User-named      |
 | Add/rename/delete section | ✅                      | ✅                | ✅                 |
 | Move card to section      | ✅                      | ✅                | ✅                 |

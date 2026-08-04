@@ -1,6 +1,8 @@
 import type { DeckData } from '../types'
 import type { CollectionCardEntry, WantedListCardEntry } from '../site/data-types'
 import type { SelectedCard } from '../site/useCardSelection'
+import { normalizeCardLabels, type CardLabel } from '../card-labels'
+import type { FlatListFrontMatter } from '../flat-list-front-matter'
 import { serializeSectionedList } from '../section-format'
 import {
   aggregateQuantities,
@@ -38,9 +40,39 @@ export function serializeCollectionEntry(entry: CollectionCardEntry): string {
     entry.collectorNumber,
     entry.finish,
     entry.condition,
+    entry.labels,
     entry.note,
     entry.cardId,
   )
+}
+
+/**
+ * Prepend a flat list's front-matter block to a serialized body, with the
+ * canonical single blank line between the closing `---` and the `# Title`.
+ * Plain string concatenation on purpose: the block is carried verbatim from
+ * parse (see `FlatListFrontMatter.raw`), and this module runs in the browser,
+ * where a YAML dumper has no place.
+ */
+export function withFrontMatter(
+  frontMatter: FlatListFrontMatter | undefined,
+  body: string,
+): string {
+  if (!frontMatter) return body
+  return `${frontMatter.raw}\n${body}`
+}
+
+/**
+ * Synthesize a front-matter block from a collection's default labels — for the
+ * browser-side .md downloads, where only the baked `CollectionDetail.labels`
+ * is available. Any *other* hand-authored front-matter keys are not baked into
+ * site data, so they cannot appear in a downloaded file.
+ */
+export function frontMatterFromLabels(
+  labels: readonly CardLabel[] | undefined,
+): FlatListFrontMatter | undefined {
+  if (!labels || labels.length === 0) return undefined
+  const normalized = normalizeCardLabels(labels)
+  return { raw: `---\nlabels: [${normalized.join(', ')}]\n---\n`, data: { labels: normalized } }
 }
 
 /** Serialize one wanted-list entry to its canonical markdown line. */
@@ -64,12 +96,16 @@ export function collectionToMarkdown(
   title: string,
   entries: CollectionCardEntry[],
   sectionOrder: string[],
+  frontMatter?: FlatListFrontMatter,
 ): string {
-  return serializeSectionedList(
-    title,
-    assignMissingEntryIds(entries),
-    sectionOrder,
-    serializeCollectionEntry,
+  return withFrontMatter(
+    frontMatter,
+    serializeSectionedList(
+      title,
+      assignMissingEntryIds(entries),
+      sectionOrder,
+      serializeCollectionEntry,
+    ),
   )
 }
 
@@ -78,12 +114,16 @@ export function wantedToMarkdown(
   title: string,
   entries: WantedListCardEntry[],
   sectionOrder: string[],
+  frontMatter?: FlatListFrontMatter,
 ): string {
-  return serializeSectionedList(
-    title,
-    assignMissingEntryIds(entries),
-    sectionOrder,
-    serializeWantedListEntry,
+  return withFrontMatter(
+    frontMatter,
+    serializeSectionedList(
+      title,
+      assignMissingEntryIds(entries),
+      sectionOrder,
+      serializeWantedListEntry,
+    ),
   )
 }
 

@@ -21,7 +21,8 @@
 
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { COLLECTION_CARD_LINE_RE } from '../collection-file'
+import { COLLECTION_CARD_LINE_RE, COLLECTION_LINE_LABELS_GROUP } from '../collection-file'
+import { parseCardLabelsToken, type CardLabel } from '../card-labels'
 import { formatWantedListLine, WANTED_CARD_LINE_RE } from './wanted-helpers'
 import { formatCollectionLine } from './collection-helpers'
 import { DECK_CARD_LINE_RE } from '../importers/text-file'
@@ -104,11 +105,18 @@ export function applyTargetedChangesToContent(
   // Each update op finds the line by the entry's CURRENT identity before
   // mutating it, so a structural (no-cardId) match never chases values the
   // line does not carry yet. The matched line's `&N` is adopted so a rewrite
-  // never strips an id the target did not happen to carry.
+  // never strips an id the target did not happen to carry — and its labels
+  // token likewise, so a structurally-resolved note or printing edit on a
+  // labeled line does not strip the override.
   const rewriteWith = (mutate: () => void): void => {
     const idx = findTargetLineIndex(lines, type, entry)
     if (idx === -1) throw targetLineGone()
     entry.cardId ??= lineCardIdAt(lines, idx, type)
+    if (type === 'collection') {
+      const lineLabels = lineLabelsAt(lines, idx)
+      if ('invalid' in lineLabels) throw conflictingLabelsToken(lineLabels.invalid)
+      entry.labels ??= lineLabels.labels
+    }
     mutate()
     lines = replaceLineAt(lines, idx, serializeEntryLine(type, entry))
   }
@@ -131,6 +139,12 @@ export function applyTargetedChangesToContent(
       case 'set-note':
         rewriteWith(() => {
           entry.note = noteOrUndefined(change.note)
+        })
+        break
+      case 'set-label':
+        requireCollection(type, change.action)
+        rewriteWith(() => {
+          entry.labels = change.labels.length > 0 ? change.labels : undefined
         })
         break
       case 'set-section':
@@ -202,10 +216,18 @@ function requireDeck(type: ListType, action: string): void {
   }
 }
 
+/** Label overrides are collection-line tokens only. */
+function requireCollection(type: ListType, action: string): void {
+  if (type !== 'collection') {
+    throw new Error(`applyTargetedChanges cannot apply '${action}' to a ${type}`)
+  }
+}
+
 function findTargetLineIndex(lines: string[], type: ListType, target: EntryRef): number {
-  // Deck front matter is opaque data, never card lines — skip it so a YAML
-  // value can't be misread as (or replaced by) a card line.
-  const start = type === 'deck' ? frontMatterBodyStart(lines) : 0
+  // Front matter is opaque data, never card lines — skip it so a YAML value
+  // can't be misread as (or replaced by) a card line. Every list type can
+  // carry a block (deck metadata, collection `labels:` defaults).
+  const start = frontMatterBodyStart(lines)
   const fenced = markFencedLines(lines, start)
   for (let i = start; i < lines.length; i++) {
     // A card line inside a fenced code block is the user's prose example: it is
@@ -251,6 +273,33 @@ function lineCardIdAt(lines: string[], idx: number, type: ListType): number | un
   return idStr ? Number.parseInt(idStr, 10) : undefined
 }
 
+/**
+ * The labels token on a collection card line: absent or parsed (`labels`), or
+ * present but refused by the parser (`invalid`, e.g. `[sale,keep]`) — the
+ * caller must not rewrite such a line, since the re-serialize would silently
+ * drop the token.
+ */
+type LineLabels = { labels: CardLabel[] | undefined } | { invalid: string }
+
+/** The labels token carried by the collection card line at `idx`, if any. */
+function lineLabelsAt(lines: string[], idx: number): LineLabels {
+  const m = lines[idx]!.trim().match(COLLECTION_CARD_LINE_RE)
+  const raw = m?.[COLLECTION_LINE_LABELS_GROUP]
+  if (raw === undefined) return { labels: undefined }
+  const parsed = parseCardLabelsToken(raw)
+  return parsed.ok ? { labels: parsed.labels } : { invalid: raw }
+}
+
+/** Thrown when the target line carries a labels token the parser refuses. */
+function conflictingLabelsToken(raw: string): CardCommandError {
+  return new CardCommandError(
+    'usage_error',
+    `The target line carries a conflicting labels token [${raw}], which a rewrite would drop. ` +
+      'Fix the token in the file first.',
+    ExitCode.UsageError,
+  )
+}
+
 /** The canonical single line for `entry`, without a trailing newline. */
 function serializeEntryLine(type: ListType, entry: EntryRef): string {
   if (type === 'deck') {
@@ -272,6 +321,7 @@ function serializeEntryLine(type: ListType, entry: EntryRef): string {
       entry.collectorNumber ?? '',
       entry.finish ?? 'nonfoil',
       entry.condition,
+      entry.labels,
       entry.note,
       entry.cardId,
     ).trimEnd()

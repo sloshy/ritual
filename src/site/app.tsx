@@ -56,6 +56,8 @@ import {
   listEditSessions,
 } from './editor/edit-session-memory'
 import { pendingPrintingPrompt } from './printing-prompt'
+import { pendingKeepTradePrompt } from './keep-trade-prompt'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { TradePrintingPicker } from './TradePrintingPicker'
 import { closeFindPrintings } from './find-printings'
 import { FindPrintingsModal } from './FindPrintingsModal'
@@ -621,6 +623,7 @@ function App() {
                         slug={collectionSlug() ?? undefined}
                         entries={collectionDetail()!.entries}
                         sectionOrder={collectionDetail()!.sectionOrder}
+                        listLabels={collectionDetail()!.labels}
                         cards={collectionDetail()!.cards}
                         printings={collectionDetail()!.printings ?? {}}
                         symbolMap={collectionDetail()!.symbolMap}
@@ -825,6 +828,20 @@ function App() {
             currency={currency()}
             onSelect={(printing, finish) => prompt().onSelect(printing, finish)}
             onClose={() => prompt().onSkip()}
+          />
+        )}
+      </Show>
+
+      {/* One-time confirmation before a keep-labeled card enters a trade. */}
+      <Show when={pendingKeepTradePrompt()}>
+        {(prompt) => (
+          <ConfirmDialog
+            open
+            title={`${prompt().cardName} is marked "To keep"`}
+            message='This card is labeled "To keep". Add it to the trade anyway? You will not be asked again.'
+            confirmLabel="Add anyway"
+            onConfirm={() => prompt().onConfirm()}
+            onCancel={() => prompt().onCancel()}
           />
         )}
       </Show>

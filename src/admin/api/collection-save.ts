@@ -22,6 +22,7 @@ import {
   validateContentHash,
   finishListSave,
   listSaveResponse,
+  normalizeRequestLabels,
   normalizeRequestNotes,
   refuseUnreadableBaseline,
   type ListSaveTail,
@@ -57,6 +58,9 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
 
     const noteError = normalizeRequestNotes(changes, [])
     if (noteError) return noteError
+
+    const labelError = normalizeRequestLabels(changes)
+    if (labelError) return labelError
 
     const printingError = findCollectionPrintingError(changes)
     if (printingError) return apiError(printingError, 400)
@@ -115,7 +119,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     // Ids are assigned here rather than only inside `collectionToMarkdown`
     // (which re-runs the assigner idempotently) so the response can report them.
     const { entries: idedEntries, assignments } = assignEntryIds(current)
-    const newContent = collectionToMarkdown(title, idedEntries, order)
+    const newContent = collectionToMarkdown(title, idedEntries, order, parsed.frontMatter)
 
     const tail: ListSaveTail = {
       listType: 'collection',

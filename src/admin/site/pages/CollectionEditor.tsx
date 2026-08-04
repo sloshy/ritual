@@ -1,6 +1,8 @@
-import type { JSX } from 'solid-js'
+import { createSignal, type JSX } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
+import type { CardLabel } from '../../../card-labels'
 import type { CollectionCardEntry } from '../../../site/data-types'
+import { CollectionLabelsModal } from '../components/CollectionLabelsModal'
 import type { ListEditorConfig } from '../../../editor/useEditor'
 import type { EntryCardDataActions } from '../../../editor/useEntryCardData'
 import { collectExistingIds } from '../../../card-id'
@@ -25,6 +27,7 @@ type CollectionDataResponse = {
   success: boolean
   entries: CollectionCardEntry[]
   sectionOrder?: string[]
+  labels?: CardLabel[]
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
@@ -36,6 +39,10 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
   const defaults = useEditorDefaults('collection', 'admin')
   const lists = useAdminLists()
   const defaultCurrency = useDefaultCurrency()
+  // The list's default labels, seeded from each load and updated by the Labels
+  // modal's save (front matter is not part of the card-change pipeline).
+  const [listLabels, setListLabels] = createSignal<CardLabel[] | undefined>(undefined)
+  const [labelsOpen, setLabelsOpen] = createSignal(false)
 
   const buildConfig = (
     cardActions: EntryCardDataActions,
@@ -58,6 +65,7 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
     processLoadResponse: (response) => {
       const r = response as CollectionDataResponse
       if (!r.success) return null
+      setListLabels(r.labels)
       return {
         data: r.entries,
         poolIds: collectExistingIds(r.entries),
@@ -111,14 +119,29 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
     ctrl.editor.list().find((c) => c.slug === ctrl.editor.slug())?.name ?? ctrl.editor.slug() ?? ''
 
   return (
-    <CollectionEditorBody
-      ctrl={ctrl}
-      defaults={defaults}
-      search={adminSearch}
-      currency={ctrl.editor.currency()}
-      useScryfallImgUrls={true}
-      name={name()}
-      enableImport={true}
-    />
+    <>
+      <CollectionEditorBody
+        ctrl={ctrl}
+        defaults={defaults}
+        search={adminSearch}
+        currency={ctrl.editor.currency()}
+        useScryfallImgUrls={true}
+        name={name()}
+        listLabels={listLabels()}
+        enableImport={true}
+        onEditLabels={() => setLabelsOpen(true)}
+      />
+      <CollectionLabelsModal
+        open={labelsOpen()}
+        onClose={() => setLabelsOpen(false)}
+        slug={ctrl.editor.slug()}
+        labels={listLabels()}
+        contentHash={ctrl.editor.contentHash()}
+        onSaved={(labels, contentHash) => {
+          setListLabels(labels)
+          ctrl.editor.setContentHash(contentHash)
+        }}
+      />
+    </>
   )
 }

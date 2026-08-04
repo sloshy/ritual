@@ -11,6 +11,8 @@ import { useSelectionCopy } from './useSelectionCopy'
 import { addSelectionToTrade } from './useSelectionTrade'
 import { openSelectionView } from './SelectionModal'
 import { promptListMove, promptSectionMove } from './move-prompt'
+import { promptCardLabels } from './label-prompt'
+import type { CardLabel } from '../card-labels'
 
 const PANEL_WIDTH = 220
 
@@ -36,6 +38,8 @@ export interface SelectionEditActions {
   changePrinting: () => void
   /** Present for decks only. */
   setCommander?: () => void
+  /** Present for collections only — set/clear the label override on the selection. */
+  setLabel?: (labels: CardLabel[]) => void
   moveToSection: (section: string) => void
   promptNewSection: () => void
   /** Current section names, for the move submenu. */
@@ -266,6 +270,24 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
                   onClick={() => runEdit(setCommander())}
                 >
                   Set as Commander
+                </button>
+              )}
+            </Show>
+            <Show when={actions().setLabel}>
+              {(setLabel) => (
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="selection-menu-item"
+                  onClick={() => {
+                    // Capture before closing: the close may unmount this <Show>,
+                    // and the picker's callback runs after that.
+                    const apply = setLabel()
+                    props.onClose()
+                    promptCardLabels((labels) => apply(labels))
+                  }}
+                >
+                  Set Label…
                 </button>
               )}
             </Show>

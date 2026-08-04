@@ -847,3 +847,28 @@ describe('decodeTradeFromParams — URL-decode race / stale-entry coverage', () 
     })
   }
 })
+
+describe('decode — labels re-resolved from the loaded entries', () => {
+  test('a decoded collection row carries its entry labels, so the KEEP tag survives a shared URL', async () => {
+    const card = makeCard()
+    const entry = makeSearchEntry({
+      sourceName: 'My Binder',
+      sourceKind: 'collection',
+      labels: ['keep'],
+      maxQty: 1,
+      cardIds: [3],
+    })
+    const left: TradeCardEntry[] = [
+      {
+        name: entry.name,
+        scryfallCard: card,
+        source: 'collection',
+        sourceName: 'My Binder',
+        qty: 1,
+        sourceCardIds: [3],
+      },
+    ]
+    const decoded = await roundTrip(left, [], { ...noEntries, collectionEntries: [entry] })
+    expect(decoded.left[0]!.labels).toEqual(['keep'])
+  })
+})

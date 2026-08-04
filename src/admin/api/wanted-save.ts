@@ -95,7 +95,7 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
     // Ids are assigned here rather than only inside `wantedToMarkdown` (which
     // re-runs the assigner idempotently) so the response can report them.
     const { entries: idedEntries, assignments } = assignEntryIds(entries)
-    const newContent = wantedToMarkdown(title, idedEntries, order)
+    const newContent = wantedToMarkdown(title, idedEntries, order, previous.frontMatter)
 
     const tail: ListSaveTail = {
       listType: 'wanted',

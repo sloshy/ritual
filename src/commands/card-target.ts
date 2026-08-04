@@ -45,6 +45,7 @@ import {
 } from '../card-printing'
 import { CardCommandError, getErrorMessage } from '../errors'
 import { parsePositiveInteger } from '../parse-number'
+import type { CardLabel } from '../card-labels'
 import type { Condition, Finish, ScryfallCard } from '../types'
 
 /** Unified summary for a card entry across all list types. */
@@ -54,6 +55,8 @@ export type EntryRef = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Label override — collections only; deck and wanted entries never carry labels. */
+  labels?: CardLabel[]
   note?: string
   cardId?: number
   /** Line quantity — decks only; flat-list entries are one physical card each. */
@@ -238,6 +241,7 @@ export async function loadEntryRefs(type: ListType, filePath: string): Promise<E
       collectorNumber: e.collectorNumber,
       finish: e.finish,
       condition: e.condition,
+      labels: e.labels,
       note: e.note,
       cardId: e.cardId,
     }))

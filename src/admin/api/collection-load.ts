@@ -9,11 +9,12 @@ const COLLECTION_LOAD_CFG: FlatListLoadConfig<CollectionEntry> = {
   getDir: getCollectionsDir,
   parse: (content): FlatListParseResult<CollectionEntry> => {
     const parsed = parseCollectionFile(content)
-    const { entries, sectionOrder } = parsed
+    const { entries, sectionOrder, labels } = parsed
     // Set codes are normalized to lowercase so they match Scryfall card keys.
     return {
       entries: entries.map((entry) => ({ ...entry, set: entry.set.toLowerCase() })),
       sectionOrder,
+      labels,
       // Fenced code blocks join the parse warnings — see `deck-load.ts`.
       warnings: unreadableLines(parsed),
     }

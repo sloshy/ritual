@@ -251,3 +251,15 @@ describe('parseWantedListFile — deck-style quantity prefixes', () => {
     expect(advisories).toEqual([])
   })
 })
+
+describe('parseWantedListFile — front matter', () => {
+  test('skips and captures a block without warnings or interpretation', () => {
+    const content = '---\nlabels: [sale]\nowner: me\n---\n\n# Wants\n\n- Mana Crypt &1\n'
+    const parsed = parseWantedListFile(content)
+    expect(parsed.entries).toHaveLength(1)
+    expect(parsed.warnings).toHaveLength(0)
+    expect(parsed.frontMatter?.raw).toBe('---\nlabels: [sale]\nowner: me\n---\n')
+    // Wanted lists define no front-matter keys — the block is carried, never read.
+    expect('labels' in parsed).toBe(false)
+  })
+})

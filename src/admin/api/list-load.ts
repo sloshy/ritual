@@ -15,6 +15,7 @@ import {
   toCountParams,
   type ListLoadParams,
 } from './list-load-params'
+import type { CardLabel } from '../../card-labels'
 import type {
   FlatCardsLoadResult,
   FlatFullLoadResult,
@@ -97,6 +98,8 @@ export function stampLoadBody<T extends ListLoadStamp>(
 export interface FlatListParseResult<T> {
   entries: T[]
   sectionOrder: string[]
+  /** The list's default card labels from its front matter — collections only. */
+  labels?: CardLabel[]
   /**
    * Lines the parser could not read. Carried through to every load body, so a
    * list holding an unreadable line no longer loads as merely shorter.
@@ -141,7 +144,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
     const { slug, filePath, params } = prologue.value
 
     const content = await Bun.file(filePath).text()
-    const { entries: allEntries, sectionOrder, warnings } = cfg.parse(content)
+    const { entries: allEntries, sectionOrder, labels, warnings } = cfg.parse(content)
     // Hashed from the content itself, never the sidecar — see deck-load.ts.
     const contentHash = computeHash(content)
 
@@ -173,6 +176,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
         view: 'cards',
         entries,
         sectionOrder,
+        labels,
         totalCount,
         warnings,
       }
@@ -193,6 +197,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
       entries,
       totalCount,
       sectionOrder,
+      labels,
       cards,
       printings,
       symbolMap,

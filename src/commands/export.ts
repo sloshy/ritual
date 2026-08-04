@@ -2,11 +2,13 @@ import path from 'node:path'
 import type { Command } from 'commander'
 import { countLabel } from '../editor/change-bundle'
 import { isFinish, VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
+import { CARD_LABEL_SELECTION_NONE, CARD_LABELS } from '../card-labels'
 import { type ListType } from '../list-type'
 import {
   buildExportSelection,
   hasActiveExportFilters,
   parseConditionFilterValues,
+  parseLabelFilterValues,
   type ExportFilters,
 } from '../export/entries'
 import {
@@ -55,6 +57,7 @@ type ExportCommandOptions = {
   set?: string
   finish?: string
   condition?: string
+  labels?: string
   /** The `--format <format>` export format, validated by its argParser. */
   format?: ExportFormat
   columns?: string
@@ -143,6 +146,19 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
       return undefined
     }
     filters.conditions = conditions
+  }
+  if (options.labels !== undefined) {
+    const labels = parseLabelFilterValues(
+      options.labels
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
+    )
+    if (typeof labels === 'string') {
+      usageError(labels)
+      return undefined
+    }
+    filters.labels = labels
   }
 
   let columns: ExportProperty[] | undefined
@@ -332,6 +348,10 @@ export function registerExportCommand(program: Command): void {
       .option(
         '--condition <list>',
         `Only cards with one of these conditions (comma-separated): ${VALID_CONDITIONS.join(', ')}, none (no condition marked)`,
+      )
+      .option(
+        '--labels <list>',
+        `Only collection cards whose effective labels include one of these (comma-separated): ${CARD_LABELS.join(', ')}, ${CARD_LABEL_SELECTION_NONE} (unlabeled)`,
       )
       // Validated by the shared argParser, but deliberately given no commander
       // default: `undefined` must keep meaning "not given" so a preset's stored

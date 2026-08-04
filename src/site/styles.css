@@ -1224,6 +1224,12 @@ body {
 .trade-row-name-meta .src-tag.want {
   --src-tone: oklch(75% 0.14 25);
 }
+/* The KEEP reminder tag on a keep-labeled card; tone from the theme editor's
+   Labels group (theme-base.css). */
+.trade-row-name-meta .src-tag.label-keep-tag {
+  --src-tone: var(--label-keep);
+  font-weight: 600;
+}
 
 /* The qty stepper itself lives in ../css/controls.css — it is shared with the
    editor's add-card dialog. Compact, square-ish icon buttons here match it. */

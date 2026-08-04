@@ -400,13 +400,14 @@ For a **deck** line:
 
 For a **collection** entry:
 
-| Action                | Description                                                    |
-| --------------------- | -------------------------------------------------------------- |
-| `🖼️ Change Printing`  | Pick a new printing, finish, and condition for the entry       |
-| `✨ Change Finish`    | Switch between `nonfoil`, `foil`, and `etched`                 |
-| `📋 Change Condition` | Switch between `NM`, `LP`, `MP`, `HP`, and `DMG`               |
-| `📝 Edit Note`        | Edit or clear the entry's note                                 |
-| `🗑️ Remove`           | Delete the entry (asks for confirmation); releases its `&N` id |
+| Action                | Description                                                                             |
+| --------------------- | --------------------------------------------------------------------------------------- |
+| `🖼️ Change Printing`  | Pick a new printing, finish, and condition for the entry                                |
+| `✨ Change Finish`    | Switch between `nonfoil`, `foil`, and `etched`                                          |
+| `📋 Change Condition` | Switch between `NM`, `LP`, `MP`, `HP`, and `DMG`                                        |
+| `🏷️ Change Label`     | Set the label override (For sale / For trade / both / To keep) or revert to the default |
+| `📝 Edit Note`        | Edit or clear the entry's note                                                          |
+| `🗑️ Remove`           | Delete the entry (asks for confirmation); releases its `&N` id                          |
 
 For a **wanted list** entry:
 
@@ -505,15 +506,15 @@ auto-assigned. Decrementing a quantity keeps the ID; only removing the whole lin
 Each card entry is written to a markdown collection file in the `collections/` directory:
 
 ```
-- Card Name (SET:CN) [finish] [condition] {note} &N
+- Card Name (SET:CN) [finish] [condition] [labels] {note} &N
 ```
 
 For example:
 
 ```
 - Sol Ring (C19:221) [foil] &1
-- Lightning Bolt (LEA:161) [LP] &2
-- Mana Crypt (2XM:270) [foil] {Japanese language, ignore pricing} &3
+- Lightning Bolt (LEA:161) [LP] [keep] &2
+- Mana Crypt (2XM:270) [foil] [sale,trade] {Japanese language, ignore pricing} &3
 ```
 
 Non-foil finish and the default `NM` condition are omitted for brevity, matching deck lines (a
@@ -521,6 +522,38 @@ Non-foil finish and the default `NM` condition are omitted for brevity, matching
 after entry via the `📝 Add Note` menu option. Notes are displayed in the card detail modal on the
 generated site. The `&N` suffix is a persistent card ID used internally for change tracking and is
 auto-assigned.
+
+The optional `[labels]` token is the card's **label override**: `sale` ("For sale") and `trade`
+("For trade") combine as `[sale,trade]`, while `keep` ("To keep") always stands alone — `[sale,keep]`
+is a parse warning that blocks whole-file rewrites until fixed. A card's _effective_ labels are its
+own token when present, else the collection's front-matter default (below); the override replaces
+the default, it never merges with it. Set an override with `set-card --label` or the editors'
+`🏷 Change Label` / `Set Label…` actions; `--label none` (or "Use list default") clears it. A
+[`ritual move`](/commands/move/) to another collection carries the override; moving to a deck or
+wanted list drops it (those formats have no labels), and the _editors'_ **Move to list…** flow
+drops it in every case (like notes, the editor move events don't carry it).
+
+### Collection Front Matter
+
+A collection file may open with a YAML front-matter block declaring the list's **default labels**:
+
+```markdown
+---
+labels: [sale, trade]
+---
+
+# Trade Binder
+```
+
+Every entry without its own `[labels]` override inherits the default. `labels:` takes `sale` and
+`trade` (together or alone) or `keep` (alone); an empty list means no default. Card-line saves
+round-trip the block byte-for-byte — unknown hand-authored keys included — and a block whose YAML
+cannot be read is carried verbatim with an advisory rather than rejected. (A _metadata_ write —
+the admin **Labels** button or `set_list_metadata` — re-dumps the YAML: every key and value
+survives, but comments and quoting style do not.) Set the default by hand-editing the file, with
+the admin collection editor's **Labels** button, or via the MCP `set_list_metadata` tool; there is
+no CLI command for it (matching deck metadata). Wanted lists carry no front-matter keys of their
+own, though a block on one is preserved.
 
 ## Wanted Lists
 

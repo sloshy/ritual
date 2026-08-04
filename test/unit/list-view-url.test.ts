@@ -430,3 +430,32 @@ describe('hasListViewParams', () => {
     expect(hasListViewParams(new URLSearchParams(''))).toBe(false)
   })
 })
+
+describe('labels param', () => {
+  test('written as canonical CSV only when active', () => {
+    const state = defaultState()
+    state.filters.labels = ['sale', 'trade']
+    expect(encode(state).get('labels')).toBe('sale,trade')
+    state.filters.labels = []
+    expect(encode(state).has('labels')).toBe(false)
+  })
+
+  test('non-canonical store order is normalized on write', () => {
+    const state = defaultState()
+    state.filters.labels = ['trade', 'sale']
+    expect(encode(state).get('labels')).toBe('sale,trade')
+  })
+
+  test('parses back through parseListViewParams', () => {
+    const params = new URLSearchParams('labels=keep')
+    expect(parseListViewParams(params).filters?.labels).toEqual(['keep'])
+    expect(parseListViewParams(new URLSearchParams('labels=none')).filters?.labels).toEqual([
+      'none',
+    ])
+  })
+
+  test('an illegal combination is ignored whole', () => {
+    const params = new URLSearchParams('labels=keep,sale')
+    expect(parseListViewParams(params).filters?.labels).toBeUndefined()
+  })
+})

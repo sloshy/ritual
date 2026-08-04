@@ -125,6 +125,10 @@ ritual set-card "To Buy" "Demonic Tutor" --wanted --finish foil --output json
 - \`--condition NM|LP|MP|HP|DMG|NONE\` — decks and collections only (wanted entries
   carry no condition). \`NONE\` clears a recorded grade; note that \`NM\` is the
   unrecorded default and writes an ungraded line, exactly like \`NONE\`.
+- \`--label sale,trade|keep|none\` — collections only. Sets the card's label
+  override (\`sale\`/\`trade\` combine; \`keep\` stands alone); \`none\` clears it so
+  the collection's front-matter default applies again. \`add-card\` takes the
+  same \`--label\` (minus \`none\`) to label a fresh collection add.
 - Decks only: \`--section <name>\` moves the line to that section (created if
   missing); \`--commander\` / \`--no-commander\` move it into / out of the
   \`## Commander\` section.
@@ -292,14 +296,18 @@ ritual export --collection --preset archidekt         # built-in: Archidekt impo
 
 List names take an optional \`deck:\`/\`collection:\`/\`wanted:\` prefix (or scope with
 \`--deck\`/\`--collection\`/\`--wanted\`). Filters: \`--name <terms>\`, \`--set <code>\`,
-\`--finish nonfoil|foil|etched\` (nonfoil also matches unmarked cards), and
+\`--finish nonfoil|foil|etched\` (nonfoil also matches unmarked cards),
 \`--condition <list>\` — comma-separated NM|LP|MP|HP|DMG|none, where a grade
 matches only cards with it explicitly marked and \`none\` matches cards without
-one (e.g. \`--condition NM,none\`); wanted entries never match. Available columns:
+one (e.g. \`--condition NM,none\`); wanted entries never match — and
+\`--labels <list>\` — comma-separated sale|trade|keep|none matched against each
+collection card's *effective* labels (\`none\` = unlabeled); deck and wanted
+entries never match. Available columns:
 \`name\`, \`quantity\`, \`set\`, \`collectorNumber\`, \`edition\` (set + collector
 number as \`SET:number\`), \`scryfallId\` (the printing's Scryfall UUID, resolved
 from the local Scryfall cache — an uncached printing exports an empty cell plus a
-warning), \`finish\`, \`isFoil\` (true when foil or etched), \`condition\`, \`note\`,
+warning), \`finish\`, \`isFoil\` (true when foil or etched), \`condition\`, \`labels\`
+(effective labels, comma-joined), \`note\`,
 \`section\`, \`listName\`, \`listType\`. Columns apply to
 csv/json only: giving \`--columns\`, \`--dialect\`, \`--no-header\`, or \`--quote-all\`
 alongside an explicit \`--format text|md\` is a usage error (a preset's stored

@@ -458,6 +458,117 @@ const MOCK_SITE_INDEX_WITH_DUP_COLLECTION = makeSiteIndex({
   ],
 })
 
+/** A collection entry with neutral defaults; spread overrides on top. */
+function makeCollectionEntry(overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry {
+  return {
+    name: 'Test Card',
+    set: 'tst',
+    collectorNumber: '1',
+    finish: 'nonfoil',
+    condition: 'NM',
+    price: 0,
+    fileOrder: 0,
+    section: 'Main',
+    ...overrides,
+  }
+}
+
+// ===== Collections with card labels (sale / trade / keep) =====
+
+/** One synthetic printing per labeled entry, keyed by a unique set:cn. */
+function makeLabelCard(name: string, collectorNumber: string): ScryfallCard {
+  return makeMockScryfallCard({
+    id: `label-${collectorNumber}`,
+    name,
+    cmc: 1,
+    type_line: 'Artifact',
+    prices: { usd: '1.00' },
+    set: 'tst',
+    collector_number: collectorNumber,
+  })
+}
+
+function makeLabelEntry(
+  name: string,
+  collectorNumber: string,
+  fileOrder: number,
+  labels?: CollectionDetail['labels'],
+): CollectionCardEntry {
+  return makeCollectionEntry({
+    name,
+    collectorNumber,
+    labels,
+    price: 1.0,
+    fileOrder,
+    cardId: fileOrder + 1,
+  })
+}
+
+// Every chip is testable on one page: each label appears as an override, plus
+// one unlabeled card. No list default, so every badge here is an override.
+const MOCK_LABEL_BINDER_DETAIL = {
+  name: 'Label Binder',
+  entries: [
+    makeLabelEntry('Sale Card', '1', 0, ['sale']),
+    makeLabelEntry('Trade Card', '2', 1, ['trade']),
+    makeLabelEntry('Keep Card', '3', 2, ['keep']),
+    makeLabelEntry('Plain Card', '4', 3),
+  ],
+  cards: {
+    'tst:1': makeLabelCard('Sale Card', '1'),
+    'tst:2': makeLabelCard('Trade Card', '2'),
+    'tst:3': makeLabelCard('Keep Card', '3'),
+    'tst:4': makeLabelCard('Plain Card', '4'),
+  },
+  printings: {},
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  totalPrice: 4.0,
+  defaultCurrency: 'usd',
+} satisfies CollectionDetail
+
+// A list-level default (`sale, trade`) with one keep override — proves the
+// default resolves end-to-end and that tiles badge overrides only.
+const MOCK_SALE_BINDER_DETAIL = {
+  name: 'Sale Binder',
+  labels: ['sale', 'trade'],
+  entries: [makeLabelEntry('Default Card', '5', 0), makeLabelEntry('Keeper', '6', 1, ['keep'])],
+  cards: {
+    'tst:5': makeLabelCard('Default Card', '5'),
+    'tst:6': makeLabelCard('Keeper', '6'),
+  },
+  printings: {},
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  totalPrice: 2.0,
+  defaultCurrency: 'usd',
+} satisfies CollectionDetail
+
+const MOCK_SITE_INDEX_FOR_LABELS = makeSiteIndex({
+  collections: [
+    makeCollectionSummary({
+      slug: 'label-binder',
+      name: 'Label Binder',
+      cardCount: 4,
+      totalPrice: 4.0,
+    }),
+    makeCollectionSummary({
+      slug: 'sale-binder',
+      name: 'Sale Binder',
+      cardCount: 2,
+      totalPrice: 2.0,
+      labels: ['sale', 'trade'],
+    }),
+  ],
+})
+
+/** Mock two labeled collections for the labels filter / badge / index-dropdown tests. */
+export async function mockPublicSiteCollectionsForLabels(page: Page): Promise<void> {
+  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_FOR_LABELS)
+  await fulfillJson(page, '**/collections/label-binder.json', MOCK_LABEL_BINDER_DETAIL)
+  await fulfillJson(page, '**/collections/sale-binder.json', MOCK_SALE_BINDER_DETAIL)
+}
+
 /** Mock a collection with duplicate entries, for the duplicate-grouping selection tests. */
 export async function mockPublicSiteCollectionWithDuplicates(page: Page): Promise<void> {
   await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_WITH_DUP_COLLECTION)
@@ -695,6 +806,21 @@ const MOCK_TRADE_COLLECTION_CARD_JOTUN = makeMockScryfallCard({
   released_at: '2006-07-21',
 })
 
+/** Keep-labeled entry backing the trade keep-guard tests. Never label the cards above — existing specs add them freely. */
+const MOCK_TRADE_COLLECTION_CARD_GEM = makeMockScryfallCard({
+  id: 'trade-gem-id',
+  name: 'Guarded Gem',
+  cmc: 2,
+  type_line: 'Artifact',
+  oracle_text: '{T}: Add one mana of any color.',
+  prices: { usd: '9.00', eur: '8.00' },
+  set: 'tst',
+  set_name: 'Test Set',
+  collector_number: '42',
+  rarity: 'rare',
+  released_at: '2020-01-01',
+})
+
 const MOCK_TRADE_WANTED_CARD_CRYPT = makeMockScryfallCard({
   id: 'trade-crypt-id',
   name: 'Mana Crypt',
@@ -769,20 +895,35 @@ const MOCK_TRADE_COLLECTION_DETAIL = {
       section: 'Main',
       cardId: 5,
     },
+    // Keep-labeled: the trade keep-guard specs add this one.
+    {
+      name: 'Guarded Gem',
+      set: 'tst',
+      collectorNumber: '42',
+      finish: 'nonfoil',
+      condition: 'NM',
+      labels: ['keep'],
+      price: 9.0,
+      fileOrder: 5,
+      section: 'Main',
+      cardId: 6,
+    },
   ],
   cards: {
     'lea:161': MOCK_TRADE_COLLECTION_CARD_BOLT,
     'c19:221': MOCK_TRADE_COLLECTION_CARD_RING,
     'csp:14': MOCK_TRADE_COLLECTION_CARD_JOTUN,
+    'tst:42': MOCK_TRADE_COLLECTION_CARD_GEM,
   },
   printings: {
     'Lightning Bolt': [MOCK_TRADE_COLLECTION_CARD_BOLT],
     'Sol Ring': [MOCK_TRADE_COLLECTION_CARD_RING],
     'Jötun Grunt': [MOCK_TRADE_COLLECTION_CARD_JOTUN],
+    'Guarded Gem': [MOCK_TRADE_COLLECTION_CARD_GEM],
   },
   symbolMap: {},
   useScryfallImgUrls: false,
-  totalPrice: 6.5,
+  totalPrice: 20.5,
   defaultCurrency: 'usd',
 } satisfies CollectionDetail
 
@@ -875,8 +1016,8 @@ const MOCK_SITE_INDEX_FOR_TRADE = makeSiteIndex({
     makeCollectionSummary({
       slug: 'trade-collection',
       name: 'Trade Collection',
-      cardCount: 2,
-      totalPrice: 5.5,
+      cardCount: 6,
+      totalPrice: 20.5,
     }),
   ],
   wantedLists: [
@@ -1028,16 +1169,7 @@ function binderEntry(
   collectorNumber: string,
   fileOrder: number,
 ): CollectionCardEntry {
-  return {
-    name,
-    set,
-    collectorNumber,
-    finish: 'nonfoil',
-    condition: 'NM',
-    price: 0,
-    fileOrder,
-    section: 'Main',
-  }
+  return makeCollectionEntry({ name, set, collectorNumber, fileOrder })
 }
 
 // The owned Moonshadow printing (ecl:386). The collection's card map also holds

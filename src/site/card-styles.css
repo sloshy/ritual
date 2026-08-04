@@ -272,6 +272,38 @@ h3 {
   color: var(--card-label-price);
 }
 
+/* ===== Card label badges (sale / trade / keep) =====
+   Compact uppercase micro-tags rendered beside the printing label in every
+   view mode. Tones are theme variables (see theme-base.css / the Labels group
+   in the theme editor); the badge inherits its tone via --label-tone. */
+.card-label-badges {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 4px;
+  vertical-align: baseline;
+}
+
+.card-label-badge {
+  color: var(--label-tone, var(--text-muted));
+  font-size: 0.6rem;
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.card-label-badge.label-sale {
+  --label-tone: var(--label-sale);
+}
+
+.card-label-badge.label-trade {
+  --label-tone: var(--label-trade);
+}
+
+.card-label-badge.label-keep {
+  --label-tone: var(--label-keep);
+}
+
 .card-binder:hover .card-label,
 .card-overlap:hover .card-label {
   opacity: 1;

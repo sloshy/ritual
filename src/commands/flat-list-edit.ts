@@ -9,6 +9,7 @@ import {
   type PrintingTuple,
 } from '../change-event'
 import type { Condition, Finish } from '../types'
+import type { CardLabel } from '../card-labels'
 import { allocateId, claimId, releaseId } from '../card-id'
 import {
   promptNoteEdit,
@@ -47,6 +48,8 @@ export type EditableFlatListEntry = FlatListEntry & {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Label override — collection entries only; wanted entries never carry one. */
+  labels?: CardLabel[]
   note?: string
 }
 
@@ -234,6 +237,8 @@ export function performFlatListRemoval<E extends EditableFlatListEntry>(
       collectorNumber: removed.collectorNumber,
       finish: removed.finish,
       condition: removed.condition,
+      // The label override rides the add itself, so undoing a removal restores it.
+      labels: removed.labels,
       cardId,
       section: removed.section,
     }),
