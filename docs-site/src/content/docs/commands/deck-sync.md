@@ -187,9 +187,9 @@ exists on Archidekt:
 - `-n, --dry-run` reports the link without writing; `--output json` emits the result, and `--quiet`
   drops the text confirmation.
 
-This is the same write the admin API's `PUT /api/metadata/deck/:slug` and the MCP `set_list_metadata`
-tool perform — all three go through one front-matter writer, so linking behaves identically wherever
-you do it.
+This is the same write the admin API's `PUT /api/metadata/deck/:slug`, the MCP `set_list_metadata`
+tool, and [`ritual metadata`](/commands/metadata/) perform — all four go through one front-matter
+writer, so linking behaves identically wherever you do it.
 
 :::note[Creating a deck on Archidekt is not supported]
 

@@ -66,10 +66,17 @@ ritual add-card "Main Binder" "Mox Jet" --collection --set lea --collector-numbe
 ritual export --collection --labels trade --columns name,set,collectorNumber,labels
 \`\`\`
 
-The list-level default is set by hand-editing the front matter, through the
-admin editor's **Labels** button, or with the MCP \`set_list_metadata\` tool
-(\`labels\` on a collection; \`null\` clears it). There is no CLI command for it,
-matching deck metadata.
+The list-level default is set with \`ritual metadata\` (the scripting surface —
+mirrors \`ritual config\`'s set/get/list/unset shape), the interactive session's
+\`🏷️ Edit List Labels\` action (written on the session's next save), the admin
+editor's **Labels** button, hand-editing the front matter, or the MCP
+\`set_list_metadata\` tool (\`labels\` on a collection; \`null\` clears it).
+
+\`\`\`bash
+ritual metadata set "Main Binder" labels sale,trade   # list default
+ritual metadata get "Main Binder" labels
+ritual metadata unset "Main Binder" labels            # no default
+\`\`\`
 
 ## Interactive management
 

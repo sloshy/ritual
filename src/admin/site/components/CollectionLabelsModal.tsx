@@ -1,7 +1,7 @@
 import { type Component, createEffect, createSignal, For, Show, on } from 'solid-js'
 import { Modal } from '../../../ui/Modal'
 import type { CardLabel, CardLabelChoice } from '../../../card-labels'
-import { CARD_LABEL_CHOICES, sameCardLabels } from '../../../card-labels'
+import { CARD_LABEL_DEFAULT_CHOICES, sameCardLabels } from '../../../card-labels'
 import type { MetadataResponse } from '../../api/metadata'
 import type { ApiErrorResponse } from '../../api/save-helpers'
 
@@ -17,12 +17,6 @@ type CollectionLabelsModalProps = {
   /** Adopt the write: the new default labels and the file's new content hash. */
   onSaved: (labels: CardLabel[] | undefined, contentHash: string) => void
 }
-
-/** One radio row per label state, "No default" first ("Use list default" makes no sense here). */
-const DEFAULT_CHOICES: readonly CardLabelChoice[] = [
-  { label: 'No default', labels: [] },
-  ...CARD_LABEL_CHOICES.filter((choice) => choice.labels.length > 0),
-]
 
 /**
  * Edit the collection's default card labels (`labels:` front matter) via
@@ -86,7 +80,7 @@ export const CollectionLabelsModal: Component<CollectionLabelsModalProps> = (pro
         own label.
       </p>
       <div class="labels-modal-choices" role="radiogroup" aria-label="Default labels">
-        <For each={DEFAULT_CHOICES}>
+        <For each={CARD_LABEL_DEFAULT_CHOICES}>
           {(choice) => (
             <label class="labels-modal-choice">
               <input

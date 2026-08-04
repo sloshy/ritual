@@ -25,6 +25,11 @@ export const DECK_METADATA_KEYS = [
 /** A key a metadata write accepts. */
 export type DeckMetadataKey = (typeof DECK_METADATA_KEYS)[number]
 
+/** True when `value` names a writable deck metadata field. */
+export function isDeckMetadataKey(value: string): value is DeckMetadataKey {
+  return (DECK_METADATA_KEYS as readonly string[]).includes(value)
+}
+
 /**
  * A validated patch. An absent key is left alone; a key mapped to `null` is
  * deleted from the front matter; any other value is written. `null` (rather than

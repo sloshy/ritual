@@ -74,6 +74,22 @@ export type WriteListFrontMatterOptions = {
 }
 
 /**
+ * Dump a front-matter mapping to its block text — both `---` fences, trailing
+ * newline included — or `undefined` for an empty mapping (no block at all).
+ * The in-memory counterpart of {@link writeListFrontMatter}, for callers that
+ * hold a file's content themselves (the CLI edit session's deferred save).
+ * Same caveat as every metadata write: js-yaml re-dumps the YAML, so comments
+ * and quoting style are not preserved.
+ */
+export function dumpFrontMatterBlock(data: Record<string, unknown>): string | undefined {
+  if (Object.keys(data).length === 0) return undefined
+  const source: FrontMatterFile = { content: '', data: {} }
+  // stringify appends the (empty) content after a separating newline; the raw
+  // block ends at the closing fence, exactly as the parse side captures it.
+  return matter.stringify(source, data).replace(/\n+$/, '\n')
+}
+
+/**
  * Rewrite only a list file's YAML front matter, leaving the markdown body byte
  * for byte as it was (modulo {@link WriteListFrontMatterOptions.blankLineAfterBlock}
  * and a trailing newline gained by a body that lacked one). An empty

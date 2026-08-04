@@ -7,8 +7,10 @@ import type { DryRunOptions } from './scripting'
  * Commands whose action writes list files or consumes persisted `&N` card IDs —
  * only these trigger the file-writing ID backfill (`ensureCardIdsForAllLists`)
  * in the root preAction hook. Everything else (read-only commands, the
- * new/rename/delete lifecycle, cache/config/legal surfaces) must leave list
- * files untouched, so a new command defaults to NOT backfilling.
+ * new/rename/delete lifecycle, cache/config/legal surfaces, and front-matter-
+ * only writers like `metadata`, which touch list files but never their card
+ * lines) must leave card lines untouched, so a new command defaults to NOT
+ * backfilling.
  *
  * Matched on the action command's leaf name, or on `"<parent> <leaf>"` for a
  * subcommand that must be named with its parent — so nested subcommands (e.g.

@@ -13,10 +13,13 @@ import {
   VALID_FINISHES,
 } from './collection-helpers'
 import {
+  menuItem,
   promptEditAction,
   promptSessionConfigUpdate,
   type CardSessionContext,
   type CardSessionStrategy,
+  type MenuChoice,
+  type MenuSentinel,
   type SessionConfig,
 } from './card-session'
 import {
@@ -57,10 +60,15 @@ import {
 } from '../change-event'
 import {
   CARD_LABEL_CHOICES,
+  CARD_LABEL_DEFAULT_CHOICES,
   formatCardLabels,
+  parseCardLabelsValue,
   sameCardLabels,
   type CardLabel,
+  type CardLabelChoice,
 } from '../card-labels'
+import { dumpFrontMatterBlock, readFrontMatterMapping } from '../front-matter-write'
+import { applyLabelsPatch } from '../flat-list-metadata'
 
 type ValuePromptResponse = { value?: string }
 
@@ -85,24 +93,24 @@ async function promptFinishChoice(
 }
 
 /**
- * Pick a label override for an existing entry: the four label states plus
- * "Use list default" (clear, encoded as `[]`). The current state is marked and
- * the cursor starts on it. Returns null when cancelled. Choices round-trip
- * through their canonical serialized form (`''` for the clear row) — a real
- * domain value, like `promptConditionChoice`'s, rather than an array index.
+ * Pick a label state from `choices`, marking the current one and starting the
+ * cursor on it. Returns null when cancelled. Choices round-trip through their
+ * canonical serialized form (`''` for the clear row) — a real domain value,
+ * like `promptConditionChoice`'s, rather than an array index. Shared by the
+ * per-card override picker and the list-default picker.
  */
-async function promptLabelChoice(
+async function promptLabelChoiceFrom(
+  choices: readonly CardLabelChoice[],
   current: readonly CardLabel[] | undefined,
+  message: string,
 ): Promise<CardLabel[] | null> {
   const currentKey = formatCardLabels(current ?? [])
-  const currentIndex = CARD_LABEL_CHOICES.findIndex(
-    (choice) => formatCardLabels(choice.labels) === currentKey,
-  )
+  const currentIndex = choices.findIndex((choice) => formatCardLabels(choice.labels) === currentKey)
   const response = (await prompts({
     type: 'select',
     name: 'value',
-    message: 'Label:',
-    choices: CARD_LABEL_CHOICES.map((choice, i) => ({
+    message,
+    choices: choices.map((choice, i) => ({
       title: i === currentIndex ? `${choice.label} (current)` : choice.label,
       value: formatCardLabels(choice.labels),
     })),
@@ -110,8 +118,18 @@ async function promptLabelChoice(
   })) as ValuePromptResponse
   const key = response.value
   if (key === undefined) return null
-  const picked = CARD_LABEL_CHOICES.find((choice) => formatCardLabels(choice.labels) === key)
+  const picked = choices.find((choice) => formatCardLabels(choice.labels) === key)
   return picked ? [...picked.labels] : null
+}
+
+/**
+ * Pick a label override for an existing entry: the four label states plus
+ * "Use list default" (clear, encoded as `[]`).
+ */
+async function promptLabelChoice(
+  current: readonly CardLabel[] | undefined,
+): Promise<CardLabel[] | null> {
+  return promptLabelChoiceFrom(CARD_LABEL_CHOICES, current, 'Label:')
 }
 
 /** Pick a condition for an existing entry, defaulting the cursor to the current one. */
@@ -176,10 +194,73 @@ export function createCollectionStrategy(
     console.log(`Changed: ${updated ? list.renderEntry(updated) : fallbackName}`)
   }
 
+  /** The list's current default labels, read from the session's front-matter block. */
+  const currentDefaultLabels = (): CardLabel[] => {
+    const raw = session.frontMatter?.data.labels
+    if (raw === undefined) return []
+    const parsed = parseCardLabelsValue(raw, 'labels')
+    return parsed.ok ? parsed.labels : []
+  }
+
+  /**
+   * Edit the list's default labels (`labels:` front matter). Deferred like
+   * every session edit — the block is rebuilt in memory and written on Save,
+   * following the deck strategy's Change Format precedent (model mutation +
+   * dirty flag, no ChangeEvent: front matter is not a card change).
+   */
+  const editListLabels = async (): Promise<void> => {
+    if (session.frontMatter) {
+      // A merge over keys we cannot see would clobber them (the same refusal
+      // the metadata write path gives).
+      const mapping = readFrontMatterMapping(session.frontMatter.raw)
+      if (!mapping.ok) {
+        console.error(
+          "The file's front matter could not be read as YAML, so editing the default labels " +
+            'would overwrite it. Fix the block by hand first.',
+        )
+        return
+      }
+    }
+    const data = session.frontMatter?.data ?? {}
+    const stored =
+      data.labels === undefined ? undefined : parseCardLabelsValue(data.labels, 'labels')
+    const current = stored?.ok ? stored.labels : []
+    const labels = await promptLabelChoiceFrom(
+      CARD_LABEL_DEFAULT_CHOICES,
+      current,
+      'Default labels:',
+    )
+    if (labels === null) return
+    // A stored value the parser refuses reads as "none" above, but re-picking
+    // "No default" must still rewrite the block — it is how the TUI repairs an
+    // invalid hand-edited value.
+    const storedIsClean = stored === undefined || stored.ok
+    if (storedIsClean && sameCardLabels(labels, current)) return
+
+    const merged = applyLabelsPatch(data, labels)
+    const dumped = dumpFrontMatterBlock(merged)
+    session.frontMatter = dumped === undefined ? undefined : { raw: dumped, data: merged }
+    session.dirty = true
+    console.log(
+      labels.length > 0
+        ? `Default labels set to [${formatCardLabels(labels)}].`
+        : 'Default labels cleared.',
+    )
+  }
+
   return {
     managerLabel: 'collection manager',
     saveTarget: { filePath: session.filePath, listName },
     sessionConfig,
+    extraMenuItems: (): MenuChoice[] => [
+      menuItem(
+        `🏷️  Edit List Labels (default: ${formatCardLabels(currentDefaultLabels()) || 'none'})`,
+        '__LIST_LABELS__',
+      ),
+    ],
+    handleSentinel: async (_ctx: CardSessionContext, value: MenuSentinel): Promise<void> => {
+      if (value === '__LIST_LABELS__') await editListLabels()
+    },
     updateConfig: (excludeDigital: boolean) =>
       promptSessionConfigUpdate(sessionConfig, true, excludeDigital),
     applyChange: (change: ChangeEvent) => applyFlatListChange(session, change),

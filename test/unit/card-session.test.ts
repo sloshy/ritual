@@ -264,6 +264,7 @@ describe('buildMenuChoices', () => {
       extraItems: [
         { title: '🗂️  Set Target Section', value: '__SECTION__' },
         { title: '🏷️  Change Format', value: '__FORMAT__' },
+        { title: '🔖 Edit Tags', value: '__TAGS__' },
       ],
       multiList: { totalChangeCount: 5, listsWithChanges: 2 },
       cardChoices: [],

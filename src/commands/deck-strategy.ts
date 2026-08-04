@@ -1,3 +1,4 @@
+import prompts from 'prompts'
 import type { DeckData } from '../types'
 import { promptFinishAndCondition, resolveCardPrinting } from './collection-helpers'
 import {
@@ -40,8 +41,11 @@ import {
   type PrintingTuple,
 } from '../change-event'
 import { trackAdd, trackAnotherCopy, trackEdit } from '../session-changelog'
+import { splitCommaTokens } from '../config-fields'
 import { formatSpecificPrintingPrice } from '../price-currency'
 import { getDefaultCurrency } from '../ritual-config'
+
+type TagsPromptResponse = { value?: string }
 
 export type DeckStrategyArgs = {
   deckFile: string
@@ -104,6 +108,36 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     console.log(`Format changed to ${getDeckFormatLabel(next)}.`)
   }
 
+  /** The deck's tags as shown in the menu: comma-joined, or "none". */
+  const tagsDisplay = (): string =>
+    frontMatter.tags && frontMatter.tags.length > 0 ? frontMatter.tags.join(', ') : 'none'
+
+  /**
+   * Prompt for the deck's tags (comma-separated; empty clears them). Like a
+   * format change, tags are deck-level front matter outside the card
+   * change-event model: the edit marks the session dirty and is persisted by
+   * the next save, with no changelog entry. Description and the sync source
+   * stay out of the TUI — a single-line prompt would mangle a multi-line
+   * description, and linking is `deck-sync link`'s job — `ritual metadata set`
+   * covers both.
+   */
+  const changeTags = async (): Promise<void> => {
+    const response = (await prompts({
+      type: 'text',
+      name: 'value',
+      message: 'Tags (comma separated; empty clears them):',
+      initial: (frontMatter.tags ?? []).join(', '),
+    })) as TagsPromptResponse
+    if (response.value === undefined) return
+    const tags = [...new Set(splitCommaTokens([response.value]))]
+    const before = frontMatter.tags ?? []
+    if (tags.length === before.length && tags.every((tag, i) => tag === before[i])) return
+    if (tags.length === 0) delete frontMatter.tags
+    else frontMatter.tags = tags
+    state.dirty = true
+    console.log(tags.length > 0 ? `Tags set to: ${tags.join(', ')}.` : 'Tags cleared.')
+  }
+
   /** Add a card (with or without a printing) to `section`, tracking it as the last added. */
   const addToDeck = async (
     ctx: CardSessionContext,
@@ -157,10 +191,12 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
         '__SECTION__',
       ),
       menuItem(`🏷️  Change Format (${formatDisplay()})`, '__FORMAT__'),
+      menuItem(`🔖 Edit Tags (${tagsDisplay()})`, '__TAGS__'),
     ],
     handleSentinel: async (_ctx: CardSessionContext, value: MenuSentinel): Promise<void> => {
       if (value === '__SECTION__') await promptSetTargetSection(state.deck, sessionConfig)
       if (value === '__FORMAT__') await changeFormat()
+      if (value === '__TAGS__') await changeTags()
     },
     updateConfig: (excludeDigital: boolean) =>
       promptDeckConfigUpdate(state.deck, sessionConfig, excludeDigital),

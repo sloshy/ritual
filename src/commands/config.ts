@@ -3,6 +3,7 @@ import {
   applyConfigGet,
   applyConfigSet,
   applyConfigUnset,
+  formatSettableValue,
   listConfigEntries,
   type ArrayMode,
   type SettableValue,
@@ -38,11 +39,7 @@ type ConfigUnsetResult = {
   defaultValue?: SettableValue
 }
 
-/** Render a config value for text output: scalars verbatim, arrays/objects as JSON. */
-function formatConfigValue(value: unknown): string {
-  if (typeof value === 'object' && value !== null) return JSON.stringify(value)
-  return String(value)
-}
+const formatConfigValue = formatSettableValue
 
 export function registerConfigCommand(program: Command): void {
   const config = program

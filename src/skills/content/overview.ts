@@ -208,6 +208,9 @@ ritual config set searchDebounceMs 250 # web editors' add-card search debounce i
 ritual config get <prop>          # read one value (exit 3 when unset)
 ritual config list                # print the full effective config (defaults marked)
 ritual config unset <prop>        # revert a value to its default
+ritual metadata set <list> <prop> <value...>  # list front matter, same shape as config:
+                                  #   deck description/tags/format/sourceId/sourceUrl, collection labels
+ritual metadata get|list|unset <list> [prop]  # read or clear it (get exits 3 when unset)
 ritual cache status               # report cache size/freshness/source without refreshing
 ritual cache preload-all          # warm the Scryfall card cache + tags (bulk download)
 ritual cache preload-set khm      # cache all cards of one set (exit 3 = unknown set code, 1 = search failed)

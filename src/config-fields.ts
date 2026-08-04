@@ -58,6 +58,44 @@ type SettableCollectionSyncFieldsMap = {
 
 export type ArrayMode = 'replace' | 'add' | 'remove'
 
+/**
+ * Merge new values into an array property per the mode, deduped and in
+ * first-seen order. The one merge behind `config set` and `metadata set`
+ * (documented as sharing a subcommand shape), so `--add`/`--remove` can never
+ * behave differently between the two.
+ */
+export function mergeArrayValues(
+  current: readonly string[],
+  values: readonly string[],
+  mode: ArrayMode,
+): string[] {
+  if (mode === 'replace') return [...new Set(values)]
+  if (mode === 'add') return [...new Set([...current, ...values])]
+  const toRemove = new Set(values)
+  return current.filter((item) => !toRemove.has(item))
+}
+
+/**
+ * Split values that may arrive as separate arguments or comma-joined
+ * (`a,b`) into trimmed, non-empty tokens. Shared by `metadata set`'s labels
+ * and tags paths and the editor's tags prompt, so the surfaces tokenize alike.
+ */
+export function splitCommaTokens(values: readonly string[]): string[] {
+  return values
+    .flatMap((value) => value.split(','))
+    .map((token) => token.trim())
+    .filter((token) => token !== '')
+}
+
+/**
+ * Render a settable value for text output: scalars verbatim, arrays/objects as
+ * JSON. Shared by `config` and `metadata` so the twin commands print alike.
+ */
+export function formatSettableValue(value: unknown): string {
+  if (typeof value === 'object' && value !== null) return JSON.stringify(value)
+  return String(value)
+}
+
 export type SettableValue = string | boolean | number | string[]
 
 export type ConfigSetSuccess = {
@@ -277,17 +315,7 @@ export function applyConfigSet(
     }
 
     const current = (getAtPath(config, path) as string[] | undefined) ?? []
-    let newArr: string[]
-
-    if (mode === 'replace') {
-      newArr = [...new Set(inputValues)]
-    } else if (mode === 'add') {
-      const existing = new Set(current)
-      newArr = [...current, ...inputValues.filter((v) => !existing.has(v))]
-    } else {
-      const toRemove = new Set(inputValues)
-      newArr = current.filter((v) => !toRemove.has(v))
-    }
+    const newArr = mergeArrayValues(current, inputValues, mode)
 
     // Safe: path is a validated keyof RitualConfig, value is a string[].
     const updatedConfig = setAtPath(configObj, path, newArr) as unknown as RitualConfig

@@ -209,3 +209,13 @@ export const CARD_LABEL_CHOICES = [
   { label: CARD_LABEL_DISPLAY_NAMES.keep, labels: ['keep'] },
   { label: 'Use list default', labels: [] },
 ] as const satisfies readonly CardLabelChoice[]
+
+/**
+ * The *default*-labels picker rows (the admin Default Labels modal and the CLI
+ * editor's Edit List Labels action): each labeled state plus a leading "No
+ * default" clear row — "Use list default" makes no sense for the default itself.
+ */
+export const CARD_LABEL_DEFAULT_CHOICES: readonly CardLabelChoice[] = [
+  { label: 'No default', labels: [] },
+  ...CARD_LABEL_CHOICES.filter((choice) => choice.labels.length > 0),
+]

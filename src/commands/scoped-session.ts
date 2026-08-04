@@ -8,6 +8,8 @@ import {
   type CardSessionContext,
   type CardSessionStrategy,
   type EditableEntryItem,
+  type MenuChoice,
+  type MenuSentinel,
   type SessionAddItem,
   type SessionChangeItem,
   type SessionConfig,
@@ -188,6 +190,22 @@ export function createScopedSession(args: ScopedSessionArgs): ScopedSession {
     // belong to whichever list that card was added to.
     applyChange: (change: ChangeEvent) => activeList()?.strategy.applyChange(change),
     noteAdded: (note: string) => activeList()?.strategy.noteAdded?.(note),
+
+    // Per-list session actions (target section, format, tags, default labels)
+    // belong to the active list too — the one the last add/edit landed in.
+    // Each item names that list, since the menu otherwise spans several.
+    extraMenuItems: (): MenuChoice[] => {
+      const open = activeList()
+      if (!open) return []
+      return (open.strategy.extraMenuItems?.() ?? []).map((item) => ({
+        ...item,
+        title: `${item.title} — ${open.ref.name}`,
+      }))
+    },
+    handleSentinel: async (_ctx: CardSessionContext, value: MenuSentinel): Promise<void> => {
+      const open = activeList()
+      await open?.strategy.handleSentinel?.(open.ctx, value)
+    },
 
     persist: saveAll,
     hasUnsavedChanges: () => lists().some(hasUnsavedChanges),

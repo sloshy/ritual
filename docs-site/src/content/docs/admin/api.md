@@ -1412,7 +1412,7 @@ Overwrite the list's change log with the supplied change sets. Each set needs a 
 PUT /api/metadata/:type/:slug
 ```
 
-Write a list's YAML front matter. Decks take the deck vocabulary below; collections take `labels` (their [default card labels](/commands/edit/#collection-front-matter)). Wanted lists define no front-matter keys, so `:type` of `wanted` is a `400`.
+Write a list's YAML front matter. Decks take the deck vocabulary below; collections take `labels` (their [default card labels](/commands/edit/#collection-front-matter)). Wanted lists define no front-matter keys, so `:type` of `wanted` is a `400`. Shares its engine with the [`metadata`](/commands/metadata/) CLI command.
 
 Only the fields present in the body are written; every other front-matter key (including user-authored ones) round-trips untouched. A field sent as `null` is deleted, as is a `description` sent as an empty string. The markdown body below the front matter is left byte for byte as it was — card lines are never re-serialized and no card IDs are assigned. **No changelog entry is written**: the change log is card-level, and metadata is not a card change.
 
@@ -1441,7 +1441,7 @@ Only the fields present in the body are written; every other front-matter key (i
 | Field         | Validation                                                                                                                                                                            |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `description` | Deck only. String (trimmed) or `null`; an empty string clears it                                                                                                                      |
-| `tags`        | Deck only. Array of non-empty strings (trimmed, deduplicated, order preserved) or `null`                                                                                              |
+| `tags`        | Deck only. Array of non-empty strings (trimmed, deduplicated, order preserved); `null` or `[]` clears the key                                                                         |
 | `format`      | Deck only. A [deck format](/commands/new/#deck-format) name, canonicalized (`EDH` → `commander`); `null` clears it and the deck falls back to section inference                       |
 | `sourceId`    | Deck only. Non-empty string or `null`                                                                                                                                                 |
 | `sourceUrl`   | Deck only. An `http`/`https` URL or `null`                                                                                                                                            |

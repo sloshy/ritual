@@ -197,8 +197,10 @@ each. Moving a printing-less card into a collection prompts for a specific print
 collections, and wanted lists: a selection menu covers all lists (plus create-new
 items). Sessions support name/collector entry modes, per-type edit modes over
 existing entries, and undo. Creating a deck prompts for its format, and deck sessions
-have a \`🏷️ Change Format\` menu action that rewrites the \`format:\` front matter on the
-next save. A deck with no \`format:\` is read as Commander when it has a \`## Commander\`
+have \`🏷️ Change Format\` and \`🔖 Edit Tags\` menu actions that rewrite the front
+matter on the next save; collection sessions likewise offer \`🏷️ Edit List Labels\`
+for the default card labels (scripted equivalent: \`ritual metadata\`). A deck with no
+\`format:\` is read as Commander when it has a \`## Commander\`
 section, and saving writes that inferred format into the file (see the **ritual-decks**
 skill). Not suitable for non-interactive agents — use the one-shot commands above
 instead:

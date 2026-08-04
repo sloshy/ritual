@@ -150,7 +150,10 @@ export function parseDeckMetadataBody(
         const trimmed = tag.trim()
         if (!tags.includes(trimmed)) tags.push(trimmed)
       }
-      patch.tags = tags
+      // An empty set says nothing; clear the key rather than writing `[]` —
+      // the same rule `labels` and an empty `description` follow, so "has this
+      // deck any tags?" reads the same as "has this collection a default?".
+      patch.tags = tags.length === 0 ? null : tags
     }
   }
 

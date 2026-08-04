@@ -226,26 +226,28 @@ order they appear. The card you just added comes first, so its shortcuts are alw
 to reach; the session-wide settings follow, and `🚪 Exit` sits at the very bottom where you cannot
 land on it by overshooting.
 
-| Option                                   | Description                                                                    |
-| ---------------------------------------- | ------------------------------------------------------------------------------ |
-| `➕ Add Exact Copy`                      | Add another copy of the last added card, identical options                     |
-| `➕ Add Similar Copy`                    | Add a copy of the last added card, re-prompting its options                    |
-| `📝 Add Note`                            | Attach a note to the last added card                                           |
-| `✏️ Edit Previous Card`                  | Re-enter the last added card with forced prompts                               |
-| `↩️ Undo Last Add`                       | Take back the most recently added card                                         |
-| `↩️ Undo Last Edit`                      | Revert the most recent [edit-mode](#edit-mode) operation                       |
-| `🗂️ Set Target Section`                  | Pin a deck section, create a new one, or prompt for each card (decks)          |
-| `🏷️ Change Format`                       | Change the deck's [format](#deck-format) (decks)                               |
-| `⚙️ Configure Session Filters`           | Adjust default sets, finish, condition, and (decks) target section (name mode) |
-| `🔢 Switch to Collector Number Mode`     | Switch to collector number entry mode (name mode)                              |
-| `📦 Manage Set Codes`                    | Add, remove, or switch active sets (collector mode)                            |
-| `🔤 Switch to Name Mode`                 | Switch back to name entry mode (collector mode)                                |
-| `🛠️ Switch to Edit Mode`                 | Browse and edit the list's existing entries (see [Edit Mode](#edit-mode))      |
-| `📋 View Session Changes (N)`            | Review every change this session and optionally discard individual ones        |
-| `💾 Save all changes (N across M lists)` | Write every open list's file and changelog, keep editing                       |
-| `💾 Save current list changes (N)`       | Write only the list you are editing, keep the rest in memory                   |
-| `🔀 Switch List`                         | Back to the list selection menu, keeping unsaved changes in memory             |
-| `🚪 Exit`                                | Leave the editor (asks to save all, discard all, or cancel when unsaved)       |
+| Option                                   | Description                                                                           |
+| ---------------------------------------- | ------------------------------------------------------------------------------------- |
+| `➕ Add Exact Copy`                      | Add another copy of the last added card, identical options                            |
+| `➕ Add Similar Copy`                    | Add a copy of the last added card, re-prompting its options                           |
+| `📝 Add Note`                            | Attach a note to the last added card                                                  |
+| `✏️ Edit Previous Card`                  | Re-enter the last added card with forced prompts                                      |
+| `↩️ Undo Last Add`                       | Take back the most recently added card                                                |
+| `↩️ Undo Last Edit`                      | Revert the most recent [edit-mode](#edit-mode) operation                              |
+| `🗂️ Set Target Section`                  | Pin a deck section, create a new one, or prompt for each card (decks)                 |
+| `🏷️ Change Format`                       | Change the deck's [format](#deck-format) (decks)                                      |
+| `🔖 Edit Tags`                           | Edit the deck's front-matter tags, comma-separated; empty clears them (decks)         |
+| `🏷️ Edit List Labels`                    | Change the collection's [default card labels](#collection-front-matter) (collections) |
+| `⚙️ Configure Session Filters`           | Adjust default sets, finish, condition, and (decks) target section (name mode)        |
+| `🔢 Switch to Collector Number Mode`     | Switch to collector number entry mode (name mode)                                     |
+| `📦 Manage Set Codes`                    | Add, remove, or switch active sets (collector mode)                                   |
+| `🔤 Switch to Name Mode`                 | Switch back to name entry mode (collector mode)                                       |
+| `🛠️ Switch to Edit Mode`                 | Browse and edit the list's existing entries (see [Edit Mode](#edit-mode))             |
+| `📋 View Session Changes (N)`            | Review every change this session and optionally discard individual ones               |
+| `💾 Save all changes (N across M lists)` | Write every open list's file and changelog, keep editing                              |
+| `💾 Save current list changes (N)`       | Write only the list you are editing, keep the rest in memory                          |
+| `🔀 Switch List`                         | Back to the list selection menu, keeping unsaved changes in memory                    |
+| `🚪 Exit`                                | Leave the editor (asks to save all, discard all, or cancel when unsaved)              |
 
 The `↩️ Undo Last Add` option appears only after you have added at least one card this session, and
 `📋 View Session Changes` once the session has any change to show (see
@@ -281,9 +283,10 @@ shown — even when that one dirty list is not the one you are currently in. In
 a [multi-list mode](#multi-list-modes) there is no current list to single out, so the save-current item
 is never shown.
 
-The counts track card changes. Pending work that is not a card change (currently only a changed
-[deck format](#deck-format)) still surfaces the save items, but is left out of the counts — a list
-whose only pending work is a format change shows count-less labels instead
+The counts track card changes. Pending work that is not a card change — a changed
+[deck format](#deck-format), edited deck tags, or an edited collection
+[default-labels block](#collection-front-matter) — still surfaces the save items, but is left out
+of the counts: a list whose only pending work is such an edit shows count-less labels instead
 (`💾 Save changes (keep editing)`, `💾 Save current list changes`, `💾 Save all changes (M lists)`).
 
 Saving repeatedly in one session does **not** create a new changelog entry per save — each list's
@@ -469,7 +472,10 @@ used by the generated site for the deck's cover label and expected size. Creatin
 editor prompts for the format, and `🏷️ Change Format` in a deck session changes it later — the
 menu item shows the current format, and the change is written on the next save like any other
 pending edit (it counts as unsaved work, but is not a card change, so it does not appear in the
-changelog or the session-changes viewer).
+changelog or the session-changes viewer). `🔖 Edit Tags` edits the deck's `tags:` the same
+deferred way; the description and sync-source fields have no session action — a single-line
+prompt would mangle a multi-line description, and linking is [`deck-sync link`](/commands/deck-sync/)'s
+job — so use [`ritual metadata`](/commands/metadata/) (or the admin metadata editor) for those.
 
 A deck with no `format:` — an older file, or one imported from a source that reports no format —
 is not formatless: it is read as Commander when it has a `## Commander` section (Oathbreaker for a
@@ -548,12 +554,18 @@ labels: [sale, trade]
 Every entry without its own `[labels]` override inherits the default. `labels:` takes `sale` and
 `trade` (together or alone) or `keep` (alone); an empty list means no default. Card-line saves
 round-trip the block byte-for-byte — unknown hand-authored keys included — and a block whose YAML
-cannot be read is carried verbatim with an advisory rather than rejected. (A _metadata_ write —
-the admin **Labels** button or `set_list_metadata` — re-dumps the YAML: every key and value
-survives, but comments and quoting style do not.) Set the default by hand-editing the file, with
-the admin collection editor's **Labels** button, or via the MCP `set_list_metadata` tool; there is
-no CLI command for it (matching deck metadata). Wanted lists carry no front-matter keys of their
-own, though a block on one is preserved.
+cannot be read is carried verbatim with an advisory rather than rejected. (A _metadata_ edit —
+[`ritual metadata`](/commands/metadata/), the editor's `🏷️ Edit List Labels` action, the admin
+**Labels** button, or `set_list_metadata` — re-dumps the YAML: every key and value survives, but
+comments and quoting style do not.) Set the default with
+[`ritual metadata set <list> labels …`](/commands/metadata/) (the surgical, front-matter-only
+write), the editor's `🏷️ Edit List Labels` menu action (deferred to the session's next Save —
+which, like any session save, rewrites the whole file in canonical form), the admin collection
+editor's **Labels** button, by hand-editing the file, or via the MCP `set_list_metadata` tool.
+The editor action refuses to run when the existing block's YAML cannot be read — a merge over
+keys it cannot see would clobber them; fix the block by hand (every other session edit still
+carries it verbatim). Wanted lists carry no front-matter keys of their own, though a block on one
+is preserved.
 
 ## Wanted Lists
 

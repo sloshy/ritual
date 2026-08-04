@@ -40,6 +40,7 @@ import { registerHistoryCommand } from './src/commands/history'
 import { registerExportCommand } from './src/commands/export'
 import { registerCleanupCommand } from './src/commands/cleanup'
 import { registerConfigCommand } from './src/commands/config'
+import { registerMetadataCommand } from './src/commands/metadata'
 import { registerListAllCardsCommand } from './src/commands/list-all-cards'
 import { registerMcpCommand } from './src/commands/mcp'
 import { registerSkillsCommand } from './src/commands/skills'
@@ -149,6 +150,7 @@ registerNewCommand(program)
 registerRenameCommand(program)
 registerDeleteCommand(program)
 registerEditCommand(program)
+registerMetadataCommand(program)
 registerHistoryCommand(program)
 registerDiffCommand(program)
 registerGetPrimerCommand(program)

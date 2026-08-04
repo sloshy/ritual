@@ -62,6 +62,8 @@ const MENU_SENTINEL_VALUES = [
   '__ADD_NOTE__',
   '__SECTION__',
   '__FORMAT__',
+  '__TAGS__',
+  '__LIST_LABELS__',
   '__CONFIG__',
   '__COLLECTOR_MODE__',
   '__MANAGE_SETS__',
@@ -760,7 +762,7 @@ function buildSaveAndSwitchItems(input: MenuBuildInput): Choice[] {
  * the fold. A new conditional menu item therefore has to be raised here and in
  * the maximal input of the "tallest possible menu" test that guards it.
  */
-export const SESSION_MENU_LIMIT = 16
+export const SESSION_MENU_LIMIT = 17
 
 /**
  * Build the full autocomplete choice list (menu shortcuts first, then cards).

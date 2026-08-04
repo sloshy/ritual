@@ -82,6 +82,12 @@ describe('handleMetadataSave', () => {
     expect(onDisk.format).toBe('modern')
   })
 
+  test('an empty tags array clears the key exactly like null', async () => {
+    await put('deck/my-deck', { tags: ['ramp'] })
+    const { body } = await put('deck/my-deck', { tags: [] })
+    expect('tags' in expectSuccess(body).frontMatter).toBeFalse()
+  })
+
   test.each([
     ['description', 'temporary'],
     ['tags', ['ramp']],

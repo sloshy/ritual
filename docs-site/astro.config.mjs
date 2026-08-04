@@ -41,6 +41,7 @@ export default defineConfig({
                 'commands/rename',
                 'commands/delete',
                 'commands/edit',
+                'commands/metadata',
                 'commands/history',
                 'commands/diff',
                 'commands/get-primer',

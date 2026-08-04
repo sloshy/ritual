@@ -18,6 +18,30 @@ import { normalizeCardLabels, type CardLabel } from './card-labels'
 /** The keys a collection metadata write accepts, in the order error messages list them. */
 export const COLLECTION_METADATA_KEYS = ['labels'] as const
 
+/** A key a collection metadata write accepts. */
+export type CollectionMetadataKey = (typeof COLLECTION_METADATA_KEYS)[number]
+
+/** True when `value` names a writable collection metadata field. */
+export function isCollectionMetadataKey(value: string): value is CollectionMetadataKey {
+  return (COLLECTION_METADATA_KEYS as readonly string[]).includes(value)
+}
+
+/**
+ * Merge a labels value into a front-matter mapping, returning a new mapping:
+ * `null` (or an empty set) deletes the key, a non-empty set is written
+ * normalized. The one merge rule behind the file-level write below and the CLI
+ * editor's in-memory session edit, so the two can never disagree.
+ */
+export function applyLabelsPatch(
+  data: Record<string, unknown>,
+  labels: CardLabel[] | null,
+): Record<string, unknown> {
+  const merged = { ...data }
+  if (labels === null || labels.length === 0) delete merged.labels
+  else merged.labels = normalizeCardLabels(labels)
+  return merged
+}
+
 /**
  * A validated patch. An absent key is left alone; `null` (or an empty array)
  * deletes the key from the front matter; a non-empty array is written.
@@ -57,12 +81,8 @@ export async function applyCollectionMetadata(
         : 'could not be read as YAML'
     return `The file's front matter ${problem}, so a metadata write would overwrite it. Fix the block by hand first.`
   }
-  const data = mapping.data
-
-  if (patch.labels !== undefined) {
-    if (patch.labels === null || patch.labels.length === 0) delete data.labels
-    else data.labels = normalizeCardLabels(patch.labels)
-  }
+  const data =
+    patch.labels !== undefined ? applyLabelsPatch(mapping.data, patch.labels) : mapping.data
 
   const write = await writeListFrontMatter(filePath, data, { blankLineAfterBlock: true })
   return { frontMatter: data, ...write }

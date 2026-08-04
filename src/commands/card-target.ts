@@ -9,6 +9,7 @@
 
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
+import type { Command } from 'commander'
 import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
 import { importFromTextFile } from '../importers/text-file'
@@ -119,6 +120,27 @@ export function parseCardIdFlag(raw: string): number {
 /** A located list and the type it was resolved to. */
 export type ResolvedList = { type: ListType; filePath: string }
 
+/** Options for {@link resolveListSelection}'s interactive fallback. */
+export type ResolveListSelectionOptions = {
+  /**
+   * Which list types the interactive picker offers (a command that would
+   * refuse a type after picking should not offer it). Explicit names still
+   * resolve across every type in scope, so the refusal path keeps its message.
+   */
+  pickerTypes?: readonly ListType[]
+}
+
+/**
+ * Register the shared `--deck`/`--collection`/`--wanted` type flags every
+ * list-resolving command offers, with the standard help text.
+ */
+export function addListTypeFlags(command: Command): Command {
+  return command
+    .option('--deck', 'Resolve the name as a deck')
+    .option('--collection', 'Resolve the name as a collection')
+    .option('--wanted', 'Resolve the name as a wanted list')
+}
+
 /**
  * Resolve the mutually-exclusive `--deck`/`--collection`/`--wanted` flags for a
  * one-shot card command's action handler. A conflict is reported through the
@@ -162,6 +184,7 @@ function resolveErrorToCommandError(error: ResolveListError): CardCommandError {
 export async function resolveListSelection(
   listName: string | undefined,
   type: ListType | undefined,
+  options?: ResolveListSelectionOptions,
 ): Promise<ResolvedList> {
   if (listName !== undefined) {
     const arg = resolveListArgument(listName, type)
@@ -174,7 +197,10 @@ export async function resolveListSelection(
   }
 
   requireInteractive('a list name')
-  const locations = await listLocations(type)
+  const allLocations = await listLocations(type)
+  const locations = options?.pickerTypes
+    ? allLocations.filter((loc) => options.pickerTypes!.includes(loc.type))
+    : allLocations
   if (locations.length === 0) {
     throw new CardCommandError(
       'not_found',

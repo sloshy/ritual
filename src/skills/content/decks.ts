@@ -47,6 +47,18 @@ section means Oathbreaker (checked first), and a command-zone section such as
 its next save, so do not add a \`format:\` by hand to "fix" a deck that displays
 correctly.
 
+The rest of the deck's front matter (\`description\`, \`tags\`, \`format\`, and the
+\`sourceId\`/\`sourceUrl\` sync link) is scripted with \`ritual metadata\` — a
+front-matter-only write that never touches card lines and records no changelog:
+
+\`\`\`bash
+ritual metadata set my-deck description "A budget mono-red burn list"
+ritual metadata set my-deck tags aggro budget     # replace; --add / --remove merge
+ritual metadata set my-deck format modern
+ritual metadata list my-deck                      # every field, (unset) included
+ritual metadata unset my-deck description
+\`\`\`
+
 ## One-shot edits (non-interactive — best for agents)
 
 Use the one-shot commands (covered in full by the **ritual-edit** skill) to edit an
