@@ -17,8 +17,9 @@ import {
 import {
   formatFinishPriceCell,
   formatPriceColumn,
-  formatPrintingPriceCell,
-  type PriceColumnCell,
+  formatPrintingFinishCell,
+  printingFinishColumns,
+  type PriceColumnChoice,
   type PriceCurrency,
 } from '../price-currency'
 import { getCollectionsDir, getDefaultCurrency } from '../ritual-config'
@@ -77,17 +78,20 @@ export type PrintingResolution =
 
 /**
  * Choices for the printing picker: each printing's identity plus its price in the
- * given currency, aligned into a right-hand column. No finish has been chosen at
- * this point in the flow, so each printing is quoted at its default finish.
+ * given currency, aligned into right-hand columns. No finish has been chosen at
+ * this point in the flow, so a printing is quoted in every finish it is offered
+ * in — one column per finish any of the listed printings has, so a foil or etched
+ * variant lines up to the right of the nonfoil price rather than replacing it.
  */
 export function printingChoices(
   printings: ScryfallCard[],
   currency: PriceCurrency = getDefaultCurrency(),
-): PriceColumnCell<ScryfallCard>[] {
+): PriceColumnChoice<ScryfallCard>[] {
+  const finishes = printingFinishColumns(printings, currency)
   return formatPriceColumn(
     printings.map((p) => ({
       label: `${p.set_name} (${p.set.toUpperCase()}) #${p.collector_number} [${p.rarity}]`,
-      price: formatPrintingPriceCell(p, currency),
+      prices: finishes.map((finish) => formatPrintingFinishCell(p, finish, currency)),
       value: p,
     })),
   )
@@ -127,15 +131,47 @@ export function finishChoices<T>(
   items: readonly FinishChoiceItem<T>[],
   printing: ScryfallCard | undefined,
   currency: PriceCurrency = getDefaultCurrency(),
-): PriceColumnCell<T>[] {
+): PriceColumnChoice<T>[] {
   return formatPriceColumn(
     items.map((item) => ({
       label: item.label,
-      price:
+      prices: [
         item.finish === undefined ? null : formatFinishPriceCell(printing, item.finish, currency),
+      ],
       value: item.value,
     })),
   )
+}
+
+/**
+ * Filter the printing picker's choices by typed input: a lone term that prefixes
+ * a set code lists those printings first, and every other term must appear in the
+ * printing's identity. Matching is on the card's own fields rather than the
+ * rendered title, whose price columns would otherwise make `12` match every
+ * printing costing $12.xx as well as collector number 12, and `foil` match every
+ * printing with a foil column.
+ */
+export function suggestPrintings(input: string, choices: readonly Choice[]): Choice[] {
+  if (!input) return [...choices]
+
+  const terms = input.toLowerCase().split(/\s+/).filter(Boolean)
+  const codeMatches: Choice[] = []
+  const otherMatches: Choice[] = []
+
+  for (const choice of choices) {
+    // `Choice.value` is `any` at the prompts boundary; printingChoices only ever
+    // puts a ScryfallCard there.
+    const card = choice.value as ScryfallCard
+    const haystack =
+      `${card.set_name} ${card.set} #${card.collector_number} ${card.rarity}`.toLowerCase()
+    if (terms.length === 1 && card.set.toLowerCase().startsWith(terms[0]!)) {
+      codeMatches.push(choice)
+    } else if (terms.every((term) => haystack.includes(term))) {
+      otherMatches.push(choice)
+    }
+  }
+
+  return [...codeMatches, ...otherMatches]
 }
 
 /** An existing list entry, as far as resolving the printing it pins is concerned. */
@@ -194,31 +230,7 @@ export async function resolveCardPrinting(
       message: 'Select Printing:',
       choices,
       limit: 15,
-      suggest: async (rawInput, choices) => {
-        const input = String(rawInput)
-        if (!input) return choices
-
-        const terms = input.toLowerCase().split(/\s+/).filter(Boolean)
-        const codeMatches: Choice[] = []
-        const otherMatches: Choice[] = []
-
-        for (const choice of choices) {
-          // `Choice.value` is `any` at the prompts boundary; printingChoices only
-          // ever puts a ScryfallCard there. Match on the card's own fields rather
-          // than the rendered title, whose price column would make `12` match
-          // every printing costing $12.xx as well as collector number 12.
-          const card = choice.value as ScryfallCard
-          const haystack =
-            `${card.set_name} ${card.set} #${card.collector_number} ${card.rarity}`.toLowerCase()
-          if (terms.length === 1 && card.set.toLowerCase().startsWith(terms[0]!)) {
-            codeMatches.push(choice)
-          } else if (terms.every((term) => haystack.includes(term))) {
-            otherMatches.push(choice)
-          }
-        }
-
-        return [...codeMatches, ...otherMatches]
-      },
+      suggest: async (rawInput, choices) => suggestPrintings(String(rawInput), choices),
       onState: (state: PromptState) => {
         if (state.exited) printingExited = true
       },

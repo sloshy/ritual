@@ -1,6 +1,6 @@
 import type { ScryfallCard, ErrorCode, Finish } from './types'
 import { getErrorMessage, type ExitCodeValue } from './errors'
-import { defaultPrintingFinish } from './finish-condition'
+import { defaultPrintingFinish, printingFinishes, VALID_FINISHES } from './finish-condition'
 
 export type PriceCurrency = 'usd' | 'eur' | 'tix'
 
@@ -134,27 +134,80 @@ export function formatFinishPriceCell(
 }
 
 /**
- * The price column cell for a printing shown before any finish is chosen: its
- * {@link defaultPrintingFinish} price, tagged with that finish when it isn't
- * nonfoil so a foil-only or etched-only printing doesn't read as a nonfoil quote.
- * The tag is kept even when there is no price (`N/A etched`) — which finish the
- * cell speaks for is what makes the missing price legible.
+ * Whether a currency prices each finish separately. MTGO tix does not: Scryfall
+ * publishes one `tix` price per printing, so splitting it across finish columns
+ * would repeat a single number under three labels.
  */
-export function formatPrintingPriceCell(printing: ScryfallCard, currency: PriceCurrency): string {
-  const finish = defaultPrintingFinish(printing)
-  const cell = formatFinishPriceCell(printing, finish, currency) ?? ''
+export function pricesFinishesSeparately(currency: PriceCurrency): boolean {
+  return currency !== 'tix'
+}
+
+/**
+ * The finishes a currency has a price field for, in {@link VALID_FINISHES} order.
+ * EUR has no etched counterpart (see {@link isFinishPricelessInCurrency}), so an
+ * etched column there could only ever read `N/A` on every row.
+ */
+function pricedFinishes(currency: PriceCurrency): readonly Finish[] {
+  switch (currency) {
+    case 'usd':
+      return VALID_FINISHES
+    case 'eur':
+      return ['nonfoil', 'foil']
+    case 'tix':
+      return ['nonfoil']
+  }
+}
+
+/**
+ * The finishes a printing picker gives a price column to: every finish both the
+ * currency prices and at least one of the listed printings is offered in. A list
+ * with no foil or etched printings therefore keeps its single price column, as
+ * does a currency that prices every finish alike.
+ */
+export function printingFinishColumns(
+  printings: readonly ScryfallCard[],
+  currency: PriceCurrency,
+): Finish[] {
+  const priced = pricedFinishes(currency)
+  if (!pricesFinishesSeparately(currency)) return [...priced]
+  const offered = new Set(printings.flatMap((p) => printingFinishes(p)))
+  return priced.filter((finish) => offered.has(finish))
+}
+
+/**
+ * One price column cell for a printing shown before any finish is chosen: that
+ * finish's price, tagged with the finish when it isn't nonfoil so a foil or
+ * etched quote never reads as a nonfoil one — the columns carry no header, so the
+ * tag is what names them. The tag is kept even when there is no price
+ * (`N/A etched`) — which finish the cell speaks for is what makes the missing
+ * price legible. `null` when the printing isn't offered in the finish at all,
+ * leaving its cell in that column blank. Under a currency that prices every
+ * finish alike the single column is untagged and quotes every printing, so a
+ * foil-only one is still priced.
+ */
+export function formatPrintingFinishCell(
+  printing: ScryfallCard,
+  finish: Finish,
+  currency: PriceCurrency,
+): string | null {
+  const cell = formatPriceOrNA(getCardPriceForFinish(printing, finish, currency), currency)
+  if (!pricesFinishesSeparately(currency)) return cell
+  if (!printingFinishes(printing).includes(finish)) return null
   return finish === 'nonfoil' ? cell : `${cell} ${finish}`
 }
 
-/** A picker choice: its label, the price cell shown to its right (`null` for none), and its value. */
+/**
+ * A picker choice: its label, the price cells shown to its right — one per
+ * aligned column, `null` leaving that column blank — and its value.
+ */
 export type PriceColumnRow<T> = {
   label: string
-  price: string | null
+  prices: readonly (string | null)[]
   value: T
 }
 
 /** A laid-out picker choice, ready to hand to `prompts`. */
-export type PriceColumnCell<T> = {
+export type PriceColumnChoice<T> = {
   title: string
   value: T
 }
@@ -162,22 +215,34 @@ export type PriceColumnCell<T> = {
 /** Widest label the price column aligns to; a longer label pushes its own price right. */
 export const MAX_PRICE_COLUMN_LABEL = 60
 
+/** Separator between the label and each price column, and between the columns. */
+const PRICE_COLUMN_GAP = '  '
+
 /**
- * Lay out interactive-picker choices as a label plus a right-hand price column,
- * padding the labels to a common width so the prices line up. The width is capped
- * so one unusually long label can't push the column off a narrow terminal, and a
- * row with no price keeps its label unpadded. Each row's value is carried through
- * to the laid-out choice, so callers never re-index the source array.
+ * Lay out interactive-picker choices as a label plus right-hand price columns,
+ * padding the labels to a common width and each column to its own width so every
+ * column lines up. The label width is capped so one unusually long label can't
+ * push the columns off a narrow terminal, and a row with no price at all keeps
+ * its label unpadded. Trailing blank cells are trimmed rather than padded. Each
+ * row's value is carried through to the laid-out choice, so callers never
+ * re-index the source array.
  */
-export function formatPriceColumn<T>(rows: readonly PriceColumnRow<T>[]): PriceColumnCell<T>[] {
-  const width = Math.min(
+export function formatPriceColumn<T>(rows: readonly PriceColumnRow<T>[]): PriceColumnChoice<T>[] {
+  const isPriced = (row: PriceColumnRow<T>): boolean => row.prices.some((cell) => cell !== null)
+  const labelWidth = Math.min(
     MAX_PRICE_COLUMN_LABEL,
-    rows.reduce((max, row) => (row.price ? Math.max(max, row.label.length) : max), 0),
+    rows.reduce((max, row) => (isPriced(row) ? Math.max(max, row.label.length) : max), 0),
   )
-  return rows.map((row) => ({
-    title: row.price ? `${row.label.padEnd(width)}  ${row.price}` : row.label,
-    value: row.value,
-  }))
+  const columnCount = rows.reduce((max, row) => Math.max(max, row.prices.length), 0)
+  const columnWidths = Array.from({ length: columnCount }, (_, index) =>
+    rows.reduce((max, row) => Math.max(max, row.prices[index]?.length ?? 0), 0),
+  )
+  return rows.map((row) => {
+    if (!isPriced(row)) return { title: row.label, value: row.value }
+    const cells = columnWidths.map((width, index) => (row.prices[index] ?? '').padEnd(width))
+    const title = `${row.label.padEnd(labelWidth)}${PRICE_COLUMN_GAP}${cells.join(PRICE_COLUMN_GAP)}`
+    return { title: title.trimEnd(), value: row.value }
+  })
 }
 
 export const VALID_CURRENCIES = ['usd', 'eur', 'tix'] as const satisfies readonly PriceCurrency[]

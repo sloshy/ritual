@@ -337,20 +337,27 @@ Look up cards by collector number within one or more loaded sets.
 
 Once a card is chosen in [Name Mode](#name-mode-default), the `Select Printing:` list shows each
 printing's price in your configured [`defaultCurrency`](/configuration/#default-currency), aligned in
-a right-hand column. (Collector-number entry already identifies one printing, so it goes straight to
+right-hand columns. (Collector-number entry already identifies one printing, so it goes straight to
 the finish prompt.)
 
 ```
 ? Select Printing: ›
-❯   Marvel Super Heroes Commander (MSC) #211 [uncommon]  $1.85
-    Secrets of Strixhaven Commander (SOC) #427 [mythic]  $14.93 foil
+❯   Marvel Super Heroes Commander (MSC) #211 [uncommon]  $1.85  $4.20 foil
+    Secrets of Strixhaven Commander (SOC) #427 [mythic]         $14.93 foil  $22.00 etched
     Secret Lair Drop (SLD) #2683 [rare]                  N/A
 ```
 
-Each printing is quoted at its default finish — nonfoil where the printing has one, otherwise the
-finish it actually comes in, named after the price (`$14.93 foil`) so a foil-only or etched-only
-printing doesn't read as a nonfoil quote. `N/A` (or `N/A foil`, for a printing quoted at a
-non-nonfoil finish) means the card cache carries no price for that printing in that currency.
+Each printing is quoted in **every finish it comes in**, one aligned column per finish: nonfoil
+first, then foil and etched to its right. The columns only appear when some printing in the list has
+that finish, so a card with no foil or etched variants keeps a single price column. Non-nonfoil
+prices are named after the amount (`$14.93 foil`) so a foil or etched quote never reads as a nonfoil
+one, and a printing that doesn't come in a column's finish leaves that cell blank. `N/A` (or
+`N/A foil`) means the card cache carries no price for that printing and finish in that currency.
+
+Which columns can appear depends on the currency: `eur` has no etched column at all (Scryfall
+publishes no etched euro price), and `tix` collapses to one untagged column, since MTGO prices a
+printing the same in every finish (see
+[How Cards Are Priced](/commands/price/#how-cards-are-priced)).
 
 Typing filters the list by set code, set name, collector number, and rarity — never by price, so a
 number always searches collector numbers rather than matching everything that happens to cost that

@@ -8,6 +8,7 @@ import {
   matchFinishPin,
   matchPrintingPin,
   printingChoices,
+  suggestPrintings,
 } from '../../src/commands/collection-helpers'
 import type { Finish, Condition, ScryfallCard } from '../../src/types'
 import { makeScryfallCard } from '../test-utils'
@@ -262,7 +263,7 @@ describe('matchFinishPin', () => {
 // ── Picker titles ─────────────────────────────────────────────────────────────
 
 describe('printingChoices', () => {
-  test('prices each printing at its default finish, in one aligned column', () => {
+  test('gives each finish its own aligned column, right of the nonfoil price', () => {
     const nonfoil = makeScryfallCard({
       set: 'lea',
       set_name: 'Limited Edition Alpha',
@@ -280,8 +281,28 @@ describe('printingChoices', () => {
       prices: { usd_etched: '14.99' },
     })
     expect(printingChoices([nonfoil, etchedOnly], 'usd')).toEqual([
-      { title: 'Limited Edition Alpha (LEA) #161 [common]  $3.00', value: nonfoil },
-      { title: 'Commander Legends (CMR) #472 [mythic]      $14.99 etched', value: etchedOnly },
+      {
+        title: 'Limited Edition Alpha (LEA) #161 [common]  $3.00  $25.00 foil',
+        value: nonfoil,
+      },
+      {
+        title: 'Commander Legends (CMR) #472 [mythic]                          $14.99 etched',
+        value: etchedOnly,
+      },
+    ])
+  })
+
+  test('keeps a single column when no printing has a foil or etched variant', () => {
+    const card = makeScryfallCard({
+      set: 'lea',
+      set_name: 'Limited Edition Alpha',
+      collector_number: '161',
+      rarity: 'common',
+      finishes: ['nonfoil'],
+      prices: { usd: '3.00' },
+    })
+    expect(printingChoices([card], 'usd').map((c) => c.title)).toEqual([
+      'Limited Edition Alpha (LEA) #161 [common]  $3.00',
     ])
   })
 
@@ -296,6 +317,48 @@ describe('printingChoices', () => {
     expect(printingChoices([card], 'eur').map((c) => c.title)).toEqual([
       'Kamigawa (NEO) #1 [rare]  N/A',
     ])
+  })
+})
+
+describe('suggestPrintings', () => {
+  const cheap = makeScryfallCard({
+    set: 'lea',
+    set_name: 'Limited Edition Alpha',
+    collector_number: '12',
+    rarity: 'common',
+    finishes: ['nonfoil'],
+    prices: { usd: '3.00' },
+  })
+  const pricey = makeScryfallCard({
+    set: 'cmr',
+    set_name: 'Commander Legends',
+    collector_number: '472',
+    rarity: 'mythic',
+    finishes: ['nonfoil', 'foil'],
+    prices: { usd: '12.99', usd_foil: '40.00' },
+  })
+  const choices = printingChoices([cheap, pricey], 'usd')
+  const collectorNumbers = (matches: readonly { value?: unknown }[]): string[] =>
+    matches.map((m) => (m.value as ScryfallCard).collector_number)
+
+  test('lists set-code prefix matches first, then identity matches', () => {
+    // 'c' prefixes CMR's set code, and also appears in LEA's 'common' rarity —
+    // the set-code match is listed first.
+    expect(collectorNumbers(suggestPrintings('c', choices))).toEqual(['472', '12'])
+    expect(collectorNumbers(suggestPrintings('alpha common', choices))).toEqual(['12'])
+  })
+
+  test('never matches the price columns, so a number searches collector numbers', () => {
+    // '12' must not pull in the printing that merely costs $12.99.
+    expect(collectorNumbers(suggestPrintings('12', choices))).toEqual(['12'])
+  })
+
+  test('never matches a finish tag in the price columns', () => {
+    expect(suggestPrintings('foil', choices)).toEqual([])
+  })
+
+  test('returns every choice for empty input', () => {
+    expect(suggestPrintings('', choices)).toEqual(choices)
   })
 })
 

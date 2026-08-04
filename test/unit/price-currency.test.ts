@@ -8,7 +8,8 @@ import {
   MAX_PRICE_COLUMN_LABEL,
   formatPriceOrNA,
   formatPriceWithMissing,
-  formatPrintingPriceCell,
+  formatPrintingFinishCell,
+  printingFinishColumns,
   getCardPrice,
   getCardPriceForFinish,
   isCurrencyAvailableForCard,
@@ -266,22 +267,59 @@ describe('formatFinishPriceCell', () => {
   })
 })
 
-describe('formatPrintingPriceCell', () => {
-  test('quotes a nonfoil printing without a finish tag', () => {
-    const card = makeScryfallCard({ finishes: ['nonfoil', 'foil'], prices: { usd: '2.00' } })
-    expect(formatPrintingPriceCell(card, 'usd')).toBe('$2.00')
+describe('printingFinishColumns', () => {
+  const etchedOnly = makeScryfallCard({ finishes: ['etched'] })
+  const nonfoilFoil = makeScryfallCard({ finishes: ['nonfoil', 'foil'] })
+
+  test('lists every finish any printing is offered in, in canonical order', () => {
+    expect(printingFinishColumns([etchedOnly, nonfoilFoil], 'usd')).toEqual([
+      'nonfoil',
+      'foil',
+      'etched',
+    ])
   })
 
-  test('tags the finish when the printing has no nonfoil version', () => {
-    const foilOnly = makeScryfallCard({ finishes: ['foil'], prices: { usd_foil: '9.99' } })
-    expect(formatPrintingPriceCell(foilOnly, 'usd')).toBe('$9.99 foil')
-    const etchedOnly = makeScryfallCard({ finishes: ['etched'], prices: { usd_etched: '12.00' } })
-    expect(formatPrintingPriceCell(etchedOnly, 'usd')).toBe('$12.00 etched')
+  test('keeps a nonfoil-only list to a single column', () => {
+    expect(printingFinishColumns([makeScryfallCard({ finishes: ['nonfoil'] })], 'usd')).toEqual([
+      'nonfoil',
+    ])
+  })
+
+  test('drops the etched column in EUR, which has no etched price to show', () => {
+    expect(printingFinishColumns([etchedOnly, nonfoilFoil], 'eur')).toEqual(['nonfoil', 'foil'])
+  })
+
+  test('collapses to one column in tix, which prices every finish alike', () => {
+    expect(printingFinishColumns([etchedOnly, nonfoilFoil], 'tix')).toEqual(['nonfoil'])
+  })
+})
+
+describe('formatPrintingFinishCell', () => {
+  test('quotes the nonfoil finish without a tag', () => {
+    const card = makeScryfallCard({ finishes: ['nonfoil', 'foil'], prices: { usd: '2.00' } })
+    expect(formatPrintingFinishCell(card, 'nonfoil', 'usd')).toBe('$2.00')
+  })
+
+  test('tags the foil and etched finishes so they do not read as nonfoil quotes', () => {
+    const foil = makeScryfallCard({ finishes: ['nonfoil', 'foil'], prices: { usd_foil: '9.99' } })
+    expect(formatPrintingFinishCell(foil, 'foil', 'usd')).toBe('$9.99 foil')
+    const etched = makeScryfallCard({ finishes: ['etched'], prices: { usd_etched: '12.00' } })
+    expect(formatPrintingFinishCell(etched, 'etched', 'usd')).toBe('$12.00 etched')
   })
 
   test('keeps the finish tag when the printing has no price at all', () => {
     const etchedOnly = makeScryfallCard({ finishes: ['etched'] })
-    expect(formatPrintingPriceCell(etchedOnly, 'usd')).toBe('N/A etched')
+    expect(formatPrintingFinishCell(etchedOnly, 'etched', 'usd')).toBe('N/A etched')
+  })
+
+  test('is null for a finish the printing is not offered in', () => {
+    const nonfoilOnly = makeScryfallCard({ finishes: ['nonfoil'], prices: { usd: '2.00' } })
+    expect(formatPrintingFinishCell(nonfoilOnly, 'foil', 'usd')).toBeNull()
+  })
+
+  test("quotes a foil-only printing in tix's single untagged column", () => {
+    const foilOnly = makeScryfallCard({ finishes: ['foil'], prices: { tix: '0.50' } })
+    expect(formatPrintingFinishCell(foilOnly, 'nonfoil', 'tix')).toBe('0.50 tix')
   })
 })
 
@@ -289,8 +327,8 @@ describe('formatPriceColumn', () => {
   test('pads labels so the prices align in one column, carrying each row value', () => {
     expect(
       formatPriceColumn([
-        { label: 'Alpha', price: '$1.00', value: 'a' },
-        { label: 'A much longer label', price: '$22.50', value: 'b' },
+        { label: 'Alpha', prices: ['$1.00'], value: 'a' },
+        { label: 'A much longer label', prices: ['$22.50'], value: 'b' },
       ]),
     ).toEqual([
       { title: 'Alpha                $1.00', value: 'a' },
@@ -298,11 +336,29 @@ describe('formatPriceColumn', () => {
     ])
   })
 
+  test('aligns each further column to its own width, blanking absent cells', () => {
+    expect(
+      formatPriceColumn([
+        { label: 'Alpha', prices: ['$1.00', '$22.50 foil'], value: 'a' },
+        { label: 'Beta', prices: [null, '$3.00 foil'], value: 'b' },
+      ]).map((c) => c.title),
+    ).toEqual(['Alpha  $1.00  $22.50 foil', 'Beta          $3.00 foil'])
+  })
+
+  test('trims a trailing blank cell rather than padding it', () => {
+    expect(
+      formatPriceColumn([
+        { label: 'Alpha', prices: ['$1.00', '$22.50 foil'], value: 'a' },
+        { label: 'Beta', prices: ['$3.00', null], value: 'b' },
+      ]).map((c) => c.title),
+    ).toEqual(['Alpha  $1.00  $22.50 foil', 'Beta   $3.00'])
+  })
+
   test('leaves a priceless row unpadded and out of the width calculation', () => {
     expect(
       formatPriceColumn([
-        { label: 'No preference (any finish)', price: null, value: 'none' },
-        { label: 'Foil', price: '$3.00', value: 'foil' },
+        { label: 'No preference (any finish)', prices: [null], value: 'none' },
+        { label: 'Foil', prices: ['$3.00'], value: 'foil' },
       ]).map((c) => c.title),
     ).toEqual(['No preference (any finish)', 'Foil  $3.00'])
   })
@@ -310,15 +366,16 @@ describe('formatPriceColumn', () => {
   test('caps the column so one long label does not shift the rest', () => {
     const long = 'x'.repeat(MAX_PRICE_COLUMN_LABEL + 20)
     const [first, second] = formatPriceColumn([
-      { label: long, price: '$1.00', value: 1 },
-      { label: 'Short', price: '$2.00', value: 2 },
+      { label: long, prices: ['$1.00'], value: 1 },
+      { label: 'Short', prices: ['$2.00'], value: 2 },
     ])
     expect(first!.title).toBe(`${long}  $1.00`)
     expect(second!.title).toBe(`${'Short'.padEnd(MAX_PRICE_COLUMN_LABEL)}  $2.00`)
   })
 
-  test('caps at a width that leaves the price on an 80-column terminal', () => {
-    expect(MAX_PRICE_COLUMN_LABEL).toBeLessThanOrEqual(60)
+  test('caps at a width that still fits a price cell on an 80-column terminal', () => {
+    const widestRow = `${'x'.repeat(MAX_PRICE_COLUMN_LABEL)}  $1,234.56 etched`
+    expect(widestRow.length).toBeLessThanOrEqual(80)
   })
 })
 
