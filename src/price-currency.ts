@@ -33,10 +33,13 @@ export function getCurrencySuffix(currency: PriceCurrency): string {
   return currency === 'tix' ? ' tix' : ''
 }
 
-/** Abstraction point for mapping PriceCurrency to a Scryfall price field key.
- *  Currently an identity mapping since PriceCurrency values match Scryfall keys. */
-export function getPriceField(currency: PriceCurrency): PriceCurrency {
-  return currency
+/**
+ * A currency's base (nonfoil) price field, which doubles as Scryfall's `order=`
+ * key for it. Read from {@link PRICE_FIELDS} rather than by using the currency
+ * name as a price key, which only works because the two happen to coincide.
+ */
+export function getPriceField(currency: PriceCurrency): BasePriceField {
+  return PRICE_FIELDS[currency].nonfoil
 }
 
 export function formatPrice(amount: number, currency: PriceCurrency): string {
@@ -64,54 +67,48 @@ export function formatPriceWithMissing(
   return base
 }
 
+/** A printing's base price: its nonfoil quote, or the sole quote in a currency that has one. */
 export function getCardPrice(card: ScryfallCard, currency: PriceCurrency): number {
-  let raw: string | null = null
-  switch (currency) {
-    case 'usd':
-      raw = card.prices.usd
-      break
-    case 'eur':
-      raw = card.prices.eur
-      break
-    case 'tix':
-      raw = card.prices.tix
-      break
-  }
-  if (raw !== null) {
-    const parsed = parseFloat(raw)
-    if (Number.isFinite(parsed)) return parsed
-  }
-  return 0
+  return getCardPriceForFinish(card, 'nonfoil', currency)
 }
+
+/** A field of {@link ScryfallCard.prices}, i.e. one published price. */
+type PriceField = keyof ScryfallCard['prices']
+
+/**
+ * The price field each currency publishes for each finish, or `null` where it
+ * publishes none. Scryfall has `usd`, `usd_foil`, `usd_etched`, `eur`, `eur_foil`
+ * and `tix` — so EUR has no etched counterpart, and MTGO quotes one `tix` price
+ * for a printing regardless of finish. Reading `eur` for an etched card would
+ * quote the nonfoil price under an etched label, off by a lot on exactly the
+ * cards (etched showcases) where the finish is the reason for the price; the
+ * `null` is what makes that unrepresentable rather than merely discouraged.
+ */
+const PRICE_FIELDS = {
+  usd: { nonfoil: 'usd', foil: 'usd_foil', etched: 'usd_etched' },
+  eur: { nonfoil: 'eur', foil: 'eur_foil', etched: null },
+  tix: { nonfoil: 'tix', foil: 'tix', etched: 'tix' },
+} as const satisfies Record<PriceCurrency, Record<Finish, PriceField | null>>
+
+/** A currency's base price field: `usd`, `eur` or `tix`. */
+export type BasePriceField = (typeof PRICE_FIELDS)[PriceCurrency]['nonfoil']
 
 /**
  * Whether a finish has no price in a currency *by construction* — as opposed to a
- * printing that simply has no data. Scryfall publishes `usd`, `usd_foil`,
- * `usd_etched`, `eur`, `eur_foil` and `tix`, with no etched counterpart in EUR, so
- * an etched card can never be priced in euros. Reading `eur` there would quote the
- * nonfoil price under an etched label — off by a lot on exactly the cards (etched
- * showcases) where the finish is the reason for the price.
+ * printing that simply has no data. See {@link PRICE_FIELDS}.
  */
-export function isFinishPricelessInCurrency(finish: string, currency: PriceCurrency): boolean {
-  return currency === 'eur' && finish === 'etched'
+export function isFinishPricelessInCurrency(finish: Finish, currency: PriceCurrency): boolean {
+  return PRICE_FIELDS[currency][finish] === null
 }
 
 export function getCardPriceForFinish(
   card: ScryfallCard,
-  finish: string,
+  finish: Finish,
   currency: PriceCurrency,
 ): number {
-  if (isFinishPricelessInCurrency(finish, currency)) return 0
-  let raw: string | null
-  if (currency === 'usd') {
-    if (finish === 'foil') raw = card.prices.usd_foil
-    else if (finish === 'etched') raw = card.prices.usd_etched
-    else raw = card.prices.usd
-  } else if (currency === 'eur') {
-    raw = finish === 'foil' ? card.prices.eur_foil : card.prices.eur
-  } else {
-    raw = card.prices.tix
-  }
+  const field = PRICE_FIELDS[currency][finish]
+  if (field === null) return 0
+  const raw = card.prices[field]
   if (raw !== null) {
     const parsed = parseFloat(raw)
     if (Number.isFinite(parsed)) return parsed
@@ -134,44 +131,31 @@ export function formatFinishPriceCell(
 }
 
 /**
- * Whether a currency prices each finish separately. MTGO tix does not: Scryfall
- * publishes one `tix` price per printing, so splitting it across finish columns
- * would repeat a single number under three labels.
+ * Whether a currency prices each finish separately, i.e. whether it has more than
+ * one price field to read. MTGO tix does not: {@link PRICE_FIELDS} points every
+ * finish at the same `tix` price, so splitting it across finish columns would
+ * repeat one number under three labels.
  */
 export function pricesFinishesSeparately(currency: PriceCurrency): boolean {
-  return currency !== 'tix'
-}
-
-/**
- * The finishes a currency has a price field for, in {@link VALID_FINISHES} order.
- * EUR has no etched counterpart (see {@link isFinishPricelessInCurrency}), so an
- * etched column there could only ever read `N/A` on every row.
- */
-function pricedFinishes(currency: PriceCurrency): readonly Finish[] {
-  switch (currency) {
-    case 'usd':
-      return VALID_FINISHES
-    case 'eur':
-      return ['nonfoil', 'foil']
-    case 'tix':
-      return ['nonfoil']
-  }
+  return new Set(Object.values(PRICE_FIELDS[currency])).size > 1
 }
 
 /**
  * The finishes a printing picker gives a price column to: every finish both the
  * currency prices and at least one of the listed printings is offered in. A list
  * with no foil or etched printings therefore keeps its single price column, as
- * does a currency that prices every finish alike.
+ * does a currency that prices every finish alike. An EUR etched column is
+ * excluded for the same reason: it could only ever read `N/A` on every row.
  */
 export function printingFinishColumns(
   printings: readonly ScryfallCard[],
   currency: PriceCurrency,
 ): Finish[] {
-  const priced = pricedFinishes(currency)
-  if (!pricesFinishesSeparately(currency)) return [...priced]
+  if (!pricesFinishesSeparately(currency)) return ['nonfoil']
   const offered = new Set(printings.flatMap((p) => printingFinishes(p)))
-  return priced.filter((finish) => offered.has(finish))
+  return VALID_FINISHES.filter(
+    (finish) => offered.has(finish) && !isFinishPricelessInCurrency(finish, currency),
+  )
 }
 
 /**
@@ -307,12 +291,14 @@ export function parseCurrenciesFlag(input: string | undefined): PriceCurrency[] 
 export type CheapestPrintingResult = {
   price: number
   card: ScryfallCard
-  finish: string
+  finish: Finish
 }
 
 /**
  * Find the cheapest printing+finish combination from a list of card printings,
- * in the given currency (USD by default).
+ * in the given currency (USD by default). Candidate finishes come from
+ * {@link printingFinishes} rather than raw `card.finishes`, so a finish Ritual
+ * doesn't model can't be quoted at the nonfoil price under its own name.
  */
 export function findCheapestPrinting(
   printings: ScryfallCard[],
@@ -320,7 +306,7 @@ export function findCheapestPrinting(
 ): CheapestPrintingResult | null {
   let best: CheapestPrintingResult | null = null
   for (const card of printings) {
-    for (const finish of card.finishes) {
+    for (const finish of printingFinishes(card)) {
       const price = getCardPriceForFinish(card, finish, currency)
       if (price > 0 && (best === null || price < best.price)) {
         best = { price, card, finish }
@@ -336,7 +322,7 @@ export function findCheapestPrinting(
  */
 export function formatSpecificPrintingPrice(
   card: ScryfallCard,
-  finish: string | undefined,
+  finish: Finish | undefined,
   currency: PriceCurrency = DEFAULT_CURRENCY,
 ): string {
   const resolvedFinish = finish ?? defaultPrintingFinish(card)

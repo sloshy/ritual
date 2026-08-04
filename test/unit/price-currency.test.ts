@@ -9,6 +9,7 @@ import {
   formatPriceOrNA,
   formatPriceWithMissing,
   formatPrintingFinishCell,
+  findCheapestPrinting,
   printingFinishColumns,
   getCardPrice,
   getCardPriceForFinish,
@@ -376,6 +377,47 @@ describe('formatPriceColumn', () => {
   test('caps at a width that still fits a price cell on an 80-column terminal', () => {
     const widestRow = `${'x'.repeat(MAX_PRICE_COLUMN_LABEL)}  $1,234.56 etched`
     expect(widestRow.length).toBeLessThanOrEqual(80)
+  })
+})
+
+describe('findCheapestPrinting', () => {
+  test('scans every printing and finish for the cheapest pair', () => {
+    const pricey = makeScryfallCard({ set: 'cmr', finishes: ['nonfoil'], prices: { usd: '5.00' } })
+    const cheapFoil = makeScryfallCard({
+      set: 'lea',
+      finishes: ['nonfoil', 'foil'],
+      prices: { usd: '9.00', usd_foil: '2.00' },
+    })
+    // The winner is neither the first printing nor its first finish.
+    expect(findCheapestPrinting([pricey, cheapFoil], 'usd')).toEqual({
+      price: 2,
+      card: cheapFoil,
+      finish: 'foil',
+    })
+  })
+
+  test('keeps the first printing when two are equally cheap', () => {
+    const first = makeScryfallCard({ set: 'lea', finishes: ['nonfoil'], prices: { usd: '3.00' } })
+    const second = makeScryfallCard({ set: 'cmr', finishes: ['nonfoil'], prices: { usd: '3.00' } })
+    expect(findCheapestPrinting([first, second], 'usd')?.card).toBe(first)
+  })
+
+  test('ignores a finish Ritual does not model when a modelled one exists', () => {
+    // Before the Finish narrowing this quoted 'glossy' at the foil price under
+    // its own name; now the unmodelled finish is not a candidate at all.
+    const card = makeScryfallCard({ finishes: ['foil', 'glossy'], prices: { usd_foil: '3.00' } })
+    expect(findCheapestPrinting([card], 'usd')).toEqual({ price: 3, card, finish: 'foil' })
+  })
+
+  test('quotes a wholly unmodelled printing at its base price, under nonfoil', () => {
+    // printingFinishes falls back to nonfoil, so the printing is still priced —
+    // it just can't be advertised as available in a finish Ritual can't record.
+    const card = makeScryfallCard({ finishes: ['glossy'], prices: { usd: '4.00' } })
+    expect(findCheapestPrinting([card], 'usd')).toEqual({ price: 4, card, finish: 'nonfoil' })
+  })
+
+  test('is null when nothing has a price', () => {
+    expect(findCheapestPrinting([makeScryfallCard({ finishes: ['nonfoil'] })])).toBeNull()
   })
 })
 

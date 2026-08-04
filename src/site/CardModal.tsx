@@ -6,6 +6,7 @@ import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './im
 import { ManaCost, OracleText } from './symbols'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, getCardPriceForFinish, formatPrice } from '../price-currency'
+import { defaultPrintingFinish } from '../finish-condition'
 import { capitalize } from './utils'
 import { findPrintingsAvailable, openFindPrintings } from './find-printings'
 
@@ -177,11 +178,9 @@ export const CardModal: Component<CardModalProps> = (props) => {
             const pImg = p.image_uris?.normal ?? p.card_faces?.[0]?.image_uris?.normal ?? ''
             const pUrl = `https://scryfall.com/card/${p.set}/${p.collector_number}`
             const isFoil = p.finishes?.length === 1 && p.finishes[0] !== 'nonfoil'
-            const pPrice = getCardPriceForFinish(
-              p,
-              isFoil ? p.finishes[0]! : 'nonfoil',
-              props.currency,
-            )
+            // Quote the printing at the finish it's actually read at, which also
+            // covers a printing offered only in foil *and* etched.
+            const pPrice = getCardPriceForFinish(p, defaultPrintingFinish(p), props.currency)
             return (
               <a
                 href={pUrl}

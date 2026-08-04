@@ -11,6 +11,7 @@
 
 import type { Choice } from 'prompts'
 import { LIST_TYPE_DISPLAY, LIST_TYPES, type ListType } from '../list-type'
+import { printingFinishes } from '../finish-condition'
 import {
   formatPrice,
   formatPriceOrNA,
@@ -291,7 +292,9 @@ export function formatPrintingPriceLines(
 ): string[] {
   const sorted = [...printings].sort(comparePrintings)
   return sorted.map((printing) => {
-    const finishes = printing.finishes
+    // printingFinishes, not raw `printing.finishes`: a finish Ritual doesn't model
+    // would otherwise be listed at the nonfoil price under its own name.
+    const finishes = printingFinishes(printing)
       .map(
         (finish) =>
           `${formatPriceOrNA(getCardPriceForFinish(printing, finish, currency), currency)} ${finish}`,

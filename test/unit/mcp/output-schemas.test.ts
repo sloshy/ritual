@@ -19,6 +19,7 @@ import {
 import { apiErrorToMcp } from '../../../src/mcp/errors'
 import { toToolErrorPayload } from '../../../src/mcp/result'
 import { MCP_TOOL_NAMES } from '../../../src/mcp/tools/names'
+import { VALID_FINISHES } from '../../../src/finish-condition'
 import type { BuildSiteResult, DeckSyncResult } from '../../../src/mcp/tools/destructive-tools'
 import type { ImportCsvResponse } from '../../../src/admin/api/import-csv'
 import type { CollectionSyncReport } from '../../../src/collection-sync/engine'
@@ -53,6 +54,7 @@ type SchemaNode = {
   properties?: Record<string, SchemaNode>
   required?: string[]
   const?: unknown
+  enum?: unknown[]
   oneOf?: SchemaNode[]
   anyOf?: SchemaNode[]
   items?: SchemaNode
@@ -224,6 +226,13 @@ describe('MCP output schemas, as authored', () => {
       expect(branches).toHaveLength(values.length)
       for (const branch of branches) expect(branch.required).toContain(key)
       expect(branches.map((b) => b.properties?.[key]?.const)).toEqual(values)
+    }
+
+    // PricedEntry: both finish fields are the shared enum, not free strings. The
+    // report only ever emits a modelled finish, so a client can switch on them.
+    const pricedEntry = defsFor('PricedEntry')['PricedEntry'] as unknown as SchemaNode
+    for (const field of ['finish', 'lowestFinish']) {
+      expect(pricedEntry.properties?.[field]?.enum).toEqual([...VALID_FINISHES])
     }
 
     // find_cards: `lists` rides on an opt-in flag, so it must stay optional.

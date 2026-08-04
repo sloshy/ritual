@@ -406,7 +406,7 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
       lowest: num('Cheapest acceptable unit price; 0 when unavailable.'),
       lowestSet: str('Lowercase set code of the printing behind `lowest`.'),
       lowestCollectorNumber: str('Collector number of the printing behind `lowest`.'),
-      lowestFinish: str('Raw Scryfall finish string behind `lowest`.'),
+      lowestFinish: enumOf(VALID_FINISHES, 'Finish of the printing behind `lowest`.'),
       unpricedReason: enumOf([
         'no-printings',
         'printing-not-found',

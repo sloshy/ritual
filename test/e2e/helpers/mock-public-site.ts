@@ -210,6 +210,25 @@ const MOCK_SCRYFALL_CREATURE = makeMockScryfallCard({
   edhrec_rank: 1000,
 })
 
+/**
+ * An alternate printing of Test Creature sold only in foil, so it has a foil
+ * price and no nonfoil one. The printings grid must quote it at the finish it
+ * actually comes in rather than at a nonfoil price it doesn't have.
+ */
+const MOCK_SCRYFALL_CREATURE_FOIL_ONLY = makeMockScryfallCard({
+  id: 'creature-foil-only-id',
+  name: 'Test Creature',
+  cmc: 2,
+  type_line: 'Creature — Human',
+  mana_cost: '{1}{W}',
+  prices: { usd_foil: '12.00' },
+  finishes: ['foil'],
+  set: 'fyl',
+  collector_number: '77',
+  color_identity: ['W'],
+  edhrec_rank: 1000,
+})
+
 const MOCK_SCRYFALL_CREATURE_B = makeMockScryfallCard({
   id: 'creature-b-id',
   name: 'Alpha Creature',
@@ -268,7 +287,7 @@ const MOCK_MULTI_SECTION_DECK = {
     'Test Artifact': MOCK_SCRYFALL_ARTIFACT,
   },
   printings: {
-    'Test Creature': [MOCK_SCRYFALL_CREATURE],
+    'Test Creature': [MOCK_SCRYFALL_CREATURE, MOCK_SCRYFALL_CREATURE_FOIL_ONLY],
     'Alpha Creature': [MOCK_SCRYFALL_CREATURE_B],
     'Test Instant': [MOCK_SCRYFALL_INSTANT],
     'Test Artifact': [MOCK_SCRYFALL_ARTIFACT],

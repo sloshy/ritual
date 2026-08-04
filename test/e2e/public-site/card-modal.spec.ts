@@ -37,6 +37,17 @@ test.describe('Card detail modal', () => {
     await expect(page.getByRole('button', { name: /Other Printings/ })).toBeVisible()
   })
 
+  test('prices a foil-only printing at its foil price, not a nonfoil one it lacks', async ({
+    page,
+  }) => {
+    await page.locator('.card-item').filter({ hasText: 'Test Creature' }).first().click()
+    await expect(page.locator('.card-modal')).toBeVisible({ timeout: 5000 })
+    await page.getByRole('button', { name: /Other Printings/ }).click()
+
+    const foilOnly = page.locator('.modal-printing-card').filter({ hasText: 'FYL:77' })
+    await expect(foilOnly.locator('.printing-label-price')).toHaveText('$12.00')
+  })
+
   // The modal keeps its content mounted while it fades out, so the panel has
   // something to animate rather than emptying mid-flight. That hold runs on a
   // timer, so what's worth pinning is that it always ends: were it to stick, the

@@ -96,8 +96,7 @@ export type PricedEntry = {
   /** Printing+finish behind `lowest`, when it differs from the priced printing. */
   lowestSet?: string
   lowestCollectorNumber?: string
-  /** Raw Scryfall finish string — unlike `finish`, never validated against `Finish`. */
-  lowestFinish?: string
+  lowestFinish?: Finish
   unpricedReason?: UnpricedReason
   cmc: number
   edhrecRank: number

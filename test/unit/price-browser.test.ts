@@ -308,4 +308,19 @@ describe('formatPrintingPriceLines', () => {
     expect(lines[0]).toBe('  NEW:2 (New Set) — N/A nonfoil')
     expect(lines[1]).toBe('  OLD:9 (Old Set) — $1.00 nonfoil · $3.00 foil')
   })
+
+  test('skips a finish Ritual does not model rather than quoting it as nonfoil', () => {
+    const printing = makeScryfallCard({
+      prices: { usd: '1.00' },
+      finishes: ['nonfoil', 'glossy'],
+      set: 'sld',
+      set_name: 'Secret Lair Drop',
+      collector_number: '1',
+    })
+    // Before the Finish narrowing this listed '$1.00 glossy' — the nonfoil price
+    // under another finish's name.
+    expect(formatPrintingPriceLines([printing], 'usd')).toEqual([
+      '  SLD:1 (Secret Lair Drop) — $1.00 nonfoil',
+    ])
+  })
 })

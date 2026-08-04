@@ -109,6 +109,7 @@ describe('buildPriceReport pricing rules', () => {
     expect(entry.set).toBe('new')
     expect(entry.lowest).toBe(1)
     expect(entry.lowestSet).toBe('old')
+    expect(entry.lowestFinish).toBe('nonfoil')
   })
 
   test('pinned deck entry still reports the cheapest printing as lowest', async () => {

@@ -1,6 +1,7 @@
 import type { ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, getCardPriceForFinish } from '../price-currency'
+import { defaultPrintingFinish } from '../finish-condition'
 import { type ListType, isListType } from '../list-type'
 import { hasSpecificPrinting, findPrinting } from '../card-printing'
 import { overlayCard } from './session-cache'
@@ -320,8 +321,10 @@ function buildWantedCards(
   return detail.entries.map((entry: WantedListCardEntry, index): CombinedCardData => {
     const specific = hasSpecificPrinting(entry)
     const card = resolveWantedCardEntry(entry, detail.cards)
+    // An entry with no finish token is read at the printing's default finish, not
+    // flatly as nonfoil: a foil-only printing has no nonfoil price to quote.
     const price = card
-      ? getCardPriceForFinish(card, entry.finish ?? 'nonfoil', currency)
+      ? getCardPriceForFinish(card, entry.finish ?? defaultPrintingFinish(card), currency)
       : entry.price
     const key = selectKeyFor('wanted', name, index)
     const preview = resolveCardPreview(card, useScryfallImgUrls)
