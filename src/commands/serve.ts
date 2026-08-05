@@ -1,8 +1,9 @@
 import path from 'node:path'
 import type { Command, Option } from 'commander'
-import { ensureFreshCardCache } from '../cache/freshness'
 import { getErrorMessage } from '../errors'
 import { startSiteServer } from '../serve/server'
+import { sellModeWarning, warmCardKingdomFeed } from '../cardkingdom'
+import { cardCacheReady, warmSiteCache } from '../serve/warm'
 import { resolveOutDir } from '../site/dist-dir'
 import { applyBuildSiteOptions, runBuildSite, type BuildSiteOptions } from './build-site'
 import { ExitCode, parsePort } from './scripting'
@@ -13,6 +14,23 @@ export type ServeCliOptions = BuildSiteOptions & {
   host: string
   build?: boolean
   api?: boolean
+}
+
+/** The flags the build-before-serving decision reads. */
+export type BuildDecision = Pick<ServeCliOptions, 'build' | 'api'>
+
+/**
+ * Whether to build the site before serving it.
+ *
+ * `--build` always builds. Under `--api` the app shell is a prerequisite the
+ * server can satisfy itself — the data is served live, so an unbuilt directory
+ * is a missing shell rather than missing content, and refusing to start over it
+ * helps nobody. Plain `serve` never builds: there, the build *is* the content,
+ * and silently generating one would hide that the user meant to build first.
+ */
+export function shouldBuildBeforeServing(options: BuildDecision, siteIsBuilt: boolean): boolean {
+  if (options.build === true) return true
+  return options.api === true && !siteIsBuilt
 }
 
 export function registerServeCommand(program: Command): void {
@@ -67,7 +85,12 @@ export function registerServeCommand(program: Command): void {
     }
     const distDir = outDir.dir
 
-    if (options.build === true) {
+    const hasBuiltSite = async (): Promise<boolean> =>
+      await Bun.file(path.join(distDir, 'index.html')).exists()
+
+    const build = shouldBuildBeforeServing(options, await hasBuiltSite())
+
+    if (build) {
       console.log('Building site...')
       try {
         // ServeCliOptions extends BuildSiteOptions, so the whole options
@@ -91,7 +114,7 @@ export function registerServeCommand(program: Command): void {
     // Both modes serve the same tree, so both refuse the same way: a directory
     // with no index.html answers every request with a bare 404, which reads as a
     // broken site rather than an unbuilt one.
-    if (!(await Bun.file(path.join(distDir, 'index.html')).exists())) {
+    if (!(await hasBuiltSite())) {
       console.error(
         `No built site found in ${distDir}. Build it first with \`ritual build-site${
           options.outDir === undefined ? '' : ` --out-dir ${options.outDir}`
@@ -107,14 +130,23 @@ export function registerServeCommand(program: Command): void {
           'Note: live data always uses Scryfall image URLs; --cache-images only affects static assets.',
         )
       }
-      // Warm the card cache like `ritual admin` does — autocomplete matches
-      // against the cached card names.
-      const freshness = await ensureFreshCardCache(options.refresh)
-      if (!freshness.ready) {
+      // Live payloads are computed from the card cache with no Scryfall
+      // fallback, so the server holds itself to the same cache freshness a build
+      // does — over the same cards, under the same --refresh policy. A build
+      // that just ran applied those gates already, so this only reads the result
+      // rather than asking the same questions twice.
+      const mode = options.refresh ?? 'ask'
+      const ready = build ? await cardCacheReady() : (await warmSiteCache(mode)).ready
+      if (!ready) {
         console.warn(
           'Card cache is empty — card search will return no results until the cache is preloaded.',
         )
       }
+      // Sell mode quotes from the Card Kingdom feed, and the quote routes never
+      // download (they are unauthenticated and CORS-open). Startup is the only
+      // moment this process can keep a day-old feed current, so it does.
+      const buylistWarning = sellModeWarning(await warmCardKingdomFeed(mode))
+      if (buylistWarning !== undefined) console.warn(buylistWarning)
       console.log(`Serving site + live API from ${distDir} at ${serveUrl(host, port)}...`)
       startSiteServer({ distDir, port, hostname: host })
       return

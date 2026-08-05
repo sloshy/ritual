@@ -178,7 +178,7 @@ export function registerSellCommand(program: Command): void {
         'text',
       ),
     ),
-    'Buylist + card cache refresh policy: ask (prompt; skip when prompts are unavailable), auto, no-bulk, never',
+    'Buylist + card cache refresh policy: ask (a day-old buylist redownloads without asking; the first download prompts, skipped when unanswerable), auto, no-bulk, never',
   ).action(async (listArgs: string[], options: SellCommandOptions) => {
     const format: CsvOutputFormat = options.output ?? 'text'
     const scripting = csvScriptingOptions(format, options.quiet ?? false)

@@ -52,11 +52,14 @@ const TAG_SAMPLE_SIZE = 25
 
 /**
  * Whether any cached card carries `oracleTags`/`artTags`, checked via `get()`
- * over a bounded sample of at most {@link TAG_SAMPLE_SIZE} keys. Deliberately
- * never `values()`: with `--cache-server` active that would pull the entire
- * cache over HTTP for a yes/no answer.
+ * over a bounded sample of at most {@link TAG_SAMPLE_SIZE} of the given names.
+ * Deliberately never `values()`: with `--cache-server` active that would pull
+ * the entire cache over HTTP for a yes/no answer.
+ *
+ * Also the live server's tag-gate check, where the names sampled are the site's
+ * cards rather than the whole cache.
  */
-async function sampleTagsPresent(keys: string[]): Promise<boolean> {
+export async function sampleTagsPresent(keys: readonly string[]): Promise<boolean> {
   for (const key of keys.slice(0, TAG_SAMPLE_SIZE)) {
     const printings = await cardCache.get(key)
     if (!printings) continue

@@ -7,6 +7,7 @@ import {
   type BulkRefreshPrompt,
   type RefreshMode,
 } from '../refresh'
+import { getSiteSellMode, loadRitualConfig } from '../ritual-config'
 import { formatDuration } from '../utils'
 import {
   cardKingdomFeedIsStale,
@@ -15,6 +16,7 @@ import {
   type CardKingdomCacheFile,
 } from './cache'
 import { fetchCardKingdomFeed } from './client'
+import { adoptCardKingdomFeed } from './memo'
 
 /** The lead sentence every "no buylist yet" message opens with. */
 export const NO_FEED_LEAD = 'No Card Kingdom buylist has been downloaded yet.'
@@ -62,9 +64,10 @@ export type EnsureCardKingdomFeedDeps = {
  *
  * - A fresh cache (younger than a day, matching CK's daily regeneration) is
  *   used as-is.
- * - A stale cache is redownloaded under `auto`, prompted for under `ask`
- *   (default no; declining — or prompts being unavailable — keeps the stale
- *   feed), and left alone under `no-bulk`/`never`.
+ * - A stale cache (a day old, so quoting yesterday's offers) is redownloaded
+ *   without prompting under `ask` and `auto` — the same automatic treatment the
+ *   Scryfall bulk cache gets, and the reason every buylist surface stays current
+ *   on its own — and left alone under `no-bulk`/`never`.
  * - A missing cache is downloaded under `auto`, prompted for under `ask`
  *   (default yes; declining refuses), and refused under `no-bulk`/`never`.
  * - A download failure falls back to the stale cache when one exists
@@ -100,16 +103,15 @@ export async function ensureCardKingdomFeed(
   }
 
   if (cached) {
-    // Stale but present: a refresh is a courtesy, never a requirement.
+    // Stale but present: refreshed without asking, the same rule the Scryfall
+    // bulk cache follows. Card Kingdom regenerates the pricelist daily, so a
+    // day-old feed is quoting yesterday's offers. Downloading one at all was an
+    // explicit act (the missing-feed prompt below, or `--refresh auto`), and
+    // running the command again — or starting a server — renews it.
+    // `no-bulk`/`never` still forbid it, and keep the stale feed silently.
     const age = formatDuration(now() - cached.retrievedAt)
-    if (
-      bulkAllowed(mode) &&
-      (mode === 'auto' ||
-        (await confirm({
-          message: `The Card Kingdom buylist was retrieved ${age} ago. Update it now (~70 MB)?`,
-          initial: false,
-        })))
-    ) {
+    if (bulkAllowed(mode)) {
+      getLogger().info(`The Card Kingdom buylist was retrieved ${age} ago. Updating it...`)
       const downloaded = await download()
       if (typeof downloaded !== 'string') return downloaded
       // A failed courtesy refresh degrades to the stale feed — reported both
@@ -120,7 +122,9 @@ export async function ensureCardKingdomFeed(
     return { ...cached, refreshed: false }
   }
 
-  // Missing entirely: only a download can help.
+  // Missing entirely: only a download can help. This one still asks — it is the
+  // first ~70 MB, and consenting to it is what licenses the silent daily
+  // refreshes above.
   if (!bulkAllowed(mode)) {
     return missingFeedAdvice()
   }
@@ -134,4 +138,94 @@ export async function ensureCardKingdomFeed(
     }
   }
   return download()
+}
+
+/**
+ * What {@link warmCardKingdomFeed} found and left behind.
+ *
+ * `ready: false` with no `problem` is the ordinary "no buylist here yet" state —
+ * the warm declines to download a first feed, which is a decision rather than a
+ * failure, and every other surface already says so where it matters (the admin
+ * card's empty state, the routes' 503, `sell`'s advice).
+ */
+export type BuylistWarmth = {
+  /** Whether sell mode is on at all; when false, nothing was checked. */
+  enabled: boolean
+  /** Whether a usable feed is cached now. */
+  ready: boolean
+  /** Whether this call downloaded one. */
+  refreshed: boolean
+  /** Why a refresh this call wanted did not happen. Never set for a missing feed. */
+  problem?: string
+}
+
+/** Injectable dependencies for {@link warmCardKingdomFeed}. */
+export type WarmCardKingdomFeedDeps = EnsureCardKingdomFeedDeps & {
+  /**
+   * Force sell mode on or off instead of reading `site.sellMode` — a policy
+   * override, not a test seam: `admin` passes `true` because it always offers
+   * sell mode, whatever a *published* site is configured to disclose.
+   */
+  sellMode?: boolean
+  /** Index the downloaded feed into the process memo. */
+  adopt?: (file: CardKingdomCacheFile) => Promise<unknown>
+}
+
+/**
+ * The startup line reporting a warm that wanted to refresh and could not, or
+ * nothing when there is nothing to say. Shared so both servers word it once.
+ */
+export function sellModeWarning(warmth: BuylistWarmth): string | undefined {
+  return warmth.problem === undefined ? undefined : `Sell mode: ${warmth.problem}`
+}
+
+/**
+ * Bring the Card Kingdom buylist up to date before a long-lived server starts
+ * serving quotes from it.
+ *
+ * The quote routes are strictly cache-backed — an unauthenticated, wildcard-CORS
+ * endpoint must never be able to trigger a ~70 MB download — which left a server
+ * quoting whatever feed happened to be on disk, indefinitely. Startup is the
+ * right place for the download instead: it is operator-initiated, it happens
+ * once, and it is the same moment the card cache is warmed.
+ *
+ * Only ever *updates* a buylist. Loading the cache first is what makes that
+ * structural rather than aspirational: a feed that is absent — or present and
+ * unreadable, which loading reports the same way — ends the warm right there,
+ * so no reachable path can prompt (a server start must not block on a question)
+ * or spend ~70 MB on a capability this deployment may never use. The feed it did
+ * find is handed to the gate, so the ~20 MB parse happens once.
+ *
+ * Never fatal either: a server with no buylist still serves everything else.
+ */
+export async function warmCardKingdomFeed(
+  mode: RefreshMode,
+  deps: WarmCardKingdomFeedDeps = {},
+): Promise<BuylistWarmth> {
+  const { sellMode, adopt, ...ensureDeps } = deps
+  const enabled = sellMode ?? getSiteSellMode(await loadRitualConfig())
+  if (!enabled) return { enabled: false, ready: false, refreshed: false }
+
+  const cached = await (ensureDeps.load ?? loadCardKingdomCache)()
+  if (!cached) return { enabled: true, ready: false, refreshed: false }
+
+  const result = await ensureCardKingdomFeed(mode, { ...ensureDeps, load: async () => cached })
+  if (typeof result === 'string') {
+    // Unreachable in practice — the gate refuses only a missing feed, and this
+    // one is in hand — but a refusal is still a refusal, not a usable feed.
+    return { enabled: true, ready: false, refreshed: false, problem: result }
+  }
+  if (result.refreshed) {
+    // Index the feed we just wrote so the first quote request does not pay to
+    // parse it. Only the cache file's own fields: `refreshed`/`staleFallback`
+    // are this call's control flow, and the memo holds a CardKingdomCacheFile.
+    const { retrievedAt, feed } = result
+    await (adopt ?? adoptCardKingdomFeed)({ retrievedAt, feed })
+  }
+  return {
+    enabled: true,
+    ready: true,
+    refreshed: result.refreshed,
+    ...(result.staleFallback === undefined ? {} : { problem: result.staleFallback }),
+  }
 }

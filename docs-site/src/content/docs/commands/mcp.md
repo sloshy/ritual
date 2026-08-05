@@ -543,6 +543,11 @@ back to live Scryfall requests. Call `get_cache_status` to see what state it is 
 `refresh_cache` tool to warm it explicitly. A cold cache is also what makes card-name validation on
 writes and `get_price_report` fail, so it is worth checking first.
 
+The same applies to the [Card Kingdom buylist](/commands/sell/): `admin` and `serve --api` redownload
+a day-old feed when they start, and the MCP server deliberately does not — `get_sell_report`,
+`get_sell_cart`, and `get_buylist_quotes` read whatever feed is cached, and `refresh_buylist` is the
+only thing in an MCP session that downloads one. `get_buylist_status` reports its age.
+
 ## Client configuration
 
 Most MCP clients accept a server entry like the following (stdio):

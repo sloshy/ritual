@@ -27,8 +27,12 @@ export {
   ensureCardKingdomFeed,
   missingFeedAdvice,
   missingFeedApiAdvice,
+  sellModeWarning,
+  warmCardKingdomFeed,
+  type BuylistWarmth,
   type CardKingdomFeedResult,
   type EnsureCardKingdomFeedDeps,
+  type WarmCardKingdomFeedDeps,
 } from './ensure'
 export {
   chooseMatch,

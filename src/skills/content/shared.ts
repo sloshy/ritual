@@ -92,11 +92,15 @@ export const REFRESH_SESSION = wrapProse(
 export const REFRESH_COMMANDS = wrapProse(
   `Commands that read the Scryfall card cache (\`add-card\`, \`edit\`, \`price\`, ` +
     `\`sell\` — where the mode also governs its Card Kingdom buylist cache — ` +
-    `\`build-site\`, \`serve --build\`, \`admin\`) share a \`--refresh <mode>\` option ` +
-    `controlling cache freshness: \`ask\` (the default — prompt about stale or ` +
-    `empty caches, skipping the prompt when prompts are unavailable; ` +
-    `\`build-site\` is the exception, bulk-downloading an empty or week-old cache ` +
-    `without asking, since it cannot build a site without card data), \`auto\` ` +
+    `\`build-site\`, \`serve --build\`/\`--api\`, \`admin\`) share a \`--refresh <mode>\` ` +
+    `option controlling cache freshness: \`ask\` (the default — prompt about stale ` +
+    `or empty caches, skipping the prompt when prompts are unavailable; two ` +
+    `exceptions download without asking: \`build-site\` bulk-downloads an empty or ` +
+    `week-old card cache, since it cannot build a site without card data, and a ` +
+    `Card Kingdom buylist already downloaded is redownloaded once it is a day ` +
+    `old — by \`sell\`, and by \`admin\`/\`serve --api\` at startup — since a ` +
+    `day-old feed quotes yesterday's offers; only the first buylist download ` +
+    `prompts), \`auto\` ` +
     `(refresh stale data without asking, bulk download allowed), \`no-bulk\` ` +
     `(refresh stale prices per-card, never a bulk download), and \`never\` (use ` +
     `the cache as-is, making no request of any kind — under \`never\`, \`price\` ` +

@@ -10,7 +10,7 @@ Serve the generated static site locally, optionally building it first.
 ./ritual serve [options]
 ```
 
-By default, `serve` serves a previously built `dist/` directory (or the directory given by `--out-dir`). A directory with no `index.html` is **refused** rather than answered with bare 404s — see [Exit Codes](#exit-codes). Pass `--build` to build the site first and then serve the result — the one-shot preview that used to require running [`build-site`](/commands/build-site/) and `serve` separately. Pass `--api` to additionally host a live, read-only data API alongside the site — see [Hosting with a live backend](/public-site/hosted/).
+By default, `serve` serves a previously built `dist/` directory (or the directory given by `--out-dir`). A directory with no `index.html` is **refused** rather than answered with bare 404s — see [Exit Codes](#exit-codes) — except under `--api`, which builds the missing site itself. Pass `--build` to build the site first and then serve the result — the one-shot preview that used to require running [`build-site`](/commands/build-site/) and `serve` separately. Pass `--api` to additionally host a live, read-only data API alongside the site — see [Hosting with a live backend](/public-site/hosted/).
 
 ## Options
 
@@ -40,9 +40,10 @@ The web app detects the backend through the served `index.json` and switches its
 
 Details:
 
-- **Sell mode is cache-only.** The buylist routes never download anything: refreshing Card Kingdom's ~70 MB feed is the admin server's job (or `ritual sell --refresh auto`), so an unauthenticated wildcard-CORS endpoint can never be made to pull it. Until a feed has been downloaded they answer `503` with the remedy, and sell mode simply shows no quotes.
+- **Sell mode is cache-only per request, refreshed at startup.** The buylist routes never download anything, so an unauthenticated wildcard-CORS endpoint can never be made to pull Card Kingdom's ~70 MB feed. Startup is where that happens instead: when [`site.sellMode`](/public-site/sell/) is on, an already-downloaded feed more than a day old (Card Kingdom regenerates it daily) is redownloaded before the server binds — under the same `--refresh` policy, so `no-bulk`/`never` skip it, and a failed download leaves the older feed in place with a warning rather than failing the start. Startup only ever _updates_ a buylist: a workspace that has never downloaded one is left alone (no prompt, no ~70 MB on a capability this deployment may not use), the routes answer `503` with the remedy, and sell mode shows no quotes until you download one with `ritual sell --refresh auto` or the admin site.
 - **Read-only, no auth.** Only the routes above exist; an unmatched `/api/*` path answers a JSON 404 (never the SPA fallback), and none of the admin server's mutation or auth surface is reachable. Public edits stay client-side (export/import change bundles), exactly as on the static site. One local exception: like every list-writing command, startup runs the [card-ID backfill](/#the-card-id-backfill), persisting any missing `&N` card IDs into the list files on first run (plain `serve`, without `--build` or `--api`, never does).
-- **Cache warming.** Startup runs the same card-cache freshness check as [`admin`](/commands/admin/); `--refresh` controls it (and is therefore valid with `--api` even without `--build`).
+- **Builds when there is nothing to serve.** With `--api` the data is served live, so an unbuilt served directory (`dist/`, or `--out-dir`) is a missing app shell rather than missing content: the command builds the site itself and then serves it, instead of refusing. (Plain `serve` still refuses — there the build _is_ the content.) An existing build is served as-is; pass `--build` to rebuild it, which is also the only way to give the build any of its flags.
+- **Cache warming.** Live payloads are computed from the card cache with **no Scryfall fallback**, so startup applies the same freshness gates [`build-site`](/commands/build-site/#card-cache-refresh) applies, over every card the served lists reference — entries, deck primers, and change history — under the same `--refresh` policy (which is therefore valid with `--api` even without `--build`): a bulk download when the cache has never been downloaded, is more than a week old, or is missing many of those cards; then the offer to redownload day-old prices; then, when a sample of the site's cards carries no oracle/art tags, the offer to download them (skipped entirely on an empty cache). The one gate a build has that this does not is the **per-card refetch** of missing or stale cards — a live server never fetches from Scryfall — so `--refresh no-bulk` warms nothing here, exactly like `--refresh never`, which is what a [cache server](/commands/cache/) deployment wants. Each gate is best-effort: a declined prompt or a cold network leaves the cache as it was and the server still starts. When `--api` builds (or `--build` was given), the build applied these gates already and startup does not ask again.
 - **Cache backend.** The server reads the card cache through the standard selection: the local `cache/cache.json` by default, or a [cache server](/commands/cache/) when `--cache-server`/`RITUAL_CACHE_SERVER` is set. A bulk refresh run by a separate CLI process is picked up automatically (the server watches the cache file). **Never expose the cache server itself to browsers** — it has unauthenticated write routes; only the `serve --api` process should talk to it.
 - **CORS.** API and JSON routes answer with `Access-Control-Allow-Origin: *`, so a statically deployed site (CDN/GitHub Pages) can point at a separately hosted instance via [`site.apiBaseUrl`](/configuration/#site-config-site-key) — see [Hosting with a live backend](/public-site/hosted/).
 - **Freshness.** Live JSON is served with `Cache-Control: no-cache`, content ETags, and `Last-Modified`, so unchanged payloads revalidate as cheap 304s. Every response also carries `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`.
@@ -99,7 +100,13 @@ Build only specific decks, then serve:
 ./ritual serve --build --decks "Atraxa Superfriends" "Mono Red Aggro"
 ```
 
-Build once, then host the site with the live backend:
+Host the site with the live backend, building it first if it has not been built yet:
+
+```bash
+./ritual serve --api
+```
+
+Rebuild the static site and then host it:
 
 ```bash
 ./ritual serve --build --api
@@ -113,15 +120,15 @@ Host with a shared cache server providing the card data:
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                                     |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | The server ran (it serves until stopped with `Ctrl+C`).                                                                                                                                                     |
-| `1`  | The build failed at runtime (e.g. an unreadable `--theme-file`, or a build error), or there is no built site to serve (no `index.html` in the served directory, in either mode). The server is not started. |
-| `2`  | Usage error: invalid `--port`, a build-only flag without `--build`, or an invalid `--currencies`/`--theme` value.                                                                                           |
+| Code | Meaning                                                                                                                                                                                                                                                          |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | The server ran (it serves until stopped with `Ctrl+C`).                                                                                                                                                                                                          |
+| `1`  | The build failed at runtime (e.g. an unreadable `--theme-file`, or a build error), or there is no built site to serve and none was built (no `index.html` in the served directory; under `--api` this means the build it ran failed). The server is not started. |
+| `2`  | Usage error: invalid `--port`, a build-only flag without `--build`, or an invalid `--currencies`/`--theme` value.                                                                                                                                                |
 
 ## Notes
 
-- Files are served from the `dist/` directory, or from `--out-dir` when given — the build and the server always agree on one directory. Without `--build`, run [`build-site`](/commands/build-site/) first to generate the content; serving a directory with no `index.html` is refused with exit code 1 and a message naming both remedies.
+- Files are served from the `dist/` directory, or from `--out-dir` when given — the build and the server always agree on one directory. Without `--build` or `--api`, run [`build-site`](/commands/build-site/) first to generate the content; serving a directory with no `index.html` is refused with exit code 1 and a message naming both remedies.
 - With `--build`, the site is built exactly as `build-site` would; if the build fails, the server does not start.
 - `--host` defaults to `0.0.0.0` (all interfaces), matching [`admin`](/commands/admin/). The printed URL names the address the server actually bound: a wildcard or loopback bind prints `http://localhost:<port>` (use the machine's address to reach it from another device), and an explicit `--host 192.168.1.5` prints that address.
 - Press `Ctrl+C` to stop the server.

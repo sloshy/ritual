@@ -31,8 +31,8 @@ discloses, not what your own tools can see.
 
 ## Downloading the buylist
 
-Every read path is strictly cache-backed: no page load ever triggers the ~70 MB download. Refresh
-it deliberately, with any of:
+Every read path is strictly cache-backed: no page load ever triggers the ~70 MB download. The
+first one is always deliberate, with any of:
 
 - the **Refresh buylist** button on the admin **Refresh Cache** page,
 - `ritual sell --refresh auto` on the CLI,
@@ -41,6 +41,12 @@ it deliberately, with any of:
 
 Until then, sell mode's controls appear but no card carries a quote, and the page shows the
 reason beneath its totals.
+
+Once a buylist exists, keeping it current is automatic: [`sell`](/commands/sell/) redownloads a
+day-old feed as it runs, and [`admin`](/commands/admin/) and
+[`serve --api`](/commands/serve/#live-api-mode---api) each do the same at startup — so quotes go
+stale only while a server keeps running past a day, which a restart fixes. `--refresh no-bulk` and
+`--refresh never` opt out of all of it.
 
 ## Using it
 

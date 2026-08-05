@@ -1,7 +1,11 @@
 import { cardCache } from './index'
 import { refreshCardCache } from './refresh-source'
-import { BULK_CACHE_MAX_AGE_MS, PRICE_MAX_AGE_MS } from './constants'
-import { shouldBulkRefresh, type BulkRefreshPrompt, type RefreshMode } from '../refresh'
+import { BULK_CACHE_MAX_AGE_MS, BULK_FETCH_THRESHOLD, PRICE_MAX_AGE_MS } from './constants'
+import { bulkAllowed, shouldBulkRefresh, type BulkRefreshPrompt, type RefreshMode } from '../refresh'
+import { downloadTagIndex, refreshTags } from '../scryfall'
+import type { TagIndex } from '../scryfall/tags'
+import type { CacheManager } from '../interfaces'
+import type { ScryfallCard } from '../types'
 import { formatDuration } from '../utils'
 import { getErrorMessage } from '../errors'
 import { getLogger } from '../logger'
@@ -283,6 +287,135 @@ export async function ensureCardCachePresent(
     return false
   }
   return !(await cache.isEmpty())
+}
+
+/**
+ * The slice of the card cache {@link offerBulkPriceRefresh} reads. `Required`
+ * because `CacheManager` declares these optional: a double that omitted
+ * `getTimestamp` would silently make every price look fresh.
+ */
+export type PriceFreshnessCache = Required<
+  Pick<CacheManager<ScryfallCard[]>, 'getLastRefreshedAt' | 'getTimestamp' | 'isBlocked'>
+>
+
+/** Injectable dependencies for {@link offerBulkPriceRefresh}. */
+export type PriceRefreshDeps = {
+  cache?: PriceFreshnessCache
+  preload?: () => Promise<void>
+  confirm?: (prompt: BulkRefreshPrompt) => Promise<boolean>
+}
+
+/** Injectable dependencies for {@link offerTagDownload}. */
+export type TagDownloadDeps = {
+  confirm?: (prompt: BulkRefreshPrompt) => Promise<boolean>
+  download?: () => Promise<TagIndex | null>
+  /** Re-attach the downloaded tags to every cached card. */
+  bake?: (index: TagIndex) => Promise<void>
+}
+
+/**
+ * Offer the bulk redownload that refreshes prices, when enough of the given
+ * cards carry prices older than a day for a redownload to beat per-card fetches.
+ *
+ * Shared by the two surfaces that render a whole workspace's prices at once:
+ * `build-site`'s fetch loop and `serve --api`'s startup warm. Silent unless it
+ * has something to offer, and never fatal — a refusal or a cold network leaves
+ * the older prices in place.
+ *
+ * @param cardNames Every card name the caller is about to price.
+ * @param cacheJustRefreshed Whether this run already bulk-downloaded, which
+ *   makes the prices as fresh as a redownload could make them.
+ */
+export async function offerBulkPriceRefresh(
+  cardNames: readonly string[],
+  mode: RefreshMode,
+  cacheJustRefreshed: boolean,
+  deps: PriceRefreshDeps = {},
+): Promise<void> {
+  const cache = deps.cache ?? cardCache
+  const preload = deps.preload ?? refreshCardCache
+  const confirm = deps.confirm ?? ((prompt: BulkRefreshPrompt) => shouldBulkRefresh(mode, prompt))
+
+  if (!bulkAllowed(mode)) return
+
+  const lastBulkRefresh = await cache.getLastRefreshedAt()
+  const bulkCacheIsRecent =
+    cacheJustRefreshed ||
+    (lastBulkRefresh != null && Date.now() - lastBulkRefresh < PRICE_MAX_AGE_MS)
+  if (bulkCacheIsRecent) return
+
+  let stalePriceCount = 0
+  for (const name of cardNames) {
+    if (await cache.isBlocked(name)) continue
+    const timestamp = await cache.getTimestamp(name)
+    if (timestamp == null || Date.now() - timestamp >= PRICE_MAX_AGE_MS) {
+      stalePriceCount++
+    }
+  }
+
+  if (stalePriceCount <= BULK_FETCH_THRESHOLD) return
+
+  console.log(`\n${stalePriceCount} of ${cardNames.length} card(s) have prices older than 24 hours.`)
+  console.log(
+    `Redownloading the Scryfall bulk card cache (includes fresh prices) would be faster than refreshing each card individually.`,
+  )
+
+  const shouldPreload = await confirm({
+    message: 'Redownload the latest Scryfall card cache now?',
+    initial: false,
+  })
+
+  if (shouldPreload) {
+    // Best-effort warm: `refreshCardCache` propagates now, and a cold network
+    // must not fail a run that can still work against the existing cache.
+    const failure = await tryPreload(preload)
+    if (failure !== null) console.error(`${failure} Continuing with the existing cache.`)
+  }
+}
+
+/**
+ * Offer the oracle/art tag download the site's tag filters need, baking the
+ * result into the card cache.
+ *
+ * Callers decide *whether* the tags are missing (each has a cheaper way to
+ * check the cards it cares about) — this owns the prompt, the download, the
+ * bake, and the messages, so `build-site` and `serve --api` say the same things.
+ *
+ * @returns The downloaded index, so a caller holding cards in memory can attach
+ *   tags to them without a second download; `null` when nothing was downloaded.
+ */
+export async function offerTagDownload(
+  mode: RefreshMode,
+  deps: TagDownloadDeps = {},
+): Promise<TagIndex | null> {
+  const confirm = deps.confirm ?? ((prompt: BulkRefreshPrompt) => shouldBulkRefresh(mode, prompt))
+  const download = deps.download ?? downloadTagIndex
+  const bake = deps.bake ?? refreshTags
+
+  const accepted = await confirm({
+    message:
+      'The card cache has no oracle/art tags (used by the site’s tag filters). Download them now?',
+    initial: true,
+  })
+  if (!accepted) {
+    console.log(
+      "Skipping tag download; the site's tag filters will be empty. " +
+        'Run `ritual cache refresh-tags` later to add them.',
+    )
+    return null
+  }
+
+  console.log('Fetching oracle/art tags from Scryfall...')
+  const tagIndex = await download()
+  if (!tagIndex) {
+    console.warn("Could not download tags; the site's tag filters will be empty.")
+    return null
+  }
+  // Bake into the cache so future builds and CLI features have them too — the
+  // index is passed through, so this never re-downloads.
+  await bake(tagIndex)
+  console.log('Added oracle/art tags to the card cache.')
+  return tagIndex
 }
 
 /** Whether price data exists at all, and when it was last refreshed. */

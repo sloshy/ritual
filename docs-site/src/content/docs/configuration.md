@@ -227,6 +227,10 @@ Sell mode also requires a live backend — quotes are fetched, never baked — s
 never shows it however this is set. The key does not affect the admin site, which always offers
 sell mode.
 
+The key has one server-side effect too: [`serve --api`](/commands/serve/#live-api-mode---api) reads
+it at startup to decide whether to refresh a day-old buylist, so turning it on for an already-running
+server leaves that process's feed unwarmed until it restarts.
+
 ### Choosing which lists to publish
 
 Each `include*` list controls which lists in that category are published when you run [`build-site`](/commands/build-site/):

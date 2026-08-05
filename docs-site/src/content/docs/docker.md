@@ -63,7 +63,7 @@ services:
     command: serve --api --host 0.0.0.0 --port 3000 --refresh never
 ```
 
-`--refresh never` skips the interactive cache prompt (populate the cache first with `ritual cache preload-all`, or point the container at a shared cache server with `--cache-server`). Build `dist/` beforehand with `ritual build-site`, or add `--build --refresh never` to build on startup.
+`--refresh never` stops the container from downloading Scryfall's bulk data on startup — under the default `ask`, an empty or week-old cache is bulk-downloaded without prompting. So populate the cache first with `ritual cache preload-all`, or point the container at a shared cache server with `--cache-server`. An empty `dist/` mount is fine: `--api` builds the site on startup when there is none — but that build needs card data, so with `--refresh never` **and** an empty cache it fails and the container exits 1. Add `--build` to rebuild the site on every start. `--refresh never` also opts out of the startup [buylist](/commands/sell/) refresh, so a long-lived container's sell mode quotes the feed it started with until you refresh it from the admin site or a CLI run.
 
 ## Directory Mounts
 

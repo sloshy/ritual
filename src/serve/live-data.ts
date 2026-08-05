@@ -7,24 +7,20 @@ import { scryfallIdIndex } from '../cache/scryfall-id-index'
 import { fetchSymbology } from '../scryfall'
 import {
   getBannedPrintings,
-  getCollectionsDir,
-  getDecksDir,
   getDefaultCurrency,
   getSearchDebounceMs,
   getSiteSelectionConfig,
   getSiteSellMode,
-  getWantedDir,
   loadRitualConfig,
   type RitualConfig,
 } from '../ritual-config'
-import { resolveDeckSources, resolveListSources } from '../site/list-sources'
-import { loadDeckSource, buildDeckArtifacts, type LoadedDeck } from '../site/details/deck'
+import { dirForType } from '../resolve-list'
+import { enumerateSources } from './lists'
+import { deckCardNames, flatListCardNames } from '../site/details/card-names'
+import { loadDeckSource, buildDeckArtifacts } from '../site/details/deck'
 import { loadCollectionSource, buildCollectionArtifacts } from '../site/details/collection'
 import { loadWantedSource, buildWantedArtifacts } from '../site/details/wanted'
 import type { SiteDetailContext } from '../site/details/types'
-import { extractPrimerCardNames } from '../primer-parser'
-import { extractChangelogCardNames } from '../changelog-parser'
-import { getErrorMessage, hasErrorCode } from '../errors'
 import { createCacheCardSource } from './card-source'
 import type {
   CollectionSummary,
@@ -81,12 +77,6 @@ async function statMtimeMs(filePath: string): Promise<number> {
   } catch {
     return 0
   }
-}
-
-function listDir(kind: ListType, config: RitualConfig): string {
-  if (kind === 'deck') return getDecksDir(config)
-  if (kind === 'collection') return getCollectionsDir(config)
-  return getWantedDir(config)
 }
 
 function stampsEqual(a: ListStamp, b: ListStamp): boolean {
@@ -169,20 +159,6 @@ export function createLiveSiteData(): LiveSiteData {
     })
   }
 
-  async function collectDeckNames(loaded: LoadedDeck): Promise<string[]> {
-    const names: string[] = []
-    loaded.data.sections.forEach((s) => s.cards.forEach((c) => names.push(c.name)))
-    if (loaded.data.primer) {
-      for (const name of extractPrimerCardNames(loaded.data.primer)) {
-        names.push((await cardCache.resolveCardName(name.toLowerCase())) ?? name)
-      }
-    }
-    for (const name of extractChangelogCardNames(loaded.changelog)) {
-      names.push((await cardCache.resolveCardName(name.toLowerCase())) ?? name)
-    }
-    return names
-  }
-
   async function makeContext(
     names: readonly string[],
     config: RitualConfig,
@@ -215,7 +191,7 @@ export function createLiveSiteData(): LiveSiteData {
     config: RitualConfig,
     configStamp: string,
   ): Promise<BuiltList | null> {
-    const dir = listDir(kind, config)
+    const dir = dirForType(kind, config)
     const fileName = basename.endsWith('.md') ? basename : `${basename}.md`
     const listMtimeMs = await statMtimeMs(path.join(dir, fileName))
     if (listMtimeMs === 0) return null
@@ -235,7 +211,7 @@ export function createLiveSiteData(): LiveSiteData {
       const loaded = await loadDeckSource(dir, basename)
       if (typeof loaded === 'string') return null
       logParseWarnings(kind, basename, loaded.warnings)
-      const ctx = await makeContext(await collectDeckNames(loaded), config)
+      const ctx = await makeContext(await deckCardNames(loaded), config)
       const artifacts = await buildDeckArtifacts(loaded, ctx)
       slug = artifacts.slug
       summary = artifacts.summary
@@ -244,10 +220,7 @@ export function createLiveSiteData(): LiveSiteData {
       const loaded = await loadCollectionSource(dir, basename)
       if (typeof loaded === 'string' || loaded.entries.length === 0) return null
       logParseWarnings(kind, basename, loaded.warnings)
-      const ctx = await makeContext(
-        loaded.entries.map((entry) => entry.name),
-        config,
-      )
+      const ctx = await makeContext(await flatListCardNames(loaded), config)
       const artifacts = await buildCollectionArtifacts(loaded, ctx)
       slug = artifacts.slug
       summary = artifacts.summary
@@ -256,10 +229,7 @@ export function createLiveSiteData(): LiveSiteData {
       const loaded = await loadWantedSource(dir, basename)
       if (typeof loaded === 'string' || loaded.entries.length === 0) return null
       logParseWarnings(kind, basename, loaded.warnings)
-      const ctx = await makeContext(
-        loaded.entries.map((entry) => entry.name),
-        config,
-      )
+      const ctx = await makeContext(await flatListCardNames(loaded), config)
       const artifacts = await buildWantedArtifacts(loaded, ctx)
       slug = artifacts.slug
       summary = artifacts.summary
@@ -280,38 +250,6 @@ export function createLiveSiteData(): LiveSiteData {
     return built
   }
 
-  async function enumerate(kind: ListType, config: RitualConfig): Promise<string[]> {
-    const selection = getSiteSelectionConfig(config.site)
-    try {
-      if (kind === 'deck') {
-        return await resolveDeckSources(
-          listDir(kind, config),
-          selection.includeDecks,
-          selection.excludeDecks,
-        )
-      }
-      if (kind === 'collection') {
-        return await resolveListSources(
-          listDir(kind, config),
-          selection.includeCollections,
-          selection.excludeCollections,
-        )
-      }
-      return await resolveListSources(
-        listDir(kind, config),
-        selection.includeWantedLists,
-        selection.excludeWantedLists,
-      )
-    } catch (e) {
-      // A missing list directory is a normal empty category; anything else
-      // (permissions, I/O) deserves a log line rather than a silent empty site.
-      if (!hasErrorCode(e, 'ENOENT')) {
-        console.warn(`Failed to enumerate ${kind} sources: ${getErrorMessage(e)}`)
-      }
-      return []
-    }
-  }
-
   async function getIndex(): Promise<LiveJson> {
     const config = await loadRitualConfig()
     await refreshGeneration()
@@ -324,7 +262,7 @@ export function createLiveSiteData(): LiveSiteData {
     // The single cast: getOrBuildList unifies the three kinds behind
     // ListSummary, but each call here only ever produces its own kind's shape.
     const collect = async <T extends ListSummary>(kind: ListType, into: T[]): Promise<void> => {
-      for (const basename of await enumerate(kind, config)) {
+      for (const basename of await enumerateSources(kind, config)) {
         const built = await getOrBuildList(kind, basename, config, configStamp)
         if (!built) continue
         into.push(built.summary as T)

@@ -1,4 +1,3 @@
-import { refreshCardCache } from '../cache/refresh-source'
 import { Command } from 'commander'
 import path from 'node:path'
 import fs from 'node:fs/promises'
@@ -15,15 +14,11 @@ import {
   computeRepresentativePrints,
   fetchSymbology,
   downloadSymbol,
-  downloadTagIndex,
-  refreshTags,
   attachTags,
 } from '../scryfall'
 import { cardCache, ensureCacheForCards } from '../cache'
 import { isRunningFromSource } from '../runtime'
 import type { ScryfallCard } from '../types'
-import { extractPrimerCardNames } from '../primer-parser'
-import { extractChangelogCardNames } from '../changelog-parser'
 import { resolveOutDir } from '../site/dist-dir'
 import { buildAndPublish } from '../site/publish'
 import {
@@ -48,14 +43,13 @@ import { fetchDeckFromUrl } from '../importers/url-dispatch'
 import { loadDeckSource, buildDeckArtifacts, type LoadedDeck } from '../site/details/deck'
 import { loadCollectionSource, buildCollectionArtifacts } from '../site/details/collection'
 import { loadWantedSource, buildWantedArtifacts } from '../site/details/wanted'
+import { deckCardNames, flatListCardNames } from '../site/details/card-names'
 import type { SiteCardData, SiteDetailContext } from '../site/details/types'
-import { parseWantedListFile } from './wanted-helpers'
 import { parseCurrenciesFlag } from '../price-currency'
 import type { PriceCurrency } from '../price-currency'
 import { getErrorMessage } from '../errors'
-import type { CacheManager } from '../interfaces'
-import { PRICE_MAX_AGE_MS, BULK_FETCH_THRESHOLD } from '../cache/constants'
-import { emptyCacheAdvice } from '../cache/freshness'
+import { PRICE_MAX_AGE_MS } from '../cache/constants'
+import { emptyCacheAdvice, offerBulkPriceRefresh, offerTagDownload } from '../cache/freshness'
 import {
   generateAllThemesCss,
   generateCustomThemeCss,
@@ -67,13 +61,7 @@ import {
   type CustomTheme,
 } from '../themes'
 import { ExitCode } from './scripting'
-import {
-  addRefreshOption,
-  bulkAllowed,
-  refreshStaleAllowed,
-  shouldBulkRefresh,
-  type RefreshMode,
-} from '../refresh'
+import { addRefreshOption, bulkAllowed, refreshStaleAllowed, type RefreshMode } from '../refresh'
 
 export interface BuildSiteOptions {
   verbose?: boolean
@@ -166,55 +154,6 @@ async function loadCustomThemes(paths: readonly string[]): Promise<CustomTheme[]
     themes.push(result)
   }
   return themes
-}
-
-async function checkAndOfferBulkPriceRefresh(
-  uniqueCards: string[],
-  totalCards: number,
-  cardCache: CacheManager<ScryfallCard[]>,
-  lastBulkRefresh: number | null | undefined,
-  cacheJustRefreshed: boolean,
-  mode: RefreshMode,
-): Promise<void> {
-  if (!bulkAllowed(mode)) return
-
-  const bulkCacheIsRecent =
-    cacheJustRefreshed ||
-    (lastBulkRefresh != null && Date.now() - lastBulkRefresh < PRICE_MAX_AGE_MS)
-  if (bulkCacheIsRecent) return
-
-  let stalePriceCount = 0
-  for (const name of uniqueCards) {
-    if (await cardCache.isBlocked?.(name)) continue
-    const timestamp = await cardCache.getTimestamp?.(name)
-    if (timestamp == null || Date.now() - timestamp >= PRICE_MAX_AGE_MS) {
-      stalePriceCount++
-    }
-  }
-
-  if (stalePriceCount <= BULK_FETCH_THRESHOLD) return
-
-  console.log(`\n${stalePriceCount} of ${totalCards} card(s) have prices older than 24 hours.`)
-  console.log(
-    `Redownloading the Scryfall bulk card cache (includes fresh prices) would be faster than refreshing each card individually.`,
-  )
-
-  const shouldPreload = await shouldBulkRefresh(mode, {
-    message: 'Redownload the latest Scryfall card cache now?',
-    initial: false,
-  })
-
-  if (shouldPreload) {
-    // Best-effort warm: `refreshCardCache` propagates now, and a cold network
-    // must not fail a build that can still run against the existing cache.
-    try {
-      await refreshCardCache()
-    } catch (e) {
-      console.error(
-        `Card cache refresh failed; building with the existing cache. ${getErrorMessage(e)}`,
-      )
-    }
-  }
 }
 
 /** How the three list categories are named in build output. */
@@ -596,20 +535,16 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     const globalCardMap: Record<string, ScryfallCard | null> = {}
     const globalPrintingsMap: Record<string, ScryfallCard[]> = {}
     const allCardNames = new Set<string>()
-    const primerCardNames = new Set<string>()
-    const changelogCardNames = new Set<string>()
 
-    /** Take a loaded deck into the build and harvest every card name it mentions. */
-    const collectDeck = (loaded: LoadedDeck): void => {
+    /**
+     * Take a loaded deck into the build and harvest every card name it mentions
+     * — sections, primer, and changelog, through the collector the live server
+     * warms from and the detail builders resolve against.
+     */
+    const collectDeck = async (loaded: LoadedDeck): Promise<void> => {
       loadedDecks.push(loaded)
       console.log(`  - Loaded ${loaded.data.name}`)
-      loaded.data.sections.forEach((s) => s.cards.forEach((c) => allCardNames.add(c.name)))
-      // Card names referenced in the primer (for modal pre-fetching)
-      if (loaded.data.primer) {
-        for (const name of extractPrimerCardNames(loaded.data.primer)) primerCardNames.add(name)
-      }
-      // Card names referenced in the changelog
-      for (const name of extractChangelogCardNames(loaded.changelog)) changelogCardNames.add(name)
+      for (const name of await deckCardNames(loaded)) allCardNames.add(name)
     }
 
     // Phase 1: Load Decks
@@ -628,7 +563,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         skipSource('deck', url, result, true)
         continue
       }
-      collectDeck({ data: result, changelog: [], warnings: [], fileMtime: undefined })
+      await collectDeck({ data: result, changelog: [], warnings: [], fileMtime: undefined })
     }
     for (const source of deckCategory.buildable) {
       const result = await loadDeckSource(decksDir, source.basename)
@@ -639,37 +574,19 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       for (const warning of result.warnings) {
         console.warn(`  ⚠️  ${source.displayName}: ${warning}`)
       }
-      collectDeck(result)
+      await collectDeck(result)
     }
 
     // Pre-load wanted list card names so they're fetched along with deck/collection
-    // cards. Phase 5 builds from the same resolved selection, so the two stay in sync.
+    // cards. Phase 5 builds from the same resolved selection and the same loader,
+    // so the two stay in sync; a list that fails to load here is reported there.
     for (const source of wantedCategory.buildable) {
-      try {
-        const wlContent = await fs.readFile(
-          path.join(wantedListsSourceDir, `${source.basename}.md`),
-          'utf-8',
-        )
-        const { entries: wlEntries } = parseWantedListFile(wlContent)
-        for (const entry of wlEntries) allCardNames.add(entry.name)
-      } catch {
-        // Unreadable here is reported by the loader in Phase 5.
-      }
+      const loaded = await loadWantedSource(wantedListsSourceDir, source.basename)
+      if (typeof loaded === 'string') continue
+      for (const name of await flatListCardNames(loaded)) allCardNames.add(name)
     }
 
     // Phase 2: Fetch Cards with Progress Bar
-
-    // Resolve primer card names to their canonical (proper-case) names via the cache index
-    for (const name of primerCardNames) {
-      const canonical = await cardCache.resolveCardName(name.toLowerCase())
-      allCardNames.add(canonical ?? name)
-    }
-
-    // Resolve changelog card names (cards referenced in change history)
-    for (const name of changelogCardNames) {
-      const canonical = await cardCache.resolveCardName(name.toLowerCase())
-      allCardNames.add(canonical ?? name)
-    }
 
     // Purge expired blocklist entries before fetching
     await cardCache.purgeExpiredBlocklist()
@@ -713,14 +630,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     }
 
     const lastBulkRefresh = await cardCache.getLastRefreshedAt?.()
-    await checkAndOfferBulkPriceRefresh(
-      uniqueCards,
-      totalCards,
-      cardCache,
-      lastBulkRefresh,
-      cacheJustRefreshed,
-      mode,
-    )
+    await offerBulkPriceRefresh(uniqueCards, mode, cacheJustRefreshed)
 
     console.log('Fetching data...')
 
@@ -886,28 +796,11 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
 
     const buildCards = collectBuildCards()
     if (buildCards.length > 0 && !hasAnyTags(buildCards)) {
-      const refresh = await shouldBulkRefresh(mode, {
-        message:
-          'The card cache has no oracle/art tags (used by the site’s tag filters). Download them now?',
-        initial: true,
-      })
-      if (refresh) {
-        console.log('Fetching oracle/art tags from Scryfall...')
-        const tagIndex = await downloadTagIndex()
-        if (tagIndex) {
-          // Tag the cards headed for this build, then bake into the cache so future
-          // builds and CLI features have them too (no re-download — reuse the index).
-          for (const card of buildCards) attachTags(card, tagIndex)
-          await refreshTags(tagIndex)
-          console.log('Added oracle/art tags to the card cache.')
-        } else {
-          console.warn("Could not download tags; the site's tag filters will be empty.")
-        }
-      } else {
-        console.log(
-          "Skipping tag download; the site's tag filters will be empty. " +
-            'Run `ritual cache refresh-tags` later to add them.',
-        )
+      // The bake into the cache happens inside; the returned index tags the
+      // cards already loaded for this build, without a second download.
+      const tagIndex = await offerTagDownload(mode)
+      if (tagIndex) {
+        for (const card of buildCards) attachTags(card, tagIndex)
       }
     }
 

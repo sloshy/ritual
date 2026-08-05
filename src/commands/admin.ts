@@ -17,6 +17,7 @@ import { runHttpServer } from '../mcp/run'
 import { resolveMcpToken } from '../mcp/token'
 import { getBaseDir } from '../base-dir'
 import { ensureFreshCardCache } from '../cache/freshness'
+import { sellModeWarning, warmCardKingdomFeed } from '../cardkingdom'
 import { addRefreshOption, type RefreshMode } from '../refresh'
 import { isRunningFromSource } from '../runtime'
 import {
@@ -168,6 +169,16 @@ export function registerAdminCommand(program: Command): void {
       console.log('Preparing admin interface...')
 
       await ensureFreshCardCache(options.refresh)
+
+      // The admin's buylist routes read a cached feed and never download; a
+      // day-old one quotes yesterday's offers, so startup brings it current.
+      // `sellMode: true` because the admin always offers sell mode — the
+      // `site.sellMode` key governs what a *published* site discloses, not what
+      // your own tools can see. A workspace with no buylist is left alone.
+      const buylistWarning = sellModeWarning(
+        await warmCardKingdomFeed(options.refresh, { sellMode: true }),
+      )
+      if (buylistWarning !== undefined) console.warn(buylistWarning)
 
       await fs.rm(adminDistDir, { recursive: true, force: true })
       await fs.mkdir(adminDistDir, { recursive: true })

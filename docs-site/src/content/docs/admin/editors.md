@@ -45,7 +45,7 @@ The list toolbar (shared with the public site pages) groups all card filters und
 
 Filters combine, and the **Clear** action at the top of the panel resets everything. On deck pages the commander section is never filtered.
 
-The toolbar also carries a **Sell mode** toggle and a buyer selector. The admin site always offers sell mode — the `site.sellMode` config key governs what a _published_ site discloses, not your own tools — so buylist prices, the Buylist filters, the buylist grouping and sorting, and the Card Kingdom cart export are all available in the editors. Quotes come from the locally cached buylist, which is downloaded only from the **Refresh Cache** page's _Refresh buylist_ button (or `ritual sell --refresh auto`). See [Sell mode](/public-site/sell/).
+The toolbar also carries a **Sell mode** toggle and a buyer selector. The admin site always offers sell mode — the `site.sellMode` config key governs what a _published_ site discloses, not your own tools — so buylist prices, the Buylist filters, the buylist grouping and sorting, and the Card Kingdom cart export are all available in the editors. Quotes come from the locally cached buylist. The first download is deliberate — the **Refresh Cache** page's _Refresh buylist_ button, or `ritual sell --refresh auto` — after which [`admin`](/commands/admin/) refreshes a day-old copy at startup and the button forces one mid-session. See [Sell mode](/public-site/sell/).
 
 Each card displays **+** and **−** buttons to add or remove copies. Reducing a card's quantity to zero removes it entirely.
 

@@ -112,10 +112,11 @@ describe('card-ID backfill preAction hook (Integration)', () => {
       expect(await fs.readFile(deckPath, 'utf-8')).toBe(idlessDeck)
 
       // With --api, the server reads list files live, so the hook backfills.
-      // An empty dist/ fails the action fast, before any server starts.
-      const api = await runCli(['serve', '--api'], dir)
-      expect(api.exitCode).toBe(ExitCode.RuntimeError)
-      expect(api.stderr).toContain('No built site found')
+      // A build-only flag fails the action fast — after the hook ran, and
+      // before --api's build-if-missing does any work.
+      const api = await runCli(['serve', '--api', '--verbose'], dir)
+      expect(api.exitCode).toBe(ExitCode.UsageError)
+      expect(api.stderr).toContain('--verbose')
       expect(await fs.readFile(deckPath, 'utf-8')).toBe(backfilledDeck)
     })
   })

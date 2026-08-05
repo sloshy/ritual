@@ -22,18 +22,18 @@ Names resolve case- and accent-insensitively with a unique-substring fallback, l
 
 ## Options
 
-| Option              | Description                                                                                                                  |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `--deck`            | Check every deck (also disambiguates list names)                                                                             |
-| `--collection`      | Check every collection (the default scope; also disambiguates list names)                                                    |
-| `--wanted`          | Check every wanted list (also disambiguates list names)                                                                      |
-| `--sets <codes>`    | Only cards from these set codes (comma-separated, e.g. `dsk,fdn`): an entry's own pin, or the quoted printing's set          |
-| `--min <price>`     | Only offers of at least this much per copy (e.g. `0.50`)                                                                     |
-| `--all`             | Also itemize entries CK is **not** buying and unmatched entries in the text report (they are otherwise only counted)         |
-| `--out <file>`      | Write the output to a file instead of stdout (`-` for stdout); relative paths resolve against the base directory             |
-| `--refresh <mode>`  | Buylist + card cache refresh policy: `ask` (default — prompt; skip when prompts are unavailable), `auto`, `no-bulk`, `never` |
-| `--output <format>` | Output format: `text`, `json`, `ndjson`, or `csv`                                                                            |
-| `--quiet`           | Suppress progress lines and the disclaimer; never the payload or parser warnings                                             |
+| Option              | Description                                                                                                                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--deck`            | Check every deck (also disambiguates list names)                                                                                                                  |
+| `--collection`      | Check every collection (the default scope; also disambiguates list names)                                                                                         |
+| `--wanted`          | Check every wanted list (also disambiguates list names)                                                                                                           |
+| `--sets <codes>`    | Only cards from these set codes (comma-separated, e.g. `dsk,fdn`): an entry's own pin, or the quoted printing's set                                               |
+| `--min <price>`     | Only offers of at least this much per copy (e.g. `0.50`)                                                                                                          |
+| `--all`             | Also itemize entries CK is **not** buying and unmatched entries in the text report (they are otherwise only counted)                                              |
+| `--out <file>`      | Write the output to a file instead of stdout (`-` for stdout); relative paths resolve against the base directory                                                  |
+| `--refresh <mode>`  | Buylist + card cache refresh policy: `ask` (default — a day-old buylist is redownloaded automatically; a first-ever download prompts), `auto`, `no-bulk`, `never` |
+| `--output <format>` | Output format: `text`, `json`, `ndjson`, or `csv`                                                                                                                 |
+| `--quiet`           | Suppress progress lines and the disclaimer; never the payload or parser warnings                                                                                  |
 
 ## How Cards Are Matched
 
@@ -56,9 +56,9 @@ Buy prices are Card Kingdom's **cash** quotes for **Near Mint** copies: played c
 
 ## Feed Freshness
 
-The shared `--refresh <mode>` option governs two caches: the Scryfall card cache (needed to resolve printings; an empty one is an error, and `ask`/`auto` offer to download it) and the Card Kingdom feed itself. A missing feed downloads under `auto`, prompts under `ask` (default yes), and errors under `no-bulk`/`never`. A stale feed (older than a day) redownloads under `auto`, prompts under `ask` (default no — declining keeps the stale feed), and is used as-is under `no-bulk`/`never`. A failed download falls back to the stale feed when one exists.
+The shared `--refresh <mode>` option governs two caches: the Scryfall card cache (needed to resolve printings; an empty one is an error, and `ask`/`auto` offer to download it) and the Card Kingdom feed itself. A missing feed downloads under `auto`, prompts under `ask` (default yes), and errors under `no-bulk`/`never`. A stale feed (older than a day, so quoting yesterday's offers) is redownloaded **without prompting** under both `ask` and `auto` — the same automatic treatment the Scryfall bulk cache gets, since consenting to the first download is what licenses keeping it current — and is used as-is under `no-bulk`/`never`. A failed download falls back to the stale feed when one exists.
 
-As with every command, structured output (`json`, `ndjson`, `csv`) downgrades an unanswerable `ask` to `never`, and under `never` card names resolve from the cache only. When prompts are unavailable (`--no-input` / `RITUAL_NO_INPUT`, or stdin is not a terminal) the `ask` prompts are declined — so a missing feed or an empty card cache exits `1` with the `--refresh auto` advice instead of hanging.
+As with every command, structured output (`json`, `ndjson`, `csv`) downgrades an unanswerable `ask` to `never` — which also opts out of the automatic stale-feed redownload, so `sell --output json` quotes from whatever is cached unless you pass `--refresh auto` — and under `never` card names resolve from the cache only. When prompts are unavailable (`--no-input` / `RITUAL_NO_INPUT`, or stdin is not a terminal) the `ask` prompts are declined — so a missing feed or an empty card cache exits `1` with the `--refresh auto` advice instead of hanging.
 
 ## Sell-Cart CSV Export
 

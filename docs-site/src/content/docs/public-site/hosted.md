@@ -10,7 +10,7 @@ The public site is normally a fully static build: [`build-site`](/commands/build
 - **Card search matches the admin editor.** The add-card search and trade-page search query the server's card cache with the same term-separation matching (`in tre` finds "In the Trenches"), and the "results may differ" Scryfall note disappears. The [trade page](/commands/build-site/#right-column--their-cards)'s right column drops its "Search Scryfall instead" toggle too: the cache covers every card, so each query searches your wanted lists and the cache together.
 - **Shared trade links restore from the cache.** A trade URL pins some rows by Scryfall ID — cards from none of your lists, plus any deck or wanted printing chosen through the picker. Hosted, those IDs are resolved through `/api/cards` instead of Scryfall, and list-less rows are tagged **Cache** rather than **Scryfall**. An ID the server's cache doesn't hold is reported as a missing card rather than fetched externally.
 - **Prices refresh server-side.** The **Update Prices** button asks the backend, which refreshes stale prices from Scryfall into its cache — shared by every visitor — instead of each browser fetching from Scryfall itself.
-- **Sell mode is available.** [Sell mode](/public-site/sell/) — Card Kingdom buylist prices beside each card, buylist filters (on-buylist chips and a price threshold), buylist grouping and sorting, and a sell-cart export — exists only in hosted mode, because quotes are fetched rather than baked (Card Kingdom's feed goes stale within a day). Turn it off for a public deployment with `ritual config set site.sellMode false`. The server never downloads the feed on its own; refresh it from the admin site or `ritual sell --refresh auto`.
+- **Sell mode is available.** [Sell mode](/public-site/sell/) — Card Kingdom buylist prices beside each card, buylist filters (on-buylist chips and a price threshold), buylist grouping and sorting, and a sell-cart export — exists only in hosted mode, because quotes are fetched rather than baked (Card Kingdom's feed goes stale within a day). Turn it off for a public deployment with `ritual config set site.sellMode false`. The server refreshes a day-old feed once, at startup — never on a request — so a long-running deployment restarts into current offers. It never downloads the _first_ feed, though: for that, run `ritual sell --refresh auto` or use the admin site.
 - **Editing stays client-side.** The public editor still exports/imports [change bundles](/commands/import-changes/); the API has no write routes and no auth surface.
 
 A **Live** badge in the site header shows the mode is active.
@@ -20,8 +20,10 @@ A **Live** badge in the site header shows the mode is active.
 The simplest deployment is one process serving both the static assets and the API:
 
 ```bash
-./ritual serve --build --api
+./ritual serve --api
 ```
+
+There is no separate build step to remember: `--api` builds the site when `dist/` holds none, since the data is live and the build only provides the app shell. Add `--build` to rebuild an existing one (and to pass the build any of its flags).
 
 `serve --api` serves `index.json` and the per-list JSON dynamically (shadowing the baked copies in `dist/`) and marks the index so the web app knows the backend exists. Nothing else to configure — deploying means running this command where your list files live (see the [Docker guide](/docker/) for containerized setups).
 
@@ -44,7 +46,7 @@ If the static site and the API sit behind one reverse proxy on the same origin, 
 
 Card search and prices are answered from the server's card cache, so keep it warm:
 
-- Startup runs the same freshness check as [`admin`](/commands/admin/) (`--refresh` controls it; `--refresh never` for non-interactive deployments with a pre-populated cache).
+- Startup applies the same cache freshness gates as [`build-site`](/commands/build-site/#card-cache-refresh), over every card the served lists reference (entries, deck primers, and change history): a bulk download when the cache is empty, over a week old, or missing many of those cards, then the day-old price and oracle/art tag offers. There is no per-card Scryfall fetch — that is a build-only step — so both `--refresh never` and `--refresh no-bulk` warm nothing, which is what a deployment with a pre-populated cache wants. `--refresh` controls all of it, and a build in the same run (including the one `--api` runs for a missing `dist/`) has applied these already, so startup does not ask twice.
 - A bulk refresh run by a separate CLI process (`ritual cache preload-all`) is picked up automatically.
 - With `--cache-server`/`RITUAL_CACHE_SERVER`, the API reads a shared [cache server](/commands/cache/) instead of the local file. The cache server must stay private to the API process — it has unauthenticated write routes and must never be exposed to browsers.
 

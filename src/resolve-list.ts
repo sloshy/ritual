@@ -26,7 +26,7 @@
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { listDeckFiles } from './importers/text-file'
-import { getCollectionsDir, getDecksDir, getWantedDir } from './ritual-config'
+import { getCollectionsDir, getDecksDir, getWantedDir, type RitualConfig } from './ritual-config'
 import { isPathWithinDir } from './path-validation'
 import { isListMarkdownFile, listFileName, normalizeListName } from './list-file-name'
 import { LIST_TYPES, LIST_TYPE_DISPLAY, isListType, type ListType } from './list-type'
@@ -119,11 +119,17 @@ export function resolveListArgument(
   return { type: arg.type ?? flagType, name: arg.name }
 }
 
-/** The configured directory that holds list files of the given type. */
-export function dirForType(type: ListType): string {
-  if (type === 'deck') return getDecksDir()
-  if (type === 'collection') return getCollectionsDir()
-  return getWantedDir()
+/**
+ * The configured directory that holds list files of the given type.
+ *
+ * @param config The config to read the directories from; defaults to the
+ *   ambient one. The live server passes the config it already loaded, so a
+ *   request's directories and its cache stamp come from the same snapshot.
+ */
+export function dirForType(type: ListType, config?: RitualConfig): string {
+  if (type === 'deck') return getDecksDir(config)
+  if (type === 'collection') return getCollectionsDir(config)
+  return getWantedDir(config)
 }
 
 /**

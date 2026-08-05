@@ -3,10 +3,19 @@ import {
   emptyCacheAdvice,
   ensureCardCacheForUpload,
   ensureFreshPriceData,
+  offerBulkPriceRefresh,
+  offerTagDownload,
   refreshCardCacheForSession,
+  type PriceFreshnessCache,
+  type PriceRefreshDeps,
   type SessionCardCache,
 } from '../../src/cache/freshness'
-import { BULK_CACHE_MAX_AGE_MS, PRICE_MAX_AGE_MS } from '../../src/cache/constants'
+import {
+  BULK_CACHE_MAX_AGE_MS,
+  BULK_FETCH_THRESHOLD,
+  PRICE_MAX_AGE_MS,
+} from '../../src/cache/constants'
+import type { TagIndex } from '../../src/scryfall/tags'
 import type { BulkRefreshPrompt } from '../../src/refresh'
 
 type Harness = {
@@ -427,4 +436,219 @@ describe('ensureCardCacheForUpload', () => {
       'The card cache is still empty after a refresh, so no CSV row could be keyed by a Scryfall id.',
     )
   })
+})
+
+/**
+ * The price gate `build-site` and `serve --api` share: a redownload is only
+ * worth offering when enough of the cards being rendered carry day-old prices.
+ */
+describe('offerBulkPriceRefresh', () => {
+  const STALE = Date.now() - PRICE_MAX_AGE_MS - 1
+  const names = (count: number): string[] =>
+    Array.from({ length: count }, (_, i) => `Card ${i + 1}`)
+
+  /** A cache whose bulk download is old and whose every card price is stale. */
+  function staleCache(): PriceFreshnessCache {
+    return {
+      getLastRefreshedAt: async () => STALE,
+      getTimestamp: async () => STALE,
+      isBlocked: async () => false,
+    }
+  }
+
+  /** The harness wired in as the gate's deps; `cache` defaults to all-stale. */
+  const deps = (h: Harness, cache: PriceFreshnessCache = staleCache()): PriceRefreshDeps => ({
+    cache,
+    preload: h.preload,
+    confirm: h.confirmStaleRefresh,
+  })
+
+  test('offers the redownload when more cards than the threshold have stale prices', async () => {
+    const h = harness(true)
+
+    await offerBulkPriceRefresh(names(BULK_FETCH_THRESHOLD + 1), 'ask', false, deps(h))
+
+    expect(h.confirmCalls).toHaveLength(1)
+    expect(h.preloadCalls).toBe(1)
+  })
+
+  test('declining leaves the older prices in place', async () => {
+    const h = harness(false)
+
+    await offerBulkPriceRefresh(names(BULK_FETCH_THRESHOLD + 1), 'ask', false, deps(h))
+
+    expect(h.confirmCalls).toHaveLength(1)
+    expect(h.preloadCalls).toBe(0)
+  })
+
+  test('stays silent when only a handful of prices are stale', async () => {
+    const h = harness(true)
+
+    await offerBulkPriceRefresh(names(BULK_FETCH_THRESHOLD), 'ask', false, deps(h))
+
+    expect(h.confirmCalls).toHaveLength(0)
+    expect(h.preloadCalls).toBe(0)
+  })
+
+  test('cards whose prices are already fresh do not count toward the threshold', async () => {
+    const h = harness(true)
+    const stale = new Set(names(3))
+
+    // Over the threshold in cards, but only three of them are priced stale.
+    await offerBulkPriceRefresh(
+      names(BULK_FETCH_THRESHOLD + 1),
+      'ask',
+      false,
+      deps(h, {
+        ...staleCache(),
+        getTimestamp: async (name: string) => (stale.has(name) ? STALE : Date.now() - 60_000),
+      }),
+    )
+
+    expect(h.confirmCalls).toHaveLength(0)
+  })
+
+  test('a bulk cache downloaded within the day makes the offer pointless', async () => {
+    const h = harness(true)
+
+    await offerBulkPriceRefresh(
+      names(BULK_FETCH_THRESHOLD + 1),
+      'ask',
+      false,
+      deps(h, { ...staleCache(), getLastRefreshedAt: async () => Date.now() - 60_000 }),
+    )
+
+    expect(h.confirmCalls).toHaveLength(0)
+    expect(h.preloadCalls).toBe(0)
+  })
+
+  test('a redownload that fails leaves the run going on the older prices', async () => {
+    const h = harness(true)
+
+    await offerBulkPriceRefresh(names(BULK_FETCH_THRESHOLD + 1), 'ask', false, {
+      ...deps(h),
+      preload: async () => {
+        h.preloadCalls++
+        throw new Error('offline')
+      },
+    })
+
+    // Reported, not thrown: the caller still has the cache it had.
+    expect(h.preloadCalls).toBe(1)
+  })
+
+  test('a bulk download earlier in the same run makes the prices as fresh as they can be', async () => {
+    const h = harness(true)
+
+    await offerBulkPriceRefresh(names(BULK_FETCH_THRESHOLD + 1), 'ask', true, deps(h))
+
+    expect(h.confirmCalls).toHaveLength(0)
+    expect(h.preloadCalls).toBe(0)
+  })
+
+  test('blocked cards are not counted as stale', async () => {
+    const h = harness(true)
+
+    await offerBulkPriceRefresh(
+      names(BULK_FETCH_THRESHOLD + 1),
+      'ask',
+      false,
+      deps(h, {
+        ...staleCache(),
+        isBlocked: async () => true,
+      }),
+    )
+
+    expect(h.confirmCalls).toHaveLength(0)
+  })
+
+  test.each(['no-bulk', 'never'] as const)(
+    '--refresh %s never offers a bulk download',
+    async (mode) => {
+      const h = harness(true)
+
+      await offerBulkPriceRefresh(names(BULK_FETCH_THRESHOLD + 1), mode, false, deps(h))
+
+      expect(h.confirmCalls).toHaveLength(0)
+      expect(h.preloadCalls).toBe(0)
+    },
+  )
+})
+
+describe('offerTagDownload', () => {
+  const index: TagIndex = { updatedAt: 0, oracle: {}, illustration: {} }
+
+  test('bakes the downloaded index into the cache and hands it back', async () => {
+    const baked: TagIndex[] = []
+
+    const result = await offerTagDownload('ask', {
+      confirm: async () => true,
+      download: async () => index,
+      bake: async (i) => {
+        baked.push(i)
+      },
+    })
+
+    // The same index the caller gets is the one baked — a second download would
+    // re-fetch a ~100 MB pair of bulk files.
+    expect(result).toBe(index)
+    expect(baked).toEqual([index])
+  })
+
+  test('a declined prompt downloads nothing', async () => {
+    let downloads = 0
+
+    const result = await offerTagDownload('ask', {
+      confirm: async () => false,
+      download: async () => {
+        downloads++
+        return index
+      },
+      bake: async () => {},
+    })
+
+    expect(result).toBeNull()
+    expect(downloads).toBe(0)
+  })
+
+  test('a failed download is reported rather than baked', async () => {
+    let downloads = 0
+    let baked = 0
+
+    const result = await offerTagDownload('auto', {
+      download: async () => {
+        downloads++
+        return null
+      },
+      bake: async () => {
+        baked++
+      },
+    })
+
+    // Asserting the download ran is what separates this from the declined path,
+    // whose result and bake count are identical.
+    expect(downloads).toBe(1)
+    expect(result).toBeNull()
+    expect(baked).toBe(0)
+  })
+
+  test.each(['no-bulk', 'never'] as const)(
+    '--refresh %s declines through the default confirm, downloading nothing',
+    async (mode) => {
+      let downloads = 0
+
+      // No `confirm` dep: this is exactly how `warmSiteCache` calls the gate,
+      // and it is what keeps `serve --api --refresh never` off the network.
+      const result = await offerTagDownload(mode, {
+        download: async () => {
+          downloads++
+          return index
+        },
+        bake: async () => {},
+      })
+
+      expect(downloads).toBe(0)
+      expect(result).toBeNull()
+    },
+  )
 })

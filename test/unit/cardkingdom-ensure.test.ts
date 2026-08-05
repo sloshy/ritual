@@ -4,9 +4,14 @@ import {
   cardKingdomFeedIsStale,
   ensureCardKingdomFeed,
   parseCardKingdomCacheFile,
+  sellModeWarning,
+  warmCardKingdomFeed,
+  type BuylistWarmth,
   type CardKingdomCacheFile,
   type EnsureCardKingdomFeedDeps,
+  type WarmCardKingdomFeedDeps,
 } from '../../src/cardkingdom'
+import type { RefreshMode } from '../../src/refresh'
 import type { HttpClient } from '../../src/interfaces'
 import { MemoryLogger, resetLogger, setLogger } from '../../src/logger'
 import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../test-utils'
@@ -14,7 +19,9 @@ import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../test-utils'
 const NOW = 1_785_850_800_000
 
 const FEED_JSON = {
-  meta: { created_at: '2026-08-04 06:06:09', base_url: 'https://www.cardkingdom.com/' },
+  // Deliberately a different generation stamp than `makeCardKingdomCacheFile`'s
+  // (2026-08-04): it is what tells a downloaded feed from the cached one.
+  meta: { created_at: '2026-08-05 06:06:09', base_url: 'https://www.cardkingdom.com/' },
   data: [
     {
       id: 1,
@@ -41,14 +48,23 @@ const okHttp: HttpClient = { fetch: async () => Response.json(FEED_JSON) }
 const failHttp: HttpClient = {
   fetch: async () => new Response('nope', { status: 503 }),
 }
+/** For tests where a download must be impossible: reaching the network is the bug. */
+const noNetHttp: HttpClient = {
+  fetch: async () => {
+    throw new Error('unexpected network call')
+  },
+}
 
 type Recorded = { saved: CardKingdomCacheFile[]; confirms: string[] }
+
+/** A deps bag plus the calls it records. */
+type EnsureDepsFixture = { deps: EnsureCardKingdomFeedDeps; recorded: Recorded }
 
 function deps(
   cached: CardKingdomCacheFile | null,
   overrides: Partial<EnsureCardKingdomFeedDeps> = {},
   answer = false,
-): { deps: EnsureCardKingdomFeedDeps; recorded: Recorded } {
+): EnsureDepsFixture {
   const recorded: Recorded = { saved: [], confirms: [] }
   return {
     recorded,
@@ -98,18 +114,20 @@ describe('ensureCardKingdomFeed', () => {
     if (typeof result === 'string') throw new Error(result)
     expect(result.refreshed).toBe(true)
     expect(result.retrievedAt).toBe(NOW)
-    expect(result.feed.createdAt).toBe('2026-08-04 06:06:09')
+    expect(result.feed.createdAt).toBe('2026-08-05 06:06:09')
     expect(recorded.saved).toHaveLength(1)
   })
 
-  test('declining the stale-cache prompt keeps the stale feed', async () => {
-    const stale = cachedFile(NOW - 2 * CARDKINGDOM_FEED_MAX_AGE_MS)
-    const { deps: d, recorded } = deps(stale, {}, false)
+  test('a stale cache is redownloaded under ask without prompting', async () => {
+    const { deps: d, recorded } = deps(cachedFile(NOW - 2 * CARDKINGDOM_FEED_MAX_AGE_MS), {}, false)
     const result = await withQuietLogger(() => ensureCardKingdomFeed('ask', d))
     if (typeof result === 'string') throw new Error(result)
-    expect(result.refreshed).toBe(false)
-    expect(result.feed).toEqual(stale.feed)
-    expect(recorded.confirms).toHaveLength(1)
+    // Card Kingdom regenerates daily, so a stale feed quotes yesterday's
+    // offers; keeping it current is not a question worth asking every run.
+    // (The `false` confirm answer above would have declined, had it been asked.)
+    expect(result.refreshed).toBe(true)
+    expect(result.retrievedAt).toBe(NOW)
+    expect(recorded.confirms).toEqual([])
   })
 
   test('never/no-bulk use a stale cache silently', async () => {
@@ -147,6 +165,8 @@ describe('ensureCardKingdomFeed', () => {
     const result = await withQuietLogger(() => ensureCardKingdomFeed('auto', d))
     if (typeof result === 'string') throw new Error(result)
     expect(result.refreshed).toBe(false)
+    // The cached feed, not the downloaded one — the two carry different
+    // generation stamps, so this distinguishes a fallback from a success.
     expect(result.feed).toEqual(stale.feed)
     // The failure travels on the result, not only into the log — the admin
     // refresh route reads it into its warnings.
@@ -200,5 +220,138 @@ describe('parseCardKingdomCacheFile', () => {
     if (typeof parsed === 'string') throw new Error(parsed)
     expect(parsed.file.feed.products).toHaveLength(1)
     expect(parsed.warnings[0]).toContain('Dropped 1')
+  })
+})
+
+/**
+ * The startup gate the servers run. Both quote surfaces (admin, `serve --api`)
+ * answer from the cached feed and never download per request, so this is the
+ * only thing keeping a long-lived server off yesterday's offers — and it must
+ * do that without ever prompting or downloading a first feed, since a server
+ * start cannot block on a question.
+ */
+describe('warmCardKingdomFeed', () => {
+  /** Warm with sell mode forced on — the server-start case every test here is. */
+  function warm(
+    mode: RefreshMode,
+    fixture: EnsureDepsFixture,
+    overrides: Partial<WarmCardKingdomFeedDeps> = {},
+  ): Promise<BuylistWarmth> {
+    return withQuietLogger(() =>
+      warmCardKingdomFeed(mode, { ...fixture.deps, sellMode: true, ...overrides }),
+    )
+  }
+
+  test('refreshes a stale feed and indexes what it downloaded', async () => {
+    const fixture = deps(cachedFile(NOW - 2 * CARDKINGDOM_FEED_MAX_AGE_MS))
+    const adopted: number[] = []
+
+    const warmth = await warm('ask', fixture, {
+      adopt: async (file) => adopted.push(file.retrievedAt),
+    })
+
+    expect(warmth).toStrictEqual({ enabled: true, ready: true, refreshed: true })
+    expect(fixture.recorded.saved).toHaveLength(1)
+    // The downloaded feed, not the stale one already on disk — and indexed here
+    // so the first quote request does not pay to parse ~20 MB.
+    expect(adopted).toEqual([NOW])
+  })
+
+  test('leaves a fresh feed alone, indexing nothing', async () => {
+    const fixture = deps(cachedFile(NOW - 1000), { http: noNetHttp })
+    let adopts = 0
+
+    const warmth = await warm('ask', fixture, { adopt: async () => adopts++ })
+
+    expect(warmth).toStrictEqual({ enabled: true, ready: true, refreshed: false })
+    expect(adopts).toBe(0)
+  })
+
+  test.each(['no-bulk', 'never'] as const)(
+    '--refresh %s keeps the stale feed without downloading',
+    async (mode) => {
+      const fixture = deps(cachedFile(NOW - 2 * CARDKINGDOM_FEED_MAX_AGE_MS), { http: noNetHttp })
+
+      const warmth = await warm(mode, fixture)
+
+      expect(warmth).toStrictEqual({ enabled: true, ready: true, refreshed: false })
+      expect(fixture.recorded.saved).toEqual([])
+    },
+  )
+
+  test('sell mode off checks nothing at all', async () => {
+    const fixture = deps(null, { http: noNetHttp })
+    let loads = 0
+
+    const warmth = await withQuietLogger(() =>
+      warmCardKingdomFeed('auto', {
+        ...fixture.deps,
+        sellMode: false,
+        load: async () => {
+          loads++
+          return null
+        },
+      }),
+    )
+
+    expect(warmth).toStrictEqual({ enabled: false, ready: false, refreshed: false })
+    expect(loads).toBe(0)
+  })
+
+  test('never downloads a first feed — a server start must not spend ~70 MB or ask', async () => {
+    const fixture = deps(null, { http: noNetHttp })
+
+    // `ask` is the default both servers run under, and the mode whose
+    // missing-feed branch would prompt if the warm ever reached it. A cache
+    // file that exists but cannot be read arrives here the same way — the load
+    // reports it as null — which is why the warm gates on the load rather than
+    // on the file being present (integration pins that end of the chain).
+    const warmth = await warm('ask', fixture)
+
+    expect(warmth).toStrictEqual({ enabled: true, ready: false, refreshed: false })
+    expect(fixture.recorded.confirms).toEqual([])
+    expect(fixture.recorded.saved).toEqual([])
+  })
+
+  test('a failed refresh keeps the stale feed and carries the reason', async () => {
+    const fixture = deps(cachedFile(NOW - 2 * CARDKINGDOM_FEED_MAX_AGE_MS), { http: failHttp })
+
+    const warmth = await warm('auto', fixture)
+
+    // Still servable — just from the older feed, and the caller says so.
+    expect(warmth.ready).toBe(true)
+    expect(warmth.refreshed).toBe(false)
+    expect(warmth.problem).toContain('HTTP 503')
+  })
+
+  test('loads the feed once, then hands it to the gate', async () => {
+    const fixture = deps(cachedFile(NOW - 1000), { http: noNetHttp })
+    let loads = 0
+
+    const warmth = await warm('ask', fixture, {
+      load: async () => {
+        loads++
+        return cachedFile(NOW - 1000)
+      },
+    })
+
+    // The ~20 MB parse is the reason: the gate reuses what the warm read.
+    expect(loads).toBe(1)
+    expect(warmth.ready).toBe(true)
+  })
+})
+
+describe('sellModeWarning', () => {
+  test('reports a refresh that failed', () => {
+    expect(
+      sellModeWarning({ enabled: true, ready: true, refreshed: false, problem: 'offline' }),
+    ).toBe('Sell mode: offline')
+  })
+
+  test('says nothing about a workspace that simply has no buylist', () => {
+    // Declining to download a first feed is a decision, not a failure, and the
+    // admin forces sell mode on for every workspace — warning here would put a
+    // line on every start for everyone who never sells.
+    expect(sellModeWarning({ enabled: true, ready: false, refreshed: false })).toBeUndefined()
   })
 })

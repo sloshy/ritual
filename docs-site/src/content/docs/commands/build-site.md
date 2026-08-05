@@ -437,6 +437,8 @@ The shared `--refresh <mode>` option answers the prompts non-interactively and c
 | `no-bulk`           | **Suppressed**                   | **Skipped**                          | Yes                                       | **Skipped**                          | Yes, when not cached                 |
 | `never`             | **Suppressed**                   | **Skipped**                          | **No** (uses cached prices as-is)         | **Skipped**                          | **Skipped** (warns; symbols missing) |
 
+[`serve --api`](/commands/serve/#live-api-mode---api) runs steps 1, 2, and 4 of this table at startup, over the cards its served lists reference. It never runs step 3 — a live server answers requests from the cache and never fetches from Scryfall — so for the warm, `no-bulk` and `never` are equivalent.
+
 ```bash
 ./ritual build-site --refresh auto     # fastest full refresh, no prompts
 ./ritual build-site --refresh no-bulk  # refresh prices without the big download

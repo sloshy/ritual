@@ -22,12 +22,12 @@ Run bare, `ritual admin` starts the web admin server. The `setup`, `reset-passwo
 | `-p, --port <number>`  | Port to serve on                                                                                                                                                                               | `8080`    |
 | `--host <address>`     | Host address to bind to                                                                                                                                                                        | `0.0.0.0` |
 | `--theme <name>`       | Initial theme served by the admin. Append `-inverted` (e.g. `boros-inverted`) for the inverted variant. See [`build-site` themes](/commands/build-site/#themes) for the full list of palettes. | `default` |
-| `--refresh <mode>`     | Card cache refresh policy on startup: `ask` (prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`                                                                         | `ask`     |
+| `--refresh <mode>`     | Card cache **and buylist** refresh policy on startup: `ask` (prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`                                                         | `ask`     |
 | `--mcp`                | Also serve an [MCP](/commands/mcp/) endpoint in this same process (requires `--mcp-token`)                                                                                                     |           |
 | `--mcp-port <number>`  | Port for the embedded MCP server (only with `--mcp`)                                                                                                                                           | `8765`    |
 | `--mcp-token <secret>` | Bearer token required on the embedded MCP endpoint (with `--mcp`)                                                                                                                              |           |
 
-On startup, `admin` runs the standard [card-ID backfill](/#the-card-id-backfill), persisting any missing `&N` card IDs into the list files (the editors rely on them). It then checks whether the Scryfall card cache is missing or stale and prompts to refresh it. Pass `--refresh auto` (or `no-bulk` / `never`) to answer that prompt non-interactively — an explicit mode is required when running under `bun run dev admin` (see [Development → Dev Workflow](/development/#dev-workflow)). Under the default `--refresh ask`, a run where prompts are unavailable (stdin is not a TTY, or the global `--no-input` flag is in force) skips the refresh instead of prompting.
+On startup, `admin` runs the standard [card-ID backfill](/#the-card-id-backfill), persisting any missing `&N` card IDs into the list files (the editors rely on them). It then checks whether the Scryfall card cache is missing or stale and prompts to refresh it, and redownloads the [Card Kingdom buylist](/commands/sell/) backing [sell mode](/public-site/sell/) if it is more than a day old (Card Kingdom regenerates it daily, and the quote routes themselves never download). Startup only _updates_ a buylist — a workspace that has never downloaded one is left alone, with no prompt — and `--refresh no-bulk`/`never` skip it entirely; a failed download leaves the older feed in place with a warning rather than failing startup. Pass `--refresh auto` (or `no-bulk` / `never`) to answer that prompt non-interactively — an explicit mode is required when running under `bun run dev admin` (see [Development → Dev Workflow](/development/#dev-workflow)). Under the default `--refresh ask`, a run where prompts are unavailable (stdin is not a TTY, or the global `--no-input` flag is in force) skips the refresh instead of prompting.
 
 ## Embedded MCP Server
 
@@ -195,9 +195,10 @@ The Refresh Cache page shows real-time progress during the operation:
 
 The page also carries a **Card Kingdom buylist** card, backing [sell mode](/public-site/sell/) and
 the [`sell`](/commands/sell/) command. It shows when the feed was last downloaded, Card Kingdom's
-own generation stamp, and the product count, with a **Refresh buylist** button. That ~70 MB
-download only ever happens on an explicit click — no page load triggers it — and the button forces
-a redownload even when the cached copy is still fresh. A workspace that has never downloaded it
+own generation stamp, and the product count, with a **Refresh buylist** button. Once the server is
+up, that ~70 MB download only ever happens on an explicit click — no page load triggers it — and the
+button forces a redownload even when the cached copy is still fresh. (Server _startup_ refreshes a
+day-old feed on its own, as described above, so the button is for forcing one mid-session.) A workspace that has never downloaded it
 shows an empty state offering the button rather than an error; if a download fails but a stale copy
 exists, the card reports "The buylist was not updated." instead of claiming success.
 

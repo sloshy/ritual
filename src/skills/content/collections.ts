@@ -390,8 +390,10 @@ quantity-weighted unpriced-card count.
 
 \`sell\` matches cards against Card Kingdom's buylist ("Sell us your cards"): what CK is
 buying, the cash quote per Near Mint copy, and their buy-quantity caps. It works from a
-locally cached copy of CK's pricelist feed (~70 MB, fresh for a day); \`--refresh auto\`
-downloads it when stale or missing. Defaults to every collection; accepts list names of
+locally cached copy of CK's pricelist feed (~70 MB, fresh for a day). A feed already
+downloaded is redownloaded automatically once it is a day old (under \`ask\` too, without
+prompting); the first download prompts, or use \`--refresh auto\`. \`no-bulk\`/\`never\`
+opt out and quote from whatever is cached. Defaults to every collection; accepts list names of
 any type (\`deck:\`/\`collection:\`/\`wanted:\` prefixes disambiguate).
 
 \`\`\`bash
@@ -415,6 +417,7 @@ To price an arbitrary set of printings rather than whole lists, use the MCP tool
 The same quotes drive **sell mode** on the admin site and on a server-backed public site
 (\`ritual serve --api\`): buylist prices beside each card, buylist filters (on-buylist chips and a
 price threshold), buylist grouping/sorting, and a CK cart export. Turn it off for a published site with
-\`ritual config set site.sellMode false\`.
+\`ritual config set site.sellMode false\`. Both servers answer quotes strictly from the cache and
+never download per request; each refreshes a day-old feed once, at startup (never the first one).
 `,
 }

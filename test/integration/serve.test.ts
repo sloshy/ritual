@@ -37,12 +37,15 @@ describe('serve command (Integration)', () => {
     })
   })
 
-  test('--refresh is accepted with --api (cache warming), failing later on the missing dist', async () => {
+  test('--api builds the missing site itself, accepting --refresh as the cache policy', async () => {
     await withWorkspace(async (dir) => {
+      // The empty workspace fails the build for lack of lists, which is proof
+      // enough that --api reached a build instead of refusing over the dist.
       const result = await runCli(['serve', '--api', '--refresh', 'never'], dir)
       expect(result.exitCode).toBe(1)
       expect(result.stderr).not.toContain('only appl')
-      expect(result.stderr).toContain('No built site found')
+      expect(result.stdout).toContain('Building site...')
+      expect(result.stderr).toContain('Nothing to build')
     })
   })
 
@@ -55,6 +58,9 @@ describe('serve command (Integration)', () => {
       const result = await runCli(['serve'], dir)
 
       expect(result.exitCode).toBe(1)
+      // Without --api the build *is* the content, so serve refuses rather than
+      // building one itself.
+      expect(result.stdout).not.toContain('Building site...')
       expect(result.stderr).toContain('No built site found')
       expect(result.stderr).toContain('ritual build-site')
       expect(result.stderr).toContain('--build')

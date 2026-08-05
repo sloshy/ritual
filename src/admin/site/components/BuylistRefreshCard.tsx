@@ -6,10 +6,13 @@ import type { SellRefreshResponse } from '../../api/sell'
 /**
  * The Card Kingdom buylist's explicit refresh control.
  *
- * The buylist is never refreshed automatically by a page load: the feed is a
- * ~70 MB download, and every read path (the sell endpoints, the site's sell
- * mode) is strictly cache-backed. Downloading it is this button, `ritual sell
- * --refresh auto`, or the `refresh_buylist` tool — always a deliberate act.
+ * The buylist is never refreshed by a page load: the feed is a ~70 MB download,
+ * and every read path (the sell endpoints, the site's sell mode) is strictly
+ * cache-backed. The *first* download is always a deliberate act — this button,
+ * `ritual sell --refresh auto`, or the `refresh_buylist` tool — after which the
+ * admin server refreshes a day-old copy at its own startup (unless started with
+ * `--refresh no-bulk`/`never`), and this button forces one mid-session
+ * (`?force=true`, so it downloads even when the copy is still fresh).
  */
 
 /** How the card describes the cached feed: absent, present, or unreadable. */
@@ -105,7 +108,8 @@ export function BuylistRefreshCard(): JSX.Element {
       <h2 class="cache-card-title">Card Kingdom buylist</h2>
       <p class="page-desc">
         Card Kingdom’s pricelist feed (~70 MB), used by <code>ritual sell</code> and the public
-        site’s sell mode. It is only ever downloaded when you ask for it here.
+        site’s sell mode. No page load downloads it; server startup refreshes a day-old copy, and
+        this button forces one now.
       </p>
 
       {/* One arm per FeedState, so the states stay structurally exclusive. */}

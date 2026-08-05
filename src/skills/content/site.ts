@@ -192,7 +192,8 @@ ritual serve                       # serve an already-built dist/ on :3000
 ritual serve -p 8000
 ritual serve --build               # build, then serve
 ritual serve --build -p 8000 --host 127.0.0.1
-ritual serve --build --api         # host the site with a live read-only backend
+ritual serve --api                 # host with a live read-only backend (builds dist/ if missing)
+ritual serve --build --api         # rebuild the site, then host it
 ritual serve --out-dir ./preview          # serve a directory built earlier, no rebuild
 ritual serve --build --out-dir ./preview  # build into ./preview and serve THAT directory
 \`\`\`
@@ -204,6 +205,8 @@ directory itself — or any ancestor of it, like \`.\` — is refused).
 
 Serving a directory with no \`index.html\` is **refused** (exit 1) rather than
 answered with bare 404s; the message names \`ritual build-site\` and \`--build\`.
+Under \`--api\` it is not refused: the data is served live, so a missing build is
+just a missing app shell and the command builds one itself before serving.
 The startup line prints the address actually bound — \`localhost\` for a wildcard
 or loopback bind, the \`--host\` value otherwise.
 
@@ -222,6 +225,15 @@ follows suit: its search covers the wanted lists and the cache together (no
 Scryfall toggle), and shared trade links resolve their cards from the cache.
 There are no write routes — public edits still travel as export/import change
 bundles.
+
+Live payloads come from the card cache with no Scryfall fallback, so startup
+applies the **same cache freshness gates \`build-site\` applies** — over the cards
+the served lists reference, under the same \`--refresh\` policy: a bulk download
+when the cache is empty, over a week old, or missing many of those cards; then
+the day-old price redownload offer; then the oracle/art tag download the tag
+filters need. There is no per-card Scryfall fetch (that is a build-only step),
+so \`--refresh never\` and \`--refresh no-bulk\` both warm nothing — what a
+cache-server deployment wants.
 
 For a split deployment (static site on a CDN, API hosted separately), set
 \`site.apiBaseUrl\` to the API's URL before building; the site falls back to its
@@ -242,9 +254,11 @@ default; disable it for a published site with:
 ritual config set site.sellMode false
 \`\`\`
 
-The buylist itself is only ever downloaded on request — \`ritual sell --refresh auto\`,
-the admin **Refresh Cache** page's *Refresh buylist* button, or the \`refresh_buylist\`
-tool. No page load triggers the ~70 MB fetch.
+The *first* buylist download is always deliberate — \`ritual sell --refresh auto\`, the admin
+**Refresh Cache** page's *Refresh buylist* button, or the \`refresh_buylist\` tool. After that
+\`serve --api\` and \`admin\` each redownload a day-old feed at startup (Card Kingdom regenerates
+it daily), under the same \`--refresh\` policy — \`no-bulk\`/\`never\` skip it. No page load ever
+triggers the ~70 MB fetch.
 
 ## Web admin
 
