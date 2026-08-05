@@ -112,7 +112,7 @@ describe('sell MCP tools', () => {
     await seedSellFixture(session)
     const result = await client.callTool({ name: 'get_sell_cart', arguments: {} })
     const data = toolData<{ csv: string; titleCount: number; cardCount: number }>(result)
-    expect(data.csv).toBe('card name,edition,foil,quantity\nSol Ring,Alpha,false,1\n')
+    expect(data.csv).toBe('Sol Ring,Alpha,false,1\n')
     expect(data.titleCount).toBe(1)
     expect(data.cardCount).toBe(1)
   })

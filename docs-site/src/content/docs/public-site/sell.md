@@ -119,8 +119,10 @@ With Card Kingdom selected as the buyer, two exports appear:
 - **Card Kingdom cart (.csv)** in the page header's Copy/Download menus — every card in the
   current _filtered_ view.
 
-Both produce Card Kingdom's sell-cart import format (`card name,edition,foil,quantity`) using
-Card Kingdom's own spellings, with quantities capped at their buy limits. Upload the file at
+Both produce Card Kingdom's sell-cart import format (`card name,edition,foil,quantity`, data rows
+only — their importer expects no header row) using Card Kingdom's own listing titles, including
+their parenthesized variant note for variant printings, with quantities capped at their buy
+limits. Upload the file at
 [cardkingdom.com/static/csvImport](https://www.cardkingdom.com/static/csvImport).
 
 Warnings are shown when they apply: the format cannot express etched foils (they export as foil,

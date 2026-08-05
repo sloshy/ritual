@@ -542,8 +542,9 @@ export function applySellFilters(report: SellReport, filters: SellEntryFilters):
 
 /**
  * Render entries CK is buying as their sell-cart CSV import format, using CK's
- * own name and edition spellings from the matched product so the importer
- * recognizes every row, and the sellable (budget-capped) quantities. The
+ * own listing title (name plus variant note) and edition spelling from the
+ * matched product so the importer recognizes every row and lands variant
+ * printings on the right product, and the sellable (budget-capped) quantities. The
  * rendering itself lives in `src/buylist/cart-csv.ts`, shared with the site's
  * "Copy CK cart CSV" so both produce byte-identical files.
  */
@@ -552,6 +553,7 @@ export function buildSellCartCsv(entries: SellReportEntry[]): SellCartCsv {
     (entry): CkCartItem => ({
       name: entry.ckName,
       edition: entry.ckEdition,
+      variation: entry.ckVariation,
       finish: entry.ckFinish,
       quantity: entry.sellableQuantity,
     }),

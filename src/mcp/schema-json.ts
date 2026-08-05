@@ -820,7 +820,7 @@ const SELL_ENTRY_SCHEMA: JsonSchemaType = obj(
     ckSku: str(),
     ckName: str('CK’s own card title (can differ from Scryfall’s).'),
     ckEdition: str('CK’s edition display name.'),
-    ckVariation: str(),
+    ckVariation: str('CK’s variant note for the matched product, when they publish one.'),
     ckUrl: str('CK product page URL.'),
     ckFinish: enumOf(
       VALID_FINISHES,
@@ -873,7 +873,9 @@ export const GET_SELL_REPORT_OUTPUT: JsonSchemaType = obj(
 
 export const GET_SELL_CART_OUTPUT: JsonSchemaType = obj(
   {
-    csv: str('The sell-cart CSV, header row included.'),
+    csv: str(
+      'The sell-cart CSV — data rows only, no header row (CK’s importer prompts for column matching).',
+    ),
     titleCount: int('Unique titles in the file (CK imports at most 500 per upload).'),
     cardCount: int('Total cards in the file (CK imports at most 5,000 per upload).'),
     warnings: arr(str(), 'Upload-cap overruns and etched foils the format cannot express.'),

@@ -9,8 +9,8 @@ export interface SelectionCopy {
   copyText: () => Promise<void>
   copyCsv: () => Promise<void>
   /**
-   * Copy the selection as the buyer's sell-cart CSV — their own card and edition
-   * spellings, quantities capped at what they will take. Offered only in sell
+   * Copy the selection as the buyer's sell-cart CSV — their own listing titles
+   * and edition spellings, quantities capped at what they will take. Offered only in sell
    * mode with Card Kingdom selected; cards with no active offer are omitted.
    */
   copyCart: () => Promise<void>

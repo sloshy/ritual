@@ -201,11 +201,7 @@ describe('sell CLI (Integration)', () => {
   test('--output csv renders the CK sell-cart upload, capped at their buy limits', async () => {
     const result = await runCli(['sell', '--output', 'csv', '--refresh', 'never'], dir, OFFLINE_ENV)
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toBe(
-      'card name,edition,foil,quantity\n' +
-        'Sol Ring,Commander 2021,false,2\n' +
-        'Sol Ring,Commander 2021,true,1\n',
-    )
+    expect(result.stdout).toBe('Sol Ring,Commander 2021,false,2\nSol Ring,Commander 2021,true,1\n')
   })
 
   test('--out writes the payload to a file instead of stdout', async () => {

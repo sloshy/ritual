@@ -53,6 +53,7 @@ export type BuylistQuote = {
   name: string
   /** The buyer's own edition name — likewise. */
   edition: string
+  /** The buyer's own variant note (`Borderless`, `298 - Borderless Ichor`), when they publish one. */
   variation?: string
   /** The buyer's product page, when their feed carries one. */
   url?: string

@@ -62,13 +62,13 @@ As with every command, structured output (`json`, `ndjson`, `csv`) downgrades an
 
 ## Sell-Cart CSV Export
 
-`--output csv` renders the entries CK is buying as Card Kingdom's own [sell-cart CSV import format](https://www.cardkingdom.com/static/csvImport) — `card name, edition, foil, quantity` — using CK's name and edition spellings from the matched products, with quantities capped at their buy limits:
+`--output csv` renders the entries CK is buying as Card Kingdom's own [sell-cart CSV import format](https://www.cardkingdom.com/static/csvImport) — `card name, edition, foil, quantity`, data rows only (their importer expects no header row and prompts for column matching itself) — using CK's own listing title and edition spelling from the matched products, with quantities capped at their buy limits. A variant printing carries CK's variant note in parentheses, exactly as they title it (`Mishra's Factory (Autumn)`), so the row lands on that printing rather than the base one:
 
 ```bash
 ./ritual sell --min 0.25 --output csv --out to-sell.csv
 ```
 
-Upload the file on their CSV import page and the sell cart fills itself. Their importer caps one upload at 500 unique titles or 5,000 cards (the command warns when the file exceeds either), and the format cannot express etched foils — etched-quoted entries export as foil with a warning to adjust the cart by hand. The same rendering is available to other clients as [`GET /api/sell/cart`](/admin/api/#sell-cart) and the MCP `get_sell_cart` tool.
+With nothing to sell the payload is empty rather than a lone header line. Upload the file on their CSV import page and the sell cart fills itself. Their importer caps one upload at 500 unique titles or 5,000 cards (the command warns when the file exceeds either), and the format cannot express etched foils — etched-quoted entries export as foil with a warning to adjust the cart by hand. The same rendering is available to other clients as [`GET /api/sell/cart`](/admin/api/#sell-cart) and the MCP `get_sell_cart` tool.
 
 ## Non-Interactive Output
 

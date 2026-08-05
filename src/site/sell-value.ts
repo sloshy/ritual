@@ -143,8 +143,9 @@ function pluralizeCards(count: number): string {
 }
 
 /**
- * Render a selection as the buyer's cart CSV, using the buyer's own card and
- * edition spellings and the budget-capped quantities — the same rows
+ * Render a selection as the buyer's cart CSV, using the buyer's own listing
+ * title (card name plus variant note), edition spelling, and the
+ * budget-capped quantities — the same rows
  * `ritual sell --output csv` writes for the same cards.
  */
 export function selectionToCartCsv(cards: readonly SellableCard[]): SellCartCsv {
@@ -155,6 +156,7 @@ export function selectionToCartCsv(cards: readonly SellableCard[]): SellCartCsv 
             {
               name: quote.name,
               edition: quote.edition,
+              variation: quote.variation,
               finish: quote.finish,
               quantity: sellableQuantity,
             },

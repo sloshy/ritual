@@ -80,7 +80,7 @@ describe('admin sell handlers', () => {
     const response = await handleSellCart(new Request('http://localhost/api/sell/cart'))
     expect(response.status).toBe(200)
     const body = (await response.json()) as { csv: string; titleCount: number }
-    expect(body.csv).toBe('card name,edition,foil,quantity\nSol Ring,Alpha,false,1\n')
+    expect(body.csv).toBe('Sol Ring,Alpha,false,1\n')
     expect(body.titleCount).toBe(1)
   })
 })

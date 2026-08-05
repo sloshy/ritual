@@ -173,6 +173,7 @@ describe('buildSellReport matching', () => {
     expect(entry.status).toBe('buying')
     expect(entry.matchVia).toBe('scryfall-id')
     expect(entry.ckSku).toBe('FDN-0294')
+    expect(entry.ckVariation).toBe('0294 - Borderless')
     expect(entry.ckFinish).toBe('nonfoil')
     expect(entry.priceBuy).toBe(1.5)
     expect(entry.sellableQuantity).toBe(4)
@@ -188,6 +189,8 @@ describe('buildSellReport matching', () => {
     )
     const entry = expectMatched(report.entries[0])
     expect(entry.ckSku).toBe('FFDN-0294')
+    // CK publishes no variant note for this product; '' normalizes to undefined.
+    expect(entry.ckVariation).toBeUndefined()
     expect(entry.ckFinish).toBe('foil')
     expect(entry.priceBuy).toBe(3.5)
   })
@@ -443,9 +446,9 @@ describe('buildSellCartCsv', () => {
 
   test('renders only bought entries, aggregated per product, in CK’s format', async () => {
     const cart = buildSellCartCsv(await entries())
+    // No header row, and CK's listed title (name plus variant note) where they publish one.
     expect(cart.csv).toBe(
-      'card name,edition,foil,quantity\n' +
-        '"Arahbo, Roar of the World",Foundations Variants,false,3\n' +
+      '"Arahbo, Roar of the World (0294 - Borderless)",Foundations Variants,false,3\n' +
         '"Arahbo, Roar of the World",Foundations Variants,true,1\n',
     )
     expect(cart.titleCount).toBe(2)

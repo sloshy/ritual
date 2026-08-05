@@ -14,19 +14,18 @@ const item = (overrides: Partial<CkCartItem> = {}): CkCartItem => ({
   ...overrides,
 })
 
-/** The data rows of a rendered cart, header and trailing newline stripped. */
+/** The data rows of a rendered cart, trailing newline stripped. */
 function rows(csv: string): string[] {
-  return csv.trimEnd().split('\n').slice(1)
+  return csv === '' ? [] : csv.trimEnd().split('\n')
 }
 
 describe('buildCkCartCsv', () => {
-  test('renders CK’s header and one row per name+edition+foil, aggregating quantities', () => {
+  test('renders one header-less row per name+edition+foil, aggregating quantities', () => {
     const cart = buildCkCartCsv([item({ quantity: 2 }), item({ quantity: 3 })])
 
-    expect(cart.csv.startsWith('card name,edition,foil,quantity\n')).toBe(true)
-    expect(rows(cart.csv)).toEqual(['Sol Ring,Commander 2021,false,5'])
+    // CK's importer prompts for column matching, so a header row would import as a card.
+    expect(cart.csv).toBe('Sol Ring,Commander 2021,false,5\n')
     expect(cart).toMatchObject({ titleCount: 1, cardCount: 5, warnings: [] })
-    expect(cart.csv.endsWith('\n')).toBe(true)
   })
 
   test('keeps finishes apart and quotes cells containing commas', () => {
@@ -39,6 +38,28 @@ describe('buildCkCartCsv', () => {
       'Sol Ring,Commander 2021,true,1',
       'Fire // Ice,"Apocalypse, Retro",false,1',
     ])
+  })
+
+  test('exports CK’s listed title for variant printings and keeps variants apart', () => {
+    const cart = buildCkCartCsv([
+      item({ variation: 'Retro Frame' }),
+      item({ variation: 'Retro Frame' }),
+      item(),
+    ])
+
+    expect(rows(cart.csv)).toEqual([
+      'Sol Ring (Retro Frame),Commander 2021,false,2',
+      'Sol Ring,Commander 2021,false,1',
+    ])
+    expect(cart.titleCount).toBe(2)
+  })
+
+  test('renders an empty file when nothing is sellable', () => {
+    expect(buildCkCartCsv([item({ quantity: 0 })])).toMatchObject({
+      csv: '',
+      titleCount: 0,
+      cardCount: 0,
+    })
   })
 
   test('drops zero-quantity items rather than emitting empty rows', () => {

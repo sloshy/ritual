@@ -406,7 +406,9 @@ ritual sell --output csv --out to-sell.csv      # CK sell-cart CSV (upload at ca
 Entries report \`status\` \`buying\` / \`not-buying\` (CK's buy quantity is 0) / \`no-match\`,
 with \`sellableQuantity = min(owned, CK's cap)\` and \`value\` covering only those copies.
 Quotes are cash for NM copies — played conditions grade down, store credit pays more.
-The \`csv\` output uses CK's own name/edition spellings and warns beyond their upload caps
+The \`csv\` output carries data rows only (CK's importer expects no header row) and uses CK's
+own listing titles — their parenthesized variant note included, so variant printings land on the
+right product — plus their edition spellings. It warns beyond their upload caps
 (500 titles / 5,000 cards); etched foils export as plain foil with a warning.
 
 To price an arbitrary set of printings rather than whole lists, use the MCP tool

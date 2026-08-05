@@ -157,9 +157,9 @@ export async function handleSellReport(req: Request): Promise<Response> {
 }
 
 /**
- * GET /api/sell/cart — the entries CK is buying, rendered as their sell-cart
- * CSV import format (CK's own name/edition spellings, quantities capped at
- * their buy limits), over the same `?type=`/`?lists=`/`?sets=`/`?min=` scope
+ * GET /api/sell/cart — the entries CK is buying, rendered as their header-less sell-cart
+ * CSV import format (CK's own listing titles — variant note included — and
+ * edition spellings, quantities capped at their buy limits), over the same `?type=`/`?lists=`/`?sets=`/`?min=` scope
  * as the report. The capability behind the CLI's `sell --output csv`; carries
  * the title/card counts against CK's upload caps alongside the CSV itself.
  */

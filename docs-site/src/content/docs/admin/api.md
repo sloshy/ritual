@@ -661,14 +661,14 @@ Match listed cards against the locally cached [Card Kingdom buylist](/commands/s
 GET /api/sell/cart
 ```
 
-The entries CK is buying, rendered as their [sell-cart CSV import format](/commands/sell/#sell-cart-csv-export) (`card name, edition, foil, quantity` — CK's own spellings, quantities capped at their buy limits), over the same `?type=`/`?lists=`/`?sets=`/`?min=` parameters and 503 prerequisites as [Sell Report](#sell-report). The capability behind the CLI's `sell --output csv`.
+The entries CK is buying, rendered as their [sell-cart CSV import format](/commands/sell/#sell-cart-csv-export) (`card name, edition, foil, quantity`, no header row — CK's own listing titles, variant note included, quantities capped at their buy limits), over the same `?type=`/`?lists=`/`?sets=`/`?min=` parameters and 503 prerequisites as [Sell Report](#sell-report). The capability behind the CLI's `sell --output csv`.
 
 **Response:**
 
 ```json
 {
   "success": true,
-  "csv": "card name,edition,foil,quantity\nArahbo, the First Fang...",
+  "csv": "\"Arahbo, the First Fang (0294 - Borderless)\",Foundations Variants,false,3\n...",
   "titleCount": 12,
   "cardCount": 31,
   "warnings": []
@@ -741,6 +741,7 @@ printings per request.
       "productId": 281234,
       "name": "Overlord of the Balemurk",
       "edition": "Duskmourn: House of Horror",
+      "variation": "298 - Borderless",
       "url": "https://www.cardkingdom.com/mtg/..."
     }
   },
@@ -754,6 +755,8 @@ printings per request.
 `quotes` is **sparse**: a requested printing the buyer has no product for is simply absent, which
 means "not on the buylist". `buying` is false when Card Kingdom publishes a price but has paused
 buying (`qtyBuying: 0`) — that is not money you can get today, so treat it as no offer.
+`variation` is CK's variant note for the matched product, present only when they publish one; a
+client rendering a [cart CSV](#sell-cart) row builds CK's listed title from `name (variation)`.
 
 This route is also mounted by the public site server (`ritual serve --api`), unauthenticated, where
 it powers [sell mode](/public-site/sell/) and answers `404` when `site.sellMode` is `false`. The

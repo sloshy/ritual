@@ -659,7 +659,8 @@ export function registerReadTools(server: McpServer): void {
       title: 'Sell-cart CSV',
       description:
         'Render the cards CK is buying as their sell-cart CSV import format (card name, ' +
-        'edition, foil, quantity — CK’s own spellings, quantities capped at their buy ' +
+        'edition, foil, quantity, no header row — CK’s own listing titles, including their ' +
+        'variant note for variant printings, quantities capped at their buy ' +
         'limits), over the same scope and filters as get_sell_report. Upload the csv at ' +
         'cardkingdom.com/static/csvImport; warnings flag CK’s 500-title/5,000-card upload ' +
         'caps and etched foils the format cannot express.',

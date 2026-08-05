@@ -25,6 +25,7 @@ type QuoteSpec = {
   qtyBuying: number
   name?: string
   edition?: string
+  variation?: string
 }
 
 /** Load the store with quotes from a stub transport, as a page would. */
@@ -45,6 +46,7 @@ async function seedQuotes(specs: QuoteSpec[]): Promise<void> {
             productId: spec.productId,
             name: spec.name ?? 'Sol Ring',
             edition: spec.edition ?? 'Commander 2021',
+            variation: spec.variation,
           },
         ]),
       ),
@@ -153,7 +155,7 @@ describe('sellShortfallNote', () => {
 })
 
 describe('selectionToCartCsv', () => {
-  test('uses the buyer’s own spellings and the capped quantities', async () => {
+  test('uses the buyer’s own listing title and the capped quantities', async () => {
     await seedQuotes([
       {
         key: 'dsk:1:nonfoil',
@@ -162,13 +164,15 @@ describe('selectionToCartCsv', () => {
         qtyBuying: 2,
         name: 'Overlord of the Balemurk',
         edition: 'Duskmourn: House of Horror',
+        // CK's listed title for a variant printing carries their variant note.
+        variation: '298 - Borderless',
       },
     ])
 
     const cart = selectionToCartCsv([card('1', 5)])
 
     expect(cart.csv).toBe(
-      'card name,edition,foil,quantity\nOverlord of the Balemurk,Duskmourn: House of Horror,false,2\n',
+      'Overlord of the Balemurk (298 - Borderless),Duskmourn: House of Horror,false,2\n',
     )
   })
 

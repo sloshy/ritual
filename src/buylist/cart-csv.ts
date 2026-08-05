@@ -1,6 +1,7 @@
 /**
- * Card Kingdom's sell-cart CSV import format
- * (`card name,edition,foil,quantity` — cardkingdom.com/static/csvImport).
+ * Card Kingdom's sell-cart CSV import format — the columns
+ * `card name, edition, foil, quantity` with no header row
+ * (cardkingdom.com/static/csvImport).
  *
  * Extracted from the sell report engine so the browser can build the same file
  * from client-held quotes: the CLI (`ritual sell --output csv`), the admin sell
@@ -18,16 +19,29 @@ export const CK_CSV_MAX_TITLES = 500
 export const CK_CSV_MAX_CARDS = 5000
 
 /**
- * One line of a CK cart, in CK's own vocabulary. `name` and `edition` must be
- * the buyer's spellings (from the matched product), not Ritual's — that is what
- * makes the file importable.
+ * One line of a CK cart, in CK's own vocabulary. `name`, `edition` and
+ * `variation` must be the buyer's spellings (from the matched product), not
+ * Ritual's — that is what makes the file importable.
  */
 export type CkCartItem = {
   name: string
   edition: string
+  /** CK's variant note for the matched product (`Borderless`, `298 - Borderless Ichor`), when they publish one. */
+  variation?: string
   finish: Finish
   /** Copies to sell — already capped at what CK is buying. */
   quantity: number
+}
+
+/**
+ * CK's own listing title for a product: the card name plus their variant note
+ * in parentheses (`Mishra's Factory (Autumn)`), which is how a variant printing
+ * is titled on their store and in their sell cart. A bare name leaves their
+ * importer to pick between every printing of the card, so exporting the listed
+ * title is what makes a variant row land on the right product.
+ */
+export function ckListedName(item: Pick<CkCartItem, 'name' | 'variation'>): string {
+  return item.variation ? `${item.name} (${item.variation})` : item.name
 }
 
 /** A rendered sell-cart CSV plus its size against CK's upload caps. */
@@ -38,35 +52,41 @@ export type SellCartCsv = {
   warnings: string[]
 }
 
-/** CK's importer keys on name + edition + foil, so rows aggregate to that grain. */
+/**
+ * CK's importer keys on the listed title + edition + foil, so rows aggregate to that
+ * grain — two variants of one card in one edition stay two rows, as CK lists them.
+ */
 function cartRowKey(item: CkCartItem): string {
-  return `${item.name.toLowerCase()}|${item.edition}|${item.finish !== 'nonfoil'}`
+  return `${ckListedName(item).toLowerCase()}|${item.edition}|${item.finish !== 'nonfoil'}`
 }
 
 /**
  * Render cart items as CK's import CSV. Items are aggregated to CK's
- * name+edition+foil grain and zero-quantity items are dropped. The format
- * cannot express etched, so etched items export as foil with a warning naming
- * every affected card, and the advisory upload caps are reported rather than
- * enforced — a too-large file is still a correct file, it just needs splitting.
+ * title+edition+foil grain and zero-quantity items are dropped. The file carries
+ * no header row — CK's importer expects data rows only and prompts for column
+ * matching itself. The format cannot express etched, so etched items export as
+ * foil with a warning naming every affected card, and the advisory upload caps
+ * are reported rather than enforced — a too-large file is still a correct file,
+ * it just needs splitting.
  */
 export function buildCkCartCsv(items: CkCartItem[]): SellCartCsv {
   const sellable = items.filter((item) => item.quantity > 0)
 
   const etched: string[] = []
   for (const item of sellable) {
-    if (item.finish === 'etched' && !etched.includes(item.name)) etched.push(item.name)
+    const listed = ckListedName(item)
+    if (item.finish === 'etched' && !etched.includes(listed)) etched.push(listed)
   }
 
   const rows = aggregateQuantities(sellable, cartRowKey, (item) => item.quantity)
 
-  const lines = ['card name,edition,foil,quantity']
+  const lines: string[] = []
   let cardCount = 0
   for (const { entry, quantity } of rows) {
     cardCount += quantity
     lines.push(
       [
-        csvCell(entry.name),
+        csvCell(ckListedName(entry)),
         csvCell(entry.edition),
         String(entry.finish !== 'nonfoil'),
         String(quantity),
@@ -91,5 +111,6 @@ export function buildCkCartCsv(items: CkCartItem[]): SellCartCsv {
     )
   }
 
-  return { csv: `${lines.join('\n')}\n`, titleCount: rows.length, cardCount, warnings }
+  const csv = lines.length > 0 ? `${lines.join('\n')}\n` : ''
+  return { csv, titleCount: rows.length, cardCount, warnings }
 }
