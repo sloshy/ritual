@@ -12,9 +12,12 @@ import {
   groupTotalPrice,
   sortByOptions,
   CARD_SIZE_WIDTHS,
+  SELL_GROUP_BY_OPTIONS,
+  sortByValuesFor,
 } from './card-sorting'
 import { CardModal } from './CardModal'
-import { FilteredPriceStat } from './FilteredPriceStat'
+import { FilteredPriceStat, SelectedPriceStat, SellModeNotice, SellValueStat } from './PageStats'
+import { useSellMode } from './useSellMode'
 import { capitalize } from './utils'
 import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
@@ -70,6 +73,12 @@ interface CombinedCardsViewProps {
   emptyMessage?: string
   /** Mirror the toolbar/filter state into the URL query so the view is shareable (combined-list view only). */
   enableUrlState?: boolean
+  /**
+   * Offer sell mode (buylist prices, the buylist filter/grouping/sorting, and
+   * the sell-cart export). True only on a server-backed public site with
+   * `site.sellMode` enabled, or on the admin site.
+   */
+  enableSellMode?: boolean
 }
 
 /**
@@ -116,7 +125,10 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
   // Group-by options are the lowest common denominator of the combined list types,
   // plus "Source List". "Printing" only applies when no collection is present (every
   // collection card is pinned, so the distinction is meaningless once one is mixed in).
-  const groupByOptions = createMemo<SelectOption[]>(() => {
+  // `sellMode` is a parameter rather than a read of the toolbar signal so the URL
+  // sync can ask for the *full* option set (what a shared link may legally name)
+  // while the dropdown shows only what is currently offered.
+  const groupByOptionsFor = (sellMode: boolean): SelectOption[] => {
     const opts: SelectOption[] = [{ value: 'source', label: 'Source List' }]
     if (sectionOrder().length >= 2) opts.push({ value: 'section', label: 'Section' })
     opts.push(
@@ -126,23 +138,39 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
       { value: 'price', label: 'Price' },
     )
     if (!hasCollections()) opts.push({ value: 'printing', label: 'Printing' })
+    if (sellMode) opts.push(...SELL_GROUP_BY_OPTIONS)
     opts.push({ value: 'none', label: 'None' })
     return opts
-  })
+  }
+  // A plain accessor, not a memo: `createMemo` evaluates eagerly, and `sell` is
+  // declared below. Rebuilding a small array on read costs nothing.
+  const groupByOptions = (): SelectOption[] => groupByOptionsFor(sell.active())
+  const sortByValues = (): readonly SortBy[] =>
+    sortByValuesFor(COMBINED_SORT_BYS, props.enableSellMode)
 
   useListViewUrlSync({
     toolbar,
     filters: cardFilters,
     defaults: { groupBy: 'source', sortBy: 'name' },
-    groupByValues: groupByOptions().map((o) => o.value as GroupBy),
-    sortByValues: COMBINED_SORT_BYS,
+    groupByValues: groupByOptionsFor(Boolean(props.enableSellMode)).map((o) => o.value as GroupBy),
+    sortByValues: sortByValues(),
     enabled: props.enableUrlState,
     // From the selection's list *kinds*, not the loaded cards: the URL params
     // are applied once at construction, before any card data has arrived.
     supportsLabels: props.selectionLists.some((l) => l.kind === 'collection'),
+    supportsSellMode: Boolean(props.enableSellMode),
   })
 
   const selection = useCombinedSelection(() => props.selectionLists)
+
+  const sell = useSellMode({
+    toolbar,
+    supported: () => Boolean(props.enableSellMode),
+    cards: () => props.cards,
+    selected: selection.selected,
+    filters: cardFilters,
+    defaults: { groupBy: 'source', sortBy: 'name' },
+  })
 
   const setCodeOptions = createMemo(() => collectSetCodes(props.cards))
   const cardTypeOptions = createMemo(() => collectCardTypes(props.cards))
@@ -198,6 +226,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
       quantity={c.quantity}
       card={c.card}
       symbolMap={props.symbolMap}
+      buylistPrice={c.buylistPrice}
       viewMode={viewMode()}
       hideCount={c.quantity <= 1}
       useScryfallImgUrls={props.useScryfallImgUrls}
@@ -233,7 +262,18 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
               amount={filteredTotalPrice()}
               currency={props.currency}
             />
+            <SelectedPriceStat
+              count={selection.count()}
+              amount={selection.value(props.currency)}
+              currency={props.currency}
+            />
+            <SellValueStat
+              sellMode={sell.active()}
+              count={selection.count()}
+              summary={sell.summary()}
+            />
           </p>
+          <SellModeNotice sellMode={sell.active()} />
           {props.header}
         </div>
       </div>
@@ -247,12 +287,13 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
         groupByOptions={groupByOptions()}
         onGroupByChange={(v) => setGroupBy(v as GroupBy)}
         sortLayers={sortLayers()}
-        sortByOptions={sortByOptions(COMBINED_SORT_BYS, { 'file-order': 'List Order' })}
+        sortByOptions={sortByOptions(sortByValues(), { 'file-order': 'List Order' })}
         onSortLayersChange={setSortLayers}
         priceGroupStrategy={priceGroupStrategy()}
         onPriceGroupStrategyChange={setPriceGroupStrategy}
         reverseGroups={reverseGroups()}
         onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
+        sell={sell.control()}
         filters={cardFilters}
         symbolMap={props.symbolMap}
         currency={props.currency}

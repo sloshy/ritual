@@ -11,6 +11,8 @@ export type GroupBy =
   | 'cmc'
   | 'color-identity'
   | 'price'
+  | 'buylist-price'
+  | 'on-buylist'
   | 'printing'
   | 'source'
   | 'none'
@@ -18,6 +20,8 @@ export type SortBy =
   | 'name'
   | 'cmc'
   | 'price'
+  | 'buylist-price'
+  | 'buylist-spread'
   | 'edhrec'
   | 'file-order'
   | 'set-code'
@@ -38,11 +42,50 @@ export const SORT_BY_LABELS = {
   name: 'Name',
   cmc: 'Mana Value',
   price: 'Price',
+  'buylist-price': 'Buylist Price',
+  'buylist-spread': 'Buylist vs Price',
   edhrec: 'EDHRec Rank',
   'file-order': 'File Order',
   'set-code': 'Set Code',
   'color-identity': 'Color Identity',
 } as const satisfies Record<SortBy, string>
+
+/**
+ * Every sort field, derived from the labels rather than restated. `satisfies
+ * Record<SortBy, string>` above makes the key set exactly `SortBy`, so a new
+ * member is a compile error there instead of a shared link whose `sort=` value
+ * silently fails to parse.
+ */
+export const SORT_BYS = Object.keys(SORT_BY_LABELS) as readonly SortBy[]
+
+/**
+ * The group-by options sell mode adds, in the order they appear after the
+ * ordinary ones. Shared so every list page's dropdown — and the URL whitelist
+ * that validates a shared link's `group=` — offer exactly the same set.
+ */
+export const SELL_GROUP_BY_OPTIONS = [
+  { value: 'buylist-price', label: 'Buylist Price' },
+  { value: 'on-buylist', label: 'On Buylist' },
+] as const satisfies readonly SelectOption<GroupBy>[]
+
+/** The sort fields sell mode adds. */
+export const SELL_SORT_BYS = [
+  'buylist-price',
+  'buylist-spread',
+] as const satisfies readonly SortBy[]
+
+/**
+ * A page's sort fields, with sell mode's appended when the page offers them.
+ * One helper so a page's toolbar dropdown and its URL-sync whitelist can never
+ * be given different answers — they were, and a collection page's sort dropdown
+ * silently lacked an option its shared links accepted.
+ */
+export function sortByValuesFor(
+  base: readonly SortBy[],
+  sellMode: boolean | undefined,
+): readonly SortBy[] {
+  return sellMode ? [...base, ...SELL_SORT_BYS] : base
+}
 
 /**
  * Build the toolbar's sort dropdown options from an ordered list of sort fields,
@@ -63,6 +106,33 @@ export interface CardData {
   cmc: number
   edhrec: number
   price: number
+  /**
+   * The selected buyer's active per-copy offer (USD), or 0 when there is none:
+   * the card is not on the buylist, the buyer has paused it, or sell mode is
+   * off. 0 is the same "no price" sentinel `price` uses, so buylist prices flow
+   * through the existing filter/group/sort machinery unchanged.
+   */
+  buylistPrice: number
+  /**
+   * The buyer's offer minus the card's USD retail price. Positive means they
+   * pay at or above retail. Always computed in USD on both sides — the display
+   * currency would make the subtraction meaningless.
+   *
+   * `null` when no spread can be computed: no active offer, or no USD retail
+   * price to compare against (an etched printing Scryfall prices only in EUR,
+   * say). Those two are different situations but neither yields a number, and
+   * conflating them into one is better than inventing a numeric stand-in.
+   *
+   * Sorts last by default; like every other field, reversing the layer brings
+   * them to the front. Compare with {@link compareBuylistSpread}.
+   */
+  buylistSpread: number | null
+  /**
+   * Whether the buyer's catalog has this printing at all — true even for a
+   * paused offer, whose `buylistPrice` is 0. Drives the on-buylist filter and
+   * grouping. Always false while sell mode is off.
+   */
+  onBuylist: boolean
   type: string
   section: string
   fileOrder: number
@@ -70,6 +140,11 @@ export interface CardData {
   colorIdentity: string[]
   /** Whether this entry is pinned to a specific printing (has both set and collector number). */
   hasPrinting: boolean
+  /**
+   * Finish of the copy this tile represents. Undefined on entries that do not
+   * state one (deck and wanted lines default to nonfoil wherever it matters).
+   */
+  finish?: Finish
   /** Oracle (functional) tag slugs, shared across printings. Empty when untagged. */
   oracleTags: string[]
   /** Art (illustration) tag slugs for this printing. Empty when untagged. */
@@ -93,10 +168,13 @@ export interface CardGroup<T extends CardData = CardData> {
   cards: T[]
 }
 
-import type { ScryfallCard } from '../types'
+import { BUYLIST_CURRENCY } from '../buylist'
+import type { Finish, ScryfallCard } from '../types'
 import type { CardLabel } from '../card-labels'
 import type { PriceCurrency } from '../price-currency'
 import { getCurrencySymbol, getCurrencySuffix } from '../price-currency'
+
+export { BUYLIST_CURRENCY }
 
 // WUBRG canonical order
 export const WUBRG: readonly string[] = ['W', 'U', 'B', 'R', 'G']
@@ -239,8 +317,26 @@ export function groupTotalPrice(cards: CardData[]): number {
 }
 
 /**
- * Compare two cards by a single field in ascending order, with no tiebreaker.
- * Returns 0 when the field is equal, so callers can chain to the next sort layer.
+ * Order two buylist spreads best-first: the largest gap (the buyer paying at or
+ * above retail) leads, and cards with no computable spread (`null`) trail.
+ *
+ * Best-first rather than numerically ascending because that is what the field is
+ * for — the same reason `edhrec` puts rank 1 first. Reversing the layer flips
+ * the whole thing, including where the `null`s land, exactly as reversing a
+ * price sort moves unpriced cards from last to first.
+ */
+export function compareBuylistSpread(a: number | null, b: number | null): number {
+  if (a === b) return 0
+  if (a === null) return 1
+  if (b === null) return -1
+  return a > b ? -1 : 1
+}
+
+/**
+ * Compare two cards by a single field, with no tiebreaker. Ascending for every
+ * field except `buylist-spread`, whose natural order is best-first — see
+ * {@link compareBuylistSpread}. Returns 0 when the field is equal, so callers
+ * can chain to the next sort layer.
  */
 function compareByField(a: CardData, b: CardData, sortBy: SortBy): number {
   switch (sortBy) {
@@ -252,6 +348,12 @@ function compareByField(a: CardData, b: CardData, sortBy: SortBy): number {
       return a.setCode.localeCompare(b.setCode)
     case 'color-identity':
       return colorIdentitySortValue(a.colorIdentity) - colorIdentitySortValue(b.colorIdentity)
+    // Spelled out because the field name differs from the sort key; the default
+    // branch below only works for keys that are themselves numeric CardData fields.
+    case 'buylist-price':
+      return a.buylistPrice - b.buylistPrice
+    case 'buylist-spread':
+      return compareBuylistSpread(a.buylistSpread, b.buylistSpread)
     default:
       return a[sortBy] - b[sortBy]
   }
@@ -310,6 +412,12 @@ const PRINTING_SPECIFIC_KEY = 'Specific Printing'
 const PRINTING_ANY_KEY = 'Any Printing'
 const PRINTING_ORDER = [PRINTING_SPECIFIC_KEY, PRINTING_ANY_KEY]
 
+// Group keys for the 'on-buylist' grouping. "On" means the buyer's catalog has
+// the printing, whether or not they are currently buying it.
+const BUYLIST_ON_KEY = 'On Buylist'
+const BUYLIST_OFF_KEY = 'Not on Buylist'
+const BUYLIST_ORDER = [BUYLIST_ON_KEY, BUYLIST_OFF_KEY]
+
 export function groupAndSortCards<T extends CardData>(
   cards: T[],
   groupBy: GroupBy,
@@ -355,6 +463,19 @@ export function groupAndSortCards<T extends CardData>(
       if (!groups[key]) groups[key] = []
       groups[key].push(c)
     }
+  } else if (groupBy === 'buylist-price') {
+    const strategy = priceGroupStrategy ?? 'archidekt'
+    for (const c of cards) {
+      const key = getPriceGroupKey(c.buylistPrice, strategy, BUYLIST_CURRENCY)
+      if (!groups[key]) groups[key] = []
+      groups[key].push(c)
+    }
+  } else if (groupBy === 'on-buylist') {
+    for (const c of cards) {
+      const key = c.onBuylist ? BUYLIST_ON_KEY : BUYLIST_OFF_KEY
+      if (!groups[key]) groups[key] = []
+      groups[key].push(c)
+    }
   } else if (groupBy === 'printing') {
     for (const c of cards) {
       const key = c.hasPrinting ? PRINTING_SPECIFIC_KEY : PRINTING_ANY_KEY
@@ -391,6 +512,15 @@ export function groupAndSortCards<T extends CardData>(
       (a, b) =>
         priceGroupSortValue(a, strategy, currency) - priceGroupSortValue(b, strategy, currency),
     )
+  } else if (groupBy === 'buylist-price') {
+    const strategy = priceGroupStrategy ?? 'archidekt'
+    keys.sort(
+      (a, b) =>
+        priceGroupSortValue(a, strategy, BUYLIST_CURRENCY) -
+        priceGroupSortValue(b, strategy, BUYLIST_CURRENCY),
+    )
+  } else if (groupBy === 'on-buylist') {
+    keys.sort((a, b) => BUYLIST_ORDER.indexOf(a) - BUYLIST_ORDER.indexOf(b))
   } else if (groupBy === 'printing') {
     keys.sort((a, b) => PRINTING_ORDER.indexOf(a) - PRINTING_ORDER.indexOf(b))
   } else if (groupBy === 'source') {

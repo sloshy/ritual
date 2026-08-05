@@ -340,6 +340,46 @@ export async function mockCacheRefreshApi(page: Page): Promise<void> {
   )
 }
 
+/**
+ * Mock the buylist status/refresh routes behind the Refresh Cache page's Card
+ * Kingdom card. `status` chooses the initial state: 'missing' is the 503 a
+ * fresh workspace answers with (an empty state, not an error).
+ */
+export async function mockBuylistApi(
+  page: Page,
+  status: 'present' | 'missing' = 'present',
+): Promise<void> {
+  await fulfillJson(
+    page,
+    '**/api/buylist/status',
+    status === 'present'
+      ? {
+          success: true,
+          buyer: 'cardkingdom',
+          buyers: ['cardkingdom'],
+          feedCreatedAt: '2026-08-04 06:06:09',
+          feedRetrievedAt: 1785850800000,
+          stale: false,
+          productCount: 149978,
+        }
+      : { error: 'No Card Kingdom buylist has been downloaded yet.' },
+    { status: status === 'present' ? 200 : 503 },
+  )
+  await fulfillJson(
+    page,
+    '**/api/sell/refresh*',
+    {
+      success: true,
+      refreshed: true,
+      feedRetrievedAt: 1785850800000,
+      feedCreatedAt: '2026-08-04 06:06:09',
+      productCount: 149978,
+      warnings: [],
+    },
+    { method: 'POST' },
+  )
+}
+
 // ===== Deck sync mock data =====
 
 export const ARCHIDEKT_NOT_LOGGED_IN: ArchidektLoginStatus = {

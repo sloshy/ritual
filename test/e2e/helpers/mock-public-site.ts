@@ -10,6 +10,12 @@ import type {
   WantedListSummary,
 } from '../../../src/site/data-types'
 import type { ScryfallCard } from '../../../src/types'
+import type {
+  BuylistQuote,
+  BuylistQuoteRequest,
+  BuylistQuotesResponse,
+  BuylistStatusResponse,
+} from '../../../src/buylist'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
 import { fulfillJson } from './fulfill'
 import {
@@ -567,6 +573,162 @@ export async function mockPublicSiteCollectionsForLabels(page: Page): Promise<vo
   await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_FOR_LABELS)
   await fulfillJson(page, '**/collections/label-binder.json', MOCK_LABEL_BINDER_DETAIL)
   await fulfillJson(page, '**/collections/sale-binder.json', MOCK_SALE_BINDER_DETAIL)
+}
+
+// ===== Sell mode (Card Kingdom buylist) =====
+
+/** One synthetic printing per sell-mode entry, keyed by a unique set:cn. */
+function makeSellCard(name: string, collectorNumber: string, usd: string): ScryfallCard {
+  return makeMockScryfallCard({
+    id: `sell-${collectorNumber}`,
+    name,
+    cmc: 2,
+    type_line: 'Artifact',
+    prices: { usd },
+    set: 'tst',
+    collector_number: collectorNumber,
+  })
+}
+
+function makeSellEntry(
+  name: string,
+  collectorNumber: string,
+  fileOrder: number,
+  price: number,
+): CollectionCardEntry {
+  return makeCollectionEntry({
+    name,
+    collectorNumber,
+    price,
+    fileOrder,
+    cardId: fileOrder + 1,
+  })
+}
+
+/**
+ * Three cards covering every buylist outcome the UI must render: an active
+ * offer, an offer the buyer has paused (on the buylist, worth nothing today),
+ * and a card the buyer does not stock at all.
+ */
+const MOCK_SELL_BINDER_DETAIL = {
+  name: 'Sell Binder',
+  entries: [
+    makeSellEntry('Bought Card', '1', 0, 10),
+    makeSellEntry('Paused Card', '2', 1, 20),
+    makeSellEntry('Unlisted Card', '3', 2, 30),
+  ],
+  cards: {
+    'tst:1': makeSellCard('Bought Card', '1', '10.00'),
+    'tst:2': makeSellCard('Paused Card', '2', '20.00'),
+    'tst:3': makeSellCard('Unlisted Card', '3', '30.00'),
+  },
+  printings: {},
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  totalPrice: 60.0,
+  defaultCurrency: 'usd',
+} satisfies CollectionDetail
+
+/**
+ * Every quote the stub buyer knows, keyed exactly as the server keys them.
+ * `tst:3` is deliberately absent — a printing the buyer has no product for is
+ * omitted, not zero-priced.
+ */
+const MOCK_BUYLIST_CATALOG: Record<string, BuylistQuote> = {
+  'tst:1:nonfoil': {
+    priceBuy: 4,
+    qtyBuying: 2,
+    buying: true,
+    finish: 'nonfoil',
+    matchVia: 'scryfall-id',
+    productId: 1,
+    name: 'Bought Card',
+    edition: 'Test Set',
+  },
+  'tst:2:nonfoil': {
+    priceBuy: 9,
+    qtyBuying: 0,
+    buying: false,
+    finish: 'nonfoil',
+    matchVia: 'scryfall-id',
+    productId: 2,
+    name: 'Paused Card',
+    edition: 'Test Set',
+  },
+}
+
+const MOCK_FEED_STAMP = {
+  feedCreatedAt: '2026-08-04 06:06:09',
+  feedRetrievedAt: 1785850800000,
+  stale: false,
+  productCount: 2,
+} as const
+
+/**
+ * Answer only for the printings the page actually asked for. A fixed response
+ * would be correct whatever the client posted, leaving the request builder —
+ * set-code lowercasing, the scryfall-id join key, printing dedupe — unpinned.
+ */
+function quoteResponseFor(route: Route): BuylistQuotesResponse {
+  const body = route.request().postDataJSON() as { printings?: BuylistQuoteRequest[] }
+  const quotes: Record<string, BuylistQuote> = {}
+  for (const printing of body.printings ?? []) {
+    const key = `${printing.set}:${printing.collectorNumber}:${printing.finish}`
+    const quote = MOCK_BUYLIST_CATALOG[key]
+    if (quote) quotes[key] = quote
+  }
+  return { success: true, buyer: 'cardkingdom', quotes, ...MOCK_FEED_STAMP }
+}
+
+// `apiBaseUrl: ''` marks the site live (sell mode needs a backend to quote
+// against) and `sellMode: true` is the baked capability flag.
+const MOCK_SITE_INDEX_FOR_SELL = makeSiteIndex({
+  apiBaseUrl: '',
+  sellMode: true,
+  collections: [
+    makeCollectionSummary({
+      slug: 'sell-binder',
+      name: 'Sell Binder',
+      cardCount: 3,
+      totalPrice: 60.0,
+    }),
+  ],
+})
+
+/**
+ * Mock a live, sell-mode-enabled site with one collection and a stubbed quote
+ * API. The index advertises a same-origin backend, so the app runs its live
+ * paths — hence the extra stubs for the card endpoints it may reach for.
+ */
+export async function mockPublicSiteCollectionForSell(page: Page): Promise<void> {
+  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_FOR_SELL)
+  await fulfillJson(page, '**/collections/sell-binder.json', MOCK_SELL_BINDER_DETAIL)
+  await fulfillJson(page, '**/api/buylist/quotes', quoteResponseFor)
+  await fulfillJson(page, '**/api/buylist/status', {
+    success: true,
+    buyer: 'cardkingdom',
+    buyers: ['cardkingdom'],
+    ...MOCK_FEED_STAMP,
+  } satisfies BuylistStatusResponse)
+  await fulfillJson(page, '**/api/card-prices', { success: true, cards: [] })
+}
+
+/**
+ * Hold the quote response open until `until` resolves, so a test can assert the
+ * in-flight state against a request that provably has not answered yet — rather
+ * than against a wall-clock delay, which a retrying assertion could satisfy
+ * after the response landed.
+ *
+ * Register after {@link mockPublicSiteCollectionForSell}: Playwright matches
+ * route handlers in reverse registration order, so this one wins. It layers on
+ * top of the body-aware responder rather than replacing it, keeping the request
+ * builder pinned.
+ */
+export async function holdBuylistQuotes(page: Page, until: Promise<void>): Promise<void> {
+  await fulfillJson(page, '**/api/buylist/quotes', async (route) => {
+    await until
+    return quoteResponseFor(route)
+  })
 }
 
 /** Mock a collection with duplicate entries, for the duplicate-grouping selection tests. */

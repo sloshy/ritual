@@ -1,6 +1,7 @@
 import {
   getDefaultRitualConfig,
   getSiteSelectionConfig,
+  getSiteSellMode,
   isConfigParseError,
   parseBannedPrinting,
   parseCacheFeedUrl,
@@ -163,6 +164,7 @@ type SettableSiteFieldsMap = {
 } & {
   'site.bannedPrintings': ConfigFieldTypeFor<NonNullable<SiteConfig['bannedPrintings']>>
   'site.apiBaseUrl': ConfigFieldTypeFor<NonNullable<SiteConfig['apiBaseUrl']>>
+  'site.sellMode': ConfigFieldTypeFor<NonNullable<SiteConfig['sellMode']>>
 }
 export const SETTABLE_SITE_FIELDS: Record<string, ConfigFieldType> = {
   'site.includeDecks': 'string[]',
@@ -173,6 +175,7 @@ export const SETTABLE_SITE_FIELDS: Record<string, ConfigFieldType> = {
   'site.excludeWantedLists': 'string[]',
   'site.bannedPrintings': 'string[]',
   'site.apiBaseUrl': 'string',
+  'site.sellMode': 'boolean',
 } satisfies SettableSiteFieldsMap
 
 /**
@@ -426,11 +429,13 @@ export function applyConfigSet(
  *
  * Defaults come from {@link getDefaultRitualConfig} by value — never from what
  * happens to be on disk, since `saveRitualConfig` materializes defaults
- * into the file. The site selection lists are special-cased: the default config
- * carries no `site` object at all, but each list has a documented effective
- * default (`['*']` for include lists, `[]` for exclude lists).
+ * into the file. The `site` keys are special-cased: the default config carries
+ * no `site` object at all, but the selection lists (`['*']` for include lists,
+ * `[]` for exclude lists) and `sellMode` (enabled) have documented effective
+ * defaults their getters apply.
  */
 export function defaultConfigValueAtPath(property: string): unknown {
+  if (property === 'site.sellMode') return getSiteSellMode(getDefaultRitualConfig())
   if (property.startsWith('site.')) {
     const selection = getSiteSelectionConfig(undefined) as unknown as Record<string, unknown>
     return selection[property.slice('site.'.length)]

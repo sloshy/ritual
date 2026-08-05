@@ -121,6 +121,7 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
   return (
     <>
       <CollectionEditorBody
+        enableSellMode
         ctrl={ctrl}
         defaults={defaults}
         search={adminSearch}

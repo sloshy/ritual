@@ -1,6 +1,6 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
-import { mockCacheRefreshApi, emitStreamEvent } from '../helpers/mock-admin'
+import { mockCacheRefreshApi, emitStreamEvent, mockBuylistApi } from '../helpers/mock-admin'
 
 test.describe('Cache Refresh Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -43,5 +43,41 @@ test.describe('Cache Refresh Page', () => {
     // Completion collapses the progress UI and re-enables the button.
     await expect(main.locator('.progress-stages')).toHaveCount(0)
     await expect(main.locator('button:has-text("Refresh Cache")')).toBeEnabled()
+  })
+})
+
+test.describe('Cache Refresh Page — Card Kingdom buylist', () => {
+  // The card fetches its status on mount, so the route must be intercepted
+  // before the page is opened — unlike the cache-refresh stream above, which is
+  // only reached on click. Hence: land on the dashboard, install the mock, then
+  // navigate to the page.
+  const openCacheRefresh = async (page: Page): Promise<void> => {
+    await page.locator('.admin-sidebar .admin-nav-item:has-text("Refresh Cache")').click()
+    await expect(page.locator('.section-heading')).toContainText('Refresh Cache')
+  }
+
+  test.beforeEach(async ({ page }) => {
+    await gotoAdminDashboard(page)
+  })
+
+  test('the buylist card reports the cached feed and refreshes it on demand', async ({ page }) => {
+    await mockBuylistApi(page)
+    await openCacheRefresh(page)
+    const card = page.locator('.cache-card')
+    await expect(card).toContainText('Card Kingdom buylist')
+    await expect(card.locator('.cache-card-facts')).toContainText('149,978')
+
+    await card.locator('button:has-text("Refresh buylist")').click()
+    await expect(card.locator('.cache-card-status')).toContainText('Buylist updated')
+  })
+
+  test('a workspace with no buylist yet shows an empty state, not an error', async ({ page }) => {
+    await mockBuylistApi(page, 'missing')
+    await openCacheRefresh(page)
+    const card = page.locator('.cache-card')
+    // The 503 is the normal first-run state: offer the button, don't alarm.
+    await expect(card.locator('.cache-card-empty')).toContainText('No buylist has been downloaded')
+    await expect(card.locator('.cache-card-error')).toHaveCount(0)
+    await expect(card.locator('button:has-text("Refresh buylist")')).toBeEnabled()
   })
 })

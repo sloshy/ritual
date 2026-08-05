@@ -83,6 +83,7 @@ function App() {
     setCurrency,
     availableCurrencies,
     pricesDate,
+    sellMode: sellModeAvailable,
     refetch: refetchSiteData,
   } = useSiteData()
 
@@ -591,11 +592,13 @@ function App() {
                         enablePriceRefresh={true}
                         enableTrade={true}
                         enableUrlState={true}
+                        enableSellMode={sellModeAvailable()}
                         onCombine={openCombine}
                       />
                     }
                   >
                     <WantedEditView
+                      enableSellMode={sellModeAvailable()}
                       detail={wantedListDetail()!}
                       slug={wantedListSlug() ?? ''}
                       currency={currency()}
@@ -639,11 +642,13 @@ function App() {
                         enablePriceRefresh={true}
                         enableTrade={true}
                         enableUrlState={true}
+                        enableSellMode={sellModeAvailable()}
                         onCombine={openCombine}
                       />
                     }
                   >
                     <CollectionEditView
+                      enableSellMode={sellModeAvailable()}
                       detail={collectionDetail()!}
                       slug={collectionSlug() ?? ''}
                       currency={currency()}
@@ -683,11 +688,13 @@ function App() {
                         enablePriceRefresh={true}
                         enableTrade={true}
                         enableUrlState={true}
+                        enableSellMode={sellModeAvailable()}
                         onCombine={openCombine}
                       />
                     }
                   >
                     <DeckEditView
+                      enableSellMode={sellModeAvailable()}
                       detail={deckDetail()!}
                       slug={deckSlug() ?? ''}
                       currency={currency()}
@@ -707,6 +714,7 @@ function App() {
                   currency={currency()}
                   useScryfallImgUrls={useScryfallImgUrls()}
                   enableTrade
+                  enableSellMode={sellModeAvailable()}
                 />
               </Show>
             </Match>
@@ -797,6 +805,7 @@ function App() {
       <SelectionModal
         open={isSelectionViewOpen()}
         selection={allSelections}
+        currency={currency()}
         onClose={closeSelectionView}
         onRemoveAll={editMode() ? handleRemoveAll : undefined}
         onMoveAll={editMode() ? handleMoveAll : undefined}

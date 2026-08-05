@@ -193,6 +193,14 @@ The Refresh Cache page shows real-time progress during the operation:
   (cards are parsed and processed as the stream downloads, so they are one phase)
 - Falls back gracefully if streaming is unavailable
 
+The page also carries a **Card Kingdom buylist** card, backing [sell mode](/public-site/sell/) and
+the [`sell`](/commands/sell/) command. It shows when the feed was last downloaded, Card Kingdom's
+own generation stamp, and the product count, with a **Refresh buylist** button. That ~70 MB
+download only ever happens on an explicit click — no page load triggers it — and the button forces
+a redownload even when the cached copy is still fresh. A workspace that has never downloaded it
+shows an empty state offering the button rather than an error; if a download fails but a stale copy
+exists, the card reports "The buylist was not updated." instead of claiming success.
+
 ### Archidekt Login
 
 Sign in to your Archidekt account through the web interface. Credentials are sent to the Ritual server, which handles authentication server-side.

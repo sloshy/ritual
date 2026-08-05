@@ -55,9 +55,14 @@ describe('sell MCP tools', () => {
     await session.close()
   })
 
-  test('all three tools are registered with output schemas', async () => {
+  test('every sell tool is registered with an output schema', async () => {
     const { tools } = await client.listTools()
-    for (const name of ['get_sell_report', 'get_sell_cart', 'refresh_buylist']) {
+    for (const name of [
+      'get_sell_report',
+      'get_sell_cart',
+      'get_buylist_quotes',
+      'refresh_buylist',
+    ]) {
       expect(tools.find((tool) => tool.name === name)?.outputSchema).toBeDefined()
     }
   })
@@ -110,6 +115,50 @@ describe('sell MCP tools', () => {
     expect(data.csv).toBe('card name,edition,foil,quantity\nSol Ring,Alpha,false,1\n')
     expect(data.titleCount).toBe(1)
     expect(data.cardCount).toBe(1)
+  })
+
+  test('get_buylist_quotes rejects a malformed printing', async () => {
+    expectSchemaRejection(
+      await client.callTool({
+        name: 'get_buylist_quotes',
+        arguments: { printings: [{ set: 'lea', collectorNumber: '231', finish: 'shiny' }] },
+      }),
+      'finish',
+    )
+    expectSchemaRejection(
+      await client.callTool({
+        name: 'get_buylist_quotes',
+        arguments: { printings: [], buyer: 'x' },
+      }),
+      'buyer',
+    )
+  })
+
+  test('get_buylist_quotes answers per printing, omitting unquoted ones', async () => {
+    await seedSellFixture(session)
+    const printing = ((await cardCache.get('Sol Ring')) ?? [])[0]!
+    const result = await client.callTool({
+      name: 'get_buylist_quotes',
+      arguments: {
+        printings: [
+          {
+            set: printing.set,
+            collectorNumber: printing.collector_number,
+            finish: 'nonfoil',
+            scryfallId: printing.id,
+          },
+          { set: 'lea', collectorNumber: '999', finish: 'nonfoil' },
+        ],
+      },
+    })
+    const data = toolData<{
+      buyer: string
+      quotes: Record<string, { priceBuy: number; buying: boolean }>
+    }>(result)
+    expect(data.buyer).toBe('cardkingdom')
+    const key = `${printing.set.toLowerCase()}:${printing.collector_number}:nonfoil`
+    expect(data.quotes[key]).toMatchObject({ priceBuy: 4, buying: true })
+    expect(Object.keys(data.quotes)).toHaveLength(1)
   })
 
   test('refresh_buylist rejects a non-boolean force and surfaces download failures', async () => {

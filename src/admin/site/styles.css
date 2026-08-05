@@ -1065,6 +1065,64 @@
   border-radius: 0.375rem;
 }
 
+/* ----- Cache cards (one per separately-refreshable dataset) ----- */
+.cache-card {
+  margin-top: 2rem;
+  padding: 1.25rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.cache-card-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cache-card-empty {
+  margin: 0 0 0.75rem;
+  color: var(--text-muted);
+}
+
+.cache-card-error {
+  margin: 0 0 0.75rem;
+  color: var(--error-text);
+}
+
+.cache-card-status {
+  margin: 0.75rem 0;
+  color: var(--text-secondary);
+}
+
+.cache-card-warnings {
+  margin: 0.75rem 0;
+  padding-left: 1.25rem;
+  color: var(--warning-text);
+}
+
+.cache-card-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+}
+
+.cache-card-facts dt {
+  color: var(--text-muted);
+}
+
+.cache-card-facts dd {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.cache-card-stale {
+  color: var(--warning-text);
+}
+
 /* ----- Progress / Cache ----- */
 .progress-section {
   background: var(--bg-panel);

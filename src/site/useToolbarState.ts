@@ -2,6 +2,8 @@ import { createSignal } from 'solid-js'
 import type { Accessor, Setter } from 'solid-js'
 import type { ViewMode, CardSize, SortBy, SortLayer, PriceGroupStrategy } from './card-sorting'
 import { usePointerCoarse } from '../ui/useMediaQuery'
+import type { BuyerId } from '../buylist'
+import { sellModeActive, sellModeBuyer, setSellModeActive, setSellModeBuyer } from './sell-mode'
 
 export type UseToolbarStateDefaults<G extends string> = {
   groupBy?: G
@@ -22,6 +24,16 @@ export type UseToolbarStateResult<G extends string> = {
   setReverseGroups: Setter<boolean>
   priceGroupStrategy: Accessor<PriceGroupStrategy>
   setPriceGroupStrategy: Setter<PriceGroupStrategy>
+  /**
+   * Whether the page is in sell mode: buylist prices on tiles, the on-buylist
+   * filter, buylist grouping/sorting, and the sell-cart export. Always false on
+   * pages that do not offer it (`showSellMode`), so reading it is safe anywhere.
+   */
+  sellMode: Accessor<boolean>
+  setSellMode: (next: boolean) => void
+  /** Which buyer sell mode quotes against. */
+  buyer: Accessor<BuyerId>
+  setBuyer: (next: BuyerId) => void
 }
 
 /** Shared toolbar state for DeckPage and CollectionPage. */
@@ -58,5 +70,11 @@ export function useToolbarState<G extends string>(
     setReverseGroups,
     priceGroupStrategy,
     setPriceGroupStrategy,
+    // Backed by the global store, so the mode survives navigation and the
+    // cross-list selection dialog can read it without a page to ask.
+    sellMode: sellModeActive,
+    setSellMode: setSellModeActive,
+    buyer: sellModeBuyer,
+    setBuyer: setSellModeBuyer,
   }
 }

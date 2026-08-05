@@ -28,6 +28,8 @@ type CollectionEditViewProps = {
   detail: CollectionDetail
   slug: string
   currency: PriceCurrency
+  /** Offer sell mode; true only on a server-backed site with `site.sellMode` on. */
+  enableSellMode?: boolean
   onExit: () => void
   /** Other lists a card can be moved into (excludes this collection). */
   moveTargets?: () => ListRef[]
@@ -145,6 +147,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
           fullWidth={false}
           enablePriceRefresh={true}
           enableTrade={true}
+          enableSellMode={props.enableSellMode}
         />
       }
       original={

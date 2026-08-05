@@ -13,6 +13,11 @@ import { dirForType } from '../../resolve-list'
 import { loadRitualConfig } from '../../ritual-config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { MAX_BODY_SIZE } from '../validation'
+import {
+  getCardKingdomFeed,
+  missingFeedApiAdvice,
+  type LoadedCardKingdomFeed,
+} from '../../cardkingdom'
 import { normalizeNote } from '../../note-helpers'
 import { parseCardLabelsValue } from '../../card-labels'
 import type { ChangeEvent } from '../../change-event'
@@ -87,6 +92,17 @@ export const PARTIAL_LOAD_HINT =
   'would truncate the file — reload the list without section/nameContains/limit/offset first.'
 
 /** The outcome of {@link readJsonObjectBody}: the parsed object, or the response to return. */
+/**
+ * The cached buyer feed, or a 503 naming every way to download it. The buylist
+ * mirror of {@link requireCardCache}: shared so the admin sell routes and the
+ * dual-mounted buylist routes refuse identically.
+ */
+export async function requireBuylistFeed(): Promise<LoadedCardKingdomFeed | Response> {
+  const feed = await getCardKingdomFeed()
+  if (feed === null) return apiError(missingFeedApiAdvice(), 503)
+  return feed
+}
+
 export type JsonObjectBody =
   | { ok: true; body: Record<string, unknown> }
   | { ok: false; response: Response }
@@ -100,8 +116,8 @@ export type JsonObjectBody =
  * `auth-login`, `login`, `totp`), whose refusal bodies carry their own fields
  * (`retryAfterSeconds`, `loginRequired`) and are a wire contract of their own.
  */
-export async function readJsonObjectBody(req: Request): Promise<JsonObjectBody> {
-  const sizeError = validateBodySize(req)
+export async function readJsonObjectBody(req: Request, maxBytes?: number): Promise<JsonObjectBody> {
+  const sizeError = validateBodySize(req, maxBytes)
   if (sizeError) return { ok: false, response: sizeError }
   let raw: unknown
   try {
@@ -127,10 +143,15 @@ export type HashValidationConflict = {
 
 export type HashValidationResult = HashValidationSuccess | HashValidationConflict
 
-/** Return a 413 Response if the request body exceeds MAX_BODY_SIZE, or null if OK. */
-export function validateBodySize(req: Request): Response | null {
+/**
+ * Return a 413 Response if the request body exceeds the cap, or null if OK.
+ * `maxBytes` defaults to {@link MAX_BODY_SIZE}, the mutation-route budget; a
+ * bulk *query* route (which sends many small records and writes nothing) passes
+ * its own, derived from its own per-request item cap.
+ */
+export function validateBodySize(req: Request, maxBytes: number = MAX_BODY_SIZE): Response | null {
   const contentLength = Number(req.headers.get('Content-Length') ?? '0')
-  if (contentLength > MAX_BODY_SIZE) {
+  if (contentLength > maxBytes) {
     return apiError('Request body too large', 413)
   }
   return null

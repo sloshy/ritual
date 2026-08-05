@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { Show, createMemo } from 'solid-js'
+import { For, Show, createMemo } from 'solid-js'
 import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { usePointerCoarse } from '../ui/useMediaQuery'
@@ -13,6 +13,8 @@ import { openSelectionView } from './SelectionModal'
 import { promptListMove, promptSectionMove } from './move-prompt'
 import { promptCardLabels } from './label-prompt'
 import type { CardLabel } from '../card-labels'
+import { BUYER_DISPLAY_NAMES } from '../buylist'
+import { cartBuyer } from './sell-mode'
 
 const PANEL_WIDTH = 220
 
@@ -173,7 +175,6 @@ type SelectionMenuItemsProps = SelectionMenuProps & {
 
 const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
   const copy = useSelectionCopy(() => props.selection.selected())
-
   // "Remove a copy" (decrement) is only meaningful when at least one selected tile
   // represents more than one copy; for single-copy tiles it duplicates "Remove from
   // list". Reactive to the live selection so it appears/disappears as it changes.
@@ -339,6 +340,23 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
       >
         Copy as CSV
       </button>
+      <Show when={cartBuyer()}>
+        {(buyer) => (
+          <button
+            type="button"
+            role="menuitem"
+            class="selection-menu-item"
+            onClick={() => void copy.copyCart()}
+          >
+            Copy {BUYER_DISPLAY_NAMES[buyer()]} cart CSV
+          </button>
+        )}
+      </Show>
+      <Show when={copy.cartWarnings().length > 0}>
+        <For each={copy.cartWarnings()}>
+          {(warning) => <p class="selection-menu-warning">{warning}</p>}
+        </For>
+      </Show>
       <Show when={props.enableTrade}>
         <button
           type="button"

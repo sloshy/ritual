@@ -60,6 +60,7 @@ import { handleDiff } from './api/diff'
 import { handleHistoryLoad, handleHistorySave } from './api/history'
 import { handlePriceSummary, handlePriceList } from './api/price'
 import { handleSellReport, handleSellCart, handleSellRefresh } from './api/sell'
+import { handleBuylistQuotes, handleBuylistStatus } from '../api/buylist'
 import {
   handleListCreate,
   handleListRename,
@@ -342,6 +343,16 @@ export const routes: Route[] = [
   { method: 'GET', path: '/api/sell/report', handler: handleSellReport, requiresAuth: true },
   { method: 'GET', path: '/api/sell/cart', handler: handleSellCart, requiresAuth: true },
   { method: 'POST', path: '/api/sell/refresh', handler: handleSellRefresh, requiresAuth: true },
+  // Sell mode's per-printing quote lookup, shared with the public site server.
+  // Ungated by `site.sellMode`: that key governs what a *published* site
+  // discloses, not what the operator's own admin tools can see.
+  { method: 'GET', path: '/api/buylist/status', handler: handleBuylistStatus, requiresAuth: true },
+  {
+    method: 'POST',
+    path: '/api/buylist/quotes',
+    handler: handleBuylistQuotes,
+    requiresAuth: true,
+  },
 ]
 
 export function getClientIp(req: Request, server: RequestIPServer, trustProxy: boolean): string {

@@ -9,6 +9,7 @@ import {
   DIFF_LISTS_OUTPUT,
   EXPORT_CARDS_OUTPUT,
   FIND_CARDS_OUTPUT,
+  GET_BUYLIST_QUOTES_OUTPUT,
   GET_CACHE_STATUS_OUTPUT,
   GET_CARD_DETAILS_OUTPUT,
   GET_CARD_PRICE_OUTPUT,
@@ -56,8 +57,10 @@ import type { MovePhysicalCard } from '../../card-index-types'
 import type { SyncableDeck } from '../../deck-sync/engine'
 import { EXPORT_FORMATS } from '../../export/presets'
 import { EXPORT_DIALECTS, EXPORT_PROPERTIES } from '../../export/render'
-import { VALID_CONDITIONS } from '../../finish-condition'
+import { VALID_CONDITIONS, VALID_FINISHES } from '../../finish-condition'
 import { CARD_LABELS } from '../../card-labels'
+import { BUYERS, type BuylistQuotesResponse } from '../../buylist'
+import { MAX_BUYLIST_PRINTINGS } from '../../api/buylist'
 import { DIFF_BY_MODES } from '../../list-diff'
 import type { ListInfo } from '../../list-info'
 import type { ListType } from '../../list-type'
@@ -209,6 +212,20 @@ function sellScopeQuery(scope: SellScopeInput): string {
   if (scope.minPrice !== undefined) params.set('min', String(scope.minPrice))
   return params.size > 0 ? `?${params}` : ''
 }
+
+/** `get_buylist_quotes` result: the buyer's offer for each requested printing. */
+export type BuylistQuotesResult = OmitSuccess<BuylistQuotesResponse>
+
+/** One printing to quote, in the shape the buylist endpoint accepts. */
+const buylistPrintingSchema = z.object({
+  set: setCodeField.describe('Set code of the printing.'),
+  collectorNumber: z.string().min(1).describe('Collector number of the printing.'),
+  finish: z.enum(VALID_FINISHES).describe('Finish of the copy being quoted.'),
+  scryfallId: z
+    .string()
+    .optional()
+    .describe('Scryfall id of this exact printing — the primary join key when known.'),
+})
 
 /** `get_history` result: a list's change sets plus the default-rewrite lines. */
 export type HistoryResult = OmitSuccess<HistoryLoadResponse>
@@ -656,6 +673,40 @@ export function registerReadTools(server: McpServer): void {
           'GET',
           `/api/sell/cart${sellScopeQuery(scope)}`,
         )
+        return data
+      }),
+  )
+
+  server.registerTool(
+    'get_buylist_quotes',
+    {
+      title: 'Buylist quotes',
+      description:
+        'Look up the buyer’s current offer for specific printings, keyed by ' +
+        '"set:collectorNumber:finish". Use this to price an arbitrary set of cards ' +
+        '(a trade, a selection) without building a whole sell report; use get_sell_report ' +
+        'to price entire lists. Printings the buyer has no product for are simply absent ' +
+        'from the result. Strictly cache-backed — errors when no buylist feed has been ' +
+        'downloaded (run refresh_buylist).',
+      inputSchema: z.object({
+        printings: z
+          .array(buylistPrintingSchema)
+          .max(MAX_BUYLIST_PRINTINGS)
+          .describe('The printings to quote.'),
+        buyer: z
+          .enum(BUYERS)
+          .optional()
+          .describe('Which buyer to quote against (default: cardkingdom).'),
+      }),
+      outputSchema: fromJsonSchema<BuylistQuotesResult>(GET_BUYLIST_QUOTES_OUTPUT),
+      annotations: { readOnlyHint: true },
+    },
+    async ({ printings, buyer }) =>
+      runTool(async (): Promise<BuylistQuotesResult> => {
+        const data = await callApiData<BuylistQuotesResponse>('POST', '/api/buylist/quotes', {
+          printings,
+          ...(buyer !== undefined ? { buyer } : {}),
+        })
         return data
       }),
   )

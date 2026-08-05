@@ -27,17 +27,25 @@
  * modeled.
  */
 
+import {
+  buildCkCartCsv,
+  roundCents,
+  type CkCartItem,
+  type SellCartCsv,
+  type SellMatchVia,
+} from './buylist'
 import { aggregateQuantities, variantKey } from './card-line'
 import { findPrinting, hasSpecificPrinting, type CardPrintingsLookup } from './card-printing'
 import {
-  lookupSkuPrinting,
+  chooseMatch,
+  matchPrinting,
+  productIsBuying,
   productUrl,
   type CardKingdomFeed,
   type CardKingdomIndex,
   type CardKingdomProduct,
 } from './cardkingdom'
 import { resolveFinish } from './collection-file'
-import { csvCell } from './csv'
 import { LIST_TYPES, type ListType } from './list-type'
 import {
   loadPriceListInputs,
@@ -59,10 +67,6 @@ export type SellListInput = PriceListInput
 
 /** Lists loaded from disk plus any parser warnings. */
 export type LoadedSellInputs = LoadedPriceInputs
-
-/** Which join key located the CK product. */
-export const SELL_MATCH_VIAS = ['scryfall-id', 'sku', 'name'] as const
-export type SellMatchVia = (typeof SELL_MATCH_VIAS)[number]
 
 export const SELL_ENTRY_STATUSES = ['buying', 'not-buying', 'no-match'] as const
 export type SellEntryStatus = (typeof SELL_ENTRY_STATUSES)[number]
@@ -232,34 +236,6 @@ export function aggregateSellEntries(entries: SellListEntry[]): SellListEntry[] 
   ).map(({ entry, quantity }) => ({ ...entry, quantity }))
 }
 
-/** Whether CK is actually buying a product (see module docs on token prices). */
-export function productIsBuying(product: CardKingdomProduct): boolean {
-  return product.qtyBuying > 0 && product.priceBuy > 0
-}
-
-/**
- * The best-paying candidate, preferring products CK is actually buying: a
- * $0.02 active offer beats a $5.00 inactive one, because only the former can be
- * sold today. Ties and inactive-only sets fall back to the highest price.
- */
-export function chooseProduct(candidates: CardKingdomProduct[]): CardKingdomProduct | undefined {
-  let best: CardKingdomProduct | undefined
-  for (const candidate of candidates) {
-    if (!best) {
-      best = candidate
-      continue
-    }
-    const bestBuying = productIsBuying(best)
-    const candidateBuying = productIsBuying(candidate)
-    if (candidateBuying !== bestBuying) {
-      if (candidateBuying) best = candidate
-      continue
-    }
-    if (candidate.priceBuy > best.priceBuy) best = candidate
-  }
-  return best
-}
-
 /** The outcome of the candidate search for one entry, before status is judged. */
 type EntryMatch =
   | {
@@ -277,9 +253,9 @@ function matched(
   matchVia: SellMatchVia,
   finish: Finish | undefined,
 ): EntryMatch | null {
-  const product = chooseProduct(candidates)
-  if (!product) return null
-  return { kind: 'matched', product, matchVia, ambiguous: candidates.length > 1, finish }
+  const hit = chooseMatch(candidates)
+  if (!hit) return null
+  return { kind: 'matched', product: hit.product, matchVia, ambiguous: hit.ambiguous, finish }
 }
 
 /** A sell entry narrowed by {@link hasSpecificPrinting} to a pinned printing. */
@@ -293,20 +269,23 @@ function matchPinnedEntry(
   const exact = findPrinting(printings, entry.set, entry.collectorNumber)
   const finish = exact ? resolveFinish(entry, exact) : (entry.finish ?? 'nonfoil')
 
-  if (exact) {
-    const byId = (index.byScryfallId.get(exact.id) ?? []).filter(
-      (product) => product.finish === finish,
-    )
-    const hit = matched(byId, 'scryfall-id', finish)
-    if (hit) return hit
-  }
-
-  const bySku = matched(
-    lookupSkuPrinting(index, entry.set, entry.collectorNumber, finish),
-    'sku',
+  // The same matcher the site's sell mode calls, so a card quoted in the UI and
+  // the same card in `ritual sell` can never disagree.
+  const hit = matchPrinting(index, {
+    set: entry.set,
+    collectorNumber: entry.collectorNumber,
     finish,
-  )
-  if (bySku) return bySku
+    scryfallId: exact?.id,
+  })
+  if (hit) {
+    return {
+      kind: 'matched',
+      product: hit.match.product,
+      matchVia: hit.matchVia,
+      ambiguous: hit.match.ambiguous,
+      finish,
+    }
+  }
 
   const noMatchReason: SellNoMatchReason = exact
     ? 'not-on-buylist'
@@ -421,11 +400,6 @@ function matchEntry(
     sellableQuantity,
     value: roundCents(product.priceBuy * sellableQuantity),
   }
-}
-
-/** Keep sums presentable: buylist math is cents, floats drift. */
-function roundCents(value: number): number {
-  return Math.round(value * 100) / 100
 }
 
 /** Sum totals over any set of sell entries. */
@@ -566,71 +540,21 @@ export function applySellFilters(report: SellReport, filters: SellEntryFilters):
   return { entries, ...summarizeSellEntries(entries) }
 }
 
-/** Card Kingdom's sell-cart CSV import caps (per upload). */
-export const CK_CSV_MAX_TITLES = 500
-export const CK_CSV_MAX_CARDS = 5000
-
-/** A rendered sell-cart CSV plus its size against CK's upload caps. */
-export type SellCartCsv = {
-  csv: string
-  titleCount: number
-  cardCount: number
-  warnings: string[]
-}
-
 /**
- * Render entries CK is buying as their sell-cart CSV import format
- * (`card name, edition, foil, quantity` — cardkingdom.com/static/csvImport),
- * using CK's own name and edition spellings from the matched product so the
- * importer recognizes every row. Quantities are the sellable (capped) counts,
- * aggregated per product. The format cannot express etched, so etched-quoted
- * entries are exported as foil with a warning to fix the cart by hand.
+ * Render entries CK is buying as their sell-cart CSV import format, using CK's
+ * own name and edition spellings from the matched product so the importer
+ * recognizes every row, and the sellable (budget-capped) quantities. The
+ * rendering itself lives in `src/buylist/cart-csv.ts`, shared with the site's
+ * "Copy CK cart CSV" so both produce byte-identical files.
  */
 export function buildSellCartCsv(entries: SellReportEntry[]): SellCartCsv {
-  const buying = entries.filter(isBuyingEntry).filter((entry) => entry.sellableQuantity > 0)
-
-  const etched: string[] = []
-  for (const entry of buying) {
-    if (entry.ckFinish === 'etched' && !etched.includes(entry.ckName)) etched.push(entry.ckName)
-  }
-
-  // CK's importer keys on name+edition+foil, so aggregate to that grain.
-  const rows = aggregateQuantities(
-    buying,
-    (entry) => `${entry.ckName.toLowerCase()}|${entry.ckEdition}|${entry.ckFinish !== 'nonfoil'}`,
-    (entry) => entry.sellableQuantity,
+  const items = entries.filter(isBuyingEntry).map(
+    (entry): CkCartItem => ({
+      name: entry.ckName,
+      edition: entry.ckEdition,
+      finish: entry.ckFinish,
+      quantity: entry.sellableQuantity,
+    }),
   )
-
-  const lines = ['card name,edition,foil,quantity']
-  let cardCount = 0
-  for (const { entry, quantity } of rows) {
-    cardCount += quantity
-    lines.push(
-      [
-        csvCell(entry.ckName),
-        csvCell(entry.ckEdition),
-        String(entry.ckFinish !== 'nonfoil'),
-        String(quantity),
-      ].join(','),
-    )
-  }
-
-  const warnings: string[] = []
-  if (etched.length > 0) {
-    warnings.push(
-      `The CK CSV format cannot mark etched foils; exported as foil — adjust in the sell cart: ${etched.join(', ')}`,
-    )
-  }
-  if (rows.length > CK_CSV_MAX_TITLES) {
-    warnings.push(
-      `CK imports at most ${CK_CSV_MAX_TITLES} unique titles per upload (this file has ${rows.length}); split it before uploading.`,
-    )
-  }
-  if (cardCount > CK_CSV_MAX_CARDS) {
-    warnings.push(
-      `CK imports at most ${CK_CSV_MAX_CARDS} cards per upload (this file has ${cardCount}); split it before uploading.`,
-    )
-  }
-
-  return { csv: `${lines.join('\n')}\n`, titleCount: rows.length, cardCount, warnings }
+  return buildCkCartCsv(items)
 }

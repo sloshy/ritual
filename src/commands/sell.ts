@@ -1,6 +1,6 @@
 import { Command, InvalidArgumentError } from 'commander'
 import { ensureCardCachePresent, emptyCacheAdvice } from '../cache/freshness'
-import { ensureCardKingdomFeed } from '../cardkingdom'
+import { adoptCardKingdomFeed, ensureCardKingdomFeed } from '../cardkingdom'
 import { formatPrintingAnnotation } from '../change-event'
 import { formatPrice } from '../price-currency'
 import { addRefreshOption, resolveRefreshMode, type RefreshMode } from '../refresh'
@@ -243,7 +243,7 @@ export function registerSellCommand(program: Command): void {
       const { report, warnings } = await loadAndBuildSellReport(
         locations ? undefined : scopeType,
         locations,
-        feed,
+        await adoptCardKingdomFeed(feed),
         { refresh: refreshMode },
       )
       // A skipped card line means the report excludes cards: essential, so it

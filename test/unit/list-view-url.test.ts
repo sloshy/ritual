@@ -4,6 +4,7 @@ import {
   type ListViewState,
   hasListViewParams,
   parseListViewParams,
+  withLabelsParam,
   writeListViewParams,
 } from '../../src/site/list-view-url'
 import { type CardFilters, createDefaultCardFilters } from '../../src/site/card-filters'
@@ -18,6 +19,8 @@ function defaultState(overrides?: Partial<ListViewState>): ListViewState {
     sortLayers: [{ sortBy: 'name', reverse: false }],
     reverseGroups: false,
     priceGroupStrategy: 'archidekt',
+    sellMode: false,
+    buyer: 'cardkingdom',
     filters: createDefaultCardFilters(),
     ...overrides,
   }
@@ -457,5 +460,119 @@ describe('labels param', () => {
   test('an illegal combination is ignored whole', () => {
     const params = new URLSearchParams('labels=keep,sale')
     expect(parseListViewParams(params).filters?.labels).toBeUndefined()
+  })
+})
+
+describe('withLabelsParam', () => {
+  test('appends the normalized filter, picking the right joiner', () => {
+    expect(withLabelsParam('#/combined?all=collection', ['trade', 'sale'])).toBe(
+      '#/combined?all=collection&labels=sale,trade',
+    )
+    expect(withLabelsParam('#/collection/binder', ['keep'])).toBe('#/collection/binder?labels=keep')
+  })
+
+  test('leaves the href alone for an empty or illegal selection', () => {
+    expect(withLabelsParam('#/combined?all=collection', [])).toBe('#/combined?all=collection')
+    expect(withLabelsParam('#/combined?all=collection', ['keep', 'sale'])).toBe(
+      '#/combined?all=collection',
+    )
+  })
+})
+
+describe('sell mode parameters', () => {
+  test('writes sell and buyer only while sell mode is on', () => {
+    expect(encode(defaultState()).has('sell')).toBe(false)
+    expect(encode(defaultState()).has('buyer')).toBe(false)
+
+    const params = encode(defaultState({ sellMode: true }))
+    expect(params.get('sell')).toBe('1')
+    // The buyer only means something alongside sell mode, so it rides with it.
+    expect(params.get('buyer')).toBe('cardkingdom')
+  })
+
+  test('round-trips the buylist filter in canonical order', () => {
+    const params = encode(
+      defaultState({
+        sellMode: true,
+        filters: { ...createDefaultCardFilters(), onBuylist: ['off', 'on'] },
+      }),
+    )
+    expect(params.get('buylist')).toBe('on,off')
+    expect(parseListViewParams(params).filters?.onBuylist).toEqual(['on', 'off'])
+  })
+
+  test('omits the buylist filter when sell mode is off, since its chips are hidden', () => {
+    // Writing it would bake a filter into a shared link that the recipient's
+    // toolbar offers no way to see or clear.
+    const params = encode(
+      defaultState({ filters: { ...createDefaultCardFilters(), onBuylist: ['on'] } }),
+    )
+    expect(params.has('buylist')).toBe(false)
+  })
+
+  test('parses the sell-mode toggle and buyer back', () => {
+    const parsed = parseListViewParams(new URLSearchParams('sell=1&buyer=cardkingdom'))
+    expect(parsed).toMatchObject({ sellMode: true, buyer: 'cardkingdom' })
+  })
+
+  test('ignores an unknown buyer rather than adopting it', () => {
+    expect(parseListViewParams(new URLSearchParams('buyer=tcgplayer')).buyer).toBeUndefined()
+  })
+
+  test('round-trips the buylist price filter, gated on sell mode', () => {
+    const filters = {
+      ...createDefaultCardFilters(),
+      buylistPrice: 2.5,
+      buylistPriceOp: '>=' as const,
+    }
+    const params = encode(defaultState({ sellMode: true, filters }))
+    expect(params.get('buyPrice')).toBe('2.5')
+    expect(params.get('buyPriceOp')).toBe('>=')
+    expect(parseListViewParams(params).filters).toMatchObject({
+      buylistPrice: 2.5,
+      buylistPriceOp: '>=',
+    })
+
+    // Hidden control, so it must not ride along in a link.
+    expect(encode(defaultState({ filters })).has('buyPrice')).toBe(false)
+  })
+
+  test('omits the default comparator, like the retail price filter', () => {
+    const params = encode(
+      defaultState({
+        sellMode: true,
+        filters: { ...createDefaultCardFilters(), buylistPrice: 1 },
+      }),
+    )
+    expect(params.get('buyPrice')).toBe('1')
+    expect(params.has('buyPriceOp')).toBe(false)
+  })
+
+  test('a comparator with no threshold neither writes nor applies', () => {
+    const params = encode(
+      defaultState({
+        sellMode: true,
+        filters: { ...createDefaultCardFilters(), buylistPriceOp: '>=' },
+      }),
+    )
+    expect(params.has('buyPriceOp')).toBe(false)
+    // Parse side: a lone comparator must not become an active filter.
+    expect(parseListViewParams(new URLSearchParams('buyPriceOp=>=')).filters).toBeUndefined()
+  })
+
+  test('accepts the buylist group-by and sort-by values', () => {
+    const parsed = parseListViewParams(
+      new URLSearchParams('group=buylist-price&sort=-buylist-price,buylist-spread'),
+    )
+    expect(parsed.groupBy).toBe('buylist-price')
+    expect(parsed.sortLayers).toEqual([
+      { sortBy: 'buylist-price', reverse: true },
+      { sortBy: 'buylist-spread', reverse: false },
+    ])
+  })
+
+  test('hasListViewParams recognizes the sell-mode keys', () => {
+    expect(hasListViewParams(new URLSearchParams('sell=1'))).toBe(true)
+    expect(hasListViewParams(new URLSearchParams('buylist=on'))).toBe(true)
   })
 })

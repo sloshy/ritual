@@ -12,6 +12,7 @@ import {
   getDefaultCurrency,
   getSearchDebounceMs,
   getSiteSelectionConfig,
+  getSiteSellMode,
   getWantedDir,
   loadRitualConfig,
   type RitualConfig,
@@ -164,6 +165,7 @@ export function createLiveSiteData(): LiveSiteData {
       bannedPrintings: [...getBannedPrintings(config)].sort(),
       searchDebounceMs: getSearchDebounceMs(config),
       selection: getSiteSelectionConfig(config.site),
+      sellMode: getSiteSellMode(config),
     })
   }
 
@@ -345,6 +347,7 @@ export function createLiveSiteData(): LiveSiteData {
       searchDebounceMs: getSearchDebounceMs(config),
       // Same-origin marker: this payload is only ever served by `serve --api`.
       apiBaseUrl: '',
+      sellMode: getSiteSellMode(config),
     }
     const body = JSON.stringify(index)
     const newestMtime = [...listMemo.values()].reduce(

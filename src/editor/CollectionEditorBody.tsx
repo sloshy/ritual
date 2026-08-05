@@ -32,6 +32,12 @@ type CollectionEditorBodyProps = {
   enablePriceRefresh?: boolean
   /** Forwarded to the page: offer "Add to Trade" in the multi-select menu (public site only). */
   enableTrade?: boolean
+  /**
+   * Offer sell mode inside the editor's list view. Always true on admin (the
+   * operator's own tools are not gated by `site.sellMode`); the public editor
+   * inherits the site's capability.
+   */
+  enableSellMode?: boolean
   /** Open the list-default label editor (admin editor only — needs the authed metadata route). */
   onEditLabels?: () => void
 }
@@ -99,6 +105,7 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
         fullWidth={props.fullWidth}
         enablePriceRefresh={props.enablePriceRefresh}
         enableTrade={props.enableTrade}
+        enableSellMode={props.enableSellMode}
         onCardIncrement={ctrl.handleIncrement}
         onCardDecrement={ctrl.handleDecrement}
         onCardContextMenu={ctrl.handleContextMenu}

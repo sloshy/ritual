@@ -172,6 +172,14 @@ export interface SiteIndex {
    * build-site from `site.apiBaseUrl`). Absent = fully static site.
    */
   apiBaseUrl?: string
+  /**
+   * Whether this site offers sell mode (buylist quotes, filters, and the
+   * sell-cart export), baked from `site.sellMode`. Sell mode also needs a live
+   * API to quote against, so the toggle appears only when this is true *and*
+   * {@link SiteIndex.apiBaseUrl} is present. Absent on sites built before the
+   * feature existed, which reads as off.
+   */
+  sellMode?: boolean
 }
 
 export type TradeCardSource = 'collection' | 'deck' | 'wanted' | 'scryfall'

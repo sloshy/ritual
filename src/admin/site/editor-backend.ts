@@ -1,4 +1,5 @@
 import { createApiSearchProvider } from '../../editor/search-provider'
+import { createBuylistFetcher, type BuylistFetcher } from '../../site/buylist-quotes'
 import type { CardPriceResponse } from '../../api/card-price'
 
 /**
@@ -9,6 +10,15 @@ import type { CardPriceResponse } from '../../api/card-price'
 
 /** Shared admin card-search backend (hits `/api/autocomplete` + `/api/card-printings`). */
 export const adminSearch = createApiSearchProvider()
+
+/**
+ * Quote transport for the admin site: same request as the public one, but
+ * carrying the session cookie the admin routes require.
+ */
+export const adminBuylistFetcher: BuylistFetcher = createBuylistFetcher({
+  url: '/api/buylist/quotes',
+  credentials: 'same-origin',
+})
 
 /** Fetch and parse a JSON payload from an admin API endpoint (same-origin credentials). */
 export function fetchAdminJson(url: string, signal?: AbortSignal): Promise<unknown> {

@@ -8,7 +8,7 @@ import { addToLeft } from '../helpers/trade-page'
 
 /**
  * Card labels (sale / trade / keep) on the public site: the Labels filter
- * chips, tile badges, the collections-index Labels dropdown, and the trade
+ * chips, tile badges, the collections-index "View all..." dropdown, and the trade
  * keep-guard (one-time confirm dialog + KEEP tag).
  */
 
@@ -19,12 +19,30 @@ async function expectVisibleCards(page: Page, names: string[]): Promise<void> {
     .toEqual([...names].sort())
 }
 
-async function gotoLabelBinderListView(page: Page): Promise<void> {
-  await page.goto('#/collection/label-binder')
+/** Switch the current list page to list view, which renders names as text rows. */
+async function switchToListView(page: Page): Promise<void> {
   await page.waitForSelector('[data-view]', { timeout: 15_000 })
-  // List view renders names as text rows, which expectVisibleCards reads.
   await page.locator('[data-view="list"]').click()
   await page.waitForSelector('.card-list', { timeout: 10_000 })
+}
+
+async function gotoLabelBinderListView(page: Page): Promise<void> {
+  await page.goto('#/collection/label-binder')
+  await switchToListView(page)
+}
+
+type HashParts = { path: string; all: string | null; labels: string | null }
+
+/**
+ * The route and list-view params of the current hash. Compared field-by-field
+ * rather than as a raw query string: once the combined view mounts,
+ * `useListViewUrlSync` rewrites the hash through `URLSearchParams.toString()`,
+ * which percent-encodes the comma in `labels=sale,trade`.
+ */
+function hashParts(page: Page): HashParts {
+  const [path = '', query = ''] = new URL(page.url()).hash.split('?')
+  const params = new URLSearchParams(query)
+  return { path, all: params.get('all'), labels: params.get('labels') }
 }
 
 test.describe('Labels filter', () => {
@@ -60,9 +78,7 @@ test.describe('Labels filter', () => {
     await chips.getByRole('button', { name: 'For sale' }).click()
     await chips.getByRole('button', { name: 'For trade' }).click()
 
-    await expect
-      .poll(() => new URLSearchParams(new URL(page.url()).hash.split('?')[1]).get('labels'))
-      .toBe('sale,trade')
+    await expect.poll(() => hashParts(page).labels).toBe('sale,trade')
 
     // Loading a labels URL restores the chips and the filtered view. The
     // reload matters: a same-document hash change would not re-apply params.
@@ -91,9 +107,7 @@ test.describe('Label badges', () => {
     // satisfying the waits below before the remount resets the view mode.
     await page.goto('#/collection/sale-binder')
     await page.reload()
-    await page.waitForSelector('[data-view]', { timeout: 15_000 })
-    await page.locator('[data-view="list"]').click()
-    await page.waitForSelector('.card-list', { timeout: 10_000 })
+    await switchToListView(page)
     await expect(
       page.locator('.card-list', { hasText: 'Keeper' }).locator('.card-label-badge.label-keep'),
     ).toBeVisible()
@@ -110,26 +124,54 @@ test.describe('Label badges', () => {
   })
 })
 
-test.describe('Collections index Labels dropdown', () => {
-  test('opens the combined all-collections view pre-filtered', async ({ page }) => {
+test.describe('Collections index "View all..." dropdown', () => {
+  test.beforeEach(async ({ page }) => {
     await mockPublicSiteCollectionsForLabels(page)
     await page.goto('#/collections')
-    await page.getByRole('button', { name: 'Labels' }).click()
+    await page.getByRole('button', { name: 'View all...' }).click()
+  })
+
+  test('offers the unfiltered view first, then one per label query', async ({ page }) => {
+    await expect(page.getByRole('menuitem')).toHaveText([
+      'View all collections',
+      'View all for sale',
+      'View all for trade',
+      'View all for sale or trade',
+      'View all to keep',
+    ])
+  })
+
+  // Both destination tests assert the hash *before* switching to list view:
+  // that click writes `view=list` back through the same URL-sync effect.
+  test('opens the combined all-collections view pre-filtered', async ({ page }) => {
     await page.getByRole('menuitem', { name: 'View all for sale or trade' }).click()
 
     await expect
-      .poll(() => {
-        const hash = new URL(page.url()).hash
-        return { path: hash.split('?')[0], query: hash.split('?')[1] ?? '' }
-      })
-      .toEqual({ path: '#/combined', query: 'all=collection&labels=sale,trade' })
+      .poll(() => hashParts(page))
+      .toEqual({ path: '#/combined', all: 'collection', labels: 'sale,trade' })
 
-    await page.waitForSelector('[data-view]', { timeout: 15_000 })
-    await page.locator('[data-view="list"]').click()
-    await page.waitForSelector('.card-list', { timeout: 10_000 })
+    await switchToListView(page)
     // Effective labels across both collections: overrides from Label Binder,
     // the sale+trade default from Sale Binder — keeps and unlabeled filtered out.
     await expectVisibleCards(page, ['Sale Card', 'Trade Card', 'Default Card'])
+  })
+
+  test('the unfiltered entry opens the combined view with no labels filter', async ({ page }) => {
+    await page.getByRole('menuitem', { name: 'View all collections' }).click()
+
+    await expect
+      .poll(() => hashParts(page))
+      .toEqual({ path: '#/combined', all: 'collection', labels: null })
+
+    await switchToListView(page)
+    await expectVisibleCards(page, [
+      'Sale Card',
+      'Trade Card',
+      'Keep Card',
+      'Plain Card',
+      'Default Card',
+      'Keeper',
+    ])
   })
 })
 

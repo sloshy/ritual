@@ -110,6 +110,7 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
 
   return (
     <WantedEditorBody
+      enableSellMode
       ctrl={ctrl}
       defaults={defaults}
       search={adminSearch}

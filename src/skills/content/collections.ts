@@ -406,5 +406,15 @@ with \`sellableQuantity = min(owned, CK's cap)\` and \`value\` covering only tho
 Quotes are cash for NM copies — played conditions grade down, store credit pays more.
 The \`csv\` output uses CK's own name/edition spellings and warns beyond their upload caps
 (500 titles / 5,000 cards); etched foils export as plain foil with a warning.
+
+To price an arbitrary set of printings rather than whole lists, use the MCP tool
+\`get_buylist_quotes\` (or \`POST /api/buylist/quotes\`), which answers per
+\`set:collectorNumber:finish\`. Both are cache-backed like \`sell\`: run
+\`ritual sell --refresh auto\` (or the \`refresh_buylist\` tool) first.
+
+The same quotes drive **sell mode** on the admin site and on a server-backed public site
+(\`ritual serve --api\`): buylist prices beside each card, buylist filters (on-buylist chips and a
+price threshold), buylist grouping/sorting, and a CK cart export. Turn it off for a published site with
+\`ritual config set site.sellMode false\`.
 `,
 }

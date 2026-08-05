@@ -1,5 +1,5 @@
 import type { Component, JSX } from 'solid-js'
-import { batch, createEffect, createSignal, For, on, Show } from 'solid-js'
+import { batch, createEffect, createSignal, For, on, Show, type Accessor } from 'solid-js'
 import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { parseSetCodesInput, scanSetCodesInput } from '../set-codes'
@@ -7,9 +7,12 @@ import { colorIdentityName, WUBRG } from './card-sorting'
 import {
   parseCopiesFilter,
   parseManaValueFilter,
+  parseBuylistPriceFilter,
   parsePriceFilter,
   toggleColorSelection,
+  toggleBuylistFilterOption,
   toggleLabelFilterOption,
+  type BuylistFilterOption,
   type LabelFilterOption,
   type NumericComparator,
   type NumericFilterParse,
@@ -45,18 +48,31 @@ function numericFieldText(value: number | null): string {
   return value === null ? '' : String(value)
 }
 
+/** A {@link useNumericFilterInput} field: the debounced draft plus its own error. */
+type NumericFilterInput = DebouncedInput & {
+  /** The current validation message, or null. */
+  error: Accessor<string | null>
+}
+
 /**
- * A debounced numeric filter field (Mana Value, Price, Copies): mirrors the store
+ * A debounced numeric filter field (Mana Value, Price, Buylist, Copies): mirrors the store
  * value as text, and on each debounced commit parses the draft, surfaces a validation
  * error, and applies the parsed value only when it is valid.
+ *
+ * The error signal lives here rather than in the panel because its lifecycle is
+ * this field's: it must clear when the draft parses, when the field is reset,
+ * and when the store value is cleared from outside (a currency switch clears
+ * `price`; leaving sell mode clears `buylistPrice`). Hoisting it made those
+ * three a hand-maintained list in the panel, and the fourth field added to that
+ * list was missed — leaving a stale message under a field Clear had emptied.
  */
 function useNumericFilterInput(
   current: () => number | null,
   parse: (raw: string) => NumericFilterParse,
-  setError: (error: string | null) => void,
   apply: (value: number | null) => void,
-): DebouncedInput {
-  return useDebouncedInput(
+): NumericFilterInput {
+  const [error, setError] = createSignal<string | null>(null)
+  const input = useDebouncedInput(
     () => numericFieldText(current()),
     (raw) => {
       const parsed = parse(raw)
@@ -64,11 +80,34 @@ function useNumericFilterInput(
       if (parsed.ok) apply(parsed.value)
     },
   )
+
+  // An externally-cleared value leaves no error to show. `defer` skips the
+  // initial run so a filter restored from a shared URL keeps its state.
+  createEffect(
+    on(
+      current,
+      (value) => {
+        if (value === null) setError(null)
+      },
+      { defer: true },
+    ),
+  )
+
+  return {
+    ...input,
+    error,
+    reset: () => {
+      // A rejected draft never reached the store, so no external change will
+      // fire the effect above — the reset has to clear the message itself.
+      setError(null)
+      input.reset()
+    },
+  }
 }
 
 type ComparatorOption = { value: NumericComparator; label: string }
 
-/** Shared comparator choices for the numeric (mana value, price, copies) filters. */
+/** Shared comparator choices for the numeric (mana value, price, buylist, copies) filters. */
 const COMPARATOR_OPTIONS: ComparatorOption[] = [
   { value: '=', label: '=' },
   { value: '<', label: '<' },
@@ -173,6 +212,8 @@ export interface FilterMenuProps {
   showHideExtras?: boolean
   /** Show the Labels chip row (collection-bearing views only). */
   showLabelsFilter?: boolean
+  /** Show the Buylist chip row (sell mode only). */
+  showBuylistFilter?: boolean
 }
 
 /** One labels-filter chip: its filter value, button text, and tooltip. */
@@ -192,6 +233,15 @@ const LABEL_FILTER_OPTION_COPY: readonly LabelFilterOptionCopy[] = [
     title: 'Cards labeled to keep (never combined with the other labels)',
   },
   { value: 'none', label: 'Unlabeled', title: 'Cards with no labels at all' },
+]
+
+/** One buylist-filter chip: its filter value, button text, and tooltip. */
+type BuylistFilterOptionCopy = { value: BuylistFilterOption; label: string; title: string }
+
+/** The buylist filter's chips, in canonical order. The two combine freely (OR). */
+const BUYLIST_FILTER_OPTION_COPY: readonly BuylistFilterOptionCopy[] = [
+  { value: 'on', label: 'On buylist', title: 'Cards the buyer has a listing for' },
+  { value: 'off', label: 'Not on buylist', title: 'Cards the buyer has no listing for' },
 ]
 
 type TagFilterRowProps = {
@@ -264,12 +314,12 @@ type NumericFilterRowProps = {
 }
 
 /**
- * A numeric filter row (Mana Value, Price, or Copies): the label, a comparator
+ * A numeric filter row (Mana Value, Price, Buylist, or Copies): the label, a comparator
  * toggle group, and a number input all on one line — these three rows are the
  * menu's most compact, so keeping the field beside its comparators rather than
- * below them saves a line each. Validation errors wrap underneath. Price carries
- * its currency in the label rather than beside the field, so all three fields are
- * the same width and their comparator groups line up.
+ * below them saves a line each. Validation errors wrap underneath. The price rows
+ * carry their currency in the label rather than beside the field, so every field
+ * is the same width and their comparator groups line up.
  */
 const NumericFilterRow: Component<NumericFilterRowProps> = (props) => {
   return (
@@ -353,6 +403,7 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
           artTagOptions={props.artTagOptions}
           showHideExtras={props.showHideExtras}
           showLabelsFilter={props.showLabelsFilter}
+          showBuylistFilter={props.showBuylistFilter}
         />
       </AdaptiveMenu>
     </div>
@@ -360,23 +411,6 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
 }
 
 const FilterPanelBody: Component<FilterMenuProps> = (props) => {
-  const [manaValueError, setManaValueError] = createSignal<string | null>(null)
-  const [priceError, setPriceError] = createSignal<string | null>(null)
-  const [copiesError, setCopiesError] = createSignal<string | null>(null)
-
-  // The price filter can be cleared externally (switching currency resets it in the
-  // store), which leaves no error to show — drop any stale validation message so it
-  // isn't stranded next to an emptied field.
-  createEffect(
-    on(
-      () => props.filters.filters.price,
-      (price) => {
-        if (price === null) setPriceError(null)
-      },
-      { defer: true },
-    ),
-  )
-
   // The free-text and numeric filters commit to the store 250ms after the user stops
   // typing, so fast typing no longer triggers a filter+re-render pass per keystroke.
   // The fields still echo keystrokes instantly via each input's `draft`.
@@ -388,21 +422,24 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
   const manaValueInput = useNumericFilterInput(
     () => props.filters.filters.manaValue,
     parseManaValueFilter,
-    setManaValueError,
     (manaValue) => props.filters.update({ manaValue }),
   )
 
   const priceInput = useNumericFilterInput(
     () => props.filters.filters.price,
     parsePriceFilter,
-    setPriceError,
     (price) => props.filters.update({ price }),
+  )
+
+  const buylistPriceInput = useNumericFilterInput(
+    () => props.filters.filters.buylistPrice,
+    parseBuylistPriceFilter,
+    (buylistPrice) => props.filters.update({ buylistPrice }),
   )
 
   const copiesInput = useNumericFilterInput(
     () => props.filters.filters.copies,
     parseCopiesFilter,
-    setCopiesError,
     (copies) => props.filters.update({ copies }),
   )
 
@@ -423,10 +460,8 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
       nameInput.reset()
       manaValueInput.reset()
       priceInput.reset()
+      buylistPriceInput.reset()
       copiesInput.reset()
-      setManaValueError(null)
-      setPriceError(null)
-      setCopiesError(null)
     })
   }
 
@@ -567,6 +602,33 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
           </div>
         </div>
       </Show>
+      <Show when={props.showBuylistFilter}>
+        <div class="filter-row">
+          <span class="filter-label">Buylist</span>
+          <div class="filter-toggle-group filter-buylist" role="group" aria-label="Buylist filter">
+            <For each={BUYLIST_FILTER_OPTION_COPY}>
+              {(opt) => (
+                <button
+                  type="button"
+                  classList={{ active: props.filters.filters.onBuylist.includes(opt.value) }}
+                  aria-pressed={props.filters.filters.onBuylist.includes(opt.value)}
+                  title={opt.title}
+                  onClick={() =>
+                    props.filters.update({
+                      onBuylist: toggleBuylistFilterOption(
+                        props.filters.filters.onBuylist,
+                        opt.value,
+                      ),
+                    })
+                  }
+                >
+                  {opt.label}
+                </button>
+              )}
+            </For>
+          </div>
+        </div>
+      </Show>
       <div class="filter-row">
         <div class="filter-type-header">
           <label class="filter-label" for="filter-sets">
@@ -659,7 +721,7 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         value={manaValueInput.draft()}
         onValueInput={manaValueInput.onInput}
         onValueBlur={manaValueInput.flush}
-        error={manaValueError()}
+        error={manaValueInput.error()}
         step="1"
         inputMode="numeric"
       />
@@ -672,10 +734,27 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         value={priceInput.draft()}
         onValueInput={priceInput.onInput}
         onValueBlur={priceInput.flush}
-        error={priceError()}
+        error={priceInput.error()}
         step="0.01"
         inputMode="decimal"
       />
+      <Show when={props.showBuylistFilter}>
+        <NumericFilterRow
+          // Always "$": a buyer's offer is USD whatever the page displays, so
+          // labelling it with the active currency would misstate it.
+          label="Buylist ($)"
+          inputId="filter-buylist-price"
+          ariaLabel="Buylist price comparison"
+          op={props.filters.filters.buylistPriceOp}
+          onOp={(buylistPriceOp) => props.filters.update({ buylistPriceOp })}
+          value={buylistPriceInput.draft()}
+          onValueInput={buylistPriceInput.onInput}
+          onValueBlur={buylistPriceInput.flush}
+          error={buylistPriceInput.error()}
+          step="0.01"
+          inputMode="decimal"
+        />
+      </Show>
       <NumericFilterRow
         label="Copies"
         inputId="filter-copies"
@@ -685,7 +764,7 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         value={copiesInput.draft()}
         onValueInput={copiesInput.onInput}
         onValueBlur={copiesInput.flush}
-        error={copiesError()}
+        error={copiesInput.error()}
         step="1"
         inputMode="numeric"
       />

@@ -22,6 +22,7 @@ import {
   parseCollectionSyncConfig,
   parseDefaultCurrency,
   getSiteApiBaseUrl,
+  getSiteSellMode,
   parseSearchDebounceMs,
   parseSiteApiBaseUrl,
   parseSiteConfig,
@@ -672,6 +673,50 @@ describe('parseSiteConfig', () => {
     expectParseError(parseSiteConfig({ apiBaseUrl: 'ftp://example.com' }), 'apiBaseUrl')
     expectParseError(parseSiteConfig({ apiBaseUrl: 'not a url' }), 'apiBaseUrl')
     expectParseError(parseSiteConfig({ apiBaseUrl: 42 }), 'apiBaseUrl')
+  })
+
+  test('carries sellMode through the selection-only branch', () => {
+    expect(parseSiteConfig({ sellMode: false })).toEqual({ ...defaultSelection, sellMode: false })
+  })
+
+  test('carries sellMode through the deployment branches too', () => {
+    // Four return sites build the parsed object; dropping the key in one of them
+    // would silently disable sell mode for init-site-configured workspaces only.
+    const manual = parseSiteConfig({ version: '1.2.3', ciSystem: 'manual', sellMode: false })
+    expect(manual).toMatchObject({ sellMode: false, ciSystem: 'manual' })
+
+    const actions = parseSiteConfig({
+      version: '1.2.3',
+      ciSystem: 'github-actions',
+      deployMode: 'local-build',
+      distDir: 'dist',
+      detectChanges: false,
+      sellMode: false,
+    })
+    expect(actions).toMatchObject({ sellMode: false, ciSystem: 'github-actions' })
+  })
+
+  test('returns error when sellMode is not a boolean', () => {
+    expectParseError(parseSiteConfig({ sellMode: 'false' }), 'sellMode')
+  })
+})
+
+describe('getSiteSellMode', () => {
+  test('is enabled by default, and by an absent site object', () => {
+    expect(getSiteSellMode(getDefaultRitualConfig())).toBe(true)
+    expect(getSiteSellMode({ ...getDefaultRitualConfig(), site: defaultSiteSelection() })).toBe(
+      true,
+    )
+  })
+
+  test('only an explicit false disables it', () => {
+    const config = getDefaultRitualConfig()
+    expect(
+      getSiteSellMode({ ...config, site: { ...defaultSiteSelection(), sellMode: false } }),
+    ).toBe(false)
+    expect(
+      getSiteSellMode({ ...config, site: { ...defaultSiteSelection(), sellMode: true } }),
+    ).toBe(true)
   })
 })
 

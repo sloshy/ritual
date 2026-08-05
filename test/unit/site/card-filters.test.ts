@@ -16,7 +16,9 @@ import {
   parseLabelsParam,
   parsePriceFilter,
   toggleColorSelection,
+  toggleBuylistFilterOption,
   toggleLabelFilterOption,
+  parseBuylistParam,
   untaggedAddedCardNames,
   type CardFilters,
 } from '../../../src/site/card-filters'
@@ -758,5 +760,91 @@ describe('parseLabelsParam', () => {
     expect(parseLabelsParam(null)).toBeUndefined()
     expect(parseLabelsParam('')).toBeUndefined()
     expect(parseLabelsParam('bogus')).toBeUndefined()
+  })
+})
+
+describe('buylist filter', () => {
+  const listed = makeCard({ name: 'Listed', onBuylist: true })
+  const unlisted = makeCard({ name: 'Unlisted', onBuylist: false })
+  const all = [listed, unlisted]
+
+  test('inactive when no chips are selected', () => {
+    expect(filterCards(all, makeFilters())).toEqual(all)
+  })
+
+  test.each([
+    ['on' as const, ['Listed']],
+    ['off' as const, ['Unlisted']],
+  ])('%s keeps only the matching cards', (option, expected) => {
+    const result = filterCards(all, makeFilters({ onBuylist: [option] }))
+    expect(result.map((c) => c.name)).toEqual(expected)
+  })
+
+  test('both chips match everything, since together they cover every card', () => {
+    expect(filterCards(all, makeFilters({ onBuylist: ['on', 'off'] }))).toEqual(all)
+  })
+
+  test('a paused offer still counts as on the buylist', () => {
+    // `onBuylist` means the buyer has the printing at all; `buylistPrice` is 0
+    // when they are not currently buying it.
+    const paused = makeCard({ name: 'Paused', onBuylist: true, buylistPrice: 0 })
+    expect(filterCards([paused], makeFilters({ onBuylist: ['on'] }))).toEqual([paused])
+  })
+
+  test('counts as one active filter', () => {
+    expect(countActiveFilters(makeFilters({ onBuylist: ['on'] }))).toBe(1)
+  })
+})
+
+describe('toggleBuylistFilterOption', () => {
+  test('the two chips combine, in canonical order', () => {
+    expect(toggleBuylistFilterOption(['off'], 'on')).toEqual(['on', 'off'])
+  })
+
+  test('re-picking a chip clears it', () => {
+    expect(toggleBuylistFilterOption(['on', 'off'], 'on')).toEqual(['off'])
+  })
+})
+
+describe('parseBuylistParam', () => {
+  test.each([
+    [null, undefined],
+    ['', undefined],
+    ['nonsense', undefined],
+    ['off,on', ['on', 'off']],
+    ['ON , off', ['on', 'off']],
+    ['on,on', ['on']],
+  ])('parses %p', (input, expected) => {
+    expect(parseBuylistParam(input)).toEqual(expected as never)
+  })
+})
+
+describe('buylist price filter', () => {
+  const cheap = makeCard({ name: 'Cheap', buylistPrice: 0.5, onBuylist: true })
+  const dear = makeCard({ name: 'Dear', buylistPrice: 8, onBuylist: true })
+  const noOffer = makeCard({ name: 'No Offer', buylistPrice: 0, onBuylist: true })
+  const all = [cheap, dear, noOffer]
+
+  test('inactive when null', () => {
+    expect(filterCards(all, makeFilters())).toEqual(all)
+  })
+
+  test('compares the buyer’s per-copy offer', () => {
+    const result = filterCards(all, makeFilters({ buylistPrice: 1, buylistPriceOp: '>=' }))
+    expect(result.map((c) => c.name)).toEqual(['Dear'])
+  })
+
+  test('a card with no active offer never matches, whatever the comparator', () => {
+    // Mirrors the retail price filter: 0 is "no price", not a price of zero, so
+    // even `<= 5` must not sweep unsellable cards in.
+    const result = filterCards(all, makeFilters({ buylistPrice: 5, buylistPriceOp: '<=' }))
+    expect(result.map((c) => c.name)).toEqual(['Cheap'])
+  })
+
+  test('counts as one active filter, independently of the chips', () => {
+    expect(countActiveFilters(makeFilters({ buylistPrice: 1 }))).toBe(1)
+    expect(countActiveFilters(makeFilters({ buylistPrice: 1, onBuylist: ['on'] }))).toBe(2)
+    // A comparator with no threshold is inert, like the other numeric filters.
+    expect(countActiveFilters(makeFilters({ buylistPriceOp: '>=' }))).toBe(0)
   })
 })

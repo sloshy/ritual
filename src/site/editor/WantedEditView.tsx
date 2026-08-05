@@ -24,6 +24,8 @@ type WantedEditViewProps = {
   detail: WantedListDetail
   slug: string
   currency: PriceCurrency
+  /** Offer sell mode; true only on a server-backed site with `site.sellMode` on. */
+  enableSellMode?: boolean
   onExit: () => void
   /** Other lists a card can be moved into (excludes this wanted list). */
   moveTargets?: () => ListRef[]
@@ -133,6 +135,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
           fullWidth={false}
           enablePriceRefresh={true}
           enableTrade={true}
+          enableSellMode={props.enableSellMode}
         />
       }
       original={

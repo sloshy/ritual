@@ -191,6 +191,7 @@ export type ResolvedPalette = ThemeCssVars &
     '--card-label-text': string
     '--card-label-meta': string
     '--card-label-price': string
+    '--card-label-buylist': string
     '--foil-blend': string
     '--foil-opacity': string
     '--foil-opacity-hover': string
@@ -284,6 +285,9 @@ const cardLabelVars = {
   '--card-label-text': 'oklch(95% 0 0)',
   '--card-label-meta': 'oklch(72% 0 0)',
   '--card-label-price': 'oklch(82% 0.16 155)',
+  // Amber, deliberately unlike the green retail price: the two figures sit side
+  // by side and must never be mistaken for one another.
+  '--card-label-buylist': 'oklch(80% 0.14 75)',
 }
 
 // Foil rainbow sheen on card rows/tiles. The sheen gradient itself is a fixed

@@ -9,6 +9,11 @@ import { promptListMove } from './move-prompt'
 import { TooltipOverlay } from './TooltipOverlay'
 import { useTooltip } from './useTooltip'
 import { capitalize } from './utils'
+import { BUYER_DISPLAY_NAMES } from '../buylist'
+import { cartBuyer } from './sell-mode'
+import { BUYLIST_CURRENCY } from './card-sorting'
+import { sellShortfallNote, summarizeSellValue } from './sell-value'
+import { DEFAULT_CURRENCY, formatPrice, type PriceCurrency } from '../price-currency'
 
 // Module-level open state so the modal can live at the app root (a proper
 // full-screen overlay) while the navbar menu button toggles it.
@@ -45,6 +50,8 @@ export interface SelectionModalProps {
   onMoveAll?: (dest: NamedListRef) => void
   /** Destination lists for the "Move all to list" group (slug-bearing, so senders can address by slug). */
   moveAllTargets?: () => NamedListRef[]
+  /** Active currency, for the selection's total value. */
+  currency?: PriceCurrency
 }
 
 /**
@@ -55,6 +62,7 @@ export interface SelectionModalProps {
 export const SelectionModal: Component<SelectionModalProps> = (props) => {
   const [groupMode, setGroupMode] = createSignal<GroupMode>('order')
   const copy = useSelectionCopy(() => props.selection.selected())
+  const sellSummary = createMemo(() => summarizeSellValue(props.selection.selected()))
   // Memoized so <For> gets a stable array; only recomputes when the selection changes.
   const groupedBySource = createMemo(() => groupSelectionsBySource(props.selection.selected()))
 
@@ -94,6 +102,19 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
     >
       <div class="selection-modal-header">
         <span class="selection-modal-title">Selected Cards ({props.selection.count()})</span>
+        <span class="selection-modal-value">
+          {formatPrice(
+            props.selection.value(props.currency ?? DEFAULT_CURRENCY),
+            props.currency ?? DEFAULT_CURRENCY,
+          )}
+          <Show when={cartBuyer()}>
+            {' · sell '}
+            {formatPrice(sellSummary().value, BUYLIST_CURRENCY)}
+            <Show when={sellShortfallNote(sellSummary())}>
+              {(note) => <span class="selection-modal-note"> {note()}</span>}
+            </Show>
+          </Show>
+        </span>
         <button
           type="button"
           class="selection-modal-close"
@@ -170,6 +191,13 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
         <button type="button" class="btn btn-secondary" onClick={() => void copy.copyCsv()}>
           Copy as CSV
         </button>
+        <Show when={cartBuyer()}>
+          {(buyer) => (
+            <button type="button" class="btn btn-secondary" onClick={() => void copy.copyCart()}>
+              Copy {BUYER_DISPLAY_NAMES[buyer()]} cart CSV
+            </button>
+          )}
+        </Show>
         <Show when={props.onMoveAll && (props.moveAllTargets?.().length ?? 0) > 0}>
           <button
             type="button"

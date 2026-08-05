@@ -16,9 +16,21 @@ import {
 } from './cache'
 import { fetchCardKingdomFeed } from './client'
 
-/** The standard remedy line for a missing Card Kingdom feed. */
-export function missingFeedAdvice(lead: string): string {
+/** The lead sentence every "no buylist yet" message opens with. */
+export const NO_FEED_LEAD = 'No Card Kingdom buylist has been downloaded yet.'
+
+/** The standard remedy line for a missing Card Kingdom feed, CLI flavor. */
+export function missingFeedAdvice(lead: string = NO_FEED_LEAD): string {
   return `${lead} Re-run with --refresh auto to download it (~70 MB).`
+}
+
+/**
+ * The same refusal for an HTTP caller, which has more ways to fix it than a
+ * CLI flag. Kept beside {@link missingFeedAdvice} so the two flavors of one
+ * sentence cannot drift.
+ */
+export function missingFeedApiAdvice(lead: string = NO_FEED_LEAD): string {
+  return `${lead} Refresh the Card Kingdom buylist first: the refresh_buylist tool, POST /api/sell/refresh, or \`ritual sell --refresh auto\` on the CLI.`
 }
 
 /** A usable feed: the cache file plus whether this call just downloaded it. */
@@ -110,15 +122,15 @@ export async function ensureCardKingdomFeed(
 
   // Missing entirely: only a download can help.
   if (!bulkAllowed(mode)) {
-    return missingFeedAdvice('No Card Kingdom buylist has been downloaded yet.')
+    return missingFeedAdvice()
   }
   if (mode === 'ask') {
     const accepted = await confirm({
-      message: 'No Card Kingdom buylist has been downloaded yet. Download it now (~70 MB)?',
+      message: `${NO_FEED_LEAD} Download it now (~70 MB)?`,
       initial: true,
     })
     if (!accepted) {
-      return missingFeedAdvice('No Card Kingdom buylist has been downloaded yet.')
+      return missingFeedAdvice()
     }
   }
   return download()

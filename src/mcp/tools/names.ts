@@ -21,6 +21,7 @@ export const MCP_TOOL_NAMES = [
   'get_price_report',
   'get_sell_report',
   'get_sell_cart',
+  'get_buylist_quotes',
   'get_history',
   'get_config',
   'get_cache_status',

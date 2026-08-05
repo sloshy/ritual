@@ -77,12 +77,15 @@ The following nested `site` keys — the [public-site publish lists](/commands/b
 | `site.excludeWantedLists` | `string[]` | `[]`    |
 | `site.bannedPrintings`    | `string[]` | `[]`    |
 | `site.apiBaseUrl`         | `string`   | —       |
+| `site.sellMode`           | `boolean`  | `true`  |
 
 Each `exclude*` list drops lists by display name even when the matching `include*` list selects them; exclusion always wins. The exclude lists have no wildcard and default to empty. The admin **Manage Lists** page edits them through per-list [visibility toggles](/admin/manage-lists/#publishing-visibility).
 
 `site.bannedPrintings` blocks specific printings from being chosen as a card's **default (featured) printing** when no printing is otherwise specified. Each entry is a `SET:COLLECTOR` pair (e.g. `SLD:123`). Ritual normally features the most recent non-outlier printing among a card's five newest priced printings; when that printing is banned, it skips to the next eligible one. A banned printing can still be viewed and entered manually — it is only barred from automatic selection. Set codes are stored lowercase; the value you pass may use either case.
 
 `site.apiBaseUrl` points a statically deployed site at a separately hosted [`serve --api`](/commands/serve/#live-api-mode---api) backend; it must be an `http(s)` URL (stored without a trailing slash) or the empty string for a same-origin reverse proxy. See [Hosting with a live backend](/public-site/hosted/).
+
+`site.sellMode` decides whether a published site offers [sell mode](/public-site/sell/). It is the one `site.*` key that defaults to **on**, so `config get site.sellMode` answers `true` before it has ever been set; set it to `false` to remove the feature from a public deployment. See [Offering sell mode](/configuration/#offering-sell-mode-sellmode).
 
 The rest of the `site` key (the deployment settings) is managed exclusively by `ritual init-site` and cannot be set or unset with this command. `exportPresets` is managed by [`ritual export --save-preset`](/commands/export/) — it can be read with `config get exportPresets` but not written here.
 

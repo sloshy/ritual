@@ -114,6 +114,7 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
 
   return (
     <DeckEditorBody
+      enableSellMode
       ctrl={ctrl}
       defaults={defaults}
       search={adminSearch}

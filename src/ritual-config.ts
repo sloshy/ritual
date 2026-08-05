@@ -63,6 +63,14 @@ export type SiteConfig = SiteSelectionConfig & {
    * reverse-proxied together with its API). Absent = fully static site.
    */
   apiBaseUrl?: string
+  /**
+   * Whether the published site offers sell mode: the buylist filter, per-card
+   * buyer quotes, buylist grouping/sorting, and the sell-cart export. Enabled
+   * unless explicitly set to `false` — see {@link getSiteSellMode}. Only ever
+   * reachable on a server-backed site; a fully static build has no quote API to
+   * ask, so the toggle never appears there regardless of this setting.
+   */
+  sellMode?: boolean
 }
 
 /**
@@ -340,6 +348,11 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
   }
   const api = apiBaseUrl !== undefined ? { apiBaseUrl } : {}
 
+  if (obj.sellMode !== undefined && typeof obj.sellMode !== 'boolean') {
+    return { error: 'site config: "sellMode" must be a boolean' }
+  }
+  const sell = obj.sellMode !== undefined ? { sellMode: obj.sellMode } : {}
+
   // Deployment settings are written only by `init-site`. Detect their presence
   // so a site object carrying just selection settings (set via `config set` or the
   // admin UI before init-site has run) is still valid.
@@ -351,7 +364,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
     obj.detectChanges !== undefined
 
   if (!hasDeploy) {
-    return { ...selection, ...banned, ...api }
+    return { ...selection, ...banned, ...api, ...sell }
   }
 
   if (typeof obj.version !== 'string') {
@@ -378,6 +391,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
       ...selection,
       ...banned,
       ...api,
+      ...sell,
       version: obj.version,
       ciSystem: obj.ciSystem,
       deployMode: obj.deployMode,
@@ -386,7 +400,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
     }
   }
 
-  return { ...selection, ...banned, ...api, version: obj.version, ciSystem: obj.ciSystem }
+  return { ...selection, ...banned, ...api, ...sell, version: obj.version, ciSystem: obj.ciSystem }
 }
 
 /**
@@ -932,6 +946,16 @@ export function getBannedPrintings(config: RitualConfig = getRitualConfig()): Se
  */
 export function getSiteApiBaseUrl(config: RitualConfig = getRitualConfig()): string | undefined {
   return config.site?.apiBaseUrl
+}
+
+/**
+ * Whether the published site offers sell mode. Enabled unless `site.sellMode`
+ * is explicitly `false` — the feature only ever appears on a server-backed
+ * site, so the interesting decision is turning it off for a public deployment
+ * that would rather not advertise buylist values.
+ */
+export function getSiteSellMode(config: RitualConfig = getRitualConfig()): boolean {
+  return config.site?.sellMode !== false
 }
 
 /** The saved `ritual export` presets, keyed by preset name (empty when none saved). */

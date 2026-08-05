@@ -1,4 +1,5 @@
 import type { ParentComponent } from 'solid-js'
+import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { createMemo, createSignal, For, Show } from 'solid-js'
 import { PAGE_DISPLAY, type Page, useRouting } from '../routing'
 import { NavLink } from './NavLink'
@@ -42,6 +43,9 @@ interface LayoutProps {
 
 export const Layout: ParentComponent<LayoutProps> = (props) => {
   const [menuOpen, setMenuOpen] = createSignal(false)
+  // The navbar selection surfaces show prices, so they must use the workspace's
+  // configured currency rather than assuming USD.
+  const defaultCurrency = useDefaultCurrency()
   const routing = useRouting()
   // Memoized: the editor rewrites the route as its list selection changes, which
   // must not re-run the active state of all 14 nav links.
@@ -112,7 +116,7 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
         <div class="admin-header-actions">
           <SelectionMenu
             selection={allSelections}
-            currency="usd"
+            currency={defaultCurrency()}
             label="All Selected"
             clearLabel="Clear all selections"
             buttonClass="selection-menu-btn--navbar"
@@ -186,6 +190,7 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
       <SelectionModal
         open={isSelectionViewOpen()}
         selection={allSelections}
+        currency={defaultCurrency()}
         onClose={closeSelectionView}
         onRemoveAll={handleRemoveAll}
         onMoveAll={handleMoveAll}

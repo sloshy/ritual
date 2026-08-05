@@ -700,6 +700,91 @@ Download Card Kingdom's pricelist feed (~70 MB) when the cached copy is stale (o
 
 A failed download returns `502` only when no feed is cached at all; with a stale cache the call answers `200` with the stale feed's stamps, `refreshed: false`, and the failure in `warnings`. So `refreshed: false` with empty `warnings` means the cache was still fresh, and with a warning it means you are still on the stale feed.
 
+## Buylist Quotes
+
+```
+POST /api/buylist/quotes
+```
+
+The buyer's current offer for specific printings, keyed by `set:collectorNumber:finish` (set
+lowercased). Use this to price an arbitrary set of cards — a trade, a selection, whatever a page is
+displaying — without building a whole [Sell Report](#sell-report). Strictly cache-backed, like every
+sell read path: `503` with the remedy when no feed has been downloaded.
+
+**Request:**
+
+```json
+{
+  "buyer": "cardkingdom",
+  "printings": [{ "set": "dsk", "collectorNumber": "136", "finish": "nonfoil", "scryfallId": "…" }]
+}
+```
+
+`buyer` defaults to `cardkingdom` (the only buyer today). `scryfallId` is optional but is the
+primary join key when the caller has it; `set`/`collectorNumber` always form the response key and
+drive the sku fallback for the ~0.5% of Card Kingdom products with no Scryfall id. At most 500
+printings per request.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "buyer": "cardkingdom",
+  "quotes": {
+    "dsk:136:nonfoil": {
+      "priceBuy": 2.5,
+      "qtyBuying": 8,
+      "buying": true,
+      "finish": "nonfoil",
+      "matchVia": "scryfall-id",
+      "productId": 281234,
+      "name": "Overlord of the Balemurk",
+      "edition": "Duskmourn: House of Horror",
+      "url": "https://www.cardkingdom.com/mtg/..."
+    }
+  },
+  "feedCreatedAt": "2026-08-04 06:06:09",
+  "feedRetrievedAt": 1785850800000,
+  "stale": false,
+  "productCount": 149978
+}
+```
+
+`quotes` is **sparse**: a requested printing the buyer has no product for is simply absent, which
+means "not on the buylist". `buying` is false when Card Kingdom publishes a price but has paused
+buying (`qtyBuying: 0`) — that is not money you can get today, so treat it as no offer.
+
+This route is also mounted by the public site server (`ritual serve --api`), unauthenticated, where
+it powers [sell mode](/public-site/sell/) and answers `404` when `site.sellMode` is `false`. The
+public server deliberately has no refresh route: an unauthenticated endpoint must never be able to
+trigger a ~70 MB download.
+
+## Buylist Status
+
+```
+GET /api/buylist/status
+```
+
+Which buyers this server can quote against and how fresh the cached feed is, without quoting
+anything. Backs the admin **Refresh Cache** page's buylist card.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "buyer": "cardkingdom",
+  "buyers": ["cardkingdom"],
+  "feedCreatedAt": "2026-08-04 06:06:09",
+  "feedRetrievedAt": 1785850800000,
+  "stale": false,
+  "productCount": 149978
+}
+```
+
+`503` with the remedy when no feed has been downloaded — a normal first-run state, not an error.
+
 ## Save Deck
 
 ```

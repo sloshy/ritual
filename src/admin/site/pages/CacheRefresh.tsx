@@ -1,6 +1,7 @@
 import { type JSX, createSignal, createMemo, onCleanup, Show, For } from 'solid-js'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { PageHeading } from '../components/PageHeading'
+import { BuylistRefreshCard } from '../components/BuylistRefreshCard'
 import type { CacheRefreshEvent } from '../../../scryfall/progress'
 
 type Stage = 'idle' | 'connecting' | 'download' | 'save' | 'done' | 'error'
@@ -205,6 +206,8 @@ export function CacheRefresh(): JSX.Element {
       >
         {isRunning() ? 'Refreshing...' : 'Refresh Cache'}
       </button>
+
+      <BuylistRefreshCard />
     </div>
   )
 }

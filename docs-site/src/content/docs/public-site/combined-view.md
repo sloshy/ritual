@@ -21,13 +21,13 @@ Use the **Sort** dropdown to order the lists by name, card count, or type. Tick 
 
 Toggling **All lists** selects every list at once (the individual checkboxes are disabled while it is on). When you view an all-lists combination, the header simply reads **"Viewing all cards from all lists"** rather than enumerating each one.
 
-### Shortcuts: "All", "View all", and "Labels" buttons
+### Shortcuts: the "All" link and "View all" buttons
 
 You don't have to start from the combine dialog:
 
 - The navbar's **All** link (between **Wanted** and **Trade**) jumps straight to the every-list combined view — the same as ticking **All lists**. The **All** link is highlighted while you're on that view.
-- Each list-index tab (**Decks**, **Collections**, **Wanted Lists**) has a **View all…** button that opens a combined view of just that one type — every deck, every collection, or every wanted list. Each has its own URL (`#/combined?all=deck`, `?all=collection`, `?all=wanted`), and the matching navbar tab stays highlighted while you're viewing it.
-- The **Collections** tab additionally has a **Labels** dropdown (**View all for sale / for trade / for sale or trade / to keep**) that opens the all-collections view with the [Labels filter](/public-site/filtering/#available-filters) pre-set — e.g. `#/combined?all=collection&labels=sale,trade`.
+- The **Decks** and **Wanted Lists** index tabs each have a **View all decks** / **View all wanted lists** button that opens a combined view of just that one type. Each has its own URL (`#/combined?all=deck`, `?all=wanted`), and the matching navbar tab stays highlighted while you're viewing it.
+- The **Collections** tab has a **View all…** dropdown instead, since collections support label filtering. Its first entry, **View all collections**, opens the plain all-collections view (`#/combined?all=collection`); the remaining entries (**View all for sale / for trade / for sale or trade / to keep**) open that same view with the [Labels filter](/public-site/filtering/#available-filters) pre-set — e.g. `#/combined?all=collection&labels=sale,trade`.
 
 ## How the combined view behaves
 
@@ -37,7 +37,7 @@ Viewing rules are applied in a **lowest-common-denominator** fashion across the 
 
 - **Cards are never merged.** Decks normally collapse copies onto one line, but because collections and wanted lists keep each card separate, the combined view does too: every entry stands on its own. (A deck entry keeps its own per-line quantity.)
 - **Sections are preserved**, but a deck's special sections lose their special treatment — there is no commander pinning, no sideboard-at-the-bottom, and **no "extras" to hide**. A deck's mainboard, sideboard, maybeboard, and token sections all appear as ordinary sections.
-- **Grouping and sorting** offer the options common to every combined list type, plus a new **Source List** grouping that groups cards by the list they came from. The **Printing** grouping is offered only when no collection is part of the combination (collection cards are always pinned to a specific printing, so the distinction is moot once one is mixed in).
+- **Grouping and sorting** offer the options common to every combined list type, plus a new **Source List** grouping that groups cards by the list they came from — and, in [sell mode](/public-site/sell/), the buylist groupings and sorts. The **Printing** grouping is offered only when no collection is part of the combination (collection cards are always pinned to a specific printing, so the distinction is moot once one is mixed in).
 
 ## Selecting and trading
 

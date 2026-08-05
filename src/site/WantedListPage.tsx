@@ -1,3 +1,8 @@
+import { buylistFieldsFor } from './buylist-quotes'
+import { useSellMode } from './useSellMode'
+import { sellableFromCardData, selectionToCartCsv } from './sell-value'
+import { BUYER_DISPLAY_NAMES } from '../buylist'
+import { cartBuyer } from './sell-mode'
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
@@ -6,7 +11,7 @@ import { normalizeCardName } from '../term-match'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
-import { FilteredPriceStat } from './FilteredPriceStat'
+import { FilteredPriceStat, SelectedPriceStat, SellModeNotice, SellValueStat } from './PageStats'
 import type { ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { WantedListCardEntry } from './data-types'
@@ -22,6 +27,9 @@ import {
   groupTotalPrice,
   sortByOptions,
   CARD_SIZE_WIDTHS,
+  SELL_GROUP_BY_OPTIONS,
+  sortByValuesFor,
+  type SelectOption,
 } from './card-sorting'
 import { CardModal } from './CardModal'
 import { ChangelogModal } from './ChangelogModal'
@@ -55,7 +63,7 @@ import { useCardSelection, type SelectedCard } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
 import { buildSelectionEditActions } from './selection-edit-actions'
 import type { FlatBulkEdit } from '../editor/flat-list-controller'
-import { ExportMenu, type ExportFormat } from './ExportMenu'
+import { ExportMenu, type ExportFormat, type ExtraExportFormat } from './ExportMenu'
 import { wantedToText, wantedToMarkdown, wantedToCsv } from '../editor/list-export'
 
 type WantedListGroupBy = GroupBy
@@ -116,6 +124,12 @@ interface WantedListPageProps {
   pricesDate?: string
   /** Show the public "Update Prices" toolbar button + staleness notice (public site only). */
   enablePriceRefresh?: boolean
+  /**
+   * Offer sell mode (buylist prices, the buylist filter/grouping/sorting, and
+   * the sell-cart export). True only on a server-backed public site with
+   * `site.sellMode` enabled, or on the admin site.
+   */
+  enableSellMode?: boolean
   /** Offer "Add to Trade" in the multi-select menu (public site only; the trade page is unreachable on admin). */
   enableTrade?: boolean
   /** When provided (edit mode), enables bulk edit actions in the multi-select menu. */
@@ -135,15 +149,24 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   // sections discovered in the entries (in file order) when not provided.
   const sectionOrder = createMemo(() => deriveSectionOrder(props.sectionOrder, props.entries))
   const hasSections = createMemo(() => sectionOrder().length >= 2)
-  const groupByOptions = createMemo(() => [
-    ...(hasSections() ? [{ value: 'section', label: 'Section' }] : []),
+  // `sellMode` is a parameter rather than a read of the toolbar signal so the URL
+  // sync can ask for the *full* option set (what a shared link may legally name)
+  // while the dropdown shows only what is currently offered.
+  const groupByOptionsFor = (sellMode: boolean): SelectOption<WantedListGroupBy>[] => [
+    ...(hasSections() ? [{ value: 'section' as const, label: 'Section' }] : []),
     { value: 'type', label: 'Type' },
     { value: 'cmc', label: 'Mana Value' },
     { value: 'color-identity', label: 'Color Identity' },
     { value: 'price', label: 'Price' },
     { value: 'printing', label: 'Printing' },
+    ...(sellMode ? SELL_GROUP_BY_OPTIONS : []),
     { value: 'none', label: 'None' },
-  ])
+  ]
+  // A plain accessor, not a memo: `createMemo` evaluates eagerly, and `sell` is
+  // declared below. Rebuilding a seven-element array on read costs nothing.
+  const groupByOptions = (): SelectOption<WantedListGroupBy>[] => groupByOptionsFor(sell.active())
+  const sortByValues = (): readonly SortBy[] =>
+    sortByValuesFor(WANTED_SORT_BYS, props.enableSellMode)
 
   // Intentional one-time seed for the toolbar's group-by signal (read once at construction;
   // it must not fight the user's later toolbar changes). The editor remounts these pages on
@@ -173,9 +196,20 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     toolbar,
     filters: cardFilters,
     defaults: { groupBy: initialGroupBy, sortBy: 'file-order' },
-    groupByValues: groupByOptions().map((o) => o.value as WantedListGroupBy),
-    sortByValues: WANTED_SORT_BYS,
+    groupByValues: groupByOptionsFor(Boolean(props.enableSellMode)).map((o) => o.value),
+    sortByValues: sortByValues(),
     enabled: props.enableUrlState,
+    supportsSellMode: Boolean(props.enableSellMode),
+  })
+
+  const sell = useSellMode({
+    toolbar,
+    supported: () => Boolean(props.enableSellMode),
+    // Deferred: `allCards` is declared below this call.
+    cards: () => allCards(),
+    selected: selection.selected,
+    filters: cardFilters,
+    defaults: { groupBy: initialGroupBy, sortBy: 'file-order' },
   })
   const [showChangelog, setShowChangelog] = createSignal(false)
 
@@ -291,6 +325,8 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         oracleTags: card?.oracleTags ?? [],
         artTags: card?.artTags ?? [],
         labels: [],
+        finish: entry.finish,
+        ...buylistFieldsFor(card, entry.finish),
         card,
       }
     })
@@ -326,6 +362,24 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   const filteredCards = createMemo(() => filterCards(allCards(), cardFilters.filters))
 
   const filteredTotalPrice = createMemo(() => groupTotalPrice(filteredCards()))
+
+  // The buyer's cart for the *visible* list: the filter is part of what the user
+  // is looking at, so a filtered view exports the filtered cards.
+  const cartExportFormats = createMemo((): ExtraExportFormat[] => {
+    const buyer = cartBuyer()
+    if (!buyer) return []
+    return [
+      {
+        label: `${BUYER_DISPLAY_NAMES[buyer]} cart (.csv)`,
+        extension: 'csv',
+        mime: 'text/csv',
+        serialize: () => {
+          const cart = selectionToCartCsv(filteredCards().map(sellableFromCardData))
+          return { content: cart.csv, warnings: cart.warnings }
+        },
+      },
+    ]
+  })
 
   const cardGroups = createMemo((): CardGroup[] => {
     return groupAndSortCards(
@@ -434,6 +488,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         quantity={c.quantity}
         card={c.card}
         symbolMap={props.symbolMap}
+        buylistPrice={c.buylistPrice}
         viewMode={viewMode()}
         hideCount={true}
         useScryfallImgUrls={props.useScryfallImgUrls}
@@ -536,7 +591,18 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
               amount={filteredTotalPrice()}
               currency={props.currency}
             />
+            <SelectedPriceStat
+              count={selection.count()}
+              amount={selection.value(props.currency)}
+              currency={props.currency}
+            />
+            <SellValueStat
+              sellMode={sell.active()}
+              count={selection.count()}
+              summary={sell.summary()}
+            />
           </p>
+          <SellModeNotice sellMode={sell.active()} />
         </div>
         <Show
           when={
@@ -561,7 +627,11 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
               </button>
             </Show>
             <Show when={props.enableExport}>
-              <ExportMenu serialize={serializeWanted} name={props.name} />
+              <ExportMenu
+                serialize={serializeWanted}
+                name={props.name}
+                extraFormats={cartExportFormats()}
+              />
             </Show>
             <Show when={props.enablePriceRefresh}>
               <UpdatePricesButton prices={prices} />
@@ -578,12 +648,13 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         groupByOptions={groupByOptions()}
         onGroupByChange={(v) => setGroupBy(v as WantedListGroupBy)}
         sortLayers={sortLayers()}
-        sortByOptions={sortByOptions(WANTED_SORT_BYS)}
+        sortByOptions={sortByOptions(sortByValues())}
         onSortLayersChange={setSortLayers}
         priceGroupStrategy={priceGroupStrategy()}
         onPriceGroupStrategyChange={setPriceGroupStrategy}
         reverseGroups={reverseGroups()}
         onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
+        sell={sell.control()}
         filters={cardFilters}
         symbolMap={props.symbolMap}
         currency={props.currency}

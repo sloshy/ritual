@@ -490,6 +490,14 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     group: 'overlays',
     type: 'color',
   },
+  {
+    name: '--card-label-buylist',
+    label: 'Card buylist price',
+    description:
+      'Buylist offer shown beside the retail price in sell mode — a universally bright amber.',
+    group: 'overlays',
+    type: 'color',
+  },
 
   // ----- Modals -----
   {

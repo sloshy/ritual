@@ -15,6 +15,11 @@ export type UseSiteDataResult = {
   setCurrency: Setter<PriceCurrency>
   availableCurrencies: Accessor<PriceCurrency[]>
   pricesDate: Accessor<string | null>
+  /**
+   * Whether sell mode is offered: the site was built with `site.sellMode` on
+   * *and* a live API is answering, since quotes are never baked.
+   */
+  sellMode: Accessor<boolean>
   /** Refetch the index from the live backend. No-op in static mode. */
   refetch: () => void
 }
@@ -31,6 +36,7 @@ export function useSiteData(): UseSiteDataResult {
     'tix',
   ])
   const [pricesDate, setPricesDate] = createSignal<string | null>(null)
+  const [sellModeConfigured, setSellModeConfigured] = createSignal(false)
 
   // The configured default currency is applied once; live refetches must not
   // clobber a currency the user has since picked.
@@ -52,6 +58,8 @@ export function useSiteData(): UseSiteDataResult {
       if (data.availableCurrencies) setAvailableCurrencies(data.availableCurrencies)
       if (data.pricesDate) setPricesDate(data.pricesDate)
       if (typeof data.searchDebounceMs === 'number') setSearchDebounceMs(data.searchDebounceMs)
+      // Absent on sites built before sell mode existed, which reads as off.
+      setSellModeConfigured(data.sellMode === true)
     })
   }
 
@@ -128,6 +136,9 @@ export function useSiteData(): UseSiteDataResult {
     setCurrency,
     availableCurrencies,
     pricesDate,
+    // Quotes are only ever fetched, never baked, so a static site cannot offer
+    // sell mode however it was configured.
+    sellMode: () => sellModeConfigured() && apiActive(),
     refetch,
   }
 }

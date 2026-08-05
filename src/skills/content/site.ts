@@ -232,6 +232,20 @@ ritual config set site.apiBaseUrl "https://ritual-api.example.com"
 ritual build-site
 \`\`\`
 
+A server-backed site also offers **sell mode**: Card Kingdom buylist prices beside each
+card, on-buylist chips plus a buylist-price threshold filter, buylist grouping, sorting by
+buylist price or by buylist-minus-retail (\`Buylist vs Price\`), and a CK sell-cart export. Quotes
+are fetched live (never baked), so a fully static build never shows it. It is on by
+default; disable it for a published site with:
+
+\`\`\`bash
+ritual config set site.sellMode false
+\`\`\`
+
+The buylist itself is only ever downloaded on request — \`ritual sell --refresh auto\`,
+the admin **Refresh Cache** page's *Refresh buylist* button, or the \`refresh_buylist\`
+tool. No page load triggers the ~70 MB fetch.
+
 ## Web admin
 
 \`ritual admin\` serves a browser UI for editing lists (the same operations as the CLI):

@@ -32,6 +32,23 @@ function isExclusiveLabelOption(option: LabelFilterOption): boolean {
   return (EXCLUSIVE_LABEL_OPTIONS as readonly LabelFilterOption[]).includes(option)
 }
 
+/**
+ * One selectable chip in the buylist filter. Symmetric on purpose: "not on
+ * buylist" answers "what will the buyer *not* take", which is as useful when
+ * deciding what to sell as knowing what they will.
+ */
+export type BuylistFilterOption = 'on' | 'off'
+
+/** Every buylist-filter option, in canonical UI and URL order. */
+export const BUYLIST_FILTER_OPTIONS = [
+  'on',
+  'off',
+] as const satisfies readonly BuylistFilterOption[]
+
+function isBuylistFilterOption(value: string): value is BuylistFilterOption {
+  return (BUYLIST_FILTER_OPTIONS as readonly string[]).includes(value)
+}
+
 /** A numeric comparison operator shared by the mana value, price, and copies filters. */
 export type NumericComparator = '=' | '<' | '<=' | '>' | '>='
 
@@ -98,6 +115,15 @@ export interface CardFilters {
   price: number | null
   priceOp: PriceComparator
   /**
+   * The buyer's per-copy offer (always USD, never the display currency)
+   * compared via `buylistPriceOp`. Null = no buylist-price filtering. Cards
+   * with no active offer never match, exactly as unpriced cards never match a
+   * price filter. Reachable only in sell mode, like {@link CardFilters.onBuylist}.
+   */
+  buylistPrice: number | null
+  /** Plain {@link NumericComparator}: {@link PriceComparator}'s "active currency" does not apply. */
+  buylistPriceOp: NumericComparator
+  /**
    * Total quantity of cards sharing this card's name (case-insensitively, and
    * by front face for double-faced cards), summed across every entry in the
    * list, compared via `copiesOp`. Null = no copies filtering.
@@ -112,6 +138,14 @@ export interface CardFilters {
    * cannot arise from the UI, and the URL parser drops one whole.
    */
   labels: LabelFilterOption[]
+  /**
+   * Selected buylist chips, matched with OR semantics against whether the buyer
+   * has a product for the card. Empty = no buylist filtering. Only reachable in
+   * sell mode; `useListViewUrlSync` drops the URL param on pages that do not
+   * support it, so a shared link cannot leave a list filtered by a control the
+   * page never shows.
+   */
+  onBuylist: BuylistFilterOption[]
 }
 
 export function createDefaultCardFilters(): CardFilters {
@@ -135,11 +169,36 @@ export function createDefaultCardFilters(): CardFilters {
     manaValueOp: '=',
     price: null,
     priceOp: '=',
+    buylistPrice: null,
+    buylistPriceOp: '=',
     copies: null,
     copiesOp: '=',
     labels: [],
+    onBuylist: [],
   }
 }
+
+/**
+ * A money threshold: `0` is the site's "no price data" sentinel, not a price of
+ * zero, so a card carrying it fails every comparator — including `<=`, which
+ * would otherwise sweep in every unpriced card. A null threshold is inactive.
+ */
+function matchesMoneyThreshold(
+  actual: number,
+  op: NumericComparator,
+  threshold: number | null,
+): boolean {
+  if (threshold === null) return true
+  if (actual <= 0) return false
+  return compareNumeric(actual, op, threshold)
+}
+
+/** Every filter field that exists only in sell mode; cleared and stripped together. */
+export const SELL_MODE_FILTER_KEYS = [
+  'onBuylist',
+  'buylistPrice',
+  'buylistPriceOp',
+] as const satisfies readonly (keyof CardFilters)[]
 
 function isLand(card: CardData): boolean {
   return card.cmc === 0 && (card.type.includes('Land') || card.type.includes('Basic'))
@@ -282,11 +341,7 @@ export function filterCards<T extends CardData>(cards: T[], filters: CardFilters
     ) {
       return false
     }
-    if (filters.price !== null) {
-      // A card with no price data (price <= 0) can't satisfy a price comparison.
-      if (card.price <= 0) return false
-      if (!compareNumeric(card.price, filters.priceOp, filters.price)) return false
-    }
+    if (!matchesMoneyThreshold(card.price, filters.priceOp, filters.price)) return false
     if (filters.copies !== null && copyCounts !== null) {
       // copyCounts is built from this exact `cards` array with the same key, so
       // every card here is guaranteed to already be a key in the map.
@@ -294,6 +349,11 @@ export function filterCards<T extends CardData>(cards: T[], filters: CardFilters
       if (!compareNumeric(total, filters.copiesOp, filters.copies)) return false
     }
     if (filters.labels.length > 0 && !matchesCardLabelSelection(card.labels, filters.labels)) {
+      return false
+    }
+    if (filters.onBuylist.length > 0 && !matchesBuylistSelection(card.onBuylist, filters.onBuylist))
+      return false
+    if (!matchesMoneyThreshold(card.buylistPrice, filters.buylistPriceOp, filters.buylistPrice)) {
       return false
     }
     return true
@@ -317,6 +377,8 @@ export function countActiveFilters(filters: CardFilters): number {
   if (filters.price !== null) count++
   if (filters.copies !== null) count++
   if (filters.labels.length > 0) count++
+  if (filters.onBuylist.length > 0) count++
+  if (filters.buylistPrice !== null) count++
   return count
 }
 
@@ -455,11 +517,56 @@ export const parsePriceFilter = makeNumericFilterParser(
   'Price must be a non-negative number',
 )
 
+/**
+ * Parse the buylist filter input. Its own message rather than reusing the price
+ * parser's: the panel shows two price fields in sell mode, so "Price must be…"
+ * would not say which one was rejected.
+ */
+export const parseBuylistPriceFilter = makeNumericFilterParser(
+  parsePriceAmount,
+  'Buylist price must be a non-negative number',
+)
+
 /** Parse the copies filter input: empty clears the filter, otherwise a non-negative integer. */
 export const parseCopiesFilter = makeNumericFilterParser(
   parseNonNegativeInteger,
   'Copies must be a non-negative integer',
 )
+
+/**
+ * Whether a card matches a buylist-chip selection. Selecting both chips (or
+ * neither) matches everything, so the filter is inactive in both cases.
+ */
+export function matchesBuylistSelection(
+  onBuylist: boolean,
+  selected: readonly BuylistFilterOption[],
+): boolean {
+  return selected.includes(onBuylist ? 'on' : 'off')
+}
+
+/** Toggle a buylist-filter chip. The two chips are independent (OR). */
+export function toggleBuylistFilterOption(
+  selected: readonly BuylistFilterOption[],
+  option: BuylistFilterOption,
+): BuylistFilterOption[] {
+  if (selected.includes(option)) return selected.filter((o) => o !== option)
+  return BUYLIST_FILTER_OPTIONS.filter((o) => o === option || selected.includes(o))
+}
+
+/**
+ * Parse a `buylist=` URL value leniently: comma-separated tokens, unknown ones
+ * dropped, deduped into canonical order. Returns undefined when nothing usable
+ * remains, leaving the filter at its default.
+ */
+export function parseBuylistParam(value: string | null): BuylistFilterOption[] | undefined {
+  if (value === null) return undefined
+  const tokens = value
+    .split(',')
+    .map((token) => token.trim().toLowerCase())
+    .filter(isBuylistFilterOption)
+  const options = BUYLIST_FILTER_OPTIONS.filter((option) => tokens.includes(option))
+  return options.length > 0 ? options : undefined
+}
 
 /** Toggle a color in a selection, keeping the result in canonical WUBRG order. */
 export function toggleColorSelection(selected: string[], color: string): string[] {

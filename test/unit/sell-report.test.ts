@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import {
   buildCardKingdomIndex,
+  chooseProduct,
+  productIsBuying,
   type CardKingdomFeed,
   type CardKingdomProduct,
 } from '../../src/cardkingdom'
@@ -9,10 +11,7 @@ import {
   applySellFilters,
   buildSellCartCsv,
   buildSellReport,
-  chooseProduct,
-  isBuyingEntry,
   parseMinPrice,
-  productIsBuying,
   sumSellEntries,
   type BuildSellReportOptions,
   type MatchedSellEntry,
@@ -82,7 +81,9 @@ const PRODUCTS: CardKingdomProduct[] = [
     id: 10,
     sku: 'FDN-0294',
     scryfallId: 'sf-a294',
-    name: 'Arahbo',
+    // Deliberately not the list entry's 'Arahbo': the CSV must carry CK's own
+    // spelling, so swapping `ckName` for `name` has to fail here.
+    name: 'Arahbo, Roar of the World',
     edition: 'Foundations Variants',
     variation: '0294 - Borderless',
     priceBuy: 1.5,
@@ -92,7 +93,9 @@ const PRODUCTS: CardKingdomProduct[] = [
     id: 11,
     sku: 'FFDN-0294',
     scryfallId: 'sf-a294',
-    name: 'Arahbo',
+    // Deliberately not the list entry's 'Arahbo': the CSV must carry CK's own
+    // spelling, so swapping `ckName` for `name` has to fail here.
+    name: 'Arahbo, Roar of the World',
     edition: 'Foundations Variants',
     finish: 'foil',
     priceBuy: 3.5,
@@ -442,8 +445,8 @@ describe('buildSellCartCsv', () => {
     const cart = buildSellCartCsv(await entries())
     expect(cart.csv).toBe(
       'card name,edition,foil,quantity\n' +
-        'Arahbo,Foundations Variants,false,3\n' +
-        'Arahbo,Foundations Variants,true,1\n',
+        '"Arahbo, Roar of the World",Foundations Variants,false,3\n' +
+        '"Arahbo, Roar of the World",Foundations Variants,true,1\n',
     )
     expect(cart.titleCount).toBe(2)
     expect(cart.cardCount).toBe(4)
@@ -454,22 +457,6 @@ describe('buildSellCartCsv', () => {
     // The entry's own line has no finish; the quote is the $3.50 foil.
     const report = await buildSellReport(input([{}]), options())
     const cart = buildSellCartCsv(report.entries)
-    expect(cart.csv).toContain('Arahbo,Foundations Variants,true,1')
-  })
-
-  test('quotes commas, marks etched as foil with a warning', async () => {
-    const [entry] = (await entries()).filter(isBuyingEntry)
-    const etched: SellReportEntry = {
-      ...entry!,
-      name: 'Prossh, Skyraider of Kher',
-      ckName: 'Prossh, Skyraider of Kher',
-      ckEdition: 'Commander Legends Variants',
-      ckFinish: 'etched',
-      sellableQuantity: 1,
-    }
-    const cart = buildSellCartCsv([etched])
-    expect(cart.csv).toContain('"Prossh, Skyraider of Kher",Commander Legends Variants,true,1')
-    expect(cart.warnings).toHaveLength(1)
-    expect(cart.warnings[0]).toContain('etched')
+    expect(cart.csv).toContain('"Arahbo, Roar of the World",Foundations Variants,true,1')
   })
 })

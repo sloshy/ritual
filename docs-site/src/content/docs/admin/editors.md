@@ -38,10 +38,14 @@ The list toolbar (shared with the public site pages) groups all card filters und
 - **Color Identity** — toggle any combination of the five colors plus a **Colorless** swatch (select it alone to find cards with no color identity), then pick a match mode: **Subset** (the default) matches any card that could be played in a deck of the selected colors, **Include** matches cards using at least one of them, **Exclude** matches cards using none of them, and **Exact** matches cards whose identity is exactly the selection
 - **Sets** — a tag input filtering by set code; type a code (space or comma finishes the tag) or pick from the autocomplete list of codes present in the list. **Include** (the default) keeps the selected sets; **Exclude** drops them
 - **Card Type** / **Oracle Tags** / **Art Tags** — tag inputs sharing the same **Include / Exclude / Exact** match mode, defaulting to **Exact** (a card must carry every selected value)
-- **Labels** — collection pages only; chips for **For Sale** / **For Trade** / **To Keep** / **Unlabeled**, matched against each card's effective [labels](#card-labels) (see the public-site [filtering](/public-site/filtering/#labels) page for the selection rules)
+- **Labels** — collection pages only; chips for **For Sale** / **For Trade** / **To Keep** / **Unlabeled**, matched against each card's effective [labels](#card-labels) (see the public-site [filtering](/public-site/filtering/#available-filters) page for the selection rules)
 - **Mana Value** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against a non-negative value (0 is valid)
+- **Buylist ($)** — sell mode only; a comparison against the buyer's per-copy offer, always in dollars
+- **Buylist** — sell mode only; chips for **On buylist** / **Not on buylist**, matched against whether the selected buyer stocks the card's printing (see [sell mode](/public-site/sell/))
 
 Filters combine, and the **Clear** action at the top of the panel resets everything. On deck pages the commander section is never filtered.
+
+The toolbar also carries a **Sell mode** toggle and a buyer selector. The admin site always offers sell mode — the `site.sellMode` config key governs what a _published_ site discloses, not your own tools — so buylist prices, the Buylist filters, the buylist grouping and sorting, and the Card Kingdom cart export are all available in the editors. Quotes come from the locally cached buylist, which is downloaded only from the **Refresh Cache** page's _Refresh buylist_ button (or `ritual sell --refresh auto`). See [Sell mode](/public-site/sell/).
 
 Each card displays **+** and **−** buttons to add or remove copies. Reducing a card's quantity to zero removes it entirely.
 

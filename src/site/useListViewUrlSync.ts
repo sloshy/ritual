@@ -1,5 +1,6 @@
 import { createEffect } from 'solid-js'
 import type { GroupBy, SortBy } from './card-sorting'
+import { SELL_MODE_FILTER_KEYS } from './card-filters'
 import type { CardFiltersControl } from './useCardFilters'
 import type { UseToolbarStateResult } from './useToolbarState'
 import {
@@ -36,6 +37,13 @@ export type UseListViewUrlSyncConfig<G extends GroupBy> = {
    * narrowing the list through a filter the toolbar cannot show or clear.
    */
   supportsLabels?: boolean
+  /**
+   * Whether this page offers sell mode. Off, every sell-mode param
+   * (`sell=`, `buyer=`, `buylist=`, `buyPrice=`, `buyPriceOp=`) is dropped
+   * rather than turning on a mode — and filters — the toolbar cannot show or
+   * clear.
+   */
+  supportsSellMode?: boolean
 }
 
 function currentHashParams(): URLSearchParams {
@@ -85,8 +93,15 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
     }
     if (o.reverseGroups) toolbar.setReverseGroups(true)
     if (o.priceGroupStrategy) toolbar.setPriceGroupStrategy(o.priceGroupStrategy)
+    if (config.supportsSellMode === true) {
+      if (o.sellMode) toolbar.setSellMode(true)
+      if (o.buyer) toolbar.setBuyer(o.buyer)
+    }
     if (o.filters) {
       if (config.supportsLabels !== true) delete o.filters.labels
+      if (config.supportsSellMode !== true) {
+        for (const key of SELL_MODE_FILTER_KEYS) delete o.filters[key]
+      }
       filters.update(o.filters)
     }
   }
@@ -103,6 +118,10 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
       sortLayers: toolbar.sortLayers(),
       reverseGroups: toolbar.reverseGroups(),
       priceGroupStrategy: toolbar.priceGroupStrategy(),
+      // Written only by pages that offer sell mode, so an ordinary list view's
+      // URL never gains a `sell=` key it cannot honor.
+      sellMode: config.supportsSellMode === true && toolbar.sellMode(),
+      buyer: toolbar.buyer(),
       filters: { ...filters.filters },
     }
     syncStateToUrl(state, defaults)

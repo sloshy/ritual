@@ -1,3 +1,8 @@
+import { buylistFieldsFor } from './buylist-quotes'
+import { useSellMode } from './useSellMode'
+import { sellableFromCardData, selectionToCartCsv } from './sell-value'
+import { BUYER_DISPLAY_NAMES } from '../buylist'
+import { cartBuyer } from './sell-mode'
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
@@ -6,7 +11,7 @@ import { normalizeCardName } from '../term-match'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
-import { FilteredPriceStat } from './FilteredPriceStat'
+import { FilteredPriceStat, SelectedPriceStat, SellModeNotice, SellValueStat } from './PageStats'
 import type { Card, DeckData, ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { ChangelogPage } from '../changelog-parser'
@@ -23,6 +28,8 @@ import {
   groupTotalPrice,
   sortByOptions,
   CARD_SIZE_WIDTHS,
+  SELL_GROUP_BY_OPTIONS,
+  sortByValuesFor,
 } from './card-sorting'
 import { CardModal } from './CardModal'
 import { ChangelogModal } from './ChangelogModal'
@@ -53,7 +60,7 @@ import { useCardSelection, type SelectedCard } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
 import { buildSelectionEditActions } from './selection-edit-actions'
 import type { DeckBulkEdit } from '../editor/DeckEditController'
-import { ExportMenu, type ExportFormat } from './ExportMenu'
+import { ExportMenu, type ExportFormat, type ExtraExportFormat } from './ExportMenu'
 import { deckToExportText, deckToMarkdown } from '../deck-text'
 import { deckToCsv } from '../editor/list-export'
 
@@ -69,6 +76,17 @@ const DECK_GROUP_BY_OPTIONS: DeckGroupByOption[] = [
   { value: 'printing', label: 'Printing' },
   { value: 'none', label: 'None' },
 ]
+
+/**
+ * The group-by options offered, with sell mode's appended when it is on. Called
+ * with `true` by the URL sync so a shared link may legally name them, and with
+ * the live toggle for the dropdown itself.
+ */
+function deckGroupByOptions(sellMode: boolean): DeckGroupByOption[] {
+  if (!sellMode) return DECK_GROUP_BY_OPTIONS
+  const withoutNone = DECK_GROUP_BY_OPTIONS.filter((o) => o.value !== 'none')
+  return [...withoutNone, ...SELL_GROUP_BY_OPTIONS, { value: 'none', label: 'None' }]
+}
 
 // The sort fields this page offers, in order — shared by the toolbar's dropdown
 // options and the URL sync's validation of incoming sort layers.
@@ -131,6 +149,12 @@ export interface DeckPageProps {
   pricesDate?: string
   /** Show the public "Update Prices" toolbar button + staleness notice (public site only). */
   enablePriceRefresh?: boolean
+  /**
+   * Offer sell mode (buylist prices, the buylist filter/grouping/sorting, and
+   * the sell-cart export). True only on a server-backed public site with
+   * `site.sellMode` enabled, or on the admin site.
+   */
+  enableSellMode?: boolean
   /** Offer "Add to Trade" in the multi-select menu (public site only; the trade page is unreachable on admin). */
   enableTrade?: boolean
   /** When provided (edit mode), enables bulk edit actions in the multi-select menu. */
@@ -162,13 +186,25 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     setPriceGroupStrategy,
   } = toolbar
   const cardFilters = useCardFilters()
+  const sortByValues = (): readonly SortBy[] => sortByValuesFor(DECK_SORT_BYS, props.enableSellMode)
   useListViewUrlSync({
     toolbar,
     filters: cardFilters,
     defaults: { groupBy: 'type', sortBy: 'name' },
-    groupByValues: DECK_GROUP_BY_OPTIONS.map((o) => o.value),
-    sortByValues: DECK_SORT_BYS,
+    groupByValues: deckGroupByOptions(Boolean(props.enableSellMode)).map((o) => o.value),
+    sortByValues: sortByValues(),
     enabled: props.enableUrlState,
+    supportsSellMode: Boolean(props.enableSellMode),
+  })
+
+  const sell = useSellMode({
+    toolbar,
+    supported: () => Boolean(props.enableSellMode),
+    // Deferred: `allCards` is declared below this call.
+    cards: () => allCards(),
+    selected: selection.selected,
+    filters: cardFilters,
+    defaults: { groupBy: 'type', sortBy: 'name' },
   })
   const [lowestPrice, setLowestPrice] = createSignal(false)
   const [missingCardsExpanded, setMissingCardsExpanded] = createSignal(false)
@@ -366,6 +402,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           oracleTags: card?.oracleTags ?? [],
           artTags: card?.artTags ?? [],
           labels: [],
+          finish: entry.finish,
+          ...buylistFieldsFor(card, entry.finish),
           card,
         })
       }
@@ -473,6 +511,24 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
 
   const filteredTotalPrice = createMemo(() => groupTotalPrice(filteredMainAndSideboardCards()))
 
+  // The buyer's cart for the *visible* list: the filter is part of what the user
+  // is looking at, so a filtered view exports the filtered cards.
+  const cartExportFormats = createMemo((): ExtraExportFormat[] => {
+    const buyer = cartBuyer()
+    if (!buyer) return []
+    return [
+      {
+        label: `${BUYER_DISPLAY_NAMES[buyer]} cart (.csv)`,
+        extension: 'csv',
+        mime: 'text/csv',
+        serialize: () => {
+          const cart = selectionToCartCsv(filteredMainAndSideboardCards().map(sellableFromCardData))
+          return { content: cart.csv, warnings: cart.warnings }
+        },
+      },
+    ]
+  })
+
   // Modal card data
   const modalCard = createMemo((): ScryfallCard | null => {
     if (!props.modalCardName) return null
@@ -536,6 +592,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         quantity={c.quantity}
         card={c.card}
         symbolMap={props.symbolMap}
+        buylistPrice={c.buylistPrice}
         viewMode={viewMode()}
         hideCount={hideCount}
         useScryfallImgUrls={props.useScryfallImgUrls}
@@ -613,7 +670,18 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
               amount={filteredTotalPrice()}
               currency={props.currency}
             />
+            <SelectedPriceStat
+              count={selection.count()}
+              amount={selection.value(props.currency)}
+              currency={props.currency}
+            />
+            <SellValueStat
+              sellMode={sell.active()}
+              count={selection.count()}
+              summary={sell.summary()}
+            />
           </p>
+          <SellModeNotice sellMode={sell.active()} />
           <Show when={props.deck.sourceUrl}>
             <a href={props.deck.sourceUrl} target="_blank" rel="noreferrer" class="copy-link">
               Imported from{' '}
@@ -650,7 +718,11 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
               </button>
             </Show>
             <Show when={props.enableExport}>
-              <ExportMenu serialize={serializeDeck} name={props.deck.name} />
+              <ExportMenu
+                serialize={serializeDeck}
+                name={props.deck.name}
+                extraFormats={cartExportFormats()}
+              />
             </Show>
             <Show when={props.enablePriceRefresh}>
               <UpdatePricesButton prices={prices} />
@@ -666,15 +738,16 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         cardSize={cardSize()}
         onCardSizeChange={setCardSize}
         groupBy={groupBy()}
-        groupByOptions={DECK_GROUP_BY_OPTIONS}
+        groupByOptions={deckGroupByOptions(sell.active())}
         onGroupByChange={(v) => setGroupBy(v as GroupBy)}
         sortLayers={sortLayers()}
-        sortByOptions={sortByOptions(DECK_SORT_BYS)}
+        sortByOptions={sortByOptions(sortByValues())}
         onSortLayersChange={setSortLayers}
         priceGroupStrategy={priceGroupStrategy()}
         onPriceGroupStrategyChange={setPriceGroupStrategy}
         reverseGroups={reverseGroups()}
         onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
+        sell={sell.control()}
         filters={cardFilters}
         symbolMap={props.symbolMap}
         currency={props.currency}

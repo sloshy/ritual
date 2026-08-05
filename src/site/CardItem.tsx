@@ -6,7 +6,10 @@ import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './im
 import { ManaCost } from './symbols'
 import type { PriceCurrency } from '../price-currency'
 import { DEFAULT_CURRENCY, getCardPrice, formatPrice, formatPriceOrNA } from '../price-currency'
-import type { ViewMode } from './card-sorting'
+import { BUYLIST_CURRENCY, type ViewMode } from './card-sorting'
+
+/** Tooltip on every buylist figure; the currency is the buyer's, not the page's. */
+const BUYLIST_PRICE_TITLE = 'Buylist offer per copy (USD)'
 import type { SelectionState } from './useCardSelection'
 import { selectionModeActive } from './selection-mode'
 import { capitalize } from './utils'
@@ -55,6 +58,12 @@ export interface CardItemProps {
   collectionCondition?: string
   collectionSetCN?: string
   collectionPrice?: number
+  /**
+   * The selected buyer's active per-copy offer for this printing (USD), when
+   * sell mode is on and they are buying it. Rendered beside the retail price;
+   * omitted or 0 renders the tile exactly as it would outside sell mode.
+   */
+  buylistPrice?: number
   /**
    * Label badges rendered beside the printing label. List pages pass only the
    * entry's *override* (the ambient list default would badge every tile);
@@ -285,6 +294,30 @@ export const CardItem: Component<CardItemProps> = (props) => {
         const displayPrice = () =>
           props.collectionPrice !== undefined ? props.collectionPrice : price()
         const showPrice = () => displayPrice() > 0
+        const buylistPrice = () => props.buylistPrice ?? 0
+        const showBuylist = () => buylistPrice() > 0
+        // One source for both view modes: the label had to be corrected twice
+        // the last time its wording changed.
+        const buylistLabel = () => `Buy ${formatPrice(buylistPrice(), BUYLIST_CURRENCY)}`
+
+        // Buylist quotes are always the buyer's own currency (USD cash), never
+        // the page's display currency, so this is formatted with BUYLIST_CURRENCY
+        // and labeled — an unlabeled second figure beside a EUR price would read
+        // as another EUR price.
+        const priceRun = () => (
+          <Show when={showPrice() || showBuylist()}>
+            <span class="card-label-prices">
+              <Show when={showPrice()}>
+                <span class="card-label-price">{formatPrice(displayPrice(), currency())}</span>
+              </Show>
+              <Show when={showBuylist()}>
+                <span class="card-label-buylist" title={BUYLIST_PRICE_TITLE}>
+                  {buylistLabel()}
+                </span>
+              </Show>
+            </span>
+          </Show>
+        )
 
         // List view groups the printing identity (set:number, finish, condition) into a
         // single parenthesised label rendered next to the card name. Reuses finishLabel so
@@ -398,9 +431,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     </Show>
                     {badgeRun()}
                   </span>
-                  <Show when={showPrice()}>
-                    <span class="card-label-price">{formatPrice(displayPrice(), currency())}</span>
-                  </Show>
+                  {priceRun()}
                 </div>
               </div>
             </Show>
@@ -490,6 +521,11 @@ export const CardItem: Component<CardItemProps> = (props) => {
                   </button>
                 </Show>
                 <span class="list-price">{formatPriceOrNA(displayPrice(), currency())}</span>
+                <Show when={showBuylist()}>
+                  <span class="list-buylist-price" title={BUYLIST_PRICE_TITLE}>
+                    {buylistLabel()}
+                  </span>
+                </Show>
               </div>
             </Show>
 
@@ -579,9 +615,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     </Show>
                     {badgeRun()}
                   </span>
-                  <Show when={showPrice()}>
-                    <span class="card-label-price">{formatPrice(displayPrice(), currency())}</span>
-                  </Show>
+                  {priceRun()}
                 </div>
               </div>
             </Show>

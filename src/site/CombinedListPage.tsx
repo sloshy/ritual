@@ -29,6 +29,8 @@ interface CombinedListPageProps {
   useScryfallImgUrls: boolean
   /** Offer "Add to Trade" in the multi-select menu (public site only). */
   enableTrade?: boolean
+  /** Offer sell mode; true only on a server-backed site with `site.sellMode` on. */
+  enableSellMode?: boolean
 }
 
 export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
@@ -106,6 +108,7 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
       currency={props.currency}
       useScryfallImgUrls={props.useScryfallImgUrls}
       enableTrade={props.enableTrade}
+      enableSellMode={props.enableSellMode}
       enableUrlState
       title={pageTitle()}
       loading={loaded() === null}

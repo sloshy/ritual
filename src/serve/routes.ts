@@ -1,4 +1,5 @@
 import { handleAutocomplete } from '../api/autocomplete'
+import { handleBuylistQuotes, handleBuylistStatus, withPublicSellModeGate } from '../api/buylist'
 import { handleCards } from '../api/cards'
 import { handleCardPrintings } from '../api/card-printings'
 import { handleCardPrice } from '../api/card-price'
@@ -55,6 +56,11 @@ function detailHandler(live: LiveSiteData, kind: ListType): SiteRouteHandler {
  * cache-backed card-query endpoints the admin editor uses — including
  * `/api/autocomplete`'s term-separation semantics — and `/api/cards`, the
  * by-Scryfall-ID lookup a shared trade link needs to restore its rows.
+ *
+ * The two buylist routes are the site's sell mode. They read only the cached
+ * buyer feed — there is deliberately no public refresh route, since an
+ * unauthenticated wildcard-CORS endpoint must never trigger a ~70 MB download —
+ * and 404 when `site.sellMode` is off.
  */
 export function buildSiteRoutes(live: LiveSiteData): SiteRoute[] {
   return [
@@ -71,5 +77,15 @@ export function buildSiteRoutes(live: LiveSiteData): SiteRoute[] {
     { method: 'GET', path: '/api/card-printings', handler: handleCardPrintings },
     { method: 'GET', path: '/api/card-price', handler: handleCardPrice },
     { method: 'POST', path: '/api/card-prices', handler: handleCardPrices },
+    {
+      method: 'GET',
+      path: '/api/buylist/status',
+      handler: withPublicSellModeGate(handleBuylistStatus),
+    },
+    {
+      method: 'POST',
+      path: '/api/buylist/quotes',
+      handler: withPublicSellModeGate(handleBuylistQuotes),
+    },
   ]
 }

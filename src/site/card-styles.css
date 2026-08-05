@@ -267,9 +267,29 @@ h3 {
   font-style: italic;
 }
 
+/* Retail and buylist figures share one row so the buylist price sits on the
+   same level as the price it qualifies, in every view mode. The buy price is
+   pushed to the card's trailing edge, which keeps it readable as its own column
+   down a grid of tiles rather than floating at a different offset per card. */
+.card-label .card-label-prices {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
 .card-label .card-label-price {
   font-size: 0.6rem;
   color: var(--card-label-price);
+}
+
+/* `margin-left: auto` rather than `space-between` on the row: it right-aligns
+   the buy figure whether or not a retail price sits beside it. */
+.card-label .card-label-buylist {
+  margin-left: auto;
+  font-size: 0.6rem;
+  color: var(--card-label-buylist);
+  white-space: nowrap;
+  text-align: right;
 }
 
 /* ===== Card label badges (sale / trade / keep) =====
@@ -381,6 +401,14 @@ h3 {
   font-size: 0.7rem;
   min-width: 3rem;
   text-align: right;
+}
+
+.card-list .list-buylist-price {
+  color: var(--card-label-buylist);
+  font-size: 0.7rem;
+  min-width: 3.5rem;
+  text-align: right;
+  white-space: nowrap;
 }
 
 /* Card image tooltips — shared base for list view, changelog, and admin changes */
@@ -1904,6 +1932,39 @@ h3 {
   animation: export-feedback-in 0.15s ease-out;
 }
 
+/* Advisory problems from a buyer-cart export (etched exported as foil, the
+   buyer's per-upload caps). Sticky, unlike the transient "Copied!" flash — a
+   silently mis-exported file is worse than a noisy panel. */
+.export-warnings {
+  position: absolute;
+  top: calc(100% + 2.4rem);
+  right: 0;
+  z-index: 300;
+  max-width: 22rem;
+  padding: 0.5rem 0.7rem;
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  color: var(--warning-text);
+  border-radius: 0.4rem;
+  font-size: 0.75rem;
+  box-shadow: 0 4px 16px var(--overlay-light);
+}
+
+.export-warnings p + p {
+  margin-top: 0.35rem;
+}
+
+/* Same warnings, inside the selection dropdown/sheet, where the panel scrolls. */
+.selection-menu-warning {
+  margin: 0.25rem 0.5rem;
+  padding: 0.4rem 0.5rem;
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  color: var(--warning-text);
+  border-radius: 0.35rem;
+  font-size: 0.7rem;
+}
+
 @keyframes export-feedback-in {
   from {
     opacity: 0;
@@ -1928,6 +1989,20 @@ h3 {
 .selection-modal-title {
   font-weight: 700;
   color: var(--text-primary);
+}
+
+/* The selection's total value (and, in sell mode, its buylist value) beside the
+   dialog title. */
+.selection-modal-value {
+  margin-left: auto;
+  margin-right: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.selection-modal-note {
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 .selection-modal-close {
@@ -2183,7 +2258,24 @@ h3 {
   }
 }
 
+/* Inline busy indicator inside the Sell mode toggle while quotes are loading. */
+.toolbar-busy-spinner {
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  /* Keep the indicator visible — it is the only signal the toggle is working —
+     but stop it spinning. */
+  .toolbar-busy-spinner {
+    animation: none;
+  }
+
   .card-nav-highlight .card-binder,
   .card-nav-highlight .card-list,
   .card-nav-highlight .card-overlap {

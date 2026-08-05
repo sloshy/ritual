@@ -1,3 +1,4 @@
+import { buylistFieldsFor } from './buylist-quotes'
 import type { ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, getCardPriceForFinish } from '../price-currency'
@@ -242,6 +243,8 @@ function buildDeckCards(
         oracleTags: card?.oracleTags ?? [],
         artTags: card?.artTags ?? [],
         labels: [],
+        finish: entry.finish,
+        ...buylistFieldsFor(card, entry.finish),
         card,
         sourceName: name,
         sourceKind: 'deck',
@@ -306,6 +309,8 @@ function buildCollectionCards(
       oracleTags: card?.oracleTags ?? [],
       artTags: card?.artTags ?? [],
       labels,
+      finish: entry.finish,
+      ...buylistFieldsFor(card, entry.finish),
       card,
       sourceName: name,
       sourceKind: 'collection',
@@ -369,6 +374,8 @@ function buildWantedCards(
       oracleTags: card?.oracleTags ?? [],
       artTags: card?.artTags ?? [],
       labels: [],
+      finish: entry.finish,
+      ...buylistFieldsFor(card, entry.finish),
       card,
       sourceName: name,
       sourceKind: 'wanted',

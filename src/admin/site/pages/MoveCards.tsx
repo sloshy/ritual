@@ -319,6 +319,7 @@ export function MoveCards(): JSX.Element {
           <Match when={deckView()}>
             {(view) => (
               <DeckPage
+                enableSellMode
                 deck={view().deck}
                 cards={session.cardData.cards}
                 printings={session.cardData.printings}
@@ -336,6 +337,7 @@ export function MoveCards(): JSX.Element {
           <Match when={collectionView()}>
             {(view) => (
               <CollectionPage
+                enableSellMode
                 name={view().name}
                 entries={view().entries}
                 sectionOrder={view().sectionOrder}
@@ -355,6 +357,7 @@ export function MoveCards(): JSX.Element {
           <Match when={wantedView()}>
             {(view) => (
               <WantedListPage
+                enableSellMode
                 name={view().name}
                 entries={view().entries}
                 sectionOrder={view().sectionOrder}

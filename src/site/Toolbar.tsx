@@ -16,7 +16,15 @@ import type { CardFiltersControl } from './useCardFilters'
 import { useMobileLayout, usePointerCoarse } from '../ui/useMediaQuery'
 import { BottomSheet } from '../ui/BottomSheet'
 import { selectionModeActive, toggleSelectionMode } from './selection-mode'
+import type { SellModeControl } from './sell-mode'
+import { buylistLoading } from './buylist-quotes'
+import { BUYERS, BUYER_DISPLAY_NAMES, parseBuyerId } from '../buylist'
 
+/**
+ * Sell mode's toolbar controls. Passed only by pages that offer sell mode
+ * (a server-backed site with `site.sellMode` on); absent means the toggle and
+ * the buyer selector are not rendered at all.
+ */
 type ExtraToggle = {
   label: string
   checked: boolean
@@ -56,6 +64,8 @@ interface ToolbarProps {
   showHideExtras?: boolean
   /** Show the Labels filter chips (collection-bearing views only). */
   showLabelsFilter?: boolean
+  /** Sell-mode toggle and buyer selector; omitted on pages that do not offer sell mode. */
+  sell?: SellModeControl
   extraToggles?: ExtraToggle[]
   /** Bulk multi-select actions control; rendered only while cards are selected. */
   selectionMenu?: JSX.Element
@@ -158,7 +168,68 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
       artTagOptions={props.artTagOptions}
       showHideExtras={props.showHideExtras}
       showLabelsFilter={props.showLabelsFilter}
+      showBuylistFilter={Boolean(props.sell?.active)}
     />
+  )
+
+  // Built once and shared by both layout branches, like `filterMenu`: crossing
+  // the mobile breakpoint must move the same instance rather than remount it.
+  const sellControls = (
+    <Show when={props.sell}>
+      {(sell) => {
+        // Gated on the mode, not just the global store: quotes keep loading
+        // after a toggle-off, and a button spinning for work whose result is no
+        // longer displayed is worse than no spinner.
+        const busy = (): boolean => sell().active && buylistLoading()
+        return (
+          <>
+            <button
+              type="button"
+              class="toolbar-toggle toolbar-sell-toggle"
+              classList={{ active: sell().active }}
+              aria-pressed={sell().active}
+              // Marks the control's own state as in-flux for assistive tech —
+              // it suppresses interim announcements rather than making one. The
+              // announcement is the live region below.
+              aria-busy={busy()}
+              title={
+                busy()
+                  ? 'Sell mode: fetching buylist prices…'
+                  : 'Sell mode: show buylist prices and filters'
+              }
+              onClick={() => sell().onToggle()}
+            >
+              Sell mode
+              <Show when={busy()}>
+                <span class="toolbar-busy-spinner" aria-hidden="true" />
+              </Show>
+            </button>
+            {/* Mounted unconditionally so its text *changes* — a live region
+                created at the same moment as its content does not announce. */}
+            <span class="visually-hidden" role="status">
+              {busy() ? 'Fetching buylist prices' : ''}
+            </span>
+            <Show when={sell().active}>
+              <div class="toolbar-group">
+                <label class="toolbar-label" for="buylist-buyer">
+                  Buyer:
+                </label>
+                <select
+                  id="buylist-buyer"
+                  class="toolbar-select"
+                  value={sell().buyer}
+                  onChange={(e) => sell().onBuyerChange(parseBuyerId(e.currentTarget.value))}
+                >
+                  <For each={BUYERS}>
+                    {(buyer) => <option value={buyer}>{BUYER_DISPLAY_NAMES[buyer]}</option>}
+                  </For>
+                </select>
+              </div>
+            </Show>
+          </>
+        )
+      }}
+    </Show>
   )
 
   const groupSelect = () => (
@@ -322,6 +393,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
                 Sort <span aria-hidden="true">▾</span>
               </button>
               {selectModeToggle()}
+              {sellControls}
               {filterMenu}
               {props.selectionMenu}
               <BottomSheet
@@ -334,7 +406,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
                     <span class="sheet-control-label">Group</span>
                     {groupSelect()}
                   </div>
-                  <Show when={props.groupBy === 'price'}>
+                  <Show when={props.groupBy === 'price' || props.groupBy === 'buylist-price'}>
                     <div class="sheet-control">
                       <span class="sheet-control-label">Brackets</span>
                       {bracketsSelect()}
@@ -373,7 +445,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
             <label class="toolbar-label">Group:</label>
             {groupSelect()}
           </div>
-          <Show when={props.groupBy === 'price'}>
+          <Show when={props.groupBy === 'price' || props.groupBy === 'buylist-price'}>
             <div class="toolbar-group">
               <label class="toolbar-label">Brackets:</label>
               {bracketsSelect()}
@@ -386,6 +458,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
           {reverseGroupsToggle()}
           {extraToggleButtons()}
           {selectModeToggle()}
+          {sellControls}
           {filterMenu}
           {props.selectionMenu}
         </Show>

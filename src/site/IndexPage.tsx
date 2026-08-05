@@ -10,7 +10,7 @@ import { IndexToolbar } from './IndexToolbar'
 import type { ListType } from '../list-type'
 import { combinedAllHref } from './combined-list'
 import { CARD_LABEL_DISPLAY_NAMES } from '../card-labels'
-import type { LabelFilterOption } from './card-filters'
+import { withLabelsParam } from './list-view-url'
 import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import {
@@ -37,47 +37,72 @@ interface IndexPageProps {
 
 interface SectionHeaderProps {
   title: string
-  viewAllType: ListType
-  viewAllLabel: string
-  /** Hide the "view all" link when there are no lists to combine. */
+  /** Render the "view all" control; false when there are no lists to combine. */
   show: boolean
-  /** Extra header control rendered beside the view-all link (the Labels menu). */
-  menu?: JSX.Element
+  /**
+   * The header's "view all" control: a plain link, or a menu of destinations.
+   * Read exactly once — each read of the prop getter mounts a fresh instance,
+   * so rendering it in two places would give each its own open/closed state.
+   */
+  control: JSX.Element
 }
 
 const SectionHeader: Component<SectionHeaderProps> = (props) => (
   <div class="section-header">
     <h1 class="section-title">{props.title}</h1>
-    <Show when={props.show}>
-      <a href={combinedAllHref(props.viewAllType)} class="btn btn-secondary">
-        {props.viewAllLabel}
-      </a>
-      {props.menu}
-    </Show>
+    <Show when={props.show}>{props.control}</Show>
   </div>
 )
 
-/** One pre-filtered "view all collections" destination in the Labels menu. */
-type LabelView = { label: string; query: readonly LabelFilterOption[] }
+interface ViewAllLinkProps {
+  type: ListType
+  label: string
+}
 
-const LABEL_VIEWS: readonly LabelView[] = [
+const ViewAllLink: Component<ViewAllLinkProps> = (props) => (
+  <a href={combinedAllHref(props.type)} class="btn btn-secondary">
+    {props.label}
+  </a>
+)
+
+/**
+ * A legal labels query for a menu entry. `keep` and `none` are exclusive
+ * selections (see `toggleLabelFilterOption`), so spelling the combinations out
+ * keeps an illegal entry a compile error rather than a link that quietly
+ * applies no filter at all.
+ */
+type LabelQuery =
+  | readonly []
+  | readonly ['keep']
+  | readonly ['none']
+  | readonly ('sale' | 'trade')[]
+
+/** One destination in the collections "View all..." menu. */
+interface CollectionView {
+  label: string
+  query: LabelQuery
+}
+
+const COLLECTION_VIEWS = [
+  { label: 'View all collections', query: [] },
   { label: `View all ${CARD_LABEL_DISPLAY_NAMES.sale.toLowerCase()}`, query: ['sale'] },
   { label: `View all ${CARD_LABEL_DISPLAY_NAMES.trade.toLowerCase()}`, query: ['trade'] },
   { label: 'View all for sale or trade', query: ['sale', 'trade'] },
   { label: `View all ${CARD_LABEL_DISPLAY_NAMES.keep.toLowerCase()}`, query: ['keep'] },
-]
+] as const satisfies readonly CollectionView[]
 
 /**
- * The "Labels" dropdown beside "View all collections": each item opens the
- * combined all-collections view with the labels filter pre-set via the shared
- * hash-query params (`useListViewUrlSync` applies them on load, and the
+ * The collections index "View all..." dropdown, consolidating the unfiltered
+ * all-collections view with the label-filtered ones. Each filtered item opens
+ * the combined all-collections view with the labels filter pre-set via the
+ * shared hash-query params (`useListViewUrlSync` applies them on load, and the
  * combined view's own `all=collection` key survives — `writeListViewParams`
  * preserves foreign params).
  */
-const CollectionLabelsMenu: Component = () => {
+const CollectionViewAllMenu: Component = () => {
   const toggle = useAnchoredToggle()
   return (
-    <div class="labels-view-menu">
+    <div class="view-all-menu">
       <button
         type="button"
         ref={toggle.setButtonRef}
@@ -86,23 +111,23 @@ const CollectionLabelsMenu: Component = () => {
         aria-expanded={toggle.open()}
         onClick={toggle.toggleOpen}
       >
-        Labels
+        View all...
         <span aria-hidden="true">{toggle.open() ? ' ▴' : ' ▾'}</span>
       </button>
       <AdaptiveMenu
         toggle={toggle}
         width={230}
         panelClass="selection-menu-panel"
-        title="View labeled cards"
+        title="View collections"
         role="menu"
-        aria-label="View labeled cards"
+        aria-label="View collections"
       >
-        <For each={LABEL_VIEWS}>
+        <For each={COLLECTION_VIEWS}>
           {(view) => (
             <a
               role="menuitem"
               class="selection-menu-item"
-              href={`${combinedAllHref('collection')}&labels=${view.query.join(',')}`}
+              href={withLabelsParam(combinedAllHref('collection'), view.query)}
               onClick={() => toggle.close()}
             >
               {view.label}
@@ -194,9 +219,8 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
           <>
             <SectionHeader
               title="My Decks"
-              viewAllType="deck"
-              viewAllLabel="View all decks"
               show={props.decks.length > 0}
+              control={<ViewAllLink type="deck" label="View all decks" />}
             />
             <IndexToolbar
               sort={deckSort()}
@@ -236,10 +260,8 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
         <Match when={props.activeTab === 'collections'}>
           <SectionHeader
             title="My Collections"
-            viewAllType="collection"
-            viewAllLabel="View all collections"
             show={props.collections.length > 0}
-            menu={<CollectionLabelsMenu />}
+            control={<CollectionViewAllMenu />}
           />
           <IndexToolbar
             sort={collectionSort()}
@@ -259,9 +281,8 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
         <Match when={props.activeTab === 'wanted'}>
           <SectionHeader
             title="My Wanted Lists"
-            viewAllType="wanted"
-            viewAllLabel="View all wanted lists"
             show={props.wantedLists.length > 0}
+            control={<ViewAllLink type="wanted" label="View all wanted lists" />}
           />
           <IndexToolbar
             sort={wantedSort()}

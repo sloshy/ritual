@@ -168,7 +168,7 @@ The `site` key holds public-site settings. It has two parts:
 
 - **Deployment settings** (`version`, `ciSystem`, `deployMode`, `distDir`, `detectChanges`) are managed by `ritual init-site` and present only after you run it. Don't edit them by hand.
 - **Publish lists** (`includeDecks`, `includeCollections`, `includeWantedLists` and their `exclude*` counterparts) are user-editable and decide which lists `build-site` publishes. You can set them from the admin **Settings** page, the per-list visibility toggles on the admin **Manage Lists** page, with [`config set`](/commands/config/), or by hand.
-- **Other user settings**: `bannedPrintings` (see [`config`](/commands/config/#properties)) and `apiBaseUrl` (below).
+- **Other user settings**: `bannedPrintings` (see [`config`](/commands/config/#properties)), `apiBaseUrl` (below), and `sellMode` (below).
 
 ```json
 {
@@ -185,7 +185,8 @@ The `site` key holds public-site settings. It has two parts:
     "includeWantedLists": ["*"],
     "excludeDecks": ["Untuned Brew"],
     "excludeCollections": [],
-    "excludeWantedLists": []
+    "excludeWantedLists": [],
+    "sellMode": true
   }
 }
 ```
@@ -205,10 +206,26 @@ The `site` key holds public-site settings. It has two parts:
 | `excludeWantedLists` | `[]`    | Wanted lists to drop even when `includeWantedLists` selects them.                                |
 | `bannedPrintings`    | `[]`    | Printings barred from default-printing selection (see [`config`](/commands/config/#properties)). |
 | `apiBaseUrl`         | —       | Base URL of a live backend for a split deployment (see below).                                   |
+| `sellMode`           | `true`  | Whether the published site offers [sell mode](/public-site/sell/) (see below).                   |
 
 ### Pointing a static build at a live backend (`apiBaseUrl`)
 
 `site.apiBaseUrl` supports the [split deployment](/public-site/hosted/) of the public site: the static build lives on a CDN while a separately hosted [`serve --api`](/commands/serve/#live-api-mode---api) instance provides live list data and cache-backed card search. When set, `build-site` bakes the URL into `index.json` and the site uses that backend, falling back to the baked static data if it's unreachable. Must be an `http(s)` URL (stored without a trailing slash), or the empty string for a site reverse-proxied on the same origin as its API. Leave it unset for a fully static site — `serve --api` itself needs no configuration, since it marks the index it serves.
+
+### Offering sell mode (`sellMode`)
+
+`site.sellMode` decides whether the published site offers [sell mode](/public-site/sell/): Card
+Kingdom buylist prices beside each card, the buylist filters, buylist grouping and sorting, and the
+sell-cart export. It defaults to **enabled**; set it to `false` on a public deployment that would
+rather not advertise what its collection is worth to a buyer.
+
+```bash
+ritual config set site.sellMode false
+```
+
+Sell mode also requires a live backend — quotes are fetched, never baked — so a fully static build
+never shows it however this is set. The key does not affect the admin site, which always offers
+sell mode.
 
 ### Choosing which lists to publish
 

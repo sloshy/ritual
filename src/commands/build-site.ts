@@ -34,6 +34,7 @@ import {
   getRitualConfig,
   getSearchDebounceMs,
   getSiteApiBaseUrl,
+  getSiteSellMode,
   getSiteSelectionConfig,
   getWantedDir,
 } from '../ritual-config'
@@ -1042,6 +1043,10 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       // hosted `ritual serve --api`); `serve --api` itself serves index.json
       // dynamically and shadows this value with a same-origin marker.
       apiBaseUrl: getSiteApiBaseUrl(),
+      // Baked even for a static build: in a split deployment index.json comes
+      // from here while the quote API lives on a separate `serve --api` host.
+      // The site still requires an API base before showing sell mode.
+      sellMode: getSiteSellMode(),
     }
     await Bun.write(path.join(buildDir, 'index.json'), JSON.stringify(siteIndex))
 

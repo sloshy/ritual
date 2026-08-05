@@ -10,6 +10,11 @@ import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
 import type { DeckDetail, SiteIndex } from '../../src/site/data-types'
 import type { CardPricesResponse } from '../../src/api/card-prices'
 import type { CardsResponse } from '../../src/api/cards'
+import type { BuylistQuotesResponse, BuylistStatusResponse } from '../../src/buylist'
+import { saveCardKingdomCache, invalidateCardKingdomIndex } from '../../src/cardkingdom'
+import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../test-utils'
+import { getRitualConfigPath } from '../../src/ritual-config'
+import { MAX_BUYLIST_PRINTINGS } from '../../src/api/buylist'
 import type { ScryfallCard } from '../../src/types'
 
 /**
@@ -191,5 +196,86 @@ describe('site server (Integration)', () => {
     const unknownApi = await fetch(`${base}/api/nope`)
     expect(unknownApi.status).toBe(404)
     expect(unknownApi.headers.get('Content-Type')).toContain('application/json')
+  })
+
+  describe('buylist routes (sell mode)', () => {
+    const quoteBody = (printings: unknown[]): RequestInit => ({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ printings }),
+    })
+    const emberwild = { set: 'tst', collectorNumber: '1', finish: 'nonfoil' }
+
+    beforeAll(async () => {
+      await saveCardKingdomCache(
+        makeCardKingdomCacheFile([
+          makeCardKingdomProduct({
+            id: 900,
+            sku: 'TST-0001',
+            scryfallId: 'e2e00000-0000-4000-8000-000000000008',
+            name: 'Emberwild Phoenix',
+            edition: 'Test Set',
+            priceBuy: 2.25,
+            qtyBuying: 4,
+          }),
+        ]),
+      )
+      invalidateCardKingdomIndex()
+    })
+
+    test('quotes a printing and omits ones the buyer has no product for', async () => {
+      const response = await fetch(
+        `${base}/api/buylist/quotes`,
+        quoteBody([emberwild, { set: 'tst', collectorNumber: '999', finish: 'nonfoil' }]),
+      )
+      expect(response.status).toBe(200)
+      const body = (await response.json()) as BuylistQuotesResponse
+      expect(body.buyer).toBe('cardkingdom')
+      expect(body.quotes['tst:1:nonfoil']).toMatchObject({ priceBuy: 2.25, buying: true })
+      // Sparse: an unquoted printing is absent, not a zero-priced entry.
+      expect(body.quotes['tst:999:nonfoil']).toBeUndefined()
+    })
+
+    test('reports feed freshness without quoting anything', async () => {
+      const response = await fetch(`${base}/api/buylist/status`)
+      expect(response.status).toBe(200)
+      const body = (await response.json()) as BuylistStatusResponse
+      expect(body).toMatchObject({ buyer: 'cardkingdom', buyers: ['cardkingdom'], stale: false })
+      expect(body.productCount).toBe(1)
+    })
+
+    test('answers CORS so a CDN-hosted build can reach it', async () => {
+      const response = await fetch(`${base}/api/buylist/quotes`, quoteBody([emberwild]))
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    })
+
+    test('refuses a malformed body and an oversized batch', async () => {
+      const bad = await fetch(`${base}/api/buylist/quotes`, quoteBody([{ set: 'tst' }]))
+      expect(bad.status).toBe(400)
+
+      const tooMany = await fetch(
+        `${base}/api/buylist/quotes`,
+        quoteBody(Array.from({ length: MAX_BUYLIST_PRINTINGS + 1 }, () => emberwild)),
+      )
+      expect(tooMany.status).toBe(400)
+    })
+
+    test('exposes no public refresh route — the feed is never downloadable from here', async () => {
+      const response = await fetch(`${base}/api/sell/refresh`, { method: 'POST' })
+      expect(response.status).toBe(404)
+    })
+
+    test('404s both routes when site.sellMode is off, without a restart', async () => {
+      // The route table is built once at startup, so the gate must read config
+      // per request — a `config set` has to take effect on a running server.
+      await fs.writeFile(getRitualConfigPath(), JSON.stringify({ site: { sellMode: false } }))
+      try {
+        expect((await fetch(`${base}/api/buylist/status`)).status).toBe(404)
+        expect((await fetch(`${base}/api/buylist/quotes`, quoteBody([emberwild]))).status).toBe(404)
+      } finally {
+        await fs.rm(getRitualConfigPath(), { force: true })
+      }
+      expect((await fetch(`${base}/api/buylist/status`)).status).toBe(200)
+    })
   })
 })

@@ -23,8 +23,29 @@ export {
 } from './cache'
 export { CARDKINGDOM_PRICELIST_URL, fetchCardKingdomFeed } from './client'
 export {
+  NO_FEED_LEAD,
   ensureCardKingdomFeed,
   missingFeedAdvice,
+  missingFeedApiAdvice,
   type CardKingdomFeedResult,
   type EnsureCardKingdomFeedDeps,
 } from './ensure'
+export {
+  chooseMatch,
+  chooseProduct,
+  matchPrinting,
+  productIsBuying,
+  quoteForPrinting,
+  toBuylistQuote,
+  type PrintingMatch,
+  type ProductMatch,
+  type QuotePrinting,
+} from './quote'
+export {
+  adoptCardKingdomFeed,
+  feedStamp,
+  getCardKingdomFeed,
+  invalidateCardKingdomIndex,
+  type CardKingdomFeedStamp,
+  type LoadedCardKingdomFeed,
+} from './memo'

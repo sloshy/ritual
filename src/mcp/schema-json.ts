@@ -6,7 +6,8 @@ import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
 import { CARD_LABELS } from '../card-labels'
 import { VALID_CURRENCIES } from '../price-currency'
 import { DIFF_BY_MODES } from '../list-diff'
-import { SELL_ENTRY_STATUSES, SELL_MATCH_VIAS, SELL_NO_MATCH_REASONS } from '../sell-report'
+import { BUYERS, SELL_MATCH_VIAS } from '../buylist'
+import { SELL_ENTRY_STATUSES, SELL_NO_MATCH_REASONS } from '../sell-report'
 
 /**
  * Hand-authored JSON Schema for every tool's `outputSchema`.
@@ -880,6 +881,46 @@ export const GET_SELL_CART_OUTPUT: JsonSchemaType = obj(
   ['csv', 'titleCount', 'cardCount', 'warnings'],
 )
 
+/** One buyer offer, as `/api/buylist/quotes` files it under a printing key. */
+const BUYLIST_QUOTE_SCHEMA: JsonSchemaType = obj(
+  {
+    priceBuy: num('The buyer’s cash offer per copy (USD, Near Mint).'),
+    qtyBuying: int('Copies the buyer is currently taking; 0 means paused despite a price.'),
+    buying: bool('Whether the buyer is actively buying (nonzero quantity and price).'),
+    finish: enumOf(
+      VALID_FINISHES,
+      'The quoted product’s finish, which can differ from the requested one.',
+    ),
+    matchVia: enumOf(SELL_MATCH_VIAS, 'Which join key located the product.'),
+    ambiguous: bool('Several products matched; this quote is the best-paying one.'),
+    productId: int('The buyer’s product id, for pooling per-product buy budgets.'),
+    name: str('The buyer’s own card title — what their cart importer expects.'),
+    edition: str('The buyer’s own edition name — likewise.'),
+    variation: str('The buyer’s variant note, when they publish one.'),
+    url: str('The buyer’s product page.'),
+  },
+  ['priceBuy', 'qtyBuying', 'buying', 'finish', 'matchVia', 'productId', 'name', 'edition'],
+)
+
+export const GET_BUYLIST_QUOTES_OUTPUT: JsonSchemaType = obj(
+  {
+    buyer: enumOf(BUYERS, 'The buyer these quotes came from.'),
+    quotes: {
+      type: 'object',
+      description:
+        'Offers keyed by "set:collectorNumber:finish" (set lowercased). Sparse: a ' +
+        'requested printing the buyer has no product for is absent, meaning "not on ' +
+        'the buylist".',
+      additionalProperties: BUYLIST_QUOTE_SCHEMA,
+    },
+    feedCreatedAt: str('The buyer’s feed generation stamp, verbatim.'),
+    feedRetrievedAt: int('Epoch ms when the feed was downloaded.'),
+    stale: bool('Whether the cached feed is past its daily refresh cadence.'),
+    productCount: int('Products in the cached feed.'),
+  },
+  ['buyer', 'quotes', 'feedCreatedAt', 'feedRetrievedAt', 'stale', 'productCount'],
+)
+
 export const GET_HISTORY_OUTPUT: JsonSchemaType = withDefs(
   obj(
     {
@@ -1253,6 +1294,7 @@ export const TOOL_OUTPUT_SCHEMAS: Readonly<Record<McpToolName, JsonSchemaType>> 
   get_price_report: GET_PRICE_REPORT_OUTPUT,
   get_sell_report: GET_SELL_REPORT_OUTPUT,
   get_sell_cart: GET_SELL_CART_OUTPUT,
+  get_buylist_quotes: GET_BUYLIST_QUOTES_OUTPUT,
   get_history: GET_HISTORY_OUTPUT,
   get_config: CONFIG_OUTPUT,
   get_cache_status: GET_CACHE_STATUS_OUTPUT,

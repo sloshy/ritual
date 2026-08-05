@@ -4,7 +4,7 @@ title: 'sell'
 
 Check what [Card Kingdom's buylist](https://www.cardkingdom.com/purchasing/mtg_singles) ("Sell us your cards") is currently paying for cards in your lists.
 
-The report is built from Card Kingdom's public pricelist feed — one ~70 MB download covering their entire singles catalog, cached locally under `cache/cardkingdom.json` and considered fresh for a day (matching their daily regeneration). Every check after that is a purely local join: no scraping, no per-card requests. The same engine backs the [MCP](/commands/mcp/) `get_sell_report`, `get_sell_cart`, and `refresh_buylist` tools and the [admin sell endpoints](/admin/api/#sell-report).
+The report is built from Card Kingdom's public pricelist feed — one ~70 MB download covering their entire singles catalog, cached locally under `cache/cardkingdom.json` and considered fresh for a day (matching their daily regeneration). Every check after that is a purely local join: no scraping, no per-card requests. The same engine backs the [MCP](/commands/mcp/) `get_sell_report`, `get_sell_cart`, `get_buylist_quotes`, and `refresh_buylist` tools, the [admin sell endpoints](/admin/api/#sell-report), and [sell mode](/public-site/sell/) on the admin and server-backed public sites — so a quote is the same wherever you read it.
 
 ## Usage
 

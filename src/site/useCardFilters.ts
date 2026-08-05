@@ -31,6 +31,10 @@ export function useCardFilters(): CardFiltersControl {
   // The price filter is a threshold in the active currency, so a switch to a
   // different currency makes it meaningless — clear it. `defer` skips the initial
   // run so a price filter restored from a shared URL survives page load.
+  //
+  // `buylistPrice` is deliberately NOT cleared here: a buyer's offer is always
+  // USD whatever the page displays, so switching currency leaves that threshold
+  // meaning exactly what it did before.
   createEffect(
     on(
       currencyEpoch,

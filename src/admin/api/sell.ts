@@ -1,16 +1,16 @@
 import {
+  adoptCardKingdomFeed,
   ensureCardKingdomFeed,
-  loadCardKingdomCache,
-  type CardKingdomCacheFile,
+  type LoadedCardKingdomFeed,
 } from '../../cardkingdom'
 import { getErrorMessage } from '../../errors'
 import { isListType, type ListType } from '../../list-type'
 import type { ListLocation } from '../../resolve-list'
+import type { BuylistFeedStamp, SellCartCsv } from '../../buylist'
 import {
   applySellFilters,
   buildSellCartCsv,
   parseMinPrice,
-  type SellCartCsv,
   type SellEntryFilters,
   type SellReportPayload,
   type SellReportView,
@@ -18,7 +18,7 @@ import {
 import { loadAndBuildSellReport } from '../../sell-runtime'
 import { parseSetCodesInput } from '../../set-codes'
 import { listLocationForSlug } from './list-info'
-import { apiError, badRequest, requireCardCache } from './save-helpers'
+import { apiError, badRequest, requireBuylistFeed, requireCardCache } from './save-helpers'
 
 /** GET /api/sell/report body — the CLI's `sell --output json` payload. */
 export type SellReportResponse = SellReportPayload & {
@@ -31,32 +31,16 @@ export type SellCartResponse = SellCartCsv & {
 }
 
 /** POST /api/sell/refresh body — the state of the feed after the refresh. */
-export type SellRefreshResponse = {
+export type SellRefreshResponse = Omit<BuylistFeedStamp, 'stale'> & {
   success: true
   /** Whether this call downloaded a new feed. */
   refreshed: boolean
-  feedRetrievedAt: number
-  feedCreatedAt: string
-  productCount: number
   /**
    * Failures that degraded the result instead of failing it — a wanted
    * download that fell back to the stale cached feed. Empty on a clean run,
    * so `refreshed: false` with empty warnings really means "still fresh".
    */
   warnings: string[]
-}
-
-/** The standard remedy line for a missing Card Kingdom feed, API flavor. */
-const FEED_REMEDY =
-  'Refresh the Card Kingdom buylist first: the refresh_buylist tool, POST /api/sell/refresh, or `ritual sell --refresh auto` on the CLI.'
-
-/** 503 when no feed has been downloaded, else the cached feed. */
-async function requireFeed(): Promise<CardKingdomCacheFile | Response> {
-  const feed = await loadCardKingdomCache()
-  if (feed === null) {
-    return apiError(`No Card Kingdom buylist has been downloaded yet. ${FEED_REMEDY}`, 503)
-  }
-  return feed
 }
 
 /** Parse `?lists=type:slug,...` into locations; 400/404 on bad or empty refs. */
@@ -118,7 +102,7 @@ async function parseSellQuery(url: URL): Promise<SellQuery | Response> {
 /** A built and filtered sell view plus the feed it was matched against. */
 type BuiltSellView = {
   view: SellReportView
-  feed: CardKingdomCacheFile
+  feed: LoadedCardKingdomFeed
   warnings: string[]
 }
 
@@ -126,7 +110,7 @@ type BuiltSellView = {
 async function buildSellView(query: SellQuery): Promise<BuiltSellView | Response> {
   const unavailable = await requireCardCache('buylist matching requires it')
   if (unavailable) return unavailable
-  const feed = await requireFeed()
+  const feed = await requireBuylistFeed()
   if (feed instanceof Response) return feed
 
   const { report, warnings } = await loadAndBuildSellReport(
@@ -158,8 +142,8 @@ export async function handleSellReport(req: Request): Promise<Response> {
 
     const body: SellReportResponse = {
       success: true,
-      feedCreatedAt: built.feed.feed.createdAt,
-      feedRetrievedAt: built.feed.retrievedAt,
+      feedCreatedAt: built.feed.file.feed.createdAt,
+      feedRetrievedAt: built.feed.file.retrievedAt,
       filters: query.filters,
       lists: built.view.lists,
       entries: built.view.entries,
@@ -209,6 +193,8 @@ export async function handleSellRefresh(req: Request): Promise<Response> {
     if (typeof result === 'string') {
       return apiError(result, 502)
     }
+    // Index the feed we just wrote rather than leaving the memo to re-read it.
+    if (result.refreshed) await adoptCardKingdomFeed(result)
     const body: SellRefreshResponse = {
       success: true,
       refreshed: result.refreshed,

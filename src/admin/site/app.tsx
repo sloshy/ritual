@@ -32,6 +32,13 @@ import { ListEditor } from './pages/ListEditor'
 import { ListManager } from './pages/ListManager'
 import { MoveCards } from './pages/MoveCards'
 import { History } from './pages/History'
+import { setBuylistFetcher } from '../../site/buylist-quotes'
+import { adminBuylistFetcher } from './editor-backend'
+
+// The shared list pages fetch buylist quotes through a module-level transport;
+// on admin that transport must carry the session cookie. Installed once, at
+// module load, before any page mounts.
+setBuylistFetcher(adminBuylistFetcher)
 
 type StatusResponse = { setupRequired: boolean; totpEnabled?: boolean }
 

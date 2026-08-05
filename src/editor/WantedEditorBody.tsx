@@ -23,6 +23,12 @@ type WantedEditorBodyProps = {
   enablePriceRefresh?: boolean
   /** Forwarded to the page: offer "Add to Trade" in the multi-select menu (public site only). */
   enableTrade?: boolean
+  /**
+   * Offer sell mode inside the editor's list view. Always true on admin (the
+   * operator's own tools are not gated by `site.sellMode`); the public editor
+   * inherits the site's capability.
+   */
+  enableSellMode?: boolean
 }
 
 /**
@@ -64,6 +70,7 @@ export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
         fullWidth={props.fullWidth}
         enablePriceRefresh={props.enablePriceRefresh}
         enableTrade={props.enableTrade}
+        enableSellMode={props.enableSellMode}
         onCardIncrement={ctrl.handleIncrement}
         onCardDecrement={ctrl.handleDecrement}
         onCardContextMenu={ctrl.handleContextMenu}

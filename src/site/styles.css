@@ -331,6 +331,19 @@ body {
   color: var(--text-muted);
 }
 
+/* Why sell mode has no prices to show (usually: no buylist downloaded yet). */
+.page-stats-warning {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--warning-text);
+}
+
+/* The parenthetical after the sell value naming copies the buyer won't take. */
+.page-stats-note {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 /* ===== Content Helpers ===== */
 .card-sections > * + * {
   margin-top: 1.5rem;

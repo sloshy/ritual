@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  compareBuylistSpread,
   compareBySortLayers,
   groupAndSortCards,
   getCardTypeCategory,
@@ -8,7 +9,6 @@ import {
   getPriceGroupKey,
   groupTotalPrice,
   sortByOptions,
-  SORT_BY_LABELS,
   type SortBy,
   type SortLayer,
 } from '../../../src/site/card-sorting'
@@ -516,21 +516,6 @@ describe('sortByOptions', () => {
       { value: 'file-order', label: 'List Order' },
     ])
   })
-
-  test('SORT_BY_LABELS covers every sort field', () => {
-    const allFields: SortBy[] = [
-      'name',
-      'cmc',
-      'price',
-      'edhrec',
-      'file-order',
-      'set-code',
-      'color-identity',
-    ]
-    for (const field of allFields) {
-      expect(SORT_BY_LABELS[field]).toBeTruthy()
-    }
-  })
 })
 
 describe('groupTotalPrice', () => {
@@ -541,5 +526,83 @@ describe('groupTotalPrice', () => {
 
   test('returns 0 for empty array', () => {
     expect(groupTotalPrice([])).toBe(0)
+  })
+})
+
+describe('buylist grouping and sorting', () => {
+  const listed = makeCard({ name: 'Listed', buylistPrice: 7.5, onBuylist: true })
+  const paused = makeCard({ name: 'Paused', buylistPrice: 0, onBuylist: true })
+  const unlisted = makeCard({ name: 'Unlisted', buylistPrice: 0, onBuylist: false })
+
+  test('on-buylist grouping puts listed cards first, paused ones with them', () => {
+    const groups = groupAndSortCards([unlisted, listed, paused], 'on-buylist', sl('name'), [])
+    expect(groups.map((g) => [g.key, g.cards.map((c) => c.name)])).toEqual([
+      ['On Buylist', ['Listed', 'Paused']],
+      ['Not on Buylist', ['Unlisted']],
+    ])
+  })
+
+  test('buylist-price grouping buckets by the same brackets as price grouping', () => {
+    const groups = groupAndSortCards(
+      [listed, unlisted],
+      'buylist-price',
+      sl('name'),
+      [],
+      'archidekt',
+    )
+    expect(groups.map((g) => g.key)).toEqual(['$5 – $10', 'No Price Data'])
+  })
+
+  test('buylist-price bucket labels stay USD even on a EUR page', () => {
+    // Buylist quotes are the buyer's own currency, never the page's.
+    const groups = groupAndSortCards([listed], 'buylist-price', sl('name'), [], 'archidekt', 'eur')
+    expect(groups[0]!.key).toBe('$5 – $10')
+  })
+
+  test('sorts by buylist price ascending, unsold cards first', () => {
+    const sorted = [listed, unlisted].sort((a, b) => compareBySortLayers(a, b, sl('buylist-price')))
+    expect(sorted.map((c) => c.name)).toEqual(['Unlisted', 'Listed'])
+  })
+})
+
+describe('buylist spread sorting', () => {
+  // Spread is the buyer's offer minus USD retail: 0 means they pay retail.
+  const overRetail = makeCard({ name: 'Over', buylistSpread: 1.5, onBuylist: true })
+  const nearRetail = makeCard({ name: 'Near', buylistSpread: -0.25, onBuylist: true })
+  const wellUnder = makeCard({ name: 'Under', buylistSpread: -9, onBuylist: true })
+  const noOffer = makeCard({ name: 'None', buylistSpread: null })
+
+  test('sorts best-first: the offers closest to or above retail lead', () => {
+    const sorted = [wellUnder, noOffer, overRetail, nearRetail].sort((a, b) =>
+      compareBySortLayers(a, b, sl('buylist-spread')),
+    )
+    expect(sorted.map((c) => c.name)).toEqual(['Over', 'Near', 'Under', 'None'])
+  })
+
+  test('reversing the layer puts the worst offers first', () => {
+    const sorted = [overRetail, wellUnder].sort((a, b) =>
+      compareBySortLayers(a, b, [{ sortBy: 'buylist-spread', reverse: true }]),
+    )
+    expect(sorted.map((c) => c.name)).toEqual(['Under', 'Over'])
+  })
+
+  test('two cards with no computable spread compare equal, falling to the tiebreaker', () => {
+    expect(compareBuylistSpread(null, null)).toBe(0)
+
+    // Fed in reverse name order deliberately: `Array.sort` is stable and coerces
+    // a NaN comparison to 0, so an already-sorted input would pass even with a
+    // subtraction-based comparator or with no name tiebreaker at all.
+    const other = makeCard({ name: 'Other', buylistSpread: null })
+    const sorted = [other, noOffer].sort((a, b) => compareBySortLayers(a, b, sl('buylist-spread')))
+    expect(sorted.map((c) => c.name)).toEqual(['None', 'Other'])
+  })
+
+  test('reversing brings the no-spread cards to the front, like any other field', () => {
+    // They are last by default but not pinned there: `compareBySortLayers`
+    // negates the whole comparison, exactly as it does for unpriced cards.
+    const sorted = [overRetail, noOffer, wellUnder].sort((a, b) =>
+      compareBySortLayers(a, b, [{ sortBy: 'buylist-spread', reverse: true }]),
+    )
+    expect(sorted.map((c) => c.name)).toEqual(['None', 'Under', 'Over'])
   })
 })
