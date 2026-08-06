@@ -18,7 +18,12 @@ import { detailUrl } from './api-base'
 import { getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
 import { getDeckCountLabel, pluralizeCards } from '../deck-format'
 import { listHref } from './combined-list'
-import { cardPrintingKey, formatPrintingLabel, printingKey } from '../printing-key'
+import {
+  cardPrintingKey,
+  formatPrintingLabel,
+  lookupPrintingCard,
+  printingKey,
+} from '../printing-key'
 import { hasSpecificPrinting } from '../card-printing'
 
 /**
@@ -134,10 +139,9 @@ function buildCandidates(data: DetailPayload): CardCandidate[] {
   const out: CardCandidate[] = []
   for (const ref of collectCardRefs(data)) {
     // Collections/wanted lists key their card map by set:collector; decks key by
-    // name. Try the declared printing key first, then fall back to the name.
+    // name. `lookupPrintingCard` owns the rule, including the explicit-null case.
     const declaredKey = refPrintingKey(ref)
-    const card =
-      (declaredKey && declaredKey in cards ? cards[declaredKey] : cards[ref.name]) ?? null
+    const card = lookupPrintingCard(cards, ref)
     // Label the printing by the resolved card so the shown set:collector always
     // matches the shown art; fall back to the declared key when unresolved so an
     // owned printing without card data is still searchable by its code. One

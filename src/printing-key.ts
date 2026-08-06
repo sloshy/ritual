@@ -47,3 +47,44 @@ export function formatPrintingLabel(set: string, collectorNumber: string): strin
 export function cardPrintingKey(card: ScryfallCard): string {
   return printingKey(card.set, card.collector_number)
 }
+
+/** A card line as the `cards` map is queried by: a name, plus a printing when pinned. */
+export type PrintingRef = {
+  name: string
+  set?: string
+  collectorNumber?: string
+}
+
+/**
+ * Resolve one card line against a list's `cards` map — the reader half of
+ * {@link printingKey}, and the only place the map's dual keying is interpreted.
+ *
+ * The map is keyed both by printing (`lea:161`) and by card name, the latter
+ * holding a *representative* printing. Three cases, and the middle one is the
+ * subtle one:
+ *
+ * - **Not pinned** — resolve by name. The representative is the right answer.
+ * - **Pinned, key present** — that is the answer, *including when it is `null`*.
+ *   The site builders (`site/details/*.ts`) write an explicit `null` to record
+ *   "this printing was looked for and is not in the cache", and warn while doing
+ *   it. Falling through that to the by-name representative substitutes a
+ *   different printing: the page would show art and a price for a line the build
+ *   priced at 0, so a wanted list's displayed total silently exceeded its baked
+ *   one.
+ * - **Pinned, key absent** — the map has no opinion (the admin loader only adds
+ *   printings it has), so fall back to the representative rather than showing
+ *   nothing.
+ *
+ * Callers apply their own session-cache overlay to the result; this returns the
+ * raw map value.
+ */
+export function lookupPrintingCard(
+  cards: Record<string, ScryfallCard | null>,
+  ref: PrintingRef,
+): ScryfallCard | null {
+  if (ref.set && ref.collectorNumber) {
+    const key = printingKey(ref.set, ref.collectorNumber)
+    if (Object.hasOwn(cards, key)) return cards[key] ?? null
+  }
+  return cards[ref.name] ?? null
+}

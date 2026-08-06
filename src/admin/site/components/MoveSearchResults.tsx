@@ -5,7 +5,7 @@ import type { ScryfallCard } from '../../../types'
 import { resolveCardImageSources, isCardSideways } from '../../../site/image-sources'
 import { useTooltip } from '../../../site/useTooltip'
 import type { CardGroup } from '../move-overlay'
-import { printingKey } from '../../../printing-key'
+import { lookupPrintingCard } from '../../../printing-key'
 
 interface MoveSearchResultsProps {
   query: string
@@ -37,16 +37,7 @@ export const MoveSearchResults: Component<MoveSearchResultsProps> = (props) => {
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
 
   // Resolve the specific printing's card (falling back to the by-name representative).
-  const cardFor = (group: CardGroup): ScryfallCard | null => {
-    if (group.set && group.collectorNumber) {
-      return (
-        props.cards[printingKey(group.set, group.collectorNumber)] ??
-        props.cards[group.name] ??
-        null
-      )
-    }
-    return props.cards[group.name] ?? null
-  }
+  const cardFor = (group: CardGroup): ScryfallCard | null => lookupPrintingCard(props.cards, group)
 
   const showPreview = (group: CardGroup) => {
     const card = cardFor(group)

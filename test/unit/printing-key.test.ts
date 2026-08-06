@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { cardPrintingKey, formatPrintingLabel, printingKey } from '../../src/printing-key'
+import {
+  cardPrintingKey,
+  formatPrintingLabel,
+  lookupPrintingCard,
+  printingKey,
+} from '../../src/printing-key'
 import { findPrinting } from '../../src/card-printing'
 import { makeScryfallCard } from '../test-utils'
 
@@ -30,6 +35,47 @@ describe('printingKey', () => {
     const card = makeScryfallCard({ set: 'MKM', collector_number: '42B' })
     expect(cardPrintingKey(card)).toBe('mkm:42b')
     expect(cardPrintingKey(card)).toBe(printingKey(card.set, card.collector_number))
+  })
+})
+
+describe('lookupPrintingCard', () => {
+  const pinned = makeScryfallCard({ id: 'lea', set: 'lea', collector_number: '161' })
+  const representative = makeScryfallCard({ id: 'rep', set: 'm10', collector_number: '146' })
+
+  test('resolves an unpinned line by name', () => {
+    const cards = { 'Lightning Bolt': representative }
+    expect(lookupPrintingCard(cards, { name: 'Lightning Bolt' })).toBe(representative)
+  })
+
+  test('resolves a pinned line by its printing, not the by-name representative', () => {
+    const cards = { 'lea:161': pinned, 'Lightning Bolt': representative }
+    expect(
+      lookupPrintingCard(cards, { name: 'Lightning Bolt', set: 'LEA', collectorNumber: '161' }),
+    ).toBe(pinned)
+  })
+
+  test('an explicit null means "this printing is not cached" and does not fall back', () => {
+    // The site builders write null here and warn while doing it; the entry was
+    // priced at 0. Falling through to the representative would show a different
+    // printing's art and price, so the page total would exceed the baked total.
+    const cards = { 'xxx:999': null, 'Lightning Bolt': representative }
+    expect(
+      lookupPrintingCard(cards, { name: 'Lightning Bolt', set: 'xxx', collectorNumber: '999' }),
+    ).toBeNull()
+  })
+
+  test('an absent printing key falls back to the by-name representative', () => {
+    // The admin loader only adds printings it holds, so absence means "no opinion"
+    // rather than "looked and missing" — distinct from the null case above.
+    const cards = { 'Lightning Bolt': representative }
+    expect(
+      lookupPrintingCard(cards, { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' }),
+    ).toBe(representative)
+  })
+
+  test('a line with only half a printing is treated as unpinned', () => {
+    const cards = { 'Lightning Bolt': representative }
+    expect(lookupPrintingCard(cards, { name: 'Lightning Bolt', set: 'lea' })).toBe(representative)
   })
 })
 
