@@ -156,6 +156,7 @@ test.describe('Sync Decks Page', () => {
           direction: 'pull',
           decks: [WINOTA!.slug],
           dryRun: false,
+          force: false,
           ignoreUnreadableLines: false,
         },
       ])
