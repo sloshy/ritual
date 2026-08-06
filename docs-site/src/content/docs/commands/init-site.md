@@ -135,12 +135,12 @@ If you keep your decks, collections, and wanted lists in a git repository and wo
 
 ### GitHub Actions
 
-| File                                | Description                                                                                                                                                                                                                        |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.github/workflows/deploy-site.yml` | GitHub Actions workflow for deploying to GitHub Pages (tracked)                                                                                                                                                                    |
-| `ritual.config.json` (`site` key)   | Stores your settings and the Ritual version used — commit this file                                                                                                                                                                |
-| `README.md`                         | Basic setup instructions for your site                                                                                                                                                                                             |
-| `.gitignore`                        | Entries for `cache/`, `dist/`, `exports/`, the `.dist-build-*`/`.dist-old-*` build scratch directories, etc. (appended if the file already exists). A local-build deploy omits its built-site directory and un-ignores it instead. |
+| File                                | Description                                                                                                                                                                                                                                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.github/workflows/deploy-site.yml` | GitHub Actions workflow for deploying to GitHub Pages (tracked)                                                                                                                                                                                                                                   |
+| `ritual.config.json` (`site` key)   | Stores your settings and the Ritual version used — commit this file                                                                                                                                                                                                                               |
+| `README.md`                         | Basic setup instructions for your site                                                                                                                                                                                                                                                            |
+| `.gitignore`                        | Entries for `cache/`, `dist/`, `exports/`, the [`.dist-build-*`/`.dist-old-*` build scratch directories](/commands/build-site/#scratch-directories-beside-the-output), etc. (appended if the file already exists). A local-build deploy omits its built-site directory and un-ignores it instead. |
 
 ### Manual / None
 

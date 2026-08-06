@@ -217,6 +217,37 @@ site's output directory: a build replaces it wholesale, and serving it would
 publish your lists.
 ```
 
+### Scratch directories beside the output
+
+The mechanism above is why you will occasionally see directories named
+`.dist-build-XXXXXX` and `.dist-old-<pid>-<timestamp>` sitting next to `dist/`.
+They are build scratch, never part of the published site, and always safe to
+delete by hand:
+
+| Directory                     | What it is                                                                                                                                                                                                      |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.dist-build-XXXXXX`          | The directory the build is writing into, before it is renamed onto `dist/`. The random suffix lets several builds — a CLI build, the admin server, `ritual mcp` — run beside the same output without colliding. |
+| `.dist-old-<pid>-<timestamp>` | The **previous** site, parked aside for the width of two renames so it can be restored if the swap fails. It is removed as soon as the new site is in place.                                                    |
+
+A build that runs to completion — success or failure — removes its own scratch
+directory. One left behind means a build was killed before it could clean up:
+`Ctrl-C`, a crash, or cancelling a build from the admin site or the `build_site`
+MCP tool. An admin-triggered build leaves up to two, because the admin server
+creates a scratch directory and the `ritual build-site` child process it spawns
+creates its own inside the same parent.
+
+Leftovers are reclaimed automatically, but not immediately. The next build
+sweeps abandoned scratch directories **older than six hours** before it starts.
+The delay is deliberate: a sweep cannot tell its own debris from a scratch
+directory another build is using right now, so it goes by age rather than by
+name and never touches anything a concurrent build could still be holding. If
+you build less often than that, deleting them yourself is perfectly fine.
+
+`ritual init-site` adds both patterns to `.gitignore`, so they stay out of your
+repository even under a
+[local-build deploy](/commands/init-site/#generated-files) that commits its
+built site.
+
 ## When a list will not build
 
 A list named on the command line that cannot be loaded **fails the build**:
