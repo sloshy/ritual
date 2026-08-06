@@ -18,6 +18,7 @@ import {
   slugifyListName,
 } from './shared'
 import type { SiteDetailContext } from './types'
+import { printingKey } from '../../printing-key'
 
 export type LoadedCollection = {
   displayName: string
@@ -88,7 +89,7 @@ export async function buildCollectionArtifacts(
 
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i]!
-    const cardKey = `${entry.set}:${entry.collectorNumber}`
+    const cardKey = printingKey(entry.set, entry.collectorNumber)
 
     if (!cardMap[cardKey]) {
       // Try to find exact printing

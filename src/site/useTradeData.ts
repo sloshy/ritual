@@ -20,6 +20,7 @@ import {
 } from '../term-match'
 import type { SelectionSourceKind } from './useCardSelection'
 import { effectiveLabels, type CardLabel } from '../card-labels'
+import { printingKey } from '../printing-key'
 
 /** A single searchable card entry derived from a collection, deck, or wanted list. */
 export interface TradeSearchEntry {
@@ -167,7 +168,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
           const groups = new Map<string, TradeSearchEntry>()
           for (const entry of detail.entries) {
             const setLower = entry.set.toLowerCase()
-            const cardKey = `${setLower}:${entry.collectorNumber}`
+            const cardKey = printingKey(entry.set, entry.collectorNumber)
             const scryfallCard = detail.cards[cardKey] ?? null
             const labels = effectiveLabels(entry.labels, detail.labels)
             const mapped: TradeSearchEntry = {
@@ -225,8 +226,8 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
           for (const entry of detail.entries) {
             const setLower = entry.set?.toLowerCase()
             const cardKey =
-              setLower && entry.collectorNumber
-                ? `${setLower}:${entry.collectorNumber}`
+              entry.set && entry.collectorNumber
+                ? printingKey(entry.set, entry.collectorNumber)
                 : entry.name
             const scryfallCard = detail.cards[cardKey] ?? detail.cards[entry.name] ?? null
             const mapped: TradeSearchEntry = {

@@ -7,7 +7,7 @@ import { formatPrice, getCardPriceForFinish } from '../price-currency'
 import { isFinish } from '../finish-condition'
 import { isCardSideways, resolveCardImageSources } from './image-sources'
 import { defaultFinishForCard } from './trade-finish'
-import { printingKey } from './printing-key'
+import { printingKey } from '../printing-key'
 import { useTooltip } from './useTooltip'
 
 export interface TradePrintingPickerProps {

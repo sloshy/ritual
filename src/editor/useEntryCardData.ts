@@ -1,6 +1,7 @@
 import { createStore, produce, reconcile } from 'solid-js/store'
 import type { ScryfallCard } from '../types'
 import { buildPrintingKeys } from './card-data-utils'
+import { cardPrintingKey } from '../printing-key'
 
 export type EntryCardData = {
   cards: Record<string, ScryfallCard | null>
@@ -29,9 +30,8 @@ export function useEntryCardData(): [EntryCardData, EntryCardDataActions] {
       setState(
         produce((draft) => {
           if (card) {
-            const key = `${card.set}:${card.collector_number}`
             draft.cards[cardName] = card
-            draft.cards[key] = card
+            draft.cards[cardPrintingKey(card)] = card
           }
           if (printings && printings.length > 0) {
             Object.assign(draft.cards, buildPrintingKeys(printings))

@@ -4,7 +4,7 @@ import { matchesAllTerms } from '../term-match'
 import { getFrontFaceName } from '../scryfall/card-utils'
 import { extractCardTypeTags, matchesCardTypes } from './card-types'
 import { matchesTags } from './card-tags'
-import { printingKey } from './printing-key'
+import { printingKey } from '../printing-key'
 import { displayFinish } from '../finish-condition'
 import {
   CARD_LABEL_SELECTIONS,

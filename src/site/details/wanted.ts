@@ -4,7 +4,7 @@ import { parseWantedListFile } from '../../commands/wanted-helpers'
 import type { WantedListEntry } from '../../commands/wanted-helpers'
 import { parseTitleFromContent } from '../../section-format'
 import type { ChangelogPage } from '../../changelog-parser'
-import { findPrinting } from '../../card-printing'
+import { findPrinting, hasSpecificPrinting } from '../../card-printing'
 import { defaultPrintingFinish } from '../../finish-condition'
 import { getCardPrice, getCardPriceForFinish } from '../../price-currency'
 import { resolveCardImageSources } from '../image-sources'
@@ -22,6 +22,7 @@ import {
   slugifyListName,
 } from './shared'
 import type { SiteDetailContext } from './types'
+import { cardPrintingKey, formatPrintingLabel, printingKey } from '../../printing-key'
 
 export type LoadedWanted = {
   displayName: string
@@ -119,14 +120,16 @@ export async function buildWantedArtifacts(
     let priceTix = 0
     let card: ScryfallCard | null = null
 
-    if (state === 'name-only') {
+    // Branch on the guard rather than on `state`: it narrows `entry.set` and
+    // `entry.collectorNumber` to `string`, which the `state` ladder cannot.
+    if (!hasSpecificPrinting(entry)) {
       // Use cheapest printing for wanted list entries
       const cheapUsd = cheapestUsdMap[entry.name]
       const cheapEur = cheapestEurMap[entry.name]
       const cheapTix = cheapestTixMap[entry.name]
       card = cheapUsd ?? cheapEur ?? cheapTix ?? cardData.cards[entry.name] ?? null
       if (card) {
-        const cardKey = `${card.set}:${card.collector_number}`
+        const cardKey = cardPrintingKey(card)
         cardMap[cardKey] = card
         cardMap[entry.name] = card
 
@@ -153,7 +156,7 @@ export async function buildWantedArtifacts(
     } else {
       // State 2 or 3: find exact printing
       const exactPrinting = findPrinting(printings, entry.set, entry.collectorNumber)
-      const cardKey = `${entry.set!.toLowerCase()}:${entry.collectorNumber}`
+      const cardKey = printingKey(entry.set, entry.collectorNumber)
 
       if (exactPrinting) {
         card = exactPrinting
@@ -162,17 +165,17 @@ export async function buildWantedArtifacts(
 
         await ctx.onCardShipped?.(exactPrinting)
 
-        if (state === 'fully-specified') {
+        if (entry.finish) {
           if (hasUsd) {
-            price = getCardPriceForFinish(exactPrinting, entry.finish!, 'usd')
+            price = getCardPriceForFinish(exactPrinting, entry.finish, 'usd')
             if (price === 0) missingPriceCount++
           }
           if (hasEur) {
-            priceEur = getCardPriceForFinish(exactPrinting, entry.finish!, 'eur')
+            priceEur = getCardPriceForFinish(exactPrinting, entry.finish, 'eur')
             if (priceEur === 0) missingPriceCountEur++
           }
           if (hasTix) {
-            priceTix = getCardPriceForFinish(exactPrinting, entry.finish!, 'tix')
+            priceTix = getCardPriceForFinish(exactPrinting, entry.finish, 'tix')
             if (priceTix === 0) missingPriceCountTix++
           }
         } else {
@@ -194,7 +197,7 @@ export async function buildWantedArtifacts(
         }
       } else {
         ctx.warn?.(
-          `  ⚠️  Could not find printing for '${entry.name}' (${entry.set!.toUpperCase()}:${entry.collectorNumber})`,
+          `  ⚠️  Could not find printing for '${entry.name}' (${formatPrintingLabel(entry.set, entry.collectorNumber)})`,
         )
         cardMap[cardKey] = null
         missingPriceCount++

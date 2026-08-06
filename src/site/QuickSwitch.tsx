@@ -18,6 +18,18 @@ import { detailUrl } from './api-base'
 import { getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
 import { getDeckCountLabel, pluralizeCards } from '../deck-format'
 import { listHref } from './combined-list'
+import { cardPrintingKey, formatPrintingLabel, printingKey } from '../printing-key'
+import { hasSpecificPrinting } from '../card-printing'
+
+/**
+ * Re-case a stored `printingKey` for display. Uppercasing the whole key would
+ * also uppercase the collector number, which no other surface does.
+ */
+function formatPrintingKeyLabel(key: string): string {
+  const colon = key.indexOf(':')
+  if (colon < 0) return key.toUpperCase()
+  return formatPrintingLabel(key.slice(0, colon), key.slice(colon + 1))
+}
 
 type ListKind = 'deck' | 'collection' | 'wanted'
 
@@ -104,11 +116,10 @@ function collectCardRefs(data: DetailPayload): ListCardRef[] {
   }))
 }
 
-// The set:collector key a card line declares, if any. Lowercased per the
-// internal set-code convention.
+// The set:collector key a card line declares, if any — the key the `cards` map
+// is built under, so it must be `printingKey` exactly.
 function refPrintingKey(ref: ListCardRef): string | null {
-  if (ref.set && ref.collectorNumber) return `${ref.set}:${ref.collectorNumber}`.toLowerCase()
-  return null
+  return hasSpecificPrinting(ref) ? printingKey(ref.set, ref.collectorNumber) : null
 }
 
 // Build search candidates from the list's actual card lines (owned/wanted/deck
@@ -129,10 +140,10 @@ function buildCandidates(data: DetailPayload): CardCandidate[] {
       (declaredKey && declaredKey in cards ? cards[declaredKey] : cards[ref.name]) ?? null
     // Label the printing by the resolved card so the shown set:collector always
     // matches the shown art; fall back to the declared key when unresolved so an
-    // owned printing without card data is still searchable by its code.
-    const setCollectorKey = card
-      ? `${card.set}:${card.collector_number}`.toLowerCase()
-      : declaredKey
+    // owned printing without card data is still searchable by its code. One
+    // canonical key for both uses: `scoreMatch` normalizes case itself, and the
+    // display path re-cases only the set half (`formatPrintingLabel`).
+    const setCollectorKey = card ? cardPrintingKey(card) : declaredKey
     const dedupKey = card
       ? `id:${card.id}`
       : declaredKey
@@ -348,7 +359,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
             kind: 'printing',
             href: listHref(detail.kind, detail.slug),
             image,
-            setCollectorDisplay: cand.setCollectorKey.toUpperCase(),
+            setCollectorDisplay: formatPrintingKeyLabel(cand.setCollectorKey),
             cardName: cand.cardName || undefined,
             parentKind: detail.kind,
             parentName: detail.listName,

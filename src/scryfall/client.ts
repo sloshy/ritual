@@ -39,6 +39,7 @@ import { fetchScryfallBulkManifest, type ScryfallBulkManifestEntry } from './bul
 import type { CacheRefreshProgressHandler, PreloadCacheOptions } from './progress'
 import { withCacheLock } from '../cache/lock'
 import { writeFileAtomic } from '../cache/atomic-write'
+import { cardPrintingKey } from '../printing-key'
 
 const RATE_LIMIT_MS = 150
 const SCRYFALL_CARDS_PER_PAGE = 175
@@ -237,7 +238,7 @@ export function computeRepresentativePrints(
     const candidates: Candidate[] = []
     for (const card of recentPrintings) {
       if (candidates.length >= 5) break
-      if (bannedPrintings.has(`${card.set.toLowerCase()}:${card.collector_number}`)) continue
+      if (bannedPrintings.has(cardPrintingKey(card))) continue
       const raw = card.prices?.[priceField]
       if (!raw) continue
       const price = parseFloat(raw)

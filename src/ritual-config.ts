@@ -13,6 +13,7 @@ import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from './cache/constants'
 import { INCLUDE_ALL, defaultSiteSelection, type SiteSelectionConfig } from './site/list-selection'
 import { parseExportPresets, type ExportPreset } from './export/presets'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from './editor/search-debounce'
+import { printingKey } from './printing-key'
 
 export { INCLUDE_ALL } from './site/list-selection'
 export type { SiteSelectionConfig } from './site/list-selection'
@@ -265,7 +266,7 @@ export function parseBannedPrinting(raw: string): ParsedBannedPrinting | ConfigP
   if (set.length === 0 || collectorNumber.length === 0) {
     return { error: `banned printing "${raw}" must be in "SET:COLLECTOR" form (e.g. "sld:123")` }
   }
-  return { set, collectorNumber, key: `${set}:${collectorNumber}` }
+  return { set, collectorNumber, key: printingKey(set, collectorNumber) }
 }
 
 /**
@@ -933,8 +934,8 @@ export function getCacheFeedUrl(config: RitualConfig = getRitualConfig()): strin
 
 /**
  * The set of `set:collectorNumber` keys barred from default-printing selection,
- * derived from `site.bannedPrintings`. Keys are already normalized (set code
- * lowercased) so callers match against `${card.set.toLowerCase()}:${card.collector_number}`.
+ * derived from `site.bannedPrintings`. Keys are already normalized through
+ * {@link printingKey}, so callers match with `cardPrintingKey(card)`.
  */
 export function getBannedPrintings(config: RitualConfig = getRitualConfig()): Set<string> {
   return new Set(config.site?.bannedPrintings ?? [])

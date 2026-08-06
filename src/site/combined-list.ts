@@ -21,6 +21,7 @@ import type {
   CollectionCardEntry,
   WantedListCardEntry,
 } from './data-types'
+import { printingKey } from '../printing-key'
 
 /**
  * A reference to a single list by its type and slug. Encoded into the combined-view
@@ -266,7 +267,7 @@ function buildCollectionCards(
 ): CombinedCardData[] {
   const { detail, ref, name } = loaded
   return detail.entries.map((entry: CollectionCardEntry, index): CombinedCardData => {
-    const cardKey = `${entry.set.toLowerCase()}:${entry.collectorNumber}`
+    const cardKey = printingKey(entry.set, entry.collectorNumber)
     const card = overlayCard(detail.cards[cardKey] ?? null)
     const price = card ? getCardPriceForFinish(card, entry.finish, currency) : entry.price
     const key = selectKeyFor('collection', name, index)

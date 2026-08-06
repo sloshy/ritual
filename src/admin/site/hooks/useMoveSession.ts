@@ -30,6 +30,7 @@ import {
   rankNameMatches,
   splitNameTerms,
 } from '../../../term-match'
+import { cardPrintingKey } from '../../../printing-key'
 
 /** Merged Scryfall display data, accumulated across every list fetched this session. */
 export type MoveCardData = {
@@ -148,7 +149,7 @@ function indexPrintings(
   for (const p of printings) {
     // Normalize the set code to lowercase at this Scryfall boundary so the key
     // matches the lowercased set:collector_number keys the entries look up by.
-    set('cards', `${p.set.toLowerCase()}:${p.collector_number}`, p)
+    set('cards', cardPrintingKey(p), p)
   }
   const newest = [...printings].sort((a, b) =>
     (b.released_at ?? '').localeCompare(a.released_at ?? ''),

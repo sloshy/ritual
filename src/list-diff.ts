@@ -99,8 +99,12 @@ function identityKey(entry: ExportEntry, by: DiffBy): string {
   return `${name}|${set}|${collectorNumber}|${finish}`
 }
 
-/** The printing-bucket key within one identity (nonfoil-folded, lowercase set). */
-function printingKey(entry: ExportEntry): string {
+/**
+ * The printing-bucket key within one identity (nonfoil-folded, lowercase set).
+ * Deliberately not the shared `printingKey` in `src/printing-key.ts`: this one
+ * takes a whole entry, folds in the finish, and tolerates a missing printing.
+ */
+function printingBucketKey(entry: ExportEntry): string {
   return `${entry.set?.toLowerCase() ?? ''}|${entry.collectorNumber ?? ''}|${entry.finish ?? 'nonfoil'}`
 }
 
@@ -120,7 +124,7 @@ function bucketSide(entries: ExportEntry[], by: DiffBy): Map<string, SideBucket>
     }
     bucket.quantity += entry.quantity
 
-    const pKey = printingKey(entry)
+    const pKey = printingBucketKey(entry)
     const printing = bucket.printings.get(pKey)
     if (printing) {
       printing.quantity += entry.quantity

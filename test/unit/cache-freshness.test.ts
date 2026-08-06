@@ -282,9 +282,14 @@ describe('ensureFreshPriceData', () => {
 
   test('an age of exactly one day is still considered fresh', async () => {
     const h = harness(true)
-    const now = Date.now()
+    // The implementation samples `Date.now()` after this line, so a timestamp of
+    // exactly `now - PRICE_MAX_AGE_MS` lands one millisecond *over* the boundary
+    // whenever the clock ticks in between — the boundary this test means to pin
+    // is `age === PRICE_MAX_AGE_MS`, so bias the timestamp forward to absorb the
+    // elapsed time rather than racing it.
+    const lastRefreshedAt = Date.now() - PRICE_MAX_AGE_MS + 60_000
     await ensureFreshPriceData('ask', {
-      cache: stubCacheFor(h, { lastRefreshedAt: now - PRICE_MAX_AGE_MS }),
+      cache: stubCacheFor(h, { lastRefreshedAt }),
       ...h,
     })
     expect(h.confirmCalls).toHaveLength(0)

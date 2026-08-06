@@ -2,6 +2,7 @@ import type { ScryfallCard } from '../types'
 import type { WantedListCardEntry } from './data-types'
 import { hasSpecificPrinting } from '../card-printing'
 import { overlayCard } from './session-cache'
+import { printingKey } from '../printing-key'
 
 /**
  * Resolve the Scryfall card for a wanted-list entry against a list's `cards` map.
@@ -17,7 +18,7 @@ export function resolveWantedCardEntry(
   cards: Record<string, ScryfallCard | null>,
 ): ScryfallCard | null {
   if (hasSpecificPrinting(entry)) {
-    const key = `${entry.set.toLowerCase()}:${entry.collectorNumber}`
+    const key = printingKey(entry.set, entry.collectorNumber)
     return overlayCard(cards[key] ?? cards[entry.name] ?? null)
   }
   return overlayCard(cards[entry.name] ?? null)

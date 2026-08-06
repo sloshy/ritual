@@ -9,6 +9,7 @@
  */
 
 import type { Finish } from '../types'
+import { printingKey } from '../printing-key'
 import type { BuyerId } from './buyers'
 
 /** Which join key located the buyer's product for a card. */
@@ -90,11 +91,18 @@ export type BuylistStatusResponse = BuylistFeedStamp & {
 }
 
 /**
- * The key a quote is filed under, computable on both sides without a round
- * trip. Set codes are lowercased (the project-wide rule) and collector numbers
- * are compared verbatim — unlike the buyer-sku index, this key is formed from
- * Ritual's own printing data on both ends, so no normalization is needed.
+ * The key a quote is filed under, computable on both sides without a round trip:
+ * the canonical {@link printingKey} plus a finish.
+ *
+ * Derived rather than restated so the printing half can never drift from the
+ * rest of the codebase — this is the one key where a near-miss yields a wrong
+ * *price* rather than a blank cell. Both halves are case-folded, which is what
+ * lets a lookup keyed off a markdown line's `(DSK:2A)` spelling find a quote
+ * registered under the resolved printing's `2a`.
+ *
+ * The buyer-sku index (`cardkingdom/feed.ts`) deliberately cannot derive from
+ * this: it also strips leading zeros to match the vendor's own numbering.
  */
 export function quoteKey(set: string, collectorNumber: string, finish: Finish): string {
-  return `${set.toLowerCase()}:${collectorNumber}:${finish}`
+  return `${printingKey(set, collectorNumber)}:${finish}`
 }

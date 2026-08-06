@@ -57,11 +57,11 @@ export type SellAllocation = {
  * tile displays — the same rule `buylistFieldsFor` uses.
  */
 function quoteForSelection(card: SellableCard): BuylistQuote | undefined {
-  // Card-first, matching `buylistFieldsFor` and the request builder. A pinned
-  // entry's collector number is the markdown line's spelling, which may differ
-  // in case from the resolved printing's (`findPrinting` matches case-
-  // insensitively); `quoteKey` compares verbatim, so keying off the pin here
-  // would miss a quote the tile beside it is showing.
+  // Card-first, matching `buylistFieldsFor` and the request builder: the quote
+  // belongs to the printing the tile is actually showing, which for an unpinned
+  // line is not the one the line names. (Casing no longer matters either way —
+  // `quoteKey` folds it — but the pin and the resolved printing can genuinely
+  // differ, so the fallback order is still load-bearing.)
   const set = card.scryfallCard?.set ?? card.set
   const collectorNumber = card.scryfallCard?.collector_number ?? card.collectorNumber
   if (set === undefined || collectorNumber === undefined) return undefined

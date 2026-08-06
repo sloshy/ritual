@@ -5,6 +5,7 @@ import type { ScryfallCard } from '../../../types'
 import { resolveCardImageSources, isCardSideways } from '../../../site/image-sources'
 import { useTooltip } from '../../../site/useTooltip'
 import type { CardGroup } from '../move-overlay'
+import { printingKey } from '../../../printing-key'
 
 interface MoveSearchResultsProps {
   query: string
@@ -39,7 +40,7 @@ export const MoveSearchResults: Component<MoveSearchResultsProps> = (props) => {
   const cardFor = (group: CardGroup): ScryfallCard | null => {
     if (group.set && group.collectorNumber) {
       return (
-        props.cards[`${group.set.toLowerCase()}:${group.collectorNumber}`] ??
+        props.cards[printingKey(group.set, group.collectorNumber)] ??
         props.cards[group.name] ??
         null
       )

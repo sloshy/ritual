@@ -5,6 +5,7 @@ import { getBannedPrintings } from '../../ritual-config'
 import { extractChangelogCardNames, parseChangelog } from '../../changelog-parser'
 import type { ScryfallCard } from '../../types'
 import type { PriceCurrency } from '../../price-currency'
+import { cardPrintingKey } from '../../printing-key'
 
 const ALL_CURRENCIES: PriceCurrency[] = ['usd', 'eur', 'tix']
 
@@ -117,8 +118,7 @@ export async function loadEntryCardData(cardNames: Set<string>): Promise<EntryCa
       printings[name] = cached
 
       for (const card of cached) {
-        const key = `${card.set}:${card.collector_number}`
-        cards[key] = card
+        cards[cardPrintingKey(card)] = card
       }
 
       const sorted = [...cached].sort((a, b) =>
@@ -130,12 +130,11 @@ export async function loadEntryCardData(cardNames: Set<string>): Promise<EntryCa
       const card = await fetchCardData(name, { silent: true })
       cards[name] = card
       if (card) {
-        const key = `${card.set}:${card.collector_number}`
-        cards[key] = card
+        cards[cardPrintingKey(card)] = card
         try {
           printings[name] = await getCardPrintings(name)
           for (const p of printings[name]) {
-            cards[`${p.set}:${p.collector_number}`] = p
+            cards[cardPrintingKey(p)] = p
           }
         } catch {
           printings[name] = [card]

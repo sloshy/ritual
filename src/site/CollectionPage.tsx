@@ -74,6 +74,7 @@ import {
   collectionToCsv,
   frontMatterFromLabels,
 } from '../editor/list-export'
+import { printingKey } from '../printing-key'
 
 // Collections always have a specific printing, so 'printing' grouping does not apply.
 type CollectionGroupBy = Exclude<GroupBy, 'printing'>
@@ -281,7 +282,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   }
 
   const handleCollectionAddToTrade = async (entry: CollectionCardEntry) => {
-    const cardKey = `${entry.set.toLowerCase()}:${entry.collectorNumber}`
+    const cardKey = printingKey(entry.set, entry.collectorNumber)
     const scryfallCard = props.cards[cardKey] ?? null
     const searchEntry = buildCollectionSearchEntry(entry, scryfallCard)
     // Guarded: a keep-labeled card confirms once before its first trade add.
@@ -295,7 +296,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   }
 
   const isCollectionCardAddDisabled = (entry: CollectionCardEntry): boolean => {
-    const cardKey = `${entry.set.toLowerCase()}:${entry.collectorNumber}`
+    const cardKey = printingKey(entry.set, entry.collectorNumber)
     const scryfallCard = props.cards[cardKey] ?? null
     const searchEntry = buildCollectionSearchEntry(entry, scryfallCard)
     return !canAddMoreToLeft(searchEntry)
@@ -304,7 +305,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   const currencyEntries = createMemo((): CollectionCardEntry[] => {
     sessionCacheVersion() // re-price after an in-session "Update Prices"
     return props.entries.map((entry) => {
-      const cardKey = `${entry.set.toLowerCase()}:${entry.collectorNumber}`
+      const cardKey = printingKey(entry.set, entry.collectorNumber)
       const card = overlayCard(props.cards[cardKey] ?? null)
       if (!card) return entry
       const price = getCardPriceForFinish(card, entry.finish, props.currency)
@@ -318,7 +319,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
 
   // Build flat card list from entries
   const toCardData = (entry: CollectionCardEntry, quantity: number): CardData => {
-    const cardKey = `${entry.set.toLowerCase()}:${entry.collectorNumber}`
+    const cardKey = printingKey(entry.set, entry.collectorNumber)
     const card = overlayCard(props.cards[cardKey] ?? null)
     return {
       name: entry.name,
@@ -329,7 +330,9 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       type: card?.type_line ?? '',
       section: entry.section,
       fileOrder: entry.fileOrder,
-      setCode: entry.set,
+      // Lowercased like the identical builder in `combined-list.ts`. Paired with
+      // `entryIndexMap` below, which keys on the same value.
+      setCode: entry.set.toLowerCase(),
       colorIdentity: card?.color_identity ?? [],
       hasPrinting: true,
       oracleTags: card?.oracleTags ?? [],
@@ -426,7 +429,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
 
   const modalCard = createMemo((): ScryfallCard | null => {
     if (!modalEntry()) return null
-    const cardKey = `${modalEntry()!.set}:${modalEntry()!.collectorNumber}`
+    const cardKey = printingKey(modalEntry()!.set, modalEntry()!.collectorNumber)
     return props.cards[cardKey] ?? null
   })
 
@@ -446,7 +449,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   const entryIndexMap = createMemo(() => {
     const map = new Map<string, number>()
     currencyEntries().forEach((e, i) => {
-      map.set(`${e.name}|${e.set}|${e.fileOrder}`, i)
+      map.set(`${e.name}|${e.set.toLowerCase()}|${e.fileOrder}`, i)
     })
     return map
   })
