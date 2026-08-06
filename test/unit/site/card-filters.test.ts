@@ -441,17 +441,17 @@ describe('filterCards', () => {
       expect(matching('name', 5)).toEqual(cards)
     })
 
-    test("'number' counts one set code and collector number, across finishes", () => {
-      expect(matching('number', 2)).toEqual([leaFoil, leaNonfoil])
-      expect(matching('number', 1)).toEqual([leaOther, m10, m10Clash])
+    test("'printing' counts one set code and collector number, across finishes", () => {
+      expect(matching('printing', 2)).toEqual([leaFoil, leaNonfoil])
+      expect(matching('printing', 1)).toEqual([leaOther, m10, m10Clash])
     })
 
-    test("'exact' counts one printing in one finish", () => {
-      expect(matching('exact', 1)).toEqual(cards)
-      expect(matching('exact', 2)).toEqual([])
+    test("'finish' counts one printing in one finish", () => {
+      expect(matching('finish', 1)).toEqual(cards)
+      expect(matching('finish', 2)).toEqual([])
     })
 
-    test("'exact' treats an unstated finish as the printing's default finish", () => {
+    test("'finish' treats an unstated finish as the printing's default finish", () => {
       // Foil-only, so the default finish is foil rather than the blanket nonfoil:
       // an entry that states 'foil' is the same copy as one that states nothing.
       const foilOnly = (finish?: Finish): CardData =>
@@ -462,12 +462,12 @@ describe('filterCards', () => {
           card: makeScryfallCard({ set: 'sld', collector_number: '1', finishes: ['foil'] }),
         })
       const pair = [foilOnly(), foilOnly('foil')]
-      expect(filterCards(pair, makeFilters({ copies: 2, copiesMode: 'exact' }))).toEqual(pair)
+      expect(filterCards(pair, makeFilters({ copies: 2, copiesMode: 'finish' }))).toEqual(pair)
     })
 
-    test("'number' and 'exact' still key an unpinned entry by the printing it shows", () => {
+    test("'printing' and 'finish' still key an unpinned entry by the printing it shows", () => {
       // A deck line with no pinned set code, resolved to a printing for display:
-      // the two finishes of it are separate copies under 'exact', together under 'number'.
+      // the two finishes of it are separate copies under 'finish', together under 'printing'.
       const unpinned = (finish: Finish): CardData =>
         makeCard({
           name: 'Lightning Bolt',
@@ -480,8 +480,8 @@ describe('filterCards', () => {
           }),
         })
       const pair = [unpinned('foil'), unpinned('nonfoil')]
-      expect(filterCards(pair, makeFilters({ copies: 1, copiesMode: 'exact' }))).toEqual(pair)
-      expect(filterCards(pair, makeFilters({ copies: 2, copiesMode: 'number' }))).toEqual(pair)
+      expect(filterCards(pair, makeFilters({ copies: 1, copiesMode: 'finish' }))).toEqual(pair)
+      expect(filterCards(pair, makeFilters({ copies: 2, copiesMode: 'printing' }))).toEqual(pair)
     })
 
     test('tiles with no resolved printing fall back to counting by name', () => {
@@ -492,7 +492,7 @@ describe('filterCards', () => {
         makeCard({ name: 'Lightning Bolt', card: null }),
       ]
       expect(
-        filterCards([...cards, ...unresolved], makeFilters({ copies: 2, copiesMode: 'exact' })),
+        filterCards([...cards, ...unresolved], makeFilters({ copies: 2, copiesMode: 'finish' })),
       ).toEqual(unresolved)
     })
 
@@ -507,7 +507,7 @@ describe('filterCards', () => {
         card: makeScryfallCard({ name: 'Lightning Bolt', set: 'lea', collector_number: '162' }),
       })
       expect(
-        filterCards([...cards, missed], makeFilters({ copies: 2, copiesMode: 'number' })),
+        filterCards([...cards, missed], makeFilters({ copies: 2, copiesMode: 'printing' })),
       ).toEqual([leaFoil, leaNonfoil, leaOther, missed])
     })
   })
@@ -583,7 +583,7 @@ describe('countActiveFilters', () => {
           cardTypeMode: 'exclude',
           oracleTagMode: 'exclude',
           artTagMode: 'include',
-          copiesMode: 'exact',
+          copiesMode: 'finish',
         }),
       ),
     ).toBe(0)

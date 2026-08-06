@@ -219,10 +219,10 @@ describe('writeListViewParams', () => {
   // something alongside a copies value.
   test('a non-default copiesMode is written only alongside a copies value', () => {
     const filters = createDefaultCardFilters()
-    filters.copiesMode = 'exact'
+    filters.copiesMode = 'printing'
     expect(encode(defaultState({ filters })).has('copiesMode')).toBe(false)
     filters.copies = 2
-    expect(encode(defaultState({ filters })).get('copiesMode')).toBe('exact')
+    expect(encode(defaultState({ filters })).get('copiesMode')).toBe('printing')
   })
 
   test('oracle and art tag selections and their non-default sub-options are written', () => {
@@ -250,8 +250,9 @@ describe('writeListViewParams', () => {
 
 describe('parseListViewParams', () => {
   test('copiesMode is only applied alongside a copies value, and must be a known mode', () => {
-    expect(parseListViewParams(new URLSearchParams('copiesMode=exact')).filters).toBeUndefined()
-    expect(parseListViewParams(new URLSearchParams('copies=2&copiesMode=banana')).filters).toEqual({
+    expect(parseListViewParams(new URLSearchParams('copiesMode=printing')).filters).toBeUndefined()
+    // 'exact' is a mode of the *other* filters, and deliberately not one here.
+    expect(parseListViewParams(new URLSearchParams('copies=2&copiesMode=exact')).filters).toEqual({
       copies: 2,
     })
   })
@@ -277,7 +278,7 @@ describe('parseListViewParams', () => {
     filters.priceOp = '>='
     filters.copies = 2
     filters.copiesOp = '>='
-    filters.copiesMode = 'number'
+    filters.copiesMode = 'printing'
     const state = defaultState({
       viewMode: 'overlap',
       cardSize: 'medium',
@@ -315,7 +316,7 @@ describe('parseListViewParams', () => {
       priceOp: '>=',
       copies: 2,
       copiesOp: '>=',
-      copiesMode: 'number',
+      copiesMode: 'printing',
     })
   })
 

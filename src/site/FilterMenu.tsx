@@ -241,11 +241,16 @@ const SET_MODE_OPTIONS = modeOptions(SET_CODE_FILTER_MODES, {
  * What the copies filter treats as the same card when it adds quantities up.
  * Sits on the Copies row itself rather than reusing `matchModeOptions`: these
  * modes pick a grouping key, not an any-of/none-of/all-of relationship.
+ *
+ * The labels are the user's vocabulary and the values are the code's, so they
+ * differ: a button reading "Number" is the `printing` mode, because "Number"
+ * names what you type into a collector-number field while `printing` names what
+ * the filter groups by. `title` carries the meaning either way.
  */
 const COPIES_MODE_OPTIONS = modeOptions(COPIES_MATCH_MODES, {
   name: { label: 'Name', title: 'Count every printing of the card name together' },
-  number: { label: 'Number', title: 'Count only the same set code and collector number' },
-  exact: { label: 'Exact', title: 'Count only the same printing in the same finish' },
+  printing: { label: 'Number', title: 'Count only the same set code and collector number' },
+  finish: { label: 'Exact', title: 'Count only the same printing in the same finish' },
 })
 
 const CARD_TYPE_MODE_OPTIONS = matchModeOptions('types')

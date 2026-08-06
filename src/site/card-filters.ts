@@ -66,14 +66,20 @@ export type CopiesComparator = NumericComparator
 /**
  * What counts as "the same card" when the copies filter adds quantities up:
  * - `name`: every printing of the name, however it is printed or finished.
- * - `number`: one printing — the same set code and collector number.
- * - `exact`: one printing in one finish.
+ * - `printing`: one printing — the same set code and collector number.
+ * - `finish`: one printing in one finish.
+ *
+ * Each value names the coarsest thing it keys on, rather than borrowing the
+ * `include`/`exclude`/`exact` vocabulary of the multi-value filters: these pick
+ * a grouping key, not a set relationship, and an `exact` here would sit beside
+ * `typeMode=exact` in a shared URL meaning something unrelated. The buttons
+ * still read Name / Number / Exact — see `COPIES_MODE_OPTIONS`.
  *
  * Condition is deliberately not part of any of them: a played and a near-mint
  * copy of a printing are still two copies of it, and the question the filter
  * answers ("how many of this do I have?") does not change with wear.
  */
-export const COPIES_MATCH_MODES = ['name', 'number', 'exact'] as const
+export const COPIES_MATCH_MODES = ['name', 'printing', 'finish'] as const
 
 export type CopiesMatchMode = (typeof COPIES_MATCH_MODES)[number]
 
@@ -325,9 +331,9 @@ function frontFaceKey(name: string): string {
 
 /**
  * The key the copies filter adds a card's quantity under, per match mode. Under
- * `number`/`exact` a card whose printing never resolved falls back to its name
- * key: it has no printing to be counted separately by, and dropping it from the
- * totals would silently under-count the printings that did resolve.
+ * `printing`/`finish` a card whose printing never resolved falls back to its
+ * name key: it has no printing to be counted separately by, and dropping it from
+ * the totals would silently under-count the printings that did resolve.
  *
  * Both halves of the printing come from the resolved card rather than one from
  * it and one from the entry, as every other printing identity on the site does
@@ -341,7 +347,7 @@ function copiesKey(card: CardData, mode: CopiesMatchMode): string {
   const printing = card.card
   if (printing === null) return name
   const key = printingKey(printing.set, printing.collector_number)
-  return mode === 'number' ? key : `${key}|${displayFinish(printing, card.finish)}`
+  return mode === 'printing' ? key : `${key}|${displayFinish(printing, card.finish)}`
 }
 
 /**
