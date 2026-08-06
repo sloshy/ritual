@@ -165,7 +165,7 @@
   z-index: 60; /* above the sticky toolbar */
   /* This is the panel's real width; PANEL_WIDTH in FilterMenu.tsx feeds the same
      number to the anchoring math, so the two must be changed together. */
-  width: 380px;
+  width: 410px;
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
@@ -373,9 +373,12 @@
 }
 
 /* Mana Value, Price, and Copies all sit on the same line as their label and
-   comparator buttons, at one uniform width so the comparator groups line up. */
+   comparator buttons, at one uniform width so the comparator groups line up.
+   Narrow enough that Copies also fits its Name/Number/Exact match toggle on the
+   same line — these fields hold a two- or three-digit figure, so the width lost
+   costs nothing. */
 .filter-input-numeric {
-  width: 5.25rem;
+  width: 2.75rem;
 }
 
 /* Clear rides at the right end of the Hide-toggle row that heads the panel. It

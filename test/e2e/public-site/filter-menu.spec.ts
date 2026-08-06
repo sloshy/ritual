@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { mockPublicSiteDeckForFilters } from '../helpers/mock-public-site'
+import {
+  mockPublicSiteDeckForCopiesModes,
+  mockPublicSiteDeckForFilters,
+} from '../helpers/mock-public-site'
 import { openFilterMenu } from '../helpers/filter-menu'
 
 // 'Maybe Dragon' lives in the Maybeboard (extras) section; the rest are mainboard.
@@ -538,5 +541,44 @@ test.describe('Toolbar Filters menu', () => {
     await expect(page.locator('.filter-menu-panel')).not.toBeVisible()
 
     await expectVisibleCards(page, ['Green Elf'])
+  })
+})
+
+test.describe('Copies match mode', () => {
+  // Two printings of 'Split Bolt', one nonfoil and one foil: Name counts them as
+  // 2 copies of the name, Number and Exact as 1 copy each.
+  test.beforeEach(async ({ page }) => {
+    await mockPublicSiteDeckForCopiesModes(page)
+    await page.goto('#/deck/test-copies-deck')
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await page.locator('[data-view="list"]').click()
+    await page.waitForSelector('.card-list', { timeout: 10_000 })
+    await openFilterMenu(page)
+  })
+
+  test('switching the mode re-counts the same two printings', async ({ page }) => {
+    const mode = page.getByRole('group', { name: 'Copies match mode' })
+    await page.locator('#filter-copies').fill('2')
+
+    // Name (the default): both printings share the name, so both match '= 2'.
+    await expectVisibleCards(page, ['Split Bolt', 'Split Bolt'])
+
+    // Number: each printing is a one-of, so neither matches '= 2'.
+    await mode.getByRole('button', { name: 'Number' }).click()
+    await expectVisibleCards(page, [])
+
+    await page.locator('#filter-copies').fill('1')
+    await expectVisibleCards(page, ['Split Bolt', 'Split Bolt'])
+  })
+
+  test('exactly one mode is pressed at a time', async ({ page }) => {
+    const mode = page.getByRole('group', { name: 'Copies match mode' })
+    const pressed = mode.getByRole('button', { pressed: true })
+
+    await expect(pressed).toHaveText(['Name'])
+    await mode.getByRole('button', { name: 'Number' }).click()
+    await expect(pressed).toHaveText(['Number'])
+    await mode.getByRole('button', { name: 'Exact' }).click()
+    await expect(pressed).toHaveText(['Exact'])
   })
 })

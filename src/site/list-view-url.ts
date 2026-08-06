@@ -10,6 +10,7 @@ import {
   type CardFilters,
   type LabelFilterOption,
   type NumericComparator,
+  COPIES_MATCH_MODES,
   createDefaultCardFilters,
   isColorFilterActive,
   parseBuylistParam,
@@ -109,6 +110,7 @@ const KEYS = {
   priceOp: 'priceOp',
   copies: 'copies',
   copiesOp: 'copiesOp',
+  copiesMode: 'copiesMode',
   labels: 'labels',
   onBuylist: 'buylist',
   buylistPrice: 'buyPrice',
@@ -245,6 +247,11 @@ export function writeListViewParams(
   const hasCopies = f.copies !== null
   setOrDelete(params, KEYS.copies, hasCopies ? String(f.copies) : null)
   setOrDelete(params, KEYS.copiesOp, hasCopies && f.copiesOp !== d.copiesOp ? f.copiesOp : null)
+  setOrDelete(
+    params,
+    KEYS.copiesMode,
+    hasCopies && f.copiesMode !== d.copiesMode ? f.copiesMode : null,
+  )
 
   // Re-normalized on write so URL-seeded state can't persist a non-canonical order.
   const labels = parseLabelsParam(f.labels.join(','))
@@ -397,6 +404,8 @@ export function parseListViewParams(params: URLSearchParams): ListViewOverrides 
     filters.copies = copies
     const copiesOp = oneOf(get(KEYS.copiesOp), NUMERIC_OPS)
     if (copiesOp) filters.copiesOp = copiesOp
+    const copiesMode = oneOf(get(KEYS.copiesMode), COPIES_MATCH_MODES)
+    if (copiesMode) filters.copiesMode = copiesMode
   }
 
   const labels = parseLabelsParam(get(KEYS.labels))

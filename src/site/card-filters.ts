@@ -4,6 +4,8 @@ import { matchesAllTerms } from '../term-match'
 import { getFrontFaceName } from '../scryfall/card-utils'
 import { extractCardTypeTags, matchesCardTypes } from './card-types'
 import { matchesTags } from './card-tags'
+import { printingKey } from './printing-key'
+import { displayFinish } from '../finish-condition'
 import {
   CARD_LABEL_SELECTIONS,
   isCardLabelSelection,
@@ -60,6 +62,20 @@ export type PriceComparator = NumericComparator
 
 /** Comparison applied between a card's total copy count and the filter value. */
 export type CopiesComparator = NumericComparator
+
+/**
+ * What counts as "the same card" when the copies filter adds quantities up:
+ * - `name`: every printing of the name, however it is printed or finished.
+ * - `number`: one printing — the same set code and collector number.
+ * - `exact`: one printing in one finish.
+ *
+ * Condition is deliberately not part of any of them: a played and a near-mint
+ * copy of a printing are still two copies of it, and the question the filter
+ * answers ("how many of this do I have?") does not change with wear.
+ */
+export const COPIES_MATCH_MODES = ['name', 'number', 'exact'] as const
+
+export type CopiesMatchMode = (typeof COPIES_MATCH_MODES)[number]
 
 export interface CardFilters {
   hideLands: boolean
@@ -124,12 +140,18 @@ export interface CardFilters {
   /** Plain {@link NumericComparator}: {@link PriceComparator}'s "active currency" does not apply. */
   buylistPriceOp: NumericComparator
   /**
-   * Total quantity of cards sharing this card's name (case-insensitively, and
-   * by front face for double-faced cards), summed across every entry in the
-   * list, compared via `copiesOp`. Null = no copies filtering.
+   * Total quantity of the cards `copiesMode` considers the same as this one,
+   * summed across the cards handed to `filterCards`, compared via `copiesOp`.
+   * Null = no copies filtering.
+   *
+   * The scope is that argument, not the file: deck pages filter each partition
+   * separately (mainboard, sideboard, extras), so a card in the maybeboard is
+   * counted against the maybeboard alone.
    */
   copies: number | null
   copiesOp: CopiesComparator
+  /** What the copies total is grouped by; see {@link COPIES_MATCH_MODES}. */
+  copiesMode: CopiesMatchMode
   /**
    * Selected label chips, matched with OR semantics against each card's
    * *effective* labels (`'none'` matches an empty set). Empty = no label
@@ -173,6 +195,7 @@ export function createDefaultCardFilters(): CardFilters {
     buylistPriceOp: '=',
     copies: null,
     copiesOp: '=',
+    copiesMode: 'name',
     labels: [],
     onBuylist: [],
   }
@@ -286,31 +309,72 @@ function matchesColorIdentity(query: ColorIdentityQuery): boolean {
 }
 
 /**
- * Normalize a card name for name-based grouping (the copies filter's match
- * key). Double-faced cards are stored as "Front // Back" (Scryfall's own
- * name), so a two-sided printing is reduced to its front face before
- * comparing — otherwise a double-faced "Steam Vents // Steam Vents" would
- * never group with a single-sided "Steam Vents" of the same card.
+ * The key a card name groups under in the copies filter. Double-faced cards are
+ * stored as "Front // Back" (Scryfall's own name), so a two-sided printing is
+ * reduced to its front face before comparing — otherwise a double-faced
+ * "Steam Vents // Steam Vents" would never group with a single-sided
+ * "Steam Vents" of the same card.
+ *
+ * Deliberately not `term-match`'s exported `normalizeCardName`, which folds
+ * diacritics and strips punctuation for *searching*; this is an identity key,
+ * where "Jötun" and "Jotun" being one card is an assumption, not a courtesy.
  */
-function normalizeCardName(name: string): string {
+function frontFaceKey(name: string): string {
   return getFrontFaceName(name).toLowerCase()
 }
 
-/** Sum each card's quantity into a lowercase-name -> total-copies map, for the copies filter. */
-function countCopiesByName(cards: CardData[]): Map<string, number> {
-  const counts = new Map<string, number>()
+/**
+ * The key the copies filter adds a card's quantity under, per match mode. Under
+ * `number`/`exact` a card whose printing never resolved falls back to its name
+ * key: it has no printing to be counted separately by, and dropping it from the
+ * totals would silently under-count the printings that did resolve.
+ *
+ * Both halves of the printing come from the resolved card rather than one from
+ * it and one from the entry, as every other printing identity on the site does
+ * (`buylistRequestFor`). Mixing the two sources would key a pinned entry whose
+ * printing missed the cache under its own set code and the fallback printing's
+ * collector number — a pair that may name a real, different printing.
+ */
+function copiesKey(card: CardData, mode: CopiesMatchMode): string {
+  const name = frontFaceKey(card.name)
+  if (mode === 'name') return name
+  const printing = card.card
+  if (printing === null) return name
+  const key = printingKey(printing.set, printing.collector_number)
+  return mode === 'number' ? key : `${key}|${displayFinish(printing, card.finish)}`
+}
+
+/**
+ * The active copies filter, resolved once per `filterCards` call: the totals for
+ * the cards being filtered, plus the threshold to compare them against. Carrying
+ * `value` here rather than re-reading `filters.copies` per card is what lets the
+ * per-card test drop its non-null assertion.
+ */
+type CopiesQuery = {
+  /** Match key -> total copies, over the whole `cards` argument. */
+  totals: Map<string, number>
+  mode: CopiesMatchMode
+  op: CopiesComparator
+  value: number
+}
+
+/** Resolve the copies filter for `cards`, or null when it is inactive. */
+function resolveCopiesQuery(cards: CardData[], filters: CardFilters): CopiesQuery | null {
+  const { copies, copiesOp, copiesMode } = filters
+  if (copies === null) return null
+  const totals = new Map<string, number>()
   for (const card of cards) {
-    const key = normalizeCardName(card.name)
-    counts.set(key, (counts.get(key) ?? 0) + card.quantity)
+    const key = copiesKey(card, copiesMode)
+    totals.set(key, (totals.get(key) ?? 0) + card.quantity)
   }
-  return counts
+  return { totals, mode: copiesMode, op: copiesOp, value: copies }
 }
 
 /** Apply every active filter to `cards`, returning the cards that pass all of them. */
 export function filterCards<T extends CardData>(cards: T[], filters: CardFilters): T[] {
   const nameQuery = filters.name.trim()
   const setCodes = new Set(filters.setCodes.map((code) => code.toLowerCase()))
-  const copyCounts = filters.copies !== null ? countCopiesByName(cards) : null
+  const copiesQuery = resolveCopiesQuery(cards, filters)
   return cards.filter((card) => {
     if (filters.hideLands && isLand(card)) return false
     if (filters.hideUnpriced && card.price <= 0) return false
@@ -342,11 +406,11 @@ export function filterCards<T extends CardData>(cards: T[], filters: CardFilters
       return false
     }
     if (!matchesMoneyThreshold(card.price, filters.priceOp, filters.price)) return false
-    if (filters.copies !== null && copyCounts !== null) {
-      // copyCounts is built from this exact `cards` array with the same key, so
-      // every card here is guaranteed to already be a key in the map.
-      const total = copyCounts.get(normalizeCardName(card.name))!
-      if (!compareNumeric(total, filters.copiesOp, filters.copies)) return false
+    if (copiesQuery !== null) {
+      // The totals were built from this exact `cards` array under the same key,
+      // so every card here is already a key in the map.
+      const total = copiesQuery.totals.get(copiesKey(card, copiesQuery.mode)) ?? 0
+      if (!compareNumeric(total, copiesQuery.op, copiesQuery.value)) return false
     }
     if (filters.labels.length > 0 && !matchesCardLabelSelection(card.labels, filters.labels)) {
       return false

@@ -215,6 +215,16 @@ describe('writeListViewParams', () => {
     })
   }
 
+  // The copies match mode is gated like the comparators above — it only means
+  // something alongside a copies value.
+  test('a non-default copiesMode is written only alongside a copies value', () => {
+    const filters = createDefaultCardFilters()
+    filters.copiesMode = 'exact'
+    expect(encode(defaultState({ filters })).has('copiesMode')).toBe(false)
+    filters.copies = 2
+    expect(encode(defaultState({ filters })).get('copiesMode')).toBe('exact')
+  })
+
   test('oracle and art tag selections and their non-default sub-options are written', () => {
     const filters = createDefaultCardFilters()
     filters.oracleTags = ['ramp', 'mana-rock']
@@ -239,6 +249,12 @@ describe('writeListViewParams', () => {
 })
 
 describe('parseListViewParams', () => {
+  test('copiesMode is only applied alongside a copies value, and must be a known mode', () => {
+    expect(parseListViewParams(new URLSearchParams('copiesMode=exact')).filters).toBeUndefined()
+    expect(parseListViewParams(new URLSearchParams('copies=2&copiesMode=banana')).filters).toEqual({
+      copies: 2,
+    })
+  })
   test('round-trips a fully populated state', () => {
     const filters = createDefaultCardFilters()
     filters.hideLands = true
@@ -261,6 +277,7 @@ describe('parseListViewParams', () => {
     filters.priceOp = '>='
     filters.copies = 2
     filters.copiesOp = '>='
+    filters.copiesMode = 'number'
     const state = defaultState({
       viewMode: 'overlap',
       cardSize: 'medium',
@@ -298,6 +315,7 @@ describe('parseListViewParams', () => {
       priceOp: '>=',
       copies: 2,
       copiesOp: '>=',
+      copiesMode: 'number',
     })
   })
 

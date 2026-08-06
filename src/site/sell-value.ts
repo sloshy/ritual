@@ -12,7 +12,8 @@
 import { buildCkCartCsv, roundCents, type CkCartItem, type SellCartCsv } from '../buylist'
 import type { BuylistQuote } from '../buylist'
 import type { Finish, ScryfallCard } from '../types'
-import { displayFinish, quoteFor } from './buylist-quotes'
+import { quoteFor } from './buylist-quotes'
+import { displayFinish } from '../finish-condition'
 import type { CardData } from './card-sorting'
 
 /**

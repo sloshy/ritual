@@ -85,3 +85,20 @@ export function defaultPrintingFinish(printing: ScryfallCard): Finish {
   const finishes = printingFinishes(printing)
   return finishes.includes('nonfoil') ? 'nonfoil' : finishes[0]!
 }
+
+/**
+ * The finish a displayed copy actually is: the entry's own, else the printing's
+ * default (a foil-only printing is foil, not nonfoil), else nonfoil when the
+ * printing could not be resolved at all.
+ *
+ * The site's mirror of {@link "./collection-file".resolveFinish} for tiles whose
+ * entry may state no finish. Every producer of a buylist quote key goes through
+ * it — the request builder, the tile fields, and the cart export — as does the
+ * copies filter's `exact` mode. When callers disagree, the same card gets asked
+ * for under one key and looked up under another, which reads as "not on the
+ * buylist" on a card whose tile shows a price.
+ */
+export function displayFinish(printing: ScryfallCard | null, finish: Finish | undefined): Finish {
+  if (finish !== undefined) return finish
+  return printing ? defaultPrintingFinish(printing) : 'nonfoil'
+}

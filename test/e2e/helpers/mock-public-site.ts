@@ -900,6 +900,84 @@ export async function mockPublicSiteDeckForFilters(page: Page): Promise<void> {
   await fulfillJson(page, '**/decks/test-filter-deck.json', MOCK_FILTER_DECK)
 }
 
+/**
+ * Two printings of one name, each a one-of, one nonfoil and one foil. The three
+ * copies match modes give this deck three different answers — 2 copies together
+ * under Name, 1 each under Number and Exact — which the filter deck above (one
+ * printing per name) cannot express.
+ */
+const MOCK_COPIES_PRINTINGS = [
+  makeMockScryfallCard({
+    id: 'copies-bolt-a',
+    name: 'Split Bolt',
+    cmc: 1,
+    type_line: 'Instant',
+    mana_cost: '{R}',
+    set: 'tsa',
+    set_name: 'Test Set A',
+    collector_number: '10',
+    color_identity: ['R'],
+    finishes: ['nonfoil', 'foil'],
+    prices: { usd: '1.00' },
+  }),
+  makeMockScryfallCard({
+    id: 'copies-bolt-b',
+    name: 'Split Bolt',
+    cmc: 1,
+    type_line: 'Instant',
+    mana_cost: '{R}',
+    set: 'tsb',
+    set_name: 'Test Set B',
+    collector_number: '11',
+    color_identity: ['R'],
+    finishes: ['nonfoil', 'foil'],
+    prices: { usd: '2.00' },
+  }),
+]
+
+const MOCK_COPIES_DECK = {
+  deck: {
+    name: 'Test Copies Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: MOCK_COPIES_PRINTINGS.map((card, i) => ({
+          quantity: 1,
+          name: card.name,
+          set: card.set,
+          collectorNumber: card.collector_number,
+          // The second printing is foil, so Exact separates it from the first
+          // even when Number has already put them in different buckets.
+          finish: i === 0 ? 'nonfoil' : 'foil',
+          cardId: i + 1,
+        })),
+      },
+    ],
+  },
+  cards: { 'Split Bolt': MOCK_COPIES_PRINTINGS[0]! },
+  printings: { 'Split Bolt': MOCK_COPIES_PRINTINGS },
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+} satisfies DeckDetail
+
+/** Mock a deck holding two printings of one card name, for the Copies match modes. */
+export async function mockPublicSiteDeckForCopiesModes(page: Page): Promise<void> {
+  await fulfillJson(
+    page,
+    '**/index.json',
+    makeSiteIndex({
+      decks: [
+        makeDeckSummary({ slug: 'test-copies-deck', name: 'Test Copies Deck', cardCount: 2 }),
+      ],
+      availableCurrencies: ['usd'],
+    }),
+  )
+  await fulfillJson(page, '**/decks/test-copies-deck.json', MOCK_COPIES_DECK)
+}
+
 // ===== Trade page mock data =====
 
 /** Request body of Scryfall's batch `/cards/collection` endpoint. */

@@ -17,6 +17,7 @@ Every filter that takes more than one value — Color Identity, Sets, Card Type,
 Two filters differ, because of what their values mean:
 
 - **Sets** has only **Include** and **Exclude** — a card belongs to exactly one set, so "all of them" could never match.
+- **Copies** has a toggle of its own — **Name**, **Number**, **Exact** — which is not a match mode at all: it picks what the filter treats as the same card when it adds copies up. See [What counts as a copy](#what-counts-as-a-copy).
 - **Color Identity** adds a fourth mode, **Subset**, on the left, and it is that filter's default. A card's color identity is its _complete_ color set, which makes two containment questions meaningful that a tag list can't ask: **Subset** keeps cards that fit _inside_ your selection (anything playable in a deck of those colors), and **Exact** keeps only cards whose identity _equals_ it (the classic "exactly Azorius" query). **Include** and **Exclude** keep their usual any-of / none-of meaning.
 
 ### Colorless
@@ -46,7 +47,19 @@ All tag inputs (Sets, Card Type, Oracle Tags, and Art Tags) share the same autoc
 - **Oracle Tags** / **Art Tags** — tag inputs backed by [Scryfall Tagger](https://tagger.scryfall.com/) data (see below).
 - **Mana Value** — pick a comparison operator (`=`, `<`, `≤`, `>`, `≥`) from the toggle buttons and type a value to compare against the card's mana value.
 - **Price** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against the card's price in the currency chosen by the header **Prices** selector. Pick the operator from the toggle buttons and type an amount (up to two decimals); the filter's label shows which currency the threshold is in — **Price ($)**, **Price (€)**, and so on. Cards with no price in that currency never match. Because the threshold is currency-specific, switching the currency selector clears the field automatically.
-- **Copies** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against how many total copies of that card name you have in the list, added up across every entry that shares the name (including different printings). For example, searching **Copies = 1** finds cards you have exactly one of, while **Copies ≥ 2** finds every name you have duplicates of, regardless of how those copies are split across printings. A double-faced printing (stored as "Front // Back") is matched by its front face, so it groups correctly with a single-sided printing of the same card.
+- **Copies** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against how many total copies of the card you have in the list, added up across every entry that counts as the same card. For example, searching **Copies = 1** finds cards you have exactly one of, while **Copies ≥ 2** finds everything you have duplicates of. A **Name / Number / Exact** toggle decides what "the same card" means (see below).
+
+### What counts as a copy
+
+The Copies row carries its own three-way toggle, beside the label:
+
+- **Name** _(default)_ — every printing of the card name counts together, however it's printed or finished. **Copies ≥ 2** finds every name you have duplicates of, regardless of how those copies are split across printings. A double-faced printing (stored as "Front // Back") is matched by its front face, so it groups with a single-sided printing of the same card.
+- **Number** — only entries with the same set code _and_ collector number count together, across finishes. Use it to find the printings you have several of, rather than the names.
+- **Exact** — only the same set code, collector number, _and_ finish count together, so a foil and a nonfoil of one printing are two different things.
+
+Condition is never part of the comparison: a played copy and a near-mint copy of the same printing are still two copies of it. Entries with no card data behind them fall back to counting by name under all three modes.
+
+On a deck page the count is per section — the mainboard, the sideboard, and the extras (maybeboard, tokens) are counted separately, so a card in the maybeboard is compared against the maybeboard alone.
 
 ## Card Type filter
 

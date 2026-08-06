@@ -24,7 +24,7 @@ import {
   roundCents,
 } from '../buylist'
 import { apiUrl } from './api-base'
-import { defaultPrintingFinish } from '../finish-condition'
+import { displayFinish } from '../finish-condition'
 import { getCardPriceForFinish } from '../price-currency'
 import { sellModeActive } from './sell-mode'
 import type { Finish, ScryfallCard } from '../types'
@@ -131,21 +131,6 @@ export function quoteFor(
 export function buylistPriceFor(set: string, collectorNumber: string, finish: Finish): number {
   const quote = quoteFor(set, collectorNumber, finish)
   return quote && quote.buying ? quote.priceBuy : 0
-}
-
-/**
- * The finish a tile's copy actually is: the entry's own, else the printing's
- * default (a foil-only printing is foil, not nonfoil).
- *
- * This is the site's mirror of the engine's `resolveFinish`, and every producer
- * of a quote key must go through it — the request builder, the tile fields, and
- * the cart export. When they disagree, the same card gets asked for under one
- * key and looked up under another, which reads as "not on the buylist" on a
- * card whose tile shows a price.
- */
-export function displayFinish(card: ScryfallCard | null, finish: Finish | undefined): Finish {
-  if (finish !== undefined) return finish
-  return card ? defaultPrintingFinish(card) : 'nonfoil'
 }
 
 /** The buylist half of a `CardData`, derived from the store. */

@@ -21,8 +21,11 @@ import {
   parseBuylistParam,
   untaggedAddedCardNames,
   type CardFilters,
+  type CopiesMatchMode,
 } from '../../../src/site/card-filters'
-import { makeCardData as makeCard } from '../../test-utils'
+import type { CardData } from '../../../src/site/card-sorting'
+import type { Finish } from '../../../src/types'
+import { makeCardData as makeCard, makeScryfallCard } from '../../test-utils'
 
 function makeFilters(overrides: Partial<CardFilters> = {}): CardFilters {
   return { ...createDefaultCardFilters(), ...overrides }
@@ -403,6 +406,112 @@ describe('filterCards', () => {
     expect(result.map((c) => c.name)).toEqual(['Steam Vents // Steam Vents', 'Steam Vents'])
   })
 
+  describe('copies match modes', () => {
+    /** A Bolt tile on one printing, with an optional stated finish. */
+    function bolt(set: string, collectorNumber: string, finish?: Finish): CardData {
+      return makeCard({
+        name: 'Lightning Bolt',
+        setCode: set,
+        finish,
+        card: makeScryfallCard({
+          name: 'Lightning Bolt',
+          set,
+          collector_number: collectorNumber,
+          finishes: ['nonfoil', 'foil'],
+        }),
+      })
+    }
+
+    // Five one-of Bolts: two of the same printing (one of each finish), one of a
+    // different collector number in the same set, and two more sharing a set with
+    // neither. m10:161 repeats lea:161's collector number under a different set,
+    // so a key that dropped the set code would over-count it.
+    const leaFoil = bolt('lea', '161', 'foil')
+    const leaNonfoil = bolt('lea', '161', 'nonfoil')
+    const leaOther = bolt('lea', '162', 'nonfoil')
+    const m10 = bolt('m10', '146', 'nonfoil')
+    const m10Clash = bolt('m10', '161', 'nonfoil')
+    const cards = [leaFoil, leaNonfoil, leaOther, m10, m10Clash]
+
+    function matching(mode: CopiesMatchMode, copies: number): CardData[] {
+      return filterCards(cards, makeFilters({ copies, copiesOp: '=', copiesMode: mode }))
+    }
+
+    test("'name' counts every printing and finish of the name together", () => {
+      expect(matching('name', 5)).toEqual(cards)
+    })
+
+    test("'number' counts one set code and collector number, across finishes", () => {
+      expect(matching('number', 2)).toEqual([leaFoil, leaNonfoil])
+      expect(matching('number', 1)).toEqual([leaOther, m10, m10Clash])
+    })
+
+    test("'exact' counts one printing in one finish", () => {
+      expect(matching('exact', 1)).toEqual(cards)
+      expect(matching('exact', 2)).toEqual([])
+    })
+
+    test("'exact' treats an unstated finish as the printing's default finish", () => {
+      // Foil-only, so the default finish is foil rather than the blanket nonfoil:
+      // an entry that states 'foil' is the same copy as one that states nothing.
+      const foilOnly = (finish?: Finish): CardData =>
+        makeCard({
+          name: 'Lightning Bolt',
+          setCode: 'sld',
+          finish,
+          card: makeScryfallCard({ set: 'sld', collector_number: '1', finishes: ['foil'] }),
+        })
+      const pair = [foilOnly(), foilOnly('foil')]
+      expect(filterCards(pair, makeFilters({ copies: 2, copiesMode: 'exact' }))).toEqual(pair)
+    })
+
+    test("'number' and 'exact' still key an unpinned entry by the printing it shows", () => {
+      // A deck line with no pinned set code, resolved to a printing for display:
+      // the two finishes of it are separate copies under 'exact', together under 'number'.
+      const unpinned = (finish: Finish): CardData =>
+        makeCard({
+          name: 'Lightning Bolt',
+          setCode: '',
+          finish,
+          card: makeScryfallCard({
+            set: 'lea',
+            collector_number: '161',
+            finishes: ['nonfoil', 'foil'],
+          }),
+        })
+      const pair = [unpinned('foil'), unpinned('nonfoil')]
+      expect(filterCards(pair, makeFilters({ copies: 1, copiesMode: 'exact' }))).toEqual(pair)
+      expect(filterCards(pair, makeFilters({ copies: 2, copiesMode: 'number' }))).toEqual(pair)
+    })
+
+    test('tiles with no resolved printing fall back to counting by name', () => {
+      // No `card`, so there is no printing to key on. Under 'exact' the two still
+      // count as a pair rather than dropping out of the totals entirely.
+      const unresolved = [
+        makeCard({ name: 'Lightning Bolt', card: null }),
+        makeCard({ name: 'Lightning Bolt', card: null }),
+      ]
+      expect(
+        filterCards([...cards, ...unresolved], makeFilters({ copies: 2, copiesMode: 'exact' })),
+      ).toEqual(unresolved)
+    })
+
+    test('the printing is taken from the resolved card, not the entry set code', () => {
+      // An entry pinned to a set whose printing missed the cache and fell back to
+      // another one: it counts as the printing actually shown, so it groups with
+      // that printing rather than under a set/number pair that names neither.
+      const missed = makeCard({
+        name: 'Lightning Bolt',
+        setCode: 'm10',
+        finish: 'nonfoil',
+        card: makeScryfallCard({ name: 'Lightning Bolt', set: 'lea', collector_number: '162' }),
+      })
+      expect(
+        filterCards([...cards, missed], makeFilters({ copies: 2, copiesMode: 'number' })),
+      ).toEqual([leaFoil, leaNonfoil, leaOther, missed])
+    })
+  })
+
   test('filters combine: every active filter must pass', () => {
     const match = makeCard({
       name: 'Green Elf',
@@ -474,6 +583,7 @@ describe('countActiveFilters', () => {
           cardTypeMode: 'exclude',
           oracleTagMode: 'exclude',
           artTagMode: 'include',
+          copiesMode: 'exact',
         }),
       ),
     ).toBe(0)

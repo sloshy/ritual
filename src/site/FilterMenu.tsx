@@ -5,6 +5,7 @@ import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { parseSetCodesInput, scanSetCodesInput } from '../set-codes'
 import { colorIdentityName, WUBRG } from './card-sorting'
 import {
+  COPIES_MATCH_MODES,
   parseCopiesFilter,
   parseManaValueFilter,
   parseBuylistPriceFilter,
@@ -32,13 +33,14 @@ import { useDebouncedInput, type DebouncedInput } from './useDebouncedInput'
 
 /**
  * Wide enough for the header row to hold all three "Hide" toggles plus Clear on
- * one line (deck pages show the most), which also lets the Color Identity row fit
- * its label and four match modes without wrapping.
+ * one line (deck pages show the most), and for the Copies row — the menu's
+ * widest, carrying a label, a three-mode toggle, five comparators, and a field —
+ * to stay on one line.
  *
  * Only feeds the anchored-popover placement math — `.filter-menu-panel` in
  * shared.css sets the width that actually renders, so keep the two in step.
  */
-const PANEL_WIDTH = 380
+const PANEL_WIDTH = 410
 
 /** Display name for the colorless swatch — `colorIdentityName([])` is "Colorless". */
 const COLORLESS_NAME = colorIdentityName([])
@@ -235,6 +237,17 @@ const SET_MODE_OPTIONS = modeOptions(SET_CODE_FILTER_MODES, {
   exclude: { label: 'Exclude', title: 'Hide cards from the selected sets' },
 })
 
+/**
+ * What the copies filter treats as the same card when it adds quantities up.
+ * Sits on the Copies row itself rather than reusing `matchModeOptions`: these
+ * modes pick a grouping key, not an any-of/none-of/all-of relationship.
+ */
+const COPIES_MODE_OPTIONS = modeOptions(COPIES_MATCH_MODES, {
+  name: { label: 'Name', title: 'Count every printing of the card name together' },
+  number: { label: 'Number', title: 'Count only the same set code and collector number' },
+  exact: { label: 'Exact', title: 'Count only the same printing in the same finish' },
+})
+
 const CARD_TYPE_MODE_OPTIONS = matchModeOptions('types')
 const ORACLE_TAG_MODE_OPTIONS = matchModeOptions('oracle tags')
 const ART_TAG_MODE_OPTIONS = matchModeOptions('art tags')
@@ -349,13 +362,20 @@ type NumericFilterRowProps = {
   error: string | null
   step: string
   inputMode: 'numeric' | 'decimal'
+  /**
+   * An extra segmented control shown between the label and the comparators
+   * (Copies uses it for its match mode). A slot rather than three more props so
+   * the row stays agnostic about which vocabulary the control speaks.
+   */
+  modeToggle?: JSX.Element
 }
 
 /**
- * A numeric filter row (Mana Value, Price, Buylist, or Copies): the label, a comparator
- * toggle group, and a number input all on one line — these three rows are the
- * menu's most compact, so keeping the field beside its comparators rather than
- * below them saves a line each. Validation errors wrap underneath. The price rows
+ * A numeric filter row (Mana Value, Price, Buylist, or Copies): the label, an
+ * optional match-mode toggle, a comparator toggle group, and a number input all
+ * on one line — these are the menu's most compact rows, so keeping the field
+ * beside its comparators rather than below them saves a line each. Validation
+ * errors wrap underneath. The price rows
  * carry their currency in the label rather than beside the field, so every field
  * is the same width and their comparator groups line up.
  */
@@ -366,6 +386,7 @@ const NumericFilterRow: Component<NumericFilterRowProps> = (props) => {
         <label class="filter-label" for={props.inputId}>
           {props.label}
         </label>
+        {props.modeToggle}
         <div class="filter-toggle-group" role="group" aria-label={props.ariaLabel}>
           <For each={COMPARATOR_OPTIONS}>
             {(opt) => (
@@ -780,6 +801,14 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         error={copiesInput.error()}
         step="1"
         inputMode="numeric"
+        modeToggle={
+          <FilterModeToggle
+            ariaLabel="Copies match mode"
+            options={COPIES_MODE_OPTIONS}
+            value={props.filters.filters.copiesMode}
+            onChange={(copiesMode) => props.filters.update({ copiesMode })}
+          />
+        }
       />
     </>
   )
