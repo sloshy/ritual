@@ -16,10 +16,10 @@ test.describe('Wanted List Page', () => {
   })
 
   test('grouping by printing splits specific and any-printing entries', async ({ page }) => {
-    // All three mocked entries render, with the card count and price shown.
-    expect(await page.locator('.card-item').count()).toBe(3)
+    // All four mocked entries render, with the card count and price shown.
+    expect(await page.locator('.card-item').count()).toBe(4)
     const bodyText = await page.textContent('body')
-    expect(bodyText).toMatch(/3\s*cards?/i)
+    expect(bodyText).toMatch(/4\s*cards?/i)
     expect(bodyText).toMatch(/\$[\d.]+/)
 
     // Switch to list view so card names render as text within each section.
@@ -38,5 +38,15 @@ test.describe('Wanted List Page', () => {
     // Sol Ring and Mana Crypt are pinned to a printing → Specific Printing.
     await expect(specific).toContainText('Sol Ring')
     await expect(specific).toContainText('Mana Crypt')
+  })
+
+  test("an entry with no finish token is priced at the printing's default finish", async ({
+    page,
+  }) => {
+    // Gleaming Relic is foil-only and its line states no finish. Reading it
+    // flatly as nonfoil would quote $0 — the printing has no nonfoil price.
+    await page.locator('[data-view="list"]').click()
+    const row = page.locator('.card-list', { hasText: 'Gleaming Relic' })
+    await expect(row).toContainText('$15.00')
   })
 })

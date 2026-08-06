@@ -1,6 +1,6 @@
-import { DEFAULT_SECTION, type Condition, type Finish, type ScryfallCard } from './types'
+import { DEFAULT_SECTION, type Condition, type Finish } from './types'
 import { matchSectionHeader } from './section-format'
-import { defaultPrintingFinish, isCondition, isFinish } from './finish-condition'
+import { isCondition, isFinish } from './finish-condition'
 import { createFenceTracker } from './markdown-fence'
 import { quantityPrefixAdvisory } from './card-line'
 import { parseCardLabelsToken, type CardLabel } from './card-labels'
@@ -174,16 +174,4 @@ export function parseCollectionFile(content: string): CollectionParseResult {
     fencedLines,
     advisories,
   }
-}
-
-/** An entry's recorded finish preference, if any. */
-export type FinishPreference = { finish?: Finish }
-
-/**
- * The finish an entry's price should be read at: the entry's own finish when it
- * has one, otherwise nonfoil when the printing offers it, otherwise the
- * printing's first finish.
- */
-export function resolveFinish(entry: FinishPreference, card: ScryfallCard): Finish {
-  return entry.finish ?? defaultPrintingFinish(card)
 }

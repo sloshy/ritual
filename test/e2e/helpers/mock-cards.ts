@@ -121,6 +121,25 @@ export const MOCK_WANTED_LIST_CARD_CRYPT = makeMockScryfallCard({
   rarity: 'mythic',
 })
 
+/**
+ * A foil-only printing with no nonfoil price, wanted with no `[finish]` token.
+ * Reading such an entry flatly as nonfoil quotes $0 for a card that has a price,
+ * so this pins that the entry is read at the printing's default finish.
+ */
+export const MOCK_WANTED_LIST_CARD_FOIL_ONLY = makeMockScryfallCard({
+  id: 'foil-only-id',
+  name: 'Gleaming Relic',
+  cmc: 2,
+  type_line: 'Artifact',
+  mana_cost: '{2}',
+  prices: { usd: null, usd_foil: '15.00' },
+  finishes: ['foil'],
+  set: 'sld',
+  set_name: 'Secret Lair Drop',
+  collector_number: '99',
+  rarity: 'rare',
+})
+
 /** Wanted-list payload served by both the public wanted page and the admin load API. */
 export const MOCK_WANTED_LIST_DETAIL = {
   name: 'Test Wanted List',
@@ -145,22 +164,34 @@ export const MOCK_WANTED_LIST_DETAIL = {
       section: 'Main',
       state: 'fully-specified',
     },
+    {
+      name: 'Gleaming Relic',
+      set: 'sld',
+      collectorNumber: '99',
+      price: 15.0,
+      fileOrder: 3,
+      section: 'Main',
+      state: 'printing',
+    },
   ],
   cards: {
     'Lightning Bolt': MOCK_WANTED_LIST_CARD_BOLT,
     'Sol Ring': MOCK_WANTED_LIST_CARD_SOL,
     'Mana Crypt': MOCK_WANTED_LIST_CARD_CRYPT,
+    'Gleaming Relic': MOCK_WANTED_LIST_CARD_FOIL_ONLY,
     'c19:221': MOCK_WANTED_LIST_CARD_SOL,
     '2xm:270': MOCK_WANTED_LIST_CARD_CRYPT,
+    'sld:99': MOCK_WANTED_LIST_CARD_FOIL_ONLY,
   },
   printings: {
     'Lightning Bolt': [MOCK_WANTED_LIST_CARD_BOLT],
     'Sol Ring': [MOCK_WANTED_LIST_CARD_SOL],
     'Mana Crypt': [MOCK_WANTED_LIST_CARD_CRYPT],
+    'Gleaming Relic': [MOCK_WANTED_LIST_CARD_FOIL_ONLY],
   },
   symbolMap: {},
   useScryfallImgUrls: true,
-  totalPrice: 205.0,
+  totalPrice: 220.0,
   defaultCurrency: 'usd',
 } satisfies WantedListDetail
 

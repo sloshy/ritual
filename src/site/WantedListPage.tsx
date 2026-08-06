@@ -8,6 +8,7 @@ import { createSignal, createMemo, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, sessionCacheVersion } from './session-cache'
 import { normalizeCardName } from '../term-match'
+import { displayFinish } from '../finish-condition'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
@@ -301,7 +302,9 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
       const card = resolveWantedCardEntry(entry, props.cards)
       if (!card) return entry
 
-      const price = getCardPriceForFinish(card, entry.finish ?? 'nonfoil', props.currency)
+      // An entry with no finish token is read at the printing's default finish,
+      // not flatly as nonfoil: a foil-only printing has no nonfoil price to quote.
+      const price = getCardPriceForFinish(card, displayFinish(card, entry.finish), props.currency)
       return { ...entry, price }
     })
   })

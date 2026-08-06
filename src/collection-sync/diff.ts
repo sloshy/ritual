@@ -27,7 +27,8 @@
 import { printingSuffix } from '../card-line'
 import { findPrinting, type CardPrintingsLookup } from '../card-printing'
 import { createAddChange, createRemoveChange } from '../change-event'
-import { resolveFinish, type CollectionEntry } from '../collection-file'
+import { type CollectionEntry } from '../collection-file'
+import { defaultPrintingFinish } from '../finish-condition'
 import {
   ARCHIDEKT_GAME_PAPER,
   ARCHIDEKT_LANGUAGE_ENGLISH,
@@ -115,8 +116,8 @@ export type LocalIndexResult = {
 /**
  * Index the in-scope lists by sync key, one entry per physical copy.
  *
- * A line without an explicit `[finish]` is canonicalized through
- * {@link resolveFinish} against the cached printing, so an etched-only printing
+ * A line without an explicit `[finish]` is canonicalized to the cached
+ * printing's {@link defaultPrintingFinish}, so an etched-only printing
  * (Archidekt's `Etched` modifier, its own collector number) compares as
  * `etched` rather than sliding to `nonfoil` and reading as a different card.
  * A printing the cache does not hold canonicalizes to `nonfoil` with a warning
@@ -145,10 +146,12 @@ export async function buildLocalIndex(
     for (const [fileOrder, entry] of list.entries.entries()) {
       const set = entry.set.toLowerCase()
       let finish = entry.finish
-      if (!finish) {
+      if (finish === undefined) {
         const card = findPrinting(await printingsFor(entry.name), set, entry.collectorNumber)
         if (card) {
-          finish = resolveFinish(entry, card)
+          // The line states no finish, so only the printing's default is in play
+          // here — `displayFinish` would take the same branch, less legibly.
+          finish = defaultPrintingFinish(card)
         } else {
           finish = 'nonfoil'
           warnings.push({

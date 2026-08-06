@@ -3,7 +3,12 @@ import { createSignal, createEffect, createMemo, on, onCleanup, Show, For } from
 import { Modal } from '../../ui/Modal'
 import type { Finish, Condition, ScryfallCard } from '../../types'
 import { getCardImageUrl } from '../../card-image'
-import { isFinish, VALID_CONDITIONS } from '../../finish-condition'
+import {
+  defaultPrintingFinish,
+  isFinish,
+  printingFinishes,
+  VALID_CONDITIONS,
+} from '../../finish-condition'
 import type { EditorDefaults } from '../useEditorDefaults'
 import type { AddCardFromSearch } from '../useEditor'
 import type { SearchProvider } from '../search-provider'
@@ -390,14 +395,14 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     // Fall through to the finish/condition step — pre-fill from defaults where
     // possible so the user only confirms unspecified fields.
     setSelectedPrinting(printing)
-    const availableFinishes = printing.finishes.filter(isFinish)
-    const preferredFinish: Finish | undefined =
+    // `printingFinishes` (not a bare `.filter(isFinish)`) so a printing that
+    // models no usable finish still offers nonfoil rather than nothing.
+    const availableFinishes = printingFinishes(printing)
+    setSelectedFinish(
       props.defaults?.finish && availableFinishes.includes(props.defaults.finish)
         ? props.defaults.finish
-        : availableFinishes.includes('nonfoil')
-          ? 'nonfoil'
-          : availableFinishes[0]
-    setSelectedFinish(preferredFinish ?? 'nonfoil')
+        : defaultPrintingFinish(printing),
+    )
     setSelectedCondition(defaultCondition() ?? 'NM')
     setStep('finish-condition')
   }

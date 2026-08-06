@@ -2,7 +2,7 @@ import { buylistFieldsFor } from './buylist-quotes'
 import type { ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, getCardPriceForFinish } from '../price-currency'
-import { defaultPrintingFinish } from '../finish-condition'
+import { displayFinish } from '../finish-condition'
 import { type ListType, isListType } from '../list-type'
 import { hasSpecificPrinting, findPrinting } from '../card-printing'
 import { effectiveLabels } from '../card-labels'
@@ -335,7 +335,7 @@ function buildWantedCards(
     // An entry with no finish token is read at the printing's default finish, not
     // flatly as nonfoil: a foil-only printing has no nonfoil price to quote.
     const price = card
-      ? getCardPriceForFinish(card, entry.finish ?? defaultPrintingFinish(card), currency)
+      ? getCardPriceForFinish(card, displayFinish(card, entry.finish), currency)
       : entry.price
     const key = selectKeyFor('wanted', name, index)
     const preview = resolveCardPreview(card, useScryfallImgUrls)

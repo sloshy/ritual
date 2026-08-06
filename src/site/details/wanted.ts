@@ -5,7 +5,7 @@ import type { WantedListEntry } from '../../commands/wanted-helpers'
 import { parseTitleFromContent } from '../../section-format'
 import type { ChangelogPage } from '../../changelog-parser'
 import { findPrinting } from '../../card-printing'
-import { resolveFinish } from '../../collection-file'
+import { defaultPrintingFinish } from '../../finish-condition'
 import { getCardPrice, getCardPriceForFinish } from '../../price-currency'
 import { resolveCardImageSources } from '../image-sources'
 import type { ScryfallCard } from '../../types'
@@ -176,8 +176,8 @@ export async function buildWantedArtifacts(
             if (priceTix === 0) missingPriceCountTix++
           }
         } else {
-          // State 2: cheapest finish of this printing
-          const defaultFinish = resolveFinish({}, exactPrinting)
+          // State 2: the printing's default finish (nonfoil when it offers one).
+          const defaultFinish = defaultPrintingFinish(exactPrinting)
 
           if (hasUsd) {
             price = getCardPriceForFinish(exactPrinting, defaultFinish, 'usd')

@@ -1,14 +1,15 @@
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { parseCollectionFile, resolveFinish } from '../../collection-file'
+import { parseCollectionFile } from '../../collection-file'
 import type { CollectionEntry } from '../../collection-file'
 import type { CardLabel } from '../../card-labels'
 import { parseTitleFromContent } from '../../section-format'
 import type { ChangelogPage } from '../../changelog-parser'
 import { findPrinting } from '../../card-printing'
+import { displayFinish } from '../../finish-condition'
 import { getCardPriceForFinish } from '../../price-currency'
 import { resolveCardImageSources } from '../image-sources'
-import type { Finish, ScryfallCard } from '../../types'
+import type { ScryfallCard } from '../../types'
 import type { CollectionCardEntry, CollectionDetail, CollectionSummary } from '../data-types'
 import {
   includeChangelogCards,
@@ -109,7 +110,7 @@ export async function buildCollectionArtifacts(
     }
 
     const card = cardMap[cardKey] ?? null
-    const finish: Finish = card ? resolveFinish(entry, card) : entry.finish || 'nonfoil'
+    const finish = displayFinish(card, entry.finish)
     const price = card ? getCardPriceForFinish(card, finish, 'usd') : 0
     const priceEur = card ? getCardPriceForFinish(card, finish, 'eur') : 0
     const priceTix = card ? getCardPriceForFinish(card, finish, 'tix') : 0

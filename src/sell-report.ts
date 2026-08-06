@@ -45,7 +45,7 @@ import {
   type CardKingdomIndex,
   type CardKingdomProduct,
 } from './cardkingdom'
-import { resolveFinish } from './collection-file'
+import { displayFinish } from './finish-condition'
 import { LIST_TYPES, type ListType } from './list-type'
 import {
   loadPriceListInputs,
@@ -267,7 +267,7 @@ function matchPinnedEntry(
   index: CardKingdomIndex,
 ): EntryMatch {
   const exact = findPrinting(printings, entry.set, entry.collectorNumber)
-  const finish = exact ? resolveFinish(entry, exact) : (entry.finish ?? 'nonfoil')
+  const finish = displayFinish(exact, entry.finish)
 
   // The same matcher the site's sell mode calls, so a card quoted in the UI and
   // the same card in `ritual sell` can never disagree.

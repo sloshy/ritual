@@ -73,9 +73,9 @@ export function printingFinishes(printing: ScryfallCard): Finish[] {
  * printing is offered in it, otherwise its first finish — foil-only and
  * etched-only printings have no nonfoil price to quote.
  *
- * Shared by collection pricing ({@link "./collection-file".resolveFinish}) and the
- * interactive pickers' price column, so a printing is never quoted at one finish
- * in a list total and a different one in the prompt that added it. The site's
+ * Shared by collection pricing (via {@link displayFinish}) and the interactive
+ * pickers' price column, so a printing is never quoted at one finish in a list
+ * total and a different one in the prompt that added it. The site's
  * trade planner deliberately keeps its own `defaultFinishForCard`: that one ranks
  * nonfoil > foil > etched because its result decides whether a finish token is
  * omitted from a shared trade URL, which is an encoding contract rather than a
@@ -87,18 +87,24 @@ export function defaultPrintingFinish(printing: ScryfallCard): Finish {
 }
 
 /**
- * The finish a displayed copy actually is: the entry's own, else the printing's
- * default (a foil-only printing is foil, not nonfoil), else nonfoil when the
- * printing could not be resolved at all.
+ * The finish a copy actually is: the entry's own when it states one, else the
+ * printing's default (a foil-only printing is foil, not nonfoil), else nonfoil
+ * when there is no printing to ask.
  *
- * The site's mirror of {@link "./collection-file".resolveFinish} for tiles whose
- * entry may state no finish. Every producer of a buylist quote key goes through
- * it — the request builder, the tile fields, and the cart export — as does the
- * copies filter's `exact` mode. When callers disagree, the same card gets asked
- * for under one key and looked up under another, which reads as "not on the
- * buylist" on a card whose tile shows a price.
+ * The single answer to "what finish is this?" across the whole codebase —
+ * collection and wanted pricing, the collection sync diff, `ritual sell`'s
+ * matcher, every producer of a buylist quote key (the request builder, the tile
+ * fields, the cart export), and the copies filter's `finish` mode. When callers
+ * disagree, the same card gets asked for under one key and looked up under
+ * another, which reads as "not on the buylist" on a card whose tile shows a
+ * price. A missing printing is passed as null or undefined interchangeably —
+ * both mean the same thing here, and callers get it from lookups that return
+ * either.
  */
-export function displayFinish(printing: ScryfallCard | null, finish: Finish | undefined): Finish {
+export function displayFinish(
+  printing: ScryfallCard | null | undefined,
+  finish: Finish | undefined,
+): Finish {
   if (finish !== undefined) return finish
   return printing ? defaultPrintingFinish(printing) : 'nonfoil'
 }

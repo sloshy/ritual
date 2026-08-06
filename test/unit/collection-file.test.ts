@@ -1,12 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  COLLECTION_CARD_LINE_RE,
-  parseCollectionFile,
-  resolveFinish,
-  type CollectionEntry,
-} from '../../src/collection-file'
+import { COLLECTION_CARD_LINE_RE, parseCollectionFile } from '../../src/collection-file'
 import { CARD_LABELS } from '../../src/card-labels'
-import { makeScryfallCard } from '../test-utils'
 
 describe('parseCollectionFile', () => {
   test('parses card with set and collector number', () => {
@@ -149,33 +143,6 @@ describe('parseCollectionFile', () => {
     const { entries } = parseCollectionFile(content)
     expect(entries).toHaveLength(1)
     expect(entries[0]!.cardId).toBe(1)
-  })
-})
-
-function makeEntry(overrides: Partial<CollectionEntry> = {}): CollectionEntry {
-  return {
-    name: 'Test Card',
-    quantity: 1,
-    set: 'FDN',
-    collectorNumber: '1',
-    section: 'Main',
-    ...overrides,
-  }
-}
-
-describe('resolveFinish', () => {
-  test('uses entry finish if specified', () => {
-    expect(resolveFinish(makeEntry({ finish: 'foil' }), makeScryfallCard())).toBe('foil')
-  })
-
-  test('defaults to nonfoil if card supports it', () => {
-    expect(resolveFinish(makeEntry(), makeScryfallCard({ finishes: ['nonfoil', 'foil'] }))).toBe(
-      'nonfoil',
-    )
-  })
-
-  test('defaults to first finish if nonfoil not available', () => {
-    expect(resolveFinish(makeEntry(), makeScryfallCard({ finishes: ['foil'] }))).toBe('foil')
   })
 })
 

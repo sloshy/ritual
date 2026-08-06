@@ -52,6 +52,18 @@ export interface CollectionCardEntry {
   name: string
   set: string
   collectorNumber: string
+  /**
+   * Which finish this entry is *read* at, not necessarily the token its line
+   * carries: the detail builder resolves a line with no `[finish]` through
+   * `displayFinish`, so a foil-only printing reports `foil`. That is what the
+   * price beside it was quoted at.
+   *
+   * Because of that, this value must not be fed to a serializer —
+   * `formatCollectionLine` writes a `[finish]` token for anything but nonfoil,
+   * so round-tripping it would stamp a token the source file never had. The
+   * write path (`toCollectionCardEntries` in `editor/collection-changes.ts`)
+   * deliberately keeps the line's own answer instead.
+   */
   finish: Finish
   condition: Condition
   /**

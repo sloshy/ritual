@@ -187,6 +187,44 @@ describe('buildCombinedCards', () => {
   test('preserves section names from each source list', () => {
     expect(cards.map((c) => c.section)).toEqual(['Main', 'Sideboard', 'Main', 'Main'])
   })
+
+  test("a wanted entry with no finish token is priced at the printing's default finish", () => {
+    // A foil-only printing has no nonfoil price to quote, so reading the entry
+    // flatly as nonfoil would report $0 for a card that has a price.
+    const foilOnly = makeScryfallCard({
+      id: 'foil-only',
+      name: 'Shiny Bolt',
+      set: 'sld',
+      collector_number: '99',
+      finishes: ['foil'],
+      prices: { usd: null, usd_foil: '12.00' },
+    })
+    const wanted = {
+      ref: { type: 'wanted', slug: 'shiny' },
+      name: 'Shiny',
+      kind: 'wanted',
+      detail: {
+        name: 'Shiny',
+        entries: [
+          {
+            name: 'Shiny Bolt',
+            set: 'sld',
+            collectorNumber: '99',
+            price: 0,
+            fileOrder: 0,
+            section: 'Main',
+            state: 'specific',
+            cardId: 1,
+          },
+        ],
+        cards: { 'sld:99': foilOnly },
+        printings: { 'Shiny Bolt': [foilOnly] },
+        symbolMap: {},
+      } as unknown as WantedListDetail,
+    } satisfies Extract<LoadedListDetail, { kind: 'wanted' }>
+
+    expect(buildCombinedCards([wanted], 'usd', false)[0]!.price).toBe(12)
+  })
 })
 
 describe('source grouping over combined cards', () => {

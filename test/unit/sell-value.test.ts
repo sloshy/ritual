@@ -216,7 +216,7 @@ describe('buylistFieldsFor', () => {
   test('resolves the finish from the printing when the entry states none', async () => {
     await seedQuotes([{ key: 'dsk:2:foil', productId: 11, priceBuy: 5, qtyBuying: 1 }])
     setSellModeActive(true)
-    // A foil-only printing is foil, not nonfoil — the engine's `resolveFinish` rule.
+    // A foil-only printing is foil, not nonfoil — the `displayFinish` rule.
     const foilOnly = makeScryfallCard({
       id: 'sf-2',
       set: 'dsk',

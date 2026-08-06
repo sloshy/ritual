@@ -23,7 +23,8 @@
 
 import * as fs from 'node:fs/promises'
 import { findPrinting, hasSpecificPrinting, type CardPrintingsLookup } from './card-printing'
-import { parseCollectionFile, resolveFinish } from './collection-file'
+import { parseCollectionFile } from './collection-file'
+import { displayFinish } from './finish-condition'
 import { isExtraSection } from './deck-format'
 import { loadDeckFile } from './importers/text-file'
 import { LIST_TYPES, type ListType } from './list-type'
@@ -357,7 +358,7 @@ function priceEntry(
   let price = 0
   let finish: Finish | undefined
   if (exactPrinting) {
-    finish = resolveFinish(entry, exactPrinting)
+    finish = displayFinish(exactPrinting, entry.finish)
     price = getCardPriceForFinish(exactPrinting, finish, currency)
   } else if (pricing.representative) {
     price = getCardPrice(pricing.representative, currency)

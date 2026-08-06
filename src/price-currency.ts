@@ -1,6 +1,6 @@
 import type { ScryfallCard, ErrorCode, Finish } from './types'
 import { getErrorMessage, type ExitCodeValue } from './errors'
-import { defaultPrintingFinish, printingFinishes, VALID_FINISHES } from './finish-condition'
+import { displayFinish, printingFinishes, VALID_FINISHES } from './finish-condition'
 
 export type PriceCurrency = 'usd' | 'eur' | 'tix'
 
@@ -325,7 +325,7 @@ export function formatSpecificPrintingPrice(
   finish: Finish | undefined,
   currency: PriceCurrency = DEFAULT_CURRENCY,
 ): string {
-  const resolvedFinish = finish ?? defaultPrintingFinish(card)
+  const resolvedFinish = displayFinish(card, finish)
   const price = getCardPriceForFinish(card, resolvedFinish, currency)
   if (price <= 0) return 'Price: unavailable'
   return `Price: ${formatPrice(price, currency)}`
