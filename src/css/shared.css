@@ -262,6 +262,9 @@
     color: var(--btn-text);
     border: none;
     cursor: pointer;
+    /* The group never wraps internally, so a narrow row must push it onto its
+       own line rather than wrapping text inside a chip. */
+    white-space: nowrap;
 
     &.active {
       background: var(--bg-active);
@@ -270,15 +273,8 @@
   }
 }
 
-/* The Labels and Buylist filter chips: the toggle-group look, but multi-select
-   and wrappable. */
-.filter-labels,
-.filter-buylist {
-  margin-top: 0.25rem;
-  flex-wrap: wrap;
-}
-
-/* Every filter heading: label on the left, its match-mode toggle on the right. */
+/* Every filter heading: label on the left, its match-mode toggle (or the
+   multi-select Labels/Buylist chips) on the right. */
 .filter-type-header {
   display: flex;
   flex-wrap: wrap;

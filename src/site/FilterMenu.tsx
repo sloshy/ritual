@@ -152,6 +152,50 @@ function FilterModeToggle<M extends string>(props: FilterModeToggleProps<M>): JS
   )
 }
 
+/** One chip in a multi-select filter row: its value, button text, and tooltip. */
+type ChipFilterOption<T extends string> = { value: T; label: string; title: string }
+
+type ChipFilterRowProps<T extends string> = {
+  /** Heading text, e.g. "Labels". */
+  label: string
+  /** Accessible name for the chip group, e.g. "Label filter". */
+  ariaLabel: string
+  options: readonly ChipFilterOption<T>[]
+  selected: readonly T[]
+  onToggle: (value: T) => void
+}
+
+/**
+ * A multi-select chip row (Labels, Buylist), laid out like every other filter
+ * heading: title on the left, buttons right-aligned beside it. Unlike
+ * `FilterModeToggle` more than one chip can be active at once — each caller's
+ * `onToggle` owns the combination rules for its own vocabulary.
+ */
+function ChipFilterRow<T extends string>(props: ChipFilterRowProps<T>): JSX.Element {
+  return (
+    <div class="filter-row">
+      <div class="filter-type-header">
+        <span class="filter-label">{props.label}</span>
+        <div class="filter-toggle-group" role="group" aria-label={props.ariaLabel}>
+          <For each={props.options}>
+            {(opt) => (
+              <button
+                type="button"
+                classList={{ active: props.selected.includes(opt.value) }}
+                aria-pressed={props.selected.includes(opt.value)}
+                title={opt.title}
+                onClick={() => props.onToggle(opt.value)}
+              >
+                {opt.label}
+              </button>
+            )}
+          </For>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** The button text and tooltip for one mode, before it is paired with its value. */
 type FilterModeCopy = { label: string; title: string }
 
@@ -216,15 +260,12 @@ export interface FilterMenuProps {
   showBuylistFilter?: boolean
 }
 
-/** One labels-filter chip: its filter value, button text, and tooltip. */
-type LabelFilterOptionCopy = { value: LabelFilterOption; label: string; title: string }
-
 /**
  * The labels filter's chips, in canonical order. `keep` and `none` replace the
  * whole selection when picked — `toggleLabelFilterOption` enforces it — so the
  * titles say so rather than letting the chips silently deselect each other.
  */
-const LABEL_FILTER_OPTION_COPY: readonly LabelFilterOptionCopy[] = [
+const LABEL_FILTER_OPTION_COPY: readonly ChipFilterOption<LabelFilterOption>[] = [
   { value: 'sale', label: CARD_LABEL_DISPLAY_NAMES.sale, title: 'Cards labeled for sale' },
   { value: 'trade', label: CARD_LABEL_DISPLAY_NAMES.trade, title: 'Cards labeled for trade' },
   {
@@ -235,11 +276,8 @@ const LABEL_FILTER_OPTION_COPY: readonly LabelFilterOptionCopy[] = [
   { value: 'none', label: 'Unlabeled', title: 'Cards with no labels at all' },
 ]
 
-/** One buylist-filter chip: its filter value, button text, and tooltip. */
-type BuylistFilterOptionCopy = { value: BuylistFilterOption; label: string; title: string }
-
 /** The buylist filter's chips, in canonical order. The two combine freely (OR). */
-const BUYLIST_FILTER_OPTION_COPY: readonly BuylistFilterOptionCopy[] = [
+const BUYLIST_FILTER_OPTION_COPY: readonly ChipFilterOption<BuylistFilterOption>[] = [
   { value: 'on', label: 'On buylist', title: 'Cards the buyer has a listing for' },
   { value: 'off', label: 'Not on buylist', title: 'Cards the buyer has no listing for' },
 ]
@@ -579,55 +617,30 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         </div>
       </div>
       <Show when={props.showLabelsFilter}>
-        <div class="filter-row">
-          <span class="filter-label">Labels</span>
-          <div class="filter-toggle-group filter-labels" role="group" aria-label="Label filter">
-            <For each={LABEL_FILTER_OPTION_COPY}>
-              {(opt) => (
-                <button
-                  type="button"
-                  classList={{ active: props.filters.filters.labels.includes(opt.value) }}
-                  aria-pressed={props.filters.filters.labels.includes(opt.value)}
-                  title={opt.title}
-                  onClick={() =>
-                    props.filters.update({
-                      labels: toggleLabelFilterOption(props.filters.filters.labels, opt.value),
-                    })
-                  }
-                >
-                  {opt.label}
-                </button>
-              )}
-            </For>
-          </div>
-        </div>
+        <ChipFilterRow
+          label="Labels"
+          ariaLabel="Label filter"
+          options={LABEL_FILTER_OPTION_COPY}
+          selected={props.filters.filters.labels}
+          onToggle={(value) =>
+            props.filters.update({
+              labels: toggleLabelFilterOption(props.filters.filters.labels, value),
+            })
+          }
+        />
       </Show>
       <Show when={props.showBuylistFilter}>
-        <div class="filter-row">
-          <span class="filter-label">Buylist</span>
-          <div class="filter-toggle-group filter-buylist" role="group" aria-label="Buylist filter">
-            <For each={BUYLIST_FILTER_OPTION_COPY}>
-              {(opt) => (
-                <button
-                  type="button"
-                  classList={{ active: props.filters.filters.onBuylist.includes(opt.value) }}
-                  aria-pressed={props.filters.filters.onBuylist.includes(opt.value)}
-                  title={opt.title}
-                  onClick={() =>
-                    props.filters.update({
-                      onBuylist: toggleBuylistFilterOption(
-                        props.filters.filters.onBuylist,
-                        opt.value,
-                      ),
-                    })
-                  }
-                >
-                  {opt.label}
-                </button>
-              )}
-            </For>
-          </div>
-        </div>
+        <ChipFilterRow
+          label="Buylist"
+          ariaLabel="Buylist filter"
+          options={BUYLIST_FILTER_OPTION_COPY}
+          selected={props.filters.filters.onBuylist}
+          onToggle={(value) =>
+            props.filters.update({
+              onBuylist: toggleBuylistFilterOption(props.filters.filters.onBuylist, value),
+            })
+          }
+        />
       </Show>
       <div class="filter-row">
         <div class="filter-type-header">

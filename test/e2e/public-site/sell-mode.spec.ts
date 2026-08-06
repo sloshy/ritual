@@ -39,11 +39,13 @@ async function enableSellMode(page: Page): Promise<void> {
 }
 
 /**
- * A buylist filter chip by exact name — "On buylist" is a substring of
- * "Not on buylist", so a `hasText` match is ambiguous.
+ * A buylist filter chip, scoped to its group and matched by accessible name.
+ * `exact` also pins the casing.
  */
 function buylistChip(panel: Locator, name: string): Locator {
-  return panel.locator('.filter-buylist').getByRole('button', { name, exact: true })
+  return panel
+    .getByRole('group', { name: 'Buylist filter' })
+    .getByRole('button', { name, exact: true })
 }
 
 /** The index of a card in the mocked collection, in file order. */
@@ -159,7 +161,7 @@ test.describe('Sell mode', () => {
     const panel = await openFilterMenu(page)
     await panel.locator('#filter-buylist-price').fill('5')
     const comparator = (label: string) =>
-      panel.locator('[aria-label="Buylist price comparison"]').getByRole('button', {
+      panel.getByRole('group', { name: 'Buylist price comparison' }).getByRole('button', {
         name: label,
         exact: true,
       })
@@ -215,7 +217,12 @@ test.describe('Sell mode', () => {
   test('the buylist filter is unavailable until sell mode is on', async ({ page }) => {
     await gotoSellBinder(page)
     const panel = await openFilterMenu(page)
-    await expect(panel.locator('.filter-buylist')).toHaveCount(0)
+    // The Color group is a control: it proves the panel's groups are reachable,
+    // so the two absences below mean "withheld", not "role lookup found nothing".
+    await expect(panel.getByRole('group', { name: 'Color match mode' })).toHaveCount(1)
+    await expect(panel.getByRole('group', { name: 'Buylist filter' })).toHaveCount(0)
+    // The same prop gates the buylist price row.
+    await expect(panel.locator('#filter-buylist-price')).toHaveCount(0)
   })
 
   test('grouping by on-buylist re-buckets the list', async ({ page }) => {
