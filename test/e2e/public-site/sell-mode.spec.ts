@@ -39,6 +39,32 @@ async function enableSellMode(page: Page): Promise<void> {
 }
 
 /**
+ * Queue `requestAnimationFrame` callbacks instead of running them, so a test can
+ * hold the page inside a deferral. Must be installed before navigation.
+ */
+async function holdFrames(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const queued: FrameRequestCallback[] = []
+    window.requestAnimationFrame = (callback) => queued.push(callback)
+    window.cancelAnimationFrame = (handle) => {
+      queued[handle - 1] = () => {}
+    }
+    Object.assign(window, { __runFrames: () => queued.splice(0).forEach((cb) => cb(0)) })
+  })
+}
+
+/** Run every held frame callback, plus the task each one schedules. */
+async function releaseFrames(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        ;(window as unknown as { __runFrames: () => void }).__runFrames()
+        setTimeout(resolve, 0)
+      }),
+  )
+}
+
+/**
  * A buylist filter chip, scoped to its group and matched by accessible name.
  * `exact` also pins the casing.
  */
@@ -151,6 +177,43 @@ test.describe('Sell mode', () => {
     await expect(page.locator('.list-buylist-price')).toHaveText('Buy $4.00')
     await expect(toggle).toHaveAttribute('aria-busy', 'false')
     await expect(toggle.locator('.toolbar-busy-spinner')).toHaveCount(0)
+  })
+
+  test('the toggle reports the click before the mode itself turns on', async ({ page }) => {
+    // Sell mode is deferred to after a paint (see `engageSellMode`) so the
+    // button's own transition is not stuck behind the whole list rebuilding.
+    // Holding the frame queue is what makes that window observable: without it
+    // the flip lands within a retrying assertion's first poll, and a toggle that
+    // waited for the rebuild would look identical to one that did not.
+    await holdFrames(page)
+    await gotoSellBinder(page)
+
+    const toggle = page.locator(SELL_TOGGLE)
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    // The mode has *not* flipped: its buyer selector is not rendered yet.
+    await expect(page.locator('#buylist-buyer')).toHaveCount(0)
+
+    await releaseFrames(page)
+    await expect(page.locator('#buylist-buyer')).toHaveCount(1)
+  })
+
+  test('a second click during that window turns sell mode back off', async ({ page }) => {
+    await holdFrames(page)
+    await gotoSellBinder(page)
+
+    const toggle = page.locator(SELL_TOGGLE)
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+
+    // The button says pressed, so clicking it must un-press it — the pending
+    // flip belongs to a click the user has now taken back.
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+
+    await releaseFrames(page)
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    await expect(page.locator('#buylist-buyer')).toHaveCount(0)
   })
 
   test('the buylist price filter narrows by the buyer’s offer', async ({ page }) => {

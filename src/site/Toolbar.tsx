@@ -20,11 +20,6 @@ import type { SellModeControl } from './sell-mode'
 import { buylistLoading } from './buylist-quotes'
 import { BUYERS, BUYER_DISPLAY_NAMES, parseBuyerId } from '../buylist'
 
-/**
- * Sell mode's toolbar controls. Passed only by pages that offer sell mode
- * (a server-backed site with `site.sellMode` on); absent means the toggle and
- * the buyer selector are not rendered at all.
- */
 type ExtraToggle = {
   label: string
   checked: boolean
@@ -177,17 +172,21 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
   const sellControls = (
     <Show when={props.sell}>
       {(sell) => {
+        // Sell mode turns on a frame after the click (see `engageSellMode`), and
+        // the button is what shows that the click registered — so it reads the
+        // engaging flag as well as the mode itself.
+        const pressed = (): boolean => sell().active || sell().engaging()
         // Gated on the mode, not just the global store: quotes keep loading
         // after a toggle-off, and a button spinning for work whose result is no
         // longer displayed is worse than no spinner.
-        const busy = (): boolean => sell().active && buylistLoading()
+        const busy = (): boolean => pressed() && buylistLoading()
         return (
           <>
             <button
               type="button"
               class="toolbar-toggle toolbar-sell-toggle"
-              classList={{ active: sell().active }}
-              aria-pressed={sell().active}
+              classList={{ active: pressed() }}
+              aria-pressed={pressed()}
               // Marks the control's own state as in-flux for assistive tech —
               // it suppresses interim announcements rather than making one. The
               // announcement is the live region below.

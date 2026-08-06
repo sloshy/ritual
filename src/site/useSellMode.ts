@@ -23,7 +23,14 @@ import type { UseToolbarStateResult } from './useToolbarState'
 /** The toolbar slice this hook drives; kept narrow so pages can pass their whole toolbar. */
 type SellToolbarState = Pick<
   UseToolbarStateResult<string>,
-  'sellMode' | 'setSellMode' | 'buyer' | 'setBuyer' | 'sortLayers' | 'setSortLayers'
+  | 'sellMode'
+  | 'setSellMode'
+  | 'sellModeEngaging'
+  | 'engageSellMode'
+  | 'buyer'
+  | 'setBuyer'
+  | 'sortLayers'
+  | 'setSortLayers'
 > & {
   groupBy: Accessor<string>
   setGroupBy: (value: () => string) => void
@@ -76,11 +83,45 @@ export function useSellMode(input: UseSellModeInput): UseSellModeResult {
   // consumer has to remember to check both.
   const active = createMemo(() => input.supported() && input.toolbar.sellMode())
 
+  /**
+   * Ensure the page's cards are quoted. Reads `cards` on the caller's behalf,
+   * so calling this from the effect below keeps that dependency tracked.
+   */
+  const requestQuotes = (buyer = input.toolbar.buyer()): void => {
+    const requests = quoteRequests(input.cards())
+    if (requests.length === 0) return
+    void requestBuylistQuotes(requests, buyer)
+  }
+
+  // Turning sell mode on is the expensive direction, so the click does the two
+  // things that must not wait on the rebuild: it starts the fetch, and it hands
+  // the flip to `engageSellMode` so the button paints first.
+  const toggle = (): void => {
+    // Reads the engaging flag too, so a second click during the deferral turns
+    // the mode back off — matching the pressed button the user is clicking,
+    // rather than the mode that has not landed yet. `setSellMode` cancels the
+    // pending flip.
+    if (input.toolbar.sellMode() || input.toolbar.sellModeEngaging()) {
+      input.toolbar.setSellMode(false)
+      return
+    }
+    // Engage first so a throw from the card walk below cannot leave the mode
+    // permanently unreachable; both run in this same task either way, so the
+    // paint the deferral waits for is unaffected by the order.
+    input.toolbar.engageSellMode()
+    // Issued before the flip rather than from the effect below, which only runs
+    // once the whole page has rebuilt — that is the slowest possible moment to
+    // start a network request the rebuilt page is waiting on. Requesting here
+    // also raises `buylistLoading` in time for the toggle's first paint.
+    requestQuotes()
+  }
+
   const control = createMemo((): SellModeControl | undefined =>
     input.supported()
       ? {
           active: input.toolbar.sellMode(),
-          onToggle: () => input.toolbar.setSellMode(!input.toolbar.sellMode()),
+          engaging: input.toolbar.sellModeEngaging,
+          onToggle: toggle,
           buyer: input.toolbar.buyer(),
           onBuyerChange: (buyer: BuyerId) => input.toolbar.setBuyer(buyer),
         }
@@ -89,16 +130,15 @@ export function useSellMode(input: UseSellModeInput): UseSellModeResult {
 
   // Quotes load when sell mode turns on and whenever the card set or buyer
   // changes. `requestBuylistQuotes` skips printings it has already answered
-  // for, so re-runs cost nothing once the page is warm.
+  // for, so re-runs cost nothing once the page is warm — including the re-run
+  // that follows the flip `toggle` already requested for.
   createEffect(() => {
     // Read the buyer first: after an early return it would be an untracked
     // dependency, so switching buyers on a page with nothing to quote would
     // neither reset the store nor re-run this.
     const buyer = input.toolbar.buyer()
     if (!active()) return
-    const requests = quoteRequests(input.cards())
-    if (requests.length === 0) return
-    void requestBuylistQuotes(requests, buyer)
+    requestQuotes(buyer)
   })
 
   const summary = createMemo(() => summarizeSellValue(input.selected()))

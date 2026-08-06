@@ -3,7 +3,14 @@ import type { Accessor, Setter } from 'solid-js'
 import type { ViewMode, CardSize, SortBy, SortLayer, PriceGroupStrategy } from './card-sorting'
 import { usePointerCoarse } from '../ui/useMediaQuery'
 import type { BuyerId } from '../buylist'
-import { sellModeActive, sellModeBuyer, setSellModeActive, setSellModeBuyer } from './sell-mode'
+import {
+  engageSellMode,
+  sellModeActive,
+  sellModeBuyer,
+  sellModeEngaging,
+  setSellModeActive,
+  setSellModeBuyer,
+} from './sell-mode'
 
 export type UseToolbarStateDefaults<G extends string> = {
   groupBy?: G
@@ -31,6 +38,13 @@ export type UseToolbarStateResult<G extends string> = {
    */
   sellMode: Accessor<boolean>
   setSellMode: (next: boolean) => void
+  /**
+   * Whether a click is still waiting to turn sell mode on, and the click itself.
+   * Both go through the toolbar rather than being imported from the store, so
+   * every read and write of the mode crosses the same seam.
+   */
+  sellModeEngaging: Accessor<boolean>
+  engageSellMode: () => void
   /** Which buyer sell mode quotes against. */
   buyer: Accessor<BuyerId>
   setBuyer: (next: BuyerId) => void
@@ -74,6 +88,8 @@ export function useToolbarState<G extends string>(
     // cross-list selection dialog can read it without a page to ask.
     sellMode: sellModeActive,
     setSellMode: setSellModeActive,
+    sellModeEngaging,
+    engageSellMode,
     buyer: sellModeBuyer,
     setBuyer: setSellModeBuyer,
   }
