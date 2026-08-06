@@ -165,8 +165,11 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   // A plain accessor, not a memo: `createMemo` evaluates eagerly, and `sell` is
   // declared below. Rebuilding a seven-element array on read costs nothing.
   const groupByOptions = (): SelectOption<WantedListGroupBy>[] => groupByOptionsFor(sell.active())
-  const sortByValues = (): readonly SortBy[] =>
-    sortByValuesFor(WANTED_SORT_BYS, props.enableSellMode)
+  // A parameter, not a read of the live mode, for the same reason as the
+  // group-by options: the URL sync validates against the full set a shared
+  // link may name, while the dropdown offers only what is currently on.
+  const sortValuesFor = (sellMode: boolean): readonly SortBy[] =>
+    sortByValuesFor(WANTED_SORT_BYS, sellMode)
 
   // Intentional one-time seed for the toolbar's group-by signal (read once at construction;
   // it must not fight the user's later toolbar changes). The editor remounts these pages on
@@ -197,7 +200,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     filters: cardFilters,
     defaults: { groupBy: initialGroupBy, sortBy: 'file-order' },
     groupByValues: groupByOptionsFor(Boolean(props.enableSellMode)).map((o) => o.value),
-    sortByValues: sortByValues(),
+    sortByValues: sortValuesFor(Boolean(props.enableSellMode)),
     enabled: props.enableUrlState,
     supportsSellMode: Boolean(props.enableSellMode),
   })
@@ -648,7 +651,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         groupByOptions={groupByOptions()}
         onGroupByChange={(v) => setGroupBy(v as WantedListGroupBy)}
         sortLayers={sortLayers()}
-        sortByOptions={sortByOptions(sortByValues())}
+        sortByOptions={sortByOptions(sortValuesFor(sell.active()))}
         onSortLayersChange={setSortLayers}
         priceGroupStrategy={priceGroupStrategy()}
         onPriceGroupStrategyChange={setPriceGroupStrategy}

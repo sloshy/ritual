@@ -186,13 +186,17 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     setPriceGroupStrategy,
   } = toolbar
   const cardFilters = useCardFilters()
-  const sortByValues = (): readonly SortBy[] => sortByValuesFor(DECK_SORT_BYS, props.enableSellMode)
+  // A parameter, not a read of the live mode, for the same reason as the
+  // group-by options: the URL sync validates against the full set a shared
+  // link may name, while the dropdown offers only what is currently on.
+  const sortValuesFor = (sellMode: boolean): readonly SortBy[] =>
+    sortByValuesFor(DECK_SORT_BYS, sellMode)
   useListViewUrlSync({
     toolbar,
     filters: cardFilters,
     defaults: { groupBy: 'type', sortBy: 'name' },
     groupByValues: deckGroupByOptions(Boolean(props.enableSellMode)).map((o) => o.value),
-    sortByValues: sortByValues(),
+    sortByValues: sortValuesFor(Boolean(props.enableSellMode)),
     enabled: props.enableUrlState,
     supportsSellMode: Boolean(props.enableSellMode),
   })
@@ -741,7 +745,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         groupByOptions={deckGroupByOptions(sell.active())}
         onGroupByChange={(v) => setGroupBy(v as GroupBy)}
         sortLayers={sortLayers()}
-        sortByOptions={sortByOptions(sortByValues())}
+        sortByOptions={sortByOptions(sortValuesFor(sell.active()))}
         onSortLayersChange={setSortLayers}
         priceGroupStrategy={priceGroupStrategy()}
         onPriceGroupStrategyChange={setPriceGroupStrategy}

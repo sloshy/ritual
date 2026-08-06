@@ -260,7 +260,27 @@ test.describe('Sell mode', () => {
       .toEqual(['Bought Card', 'Paused Card', 'Unlisted Card'])
   })
 
-  test('leaving sell mode drops the buylist sort and filter it set', async ({ page }) => {
+  test('the group control keeps naming the current grouping when the dropdown grows', async ({
+    page,
+  }) => {
+    await gotoSellBinder(page)
+    const groupField = page.locator('.toolbar-select').first()
+    await groupField.selectOption('cmc')
+
+    await enableSellMode(page)
+    // Wait for the mode to actually land: `enableSellMode` returns while the
+    // button is only *pressed*, which is before the deferred flip rebuilds the
+    // option list this test is about.
+    await expect(groupField.locator('option')).toHaveCount(7)
+
+    // Entering sell mode changes neither the grouping nor the control naming it.
+    await expect(groupField).toHaveValue('cmc')
+    await expect(page.locator('.section-divider h2')).toHaveText('2')
+  })
+
+  test('leaving sell mode swaps the buylist sort for price and drops the filter', async ({
+    page,
+  }) => {
     await gotoSellBinder(page)
     await switchToListView(page)
     await enableSellMode(page)
@@ -271,10 +291,11 @@ test.describe('Sell mode', () => {
     await panel.locator('#filter-buylist-price').fill('99')
     await expectVisibleCards(page, [])
 
-    // Both controls vanish with the mode, so neither may keep acting.
+    // Both controls vanish with the mode, so neither may keep acting — but the
+    // sort survives as its ordinary equivalent rather than being thrown away.
     await page.locator(SELL_TOGGLE).click()
     await expectVisibleCards(page, ['Bought Card', 'Paused Card', 'Unlisted Card'])
-    await expect(sortField).toHaveValue('file-order')
+    await expect(sortField).toHaveValue('price')
   })
 
   test('the buylist filter is unavailable until sell mode is on', async ({ page }) => {
@@ -292,10 +313,17 @@ test.describe('Sell mode', () => {
     await gotoSellBinder(page)
     await enableSellMode(page)
 
-    await page.locator('.toolbar-select').first().selectOption('on-buylist')
+    const groupField = page.locator('.toolbar-select').first()
+    await groupField.selectOption('on-buylist')
     await expect
-      .poll(async () => page.locator('.card-section-title, .section-title, h2').allTextContents())
+      .poll(async () => page.locator('.section-divider h2').allTextContents())
       .toEqual(expect.arrayContaining(['On Buylist', 'Not on Buylist']))
+
+    // Leaving the mode takes the grouping with it: the option disappears, so the
+    // list falls back to the page's default grouping and the control says so.
+    await page.locator(SELL_TOGGLE).click()
+    await expect(groupField).toHaveValue('none')
+    await expect(page.locator('.section-divider h2')).toHaveText('All Cards')
   })
 
   test('the selected total shows without sell mode; the sell value needs it', async ({ page }) => {

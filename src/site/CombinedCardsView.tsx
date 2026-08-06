@@ -145,15 +145,18 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
   // A plain accessor, not a memo: `createMemo` evaluates eagerly, and `sell` is
   // declared below. Rebuilding a small array on read costs nothing.
   const groupByOptions = (): SelectOption[] => groupByOptionsFor(sell.active())
-  const sortByValues = (): readonly SortBy[] =>
-    sortByValuesFor(COMBINED_SORT_BYS, props.enableSellMode)
+  // A parameter, not a read of the live mode, for the same reason as the
+  // group-by options: the URL sync validates against the full set a shared
+  // link may name, while the dropdown offers only what is currently on.
+  const sortValuesFor = (sellMode: boolean): readonly SortBy[] =>
+    sortByValuesFor(COMBINED_SORT_BYS, sellMode)
 
   useListViewUrlSync({
     toolbar,
     filters: cardFilters,
     defaults: { groupBy: 'source', sortBy: 'name' },
     groupByValues: groupByOptionsFor(Boolean(props.enableSellMode)).map((o) => o.value as GroupBy),
-    sortByValues: sortByValues(),
+    sortByValues: sortValuesFor(Boolean(props.enableSellMode)),
     enabled: props.enableUrlState,
     // From the selection's list *kinds*, not the loaded cards: the URL params
     // are applied once at construction, before any card data has arrived.
@@ -287,7 +290,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
         groupByOptions={groupByOptions()}
         onGroupByChange={(v) => setGroupBy(v as GroupBy)}
         sortLayers={sortLayers()}
-        sortByOptions={sortByOptions(sortByValues(), { 'file-order': 'List Order' })}
+        sortByOptions={sortByOptions(sortValuesFor(sell.active()), { 'file-order': 'List Order' })}
         onSortLayersChange={setSortLayers}
         priceGroupStrategy={priceGroupStrategy()}
         onPriceGroupStrategyChange={setPriceGroupStrategy}

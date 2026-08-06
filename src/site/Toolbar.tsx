@@ -79,6 +79,51 @@ const CARD_SIZE_LABELS: Record<CardSize, string> = {
   small: 'S',
 }
 
+type ToolbarSelectProps<T extends string> = {
+  value: T
+  options: readonly SelectOption<T>[]
+  onChange: (value: T) => void
+}
+
+/**
+ * A toolbar `<select>` whose option list can change while it is mounted.
+ *
+ * Turning sell mode on or off adds and removes group/sort options, and the
+ * pages rebuild those option arrays on every read, so the option list is
+ * recreated wholesale. A plain `value={...}` binding does not re-run for that —
+ * it only tracks the value — so the browser falls back to the first option and
+ * the control ends up naming a grouping the page is not using. Marking the
+ * matching option `selected` ties the displayed choice to the value however the
+ * list is rebuilt.
+ *
+ * `<Index>` rather than `<For>` for the same reason the sort layers use it: the
+ * options are a positional list rebuilt on every read, so reference keying would
+ * tear down and recreate every `<option>` on any change.
+ */
+function ToolbarSelect<T extends string>(props: ToolbarSelectProps<T>): JSX.Element {
+  // The DOM hands back a plain string, so the chosen option is resolved against
+  // the list rather than asserted — one narrowing here instead of one per caller.
+  const select = (raw: string): void => {
+    const option = props.options.find((o) => o.value === raw)
+    if (option) props.onChange(option.value)
+  }
+  return (
+    <select
+      class="toolbar-select"
+      value={props.value}
+      onChange={(e) => select(e.currentTarget.value)}
+    >
+      <Index each={props.options}>
+        {(opt) => (
+          <option value={opt().value} selected={opt().value === props.value}>
+            {opt().label}
+          </option>
+        )}
+      </Index>
+    </select>
+  )
+}
+
 /**
  * The list-page toolbar. Two layouts share one sticky container:
  *
@@ -232,15 +277,11 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
   )
 
   const groupSelect = () => (
-    <select
-      class="toolbar-select"
+    <ToolbarSelect
       value={props.groupBy}
-      onChange={(e) => props.onGroupByChange(e.currentTarget.value)}
-    >
-      <For each={props.groupByOptions}>
-        {(opt) => <option value={opt.value}>{opt.label}</option>}
-      </For>
-    </select>
+      options={props.groupByOptions}
+      onChange={props.onGroupByChange}
+    />
   )
 
   const bracketsSelect = () => (
@@ -265,12 +306,6 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
     const opt = props.sortByOptions.find((o) => !used.has(o.value))
     return opt?.value ?? props.sortByOptions[0]?.value ?? 'name'
   }
-  // The select's raw string value is validated back to a SortBy against the known
-  // options rather than asserted, so a stray value can never enter a sort layer.
-  const selectLayerField = (index: number, rawValue: string) => {
-    const opt = props.sortByOptions.find((o) => o.value === rawValue)
-    if (opt) setLayerField(index, opt.value)
-  }
   const setLayerField = (index: number, sortBy: SortBy) =>
     props.onSortLayersChange(props.sortLayers.map((l, i) => (i === index ? { ...l, sortBy } : l)))
   const toggleLayerReverse = (index: number) =>
@@ -291,15 +326,11 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
       <Index each={props.sortLayers}>
         {(layer, index) => (
           <div class="toolbar-sort-layer">
-            <select
-              class="toolbar-select"
+            <ToolbarSelect
               value={layer().sortBy}
-              onChange={(e) => selectLayerField(index, e.currentTarget.value)}
-            >
-              <For each={props.sortByOptions}>
-                {(opt) => <option value={opt.value}>{opt.label}</option>}
-              </For>
-            </select>
+              options={props.sortByOptions}
+              onChange={(sortBy) => setLayerField(index, sortBy)}
+            />
             <button
               type="button"
               class="toolbar-toggle toolbar-sort-reverse"

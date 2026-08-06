@@ -161,8 +161,8 @@ export function useSellMode(input: UseSellModeInput): UseSellModeResult {
         input.toolbar.setGroupBy(() => input.defaults.groupBy)
       }
       const current = input.toolbar.sortLayers()
-      const layers = current.filter((layer) => !isSellSortBy(layer.sortBy))
-      if (layers.length !== current.length) {
+      const layers = replaceSellSortLayers(current)
+      if (layers.length !== current.length || layers.some((l, i) => l !== current[i])) {
         input.toolbar.setSortLayers(
           layers.length > 0 ? layers : [{ sortBy: input.defaults.sortBy, reverse: false }],
         )
@@ -181,4 +181,24 @@ function isSellGroupBy(groupBy: string): boolean {
 /** Whether a sort field is one sell mode contributes. */
 function isSellSortBy(sortBy: SortLayer['sortBy']): boolean {
   return (SELL_SORT_BYS as readonly SortBy[]).includes(sortBy)
+}
+
+/**
+ * Swap each buylist sort layer for its ordinary equivalent, keeping the layer's
+ * direction. Both buylist fields order by money, so `price` is the sort that
+ * survives the mode — dropping the layer outright would instead throw away the
+ * ordering the user asked for. A layer whose replacement is already sorted on
+ * is dropped rather than duplicated; every page offering sell mode offers
+ * `price`, so the replacement is always a field its dropdown can show.
+ */
+function replaceSellSortLayers(layers: SortLayer[]): SortLayer[] {
+  const kept: SortLayer[] = []
+  const seen = new Set<SortBy>()
+  for (const layer of layers) {
+    const sortBy = isSellSortBy(layer.sortBy) ? 'price' : layer.sortBy
+    if (seen.has(sortBy)) continue
+    seen.add(sortBy)
+    kept.push(sortBy === layer.sortBy ? layer : { ...layer, sortBy })
+  }
+  return kept
 }
