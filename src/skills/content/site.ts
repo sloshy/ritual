@@ -246,7 +246,8 @@ ritual build-site
 
 A server-backed site also offers **sell mode**: Card Kingdom buylist prices beside each
 card, on-buylist chips plus a buylist-price threshold filter, buylist grouping, sorting by
-buylist price or by buylist-minus-retail (\`Buylist vs Price\`), and a CK sell-cart export. Quotes
+buylist price or by buylist-minus-retail ascending (\`Buylist vs Price\`, where a missing offer or
+retail price counts as $0), and a CK sell-cart export. Quotes
 are fetched live (never baked), so a fully static build never shows it. It is on by
 default; disable it for a published site with:
 

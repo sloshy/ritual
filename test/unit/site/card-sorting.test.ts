@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  compareBuylistSpread,
   compareBySortLayers,
   groupAndSortCards,
   getCardTypeCategory,
@@ -570,39 +569,31 @@ describe('buylist spread sorting', () => {
   const overRetail = makeCard({ name: 'Over', buylistSpread: 1.5, onBuylist: true })
   const nearRetail = makeCard({ name: 'Near', buylistSpread: -0.25, onBuylist: true })
   const wellUnder = makeCard({ name: 'Under', buylistSpread: -9, onBuylist: true })
-  const noOffer = makeCard({ name: 'None', buylistSpread: null })
+  const atRetail = makeCard({ name: 'Even', buylistSpread: 0 })
 
-  test('sorts best-first: the offers closest to or above retail lead', () => {
-    const sorted = [wellUnder, noOffer, overRetail, nearRetail].sort((a, b) =>
+  test('sorts ascending, with a zero spread landing where its arithmetic puts it', () => {
+    // Nothing is pinned to either end — a spread of 0 is an ordinary value, not
+    // a "no data" sentinel. Alphabetical order would be Even, Near, Over, Under.
+    const sorted = [overRetail, atRetail, wellUnder, nearRetail].sort((a, b) =>
       compareBySortLayers(a, b, sl('buylist-spread')),
     )
-    expect(sorted.map((c) => c.name)).toEqual(['Over', 'Near', 'Under', 'None'])
+    expect(sorted.map((c) => c.name)).toEqual(['Under', 'Near', 'Even', 'Over'])
   })
 
-  test('reversing the layer puts the worst offers first', () => {
-    const sorted = [overRetail, wellUnder].sort((a, b) =>
+  test('reversing the layer puts the best offers first', () => {
+    // Three cards, not two: with only Over and Under the name tiebreaker alone
+    // would produce the expected order whatever the comparator did.
+    const sorted = [wellUnder, overRetail, nearRetail].sort((a, b) =>
       compareBySortLayers(a, b, [{ sortBy: 'buylist-spread', reverse: true }]),
     )
-    expect(sorted.map((c) => c.name)).toEqual(['Under', 'Over'])
+    expect(sorted.map((c) => c.name)).toEqual(['Over', 'Near', 'Under'])
   })
 
-  test('two cards with no computable spread compare equal, falling to the tiebreaker', () => {
-    expect(compareBuylistSpread(null, null)).toBe(0)
-
-    // Fed in reverse name order deliberately: `Array.sort` is stable and coerces
-    // a NaN comparison to 0, so an already-sorted input would pass even with a
-    // subtraction-based comparator or with no name tiebreaker at all.
-    const other = makeCard({ name: 'Other', buylistSpread: null })
-    const sorted = [other, noOffer].sort((a, b) => compareBySortLayers(a, b, sl('buylist-spread')))
-    expect(sorted.map((c) => c.name)).toEqual(['None', 'Other'])
-  })
-
-  test('reversing brings the no-spread cards to the front, like any other field', () => {
-    // They are last by default but not pinned there: `compareBySortLayers`
-    // negates the whole comparison, exactly as it does for unpriced cards.
-    const sorted = [overRetail, noOffer, wellUnder].sort((a, b) =>
-      compareBySortLayers(a, b, [{ sortBy: 'buylist-spread', reverse: true }]),
-    )
-    expect(sorted.map((c) => c.name)).toEqual(['None', 'Under', 'Over'])
+  test('equal spreads fall through to the name tiebreaker', () => {
+    // Fed in reverse name order deliberately: `Array.sort` is stable, so an
+    // already-sorted input would pass with no name tiebreaker at all.
+    const other = makeCard({ name: 'Other', buylistSpread: 0 })
+    const sorted = [other, atRetail].sort((a, b) => compareBySortLayers(a, b, sl('buylist-spread')))
+    expect(sorted.map((c) => c.name)).toEqual(['Even', 'Other'])
   })
 })

@@ -118,15 +118,12 @@ export interface CardData {
    * pay at or above retail. Always computed in USD on both sides — the display
    * currency would make the subtraction meaningless.
    *
-   * `null` when no spread can be computed: no active offer, or no USD retail
-   * price to compare against (an etched printing Scryfall prices only in EUR,
-   * say). Those two are different situations but neither yields a number, and
-   * conflating them into one is better than inventing a numeric stand-in.
-   *
-   * Sorts last by default; like every other field, reversing the layer brings
-   * them to the front. Compare with {@link compareBuylistSpread}.
+   * A missing offer or a missing USD retail price counts as 0, so this is
+   * always a number: a card with no offer is just the worst deal on its retail
+   * price. Sorts ascending like every other numeric field, so the cards the
+   * buyer pays the most for relative to retail come last.
    */
-  buylistSpread: number | null
+  buylistSpread: number
   /**
    * Whether the buyer's catalog has this printing at all — true even for a
    * paused offer, whose `buylistPrice` is 0. Drives the on-buylist filter and
@@ -317,26 +314,9 @@ export function groupTotalPrice(cards: CardData[]): number {
 }
 
 /**
- * Order two buylist spreads best-first: the largest gap (the buyer paying at or
- * above retail) leads, and cards with no computable spread (`null`) trail.
- *
- * Best-first rather than numerically ascending because that is what the field is
- * for — the same reason `edhrec` puts rank 1 first. Reversing the layer flips
- * the whole thing, including where the `null`s land, exactly as reversing a
- * price sort moves unpriced cards from last to first.
- */
-export function compareBuylistSpread(a: number | null, b: number | null): number {
-  if (a === b) return 0
-  if (a === null) return 1
-  if (b === null) return -1
-  return a > b ? -1 : 1
-}
-
-/**
- * Compare two cards by a single field, with no tiebreaker. Ascending for every
- * field except `buylist-spread`, whose natural order is best-first — see
- * {@link compareBuylistSpread}. Returns 0 when the field is equal, so callers
- * can chain to the next sort layer.
+ * Compare two cards by a single field, with no tiebreaker. Always ascending;
+ * returns 0 when the field is equal, so callers can chain to the next sort
+ * layer.
  */
 function compareByField(a: CardData, b: CardData, sortBy: SortBy): number {
   switch (sortBy) {
@@ -353,7 +333,7 @@ function compareByField(a: CardData, b: CardData, sortBy: SortBy): number {
     case 'buylist-price':
       return a.buylistPrice - b.buylistPrice
     case 'buylist-spread':
-      return compareBuylistSpread(a.buylistSpread, b.buylistSpread)
+      return a.buylistSpread - b.buylistSpread
     default:
       return a[sortBy] - b[sortBy]
   }

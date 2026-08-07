@@ -184,32 +184,48 @@ describe('selectionToCartCsv', () => {
 })
 
 describe('buylistFieldsFor', () => {
-  const printing = makeScryfallCard({ id: 'sf-1', set: 'dsk', collector_number: '1' })
+  const printing = makeScryfallCard({
+    id: 'sf-1',
+    set: 'dsk',
+    collector_number: '1',
+    prices: { usd: '6.00' },
+  })
 
   test('is inert while sell mode is off, even with quotes loaded', async () => {
     await seedQuotes([{ key: 'dsk:1:nonfoil', productId: 10, priceBuy: 2, qtyBuying: 3 }])
 
     // Quotes outlive a toggle-off, so the mode — not the store — is the gate.
+    // The spread is 0 rather than the -$6 the card would score in sell mode:
+    // with the sort's controls gone, nothing may keep reordering the page.
     expect(buylistFieldsFor(printing, 'nonfoil')).toMatchObject({
       buylistPrice: 0,
+      buylistSpread: 0,
       onBuylist: false,
     })
     setSellModeActive(true)
     expect(buylistFieldsFor(printing, 'nonfoil')).toMatchObject({
       buylistPrice: 2,
+      buylistSpread: -4,
       onBuylist: true,
     })
   })
 
   test('a paused offer is on the buylist but worth nothing', async () => {
-    await seedQuotes([{ key: 'dsk:1:nonfoil', productId: 10, priceBuy: 9, qtyBuying: 0 }])
+    await seedQuotes([{ key: 'dsk:5:nonfoil', productId: 10, priceBuy: 9, qtyBuying: 0 }])
     setSellModeActive(true)
+    const paused = makeScryfallCard({
+      id: 'sf-5',
+      set: 'dsk',
+      collector_number: '5',
+      prices: { usd: '3.00' },
+    })
 
-    expect(buylistFieldsFor(printing, 'nonfoil')).toMatchObject({
+    expect(buylistFieldsFor(paused, 'nonfoil')).toMatchObject({
       buylistPrice: 0,
       onBuylist: true,
-      // A paused offer has no spread — it is not money you can get today.
-      buylistSpread: null,
+      // A paused offer is not money you can get today, so it counts as 0 on the
+      // buylist side of the spread — leaving the card's retail price as a loss.
+      buylistSpread: -3,
     })
   })
 
@@ -222,10 +238,14 @@ describe('buylistFieldsFor', () => {
       set: 'dsk',
       collector_number: '2',
       finishes: ['foil'],
+      prices: { usd: '10.00', usd_foil: '30.00' },
     })
 
     expect(buylistFieldsFor(foilOnly, undefined)).toMatchObject({
       buylistPrice: 5,
+      // The retail half follows the same finish: against the nonfoil price the
+      // spread would be -5.
+      buylistSpread: -25,
       onBuylist: true,
     })
   })
@@ -246,7 +266,21 @@ describe('buylistFieldsFor spread', () => {
     expect(buylistFieldsFor(priced, 'nonfoil').buylistSpread).toBe(-6)
   })
 
-  test('is null when there is an offer but no USD retail to compare against', async () => {
+  test('is rounded to cents, not left to float drift', async () => {
+    await seedQuotes([{ key: 'dsk:7:nonfoil', productId: 14, priceBuy: 4.1, qtyBuying: 1 }])
+    setSellModeActive(true)
+    const priced = makeScryfallCard({
+      id: 'sf-7',
+      set: 'dsk',
+      collector_number: '7',
+      prices: { usd: '10.30' },
+    })
+
+    // The raw subtraction is -6.199999999999999.
+    expect(buylistFieldsFor(priced, 'nonfoil').buylistSpread).toBe(-6.2)
+  })
+
+  test('counts a missing USD retail price as zero', async () => {
     await seedQuotes([{ key: 'dsk:4:nonfoil', productId: 13, priceBuy: 4, qtyBuying: 1 }])
     setSellModeActive(true)
     const eurOnly = makeScryfallCard({
@@ -256,12 +290,28 @@ describe('buylistFieldsFor spread', () => {
       prices: { eur: '9.00' },
     })
 
-    // An unknown spread, not a spread of zero — which would rank it above every
-    // card the buyer underpays for.
+    // The EUR price is deliberately not substituted: the spread is USD on both
+    // sides, and a card with no USD retail is compared against 0.
     expect(buylistFieldsFor(eurOnly, 'nonfoil')).toMatchObject({
       buylistPrice: 4,
-      buylistSpread: null,
+      buylistSpread: 4,
       onBuylist: true,
+    })
+  })
+
+  test('counts a card with no offer at all as the full retail loss', async () => {
+    setSellModeActive(true)
+    const unquoted = makeScryfallCard({
+      id: 'sf-6',
+      set: 'dsk',
+      collector_number: '6',
+      prices: { usd: '7.50' },
+    })
+
+    expect(buylistFieldsFor(unquoted, 'nonfoil')).toMatchObject({
+      buylistPrice: 0,
+      buylistSpread: -7.5,
+      onBuylist: false,
     })
   })
 })

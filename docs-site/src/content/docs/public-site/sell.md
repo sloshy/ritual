@@ -72,16 +72,18 @@ page's default, so nothing keeps narrowing or reordering the list once its contr
 
 ### Sorting by Buylist vs Price
 
-**Buylist vs Price** sorts on the buyer's offer _minus_ the card's retail price, so the cards
-where they pay closest to — or above — what the card is worth come first. That is usually the
-question worth asking: a $40 card at a $12 offer is a worse deal than a $2 card at a $1.90 offer,
-even though the first pays more.
+**Buylist vs Price** sorts on the buyer's offer _minus_ the card's retail price, ascending — so
+the cards they pay furthest _below_ retail for come first, and the ones they pay closest to, or
+above, what the card is worth come last. That gap is usually the question worth asking: a $40 card
+at a $12 offer is a worse deal than a $2 card at a $1.90 offer, even though the first pays more.
+Reversing the layer puts the best offers first.
 
 Both sides are read in dollars, so the comparison means the same thing whatever currency the page
-is displaying. Cards with no computable spread — no active offer, or no dollar retail price to
-compare against — sort last. Reversing the layer flips the whole order, so those cards come first
-and the offers furthest below retail follow, exactly as reversing a price sort moves unpriced
-cards to the front.
+is displaying. A missing or paused offer and a missing dollar retail price both count as $0: a
+card the buyer does not stock ranks by the full retail price you would be giving up, and a card
+with no dollar price ranks by the offer alone. Nothing is pinned to either end of the list, so an
+unquoted cheap card sits among the offers that land near retail rather than clustering with the
+other unquoted cards.
 
 ### Currency and condition
 
@@ -140,6 +142,7 @@ Sell mode's state rides in the URL hash like every other toolbar and filter valu
 | `buylist=on,off`                           | The buylist filter chips.                                |
 | `group=buylist-price` / `group=on-buylist` | The buylist groupings.                                   |
 | `sort=buylist-price`                       | Sort by buylist price (prefix with `-` to reverse).      |
+| `sort=buylist-spread`                      | Sort by Buylist vs Price (prefix with `-` to reverse).   |
 
 Opening such a link on a site that does not offer sell mode simply ignores these parameters — you
 never land on a list narrowed by a filter the toolbar cannot show or clear.

@@ -245,14 +245,12 @@ test.describe('Sell mode', () => {
     const sortField = page.locator('.toolbar-sort-layer .toolbar-select').first()
     await sortField.selectOption('buylist-spread')
 
-    // Asserting the reversed order, because the forward order happens to match
-    // both the page's default file-order sort and alphabetical order — so a
-    // no-op sort field would satisfy it. Reversed, the cards with no computable
-    // spread come first, which nothing else produces.
-    await page.locator('.toolbar-sort-layer .toolbar-sort-reverse').first().click()
+    // Spreads are $4−$10, $0−$20 and $0−$30, so ascending puts the card the
+    // buyer pays closest to retail for last — the exact inverse of the page's
+    // default file-order sort, which no no-op sort field could produce.
     await expect
       .poll(async () => page.locator('.list-name').allTextContents())
-      .toEqual(['Paused Card', 'Unlisted Card', 'Bought Card'])
+      .toEqual(['Unlisted Card', 'Paused Card', 'Bought Card'])
 
     await page.locator('.toolbar-sort-layer .toolbar-sort-reverse').first().click()
     await expect

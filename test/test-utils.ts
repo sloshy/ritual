@@ -73,7 +73,7 @@ export function makeCardData(overrides: Partial<CardData> = {}): CardData {
     edhrec: 1000,
     price: 1.5,
     buylistPrice: 0,
-    buylistSpread: null,
+    buylistSpread: 0,
     onBuylist: false,
     type: 'Creature — Human',
     section: 'Main',

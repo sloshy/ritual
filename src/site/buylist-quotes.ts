@@ -120,34 +120,26 @@ export function quoteFor(
   return quotes().get(quoteKey(set, collectorNumber, finish))
 }
 
-/**
- * The buylist price for a printing, or 0 when there is no active offer.
- *
- * 0 is the "no price" sentinel the site's filters, grouping and sorting already
- * use for missing card prices, so buylist prices slot into that machinery
- * unchanged. A paused offer (the buyer publishes a price but is not currently
- * buying) reads as 0 too: it is not money you can get today.
- */
-export function buylistPriceFor(set: string, collectorNumber: string, finish: Finish): number {
-  const quote = quoteFor(set, collectorNumber, finish)
-  return quote && quote.buying ? quote.priceBuy : 0
-}
-
 /** The buylist half of a `CardData`, derived from the store. */
 export type BuylistCardFields = {
+  /**
+   * The active per-copy offer, or 0 when there is none. 0 is the "no price"
+   * sentinel the site's filters, grouping and sorting already use for missing
+   * card prices, so buylist prices slot into that machinery unchanged. A paused
+   * offer (the buyer publishes a price but is not currently buying) reads as 0
+   * too: it is not money you can get today.
+   */
   buylistPrice: number
-  buylistSpread: number | null
+  buylistSpread: number
   onBuylist: boolean
 }
 
 /** No quote: what every card carries while sell mode is off. */
-export const NO_BUYLIST_FIELDS: Readonly<BuylistCardFields> = {
+const NO_BUYLIST_FIELDS: Readonly<BuylistCardFields> = Object.freeze({
   buylistPrice: 0,
-  // Not 0: a card with no offer has no spread at all, and 0 would rank it
-  // above every card the buyer underpays for. See `compareBuylistSpread`.
-  buylistSpread: null,
+  buylistSpread: 0,
   onBuylist: false,
-}
+})
 
 /**
  * The buylist fields for the printing a tile is actually displaying. Quoting the
@@ -168,17 +160,17 @@ export function buylistFieldsFor(
   if (!card || !sellModeActive()) return NO_BUYLIST_FIELDS
   const resolvedFinish = displayFinish(card, finish)
   const quote = quoteFor(card.set, card.collector_number, resolvedFinish)
-  if (!quote) return NO_BUYLIST_FIELDS
-  if (!quote.buying) return { ...NO_BUYLIST_FIELDS, onBuylist: true }
   // Retail read in the buyer's currency, not the page's: subtracting a EUR
   // price from a USD offer would produce a number that means nothing.
   const retail = getCardPriceForFinish(card, resolvedFinish, BUYLIST_CURRENCY)
+  // Both sides fall back to 0 when missing, so the spread is always a number: a
+  // card with no offer is simply the worst possible deal on its retail price,
+  // and one with no USD retail is measured against the offer alone.
+  const buylistPrice = quote?.buying ? quote.priceBuy : 0
   return {
-    buylistPrice: quote.priceBuy,
-    // Null, not 0, when there is no USD retail to compare against: an unknown
-    // spread is not a spread of zero.
-    buylistSpread: retail > 0 ? roundCents(quote.priceBuy - retail) : null,
-    onBuylist: true,
+    buylistPrice,
+    buylistSpread: roundCents(buylistPrice - retail),
+    onBuylist: quote !== undefined,
   }
 }
 
