@@ -1,6 +1,11 @@
 import prompts from 'prompts'
 import type { DeckData } from '../types'
-import { promptFinishAndCondition, resolveCardPrinting } from './collection-helpers'
+import {
+  promptFinishAndCondition,
+  resolveAddedLanguage,
+  resolveCardPrinting,
+} from './collection-helpers'
+import { languageToken, type CardLanguage } from '../card-language'
 import {
   type DeckSessionConfig,
   findCardById,
@@ -178,7 +183,8 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     const printingInfo = printing.set
       ? ` (${printing.set.toUpperCase()}:${printing.collectorNumber})`
       : ''
-    console.log(`Added: ${cardName}${printingInfo} to ${section}`)
+    const languageInfo = languageToken(printing.language)
+    console.log(`Added: ${cardName}${printingInfo}${languageInfo} to ${section}`)
   }
 
   return {
@@ -219,6 +225,9 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
       const { cardName, forcePrompts } = input
       const isEditing = input.intent === 'edit-last'
       let printing = input.preselected
+      // Set only when the picker's availability confirm resolved a language
+      // (the printing does not exist in the configured default language).
+      let pickedLanguage: CardLanguage | undefined
       if (!printing) {
         const result = await resolveCardPrinting(cardName, sessionConfig, excludeDigitalOnly)
         // A cancel must not fall through to the name-only fallback below — the
@@ -234,10 +243,11 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
             console.log('No section selected. Skipping.')
             return
           }
-          await addToDeck(ctx, cardName, {}, section)
+          await addToDeck(ctx, cardName, { language: resolveAddedLanguage(undefined) }, section)
           return
         }
         printing = result.printing
+        pickedLanguage = result.language
       }
 
       const finishAndCondition = await promptFinishAndCondition(
@@ -252,13 +262,21 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
         collectorNumber: printing.collector_number,
         finish: finishAndCondition.finish,
         condition: finishAndCondition.condition,
+        language: resolveAddedLanguage(pickedLanguage),
       }
 
       // ── Edit: re-set the printing on the existing card ────────────
       if (isEditing && ctx.lastAdded) {
         applyDeckChange(
           state,
-          createSetPrintingChange(cardName, { ...printingTuple, cardId: ctx.lastAdded.cardId }),
+          createSetPrintingChange(cardName, {
+            ...printingTuple,
+            // Explicit, `en` included: an absent language would leave the
+            // previous add's token alone, but this edit replaces the entry's
+            // options wholesale (mirrors applyFlatListCardEntry).
+            language: printingTuple.language ?? 'en',
+            cardId: ctx.lastAdded.cardId,
+          }),
         )
         // The changelog records the entry's final state as an add.
         const addEvent = createAddChange(cardName, {

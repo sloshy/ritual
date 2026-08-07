@@ -243,6 +243,47 @@ describe('move API', () => {
     expect(body.message).toContain('toSection')
   })
 
+  test('a language arrival-override stamps the destination line', async () => {
+    await writeCollectionFile(tmpDir, 'src', {
+      title: 'Source',
+      entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 }],
+    })
+    const dstPath = await writeCollectionFile(tmpDir, 'dst', { title: 'Dest', entries: [] })
+
+    const data = await loadData()
+    const card = findCard(data, 'Sol Ring')
+
+    const result = await commit([
+      { cardKey: card.key, toType: 'collection', toSlug: 'dst', language: 'ja' },
+    ])
+    expect(result.moved).toBe(1)
+    expect(await fs.readFile(dstPath, 'utf-8')).toContain('Sol Ring (C21:240) [ja]')
+  })
+
+  test('rejects an unknown language code without moving anything', async () => {
+    const srcPath = await writeCollectionFile(tmpDir, 'src', {
+      title: 'Source',
+      entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 }],
+    })
+    await writeCollectionFile(tmpDir, 'dst', { title: 'Dest', entries: [] })
+    const before = await fs.readFile(srcPath, 'utf-8')
+
+    const req = new Request('http://localhost/api/move/commit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        moves: [
+          { cardKey: 'collection:src:1:0', toType: 'collection', toSlug: 'dst', language: 'jp' },
+        ],
+      }),
+    })
+    const resp = await handleMoveCommit(req)
+    expect(resp.status).toBe(400)
+    expect(((await resp.json()) as { success: boolean }).success).toBe(false)
+    // The refusal happens at validation, before any file is touched.
+    expect(await fs.readFile(srcPath, 'utf-8')).toBe(before)
+  })
+
   test('rejects a request whose moves field is not an array', async () => {
     const req = new Request('http://localhost/api/move/commit', {
       method: 'POST',

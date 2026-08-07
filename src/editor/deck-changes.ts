@@ -10,6 +10,7 @@ import {
 } from '../deck-format'
 import { applyConditionUpdate } from '../finish-condition'
 import { noteOrUndefined } from '../note-helpers'
+import { storedLanguage } from '../card-language'
 
 /** The card fields commander targeting matches on. */
 type CommanderTarget = { cardId?: number; name: string }
@@ -103,6 +104,8 @@ export function applyChangeToDeck(
         // `AddChange.condition` is a plain grade (adds have no `NONE` clear),
         // so it is recorded as-is.
         condition: change.condition,
+        // The written value: `undefined` means `en` and serializes bare.
+        language: change.language,
         cardId: change.cardId,
       })
       return { ...deck, sections }
@@ -191,6 +194,22 @@ export function applyChangeToDeck(
         found.card.collectorNumber = change.collectorNumber
         found.card.finish = change.finish
         found.card.condition = applyConditionUpdate(change.condition, found.card.condition)
+        // Unlike finish, an absent language leaves the card's alone — language
+        // changes have their own set-language event.
+        if (change.language !== undefined) found.card.language = change.language
+        return { ...deck, sections }
+      }
+      options?.onMiss?.('no-target')
+      return { ...deck, sections }
+    }
+
+    case 'set-language': {
+      const found = findCard(sections)
+      if (found) {
+        // `en` clears the stored value so the line serializes bare (the
+        // serializer omits the token for `en` either way; clearing keeps the
+        // in-memory shape matching what a re-parse would produce).
+        found.card.language = storedLanguage(change.language)
         return { ...deck, sections }
       }
       options?.onMiss?.('no-target')
@@ -257,6 +276,7 @@ export function applyChangeToDeck(
           collectorNumber: change.collectorNumber,
           finish: change.finish,
           condition: change.condition,
+          language: change.language,
         },
         options,
       )
@@ -271,6 +291,7 @@ export function applyChangeToDeck(
         collectorNumber: change.collectorNumber,
         finish: change.finish,
         condition: change.condition,
+        language: change.language,
       })
   }
 }

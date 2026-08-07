@@ -5,8 +5,8 @@
  * Where deck sync compares one deck file against one Archidekt deck by card
  * name, a collection sync compares the **union of the in-scope collection
  * lists** against the account's single Archidekt collection, joined on the
- * printing-level key `(set, collectorNumber, finish, condition)`. Two things
- * follow from that and shape every type here:
+ * printing-level key `(set, collectorNumber, finish, condition, language)`.
+ * Two things follow from that and shape every type here:
  *
  * - **Locally, one line is one physical copy** (`parseCollectionFile` reads
  *   every line as `quantity: 1`), so a key's local quantity is a count of lines
@@ -15,15 +15,22 @@
  *   *partial* removal ambiguous when the copies span several binders (taking
  *   every copy never is: each binder simply loses what it holds).
  * - **Remotely, one printing may span several records** that differ only by
- *   language, tags, or purchase price. They aggregate into one key for the
- *   diff, but the record list is kept intact: the push planner needs it to
- *   decide which record to grow, trim, or delete.
+ *   tags or purchase price. They aggregate into one key for the diff, but the
+ *   record list is kept intact: the push planner needs it to decide which
+ *   record to grow, trim, or delete. Records of different *languages* are
+ *   distinct keys — a Japanese copy is not an English copy.
  *
  * Everything in this module is pure (the one async function takes its Scryfall
  * lookup as a parameter), so the semantics are unit-testable without a client,
  * a cache, or the filesystem.
  */
 
+import {
+  displayLanguage,
+  languageDisplayName,
+  storedLanguage,
+  type CardLanguage,
+} from '../card-language'
 import { printingSuffix } from '../card-line'
 import { findPrinting, type CardPrintingsLookup } from '../card-printing'
 import { createAddChange, createRemoveChange } from '../change-event'
@@ -33,8 +40,10 @@ import {
   ARCHIDEKT_GAME_PAPER,
   ARCHIDEKT_LANGUAGE_ENGLISH,
   archidektConditionId,
+  archidektLanguageId,
   archidektModifier,
   parseArchidektCondition,
+  parseArchidektLanguage,
   parseArchidektModifier,
   type ArchidektCollectionRecord,
   type CollectionUpsertBody,
@@ -51,11 +60,14 @@ import type { AmbiguousRemoval, CollectionKeyParts } from './describe'
 // ── The join key ──────────────────────────────────────────────────────
 
 /**
- * The join key for a printing+variant: `set|collectorNumber|finish|condition`,
- * with set and collector number lowercased so the two sides cannot miss each
- * other over casing alone. Names are deliberately *not* part of the key — the
- * two sides disagree about them (Archidekt reports the oracle name, Scryfall
- * the full `Front // Back` name), while set and collector number always agree.
+ * The join key for a printing+variant:
+ * `set|collectorNumber|finish|condition|language`, with set and collector
+ * number lowercased so the two sides cannot miss each other over casing alone,
+ * and the language folded through {@link displayLanguage} so a bare line and an
+ * explicit `en` are the same key. Names are deliberately *not* part of the key
+ * — the two sides disagree about them (Archidekt reports the oracle name,
+ * Scryfall the full `Front // Back` name), while set and collector number
+ * always agree.
  */
 export function collectionKey(parts: CollectionKeyParts): string {
   return [
@@ -63,6 +75,7 @@ export function collectionKey(parts: CollectionKeyParts): string {
     parts.collectorNumber.toLowerCase(),
     parts.finish,
     parts.condition,
+    displayLanguage(parts.language),
   ].join('|')
 }
 
@@ -147,7 +160,12 @@ export async function buildLocalIndex(
       const set = entry.set.toLowerCase()
       let finish = entry.finish
       if (finish === undefined) {
-        const card = findPrinting(await printingsFor(entry.name), set, entry.collectorNumber)
+        const card = findPrinting(
+          await printingsFor(entry.name),
+          set,
+          entry.collectorNumber,
+          entry.language,
+        )
         if (card) {
           // The line states no finish, so only the printing's default is in play
           // here — `displayFinish` would take the same branch, less legibly.
@@ -166,6 +184,7 @@ export async function buildLocalIndex(
         collectorNumber: entry.collectorNumber,
         finish,
         condition: entry.condition ?? 'NM',
+        language: entry.language,
       }
       const key = collectionKey(parts)
       const copy: LocalCopy = {
@@ -201,8 +220,9 @@ export type RemoteKeyGroup = {
   scryfallId: string
   /**
    * The records behind this key, in fetch order. Records differing only by
-   * language, tags, or purchase price land here together — the push planner
-   * decides which of them to grow, trim, or delete.
+   * tags or purchase price land here together — the push planner decides which
+   * of them to grow, trim, or delete. (Language is part of the key, so records
+   * of different languages never share a group.)
    */
   records: ArchidektCollectionRecord[]
   /** Summed quantity across {@link records}. */
@@ -219,11 +239,15 @@ export type RemoteIndexResult = {
 
 /**
  * Index fetched collection records by sync key, summing the quantities of
- * records that differ only in dimensions Ritual does not model.
+ * records that differ only in dimensions Ritual does not model (tags, purchase
+ * price). Language *is* modelled: each record's language id maps onto the key,
+ * so a Japanese record indexes apart from an English one of the same printing.
  *
  * A record whose modifier, condition, or printing cannot be read is skipped
  * with a warning rather than guessed at — the alternative is silently syncing
- * a card as the wrong variant.
+ * a card as the wrong variant. A language id outside the documented range
+ * degrades to English with a warning instead: the card itself is still real,
+ * and English is the only safe reading of an id Archidekt never documented.
  */
 export function buildRemoteIndex(records: readonly ArchidektCollectionRecord[]): RemoteIndexResult {
   const index: RemoteCollectionIndex = new Map()
@@ -255,11 +279,21 @@ export function buildRemoteIndex(records: readonly ArchidektCollectionRecord[]):
       continue
     }
 
+    let language = parseArchidektLanguage(record.language)
+    if (language === null) {
+      warnings.push(
+        `Archidekt record ${record.id} (${name}) has an unknown language id '${record.language}'; treating it as English.`,
+      )
+      language = 'en'
+    }
+
     const parts: CollectionKeyParts = {
       set,
       collectorNumber,
       finish: finish.value,
       condition: condition.value,
+      // English stays absent, matching the bare-line spelling local parts use.
+      language: storedLanguage(language),
     }
     const key = collectionKey(parts)
     const group = index.get(key)
@@ -631,6 +665,7 @@ export function pullChangesByList(
           collectorNumber: copy.parts.collectorNumber,
           finish: copy.parts.finish,
           condition: copy.parts.condition,
+          language: copy.parts.language,
           cardId: copy.cardId,
         }),
       )
@@ -648,6 +683,7 @@ export function pullChangesByList(
           collectorNumber: addition.parts.collectorNumber,
           finish: addition.parts.finish,
           condition: addition.parts.condition,
+          language: addition.parts.language,
         }),
       )
       entry.added++
@@ -708,19 +744,22 @@ export type PushPlan = {
 }
 
 /**
- * The order records are consumed in: English first (the language Ritual writes,
- * and the one a user is most likely to be holding), then by quantity descending,
- * then by id so the plan is stable across runs. Growing patches the first
- * record; shrinking walks in from the end, so the odd-language and small
- * records are the ones that disappear.
+ * The order records are consumed in: records whose language id exactly matches
+ * the key's language first (English for a bare local line; language is part of
+ * the join key, so a mismatch inside one group can only be an undocumented id
+ * that degraded to English), then by quantity descending, then by id so the
+ * plan is stable across runs. Growing patches the first record; shrinking walks
+ * in from the end, so the odd and small records are the ones that disappear.
  */
 export function orderRecordsForPush(
   records: readonly ArchidektCollectionRecord[],
+  language?: CardLanguage,
 ): ArchidektCollectionRecord[] {
+  const wantedId = archidektLanguageId(language) ?? ARCHIDEKT_LANGUAGE_ENGLISH
   return [...records].sort((a, b) => {
-    const aEnglish = a.language === ARCHIDEKT_LANGUAGE_ENGLISH ? 0 : 1
-    const bEnglish = b.language === ARCHIDEKT_LANGUAGE_ENGLISH ? 0 : 1
-    if (aEnglish !== bEnglish) return aEnglish - bEnglish
+    const aExact = a.language === wantedId ? 0 : 1
+    const bExact = b.language === wantedId ? 0 : 1
+    if (aExact !== bExact) return aExact - bExact
     if (a.quantity !== b.quantity) return b.quantity - a.quantity
     return a.id - b.id
   })
@@ -768,7 +807,7 @@ export function planPush(
 
     if (remoteGroup.quantity === localQuantity) continue
 
-    const ordered = orderRecordsForPush(remoteGroup.records)
+    const ordered = orderRecordsForPush(remoteGroup.records, group.parts.language)
     const base: PushOperationBase = {
       key,
       parts: group.parts,
@@ -863,13 +902,29 @@ export function createRecordBody(
     quantity: operation.quantity,
     card: archidektCardId,
     modifier: archidektModifier(operation.parts.finish),
-    // Language, tags, and purchase price have no local representation: new
-    // records are English, untagged, and unpriced (documented as lossy).
-    language: ARCHIDEKT_LANGUAGE_ENGLISH,
+    // The entry's own language, mapped to Archidekt's id; a language Archidekt
+    // cannot model falls back to English — the engine warns via
+    // {@link unmappableLanguageWarning}. Tags and purchase price have no local
+    // representation: new records are untagged and unpriced (documented as lossy).
+    language: archidektLanguageId(operation.parts.language) ?? ARCHIDEKT_LANGUAGE_ENGLISH,
     condition: archidektConditionId(operation.parts.condition),
     tags: [],
     purchasePrice: null,
   }
+}
+
+/**
+ * The warning a push emits when a key's language cannot be represented on
+ * Archidekt (`ph`, `la`, `grc`, `he`, `ar`, `sa` have no language id): the
+ * record is created as English instead. Undefined when the language maps.
+ */
+export function unmappableLanguageWarning(
+  name: string,
+  parts: CollectionKeyParts,
+): string | undefined {
+  if (archidektLanguageId(parts.language) !== null) return undefined
+  const language = displayLanguage(parts.language)
+  return `Archidekt cannot represent ${languageDisplayName(language)} [${language}]; pushing ${name}${printingSuffix(parts.set, parts.collectorNumber)} as English.`
 }
 
 /**

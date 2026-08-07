@@ -481,6 +481,44 @@ describe('applyConfigSet — defaultCurrency', () => {
   })
 })
 
+describe('applyConfigSet — defaultLanguage', () => {
+  test('sets a valid language code', () => {
+    const result = applyConfigSet(base, 'defaultLanguage', ['ja'], 'replace')
+    if ('error' in result) throw new Error(result.error)
+    expect(result.newValue).toBe('ja')
+    expect(result.updatedConfig.defaultLanguage).toBe('ja')
+  })
+
+  test('normalizes the code to lowercase', () => {
+    const result = applyConfigSet(base, 'defaultLanguage', ['ZHS'], 'replace')
+    if ('error' in result) throw new Error(result.error)
+    expect(result.newValue).toBe('zhs')
+  })
+
+  test.each([
+    ['jp', 'ja'],
+    ['KR', 'ko'],
+    ['sp', 'es'],
+    ['Japanese', 'ja'],
+  ] as const)('corrects the alias %s to the canonical code %s', (alias, canonical) => {
+    const result = applyConfigSet(base, 'defaultLanguage', [alias], 'replace')
+    if ('error' in result) throw new Error(result.error)
+    expect(result.newValue).toBe(canonical)
+    expect(result.updatedConfig.defaultLanguage).toBe(canonical)
+  })
+
+  test('rejects an unknown language, listing the valid codes', () => {
+    const result = applyConfigSet(base, 'defaultLanguage', ['klingon'], 'replace')
+    expect('error' in result).toBeTrue()
+    if ('error' in result) {
+      expect(result.error).toContain('defaultLanguage')
+      expect(result.error).toContain('klingon')
+      // The full vocabulary is in the message, so the user can pick a code.
+      expect(result.error).toContain('en, es, fr, de, it, pt, ja, ko, ru, zhs, zht')
+    }
+  })
+})
+
 describe('applyConfigSet — cacheSource', () => {
   test('sets a valid source', () => {
     const result = applyConfigSet(base, 'cacheSource', ['feed'], 'replace')
@@ -594,6 +632,14 @@ describe('applyConfigUnset', () => {
     expect('cacheFeedUrl' in outcome.updatedConfig).toBeFalse()
   })
 
+  test('removes defaultLanguage and reports en as its default', () => {
+    const config = { ...base, defaultLanguage: 'ja' as const }
+    const outcome = applyConfigUnset(config, 'defaultLanguage')
+    if ('error' in outcome) throw new Error(outcome.error)
+    expect(outcome.defaultValue).toBe('en')
+    expect('defaultLanguage' in outcome.updatedConfig).toBeFalse()
+  })
+
   test('reports the effective default for a site selection list', () => {
     const seeded = applyConfigSet(base, 'site.includeDecks', ['Izzet Storm'], 'replace')
     if ('error' in seeded) throw new Error(seeded.error)
@@ -651,6 +697,11 @@ describe('applyConfigGet', () => {
   test('resolves the nested collection-sync pull target', () => {
     const outcome = applyConfigGet(base, 'collectionSync.pullTarget')
     expect(outcome).toEqual({ kind: 'value', value: 'Inbox' })
+  })
+
+  test('resolves defaultLanguage', () => {
+    const outcome = applyConfigGet({ ...base, defaultLanguage: 'ja' }, 'defaultLanguage')
+    expect(outcome).toEqual({ kind: 'value', value: 'ja' })
   })
 
   test('reports site selection lists as unset before a site config exists', () => {

@@ -90,6 +90,17 @@ describe('computeDeckSaveEffects', () => {
     expect(computeDeckSaveEffects({ before, after })).toEqual([])
   })
 
+  test('a language edit reports an update, and folding means explicit en is not a change', () => {
+    const before = deck(['Main', [{ quantity: 1, name: 'Sol Ring', cardId: 1 }]])
+    const toJa = deck(['Main', [{ quantity: 1, name: 'Sol Ring', cardId: 1, language: 'ja' }]])
+    expect(computeDeckSaveEffects({ before, after: toJa }).map((e) => e.action)).toEqual([
+      'updated',
+    ])
+    // A bare line and an explicit `en` are the same language — no effect.
+    const toEn = deck(['Main', [{ quantity: 1, name: 'Sol Ring', cardId: 1, language: 'en' }]])
+    expect(computeDeckSaveEffects({ before, after: toEn })).toEqual([])
+  })
+
   test('moving a line to another section is an update naming the new section', () => {
     const before = deck(['Main', [{ quantity: 1, name: 'Island', cardId: 1 }]])
     const after = deck(['Main', []], ['Sideboard', [{ quantity: 1, name: 'Island', cardId: 1 }]])

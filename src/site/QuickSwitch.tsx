@@ -25,6 +25,7 @@ import {
   printingKey,
 } from '../printing-key'
 import { hasSpecificPrinting } from '../card-printing'
+import type { CardLanguage } from '../card-language'
 
 /**
  * Re-case a stored `printingKey` for display. Uppercasing the whole key would
@@ -89,6 +90,8 @@ type ListCardRef = {
   name: string
   set?: string
   collectorNumber?: string
+  /** The line's language token, when present, so a `[ja]` line resolves its `@ja` card object. */
+  language?: CardLanguage
 }
 
 type CardCandidate = {
@@ -109,7 +112,12 @@ function collectCardRefs(data: DetailPayload): ListCardRef[] {
     const refs: ListCardRef[] = []
     for (const section of data.deck.sections) {
       for (const c of section.cards) {
-        refs.push({ name: c.name, set: c.set, collectorNumber: c.collectorNumber })
+        refs.push({
+          name: c.name,
+          set: c.set,
+          collectorNumber: c.collectorNumber,
+          language: c.language,
+        })
       }
     }
     return refs
@@ -118,6 +126,7 @@ function collectCardRefs(data: DetailPayload): ListCardRef[] {
     name: e.name,
     set: e.set,
     collectorNumber: e.collectorNumber,
+    language: e.language,
   }))
 }
 

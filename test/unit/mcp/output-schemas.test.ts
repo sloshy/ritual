@@ -5,6 +5,8 @@ import {
   BUILD_SITE_OUTPUT,
   EXPORT_CARDS_OUTPUT,
   FIND_CARDS_OUTPUT,
+  GET_CACHE_STATUS_OUTPUT,
+  GET_CARD_PRINTINGS_OUTPUT,
   GET_LIST_OUTPUT,
   GET_PRICE_REPORT_OUTPUT,
   IMPORT_CSV_OUTPUT,
@@ -20,6 +22,7 @@ import { apiErrorToMcp } from '../../../src/mcp/errors'
 import { toToolErrorPayload } from '../../../src/mcp/result'
 import { MCP_TOOL_NAMES } from '../../../src/mcp/tools/names'
 import { VALID_FINISHES } from '../../../src/finish-condition'
+import { CARD_LANGUAGES } from '../../../src/card-language'
 import type { BuildSiteResult, DeckSyncResult } from '../../../src/mcp/tools/destructive-tools'
 import type { ImportCsvResponse } from '../../../src/admin/api/import-csv'
 import type { CollectionSyncReport } from '../../../src/collection-sync/engine'
@@ -260,6 +263,52 @@ describe('MCP output schemas, as authored', () => {
       'failures',
       'failedCount',
       'warnings',
+    ])
+  })
+
+  test('the language vocabulary rides on every entry-shaped and printing-shaped fragment', () => {
+    // Entry-shaped payloads (list entries, physical cards, save effects) carry
+    // `language` as the shared enum — the same 17 codes the input schemas
+    // accept, so what a write sent comes back under the same vocabulary.
+    for (const def of [
+      'DeckCard',
+      'CollectionEntry',
+      'WantedEntry',
+      'PhysicalCard',
+      'SaveEffectPrinting',
+      'DiffPrinting',
+    ] as const) {
+      const schema = defsFor(def)[def] as unknown as SchemaNode
+      expect({ def, enum: schema.properties?.language?.enum }) //
+        .toEqual({ def, enum: [...CARD_LANGUAGES] })
+      // Absent means English, so `language` must never be required.
+      expect(schema.required ?? []).not.toContain('language')
+    }
+
+    // Scryfall-card-shaped payloads spell it `lang` (Scryfall's own field): a
+    // free string, since the cache stores whatever the bulk carried.
+    for (const def of ['PrintingIdentity', 'PrintingListing', 'PrintingSummary'] as const) {
+      const schema = defsFor(def)[def] as unknown as SchemaNode
+      expect({ def, lang: schema.properties?.lang?.type }).toEqual({ def, lang: 'string' })
+      expect(schema.required ?? []).not.toContain('lang')
+    }
+
+    // get_card_printings always reports the language rollup.
+    const printings = GET_CARD_PRINTINGS_OUTPUT as unknown as SchemaNode
+    expect(printings.properties?.languages?.type).toBe('array')
+    expect(printings.required).toContain('languages')
+
+    // get_cache_status reports the bulk provenance that language support added,
+    // and all three fields are always set by the collector.
+    const cacheStatus = GET_CACHE_STATUS_OUTPUT as unknown as SchemaNode
+    expect(cacheStatus.properties?.defaultLanguage?.enum).toEqual([...CARD_LANGUAGES])
+    for (const field of ['defaultLanguage', 'cardBulkType', 'bulkTypeStale']) {
+      expect(cacheStatus.required).toContain(field)
+    }
+    const bulkTypeArms = cacheStatus.properties?.cardBulkType?.anyOf ?? []
+    expect(bulkTypeArms.map((arm) => arm.enum ?? arm.type)).toEqual([
+      ['default_cards', 'all_cards'],
+      'null',
     ])
   })
 

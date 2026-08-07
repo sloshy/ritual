@@ -287,6 +287,154 @@ describe('decodeTradeFromParams — where a bare Scryfall ID is looked up', () =
   })
 })
 
+describe('language (~lang) in sf tokens', () => {
+  const deckEntryFor = (card: ScryfallCard, cardIds = [11]): TradeSearchEntry =>
+    makeSearchEntry({
+      sourceName: 'Mono-W',
+      sourceKind: 'deck',
+      maxQty: 4,
+      cardIds,
+      scryfallCard: card,
+    })
+
+  test('encodes ~lang after the finish suffix, omitting it for English', () => {
+    const card = makeCard({ id: 'deck-printing', finishes: ['nonfoil', 'foil'] })
+    const entryFor = (overrides: Partial<TradeCardEntry>): TradeCardEntry => ({
+      name: 'A',
+      scryfallCard: card,
+      source: 'deck',
+      sourceName: 'Deck',
+      qty: 1,
+      editable: true,
+      sourceCardIds: [5],
+      ...overrides,
+    })
+
+    expect(
+      encodeTradeToParams([entryFor({ language: 'ja', finish: 'foil' })], []).get(
+        'leftSideDeckIds',
+      ),
+    ).toBe('Deck:5x1@deck-printing:foil~ja')
+    expect(encodeTradeToParams([entryFor({ language: 'ja' })], []).get('leftSideDeckIds')).toBe(
+      'Deck:5x1@deck-printing~ja',
+    )
+    // English — explicit or absent — encodes bare.
+    expect(encodeTradeToParams([entryFor({ language: 'en' })], []).get('leftSideDeckIds')).toBe(
+      'Deck:5x1@deck-printing',
+    )
+    expect(encodeTradeToParams([entryFor({})], []).get('leftSideDeckIds')).toBe(
+      'Deck:5x1@deck-printing',
+    )
+  })
+
+  test('a scryfall row encodes and decodes its language', async () => {
+    const card = makeCard({ id: 'sf-row' })
+    const right: TradeCardEntry[] = [
+      {
+        name: card.name,
+        scryfallCard: card,
+        language: 'ja',
+        source: 'scryfall',
+        sourceName: 'Scryfall',
+        qty: 2,
+      },
+    ]
+    const params = encodeTradeToParams([], right)
+    expect(params.get('rightSideScryfall')).toBe('x2@sf-row~ja')
+
+    const decoded = await decodeTradeFromParams(
+      params,
+      {
+        ...noEntries,
+        // The card resolves from the loaded entries' scryfall map.
+        collectionEntries: [makeSearchEntry({ scryfallCard: card })],
+      },
+      'usd',
+    )
+    expect(decoded.right[0]).toMatchObject({ source: 'scryfall', qty: 2, language: 'ja' })
+    expect(decoded.warnings).toEqual([])
+  })
+
+  test('a deck token round-trips its language alongside a non-default finish', async () => {
+    const card = makeCard({ id: 'deck-printing', finishes: ['nonfoil', 'foil'] })
+    const entry = deckEntryFor(card)
+    const left: TradeCardEntry[] = [
+      {
+        name: entry.name,
+        scryfallCard: card,
+        finish: 'foil',
+        language: 'de',
+        source: 'deck',
+        sourceName: 'Mono-W',
+        qty: 1,
+        editable: true,
+        sourceCardIds: [11],
+      },
+    ]
+    const decoded = await roundTrip(left, [], { ...noEntries, deckEntries: [entry] })
+    expect(decoded.left[0]).toMatchObject({ finish: 'foil', language: 'de' })
+    expect(decoded.warnings).toEqual([])
+  })
+
+  test('a wanted token round-trips its language', async () => {
+    const card = makeCard({ id: 'wanted-printing' })
+    const entry = makeSearchEntry({
+      sourceName: 'Wants',
+      sourceKind: 'wanted',
+      cardIds: [21],
+      scryfallCard: card,
+    })
+    const right: TradeCardEntry[] = [
+      {
+        name: entry.name,
+        scryfallCard: card,
+        language: 'zhs',
+        source: 'wanted',
+        sourceName: 'Wants',
+        qty: 1,
+        editable: true,
+        sourceCardIds: [21],
+      },
+    ]
+    const decoded = await roundTrip([], right, { ...noEntries, wantedEntries: [entry] })
+    expect(decoded.right[0]).toMatchObject({ source: 'wanted', language: 'zhs' })
+    expect(decoded.warnings).toEqual([])
+  })
+
+  test('a bad language code warns as a malformed token and decodes as English', async () => {
+    const card = makeCard({ id: 'deck-printing' })
+    const entry = deckEntryFor(card, [20])
+    const params = new URLSearchParams()
+    params.set('leftSideDeckIds', 'Mono-W:20x1@deck-printing~xx')
+    const decoded = await decodeTradeFromParams(
+      params,
+      { ...noEntries, deckEntries: [entry] },
+      'usd',
+    )
+
+    // The card survives — only the language suffix was bad — and the raw token
+    // is carried in the warning, per the parser conventions.
+    expect(decoded.left).toHaveLength(1)
+    expect(decoded.left[0]?.language).toBeUndefined()
+    expect(decoded.warnings).toEqual([{ kind: 'malformed-token', token: '20x1@deck-printing~xx' }])
+  })
+
+  test('an explicit ~en decodes to the bare spelling, warning nothing', async () => {
+    const card = makeCard({ id: 'deck-printing' })
+    const entry = deckEntryFor(card, [22])
+    const params = new URLSearchParams()
+    params.set('leftSideDeckIds', 'Mono-W:22x1@deck-printing~en')
+    const decoded = await decodeTradeFromParams(
+      params,
+      { ...noEntries, deckEntries: [entry] },
+      'usd',
+    )
+
+    expect(decoded.left[0]?.language).toBeUndefined()
+    expect(decoded.warnings).toEqual([])
+  })
+})
+
 describe('encode → decode round-trip', () => {
   test('collection cards round-trip with qty and source preserved', async () => {
     const card = makeCard()

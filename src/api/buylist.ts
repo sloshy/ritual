@@ -25,6 +25,7 @@ import {
 } from '../buylist'
 import { feedStamp, quoteForPrinting } from '../cardkingdom'
 import { getErrorMessage } from '../errors'
+import { invalidLanguageMessage, isCardLanguage } from '../card-language'
 import { isFinish } from '../finish-condition'
 import { getSiteSellMode, loadRitualConfig } from '../ritual-config'
 
@@ -69,12 +70,19 @@ function parsePrinting(value: unknown, i: number): BuylistQuoteRequest | string 
   if (scryfallId !== undefined && typeof scryfallId !== 'string') {
     return `"printings[${i}].scryfallId" must be a string when present`
   }
+  const language = raw['language']
+  if (language !== undefined && (typeof language !== 'string' || !isCardLanguage(language))) {
+    return invalidLanguageMessage(language, `for "printings[${i}].language"`)
+  }
   return {
     // Set codes are lowercase internally, whatever a client sent.
     set: raw['set'].toLowerCase(),
     collectorNumber: raw['collectorNumber'],
     finish,
     ...(scryfallId !== undefined && scryfallId !== '' ? { scryfallId } : {}),
+    // Forwarded so the matcher's English-only gate sees the entry's language —
+    // a foreign card must never be quoted at the English product's price.
+    ...(language !== undefined ? { language } : {}),
   }
 }
 

@@ -5,6 +5,7 @@ import {
   createAddChange,
   createRemoveChange,
   createSetLabelChange,
+  createSetLanguageChange,
   type ChangeEvent,
 } from '../../src/change-event'
 import { handleCollectionSave } from '../../src/admin/api/collection-save'
@@ -213,5 +214,81 @@ describe('POST /api/collection/:slug/save — labels', () => {
     const content = await fs.readFile(filePath, 'utf-8')
     expect(content.startsWith('---\nlabels: [sale]\n---\n\n# Binder')).toBeTrue()
     expect(content).toContain('- Sol Ring (C21:263) &3')
+  })
+})
+
+describe('POST /api/collection/:slug/save — languages', () => {
+  test('set-language writes the [ja] token, the changelog line, and an updated effect', async () => {
+    const resp = await save([
+      createSetLanguageChange('Lightning Bolt', { language: 'ja', cardId: 1 }),
+    ])
+    expect(resp.status).toBe(200)
+
+    const content = await fs.readFile(filePath, 'utf-8')
+    expect(content).toContain('- Lightning Bolt (LEA:161) [ja] &1')
+
+    const changelog = await fs.readFile(
+      path.join(tmpDir, 'collections', 'binder.changes.md'),
+      'utf-8',
+    )
+    expect(changelog).toContain('- Set language of "Lightning Bolt" to Japanese &1')
+
+    const body = (await resp.json()) as ListSaveResponse
+    expect(body.effects).toHaveLength(1)
+    expect(body.effects[0]).toMatchObject({
+      action: 'updated',
+      cardId: 1,
+      name: 'Lightning Bolt',
+    })
+  })
+
+  test('setting the language back to English clears the token', async () => {
+    const seed = await save([
+      createSetLanguageChange('Lightning Bolt', { language: 'ja', cardId: 1 }),
+    ])
+    expect(seed.status).toBe(200)
+    contentHash = ((await seed.json()) as { contentHash: string }).contentHash
+
+    const resp = await save([
+      createSetLanguageChange('Lightning Bolt', { language: 'en', cardId: 1 }),
+    ])
+    expect(resp.status).toBe(200)
+
+    const content = await fs.readFile(filePath, 'utf-8')
+    expect(content).toContain('- Lightning Bolt (LEA:161) &1')
+    expect(content).not.toContain('[ja]')
+  })
+
+  test('an add carrying a language writes the token on the new line', async () => {
+    const resp = await save([
+      createAddChange('Sol Ring', { set: 'c21', collectorNumber: '167', language: 'ja' }),
+    ])
+    expect(resp.status).toBe(200)
+    expect(await fs.readFile(filePath, 'utf-8')).toContain('- Sol Ring (C21:167) [ja] &3')
+  })
+
+  // The route's one 400 case: the full validation matrix (normalization,
+  // missing-language, entry-side folds) is pinned on `normalizeRequestLanguages`
+  // in test/unit/admin/save-helpers.test.ts; this proves the route wires the
+  // validator in front of its write.
+  test('an unknown language code is a 400 that writes nothing', async () => {
+    const before = await fs.readFile(filePath, 'utf-8')
+    const resp = await save([
+      {
+        id: 'x',
+        timestamp: 0,
+        action: 'set-language',
+        cardName: 'Lightning Bolt',
+        cardId: 1,
+        language: 'xx',
+      } as unknown as ChangeEvent,
+    ])
+    expect(resp.status).toBe(400)
+    const body = (await resp.json()) as { success: boolean; message: string }
+    expect(body.success).toBe(false)
+    expect(body.message).toContain('"xx"')
+    expect(body.message).toContain('ja')
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+    expect(await fs.exists(path.join(tmpDir, 'collections', 'binder.changes.md'))).toBe(false)
   })
 })

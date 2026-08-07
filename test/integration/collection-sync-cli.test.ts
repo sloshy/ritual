@@ -451,8 +451,8 @@ describe('collection-sync CLI (Integration)', () => {
       expect(sent.filter((request) => request.url === UPSERT_URL)).toEqual([])
       expect(await uploadedCsvRows(sent)).toEqual([
         // Uids come from the seeded cache; Damaged is `D` in a CSV cell.
-        `${seededScryfallId(SOL_RING)},1,Normal,NM`,
-        `${seededScryfallId(BOLT)},1,Normal,D`,
+        `${seededScryfallId(SOL_RING)},1,Normal,NM,EN`,
+        `${seededScryfallId(BOLT)},1,Normal,D,EN`,
       ])
       expect(logged()).toContain('Imported 2 cards (2 rows) from the CSV in 1 request.')
       expect(logged()).toContain('Synced: +2 added, -0 removed.')
@@ -467,8 +467,8 @@ describe('collection-sync CLI (Integration)', () => {
       // Written locally, with the parent directory created — and nothing at all
       // sent to Archidekt beyond the read.
       expect(await fs.readFile(csvPath, 'utf-8')).toBe(
-        `Scryfall ID,Quantity,Variant,Condition\n${seededScryfallId(SOL_RING)},1,Normal,NM\n` +
-          `${seededScryfallId(BOLT)},1,Normal,D\n`,
+        `Scryfall ID,Quantity,Variant,Condition,Language\n${seededScryfallId(SOL_RING)},1,Normal,NM,EN\n` +
+          `${seededScryfallId(BOLT)},1,Normal,D,EN\n`,
       )
       expect(sent.map((request) => request.method)).toEqual(['GET'])
       expect(logged()).toContain('Synced: +0 added, -0 removed, 2 awaiting upload.')

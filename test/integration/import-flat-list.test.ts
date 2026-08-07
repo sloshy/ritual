@@ -45,6 +45,7 @@ describe('import text file into flat lists (Integration)', () => {
         '',
         '## Staples',
         '1 Lightning Bolt (LEA:161)',
+        '1 Shock (JMP:372) [ja]',
         '',
       ].join('\n'),
     )
@@ -63,6 +64,7 @@ describe('import text file into flat lists (Integration)', () => {
         '',
         '## Staples',
         '- Lightning Bolt (LEA:161) &3',
+        '- Shock (JMP:372) [ja] &4',
         '',
       ].join('\n'),
     )

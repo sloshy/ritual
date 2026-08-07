@@ -62,13 +62,13 @@ export type ExportPreset = {
 /**
  * The CSV Archidekt's collection importer takes, and what
  * `ritual collection-sync push` uploads for its additions:
- * `Scryfall ID,Quantity,Variant,Condition` under a header row, with Archidekt's
- * own value spellings. Uid-keyed rows need no name matching, so every row is
- * unambiguous by construction.
+ * `Scryfall ID,Quantity,Variant,Condition,Language` under a header row, with
+ * Archidekt's own value spellings. Uid-keyed rows need no name matching, so
+ * every row is unambiguous by construction.
  */
 const ARCHIDEKT_PRESET: ExportPreset = {
   format: 'csv',
-  columns: ['scryfallId', 'quantity', 'finish', 'condition'],
+  columns: ['scryfallId', 'quantity', 'finish', 'condition', 'language'],
   header: true,
   quoteAll: false,
   dialect: 'archidekt',

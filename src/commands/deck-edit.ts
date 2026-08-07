@@ -2,11 +2,13 @@ import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
 import type { Card, DeckData } from '../types'
 import {
+  consolidateSetLanguage,
   consolidateSetNote,
   consolidateSetPrinting,
   consolidateSetSection,
   createAddChange,
   createRemoveChange,
+  createSetLanguageChange,
   createSetNoteChange,
   createSetPrintingChange,
   createSetSectionChange,
@@ -15,6 +17,7 @@ import {
   type ConsolidateResult,
   type PrintingTuple,
 } from '../change-event'
+import { displayLanguage, type CardLanguage } from '../card-language'
 import { allocateId, assignMissingDeckCardIds, collectDeckCardIds, createIdPool } from '../card-id'
 import { applyChangeToDeck } from '../editor/deck-changes'
 import { normalizeBoard } from '../deck-sync/diff'
@@ -36,6 +39,7 @@ import {
 } from './card-session'
 import {
   promptFinishAndCondition,
+  promptLanguageChoice,
   resolveCardPrinting,
   type FinishConditionConfig,
   type PrintingFilterConfig,
@@ -61,6 +65,8 @@ import {
 export type DeckCardSnapshot = {
   name: string
   printing: PrintingTuple
+  /** The line's `[ja]`-style language token at session start. Absent means `en`. */
+  language?: CardLanguage
   note?: string
   section: string
 }
@@ -90,13 +96,19 @@ export function applyDeckChange(state: DeckSessionState, change: ChangeEvent): v
   state.dirty = true
 }
 
-/** The printing tuple of a deck card, for consolidation comparisons and inverses. */
+/**
+ * The printing tuple of a deck card, for consolidation comparisons and
+ * inverses. The language is resolved explicitly (`en` for a bare line), like
+ * `entryPrinting` in flat-list-edit: a set-printing built from this tuple must
+ * restore the card's language — absent would mean "leave the token alone".
+ */
 function cardPrinting(card: Card): PrintingTuple {
   return {
     set: card.set,
     collectorNumber: card.collectorNumber,
     finish: card.finish,
     condition: card.condition,
+    language: displayLanguage(card.language),
   }
 }
 
@@ -133,6 +145,7 @@ function originalSnapshot(
   const snapshot: DeckCardSnapshot = {
     name: card.name,
     printing: cardPrinting(card),
+    language: card.language,
     note: card.note,
     section: sectionName,
   }
@@ -281,6 +294,7 @@ export async function editDeckCard(
     { title: '🖼️  Change Printing', value: 'printing' },
     { title: '➕ Add a Copy', value: 'add-copy' },
     ...(card.quantity > 1 ? [{ title: '➖ Remove a Copy', value: 'remove-copy' }] : []),
+    { title: '🌐 Change Language', value: 'language' },
     { title: '🗂️  Move to Section', value: 'move' },
     { title: '📝 Edit Note', value: 'note' },
     {
@@ -308,6 +322,9 @@ export async function editDeckCard(
       collectorNumber: result.printing.collector_number,
       finish: finishAndCondition.finish,
       condition: finishAndCondition.condition,
+      // The line keeps its language across a printing change unless the
+      // picker's availability confirm resolved a different one.
+      language: result.language ?? displayLanguage(card.language),
     }
     const before = cardPrinting(card)
     applyDeckFieldEdit(state, ctx, card, sectionName, cardId, {
@@ -340,6 +357,23 @@ export async function editDeckCard(
 
   if (action === 'remove-copy') {
     performDeckCopyRemoval(state, ctx, cardId)
+    return
+  }
+
+  if (action === 'language') {
+    const language = await promptLanguageChoice(card.language)
+    if (language === null || language === displayLanguage(card.language)) return
+    applyDeckFieldEdit(state, ctx, card, sectionName, cardId, {
+      label: `language on ${card.name}`,
+      change: createSetLanguageChange(card.name, { language, cardId }),
+      inverse: createSetLanguageChange(card.name, {
+        language: displayLanguage(card.language),
+        cardId,
+      }),
+      consolidate: (changes, original) =>
+        consolidateSetLanguage(changes, card.name, language, original.language, cardId),
+    })
+    logUpdatedLine(state, cardId, card.name)
     return
   }
 

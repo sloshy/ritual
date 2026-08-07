@@ -12,8 +12,9 @@
 import { buildCkCartCsv, roundCents, type CkCartItem, type SellCartCsv } from '../buylist'
 import type { BuylistQuote } from '../buylist'
 import type { Finish, ScryfallCard } from '../types'
-import { quoteFor } from './buylist-quotes'
+import { isNonEnglishCard, quoteFor } from './buylist-quotes'
 import { displayFinish } from '../finish-condition'
+import { displayLanguage, type CardLanguage } from '../card-language'
 import type { CardData } from './card-sorting'
 
 /**
@@ -27,8 +28,21 @@ export type SellableCard = {
   set?: string
   collectorNumber?: string
   finish?: Finish
+  /** The entry's language token, when present. Absent means `en`. Non-English copies are never quotable. */
+  language?: CardLanguage
   /** The printing actually displayed, used when the entry pins none. */
   scryfallCard: ScryfallCard | null
+}
+
+/**
+ * Whether a tile is a non-English copy — by its entry's own language token or by
+ * the language of the card object it displays. The buyer's feed is
+ * English-only, so these are never quoted (see `isNonEnglishCard`); counting
+ * them separately lets the shortfall note say why instead of lumping them under
+ * "not on buylist".
+ */
+export function isNonEnglishSellable(card: SellableCard): boolean {
+  return displayLanguage(card.language) !== 'en' || isNonEnglishCard(card.scryfallCard)
 }
 
 /** Adapt a list tile to the sellable shape (`CardData` spells the card `card`). */
@@ -57,6 +71,9 @@ export type SellAllocation = {
  * tile displays — the same rule `buylistFieldsFor` uses.
  */
 function quoteForSelection(card: SellableCard): BuylistQuote | undefined {
+  // Never quote a non-English copy: its `set:cn` is shared with the English
+  // printing, so the store *would* answer — with the English offer.
+  if (isNonEnglishSellable(card)) return undefined
   // Card-first, matching `buylistFieldsFor` and the request builder: the quote
   // belongs to the printing the tile is actually showing, which for an unpinned
   // line is not the one the line names. (Casing no longer matters either way —
@@ -100,6 +117,8 @@ export type SellValueSummary = {
   notOnBuylistCount: number
   /** Copies the buyer has an active offer for but is already full on. */
   overLimitCount: number
+  /** Non-English copies — the buyer's feed is English-only, so never quotable. */
+  nonEnglishCount: number
 }
 
 /** Summarize {@link allocateSellQuantities} into the header/dialog figures. */
@@ -109,6 +128,7 @@ export function summarizeSellValue(cards: readonly SellableCard[]): SellValueSum
     sellableCount: 0,
     notOnBuylistCount: 0,
     overLimitCount: 0,
+    nonEnglishCount: 0,
   }
   for (const allocation of allocateSellQuantities(cards)) {
     summary.value = roundCents(summary.value + allocation.value)
@@ -116,6 +136,7 @@ export function summarizeSellValue(cards: readonly SellableCard[]): SellValueSum
     const leftover = allocation.card.quantity - allocation.sellableQuantity
     if (leftover === 0) continue
     if (allocation.quote && allocation.quote.buying) summary.overLimitCount += leftover
+    else if (isNonEnglishSellable(allocation.card)) summary.nonEnglishCount += leftover
     else summary.notOnBuylistCount += leftover
   }
   return summary
@@ -134,6 +155,13 @@ export function sellShortfallNote(summary: SellValueSummary): string | null {
   }
   if (summary.overLimitCount > 0) {
     parts.push(`${summary.overLimitCount} over the buyer's limit`)
+  }
+  if (summary.nonEnglishCount > 0) {
+    // The buyer's feed is English-only; these copies are structurally
+    // unquotable, not merely unlisted, so they get their own wording.
+    parts.push(
+      `${summary.nonEnglishCount} non-English ${pluralizeCards(summary.nonEnglishCount)} — not quotable`,
+    )
   }
   return parts.length > 0 ? `(${parts.join(', ')})` : null
 }

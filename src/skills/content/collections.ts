@@ -100,7 +100,7 @@ ${REFRESH_SESSION}
 ${sessionSemantics({
   fileNoun: 'file',
   editScope: "the collection's existing entries",
-  editFields: "change a card's printing, finish, condition, label, or note, or remove it",
+  editFields: "change a card's printing, finish, condition, language, label, or note, or remove it",
   undoAddVerb: 'removes',
   changeKinds: 'adds, edits, and removals',
   discardTarget: 'same-card changes',
@@ -212,10 +212,12 @@ ${wrapProse(
     'against the card cache first, so an etched-only printing compares as ' +
     'etched; a printing the cache does not hold syncs as nonfoil with a warning ' +
     'naming the line (that lookup is cache-only — a sync never fetches cards ' +
-    'one at a time, so preload the cache first if finishes matter). Language, ' +
-    'tags, and purchase price have no local ' +
-    'representation: records Ritual creates are English, untagged, and ' +
-    'priceless, while existing values survive a quantity change. The game is ' +
+    'one at a time, so preload the cache first if finishes matter). Language ' +
+    'round-trips: a `[ja]`-style token pulls down as, and pushes up as, that ' +
+    "Archidekt language, and a code Archidekt's CSV cannot express pushes as " +
+    'English with a warning naming the line. Tags and purchase price have no ' +
+    'local representation: records Ritual creates are untagged and priceless, ' +
+    'while existing values survive a quantity change. The game is ' +
     'fixed to Paper (no MTGO/Arena), and sections and notes are local-only — a ' +
     "pull adds into the target list's `Main`, a push flattens sections.",
 )}
@@ -406,6 +408,9 @@ ritual sell --output csv --out to-sell.csv      # CK sell-cart CSV (upload at ca
 Entries report \`status\` \`buying\` / \`not-buying\` (CK's buy quantity is 0) / \`no-match\`,
 with \`sellableQuantity = min(owned, CK's cap)\` and \`value\` covering only those copies.
 Quotes are cash for NM copies — played conditions grade down, store credit pays more.
+Non-English entries (a \`[ja]\`-style language token) are **never quoted**: CK's feed is
+English-only, so they report \`no-match\` with reason \`non-english\` rather than silently
+quoting the English price for a foreign copy.
 The \`csv\` output carries data rows only (CK's importer expects no header row) and uses CK's
 own listing titles — their parenthesized variant note included, so variant printings land on the
 right product — plus their edition spellings. It warns beyond their upload caps

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   applyChangeToCollection,
   findCollectionPrintingError,
+  toCollectionCardEntries,
 } from '../../src/editor/collection-changes'
 import type { CollectionCardEntry } from '../../src/site/data-types'
 import { runMissMatrix, type MissMatrixCase } from '../test-utils'
@@ -84,6 +85,51 @@ describe('applyChangeToCollection', () => {
 
     expect(result).toHaveLength(1)
     expect(result[0]!.finish).toBe('foil')
+  })
+
+  it('add with language — the new entry carries it; a bare add resolves to en', () => {
+    const result = applyChangeToCollection([], {
+      action: 'add',
+      cardName: 'Ambition’s Cost',
+      set: 'neo',
+      collectorNumber: '234',
+      language: 'ja',
+    })
+    expect(result[0]!.language).toBe('ja')
+
+    const bare = applyChangeToCollection([], { action: 'add', cardName: 'Sol Ring' })
+    expect(bare[0]!.language).toBe('en')
+  })
+
+  it('set-language — updates the targeted entry', () => {
+    const entries = [makeEntry({ cardId: 5, language: 'en' })]
+    const result = applyChangeToCollection(entries, {
+      action: 'set-language',
+      cardName: 'Lightning Bolt',
+      cardId: 5,
+      language: 'ja',
+    })
+    expect(result[0]!.language).toBe('ja')
+    // Back to English — the resolved in-memory shape keeps the explicit en.
+    const restored = applyChangeToCollection(result, {
+      action: 'set-language',
+      cardName: 'Lightning Bolt',
+      cardId: 5,
+      language: 'en',
+    })
+    expect(restored[0]!.language).toBe('en')
+  })
+
+  it('set-language — misses when no entry matches', () => {
+    const entries = [makeEntry()]
+    let missed = ''
+    const result = applyChangeToCollection(
+      entries,
+      { action: 'set-language', cardName: 'Ancestral Recall', language: 'ja' },
+      { onMiss: (reason) => (missed = reason) },
+    )
+    expect(result).toBe(entries)
+    expect(missed).toBe('no-target')
   })
 
   it('set-printing — retargets the entry by cardId to the new printing', () => {
@@ -382,4 +428,15 @@ describe('applyChangeToCollection — onMiss reporting', () => {
   ]
 
   runMissMatrix(applyChangeToCollection, () => [makeEntry()], cases)
+})
+
+describe('toCollectionCardEntries', () => {
+  it('resolves language like finish/condition: a bare entry reads as en, a token is kept', () => {
+    const entries = toCollectionCardEntries([
+      { name: 'Sol Ring', set: 'C21', collectorNumber: '1' },
+      { name: 'Ambition’s Cost', set: 'neo', collectorNumber: '234', language: 'ja' },
+    ])
+    expect(entries[0]!.language).toBe('en')
+    expect(entries[1]!.language).toBe('ja')
+  })
 })

@@ -8,20 +8,23 @@
  * thing and the browser bundle can use them.
  */
 
+import type { CardLanguage } from '../card-language'
 import { formatPrintingAnnotation } from '../change-event'
 import type { Condition, Finish } from '../types'
 
 /**
- * The four dimensions a local copy and a remote record must agree on to be the
+ * The five dimensions a local copy and a remote record must agree on to be the
  * same thing. Set codes are lowercase (the internal convention); the collector
  * number keeps the casing of whichever side supplied it, since the key itself
- * compares it case-insensitively.
+ * compares it case-insensitively. `language` is absent for English (a bare line
+ * means `en`), and the key folds the two spellings together.
  */
 export type CollectionKeyParts = {
   set: string
   collectorNumber: string
   finish: Finish
   condition: Condition
+  language?: CardLanguage
 }
 
 /** One list holding copies of a printing, and how many of them it holds. */

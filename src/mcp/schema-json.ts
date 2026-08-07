@@ -4,6 +4,8 @@ import { LIST_TYPES } from '../list-type'
 import type { McpToolName } from './tools/names'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
 import { CARD_LABELS } from '../card-labels'
+import { CARD_LANGUAGES } from '../card-language'
+import { CARD_BULK_TYPES } from '../scryfall/bulk-manifest'
 import { VALID_CURRENCIES } from '../price-currency'
 import { DIFF_BY_MODES } from '../list-diff'
 import { BUYERS, SELL_MATCH_VIAS } from '../buylist'
@@ -166,6 +168,10 @@ const LIST_TYPE = enumOf(LIST_TYPES)
 const FINISH = enumOf(VALID_FINISHES)
 const CONDITION = enumOf(VALID_CONDITIONS)
 const CARD_LABEL = enumOf(CARD_LABELS)
+const LANGUAGE = enumOf(
+  CARD_LANGUAGES,
+  'Scryfall language code; absent means English ("en") — entries carry it only when not English.',
+)
 
 /**
  * Scryfall's price key set is theirs, not ours, so this stays an open record of
@@ -185,6 +191,10 @@ const PRINTING_IDENTITY_PROPS = {
   rarity: str(),
   releasedAt: str('ISO-8601 release date; absent on the rare printing Scryfall dates.'),
   finishes: arr(str()),
+  lang: str(
+    'Scryfall language code of this card object; absent means English ("en"). With an ' +
+      'all-cards-backed cache the same set:collectorNumber can appear once per language.',
+  ),
 } as const satisfies Properties
 const PRINTING_IDENTITY_REQUIRED = [
   'scryfallId',
@@ -226,6 +236,7 @@ const PRINTING_PROPS = {
   set: str('Lowercase set code.'),
   collectorNumber: str(),
   finish: FINISH,
+  language: LANGUAGE,
 } as const satisfies Properties
 
 /** {@link PRINTING_PROPS} plus the grade, which wanted lists do not track. */
@@ -385,6 +396,7 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
       set: str('Lowercase set code; absent for the "(no printing)" bucket.'),
       collectorNumber: str(),
       finish: FINISH,
+      language: LANGUAGE,
       quantity: int(),
     },
     ['quantity'],
@@ -708,13 +720,20 @@ export const GET_CARD_PRINTINGS_OUTPUT: JsonSchemaType = withDefs(
         ref('PrintingListing'),
         'Newest first. `prices` is present only when includePrices was set.',
       ),
-      totalPrintings: int('Printings found before limit truncated the list.'),
+      totalPrintings: int(
+        'Distinct set:collectorNumber printings found before limit truncated the list.',
+      ),
+      languages: arr(
+        str(),
+        'Every language the card’s full printing list exists in ("en" first), folding an ' +
+          'absent lang to "en". ["en"] for any English-only (default-cards-backed) cache.',
+      ),
       complete: bool(
         'False when the card cache holds no printing list for this name: the printings shown are ' +
           'whatever one Scryfall lookup returned, not the card’s full set.',
       ),
     },
-    ['name', 'printings', 'complete'],
+    ['name', 'printings', 'languages', 'complete'],
   ),
   'PrintingListing',
 )
@@ -954,8 +973,32 @@ export const GET_CACHE_STATUS_OUTPUT: JsonSchemaType = obj(
     priceStale: bool('True when prices are older than 24h, or their age is unknown.'),
     tagsPresent: bool('Whether sampled cards carry Scryfall Tagger tags.'),
     source: enumOf(['local', 'cache-server']),
+    defaultLanguage: enumOf(
+      CARD_LANGUAGES,
+      'The configured defaultLanguage — what decides which Scryfall bulk backs the cache.',
+    ),
+    cardBulkType: nullable(
+      enumOf(CARD_BULK_TYPES),
+      'Which bulk built the card cache (default_cards is English-only, all_cards every ' +
+        'language); null when no ingest has recorded provenance.',
+    ),
+    bulkTypeStale: bool(
+      'True when the cache’s bulk disagrees with what defaultLanguage demands — the cache ' +
+        'needs a full refresh (refresh_cache).',
+    ),
   },
-  ['empty', 'cardCount', 'lastCardRefresh', 'priceAgeHours', 'priceStale', 'tagsPresent', 'source'],
+  [
+    'empty',
+    'cardCount',
+    'lastCardRefresh',
+    'priceAgeHours',
+    'priceStale',
+    'tagsPresent',
+    'source',
+    'defaultLanguage',
+    'cardBulkType',
+    'bulkTypeStale',
+  ],
 )
 
 export const DIFF_LISTS_OUTPUT: JsonSchemaType = withDefs(

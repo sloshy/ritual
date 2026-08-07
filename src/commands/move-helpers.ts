@@ -11,6 +11,7 @@ import {
 } from '../change-event'
 import type { Finish, Condition } from '../types'
 import type { CardLabel } from '../card-labels'
+import { languageToken, type CardLanguage } from '../card-language'
 import { listDeckFiles, importFromTextFile } from '../importers/text-file'
 import { parseCollectionFile } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
@@ -45,6 +46,8 @@ export type PhysicalCard = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The line's `[ja]`-style language token. Absent means `en`; rides every move. */
+  language?: CardLanguage
   /**
    * Label override — collection entries only. A `ritual move`
    * collection→collection move carries it (like the note); moves to a deck or
@@ -181,6 +184,7 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
               collectorNumber: card.collectorNumber,
               finish: card.finish,
               condition: card.condition,
+              language: card.language,
               note: card.note,
               cardId: card.cardId,
               copyIndex: i,
@@ -210,6 +214,7 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
           collectorNumber: entry.collectorNumber,
           finish: entry.finish,
           condition: entry.condition,
+          language: entry.language,
           labels: entry.labels,
           note: entry.note,
           cardId: entry.cardId,
@@ -236,6 +241,7 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
           set: entry.set,
           collectorNumber: entry.collectorNumber,
           finish: entry.finish,
+          language: entry.language,
           note: entry.note,
           cardId: entry.cardId,
           listEntry,
@@ -351,7 +357,7 @@ export function buildCardSearchChoices(
     if (card.set && card.collectorNumber) {
       printingPart = ` (${card.set.toUpperCase()}:${card.collectorNumber})`
     }
-    const finishPart = finishLabel(card.finish)
+    const finishPart = finishLabel(card.finish) + languageToken(card.language)
     const idPart = card.cardId !== undefined ? ` &${card.cardId}` : ''
 
     let notePart = ''
@@ -525,6 +531,7 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
           collectorNumber: vc.card.collectorNumber,
           finish: vc.card.finish,
           condition: vc.card.condition,
+          language: vc.card.language,
           cardId: vc.card.cardId,
           to: vc.currentList.ref,
         }),
@@ -543,6 +550,7 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
           collectorNumber: vc.card.collectorNumber,
           finish: vc.card.finish,
           condition: vc.card.condition,
+          language: vc.card.language,
           cardId: vc.card.cardId,
           from: vc.card.listEntry.ref,
         }),
@@ -627,6 +635,7 @@ export async function commitAllRemovals(
           collectorNumber: vc.card.collectorNumber,
           finish: vc.card.finish,
           condition: vc.card.condition,
+          language: vc.card.language,
           cardId: vc.card.cardId,
         }),
       )

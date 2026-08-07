@@ -2,6 +2,7 @@ import type { Component } from 'solid-js'
 import { createEffect, createSignal, For, on, Show } from 'solid-js'
 import type { ScryfallCard } from '../types'
 import type { CardLabel } from '../card-labels'
+import { languageBadge } from '../card-language'
 import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost } from './symbols'
 import type { PriceCurrency } from '../price-currency'
@@ -56,6 +57,11 @@ export interface CardItemProps {
   onTooltipLeave?: () => void
   collectionFinish?: string
   collectionCondition?: string
+  /**
+   * The entry's non-English language code (`ja`), when it has one. Rendered
+   * uppercase beside the finish/condition chips; English entries pass nothing.
+   */
+  collectionLanguage?: string
   collectionSetCN?: string
   collectionPrice?: number
   /**
@@ -273,6 +279,16 @@ export const CardItem: Component<CardItemProps> = (props) => {
           return rawFinish ? capitalize(rawFinish) : null
         }
 
+        // Uppercased for display, like set codes; null when the entry is English.
+        const entryLanguageBadge = () => languageBadge(props.collectionLanguage)
+
+        // The parenthetical after the name in the art views: finish, language, or
+        // "Foil · JA" when both apply. Empty string (falsy) when neither does.
+        const finishLanguageLabel = () =>
+          [finishLabel(), entryLanguageBadge()]
+            .filter((part): part is string => Boolean(part))
+            .join(' · ')
+
         const labelBadges = () => (props.labelBadges?.length ? props.labelBadges : null)
 
         /** The compact SALE/TRADE/KEEP tag run, shared by all three view modes. */
@@ -323,9 +339,12 @@ export const CardItem: Component<CardItemProps> = (props) => {
         // single parenthesised label rendered next to the card name. Reuses finishLabel so
         // the capitalised finish stays consistent with the binder/overlap views.
         const printingLabel = () => {
-          const parts = [props.collectionSetCN, finishLabel(), props.collectionCondition].filter(
-            (part): part is string => Boolean(part),
-          )
+          const parts = [
+            props.collectionSetCN,
+            finishLabel(),
+            props.collectionCondition,
+            entryLanguageBadge(),
+          ].filter((part): part is string => Boolean(part))
           return parts.length > 0 ? `(${parts.join(' · ')})` : null
         }
 
@@ -426,8 +445,8 @@ export const CardItem: Component<CardItemProps> = (props) => {
                 <div class="card-label">
                   <span class="card-label-name">
                     {props.name}
-                    <Show when={finishLabel()}>
-                      <span class="card-label-finish"> ({finishLabel()})</span>
+                    <Show when={finishLanguageLabel()}>
+                      {(label) => <span class="card-label-finish"> ({label()})</span>}
                     </Show>
                     {badgeRun()}
                   </span>
@@ -460,7 +479,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                 <span class="list-name-group">
                   <span class="list-name">{props.name}</span>
                   <Show when={printingLabel()}>
-                    <span class="list-printing">{printingLabel()}</span>
+                    {(label) => <span class="list-printing">{label()}</span>}
                   </Show>
                   {badgeRun()}
                 </span>
@@ -610,8 +629,8 @@ export const CardItem: Component<CardItemProps> = (props) => {
                 <div class="card-label">
                   <span class="card-label-name">
                     {props.name}
-                    <Show when={finishLabel()}>
-                      <span class="card-label-finish"> ({finishLabel()})</span>
+                    <Show when={finishLanguageLabel()}>
+                      {(label) => <span class="card-label-finish"> ({label()})</span>}
                     </Show>
                     {badgeRun()}
                   </span>

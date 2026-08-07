@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'bun:test'
+import prompts from 'prompts'
 import {
   applyDeckChange,
   applyDeckFieldEdit,
   discardDeckSessionAdd,
   discardDeckSessionChange,
+  editDeckCard,
   lastDeckEditLabel,
   listDeckEntries,
   listDeckSessionChanges,
@@ -298,5 +300,57 @@ describe('listDeckEntries', () => {
     expect(renderDeckCardLine(deck.sections[1]!.cards[0]!, 'Main')).toBe(
       '2 Sol Ring [foil] — Main &2',
     )
+  })
+})
+
+describe('deck edit-mode — Change Language', () => {
+  test('the edit menu applies a set-language change, undoable back to the original', async () => {
+    const state = stateOf(
+      deckOf([{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }]),
+    )
+    const ctx = contextOf()
+
+    prompts.inject(['language', 'ja'])
+    await editDeckCard(state, ctx, 1, { sessionConfig: {}, excludeDigitalOnly: true })
+
+    const edited = findCardById(state.deck, 1)!.card
+    expect(edited.language).toBe('ja')
+    expect(ctx.sessionChanges).toHaveLength(1)
+    expect(ctx.sessionChanges[0]).toMatchObject({
+      action: 'set-language',
+      language: 'ja',
+      cardId: 1,
+    })
+    expect(lastDeckEditLabel(state)).toBe('language on Sol Ring')
+    expect(renderDeckCardLine(edited, 'Main')).toBe('1 Sol Ring (C19:221) [ja] — Main &1')
+
+    undoDeckEdit(state, ctx)
+    // The deck engine clears an explicit en back off the card (written-value shape).
+    expect(findCardById(state.deck, 1)!.card.language).toBeUndefined()
+    expect(ctx.sessionChanges).toHaveLength(0)
+    expect(lastDeckEditLabel(state)).toBeNull()
+  })
+
+  test('re-picking the current language is a no-op', async () => {
+    const state = stateOf(
+      deckOf([
+        {
+          quantity: 1,
+          name: 'Sol Ring',
+          set: 'c19',
+          collectorNumber: '221',
+          language: 'ja',
+          cardId: 1,
+        },
+      ]),
+    )
+    const ctx = contextOf()
+
+    prompts.inject(['language', 'ja'])
+    await editDeckCard(state, ctx, 1, { sessionConfig: {}, excludeDigitalOnly: true })
+
+    expect(findCardById(state.deck, 1)!.card.language).toBe('ja')
+    expect(ctx.sessionChanges).toHaveLength(0)
+    expect(lastDeckEditLabel(state)).toBeNull()
   })
 })

@@ -15,6 +15,7 @@ import {
 import type { PushCreate } from '../../../src/collection-sync/diff'
 import { validateArchidektCsvColumns } from '../../../src/importers/archidekt-collection'
 import type { CollectionCsvUploadResult } from '../../../src/importers/archidekt-collection'
+import type { CardLanguage } from '../../../src/card-language'
 import type { Condition, Finish } from '../../../src/types'
 import { noPrintings, printing, printingId, printingsLookup } from './fixtures'
 
@@ -29,6 +30,7 @@ type CreateOptions = {
   quantity?: number
   finish?: Finish
   condition?: Condition
+  language?: CardLanguage
   lists?: string[]
 }
 
@@ -40,12 +42,13 @@ function create(
 ): PushCreate {
   return {
     kind: 'create',
-    key: `${set}|${collectorNumber}|${options.finish ?? 'nonfoil'}|${options.condition ?? 'NM'}`,
+    key: `${set}|${collectorNumber}|${options.finish ?? 'nonfoil'}|${options.condition ?? 'NM'}|${options.language ?? 'en'}`,
     parts: {
       set,
       collectorNumber,
       finish: options.finish ?? 'nonfoil',
       condition: options.condition ?? 'NM',
+      language: options.language,
     },
     name,
     lists: options.lists ?? ['blue-binder'],
@@ -69,14 +72,14 @@ describe('planCollectionCsv', () => {
     const plan = await planCollectionCsv([SOL_RING, KARLACH], CACHE)
 
     expect(plan.csv.split('\n')).toEqual([
-      'Scryfall ID,Quantity,Variant,Condition',
+      'Scryfall ID,Quantity,Variant,Condition,Language',
       // The uid comes from the cached printing — nothing about it can be spelled
       // out of the line's own set and collector number — and the quantity is the
       // copies the key holds: one row per printing, not one per copy.
-      `${printingId('ltc', '284')},2,Normal,NM`,
+      `${printingId('ltc', '284')},2,Normal,NM,EN`,
       // Etched is its own variant, and Damaged is `D` in a CSV cell (Ritual
       // spells it `DMG` everywhere else).
-      `${printingId('clb', '507')},1,Etched,D`,
+      `${printingId('clb', '507')},1,Etched,D,EN`,
     ])
     expect(plan.rows).toEqual([SOL_RING, KARLACH])
     // Index-aligned with rows — the identity map result pairing is built from.
@@ -91,9 +94,39 @@ describe('planCollectionCsv', () => {
     // of that derivation: reorder the preset and this fails rather than Archidekt
     // silently reading quantities as variants. Uid-keyed, so no row can be
     // ambiguous — and Archidekt's own rule agrees.
-    expect(COLLECTION_CSV_UPLOAD.columns).toEqual(['uid', 'quantity', 'modifier', 'condition'])
+    expect(COLLECTION_CSV_UPLOAD.columns).toEqual([
+      'uid',
+      'quantity',
+      'modifier',
+      'condition',
+      'language',
+    ])
     expect(COLLECTION_CSV_UPLOAD.header).toBe(true)
     expect(validateArchidektCsvColumns(COLLECTION_CSV_UPLOAD.columns)).toBeUndefined()
+  })
+
+  test('a [ja] addition rides with Archidekt’s JP code and the printing’s default uid', async () => {
+    const plan = await planCollectionCsv(
+      [create('Sol Ring', 'ltc', '284', { language: 'ja' })],
+      CACHE,
+    )
+
+    // The uid is the printing's default (English) object — Archidekt's own uid
+    // — while the language rides its own column.
+    expect(plan.csv.split('\n')[1]).toBe(`${printingId('ltc', '284')},1,Normal,NM,JP`)
+    expect(plan.warnings).toEqual([])
+  })
+
+  test('a language Archidekt cannot model renders EN with a warning', async () => {
+    const plan = await planCollectionCsv(
+      [create('Urza’s Tower', 'atq', '85a', { language: 'ph' })],
+      printingsLookup([printing('Urza’s Tower', 'atq', '85a', ['nonfoil'])]),
+    )
+
+    expect(plan.csv.split('\n')[1]).toBe(`${printingId('atq', '85a')},1,Normal,NM,EN`)
+    expect(plan.warnings).toEqual([
+      'Archidekt cannot represent Phyrexian [ph]; pushing Urza’s Tower (ATQ:85a) as English.',
+    ])
   })
 
   test('keeps additions the cache cannot resolve out of the file', async () => {
@@ -170,11 +203,17 @@ describe('collectionCsvOutcome', () => {
    * The `raw` echo Archidekt sends back for a row: its own re-serialization —
    * every cell quoted, CRLF-terminated — not the bytes Ritual uploaded.
    */
-  function rawLine(uid: string, quantity: number, variant: string, condition: string): string {
-    return `"${uid}","${quantity}","${variant}","${condition}"\r\n`
+  function rawLine(
+    uid: string,
+    quantity: number,
+    variant: string,
+    condition: string,
+    language = 'EN',
+  ): string {
+    return `"${uid}","${quantity}","${variant}","${condition}","${language}"\r\n`
   }
 
-  const HEADER_ECHO = '"Scryfall ID","Quantity","Variant","Condition"\r\n'
+  const HEADER_ECHO = '"Scryfall ID","Quantity","Variant","Condition","Language"\r\n'
 
   test('names the card behind every row Archidekt did not import', () => {
     const outcome = collectionCsvOutcome(
@@ -288,12 +327,36 @@ describe('collectionCsvOutcome', () => {
     expect(outcome.failures[0]?.card).toBe('Sol Ring (LTC:284)')
   })
 
+  test('two rows for one printing are told apart by language, not by uid', () => {
+    // Same printing, same uid, same variant and condition — only the language
+    // cell separates the rows, so the identity must carry it. The refused row
+    // comes first so a language-blind identity would blame the Japanese copy.
+    const SOL_RING_JA = create('Sol Ring', 'ltc', '284', { quantity: 2, language: 'ja' })
+    const outcome = collectionCsvOutcome(
+      { rows: [SOL_RING, SOL_RING_JA], rowIds: [SOL_UID, SOL_UID] },
+      result([
+        { raw: rawLine(SOL_UID, 2, 'Normal', 'NM'), imported: false, notFound: true },
+        { raw: rawLine(SOL_UID, 2, 'Normal', 'NM', 'JP'), imported: true },
+      ]),
+    )
+
+    expect(outcome.failed).toEqual([SOL_RING])
+    expect(outcome.failures[0]?.card).toBe('Sol Ring (LTC:284)')
+  })
+
   test('echo matching is case-insensitive, header echo included', () => {
     const outcome = collectionCsvOutcome(
       { rows: [SOL_RING], rowIds: [SOL_UID] },
       result([
-        { raw: '"scryfall id","quantity","variant","condition"\r\n', imported: false },
-        { raw: rawLine(SOL_UID.toUpperCase(), 2, 'normal', 'nm'), imported: false, notFound: true },
+        {
+          raw: '"scryfall id","quantity","variant","condition","language"\r\n',
+          imported: false,
+        },
+        {
+          raw: rawLine(SOL_UID.toUpperCase(), 2, 'normal', 'nm', 'en'),
+          imported: false,
+          notFound: true,
+        },
       ]),
     )
 
@@ -357,7 +420,7 @@ describe('collectionCsvOutcome', () => {
     expect(outcome.failures).toEqual([
       {
         row: 0,
-        card: 'CSV row 1 ("uid-stranger","1","Normal","NM")',
+        card: 'CSV row 1 ("uid-stranger","1","Normal","NM","EN")',
         ambiguous: false,
         notFound: true,
         errors: [],

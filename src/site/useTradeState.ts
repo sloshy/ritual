@@ -4,6 +4,7 @@ import type { PriceCurrency } from '../price-currency'
 import type { TradeSearchEntry } from './useTradeData'
 import { getCardPriceForFinish } from '../price-currency'
 import { resolveTradeFinish } from './trade-finish'
+import { displayLanguage } from '../card-language'
 import { confirmKeepAdd } from './keep-trade-prompt'
 
 // Module-level signals survive page navigation within the same tab.
@@ -48,6 +49,9 @@ function matchesTradeEntry(c: TradeCardEntry, entry: TradeSearchEntry): boolean 
     c.collectorNumber === entry.collectorNumber &&
     c.finish === resolveTradeFinish(entry.scryfallCard, entry.finish) &&
     c.condition === entry.condition &&
+    // Language is a variant dimension like finish; folded so a bare line and an
+    // explicit `en` compare equal.
+    displayLanguage(c.language) === displayLanguage(entry.language) &&
     c.note === entry.note &&
     c.source === entry.sourceKind &&
     c.sourceName === entry.sourceName
@@ -65,6 +69,7 @@ function tradeCardFromEntry(entry: TradeSearchEntry, currency: PriceCurrency): T
     collectorNumber: entry.collectorNumber,
     finish,
     condition: entry.condition,
+    language: entry.language,
     labels: entry.labels,
     note: entry.note,
     price,

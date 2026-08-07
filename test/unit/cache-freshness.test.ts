@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  bulkTypeMismatchMessage,
   emptyCacheAdvice,
   ensureCardCacheForUpload,
   ensureFreshPriceData,
   offerBulkPriceRefresh,
   offerTagDownload,
   refreshCardCacheForSession,
+  type BulkTypeMismatch,
   type PriceFreshnessCache,
   type PriceRefreshDeps,
   type SessionCardCache,
@@ -23,9 +25,10 @@ type Harness = {
   confirmCalls: BulkRefreshPrompt[]
   preload: () => Promise<void>
   confirmStaleRefresh: (prompt: BulkRefreshPrompt) => Promise<boolean>
+  detectMismatch: () => Promise<BulkTypeMismatch | null>
 }
 
-function harness(confirmAnswer = false): Harness {
+function harness(confirmAnswer = false, mismatch: BulkTypeMismatch | null = null): Harness {
   const h: Harness = {
     preloadCalls: 0,
     confirmCalls: [],
@@ -36,8 +39,16 @@ function harness(confirmAnswer = false): Harness {
       h.confirmCalls.push(prompt)
       return confirmAnswer
     },
+    // Injected so these tests never read the real config or provenance sidecar.
+    detectMismatch: async () => mismatch,
   }
   return h
+}
+
+/** The mismatch an `en → ja` defaultLanguage switch produces. */
+const EN_TO_JA_MISMATCH: BulkTypeMismatch = {
+  recorded: 'default_cards',
+  required: 'all_cards',
 }
 
 /**
@@ -162,6 +173,80 @@ describe('refreshCardCacheForSession', () => {
     })
     expect(h.preloadCalls).toBe(0)
     expect(h.confirmCalls).toHaveLength(0)
+  })
+
+  test('auto refreshes a fresh cache built from the wrong bulk without prompting', async () => {
+    const h = harness(false, EN_TO_JA_MISMATCH)
+    await refreshCardCacheForSession('auto', {
+      // Fresh by every ordinary measure — only the bulk type is wrong.
+      cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - 60_000 }),
+      ...h,
+    })
+    expect(h.preloadCalls).toBe(1)
+    expect(h.confirmCalls).toHaveLength(0)
+  })
+
+  test('ask prompts about a bulk-type mismatch and preloads when accepted', async () => {
+    const h = harness(true, EN_TO_JA_MISMATCH)
+    await refreshCardCacheForSession('ask', {
+      cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - 60_000 }),
+      ...h,
+    })
+    expect(h.confirmCalls).toHaveLength(1)
+    expect(h.confirmCalls[0]!.message).toContain("'default_cards'")
+    expect(h.confirmCalls[0]!.message).toContain('all_cards')
+    expect(h.confirmCalls[0]!.initial).toBe(true)
+    expect(h.preloadCalls).toBe(1)
+  })
+
+  test('a declined mismatch prompt suppresses the ordinary staleness prompt too', async () => {
+    const h = harness(false, EN_TO_JA_MISMATCH)
+    await refreshCardCacheForSession('ask', {
+      // Also over a week old, which would ordinarily prompt on its own.
+      cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - BULK_CACHE_MAX_AGE_MS - 1 }),
+      ...h,
+    })
+    expect(h.confirmCalls).toHaveLength(1)
+    expect(h.preloadCalls).toBe(0)
+  })
+
+  test.each(['never', 'no-bulk'] as const)(
+    '%s leaves a mismatched cache alone without prompting',
+    async (mode) => {
+      const h = harness(true, EN_TO_JA_MISMATCH)
+      await refreshCardCacheForSession(mode, {
+        cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - 60_000 }),
+        ...h,
+      })
+      expect(h.confirmCalls).toHaveLength(0)
+      expect(h.preloadCalls).toBe(0)
+    },
+  )
+
+  test('an empty cache skips the mismatch check entirely', async () => {
+    const h = harness(true, EN_TO_JA_MISMATCH)
+    await refreshCardCacheForSession('auto', {
+      cache: stubCacheFor(h, { empty: true, lastRefreshedAt: null }),
+      ...h,
+    })
+    expect(h.preloadCalls).toBe(0)
+  })
+})
+
+describe('bulkTypeMismatchMessage', () => {
+  test('a default_cards cache under a non-en defaultLanguage names both bulks', () => {
+    const message = bulkTypeMismatchMessage(EN_TO_JA_MISMATCH)
+    expect(message).toContain("built from Scryfall's 'default_cards' bulk")
+    expect(message).toContain("'all_cards'")
+  })
+
+  test('an all_cards cache after switching back to en says default_cards suffices', () => {
+    const message = bulkTypeMismatchMessage({
+      recorded: 'all_cards',
+      required: 'default_cards',
+    })
+    expect(message).toContain("built from Scryfall's 'all_cards' bulk")
+    expect(message).toContain("'default_cards'")
   })
 })
 

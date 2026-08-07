@@ -72,7 +72,15 @@ export async function resolveExportScryfallIds(
       resolved.push(entry)
       continue
     }
-    const printing = findPrinting(await printingsFor(entry.name), entry.set, entry.collectorNumber)
+    // Language-aware: a `[ja]` entry under an `all_cards` cache exports the
+    // Japanese object's id, falling back per `findPrinting` (the English object,
+    // then whatever the cache holds) when that language object is not cached.
+    const printing = findPrinting(
+      await printingsFor(entry.name),
+      entry.set,
+      entry.collectorNumber,
+      entry.language,
+    )
     if (!printing) {
       warn(
         `${entry.name.toLowerCase()}|${entry.set}|${entry.collectorNumber}`,

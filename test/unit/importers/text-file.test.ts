@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { unlink, writeFile } from 'node:fs/promises'
 import {
+  DECK_CARD_LINE_RE,
+  DECK_LINE_LANGUAGE_GROUP,
   IMPORT_TEXT_PARSE_OPTIONS,
   importFromTextFile,
   matchArenaSuffix,
@@ -100,6 +102,11 @@ describe('parseDeckText', () => {
     const { deck, warnings } = parseDeckText('## Main\n1 Sol Ring &1\nnot a card line', 'X')
     expect(deck.sections[0]?.cards).toHaveLength(1)
     expect(warnings).toEqual(['Skipped malformed line: not a card line'])
+  })
+
+  test('a misspelled language token on a malformed line names its fix', () => {
+    const { warnings } = parseDeckText('## Main\nShock (M21:159) [JA]', 'X')
+    expect(warnings).toEqual(['Skipped malformed line: Shock (M21:159) [JA] (did you mean [ja]?)'])
   })
 
   test('reports no warnings for a fully parseable deck', () => {
@@ -542,4 +549,73 @@ describe('matchArenaSuffix', () => {
       expect(matchArenaSuffix(name)).toEqual({ kind: 'none' })
     },
   )
+})
+
+describe('parseDeckText — language token', () => {
+  test('reads a [ja] token after finish and condition', () => {
+    const { deck, warnings } = parseDeckText('## Main\n2 Sol Ring (LTC:284) [foil] [LP] [ja]', 'd')
+    expect(warnings).toHaveLength(0)
+    const card = deck.sections[0]!.cards[0]!
+    expect(card.finish).toBe('foil')
+    expect(card.condition).toBe('LP')
+    expect(card.language).toBe('ja')
+  })
+
+  test('reads a language token alone, with note and id after it', () => {
+    const { deck, warnings } = parseDeckText('## Main\n1 Sol Ring (LTC:284) [zhs] {gift} &7', 'd')
+    expect(warnings).toHaveLength(0)
+    const card = deck.sections[0]!.cards[0]!
+    expect(card.language).toBe('zhs')
+    expect(card.note).toBe('gift')
+    expect(card.cardId).toBe(7)
+  })
+
+  test('a bare line has no language — en is never synthesized', () => {
+    const { deck } = parseDeckText('## Main\n1 Sol Ring (LTC:284) [foil] {note} &3', 'd')
+    const card = deck.sections[0]!.cards[0]!
+    expect(card.language).toBeUndefined()
+    expect(card.note).toBe('note')
+    expect(card.cardId).toBe(3)
+  })
+
+  test('an explicit [en] token is read as en, not folded to undefined', () => {
+    // The serializer never writes [en], but a hand-written token must still
+    // parse: absent-vs-en is a write-side fold, not a read-side one.
+    const { deck, warnings } = parseDeckText('## Main\n1 Sol Ring (LTC:284) [en]', 'd')
+    expect(warnings).toHaveLength(0)
+    expect(deck.sections[0]!.cards[0]!.language).toBe('en')
+  })
+
+  test('[jp] is not a language: the line fails with the did-you-mean hint', () => {
+    // Mirrors the collection parser's [jp] rejection. Only the quantity-less
+    // form reaches the malformed branch — with a leading quantity the grammar
+    // backtracks the unknown token into the card name instead (pinned below).
+    const { deck, warnings } = parseDeckText('## Main\nShock (M21:159) [jp]', 'd')
+    expect(deck.sections[0]?.cards ?? []).toHaveLength(0)
+    expect(warnings).toEqual(['Skipped malformed line: Shock (M21:159) [jp] (did you mean [ja]?)'])
+  })
+
+  test('a quantity line swallows an unknown bracket token into the name (no warning)', () => {
+    // Documented limitation: `1 Shock (M21:159) [jp]` matches the name-only
+    // grammar, so the token lands inside the name silently. If this ever warns
+    // instead, that is an improvement — update this pin, not the parser back.
+    const { deck, warnings } = parseDeckText('## Main\n1 Shock (M21:159) [jp]', 'd')
+    expect(warnings).toHaveLength(0)
+    expect(deck.sections[0]!.cards[0]!.name).toBe('Shock (M21:159) [jp]')
+    expect(deck.sections[0]!.cards[0]!.language).toBeUndefined()
+  })
+
+  test('the DECK_CARD_LINE_RE keeps &N as the final capture group', () => {
+    const match = '2 Sol Ring (LTC:284) [foil] [LP] [ja] {x} &12'.match(DECK_CARD_LINE_RE)!
+    expect(match[match.length - 1]).toBe('12')
+    expect(match[DECK_LINE_LANGUAGE_GROUP]).toBe('ja')
+  })
+
+  test('a name-only deck line takes a language token', () => {
+    const { deck } = parseDeckText('## Main\n3 Sol Ring [ja]', 'd')
+    const card = deck.sections[0]!.cards[0]!
+    expect(card.name).toBe('Sol Ring')
+    expect(card.set).toBeUndefined()
+    expect(card.language).toBe('ja')
+  })
 })

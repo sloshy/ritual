@@ -117,8 +117,9 @@ The remote collection is the truth, with one guardrail — copies live in physic
 you know which.
 
 1. Fetches every page of the account's Paper collection.
-2. Joins both sides on `(set, collector number, finish, condition)`. Remote records that differ only
-   in language, tags, or purchase price are counted together.
+2. Joins both sides on `(set, collector number, finish, condition, language)` — a `[ja]` line and a
+   bare (English) line of the same printing are different records. Remote records that differ only
+   in tags or purchase price are counted together.
 3. **More copies remotely than locally** → the difference is added to the **target list** as new
    card lines, carrying the printing, finish, and condition.
 4. **Fewer copies remotely than locally** → the difference is removed:
@@ -253,8 +254,9 @@ The union of the in-scope lists is the truth, and the account's records are resh
    printings this changes: they go through a [CSV import](#csv-import-for-new-cards) instead, which
    needs no search at all.
 2. **More copies locally** → the leading record's quantity is raised.
-3. **Fewer copies locally** → records are consumed from the end (odd languages and small records
-   first), trimming the one that only partly covers the difference and deleting the rest.
+3. **Fewer copies locally** → records are consumed from the end (records exactly matching the
+   key's language first, then small records), trimming the one that only partly covers the
+   difference and deleting the rest.
 4. **A printing that is gone from every list** → all of its records are deleted.
 
 Deletions batch through Archidekt's own bulk endpoint, 25 records per request — removals never go
@@ -282,14 +284,16 @@ collection importer instead: one CSV, one upload, no searches.
 The rows come entirely from your **local Scryfall cache**, so building the file costs nothing:
 
 ```csv
-Scryfall ID,Quantity,Variant,Condition
-1b59533a-3e38-495d-873e-2f89fbd08494,2,Normal,NM
-7d4c1a0e-1e6a-4c6f-b6a4-4c0f2e2a9f11,1,Etched,D
+Scryfall ID,Quantity,Variant,Condition,Language
+1b59533a-3e38-495d-873e-2f89fbd08494,2,Normal,NM,EN
+7d4c1a0e-1e6a-4c6f-b6a4-4c0f2e2a9f11,1,Etched,D,JP
 ```
 
 It is exactly what `ritual export --preset archidekt` writes — the same preset, so the two can never
 disagree — in Archidekt's own spellings rather than Ritual's: the variant is `Normal` / `Foil` /
-`Etched` (never `nonfoil`), and Damaged is **`D`**, not Ritual's `DMG`. One row is one printing, so
+`Etched` (never `nonfoil`), Damaged is **`D`**, not Ritual's `DMG`, and the language column uses
+Archidekt's own codes (`EN`, `CT`, `DE`, `FR`, `IT`, `JP`, `KR`, `PT`, `RU`, `CS`, `SP` — `JP` for
+Japanese, not Scryfall's `ja`). One row is one printing, so
 a printing you own three copies of is a single row with `Quantity` 3. Uploads are chunked at 2000
 rows per request, as Archidekt's own importer does.
 
@@ -432,8 +436,10 @@ empty" and deleting the whole account collection.
 
 ## What Is Compared
 
-The join key is the **printing** (set code and collector number) plus **finish** and **condition** —
-Ritual's five conditions are exactly Archidekt's, so `NM`/`LP`/`MP`/`HP`/`DMG` round-trip as-is. A
+The join key is the **printing** (set code and collector number) plus **finish**, **condition**,
+and **language** — Ritual's five conditions are exactly Archidekt's, so `NM`/`LP`/`MP`/`HP`/`DMG`
+round-trip as-is, and a line's `[ja]`-style language token (a bare line means English) joins
+against the record's Archidekt language. A
 line with no explicit finish is resolved against the card cache first, so an etched-only printing
 compares as etched rather than as a nonfoil copy of the same number. A printing the cache does not
 hold is synced as nonfoil, with a warning naming the line. That resolution is **cache-only** — a sync
@@ -441,17 +447,23 @@ never fetches cards from Scryfall one at a time, so a cold cache means many nonf
 than hundreds of live requests. Run [`ritual cache preload-all`](/commands/cache/) before a first
 sync to get finishes resolved.
 
+Language is modelled on both sides and **round-trips**: a pull writes a non-English record's
+language onto the new local line as its `[ja]`-style token, and a push creates records in the
+line's language. The one lossy edge is the CSV import path for a large push — Archidekt's CSV
+speaks `EN CT DE FR IT JP KR PT RU CS SP`, so a language it cannot express (Hebrew, Latin,
+Ancient Greek, Arabic, Sanskrit, Phyrexian) uploads as English with a warning naming the line.
+An Archidekt record with an unknown language id is treated as English, with a warning.
+
 The following have no local representation and are **lossy** — they are preserved on records that
 already exist, but nothing local can set them:
 
-| Dimension      | Behavior                                                                                      |
-| -------------- | --------------------------------------------------------------------------------------------- |
-| Language       | Records Ritual creates are English. Other languages are read (and counted) but never written. |
-| Tags           | Records Ritual creates carry no tags; existing tags survive a quantity change.                |
-| Purchase price | Records Ritual creates have none; an existing price survives a quantity change.               |
-| Game           | Fixed to **Paper**. MTGO and Arena collections are not synced.                                |
-| Sections       | Local only. A pull adds into the target list's `Main`; a push flattens sections.              |
-| Notes          | Local only, and never sent.                                                                   |
+| Dimension      | Behavior                                                                         |
+| -------------- | -------------------------------------------------------------------------------- |
+| Tags           | Records Ritual creates carry no tags; existing tags survive a quantity change.   |
+| Purchase price | Records Ritual creates have none; an existing price survives a quantity change.  |
+| Game           | Fixed to **Paper**. MTGO and Arena collections are not synced.                   |
+| Sections       | Local only. A pull adds into the target list's `Main`; a push flattens sections. |
+| Notes          | Local only, and never sent.                                                      |
 
 ## Deck-Style Quantity Prefixes
 

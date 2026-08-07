@@ -1,6 +1,7 @@
 import { getErrorMessage } from '../../errors'
 import { getBaseDir } from '../../base-dir'
 import type { Finish, Condition } from '../../types'
+import { isCardLanguage, storedLanguage, type CardLanguage } from '../../card-language'
 import type { ListType } from '../../list-type'
 import { isListType } from '../../list-type'
 import {
@@ -12,6 +13,7 @@ import {
   commitAllMoves,
   commitAllRemovals,
   type ListEntry,
+  type VirtualCard,
 } from '../../commands/move-helpers'
 import type { DroppedNote } from '../../commands/move-io'
 import { listSlug } from '../../list-info'
@@ -53,9 +55,52 @@ export type MoveCommitItem = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Arrival language override; `en` clears the token (a bare line means `en`). */
+  language?: CardLanguage
 }
 
 export type MoveCommitRequest = { moves: MoveCommitItem[] }
+
+/** The destination printing/attribute overrides a move item may carry. */
+type MovePrintingOverride = {
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+  language?: CardLanguage
+}
+
+/**
+ * Apply a move item's destination overrides onto the virtual card (set codes
+ * normalized to lowercase) so a resolved printing is what gets written, leaving
+ * unspecified fields untouched. Shared by both commit handlers so the override
+ * semantics — including `en` clearing the language token — can never drift.
+ */
+function applyMoveOverrides(vc: VirtualCard, m: MovePrintingOverride): void {
+  if (
+    m.set === undefined &&
+    m.collectorNumber === undefined &&
+    m.finish === undefined &&
+    m.condition === undefined &&
+    m.language === undefined
+  ) {
+    return
+  }
+  vc.card = {
+    ...vc.card,
+    set: m.set !== undefined ? m.set.toLowerCase() : vc.card.set,
+    collectorNumber: m.collectorNumber ?? vc.card.collectorNumber,
+    finish: m.finish ?? vc.card.finish,
+    condition: m.condition ?? vc.card.condition,
+    // `en` clears the token — serializers omit English, a bare line means `en`.
+    language: m.language !== undefined ? storedLanguage(m.language) : vc.card.language,
+  }
+}
+
+/** True when a move item's optional `language` is present but not a known code. */
+function isMoveLanguageInvalid(language: unknown): boolean {
+  return language !== undefined && (typeof language !== 'string' || !isCardLanguage(language))
+}
 
 /**
  * POST /api/move/commit success body.
@@ -104,7 +149,8 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
         !isListType(item.toType) ||
         typeof item.toSlug !== 'string' ||
         (item.toSection !== undefined &&
-          (typeof item.toSection !== 'string' || item.toSection.trim() === ''))
+          (typeof item.toSection !== 'string' || item.toSection.trim() === '')) ||
+        isMoveLanguageInvalid(item.language)
       ) {
         return badRequest('Invalid move request')
       }
@@ -139,22 +185,7 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
         skipped++
         continue
       }
-      // Apply destination printing overrides (set codes normalized to lowercase) so a
-      // resolved printing is what gets written, leaving unspecified fields untouched.
-      if (
-        m.set !== undefined ||
-        m.collectorNumber !== undefined ||
-        m.finish !== undefined ||
-        m.condition !== undefined
-      ) {
-        vc.card = {
-          ...vc.card,
-          set: m.set !== undefined ? m.set.toLowerCase() : vc.card.set,
-          collectorNumber: m.collectorNumber ?? vc.card.collectorNumber,
-          finish: m.finish ?? vc.card.finish,
-          condition: m.condition ?? vc.card.condition,
-        }
-      }
+      applyMoveOverrides(vc, m)
       applyVirtualMove(state, internalKey, dest, { section: m.toSection })
     }
 
@@ -323,6 +354,8 @@ export type SelectedMoveItem = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Arrival language override; `en` clears the token (a bare line means `en`). */
+  language?: CardLanguage
 }
 
 export type SelectedMoveRequest = {
@@ -366,7 +399,8 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
         (item.toSection !== undefined &&
           (typeof item.toSection !== 'string' || item.toSection.trim() === '')) ||
         (item.cardId !== undefined && typeof item.cardId !== 'number') ||
-        (item.copyIndex !== undefined && typeof item.copyIndex !== 'number')
+        (item.copyIndex !== undefined && typeof item.copyIndex !== 'number') ||
+        isMoveLanguageInvalid(item.language)
       ) {
         return badRequest('Invalid move request')
       }
@@ -408,20 +442,7 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
         skipped++
         continue
       }
-      if (
-        m.set !== undefined ||
-        m.collectorNumber !== undefined ||
-        m.finish !== undefined ||
-        m.condition !== undefined
-      ) {
-        vc.card = {
-          ...vc.card,
-          set: m.set !== undefined ? m.set.toLowerCase() : vc.card.set,
-          collectorNumber: m.collectorNumber ?? vc.card.collectorNumber,
-          finish: m.finish ?? vc.card.finish,
-          condition: m.condition ?? vc.card.condition,
-        }
-      }
+      applyMoveOverrides(vc, m)
       applyVirtualMove(state, internalKey, dest, { section: m.toSection })
     }
 

@@ -9,6 +9,7 @@ import {
   type CardLabelSelection,
 } from '../card-labels'
 import type { Condition, Finish } from '../types'
+import type { CardLanguage } from '../card-language'
 import type { ListType } from '../list-type'
 import type { ListLocation } from '../resolve-list'
 import { loadDeckFile } from '../importers/text-file'
@@ -35,6 +36,8 @@ export type ExportEntry = {
   finish?: Finish
   /** Never set for wanted entries (the wanted grammar has no condition token). */
   condition?: Condition
+  /** The line's language token, when present. Absent means `en` (a bare line means English). */
+  language?: CardLanguage
   /**
    * The card's *effective* labels (its line's override, else the list's
    * front-matter default) — collections only; absent when the effective set is
@@ -89,6 +92,7 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
             collectorNumber: card.collectorNumber,
             finish: card.finish,
             condition: card.condition,
+            language: card.language,
             note: card.note,
             fileOrder: fileOrder++,
           })
@@ -143,6 +147,7 @@ function flatEntry(
     collectorNumber: entry.collectorNumber,
     finish: entry.finish,
     condition,
+    language: entry.language,
     labels,
     note: entry.note,
     fileOrder,

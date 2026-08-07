@@ -451,6 +451,48 @@ describe('filterCards', () => {
       expect(matching('finish', 2)).toEqual([])
     })
 
+    test("'printing' separates language variants of one set:cn, folding en", () => {
+      // Two English copies (one with no language field, one explicit 'en' — the
+      // same thing) and one Japanese copy of the same printing: the ja copy must
+      // not add into the English total. The language comes from the ENTRY, not
+      // the resolved card — all three resolve to the same default (English)
+      // Scryfall object, exactly what a default_cards cache bakes for a [ja]
+      // line.
+      const bare = bolt('lea', '161', 'nonfoil')
+      const explicitEn = makeCard({
+        name: 'Lightning Bolt',
+        setCode: 'lea',
+        finish: 'nonfoil',
+        language: 'en',
+        card: makeScryfallCard({
+          name: 'Lightning Bolt',
+          set: 'lea',
+          collector_number: '161',
+          finishes: ['nonfoil', 'foil'],
+        }),
+      })
+      const ja = makeCard({
+        name: 'Lightning Bolt',
+        setCode: 'lea',
+        finish: 'nonfoil',
+        language: 'ja',
+        card: makeScryfallCard({
+          name: 'Lightning Bolt',
+          set: 'lea',
+          collector_number: '161',
+          finishes: ['nonfoil', 'foil'],
+        }),
+      })
+      const trio = [bare, explicitEn, ja]
+      expect(filterCards(trio, makeFilters({ copies: 2, copiesMode: 'printing' }))).toEqual([
+        bare,
+        explicitEn,
+      ])
+      expect(filterCards(trio, makeFilters({ copies: 1, copiesMode: 'printing' }))).toEqual([ja])
+      // 'finish' inherits the language dimension through the same key.
+      expect(filterCards(trio, makeFilters({ copies: 1, copiesMode: 'finish' }))).toEqual([ja])
+    })
+
     test("'finish' treats an unstated finish as the printing's default finish", () => {
       // Foil-only, so the default finish is foil rather than the blanket nonfoil:
       // an entry that states 'foil' is the same copy as one that states nothing.

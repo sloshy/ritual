@@ -5,6 +5,7 @@ import type { WantedListEntry } from '../../commands/wanted-helpers'
 import { parseTitleFromContent } from '../../section-format'
 import type { ChangelogPage } from '../../changelog-parser'
 import { findPrinting, hasSpecificPrinting } from '../../card-printing'
+import { displayLanguage, scryfallCardLanguage } from '../../card-language'
 import { defaultPrintingFinish } from '../../finish-condition'
 import { getCardPrice, getCardPriceForFinish } from '../../price-currency'
 import { resolveCardImageSources } from '../image-sources'
@@ -22,7 +23,12 @@ import {
   slugifyListName,
 } from './shared'
 import type { SiteDetailContext } from './types'
-import { cardPrintingKey, formatPrintingLabel, printingKey } from '../../printing-key'
+import {
+  cardPrintingKey,
+  formatPrintingLabel,
+  printingKey,
+  printingLanguageKey,
+} from '../../printing-key'
 
 export type LoadedWanted = {
   displayName: string
@@ -165,6 +171,25 @@ export async function buildWantedArtifacts(
 
         await ctx.onCardShipped?.(exactPrinting)
 
+        // Bake the alternate-language object for a `[ja]` line under its
+        // `set:cn@lang` key (see the collection builder for the full rationale).
+        // A miss is left unkeyed so lookups fall through to the default object.
+        const language = displayLanguage(entry.language)
+        if (language !== 'en') {
+          const langKey = printingLanguageKey(entry.set, entry.collectorNumber, language)
+          if (!cardMap[langKey]) {
+            const langCard = findPrinting(printings, entry.set, entry.collectorNumber, language)
+            if (langCard && scryfallCardLanguage(langCard) === language) {
+              cardMap[langKey] = langCard
+              await ctx.onCardShipped?.(langCard)
+            } else {
+              ctx.warn?.(
+                `  ⚠️  No ${language} card object for '${entry.name}' (${formatPrintingLabel(entry.set, entry.collectorNumber)}); using the default-language object`,
+              )
+            }
+          }
+        }
+
         if (entry.finish) {
           if (hasUsd) {
             price = getCardPriceForFinish(exactPrinting, entry.finish, 'usd')
@@ -220,6 +245,7 @@ export async function buildWantedArtifacts(
       set: entry.set,
       collectorNumber: entry.collectorNumber,
       finish: entry.finish,
+      language: entry.language,
       price,
       fileOrder: i,
       section: entry.section,

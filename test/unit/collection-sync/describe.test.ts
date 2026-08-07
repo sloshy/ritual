@@ -36,7 +36,7 @@ describe('describeAmbiguousRemoval', () => {
   test('says "ambiguous", and names every list with the copies it holds', () => {
     expect(
       describeAmbiguousRemoval({
-        key: 'lea|161|nonfoil|NM',
+        key: 'lea|161|nonfoil|NM|en',
         parts: parts({ set: 'lea', collectorNumber: '161' }),
         name: 'Lightning Bolt',
         quantity: 2,
@@ -53,7 +53,7 @@ describe('describeAmbiguousRemoval', () => {
   test('joins three or more lists with commas and a final "and"', () => {
     expect(
       describeAmbiguousRemoval({
-        key: 'ltc|284|nonfoil|NM',
+        key: 'ltc|284|nonfoil|NM|en',
         parts: parts({ set: 'ltc', collectorNumber: '284' }),
         name: 'Sol Ring',
         quantity: 1,

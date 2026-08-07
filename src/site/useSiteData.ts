@@ -3,6 +3,7 @@ import type { Accessor, Setter } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary, SiteIndex } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { setSearchDebounceMs } from '../editor/search-debounce'
+import { setDefaultLanguage } from '../editor/default-language'
 import { apiActive, apiBase, dataUrl, reportDataFetchError, setApiBase } from './api-base'
 import { isAbortError } from './utils'
 
@@ -58,6 +59,7 @@ export function useSiteData(): UseSiteDataResult {
       if (data.availableCurrencies) setAvailableCurrencies(data.availableCurrencies)
       if (data.pricesDate) setPricesDate(data.pricesDate)
       if (typeof data.searchDebounceMs === 'number') setSearchDebounceMs(data.searchDebounceMs)
+      if (data.defaultLanguage) setDefaultLanguage(data.defaultLanguage)
       // Absent on sites built before sell mode existed, which reads as off.
       setSellModeConfigured(data.sellMode === true)
     })

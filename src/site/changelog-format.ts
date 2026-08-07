@@ -1,4 +1,5 @@
 import type { ChangelogAction, ChangelogChange } from '../changelog-parser'
+import { languageDisplayName, languageToken } from '../card-language'
 
 /** A change rendered as the text before and after the (clickable) card-name node. */
 export type FormattedChange = { prefix: string; suffix: string }
@@ -15,6 +16,7 @@ export function isAdditiveAction(action: ChangelogAction): boolean {
     case 'Set as commander':
     case 'Set finish':
     case 'Set printing':
+    case 'Set language':
     case 'Set note':
     case 'Set labels':
     case 'Added section':
@@ -59,6 +61,8 @@ export function formatChangeText(change: ChangelogChange): FormattedChange {
       if (change.condition && change.condition !== 'NM') {
         parts.push(`[${change.condition}]`)
       }
+      const langToken = languageToken(change.language)
+      if (langToken !== '') parts.push(langToken.trimStart())
       const annotation = parts.length > 0 ? ' ' + parts.join(' ') : ''
       // The parser only sets `board` for non-main boards, so this stays empty for
       // ordinary mainboard changes.
@@ -81,9 +85,19 @@ export function formatChangeText(change: ChangelogChange): FormattedChange {
       }
       if (change.finish && change.finish !== 'nonfoil') parts.push(`[${change.finish}]`)
       if (change.condition && change.condition !== 'NM') parts.push(`[${change.condition}]`)
+      const langToken = languageToken(change.language)
+      if (langToken !== '') parts.push(langToken.trimStart())
       const desc = parts.length > 0 ? parts.join(' ') : 'no specific printing'
       return { prefix: 'Set ', suffix: ` printing to ${desc}` }
     }
+    case 'Set language':
+      // Mirror formatChangeCore's wording, resolving the code to its display
+      // name. The parser only assigns validated codes, so no raw-text fallback
+      // is needed.
+      return {
+        prefix: 'Set language of ',
+        suffix: ` to ${languageDisplayName(change.language ?? 'en')}`,
+      }
     case 'Set note':
       // Mirror formatChangeCore: an empty (or absent) note is a clear, not a set.
       if (!change.note) return { prefix: 'Cleared note on ', suffix: '' }

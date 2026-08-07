@@ -13,10 +13,11 @@
  *   (case-, accent-, and punctuation-insensitive). Each side's printings are
  *   aggregated into {@link DiffSideDetail.printings}.
  * - `by: 'printing'` — entries match on normalized name + set + collector
- *   number + finish. A missing finish is folded to `'nonfoil'`, so an unmarked
- *   line matches an explicit `[nonfoil]` line. Lines with no printing at all
- *   (name-only deck/wanted lines) form their own "(no printing)" bucket per
- *   finish — they never match a pinned printing.
+ *   number + finish + language. A missing finish is folded to `'nonfoil'` and
+ *   a missing language to `'en'`, so an unmarked line matches an explicit
+ *   `[nonfoil]` or `[en]` line. Lines with no printing at all (name-only
+ *   deck/wanted lines) form their own "(no printing)" bucket per
+ *   finish/language — they never match a pinned printing.
  *
  * Quantities are summed per identity per side across **all** sections —
  * Maybeboard and other extra deck sections are included in v1 (the input is a
@@ -24,6 +25,7 @@
  * first-seen order, side A's entries before side B's.
  */
 
+import { displayLanguage, storedLanguage, type CardLanguage } from './card-language'
 import type { ExportEntry } from './export/entries'
 import { listDisplayName } from './list-lifecycle'
 import type { ListType } from './list-type'
@@ -50,6 +52,12 @@ export type DiffPrinting = {
   set?: string
   collectorNumber?: string
   finish: Finish
+  /**
+   * Present only for a non-English bucket. The bucket keys split on language
+   * (en-folded), so without this an `en`+`ja` pair would be two
+   * indistinguishable rows.
+   */
+  language?: CardLanguage
   quantity: number
 }
 
@@ -96,16 +104,20 @@ function identityKey(entry: ExportEntry, by: DiffBy): string {
   const set = entry.set?.toLowerCase() ?? ''
   const collectorNumber = entry.collectorNumber ?? ''
   const finish: Finish = entry.finish ?? 'nonfoil'
-  return `${name}|${set}|${collectorNumber}|${finish}`
+  // A missing language folds to `en` (the bare-line default), so an unmarked
+  // line matches an explicit `[en]` line — while a `[ja]` copy is its own
+  // identity, exactly like a differing finish.
+  return `${name}|${set}|${collectorNumber}|${finish}|${displayLanguage(entry.language)}`
 }
 
 /**
- * The printing-bucket key within one identity (nonfoil-folded, lowercase set).
- * Deliberately not the shared `printingKey` in `src/printing-key.ts`: this one
- * takes a whole entry, folds in the finish, and tolerates a missing printing.
+ * The printing-bucket key within one identity (nonfoil-folded, en-folded,
+ * lowercase set). Deliberately not the shared `printingKey` in
+ * `src/printing-key.ts`: this one takes a whole entry, folds in the finish and
+ * language, and tolerates a missing printing.
  */
 function printingBucketKey(entry: ExportEntry): string {
-  return `${entry.set?.toLowerCase() ?? ''}|${entry.collectorNumber ?? ''}|${entry.finish ?? 'nonfoil'}`
+  return `${entry.set?.toLowerCase() ?? ''}|${entry.collectorNumber ?? ''}|${entry.finish ?? 'nonfoil'}|${displayLanguage(entry.language)}`
 }
 
 /**
@@ -133,6 +145,7 @@ function bucketSide(entries: ExportEntry[], by: DiffBy): Map<string, SideBucket>
         set: entry.set?.toLowerCase(),
         collectorNumber: entry.collectorNumber,
         finish: entry.finish ?? 'nonfoil',
+        language: storedLanguage(entry.language),
         quantity: entry.quantity,
       })
     }

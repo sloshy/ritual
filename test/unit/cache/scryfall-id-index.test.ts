@@ -31,6 +31,20 @@ function source(printings: ScryfallCard[][]): CountingCardSource {
 }
 
 describe('ScryfallIdIndex', () => {
+  test('language objects sharing a set:cn each keep their own id entry', async () => {
+    // An all_cards-backed cache: same printing (set + collector number) in two
+    // languages, distinct Scryfall ids. The index is id-keyed, so neither
+    // clobbers the other.
+    const en = makeScryfallCard({ id: 'shock-en', name: 'Shock', set: 'p1', collector_number: '7' })
+    const ja: ScryfallCard = { ...en, id: 'shock-ja', lang: 'ja' }
+    const index = createScryfallIdIndex(source([[en, ja]]))
+
+    const found = await index.lookup(['shock-en', 'shock-ja'])
+
+    expect(found.get('shock-en')?.lang).toBeUndefined()
+    expect(found.get('shock-ja')?.lang).toBe('ja')
+  })
+
   test('resolves every printing by its own id, and never by card name', async () => {
     const cache = source([
       [card('bolt-lea', 'Lightning Bolt'), card('bolt-sta', 'Lightning Bolt')],

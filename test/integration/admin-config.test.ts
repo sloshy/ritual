@@ -9,6 +9,7 @@ import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 type ConfigView = {
   site?: { bannedPrintings?: string[] }
   defaultCurrency?: string
+  defaultLanguage?: string
   cacheLockTimeoutSeconds?: number
   cacheSource?: string
   cacheFeedUrl?: string
@@ -73,6 +74,12 @@ describe('PUT /api/config', () => {
         expected: 'eur',
       },
       {
+        label: 'defaultLanguage (case normalized)',
+        update: { defaultLanguage: 'JA' },
+        read: (config) => config.defaultLanguage,
+        expected: 'ja',
+      },
+      {
         label: 'cacheLockTimeoutSeconds',
         update: { cacheLockTimeoutSeconds: 120 },
         read: (config) => config.cacheLockTimeoutSeconds,
@@ -128,6 +135,9 @@ describe('PUT /api/config', () => {
         update: { site: { bannedPrintings: ['not-a-printing'] } },
       },
       { label: 'invalid defaultCurrency', update: { defaultCurrency: 'gbp' } },
+      // Aliases like "jp" are a `config set` convenience; the API takes only
+      // canonical Scryfall codes.
+      { label: 'invalid defaultLanguage', update: { defaultLanguage: 'jp' } },
       { label: 'non-positive cacheLockTimeoutSeconds', update: { cacheLockTimeoutSeconds: 0 } },
       { label: 'invalid cacheSource', update: { cacheSource: 'torrent' } },
       {

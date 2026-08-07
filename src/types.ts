@@ -1,4 +1,5 @@
 import type { DeckFormatKey } from './deck-format'
+import type { CardLanguage } from './card-language'
 
 export type Finish = 'nonfoil' | 'foil' | 'etched'
 export type Condition = 'NM' | 'LP' | 'MP' | 'HP' | 'DMG'
@@ -28,6 +29,8 @@ export interface Card {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The printing's language, from a `[ja]`-style line token. Absent means `en`. */
+  language?: CardLanguage
   note?: string
   cardId?: number
 }
@@ -61,6 +64,12 @@ export interface ScryfallCard {
   /** Identifies this printing's artwork (top level for single-faced/split cards). Join key for art tags. */
   illustration_id?: string
   name: string
+  /**
+   * Scryfall language code of this card object (`ja`, `zhs`, ...). Absent
+   * means `en` — populated from the bulk data, whose `default_cards` file is
+   * English-only while `all_cards` carries every language.
+   */
+  lang?: string
   layout?: string
   cmc: number
   edhrec_rank?: number

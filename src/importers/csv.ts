@@ -1,4 +1,5 @@
 import { DEFAULT_SECTION, type Condition, type Finish } from '../types'
+import { normalizeLanguageValue, storedLanguage, type CardLanguage } from '../card-language'
 import type { ListType } from '../list-type'
 
 /**
@@ -105,6 +106,7 @@ export const CSV_FIELDS = [
   'collector-number',
   'condition',
   'finish',
+  'language',
   'section',
   'quantity',
 ] as const
@@ -117,6 +119,7 @@ export const CSV_FIELD_LABELS: Record<CsvField, string> = {
   'collector-number': 'Collector number',
   condition: 'Condition',
   finish: 'Finish',
+  language: 'Language',
   section: 'Section',
   quantity: 'Quantity',
 }
@@ -141,6 +144,7 @@ export type ColumnMapping = {
   collectorNumber?: number
   condition?: number
   finish?: number
+  language?: number
   section?: number
   quantity?: number
 }
@@ -152,6 +156,7 @@ export const FIELD_TO_KEY: Record<CsvField, keyof ColumnMapping> = {
   'collector-number': 'collectorNumber',
   condition: 'condition',
   finish: 'finish',
+  language: 'language',
   section: 'section',
   quantity: 'quantity',
 }
@@ -341,6 +346,25 @@ export function normalizeFinish(rawValue: string): NormalizedField<Finish> {
   return { ok: true, value: finish }
 }
 
+/**
+ * Normalize a language cell. Accepts Scryfall codes (`ja`), the common printed
+ * and third-party aliases (`jp`, `kr`, `sp`, `cs`, `ct` — Archidekt's CSV
+ * codes among them), and full English names ("Japanese"), all
+ * case-insensitively via `normalizeLanguageValue`. An empty cell in a mapped
+ * language column means English (an explicit `en` normalizes to `undefined`
+ * too, since a bare line is how English is written) — and because the column
+ * was mapped, that English is final: the import's default-language stamping is
+ * disabled for the whole batch (see `sourceHadLanguageColumn` in
+ * `csv-apply.ts`).
+ */
+export function normalizeLanguage(rawValue: string): NormalizedField<CardLanguage> {
+  const trimmed = rawValue.trim()
+  if (trimmed === '') return { ok: true, value: undefined }
+  const language = normalizeLanguageValue(trimmed)
+  if (language === null) return { ok: false, error: `Unrecognized language '${rawValue}'` }
+  return { ok: true, value: storedLanguage(language) }
+}
+
 const DECK_SECTION_ALIASES: Record<string, string> = {
   main: 'Main',
   mainboard: 'Main',
@@ -398,6 +422,8 @@ export type CsvCardEntry = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Normalized language; absent means English (written as a bare line). */
+  language?: CardLanguage
   section: string
 }
 
@@ -450,12 +476,15 @@ export function convertCsvRows(
     const finish = normalizeFinish(cellAt(mapping.finish))
     if (!finish.ok) problems.push(finish.error)
 
+    const language = normalizeLanguage(cellAt(mapping.language))
+    if (!language.ok) problems.push(language.error)
+
     const quantity = normalizeQuantity(cellAt(mapping.quantity))
     if (!quantity.ok) problems.push(quantity.error)
 
     // The `ok` checks are implied by `problems.length` but narrow the
     // normalized result types for the success path below.
-    if (problems.length > 0 || !condition.ok || !finish.ok || !quantity.ok) {
+    if (problems.length > 0 || !condition.ok || !finish.ok || !language.ok || !quantity.ok) {
       failures.push({ lineNumber: row.lineNumber, raw: row.raw, reason: problems.join('; ') })
       continue
     }
@@ -467,6 +496,7 @@ export function convertCsvRows(
       collectorNumber: collectorNumber === '' ? undefined : collectorNumber,
       finish: finish.value,
       condition: listType === 'wanted' ? undefined : condition.value,
+      language: language.value,
       section: normalizeSection(cellAt(mapping.section), listType),
     })
   }
@@ -491,6 +521,8 @@ const HEADER_ALIASES: Record<string, CsvField> = {
   finish: 'finish',
   foil: 'finish',
   printing: 'finish',
+  language: 'language',
+  lang: 'language',
   section: 'section',
   board: 'section',
   category: 'section',

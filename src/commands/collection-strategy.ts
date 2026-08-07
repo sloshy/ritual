@@ -8,6 +8,8 @@ import {
   isFinish,
   lookupPinnedPrinting,
   promptFinishAndCondition,
+  promptLanguageChoice,
+  resolveAddedLanguage,
   resolveCardPrinting,
   VALID_CONDITIONS,
   VALID_FINISHES,
@@ -51,13 +53,16 @@ import type { Condition, Finish, ScryfallCard } from '../types'
 import {
   consolidateSetFinish,
   consolidateSetLabel,
+  consolidateSetLanguage,
   consolidateSetPrinting,
   createSetFinishChange,
   createSetLabelChange,
+  createSetLanguageChange,
   createSetPrintingChange,
   type ChangeEvent,
   type PrintingTuple,
 } from '../change-event'
+import { displayLanguage, type CardLanguage } from '../card-language'
 import {
   CARD_LABEL_CHOICES,
   CARD_LABEL_DEFAULT_CHOICES,
@@ -162,27 +167,28 @@ export function createCollectionStrategy(
     // formatCollectionLine omits the default NM token, so the rendered line matches
     // what the file will show.
     renderLine: (name, snapshot, cardId) =>
-      formatCollectionLine(
-        name,
-        snapshot.options.set ?? '',
-        snapshot.options.collectorNumber ?? '',
-        snapshot.options.finish ?? 'nonfoil',
-        snapshot.options.condition ?? 'NM',
-        undefined,
-        snapshot.note,
+      formatCollectionLine({
+        cardName: name,
+        set: snapshot.options.set ?? '',
+        collectorNumber: snapshot.options.collectorNumber ?? '',
+        finish: snapshot.options.finish ?? 'nonfoil',
+        condition: snapshot.options.condition ?? 'NM',
+        language: snapshot.options.language,
+        note: snapshot.note,
         cardId,
-      ).trim(),
+      }).trim(),
     renderEntry: (entry) =>
-      formatCollectionLine(
-        entry.name,
-        entry.set,
-        entry.collectorNumber,
-        entry.finish,
-        entry.condition,
-        entry.labels,
-        entry.note,
-        entry.cardId,
-      ).trim(),
+      formatCollectionLine({
+        cardName: entry.name,
+        set: entry.set,
+        collectorNumber: entry.collectorNumber,
+        finish: entry.finish,
+        condition: entry.condition,
+        language: entry.language,
+        labels: entry.labels,
+        note: entry.note,
+        cardId: entry.cardId,
+      }).trim(),
     sessionAdds: [],
     editUndo: [],
     originals: new Map(),
@@ -275,6 +281,9 @@ export function createCollectionStrategy(
       const { cardName, forcePrompts } = input
       const isEditing = input.intent === 'edit-last'
       let printing = input.preselected
+      // Set only when the picker's availability confirm resolved a language
+      // (the printing does not exist in the configured default language).
+      let pickedLanguage: CardLanguage | undefined
       if (!printing) {
         const result = await resolveCardPrinting(cardName, sessionConfig, excludeDigitalOnly)
         if (result.kind === 'cancelled') return
@@ -285,6 +294,7 @@ export function createCollectionStrategy(
           return
         }
         printing = result.printing
+        pickedLanguage = result.language
       }
 
       const finishAndCondition = await promptFinishAndCondition(
@@ -303,6 +313,7 @@ export function createCollectionStrategy(
           collectorNumber: printing.collector_number,
           finish: finishAndCondition.finish,
           condition: finishAndCondition.condition,
+          language: resolveAddedLanguage(pickedLanguage),
         },
         isEditing,
         { kind: 'specific', printing },
@@ -328,6 +339,7 @@ export function createCollectionStrategy(
         { title: '🖼️  Change Printing', value: 'printing' },
         { title: '✨ Change Finish', value: 'finish' },
         { title: '📋 Change Condition', value: 'condition' },
+        { title: '🌐 Change Language', value: 'language' },
         { title: '🏷️  Change Label', value: 'label' },
         { title: '📝 Edit Note', value: 'note' },
         { title: '🗑️  Remove', value: 'remove' },
@@ -352,6 +364,10 @@ export function createCollectionStrategy(
           collectorNumber: result.printing.collector_number,
           finish: finishAndCondition.finish,
           condition: finishAndCondition.condition,
+          // The entry keeps its language across a printing change unless the
+          // picker's availability confirm resolved a different one (resolved
+          // explicitly so the tuple restores/compares the real token).
+          language: result.language ?? displayLanguage(entry.language),
         }
         const before = entryPrinting(entry)
         applyFlatListFieldEdit(list, ctx, entry, cardId, {
@@ -391,6 +407,23 @@ export function createCollectionStrategy(
           inverse: createSetPrintingChange(entry.name, { ...entryPrinting(entry), cardId }),
           consolidate: (changes, original) =>
             consolidateSetPrinting(changes, entry.name, target, entryPrinting(original), cardId),
+        })
+        logUpdated(cardId, entry.name)
+        return
+      }
+
+      if (action === 'language') {
+        const language = await promptLanguageChoice(entry.language)
+        if (language === null || language === displayLanguage(entry.language)) return
+        applyFlatListFieldEdit(list, ctx, entry, cardId, {
+          label: `language on ${entry.name}`,
+          change: createSetLanguageChange(entry.name, { language, cardId }),
+          inverse: createSetLanguageChange(entry.name, {
+            language: displayLanguage(entry.language),
+            cardId,
+          }),
+          consolidate: (changes, original) =>
+            consolidateSetLanguage(changes, entry.name, language, original.language, cardId),
         })
         logUpdated(cardId, entry.name)
         return

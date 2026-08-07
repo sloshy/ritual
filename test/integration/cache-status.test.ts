@@ -48,6 +48,9 @@ describe('cache status CLI (Integration)', () => {
       priceStale: true,
       tagsPresent: false,
       source: 'local',
+      defaultLanguage: 'en',
+      cardBulkType: null,
+      bulkTypeStale: false,
     })
   })
 

@@ -129,6 +129,31 @@ describe('serializeCardLine', () => {
       card: { quantity: 1, name: 'Sol Ring', cardId: 5 },
       expected: '1 Sol Ring &5',
     },
+    {
+      label: 'a non-English language renders its token after finish and condition',
+      card: {
+        quantity: 2,
+        name: 'Sol Ring',
+        set: 'ltc',
+        collectorNumber: '284',
+        finish: 'foil',
+        condition: 'LP',
+        language: 'ja',
+        note: 'gift',
+        cardId: 4,
+      },
+      expected: '2 Sol Ring (LTC:284) [foil] [LP] [ja] {gift} &4',
+    },
+    {
+      label: 'an English language is never serialized — bare lines mean en',
+      card: { quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', language: 'en' },
+      expected: '1 Sol Ring (LTC:284)',
+    },
+    {
+      label: 'a language token alone sits between the printing and the note',
+      card: { quantity: 1, name: 'Sol Ring', language: 'zhs', note: 'x' },
+      expected: '1 Sol Ring [zhs] {x}',
+    },
   ]
 
   for (const { label, card, expected } of cases) {

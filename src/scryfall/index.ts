@@ -47,6 +47,7 @@ import type {
   SearchAllPagesResult,
 } from './client'
 import { comparePrintings, type CardNameFilter } from './card-utils'
+import type { CardLanguage } from '../card-language'
 import type { PriceCurrency } from '../price-currency'
 import type { TagIndex } from './tags'
 
@@ -159,12 +160,16 @@ export function getCachedCardPrintings(name: string): Promise<ScryfallCard[]> {
   return getCardPrintings(name, { network: false })
 }
 
-/** Fetch one printing by set code and collector number, caching it. */
+/**
+ * Fetch one printing by set code and collector number, caching it. A non-`en`
+ * `language` fetches that language's object (`/cards/{set}/{cn}/{lang}`).
+ */
 export function fetchPrintingByCollectorNumber(
   set: string,
   collectorNumber: string,
+  language?: CardLanguage,
 ): Promise<ScryfallCard | null> {
-  return scryfallClient.fetchPrintingByCollectorNumber(set, collectorNumber)
+  return scryfallClient.fetchPrintingByCollectorNumber(set, collectorNumber, language)
 }
 
 export function fetchNamedCard(

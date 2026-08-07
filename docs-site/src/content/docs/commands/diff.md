@@ -43,14 +43,17 @@ A diff prints its payload plus parse warnings and nothing else, so it registers 
 Entries match on the card name alone — case-, accent-, and punctuation-insensitive (`jaces
 archivist` matches `Jace's Archivist`). Quantities are summed per name per side, and each side's
 printings are aggregated into a per-printing breakdown, so a `LEA:161` Lightning Bolt on one side
-matches a `2XM:157` on the other.
+matches a `2XM:157` on the other. The breakdown separates languages: an English and a `[ja]` copy
+of the same printing are two separate rows.
 
 ### `--by printing`
 
-Entries match on name **plus** set, collector number, and finish:
+Entries match on name **plus** set, collector number, finish, and language:
 
 - **Nonfoil folding** — a line with no finish marked is treated as `nonfoil`, so an unmarked line
   matches an explicit `[nonfoil]` line (and never a `[foil]` one).
+- **English folding** — a line with no language token is treated as `en`, so a bare line matches an
+  explicit `[en]` line (and never a `[ja]` one).
 - **The no-printing bucket** — lines with no printing at all (name-only deck or wanted lines) form
   their own bucket per finish. They match other name-only lines but never a pinned printing, since
   the card they refer to is unknown.
@@ -121,7 +124,8 @@ Identical lists (no one-sided entries, no quantity mismatches) print
 
 Set codes are lowercase in JSON (a data format) and uppercase in text output, matching every other
 surface. `printings` entries omit `set`/`collectorNumber` for the no-printing bucket, and `finish`
-is always concrete (unmarked lines fold to `"nonfoil"`). Results keep a stable order: identities
+is always concrete (unmarked lines fold to `"nonfoil"`). Each `printings` row also carries the
+bucket's language — an `en` and a `[ja]` copy of the same printing are separate rows. Results keep a stable order: identities
 appear in first-seen file order, side A before side B. `warnings` carries list parse warnings from
 either side; the same warnings also print to stderr in every output mode,
 since a skipped line means the diff compared incomplete lists.

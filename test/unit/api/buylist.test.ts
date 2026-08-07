@@ -32,6 +32,15 @@ describe('parseBuylistQuoteBody', () => {
     expect((blank as BuylistQuoteBody).printings[0]).not.toHaveProperty('scryfallId')
   })
 
+  test('forwards a valid language so the matcher can refuse non-English entries', () => {
+    expect(parseBuylistQuoteBody({ printings: [printing({ language: 'ja' })] })).toMatchObject({
+      printings: [{ language: 'ja' }],
+    })
+    // A language-less printing stays language-less (absent means English).
+    const bare = parseBuylistQuoteBody({ printings: [printing()] })
+    expect((bare as BuylistQuoteBody).printings[0]).not.toHaveProperty('language')
+  })
+
   test.each([
     ['a non-array printings', { printings: 'nope' }, '"printings" must be an array'],
     ['an unknown buyer', { buyer: 'tcgplayer', printings: [] }, '"buyer" must be one of'],
@@ -46,6 +55,11 @@ describe('parseBuylistQuoteBody', () => {
       'a non-string scryfall id',
       { printings: [printing({ scryfallId: 7 })] },
       'printings[0].scryfallId',
+    ],
+    [
+      'an unknown language',
+      { printings: [printing({ language: 'klingon' })] },
+      'printings[0].language',
     ],
     ['a non-object printing', { printings: ['dsk:136'] }, 'printings[0]'],
   ])('refuses %s', (_label, body, expected) => {

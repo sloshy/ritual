@@ -5,7 +5,7 @@ import type { TradeSearchEntry } from './useTradeData'
 import { normalizeCardName } from '../term-match'
 import { addEntryToLeft, addEntryToRight, showTradeToast } from './useTradeState'
 import { resolveCardThumbnailUrl } from './image-sources'
-import { promptForPrinting } from './printing-prompt'
+import { pickedPrintingLanguage, promptForPrinting } from './printing-prompt'
 import { confirmKeepAdd } from './keep-trade-prompt'
 
 /**
@@ -29,6 +29,7 @@ function baseEntry(card: SelectedCard): TradeSearchEntry {
     collectorNumber: card.collectorNumber,
     finish: card.finish,
     condition: card.condition,
+    language: card.language,
     labels: card.labels,
     note: card.note,
     price: card.price,
@@ -86,6 +87,8 @@ export async function addSelectionToTrade(
       set: picked.printing.set.toLowerCase(),
       collectorNumber: picked.printing.collector_number,
       finish: picked.finish,
+      // A picked alternate-language object stamps its language on the row.
+      language: pickedPrintingLanguage(picked.printing),
       scryfallCard: picked.printing,
     }
     noteAdd(addCopies(entry, card.quantity, currency), picked.printing)

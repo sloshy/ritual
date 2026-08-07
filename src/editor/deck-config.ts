@@ -1,5 +1,6 @@
 import { batch } from 'solid-js'
 import type { DeckData, Finish } from '../types'
+import type { CardLanguage } from '../card-language'
 import { type PrintingTuple, isSamePrinting } from '../change-event'
 import type { CardContextInfo } from './context-menu'
 import type { ChangePrintingContext } from './useEditor'
@@ -27,6 +28,28 @@ export function findOriginalDeckFinish(deck: DeckData, cardName: string): Finish
     if (card !== undefined) return card.finish ?? 'nonfoil'
   }
   return 'nonfoil'
+}
+
+/**
+ * Find a card's language by card ID (falling back to name), for set-language
+ * consolidation and the language picker's current-value mark. Returns the
+ * written value: undefined means a bare line, which reads as `en`.
+ */
+export function findDeckCardLanguage(
+  deck: DeckData,
+  cardName: string,
+  cardId?: number,
+): CardLanguage | undefined {
+  const allCards = deck.sections.flatMap((s) => s.cards)
+  // The cardId match must win outright before any name fallback: a combined
+  // `(id match) || (name match)` predicate would return the *first* same-name
+  // entry, so a [ja] line behind an English line of the same card would
+  // resolve `en` and a ja→en change would consolidate into a no-op.
+  if (cardId !== undefined) {
+    const byId = allCards.find((c) => c.cardId === cardId)
+    if (byId) return byId.language
+  }
+  return allCards.find((c) => c.name === cardName)?.language
 }
 
 /** Find a card's on-disk printing by card ID, for change-printing revert detection. */
@@ -61,11 +84,15 @@ export function applyDeckChangePrinting(ctx: ChangePrintingContext<DeckData>): v
   const cardId = target.cardIds[0]
   if (cardId === undefined) return
 
+  // `language` rides along when the picker resolved one (a printing unavailable
+  // in the default language); absent, the set-printing leaves the entry's
+  // language alone.
   const newPrinting: PrintingTuple = {
     set: options.set,
     collectorNumber: options.collectorNumber,
     finish: options.finish,
     condition: options.condition,
+    language: options.language,
   }
   const currentPrinting: PrintingTuple = {
     set: target.set,
@@ -90,6 +117,7 @@ export function applyDeckChangePrinting(ctx: ChangePrintingContext<DeckData>): v
             collectorNumber: newPrinting.collectorNumber,
             finish: newPrinting.finish,
             condition: newPrinting.condition,
+            language: newPrinting.language,
             cardId,
           })
         : prev,
@@ -120,6 +148,7 @@ export function applyDeckChangePrinting(ctx: ChangePrintingContext<DeckData>): v
               collectorNumber: options.collectorNumber,
               finish: options.finish,
               condition: options.condition,
+              language: options.language,
               cardId: newId,
             })
           : prev,

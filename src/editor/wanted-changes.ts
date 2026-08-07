@@ -2,6 +2,7 @@ import type { ChangeInput } from '../change-event'
 import type { WantedListCardEntry } from '../site/data-types'
 import { DEFAULT_SECTION } from '../types'
 import { noteOrUndefined } from '../note-helpers'
+import { storedLanguage } from '../card-language'
 import { findTargetEntryIndex } from './entry-targeting.js'
 import type { ApplyChangeOptions } from './apply-batch'
 
@@ -31,9 +32,12 @@ export function applyChangeToWantedList(
       const state = !hasSet ? 'name-only' : hasFinish ? 'fully-specified' : 'printing'
       const newEntry: WantedListCardEntry = {
         name: change.cardName,
-        set: change.set,
+        // Lowercased at the apply boundary, like the collection engine.
+        set: change.set?.toLowerCase(),
         collectorNumber: change.collectorNumber,
         finish: change.finish,
+        // The written value: `undefined` means `en` and serializes bare.
+        language: change.language,
         price: 0,
         fileOrder: entries.length,
         section: change.section ?? DEFAULT_SECTION,
@@ -77,13 +81,28 @@ export function applyChangeToWantedList(
         i === idx
           ? {
               ...e,
-              set: change.set,
+              set: change.set?.toLowerCase(),
               collectorNumber: change.collectorNumber,
               finish: change.finish,
+              // Unlike finish, an absent language leaves the entry's alone —
+              // language changes have their own set-language event.
+              language: change.language ?? e.language,
               state,
             }
           : e,
       )
+    }
+
+    case 'set-language': {
+      const idx = findTargetEntryIndex(entries, change)
+      if (idx === -1) {
+        options?.onMiss?.('no-target')
+        return entries
+      }
+      // `en` clears the stored value so the entry serializes bare, matching
+      // what a re-parse of the written line would produce.
+      const language = storedLanguage(change.language)
+      return entries.map((e, i) => (i === idx ? { ...e, language } : e))
     }
 
     case 'set-note': {
@@ -141,6 +160,7 @@ export function applyChangeToWantedList(
           collectorNumber: change.collectorNumber,
           finish: change.finish,
           condition: change.condition,
+          language: change.language,
           fileOrder: change.fileOrder,
         },
         options,
@@ -155,6 +175,7 @@ export function applyChangeToWantedList(
         set: change.set,
         collectorNumber: change.collectorNumber,
         finish: change.finish,
+        language: change.language,
       })
   }
 }

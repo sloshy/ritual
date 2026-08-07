@@ -20,6 +20,7 @@ import {
 } from '../term-match'
 import type { SelectionSourceKind } from './useCardSelection'
 import { effectiveLabels, type CardLabel } from '../card-labels'
+import { displayLanguage, storedLanguage, type CardLanguage } from '../card-language'
 import { lookupPrintingCard } from '../printing-key'
 
 /** A single searchable card entry derived from a collection, deck, or wanted list. */
@@ -35,6 +36,8 @@ export interface TradeSearchEntry {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The source entry's language token, when present. Absent means `en`. */
+  language?: CardLanguage
   /**
    * Effective card labels — collection entries only. When note-less duplicates
    * aggregate into one searchable group, keep dominates: a stack holding one
@@ -112,6 +115,11 @@ export function searchTradeEntries(
   return promoteFullNameMatches(results, query, (entry) => entry.name).slice(0, MAX_SEARCH_RESULTS)
 }
 
+/** A source entry's language as a trade field: `undefined` for English (or a bare line). */
+function entryTradeLanguage(language: CardLanguage | undefined): CardLanguage | undefined {
+  return storedLanguage(language)
+}
+
 export type UseTradeDataParams = {
   collections: Accessor<CollectionSummary[] | null>
   wantedLists: Accessor<WantedListSummary[] | null>
@@ -177,6 +185,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
               collectorNumber: entry.collectorNumber,
               finish: entry.finish,
               condition: entry.condition,
+              language: entryTradeLanguage(entry.language),
               labels: labels.length > 0 ? labels : undefined,
               note: entry.note,
               price: entry.price,
@@ -190,7 +199,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
               allEntries.push(mapped)
               continue
             }
-            const groupKey = `${entry.name}|${setLower}|${entry.collectorNumber}|${entry.finish}|${entry.condition}`
+            const groupKey = `${entry.name}|${setLower}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${displayLanguage(entry.language)}`
             const existing = groups.get(groupKey)
             if (existing) {
               existing.maxQty += 1
@@ -231,6 +240,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
               set: setLower,
               collectorNumber: entry.collectorNumber,
               finish: entry.finish,
+              language: entryTradeLanguage(entry.language),
               note: entry.note,
               price: entry.price,
               scryfallCard,
@@ -243,7 +253,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
               allWanted.push(mapped)
               continue
             }
-            const groupKey = `${entry.name}|${setLower ?? ''}|${entry.collectorNumber ?? ''}|${entry.finish ?? ''}`
+            const groupKey = `${entry.name}|${setLower ?? ''}|${entry.collectorNumber ?? ''}|${entry.finish ?? ''}|${displayLanguage(entry.language)}`
             const existing = groups.get(groupKey)
             if (existing) {
               existing.maxQty += 1
@@ -282,7 +292,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
           for (const card of section.cards) {
             const setLower = card.set?.toLowerCase()
             const scryfallCard = detail.cards[card.name] ?? null
-            const groupKey = `${card.name}|${setLower ?? ''}|${card.collectorNumber ?? ''}|${card.finish ?? ''}`
+            const groupKey = `${card.name}|${setLower ?? ''}|${card.collectorNumber ?? ''}|${card.finish ?? ''}|${displayLanguage(card.language)}`
             const existing = groups.get(groupKey)
             if (existing) {
               existing.maxQty += card.quantity
@@ -294,6 +304,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
                 set: setLower,
                 collectorNumber: card.collectorNumber,
                 finish: card.finish,
+                language: entryTradeLanguage(card.language),
                 scryfallCard,
                 sourceName: deckName,
                 sourceKind: 'deck',

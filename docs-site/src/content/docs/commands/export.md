@@ -119,9 +119,9 @@ The canonical list markdown, grouped by source: a `# List Name` H1 per list (in 
 
 The exportable properties are the fields stored in your list files (plus the list identity and three derived columns):
 
-`name`, `quantity`, `set`, `collectorNumber`, `edition`, `scryfallId`, `finish`, `isFoil`, `condition`, `labels`, `note`, `section`, `listName`, `listType`
+`name`, `quantity`, `set`, `collectorNumber`, `edition`, `scryfallId`, `finish`, `isFoil`, `condition`, `language`, `labels`, `note`, `section`, `listName`, `listType`
 
-The default column set matches the site's CSV export: `name,set,collectorNumber,finish,condition,quantity`.
+The default column set matches the site's CSV export: `name,set,collectorNumber,finish,condition,language,quantity`.
 
 Notes on values:
 
@@ -129,6 +129,7 @@ Notes on values:
 - **`edition`** (set + collector number) combines the printing into one value — `LEA:161` in CSV, `lea:161` in JSON (only the set code changes case; collector numbers are kept verbatim). Empty/omitted for cards without a pinned printing.
 - **`scryfallId`** is the printing's Scryfall UUID, resolved from your **local Scryfall cache** (list files don't store it). A card with no pinned printing, or a printing your cache doesn't hold, exports an **empty cell** plus a warning naming the card — refresh the cache (`ritual cache preload-all`) if you need the ids. It's the only column that reads the cache, so an export without it never touches it.
 - **`isFoil`** is `true` when the card's finish is `foil` or `etched`, `false` otherwise (a real boolean in JSON, `true`/`false` text in CSV).
+- **`language`** is the line's Scryfall language code (`ja`, `zhs`, ...), blank for English — mirroring the markdown token, which is omitted on English lines. In the [`archidekt` dialect](#dialects) it is written as Archidekt's own CSV codes (`EN CT DE FR IT JP KR PT RU CS SP` — always filled in, `EN` for English), and a language Archidekt has no code for exports as `EN`.
 - **`labels`** is the collection card's _effective_ labels, comma-joined (`sale, trade`); empty for unlabeled cards and for deck/wanted entries. An export flattens away the list file, so the override/default split is not represented — and the `md` format writes the effective labels inline as `[labels]` tokens (it drops front matter along with `&N` ids). The spelling is the same in every dialect: labels are Ritual-specific, so no foreign importer defines a vocabulary to translate into.
 - JSON records **omit** properties the entry doesn't have (no `null`s); key order follows the column order.
 - CSV renders missing values as empty cells. An explicitly marked `[nonfoil]` finish is written as `nonfoil` — unlike the site's fixed CSV export, nothing is blanked.
@@ -185,15 +186,15 @@ Precedence when exporting: built-in defaults → `--preset` values → explicit 
 
 ### Built-in presets
 
-| Preset      | Output                                                                                                                                                                                                                                                                                      |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `archidekt` | `Scryfall ID,Quantity,Variant,Condition` CSV with a header row, in the [`archidekt` dialect](#dialects) — the file [Archidekt's collection importer](https://archidekt.com/collections/import) takes, and exactly what `ritual collection-sync push` uploads for a large batch of additions |
+| Preset      | Output                                                                                                                                                                                                                                                                                               |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `archidekt` | `Scryfall ID,Quantity,Variant,Condition,Language` CSV with a header row, in the [`archidekt` dialect](#dialects) — the file [Archidekt's collection importer](https://archidekt.com/collections/import) takes, and exactly what `ritual collection-sync push` uploads for a large batch of additions |
 
 Built-ins need no config and are always available to `--preset`; saving a preset of the same name shadows it for `ritual export` (the sync builds its own upload either way).
 
 ```bash
 ./ritual export --collection --preset archidekt --out archidekt.csv
-# 1b59533a-3e38-495d-873e-2f89fbd08494,2,Normal,NM
+# 1b59533a-3e38-495d-873e-2f89fbd08494,2,Normal,NM,EN
 ```
 
 Because the CSV is keyed by Scryfall ID, rows never need name matching — but a printing missing from your local cache exports an empty id cell and a warning, and Archidekt cannot import that row.

@@ -5,6 +5,9 @@
  *
  * Matching per entry:
  *
+ * - A non-English entry (`[ja]` and friends) is never matched at all: CK's
+ *   feed is English-only, and the English product's price is not this card's
+ *   price. Such entries report `no-match` with reason `non-english`.
  * - An entry pinned to a printing (set + collector number) resolves through the
  *   card cache to that printing's Scryfall id, then to the CK product with the
  *   entry's finish — the primary join key (99.5% of CK products carry a
@@ -34,6 +37,7 @@ import {
   type SellCartCsv,
   type SellMatchVia,
 } from './buylist'
+import { displayLanguage } from './card-language'
 import { aggregateQuantities, variantKey } from './card-line'
 import { findPrinting, hasSpecificPrinting, type CardPrintingsLookup } from './card-printing'
 import {
@@ -72,12 +76,16 @@ export const SELL_ENTRY_STATUSES = ['buying', 'not-buying', 'no-match'] as const
 export type SellEntryStatus = (typeof SELL_ENTRY_STATUSES)[number]
 
 /**
- * Why an entry has no CK product: the card cache has no printings for the name
- * (`no-printings`), the pinned printing is not among the cached printings
- * (`printing-not-found`) — both after the fallbacks also missed — or the
- * printing resolved but CK's catalog has no product for it (`not-on-buylist`).
+ * Why an entry has no CK product: the entry is a non-English copy, which an
+ * English-only buylist can never quote (`non-english` — judged before any
+ * matching, so the English product's price is never reported for a foreign
+ * card); the card cache has no printings for the name (`no-printings`); the
+ * pinned printing is not among the cached printings (`printing-not-found`) —
+ * both after the fallbacks also missed — or the printing resolved but CK's
+ * catalog has no product for it (`not-on-buylist`).
  */
 export const SELL_NO_MATCH_REASONS = [
+  'non-english',
   'no-printings',
   'printing-not-found',
   'not-on-buylist',
@@ -223,15 +231,16 @@ export async function loadSellListInputs(
 }
 
 /**
- * Collapse identical variants (name + printing + finish + condition, within a
- * section) into one entry with a summed quantity, in first-seen order —
- * collection files spell four copies as four `quantity: 1` lines.
+ * Collapse identical variants (name + printing + finish + condition +
+ * language, within a section) into one entry with a summed quantity, in
+ * first-seen order — collection files spell four copies as four `quantity: 1`
+ * lines.
  */
 export function aggregateSellEntries(entries: SellListEntry[]): SellListEntry[] {
   return aggregateQuantities(
     entries,
     (entry) =>
-      `${entry.section}|${variantKey(entry.name, entry.set, entry.collectorNumber, entry.finish, entry.condition)}`,
+      `${entry.section}|${variantKey(entry.name, entry.set, entry.collectorNumber, entry.finish, entry.condition, entry.language)}`,
     (entry) => entry.quantity,
   ).map(({ entry, quantity }) => ({ ...entry, quantity }))
 }
@@ -337,9 +346,14 @@ function matchEntry(
   budgets: ProductBudgets,
 ): SellReportEntry {
   const pinned = hasSpecificPrinting(entry)
-  const match = pinned
-    ? matchPinnedEntry(entry, printings, options.index)
-    : matchUnpinnedEntry(entry, printings, options.index)
+  // Judged before any matching: CK's feed is English-only, and a Japanese copy
+  // must never be quoted at the English product's price.
+  const match: EntryMatch =
+    displayLanguage(entry.language) !== 'en'
+      ? { kind: 'unmatched', noMatchReason: 'non-english', finish: entry.finish }
+      : pinned
+        ? matchPinnedEntry(entry, printings, options.index)
+        : matchUnpinnedEntry(entry, printings, options.index)
 
   // The printing shown: the entry's own pin, else — when the quote came through
   // a Scryfall id — the quoted printing, so unpinned matches still say which
@@ -428,7 +442,7 @@ export function summarizeSellEntries(
   type ListGroup = { type: ListType; name: string; entries: SellReportEntry[] }
   const groups = new Map<string, ListGroup>()
   for (const entry of entries) {
-    const key = `${entry.listType} ${entry.listName}`
+    const key = `${entry.listType}:${entry.listName}`
     const group = groups.get(key)
     if (group) group.entries.push(entry)
     else groups.set(key, { type: entry.listType, name: entry.listName, entries: [entry] })

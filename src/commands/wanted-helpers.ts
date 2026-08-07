@@ -4,6 +4,12 @@ import { DEFAULT_SECTION, type Finish, type ScryfallCard } from '../types'
 import { matchSectionHeader } from '../section-format'
 import { createFenceTracker } from '../markdown-fence'
 import { quantityPrefixAdvisory } from '../card-line'
+import {
+  isCardLanguage,
+  LANGUAGE_TOKEN_PATTERN,
+  malformedLanguageTokenHint,
+  type CardLanguage,
+} from '../card-language'
 import { finishChoices, finishRows, isFinish } from './collection-helpers'
 import { parseFlatListFrontMatter, type FlatListFrontMatter } from '../flat-list-front-matter'
 import { getWantedDir } from '../ritual-config'
@@ -17,6 +23,8 @@ export type WantedListEntry = {
   set?: string
   collectorNumber?: string
   finish?: Finish
+  /** The wanted printing's language, from a `[ja]`-style token. Absent means `en`. */
+  language?: CardLanguage
   note?: string
   cardId?: number
   /** Section this entry belongs to. Defaults to `DEFAULT_SECTION` ("Main") when unsectioned. */
@@ -54,11 +62,16 @@ export type WantedListParseResult = {
 }
 
 /**
- * Matches a wanted-list card line: `- Lightning Bolt (LEA:161) [foil] {note} &12`.
- * Wanted lists do not carry a condition, otherwise mirrors the collection grammar.
+ * Matches a wanted-list card line: `- Lightning Bolt (LEA:161) [foil] [ja] {note} &12`.
+ * Wanted lists do not carry a condition, otherwise mirrors the collection grammar
+ * (the optional `&N` id stays the final capture group).
  */
-export const WANTED_CARD_LINE_RE =
-  /^- (.+?)(?:\s\(([A-Za-z0-9]+):([^)]+)\))?(?:\s\[(nonfoil|foil|etched)\])?(?:\s\{(.*)\})?(?:\s&(\d+))?$/
+export const WANTED_CARD_LINE_RE = new RegExp(
+  `^- (.+?)(?:\\s\\(([A-Za-z0-9]+):([^)]+)\\))?(?:\\s\\[(nonfoil|foil|etched)\\])?(?:\\s\\[(${LANGUAGE_TOKEN_PATTERN})\\])?(?:\\s\\{(.*)\\})?(?:\\s&(\\d+))?$`,
+)
+
+/** The {@link WANTED_CARD_LINE_RE} capture group holding the language token body. */
+export const WANTED_LINE_LANGUAGE_GROUP = 5
 
 export function parseWantedListFile(content: string): WantedListParseResult {
   const entries: WantedListEntry[] = []
@@ -110,7 +123,8 @@ export function parseWantedListFile(content: string): WantedListParseResult {
 
     const match = trimmed.match(WANTED_CARD_LINE_RE)
     if (!match) {
-      warnings.push(`Skipped malformed line: ${trimmed}`)
+      // A recognizable-but-misspelled language token ([JA], [jp]) names its fix.
+      warnings.push(`Skipped malformed line: ${trimmed}${malformedLanguageTokenHint(trimmed)}`)
       continue
     }
 
@@ -119,7 +133,10 @@ export function parseWantedListFile(content: string): WantedListParseResult {
     const collectorNumber = match[3]
     const rawFinish = match[4]
     const finish = rawFinish !== undefined && isFinish(rawFinish) ? rawFinish : undefined
-    const note = match[5]
+    const rawLanguage = match[WANTED_LINE_LANGUAGE_GROUP]
+    // Set only when the token is present — a bare line means `en` and stays bare.
+    const language = rawLanguage && isCardLanguage(rawLanguage) ? rawLanguage : undefined
+    const note = match[6]
 
     const advisory = quantityPrefixAdvisory(name, trimmed)
     if (advisory) advisories.push(advisory)
@@ -132,8 +149,9 @@ export function parseWantedListFile(content: string): WantedListParseResult {
       set: setCode?.toLowerCase(),
       collectorNumber,
       finish,
+      language,
       note,
-      cardId: match[6] ? Number.parseInt(match[6], 10) : undefined,
+      cardId: match[7] ? Number.parseInt(match[7], 10) : undefined,
       section: currentSection,
     })
   }

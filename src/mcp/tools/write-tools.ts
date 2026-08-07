@@ -64,6 +64,8 @@ import {
   finishSchema,
   labelsOverrideField,
   labelsUpdateField,
+  languageField,
+  languageSchema,
   listTypeSchema,
   quantityField,
   refineDeckOnlyFormat,
@@ -176,6 +178,9 @@ const moveItemSchema = z
     collectorNumber: collectorNumberField,
     finish: finishSchema.optional().describe('Override the finish on arrival.'),
     condition: conditionSchema.optional().describe('Override the condition on arrival.'),
+    language: languageSchema
+      .optional()
+      .describe('Override the language on arrival ("en" = English).'),
   })
   .superRefine((val, ctx) => {
     if (isToSectionInvalid(val.toSection, val.toListType)) {
@@ -216,6 +221,7 @@ const applyChangeSchema = z.discriminatedUnion('action', [
     collectorNumber: collectorNumberField,
     finish: finishSchema.optional(),
     condition: conditionSchema.optional(),
+    language: languageField,
     labels: labelsOverrideField,
     section: sectionField,
   }),
@@ -226,6 +232,9 @@ const applyChangeSchema = z.discriminatedUnion('action', [
     collectorNumber: collectorNumberField,
     finish: finishSchema.optional(),
     condition: conditionSchema.optional(),
+    language: languageSchema
+      .optional()
+      .describe('Match only entries with this language ("en" matches bare lines).'),
   }),
   z.object({ action: z.literal('set-finish'), ...changeBase, finish: finishSchema }),
   z.object({
@@ -237,6 +246,16 @@ const applyChangeSchema = z.discriminatedUnion('action', [
     // The only branch that accepts the `NONE` clear sentinel: an `add` records a
     // grade and has none to clear, and a `remove` matches on one.
     condition: conditionUpdateSchema.optional(),
+    language: languageSchema
+      .optional()
+      .describe('Set the language along with the printing; omit to leave it alone.'),
+  }),
+  z.object({
+    action: z.literal('set-language'),
+    ...changeBase,
+    language: languageSchema.describe(
+      'The new language. "en" clears the line’s token (a bare line means English).',
+    ),
   }),
   z.object({
     action: z.literal('set-note'),
@@ -361,8 +380,10 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'Import cards from CSV text into a deck, collection, or wanted list — creating a new list, ' +
         'overwriting one, or appending to an existing one. Columns map to card fields via a ' +
         '1-based spec like "name=1,set=2,collector-number=3" (fields: name, set, collector-number, ' +
-        'condition, finish, section, quantity). Values are normalized (e.g. "Near Mint" → NM, ' +
-        '"F" → foil). Rows that fail validation are reported back and the rest still import, so a ' +
+        'condition, finish, language, section, quantity). Values are normalized (e.g. "Near Mint" ' +
+        '→ NM, "F" → foil, "JP"/"Japanese" → ja; an empty language cell falls back to the ' +
+        'configured defaultLanguage when that printing exists in it). Rows that fail validation ' +
+        'are reported back and the rest still import, so a ' +
         'partially-failed import still succeeds — read failedCount and failures rather than ' +
         'treating the call as all-or-nothing.',
       inputSchema: z
@@ -520,7 +541,8 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'Add a card to any list (decks increment quantity if the same printing already exists). ' +
         'Supply set + collectorNumber to pin the printing. quantity adds that many copies in ' +
         'one save. Collections require set + collectorNumber together — an add without one is ' +
-        'rejected. labels gives the new collection card a label override.',
+        'rejected. labels gives the new collection card a label override. language records a ' +
+        'non-English copy; without it the configured defaultLanguage applies.',
       inputSchema: z
         .object({
           listType: listTypeSchema,
@@ -530,6 +552,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
           collectorNumber: collectorNumberField,
           finish: finishField,
           condition: conditionField,
+          language: languageField,
           labels: labelsOverrideField,
           section: sectionField,
           quantity: quantityField,
@@ -555,13 +578,22 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       collectorNumber,
       finish,
       condition,
+      language,
       labels,
       section,
       quantity,
     }) =>
       runTool((): Promise<MutationResult> => {
         const changes: ChangeEvent[] = Array.from({ length: quantity }, () =>
-          createAddChange(cardName, { set, collectorNumber, finish, condition, labels, section }),
+          createAddChange(cardName, {
+            set,
+            collectorNumber,
+            finish,
+            condition,
+            language,
+            labels,
+            section,
+          }),
         )
         return applyMutation(listType, slug, changes)
       }),
@@ -587,6 +619,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
           collectorNumber: collectorNumberField,
           finish: finishSchema.optional().describe('Match only entries with this finish.'),
           condition: conditionSchema.optional().describe('Match only entries with this condition.'),
+          language: languageSchema
+            .optional()
+            .describe('Match only entries with this language ("en" matches bare lines).'),
           quantity: quantityField.describe('Copies to remove (decks only; default 1).'),
         })
         .superRefine((val, ctx) => {
@@ -610,11 +645,19 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       collectorNumber,
       finish,
       condition,
+      language,
       quantity,
     }) =>
       runTool((): Promise<MutationResult> => {
         const changes: ChangeEvent[] = Array.from({ length: quantity }, () =>
-          createRemoveChange(cardName, { cardId, set, collectorNumber, finish, condition }),
+          createRemoveChange(cardName, {
+            cardId,
+            set,
+            collectorNumber,
+            finish,
+            condition,
+            language,
+          }),
         )
         return applyMutation(listType, slug, changes)
       }),
@@ -625,10 +668,12 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
     {
       title: 'Set card printing',
       description:
-        'Set the printing (set/collector number/finish/condition) of a card in any list. ' +
-        'Omit set and collectorNumber to clear the specific printing on a deck or wanted-list ' +
-        'card; collections require both together, so omitting them there is rejected. ' +
-        'condition accepts a grade or "NONE" to clear a recorded grade.',
+        'Set the printing (set/collector number/finish/condition/language) of a card in any ' +
+        'list. Omit set and collectorNumber to clear the specific printing on a deck or ' +
+        'wanted-list card; collections require both together, so omitting them there is ' +
+        'rejected. condition accepts a grade or "NONE" to clear a recorded grade. language ' +
+        'sets the card’s language alongside the printing ("en" = English, which clears the ' +
+        'line’s token); omitting it leaves the current language alone.',
       inputSchema: z.object({
         listType: listTypeSchema,
         slug: slugField,
@@ -638,16 +683,30 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         collectorNumber: collectorNumberField,
         finish: finishField,
         condition: conditionUpdateField,
+        language: languageSchema
+          .optional()
+          .describe('New language for the card; omit to leave the current language alone.'),
       }),
       outputSchema: fromJsonSchema<MutationResult>(MUTATION_OUTPUT),
     },
-    async ({ listType, slug, cardName, cardId, set, collectorNumber, finish, condition }) =>
+    async ({
+      listType,
+      slug,
+      cardName,
+      cardId,
+      set,
+      collectorNumber,
+      finish,
+      condition,
+      language,
+    }) =>
       runTool((): Promise<MutationResult> => {
         const change = createSetPrintingChange(cardName, {
           set,
           collectorNumber,
           finish,
           condition,
+          language,
           cardId,
         })
         return applyMutation(listType, slug, [change])
@@ -660,18 +719,20 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       title: 'Apply changes',
       description:
         'Apply an ordered batch of card-level changes (add/remove/set-finish/set-printing/' +
-        'set-note/set-label/set-commander/unset-commander/set-section) to one list atomically: ' +
+        'set-language/set-note/set-label/set-commander/unset-commander/set-section) to one list ' +
+        'atomically: ' +
         'one load, one save, one changelog block. The batch is all-or-nothing — if any change ' +
         'fails to match (names are exact and case-sensitive), nothing is saved — but a later ' +
         'change may target a card an earlier change in the same batch added. Change ids and ' +
         'timestamps are stamped by the server. On a collection, add and ' +
         'set-printing require set + collectorNumber together. For cross-list moves use ' +
         'move_selected_cards. ' +
-        'This is also the only way to set or clear a card note (set-note), set or clear a ' +
-        'collection card’s label override (set-label — collections only), move a card to a ' +
-        'section (set-section), and set or clear a deck commander (set-commander/' +
-        'unset-commander); the commander actions apply to decks only and fail on a collection ' +
-        'or wanted list. ' +
+        'This is also the only way to set or clear a card note (set-note), change a card’s ' +
+        'language on its own (set-language — "en" clears the token, since a bare line means ' +
+        'English), set or clear a collection card’s label override (set-label — collections ' +
+        'only), move a card to a section (set-section), and set or clear a deck commander ' +
+        '(set-commander/unset-commander); the commander actions apply to decks only and fail ' +
+        'on a collection or wanted list. ' +
         'Flagged destructive because a batch CAN remove cards in bulk — the note, label, ' +
         'section, and commander actions are themselves additive; the hint reflects worst-case ' +
         'capability, not what your batch does.',
@@ -707,8 +768,8 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       description:
         'Move cards between lists in one atomic batch. Each move names its source entry ' +
         '(listType + slug + cardName, with cardId/copyIndex to pin the exact entry) and a ' +
-        'destination list; set/collectorNumber/finish/condition override the printing on ' +
-        'arrival, and toSection picks a destination deck section. Unresolvable moves are ' +
+        'destination list; set/collectorNumber/finish/condition/language override the printing ' +
+        'on arrival, and toSection picks a destination deck section. Unresolvable moves are ' +
         'skipped and counted; notes that a destination cannot keep are reported in droppedNotes.',
       inputSchema: z.object({
         moves: z.array(moveItemSchema).min(1).describe('Moves to apply atomically.'),
@@ -728,6 +789,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
               collectorNumber: m.collectorNumber,
               finish: m.finish,
               condition: m.condition,
+              language: m.language,
             }),
           ),
           validateCardNames: true,

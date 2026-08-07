@@ -1355,9 +1355,9 @@ describe('runCollectionSync (push CSV additions)', () => {
       // Damaged is `D` in a CSV cell, not Ritual's `DMG`, and a foil is `Foil`.
       // The uid is the cached printing's Scryfall id, which is nothing the set and
       // collector number could be spelled into.
-      `${printingId('ltc', '284')},1,Foil,D`,
+      `${printingId('ltc', '284')},1,Foil,D,EN`,
       // Two copies of one printing are one row.
-      `${printingId('lea', '232')},2,Normal,NM`,
+      `${printingId('lea', '232')},2,Normal,NM,EN`,
     ])
     expect(run.report.csv).toEqual({
       status: 'uploaded',
@@ -1497,7 +1497,7 @@ describe('runCollectionSync (push CSV additions)', () => {
     expect(writer.written).toEqual([
       {
         path: 'out/archidekt-import.csv',
-        content: `Scryfall ID,Quantity,Variant,Condition\n${printingId('ltc', '284')},1,Normal,NM\n`,
+        content: `Scryfall ID,Quantity,Variant,Condition,Language\n${printingId('ltc', '284')},1,Normal,NM,EN\n`,
       },
     ])
     expect(run.writtenFiles).toEqual(['out/archidekt-import.csv'])

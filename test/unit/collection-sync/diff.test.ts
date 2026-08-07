@@ -10,6 +10,7 @@ import {
   planPush,
   pullChangesByList,
   resolveAmbiguousByPriority,
+  unmappableLanguageWarning,
   updateRecordBody,
   type AmbiguityResolution,
   type LocalCollectionIndex,
@@ -46,8 +47,8 @@ describe('sync key canonicalization', () => {
       },
     ])
 
-    expect([...index.keys()]).toEqual(['ltc|284|foil|LP'])
-    expect(index.get('ltc|284|foil|LP')?.parts).toEqual({
+    expect([...index.keys()]).toEqual(['ltc|284|foil|LP|en'])
+    expect(index.get('ltc|284|foil|LP|en')?.parts).toEqual({
       set: 'ltc',
       collectorNumber: '284',
       finish: 'foil',
@@ -67,7 +68,7 @@ describe('sync key canonicalization', () => {
     ])
 
     expect(index.size).toBe(1)
-    expect(index.get('ltc|284|nonfoil|NM')?.copies).toHaveLength(2)
+    expect(index.get('ltc|284|nonfoil|NM|en')?.copies).toHaveLength(2)
   })
 
   test('an absent finish resolves against the cached printing', async () => {
@@ -90,8 +91,8 @@ describe('sync key canonicalization', () => {
       ]),
     )
 
-    expect(index.has('clb|507|etched|NM')).toBe(true)
-    expect(index.has('ltc|284|nonfoil|NM')).toBe(true)
+    expect(index.has('clb|507|etched|NM|en')).toBe(true)
+    expect(index.has('ltc|284|nonfoil|NM|en')).toBe(true)
   })
 
   test('a printing missing from the cache falls back to nonfoil with a warning', async () => {
@@ -100,7 +101,7 @@ describe('sync key canonicalization', () => {
       noPrintings,
     )
 
-    expect(result.index.has('xxx|1|nonfoil|NM')).toBe(true)
+    expect(result.index.has('xxx|1|nonfoil|NM|en')).toBe(true)
     expect(result.warnings).toEqual([
       {
         list: 'binder',
@@ -125,6 +126,48 @@ describe('sync key canonicalization', () => {
 
     expect(upper).toBe(lower)
   })
+
+  test('a bare line and an explicit en are the same key; another language is not', () => {
+    const bare = collectionKey({
+      set: 'ltc',
+      collectorNumber: '284',
+      finish: 'nonfoil',
+      condition: 'NM',
+    })
+    const english = collectionKey({
+      set: 'ltc',
+      collectorNumber: '284',
+      finish: 'nonfoil',
+      condition: 'NM',
+      language: 'en',
+    })
+    const japanese = collectionKey({
+      set: 'ltc',
+      collectorNumber: '284',
+      finish: 'nonfoil',
+      condition: 'NM',
+      language: 'ja',
+    })
+
+    expect(english).toBe(bare)
+    expect(japanese).not.toBe(bare)
+    expect(japanese).toBe('ltc|284|nonfoil|NM|ja')
+  })
+
+  test('keeps languages of one printing apart locally', async () => {
+    const index = await indexOf([
+      {
+        name: 'binder',
+        entries: [
+          entry('Sol Ring', 'ltc', '284'),
+          entry('Sol Ring', 'ltc', '284', { language: 'ja' }),
+        ],
+      },
+    ])
+
+    expect(index.size).toBe(2)
+    expect(index.get('ltc|284|nonfoil|NM|ja')?.parts.language).toBe('ja')
+  })
 })
 
 // ── Aggregation ───────────────────────────────────────────────────────
@@ -142,7 +185,7 @@ describe('local aggregation', () => {
       { name: 'long-box', entries: [entry('Sol Ring', 'ltc', '284', { cardId: 7 })] },
     ])
 
-    const group = index.get('ltc|284|nonfoil|NM')
+    const group = index.get('ltc|284|nonfoil|NM|en')
     expect(group?.copies).toHaveLength(3)
     expect(group?.lists).toEqual(['blue-binder', 'long-box'])
     expect(group?.copies.map((copy) => copy.cardId)).toEqual([1, 2, 7])
@@ -166,7 +209,7 @@ describe('local aggregation', () => {
 })
 
 describe('remote aggregation', () => {
-  test('sums records that differ only in language, tags, or purchase price', () => {
+  test('sums records that differ only in tags or purchase price', () => {
     const index = remoteIndexOf([
       record({ id: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', quantity: 2 }),
       record({
@@ -175,16 +218,47 @@ describe('remote aggregation', () => {
         set: 'ltc',
         collectorNumber: '284',
         quantity: 3,
-        language: 6,
         purchasePrice: 4.5,
         tags: [{ id: 9, name: 'Trade', color: '#fff' }],
       }),
     ])
 
-    const group = index.get('ltc|284|nonfoil|NM')
+    const group = index.get('ltc|284|nonfoil|NM|en')
     expect(group?.quantity).toBe(5)
     // The records survive aggregation — the push planner needs them.
     expect(group?.records.map((r) => r.id)).toEqual([1, 2])
+  })
+
+  test('a record in another language is its own key, not an English copy', () => {
+    const index = remoteIndexOf([
+      record({ id: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', quantity: 2 }),
+      // Archidekt language id 6 = Japanese.
+      record({
+        id: 2,
+        name: 'Sol Ring',
+        set: 'ltc',
+        collectorNumber: '284',
+        quantity: 3,
+        language: 6,
+      }),
+    ])
+
+    expect(index.get('ltc|284|nonfoil|NM|en')?.quantity).toBe(2)
+    const japanese = index.get('ltc|284|nonfoil|NM|ja')
+    expect(japanese?.quantity).toBe(3)
+    expect(japanese?.parts.language).toBe('ja')
+  })
+
+  test('an unknown language id degrades to English with a warning', () => {
+    const result = buildRemoteIndex([
+      record({ id: 7, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', language: 42 }),
+    ])
+
+    expect([...result.index.keys()]).toEqual(['ltc|284|nonfoil|NM|en'])
+    expect(result.index.get('ltc|284|nonfoil|NM|en')?.parts.language).toBeUndefined()
+    expect(result.warnings).toEqual([
+      "Archidekt record 7 (Sol Ring) has an unknown language id '42'; treating it as English.",
+    ])
   })
 
   test('maps modifiers and condition ids onto Ritual variants', () => {
@@ -199,7 +273,7 @@ describe('remote aggregation', () => {
       }),
     ])
 
-    expect([...index.keys()]).toEqual(['clb|507|etched|LP'])
+    expect([...index.keys()]).toEqual(['clb|507|etched|LP|en'])
   })
 
   test('skips records it cannot read, saying which and why', () => {
@@ -210,7 +284,7 @@ describe('remote aggregation', () => {
       record({ id: 4, name: 'Sol Ring', set: 'ltc', collectorNumber: '284' }),
     ])
 
-    expect([...result.index.keys()]).toEqual(['ltc|284|nonfoil|NM'])
+    expect([...result.index.keys()]).toEqual(['ltc|284|nonfoil|NM|en'])
     expect(result.warnings).toHaveLength(3)
     expect(result.warnings[0]).toContain("Unknown Archidekt modifier 'Shiny'")
     expect(result.warnings[1]).toContain("Unknown Archidekt condition id '9'")
@@ -228,7 +302,7 @@ describe('remote aggregation', () => {
       malformed,
     ])
 
-    expect([...result.index.keys()]).toEqual(['ltc|284|nonfoil|NM'])
+    expect([...result.index.keys()]).toEqual(['ltc|284|nonfoil|NM|en'])
     expect(result.warnings).toEqual([
       'Skipping Archidekt record 4: it does not name a card, set code, and collector number.',
     ])
@@ -360,7 +434,7 @@ describe('planPull', () => {
     expect(plan.removals).toHaveLength(0)
     expect(plan.ambiguous).toEqual([
       {
-        key: 'ltc|284|nonfoil|NM',
+        key: 'ltc|284|nonfoil|NM|en',
         parts: { set: 'ltc', collectorNumber: '284', finish: 'nonfoil', condition: 'NM' },
         name: 'Sol Ring',
         quantity: 2,
@@ -589,7 +663,7 @@ describe('ambiguity resolution', () => {
 
   describe('by assignment', () => {
     const assignment = (choices: { list: string; copies: number }[]) => [
-      { key: 'ltc|284|nonfoil|NM', choices },
+      { key: 'ltc|284|nonfoil|NM|en', choices },
     ]
 
     test('takes each assigned list’s tail lines', async () => {
@@ -801,6 +875,35 @@ describe('pullChangesByList', () => {
     expect(changes[0]?.changes).toHaveLength(3)
     expect(changes[0]?.added).toBe(3)
   })
+
+  test('threads the record language into pulled adds and removes', async () => {
+    const local = await indexOf([
+      {
+        name: 'blue-binder',
+        entries: [entry('Sol Ring', 'ltc', '284', { language: 'de', cardId: 5 })],
+      },
+    ])
+    const remote = remoteIndexOf([
+      // Japanese record to add (id 6 = ja); the local German copy has no
+      // remote counterpart and is removed — with its own language on the event.
+      record({
+        id: 1,
+        name: 'Sol Ring',
+        set: 'ltc',
+        collectorNumber: '284',
+        quantity: 1,
+        language: 6,
+      }),
+    ])
+
+    const changes = pullChangesByList(planPull(local, remote), 'inbox', (a) => a.name)
+    const byList = new Map(changes.map((change) => [change.list, change]))
+
+    const add = byList.get('inbox')?.changes[0] as AddChange
+    expect(add.language).toBe('ja')
+    const removal = byList.get('blue-binder')?.changes[0] as RemoveChange
+    expect(removal.language).toBe('de')
+  })
 })
 
 // ── Push planning ─────────────────────────────────────────────────────
@@ -821,6 +924,25 @@ describe('orderRecordsForPush', () => {
     ])
 
     expect(ordered.map((r) => r.id)).toEqual([3, 2, 1])
+  })
+
+  test('a Japanese key puts its exact-language records first', () => {
+    const ordered = orderRecordsForPush(
+      [
+        record({ id: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', quantity: 5 }),
+        record({
+          id: 2,
+          name: 'Sol Ring',
+          set: 'ltc',
+          collectorNumber: '284',
+          quantity: 1,
+          language: 6,
+        }),
+      ],
+      'ja',
+    )
+
+    expect(ordered.map((r) => r.id)).toEqual([2, 1])
   })
 })
 
@@ -846,7 +968,7 @@ describe('planPush', () => {
     expect(create.parts.finish).toBe('foil')
   })
 
-  test('grows the leading record, English first', async () => {
+  test('grows the leading record, exact language first', async () => {
     const local = await indexOf([
       {
         name: 'binder',
@@ -854,13 +976,15 @@ describe('planPush', () => {
       },
     ])
     const remote = remoteIndexOf([
+      // An undocumented language id degrades into the English group but keeps
+      // its own id, so the group can still hold a non-exact record.
       record({
         id: 1,
         name: 'Sol Ring',
         set: 'ltc',
         collectorNumber: '284',
         quantity: 3,
-        language: 6,
+        language: 42,
       }),
       record({ id: 2, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', quantity: 1 }),
     ])
@@ -870,10 +994,35 @@ describe('planPush', () => {
     expect(plan.operations).toHaveLength(1)
     const update = plan.operations[0] as PushUpdate
     expect(update.kind).toBe('update')
-    // The English record leads even though the Japanese one is larger.
+    // The exactly-English record leads even though the odd-id one is larger.
     expect(update.record.id).toBe(2)
     expect(update.quantity).toBe(3)
     expect(update.delta).toBe(2)
+  })
+
+  test('a local [ja] line answers only the Japanese remote records', async () => {
+    const local = await indexOf([
+      { name: 'binder', entries: [entry('Sol Ring', 'ltc', '284', { language: 'ja' })] },
+    ])
+    const remote = remoteIndexOf([
+      record({ id: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', quantity: 1 }),
+      record({
+        id: 2,
+        name: 'Sol Ring',
+        set: 'ltc',
+        collectorNumber: '284',
+        quantity: 1,
+        language: 6,
+      }),
+    ])
+
+    // The Japanese key matches the Japanese record; the English record has no
+    // local copy and is deleted, never grown to absorb a [ja] line.
+    const plan = planPush(local, remote)
+    expect(plan.operations).toHaveLength(1)
+    const removal = plan.operations[0] as PushDelete
+    expect(removal.kind).toBe('delete')
+    expect(removal.records.map((r) => r.id)).toEqual([1])
   })
 
   test('shrinks from the tail, trimming the record it only partly consumes', async () => {
@@ -889,13 +1038,13 @@ describe('planPush', () => {
         set: 'ltc',
         collectorNumber: '284',
         quantity: 1,
-        language: 6,
+        language: 42,
       }),
     ])
 
     const plan = planPush(local, remote)
 
-    // Ordered [1 (5), 2 (2), 3 (1, non-English)]; 4 copies must go: the Japanese
+    // Ordered [1 (5), 2 (2), 3 (1, odd language id)]; 4 copies must go: the odd
     // record and the two-copy record are consumed, and the leader is trimmed.
     const update = plan.operations[0] as PushUpdate
     expect(update.kind).toBe('update')
@@ -926,6 +1075,21 @@ describe('planPush', () => {
   test('deletes every record of a key that is gone locally, unattributed', () => {
     const remote = remoteIndexOf([
       record({ id: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', quantity: 2 }),
+      record({ id: 2, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', quantity: 1 }),
+    ])
+
+    const plan = planPush(new Map(), remote)
+
+    const removal = plan.operations[0] as PushDelete
+    expect(removal.records.map((r) => r.id)).toEqual([1, 2])
+    expect(removal.removed).toBe(3)
+    // No list holds it any more, so it belongs to the run rather than a list.
+    expect(removal.lists).toEqual([])
+  })
+
+  test('a Japanese key gone locally deletes as its own operation', () => {
+    const remote = remoteIndexOf([
+      record({ id: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', quantity: 2 }),
       record({
         id: 2,
         name: 'Sol Ring',
@@ -938,11 +1102,12 @@ describe('planPush', () => {
 
     const plan = planPush(new Map(), remote)
 
-    const removal = plan.operations[0] as PushDelete
-    expect(removal.records.map((r) => r.id)).toEqual([1, 2])
-    expect(removal.removed).toBe(3)
-    // No list holds it any more, so it belongs to the run rather than a list.
-    expect(removal.lists).toEqual([])
+    // One delete per key: the English records and the Japanese record are
+    // different keys now, not one aggregate.
+    expect(plan.operations).toHaveLength(2)
+    const removals = plan.operations as PushDelete[]
+    expect(removals.map((removal) => removal.records.map((r) => r.id))).toEqual([[1], [2]])
+    expect(removals.map((removal) => removal.parts.language)).toEqual([undefined, 'ja'])
   })
 
   test('leaves matching quantities alone', async () => {
@@ -1016,13 +1181,15 @@ describe('upsert bodies', () => {
     ])
     const tags = [{ id: 9, name: 'Trade', color: '#fff' }]
     const remote = remoteIndexOf([
+      // An undocumented language id lands in the English group but the record
+      // keeps its raw id — an update must echo it back, never rewrite it.
       record({
         id: 1,
         name: 'Sol Ring',
         set: 'ltc',
         collectorNumber: '284',
         quantity: 1,
-        language: 6,
+        language: 42,
         archidektCardId: 555,
         purchasePrice: 2.5,
         tags,
@@ -1035,10 +1202,33 @@ describe('upsert bodies', () => {
       quantity: 3,
       card: 555,
       modifier: 'Normal',
-      language: 6,
+      language: 42,
       condition: 1,
       tags,
       purchasePrice: 2.5,
     })
+  })
+
+  test('a new record for a [ja] line carries the Japanese language id', async () => {
+    const local = await indexOf([
+      { name: 'binder', entries: [entry('Sol Ring', 'ltc', '284', { language: 'ja' })] },
+    ])
+    const create = planPush(local, new Map()).operations[0] as PushCreate
+
+    expect(create.parts.language).toBe('ja')
+    expect(createRecordBody(create, 4242).language).toBe(6)
+    expect(unmappableLanguageWarning(create.name, create.parts)).toBeUndefined()
+  })
+
+  test('a language Archidekt cannot model pushes as English with a warning', async () => {
+    const local = await indexOf([
+      { name: 'binder', entries: [entry('Urza’s Mine', 'atq', '83a', { language: 'ph' })] },
+    ])
+    const create = planPush(local, new Map()).operations[0] as PushCreate
+
+    expect(createRecordBody(create, 4242).language).toBe(1)
+    expect(unmappableLanguageWarning(create.name, create.parts)).toBe(
+      'Archidekt cannot represent Phyrexian [ph]; pushing Urza’s Mine (ATQ:83a) as English.',
+    )
   })
 })

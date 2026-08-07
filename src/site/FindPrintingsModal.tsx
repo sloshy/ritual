@@ -233,6 +233,7 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
                         onTooltipLeave={() => setTooltip(null)}
                         collectionFinish={copy.tile.selectedTile.finish}
                         collectionCondition={copy.tile.selectedTile.condition}
+                        collectionLanguage={copy.tile.selectedTile.language}
                         collectionSetCN={
                           copy.tile.hasPrinting && copy.tile.selectedTile.set
                             ? `${copy.tile.selectedTile.set.toUpperCase()}:${copy.tile.selectedTile.collectorNumber}`

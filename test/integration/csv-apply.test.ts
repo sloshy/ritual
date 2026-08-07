@@ -8,7 +8,9 @@ import {
   parseCsv,
   type CsvConversionResult,
 } from '../../src/importers/csv'
+import type { CardPrintingsLookup } from '../../src/card-printing'
 import type { ListType } from '../../src/list-type'
+import { makeScryfallCard } from '../test-utils'
 import {
   bindWorkspace,
   writeCollectionFile,
@@ -113,6 +115,125 @@ describe('applyCsvImport', () => {
         '',
       ].join('\n'),
     )
+  })
+
+  test('a language-silent import under a non-en default stamps the available language', async () => {
+    // The Bolt printing exists in Japanese; Sol Ring's only cached object is
+    // English — the import prefers the primary language where the cache allows
+    // it and falls back to English (written bare) where it does not.
+    const lookup: CardPrintingsLookup = (name) =>
+      Promise.resolve(
+        name === 'Lightning Bolt'
+          ? [
+              makeScryfallCard({ id: 'bolt-en', name, set: 'lea', collector_number: '161' }),
+              makeScryfallCard({
+                id: 'bolt-ja',
+                name,
+                set: 'lea',
+                collector_number: '161',
+                lang: 'ja',
+              }),
+            ]
+          : [makeScryfallCard({ id: 'sol-en', name, set: 'c19', collector_number: '221' })],
+      )
+    const { entries } = prepareEntries(
+      ['Lightning Bolt,lea,161', 'Sol Ring,c19,221'].join('\n'),
+      'name=1,set=2,collector-number=3',
+      'collection',
+    )
+    const result = await applyCsvImport(
+      { listType: 'collection', name: 'Stamped', mode: 'create' },
+      entries,
+      { defaultLanguage: 'ja', lookupPrintings: lookup },
+    )
+    if ('error' in result) throw new Error(result.error)
+
+    const content = await fs.readFile(result.filePath, 'utf-8')
+    expect(content).toBe(
+      [
+        '# Stamped',
+        '',
+        '## Main',
+        '- Lightning Bolt (LEA:161) [ja] &1',
+        '- Sol Ring (C19:221) &2',
+        '',
+      ].join('\n'),
+    )
+  })
+
+  test('a source that spoke about language is honored verbatim, never re-stamped', async () => {
+    const { entries } = prepareEntries(
+      ['Lightning Bolt,lea,161,de', 'Sol Ring,c19,221,'].join('\n'),
+      'name=1,set=2,collector-number=3,language=4',
+      'collection',
+    )
+    const result = await applyCsvImport(
+      { listType: 'collection', name: 'Explicit', mode: 'create' },
+      entries,
+      {
+        defaultLanguage: 'ja',
+        // The lookup must not even be consulted: the batch carries a language.
+        lookupPrintings: () => {
+          throw new Error('the cache must not be consulted')
+        },
+      },
+    )
+    if ('error' in result) throw new Error(result.error)
+
+    const content = await fs.readFile(result.filePath, 'utf-8')
+    expect(content).toContain('- Lightning Bolt (LEA:161) [de] &1')
+    // The empty cell means English — written bare, not stamped with [ja].
+    expect(content).toContain('- Sol Ring (C19:221) &2')
+  })
+
+  test('an explicitly all-English language column disables stamping entirely', async () => {
+    // Every cell is `en` or blank, so the batch heuristic alone could not tell
+    // this apart from a file with no language column — the mapped-column flag
+    // is what makes the explicit English stick under a `ja` default.
+    const { entries } = prepareEntries(
+      ['Lightning Bolt,lea,161,en', 'Sol Ring,c19,221,'].join('\n'),
+      'name=1,set=2,collector-number=3,language=4',
+      'collection',
+    )
+    const result = await applyCsvImport(
+      { listType: 'collection', name: 'AllEnglish', mode: 'create' },
+      entries,
+      {
+        defaultLanguage: 'ja',
+        sourceHadLanguageColumn: true,
+        // The lookup must not even be consulted: the source had the column.
+        lookupPrintings: () => {
+          throw new Error('the cache must not be consulted')
+        },
+      },
+    )
+    if ('error' in result) throw new Error(result.error)
+
+    const content = await fs.readFile(result.filePath, 'utf-8')
+    // Both written bare: an explicit en column is a statement, not silence.
+    expect(content).toContain('- Lightning Bolt (LEA:161) &1')
+    expect(content).toContain('- Sol Ring (C19:221) &2')
+  })
+
+  test('a bare import under an English default stays bare without touching the cache', async () => {
+    const { entries } = prepareEntries(
+      'Lightning Bolt,lea,161',
+      'name=1,set=2,collector-number=3',
+      'collection',
+    )
+    const result = await applyCsvImport(
+      { listType: 'collection', name: 'Bare', mode: 'create' },
+      entries,
+      {
+        defaultLanguage: 'en',
+        lookupPrintings: () => {
+          throw new Error('the cache must not be consulted')
+        },
+      },
+    )
+    if ('error' in result) throw new Error(result.error)
+    const content = await fs.readFile(result.filePath, 'utf-8')
+    expect(content).toContain('- Lightning Bolt (LEA:161) &1')
   })
 
   test('append merges deck quantities for identical printings and keeps frontmatter', async () => {

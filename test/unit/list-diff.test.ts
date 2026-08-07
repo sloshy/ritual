@@ -10,6 +10,7 @@ type EntrySpec = {
   set?: string
   collectorNumber?: string
   finish?: Finish
+  language?: ExportEntry['language']
   section?: string
 }
 
@@ -23,6 +24,7 @@ function entries(specs: EntrySpec[]): ExportEntry[] {
     set: spec.set,
     collectorNumber: spec.collectorNumber,
     finish: spec.finish,
+    language: spec.language,
     fileOrder,
   }))
 }
@@ -181,6 +183,27 @@ describe('diffLists by printing', () => {
       },
     ])
     expect(isListDiffEmpty(result)).toBe(false)
+  })
+
+  test('an unmarked line matches an explicit [en] line (language folding)', () => {
+    const a = entries([{ name: 'Sol Ring', set: 'c21', collectorNumber: '263' }])
+    const b = entries([{ name: 'Sol Ring', set: 'c21', collectorNumber: '263', language: 'en' }])
+
+    const result = diffLists(a, b, 'printing')
+
+    expect(result.matches).toHaveLength(1)
+    expect(isListDiffEmpty(result)).toBe(true)
+  })
+
+  test('the same printing in different languages is two identities', () => {
+    const a = entries([{ name: 'Sol Ring', set: 'c21', collectorNumber: '263', language: 'ja' }])
+    const b = entries([{ name: 'Sol Ring', set: 'c21', collectorNumber: '263' }])
+
+    const result = diffLists(a, b, 'printing')
+
+    expect(result.matches).toEqual([])
+    expect(result.onlyInA).toHaveLength(1)
+    expect(result.onlyInB).toHaveLength(1)
   })
 
   test('reports quantity mismatches on a matched printing', () => {

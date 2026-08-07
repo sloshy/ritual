@@ -12,8 +12,8 @@ import {
 import {
   BULK_TYPE_BY_KIND,
   FEED_FILENAME,
-  FEED_KINDS,
   FEED_VERSION,
+  TAG_FEED_KINDS,
   parseCacheFeed,
   type CacheFeedDocument,
   type CacheFeedEntry,
@@ -31,6 +31,9 @@ export type FeedTorrentFile = {
   buffer: Uint8Array
 }
 
+/** The kinds a host publishes when not told otherwise: the English-only card bulk plus tags. */
+export const DEFAULT_HOST_KINDS: readonly CacheFeedKind[] = ['default-cards', ...TAG_FEED_KINDS]
+
 export type CacheFeedHostOptions = {
   /** Directory holding `feed.json`, `files/`, and `torrents/`. */
   feedDir: string
@@ -38,6 +41,13 @@ export type CacheFeedHostOptions = {
   publicUrl: string
   /** Scryfall bulk-data manifest URL (overridable for mirrors and tests). */
   bulkApiUrl?: string
+  /**
+   * Which artifacts this host publishes ({@link DEFAULT_HOST_KINDS} when
+   * omitted). A host serving non-English clients includes `all-cards`; one
+   * serving both audiences publishes both card kinds — each client downloads
+   * only the card kind its own config demands.
+   */
+  kinds?: readonly CacheFeedKind[]
   http: HttpClient
   log?: (message: string) => void
 }
@@ -127,7 +137,7 @@ export class CacheFeedHost {
     const entries: CacheFeedEntry[] = []
     let changed = false
 
-    for (const kind of FEED_KINDS) {
+    for (const kind of this.options.kinds ?? DEFAULT_HOST_KINDS) {
       const bulkType = BULK_TYPE_BY_KIND[kind]
       const manifestEntry = manifest.find((entry) => entry.type === bulkType)
       if (!manifestEntry?.jsonl_download_uri || !manifestEntry.updated_at) {
@@ -157,7 +167,15 @@ export class CacheFeedHost {
       changed = true
     }
 
-    if (!changed && this.feed) {
+    // "Unchanged" must also compare the entry list itself: a host restarted
+    // with a different `kinds` configuration reuses every artifact it kept
+    // (changed = false) yet still needs to publish the added/dropped entries.
+    const unchanged =
+      !changed &&
+      this.feed !== null &&
+      this.feed.entries.length === entries.length &&
+      entries.every((entry, index) => this.feed?.entries[index] === entry)
+    if (unchanged) {
       this.log('Feed is up to date.')
       return false
     }

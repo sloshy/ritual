@@ -130,6 +130,9 @@ function collectionEntriesFromParse(entries: CollectionEntry[]): CollectionCardE
     collectorNumber: e.collectorNumber,
     finish: e.finish ?? 'nonfoil',
     condition: e.condition ?? 'NM',
+    // The written token only — never resolved to `en`, so a re-serialize
+    // round-trips bare lines as bare lines.
+    language: e.language,
     labels: e.labels,
     price: 0,
     fileOrder: i,
@@ -146,6 +149,7 @@ function wantedEntriesFromParse(entries: WantedListEntry[]): WantedListCardEntry
     set: e.set,
     collectorNumber: e.collectorNumber,
     finish: e.finish,
+    language: e.language,
     price: 0,
     fileOrder: i,
     section: e.section,
@@ -388,6 +392,9 @@ export async function applyFlatListCardEntry<E extends FlatListEntry>(
         collectorNumber: options.collectorNumber,
         finish: options.finish,
         condition: options.condition,
+        // Explicit, `en` included: an absent language would leave the previous
+        // add's token alone, but an edit replaces the entry's options wholesale.
+        language: options.language ?? 'en',
         cardId,
       }),
     )

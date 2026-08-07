@@ -10,7 +10,8 @@ import {
 import type { CardPrintingsResult } from '../card-printing'
 import type { PriceCurrency } from '../price-currency'
 import { getPriceField } from '../price-currency'
-import { getBannedPrintings } from '../ritual-config'
+import { getBannedPrintings, getDefaultLanguage } from '../ritual-config'
+import { displayLanguage, scryfallCardLanguage, type CardLanguage } from '../card-language'
 import { promptsUnavailable } from '../no-input'
 import { getLogger } from '../logger'
 import { getErrorMessage, throwHttpError } from '../errors'
@@ -35,7 +36,13 @@ import {
   parseTagIndex,
 } from './tags'
 import { type GzipJsonLinesProgress, readGzipJsonLines } from './jsonl'
-import { fetchScryfallBulkManifest, type ScryfallBulkManifestEntry } from './bulk-manifest'
+import {
+  configuredCardBulkType,
+  fetchScryfallBulkManifest,
+  type CardBulkType,
+  type ScryfallBulkManifestEntry,
+} from './bulk-manifest'
+import { recordCardBulkType } from '../cache/bulk-provenance'
 import type { CacheRefreshProgressHandler, PreloadCacheOptions } from './progress'
 import { withCacheLock } from '../cache/lock'
 import { writeFileAtomic } from '../cache/atomic-write'
@@ -304,8 +311,24 @@ interface ScryfallCollectionResponse {
 }
 
 /**
- * Check the minimum shape of a `default_cards` bulk line that
- * {@link mapScryfallCard} dereferences unconditionally.
+ * The empty-cache preload prompt, naming what the configured bulk actually
+ * downloads: `default_cards` (English-only) for `defaultLanguage: en`, the
+ * much larger every-language `all_cards` bulk otherwise.
+ */
+export function preloadPromptMessage(): string {
+  const scope =
+    configuredCardBulkType() === 'default_cards'
+      ? 'all English MTG cards'
+      : `all MTG cards in every language (defaultLanguage '${getDefaultLanguage()}' needs the larger all_cards bulk)`
+  return (
+    'Ritual runs faster and hits rate limits less often if data is cached up front. ' +
+    `Would you like to pre-cache Scryfall data for ${scope}?`
+  )
+}
+
+/**
+ * Check the minimum shape of a card-bulk line (`default_cards` or `all_cards`)
+ * that {@link mapScryfallCard} dereferences unconditionally.
  */
 function isBulkCardEntry(value: unknown): value is ScryfallCard {
   if (!value || typeof value !== 'object') return false
@@ -375,8 +398,7 @@ export class ScryfallClient implements PricingBackend {
       const response = await prompts({
         type: 'confirm',
         name: 'value',
-        message:
-          'Ritual runs faster and hits rate limits less often if data is cached up front. Would you like to pre-cache Scryfall data for all English MTG cards?',
+        message: preloadPromptMessage(),
         initial: true,
       })
 
@@ -545,7 +567,11 @@ export class ScryfallClient implements PricingBackend {
 
   /**
    * Fetch one specific printing by set code and collector number
-   * (`/cards/{set}/{number}`), caching it like any other fetched card.
+   * (`/cards/{set}/{number}`), caching it like any other fetched card. With a
+   * non-`en` `language`, fetches that language's object of the printing via
+   * `/cards/{set}/{number}/{lang}` instead — the exceptional-case path that
+   * lets an en-mode (`default_cards`) cache verify and hold the one foreign
+   * card a user tagged, without an `all_cards` download.
    *
    * Exists so a `--set`/`--collector-number` pin can be verified against
    * Scryfall itself when the local cache holds no printing list for the card —
@@ -555,8 +581,13 @@ export class ScryfallClient implements PricingBackend {
   async fetchPrintingByCollectorNumber(
     set: string,
     collectorNumber: string,
+    language?: CardLanguage,
   ): Promise<ScryfallCard | null> {
-    const url = `https://api.scryfall.com/cards/${encodeURIComponent(set.toLowerCase())}/${encodeURIComponent(collectorNumber)}`
+    // `en` (explicit or absent) keeps the bare URL: it answers with the same
+    // default object and stays byte-identical to the pre-language behavior.
+    const lang = displayLanguage(language)
+    const langSegment = lang === 'en' ? '' : `/${encodeURIComponent(lang)}`
+    const url = `https://api.scryfall.com/cards/${encodeURIComponent(set.toLowerCase())}/${encodeURIComponent(collectorNumber)}${langSegment}`
     // A request failure propagates: "Scryfall says there is no such printing"
     // (404 → null) and "Scryfall could not be reached, or answered 429/5xx"
     // (throw) are different answers to the caller's question, and only the first
@@ -573,7 +604,9 @@ export class ScryfallClient implements PricingBackend {
     if (tagIndex) attachTags(card, tagIndex)
 
     // Merge rather than overwrite: the cache entry is the card's printing list,
-    // and this is one printing of it.
+    // and this is one printing of it. Deduped by Scryfall id — never by
+    // set:collector-number, since every language of a printing shares those and
+    // each language's object must coexist in the list.
     const existing = (await this.cardCache.get(card.name)) ?? []
     const merged = existing.some((p) => p.id === card.id) ? existing : [...existing, card]
     await this.cardCache.set(card.name, merged)
@@ -583,6 +616,11 @@ export class ScryfallClient implements PricingBackend {
   /**
    * Get all cards from a specific set, keyed by collector number.
    * Returns a Map for fast O(1) lookups by collector number.
+   *
+   * One card per collector number: with an `all_cards`-backed cache several
+   * language objects share a collector number, and the default-language (`en`)
+   * object wins the slot — never whichever language the cache happened to list
+   * last.
    */
   async getCardsBySet(setCode: string): Promise<Map<string, ScryfallCard>> {
     await this.checkAndPromptPreload()
@@ -595,7 +633,12 @@ export class ScryfallClient implements PricingBackend {
       for (const card of cards) {
         if (!card.color_identity) card.color_identity = []
         if (card.set.toLowerCase() === normalizedSet) {
-          result.set(card.collector_number, card)
+          const existing = result.get(card.collector_number)
+          const existingIsDefault =
+            existing !== undefined && scryfallCardLanguage(existing) === 'en'
+          if (!existing || (!existingIsDefault && scryfallCardLanguage(card) === 'en')) {
+            result.set(card.collector_number, card)
+          }
         }
       }
     }
@@ -1109,7 +1152,9 @@ export class ScryfallClient implements PricingBackend {
   }
 
   /**
-   * Rebuild the card cache from Scryfall's `default_cards` bulk file.
+   * Rebuild the card cache from the configured Scryfall card bulk file —
+   * `default_cards` when `defaultLanguage` is `en`, the every-language
+   * `all_cards` bulk otherwise (see {@link configuredCardBulkType}).
    *
    * Failures **propagate**: a caller that wants a best-effort warm catches them
    * itself, and one that reports the outcome (the admin route and the MCP
@@ -1122,27 +1167,30 @@ export class ScryfallClient implements PricingBackend {
   }
 
   /**
-   * Download and ingest the `default_cards` gzipped-JSONL bulk file, streaming
-   * each line through filter → map → tag attachment without ever holding the
-   * whole file in memory. The caller must hold the cache-write lock.
+   * Download and ingest the configured card bulk's gzipped-JSONL file,
+   * streaming each line through filter → map → tag attachment without ever
+   * holding the whole file in memory (essential for `all_cards`, which is
+   * several times `default_cards`' size). The caller must hold the cache-write
+   * lock.
    */
   private async downloadBulkCards(options?: PreloadCacheOptions): Promise<void> {
     const onProgress: CacheRefreshProgressHandler = options?.onProgress ?? ((): void => {})
 
+    const bulkType = configuredCardBulkType()
     getLogger().info('Fetching bulk data metadata from Scryfall...')
     onProgress({ stage: 'metadata', message: 'Fetching bulk data metadata from Scryfall…' })
     const metadata = await this.fetchBulkMetadata()
-    const defaultData = metadata.find((d) => d.type === 'default_cards')
+    const bulkEntry = metadata.find((d) => d.type === bulkType)
 
-    if (!defaultData?.jsonl_download_uri) {
-      throw new Error('Could not find default_cards bulk data URI')
+    if (!bulkEntry?.jsonl_download_uri) {
+      throw new Error(`Could not find ${bulkType} bulk data URI`)
     }
 
     // Download tags up front so they can be baked onto each card as it streams in.
     onProgress({ stage: 'tags', message: 'Downloading oracle/art tags…' })
     const tagIndex = await this.downloadTagIndex()
 
-    const bulkUrl = defaultData.jsonl_download_uri
+    const bulkUrl = bulkEntry.jsonl_download_uri
     getLogger().info(`Bulk URL: ${bulkUrl}`)
 
     const response = await this.http.fetch(bulkUrl)
@@ -1162,6 +1210,7 @@ export class ScryfallClient implements PricingBackend {
     }
 
     await this.ingestCardStream(response.body, tagIndex, totalBytes, options)
+    await recordCardBulkType(bulkType, { fileSystem: this.fileSystem })
 
     getLogger().info('Done! Card cache populated.')
     onProgress({ stage: 'done', message: 'Done! Card cache populated.' })
@@ -1248,9 +1297,9 @@ export class ScryfallClient implements PricingBackend {
   /**
    * Ingest previously downloaded bulk artifacts (e.g. fetched from a cache
    * feed) into the card cache: build + persist the tag index from the local
-   * tag bulks, then stream the local `default_cards` file through the same
-   * pipeline as {@link preloadCache}. Unlike `preloadCache`, failures throw —
-   * feed callers decide how to handle them.
+   * tag bulks, then stream the local card-bulk file through the same pipeline
+   * as {@link preloadCache}. Unlike `preloadCache`, failures throw — feed
+   * callers decide how to handle them.
    */
   async preloadCacheFromFiles(files: BulkCacheFiles): Promise<void> {
     await withCacheLock(this.fileSystem, 'bulk card cache ingest', async () => {
@@ -1265,8 +1314,9 @@ export class ScryfallClient implements PricingBackend {
         getLogger().warn(`Failed to build tags from downloaded bulks: ${getErrorMessage(e)}`)
       }
 
-      const cardsFile = Bun.file(files.defaultCards)
+      const cardsFile = Bun.file(files.cards)
       await this.ingestCardStream(cardsFile.stream(), tagIndex, cardsFile.size)
+      await recordCardBulkType(files.cardBulkType, { fileSystem: this.fileSystem })
       getLogger().info('Done! Card cache populated from downloaded artifacts.')
     })
   }
@@ -1274,7 +1324,10 @@ export class ScryfallClient implements PricingBackend {
 
 /** Local paths of the three bulk artifacts {@link ScryfallClient.preloadCacheFromFiles} ingests. */
 export type BulkCacheFiles = {
-  defaultCards: string
+  /** The card bulk's local path (`default_cards` or `all_cards` — see `cardBulkType`). */
+  cards: string
+  /** Which Scryfall card bulk `cards` is; recorded as cache provenance after the ingest. */
+  cardBulkType: CardBulkType
   oracleTags: string
   artTags: string
 }

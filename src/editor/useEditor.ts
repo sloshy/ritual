@@ -11,6 +11,7 @@ import {
 } from 'solid-js'
 import { replaySectionOrder } from '../change-event'
 import { DEFAULT_SECTION, type Finish, type ScryfallCard } from '../types'
+import type { CardLanguage } from '../card-language'
 import type { PriceCurrency } from '../price-currency'
 import { DEFAULT_CURRENCY } from '../price-currency'
 import type {
@@ -173,6 +174,17 @@ export type EditorConfig<TData> = {
   findOriginalFinish: (original: TData, cardName: string, cardId?: number) => Finish
   /** Find the card ID for a card by name */
   findCardId: (data: TData, cardName: string) => number | undefined
+  /**
+   * Resolve the on-disk language of a card for set-language consolidation
+   * (undefined for a bare line, which means `en`). Optional because the deck /
+   * flat-list controllers inject a data-shape-appropriate default; a page config
+   * may still override it.
+   */
+  findOriginalLanguage?: (
+    original: TData,
+    cardName: string,
+    cardId?: number,
+  ) => CardLanguage | undefined
 
   /** Extract all card IDs from data (for pool reset on discard) */
   getOriginalIds: (original: TData) => number[]
@@ -280,6 +292,8 @@ export type UseEditorResult<TData, TCardEntry> = {
   handleSetFoil: () => void
   /** Set an explicit finish on one targeted card/copy (backs the bulk foil actions). */
   handleSetFinishFor: (cardName: string, finish: Finish, cardId?: number) => void
+  /** Set an explicit language on one targeted card/copy (backs the menu and bulk language actions). */
+  handleSetLanguageFor: (cardName: string, language: CardLanguage, cardId?: number) => void
   handleAddCardFromSearch: (...args: Parameters<AddCardFromSearch>) => Promise<void>
   handleUndo: () => void
   handleSave: () => Promise<void>
@@ -487,6 +501,29 @@ export function useEditor<TData, TCardEntry = unknown>(
     )
   }
 
+  /**
+   * Set an explicit language on one targeted card, mirroring
+   * {@link handleSetFinishFor}. `cardId` should be supplied when a specific copy
+   * is meant — flat lists have one entry per copy, so resolving by name alone
+   * would be ambiguous. Consolidation folds a missing original to `en` (a bare
+   * line always means English), so restoring the on-disk language cancels the
+   * pending change.
+   */
+  const handleSetLanguageFor = (cardName: string, language: CardLanguage, cardId?: number) => {
+    const d = data()
+    if (!d) return
+    const id = cardId ?? config.findCardId(d, cardName)
+    const originalLanguage = original
+      ? config.findOriginalLanguage?.(original, cardName, id)
+      : undefined
+    changes.setLanguage(cardName, language, originalLanguage, id)
+    setData((prev) =>
+      prev !== null
+        ? config.applyChange(prev, { action: 'set-language', cardName, language, cardId: id })
+        : prev,
+    )
+  }
+
   const handleSetFoil = () => {
     const menu = contextMenuCard()
     const d = data()
@@ -533,6 +570,7 @@ export function useEditor<TData, TCardEntry = unknown>(
                 collectorNumber: normalized.collectorNumber,
                 finish: normalized.finish,
                 condition: normalized.condition,
+                language: normalized.language,
                 cardId,
               })
             : prev,
@@ -934,6 +972,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     handleCancelDiscard,
     handleSetFoil,
     handleSetFinishFor,
+    handleSetLanguageFor,
     handleAddCardFromSearch,
     handleUndo,
     handleSave,

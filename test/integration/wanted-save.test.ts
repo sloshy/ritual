@@ -1,8 +1,9 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import * as fs from 'node:fs/promises'
+import * as path from 'node:path'
 import { handleWantedListSave } from '../../src/admin/api/wanted-save'
 import type { ListSaveResponse } from '../../src/admin/api/move-save'
-import { createAddChange } from '../../src/change-event'
+import { createAddChange, createSetLanguageChange } from '../../src/change-event'
 import { computeHash } from '../../src/content-hash'
 import {
   bindWorkspace,
@@ -82,6 +83,57 @@ describe('POST /api/wanted/:slug/save', () => {
     // The id the response reported is the id on disk — the agreement is the
     // point, since the client had no id to compare against.
     expect(await fs.readFile(filePath, 'utf-8')).toContain('- Sol Ring (C21:167) &3')
+  })
+
+  test('set-language writes the [ja] token, the changelog line, and an updated effect', async () => {
+    // A wanted save serializes the entries the client sends, so the entry
+    // carries the applied language and the change drives changelog + validation.
+    const resp = await save({
+      changes: [createSetLanguageChange('Lightning Bolt', { language: 'ja', cardId: 1 })],
+      entries: [{ ...SEEDED[0]!, language: 'ja' }, SEEDED[1]!],
+    })
+
+    expect(resp.status).toBe(200)
+    expect(await fs.readFile(filePath, 'utf-8')).toContain('- Lightning Bolt (LEA:161) [ja] &1')
+
+    const changelog = await fs.readFile(path.join(ws.dir, 'wanted', 'wishlist.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Set language of "Lightning Bolt" to Japanese &1')
+
+    const body = (await resp.json()) as ListSaveResponse
+    expect(body.effects).toHaveLength(1)
+    expect(body.effects[0]).toMatchObject({
+      action: 'updated',
+      cardId: 1,
+      name: 'Lightning Bolt',
+    })
+  })
+
+  test('an add carrying a language writes the token on the new line', async () => {
+    const resp = await save({
+      changes: [
+        createAddChange('Sol Ring', { set: 'c21', collectorNumber: '167', language: 'ja' }),
+      ],
+      entries: [
+        ...SEEDED,
+        { name: 'Sol Ring', set: 'c21', collectorNumber: '167', language: 'ja', section: 'Main' },
+      ],
+    })
+
+    expect(resp.status).toBe(200)
+    expect(await fs.readFile(filePath, 'utf-8')).toContain('- Sol Ring (C21:167) [ja] &3')
+  })
+
+  test('an unknown entry language is a 400 that writes nothing', async () => {
+    const before = await fs.readFile(filePath, 'utf-8')
+    const resp = await save({
+      changes: [],
+      // Not a Scryfall code — the cast is the point: the wire is unvalidated.
+      entries: [{ ...SEEDED[0]!, language: 'xx' as never }, SEEDED[1]!],
+    })
+    expect(resp.status).toBe(400)
+    const body = (await resp.json()) as { success: boolean; message: string }
+    expect(body.message).toContain('"xx"')
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
   })
 
   test('refuses a slug that would escape the wanted directory', async () => {

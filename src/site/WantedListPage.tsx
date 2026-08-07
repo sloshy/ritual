@@ -9,6 +9,7 @@ import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, sessionCacheVersion } from './session-cache'
 import { normalizeCardName } from '../term-match'
 import { displayFinish } from '../finish-condition'
+import { storedLanguage } from '../card-language'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
@@ -332,6 +333,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         artTags: card?.artTags ?? [],
         labels: [],
         finish: entry.finish,
+        language: storedLanguage(entry.language),
         ...buylistFieldsFor(card, entry.finish),
         card,
       }
@@ -464,6 +466,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         set: specific ? entry.set.toLowerCase() : undefined,
         collectorNumber: specific ? entry.collectorNumber : undefined,
         finish: entry?.finish,
+        language: storedLanguage(entry?.language),
         note: entry?.note,
         quantity: 1,
         groupSize: 1,
@@ -502,6 +505,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
         onTooltipLeave={() => setTooltip(null)}
         collectionFinish={entry?.finish}
+        collectionLanguage={storedLanguage(entry?.language)}
         collectionSetCN={
           entry && hasSpecificPrinting(entry)
             ? `${entry.set.toUpperCase()}:${entry.collectorNumber}`

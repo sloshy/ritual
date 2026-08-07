@@ -26,6 +26,16 @@ describe('parseCollectionFile', () => {
     expect(warnings[0]).toContain('missing set code')
   })
 
+  test('a misspelled language token names its fix on the skip warning', () => {
+    // [JA] is swallowed into the name by backtracking, taking the printing
+    // group with it — the skip warning is where such a line lands.
+    const { entries, warnings } = parseCollectionFile('- Shock (M21:159) [JA]\n')
+    expect(entries).toHaveLength(0)
+    expect(warnings).toEqual([
+      "Skipping 'Shock (M21:159) [JA]': missing set code and collector number (did you mean [ja]?)",
+    ])
+  })
+
   test('parses card with finish and condition', () => {
     const content = `- Arahbo, the First Fang (FDN:2) [foil] [NM]\n`
     const { entries } = parseCollectionFile(content)
@@ -330,5 +340,52 @@ describe('parseCollectionFile — front matter', () => {
     const parsed = parseCollectionFile(content)
     expect(parsed.entries).toHaveLength(1)
     expect(parsed.fencedLines).toBe(0)
+  })
+})
+
+describe('parseCollectionFile — language token', () => {
+  test('reads a [ja] token after finish and condition', () => {
+    const content = `- Sol Ring (LTC:284) [foil] [LP] [ja]\n`
+    const { entries, warnings } = parseCollectionFile(content)
+    expect(warnings).toHaveLength(0)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.finish).toBe('foil')
+    expect(entries[0]!.condition).toBe('LP')
+    expect(entries[0]!.language).toBe('ja')
+  })
+
+  test('reads a language token alone, with labels, note, and id around it', () => {
+    const content = `- Sol Ring (LTC:284) [zhs] [keep] {gift} &7\n`
+    const { entries, warnings } = parseCollectionFile(content)
+    expect(warnings).toHaveLength(0)
+    expect(entries[0]!.language).toBe('zhs')
+    expect(entries[0]!.labels).toEqual(['keep'])
+    expect(entries[0]!.note).toBe('gift')
+    expect(entries[0]!.cardId).toBe(7)
+  })
+
+  test('a bare line has no language — en is never synthesized', () => {
+    const { entries } = parseCollectionFile(`- Sol Ring (C19:221) [foil] {note} &3\n`)
+    expect(entries[0]!.language).toBeUndefined()
+    expect(entries[0]!.note).toBe('note')
+    expect(entries[0]!.cardId).toBe(3)
+  })
+
+  test('an explicit [en] token is read as en', () => {
+    const { entries } = parseCollectionFile(`- Sol Ring (C19:221) [en]\n`)
+    expect(entries[0]!.language).toBe('en')
+  })
+
+  test('an unknown bracket token is not a language and fails the line', () => {
+    const { entries, warnings } = parseCollectionFile(`- Sol Ring (C19:221) [jp]\n`)
+    expect(entries).toHaveLength(0)
+    expect(warnings).toHaveLength(1)
+  })
+
+  test('the &N id stays the final capture group with a language present', () => {
+    const match = '- Sol Ring (LTC:284) [foil] [LP] [ja] [keep] {x} &12'.match(
+      COLLECTION_CARD_LINE_RE,
+    )!
+    expect(match[match.length - 1]).toBe('12')
   })
 })

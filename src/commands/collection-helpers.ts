@@ -4,7 +4,22 @@ import { getCardPrintings, isDigitalOnlySet } from '../scryfall'
 import type { ScryfallCard, Finish, Condition } from '../types'
 import { capitalize } from '../utils'
 import type { ConditionUpdate } from '../change-event'
-import { findPrinting, hasSpecificPrinting } from '../card-printing'
+import {
+  dedupePrintingsByKey,
+  findPrinting,
+  hasSpecificPrinting,
+  printingLanguages,
+} from '../card-printing'
+import {
+  CARD_LANGUAGES,
+  displayLanguage,
+  formatLanguageList,
+  isCardLanguage,
+  languageDisplayName,
+  storedLanguage,
+  type CardLanguage,
+} from '../card-language'
+import { resolvePrintingLanguage } from '../printing-language'
 import {
   VALID_FINISHES,
   VALID_CONDITIONS,
@@ -22,7 +37,7 @@ import {
   type PriceColumnChoice,
   type PriceCurrency,
 } from '../price-currency'
-import { getCollectionsDir, getDefaultCurrency } from '../ritual-config'
+import { getCollectionsDir, getDefaultCurrency, getDefaultLanguage } from '../ritual-config'
 import { listFileName, unusableFileNameMessage } from '../list-file-name'
 import { ensureListFile } from './card-session'
 import { requireInteractive } from '../no-input'
@@ -38,6 +53,9 @@ export {
 
 type FinishPromptResponse = { finish?: string }
 type ConditionPromptResponse = { condition?: string }
+// Loose string like the finish/condition responses: `prompts()` is untyped, so
+// the value is proven with `isCardLanguage` at the read, never asserted.
+type LanguagePromptResponse = { value?: string }
 /** The printing picker resolves to one of {@link printingChoices}' card values. */
 type PrintingPromptResponse = { printing?: ScryfallCard }
 
@@ -70,11 +88,30 @@ export type FinishConditionConfig = {
  * printings after filtering) and `cancelled` (the user aborted the picker with
  * Esc/Ctrl-C) are distinct outcomes: a cancel must never fall through to a
  * caller's no-printings fallback (e.g. adding a name-only card).
+ *
+ * `language` is set only when the picked printing is not available in the
+ * configured default language and the user confirmed taking it in a language
+ * that does exist (see {@link resolveCardPrinting}). It is the language the
+ * entry must record — an explicit `'en'` here means "record English despite a
+ * non-English default", which serializes as a bare line. Absent, the caller
+ * applies its own default.
  */
 export type PrintingResolution =
-  | { kind: 'picked'; printing: ScryfallCard }
+  | { kind: 'picked'; printing: ScryfallCard; language?: CardLanguage }
   | { kind: 'cancelled' }
   | { kind: 'none' }
+
+/**
+ * The language a freshly added entry records: the language the printing
+ * resolution decided (the picker's availability confirm, or an explicit
+ * `--language` flag folded in by the caller), else the configured
+ * `defaultLanguage`. `en` collapses to undefined via {@link storedLanguage} —
+ * the serializers omit the token for English, and a bare line always means
+ * `en`. Adding never prompts for language.
+ */
+export function resolveAddedLanguage(resolved: CardLanguage | undefined): CardLanguage | undefined {
+  return storedLanguage(resolved ?? getDefaultLanguage())
+}
 
 /**
  * Choices for the printing picker: each printing's identity plus its price in the
@@ -82,18 +119,32 @@ export type PrintingResolution =
  * this point in the flow, so a printing is quoted in every finish it is offered
  * in — one column per finish any of the listed printings has, so a foil or etched
  * variant lines up to the right of the nonfoil price rather than replacing it.
+ *
+ * Under an `all_cards` cache the input holds one object per language, so rows
+ * are deduped to one per `set:cn` printing (preferring the default-language
+ * object), and a printing that does not exist in the configured default
+ * language is badged with the languages it does exist in (e.g. `(ja only)`).
  */
 export function printingChoices(
   printings: ScryfallCard[],
   currency: PriceCurrency = getDefaultCurrency(),
+  defaultLanguage: CardLanguage = getDefaultLanguage(),
 ): PriceColumnChoice<ScryfallCard>[] {
-  const finishes = printingFinishColumns(printings, currency)
+  const distinct = dedupePrintingsByKey(printings)
+  const finishes = printingFinishColumns(distinct, currency)
   return formatPriceColumn(
-    printings.map((p) => ({
-      label: `${p.set_name} (${p.set.toUpperCase()}) #${p.collector_number} [${p.rarity}]`,
-      prices: finishes.map((finish) => formatPrintingFinishCell(p, finish, currency)),
-      value: p,
-    })),
+    distinct.map((p) => {
+      const languages = printingLanguages(printings, p.set, p.collector_number)
+      const languageBadge =
+        languages.length > 0 && !languages.includes(defaultLanguage)
+          ? ` (${languages.join(', ')} only)`
+          : ''
+      return {
+        label: `${p.set_name} (${p.set.toUpperCase()}) #${p.collector_number} [${p.rarity}]${languageBadge}`,
+        prices: finishes.map((finish) => formatPrintingFinishCell(p, finish, currency)),
+        value: p,
+      }
+    }),
   )
 }
 
@@ -193,6 +244,40 @@ export async function lookupPinnedPrinting(
   return findPrinting(await getCardPrintings(entry.name), entry.set, entry.collectorNumber)
 }
 
+/** How the language-availability confirm resolved: take the printing, pick again, or abort. */
+type LanguageConfirmOutcome = 'confirm' | 'back' | 'cancelled'
+// Loose string like the finish/condition responses (see {@link LanguagePromptResponse}).
+type LanguageConfirmResponse = { choice?: string }
+
+/**
+ * Confirm taking a printing that does not exist in the configured default
+ * language: name the language(s) it is available in and offer to go back to
+ * the picker instead.
+ */
+async function promptLanguageFallback(
+  printing: ScryfallCard,
+  available: readonly CardLanguage[],
+  defaultLanguage: CardLanguage,
+  stamp: CardLanguage,
+): Promise<LanguageConfirmOutcome> {
+  const availableNames = formatLanguageList(available)
+  let isExited = false
+  const response = (await prompts({
+    type: 'select',
+    name: 'choice',
+    message: `${printing.set.toUpperCase()}:${printing.collector_number} is not available in ${languageDisplayName(defaultLanguage)} — only ${availableNames}.`,
+    choices: [
+      { title: `Use ${languageDisplayName(stamp)} (${stamp})`, value: 'confirm' },
+      { title: '← Pick another printing', value: 'back' },
+    ],
+    onState: (state: PromptState) => {
+      if (state.exited) isExited = true
+    },
+  })) as LanguageConfirmResponse
+  if (isExited || (response.choice !== 'confirm' && response.choice !== 'back')) return 'cancelled'
+  return response.choice
+}
+
 export async function resolveCardPrinting(
   cardName: string,
   config: PrintingFilterConfig,
@@ -215,32 +300,99 @@ export async function resolveCardPrinting(
     }
   }
 
-  if (printings.length === 0) {
+  // One row per printing: an `all_cards` cache lists each language as its own
+  // object, and the picker must offer printings rather than language objects.
+  const distinct = dedupePrintingsByKey(printings)
+  if (distinct.length === 0) {
     return { kind: 'none' }
   }
 
-  let selectedPrinting = printings[0]!
-  if (printings.length > 1) {
-    const choices = printingChoices(printings)
+  const defaultLanguage = getDefaultLanguage()
 
-    let printingExited = false
-    const printingResponse = (await prompts({
-      type: 'autocomplete',
-      name: 'printing',
-      message: 'Select Printing:',
-      choices,
-      limit: 15,
-      suggest: async (rawInput, choices) => suggestPrintings(String(rawInput), choices),
-      onState: (state: PromptState) => {
-        if (state.exited) printingExited = true
-      },
-    })) as PrintingPromptResponse
+  while (true) {
+    let selectedPrinting = distinct[0]!
+    if (distinct.length > 1) {
+      const choices = printingChoices(printings)
 
-    if (printingExited || !printingResponse.printing) return { kind: 'cancelled' }
-    selectedPrinting = printingResponse.printing
+      let printingExited = false
+      const printingResponse = (await prompts({
+        type: 'autocomplete',
+        name: 'printing',
+        message: 'Select Printing:',
+        choices,
+        limit: 15,
+        suggest: async (rawInput, choices) => suggestPrintings(String(rawInput), choices),
+        onState: (state: PromptState) => {
+          if (state.exited) printingExited = true
+        },
+      })) as PrintingPromptResponse
+
+      if (printingExited || !printingResponse.printing) return { kind: 'cancelled' }
+      selectedPrinting = printingResponse.printing
+    }
+
+    // A printing the cache does not hold in the configured default language
+    // needs an explicit decision: the entry would otherwise claim a language
+    // the printing was never made in. Confirming stamps the entry with the
+    // language that does exist (possibly `en`, i.e. a bare line).
+    const resolved = resolvePrintingLanguage(
+      printings,
+      selectedPrinting.set,
+      selectedPrinting.collector_number,
+      defaultLanguage,
+    )
+    if (resolved.honoredPreferred) {
+      return { kind: 'picked', printing: selectedPrinting }
+    }
+    const languages = printingLanguages(
+      printings,
+      selectedPrinting.set,
+      selectedPrinting.collector_number,
+    )
+    const stamp = resolved.language
+    const outcome = await promptLanguageFallback(
+      selectedPrinting,
+      languages,
+      defaultLanguage,
+      stamp,
+    )
+    if (outcome === 'confirm') {
+      return { kind: 'picked', printing: selectedPrinting, language: stamp }
+    }
+    if (outcome === 'cancelled' || distinct.length === 1) {
+      // With a single printing there is nothing else to go back to.
+      return { kind: 'cancelled' }
+    }
+    // 'back': loop to the picker for another printing.
   }
+}
 
-  return { kind: 'picked', printing: selectedPrinting }
+/**
+ * Pick a language for an existing entry, marking the current one and starting
+ * the cursor on it. English leads the list (it is the bare-line default);
+ * the rest follow in canonical order. Returns null when cancelled.
+ */
+export async function promptLanguageChoice(
+  current: CardLanguage | undefined,
+): Promise<CardLanguage | null> {
+  const resolved = displayLanguage(current)
+  const currentIndex = Math.max(0, CARD_LANGUAGES.indexOf(resolved))
+  let isExited = false
+  const response = (await prompts({
+    type: 'select',
+    name: 'value',
+    message: 'Language:',
+    choices: CARD_LANGUAGES.map((code) => ({
+      title: `${languageDisplayName(code)} (${code})${code === resolved ? ' (current)' : ''}`,
+      value: code,
+    })),
+    initial: currentIndex,
+    onState: (state: PromptState) => {
+      if (state.exited) isExited = true
+    },
+  })) as LanguagePromptResponse
+  if (isExited || response.value === undefined || !isCardLanguage(response.value)) return null
+  return response.value
 }
 
 /** A printing surfaced in a strict-pin error, as a `set`/`collectorNumber` pair. */

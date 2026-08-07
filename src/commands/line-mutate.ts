@@ -21,11 +21,20 @@
 
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { COLLECTION_CARD_LINE_RE, COLLECTION_LINE_LABELS_GROUP } from '../collection-file'
+import {
+  COLLECTION_CARD_LINE_RE,
+  COLLECTION_LINE_LABELS_GROUP,
+  COLLECTION_LINE_LANGUAGE_GROUP,
+} from '../collection-file'
 import { parseCardLabelsToken, type CardLabel } from '../card-labels'
-import { formatWantedListLine, WANTED_CARD_LINE_RE } from './wanted-helpers'
+import {
+  formatWantedListLine,
+  WANTED_CARD_LINE_RE,
+  WANTED_LINE_LANGUAGE_GROUP,
+} from './wanted-helpers'
 import { formatCollectionLine } from './collection-helpers'
-import { DECK_CARD_LINE_RE } from '../importers/text-file'
+import { DECK_CARD_LINE_RE, DECK_LINE_LANGUAGE_GROUP } from '../importers/text-file'
+import { isCardLanguage, storedLanguage, type CardLanguage } from '../card-language'
 import { serializeCardLine } from '../deck-file'
 import { COMMANDER_SECTION, isCommanderSection, isSideboardSection } from '../deck-format'
 import { DEFAULT_SECTION } from '../types'
@@ -37,6 +46,7 @@ import {
   createAddChange,
   createSetCommanderChange,
   isSamePrinting,
+  printingOptionsFrom,
   type PrintingTuple,
 } from '../change-event'
 import { applyConditionUpdate, isCondition, isFinish } from '../finish-condition'
@@ -105,13 +115,15 @@ export function applyTargetedChangesToContent(
   // Each update op finds the line by the entry's CURRENT identity before
   // mutating it, so a structural (no-cardId) match never chases values the
   // line does not carry yet. The matched line's `&N` is adopted so a rewrite
-  // never strips an id the target did not happen to carry — and its labels
+  // never strips an id the target did not happen to carry — its labels
   // token likewise, so a structurally-resolved note or printing edit on a
-  // labeled line does not strip the override.
+  // labeled line does not strip the override — and its `[ja]` language token
+  // the same way, so a rewrite never silently anglicizes the entry.
   const rewriteWith = (mutate: () => void): void => {
     const idx = findTargetLineIndex(lines, type, entry)
     if (idx === -1) throw targetLineGone()
     entry.cardId ??= lineCardIdAt(lines, idx, type)
+    entry.language ??= lineLanguageAt(lines, idx, type)
     if (type === 'collection') {
       const lineLabels = lineLabelsAt(lines, idx)
       if ('invalid' in lineLabels) throw conflictingLabelsToken(lineLabels.invalid)
@@ -134,6 +146,14 @@ export function applyTargetedChangesToContent(
       case 'set-finish':
         rewriteWith(() => {
           entry.finish = change.finish
+        })
+        break
+      case 'set-language':
+        rewriteWith(() => {
+          // `en` must CLEAR the token — the serializers omit it for English,
+          // and rewriteWith's `??=` adoption would otherwise keep the line's
+          // old `[ja]` alive through the rewrite.
+          entry.language = storedLanguage(change.language)
         })
         break
       case 'set-note':
@@ -273,6 +293,19 @@ function lineCardIdAt(lines: string[], idx: number, type: ListType): number | un
   return idStr ? Number.parseInt(idStr, 10) : undefined
 }
 
+/** The grammar's language capture-group index for a list type's card line. */
+function languageGroup(type: ListType): number {
+  if (type === 'deck') return DECK_LINE_LANGUAGE_GROUP
+  return type === 'collection' ? COLLECTION_LINE_LANGUAGE_GROUP : WANTED_LINE_LANGUAGE_GROUP
+}
+
+/** The `[ja]`-style language token carried by the card line at `idx`, if any. */
+function lineLanguageAt(lines: string[], idx: number, type: ListType): CardLanguage | undefined {
+  const m = lines[idx]!.trim().match(cardLineRe(type))
+  const raw = m?.[languageGroup(type)]
+  return raw && isCardLanguage(raw) ? raw : undefined
+}
+
 /**
  * The labels token on a collection card line: absent or parsed (`labels`), or
  * present but refused by the parser (`invalid`, e.g. `[sale,keep]`) — the
@@ -310,33 +343,36 @@ function serializeEntryLine(type: ListType, entry: EntryRef): string {
       collectorNumber: entry.collectorNumber,
       finish: entry.finish,
       condition: entry.condition,
+      language: entry.language,
       note: entry.note,
       cardId: entry.cardId,
     })
   }
   if (type === 'collection') {
-    return formatCollectionLine(
-      entry.name,
-      entry.set ?? '',
-      entry.collectorNumber ?? '',
-      entry.finish ?? 'nonfoil',
-      entry.condition,
-      entry.labels,
-      entry.note,
-      entry.cardId,
-    ).trimEnd()
+    return formatCollectionLine({
+      cardName: entry.name,
+      set: entry.set ?? '',
+      collectorNumber: entry.collectorNumber ?? '',
+      finish: entry.finish ?? 'nonfoil',
+      condition: entry.condition,
+      language: entry.language,
+      labels: entry.labels,
+      note: entry.note,
+      cardId: entry.cardId,
+    }).trimEnd()
   }
   const printing =
     entry.set && entry.collectorNumber
       ? { set: entry.set, collectorNumber: entry.collectorNumber }
       : undefined
-  return formatWantedListLine(
-    entry.name,
+  return formatWantedListLine({
+    name: entry.name,
     printing,
-    entry.finish,
-    entry.note,
-    entry.cardId,
-  ).trimEnd()
+    finish: entry.finish,
+    language: entry.language,
+    note: entry.note,
+    cardId: entry.cardId,
+  }).trimEnd()
 }
 
 /** Replace the line at `idx` with `newLine`, preserving its leading whitespace. */
@@ -373,6 +409,7 @@ function removeTargetCopies(
         ...target,
         quantity: remaining,
         cardId: target.cardId ?? lineCardIdAt(lines, idx, type),
+        language: target.language ?? lineLanguageAt(lines, idx, type),
       }
       return replaceLineAt(lines, idx, serializeEntryLine(type, entry))
     }
@@ -639,10 +676,7 @@ export async function applyDeckAdd(
   for (let copy = 0; copy < copies; copy++) {
     changes.push(
       createAddChange(card.name, {
-        set: card.set,
-        collectorNumber: card.collectorNumber,
-        finish: card.finish,
-        condition: card.condition,
+        ...printingOptionsFrom(card),
         // The section the copies actually landed in, which is not always the
         // requested one: copies merge onto an existing line wherever it lives.
         section: outcome.section,
@@ -676,17 +710,22 @@ function findDeckMergeLineIndex(
     if (fenced[i]) continue
     const m = lines[i]!.trim().match(DECK_CARD_LINE_RE)
     if (!m) continue
-    const lineId = m[8] ? Number.parseInt(m[8], 10) : undefined
+    const lineId = m[9] ? Number.parseInt(m[9], 10) : undefined
     if (cardId !== undefined) {
       if (lineId === cardId) return i
       continue
     }
     if (m[2]?.trim() !== card.name) continue
+    // Language distinguishes variants like finish does — `isSamePrinting`
+    // folds a missing token to `en` on both sides, so a `[ja]` line never
+    // absorbs an English add.
+    const rawLanguage = m[DECK_LINE_LANGUAGE_GROUP]
     const linePrinting: PrintingTuple = {
       set: m[3]?.toLowerCase(),
       collectorNumber: m[4],
       finish: isFinish(m[5]) ? m[5] : undefined,
       condition: isCondition(m[6]) ? m[6] : undefined,
+      language: rawLanguage && isCardLanguage(rawLanguage) ? rawLanguage : undefined,
     }
     if (isSamePrinting(linePrinting, card)) return i
   }
@@ -701,6 +740,7 @@ function findDeckMergeLineIndex(
 function parseDeckLineEntry(line: string): EntryRef | undefined {
   const m = line.trim().match(DECK_CARD_LINE_RE)
   if (!m) return undefined
+  const rawLanguage = m[DECK_LINE_LANGUAGE_GROUP]
   return {
     name: m[2]!.trim(),
     quantity: Number.parseInt(m[1] ?? '1', 10),
@@ -708,8 +748,9 @@ function parseDeckLineEntry(line: string): EntryRef | undefined {
     collectorNumber: m[4],
     finish: isFinish(m[5]) ? m[5] : undefined,
     condition: isCondition(m[6]) ? m[6] : undefined,
-    note: noteOrUndefined(m[7]),
-    cardId: m[8] ? Number.parseInt(m[8], 10) : undefined,
+    language: rawLanguage && isCardLanguage(rawLanguage) ? rawLanguage : undefined,
+    note: noteOrUndefined(m[8]),
+    cardId: m[9] ? Number.parseInt(m[9], 10) : undefined,
   }
 }
 

@@ -1,5 +1,6 @@
 import type { Finish } from '../types'
 import type { CardLabel } from '../card-labels'
+import type { CardLanguage } from '../card-language'
 import type { ListRef } from '../change-event'
 import type { SelectionEditActions } from './SelectionMenu'
 import type { CardSelectionControl, SelectedCard } from './useCardSelection'
@@ -15,6 +16,8 @@ export type BulkEditBundle = {
   removeCopy: (cards: SelectedCard[]) => void
   removeAll: (cards: SelectedCard[]) => void
   setFinish: (cards: SelectedCard[], finish: Finish) => void
+  /** Set the language on every selected card (`en` clears the line's token). */
+  setLanguage: (cards: SelectedCard[], language: CardLanguage) => void
   changePrinting: (cards: SelectedCard[]) => void
   setCommander?: (cards: SelectedCard[]) => void
   /** Present only for collections — labels are a collection concept. */
@@ -50,6 +53,10 @@ export function buildSelectionEditActions(
     removeAll: apply(bulk.removeAll),
     setFoil: apply((cards) => bulk.setFinish(cards, 'foil')),
     setNonfoil: apply((cards) => bulk.setFinish(cards, 'nonfoil')),
+    setLanguage: (language) => {
+      bulk.setLanguage(selection.selected(), language)
+      selection.clear()
+    },
     changePrinting: apply(bulk.changePrinting),
     setCommander: bulk.setCommander ? apply(bulk.setCommander) : undefined,
     setLabel: setLabel

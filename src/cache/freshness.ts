@@ -1,8 +1,11 @@
 import { cardCache } from './index'
 import { refreshCardCache } from './refresh-source'
+import { readRecordedCardBulkType } from './bulk-provenance'
 import { BULK_CACHE_MAX_AGE_MS, BULK_FETCH_THRESHOLD, PRICE_MAX_AGE_MS } from './constants'
 import { bulkAllowed, shouldBulkRefresh, type BulkRefreshPrompt, type RefreshMode } from '../refresh'
 import { downloadTagIndex, refreshTags } from '../scryfall'
+import { configuredCardBulkType, type CardBulkType } from '../scryfall/bulk-manifest'
+import { getDefaultLanguage } from '../ritual-config'
 import type { TagIndex } from '../scryfall/tags'
 import type { CacheManager } from '../interfaces'
 import type { ScryfallCard } from '../types'
@@ -47,6 +50,77 @@ type CacheFreshnessResult = {
   cardCount: number
 }
 
+/** The card cache was built from one bulk while the config now demands the other. */
+export type BulkTypeMismatch = {
+  /** What built the cache (an unrecorded, pre-provenance cache reads as `default_cards`). */
+  recorded: CardBulkType
+  /** What {@link configuredCardBulkType} demands now. */
+  required: CardBulkType
+}
+
+/**
+ * Whether the recorded card-bulk provenance disagrees with what the configured
+ * `defaultLanguage` demands — e.g. a `default_cards` cache after the user set
+ * `defaultLanguage: ja`. A mismatched cache needs a **full refresh**, not a
+ * staleness top-up: the wrong bulk's data stays wrong no matter how fresh it
+ * is. A missing provenance record reads as `default_cards` (every cache built
+ * before provenance existed came from that bulk). Callers skip the check for
+ * an empty cache — the empty-cache path already downloads the right bulk.
+ */
+export async function detectCardBulkTypeMismatch(): Promise<BulkTypeMismatch | null> {
+  const required = configuredCardBulkType()
+  const recorded = (await readRecordedCardBulkType()) ?? 'default_cards'
+  return recorded === required ? null : { recorded, required }
+}
+
+/** One sentence saying what is mismatched and why, shared by every prompt that offers the fix. */
+export function bulkTypeMismatchMessage(mismatch: BulkTypeMismatch): string {
+  const need =
+    mismatch.required === 'all_cards'
+      ? `the configured defaultLanguage '${getDefaultLanguage()}' needs the every-language 'all_cards' bulk`
+      : "the configured defaultLanguage 'en' only needs the English-only 'default_cards' bulk"
+  return `The card cache was built from Scryfall's '${mismatch.recorded}' bulk, but ${need}.`
+}
+
+/** Test seam: how freshness gates detect a bulk-type mismatch. */
+export type BulkTypeMismatchCheck = () => Promise<BulkTypeMismatch | null>
+
+/**
+ * Offer (or under `auto`, just run) the full redownload that fixes a bulk-type
+ * mismatch. Returns whether the mismatch was **handled** — refreshed, refused,
+ * or failed — in which case the caller must skip its ordinary staleness offer:
+ * a second prompt about the same cache would either nag or contradict the
+ * answer just given. `null` mismatch returns false (nothing to handle).
+ *
+ * @returns Whether a mismatch consumed this gate's refresh decision.
+ */
+async function handleBulkTypeMismatch(
+  mismatch: BulkTypeMismatch | null,
+  mode: RefreshMode,
+  confirm: (prompt: BulkRefreshPrompt) => Promise<boolean>,
+  preload: () => Promise<void>,
+): Promise<boolean> {
+  if (mismatch === null) return false
+  // The only fix is a bulk download; modes that forbid one leave the cache
+  // as-is (the caller keeps working from the mismatched data, as `never`
+  // promises), and the mismatch still consumed the decision — a staleness
+  // refresh under `no-bulk` could not happen either.
+  if (!bulkAllowed(mode)) return true
+  const accepted =
+    mode === 'auto' ||
+    (await confirm({
+      message: `${bulkTypeMismatchMessage(mismatch)} Redownload the card cache now?`,
+      initial: true,
+    }))
+  if (!accepted) return true
+  if (mode === 'auto') {
+    console.log(`${bulkTypeMismatchMessage(mismatch)} Redownloading the card cache...`)
+  }
+  const failure = await tryPreload(preload)
+  if (failure !== null) console.error(failure)
+  return true
+}
+
 /**
  * Prompt to redownload a bulk cache that is older than a week, preloading when
  * the prompt is accepted. Does nothing when the cache is younger than a week.
@@ -78,13 +152,25 @@ async function promptStaleCacheRefresh(
  * - If the cache exists but is older than 7 days, offers to update (default no).
  * - If the cache is fresh, proceeds silently.
  *
+ * A non-empty cache built from the wrong bulk for the configured
+ * `defaultLanguage` (see {@link detectCardBulkTypeMismatch}) is offered a full
+ * redownload first — with that handled, the ordinary staleness offer is
+ * skipped so one gate never asks twice.
+ *
  * @param mode The `--refresh` policy; the cache here is populated only by bulk
  *   download, so `no-bulk` behaves like `never` (no preload).
+ * @param deps Injectable seams (tests); the global cache and real refresh
+ *   otherwise. `deps.cache` is deliberately unused here — this gate reports
+ *   the global cache's card count.
  * @returns Whether the cache is ready for use (has cards) and how many cards are available.
  */
 export async function ensureFreshCardCache(
   mode: RefreshMode = 'ask',
+  deps: SessionCacheDeps = {},
 ): Promise<CacheFreshnessResult> {
+  const preload = deps.preload ?? refreshCardCache
+  const confirm = deps.confirmStaleRefresh ?? ((prompt: BulkRefreshPrompt) => shouldBulkRefresh(mode, prompt))
+  const detectMismatch = deps.detectMismatch ?? detectCardBulkTypeMismatch
   const empty = await cardCache.isEmpty()
 
   if (empty) {
@@ -97,19 +183,19 @@ export async function ensureFreshCardCache(
     if (shouldPreload) {
       // Best-effort warm: a cold network must leave the caller with an empty
       // cache rather than an exception — the `ready: false` below already says so.
-      const failure = await tryPreload(refreshCardCache)
+      const failure = await tryPreload(preload)
       if (failure !== null) console.error(failure)
     } else {
       return { ready: false, cardCount: 0 }
     }
-  } else {
+  } else if (!(await handleBulkTypeMismatch(await detectMismatch(), mode, confirm, preload))) {
     const lastRefreshed = await cardCache.getLastRefreshedAt()
 
     if (lastRefreshed !== null) {
       const failure = await promptStaleCacheRefresh(
         Date.now() - lastRefreshed,
-        (prompt) => shouldBulkRefresh(mode, prompt),
-        refreshCardCache,
+        confirm,
+        preload,
       )
       if (failure !== null) console.error(failure)
     }
@@ -125,11 +211,13 @@ export type SessionCardCache = {
   getLastRefreshedAt(): Promise<number | null>
 }
 
-/** Injectable dependencies for {@link refreshCardCacheForSession}. */
+/** Injectable dependencies for the freshness gates in this module. */
 export type SessionCacheDeps = {
   cache?: SessionCardCache
   preload?: () => Promise<void>
   confirmStaleRefresh?: (prompt: BulkRefreshPrompt) => Promise<boolean>
+  /** How to detect a card-bulk/`defaultLanguage` mismatch (tests inject; real check otherwise). */
+  detectMismatch?: BulkTypeMismatchCheck
 }
 
 /**
@@ -144,7 +232,10 @@ export type SessionCacheDeps = {
  *   a bulk download.
  *
  * An empty cache is left untouched here — the commands surface that separately
- * via their own preload warning.
+ * via their own preload warning. A bulk-type mismatch (the cache was built
+ * from the wrong bulk for the configured `defaultLanguage`) takes over the
+ * refresh decision entirely: it is offered/run first, and the staleness logic
+ * is skipped for that run.
  */
 export async function refreshCardCacheForSession(
   mode: RefreshMode,
@@ -154,8 +245,13 @@ export async function refreshCardCacheForSession(
   const preload = deps.preload ?? refreshCardCache
   const confirmStaleRefresh =
     deps.confirmStaleRefresh ?? ((prompt) => shouldBulkRefresh(mode, prompt))
+  const detectMismatch = deps.detectMismatch ?? detectCardBulkTypeMismatch
 
   if (await cache.isEmpty()) return
+
+  if (await handleBulkTypeMismatch(await detectMismatch(), mode, confirmStaleRefresh, preload)) {
+    return
+  }
 
   const lastRefreshed = await cache.getLastRefreshedAt()
   if (lastRefreshed === null) return

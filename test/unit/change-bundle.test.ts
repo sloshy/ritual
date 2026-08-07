@@ -178,6 +178,47 @@ describe('parseChangeBundle validation', () => {
     ).toContain('Change #1')
   })
 
+  it('validates languages: normalizes case, rejects unknown codes, requires one on set-language', () => {
+    const bundle = buildBundle()
+    const withChanges = (changes: unknown[]): string =>
+      JSON.stringify({ ...bundle, lists: [{ ...bundle.lists[0], changes }] })
+
+    // Round-trip: a set-language and a language-carrying add survive, lowercased.
+    const parsed = parseChangeBundle(
+      withChanges([
+        { id: 'l1', timestamp: 1, action: 'set-language', cardName: 'Sol Ring', language: 'JA' },
+        { id: 'a1', timestamp: 2, action: 'add', cardName: 'Sol Ring', language: 'ja' },
+      ]),
+    )
+    if (typeof parsed === 'string') throw new Error(parsed)
+    expect(parsed.lists[0]?.changes.map((c) => ('language' in c ? c.language : undefined))).toEqual(
+      ['ja', 'ja'],
+    )
+
+    // An unknown code is rejected the way a bad action is.
+    expect(
+      parseChangeBundle(
+        withChanges([
+          { id: 'l1', timestamp: 1, action: 'set-language', cardName: 'Sol Ring', language: 'xx' },
+        ]),
+      ),
+    ).toContain('unknown language')
+    expect(
+      parseChangeBundle(
+        withChanges([
+          { id: 'a1', timestamp: 1, action: 'add', cardName: 'Sol Ring', language: 42 },
+        ]),
+      ),
+    ).toContain('unknown language')
+
+    // set-language without the field is malformed.
+    expect(
+      parseChangeBundle(
+        withChanges([{ id: 'l1', timestamp: 1, action: 'set-language', cardName: 'Sol Ring' }]),
+      ),
+    ).toContain('missing its "language"')
+  })
+
   it('accepts section-structural changes', () => {
     const bundle = buildBundle()
     const text = JSON.stringify({

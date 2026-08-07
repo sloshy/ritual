@@ -13,7 +13,8 @@
  * built-in `archidekt` preset ({@link ARCHIDEKT_EXPORT_SETTINGS}), so
  * `ritual export --preset archidekt` and a sync upload cannot disagree about
  * the format, the column order, or Archidekt's value spellings (variant
- * `Normal|Foil|Etched`, condition `NM|LP|MP|HP|D`).
+ * `Normal|Foil|Etched`, condition `NM|LP|MP|HP|D`, language
+ * `EN|CT|DE|FR|IT|JP|KR|PT|RU|CS|SP`).
  */
 
 import * as fs from 'node:fs/promises'
@@ -26,6 +27,7 @@ import { exportPropertyLabel, renderCsvExport, type ExportProperty } from '../ex
 import { resolveExportScryfallIds } from '../export/scryfall-id'
 import {
   archidektCsvCondition,
+  archidektCsvLanguage,
   archidektModifier,
   type ArchidektCsvColumn,
   type CollectionCsvRowResult,
@@ -37,7 +39,7 @@ import { DEFAULT_SECTION } from '../types'
 // renders a finished report's CSV outcome, and this module reaches for the
 // filesystem, so it cannot be part of the browser bundle.
 import { describeCollectionKey, type CollectionCsvFailure } from './describe'
-import type { PushCreate } from './diff'
+import { unmappableLanguageWarning, type PushCreate } from './diff'
 
 /**
  * How many create operations a push may make one at a time before its additions
@@ -60,6 +62,7 @@ const ARCHIDEKT_COLUMN_BY_PROPERTY: Partial<Record<ExportProperty, ArchidektCsvC
   quantity: 'quantity',
   finish: 'modifier',
   condition: 'condition',
+  language: 'language',
 }
 
 /**
@@ -147,13 +150,32 @@ export async function planCollectionCsv(
       collectorNumber: operation.parts.collectorNumber,
       finish: operation.parts.finish,
       condition: operation.parts.condition,
+      language: operation.parts.language,
       fileOrder,
     }),
   )
 
+  // A language Archidekt cannot model renders `EN` in the CSV (the dialect's
+  // fallback); the file must not carry that silently, so the plan warns the
+  // same way a per-record push does.
+  const languageWarnings: string[] = []
+  for (const operation of creates) {
+    const warning = unmappableLanguageWarning(operation.name, operation.parts)
+    if (warning && !languageWarnings.includes(warning)) languageWarnings.push(warning)
+  }
+
   // One entry out per entry in, in order — which is what lets the split below
   // pair a resolved entry back to the operation it came from.
-  const resolved = await resolveExportScryfallIds(entries, lookup)
+  //
+  // Ids are resolved with the language stripped: Archidekt's own `uid` is the
+  // printing's default (English) Scryfall id whatever the record's language —
+  // language is an attribute there, not a separate card — so a row keyed by a
+  // foreign-language object's id would not match any Archidekt printing. The
+  // row's language rides the `language` column instead.
+  const resolved = await resolveExportScryfallIds(
+    entries.map((entry): ExportEntry => ({ ...entry, language: undefined })),
+    lookup,
+  )
   const rows: PushCreate[] = []
   const rowIds: string[] = []
   const rowEntries: ExportEntry[] = []
@@ -167,7 +189,9 @@ export async function planCollectionCsv(
     }
     rows.push(operation)
     rowIds.push(entry.scryfallId)
-    rowEntries.push(entry)
+    // The stripped language goes back on: the id was looked up language-blind,
+    // but the rendered row's `language` cell still carries the entry's own.
+    rowEntries.push({ ...entry, language: operation.parts.language })
   })
 
   return {
@@ -183,7 +207,7 @@ export async function planCollectionCsv(
     rowIds,
     copies: rows.reduce((total, operation) => total + operation.quantity, 0),
     uncached,
-    warnings: resolved.warnings,
+    warnings: [...resolved.warnings, ...languageWarnings],
   }
 }
 
@@ -210,16 +234,17 @@ type CsvRowIdentityParts = {
   uid: string
   variant: string
   condition: string
+  language: string
 }
 
 /**
  * The identity a rendered row shares with Archidekt's echo of it. Quantity is
- * left out: the push key is (printing, finish, condition), so uid + variant +
- * condition is unique per row by construction, while quantity carries no
- * distinguishing power.
+ * left out: the push key is (printing, finish, condition, language), so uid +
+ * variant + condition + language is unique per row by construction, while
+ * quantity carries no distinguishing power.
  */
 function csvRowIdentity(parts: CsvRowIdentityParts): string {
-  return `${parts.uid.toLowerCase()}|${parts.variant.toLowerCase()}|${parts.condition.toLowerCase()}`
+  return `${parts.uid.toLowerCase()}|${parts.variant.toLowerCase()}|${parts.condition.toLowerCase()}|${parts.language.toLowerCase()}`
 }
 
 /** Where each identity cell sits in an uploaded row, per the upload's own column order. */
@@ -227,6 +252,7 @@ type IdentityCells = {
   uid: number
   variant: number
   condition: number
+  language: number
 }
 
 // Derived from the same mapping the upload sends, so a preset reorder moves
@@ -238,7 +264,12 @@ const IDENTITY_CELLS: IdentityCells = ((): IdentityCells => {
     if (index === -1) throw new Error(`The Archidekt CSV upload has no '${column}' column`)
     return index
   }
-  return { uid: at('uid'), variant: at('modifier'), condition: at('condition') }
+  return {
+    uid: at('uid'),
+    variant: at('modifier'),
+    condition: at('condition'),
+    language: at('language'),
+  }
 })()
 
 /** The uid column's header cell, lowercased, as the preset's dialect labels it. */
@@ -281,6 +312,7 @@ function pairRow(
       uid,
       variant: cells[IDENTITY_CELLS.variant]?.trim() ?? '',
       condition: cells[IDENTITY_CELLS.condition]?.trim() ?? '',
+      language: cells[IDENTITY_CELLS.language]?.trim() ?? '',
     }),
   )
   return operation ? { kind: 'operation', operation } : { kind: 'unmatched' }
@@ -319,6 +351,9 @@ export function collectionCsvOutcome(
         uid,
         variant: archidektModifier(operation.parts.finish),
         condition: archidektCsvCondition(operation.parts.condition),
+        // The cell the dialect rendered: Archidekt's code, `EN` for the
+        // languages it cannot model.
+        language: archidektCsvLanguage(operation.parts.language) ?? 'EN',
       }),
       operation,
     )

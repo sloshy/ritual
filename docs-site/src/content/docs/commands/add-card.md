@@ -23,26 +23,27 @@ The target list is resolved from `<targetName>` across all three list types (see
 
 ## Options
 
-| Option                     | Description                                                                                                                          | Default | Applies To               |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------- | ------------------------ |
-| `--deck`                   | Resolve the name as a deck                                                                                                           |         |                          |
-| `--collection`             | Resolve the name as a collection (created if missing)                                                                                |         |                          |
-| `--wanted`                 | Resolve the name as a wanted list (created if missing)                                                                               |         |                          |
-| `-q, --quantity <num>`     | Number of copies to add (must be a positive integer); passing a value other than 1 to a collection or wanted target is a usage error | `1`     | Deck only                |
-| `-f, --finish <finish>`    | Card finish: `nonfoil`, `foil`, `etched`                                                                                             |         | Deck, Collection, Wanted |
-| `-c, --condition <cond>`   | Card condition: `NM`, `LP`, `MP`, `HP`, `DMG`, or `NONE` to record no condition                                                      |         | Deck, Collection         |
-| `--label <labels>`         | Label the new card: `sale,trade` (combinable) or `keep`; omit to inherit the collection's default                                    |         | Collection only          |
-| `--section <name>`         | Deck section to add to, created at the end of the file if missing                                                                    |         | Deck only                |
-| `--commander`              | Add the card to the deck's Commander section (created at the top if missing)                                                         |         | Deck only                |
-| `-e, --exact`              | Use exact matching (skip selection if name matches)                                                                                  | `false` |                          |
-| `--set <code>`             | Pin an exact printing by set code (requires `--collector-number`)                                                                    |         |                          |
-| `--collector-number <num>` | Pin an exact printing by collector number (requires `--set`)                                                                         |         |                          |
-| `--name-only`              | Add the card by name without choosing a printing                                                                                     |         | Wanted only              |
-| `--specific`               | Record a specific printing (via `--set`/`--collector-number` or interactive picker)                                                  |         | Wanted only              |
-| `--refresh <mode>`         | Card cache refresh policy: `ask` (prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`                          | `ask`   |                          |
-| `-n, --dry-run`            | Report what would be added without writing anything                                                                                  | `false` |                          |
-| `--output <format>`        | Output format: `text`, `json`, or `ndjson`                                                                                           | `text`  |                          |
-| `--quiet`                  | Suppress non-essential output                                                                                                        | `false` |                          |
+| Option                     | Description                                                                                                                                                                                    | Default | Applies To               |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------ |
+| `--deck`                   | Resolve the name as a deck                                                                                                                                                                     |         |                          |
+| `--collection`             | Resolve the name as a collection (created if missing)                                                                                                                                          |         |                          |
+| `--wanted`                 | Resolve the name as a wanted list (created if missing)                                                                                                                                         |         |                          |
+| `-q, --quantity <num>`     | Number of copies to add (must be a positive integer); passing a value other than 1 to a collection or wanted target is a usage error                                                           | `1`     | Deck only                |
+| `-f, --finish <finish>`    | Card finish: `nonfoil`, `foil`, `etched`                                                                                                                                                       |         | Deck, Collection, Wanted |
+| `-c, --condition <cond>`   | Card condition: `NM`, `LP`, `MP`, `HP`, `DMG`, or `NONE` to record no condition                                                                                                                |         | Deck, Collection         |
+| `--language <code>`        | Card language as a Scryfall code (`ja`, `de`, `zhs`, ...; aliases like `jp` or `Japanese` normalize); omitted, the configured [`defaultLanguage`](/configuration/#default-language) is stamped |         | Deck, Collection, Wanted |
+| `--label <labels>`         | Label the new card: `sale,trade` (combinable) or `keep`; omit to inherit the collection's default                                                                                              |         | Collection only          |
+| `--section <name>`         | Deck section to add to, created at the end of the file if missing                                                                                                                              |         | Deck only                |
+| `--commander`              | Add the card to the deck's Commander section (created at the top if missing)                                                                                                                   |         | Deck only                |
+| `-e, --exact`              | Use exact matching (skip selection if name matches)                                                                                                                                            | `false` |                          |
+| `--set <code>`             | Pin an exact printing by set code (requires `--collector-number`)                                                                                                                              |         |                          |
+| `--collector-number <num>` | Pin an exact printing by collector number (requires `--set`)                                                                                                                                   |         |                          |
+| `--name-only`              | Add the card by name without choosing a printing                                                                                                                                               |         | Wanted only              |
+| `--specific`               | Record a specific printing (via `--set`/`--collector-number` or interactive picker)                                                                                                            |         | Wanted only              |
+| `--refresh <mode>`         | Card cache refresh policy: `ask` (prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`                                                                                    | `ask`   |                          |
+| `-n, --dry-run`            | Report what would be added without writing anything                                                                                                                                            | `false` |                          |
+| `--output <format>`        | Output format: `text`, `json`, or `ndjson`                                                                                                                                                     | `text`  |                          |
+| `--quiet`                  | Suppress non-essential output                                                                                                                                                                  | `false` |                          |
 
 `--deck`, `--collection`, and `--wanted` are mutually exclusive, as are `--name-only` and `--specific`. Flags that don't apply to the resolved target type (for example `--condition` on a wanted list, `--section` on a collection, `--label` on a deck, or `--name-only` on a deck) are rejected with a usage error rather than silently ignored. Invalid `--finish`, `--condition`, `--label`, and `--quantity` values are rejected at parse time.
 
@@ -154,6 +155,14 @@ The interactive printing picker lists each printing's price in your configured [
 
 Note that `NM` and `NONE` produce the same line: `NM` is the unrecorded default and is written without a `[NM]` annotation (see [`set-card`](/commands/set-card/#condition-updates)).
 
+### Language
+
+`--language` records the copy's language as a lowercase Scryfall code (`en es fr de it pt ja ko ru zhs zht he la grc ar sa ph` — Scryfall's codes, not ISO: Chinese is `zhs`/`zht`). Common aliases normalize (`jp` → `ja`, `kr` → `ko`, `sp` → `es`, `cs` → `zhs`, `ct` → `zht`, and full English names like `Japanese`), so the persisted value is always the canonical code.
+
+Adding **never prompts** for a language. Without the flag, the configured [`defaultLanguage`](/configuration/#default-language) is stamped on the new card — edit it afterwards with [`set-card --language`](/commands/set-card/) if a single copy differs.
+
+On the line itself the language is a bracket token in canonical position (`- Sol Ring (C21:263) [foil] [LP] [ja] &7`), and the token is **omitted for English**: a bare line always means `en` whatever the configured default, so files stay self-describing. `--language` is recorded exactly as given — only the printing pin is verified, not the language. To change a copy's language with verification against the printing's real languages, use [`set-card --language`](/commands/set-card/#language-updates).
+
 ### Cache Freshness
 
 Before displaying the autocomplete prompt, the command checks the card cache; the shared `--refresh <mode>` option decides how it responds:
@@ -229,7 +238,7 @@ With `--output json` (or `ndjson`), a successful add prints exactly one machine-
 }
 ```
 
-Deck adds include `quantity` (the number of copies added, not the merged line's new total) and `section` (where the card's line ended up); a collection add made with `--label` includes `labels` (the override the new line carries); wanted adds omit the fields that weren't recorded. A `--dry-run` payload carries `"dryRun": true`, and the text line is prefixed `[dry-run]`. Set codes are lowercase in JSON output (the internal representation). Errors raised after argument parsing (usage, not-found, and runtime errors) are emitted on stderr as `{ "error": { "code", "message", "details" } }`. Invalid flag _values_ and flag conflicts (e.g. `--name-only` with `--set`) are rejected by argument parsing itself and printed as plain text on stderr regardless of `--output` — the exit code is still 2. In text mode, `--quiet` suppresses all non-essential output.
+Deck adds include `quantity` (the number of copies added, not the merged line's new total) and `section` (where the card's line ended up); a collection add made with `--label` includes `labels` (the override the new line carries); a non-English add includes `language` (the canonical lowercase code — English is omitted, like the line's token); wanted adds omit the fields that weren't recorded. A `--dry-run` payload carries `"dryRun": true`, and the text line is prefixed `[dry-run]`. Set codes are lowercase in JSON output (the internal representation). Errors raised after argument parsing (usage, not-found, and runtime errors) are emitted on stderr as `{ "error": { "code", "message", "details" } }`. Invalid flag _values_ and flag conflicts (e.g. `--name-only` with `--set`) are rejected by argument parsing itself and printed as plain text on stderr regardless of `--output` — the exit code is still 2. In text mode, `--quiet` suppresses all non-essential output.
 
 ## Exit Codes
 

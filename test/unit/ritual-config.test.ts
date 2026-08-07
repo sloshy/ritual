@@ -6,6 +6,7 @@ import {
   getDecksDir,
   getCollectionsDir,
   getWantedDir,
+  getDefaultLanguage,
   getDefaultRitualConfig,
   getRitualConfig,
   getSiteDeployConfig,
@@ -21,6 +22,7 @@ import {
   parseCacheSource,
   parseCollectionSyncConfig,
   parseDefaultCurrency,
+  parseDefaultLanguage,
   getSiteApiBaseUrl,
   getSiteSellMode,
   parseSearchDebounceMs,
@@ -122,6 +124,7 @@ describe('ritual config', () => {
       collectionsDir: './my-collections',
       wantedDir: './my-wanted',
       defaultCurrency: 'eur',
+      defaultLanguage: 'ja',
       cacheLockTimeoutSeconds: 120,
       cacheSource: 'feed',
       cacheFeedUrl: 'https://feed.example/feed.json',
@@ -178,11 +181,30 @@ describe('ritual config', () => {
     await fs.writeFile(configPath, JSON.stringify({ decksDir: './d' }))
     const config = await loadRitualConfig()
     expect(config.defaultCurrency).toBe('usd')
+    expect(config.defaultLanguage).toBe('en')
     expect(config.cacheLockTimeoutSeconds).toBe(300)
     expect(config.cacheSource).toBe('scryfall')
     expect(config.cacheFeedUrl).toBeUndefined()
     expect(config.searchDebounceMs).toBe(500)
   })
+
+  test('defaultLanguage loads a valid value, normalizing case', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ defaultLanguage: 'JA' }))
+    const config = await loadRitualConfig()
+    expect(config.defaultLanguage).toBe('ja')
+    expect(getDefaultLanguage(config)).toBe('ja')
+  })
+
+  test.each([['"jp"'], ['"klingon"'], ['5'], ['true']])(
+    'defaultLanguage falls back to en when %s',
+    async (raw) => {
+      // Aliases like "jp" are a `config set` convenience only — the persisted
+      // spelling must be the canonical Scryfall code.
+      await fs.writeFile(configPath, `{ "defaultLanguage": ${raw} }`)
+      const config = await loadRitualConfig()
+      expect(config.defaultLanguage).toBe('en')
+    },
+  )
 
   test('searchDebounceMs loads a valid value, allowing 0', async () => {
     await fs.writeFile(configPath, JSON.stringify({ searchDebounceMs: 0 }))
@@ -786,6 +808,14 @@ describe('config parser error shape', () => {
   test('parseDefaultCurrency returns the currency or a shared-shape error', () => {
     expect(parseDefaultCurrency('EUR')).toBe('eur')
     expectParseError(parseDefaultCurrency('gbp'), 'defaultCurrency')
+  })
+
+  test('parseDefaultLanguage returns the language or a shared-shape error', () => {
+    expect(parseDefaultLanguage('JA')).toBe('ja')
+    expect(parseDefaultLanguage(undefined)).toBe('en')
+    // The error names every valid code, so the user can see the vocabulary.
+    expectParseError(parseDefaultLanguage('jp'), 'defaultLanguage')
+    expectParseError(parseDefaultLanguage('jp'), 'zhs')
   })
 
   test('parseCacheLockTimeoutSeconds returns the number or a shared-shape error', () => {

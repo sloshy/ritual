@@ -74,6 +74,77 @@ describe('applyChangeToWantedList', () => {
       })
       expect(result[2]!.fileOrder).toBe(2)
     })
+
+    test('carries the change language onto the new entry (absent stays absent)', () => {
+      const withLanguage = applyChangeToWantedList([], {
+        action: 'add',
+        cardName: 'Sol Ring',
+        language: 'ja',
+      })
+      expect(withLanguage[0]!.language).toBe('ja')
+      const bare = applyChangeToWantedList([], { action: 'add', cardName: 'Sol Ring' })
+      expect(bare[0]!.language).toBeUndefined()
+    })
+  })
+
+  describe('set-language', () => {
+    test('sets a non-en language on the targeted entry', () => {
+      const entries = [makeEntry({ cardId: 5 })]
+      const result = applyChangeToWantedList(entries, {
+        action: 'set-language',
+        cardName: 'Lightning Bolt',
+        cardId: 5,
+        language: 'ja',
+      })
+      expect(result[0]!.language).toBe('ja')
+    })
+
+    test('en clears the stored value so the line serializes bare', () => {
+      const entries = [makeEntry({ cardId: 5, language: 'ja' })]
+      const result = applyChangeToWantedList(entries, {
+        action: 'set-language',
+        cardName: 'Lightning Bolt',
+        cardId: 5,
+        language: 'en',
+      })
+      expect(result[0]!.language).toBeUndefined()
+    })
+
+    test('misses when no entry matches', () => {
+      const entries = [makeEntry()]
+      let missed = ''
+      const result = applyChangeToWantedList(
+        entries,
+        { action: 'set-language', cardName: 'Sol Ring', language: 'ja' },
+        { onMiss: (reason) => (missed = reason) },
+      )
+      expect(result).toBe(entries)
+      expect(missed).toBe('no-target')
+    })
+  })
+
+  describe('set-printing language', () => {
+    test('an omitted language leaves the entry language alone; a given one applies', () => {
+      const entries = [makeEntry({ cardId: 5, language: 'ja' })]
+      const kept = applyChangeToWantedList(entries, {
+        action: 'set-printing',
+        cardName: 'Lightning Bolt',
+        cardId: 5,
+        set: 'm10',
+        collectorNumber: '146',
+      })
+      expect(kept[0]!.language).toBe('ja')
+
+      const changed = applyChangeToWantedList(entries, {
+        action: 'set-printing',
+        cardName: 'Lightning Bolt',
+        cardId: 5,
+        set: 'm10',
+        collectorNumber: '146',
+        language: 'de',
+      })
+      expect(changed[0]!.language).toBe('de')
+    })
   })
 
   describe('remove', () => {

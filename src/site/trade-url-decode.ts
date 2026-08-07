@@ -1,5 +1,6 @@
 import type { TradeCardEntry } from './data-types'
 import type { TradeSearchEntry } from './useTradeData'
+import { isCardLanguage, storedLanguage, type CardLanguage } from '../card-language'
 import type { ScryfallCard } from '../types'
 import { getCardPriceForFinish } from '../price-currency'
 import type { PriceCurrency } from '../price-currency'
@@ -86,26 +87,61 @@ function* parseSourceGroups(
   }
 }
 
-type SfPart = { sfId: string | undefined; urlFinish: string | undefined }
+type SfPart = {
+  sfId: string | undefined
+  urlFinish: string | undefined
+  /** The raw `~lang` value, still unvalidated — see {@link parseUrlLanguage}. */
+  urlLanguage: string | undefined
+}
 type ParsedSfToken = { basePart: string; sf: SfPart }
 
 /**
- * Parse the optional `@sfId[:finish]` suffix on a deck/wanted token. The base portion
- * (before `@`) is returned alongside the parsed scryfall reference so callers can decide
- * how to interpret it (deck encodes `id` as a quantity-prefixed `idxqty`; wanted encodes
- * a bare numeric id).
+ * Parse the optional `@sfId[:finish][~lang]` suffix on a deck/wanted token. The base
+ * portion (before `@`) is returned alongside the parsed scryfall reference so callers
+ * can decide how to interpret it (deck encodes `id` as a quantity-prefixed `idxqty`;
+ * wanted encodes a bare numeric id). The `~lang` suffix is split off before the
+ * finish (tilde deliberately avoids the overloaded colon); it is returned raw and
+ * validated by {@link parseUrlLanguage}, per the parser convention that a bad value
+ * becomes a warning, not a throw.
  */
 function parseSfPart(token: string): ParsedSfToken {
   const atIdx = token.indexOf('@')
   if (atIdx < 0) {
-    return { basePart: token, sf: { sfId: undefined, urlFinish: undefined } }
+    return {
+      basePart: token,
+      sf: { sfId: undefined, urlFinish: undefined, urlLanguage: undefined },
+    }
   }
   const basePart = token.slice(0, atIdx)
-  const sfPart = token.slice(atIdx + 1)
+  let sfPart = token.slice(atIdx + 1)
+  const tildeIdx = sfPart.indexOf('~')
+  const urlLanguage = tildeIdx >= 0 ? sfPart.slice(tildeIdx + 1) : undefined
+  if (tildeIdx >= 0) sfPart = sfPart.slice(0, tildeIdx)
   const colonIdx = sfPart.indexOf(':')
   const sfId = colonIdx >= 0 ? sfPart.slice(0, colonIdx) : sfPart
   const urlFinish = colonIdx >= 0 ? sfPart.slice(colonIdx + 1) : undefined
-  return { basePart, sf: { sfId: sfId || undefined, urlFinish } }
+  return { basePart, sf: { sfId: sfId || undefined, urlFinish, urlLanguage } }
+}
+
+/**
+ * Validate a token's raw `~lang` value into a {@link CardLanguage} for the decoded
+ * entry, or undefined. A code that names no language warns as a malformed token
+ * (carrying the raw token — per the parser conventions, the raw string is enough to
+ * investigate) and decodes as English rather than dropping the card. `en` — legal
+ * but never written by the encoder — resolves to undefined, the bare spelling.
+ */
+function parseUrlLanguage(
+  raw: string | undefined,
+  token: string,
+  warnings: TradeDecodeWarning[],
+): CardLanguage | undefined {
+  if (raw === undefined) return undefined
+  const language = raw.toLowerCase()
+  if (!isCardLanguage(language)) {
+    warnings.push({ kind: 'malformed-token', token })
+    return undefined
+  }
+  return storedLanguage(language)
 }
 
 /** Cheap pre-pass extractor for the scryfall id inside a token, used to seed the prefetch set. */
@@ -208,6 +244,7 @@ function decodeDeckParam(
         set: scryfallCard?.set ?? entry.set,
         collectorNumber: scryfallCard?.collector_number ?? entry.collectorNumber,
         finish,
+        language: parseUrlLanguage(sf.urlLanguage, token, ctx.warnings),
         scryfallCard,
         price: scryfallCard
           ? getCardPriceForFinish(scryfallCard, finish, ctx.currency)
@@ -232,7 +269,14 @@ function decodeDeckParam(
   return result
 }
 
-type WantedAccum = { count: number; sfId: string | undefined; urlFinish: string | undefined }
+type WantedAccum = {
+  count: number
+  sfId: string | undefined
+  urlFinish: string | undefined
+  urlLanguage: string | undefined
+  /** The token the sf suffix came from, for malformed-token warnings. */
+  token: string
+}
 
 function decodeWantedParam(
   paramValue: string,
@@ -262,7 +306,15 @@ function decodeWantedParam(
       }
       const acc = countMap.get(entry)
       if (acc) acc.count++
-      else countMap.set(entry, { count: 1, sfId: sf.sfId, urlFinish: sf.urlFinish })
+      else {
+        countMap.set(entry, {
+          count: 1,
+          sfId: sf.sfId,
+          urlFinish: sf.urlFinish,
+          urlLanguage: sf.urlLanguage,
+          token,
+        })
+      }
     }
     if (missingIds.length > 0) {
       ctx.warnings.push({
@@ -273,7 +325,7 @@ function decodeWantedParam(
       })
     }
 
-    for (const [entry, { count: qty, sfId, urlFinish }] of countMap) {
+    for (const [entry, { count: qty, sfId, urlFinish, urlLanguage, token }] of countMap) {
       if (sfId && !ctx.scryfallMap.has(sfId)) {
         ctx.warnings.push({ kind: 'unknown-scryfall-id', sfId })
       }
@@ -286,6 +338,7 @@ function decodeWantedParam(
         set: scryfallCard?.set ?? entry.set,
         collectorNumber: scryfallCard?.collector_number ?? entry.collectorNumber,
         finish,
+        language: parseUrlLanguage(urlLanguage, token, ctx.warnings),
         condition: entry.condition,
         note: entry.note,
         price: scryfallCard
@@ -307,34 +360,31 @@ function decodeScryfallParam(paramValue: string, ctx: DecodeContext): TradeCardE
   if (!paramValue) return []
   const result: TradeCardEntry[] = []
   for (const token of paramValue.split(',')) {
-    // Format: x<qty>@<sfId>[:<finish>]
+    // Format: x<qty>@<sfId>[:<finish>][~<lang>] — the shared sf-suffix grammar.
     if (!token.startsWith('x') || token.indexOf('@') < 0) {
       ctx.warnings.push({ kind: 'malformed-token', token })
       continue
     }
-    const atIdx = token.indexOf('@')
-    const qty = Number(token.slice(1, atIdx))
-    const rest = token.slice(atIdx + 1)
-    const colonIdx = rest.indexOf(':')
-    const sfId = colonIdx >= 0 ? rest.slice(0, colonIdx) : rest
-    const urlFinish = colonIdx >= 0 ? rest.slice(colonIdx + 1) : undefined
-    if (!sfId || isNaN(qty) || qty <= 0) {
+    const { basePart, sf } = parseSfPart(token)
+    const qty = Number(basePart.slice(1))
+    if (!sf.sfId || isNaN(qty) || qty <= 0) {
       ctx.warnings.push({ kind: 'malformed-token', token })
       continue
     }
 
-    const card = ctx.scryfallMap.get(sfId)
+    const card = ctx.scryfallMap.get(sf.sfId)
     if (!card) {
-      ctx.warnings.push({ kind: 'unknown-scryfall-id', sfId })
+      ctx.warnings.push({ kind: 'unknown-scryfall-id', sfId: sf.sfId })
       continue
     }
 
-    const finish = resolveTradeFinish(card, urlFinish)
+    const finish = resolveTradeFinish(card, sf.urlFinish)
     result.push({
       name: card.name,
       set: card.set,
       collectorNumber: card.collector_number,
       finish,
+      language: parseUrlLanguage(sf.urlLanguage, token, ctx.warnings),
       scryfallCard: card,
       price: getCardPriceForFinish(card, finish, ctx.currency),
       source: 'scryfall',

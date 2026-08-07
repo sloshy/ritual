@@ -342,3 +342,111 @@ describe('buildWantedArtifacts', () => {
     expect(warnings[0]).toContain("'Serra Angel' (ZZZ:1)")
   })
 })
+
+describe('language baking', () => {
+  const angelJa = makeScryfallCard({
+    id: 'angel-fdn-ja',
+    name: 'Serra Angel',
+    set: 'fdn',
+    collector_number: '35',
+    lang: 'ja',
+    released_at: '2024-11-15',
+    finishes: ['nonfoil', 'foil'],
+    // Foreign objects typically carry no prices; pricing must not read this one.
+    prices: { usd: null, usd_foil: null, eur: null, tix: null },
+    image_uris: imageUris('https://img/angel-ja.jpg'),
+  })
+
+  test('collection: a [ja] entry bakes the @ja object beside the default key and ships it', async () => {
+    const loaded: LoadedCollection = {
+      displayName: 'My Binder',
+      entries: [
+        {
+          name: 'Serra Angel',
+          quantity: 1,
+          set: 'fdn',
+          collectorNumber: '35',
+          finish: 'foil',
+          language: 'ja',
+          section: 'Main',
+          cardId: 1,
+        },
+      ],
+      sectionOrder: ['Main'],
+      warnings: [],
+      changelog: [],
+    }
+    const { ctx, shipped, warnings } = makeContext({
+      printingsByName: { 'Serra Angel': [angel, angelJa] },
+    })
+    const { detail } = await buildCollectionArtifacts(loaded, ctx)
+
+    // The plain key keeps the default-language object; the @ja key holds the scan.
+    expect(detail.cards['fdn:35']).toBe(angel)
+    expect(detail.cards['fdn:35@ja']).toBe(angelJa)
+    // The entry keeps its language and prices from the default object.
+    expect(detail.entries[0]).toMatchObject({ language: 'ja', finish: 'foil', price: 1.2 })
+    // Both objects ship, so --cache-images downloads the ja scan by its own id.
+    expect(shipped).toEqual([angel, angelJa])
+    expect(warnings).toHaveLength(0)
+  })
+
+  test('collection: a [ja] entry with no ja object warns and leaves the @ja key unwritten', async () => {
+    const loaded: LoadedCollection = {
+      displayName: 'My Binder',
+      entries: [
+        {
+          name: 'Serra Angel',
+          quantity: 1,
+          set: 'fdn',
+          collectorNumber: '35',
+          language: 'ja',
+          section: 'Main',
+          cardId: 1,
+        },
+      ],
+      sectionOrder: ['Main'],
+      warnings: [],
+      changelog: [],
+    }
+    const { ctx, warnings } = makeContext({ printingsByName: { 'Serra Angel': [angel] } })
+    const { detail } = await buildCollectionArtifacts(loaded, ctx)
+
+    expect(detail.cards['fdn:35']).toBe(angel)
+    // No explicit null: lookups must fall through to the default object.
+    expect('fdn:35@ja' in detail.cards).toBe(false)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('No ja card object')
+    expect(warnings[0]).toContain('FDN:35')
+  })
+
+  test('wanted: a pinned [ja] entry bakes the @ja object and keeps default-object pricing', async () => {
+    const loaded: LoadedWanted = {
+      displayName: 'Wants',
+      entries: [
+        {
+          name: 'Serra Angel',
+          quantity: 1,
+          set: 'fdn',
+          collectorNumber: '35',
+          finish: 'foil',
+          language: 'ja',
+          section: 'Main',
+          cardId: 1,
+        },
+      ],
+      sectionOrder: ['Main'],
+      warnings: [],
+      changelog: [],
+    }
+    const { ctx, shipped } = makeContext({
+      printingsByName: { 'Serra Angel': [angel, angelJa] },
+    })
+    const { detail } = await buildWantedArtifacts(loaded, ctx)
+
+    expect(detail.cards['fdn:35']).toBe(angel)
+    expect(detail.cards['fdn:35@ja']).toBe(angelJa)
+    expect(detail.entries[0]).toMatchObject({ language: 'ja', price: 1.2 })
+    expect(shipped).toEqual([angel, angelJa])
+  })
+})

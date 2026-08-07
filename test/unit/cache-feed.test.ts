@@ -65,6 +65,14 @@ describe('parseCacheFeed', () => {
     expect(result as string).toContain("unknown kind 'rulings'")
   })
 
+  test('accepts an all-cards entry — the every-language card bulk kind', () => {
+    const feed = makeFeed([
+      makeEntry(),
+      makeEntry({ kind: 'all-cards', fileName: 'all-cards-20260705.jsonl.gz' }),
+    ])
+    expect(parseCacheFeed(JSON.parse(JSON.stringify(feed)))).toEqual(feed)
+  })
+
   test.each([
     'fileName',
     'infoHash',

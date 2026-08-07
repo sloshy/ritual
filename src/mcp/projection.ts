@@ -21,6 +21,11 @@ import type {
  * Every load here asks for `view=cards` (or `summary`), which is what makes the
  * projection cheap rather than merely small: the route returns before loading
  * any of the payload this shape would otherwise discard.
+ *
+ * Language: an entry (deck card, collection entry, wanted entry) carries a
+ * `language` field only when it is not English — an absent value always means
+ * `en`, mirroring the card lines themselves, where the `[ja]`-style token is
+ * omitted for English.
  */
 
 /** Read options `get_list` and the resource reader pass to the load routes. */

@@ -49,6 +49,7 @@ These are the values Ritual uses when there is no config file, and what a first 
   "collectionsDir": "./collections",
   "wantedDir": "./wanted",
   "defaultCurrency": "usd",
+  "defaultLanguage": "en",
   "cacheLockTimeoutSeconds": 300,
   "cacheSource": "scryfall",
   "searchDebounceMs": 500,
@@ -90,6 +91,34 @@ You can use absolute paths (`"/srv/mtg/decks"`) or paths that step outside the b
 | Field             | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ----------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `defaultCurrency` | `usd`   | The currency price-touching surfaces default to: `usd`, `eur`, or `tix`. Used by the [price](/commands/price/) command, the [printing and finish picker price columns](/commands/edit/#printing-and-finish-prices) and the price lines shown when adding or editing cards in the CLI editor, the [admin site](/commands/admin/)'s editor and move-cards price displays, and as the public site's initial currency (when that currency is built). [init-site](/commands/init-site/) prompts for it; change it later with `config set defaultCurrency eur`. |
+
+## Default language
+
+| Field             | Default | Description                                                                                                                                                                                                                                                                                        |
+| ----------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `defaultLanguage` | `en`    | The language stamped on newly added cards — [`add-card`](/commands/add-card/), the editors, and imports whose source states no language. Also decides [which Scryfall bulk backs the card cache](#the-all-cards-consequence): `en` downloads `default_cards`; anything else downloads `all_cards`. |
+
+The value is a **Scryfall language code**, stored lowercase:
+
+| Code | Language   | Code  | Language            |
+| ---- | ---------- | ----- | ------------------- |
+| `en` | English    | `ru`  | Russian             |
+| `es` | Spanish    | `zhs` | Simplified Chinese  |
+| `fr` | French     | `zht` | Traditional Chinese |
+| `de` | German     | `he`  | Hebrew              |
+| `it` | Italian    | `la`  | Latin               |
+| `pt` | Portuguese | `grc` | Ancient Greek       |
+| `ja` | Japanese   | `ar`  | Arabic              |
+| `ko` | Korean     | `sa`  | Sanskrit            |
+|      |            | `ph`  | Phyrexian           |
+
+These are **Scryfall's codes, not ISO codes** — Chinese is `zhs`/`zht` (not `zh`), and `grc`/`ph` have no ISO equivalent at all. `config set defaultLanguage` accepts common aliases (`jp` → `ja`, `kr` → `ko`, `sp` → `es`, `cs` → `zhs`, `ct` → `zht`, and full English names like `Japanese`) and persists the canonical code; the admin **Settings** page offers the same vocabulary as a dropdown.
+
+On card lines the language is a bracket token (`[ja]`) that is **omitted for English**: a bare line always means `en`, whatever this key says, so list files stay self-describing. The key only controls what gets stamped on _new_ cards — it never reinterprets existing lines.
+
+### The all-cards consequence
+
+Setting any non-English `defaultLanguage` switches every card-cache download — [`cache preload-all`](/commands/cache/), the freshness prompts, and the [cache feed](/commands/cache/#feed-fetch) — from Scryfall's `default_cards` bulk (one English card object per printing) to the much larger `all_cards` bulk, which carries every language's card objects. Expect a several-times-larger download and cache. The cache records which bulk built it; when that disagrees with `defaultLanguage` (in either direction), commands that check cache freshness offer (or, under `--refresh auto`, run) a full redownload — see [`cache status`](/commands/cache/#status).
 
 ## Cache lock timeout
 

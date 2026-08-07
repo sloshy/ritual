@@ -258,7 +258,7 @@ describe('collection-sync API', () => {
     ])
     const [ambiguous] = body.success ? body.report.ambiguous : []
     expect(ambiguous).toMatchObject({
-      key: 'c21|240|nonfoil|NM',
+      key: 'c21|240|nonfoil|NM|en',
       parts: { set: 'c21', collectorNumber: '240', finish: 'nonfoil', condition: 'NM' },
       name: 'Sol Ring',
       quantity: 1,
@@ -377,8 +377,8 @@ describe('collection-sync API', () => {
       expect(sent.some((request) => request.url.startsWith(SEARCH_URL))).toBe(false)
       expect(await uploadedCsvRows(sent)).toEqual([
         // Uids come from the seeded cache; Damaged is `D` in an Archidekt CSV.
-        `${seededScryfallId(SOL_RING)},1,Normal,NM`,
-        `${seededScryfallId(BOLT)},1,Normal,D`,
+        `${seededScryfallId(SOL_RING)},1,Normal,NM,EN`,
+        `${seededScryfallId(BOLT)},1,Normal,D,EN`,
       ])
 
       // The outcome round-trips whole, which is what the admin page renders.

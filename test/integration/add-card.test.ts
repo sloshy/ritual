@@ -5,13 +5,14 @@ import { runCli } from './helpers/cli'
 import {
   createWorkspace,
   removeWorkspace,
+  seedCardCache,
   snapshotTree,
   writeCollectionFile,
+  writeConfig,
   writeDeckFile,
   writeWantedFile,
 } from './helpers/workspace'
 import type { ScryfallCard } from '../../src/types'
-import type { CachedItem, CacheSchema } from '../../src/cache/file-cache'
 
 // ── Synthetic card cache ──────────────────────────────────────────────────────
 // add-card resolves card names and printings from the local Scryfall cache, so
@@ -71,24 +72,6 @@ const SEED_CARDS: Record<string, ScryfallCard[]> = {
   ]),
 }
 
-async function writeCardCache(dir: string): Promise<void> {
-  const now = Date.now()
-  const cards: Record<string, CachedItem<ScryfallCard[]>> = {}
-  const cardNameIndex: Record<string, string> = {}
-  for (const [name, printings] of Object.entries(SEED_CARDS)) {
-    cards[name] = { timestamp: now, data: printings, lowercaseName: name.toLowerCase() }
-    cardNameIndex[name.toLowerCase()] = name
-  }
-  const schema: CacheSchema = {
-    prices: {},
-    cards,
-    cardNameIndex,
-    metadata: { cards: { lastRefreshedAt: now } },
-  }
-  await fs.mkdir(path.join(dir, 'cache'), { recursive: true })
-  await fs.writeFile(path.join(dir, 'cache', 'cache.json'), JSON.stringify(schema))
-}
-
 // ── Error payload shapes ──────────────────────────────────────────────────────
 
 type CliErrorPayload = {
@@ -113,7 +96,7 @@ let dir: string
 
 beforeEach(async () => {
   dir = await createWorkspace()
-  await writeCardCache(dir)
+  await seedCardCache(dir, SEED_CARDS)
   await writeDeckFile(dir, 'test', {
     frontMatter: { name: 'Test Deck' },
     cards: [{ quantity: 1, name: 'Demonic Tutor', cardId: 1 }],
@@ -871,7 +854,7 @@ describe('add-card CLI (Integration)', () => {
   describe('auto-creation and failure debris', () => {
     test('creates the first-ever wanted list in an empty workspace', async () => {
       const empty = await createWorkspace({ dirs: [] })
-      await writeCardCache(empty)
+      await seedCardCache(empty, SEED_CARDS)
       const result = await runCli(
         [
           'add-card',
@@ -894,7 +877,7 @@ describe('add-card CLI (Integration)', () => {
 
     test('creates the first-ever collection in an empty workspace', async () => {
       const empty = await createWorkspace({ dirs: [] })
-      await writeCardCache(empty)
+      await seedCardCache(empty, SEED_CARDS)
       const result = await runCli(
         [
           'add-card',
@@ -922,7 +905,7 @@ describe('add-card CLI (Integration)', () => {
 
     test('a missing deck is still an error in an empty workspace', async () => {
       const empty = await createWorkspace({ dirs: [] })
-      await writeCardCache(empty)
+      await seedCardCache(empty, SEED_CARDS)
       const result = await runCli(
         ['add-card', '--deck', 'nope', 'Sol', 'Ring', '--exact', '--output', 'json'],
         empty,
@@ -1128,6 +1111,198 @@ describe('add-card CLI (Integration)', () => {
       const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
       expect(deckContent).toContain('1 Sol Ring &2')
     })
+  })
+})
+
+describe('add-card language (Integration)', () => {
+  test('per-language objects of one printing still count as a single printing for non-interactive adds', async () => {
+    // Under an all_cards cache a single printing appears once per language; a
+    // pick-free add must recognize it as one printing, not two candidates.
+    const base = seedPrintings('Demonic Tutor', [
+      {
+        set: 'lea',
+        setName: 'Limited Edition Alpha',
+        collectorNumber: '105',
+        finishes: ['nonfoil'],
+      },
+    ])[0]!
+    // `replace` overwrites the whole cache, as an `all_cards` bulk (per-language
+    // objects) would populate it.
+    await seedCardCache(
+      dir,
+      { 'Demonic Tutor': [base, { ...base, id: 'dt-lea-ja', lang: 'ja' }] },
+      { replace: true },
+    )
+    const result = await runCli(
+      [
+        'add-card',
+        '--collection',
+        'main',
+        'Demonic',
+        'Tutor',
+        '--exact',
+        '--condition',
+        'NONE',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as AddCardPayload & { language?: string }
+    // The printing exists in the default language (en), so no token is stamped.
+    expect(json.language).toBeUndefined()
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Demonic Tutor (LEA:105) &2')
+  })
+
+  test('a printing that only exists in another language stamps that language on a silent add', async () => {
+    const base = seedPrintings('Demonic Tutor', [
+      { set: 'sta', setName: 'Mystical Archive JP', collectorNumber: '999', finishes: ['nonfoil'] },
+    ])[0]!
+    await seedCardCache(
+      dir,
+      { 'Demonic Tutor': [{ ...base, id: 'dt-sta-ja', lang: 'ja' }] },
+      { replace: true },
+    )
+    const result = await runCli(
+      [
+        'add-card',
+        '--collection',
+        'main',
+        'Demonic',
+        'Tutor',
+        '--exact',
+        '--condition',
+        'NONE',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as AddCardPayload & { language?: string }
+    expect(json.language).toBe('ja')
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Demonic Tutor (STA:999) [ja] &2')
+  })
+
+  test('a non-en defaultLanguage stamps the new entry with its token', async () => {
+    await writeConfig(dir, { defaultLanguage: 'ja' })
+    const result = await runCli(
+      [
+        'add-card',
+        '--collection',
+        'main',
+        'Sol',
+        'Ring',
+        '--exact',
+        '--set',
+        'lea',
+        '--collector-number',
+        '270',
+        '--condition',
+        'NONE',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as AddCardPayload & { language?: string }
+    expect(json.language).toBe('ja')
+
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Sol Ring (LEA:270) [ja] &2')
+  })
+
+  test('--language overrides the configured default, and en means a bare line', async () => {
+    await writeConfig(dir, { defaultLanguage: 'ja' })
+    const result = await runCli(
+      [
+        'add-card',
+        '--collection',
+        'main',
+        'Sol',
+        'Ring',
+        '--exact',
+        '--set',
+        'lea',
+        '--collector-number',
+        '270',
+        '--condition',
+        'NONE',
+        '--language',
+        'en',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Sol Ring (LEA:270) &2')
+    expect(content).not.toContain('[ja]')
+  })
+
+  test('--language accepts an alias (jp) and records the canonical code', async () => {
+    const result = await runCli(
+      [
+        'add-card',
+        '--collection',
+        'main',
+        'Sol',
+        'Ring',
+        '--exact',
+        '--set',
+        'lea',
+        '--collector-number',
+        '270',
+        '--condition',
+        'NONE',
+        '--language',
+        'jp',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as AddCardPayload & { language?: string }
+    expect(json.language).toBe('ja')
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Sol Ring (LEA:270) [ja] &2')
+  })
+
+  test('rejects an unknown --language at parse time', async () => {
+    const result = await runCli(
+      ['add-card', '--collection', 'main', 'Sol', 'Ring', '--language', 'klingon'],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain('Invalid language "klingon"')
+  })
+
+  test('a [ja] deck add never merges onto the existing English line', async () => {
+    // The deck already holds a bare (English) Demonic Tutor &1: the Japanese
+    // copy is a different physical variant and must get its own line and id.
+    const result = await runCli(
+      ['add-card', '--deck', 'test', 'Demonic', 'Tutor', '--exact', '--language', 'ja'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+    expect(deckContent).toContain('1 Demonic Tutor &1')
+    expect(deckContent).toContain('1 Demonic Tutor [ja] &2')
+  })
+
+  test('a name-only wanted add records the configured default language', async () => {
+    await writeConfig(dir, { defaultLanguage: 'ja' })
+    const result = await runCli(
+      ['add-card', '--wanted', 'needs', 'Sol', 'Ring', '--exact', '--name-only'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const content = await fs.readFile(path.join(dir, 'wanted', 'needs.md'), 'utf-8')
+    expect(content).toContain('- Sol Ring [ja] &2')
   })
 })
 

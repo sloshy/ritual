@@ -8,6 +8,7 @@ import {
   type CardPrintingOptions,
 } from './change-event'
 import type { Card, DeckSection, Finish, Condition } from './types'
+import { displayLanguage, type CardLanguage } from './card-language'
 
 // ── Shared helpers ───────────────────────────────────────────────────
 
@@ -17,6 +18,7 @@ type CardIdentity = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  language?: CardLanguage
   cardId?: number
 }
 
@@ -24,6 +26,11 @@ type CardIdentity = {
 // has a diff rule: a hand-edited `{note}` or `[keep]` produces no changelog
 // entry from detect-changes — it is absorbed on the next hash stamp. In-app
 // edits record those changes through their own set-note / set-label events.
+// The language folds a missing token to `en`, so adding/removing a redundant
+// `[en]` is not a change. A hand-edited `[ja]` likewise produces no
+// detect-changes entries when the line carries an `&N` id (the id
+// short-circuits the composite key); only on an id-less line does it read as
+// remove+add.
 function compositeKey(c: CardIdentity): string {
   return [
     c.name,
@@ -31,6 +38,7 @@ function compositeKey(c: CardIdentity): string {
     c.collectorNumber ?? '',
     c.finish ?? '',
     c.condition ?? '',
+    displayLanguage(c.language),
   ].join('|')
 }
 
@@ -45,6 +53,7 @@ function printingOptions(c: CardIdentity): CardPrintingOptions {
     collectorNumber: c.collectorNumber,
     finish: c.finish,
     condition: c.condition,
+    language: c.language,
     cardId: c.cardId,
   }
 }

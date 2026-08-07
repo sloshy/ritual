@@ -277,6 +277,28 @@ describe('buildSellReport matching', () => {
     ).toEqual(['no-printings', 'printing-not-found', 'not-on-buylist'])
   })
 
+  test('a non-English entry is refused before matching, never quoted at the English price', async () => {
+    const report = await buildSellReport(
+      input([
+        // Pinned to a printing CK is actively buying — the language alone
+        // must keep the English quote away from it.
+        { set: 'fdn', collectorNumber: '294', language: 'ja', quantity: 2 },
+        // Unpinned foreign copy: same refusal, same reason.
+        { language: 'de' },
+      ]),
+      options(),
+    )
+
+    for (const entry of report.entries) {
+      expect(entry.status).toBe('no-match')
+      if (entry.status === 'no-match') expect(entry.noMatchReason).toBe('non-english')
+      expect(entry.sellableQuantity).toBe(0)
+      expect(entry.value).toBe(0)
+    }
+    // The refused copies count like every other unmatched copy.
+    expect(report.totals.noMatchCount).toBe(3)
+  })
+
   test('an unpinned entry quotes the best-paying product and reports its printing', async () => {
     const report = await buildSellReport(input([{}]), options())
     const entry = expectMatched(report.entries[0])

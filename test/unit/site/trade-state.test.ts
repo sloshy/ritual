@@ -4,6 +4,7 @@ import {
   isAlreadyInRightList,
   addEntryToLeft,
   addEntryToRight,
+  leftCards,
   setLeftCards,
   setRightCards,
 } from '../../../src/site/useTradeState'
@@ -99,5 +100,25 @@ describe('isAlreadyInRightList', () => {
     addEntryToLeft(collectionEntry, 'usd')
     const wantedEntry = makeEntry({ sourceKind: 'wanted', sourceName: 'My Wanted', maxQty: 1 })
     expect(isAlreadyInRightList(wantedEntry)).toBe(false)
+  })
+})
+
+describe('language as a trade variant dimension', () => {
+  test('a [ja] entry never merges into its English twin', () => {
+    const en = makeEntry({ maxQty: 2, cardIds: [1, 2] })
+    const ja = makeEntry({ language: 'ja', maxQty: 2, cardIds: [3, 4] })
+    addEntryToLeft(en, 'usd')
+    addEntryToLeft(ja, 'usd')
+    expect(leftCards()).toHaveLength(2)
+    expect(leftCards()[1]).toMatchObject({ language: 'ja', qty: 1 })
+  })
+
+  test('an explicit en entry merges with a bare (language-less) one', () => {
+    const bare = makeEntry({ maxQty: 3, cardIds: [1, 2, 3] })
+    const explicitEn = makeEntry({ language: 'en', maxQty: 3, cardIds: [1, 2, 3] })
+    addEntryToLeft(bare, 'usd')
+    addEntryToLeft(explicitEn, 'usd')
+    expect(leftCards()).toHaveLength(1)
+    expect(leftCards()[0]?.qty).toBe(2)
   })
 })

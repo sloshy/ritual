@@ -1,6 +1,8 @@
 import type { ChangeEvent } from '../change-event'
 import { CHANGE_ACTIONS } from '../change-event'
 import { parseCardLabelsValue } from '../card-labels'
+import { isCardLanguage } from '../card-language'
+import { isCondition, isFinish } from '../finish-condition'
 import type { ListType } from '../list-type'
 import { LIST_TYPES } from '../list-type'
 
@@ -110,12 +112,39 @@ function validateChanges(raw: unknown, where: string): ChangeEvent[] | string {
     // is normalized (deduped, canonical order). On a set-label an empty array
     // (a clear) is valid; an add either carries an override or omits the field.
     let normalized = typeof obj.set === 'string' ? { ...obj, set: obj.set.toLowerCase() } : obj
+    // Languages are a closed vocabulary: normalize to lowercase and reject
+    // unknown codes the way unknown actions are rejected — an invalid code must
+    // never reach a serializer. `set-language` requires the field; every other
+    // change may carry it optionally (add/remove/set-printing/move-from/move-to).
+    if (obj.language !== undefined) {
+      const language = typeof obj.language === 'string' ? obj.language.toLowerCase() : null
+      if (language === null || !isCardLanguage(language)) {
+        return `${where}Change #${i + 1} has an unknown language: ${JSON.stringify(obj.language)}.`
+      }
+      normalized = { ...normalized, language }
+    } else if (obj.action === 'set-language') {
+      return `${where}Change #${i + 1} (set-language) is missing its "language".`
+    }
+    // Finish and condition are closed vocabularies too — an invalid value must
+    // be refused here, not serialized into a list file.
+    if (obj.finish !== undefined) {
+      if (typeof obj.finish !== 'string' || !isFinish(obj.finish)) {
+        return `${where}Change #${i + 1} has an unknown finish: ${JSON.stringify(obj.finish)}.`
+      }
+    }
+    if (obj.condition !== undefined) {
+      // `set-printing` alone accepts the `NONE` clear sentinel (ConditionUpdate).
+      const clearAllowed = obj.action === 'set-printing' && obj.condition === 'NONE'
+      if (!clearAllowed && (typeof obj.condition !== 'string' || !isCondition(obj.condition))) {
+        return `${where}Change #${i + 1} has an unknown condition: ${JSON.stringify(obj.condition)}.`
+      }
+    }
     if (obj.action === 'set-label' || (obj.action === 'add' && obj.labels !== undefined)) {
       const labels = parseCardLabelsValue(obj.labels, 'labels')
       if (!labels.ok) return `${where}Change #${i + 1}: ${labels.message}`
       normalized = { ...normalized, labels: labels.labels }
     }
-    changes.push(normalized as unknown as ChangeEvent)
+    changes.push(normalized as ChangeEvent)
   }
   return changes
 }

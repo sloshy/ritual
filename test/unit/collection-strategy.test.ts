@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import prompts from 'prompts'
 import { createCollectionStrategy } from '../../src/commands/collection-strategy'
 import { newCollectionSession, type CollectionSession } from '../../src/commands/flat-list-session'
-import type { SessionConfig } from '../../src/commands/card-session'
+import type { CardSessionContext, SessionConfig } from '../../src/commands/card-session'
+import type { CardLanguage } from '../../src/card-language'
 
 function makeSessionConfig(): SessionConfig {
   return {
@@ -116,5 +117,89 @@ describe('collection strategy — Edit List Labels', () => {
     // front matter — the dumpFrontMatterBlock ↔ withFrontMatter seam.
     const content = session.serialize('Binder', session.entries, [], session.frontMatter)
     expect(content.startsWith('---\nlabels:\n  - keep\n---\n\n# Binder')).toBeTrue()
+  })
+})
+
+describe('collection strategy — Change Language', () => {
+  function makeCtx(): CardSessionContext {
+    return {
+      sessionChanges: [],
+      lastChangeIndex: null,
+      lastAdded: null,
+      lastAddedCount: 0,
+      hasSavedChangelog: false,
+    }
+  }
+
+  function sessionWithEntry(language?: CardLanguage): CollectionSession {
+    const session = makeSession()
+    session.entries = [
+      {
+        name: 'Sol Ring',
+        set: 'c21',
+        collectorNumber: '240',
+        finish: 'nonfoil',
+        condition: 'NM',
+        language,
+        price: 0,
+        fileOrder: 0,
+        section: 'Main',
+        cardId: 1,
+      },
+    ]
+    return session
+  }
+
+  test('the edit menu applies a set-language change, undoable back to the original', async () => {
+    const session = sessionWithEntry()
+    const strategy = makeStrategy(session)
+    const ctx = makeCtx()
+
+    prompts.inject(['language', 'ja'])
+    await strategy.editEntry(ctx, 1)
+
+    expect(session.entries[0]!.language).toBe('ja')
+    expect(ctx.sessionChanges).toHaveLength(1)
+    expect(ctx.sessionChanges[0]).toMatchObject({
+      action: 'set-language',
+      language: 'ja',
+      cardId: 1,
+    })
+    expect(strategy.lastEditUndoLabel()).toBe('language on Sol Ring')
+
+    await strategy.undoLastEdit(ctx)
+    // The inverse is set-language en, and the collection entry model keeps the
+    // resolved value: `CollectionCardEntry.language` documents 'en' as
+    // equivalent to absent and safe to re-serialize (the line stays bare).
+    expect(session.entries[0]!.language).toBe('en')
+    expect(ctx.sessionChanges).toHaveLength(0)
+    expect(strategy.lastEditUndoLabel()).toBeNull()
+  })
+
+  test('re-picking the current language is a no-op', async () => {
+    const session = sessionWithEntry('ja')
+    const strategy = makeStrategy(session)
+    const ctx = makeCtx()
+
+    prompts.inject(['language', 'ja'])
+    await strategy.editEntry(ctx, 1)
+
+    expect(session.entries[0]!.language).toBe('ja')
+    expect(ctx.sessionChanges).toHaveLength(0)
+    expect(strategy.lastEditUndoLabel()).toBeNull()
+  })
+
+  test('changing a [ja] entry back to English clears the token from the rendered line', async () => {
+    const session = sessionWithEntry('ja')
+    const strategy = makeStrategy(session)
+    const ctx = makeCtx()
+
+    prompts.inject(['language', 'en'])
+    await strategy.editEntry(ctx, 1)
+
+    expect(ctx.sessionChanges[0]).toMatchObject({ action: 'set-language', language: 'en' })
+    const line = session.serialize('Binder', session.entries, ['Main'], undefined)
+    expect(line).toContain('- Sol Ring (C21:240) &1')
+    expect(line).not.toContain('[ja]')
   })
 })

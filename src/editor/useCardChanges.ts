@@ -10,10 +10,12 @@ import {
   areOppositeChanges,
   consolidateSetFinish,
   consolidateSetLabel,
+  consolidateSetLanguage,
   consolidateSetPrinting,
   consolidateSetSection,
 } from '../change-event'
 import type { CardLabel } from '../card-labels'
+import type { CardLanguage } from '../card-language'
 
 /**
  * Stores enough context to fully reverse a single user action.
@@ -61,6 +63,17 @@ export type UseCardChangesResult<T = unknown> = {
     cardId?: number,
   ) => void
   setSection: (cardName: string, section: string, originalSection: string, cardId?: number) => void
+  /**
+   * Set a card's language with "latest wins" semantics. `originalLanguage` is the
+   * on-disk value (undefined for a bare line, which means `en`); restoring it
+   * cancels the pending change, so undo lands back on the prior language.
+   */
+  setLanguage: (
+    cardName: string,
+    language: CardLanguage,
+    originalLanguage: CardLanguage | undefined,
+    cardId?: number,
+  ) => void
   /** Set (or, with `[]`, clear) a collection card's label override — latest wins. */
   setLabel: (
     cardName: string,
@@ -213,6 +226,25 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     }
   }
 
+  function setLanguage(
+    cardName: string,
+    language: CardLanguage,
+    originalLanguage: CardLanguage | undefined,
+    cardId?: number,
+  ) {
+    const {
+      changes: newChanges,
+      addedChange,
+      cancelledChange,
+    } = consolidateSetLanguage(changesRef, cardName, language, originalLanguage, cardId)
+    if (addedChange !== null || cancelledChange !== null) {
+      changesRef = newChanges
+      undoStackRef = [...undoStackRef, { addedChange, cancelledChange }]
+      setChanges([...changesRef])
+      setUndoStack([...undoStackRef])
+    }
+  }
+
   function setLabel(
     cardName: string,
     labels: CardLabel[],
@@ -252,6 +284,7 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     setFinish,
     setPrinting,
     setSection,
+    setLanguage,
     setLabel,
   }
 }

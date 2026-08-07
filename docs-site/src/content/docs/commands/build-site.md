@@ -353,7 +353,7 @@ Every list page (deck, collection, or wanted list) carries a **Copy** and a **Do
 
 - **Text (.txt)** — a quantity-prefixed list (`N Card Name (SET:Collector Number)`). Decks render the import-friendly decklist (Commander then Main, extras omitted); collections and wanted lists render one line per card.
 - **Markdown (.md)** — the canonical source Markdown, with `## Section` headers and full card lines (printing, finish, condition, note, and internal id).
-- **CSV (.csv)** — spreadsheet rows under a `Name,Set,Collector Number,Finish,Condition,Quantity` header, for importing into other sites.
+- **CSV (.csv)** — spreadsheet rows under a `Name,Set,Collector Number,Finish,Condition,Language,Quantity` header, for importing into other sites.
 
 **Copy** writes the chosen format to the clipboard; **Download** saves it as a file named after the list. A small tooltip ("Copied!" / "Downloaded!") confirms the action — the button labels never change. The list is serialized in the browser from the data already on the page, so no extra files are generated at build time.
 
@@ -366,7 +366,7 @@ A card shown with a quantity (e.g. `4×` in a deck, or a grouped duplicate in a 
 Once at least one card is selected, a **Selected (N)** button appears in the toolbar (N is the running count of selected copies for the list you're viewing). The selection survives changes to grouping, sorting, and view mode. Opening the button reveals a menu of bulk actions over that list's selection:
 
 - **Copy as Text** — copies a quantity-prefixed list (`N Card Name (SET:Collector Number)`) to the clipboard, matching the header **Copy → Text** format but scoped to the selected cards
-- **Copy as CSV** — copies the same selection as CSV with a `Name,Set,Collector Number,Finish,Condition,Quantity` header, matching the header **Copy → CSV** output but scoped to the selected cards
+- **Copy as CSV** — copies the same selection as CSV with a `Name,Set,Collector Number,Finish,Condition,Language,Quantity` header, matching the header **Copy → CSV** output but scoped to the selected cards
 - **Add to Trade** — adds the selected cards to the active [Trade Planner](#trade-planner) (deck and collection cards go to the offering side, wanted-list cards to the receiving side). Name-only cards (no pinned printing) prompt for a printing one at a time, exactly like the single-card add
 - **Clear selection** — deselects the current list's cards only
 
@@ -529,6 +529,7 @@ Collection pages show:
 
 - Total collection value based on specific printing and finish prices
 - Individual card prices, conditions, finishes, and set/collector number in the card detail modal
+- Non-English copies labelled with their [language](/commands/edit/#card-language) beside the finish and condition — `(Foil · JA)` on card tiles in the art views, and as part of the parenthesised list-view label
 - A "View on Scryfall" link in the card detail modal that opens the card's Scryfall page
 - An "Other Printings" button that shows a paginated binder-style grid (8 per page) of all known printings of the card, sorted by release date (newest first) by default, each linking to Scryfall. Sorting can be changed via a dropdown to release date, set name, or price, with a toggle to reverse the sort direction.
 - Cards displayed individually by default (not grouped), with a "Group Duplicates" toggle
@@ -592,6 +593,7 @@ Although the generated site is static (no server), the navbar has an **Edit** to
 - **Edited vs. published** — while editing, the navbar grows a second row that makes it clear you are viewing a local copy, with an **Original / Edited** toggle to switch between your changes and the published version, and a **Discard** button to drop them. Press **Done** (the same navbar toggle) to leave edit mode.
 - **Card search** — adding cards searches Scryfall directly (preferring the shared session cache), the same as the Trade Planner. Matching is Scryfall's own: the [autocomplete API](https://scryfall.com/docs/api/cards/autocomplete) treats your query as one contiguous string, unlike [the admin editor's term matching](/admin/editors/#step-1-search) over the local card cache (where `in tre` finds "In the Trenches"). Results can therefore differ between the two editors — the search dialog notes this and links to the Scryfall API docs. On a site backed by a [live API](/public-site/hosted/), search goes through the backend's cache with the admin editor's term matching instead, and the note disappears.
 - **Keyboard shortcuts** — the editor shares the admin site's [keyboard shortcuts](/admin/editors/#keyboard-shortcuts): **Ctrl+Enter** opens the card search, **Ctrl+B** focuses the bottom action bar, and every step of the add-card dialog is arrow-key navigable. Press **?** (or the **?** button at the end of the action bar) for the full list.
+- **Set a card's language** — **Set Language…** is available in the per-card **⋯** context menu and in the multi-select **Selected** menu, exactly as in [the admin editor](/admin/editors/#card-language): a picker over the 17 Scryfall [card languages](/commands/edit/#card-language), with **English** clearing the line's token (a bare line always means `en`).
 - **Move a card to another list** — the per-card **⋯** menu, the per-list **Selected** menu, and the cross-list **All Selected** navbar menu each offer a single **Move to list…** item that opens a picker listing your other decks, collections, and wanted lists. Moving a card removes it from the list you're editing (it disappears from the edited view) and records the move in your exported change bundle. Moving a printing-less card into a collection (which needs a specific printing) opens the same printing picker the Trade Planner uses. Because the public site has no server, the destination list is only updated when the change bundle is later imported into the admin editor and saved.
 - **Export your edits** — the **Export…** panel offers two ways to keep your changes:
   - **Download change list (JSON)** or **Copy JSON** — a portable change bundle that can later be applied to the real lists with the admin site's [Import Changes](/commands/admin/#import-changes) page or the [`import-changes`](/commands/import-changes/) CLI command (both preview the changes and ask for confirmation), or loaded into an editor as pending edits. Applied changes are re-targeted to the current card IDs.
@@ -627,7 +629,7 @@ The left column is for cards you are offering. It searches cards from the collec
 
 - Type a card name in the search box to get autocomplete suggestions showing card name and source list
 - Each result is deduplicated per source — if the same card appears in multiple collections, each collection shows up as a separate autocomplete result
-- Cards show: thumbnail image, name, set code and collector number, finish, condition, and price
+- Cards show: thumbnail image, name, set code and collector number — with the language badged beside it for a non-English copy (`2XM:270 · JA`) — finish, condition, and price
 - If a deck card has no specific printing pinned, selecting it opens the printing picker so you can choose one (the deck source is preserved on the resulting trade row)
 - Sort by card name or price (toggle ascending/descending independently)
 - Price total shown at the bottom of the column
@@ -649,6 +651,8 @@ The right column is for cards the other party is offering. What it searches depe
 **Every right-column selection opens the printing picker.** A wanted list records the printing you'd _like_, not the one being offered, so picking a wanted card never assumes its printing: the picker opens with the printings your wanted lists ask for (across every list, for that card name) floated to the top and badged **Wanted**, and you choose what's actually on the table. The row keeps its wanted-list source and quantity cap whichever printing you take.
 
 The picker shows all available printings, paginated 8 at a time, with a set-code filter input (e.g. typing `mkm` or `lea` narrows the results); hovering an entry shows the full card art preview. Choose a printing and finish, then click "Add to Trade" to add the card.
+
+Non-English printings carry the same language badge as trade rows (`2XM:270 · JA`). Confirming a printing that exists **only** in a non-English language pauses on a notice — `This printing is only available in Japanese (ja) — it will be recorded as [ja].` — with a **Continue** button that accepts the language and a **Back** button that returns to the list. Shared trade URLs preserve each row's language, so the other party sees exactly the copies you encoded.
 
 Rows added from a bare card name belong to no list of yours, so they're tagged with the backend that answered the lookup — **Cache** on a hosted site, **Scryfall** on a static one — and are encoded in the trade URL by Scryfall ID.
 

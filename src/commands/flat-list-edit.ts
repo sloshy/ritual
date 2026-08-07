@@ -10,6 +10,7 @@ import {
 } from '../change-event'
 import type { Condition, Finish } from '../types'
 import type { CardLabel } from '../card-labels'
+import { displayLanguage, type CardLanguage } from '../card-language'
 import { allocateId, claimId, releaseId } from '../card-id'
 import {
   promptNoteEdit,
@@ -48,18 +49,27 @@ export type EditableFlatListEntry = FlatListEntry & {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The line's `[ja]`-style language token. Absent means `en`. */
+  language?: CardLanguage
   /** Label override — collection entries only; wanted entries never carry one. */
   labels?: CardLabel[]
   note?: string
 }
 
-/** The printing tuple of an entry, for consolidation comparisons and inverses. */
+/**
+ * The printing tuple of an entry, for consolidation comparisons and inverses.
+ * The language is always resolved explicitly (`en` for a bare line): a
+ * set-printing built from this tuple must *restore* the entry's language —
+ * an absent language on a set-printing means "leave the token alone", which
+ * would let an undo keep a language the forward edit had changed.
+ */
 export function entryPrinting(entry: EditableFlatListEntry): PrintingTuple {
   return {
     set: entry.set,
     collectorNumber: entry.collectorNumber,
     finish: entry.finish,
     condition: entry.condition,
+    language: displayLanguage(entry.language),
   }
 }
 
@@ -218,6 +228,7 @@ export function performFlatListRemoval<E extends EditableFlatListEntry>(
     collectorNumber: entry.collectorNumber,
     finish: entry.finish,
     condition: entry.condition,
+    language: entry.language,
     cardId,
   })
   applyFlatListChange(list.session, removeEvent)
@@ -237,7 +248,9 @@ export function performFlatListRemoval<E extends EditableFlatListEntry>(
       collectorNumber: removed.collectorNumber,
       finish: removed.finish,
       condition: removed.condition,
-      // The label override rides the add itself, so undoing a removal restores it.
+      // The language and label override ride the add itself, so undoing a
+      // removal restores them.
+      language: removed.language,
       labels: removed.labels,
       cardId,
       section: removed.section,

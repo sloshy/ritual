@@ -41,6 +41,7 @@ import { comparePrintings, computeRepresentativePrints, getCardGames } from './s
 import { parseWantedListFile } from './commands/wanted-helpers'
 import { matchesAllTerms } from './term-match'
 import type { Condition, DeckData, Finish, ScryfallCard } from './types'
+import type { CardLanguage } from './card-language'
 
 /** When a card has no EDHREC rank, it sorts after every ranked card. */
 export const UNRANKED_EDHREC = 999999
@@ -58,6 +59,13 @@ export type PriceListEntry = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /**
+   * The line's language token, when present (absent means `en`). Pricing
+   * ignores it — a card prices from its printing regardless of language — but
+   * it rides along for the sell report, which must refuse to quote non-English
+   * copies against an English-only buylist.
+   */
+  language?: CardLanguage
   section: string
 }
 
@@ -216,6 +224,7 @@ export function deckPriceEntries(deck: Pick<DeckData, 'sections'>): PriceListEnt
         collectorNumber: card.collectorNumber,
         finish: card.finish,
         condition: card.condition,
+        language: card.language,
         section: section.name,
       })
     }
@@ -254,6 +263,7 @@ export async function loadPriceListInputs(
             collectorNumber: entry.collectorNumber,
             finish: entry.finish,
             condition: entry.condition,
+            language: entry.language,
             section: entry.section,
           }),
         ),
@@ -272,6 +282,7 @@ export async function loadPriceListInputs(
           set: entry.set?.toLowerCase(),
           collectorNumber: entry.collectorNumber,
           finish: entry.finish,
+          language: entry.language,
           section: entry.section,
         }),
       ),
@@ -322,6 +333,11 @@ function priceEntry(
   currency: PriceCurrency,
 ): PricedEntry {
   const pinned = hasSpecificPrinting(entry)
+  // Deliberately language-neutral: no language is passed, so `findPrinting`
+  // resolves the printing's default (English) object. Prices are quoted for
+  // the *printing* regardless of the copy's language — foreign objects carry
+  // no Scryfall prices of their own, and a `[ja]` line must price identically
+  // to its bare English twin.
   const exactPrinting = pinned
     ? findPrinting(pricing.printings, entry.set, entry.collectorNumber)
     : undefined

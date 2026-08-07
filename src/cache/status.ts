@@ -5,6 +5,10 @@
 import { cardCache } from './instances'
 import { PRICE_MAX_AGE_MS } from './constants'
 import { getConfiguredCacheServerAddress } from './config'
+import { readRecordedCardBulkType } from './bulk-provenance'
+import { configuredCardBulkType, type CardBulkType } from '../scryfall/bulk-manifest'
+import { getDefaultLanguage } from '../ritual-config'
+import type { CardLanguage } from '../card-language'
 
 /**
  * The card cache's diagnostic report, collected once and rendered by whoever
@@ -45,6 +49,21 @@ export type CacheStatusResult = {
   /** Whether any sampled cached card carries oracle/art tags (bounded sample, not a scan). */
   tagsPresent: boolean
   source: CacheSource
+  /** The configured `defaultLanguage` — what decides which Scryfall bulk backs the cache. */
+  defaultLanguage: CardLanguage
+  /**
+   * Which bulk built the card cache (`default_cards` English-only, `all_cards`
+   * every language), or null when no bulk ingest has recorded provenance —
+   * an empty cache, or one filled before provenance existed (necessarily
+   * `default_cards`).
+   */
+  cardBulkType: CardBulkType | null
+  /**
+   * True when a non-empty cache's bulk (unrecorded reads as `default_cards`)
+   * disagrees with what `defaultLanguage` demands — the cache needs a full
+   * refresh, which the freshness gates offer.
+   */
+  bulkTypeStale: boolean
 }
 
 const ONE_HOUR_MS = 60 * 60 * 1000
@@ -77,6 +96,7 @@ export async function collectCacheStatus(): Promise<CacheStatusResult> {
   const keys = await cardCache.keys()
   const lastRefreshedAt = await cardCache.getLastRefreshedAt()
   const priceAgeMs = lastRefreshedAt === null ? null : Date.now() - lastRefreshedAt
+  const cardBulkType = await readRecordedCardBulkType()
 
   return {
     empty,
@@ -86,5 +106,8 @@ export async function collectCacheStatus(): Promise<CacheStatusResult> {
     priceStale: priceAgeMs === null || priceAgeMs > PRICE_MAX_AGE_MS,
     tagsPresent: await sampleTagsPresent(keys),
     source: getConfiguredCacheServerAddress() ? 'cache-server' : 'local',
+    defaultLanguage: getDefaultLanguage(),
+    cardBulkType,
+    bulkTypeStale: !empty && (cardBulkType ?? 'default_cards') !== configuredCardBulkType(),
   }
 }

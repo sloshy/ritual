@@ -43,6 +43,7 @@ import { getCardPrintingsResult } from '../scryfall'
 import { printingsAreComplete } from '../card-printing'
 import { isFinish, normalizeFinishValue, VALID_FINISHES } from '../finish-condition'
 import { parseSetCode } from '../set-codes'
+import { languageToken, type CardLanguage } from '../card-language'
 import type { Finish } from '../types'
 import type { ListType } from '../list-type'
 
@@ -358,6 +359,8 @@ type MovedCardSummary = {
   set?: string
   collectorNumber?: string
   finish?: Finish
+  /** The moved copy's language; omitted for English (bare-line default). */
+  language?: CardLanguage
   /** The card's ID in the source list (destination lists assign fresh IDs). */
   cardId?: number
 }
@@ -604,6 +607,7 @@ function selectCopies(
           set: c.set,
           collectorNumber: c.collectorNumber,
           finish: c.finish,
+          language: c.language,
         })),
       },
     )
@@ -653,7 +657,10 @@ function printingMatches(
 }
 
 function printingComboKey(card: PhysicalCard): string {
-  return `${card.set?.toLowerCase() ?? ''}|${card.collectorNumber ?? ''}|${card.finish ?? 'nonfoil'}`
+  // Language joins the key like finish: a request that matched both an English
+  // and a [ja] copy of the same printing must be narrowed (with --card-id)
+  // rather than moving an arbitrary mix.
+  return `${card.set?.toLowerCase() ?? ''}|${card.collectorNumber ?? ''}|${card.finish ?? 'nonfoil'}|${card.language ?? 'en'}`
 }
 
 function describeNarrowing(selection: HeadlessSelection): string {
@@ -749,7 +756,7 @@ function emitMoveSuccess(
     const printingPart =
       card.set && card.collectorNumber ? ` (${card.set.toUpperCase()}:${card.collectorNumber})` : ''
     emitOutput(
-      `Moved ${moved} x ${card.name}${printingPart}${finishLabel(card.finish)} from ${listRefLabel(from.ref)} to ${listRefLabel(to.ref)}`,
+      `Moved ${moved} x ${card.name}${printingPart}${finishLabel(card.finish)}${languageToken(card.language)} from ${listRefLabel(from.ref)} to ${listRefLabel(to.ref)}`,
       scripting,
     )
     return
@@ -762,6 +769,7 @@ function emitMoveSuccess(
       set: card.set,
       collectorNumber: card.collectorNumber,
       finish: card.finish,
+      language: card.language,
       cardId: card.cardId,
     },
     from: { type: from.ref.type, name: from.ref.name },
@@ -803,7 +811,7 @@ function handleViewPending(virtualState: Map<string, VirtualCard>): void {
     const to = listRefLabel(vc.currentList.ref)
     const printingPart =
       card.set && card.collectorNumber ? ` (${card.set.toUpperCase()}:${card.collectorNumber})` : ''
-    const finishPart = finishLabel(card.finish)
+    const finishPart = finishLabel(card.finish) + languageToken(card.language)
     const idPart = card.cardId !== undefined ? ` &${card.cardId}` : ''
     console.log(`  ${card.name}${printingPart}${finishPart}${idPart}: ${from} → ${to}`)
   }
@@ -881,10 +889,21 @@ async function handleCardMove(
       console.log(`No printings found for "${card.name}"; cannot move it to a collection.`)
       return
     }
+    // The picker's availability confirm may have resolved a language for the
+    // assigned printing (a printing that does not exist in the configured
+    // default); an explicit `en` there means a bare line. Otherwise the card
+    // keeps whatever language token it already carried.
+    const stampedLanguage: CardLanguage | undefined =
+      result.language !== undefined
+        ? result.language === 'en'
+          ? undefined
+          : result.language
+        : card.language
     resolvedCard = {
       ...card,
       set: result.printing.set.toLowerCase(),
       collectorNumber: result.printing.collector_number,
+      language: stampedLanguage,
     }
   }
 
@@ -902,7 +921,7 @@ async function handleCardMove(
     resolvedCard.set && resolvedCard.collectorNumber
       ? ` (${resolvedCard.set.toUpperCase()}:${resolvedCard.collectorNumber})`
       : ''
-  const finishPart = finishLabel(resolvedCard.finish)
+  const finishPart = finishLabel(resolvedCard.finish) + languageToken(resolvedCard.language)
   console.log(
     `  ✓ Queued: ${resolvedCard.name}${printingPart}${finishPart} → ${listRefLabel(destList.ref)}`,
   )

@@ -174,8 +174,9 @@ Identical to the CLI, since it is the same engine:
 - A **push** creates, grows, trims, and deletes records in your Archidekt collection until it
   matches the lists in scope. Nothing is written locally.
 
-See [What Is Compared](/commands/collection-sync/#what-is-compared) for the full rules, including
-which parts of an Archidekt record (language, tags, purchase price) have no local counterpart.
+See [What Is Compared](/commands/collection-sync/#what-is-compared) for the full rules — language
+is part of the join key and round-trips (a `[ja]` line syncs as a Japanese record), while tags and
+purchase price have no local counterpart.
 
 :::note
 When git auto-commit is enabled in the admin config, list files written by a pull are committed in a

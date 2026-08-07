@@ -73,6 +73,22 @@ const TOKEN_PRINTING = makeScryfallCard({
   collector_number: '9',
 })
 
+/**
+ * A Japanese object of the same printing as REAL_PRINTING (an `all_cards`
+ * bulk shape). Scryfall keeps `name`, `layout`, `type_line`, and `games`
+ * canonical-English on foreign objects, so the exclusion filters and the
+ * name-keyed grouping treat it exactly like the en object.
+ */
+const REAL_PRINTING_JA = makeScryfallCard({
+  id: 'real-1-ja',
+  name: 'Ghalta, Primal Hunger',
+  layout: 'normal',
+  type_line: 'Legendary Creature — Elder Dinosaur',
+  set: 'rix',
+  collector_number: '130',
+  lang: 'ja',
+})
+
 const ARENA_PRINTING = makeScryfallCard({
   id: 'arena-1',
   name: 'Alrund, God of the Cosmos',
@@ -103,6 +119,7 @@ describe('cache printing exclusions', () => {
     http.mock(DEFAULT_URI, () =>
       gzipJsonLinesResponse([
         REAL_PRINTING,
+        REAL_PRINTING_JA,
         REAL_IN_A_SET,
         ART_PRINTING,
         ART_ONLY_NAME,
@@ -113,7 +130,11 @@ describe('cache printing exclusions', () => {
 
     await client.preloadCache()
 
-    expect((await cache.get('Ghalta, Primal Hunger'))?.map((c) => c.id)).toEqual(['real-1'])
+    // The foreign object survives the same filters and groups under the same
+    // canonical-English name key, its lang retained.
+    const ghalta = await cache.get('Ghalta, Primal Hunger')
+    expect(ghalta?.map((c) => c.id)).toEqual(['real-1', 'real-1-ja'])
+    expect(ghalta?.map((c) => c.lang)).toEqual([undefined, 'ja'])
     expect((await cache.get('Alrund, God of the Cosmos'))?.map((c) => c.id)).toEqual(['real-2'])
     // Excluded names must not become cache keys at all — the keys are what autocomplete lists.
     expect(await cache.get('Clearwater Pathway // Clearwater Pathway')).toBeNull()

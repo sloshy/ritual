@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   CSV_HEADER,
   collectionToMarkdown,
+  collectionToCsv,
   collectionToText,
   wantedToText,
   wantedToCsv,
@@ -133,14 +134,14 @@ describe('wantedToCsv', () => {
   test('starts with the canonical header and leaves the condition column blank', () => {
     const csv = wantedToCsv([wantedEntry({ finish: 'foil' })])
     expect(csv.split('\n')[0]).toBe(CSV_HEADER)
-    expect(csv.split('\n')[1]).toBe('Mana Crypt,2XM,1,foil,,1')
+    expect(csv.split('\n')[1]).toBe('Mana Crypt,2XM,1,foil,,,1')
   })
 
   test('quotes names with commas and blanks set/CN for name-only entries', () => {
     const csv = wantedToCsv([
       wantedEntry({ name: 'Krenko, Mob Boss', set: undefined, collectorNumber: undefined }),
     ])
-    expect(csv.split('\n')[1]).toBe('"Krenko, Mob Boss",,,,,1')
+    expect(csv.split('\n')[1]).toBe('"Krenko, Mob Boss",,,,,,1')
   })
 })
 
@@ -163,11 +164,11 @@ describe('deckToCsv', () => {
   test('emits one row per card line using the line quantity', () => {
     const lines = deckToCsv(deck).split('\n')
     expect(lines[0]).toBe(CSV_HEADER)
-    expect(lines[1]).toBe('Atraxa,,,,,1')
-    expect(lines[2]).toBe('Forest,LEA,294,foil,,3')
+    expect(lines[1]).toBe('Atraxa,,,,,,1')
+    expect(lines[2]).toBe('Forest,LEA,294,foil,,,3')
     // The default nonfoil finish is left blank in the CSV.
-    expect(lines[3]).toBe('Plains,LEA,290,,,2')
-    expect(lines[4]).toBe('Sol Ring,,,,,1')
+    expect(lines[3]).toBe('Plains,LEA,290,,,,2')
+    expect(lines[4]).toBe('Sol Ring,,,,,,1')
   })
 })
 
@@ -210,11 +211,77 @@ describe('selectionToCsv', () => {
     ]
     const lines = selectionToCsv(cards).split('\n')
     expect(lines[0]).toBe(CSV_HEADER)
-    expect(lines[1]).toBe('Lightning Bolt,LEA,161,foil,LP,2')
+    expect(lines[1]).toBe('Lightning Bolt,LEA,161,foil,LP,,2')
   })
 
   test('leaves set and collector-number columns blank for a name-only card', () => {
     const card = selected({ set: undefined, collectorNumber: undefined })
-    expect(selectionToCsv([card]).split('\n')[1]).toBe('Lightning Bolt,,,,,1')
+    expect(selectionToCsv([card]).split('\n')[1]).toBe('Lightning Bolt,,,,,,1')
+  })
+})
+
+describe('language column and token', () => {
+  test('CSV_HEADER carries the Language column between Condition and Quantity', () => {
+    expect(CSV_HEADER).toBe('Name,Set,Collector Number,Finish,Condition,Language,Quantity')
+  })
+
+  test('collection markdown writes [ja] and never [en]', () => {
+    const markdown = collectionToMarkdown(
+      'Binder',
+      [
+        collectionEntry({ language: 'ja', cardId: 1 }),
+        collectionEntry({ name: 'Sol Ring', language: 'en', cardId: 2, fileOrder: 1 }),
+        collectionEntry({ name: 'Brainstorm', cardId: 3, fileOrder: 2 }),
+      ],
+      ['Main'],
+    )
+    expect(markdown).toContain('- Lightning Bolt (LEA:161) [ja] &1')
+    expect(markdown).toContain('- Sol Ring (LEA:161) &2')
+    expect(markdown).toContain('- Brainstorm (LEA:161) &3')
+    expect(markdown).not.toContain('[en]')
+  })
+
+  test('collection CSV emits the code, blank for en and missing languages', () => {
+    const csv = collectionToCsv([
+      collectionEntry({ language: 'ja' }),
+      collectionEntry({ name: 'Sol Ring', language: 'en', fileOrder: 1 }),
+      collectionEntry({ name: 'Brainstorm', fileOrder: 2 }),
+    ])
+    const lines = csv.split('\n')
+    expect(lines[1]).toBe('Lightning Bolt,LEA,161,nonfoil,NM,ja,1')
+    expect(lines[2]).toBe('Sol Ring,LEA,161,nonfoil,NM,,1')
+    expect(lines[3]).toBe('Brainstorm,LEA,161,nonfoil,NM,,1')
+  })
+
+  test('wanted CSV emits the language code column', () => {
+    const csv = wantedToCsv([wantedEntry({ language: 'zht' })])
+    expect(csv.split('\n')[1]).toBe('Mana Crypt,2XM,1,,,zht,1')
+  })
+
+  test('language is an aggregation dimension: ja and bare copies never merge', () => {
+    const csv = collectionToCsv([
+      collectionEntry({ language: 'ja' }),
+      collectionEntry({ fileOrder: 1 }),
+      collectionEntry({ language: 'ja', fileOrder: 2 }),
+    ])
+    const lines = csv.split('\n')
+    expect(lines).toHaveLength(3)
+    expect(lines[1]).toBe('Lightning Bolt,LEA,161,nonfoil,NM,ja,2')
+    expect(lines[2]).toBe('Lightning Bolt,LEA,161,nonfoil,NM,,1')
+  })
+
+  test('an explicit en folds together with a bare line when aggregating', () => {
+    const csv = collectionToCsv([
+      collectionEntry({ language: 'en' }),
+      collectionEntry({ fileOrder: 1 }),
+    ])
+    const lines = csv.split('\n')
+    expect(lines).toHaveLength(2)
+    expect(lines[1]).toBe('Lightning Bolt,LEA,161,nonfoil,NM,,2')
+  })
+
+  test('selection CSV carries the selected card language', () => {
+    const csv = selectionToCsv([selected({ language: 'ja', quantity: 2 })])
+    expect(csv.split('\n')[1]).toBe('Lightning Bolt,LEA,161,,,ja,2')
   })
 })

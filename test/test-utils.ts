@@ -64,6 +64,24 @@ export function makeScryfallCard(overrides: ScryfallCardOverrides = {}): Scryfal
   }
 }
 
+/**
+ * A cached printing of one card at `set:collectorNumber`, optionally in a
+ * specific language (`lang` omitted models a `default_cards` object, which
+ * counts as English). The shared fixture for suites exercising printing
+ * identity/language resolution (`findPrinting`, `printingLanguages`,
+ * `resolvePrintingLanguage`, the editors' printing-key maps).
+ */
+export function makePrintingIn(set: string, collectorNumber: string, lang?: string): ScryfallCard {
+  return makeScryfallCard({
+    id: `${set}-${collectorNumber}${lang ? `-${lang}` : ''}`,
+    name: 'Lightning Bolt',
+    set,
+    set_name: set.toUpperCase(),
+    collector_number: collectorNumber,
+    ...(lang !== undefined ? { lang } : {}),
+  })
+}
+
 /** A CardData tile with neutral defaults for site sorting/filtering tests. */
 export function makeCardData(overrides: Partial<CardData> = {}): CardData {
   return {

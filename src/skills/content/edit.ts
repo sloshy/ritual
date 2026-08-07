@@ -58,6 +58,7 @@ ritual add-card "To Buy" "Demonic Tutor" --wanted --set sta --collector-number 9
 ritual add-card "Winota Stax" "Lightning Bolt" --exact --output json
 ritual add-card "Winota Stax" "Lightning Bolt" --deck --set sta --collector-number 42 -f foil --section Sideboard
 ritual add-card "Winota Stax" "Kenrith, the Returned King" --deck --commander
+ritual add-card "Main Binder" "Sol Ring" --collection --set c21 --collector-number 263 -c NM --language ja
 ritual add-card "Winota Stax" "Sol Ring" --deck -q 4 --dry-run   # preview, writes nothing
 \`\`\`
 
@@ -79,6 +80,11 @@ ritual add-card "Winota Stax" "Sol Ring" --deck -q 4 --dry-run   # preview, writ
   needs \`-c\`, and any specific-printing add whose printing comes in several finishes
   needs \`-f\` — otherwise the run exits 2 naming the flag instead of writing a
   half-specified line.
+- \`--language <code>\` records a non-English copy (lowercase Scryfall codes — \`ja\`, \`de\`,
+  \`zhs\`, ...; aliases like \`jp\` or \`Japanese\` normalize). Adding **never prompts** for a
+  language: omitted, the configured \`defaultLanguage\` is stamped, and a bare line in the
+  file always means English. A pinned non-English add is verified against the printing's
+  real languages, like the set/collector-number pair itself.
 - Wanted adds must choose a specificity: \`--name-only\` (any copy), a printing pin via
   \`--set\`/\`--collector-number\`, or \`--specific\` (interactive picker). Non-interactive
   runs without one exit 2.
@@ -109,6 +115,8 @@ ritual remove-card "Main Binder" "Sol Ring" --card-id 5 --output json
 \`\`\`bash
 ritual set-card "Main Binder" "Lightning Bolt" --set 2xm --collector-number 157
 ritual set-card "Main Binder" "Sol Ring" --finish foil --condition LP
+ritual set-card "Main Binder" "Sol Ring" --language ja      # mark the Japanese copy
+ritual set-card "Main Binder" "Sol Ring" --language en      # back to English (token removed)
 ritual set-card "Winota Stax" "Lightning Bolt" --section Sideboard
 ritual set-card "Winota Stax" "Winota, Joiner of Forces" --commander
 ritual set-card "To Buy" "Demonic Tutor" --wanted --finish foil --output json
@@ -125,6 +133,9 @@ ritual set-card "To Buy" "Demonic Tutor" --wanted --finish foil --output json
 - \`--condition NM|LP|MP|HP|DMG|NONE\` — decks and collections only (wanted entries
   carry no condition). \`NONE\` clears a recorded grade; note that \`NM\` is the
   unrecorded default and writes an ungraded line, exactly like \`NONE\`.
+- \`--language <code>\` sets the card's language on any list type (canonical Scryfall codes
+  or aliases like \`jp\`); \`en\` clears the line's token, since a bare line means English.
+  Validated cache-only against the printing's real languages, like \`--finish\`.
 - \`--label sale,trade|keep|none\` — collections only. Sets the card's label
   override (\`sale\`/\`trade\` combine; \`keep\` stands alone); \`none\` clears it so
   the collection's front-matter default applies again. \`add-card\` takes the
@@ -196,7 +207,11 @@ each. Moving a printing-less card into a collection prompts for a specific print
 \`ritual edit\` is **the** interactive TUI (requires a terminal) for editing decks,
 collections, and wanted lists: a selection menu covers all lists (plus create-new
 items). Sessions support name/collector entry modes, per-type edit modes over
-existing entries, and undo. Creating a deck prompts for its format, and deck sessions
+existing entries, and undo. Every type's edit mode includes a **Change Language**
+action (Scryfall codes; picking \`en\` removes the line's token). Adding a card never
+prompts for a language — the configured \`defaultLanguage\` is stamped — and under a
+non-English default the printing picker notes when a printing does not exist in that
+language, falling back to English. Creating a deck prompts for its format, and deck sessions
 have \`🏷️ Change Format\` and \`🔖 Edit Tags\` menu actions that rewrite the front
 matter on the next save; collection sessions likewise offer \`🏷️ Edit List Labels\`
 for the default card labels (scripted equivalent: \`ritual metadata\`). A deck with no
@@ -308,7 +323,8 @@ entries never match. Available columns:
 \`name\`, \`quantity\`, \`set\`, \`collectorNumber\`, \`edition\` (set + collector
 number as \`SET:number\`), \`scryfallId\` (the printing's Scryfall UUID, resolved
 from the local Scryfall cache — an uncached printing exports an empty cell plus a
-warning), \`finish\`, \`isFoil\` (true when foil or etched), \`condition\`, \`labels\`
+warning), \`finish\`, \`isFoil\` (true when foil or etched), \`condition\`,
+\`language\` (Scryfall language code; blank for English), \`labels\`
 (effective labels, comma-joined), \`note\`,
 \`section\`, \`listName\`, \`listType\`. Columns apply to
 csv/json only: giving \`--columns\`, \`--dialect\`, \`--no-header\`, or \`--quote-all\`

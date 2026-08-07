@@ -46,6 +46,9 @@ describe('handleCacheStatus', () => {
       priceStale: true,
       tagsPresent: false,
       source: 'local',
+      defaultLanguage: 'en',
+      cardBulkType: null,
+      bulkTypeStale: false,
     })
   })
 

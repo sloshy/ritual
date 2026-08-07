@@ -9,6 +9,7 @@ import { importFromTextFile } from '../importers/text-file'
 import { parseCollectionFile } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
 import { DEFAULT_SECTION, type Condition, type Finish } from '../types'
+import type { CardLanguage } from '../card-language'
 import type { ListType } from '../list-type'
 import {
   createAddChange,
@@ -18,6 +19,7 @@ import {
   createSetNoteChange,
   createSetSectionChange,
   formatChangeCore,
+  printingOptionsFrom,
   type ChangeEvent,
 } from '../change-event'
 import type { CardLabel } from '../card-labels'
@@ -29,6 +31,8 @@ export type SnapshotEntry = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The line's `[ja]`-style language token. Absent means `en`. */
+  language?: CardLanguage
   /** Label override — collection entries only. */
   labels?: CardLabel[]
   note?: string
@@ -68,6 +72,7 @@ export async function loadListSnapshot(type: ListType, filePath: string): Promis
           collectorNumber: card.collectorNumber,
           finish: card.finish,
           condition: card.condition,
+          language: card.language,
           note: card.note,
           cardId: card.cardId,
           section: section.name,
@@ -90,6 +95,7 @@ export async function loadListSnapshot(type: ListType, filePath: string): Promis
         collectorNumber: e.collectorNumber,
         finish: e.finish,
         condition: e.condition,
+        language: e.language,
         labels: e.labels,
         note: e.note,
         cardId: e.cardId,
@@ -108,6 +114,7 @@ export async function loadListSnapshot(type: ListType, filePath: string): Promis
       set: e.set,
       collectorNumber: e.collectorNumber,
       finish: e.finish,
+      language: e.language,
       note: e.note,
       cardId: e.cardId,
       section: e.section,
@@ -137,15 +144,7 @@ export function buildDefaultChangeLines(snapshot: ListSnapshot): string[] {
   for (const entry of snapshot.entries) {
     const copies = Math.max(1, entry.quantity)
     for (let i = 0; i < copies; i++) {
-      events.push(
-        createAddChange(entry.name, {
-          set: entry.set,
-          collectorNumber: entry.collectorNumber,
-          finish: entry.finish,
-          condition: entry.condition,
-          cardId: entry.cardId,
-        }),
-      )
+      events.push(createAddChange(entry.name, printingOptionsFrom(entry)))
     }
     if (entry.isCommander) {
       events.push(createSetCommanderChange(entry.name, { cardId: entry.cardId }))

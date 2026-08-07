@@ -238,6 +238,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
       onTooltipLeave={() => setTooltip(null)}
       collectionFinish={c.selectedTile.finish}
       collectionCondition={c.selectedTile.condition}
+      collectionLanguage={c.selectedTile.language}
       collectionSetCN={
         c.hasPrinting && c.selectedTile.set
           ? `${c.selectedTile.set.toUpperCase()}:${c.selectedTile.collectorNumber}`

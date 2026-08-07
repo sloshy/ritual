@@ -21,7 +21,8 @@ import type {
   CollectionCardEntry,
   WantedListCardEntry,
 } from './data-types'
-import { printingKey } from '../printing-key'
+import { lookupPrintingCard } from '../printing-key'
+import { storedLanguage, type CardLanguage } from '../card-language'
 
 /**
  * A reference to a single list by its type and slug. Encoded into the combined-view
@@ -189,6 +190,11 @@ function selectKeyFor(kind: ListType, listName: string, localKey: string | numbe
   return `${kind} ${listName} ${localKey}`
 }
 
+/** An entry's language as a selection field: `undefined` for English (or a bare line). */
+function entryLanguage(language: CardLanguage | undefined): CardLanguage | undefined {
+  return storedLanguage(language)
+}
+
 function buildDeckCards(
   loaded: LoadedDeckDetail,
   currency: PriceCurrency,
@@ -202,7 +208,12 @@ function buildDeckCards(
     for (const entry of section.cards) {
       const specific = hasSpecificPrinting(entry)
       const matched = specific
-        ? findPrinting(detail.printings[entry.name], entry.set, entry.collectorNumber)
+        ? findPrinting(
+            detail.printings[entry.name],
+            entry.set,
+            entry.collectorNumber,
+            entry.language,
+          )
         : null
       const card = overlayCard(matched ?? detail.cards[entry.name] ?? null)
       const price = card ? getCardPrice(card, currency) : 0
@@ -216,6 +227,7 @@ function buildDeckCards(
         collectorNumber: specific ? entry.collectorNumber : undefined,
         finish: entry.finish,
         condition: entry.condition,
+        language: entryLanguage(entry.language),
         quantity: entry.quantity,
         groupSize: entry.quantity,
         price,
@@ -267,8 +279,9 @@ function buildCollectionCards(
 ): CombinedCardData[] {
   const { detail, ref, name } = loaded
   return detail.entries.map((entry: CollectionCardEntry, index): CombinedCardData => {
-    const cardKey = printingKey(entry.set, entry.collectorNumber)
-    const card = overlayCard(detail.cards[cardKey] ?? null)
+    // Language-resolved: a `[ja]` entry displays its baked `@ja` object when
+    // present, falling through to the printing's default object.
+    const card = overlayCard(lookupPrintingCard(detail.cards, entry))
     const price = card ? getCardPriceForFinish(card, entry.finish, currency) : entry.price
     const key = selectKeyFor('collection', name, index)
     const preview = resolveCardPreview(card, useScryfallImgUrls)
@@ -281,6 +294,7 @@ function buildCollectionCards(
       collectorNumber: entry.collectorNumber,
       finish: entry.finish,
       condition: entry.condition,
+      language: entryLanguage(entry.language),
       labels,
       note: entry.note,
       quantity: 1,
@@ -346,6 +360,7 @@ function buildWantedCards(
       set: specific ? entry.set.toLowerCase() : undefined,
       collectorNumber: specific ? entry.collectorNumber : undefined,
       finish: entry.finish,
+      language: entryLanguage(entry.language),
       note: entry.note,
       quantity: 1,
       groupSize: 1,

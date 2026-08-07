@@ -3,6 +3,11 @@ import path from 'node:path'
 import { readdir } from 'node:fs/promises'
 import matter from 'gray-matter'
 import { isFinish, isCondition } from '../commands/collection-helpers'
+import {
+  isCardLanguage,
+  LANGUAGE_TOKEN_PATTERN,
+  malformedLanguageTokenHint,
+} from '../card-language'
 import { parseDeckFormat } from '../deck-format'
 import { createFenceTracker } from '../markdown-fence'
 import { isListMarkdownFile } from '../list-file-name'
@@ -52,12 +57,18 @@ export async function readDeckName(filePath: string): Promise<string> {
 }
 
 /**
- * Matches a deck card line: `2 Lightning Bolt (LEA:161) [foil] [NM] {note} &12`.
+ * Matches a deck card line: `2 Lightning Bolt (LEA:161) [foil] [NM] [ja] {note} &12`.
  * Set codes allow `_` (some art-series / playtest sets use underscores).
- * Whitespace is `\s+` so multiple spaces between tokens are tolerated.
+ * Whitespace is `\s+` so multiple spaces between tokens are tolerated. The
+ * optional `&N` id stays the final capture group (the id backfill and the
+ * line-preserving mutations index the match by its last group).
  */
-export const DECK_CARD_LINE_RE =
-  /^(\d+)[xX]?\s+(.+?)(?:\s+\(([A-Za-z0-9_]+):([^)]+)\))?(?:\s+\[(nonfoil|foil|etched)\])?(?:\s+\[(NM|LP|MP|HP|DMG)\])?(?:\s+\{(.*)\})?(?:\s+&(\d+))?$/
+export const DECK_CARD_LINE_RE = new RegExp(
+  `^(\\d+)[xX]?\\s+(.+?)(?:\\s+\\(([A-Za-z0-9_]+):([^)]+)\\))?(?:\\s+\\[(nonfoil|foil|etched)\\])?(?:\\s+\\[(NM|LP|MP|HP|DMG)\\])?(?:\\s+\\[(${LANGUAGE_TOKEN_PATTERN})\\])?(?:\\s+\\{(.*)\\})?(?:\\s+&(\\d+))?$`,
+)
+
+/** The {@link DECK_CARD_LINE_RE} capture group holding the language token body. */
+export const DECK_LINE_LANGUAGE_GROUP = 7
 
 /**
  * Matches an MTG Arena / MTGO export card line's printing suffix:
@@ -349,6 +360,7 @@ export function parseDeckText(
         }
       }
 
+      const rawLanguage = quantityMatch[DECK_LINE_LANGUAGE_GROUP]
       currentSection.cards.push({
         quantity: Number.parseInt(quantityMatch[1], 10),
         name: cardName,
@@ -358,13 +370,16 @@ export function parseDeckText(
         collectorNumber,
         finish: quantityMatch[5] && isFinish(quantityMatch[5]) ? quantityMatch[5] : markerFinish,
         condition: quantityMatch[6] && isCondition(quantityMatch[6]) ? quantityMatch[6] : undefined,
-        note: quantityMatch[7],
-        cardId: quantityMatch[8] ? Number.parseInt(quantityMatch[8], 10) : undefined,
+        // Set only when the token is present — a bare line means `en` and stays bare.
+        language: rawLanguage && isCardLanguage(rawLanguage) ? rawLanguage : undefined,
+        note: quantityMatch[8],
+        cardId: quantityMatch[9] ? Number.parseInt(quantityMatch[9], 10) : undefined,
       })
       continue
     }
 
-    warnings.push(`Skipped malformed line: ${trimmed}`)
+    // A recognizable-but-misspelled language token ([JA], [jp]) names its fix.
+    warnings.push(`Skipped malformed line: ${trimmed}${malformedLanguageTokenHint(trimmed)}`)
   }
 
   // A section header with no card lines under it is dropped, and re-serializing

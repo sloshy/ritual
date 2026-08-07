@@ -21,6 +21,7 @@ function removeEventsFor(card: SelectedCard): ChangeEvent[] {
     collectorNumber: card.collectorNumber,
     finish: card.finish,
     condition: card.condition,
+    language: card.language,
   }
   if (card.sourceKind === 'deck') {
     const cardId = card.cardIds[0]
@@ -66,6 +67,7 @@ async function moveEventsFor(card: SelectedCard, dest: ListRef): Promise<ChangeE
       collectorNumber: card.collectorNumber,
       finish: card.finish,
       condition: card.condition,
+      language: card.language,
     },
     card.printings ?? [],
   )

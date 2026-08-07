@@ -91,7 +91,8 @@ ${REFRESH_SESSION}
 ${sessionSemantics({
   fileNoun: 'file',
   editScope: "the list's existing entries",
-  editFields: "change a card's printing (or make it name-only), finish, or note, or remove it",
+  editFields:
+    "change a card's printing (or make it name-only), finish, language, or note, or remove it",
   editModeNote:
     'The `✨ Change Finish` item is hidden for name-only entries — a finish only annotates a specific printing.',
   undoAddVerb: 'removes',

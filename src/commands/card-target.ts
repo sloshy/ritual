@@ -9,7 +9,7 @@
 
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import type { Command } from 'commander'
+import { InvalidArgumentError, type Command } from 'commander'
 import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
 import { importFromTextFile } from '../importers/text-file'
@@ -40,13 +40,23 @@ import {
 import {
   findPrinting,
   hasSpecificPrinting,
+  printingLanguages,
   printingsAreComplete,
   type CardPrintingsResult,
   type PrintingFields,
 } from '../card-printing'
+import { readRecordedCardBulkType } from '../cache/bulk-provenance'
 import { CardCommandError, getErrorMessage } from '../errors'
 import { parsePositiveInteger } from '../parse-number'
 import type { CardLabel } from '../card-labels'
+import {
+  displayLanguage,
+  formatLanguageList,
+  invalidLanguageMessage,
+  languageDisplayName,
+  normalizeLanguageValue,
+  type CardLanguage,
+} from '../card-language'
 import type { Condition, Finish, ScryfallCard } from '../types'
 
 /** Unified summary for a card entry across all list types. */
@@ -56,6 +66,8 @@ export type EntryRef = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The line's language token, when present. Absent means `en` (a bare line means English). */
+  language?: CardLanguage
   /** Label override — collections only; deck and wanted entries never carry labels. */
   labels?: CardLabel[]
   note?: string
@@ -113,6 +125,24 @@ export function parseCardIdFlag(raw: string): number {
     )
   }
   return parsed
+}
+
+/**
+ * Parse a `--language` flag value: a Scryfall language code or one of the
+ * usual aliases (e.g. `jp`), refused via {@link invalidLanguageMessage}.
+ * `hint` is an extra clause appended to the `for --language` context
+ * (`set-card` passes `(en clears the token)`). Wrap in an arrow when handing
+ * to Commander — an argParser's second argument is the previous value, which
+ * must not land here as the hint.
+ */
+export function parseLanguageFlag(value: string, hint?: string): CardLanguage {
+  const result = normalizeLanguageValue(value)
+  if (result === null) {
+    throw new InvalidArgumentError(
+      invalidLanguageMessage(value, hint ? `for --language ${hint}` : 'for --language'),
+    )
+  }
+  return result
 }
 
 // ── List resolution ─────────────────────────────────────────────────────────
@@ -250,6 +280,7 @@ export async function loadEntryRefs(type: ListType, filePath: string): Promise<E
           collectorNumber: card.collectorNumber,
           finish: card.finish,
           condition: card.condition,
+          language: card.language,
           note: card.note,
           cardId: card.cardId,
           quantity: card.quantity,
@@ -267,6 +298,7 @@ export async function loadEntryRefs(type: ListType, filePath: string): Promise<E
       collectorNumber: e.collectorNumber,
       finish: e.finish,
       condition: e.condition,
+      language: e.language,
       labels: e.labels,
       note: e.note,
       cardId: e.cardId,
@@ -279,6 +311,7 @@ export async function loadEntryRefs(type: ListType, filePath: string): Promise<E
     set: e.set,
     collectorNumber: e.collectorNumber,
     finish: e.finish,
+    language: e.language,
     note: e.note,
     cardId: e.cardId,
   }))
@@ -336,6 +369,7 @@ export async function resolveTarget(
           collectorNumber: e.collectorNumber,
           finish: e.finish,
           condition: e.condition,
+          language: e.language,
         })),
       },
     )
@@ -567,6 +601,95 @@ export async function ensureFinishAvailableForEntry(
   const printing = findPrinting(result.printings, entry.set, entry.collectorNumber)
   if (!printing) return { checked: false, reason: 'printing-unknown' }
   ensureFinishAvailable(cardName, printing, finish)
+  return { checked: true }
+}
+
+/**
+ * Either the language was checked (and is available), or the reason it could
+ * not be: the entry carries no `(SET:CN)` printing (a language claim on a
+ * name-only line is unverifiable), or the on-demand Scryfall verification
+ * could not be reached — only that branch carries the underlying error text.
+ */
+export type LanguageCheckResult =
+  | { checked: true }
+  | { checked: false; reason: 'no-printing' }
+  | { checked: false; reason: 'verify-failed'; detail?: string }
+
+/**
+ * Validate that a printing exists in `language` before recording a `[lang]`
+ * token for it.
+ *
+ * Unlike the finish check this is not cache-only: the common cache is built
+ * from `default_cards` (English only), so a missing `ja` object proves nothing.
+ * The check is layered:
+ *
+ * 1. `en` always passes — it is the bare-line default every printing's default
+ *    object satisfies.
+ * 2. The cached printing list can prove *availability* (it holds an object in
+ *    that language) regardless of which bulk built it.
+ * 3. It can prove *unavailability* only when it is complete AND was built from
+ *    the `all_cards` bulk — then the absence is a fact, refused without a fetch.
+ * 4. Otherwise the printing is verified on demand via
+ *    `GET /cards/{set}/{cn}/{lang}`, exactly the pin-verification pattern: a
+ *    404 is the user's mistake (usage error), while an unreachable API skips
+ *    the check with `verify-failed` rather than fabricating a refusal.
+ */
+export async function ensureLanguageAvailableForEntry(
+  cardName: string,
+  entry: PrintingFields,
+  language: CardLanguage,
+): Promise<LanguageCheckResult> {
+  if (displayLanguage(language) === 'en') return { checked: true }
+  if (!hasSpecificPrinting(entry)) return { checked: false, reason: 'no-printing' }
+
+  let result: CardPrintingsResult
+  try {
+    result = await getCardPrintingsResult(cardName, { network: false })
+  } catch (err) {
+    if (err instanceof CardCommandError) throw err
+    throw new CardCommandError(
+      'runtime_error',
+      `Failed to look up printings for '${cardName}': ${getErrorMessage(err)}`,
+      ExitCode.RuntimeError,
+    )
+  }
+  const available = printingLanguages(result.printings, entry.set, entry.collectorNumber)
+  if (available.includes(language)) return { checked: true }
+
+  const printingLabel = `${entry.set.toUpperCase()}:${entry.collectorNumber}`
+  if (
+    printingsAreComplete(result) &&
+    available.length > 0 &&
+    (await readRecordedCardBulkType()) === 'all_cards'
+  ) {
+    throw new CardCommandError(
+      'usage_error',
+      `Printing ${printingLabel} of '${cardName}' is not available in ${languageDisplayName(language)} (${language}). Available languages: ${formatLanguageList(available)}.`,
+      ExitCode.UsageError,
+      { availableLanguages: available },
+    )
+  }
+
+  let printing: ScryfallCard | null
+  try {
+    printing = await fetchPrintingByCollectorNumber(entry.set, entry.collectorNumber, language)
+  } catch (err) {
+    return { checked: false, reason: 'verify-failed', detail: getErrorMessage(err) }
+  }
+  if (!printing) {
+    throw new CardCommandError(
+      'usage_error',
+      `Scryfall has no ${languageDisplayName(language)} (${language}) object for printing ${printingLabel} of '${cardName}'.`,
+      ExitCode.UsageError,
+    )
+  }
+  if (!sameCardName(printing.name, cardName)) {
+    throw new CardCommandError(
+      'usage_error',
+      `${printingLabel} is '${printing.name}', not '${cardName}'.`,
+      ExitCode.UsageError,
+    )
+  }
   return { checked: true }
 }
 

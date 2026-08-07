@@ -1,6 +1,7 @@
 import { type Accessor, type JSX, Show, batch, createSignal } from 'solid-js'
 import { type Finish, type Condition, DEFAULT_SECTION } from '../types'
 import type { CardLabel } from '../card-labels'
+import type { CardLanguage } from '../card-language'
 import type { ChangeInput, ListRef, PrintingTuple } from '../change-event'
 import type { SelectedCard } from '../site/useCardSelection'
 import type { CardContextInfo } from './context-menu'
@@ -9,6 +10,7 @@ import type { ListType } from '../list-type'
 import { contextInfoFromSelected } from './selected-to-context'
 import { printingForMove } from '../site/printing-prompt'
 import { promptListMove, promptSectionMove } from '../site/move-prompt'
+import { promptCardLanguage } from './language-prompt'
 import { useEditor } from './useEditor'
 import type { UseEditorDefaultsResult } from './useEditorDefaults'
 import type { SearchProvider } from './search-provider'
@@ -28,6 +30,8 @@ export type FlatEntry = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The line's language token, when present. Absent means `en`. */
+  language?: CardLanguage
   note?: string
 }
 
@@ -37,6 +41,8 @@ export type FlatPrinting = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The copy's language. Omitted means English (the bare-line default). */
+  language?: CardLanguage
 }
 
 /** A change input for flat lists — {@link ChangeInput} plus a `fileOrder` removal target. */
@@ -56,6 +62,8 @@ export type FlatBulkEdit = {
   removeAll: (cards: SelectedCard[]) => void
   /** Set the finish on each selected card that supports it; others are skipped. */
   setFinish: (cards: SelectedCard[], finish: Finish) => void
+  /** Set the language on every copy of every selected card. */
+  setLanguage: (cards: SelectedCard[], language: CardLanguage) => void
   /**
    * Set (or clear, with `[]`) the label override on every selected card.
    * Collection editors only — supplied by the collection layer, absent elsewhere.
@@ -115,7 +123,20 @@ export function useFlatListEditController<E extends FlatEntry>(
   const [modalCardKey, setModalCardKey] = createSignal<string | null>(null)
 
   const editor = useEditor<E[], E>(
-    { ...params.buildConfig(cardActions), copyModel: 'per-entry' },
+    {
+      // Flat entries carry their language directly, so the controller supplies the
+      // set-language original resolver; a page config may still override it.
+      // The cardId match must win outright before any name fallback: a combined
+      // `(id match) || (name match)` predicate would return the *first* same-name
+      // entry, so a [ja] copy behind an English copy of the same card would
+      // resolve `en` and a ja→en change would consolidate into a no-op.
+      findOriginalLanguage: (entries, cardName, cardId) => {
+        const byId = cardId !== undefined ? entries.find((e) => e.cardId === cardId) : undefined
+        return (byId ?? entries.find((e) => e.name === cardName))?.language
+      },
+      ...params.buildConfig(cardActions),
+      copyModel: 'per-entry',
+    },
     params.initialSlug,
   )
 
@@ -159,7 +180,10 @@ export function useFlatListEditController<E extends FlatEntry>(
   }
 
   // Emit one move-from per copy (flat lists hold one entry per copy, each with its
-  // own cardId), updating the live data and freeing each id back to the pool.
+  // own cardId), updating the live data and freeing each id back to the pool. Each
+  // copy keeps its own language, resolved per entry before that entry's move-from
+  // removes it; a name-only card whose printing came from the picker has no entry
+  // language, so the tuple's own stamp (a ja-only pick) wins as the fallback.
   const emitMove = (
     cardName: string,
     dest: ListRef,
@@ -168,13 +192,15 @@ export function useFlatListEditController<E extends FlatEntry>(
   ) => {
     batch(() => {
       for (const id of cardIds) {
-        editor.changes.moveCardToList(cardName, dest, { ...printing, cardId: id })
+        const language = entryByCardId(id)?.language ?? printing.language
+        editor.changes.moveCardToList(cardName, dest, { ...printing, language, cardId: id })
         editor.setData((prev) =>
           prev
             ? params.applyChange(prev, {
                 action: 'move-from',
                 cardName,
                 ...printing,
+                language,
                 cardId: id,
                 to: dest,
               })
@@ -249,6 +275,13 @@ export function useFlatListEditController<E extends FlatEntry>(
         if (!c.scryfallCard?.finishes?.includes(finish)) continue
         for (const id of c.cardIds) editor.handleSetFinishFor(c.name, finish, id)
       }
+    },
+    setLanguage: (cards, language) => {
+      batch(() => {
+        for (const c of cards) {
+          for (const id of c.cardIds) editor.handleSetLanguageFor(c.name, language, id)
+        }
+      })
     },
     changePrinting: (cards) => editor.startBulkChangePrinting(cards.map(contextInfoFromSelected)),
     moveToSection: (cards, section) =>
@@ -325,6 +358,26 @@ export function FlatListContextMenu<E extends FlatEntry>(
                 }
               : undefined
           }
+          onSetLanguage={() => {
+            const target = menu()
+            // The tile's current language, for marking in the picker. The exact
+            // copy (by cardId) must win outright before any name fallback, or a
+            // [ja] copy behind an English copy of the same card would mark
+            // English as current.
+            const entries = editor.data()
+            const firstId = target.cardIds[0]
+            const byId =
+              firstId !== undefined ? entries?.find((e) => e.cardId === firstId) : undefined
+            const current = (byId ?? entries?.find((e) => e.name === target.cardName))?.language
+            props.ctrl.closeContextMenu()
+            promptCardLanguage(current, (language) => {
+              batch(() => {
+                for (const id of target.cardIds) {
+                  editor.handleSetLanguageFor(target.cardName, language, id)
+                }
+              })
+            })
+          }}
           onUnsetCommander={props.ctrl.closeContextMenu}
           anchorRect={menu().anchorRect}
           onClose={props.ctrl.closeContextMenu}

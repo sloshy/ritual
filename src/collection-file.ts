@@ -1,6 +1,12 @@
 import { DEFAULT_SECTION, type Condition, type Finish } from './types'
 import { matchSectionHeader } from './section-format'
 import { isCondition, isFinish } from './finish-condition'
+import {
+  isCardLanguage,
+  LANGUAGE_TOKEN_PATTERN,
+  malformedLanguageTokenHint,
+  type CardLanguage,
+} from './card-language'
 import { createFenceTracker } from './markdown-fence'
 import { quantityPrefixAdvisory } from './card-line'
 import { parseCardLabelsToken, type CardLabel } from './card-labels'
@@ -13,6 +19,8 @@ export type CollectionEntry = {
   collectorNumber: string
   finish?: Finish
   condition?: Condition
+  /** The printing's language, from a `[ja]`-style token. Absent means `en` (bare lines stay bare). */
+  language?: CardLanguage
   /**
    * This card's label override (`[keep]`, `[sale,trade]`). Replaces the list's
    * front-matter default entirely; `undefined` means "inherit the default".
@@ -53,17 +61,21 @@ export type CollectionParseResult = {
 }
 
 /**
- * Matches a collection card line: `- Lightning Bolt (LEA:161) [foil] [NM] [keep] {note} &12`.
+ * Matches a collection card line: `- Lightning Bolt (LEA:161) [foil] [NM] [ja] [keep] {note} &12`.
  * Whitespace between tokens is a single `\s` (one space); multiple spaces are not tolerated.
- * The three bracketed vocabularies (finish, condition, labels) are disjoint, so each token
- * is unambiguous; the optional `&N` id must stay the final capture group — the id backfill
+ * The four bracketed vocabularies (finish, condition, language, labels) are disjoint, so each
+ * token is unambiguous; the optional `&N` id must stay the final capture group — the id backfill
  * and the line-preserving mutations index the match by its last group.
  */
-export const COLLECTION_CARD_LINE_RE =
-  /^- (.+?)(?:\s\(([A-Za-z0-9]+):([^)]+)\))?(?:\s\[(nonfoil|foil|etched)\])?(?:\s\[(NM|LP|MP|HP|DMG)\])?(?:\s\[((?:sale|trade|keep)(?:,(?:sale|trade|keep))*)\])?(?:\s\{(.*)\})?(?:\s&(\d+))?$/
+export const COLLECTION_CARD_LINE_RE = new RegExp(
+  `^- (.+?)(?:\\s\\(([A-Za-z0-9]+):([^)]+)\\))?(?:\\s\\[(nonfoil|foil|etched)\\])?(?:\\s\\[(NM|LP|MP|HP|DMG)\\])?(?:\\s\\[(${LANGUAGE_TOKEN_PATTERN})\\])?(?:\\s\\[((?:sale|trade|keep)(?:,(?:sale|trade|keep))*)\\])?(?:\\s\\{(.*)\\})?(?:\\s&(\\d+))?$`,
+)
+
+/** The {@link COLLECTION_CARD_LINE_RE} capture group holding the language token body. */
+export const COLLECTION_LINE_LANGUAGE_GROUP = 6
 
 /** The {@link COLLECTION_CARD_LINE_RE} capture group holding the labels token body. */
-export const COLLECTION_LINE_LABELS_GROUP = 6
+export const COLLECTION_LINE_LABELS_GROUP = 7
 
 export function parseCollectionFile(content: string): CollectionParseResult {
   const entries: CollectionEntry[] = []
@@ -115,7 +127,8 @@ export function parseCollectionFile(content: string): CollectionParseResult {
 
     const match = trimmed.match(COLLECTION_CARD_LINE_RE)
     if (!match) {
-      warnings.push(`Skipped malformed line: ${trimmed}`)
+      // A recognizable-but-misspelled language token ([JA], [jp]) names its fix.
+      warnings.push(`Skipped malformed line: ${trimmed}${malformedLanguageTokenHint(trimmed)}`)
       continue
     }
 
@@ -124,7 +137,12 @@ export function parseCollectionFile(content: string): CollectionParseResult {
     const collectorNumber = match[3]
 
     if (!setCode || !collectorNumber) {
-      warnings.push(`Skipping '${name}': missing set code and collector number`)
+      // A misspelled language token ([JA], [jp]) is swallowed into the name by
+      // the grammar's backtracking, taking the printing group with it — so the
+      // fix is named here, where such a line actually lands.
+      warnings.push(
+        `Skipping '${name}': missing set code and collector number${malformedLanguageTokenHint(name)}`,
+      )
       continue
     }
 
@@ -136,6 +154,7 @@ export function parseCollectionFile(content: string): CollectionParseResult {
     // (the card is perfectly usable on read surfaces) but the labels are
     // dropped — which is exactly why this is a warning, not an advisory: a
     // whole-file rewrite would lose the token, so the rewrite gates must block.
+    const rawLanguage = match[COLLECTION_LINE_LANGUAGE_GROUP]
     const rawLabels = match[COLLECTION_LINE_LABELS_GROUP]
     let labels: CardLabel[] | undefined
     if (rawLabels !== undefined) {
@@ -159,9 +178,11 @@ export function parseCollectionFile(content: string): CollectionParseResult {
       collectorNumber,
       finish: match[4] && isFinish(match[4]) ? match[4] : undefined,
       condition: match[5] && isCondition(match[5]) ? match[5] : undefined,
+      // Set only when the token is present — a bare line means `en` and stays bare.
+      language: rawLanguage && isCardLanguage(rawLanguage) ? rawLanguage : undefined,
       labels,
-      note: match[7],
-      cardId: match[8] ? Number.parseInt(match[8], 10) : undefined,
+      note: match[8],
+      cardId: match[9] ? Number.parseInt(match[9], 10) : undefined,
       section: currentSection,
     })
   }

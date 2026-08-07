@@ -1,6 +1,12 @@
 import type { Finish, Condition, Board } from './types'
 import type { ListType } from './list-type'
 import { formatCardLabels, sameCardLabels, type CardLabel } from './card-labels'
+import {
+  displayLanguage,
+  languageDisplayName,
+  languageToken,
+  type CardLanguage,
+} from './card-language'
 
 /**
  * A condition *update*: a grade to record, or `'NONE'` to clear a recorded
@@ -32,6 +38,8 @@ export type AddChange = BaseChange & {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The added copy's language. Omitted means English (the bare-line default). */
+  language?: CardLanguage
   /**
    * Label override the new card starts with — collections only. Rides the add
    * event itself (rather than a follow-up set-label) so the label lands on the
@@ -51,6 +59,8 @@ export type RemoveChange = BaseChange & {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The removed copy's language. Omitted means English (the bare-line default). */
+  language?: CardLanguage
   /** Deck board the card was removed from. Omitted/`Main` renders without annotation. */
   board?: Board
 }
@@ -75,12 +85,24 @@ export type SetPrintingChange = BaseChange & {
   finish?: Finish
   /** A grade, or `'NONE'` to clear the recorded grade. */
   condition?: ConditionUpdate
+  /**
+   * The printing's language, when the change specifies one. An absent value
+   * leaves the entry's language alone (unlike `finish`, which is rewritten
+   * wholesale) — language changes have their own {@link SetLanguageChange}.
+   */
+  language?: CardLanguage
 }
 
 export type SetNoteChange = BaseChange & {
   action: 'set-note'
   /** The new note text. Empty string clears the note. */
   note: string
+}
+
+export type SetLanguageChange = BaseChange & {
+  action: 'set-language'
+  /** The new language. `en` clears the line's token (a bare line means English). */
+  language: CardLanguage
 }
 
 /** Collections only — deck and wanted entries carry no labels. */
@@ -96,6 +118,8 @@ export type MoveFromChange = BaseChange & {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The moved copy's language. Omitted means English (the bare-line default). */
+  language?: CardLanguage
   /** The list this card was moved to. */
   to: ListRef
 }
@@ -106,6 +130,8 @@ export type MoveToChange = BaseChange & {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The moved copy's language. Omitted means English (the bare-line default). */
+  language?: CardLanguage
   /** The list this card was moved from. */
   from: ListRef
 }
@@ -150,6 +176,7 @@ export type ChangeEvent =
   | UnsetCommanderChange
   | SetFinishChange
   | SetPrintingChange
+  | SetLanguageChange
   | SetNoteChange
   | SetLabelChange
   | MoveFromChange
@@ -174,6 +201,7 @@ export const CHANGE_ACTIONS = [
   'unset-commander',
   'set-finish',
   'set-printing',
+  'set-language',
   'set-note',
   'set-label',
   'move-from',
@@ -203,7 +231,23 @@ export type CardPrintingOptions = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  language?: CardLanguage
   cardId?: number
+}
+
+/** A {@link PrintingTuple} plus the optional card id: the input {@link printingOptionsFrom} projects. */
+export type PrintingTupleWithId = PrintingTuple & { cardId?: number }
+
+/**
+ * Project a card entry's printing identity into {@link CardPrintingOptions} —
+ * the required projection wherever an entry (or {@link PrintingTuple}) becomes
+ * change-event options. Written as an explicit destructuring so a future
+ * printing dimension (a new tuple field) is a compile-time change at this one
+ * site rather than a silent drop at every open-coded call site.
+ */
+export function printingOptionsFrom(entry: PrintingTupleWithId): CardPrintingOptions {
+  const { set, collectorNumber, finish, condition, language, cardId } = entry
+  return { set, collectorNumber, finish, condition, language, cardId }
 }
 
 /** Create a unique ID for a change event */
@@ -217,6 +261,8 @@ export type AddRemoveOptions = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The copy's language. Omitted means English (the bare-line default). */
+  language?: CardLanguage
   /** Label override for the new card (collections only). Only consumed by `add`. */
   labels?: CardLabel[]
   cardId?: number
@@ -244,29 +290,40 @@ export type SetPrintingOptions = {
   finish?: Finish
   /** A grade, or `'NONE'` to clear the recorded grade. */
   condition?: ConditionUpdate
+  /** The printing's language, when the change specifies one (see {@link SetPrintingChange}). */
+  language?: CardLanguage
   cardId?: number
 }
 
-/** The set/collector-number/finish/condition tuple that identifies a printing. */
+/** The set/collector-number/finish/condition/language tuple that identifies a printing. */
 export type PrintingTuple = {
   set?: string
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Omitted means English (the bare-line default). */
+  language?: CardLanguage
 }
 
 /**
  * Whether two printings are equivalent, normalizing absent values to their
- * defaults (no set/CN, `nonfoil` finish, `NM` condition). Set codes compare
- * case-insensitively.
+ * defaults (no set/CN, `nonfoil` finish, `NM` condition, `en` language). Set
+ * codes compare case-insensitively.
  */
 export function isSamePrinting(a: PrintingTuple, b: PrintingTuple): boolean {
   return (
     (a.set?.toLowerCase() ?? '') === (b.set?.toLowerCase() ?? '') &&
     (a.collectorNumber ?? '') === (b.collectorNumber ?? '') &&
     (a.finish ?? 'nonfoil') === (b.finish ?? 'nonfoil') &&
-    (a.condition ?? 'NM') === (b.condition ?? 'NM')
+    (a.condition ?? 'NM') === (b.condition ?? 'NM') &&
+    displayLanguage(a.language) === displayLanguage(b.language)
   )
+}
+
+/** Options for set-language action. */
+export type SetLanguageOptions = {
+  language: CardLanguage
+  cardId?: number
 }
 
 /** Options for set-note action. */
@@ -288,6 +345,8 @@ export type MoveFromOptions = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The moved copy's language. Omitted means English (the bare-line default). */
+  language?: CardLanguage
   cardId?: number
   to: ListRef
 }
@@ -298,6 +357,8 @@ export type MoveToOptions = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The moved copy's language. Omitted means English (the bare-line default). */
+  language?: CardLanguage
   cardId?: number
   from: ListRef
 }
@@ -314,6 +375,7 @@ export function createAddChange(cardName: string, options?: AddRemoveOptions): A
     collectorNumber: options?.collectorNumber,
     finish: options?.finish,
     condition: options?.condition,
+    language: options?.language,
     labels: options?.labels,
     board: options?.board,
     section: options?.section,
@@ -328,6 +390,7 @@ export function createRemoveChange(cardName: string, options?: AddRemoveOptions)
     collectorNumber: options?.collectorNumber,
     finish: options?.finish,
     condition: options?.condition,
+    language: options?.language,
     board: options?.board,
   }
 }
@@ -364,6 +427,18 @@ export function createSetPrintingChange(
     collectorNumber: options.collectorNumber,
     finish: options.finish,
     condition: options.condition,
+    language: options.language,
+  }
+}
+
+export function createSetLanguageChange(
+  cardName: string,
+  options: SetLanguageOptions,
+): SetLanguageChange {
+  return {
+    ...makeBase(cardName, options.cardId),
+    action: 'set-language',
+    language: options.language,
   }
 }
 
@@ -383,6 +458,7 @@ export function createMoveFromChange(cardName: string, options: MoveFromOptions)
     collectorNumber: options.collectorNumber,
     finish: options.finish,
     condition: options.condition,
+    language: options.language,
     to: options.to,
   }
 }
@@ -395,6 +471,7 @@ export function createMoveToChange(cardName: string, options: MoveToOptions): Mo
     collectorNumber: options.collectorNumber,
     finish: options.finish,
     condition: options.condition,
+    language: options.language,
     from: options.from,
   }
 }
@@ -474,6 +551,10 @@ export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
 
   // Condition must match
   if (ac.condition !== bc.condition) return false
+
+  // Language must match — an absent language means English, so a bare add and
+  // an explicit [en] remove of the same card are still opposites.
+  if (displayLanguage(ac.language) !== displayLanguage(bc.language)) return false
 
   // Board must match — an absent board means the default Main board, so a
   // Sideboard add and a Main remove of the same card are not opposites.
@@ -578,6 +659,32 @@ export function consolidateSetPrinting(
 }
 
 /**
+ * Apply a set-language action with "latest wins" semantics, mirroring
+ * {@link consolidateSetFinish}:
+ * - Removes any existing set-language for the same card from the changelog
+ * - Does not add a new change if `language` equals `originalLanguage` (card
+ *   restored to its original language; both sides fold missing to `en`)
+ * - Otherwise adds the new set-language change
+ *
+ * Returns the updated changes array plus addedChange/cancelledChange for undo
+ * tracking. Returns null addedChange and null cancelledChange when the action
+ * is a no-op.
+ */
+export function consolidateSetLanguage(
+  changes: ChangeEvent[],
+  cardName: string,
+  language: CardLanguage,
+  originalLanguage: CardLanguage | undefined,
+  cardId?: number,
+): ConsolidateResult {
+  return consolidateLatestWins(changes, cardName, cardId, {
+    action: 'set-language',
+    changed: displayLanguage(language) !== displayLanguage(originalLanguage),
+    create: () => createSetLanguageChange(cardName, { language, cardId }),
+  })
+}
+
+/**
  * Apply a set-note action with "latest wins" semantics:
  * - Removes any existing set-note for the same card from the changelog
  * - Does not add a new change if `note` equals `originalNote` (note restored to original)
@@ -672,6 +779,7 @@ export function isAdditiveChange(action: ChangeAction): boolean {
     action === 'set-commander' ||
     action === 'set-finish' ||
     action === 'set-printing' ||
+    action === 'set-language' ||
     action === 'set-note' ||
     action === 'set-label' ||
     action === 'add-section' ||
@@ -682,29 +790,35 @@ export function isAdditiveChange(action: ChangeAction): boolean {
 }
 
 /**
- * Format the ` [finish] [condition]` suffix shared by printing annotations and
- * the set-printing description. Empty when both are at their defaults
- * (`nonfoil` / `NM`).
+ * Format the ` [finish] [condition] [lang]` suffix shared by printing
+ * annotations and the set-printing description. Empty when all three are at
+ * their defaults (`nonfoil` / `NM` / `en`) — the same tokens a card line omits.
  */
-export function formatFinishConditionTail(finish?: Finish, condition?: ConditionUpdate): string {
+export function formatFinishConditionTail(
+  finish?: Finish,
+  condition?: ConditionUpdate,
+  language?: CardLanguage,
+): string {
   const finishInfo = finish && finish !== 'nonfoil' ? ` [${finish}]` : ''
   // `NONE` clears the grade and `NM` is the unrecorded default: neither is
   // annotated, so the changelog line reads exactly like the line it produced.
   const conditionInfo =
     condition && condition !== 'NM' && condition !== 'NONE' ? ` [${condition}]` : ''
-  return `${finishInfo}${conditionInfo}`
+  // English is the bare-line default and is never annotated, like the card line.
+  const languageInfo = languageToken(language)
+  return `${finishInfo}${conditionInfo}${languageInfo}`
 }
 
 /**
- * Format the ` (SET:CN) [finish] [condition]` annotation tail used in changelog
- * lines and entry descriptions. Empty when none of the fields are set.
+ * Format the ` (SET:CN) [finish] [condition] [lang]` annotation tail used in
+ * changelog lines and entry descriptions. Empty when none of the fields are set.
  */
 export function formatPrintingAnnotation(change: PrintingTuple): string {
   const printingInfo =
     change.set && change.collectorNumber
       ? ` (${change.set.toUpperCase()}:${change.collectorNumber})`
       : ''
-  return `${printingInfo}${formatFinishConditionTail(change.finish, change.condition)}`
+  return `${printingInfo}${formatFinishConditionTail(change.finish, change.condition, change.language)}`
 }
 
 /**
@@ -766,10 +880,12 @@ export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions)
     case 'set-printing': {
       const printingDesc =
         change.set && change.collectorNumber
-          ? `${change.set.toUpperCase()}:${change.collectorNumber}${formatFinishConditionTail(change.finish, change.condition)}`
+          ? `${change.set.toUpperCase()}:${change.collectorNumber}${formatFinishConditionTail(change.finish, change.condition, change.language)}`
           : 'no specific printing'
       return `Set ${name} printing to ${printingDesc}${idInfo}`
     }
+    case 'set-language':
+      return `Set language of ${name} to ${languageDisplayName(change.language)}${idInfo}`
     case 'set-note': {
       if (change.note === '') {
         const clearVerb = tense === 'past' ? 'Cleared' : 'Clear'

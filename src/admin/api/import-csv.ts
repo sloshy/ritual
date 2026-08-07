@@ -170,7 +170,9 @@ export function handleImportCsv(req: Request): Promise<Response> {
       return Response.json(empty)
     }
 
-    const result = await applyCsvImport({ listType, name, mode, format }, entries)
+    const result = await applyCsvImport({ listType, name, mode, format }, entries, {
+      sourceHadLanguageColumn: mapping.language !== undefined,
+    })
     if ('error' in result) return badRequest(result.error)
 
     const filesToCommit = [result.filePath, hashPath(result.filePath)]

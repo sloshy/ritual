@@ -1,5 +1,9 @@
 import { describe, test, expect } from 'bun:test'
-import { parseWantedListFile, formatWantedListLine } from '../../src/commands/wanted-helpers'
+import {
+  parseWantedListFile,
+  formatWantedListLine,
+  WANTED_CARD_LINE_RE,
+} from '../../src/commands/wanted-helpers'
 
 describe('parseWantedListFile', () => {
   test('parses a name-only entry (state 1)', () => {
@@ -139,62 +143,62 @@ describe('parseWantedListFile', () => {
 
 describe('formatWantedListLine', () => {
   test('formats a name-only entry', () => {
-    expect(formatWantedListLine('Lightning Bolt')).toBe('- Lightning Bolt\n')
+    expect(formatWantedListLine({ name: 'Lightning Bolt' })).toBe('- Lightning Bolt\n')
   })
 
   test('includes printing when provided', () => {
-    expect(formatWantedListLine('Sol Ring', { set: 'LEA', collectorNumber: '232' })).toBe(
-      '- Sol Ring (LEA:232)\n',
-    )
+    expect(
+      formatWantedListLine({ name: 'Sol Ring', printing: { set: 'LEA', collectorNumber: '232' } }),
+    ).toBe('- Sol Ring (LEA:232)\n')
   })
 
   test('includes foil finish', () => {
-    expect(formatWantedListLine('Sol Ring', undefined, 'foil')).toBe('- Sol Ring [foil]\n')
+    expect(formatWantedListLine({ name: 'Sol Ring', finish: 'foil' })).toBe('- Sol Ring [foil]\n')
   })
 
   test('omits [nonfoil] tag (nonfoil is implicit)', () => {
-    expect(formatWantedListLine('Sol Ring', undefined, 'nonfoil')).not.toContain('[nonfoil]')
+    expect(formatWantedListLine({ name: 'Sol Ring', finish: 'nonfoil' })).not.toContain('[nonfoil]')
   })
 
   test('includes printing and etched finish', () => {
-    expect(formatWantedListLine('Sol Ring', { set: 'CMR', collectorNumber: '1' }, 'etched')).toBe(
-      '- Sol Ring (CMR:1) [etched]\n',
-    )
+    expect(
+      formatWantedListLine({
+        name: 'Sol Ring',
+        printing: { set: 'CMR', collectorNumber: '1' },
+        finish: 'etched',
+      }),
+    ).toBe('- Sol Ring (CMR:1) [etched]\n')
   })
 
   test('includes a note', () => {
-    expect(formatWantedListLine('Sol Ring', undefined, undefined, 'signed')).toBe(
-      '- Sol Ring {signed}\n',
-    )
+    expect(formatWantedListLine({ name: 'Sol Ring', note: 'signed' })).toBe('- Sol Ring {signed}\n')
   })
 
   test('formats entry with card ID', () => {
     expect(
-      formatWantedListLine(
-        'Sol Ring',
-        { set: 'c19', collectorNumber: '221' },
-        'foil',
-        undefined,
-        5,
-      ),
+      formatWantedListLine({
+        name: 'Sol Ring',
+        printing: { set: 'c19', collectorNumber: '221' },
+        finish: 'foil',
+        cardId: 5,
+      }),
     ).toBe('- Sol Ring (C19:221) [foil] &5\n')
   })
 
   test('formats name-only entry with card ID', () => {
-    expect(formatWantedListLine('Lightning Bolt', undefined, undefined, undefined, 3)).toBe(
+    expect(formatWantedListLine({ name: 'Lightning Bolt', cardId: 3 })).toBe(
       '- Lightning Bolt &3\n',
     )
   })
 
   test('formats entry with note and card ID', () => {
     expect(
-      formatWantedListLine(
-        'Sol Ring',
-        { set: 'c19', collectorNumber: '221' },
-        undefined,
-        'for EDH',
-        10,
-      ),
+      formatWantedListLine({
+        name: 'Sol Ring',
+        printing: { set: 'c19', collectorNumber: '221' },
+        note: 'for EDH',
+        cardId: 10,
+      }),
     ).toBe('- Sol Ring (C19:221) {for EDH} &10\n')
   })
 })
@@ -261,5 +265,107 @@ describe('parseWantedListFile — front matter', () => {
     expect(parsed.frontMatter?.raw).toBe('---\nlabels: [sale]\nowner: me\n---\n')
     // Wanted lists define no front-matter keys — the block is carried, never read.
     expect('labels' in parsed).toBe(false)
+  })
+})
+
+describe('parseWantedListFile — language token', () => {
+  test('reads a [ja] token after the finish', () => {
+    const { entries, warnings } = parseWantedListFile(`- Sol Ring (LTC:284) [foil] [ja]\n`)
+    expect(warnings).toHaveLength(0)
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.finish).toBe('foil')
+    expect(entries[0]!.language).toBe('ja')
+  })
+
+  test('reads a language token with note and id, no finish', () => {
+    const { entries } = parseWantedListFile(`- Sol Ring (LTC:284) [zht] {trade fodder} &4\n`)
+    expect(entries[0]!.language).toBe('zht')
+    expect(entries[0]!.note).toBe('trade fodder')
+    expect(entries[0]!.cardId).toBe(4)
+  })
+
+  test('reads a language token on a name-only entry', () => {
+    const { entries } = parseWantedListFile(`- Sol Ring [ja]\n`)
+    expect(entries[0]!.name).toBe('Sol Ring')
+    expect(entries[0]!.set).toBeUndefined()
+    expect(entries[0]!.language).toBe('ja')
+  })
+
+  test('a bare line has no language — en is never synthesized', () => {
+    const { entries } = parseWantedListFile(`- Sol Ring (C19:221) [etched] {note} &9\n`)
+    expect(entries[0]!.language).toBeUndefined()
+    expect(entries[0]!.note).toBe('note')
+    expect(entries[0]!.cardId).toBe(9)
+  })
+
+  test('the &N id stays the final capture group with a language present', () => {
+    const match = '- Sol Ring (LTC:284) [foil] [ja] {x} &12'.match(WANTED_CARD_LINE_RE)!
+    expect(match[match.length - 1]).toBe('12')
+  })
+
+  test('an explicit [en] token is read as en, not folded to undefined', () => {
+    // The serializer never writes [en], but a hand-written token must still
+    // parse: absent-vs-en is a write-side fold, not a read-side one.
+    const { entries, warnings } = parseWantedListFile(`- Sol Ring (C19:221) [en]\n`)
+    expect(warnings).toHaveLength(0)
+    expect(entries[0]!.language).toBe('en')
+  })
+
+  test('[jp] is not a language: a bullet line swallows it into the name (no warning)', () => {
+    // Documented limitation, unlike the collection/deck parsers: every field
+    // after the name is optional here, so `- Name … [jp]` always matches with
+    // the unknown token inside the name and never reaches the malformed-line
+    // branch (whose did-you-mean hint is therefore unreachable from a bullet
+    // line). If this ever warns instead, that is an improvement — update this
+    // pin, not the parser back.
+    const { entries, warnings } = parseWantedListFile(`- Mana Crypt (2XM:270) [jp]\n`)
+    expect(warnings).toHaveLength(0)
+    expect(entries[0]!.name).toBe('Mana Crypt (2XM:270) [jp]')
+    expect(entries[0]!.language).toBeUndefined()
+  })
+
+  test('a non-bullet line with a misspelled token is skipped with a warning', () => {
+    // The closest a wanted list gets to the deck/collection rejection: the
+    // line is reported (though this branch does not carry the hint).
+    const { entries, warnings } = parseWantedListFile(`Mana Crypt [jp]\n`)
+    expect(entries).toHaveLength(0)
+    expect(warnings).toEqual(['Skipped malformed line: Mana Crypt [jp]'])
+  })
+})
+
+describe('formatWantedListLine — language token', () => {
+  test('writes the token after the finish and never writes en', () => {
+    expect(
+      formatWantedListLine({
+        name: 'Sol Ring',
+        printing: { set: 'ltc', collectorNumber: '284' },
+        finish: 'foil',
+        language: 'ja',
+      }),
+    ).toBe('- Sol Ring (LTC:284) [foil] [ja]\n')
+    expect(
+      formatWantedListLine({
+        name: 'Sol Ring',
+        printing: { set: 'ltc', collectorNumber: '284' },
+        finish: 'foil',
+        language: 'en',
+      }),
+    ).toBe('- Sol Ring (LTC:284) [foil]\n')
+  })
+
+  test('round-trips a [ja] line with note and id through the parser', () => {
+    const line = formatWantedListLine({
+      name: 'Sol Ring',
+      printing: { set: 'ltc', collectorNumber: '284' },
+      language: 'ja',
+      note: 'gift',
+      cardId: 12,
+    })
+    expect(line).toBe('- Sol Ring (LTC:284) [ja] {gift} &12\n')
+    const { entries, warnings } = parseWantedListFile(line)
+    expect(warnings).toHaveLength(0)
+    expect(entries[0]!.language).toBe('ja')
+    expect(entries[0]!.note).toBe('gift')
+    expect(entries[0]!.cardId).toBe(12)
   })
 })

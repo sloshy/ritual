@@ -260,9 +260,13 @@ server loads any Scryfall card data, printings, prices, or the mana-symbol map.
 #### Cards and prices
 
 `get_card_printings` returns the newest 20 printings by default, as identity only — set, collector
-number, rarity, release date, and finishes. Pass `limit` for more or fewer (`totalPrintings` reports
-how many there were when the list was truncated), and `includePrices: true` when you actually want
-each printing's price block; `get_card_price` is usually the better answer for a price question.
+number, rarity, release date, finishes, and (when not English) the object's `lang`. Pass `limit`
+for more or fewer (`limit` and `totalPrintings` count **distinct printings** — with a non-English
+cache every language object of an included printing rides along, so a client never sees a printing
+with half its languages missing), and `includePrices: true` when you actually want each printing's
+price block; `get_card_price` is usually the better answer for a price question. The result's
+`languages` array summarizes every language the card exists in (`en` first; `["en"]` for an
+English-only cache).
 
 Both `get_card_printings` and `get_card_details` report whether the printing list can be trusted as
 complete (`complete` / `printingsComplete`). It is `false` when the local card cache holds no
@@ -272,8 +276,13 @@ printing list for the name — the one printing shown then came from a single Sc
 
 `get_cache_status` reports whether the local card cache is `empty`, how many cards it holds, when it
 was last refreshed, its price age and whether prices are `priceStale`, whether Scryfall Tagger tags
-are present, and where the cache is served from. Check `empty` and `priceStale` before pricing: a
-stale or empty cache is exactly what `get_price_report` errors on, and `refresh_cache` is the fix.
+are present, where the cache is served from, and its language provenance: `defaultLanguage` (the
+configured code), `cardBulkType` (`default_cards` English-only or `all_cards` every-language —
+`null` before any recorded ingest), and `bulkTypeStale` (`true` when the cache's bulk disagrees
+with what `defaultLanguage` demands, meaning a full `refresh_cache` is needed — see
+[bulk selection](/commands/cache/#bulk-selection-and-language)). Check `empty` and `priceStale`
+before pricing: a stale or empty cache is exactly what `get_price_report` errors on, and
+`refresh_cache` is the fix.
 
 `diff_lists` takes two sides (`a` and `b`, each `{ listType?, name }` — names resolve like CLI list
 arguments, with `listType` pinning an ambiguous name) plus an optional `by` (`name`, the default, or
@@ -307,10 +316,10 @@ either — the writer never replaces a file), even though it is registered with 
 | `import_csv`            | Import CSV text into a new or existing list (create/overwrite/append) with a column-mapping spec. In a deck, rows of the same card and printing merge into one line in every mode; collections and wanted lists keep one line per copy. `hasHeader` defaults to true and the result's `warnings` name the row that skipped (and whether it looked like a header), so a headerless export does not silently lose its first card. `format` applies to decks only. Rows that fail validation do not fail the call: the result always carries `cardCount`, `failures`, and `failedCount`, so a partially-failed import still succeeds and reports which rows were dropped. A refusal (bad column spec, unknown list type, append to a missing list) is a tool error as usual. |
 | `import_change_bundle`  | Apply a change bundle exported from the site editor to the underlying lists. Answers with `{ message, lists, failedCount }`; a list that could not be loaded or saved is reported in its own `lists[].error` rather than failing the call.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `set_list_metadata`     | Write a list's front matter — a deck's `description`, `tags`, `format`, `sourceId`, `sourceUrl`, or a collection's default `labels`. Only the fields you send are touched; `null` clears one. Answers with `{ slug, frontMatter }` — the route's `contentHash` is dropped, since an agent never supplies one.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `add_card`              | Add a card to any list; `quantity` adds that many copies in one save. `condition` is rejected for wanted lists; collections require `set` + `collectorNumber` together, and only collections accept `labels` (a label override for the new card). The list must already exist — unlike `ritual add-card`, which creates a missing collection or wanted list, list creation here is its own tool (`create_list`).                                                                                                                                                                                                                                                                                                                                                          |
-| `remove_card`           | Remove a card from any list; `quantity` (decks only) removes that many copies. Flat lists remove one entry a time.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `set_card_printing`     | Set a card's printing in place. It can omit `set`/`collectorNumber` to clear a deck or wanted-list card's printing, but not a collection's — that's rejected. `condition` takes a grade or `NONE` to clear a recorded grade (also accepted on `apply_changes`' `set-printing` action); `NM` is the unrecorded default, so setting it leaves the line ungraded.                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `apply_changes`         | Apply an ordered batch of card-level changes to one list atomically (one save, one changelog block). The only route to note, label, section, and commander edits.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `add_card`              | Add a card to any list; `quantity` adds that many copies in one save. `condition` is rejected for wanted lists; collections require `set` + `collectorNumber` together, and only collections accept `labels` (a label override for the new card). `language` records a non-English copy — omitted, the configured `defaultLanguage` applies. The list must already exist — unlike `ritual add-card`, which creates a missing collection or wanted list, list creation here is its own tool (`create_list`).                                                                                                                                                                                                                                                               |
+| `remove_card`           | Remove a card from any list; `quantity` (decks only) removes that many copies. Flat lists remove one entry a time. `finish`, `condition`, and `language` narrow the match to entries with that value (`language: "en"` matches bare lines).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `set_card_printing`     | Set a card's printing in place. It can omit `set`/`collectorNumber` to clear a deck or wanted-list card's printing, but not a collection's — that's rejected. `condition` takes a grade or `NONE` to clear a recorded grade (also accepted on `apply_changes`' `set-printing` action); `NM` is the unrecorded default, so setting it leaves the line ungraded. `language` sets the card's language alongside the printing; omitted, it is left alone.                                                                                                                                                                                                                                                                                                                     |
+| `apply_changes`         | Apply an ordered batch of card-level changes to one list atomically (one save, one changelog block). The only route to language, note, label, section, and commander edits.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `move_selected_cards`   | Move a batch of identity-addressed cards between lists atomically.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `remove_selected_cards` | Remove a batch of identity-addressed cards across lists atomically.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
@@ -383,20 +392,39 @@ printing-less (or cleared) entry. Decks and wanted lists accept a name-only card
 `cardName`, plus `cardId` (the persistent `&N` id — required to match whenever the entry has one;
 `get_list` shows it) and `copyIndex` (0-based, for deck lines with quantity above 1). Each
 `move_selected_cards` item names its destination with `toListType` + `toSlug`, may override the printing on
-arrival (`set`, `collectorNumber`, `finish`, `condition`), and may pick a destination deck section
+arrival (`set`, `collectorNumber`, `finish`, `condition`, `language`), and may pick a destination deck section
 with `toSection` (deck destinations only). Unresolvable items are skipped and counted in the
 response; notes a destination cannot keep are reported as `droppedNotes`.
 
+#### Card language
+
+Entries carry a `language` field only when the copy is not English: an absent value always means
+`en`, mirroring the card lines themselves, where the `[ja]`-style token is omitted on English
+lines (see [Card Language](/commands/edit/#card-language)). The vocabulary everywhere is the 17
+Scryfall codes (`en es fr de it pt ja ko ru zhs zht he la grc ar sa ph`) — canonical codes only,
+no aliases. `add_card` takes an optional `language` (omitted, the configured
+[`defaultLanguage`](/configuration/#default-language) stamps the new card — adds never prompt);
+`set_card_printing` takes one to set it alongside the printing (omitted leaves it alone); and
+`apply_changes`' `set-language` action changes it on its own, where `en` clears the line's token.
+`remove_card` (and `apply_changes`' `remove` action) takes an optional `language` to match only
+entries in that language — `"en"` matches bare lines.
+Non-English copies are never quoted by the [sell tools](#read-read-only) — Card Kingdom's feed is
+English-only, so they report `noMatchReason: "non-english"`, and `get_buylist_quotes` printings
+take an optional `language` for the same reason (a non-English copy gets no quote).
+
 #### `apply_changes`
 
-`apply_changes` accepts nine card-level change actions: `add`, `remove`, `set-finish`,
-`set-printing`, `set-note`, `set-label`, `set-commander`, `unset-commander`, and `set-section`. It is
-the **only** way to reach the last five — setting or clearing a card note, setting or clearing a
+`apply_changes` accepts ten card-level change actions: `add`, `remove`, `set-finish`,
+`set-printing`, `set-language`, `set-note`, `set-label`, `set-commander`, `unset-commander`, and
+`set-section`. It is
+the **only** way to reach the last six — changing a card's language on its own (`set-language`
+requires `language`; `en` clears the token), setting or clearing a card note, setting or clearing a
 collection card's label override (`set-label` takes the new labels; an empty array clears the
 override so the list default applies), moving a card to a section, and setting or clearing a deck
 commander have no tool of their own. The commander actions apply to **decks only** and `set-label`
 to **collections only**; elsewhere they fail at apply time with the not-applicable reason. An `add`
-may also carry `labels` to label a fresh collection card.
+may also carry `labels` to label a fresh collection card, `add` and `set-printing` may carry
+`language`, and `remove` may match on one.
 Change `id` and `timestamp` are stamped by the server and are not part of the input. Cross-list moves
 and section-structural events are rejected — use `move_selected_cards` for the former.
 
@@ -425,7 +453,7 @@ These are flagged with the MCP `destructiveHint` so clients can gate or confirm 
 | `rename_list`     | Rename a list (changes its slug); the result carries `newFilePath` and `oldFilePath`. Refused when the new name resolves to another list of the same type; re-spelling the list's own name (capitalization, punctuation) is allowed.                                                                                    |
 | `delete_list`     | Delete a list and every sidecar it has. Requires a `confirmName` matching the list's display name; the result carries `deletedFiles`.                                                                                                                                                                                   |
 | `rewrite_history` | Replace a list's entire change log. Echo back sets you did not author exactly as `get_history` returned them — including each set's `trailing` array of preserved hand-written lines, or that text is deleted. Trailing lines must not start with `- ` or `## `.                                                        |
-| `update_config`   | Merge a partial configuration.                                                                                                                                                                                                                                                                                          |
+| `update_config`   | Merge a partial configuration. `defaultLanguage` takes canonical Scryfall codes only, and a non-`en` value switches cache downloads to the much larger `all_cards` bulk — see [Default language](/configuration/#default-language).                                                                                     |
 | `build_site`      | Rebuild the public static site. Runs asynchronously in a child process and publishes atomically, so an interrupted build never leaves a broken site. Reports progress and honours cancellation. Returns `{ message, outDir, durationMs }` — where it published and how long the build took.                             |
 | `sync_decks`      | [Sync decks](/commands/deck-sync/) with Archidekt in either direction.                                                                                                                                                                                                                                                  |
 | `sync_collection` | [Sync collection lists](/commands/collection-sync/) with Archidekt in either direction.                                                                                                                                                                                                                                 |

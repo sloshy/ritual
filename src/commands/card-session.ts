@@ -32,6 +32,11 @@ export type EntryMode = 'name' | 'collector'
 /** Session-wide filters and entry-mode state shared by all card-entry commands. */
 export type SessionConfig = {
   sets?: string[]
+  // Deliberately no `language` default alongside `finish`: the configured
+  // `defaultLanguage` already is the session-wide default (adds never prompt
+  // for language), and per-entry deviations go through the printing picker's
+  // availability confirm or the Change Language edit action — a per-session
+  // language filter would just duplicate the config key.
   finish?: Finish
   condition?: Condition | 'NONE'
   entryMode: EntryMode

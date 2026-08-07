@@ -1,6 +1,7 @@
 import { createSignal, type Accessor } from 'solid-js'
 import type { Finish, ScryfallCard } from '../types'
 import type { ListRef, PrintingTuple } from '../change-event'
+import { scryfallCardLanguage, storedLanguage, type CardLanguage } from '../card-language'
 
 /**
  * A sequential, one-at-a-time printing chooser shared by every flow that needs the
@@ -52,13 +53,25 @@ export function promptForPrinting(
 }
 
 /**
+ * The picked card object's language as a change-pipeline value: `undefined` for
+ * English (or an unrecognized code), so a default-language pick never stamps a
+ * token. The single translation from Scryfall's `lang` field on this path.
+ */
+export function pickedPrintingLanguage(printing: ScryfallCard): CardLanguage | undefined {
+  return storedLanguage(scryfallCardLanguage(printing))
+}
+
+/**
  * Resolve the printing to record when moving a card into `dest`. Moving into a
  * collection requires a concrete printing, so a name-only card opens the picker
- * (above); every other destination keeps the card's current printing. Returns null
+ * (above); every other destination keeps the card's current printing — language
+ * included, so a `[ja]` line stays `[ja]` across the move. Returns null
  * when the user skips a required prompt — the caller should abort that card's move.
  *
  * Set codes are normalized to lowercase here, the single boundary where a picked
- * printing enters the change pipeline.
+ * printing enters the change pipeline. A picked alternate-language object (one
+ * only offered non-English, confirmed via the picker's notice) stamps its
+ * language on the recorded printing.
  */
 export async function printingForMove(
   cardName: string,
@@ -75,5 +88,6 @@ export async function printingForMove(
     collectorNumber: picked.printing.collector_number,
     finish: picked.finish,
     condition: current.condition,
+    language: pickedPrintingLanguage(picked.printing),
   }
 }

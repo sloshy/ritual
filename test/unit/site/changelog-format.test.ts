@@ -84,6 +84,41 @@ describe('formatChangeText', () => {
     })
   })
 
+  test('Added — annotates a non-en language after finish/condition', () => {
+    expect(
+      formatChangeText(
+        change({
+          action: 'Added',
+          set: 'neo',
+          collectorNumber: '234',
+          finish: 'foil',
+          condition: 'LP',
+          language: 'ja',
+        }),
+      ),
+    ).toEqual({ prefix: 'Added ', suffix: ' (NEO:234) [foil] [LP] [ja]' })
+    // en is the bare default and never annotated.
+    expect(formatChangeText(change({ action: 'Added', language: 'en' }))).toEqual({
+      prefix: 'Added ',
+      suffix: '',
+    })
+  })
+
+  test('Set printing — carries a non-en language token', () => {
+    expect(
+      formatChangeText(
+        change({ action: 'Set printing', set: 'm10', collectorNumber: '146', language: 'ja' }),
+      ),
+    ).toEqual({ prefix: 'Set ', suffix: ' printing to M10:146 [ja]' })
+  })
+
+  test('Set language — resolves the code to its display name', () => {
+    expect(formatChangeText(change({ action: 'Set language', language: 'ja' }))).toEqual({
+      prefix: 'Set language of ',
+      suffix: ' to Japanese',
+    })
+  })
+
   test('Set note — includes the note text', () => {
     expect(formatChangeText(change({ action: 'Set note', note: 'great vs aggro' }))).toEqual({
       prefix: 'Set note on ',
@@ -116,7 +151,13 @@ describe('formatChangeText', () => {
 describe('isAdditiveAction', () => {
   // 'Set as commander', 'Unset as commander', and 'Cleared note' are pinned end-to-end by
   // test/e2e/public-site/view-changes.spec.ts via changelog-change-item--remove class assertions.
-  const additive: ChangelogAction[] = ['Added', 'Set finish', 'Set printing', 'Set note']
+  const additive: ChangelogAction[] = [
+    'Added',
+    'Set finish',
+    'Set printing',
+    'Set language',
+    'Set note',
+  ]
   const destructive: ChangelogAction[] = ['Removed']
 
   for (const action of additive) {

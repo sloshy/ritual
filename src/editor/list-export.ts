@@ -13,13 +13,15 @@ import {
   type Aggregated,
 } from '../card-line'
 import { assignMissingEntryIds } from '../card-id'
+import { storedLanguage, type CardLanguage } from '../card-language'
 import { csvCell } from '../csv'
 import { DEFAULT_EXPORT_COLUMNS, EXPORT_PROPERTY_LABELS } from '../export/render'
 
 /**
  * Header row shared by every fixed-column CSV export
- * (`Name,Set,Collector Number,Finish,Condition,Quantity`). Derived from the
- * `ritual export` property labels so the two CSV surfaces can never drift.
+ * (`Name,Set,Collector Number,Finish,Condition,Language,Quantity`). Derived
+ * from the `ritual export` property labels so the two CSV surfaces can never
+ * drift.
  */
 export const CSV_HEADER = DEFAULT_EXPORT_COLUMNS.map(
   (column) => EXPORT_PROPERTY_LABELS[column],
@@ -34,16 +36,17 @@ export const CSV_HEADER = DEFAULT_EXPORT_COLUMNS.map(
 
 /** Serialize one collection entry to its canonical markdown line. */
 export function serializeCollectionEntry(entry: CollectionCardEntry): string {
-  return formatCollectionLine(
-    entry.name,
-    entry.set,
-    entry.collectorNumber,
-    entry.finish,
-    entry.condition,
-    entry.labels,
-    entry.note,
-    entry.cardId,
-  )
+  return formatCollectionLine({
+    cardName: entry.name,
+    set: entry.set,
+    collectorNumber: entry.collectorNumber,
+    finish: entry.finish,
+    condition: entry.condition,
+    language: entry.language,
+    labels: entry.labels,
+    note: entry.note,
+    cardId: entry.cardId,
+  })
 }
 
 /**
@@ -81,7 +84,14 @@ export function serializeWantedListEntry(entry: WantedListCardEntry): string {
     entry.set && entry.collectorNumber
       ? { set: entry.set, collectorNumber: entry.collectorNumber }
       : undefined
-  return formatWantedListLine(entry.name, printing, entry.finish, entry.note, entry.cardId)
+  return formatWantedListLine({
+    name: entry.name,
+    printing,
+    finish: entry.finish,
+    language: entry.language,
+    note: entry.note,
+    cardId: entry.cardId,
+  })
 }
 
 /**
@@ -131,7 +141,8 @@ export function wantedToMarkdown(
  * Build one CSV data row in the canonical {@link CSV_HEADER} column order. Only the
  * name is quoted (the other columns are simple tokens); the set code is uppercased
  * here so every export path applies the rule in one place. Callers pass already
- * caller-specific normalisation (e.g. stripping a `nonfoil` finish).
+ * caller-specific normalisation (e.g. stripping a `nonfoil` finish); the Language
+ * column carries the code and is blank for English, mirroring the markdown token.
  */
 function csvRow(
   name: string,
@@ -139,15 +150,24 @@ function csvRow(
   collectorNumber: string,
   finish: string,
   condition: string,
+  language: CardLanguage | undefined,
   quantity: number,
 ): string {
-  return [csvCell(name), set.toUpperCase(), collectorNumber, finish, condition, quantity].join(',')
+  return [
+    csvCell(name),
+    set.toUpperCase(),
+    collectorNumber,
+    finish,
+    condition,
+    storedLanguage(language) ?? '',
+    quantity,
+  ].join(',')
 }
 
 const aggregateSelection = (cards: SelectedCard[]): Aggregated<SelectedCard>[] =>
   aggregateQuantities(
     cards,
-    (c) => variantKey(c.name, c.set, c.collectorNumber, c.finish, c.condition),
+    (c) => variantKey(c.name, c.set, c.collectorNumber, c.finish, c.condition, c.language),
     (c) => c.quantity,
   )
 
@@ -155,7 +175,7 @@ const aggregateSelection = (cards: SelectedCard[]): Aggregated<SelectedCard>[] =
 const aggregateCollection = (entries: CollectionCardEntry[]): Aggregated<CollectionCardEntry>[] =>
   aggregateQuantities(
     entries,
-    (e) => variantKey(e.name, e.set, e.collectorNumber, e.finish, e.condition),
+    (e) => variantKey(e.name, e.set, e.collectorNumber, e.finish, e.condition, e.language),
     () => 1,
   )
 
@@ -186,6 +206,7 @@ export function selectionToCsv(cards: SelectedCard[]): string {
       entry.collectorNumber ?? '',
       entry.finish ?? '',
       entry.condition ?? '',
+      entry.language,
       quantity,
     ),
   )
@@ -205,6 +226,7 @@ export function collectionToCsv(entries: CollectionCardEntry[]): string {
       entry.collectorNumber,
       entry.finish || '',
       entry.condition || '',
+      entry.language,
       quantity,
     ),
   )
@@ -242,7 +264,15 @@ export function wantedToText(entries: WantedListCardEntry[]): string {
  */
 export function wantedToCsv(entries: WantedListCardEntry[]): string {
   const rows = entries.map((entry) =>
-    csvRow(entry.name, entry.set ?? '', entry.collectorNumber ?? '', entry.finish ?? '', '', 1),
+    csvRow(
+      entry.name,
+      entry.set ?? '',
+      entry.collectorNumber ?? '',
+      entry.finish ?? '',
+      '',
+      entry.language,
+      1,
+    ),
   )
   return [CSV_HEADER, ...rows].join('\n')
 }
@@ -261,6 +291,7 @@ export function deckToCsv(deck: DeckData): string {
         card.collectorNumber ?? '',
         card.finish && card.finish !== 'nonfoil' ? card.finish : '',
         card.condition ?? '',
+        card.language,
         card.quantity,
       ),
     ),

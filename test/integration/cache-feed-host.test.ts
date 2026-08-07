@@ -16,7 +16,12 @@ type UpstreamFile = { uri: string; body: Uint8Array }
 function mockUpstream(
   http: MockHttpClient,
   updatedAt: string,
-  bodies: { defaultCards: Uint8Array; oracleTags: Uint8Array; artTags: Uint8Array },
+  bodies: {
+    defaultCards: Uint8Array
+    oracleTags: Uint8Array
+    artTags: Uint8Array
+    allCards?: Uint8Array
+  },
 ): Record<string, UpstreamFile> {
   const stamp = updatedAt.replace(/\D/g, '').slice(0, 8)
   const files: Record<string, UpstreamFile> = {
@@ -24,6 +29,14 @@ function mockUpstream(
       uri: `https://upstream.example/default-cards-${stamp}.jsonl.gz`,
       body: bodies.defaultCards,
     },
+    ...(bodies.allCards
+      ? {
+          all_cards: {
+            uri: `https://upstream.example/all-cards-${stamp}.jsonl.gz`,
+            body: bodies.allCards,
+          },
+        }
+      : {}),
     oracle_tags: {
       uri: `https://upstream.example/oracle-tags-${stamp}.jsonl.gz`,
       body: bodies.oracleTags,
@@ -115,6 +128,44 @@ describe('CacheFeedHost', () => {
     mockUpstream(http, '2026-07-05T09:00:00Z', bodies())
     expect(await host.refresh()).toBeTrue()
     expect(await host.refresh()).toBeFalse()
+  })
+
+  test('a host configured for both card kinds publishes an all-cards entry too', async () => {
+    const allCards = gzipJsonLines([
+      { name: 'Sol Ring', set: 'cmr' },
+      { name: 'Sol Ring', set: 'cmr', lang: 'ja' },
+    ])
+    const files = mockUpstream(http, '2026-07-05T09:00:00Z', { ...bodies(), allCards })
+    const bothHost = new CacheFeedHost({
+      feedDir,
+      publicUrl: PUBLIC_URL,
+      bulkApiUrl: BULK_API,
+      kinds: ['default-cards', 'all-cards', 'oracle-tags', 'art-tags'],
+      http,
+      log: () => {},
+    })
+
+    expect(await bothHost.refresh(new Date('2026-07-05T10:00:00Z'))).toBeTrue()
+    const feed = bothHost.currentFeed()!
+    expect(feed.entries.map((entry) => entry.kind)).toEqual([
+      'default-cards',
+      'all-cards',
+      'oracle-tags',
+      'art-tags',
+    ])
+    const entry = feed.entries.find((candidate) => candidate.kind === 'all-cards')!
+    expect(entry.sha256).toBe(await sha256Of(files['all_cards']!.body))
+    expect(await Bun.file(path.join(feedDir, 'files', entry.fileName)).exists()).toBeTrue()
+  })
+
+  test('a default-only host ignores an upstream all_cards manifest entry', async () => {
+    mockUpstream(http, '2026-07-05T09:00:00Z', { ...bodies(), allCards: gzipJsonLines([{}]) })
+    await host.refresh()
+    expect(host.currentFeed()!.entries.map((entry) => entry.kind)).toEqual([
+      'default-cards',
+      'oracle-tags',
+      'art-tags',
+    ])
   })
 
   test('an upstream update replaces entries and prunes the old artifacts', async () => {

@@ -8,7 +8,12 @@ import {
   type CardPrinting,
 } from '../card-line'
 import { serializeCardLine } from '../deck-text'
-import { archidektCsvCondition, archidektModifier } from '../importers/archidekt-collection'
+import { storedLanguage } from '../card-language'
+import {
+  archidektCsvCondition,
+  archidektCsvLanguage,
+  archidektModifier,
+} from '../importers/archidekt-collection'
 import type { Card } from '../types'
 import type { ExportEntry } from './entries'
 
@@ -27,6 +32,7 @@ export const EXPORT_PROPERTIES = [
   'finish',
   'isFoil',
   'condition',
+  'language',
   'labels',
   'note',
   'section',
@@ -51,6 +57,7 @@ export const EXPORT_PROPERTY_LABELS: Record<ExportProperty, string> = {
   finish: 'Finish',
   isFoil: 'Is Foil',
   condition: 'Condition',
+  language: 'Language',
   labels: 'Labels',
   note: 'Note',
   section: 'Section',
@@ -67,6 +74,7 @@ export const EXPORT_PROPERTY_HINTS: Partial<Record<ExportProperty, string>> = {
   edition: 'set + collector number',
   scryfallId: 'resolved from the local Scryfall cache',
   isFoil: 'true when foil or etched',
+  language: 'Scryfall language code; blank for English',
   labels: "effective labels — the card's override or its list default",
 }
 
@@ -76,15 +84,18 @@ export const EXPORT_PROPERTY_HINTS: Partial<Record<ExportProperty, string>> = {
  * writes another tool's spellings for the same properties, so an export can be
  * fed straight into that tool's importer without a translation step.
  *
- * `archidekt` differs from `ritual` in exactly three ways, all in
+ * `archidekt` differs from `ritual` in exactly four ways, all in
  * {@link propertyValue} / {@link exportPropertyLabel}:
  *
  * - `finish` renders Archidekt's modifier (`Normal` / `Foil` / `Etched`) and is
  *   labelled `Variant`, the name Archidekt's own CSV importer uses.
  * - `condition` renders Archidekt's CSV short codes, where Damaged is `D`.
- * - Both render the *effective* value when a line marks none (`Normal` / `NM`):
- *   Archidekt's CSV has no "unmarked" spelling, so an empty cell would be a
- *   row Archidekt has to guess about.
+ * - `language` renders Archidekt's CSV language codes (`EN CT DE FR IT JP KR PT
+ *   RU CS SP`); a language Archidekt has no code for renders `EN`, matching how
+ *   a push's record API degrades it.
+ * - All three render the *effective* value when a line marks none (`Normal` /
+ *   `NM` / `EN`): Archidekt's CSV has no "unmarked" spelling, so an empty cell
+ *   would be a row Archidekt has to guess about.
  */
 export type ExportDialect = 'ritual' | 'archidekt'
 
@@ -123,6 +134,7 @@ export const DEFAULT_EXPORT_COLUMNS: ExportProperty[] = [
   'collectorNumber',
   'finish',
   'condition',
+  'language',
   'quantity',
 ]
 
@@ -209,6 +221,12 @@ function propertyValue(
       return dialect === 'archidekt'
         ? archidektCsvCondition(entry.condition ?? 'NM')
         : entry.condition
+    case 'language':
+      // Archidekt's CSV code (effective — `EN` for a bare line, and for the
+      // languages Archidekt cannot model); otherwise blank for English,
+      // mirroring the markdown token: a bare line means `en`.
+      if (dialect === 'archidekt') return archidektCsvLanguage(entry.language) ?? 'EN'
+      return storedLanguage(entry.language)
     case 'labels':
       // Same spelling in every dialect — labels are Ritual-specific, so no
       // foreign importer defines a vocabulary to translate into.
@@ -262,7 +280,14 @@ export function renderTextExport(entries: ExportEntry[]): string {
   return aggregateQuantities(
     entries,
     (entry) =>
-      variantKey(entry.name, entry.set, entry.collectorNumber, entry.finish, entry.condition),
+      variantKey(
+        entry.name,
+        entry.set,
+        entry.collectorNumber,
+        entry.finish,
+        entry.condition,
+        entry.language,
+      ),
     (entry) => entry.quantity,
   )
     .map(
@@ -290,20 +315,22 @@ function markdownLine(entry: ExportEntry): string {
       collectorNumber: entry.collectorNumber,
       finish: entry.finish,
       condition: entry.condition,
+      language: entry.language,
       note: entry.note,
     }
     return serializeCardLine(card)
   }
   if (entry.listType === 'collection' && entry.set && entry.collectorNumber) {
-    return formatCollectionLine(
-      entry.name,
-      entry.set,
-      entry.collectorNumber,
-      entry.finish ?? 'nonfoil',
-      entry.condition,
-      entry.labels,
-      entry.note,
-    ).replace(/\n$/, '')
+    return formatCollectionLine({
+      cardName: entry.name,
+      set: entry.set,
+      collectorNumber: entry.collectorNumber,
+      finish: entry.finish ?? 'nonfoil',
+      condition: entry.condition,
+      language: entry.language,
+      labels: entry.labels,
+      note: entry.note,
+    }).replace(/\n$/, '')
   }
   // Wanted entries — and, as a type-level fallback, a collection entry missing
   // its printing (the collection parser never produces one) — use the
@@ -312,7 +339,13 @@ function markdownLine(entry: ExportEntry): string {
     entry.set && entry.collectorNumber
       ? { set: entry.set, collectorNumber: entry.collectorNumber }
       : undefined
-  return formatWantedListLine(entry.name, printing, entry.finish, entry.note).replace(/\n$/, '')
+  return formatWantedListLine({
+    name: entry.name,
+    printing,
+    finish: entry.finish,
+    language: entry.language,
+    note: entry.note,
+  }).replace(/\n$/, '')
 }
 
 /**

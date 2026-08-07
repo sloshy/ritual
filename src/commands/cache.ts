@@ -40,6 +40,9 @@ function formatCacheStatusText(status: CacheStatusResult): string {
     { label: 'Prices stale', value: String(status.priceStale) },
     { label: 'Tags present', value: String(status.tagsPresent) },
     { label: 'Source', value: status.source },
+    { label: 'Default language', value: status.defaultLanguage },
+    { label: 'Card bulk', value: status.cardBulkType ?? 'unrecorded' },
+    { label: 'Bulk stale', value: String(status.bulkTypeStale) },
   ]
   const width = Math.max(...rows.map((row) => row.label.length)) + 1
   return rows.map((row) => `${`${row.label}:`.padEnd(width)} ${row.value}`).join('\n')
@@ -54,7 +57,7 @@ export function registerCacheCommand(program: Command): void {
     cache
       .command('status')
       .description(
-        'Report card-cache state (size, freshness, tags, source) without prompting or refreshing',
+        'Report card-cache state (size, freshness, tags, source, card bulk / language mode) without prompting or refreshing',
       ),
   ).action(async (options: Partial<ScriptingOptions>) => {
     const scripting = normalizeScriptingOptions(options, 'text')

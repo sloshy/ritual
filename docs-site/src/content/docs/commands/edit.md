@@ -394,6 +394,7 @@ For a **deck** line:
 | Action                     | Description                                                                       |
 | -------------------------- | --------------------------------------------------------------------------------- |
 | `🖼️ Change Printing`       | Pick a new printing, finish, and condition for the line                           |
+| `🌐 Change Language`       | Pick the line's [language](#card-language) (`en` removes the token)               |
 | `➕ Add a Copy`            | Increment the line's quantity                                                     |
 | `➖ Remove a Copy`         | Decrement the line's quantity (multi-copy lines only); keeps the `&N` id          |
 | `🗂️ Move to Section`       | Move the line to another section (or a new one)                                   |
@@ -408,6 +409,7 @@ For a **collection** entry:
 | `🖼️ Change Printing`  | Pick a new printing, finish, and condition for the entry                                |
 | `✨ Change Finish`    | Switch between `nonfoil`, `foil`, and `etched`                                          |
 | `📋 Change Condition` | Switch between `NM`, `LP`, `MP`, `HP`, and `DMG`                                        |
+| `🌐 Change Language`  | Pick the entry's [language](#card-language) (`en` removes the token)                    |
 | `🏷️ Change Label`     | Set the label override (For sale / For trade / both / To keep) or revert to the default |
 | `📝 Edit Note`        | Edit or clear the entry's note                                                          |
 | `🗑️ Remove`           | Delete the entry (asks for confirmation); releases its `&N` id                          |
@@ -418,6 +420,7 @@ For a **wanted list** entry:
 | -------------------- | ----------------------------------------------------------------------------------- |
 | `🖼️ Change Printing` | Re-pick the specificity: name-only, or a specific printing with optional finish     |
 | `✨ Change Finish`   | Switch between `nonfoil`, `foil`, `etched`, or no preference (printed entries only) |
+| `🌐 Change Language` | Pick the entry's [language](#card-language) (`en` removes the token)                |
 | `📝 Edit Note`       | Edit or clear the entry's note                                                      |
 | `🗑️ Remove`          | Delete the entry (asks for confirmation); releases its `&N` id                      |
 
@@ -427,6 +430,31 @@ the session changelog with "latest wins" semantics — changing a card and then 
 leaves no changelog entry. Removing a card that was added this session simply cancels the add.
 `➕ Switch to Add Mode` returns to the regular add flow; you can toggle between the two modes
 freely within one session.
+
+## Card Language
+
+Every card entry has a **language**, written as a lowercase bracket token in canonical position on
+the line — after the finish and condition, before labels and the note:
+
+```
+- Mana Crypt (2XM:270) [foil] [ja] [sale,trade] &3
+3 Counterspell (LEA:55) [de] &12
+- Sol Ring (C21:263) [zhs] &4
+```
+
+The vocabulary is **Scryfall's language codes** (`en es fr de it pt ja ko ru zhs zht he la grc ar
+sa ph` — not ISO codes: Chinese is `zhs`/`zht`), and the token is **omitted for English**: a bare
+line always means `en`, whatever the configured default, so a list file stays self-describing.
+
+Adding a card **never prompts** for a language — the configured
+[`defaultLanguage`](/configuration/#default-language) is stamped on new cards, and the `🌐 Change
+Language` edit action (or [`set-card --language`](/commands/set-card/)) changes an individual copy
+afterwards. Under a non-English default, the printing picker notes printings that do not exist in
+that language — picking one records it in the language that does exist (English when available),
+rather than writing a language token Scryfall has no card object for. Language availability is
+checked against the card cache (which holds every language's objects when
+[`defaultLanguage`](/configuration/#default-language) is non-English), falling back to a direct
+Scryfall lookup when the cache cannot vouch for the printing.
 
 ## Reviewing Session Changes
 
@@ -501,9 +529,11 @@ format: "commander"
 4 Lightning Bolt (LEA:161) &3
 ```
 
-The leading number is the card quantity. Non-foil finish and `NM` condition are omitted for
-brevity. The `&N` suffix is a persistent card ID used internally for change tracking and is
-auto-assigned. Decrementing a quantity keeps the ID; only removing the whole line releases it.
+The leading number is the card quantity. Non-foil finish, `NM` condition, and the English
+language are omitted for brevity (a non-English copy carries a `[ja]`-style token after the
+condition — see [Card Language](#card-language)). The `&N` suffix is a persistent card ID used
+internally for change tracking and is auto-assigned. Decrementing a quantity keeps the ID; only
+removing the whole line releases it.
 
 ## Collections
 
@@ -512,7 +542,7 @@ auto-assigned. Decrementing a quantity keeps the ID; only removing the whole lin
 Each card entry is written to a markdown collection file in the `collections/` directory:
 
 ```
-- Card Name (SET:CN) [finish] [condition] [labels] {note} &N
+- Card Name (SET:CN) [finish] [condition] [lang] [labels] {note} &N
 ```
 
 For example:
@@ -520,11 +550,12 @@ For example:
 ```
 - Sol Ring (C19:221) [foil] &1
 - Lightning Bolt (LEA:161) [LP] [keep] &2
-- Mana Crypt (2XM:270) [foil] [sale,trade] {Japanese language, ignore pricing} &3
+- Mana Crypt (2XM:270) [foil] [ja] [sale,trade] &3
 ```
 
-Non-foil finish and the default `NM` condition are omitted for brevity, matching deck lines (a
-"Don't Care" condition choice is treated as `NM` and therefore not written). The note is optional and can be added
+Non-foil finish, the default `NM` condition, and the English language are omitted for brevity,
+matching deck lines (a "Don't Care" condition choice is treated as `NM` and therefore not written;
+a bare line always means English — see [Card Language](#card-language)). The note is optional and can be added
 after entry via the `📝 Add Note` menu option. Notes are displayed in the card detail modal on the
 generated site. The `&N` suffix is a persistent card ID used internally for change tracking and is
 auto-assigned.
@@ -589,7 +620,7 @@ When adding a card to a wanted list, you are prompted to choose the specificity 
 Each card entry is written to a markdown file in the `wanted/` directory:
 
 ```
-- Card Name (SET:CN) [finish] {note} &N
+- Card Name (SET:CN) [finish] [lang] {note} &N
 ```
 
 For example:
@@ -599,11 +630,13 @@ For example:
 - Lightning Bolt (LEA:161) &2
 - Mana Crypt (2XM:270) [foil] &3
 - Black Lotus (LEB:233) {birthday present to self} &4
+- Fblthp, the Lost (WAR:50) [ja] &5
 ```
 
 Any combination of set/collector number and finish can be omitted depending on the desired
-specificity level. The note is optional. The `&N` suffix is a persistent card ID used internally
-for change tracking and is auto-assigned.
+specificity level (wanted lines carry no condition; a `[ja]`-style token records a wanted
+non-English copy — see [Card Language](#card-language)). The note is optional. The `&N` suffix
+is a persistent card ID used internally for change tracking and is auto-assigned.
 
 ## Sections
 

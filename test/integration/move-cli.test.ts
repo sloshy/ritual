@@ -705,6 +705,113 @@ describe('move CLI headless mode (Integration)', () => {
     const source = await fs.readFile(path.join(dir, 'decks', 'source.md'), 'utf-8')
     expect(source).toContain('2 Lightning Bolt (LEA:161) &1')
   })
+
+  describe('language rides along', () => {
+    test('a [ja] collection entry keeps its token moving to a deck, without merging onto an en line', async () => {
+      await writeCollectionFile(dir, 'binder', {
+        entries: [
+          { name: 'Mana Crypt', set: '2xm', collectorNumber: '1', cardId: 1 },
+          { name: 'Sol Ring', set: 'c21', collectorNumber: '240', language: 'ja', cardId: 2 },
+        ],
+      })
+      // The target deck already holds a bare (English) Sol Ring &1.
+      const result = await runCli(
+        ['move', 'Sol', 'Ring', '--from', 'collection:binder', '--to', 'deck:target'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain('Moved 1 x Sol Ring (C21:240) [ja]')
+
+      const collection = await fs.readFile(path.join(dir, 'collections', 'binder.md'), 'utf-8')
+      expect(collection).not.toContain('Sol Ring')
+      const target = await fs.readFile(path.join(dir, 'decks', 'target.md'), 'utf-8')
+      // The English line is untouched; the Japanese copy is its own line.
+      expect(target).toContain('1 Sol Ring &1')
+      expect(target).toContain('1 Sol Ring (C21:240) [ja] &2')
+
+      // Both changelogs annotate the moved copy's language.
+      const sourceLog = await fs.readFile(
+        path.join(dir, 'collections', 'binder.changes.md'),
+        'utf-8',
+      )
+      expect(sourceLog).toContain('[ja]')
+      const targetLog = await fs.readFile(path.join(dir, 'decks', 'target.changes.md'), 'utf-8')
+      expect(targetLog).toContain('[ja]')
+    })
+
+    test('a [ja] wanted entry keeps its token moving to another wanted list', async () => {
+      await writeWantedFile(dir, 'needs', {
+        entries: [
+          {
+            name: 'Underground Sea',
+            set: 'leb',
+            collectorNumber: '286',
+            language: 'ja',
+            cardId: 1,
+          },
+        ],
+      })
+      await writeWantedFile(dir, 'later', { entries: [] })
+      const result = await runCli(
+        ['move', 'Underground', 'Sea', '--from', 'wanted:needs', '--to', 'wanted:later'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      const later = await fs.readFile(path.join(dir, 'wanted', 'later.md'), 'utf-8')
+      expect(later).toContain('- Underground Sea (LEB:286) [ja] &1')
+    })
+
+    test('copies differing only in language are ambiguous until narrowed by --card-id', async () => {
+      await writeCollectionFile(dir, 'binder', {
+        entries: [
+          { name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 },
+          { name: 'Sol Ring', set: 'c21', collectorNumber: '240', language: 'ja', cardId: 2 },
+        ],
+      })
+      const ambiguous = await runCli(
+        [
+          'move',
+          'Sol',
+          'Ring',
+          '--from',
+          'collection:binder',
+          '--to',
+          'deck:target',
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+      expect(ambiguous.exitCode).toBe(2)
+      const err = JSON.parse(ambiguous.stderr) as MoveErrorPayload
+      expect(err.error.code).toBe('usage_error')
+      expect(err.error.message).toContain('Multiple printings match')
+
+      const narrowed = await runCli(
+        [
+          'move',
+          '--from',
+          'collection:binder',
+          '--to',
+          'deck:target',
+          '--card-id',
+          '2',
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+      expect(narrowed.exitCode).toBe(0)
+      const json = JSON.parse(narrowed.stdout) as MoveSuccessPayload & {
+        card: { language?: string }
+      }
+      expect(json.card.language).toBe('ja')
+      const collection = await fs.readFile(path.join(dir, 'collections', 'binder.md'), 'utf-8')
+      // The English copy stays; only the [ja] copy moved.
+      expect(collection).toContain('- Sol Ring (C21:240) &1')
+      expect(collection).not.toContain('[ja]')
+    })
+  })
 })
 
 // The interactive session is prompt-driven end to end, so its entry must be

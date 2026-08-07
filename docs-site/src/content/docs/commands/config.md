@@ -26,12 +26,15 @@ All subcommands accept the standard scripting options:
 | `collectionsDir`          | `string` | `./collections` |
 | `wantedDir`               | `string` | `./wanted`      |
 | `defaultCurrency`         | `string` | `usd`           |
+| `defaultLanguage`         | `string` | `en`            |
 | `cacheLockTimeoutSeconds` | `number` | `300`           |
 | `cacheSource`             | `string` | `scryfall`      |
 | `cacheFeedUrl`            | `string` | —               |
 | `searchDebounceMs`        | `number` | `500`           |
 
 `defaultCurrency` must be one of `usd`, `eur`, or `tix`; it sets the currency every price-touching command defaults to.
+
+`defaultLanguage` is the Scryfall language code stamped on newly added cards (`en es fr de it pt ja ko ru zhs zht he la grc ar sa ph` — Scryfall's codes, not ISO: Chinese is `zhs`/`zht`). `config set` accepts aliases (`jp`, `Japanese`, ...) and persists the canonical code; an unknown value is rejected listing all 17 codes. **A non-English value switches card-cache downloads — including the cache feed — to Scryfall's much larger `all_cards` bulk.** See [Configuration → Default language](/configuration/#default-language).
 
 `cacheLockTimeoutSeconds` is how long a cache-refreshing operation waits for another process's refresh to finish before failing — see [Configuration → Cache lock timeout](/configuration/#cache-lock-timeout).
 
@@ -119,6 +122,7 @@ The rest of the `site` key (the deployment settings) is managed exclusively by `
 ```bash
 ./ritual config set admin.gitEnabled true
 ./ritual config set decksDir ./my-decks
+./ritual config set defaultLanguage ja        # aliases work too: jp, Japanese
 ./ritual config set admin.ipAllowList "192.168.1.0/24" "10.0.0.1"   # replaces the whole list
 ./ritual config set --add admin.ipAllowList "10.0.0.2"
 ./ritual config set --remove admin.ipAllowList "10.0.0.1"

@@ -1,16 +1,49 @@
+import type { CardBulkType } from '../scryfall/bulk-manifest'
+
 export const FEED_VERSION = 1
 export const FEED_FILENAME = 'feed.json'
 
-/** The bulk artifacts a cache feed distributes. */
-export type CacheFeedKind = 'default-cards' | 'oracle-tags' | 'art-tags'
+/**
+ * The card-bulk artifacts a feed can distribute: `default-cards` mirrors
+ * Scryfall's English-only `default_cards` bulk, `all-cards` the every-language
+ * `all_cards` bulk. A host publishes the card kind(s) it is configured for,
+ * and each client fetches exactly the one its `defaultLanguage` demands.
+ */
+export type CardFeedKind = 'default-cards' | 'all-cards'
 
-export const FEED_KINDS: readonly CacheFeedKind[] = ['default-cards', 'oracle-tags', 'art-tags']
+export const CARD_FEED_KINDS: readonly CardFeedKind[] = ['default-cards', 'all-cards']
+
+/** The bulk artifacts a cache feed distributes. */
+export type CacheFeedKind = CardFeedKind | 'oracle-tags' | 'art-tags'
+
+export const FEED_KINDS: readonly CacheFeedKind[] = [
+  'default-cards',
+  'all-cards',
+  'oracle-tags',
+  'art-tags',
+]
+
+/** The tag artifacts every host publishes and every client fetches. */
+export const TAG_FEED_KINDS: readonly CacheFeedKind[] = ['oracle-tags', 'art-tags']
 
 /** Scryfall bulk-data manifest `type` for each feed kind. */
 export const BULK_TYPE_BY_KIND: Record<CacheFeedKind, string> = {
   'default-cards': 'default_cards',
+  'all-cards': 'all_cards',
   'oracle-tags': 'oracle_tags',
   'art-tags': 'art_tags',
+}
+
+/** The feed kind that carries a given Scryfall card bulk. */
+export const CARD_KIND_BY_BULK_TYPE: Record<CardBulkType, CardFeedKind> = {
+  default_cards: 'default-cards',
+  all_cards: 'all-cards',
+}
+
+/** The Scryfall card bulk a card feed kind carries (the typed inverse of the above). */
+export const CARD_BULK_TYPE_BY_KIND: Record<CardFeedKind, CardBulkType> = {
+  'default-cards': 'default_cards',
+  'all-cards': 'all_cards',
 }
 
 /** One distributable artifact in a cache feed. */

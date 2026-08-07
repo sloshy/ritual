@@ -1,5 +1,6 @@
 import type { Condition, DeckData, Finish, ScryfallCard } from '../types'
 import type { CardLabel } from '../card-labels'
+import type { CardLanguage } from '../card-language'
 import type { PriceCurrency } from '../price-currency'
 import type { ChangelogPage } from '../changelog-parser'
 import type { DeckFormatKey } from '../deck-format'
@@ -67,6 +68,14 @@ export interface CollectionCardEntry {
   finish: Finish
   condition: Condition
   /**
+   * The entry's language, resolved like `finish`: a bare line reads as `en`
+   * (the write path's `toCollectionCardEntries` fills it in; baked site data
+   * may leave it absent, which also means `en`). Unlike `finish`, feeding the
+   * resolved value back to a serializer is safe — `formatCollectionLine`
+   * omits the token for `en`, so bare lines round-trip as bare lines.
+   */
+  language?: CardLanguage
+  /**
    * This card's label override, as written on its line. Effective labels are
    * this when present, else the list's `CollectionDetail.labels` default.
    */
@@ -124,6 +133,8 @@ export interface WantedListCardEntry {
   set?: string
   collectorNumber?: string
   finish?: Finish
+  /** The line's language token, when present. Absent means `en`. */
+  language?: CardLanguage
   price: number
   fileOrder: number
   /** Section this entry belongs to. Defaults to `DEFAULT_SECTION` ("Main") when unsectioned. */
@@ -177,6 +188,8 @@ export interface SiteIndex {
   pricesDate?: string
   /** The configured add-card search debounce (ms), baked in at build time. */
   searchDebounceMs: number
+  /** The configured default card language, baked from config like {@link searchDebounceMs}. */
+  defaultLanguage: CardLanguage
   /**
    * Base URL of a live read-only API backing this site. `''` = same origin
    * (injected by `ritual serve --api`, which serves index.json dynamically and
@@ -202,6 +215,8 @@ export interface TradeCardEntry {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The source entry's language token, when present. Absent means `en`. */
+  language?: CardLanguage
   /** Effective card labels of the source entry — collection rows only. */
   labels?: CardLabel[]
   note?: string

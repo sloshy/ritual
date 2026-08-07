@@ -1,9 +1,10 @@
-import { type JSX, createSignal, onMount, Show } from 'solid-js'
+import { type JSX, createSignal, onMount, For, Show } from 'solid-js'
 import type { AdminConfig, CacheSource, RitualConfig, SiteConfig } from '../../../ritual-config'
 // Value imports here must stay browser-safe: ritual-config pulls in node:fs,
 // so only its types may be imported into the admin SPA bundle.
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../../../cache/constants'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../editor/search-debounce'
+import { CARD_LANGUAGES, isCardLanguage, languageDisplayName } from '../../../card-language'
 import type { PriceCurrency } from '../../../price-currency'
 import {
   INCLUDE_ALL,
@@ -11,6 +12,7 @@ import {
   type SiteSelectionConfig,
 } from '../../../site/list-selection'
 import { fetchRitualConfig } from '../config-api'
+import { applyDefaultLanguage } from '../hooks/useDefaultLanguage'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { TotpSettings } from '../components/TotpSettings'
@@ -48,17 +50,24 @@ export function Settings(): JSX.Element {
   })
 
   const handleSave = async () => {
-    if (!config()) return
+    const saved = config()
+    if (!saved) return
     const ok = await run(
       '/api/config',
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config()),
+        body: JSON.stringify(saved),
       },
       'Failed to save settings',
     )
-    if (ok) setStatus('Settings saved')
+    if (ok) {
+      setStatus('Settings saved')
+      // The default-language holders are primed once at boot (no per-page
+      // re-fetch), so a saved change must be pushed for an already-mounted
+      // editor page to stamp the new language without a reload.
+      applyDefaultLanguage(saved.defaultLanguage)
+    }
   }
 
   const updateField = <K extends keyof RitualConfig>(field: K, value: RitualConfig[K]) => {
@@ -187,6 +196,31 @@ export function Settings(): JSX.Element {
               <option value="eur">EUR (Cardmarket)</option>
               <option value="tix">TIX (MTGO)</option>
             </select>
+          </div>
+          <div>
+            <label class="form-label">Default Language</label>
+            <select
+              class="form-input"
+              name="defaultLanguage"
+              value={config()!.defaultLanguage}
+              onChange={(e) => {
+                const value = e.currentTarget.value
+                if (isCardLanguage(value)) updateField('defaultLanguage', value)
+              }}
+            >
+              <For each={CARD_LANGUAGES}>
+                {(code) => (
+                  <option value={code}>
+                    {languageDisplayName(code)} ({code})
+                  </option>
+                )}
+              </For>
+            </select>
+            <p class="form-hint form-hint-top">
+              The language stamped on newly added cards. Non-English defaults use the larger
+              all-languages Scryfall bulk for the card cache. A card line without a language token
+              always means English, regardless of this setting.
+            </p>
           </div>
           <div>
             <label class="form-label">Cache Source</label>

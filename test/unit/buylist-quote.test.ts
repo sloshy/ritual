@@ -71,6 +71,41 @@ describe('quoteForPrinting', () => {
     ).toBeNull()
   })
 
+  test('never quotes a non-English request — the feed is English-only', () => {
+    const index = buildCardKingdomIndex([
+      makeCardKingdomProduct({
+        id: 8,
+        scryfallId: 'abc',
+        sku: 'DSK-0136',
+        finish: 'nonfoil',
+        priceBuy: 2.5,
+        qtyBuying: 8,
+      }),
+    ])
+
+    // Both join keys would hit; the language alone must short-circuit them.
+    expect(
+      quoteForPrinting(index, FEED, {
+        set: 'dsk',
+        collectorNumber: '136',
+        finish: 'nonfoil',
+        scryfallId: 'abc',
+        language: 'ja',
+      }),
+    ).toBeNull()
+
+    // An explicit en behaves exactly like an absent language.
+    expect(
+      quoteForPrinting(index, FEED, {
+        set: 'dsk',
+        collectorNumber: '136',
+        finish: 'nonfoil',
+        scryfallId: 'abc',
+        language: 'en',
+      }),
+    ).toMatchObject({ productId: 8 })
+  })
+
   test('reports a paused offer as not buying rather than omitting it', () => {
     const index = buildCardKingdomIndex([
       makeCardKingdomProduct({

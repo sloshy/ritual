@@ -271,7 +271,7 @@ describe('renderCsvExport', () => {
       quoteAll: false,
     })
     expect(csv).toBe(
-      'Name,Set,Collector Number,Finish,Condition,Quantity\nLightning Bolt,LEA,161,foil,NM,1',
+      'Name,Set,Collector Number,Finish,Condition,Language,Quantity\nLightning Bolt,LEA,161,foil,NM,,1',
     )
   })
 
@@ -396,9 +396,39 @@ describe('the archidekt dialect', () => {
       },
     )
     expect(csv).toBe(
-      'Scryfall ID,Quantity,Variant,Condition\n' +
-        '1b59533a-3e38-495d-873e-2f89fbd08494,2,Normal,NM\n' +
-        '9f0a30cf-b9d6-4b7e-8a6b-2a8b1c3d4e5f,1,Foil,D',
+      'Scryfall ID,Quantity,Variant,Condition,Language\n' +
+        '1b59533a-3e38-495d-873e-2f89fbd08494,2,Normal,NM,EN\n' +
+        '9f0a30cf-b9d6-4b7e-8a6b-2a8b1c3d4e5f,1,Foil,D,EN',
     )
+  })
+
+  test('renders the language as Archidekt’s CSV code, effective and never blank', () => {
+    const csv = renderCsvExport(
+      [
+        entry({}),
+        entry({ language: 'ja', fileOrder: 1 }),
+        entry({ language: 'zht', fileOrder: 2 }),
+        // No Archidekt code exists for Phyrexian; it degrades to EN, matching
+        // how the record API pushes it.
+        entry({ language: 'ph', fileOrder: 3 }),
+      ],
+      ['name', 'language'],
+      { ...csvOptions, dialect: 'archidekt' },
+    )
+    expect(csv.split('\n')).toEqual([
+      'Lightning Bolt,EN',
+      'Lightning Bolt,JP',
+      'Lightning Bolt,CT',
+      'Lightning Bolt,EN',
+    ])
+  })
+
+  test('the ritual dialect keeps the bare-for-English language spelling', () => {
+    const csv = renderCsvExport(
+      [entry({}), entry({ language: 'ja', fileOrder: 1 })],
+      ['name', 'language'],
+      { ...csvOptions, dialect: 'ritual' },
+    )
+    expect(csv.split('\n')).toEqual(['Lightning Bolt,', 'Lightning Bolt,ja'])
   })
 })

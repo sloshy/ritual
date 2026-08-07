@@ -1,4 +1,5 @@
 import type { Finish } from '../types'
+import type { CardLanguage } from '../card-language'
 import type { WantedListCardEntry, WantedListEntryState } from '../site/data-types'
 import { DEFAULT_SECTION } from '../types'
 
@@ -8,6 +9,8 @@ export type ParsedWantedEntry = {
   set?: string
   collectorNumber?: string
   finish?: Finish
+  /** The line's `[ja]`-style language token. Absent means `en`. */
+  language?: CardLanguage
   note?: string
   cardId?: number
   section?: string
@@ -32,6 +35,7 @@ export function toWantedCardEntries(parsed: ParsedWantedEntry[]): WantedListCard
     set: entry.set,
     collectorNumber: entry.collectorNumber,
     finish: entry.finish,
+    language: entry.language,
     price: 0,
     fileOrder: index,
     section: entry.section ?? DEFAULT_SECTION,

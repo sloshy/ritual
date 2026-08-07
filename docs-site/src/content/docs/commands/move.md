@@ -103,7 +103,7 @@ Select by card ID and emit a JSON record for scripting:
 
 - **By name**: punctuation-, case-, and accent-insensitive; an exact name match wins, otherwise substring matches are used.
 - **By card ID**: `--card-id <N>` targets an entry by its persistent `&N` suffix in the source list. A card name given alongside it must match the ID's entry, or the move is refused with a usage error naming both (`--card-id 2 is 'Brainstorm', which does not match 'Sol Ring'.`) — a stale ID would otherwise move the wrong card. ID-only and name-only selection are unaffected.
-- **Narrowing**: when the name matches several distinct printings (set / collector number / finish), the command refuses to pick one arbitrarily — it exits with a usage error listing the printings. Narrow with `--set`, `--collector-number`, `--finish`, or `--card-id`.
+- **Narrowing**: when the name matches several distinct variants (set / collector number / finish / language), the command refuses to pick one arbitrarily — it exits with a usage error listing them. Narrow with `--set`, `--collector-number`, `--finish`, or `--card-id`; two copies differing only by language (a bare English line beside a `[ja]` one) are distinct variants, and `--card-id` is what pins one of them.
 - **Quantity**: `-q` moves that many copies of the _same_ printing. Requesting more copies than the source list holds is an error, and nothing is moved.
 
 ### Printings for Collection Destinations
@@ -129,6 +129,7 @@ Key behaviors:
 - **Deck moves**: Moving a card from a deck decrements its quantity by 1. The line is removed when quantity reaches 0.
 - **Note preservation**: Notes (`{note}`) on deck, collection, and wanted list entries are carried over to the destination list. The one exception is a quantity-merge onto an existing deck line that already carries a different note — the existing note wins and the dropped note is reported after saving.
 - **Label preservation**: A collection entry's `[labels]` override travels with a collection→collection move; moves to a deck or wanted list drop it, since those formats carry no labels token. (The list _default_ never travels — the destination collection's own front matter applies.)
+- **Language preservation**: A card's language token (`[ja]`) travels with the move to any list type — a bare line stays bare, since a bare line always means English. When a printing is resolved for a collection destination, its availability in the card's language is checked like the printing itself, and the JSON record's `card` includes `language` for non-English copies.
 - **Name-only wanted entries**: If a card has no set/collector number (i.e., it is a name-only wanted list entry) and the destination requires a printing (e.g., a collection), you will be prompted to resolve a printing before the move is queued. The picker lists each printing's price in your configured `defaultCurrency` — see [Printing and Finish Prices](/commands/edit/#printing-and-finish-prices).
 - **Single destination**: If only one valid destination is configured, the destination prompt is skipped and the card is queued immediately.
 - **Change tracking**: Source files receive a `Moved … to …` changelog entry. Destination files receive a `Moved … from …` changelog entry.

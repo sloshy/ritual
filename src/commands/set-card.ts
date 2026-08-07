@@ -4,11 +4,14 @@ import {
   createSetCommanderChange,
   createSetFinishChange,
   createSetLabelChange,
+  createSetLanguageChange,
   createSetPrintingChange,
   createSetSectionChange,
   createUnsetCommanderChange,
   type ConditionUpdate,
 } from '../change-event'
+import { languageDisplayName, type CardLanguage } from '../card-language'
+import type { PrintingFields } from '../card-printing'
 import { parseCardLabelsToken, type CardLabel } from '../card-labels'
 import type { CardMutationChange } from '../list-mutate'
 import { applyTargetedChanges } from './line-mutate'
@@ -27,7 +30,9 @@ import {
   describeEntry,
   ensureFinishAvailable,
   ensureFinishAvailableForEntry,
+  ensureLanguageAvailableForEntry,
   parseCardIdFlag,
+  parseLanguageFlag,
   resolveListSelection,
   resolveListTypeFlag,
   resolvePinnedPrinting,
@@ -55,6 +60,8 @@ type SetCardOptions = {
   collectorNumber?: string
   finish?: Finish
   condition?: ConditionUpdate
+  /** The new language; `en` clears the token (a bare line means English). */
+  language?: CardLanguage
   /** The new label override; an empty array (`--label none`) clears it. */
   label?: CardLabel[]
   section?: string
@@ -132,6 +139,11 @@ export function registerSetCardCommand(program: Command): void {
       .option('--collector-number <cn>', 'New collector number — requires --set')
       .option('--finish <finish>', `New finish: ${VALID_FINISHES.join(', ')}`, parseFinishFlag)
       .option(
+        '--language <code>',
+        'New language (e.g. ja); en clears the token — a bare line means English. Recorded as its own change, even alongside --set/--collector-number',
+        (value: string) => parseLanguageFlag(value, '(en clears the token)'),
+      )
+      .option(
         '--condition <condition>',
         `New condition: ${VALID_CONDITIONS.join(', ')}, or NONE to clear it (decks and collections only)`,
         parseConditionFlag,
@@ -163,6 +175,7 @@ export function registerSetCardCommand(program: Command): void {
             collectorNumber: options.collectorNumber,
             finish: options.finish,
             condition: options.condition,
+            language: options.language,
             label: options.label,
             section: options.section,
             commander: options.commander,
@@ -186,6 +199,8 @@ type RunInput = {
   finish: Finish | undefined
   /** A grade, or `'NONE'` to clear the recorded grade. */
   condition: ConditionUpdate | undefined
+  /** The new language; `en` clears the token. */
+  language: CardLanguage | undefined
   /** The new label override; an empty array clears it. */
   label: CardLabel[] | undefined
   section: string | undefined
@@ -208,6 +223,17 @@ function describeConditionUpdate(condition: ConditionUpdate): string {
   if (condition === 'NONE') return 'condition → none (grade cleared)'
   if (condition === 'NM') return 'condition → NM (written as an ungraded line — NM is the default)'
   return `condition → ${condition}`
+}
+
+/**
+ * How an applied language reads in the success output. `en` clears the token —
+ * a bare line is English — so it must not read as a token now on the line.
+ */
+function describeLanguageUpdate(language: CardLanguage): string {
+  if (language === 'en') {
+    return 'language → en (token cleared — a bare line means English)'
+  }
+  return `language → ${language} (${languageDisplayName(language)})`
 }
 
 /**
@@ -242,13 +268,14 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     input.set !== undefined ||
     input.finish !== undefined ||
     input.condition !== undefined ||
+    input.language !== undefined ||
     input.label !== undefined ||
     input.section !== undefined ||
     input.commander !== undefined
   if (!hasMutation) {
     throw new CardCommandError(
       'usage_error',
-      'Specify at least one change: --set/--collector-number, --finish, --condition, --label, --section, --commander, or --no-commander.',
+      'Specify at least one change: --set/--collector-number, --finish, --condition, --language, --label, --section, --commander, or --no-commander.',
       ExitCode.UsageError,
     )
   }
@@ -310,6 +337,30 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     }
   }
 
+  // A non-en language is validated against the printing the entry ends up with:
+  // the new pin when the command repins, otherwise the entry's own printing.
+  // `en` needs no check (it clears the token), and a positive "Scryfall has no
+  // such object" refuses; an unverifiable claim proceeds with a warning.
+  if (input.language !== undefined && input.language !== 'en') {
+    const printingForLanguage: PrintingFields =
+      input.set !== undefined && input.collectorNumber !== undefined
+        ? { set: input.set, collectorNumber: input.collectorNumber }
+        : { set: target.set, collectorNumber: target.collectorNumber }
+    const check = await ensureLanguageAvailableForEntry(
+      target.name,
+      printingForLanguage,
+      input.language,
+    )
+    if (!check.checked && check.reason === 'verify-failed') {
+      emitWarnings(
+        [
+          `Note: could not verify that ${printingForLanguage.set?.toUpperCase()}:${printingForLanguage.collectorNumber} exists in ${languageDisplayName(input.language)} (${input.language}) — Scryfall could not be reached${check.detail ? `: ${check.detail}` : ''}. Recording it as asserted.`,
+        ],
+        scripting,
+      )
+    }
+  }
+
   const changes: CardMutationChange[] = []
   const applied: string[] = []
 
@@ -350,6 +401,17 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
       createSetFinishChange(target.name, { finish: input.finish, cardId: target.cardId }),
     )
     applied.push(`finish → ${input.finish}`)
+  }
+
+  if (input.language !== undefined) {
+    // Always its own set-language event, even alongside a --set/--collector-number
+    // repin: the targeted apply engine's set-printing deliberately leaves the
+    // line's language token alone, so folding the language into it would drop
+    // the change — and a dedicated event keeps the changelog line explicit.
+    changes.push(
+      createSetLanguageChange(target.name, { language: input.language, cardId: target.cardId }),
+    )
+    applied.push(describeLanguageUpdate(input.language))
   }
 
   if (input.label !== undefined) {

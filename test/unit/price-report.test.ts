@@ -282,6 +282,55 @@ describe('buildPriceReport pricing rules', () => {
     )
     expect(calls).toEqual(['Shared Card'])
   })
+
+  test('pricing is language-neutral: a [ja] copy prices from the English object', async () => {
+    // An all_cards-style cache: the same printing twice, once per language.
+    // The Japanese object carries no prices of its own — Scryfall only prices
+    // the default object — so quoting it would zero the card.
+    const printings = {
+      'Test Card': [
+        makeCard(
+          { id: 'sf-en', set: 'bbb', collector_number: '7', finishes: ['nonfoil'] },
+          { usd: '3.00' },
+        ),
+        makeCard(
+          { id: 'sf-ja', set: 'bbb', collector_number: '7', finishes: ['nonfoil'], lang: 'ja' },
+          { usd: null },
+        ),
+      ],
+    }
+    const bare = await priceSingle(
+      input({
+        type: 'collection',
+        name: 'Binder',
+        entries: [
+          { name: 'Test Card', quantity: 1, set: 'bbb', collectorNumber: '7', section: 'Main' },
+        ],
+      }),
+      printings,
+    )
+    const japanese = await priceSingle(
+      input({
+        type: 'collection',
+        name: 'Binder',
+        entries: [
+          {
+            name: 'Test Card',
+            quantity: 1,
+            set: 'bbb',
+            collectorNumber: '7',
+            language: 'ja',
+            section: 'Main',
+          },
+        ],
+      }),
+      printings,
+    )
+
+    expect(bare.price).toBe(3)
+    expect(japanese.price).toBe(3)
+    expect(japanese.unpricedReason).toBeUndefined()
+  })
 })
 
 describe('buildPriceReport aggregation', () => {

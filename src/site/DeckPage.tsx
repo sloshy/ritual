@@ -16,6 +16,7 @@ import type { Card, DeckData, ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { ChangelogPage } from '../changelog-parser'
 import { findPrinting, hasSpecificPrinting } from '../card-printing'
+import { storedLanguage } from '../card-language'
 import { SymbolText } from './symbols'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, formatPrice } from '../price-currency'
@@ -407,6 +408,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           artTags: card?.artTags ?? [],
           labels: [],
           finish: entry.finish,
+          language: storedLanguage(entry.language),
           ...buylistFieldsFor(card, entry.finish),
           card,
         })

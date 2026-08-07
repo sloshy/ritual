@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { DECK_FORMAT_KEYS } from '../deck-format'
 import { CARD_LABELS } from '../card-labels'
+import { CARD_LANGUAGES } from '../card-language'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
 import { VALID_CURRENCIES } from '../price-currency'
 
@@ -134,6 +135,17 @@ export const collectorNumberField = z
   .describe('Collector number within the set. Pair with set to pin a specific printing.')
 
 export const finishField = finishSchema.optional().describe('Finish; defaults to nonfoil.')
+
+/** Derived from the canonical language vocabulary, so the tool schema cannot drift from it. */
+export const languageSchema = z.enum(CARD_LANGUAGES)
+
+export const languageField = languageSchema
+  .optional()
+  .describe(
+    'Scryfall language code (e.g. "ja"; "zhs"/"zht" for Chinese). Omitted (or "en") means ' +
+      'English — a card line only carries a language token when it is not English. Adding never ' +
+      'prompts for a language: the defaultLanguage config key stamps new cards.',
+  )
 
 export const conditionField = conditionSchema
   .optional()

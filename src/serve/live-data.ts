@@ -8,6 +8,7 @@ import { fetchSymbology } from '../scryfall'
 import {
   getBannedPrintings,
   getDefaultCurrency,
+  getDefaultLanguage,
   getSearchDebounceMs,
   getSiteSelectionConfig,
   getSiteSellMode,
@@ -154,6 +155,7 @@ export function createLiveSiteData(): LiveSiteData {
       defaultCurrency: getDefaultCurrency(config),
       bannedPrintings: [...getBannedPrintings(config)].sort(),
       searchDebounceMs: getSearchDebounceMs(config),
+      defaultLanguage: getDefaultLanguage(config),
       selection: getSiteSelectionConfig(config.site),
       sellMode: getSiteSellMode(config),
     })
@@ -283,6 +285,7 @@ export function createLiveSiteData(): LiveSiteData {
       availableCurrencies: LIVE_CURRENCIES,
       pricesDate,
       searchDebounceMs: getSearchDebounceMs(config),
+      defaultLanguage: getDefaultLanguage(config),
       // Same-origin marker: this payload is only ever served by `serve --api`.
       apiBaseUrl: '',
       sellMode: getSiteSellMode(config),

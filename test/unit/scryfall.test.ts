@@ -5,6 +5,7 @@ import {
   classifyFetchCard,
   comparePrintings,
   computeRepresentativePrints,
+  mapScryfallCard,
   getCardGames,
   isArenaOnly,
   isArtSeries,
@@ -227,6 +228,53 @@ describe('ScryfallClient', () => {
       mockHttp.mock(PRINTING_URL, () => Response.json(art))
 
       expect(await client.fetchPrintingByCollectorNumber('sta', '90')).toBeNull()
+    })
+
+    test('a non-en language fetches the /{lang} endpoint and merges by Scryfall id', async () => {
+      const en = makeScryfallCard({ id: 'sta-90', name: 'Demonic Tutor', set: 'sta' })
+      await mockCache.set('Demonic Tutor', [en])
+      const ja = makeScryfallCard({
+        id: 'sta-90-ja',
+        name: 'Demonic Tutor',
+        set: 'sta',
+        collector_number: '90',
+        lang: 'ja',
+      })
+      mockHttp.mock('https://api.scryfall.com/cards/sta/90/ja', () => Response.json(ja))
+
+      const result = await client.fetchPrintingByCollectorNumber('STA', '90', 'ja')
+
+      expect(result?.id).toBe('sta-90-ja')
+      expect(result?.lang).toBe('ja')
+      // Same set:cn as the cached en object — the id, not the printing key,
+      // is the merge identity, so both language objects coexist.
+      expect((await mockCache.get('Demonic Tutor'))?.map((c) => c.id)).toEqual([
+        'sta-90',
+        'sta-90-ja',
+      ])
+    })
+
+    test('an explicit en language keeps the bare printing URL', async () => {
+      const card = makeScryfallCard({ id: 'sta-90', name: 'Demonic Tutor', set: 'sta' })
+      mockHttp.mock(PRINTING_URL, () => Response.json(card))
+
+      const result = await client.fetchPrintingByCollectorNumber('sta', '90', 'en')
+
+      expect(result?.id).toBe('sta-90')
+    })
+  })
+
+  describe('getCardsBySet', () => {
+    test('prefers the en object when several languages share a collector number', async () => {
+      const en = makeScryfallCard({ id: 'p1-en', name: 'Shock', set: 'p1', collector_number: '7' })
+      const ja: ScryfallCard = { ...en, id: 'p1-ja', lang: 'ja' }
+      // The ja object listed first — cache order must not decide the winner.
+      await mockCache.set('Shock', [ja, en])
+
+      const bySet = await client.getCardsBySet('P1')
+
+      expect(bySet.get('7')?.id).toBe('p1-en')
+      expect(bySet.size).toBe(1)
     })
   })
 
@@ -715,6 +763,46 @@ describe('comparePrintings', () => {
     const result = cards.map((c) => `${c.set}:${c.collector_number}`)
     // Newest first; same-date pairs broken by set code; same-date+set broken by CN
     expect(result).toEqual(['CMM:1', 'PLST:10E-30', 'MOM:12', 'FDN:2', 'FDN:294'])
+  })
+
+  test('same printing in several languages lists the en (default) object first', () => {
+    const ja: ScryfallCard = { ...makePrinting('FDN', '2', '2024-01-01'), lang: 'ja' }
+    const en = makePrinting('FDN', '2', '2024-01-01')
+    expect(comparePrintings(en, ja)).toBeLessThan(0)
+    expect(comparePrintings(ja, en)).toBeGreaterThan(0)
+  })
+
+  test('an absent lang counts as en and ties with an explicit en', () => {
+    const bare = makePrinting('FDN', '2', '2024-01-01')
+    const explicit: ScryfallCard = { ...makePrinting('FDN', '2', '2024-01-01'), lang: 'en' }
+    expect(comparePrintings(bare, explicit)).toBe(0)
+  })
+
+  test('two non-en languages of the same printing sort alphabetically for stability', () => {
+    const ja: ScryfallCard = { ...makePrinting('FDN', '2', '2024-01-01'), lang: 'ja' }
+    const de: ScryfallCard = { ...makePrinting('FDN', '2', '2024-01-01'), lang: 'de' }
+    expect(comparePrintings(de, ja)).toBeLessThan(0)
+  })
+
+  test('language never outranks the collector-number key', () => {
+    // A ja object of CN 2 still sorts before an en object of CN 294.
+    const ja: ScryfallCard = { ...makePrinting('FDN', '2', '2024-01-01'), lang: 'ja' }
+    const en = makePrinting('FDN', '294', '2024-01-01')
+    expect(comparePrintings(ja, en)).toBeLessThan(0)
+  })
+})
+
+describe('mapScryfallCard language retention', () => {
+  test('retains a non-en lang from the bulk object', () => {
+    const mapped = mapScryfallCard(makeScryfallCard({ lang: 'ja' }))
+    expect(mapped.lang).toBe('ja')
+  })
+
+  test('omits lang entirely for en objects — absent means en', () => {
+    // The en-mode (default_cards) cache stays byte-identical to the
+    // pre-language format: no `lang` key is ever written for English objects.
+    expect('lang' in mapScryfallCard(makeScryfallCard({ lang: 'en' }))).toBe(false)
+    expect('lang' in mapScryfallCard(makeScryfallCard())).toBe(false)
   })
 })
 

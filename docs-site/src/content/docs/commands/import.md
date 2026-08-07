@@ -296,6 +296,7 @@ neither line is printed.
 | `collector-number` | Collector number (a string, e.g. `221★`). Required for collections.  |
 | `condition`        | Card condition. Not allowed for wanted lists (they carry none).      |
 | `finish`           | Foil/etched finish.                                                  |
+| `language`         | Card language (Scryfall codes or aliases — see below).               |
 | `section`          | Section/board. Blank cells fall back to `Main`.                      |
 | `quantity`         | Copies per row. Blank cells mean one copy.                           |
 
@@ -314,6 +315,7 @@ CSV exports differ between tools, so cell values are normalized during import (a
 
 - **Condition** — canonical codes (`NM`, `LP`, `MP`, `HP`, `DMG`), spelled-out names (`Near Mint`, `Lightly Played`/`Light Played`/`Slightly Played`, `Moderately Played`, `Heavily Played`/`Heavy Played`, `Damaged`, plus `Mint`, `Played`, `Poor`), short codes (`SP` → LP, `PL` → MP), and single letters (`N`, `M`, `L`, `H`, `D`).
 - **Finish** — `F`/`foil` (and `yes`/`true`/`1`) for foil, `E`/`etched`/`etched foil`/`foil etched` for etched; empty cells, `non-foil`/`nonfoil`, `normal`, `regular`, `no`, `false`, and `0` all mean non-foil.
+- **Language** — Scryfall codes (`en`, `ja`, `zhs`, ...), common printed-code aliases (`JP` → `ja`, `KR` → `ko`, `SP` → `es`, `CS` → `zhs`, `CT` → `zht` — Archidekt's CSV vocabulary), and full English names (`Japanese` → `ja`). An **explicit** cell value is honored as-is, and a **blank** cell in a present language column means English — the source recorded no language, so none is invented. Only when the import carries no language column at all are pinned rows stamped with the configured [`defaultLanguage`](/configuration/#default-language) — falling back to English when the printing does not exist in that language, then to the printing's only available language. Rows without a pinned printing are never stamped. English is written as a bare line (no token).
 - **Section** — blank means `Main`. For decks, common board names normalize to canonical headers: `side`/`sideboard`/`sb` → `Sideboard`, `maybe`/`maybeboard` → `Maybeboard`, `main`/`mainboard`/`maindeck`/`deck` → `Main`, `commander`/`command`/`command zone` → `Commander`. Anything else becomes a custom section verbatim.
 - **Quantity** — a positive integer, tolerating `4x`/`x4`.
 - **Set codes** — stored lowercase internally and written uppercase in the markdown output, like everywhere else in Ritual.

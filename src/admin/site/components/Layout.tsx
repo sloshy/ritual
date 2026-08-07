@@ -1,5 +1,6 @@
 import type { ParentComponent } from 'solid-js'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
+import { useDefaultLanguage } from '../hooks/useDefaultLanguage'
 import { createMemo, createSignal, For, Show } from 'solid-js'
 import { PAGE_DISPLAY, type Page, useRouting } from '../routing'
 import { NavLink } from './NavLink'
@@ -46,6 +47,12 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
   // The navbar selection surfaces show prices, so they must use the workspace's
   // configured currency rather than assuming USD.
   const defaultCurrency = useDefaultCurrency()
+  // Deliberately wired here rather than per page: Layout is the logged-in shell
+  // (`/api/config` requires auth, so the app root would fetch too early), it
+  // mounts before any editor page, and the editors' shared add/printing dialogs
+  // read the non-reactive runtime holder this hook primes. Settings pushes
+  // later changes directly, so a once-only fetch at the shell is enough.
+  useDefaultLanguage()
   const routing = useRouting()
   // Memoized: the editor rewrites the route as its list selection changes, which
   // must not re-run the active state of all 14 nav links.

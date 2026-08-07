@@ -1,5 +1,12 @@
 import type { PrintingTuple } from '../change-event'
 
+/**
+ * Targeting is deliberately name/set/collector-number/cardId-based — an
+ * entry's language (like its finish or condition) is an *attribute* a change
+ * edits, not part of how a change finds its target. A `set-language` change
+ * therefore targets exactly like `set-finish` does, and two same-printing
+ * entries differing only by language are disambiguated by `cardId`/`fileOrder`.
+ */
 export type TargetableEntry = {
   cardId?: number
   fileOrder?: number
@@ -27,6 +34,7 @@ export function findEntryPrintingById(
     collectorNumber: entry.collectorNumber,
     finish: entry.finish,
     condition: entry.condition,
+    language: entry.language,
   }
 }
 

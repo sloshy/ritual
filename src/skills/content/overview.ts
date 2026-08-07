@@ -101,6 +101,12 @@ Deck card lines start with a quantity; collection and wanted lines start with \`
   \`cleanup\`, and the CLI editors print an advisory naming such a line (a 1-3 digit leading integer; a real name like \`1996 World Champion\`
   is left alone). It is advisory only: the line parses and survives every save, so fix the file.
 - \`[foil]\`/\`[etched]\` is the finish, \`[LP]\`/\`[MP]\`/\`[HP]\`/\`[DMG]\` the condition (the default \`NM\` is not written), \`{...}\` a note.
+- \`[ja]\`-style tokens are the card's **language** — a lowercase Scryfall language code
+  (\`en es fr de it pt ja ko ru zhs zht he la grc ar sa ph\`; note \`zhs\`/\`zht\` for Chinese,
+  not ISO codes). The token is **omitted for English**: a bare line always means \`en\`,
+  whatever the configured default, so files stay self-describing. Canonical token order is
+  finish, condition, language, labels, note (\`- Sol Ring (LEA:270) [foil] [LP] [ja] [keep] {trade bait} &7\`;
+  wanted lines skip condition; deck lines skip labels).
 - \`[sale]\`/\`[trade]\`/\`[sale,trade]\`/\`[keep]\` (collections only, between condition and note)
   is a **card label override**: \`sale\` and \`trade\` combine, \`keep\` stands alone. A card's
   *effective* labels are its own token when present, else the collection's front-matter
@@ -204,6 +210,9 @@ ritual login status               # stored login + whether its session still aut
 ritual login logout               # remove the stored Archidekt session
 ritual config set <prop> <value>  # set a config value (dot notation for nested keys)
 ritual config set defaultCurrency eur  # currency price commands/displays default to (usd | eur | tix)
+ritual config set defaultLanguage ja   # language stamped on newly added cards (Scryfall codes;
+                                  #   aliases like jp/Japanese normalize). Non-en switches cache
+                                  #   downloads to Scryfall's much larger all-cards bulk
 ritual config set searchDebounceMs 250 # web editors' add-card search debounce in ms (0 disables)
 ritual config get <prop>          # read one value (exit 3 when unset)
 ritual config list                # print the full effective config (defaults marked)

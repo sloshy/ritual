@@ -9,6 +9,7 @@ import {
   parseCacheSource,
   parseCollectionSyncConfig,
   parseDefaultCurrency,
+  parseDefaultLanguage,
   parseSearchDebounceMs,
   parseSiteConfig,
   refreshRitualConfig,
@@ -42,6 +43,7 @@ const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set(
     collectionsDir: true,
     wantedDir: true,
     defaultCurrency: true,
+    defaultLanguage: true,
     cacheLockTimeoutSeconds: true,
     cacheSource: true,
     cacheFeedUrl: true,
@@ -69,6 +71,7 @@ const DIRECTORY_CONFIG_KEYS = ['decksDir', 'collectionsDir', 'wantedDir'] as con
  */
 type ScalarConfigKey =
   | 'defaultCurrency'
+  | 'defaultLanguage'
   | 'cacheLockTimeoutSeconds'
   | 'cacheSource'
   | 'searchDebounceMs'
@@ -130,6 +133,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     // been produced, so a bad update never half-applies.
     const scalarError =
       applyScalarUpdate(raw, updates, 'defaultCurrency', parseDefaultCurrency) ??
+      applyScalarUpdate(raw, updates, 'defaultLanguage', parseDefaultLanguage) ??
       applyScalarUpdate(raw, updates, 'cacheLockTimeoutSeconds', parseCacheLockTimeoutSeconds) ??
       applyScalarUpdate(raw, updates, 'cacheSource', parseCacheSource) ??
       applyScalarUpdate(raw, updates, 'searchDebounceMs', parseSearchDebounceMs)

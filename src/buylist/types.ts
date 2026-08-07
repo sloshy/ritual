@@ -8,6 +8,7 @@
  * lives here so the site bundle never reaches for them.
  */
 
+import type { CardLanguage } from '../card-language'
 import type { Finish } from '../types'
 import { printingKey } from '../printing-key'
 import type { BuyerId } from './buyers'
@@ -29,6 +30,12 @@ export type BuylistQuoteRequest = {
   finish: Finish
   /** The Scryfall id of this exact printing, when the client has resolved it. */
   scryfallId?: string
+  /**
+   * The entry's language; absent means English. Buyer feeds are English-only,
+   * so a non-English request is never matched — the matcher returns no quote
+   * rather than quoting the English price for a foreign copy.
+   */
+  language?: CardLanguage
 }
 
 /**

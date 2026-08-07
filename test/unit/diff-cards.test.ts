@@ -233,6 +233,45 @@ describe('diffCollectionEntries', () => {
     expect(changes).toHaveLength(0)
   })
 
+  test('language joins the composite key: a hand-edited [ja] token is remove+add', () => {
+    const oldEntries: CollectionEntry[] = [
+      { name: 'Sol Ring', quantity: 1, set: 'c21', collectorNumber: '1', section: 'Main' },
+    ]
+    const newEntries: CollectionEntry[] = [
+      {
+        name: 'Sol Ring',
+        quantity: 1,
+        set: 'c21',
+        collectorNumber: '1',
+        language: 'ja',
+        section: 'Main',
+      },
+    ]
+
+    const changes = diffCollectionEntries(oldEntries, newEntries)
+    expect(changes.map((c) => c.action).sort()).toEqual(['add', 'remove'])
+    const add = changes.find((c) => c.action === 'add')!
+    expect(add.action === 'add' && add.language).toBe('ja')
+  })
+
+  test('an explicit [en] token folds equal to a bare line (no change)', () => {
+    const oldEntries: CollectionEntry[] = [
+      { name: 'Sol Ring', quantity: 1, set: 'c21', collectorNumber: '1', section: 'Main' },
+    ]
+    const newEntries: CollectionEntry[] = [
+      {
+        name: 'Sol Ring',
+        quantity: 1,
+        set: 'c21',
+        collectorNumber: '1',
+        language: 'en',
+        section: 'Main',
+      },
+    ]
+
+    expect(diffCollectionEntries(oldEntries, newEntries)).toHaveLength(0)
+  })
+
   test('falls back to composite key without cardId', () => {
     const oldEntries: CollectionEntry[] = [
       { name: 'Sol Ring', quantity: 1, set: 'c21', collectorNumber: '167', section: 'Main' },

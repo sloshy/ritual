@@ -4,6 +4,7 @@ import {
   formatPrintingLabel,
   lookupPrintingCard,
   printingKey,
+  printingLanguageKey,
 } from '../../src/printing-key'
 import { findPrinting } from '../../src/card-printing'
 import { makeScryfallCard } from '../test-utils'
@@ -76,6 +77,77 @@ describe('lookupPrintingCard', () => {
   test('a line with only half a printing is treated as unpinned', () => {
     const cards = { 'Lightning Bolt': representative }
     expect(lookupPrintingCard(cards, { name: 'Lightning Bolt', set: 'lea' })).toBe(representative)
+  })
+
+  describe('per-language lookups', () => {
+    const japanese = makeScryfallCard({ id: 'lea-ja', set: 'lea', collector_number: '161' })
+
+    test('a non-en ref resolves through its @lang key first', () => {
+      const cards = { 'lea:161': pinned, 'lea:161@ja': japanese, 'Lightning Bolt': representative }
+      expect(
+        lookupPrintingCard(cards, {
+          name: 'Lightning Bolt',
+          set: 'LEA',
+          collectorNumber: '161',
+          language: 'ja',
+        }),
+      ).toBe(japanese)
+    })
+
+    test('an absent @lang key falls through to the plain key (the default-language object)', () => {
+      // The plain key still holds the printing's default object — prices and
+      // images — so a [ja] line on an en-only bake resolves to it.
+      const cards = { 'lea:161': pinned, 'Lightning Bolt': representative }
+      expect(
+        lookupPrintingCard(cards, {
+          name: 'Lightning Bolt',
+          set: 'lea',
+          collectorNumber: '161',
+          language: 'ja',
+        }),
+      ).toBe(pinned)
+    })
+
+    test('an explicit null at the @lang key does not fall through', () => {
+      // Same explicit-null contract as the plain key: null records "looked for,
+      // not cached", so falling through would substitute a different object.
+      const cards = {
+        'lea:161': pinned,
+        'lea:161@ja': null,
+        'Lightning Bolt': representative,
+      }
+      expect(
+        lookupPrintingCard(cards, {
+          name: 'Lightning Bolt',
+          set: 'lea',
+          collectorNumber: '161',
+          language: 'ja',
+        }),
+      ).toBeNull()
+    })
+
+    test('an en (or absent) language never reads @lang keys', () => {
+      // The plain key IS the en object's home; `lea:161@en` is never written.
+      const cards = { 'lea:161': pinned, 'lea:161@ja': japanese }
+      expect(
+        lookupPrintingCard(cards, {
+          name: 'Lightning Bolt',
+          set: 'lea',
+          collectorNumber: '161',
+          language: 'en',
+        }),
+      ).toBe(pinned)
+      expect(
+        lookupPrintingCard(cards, { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' }),
+      ).toBe(pinned)
+    })
+  })
+})
+
+describe('printingLanguageKey', () => {
+  test('appends @lang to the folded printing key', () => {
+    expect(printingLanguageKey('LEA', '161', 'ja')).toBe('lea:161@ja')
+    expect(printingLanguageKey('mkm', '507A', 'zhs')).toBe('mkm:507a@zhs')
   })
 })
 

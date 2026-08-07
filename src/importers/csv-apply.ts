@@ -8,6 +8,7 @@ import {
   type DeckData,
   type DeckSection,
   type Finish,
+  type ScryfallCard,
 } from '../types'
 import type { ListType } from '../list-type'
 import type { DeckFormatKey } from '../deck-format'
@@ -17,6 +18,11 @@ import { serializeDeckToMarkdown } from '../deck-file'
 import { parseCollectionFile, type CollectionEntry } from '../collection-file'
 import { parseWantedListFile, type WantedListEntry } from '../commands/wanted-helpers'
 import { formatCollectionLine, formatWantedListLine } from '../card-line'
+import type { CardLanguage } from '../card-language'
+import type { CardPrintingsLookup } from '../card-printing'
+import { resolvePrintingLanguage } from '../printing-language'
+import { getDefaultLanguage } from '../ritual-config'
+import { getCachedCardPrintings } from '../scryfall'
 import { withFrontMatter } from '../editor/list-export'
 import { parseFlatListFrontMatter } from '../flat-list-front-matter'
 import type { CardLabel } from '../card-labels'
@@ -56,6 +62,22 @@ export type CsvImportMode = 'create' | 'overwrite' | 'append'
 export type CsvImportOptions = {
   /** Validate and resolve everything, but write neither the list file nor its changelog. */
   dryRun?: boolean
+  /**
+   * Whether the source explicitly said something about language — a CSV with a
+   * mapped language column, even one whose every cell is blank or `en`. When
+   * true, the default-language stamping is skipped entirely: the column's cells
+   * are honored verbatim, and a blank cell means English. Without it an all-EN
+   * column would be indistinguishable from no column at all.
+   */
+  sourceHadLanguageColumn?: boolean
+  /**
+   * The language stamped on pinned entries when the source carried none;
+   * defaults to the configured `defaultLanguage`. A test seam — production
+   * callers omit it.
+   */
+  defaultLanguage?: CardLanguage
+  /** Printings lookup for the language stamping; the Scryfall cache by default. */
+  lookupPrintings?: CardPrintingsLookup
 }
 
 /**
@@ -122,6 +144,7 @@ function buildDeckMarkdown(
       collectorNumber: entry.collectorNumber,
       finish: entry.finish,
       condition: entry.condition,
+      language: entry.language,
       note: entry.note,
     })
   }
@@ -180,6 +203,8 @@ type FlatLineEntry = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Language token — carried through from parsed entries so a re-serialize never drops `[ja]`. */
+  language?: CardLanguage
   /** Label override — parsed collection entries only; imported rows never carry one. */
   labels?: CardLabel[]
   note?: string
@@ -189,26 +214,29 @@ type FlatLineEntry = {
 /** Render one flat-list bullet line in the target list type's canonical format. */
 function formatFlatListLine(listType: FlatListType, entry: FlatLineEntry): string {
   if (listType === 'collection') {
-    return formatCollectionLine(
-      entry.name,
-      entry.set ?? '',
-      entry.collectorNumber ?? '',
-      entry.finish ?? 'nonfoil',
-      entry.condition,
-      entry.labels,
-      entry.note,
-      entry.cardId,
-    )
+    return formatCollectionLine({
+      cardName: entry.name,
+      set: entry.set ?? '',
+      collectorNumber: entry.collectorNumber ?? '',
+      finish: entry.finish ?? 'nonfoil',
+      condition: entry.condition,
+      language: entry.language,
+      labels: entry.labels,
+      note: entry.note,
+      cardId: entry.cardId,
+    })
   }
-  return formatWantedListLine(
-    entry.name,
-    entry.set && entry.collectorNumber
-      ? { set: entry.set, collectorNumber: entry.collectorNumber }
-      : undefined,
-    entry.finish,
-    entry.note,
-    entry.cardId,
-  )
+  return formatWantedListLine({
+    name: entry.name,
+    printing:
+      entry.set && entry.collectorNumber
+        ? { set: entry.set, collectorNumber: entry.collectorNumber }
+        : undefined,
+    finish: entry.finish,
+    language: entry.language,
+    note: entry.note,
+    cardId: entry.cardId,
+  })
 }
 
 function buildFlatListMarkdown(
@@ -318,6 +346,7 @@ function appendToDeck(
         collectorNumber: entry.collectorNumber,
         finish: entry.finish,
         condition: entry.condition,
+        language: entry.language,
         note: entry.note,
         cardId,
       })
@@ -329,6 +358,7 @@ function appendToDeck(
         collectorNumber: entry.collectorNumber,
         finish: entry.finish,
         condition: entry.condition,
+        language: entry.language,
         section: entry.section,
         board: boardForSection(entry.section),
         cardId,
@@ -360,6 +390,7 @@ function appendToFlatList(
       collectorNumber: copy.collectorNumber,
       finish: copy.finish,
       condition: listType === 'collection' ? copy.condition : undefined,
+      language: copy.language,
       section: copy.section,
       cardId: copy.cardId,
     }),
@@ -416,11 +447,67 @@ async function appendToList(
 }
 
 /**
+ * Stamp the configured default language on pinned entries whose source said
+ * nothing about language, per {@link resolvePrintingLanguage}: the language a
+ * source is silent about is the user's primary one when the printing supports
+ * it (or when the cache cannot say), else English, else the only available.
+ *
+ * Applies only when the source said nothing about language: a mapped language
+ * column (`sourceHadLanguageColumn`) disables stamping outright — its cells,
+ * including blank ones (which mean English), are honored verbatim even when
+ * every one of them is empty or `en`. Sources without column info (text-file
+ * imports) fall back to a batch heuristic: a language token anywhere in the
+ * batch means the source was language-aware. Under an English
+ * `defaultLanguage` a bare import stays bare, and unpinned entries (no
+ * set + collector number) are never stamped: without a printing there is
+ * nothing to check availability against, and the line stays self-describing.
+ */
+async function stampDefaultLanguage(
+  entries: ImportCardEntry[],
+  options: CsvImportOptions,
+): Promise<ImportCardEntry[]> {
+  const preferred = options.defaultLanguage ?? getDefaultLanguage()
+  if (preferred === 'en') return entries
+  if (options.sourceHadLanguageColumn) return entries
+  if (entries.some((entry) => entry.language !== undefined)) return entries
+
+  const lookup = options.lookupPrintings ?? getCachedCardPrintings
+  // One lookup per distinct name: imports repeat names often, and the lookup is
+  // a cache read.
+  const printingsByName = new Map<string, ScryfallCard[]>()
+  const stamped: ImportCardEntry[] = []
+  for (const entry of entries) {
+    if (!entry.set || !entry.collectorNumber) {
+      stamped.push(entry)
+      continue
+    }
+    const memoKey = entry.name.toLowerCase()
+    let printings = printingsByName.get(memoKey)
+    if (!printings) {
+      printings = await lookup(entry.name)
+      printingsByName.set(memoKey, printings)
+    }
+    const { language } = resolvePrintingLanguage(
+      printings,
+      entry.set,
+      entry.collectorNumber,
+      preferred,
+    )
+    // English is written bare, so an `en` choice leaves the entry untouched.
+    stamped.push(language === 'en' ? entry : { ...entry, language })
+  }
+  return stamped
+}
+
+/**
  * Apply converted card entries to the target list. Create mode refuses to
  * replace an existing file; overwrite replaces it; append requires an existing
  * list (resolved like every other list-name lookup) and records the added
  * cards in the list's changelog. A dry run performs every validation and
  * resolution step but writes nothing (no list file, no changelog).
+ *
+ * Entries from a language-silent source are stamped with the configured
+ * default language first — see {@link stampDefaultLanguage}.
  */
 export async function applyCsvImport(
   target: CsvImportTarget,
@@ -428,8 +515,9 @@ export async function applyCsvImport(
   options: CsvImportOptions = {},
 ): Promise<CsvImportOutcome> {
   const dryRun = options.dryRun === true
+  const withLanguage = await stampDefaultLanguage(entries, options)
   if (target.mode === 'append') {
-    return appendToList(target, entries, dryRun)
+    return appendToList(target, withLanguage, dryRun)
   }
-  return createList(target, entries, dryRun)
+  return createList(target, withLanguage, dryRun)
 }

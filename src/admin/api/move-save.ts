@@ -3,6 +3,7 @@ import { appendChangelog } from '../../changelog-writer'
 import {
   createMoveToChange,
   listRefLabel,
+  printingOptionsFrom,
   type ChangeEvent,
   type ListRef,
   type MoveFromChange,
@@ -52,6 +53,7 @@ function physicalFromMove(mv: MoveFromChange, listEntry: ListEntry): PhysicalCar
     collectorNumber: mv.collectorNumber,
     finish: mv.finish,
     condition: mv.condition,
+    language: mv.language,
     listEntry,
   }
 }
@@ -129,14 +131,7 @@ export async function applyOutgoingMoves(
   }
   for (const { listEntry, moves } of byDest.values()) {
     const events = moves.map((mv) =>
-      createMoveToChange(mv.cardName, {
-        set: mv.set,
-        collectorNumber: mv.collectorNumber,
-        finish: mv.finish,
-        condition: mv.condition,
-        cardId: mv.cardId,
-        from: sourceRef,
-      }),
+      createMoveToChange(mv.cardName, { ...printingOptionsFrom(mv), from: sourceRef }),
     )
     written.push(await appendChangelog(listEntry.filePath, listEntry.ref.name, events))
   }

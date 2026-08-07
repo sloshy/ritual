@@ -7,12 +7,17 @@ import { createDefaultFileSystemClient, type HttpClient } from '../interfaces'
 import { writeFileAtomic } from '../cache/atomic-write'
 import { throwHttpError } from '../errors'
 import type { BulkCacheFiles } from '../scryfall/client'
+import { configuredCardBulkType } from '../scryfall/bulk-manifest'
 import {
+  CARD_BULK_TYPE_BY_KIND,
+  CARD_KIND_BY_BULK_TYPE,
   FEED_KINDS,
+  TAG_FEED_KINDS,
   parseCacheFeed,
   type CacheFeedDocument,
   type CacheFeedEntry,
   type CacheFeedKind,
+  type CardFeedKind,
 } from './feed'
 import { CACHE_FEED_LOG_PREFIX } from './host'
 import { streamToFile } from './download'
@@ -78,13 +83,13 @@ export type FeedSyncResult = {
   outcome: 'ingested' | 'unchanged'
 }
 
-/** The artifacts a fetch produced, keyed by kind, plus what changed. */
+/** The artifacts a fetch produced, plus what changed. */
 export type FetchResult = {
   feed: CacheFeedDocument
-  /** Kinds whose infoHash differed from the last ingested state. */
+  /** Required kinds whose infoHash differed from the last ingested state. */
   changedKinds: CacheFeedKind[]
-  /** Local path of every artifact in the current feed (downloaded or reused). */
-  files: Record<CacheFeedKind, string>
+  /** Local path of every required artifact (downloaded or reused), ready to ingest. */
+  files: BulkCacheFiles
 }
 
 export type CacheFeedClientOptions = {
@@ -95,6 +100,14 @@ export type CacheFeedClientOptions = {
   http: HttpClient
   /** Ingests the downloaded artifacts (normally `preloadCacheFromFiles`). */
   ingest: (files: BulkCacheFiles) => Promise<void>
+  /**
+   * Which card bulk to fetch from the feed. Defaults to what the configured
+   * `defaultLanguage` demands (`default-cards` for `en`, `all-cards`
+   * otherwise), resolved at sync time so every construction site — the CLI,
+   * `refreshCardCacheFromFeed`, the cache server — honors the config without
+   * each having to read it.
+   */
+  cardKind?: CardFeedKind
   /** Download over BitTorrent (with web-seed fallback); false = plain HTTP. */
   p2p?: boolean
   /** Fixed TCP port for torrent peers (random when omitted). */
@@ -130,6 +143,16 @@ export class CacheFeedClient {
     ;(this.options.log ?? console.log)(`${CACHE_FEED_LOG_PREFIX} ${message}`)
   }
 
+  /** The card kind this client fetches — explicit option, else what the config demands. */
+  private get cardKind(): CardFeedKind {
+    return this.options.cardKind ?? CARD_KIND_BY_BULK_TYPE[configuredCardBulkType()]
+  }
+
+  /** The kinds this client downloads and ingests: its card bulk plus both tag bulks. */
+  private requiredKinds(): CacheFeedKind[] {
+    return [this.cardKind, ...TAG_FEED_KINDS]
+  }
+
   /** Read the persisted state; malformed or missing state means "never ingested". */
   async loadState(): Promise<CacheFeedClientState> {
     let raw: string
@@ -151,10 +174,21 @@ export class CacheFeedClient {
     }
   }
 
-  /** Record the current feed's artifacts as ingested. */
-  async saveState(feed: CacheFeedDocument, ingestedAt: Date): Promise<void> {
+  /**
+   * Record the feed's artifacts for the given kinds as ingested. Only the
+   * kinds this client actually ingested are recorded — any other card kind's
+   * old record is deliberately dropped, because the ingest just overwrote the
+   * cache's contents: after a `defaultLanguage` switch and back, an "unchanged"
+   * answer based on a stale record would leave the wrong bulk's data in place.
+   */
+  async saveState(
+    feed: CacheFeedDocument,
+    ingestedAt: Date,
+    kinds: readonly CacheFeedKind[],
+  ): Promise<void> {
     const state: CacheFeedClientState = { ingested: {} }
     for (const entry of feed.entries) {
+      if (!kinds.includes(entry.kind)) continue
       state.ingested[entry.kind] = {
         infoHash: entry.infoHash,
         ingestedAt: ingestedAt.toISOString(),
@@ -175,24 +209,32 @@ export class CacheFeedClient {
 
   /**
    * Compare `feed` against the persisted state and download every changed
-   * artifact. Files already on disk with a matching hash are reused. Returns
-   * the changed kinds (empty = the cache is already current) and the local
-   * path of every artifact.
+   * **required** artifact — this client's card bulk and the two tag bulks; a
+   * feed entry for the other card kind is ignored, never downloaded. Files
+   * already on disk with a matching hash are reused. Returns the changed kinds
+   * (empty = the cache is already current) and the local path of every
+   * required artifact.
    */
   async downloadChanged(feed: CacheFeedDocument, force = false): Promise<FetchResult> {
     const state = await this.loadState()
     await mkdir(this.filesDir, { recursive: true })
 
-    // Safe: the FEED_KINDS loop below assigns every kind (or throws) before use.
-    const files = {} as Record<CacheFeedKind, string>
+    // Safe: the required-kinds loop below assigns every kind (or throws) before use.
+    const paths = {} as Record<CacheFeedKind, string>
     const changedKinds: CacheFeedKind[] = []
 
-    for (const kind of FEED_KINDS) {
+    for (const kind of this.requiredKinds()) {
       const entry = feed.entries.find((candidate) => candidate.kind === kind)
-      if (!entry) throw new Error(`Cache feed has no '${kind}' entry`)
+      if (!entry) {
+        const hint =
+          kind === 'all-cards'
+            ? " (the configured defaultLanguage needs the all_cards bulk, which this feed's host does not publish — host with `cache feed host --cards all` or refresh with --source scryfall)"
+            : ''
+        throw new Error(`Cache feed has no '${kind}' entry${hint}`)
+      }
 
       const filePath = path.join(this.filesDir, entry.fileName)
-      files[kind] = filePath
+      paths[kind] = filePath
 
       const alreadyIngested = !force && state.ingested[kind]?.infoHash === entry.infoHash
       if (!alreadyIngested) changedKinds.push(kind)
@@ -219,6 +261,12 @@ export class CacheFeedClient {
 
     await this.pruneUnreferenced(feed)
     this.pruneStaleTorrents(feed)
+    const files: BulkCacheFiles = {
+      cards: paths[this.cardKind],
+      cardBulkType: CARD_BULK_TYPE_BY_KIND[this.cardKind],
+      oracleTags: paths['oracle-tags'],
+      artTags: paths['art-tags'],
+    }
     return { feed, changedKinds, files }
   }
 
@@ -250,12 +298,8 @@ export class CacheFeedClient {
     if (result.changedKinds.length === 0) {
       return { feed, outcome: 'unchanged' }
     }
-    await this.options.ingest({
-      defaultCards: result.files['default-cards'],
-      oracleTags: result.files['oracle-tags'],
-      artTags: result.files['art-tags'],
-    })
-    await this.saveState(feed, new Date())
+    await this.options.ingest(result.files)
+    await this.saveState(feed, new Date(), this.requiredKinds())
     return { feed, outcome: 'ingested' }
   }
 
@@ -335,14 +379,18 @@ export class CacheFeedClient {
   }
 
   /**
-   * Re-add every artifact of `feed` to the torrent client so a long-running
-   * fetch seeds all current artifacts, including unchanged ones already on
-   * disk from a previous run.
+   * Re-add every **required** artifact of `feed` to the torrent client so a
+   * long-running fetch seeds all current artifacts, including unchanged ones
+   * already on disk from a previous run. Entries for the other card kind are
+   * skipped: adding a torrent whose file is not on disk would quietly start
+   * downloading a multi-GB bulk this client never wanted.
    */
   async seedAll(feed: CacheFeedDocument): Promise<void> {
     const client = await this.ensureTorrentClient()
     const have = new Set(client.torrents.map((torrent) => torrent.infoHash))
+    const wanted = new Set<CacheFeedKind>(this.requiredKinds())
     for (const entry of feed.entries) {
+      if (!wanted.has(entry.kind)) continue
       if (have.has(entry.infoHash)) continue
       const torrentBuf = await this.fetchTorrentFile(entry)
       await new Promise<void>((resolve, reject) => {
@@ -361,6 +409,11 @@ export class CacheFeedClient {
         })
       })
     }
+  }
+
+  /** How many torrents this client is currently seeding. */
+  seededCount(): number {
+    return this.torrentClient?.torrents.length ?? 0
   }
 
   /** Peers currently connected across all seeded torrents. */

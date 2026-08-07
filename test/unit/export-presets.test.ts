@@ -85,7 +85,7 @@ describe('built-in presets', () => {
   test('the archidekt preset is the CSV Archidekt imports', () => {
     expect(BUILT_IN_EXPORT_PRESETS.archidekt).toEqual({
       format: 'csv',
-      columns: ['scryfallId', 'quantity', 'finish', 'condition'],
+      columns: ['scryfallId', 'quantity', 'finish', 'condition', 'language'],
       header: true,
       quoteAll: false,
       dialect: 'archidekt',
@@ -93,7 +93,7 @@ describe('built-in presets', () => {
     // What the collection sync renders its upload with, independent of config.
     expect(ARCHIDEKT_EXPORT_SETTINGS).toEqual({
       format: 'csv',
-      columns: ['scryfallId', 'quantity', 'finish', 'condition'],
+      columns: ['scryfallId', 'quantity', 'finish', 'condition', 'language'],
       header: true,
       quoteAll: false,
       dialect: 'archidekt',
@@ -110,7 +110,7 @@ describe('built-in presets', () => {
   test('the archidekt preset columns carry Archidekt’s own header labels', () => {
     expect(
       ARCHIDEKT_EXPORT_SETTINGS.columns.map((c) => exportPropertyLabel(c, 'archidekt')),
-    ).toEqual(['Scryfall ID', 'Quantity', 'Variant', 'Condition'])
+    ).toEqual(['Scryfall ID', 'Quantity', 'Variant', 'Condition', 'Language'])
   })
 
   test('resolved settings never alias the preset’s own column array', () => {
@@ -122,7 +122,7 @@ describe('built-in presets', () => {
 
     expect(resolved.columns).not.toBe(preset.columns)
     resolved.columns.reverse()
-    expect(preset.columns).toEqual(['scryfallId', 'quantity', 'finish', 'condition'])
+    expect(preset.columns).toEqual(['scryfallId', 'quantity', 'finish', 'condition', 'language'])
   })
 
   test('built-ins are available by name, and a saved preset of that name wins', () => {

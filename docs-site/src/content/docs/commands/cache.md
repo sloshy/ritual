@@ -41,6 +41,9 @@ these fields:
 | `priceStale`      | `true` when prices are older than the 24-hour price-freshness convention, or when their age is unknown (`lastCardRefresh` is `null`).                                                                                                                           |
 | `tagsPresent`     | Whether cached cards carry oracle/art tags (see [Tags](#tags)), determined from a small bounded sample of cached cards rather than a full scan — a cache where only rarely-tagged cards land in the sample can report `false` despite a completed tag refresh.  |
 | `source`          | `local` when reading the on-disk cache, `cache-server` when a [cache server](#server) is configured via `--cache-server` or `RITUAL_CACHE_SERVER`.                                                                                                              |
+| `defaultLanguage` | The configured [`defaultLanguage`](/configuration/#default-language) — what decides which Scryfall bulk backs the cache.                                                                                                                                        |
+| `cardBulkType`    | Which bulk built the card cache: `default_cards` (English-only) or `all_cards` (every language), or `null` when no bulk ingest has recorded provenance yet (an empty cache, or one filled before provenance existed — necessarily `default_cards`).             |
+| `bulkTypeStale`   | `true` when a non-empty cache's bulk disagrees with what `defaultLanguage` demands — the cache needs a full redownload, which the freshness gates offer (see [Bulk selection](#bulk-selection-and-language)).                                                   |
 
 The same report is available over HTTP as [`GET /api/cache/status`](/admin/api/#cache-status).
 
@@ -102,6 +105,27 @@ A failed preload exits `1`. The same refresh over HTTP
 `refresh_cache` tool that reuses it) likewise **reports the failure** rather than
 answering success unconditionally.
 
+### Bulk selection and language
+
+Which Scryfall bulk a card refresh downloads follows the
+[`defaultLanguage`](/configuration/#default-language) config key:
+
+- `en` (the default) → **`default_cards`** — one English card object per printing, as before.
+- anything else → **`all_cards`** — every language's card objects, so non-English printings can
+  be verified, picked, and displayed. This bulk is several times larger; expect a much bigger
+  download and cache.
+
+The rule applies everywhere the card cache is fetched or synced: `preload-all`, the stale-cache
+prompts on other commands, the [cache server](#server)'s scheduled refreshes, and the
+[cache feed](#feed-fetch).
+
+Every bulk ingest records **which bulk built the cache** in a `cache/card-bulk.json` sidecar.
+When that provenance disagrees with what `defaultLanguage` currently demands — you switched the
+key in either direction — the cache is the wrong dataset, and commands that check cache
+freshness say so instead of running a doomed staleness prompt: under `--refresh ask` they offer
+a full redownload, under `--refresh auto` they run it, and `cache status` reports it as
+`bulkTypeStale: true`. A cache filled before provenance existed reads as `default_cards`.
+
 ### refresh-tags
 
 Re-download only the oracle and art tag bulks and re-attach them to the cards
@@ -140,28 +164,29 @@ See [The cache server](#the-cache-server) for behavior details and the HTTP API.
 
 ### feed host
 
-Host a **cache feed**: download the raw Scryfall bulk files (`default_cards`
-plus the oracle/art tag bulks, as gzipped JSONL), create a BitTorrent torrent
-for each, and run an HTTP server that publishes a `feed.json` describing the
-current artifacts while seeding them to peers. Sharing the bulk data
-peer-to-peer puts daily load on Scryfall's servers once per group instead of
-once per machine.
+Host a **cache feed**: download the raw Scryfall bulk files (the card bulk(s)
+chosen with `--cards` plus the oracle/art tag bulks, as gzipped JSONL), create
+a BitTorrent torrent for each, and run an HTTP server that publishes a
+`feed.json` describing the current artifacts while seeding them to peers.
+Sharing the bulk data peer-to-peer puts daily load on Scryfall's servers once
+per group instead of once per machine.
 
 ```bash
 ./ritual cache feed host --public-url https://feed.example.com
 ```
 
-| Option                 | Description                                                                                                    | Default                 |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `-p, --port <number>`  | Port for the feed HTTP server                                                                                  | `4010`                  |
-| `--host <hostname>`    | Host interface for the feed HTTP server                                                                        | `127.0.0.1`             |
-| `--public-url <url>`   | Public base URL peers reach this host at; embedded in the feed's file/torrent URLs and each torrent's web seed | `http://<host>:<port>`  |
-| `--refresh <interval>` | Re-check Scryfall for new bulk data (`daily`, `weekly`, `monthly`; env `RITUAL_CACHE_FEED_REFRESH`)            | `daily`                 |
-| `--upstream <url>`     | Bulk manifest URL to source artifacts from (point at another feed host's mirror, or a test stub)               | Scryfall's `/bulk-data` |
-| `--dir <path>`         | Feed data directory                                                                                            | `<cache>/feed`          |
-| `--no-seed`            | Serve the feed and files over HTTP only, without BitTorrent seeding                                            | seeding on              |
-| `--torrent-port <n>`   | Fixed TCP port for incoming torrent peers (random when omitted)                                                | random                  |
-| `-v, --verbose`        | Log every feed-server request                                                                                  | off                     |
+| Option                 | Description                                                                                                      | Default                                                                          |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `-p, --port <number>`  | Port for the feed HTTP server                                                                                    | `4010`                                                                           |
+| `--host <hostname>`    | Host interface for the feed HTTP server                                                                          | `127.0.0.1`                                                                      |
+| `--public-url <url>`   | Public base URL peers reach this host at; embedded in the feed's file/torrent URLs and each torrent's web seed   | `http://<host>:<port>`                                                           |
+| `--cards <which>`      | Card bulk(s) to publish: `default` (English-only `default_cards`), `all` (every-language `all_cards`), or `both` | whichever the host's [`defaultLanguage`](/configuration/#default-language) needs |
+| `--refresh <interval>` | Re-check Scryfall for new bulk data (`daily`, `weekly`, `monthly`; env `RITUAL_CACHE_FEED_REFRESH`)              | `daily`                                                                          |
+| `--upstream <url>`     | Bulk manifest URL to source artifacts from (point at another feed host's mirror, or a test stub)                 | Scryfall's `/bulk-data`                                                          |
+| `--dir <path>`         | Feed data directory                                                                                              | `<cache>/feed`                                                                   |
+| `--no-seed`            | Serve the feed and files over HTTP only, without BitTorrent seeding                                              | seeding on                                                                       |
+| `--torrent-port <n>`   | Fixed TCP port for incoming torrent peers (random when omitted)                                                  | random                                                                           |
+| `-v, --verbose`        | Log every feed-server request                                                                                    | off                                                                              |
 
 ### feed fetch
 
@@ -186,9 +211,17 @@ Behavior:
 
 - Downloaded artifacts are verified against the feed's per-file SHA-256 before
   anything is ingested; a corrupted download is deleted and the sync fails.
+- Only the kinds the client actually needs are downloaded, ingested, and
+  seeded: the tag bulks plus **one** card bulk — `default-cards` under an
+  English [`defaultLanguage`](/configuration/#default-language), `all-cards`
+  otherwise. A feed that does not publish the needed card kind fails the sync
+  with a message naming it (point the host at `--cards both` to serve mixed
+  clients).
 - What was last ingested is tracked in `cache/feed-client/state.json` by
-  torrent infohash. An unchanged feed is a cheap no-op — no bulk download, no
-  re-ingest.
+  torrent infohash, **per kind** — so switching `defaultLanguage` (which
+  switches the needed card kind) forces a re-ingest even when the feed itself
+  has not changed. An unchanged feed for an unchanged kind is a cheap no-op —
+  no bulk download, no re-ingest.
 - Ingestion runs the exact same local pipeline as a direct Scryfall preload
   (filtering, card mapping, tag baking), so a feed-synced cache is
   indistinguishable from a Scryfall-synced one.
@@ -321,7 +354,7 @@ variables when the flags are omitted:
   "generatedAt": "2026-07-05T10:00:00.000Z",
   "entries": [
     {
-      "kind": "default-cards", // default-cards | oracle-tags | art-tags
+      "kind": "default-cards", // default-cards | all-cards | oracle-tags | art-tags
       "fileName": "default-cards-20260705090855.jsonl.gz",
       "infoHash": "dc07075b03442a407376342d2e32911465e5915a",
       "magnet": "magnet:?xt=urn:btih:…&ws=…", // includes the web-seed URL

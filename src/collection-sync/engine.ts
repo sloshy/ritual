@@ -64,6 +64,7 @@ import {
   planPush,
   pullChangesByList,
   resolveAmbiguousByPriority,
+  unmappableLanguageWarning,
   updateRecordBody,
   type LocalCollectionIndex,
   type PullAddition,
@@ -1854,6 +1855,10 @@ async function runPushOperation(
   }
 
   if (operation.kind === 'create') {
+    // Said before anything is sent (and on dry runs too): the record about to be
+    // created will not carry the language the local line does.
+    const languageWarning = unmappableLanguageWarning(operation.name, operation.parts)
+    if (languageWarning) emit({ kind: 'log', level: 'warn', list, message: languageWarning })
     if (dryRun && csvRouted) {
       log(
         `[dry-run] Would add ${operation.quantity} × ${label} one at a time — the printing is not in the Scryfall cache, so it cannot ride the CSV and was not resolved here.`,

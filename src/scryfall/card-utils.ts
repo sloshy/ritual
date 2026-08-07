@@ -1,4 +1,5 @@
 import type { ScryfallCard } from '../types'
+import { scryfallCardLanguage } from '../card-language'
 
 export type CardNameFilter = {
   sets?: string[]
@@ -75,6 +76,11 @@ export function getFrontFaceName(name: string): string {
 /** Map a raw Scryfall JSON object to a normalized ScryfallCard. */
 export function mapScryfallCard(item: ScryfallCard): ScryfallCard {
   return {
+    // The printing's language. `en` is deliberately dropped rather than stored:
+    // absent means `en` everywhere `lang` is read, and omitting it keeps an
+    // en-mode (`default_cards`) cache byte-identical to what it was before
+    // languages existed — no churn, no size cost.
+    ...(item.lang !== undefined && item.lang !== 'en' ? { lang: item.lang } : {}),
     id: item.id,
     oracle_id: item.oracle_id,
     illustration_id: item.illustration_id,
@@ -121,12 +127,24 @@ function compareCollectorNumbers(a: string, b: string): number {
   return a.localeCompare(b, undefined, { numeric: true })
 }
 
-/** Sort printings by release date (newest first), then set code and collector number as tiebreaker */
+/**
+ * Sort printings by release date (newest first), then set code and collector
+ * number, and finally by language — the default-language object (`en`, which an
+ * absent `lang` also means) sorts before other languages, so pickers rendering
+ * an `all_cards`-backed cache list each printing's default object first.
+ */
 export function comparePrintings(a: ScryfallCard, b: ScryfallCard): number {
   const dateA = a.released_at ?? ''
   const dateB = b.released_at ?? ''
   if (dateA !== dateB) return dateB.localeCompare(dateA)
   const setCmp = a.set.localeCompare(b.set)
   if (setCmp !== 0) return setCmp
-  return compareCollectorNumbers(a.collector_number, b.collector_number)
+  const cnCmp = compareCollectorNumbers(a.collector_number, b.collector_number)
+  if (cnCmp !== 0) return cnCmp
+  const langA = scryfallCardLanguage(a)
+  const langB = scryfallCardLanguage(b)
+  if (langA === langB) return 0
+  if (langA === 'en') return -1
+  if (langB === 'en') return 1
+  return langA.localeCompare(langB)
 }

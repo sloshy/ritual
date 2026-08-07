@@ -2,11 +2,14 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
+import { OFFLINE_ENV } from './helpers/offline-env'
 import {
   createWorkspace,
   removeWorkspace,
+  seedCardCache,
   seedCardTargetWorkspace,
   snapshotTree,
+  writeBulkProvenance,
 } from './helpers/workspace'
 import { makeScryfallCard } from '../test-utils'
 import type { ScryfallCard } from '../../src/types'
@@ -21,26 +24,6 @@ type SetCardJson = {
 
 type ErrorJson = {
   error: { code: string; message: string; details?: { matches?: unknown[] } }
-}
-
-/**
- * Seed the workspace's on-disk Scryfall card cache with synthetic printings so
- * `set-card`'s printing validation runs fully offline. The card cache never
- * expires, so the timestamp only needs to exist.
- */
-async function seedCardCache(dir: string, cards: Record<string, ScryfallCard[]>): Promise<void> {
-  type CacheEntry = { timestamp: number; data: ScryfallCard[] }
-  const now = Date.now()
-  const entries: Record<string, CacheEntry> = Object.fromEntries(
-    Object.entries(cards).map(([name, data]) => [name, { timestamp: now, data }]),
-  )
-  await fs.mkdir(path.join(dir, 'cache'), { recursive: true })
-  await fs.writeFile(
-    path.join(dir, 'cache', 'cache.json'),
-    // The metadata stamp is what a completed bulk download leaves behind, and
-    // what makes a cached entry count as the card's *complete* printing list.
-    JSON.stringify({ prices: {}, cards: entries, metadata: { cards: { lastRefreshedAt: now } } }),
-  )
 }
 
 const LIGHTNING_BOLT_PRINTINGS: ScryfallCard[] = [
@@ -704,6 +687,233 @@ describe('set-card CLI (Integration)', () => {
     )
     expect(result.exitCode).toBe(2)
     expect(result.stderr).toContain("Invalid finish 'glossy'")
+  })
+})
+
+describe('set-card --language (Integration)', () => {
+  /** Sol Ring's C21:240 printing in English plus a Japanese language object. */
+  const SOL_RING_WITH_JA: ScryfallCard[] = [
+    makeScryfallCard({ id: 'sol-c21-en', name: 'Sol Ring', set: 'c21', collector_number: '240' }),
+    makeScryfallCard({
+      id: 'sol-c21-ja',
+      name: 'Sol Ring',
+      set: 'c21',
+      collector_number: '240',
+      lang: 'ja',
+    }),
+  ]
+
+  test('writes the [ja] token and the changelog line when the cache holds the ja object', async () => {
+    await seedCardCache(dir, { 'Sol Ring': SOL_RING_WITH_JA })
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--language', 'ja', '--output', 'json'],
+      dir,
+      OFFLINE_ENV,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual(['language → ja (Japanese)'])
+
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Sol Ring (C21:240) [ja] &1')
+
+    const changelog = await fs.readFile(path.join(dir, 'collections', 'main.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Set language of "Sol Ring" to Japanese &1')
+  })
+
+  test('--language en clears the token — a bare line means English', async () => {
+    await seedCardCache(dir, { 'Sol Ring': SOL_RING_WITH_JA })
+    await runCli(['set-card', '--collection', 'main', 'Sol Ring', '--language', 'ja'], dir)
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--language', 'en', '--output', 'json'],
+      dir,
+      OFFLINE_ENV,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual(['language → en (token cleared — a bare line means English)'])
+
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Sol Ring (C21:240) &1')
+    expect(content).not.toContain('[ja]')
+
+    const changelog = await fs.readFile(path.join(dir, 'collections', 'main.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Set language of "Sol Ring" to English &1')
+  })
+
+  test('accepts the jp alias and records ja', async () => {
+    await seedCardCache(dir, { 'Sol Ring': SOL_RING_WITH_JA })
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--language', 'jp'],
+      dir,
+      OFFLINE_ENV,
+    )
+    expect(result.exitCode).toBe(0)
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Sol Ring (C21:240) [ja] &1')
+  })
+
+  test('rejects an unknown language code at parse time', async () => {
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--language', 'xx'],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain('Invalid language "xx"')
+  })
+
+  test('refuses a language an all_cards-backed cache proves the printing lacks', async () => {
+    // Complete cache, all_cards provenance, only an en object: the absence of a
+    // ja object is a fact, refused without any network verification.
+    await seedCardCache(dir, {
+      'Sol Ring': [
+        makeScryfallCard({
+          id: 'sol-c21-en',
+          name: 'Sol Ring',
+          set: 'c21',
+          collector_number: '240',
+        }),
+      ],
+    })
+    await writeBulkProvenance(dir, 'all_cards')
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--language', 'ja', '--output', 'json'],
+      dir,
+      OFFLINE_ENV,
+    )
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as ErrorJson
+    expect(err.error.code).toBe('usage_error')
+    expect(err.error.message).toContain('not available in Japanese')
+    expect(err.error.message).toContain('Available languages: English (en)')
+
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).not.toContain('[ja]')
+  })
+
+  test('proceeds with a warning when the on-demand verification cannot reach Scryfall', async () => {
+    // A default_cards cache cannot prove a ja object does not exist, so the CLI
+    // tries the on-demand GET — unreachable here (offline env), which must skip
+    // the check with a note rather than fabricate a refusal or fail the edit.
+    // The proxied fetch only fails at the Scryfall client's own 15s timeout,
+    // hence the generous test timeout.
+    await seedCardCache(dir, {
+      'Sol Ring': [
+        makeScryfallCard({
+          id: 'sol-c21-en',
+          name: 'Sol Ring',
+          set: 'c21',
+          collector_number: '240',
+        }),
+      ],
+    })
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--language', 'ja'],
+      dir,
+      OFFLINE_ENV,
+    )
+    expect(result.exitCode).toBe(0)
+    expect(result.stderr).toContain('could not verify')
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Sol Ring (C21:240) [ja] &1')
+  }, 30000)
+
+  test('rides alongside a printing change as its own event, validated against the new pin', async () => {
+    await seedCardCache(dir, {
+      'Lightning Bolt': [
+        ...LIGHTNING_BOLT_PRINTINGS,
+        makeScryfallCard({
+          id: 'bolt-2xm-ja',
+          name: 'Lightning Bolt',
+          set: '2xm',
+          collector_number: '157',
+          finishes: ['nonfoil', 'foil'],
+          lang: 'ja',
+        }),
+      ],
+    })
+    // &2 is LEA:161 [foil]; repin to 2XM:157 (which has foil and a ja object).
+    const result = await runCli(
+      [
+        'set-card',
+        '--deck',
+        'test',
+        '--card-id',
+        '2',
+        '--set',
+        '2xm',
+        '--collector-number',
+        '157',
+        '--language',
+        'ja',
+        '--output',
+        'json',
+      ],
+      dir,
+      OFFLINE_ENV,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual(['printing → 2XM:157', 'language → ja (Japanese)'])
+
+    const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+    expect(deckContent).toContain('1 Lightning Bolt (2XM:157) [foil] [ja] &2')
+
+    const changelog = await fs.readFile(path.join(dir, 'decks', 'test.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Set language of "Lightning Bolt" to Japanese &2')
+  })
+
+  test('a wanted list entry takes a language token too', async () => {
+    // Underground Sea LEB:286 with a ja object; wanted grammar carries [lang].
+    await seedCardCache(dir, {
+      'Underground Sea': [
+        makeScryfallCard({
+          id: 'sea-leb-en',
+          name: 'Underground Sea',
+          set: 'leb',
+          collector_number: '286',
+        }),
+        makeScryfallCard({
+          id: 'sea-leb-ja',
+          name: 'Underground Sea',
+          set: 'leb',
+          collector_number: '286',
+          lang: 'ja',
+        }),
+      ],
+    })
+    const result = await runCli(
+      ['set-card', '--wanted', 'needs', 'Underground Sea', '--language', 'ja'],
+      dir,
+      OFFLINE_ENV,
+    )
+    expect(result.exitCode).toBe(0)
+    const content = await fs.readFile(path.join(dir, 'wanted', 'needs.md'), 'utf-8')
+    expect(content).toContain('- Underground Sea (LEB:286) [ja] &2')
+  })
+
+  test('--dry-run validates the language but writes nothing', async () => {
+    await seedCardCache(dir, { 'Sol Ring': SOL_RING_WITH_JA })
+    const before = await snapshotTree(dir)
+    const result = await runCli(
+      [
+        'set-card',
+        '--collection',
+        'main',
+        'Sol Ring',
+        '--language',
+        'ja',
+        '-n',
+        '--output',
+        'json',
+      ],
+      dir,
+      OFFLINE_ENV,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson & { dryRun?: boolean }
+    expect(json.dryRun).toBe(true)
+    expect(await snapshotTree(dir)).toEqual(before)
   })
 })
 

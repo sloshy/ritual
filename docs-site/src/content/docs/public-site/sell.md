@@ -55,7 +55,9 @@ Turn on **Sell mode** in the list toolbar. It adds:
 - **A buyer selector.** Card Kingdom is the only buyer today; the control is there so a second one
   is a choice rather than a surprise.
 - **A buylist price on every card**, beside the retail price, in every view mode. Cards the buyer
-  has no active offer for render exactly as they do outside sell mode.
+  has no active offer for render exactly as they do outside sell mode. Non-English copies (a
+  `[ja]`-style [language token](/commands/edit/#card-language)) never carry a quote — the feed is
+  English-only, and quoting the English price for a foreign copy would overstate it.
 - **A Buylist filter** in the filter menu: `On buylist` / `Not on buylist`. The two chips combine
   (selecting both, or neither, matches everything).
 - **A Buylist ($) threshold** in the filter menu, working like the Price filter but against the

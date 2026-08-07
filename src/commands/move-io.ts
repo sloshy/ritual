@@ -236,7 +236,10 @@ function applyAddToDeck(
     (c) =>
       c.name === card.name &&
       c.set?.toLowerCase() === card.set?.toLowerCase() &&
-      c.collectorNumber === card.collectorNumber,
+      c.collectorNumber === card.collectorNumber &&
+      // Language distinguishes variants like the printing does: a `[ja]` copy
+      // must never merge onto (or absorb) an English line.
+      (c.language ?? 'en') === (card.language ?? 'en'),
   )
 
   if (existing) {
@@ -260,6 +263,7 @@ function applyAddToDeck(
       collectorNumber: card.collectorNumber,
       finish: card.finish,
       condition: card.condition,
+      language: card.language,
       note: card.note,
       cardId: allocateId(pool),
     })
@@ -284,16 +288,17 @@ function assertAppendable(content: string, cardName: string): void {
 function applyAddCollectionLine(content: string, card: PhysicalCard): string {
   assertAppendable(content, card.name)
   const { nextId: cardId } = allocateNextIdFromContent(content)
-  const line = formatCollectionLine(
-    card.name,
-    card.set!,
-    card.collectorNumber!,
-    card.finish ?? 'nonfoil',
-    card.condition,
-    card.labels,
-    card.note,
+  const line = formatCollectionLine({
+    cardName: card.name,
+    set: card.set!,
+    collectorNumber: card.collectorNumber!,
+    finish: card.finish ?? 'nonfoil',
+    condition: card.condition,
+    language: card.language,
+    labels: card.labels,
+    note: card.note,
     cardId,
-  )
+  })
   return content.trimEnd() + '\n' + line
 }
 
@@ -304,6 +309,13 @@ function applyAddWantedLine(content: string, card: PhysicalCard): string {
     card.set && card.collectorNumber
       ? { set: card.set, collectorNumber: card.collectorNumber }
       : undefined
-  const line = formatWantedListLine(card.name, printing, card.finish, card.note, cardId)
+  const line = formatWantedListLine({
+    name: card.name,
+    printing,
+    finish: card.finish,
+    language: card.language,
+    note: card.note,
+    cardId,
+  })
   return content.trimEnd() + '\n' + line
 }

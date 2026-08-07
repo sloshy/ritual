@@ -1,6 +1,7 @@
 import path from 'node:path'
-import { Command } from 'commander'
+import { Command, InvalidArgumentError } from 'commander'
 import { getCacheDir } from '../cache'
+import { configuredCardBulkType } from '../scryfall/bulk-manifest'
 import { defaultHttpClient } from '../http'
 import { getErrorMessage } from '../errors'
 import {
@@ -15,7 +16,13 @@ import { DAY_REFRESH_MS } from '../cache-server/constants'
 import type { RefreshCadence } from '../cache-server/types'
 import { CACHE_FEED_LOG_PREFIX, CacheFeedHost, DEFAULT_BULK_API_URL } from '../cache-feed/host'
 import { FeedSeeder } from '../cache-feed/seeder'
-import { FEED_FILENAME } from '../cache-feed/feed'
+import {
+  CARD_KIND_BY_BULK_TYPE,
+  FEED_FILENAME,
+  TAG_FEED_KINDS,
+  type CacheFeedKind,
+  type CardFeedKind,
+} from '../cache-feed/feed'
 import type { FeedSyncResult } from '../cache-feed/fetch'
 import { createCacheFeedClient, resolveFeedUrl } from '../cache/refresh-source'
 
@@ -28,6 +35,11 @@ type CacheFeedFetchCommandOptions = {
   refresh?: RefreshCadence
 }
 
+/** Which card bulk(s) a feed host publishes alongside the tag bulks. */
+type HostCardsChoice = 'default' | 'all' | 'both'
+
+const HOST_CARDS_CHOICES: readonly HostCardsChoice[] = ['default', 'all', 'both']
+
 type CacheFeedHostCommandOptions = {
   port: number
   host: string
@@ -38,6 +50,30 @@ type CacheFeedHostCommandOptions = {
   seed: boolean
   torrentPort?: number
   verbose: boolean
+  cards?: HostCardsChoice
+}
+
+function parseHostCardsChoice(value: string): HostCardsChoice {
+  const lower = value.toLowerCase()
+  if ((HOST_CARDS_CHOICES as readonly string[]).includes(lower)) return lower as HostCardsChoice
+  throw new InvalidArgumentError("--cards must be one of: 'default', 'all', 'both'.")
+}
+
+/**
+ * The card kinds a host publishes for a `--cards` choice; with the flag absent,
+ * the one card bulk this machine's own `defaultLanguage` demands.
+ */
+function hostCardKinds(choice: HostCardsChoice | undefined): CardFeedKind[] {
+  switch (choice) {
+    case 'default':
+      return ['default-cards']
+    case 'all':
+      return ['all-cards']
+    case 'both':
+      return ['default-cards', 'all-cards']
+    case undefined:
+      return [CARD_KIND_BY_BULK_TYPE[configuredCardBulkType()]]
+  }
 }
 
 function log(message: string): void {
@@ -74,6 +110,13 @@ export function registerCacheFeedSubcommand(cache: Command): void {
         DEFAULT_BULK_API_URL,
       )
       .option('--dir <path>', 'Feed data directory (defaults to <cache>/feed)')
+      .option(
+        '--cards <which>',
+        "Card bulk(s) to publish: 'default' (English-only default_cards), 'all' " +
+          "(every-language all_cards), or 'both' (defaults to whichever the " +
+          'defaultLanguage config key demands)',
+        parseHostCardsChoice,
+      )
       .option('--no-seed', 'Serve the feed and files over HTTP only, without BitTorrent seeding'),
     'Fixed TCP port for incoming torrent peers',
   )
@@ -81,11 +124,13 @@ export function registerCacheFeedSubcommand(cache: Command): void {
     .action(async (options: CacheFeedHostCommandOptions) => {
       const feedDir = options.dir ?? path.join(getCacheDir(), 'feed')
       const publicUrl = options.publicUrl ?? `http://${options.host}:${options.port}`
+      const kinds: CacheFeedKind[] = [...hostCardKinds(options.cards), ...TAG_FEED_KINDS]
 
       const host = new CacheFeedHost({
         feedDir,
         publicUrl,
         bulkApiUrl: options.upstream,
+        kinds,
         http: defaultHttpClient,
       })
 
@@ -229,7 +274,7 @@ export function registerCacheFeedSubcommand(cache: Command): void {
       }
       const port = client.torrentPortInUse()
       log(
-        `Seeding ${result.feed.entries.length} artifacts${port ? ` on TCP port ${port}` : ''}. ` +
+        `Seeding ${client.seededCount()} artifacts${port ? ` on TCP port ${port}` : ''}. ` +
           'Press Ctrl+C to stop.',
       )
 

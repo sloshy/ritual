@@ -1,5 +1,6 @@
 import { type Accessor, type JSX, Show, batch, createSignal } from 'solid-js'
 import type { DeckData, Card, Finish } from '../types'
+import type { CardLanguage } from '../card-language'
 import { DeckPage } from '../site/DeckPage'
 import type { PriceCurrency } from '../price-currency'
 import type { ListRef, PrintingTuple } from '../change-event'
@@ -9,12 +10,18 @@ import type { ListEditorConfig, UseEditorResult } from './useEditor'
 import { contextInfoFromSelected } from './selected-to-context'
 import { printingForMove } from '../site/printing-prompt'
 import { promptListMove, promptSectionMove } from '../site/move-prompt'
+import { promptCardLanguage } from './language-prompt'
 import { useEditor } from './useEditor'
 import type { UseEditorDefaultsResult } from './useEditorDefaults'
 import type { SearchProvider } from './search-provider'
 import { useDeckCardData, type DeckCardData, type DeckCardDataActions } from './useDeckCardData'
 import { applyChangeToDeck } from './deck-changes'
-import { findDeckCardId, findDeckCardIdInSection, findDeckCardSection } from './deck-config'
+import {
+  findDeckCardId,
+  findDeckCardIdInSection,
+  findDeckCardLanguage,
+  findDeckCardSection,
+} from './deck-config'
 import { CardContextMenu } from './components/CardContextMenu'
 import { EditorShell } from './components/EditorShell'
 
@@ -36,6 +43,8 @@ export type DeckBulkEdit = {
   removeAll: (cards: SelectedCard[]) => void
   /** Set the finish on each selected card that supports it; others are skipped. */
   setFinish: (cards: SelectedCard[], finish: Finish) => void
+  /** Set the language on each selected card (every copy of the entry). */
+  setLanguage: (cards: SelectedCard[], language: CardLanguage) => void
   /** Run the change-printing flow over the selection one card at a time. */
   changePrinting: (cards: SelectedCard[]) => void
   /** Mark each selected card as a commander. */
@@ -94,7 +103,13 @@ export function useDeckEditController(
   const [deckContextMenu, setDeckContextMenu] = createSignal<DeckContextMenuState | null>(null)
 
   const editor = useEditor<DeckData, Card>(
-    { ...buildConfig(cardActions), copyModel: 'quantity' },
+    {
+      // Deck entries carry their language directly, so the controller supplies the
+      // set-language original resolver; a page config may still override it.
+      findOriginalLanguage: findDeckCardLanguage,
+      ...buildConfig(cardActions),
+      copyModel: 'quantity',
+    },
     initialSlug,
   )
 
@@ -185,7 +200,9 @@ export function useDeckEditController(
   }
 
   // Emit one move-from per copy. A deck entry holds all its copies under a single
-  // cardId, so every event shares that id and it is freed to the pool once.
+  // cardId, so every event shares that id and it is freed to the pool once. The
+  // moved copies keep the entry's language, resolved before the first move-from
+  // collapses the entry.
   const emitMove = (
     cardName: string,
     dest: ListRef,
@@ -193,15 +210,18 @@ export function useDeckEditController(
     cardId: number | undefined,
     copies: number,
   ) => {
+    const d = editor.data()
+    const language = d ? findDeckCardLanguage(d, cardName, cardId) : undefined
     batch(() => {
       for (let i = 0; i < copies; i++) {
-        editor.changes.moveCardToList(cardName, dest, { ...printing, cardId })
+        editor.changes.moveCardToList(cardName, dest, { ...printing, language, cardId })
         editor.setData((prev) =>
           prev
             ? applyChangeToDeck(prev, {
                 action: 'move-from',
                 cardName,
                 ...printing,
+                language,
                 cardId,
                 to: dest,
               })
@@ -253,6 +273,11 @@ export function useDeckEditController(
         if (!c.scryfallCard?.finishes?.includes(finish)) continue
         editor.handleSetFinishFor(c.name, finish, c.cardIds[0])
       }
+    },
+    setLanguage: (cards, language) => {
+      batch(() => {
+        for (const c of cards) editor.handleSetLanguageFor(c.name, language, c.cardIds[0])
+      })
     },
     changePrinting: (cards) => editor.startBulkChangePrinting(cards.map(contextInfoFromSelected)),
     setCommander: (cards) => {
@@ -367,6 +392,17 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
               }
               onSetFoil={editor.handleSetFoil}
               onChangePrinting={ctrl.handleChangePrinting}
+              onSetLanguage={() => {
+                const target = menu()
+                const d = editor.data()
+                const current = d
+                  ? findDeckCardLanguage(d, target.cardName, target.cardIds[0])
+                  : undefined
+                ctrl.closeContextMenu()
+                promptCardLanguage(current, (language) =>
+                  editor.handleSetLanguageFor(target.cardName, language, target.cardIds[0]),
+                )
+              }}
               onSetCommander={ctrl.handleSetCommander}
               onUnsetCommander={ctrl.handleUnsetCommander}
               isCommander={menu().isInCommanderSection}

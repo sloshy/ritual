@@ -8,6 +8,7 @@ import {
   createSetCommanderChange,
   createSetFinishChange,
   createSetLabelChange,
+  createSetLanguageChange,
   createSetNoteChange,
   createSetPrintingChange,
   createSetSectionChange,
@@ -632,5 +633,131 @@ describe('applyTargetedChangesToContent — labels', () => {
     )
     expect(result).toContain('  - Sol Ring (C21:263) &1')
     expect(result).toContain('\n- Sol Ring (C21:263) {signed} &1')
+  })
+})
+
+describe('applyTargetedChangesToContent — language token', () => {
+  const languageCollection = [
+    '# Binder',
+    '',
+    '## Main',
+    '- Lightning Bolt (LEA:161) [foil] [ja] [keep] {my first rare} &1',
+    '- Sol Ring (C21:263) [zhs] &2',
+    '',
+  ].join('\n')
+
+  test('a note edit adopts the line language, so [ja] survives the rewrite', () => {
+    const result = applyTargetedChangesToContent(
+      languageCollection,
+      'collection',
+      { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', finish: 'foil' },
+      [createSetNoteChange('Lightning Bolt', { note: 'signed' })],
+    )
+    expect(result).toContain('- Lightning Bolt (LEA:161) [foil] [ja] [keep] {signed} &1')
+  })
+
+  test('set-finish preserves the language token', () => {
+    const result = applyTargetedChangesToContent(
+      languageCollection,
+      'collection',
+      { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 2 },
+      [createSetFinishChange('Sol Ring', { finish: 'foil', cardId: 2 })],
+    )
+    expect(result).toContain('- Sol Ring (C21:263) [foil] [zhs] &2')
+  })
+
+  test('set-printing preserves the language token', () => {
+    const result = applyTargetedChangesToContent(
+      languageCollection,
+      'collection',
+      { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 2 },
+      [
+        createSetPrintingChange('Sol Ring', {
+          set: 'ltc',
+          collectorNumber: '284',
+          finish: 'nonfoil',
+          cardId: 2,
+        }),
+      ],
+    )
+    expect(result).toContain('- Sol Ring (LTC:284) [zhs] &2')
+  })
+
+  test('the labels group still reads correctly alongside a language token', () => {
+    const result = applyTargetedChangesToContent(
+      languageCollection,
+      'collection',
+      {
+        name: 'Lightning Bolt',
+        set: 'lea',
+        collectorNumber: '161',
+        finish: 'foil',
+        note: 'my first rare',
+      },
+      [createSetLabelChange('Lightning Bolt', { labels: ['sale'], cardId: 1 })],
+    )
+    expect(result).toContain('- Lightning Bolt (LEA:161) [foil] [ja] [sale] {my first rare} &1')
+  })
+
+  test('deck edits preserve a [ja] token through a note edit', () => {
+    const deck = ['## Main', '2 Sol Ring (LTC:284) [foil] [ja] &1', ''].join('\n')
+    const result = applyTargetedChangesToContent(
+      deck,
+      'deck',
+      { name: 'Sol Ring', set: 'ltc', collectorNumber: '284', finish: 'foil', quantity: 2 },
+      [createSetNoteChange('Sol Ring', { note: 'gift' })],
+    )
+    expect(result).toContain('2 Sol Ring (LTC:284) [foil] [ja] {gift} &1')
+  })
+
+  test('a deck add never merges an English copy onto a [ja] line', () => {
+    const deck = ['## Main', '1 Sol Ring (LTC:284) [ja] &1', ''].join('\n')
+    const { content, outcome } = applyDeckAddToContent(
+      deck,
+      { name: 'Sol Ring', set: 'ltc', collectorNumber: '284' },
+      1,
+    )
+    expect(outcome.merged).toBe(false)
+    expect(content).toContain('1 Sol Ring (LTC:284) [ja] &1')
+    expect(content).toContain('1 Sol Ring (LTC:284) &2')
+  })
+
+  test('a deck add merges a [ja] copy onto the matching [ja] line, keeping the token', () => {
+    const deck = ['## Main', '1 Sol Ring (LTC:284) [ja] {gift} &1', ''].join('\n')
+    const { content, outcome } = applyDeckAddToContent(
+      deck,
+      { name: 'Sol Ring', set: 'ltc', collectorNumber: '284', language: 'ja' },
+      1,
+    )
+    expect(outcome.merged).toBe(true)
+    expect(content).toContain('2 Sol Ring (LTC:284) [ja] {gift} &1')
+  })
+
+  test('set-language stamps a [ja] token at its canonical slot', () => {
+    const result = applyTargetedChangesToContent(
+      languageCollection,
+      'collection',
+      {
+        name: 'Lightning Bolt',
+        set: 'lea',
+        collectorNumber: '161',
+        finish: 'foil',
+        note: 'my first rare',
+        cardId: 1,
+      },
+      [createSetLanguageChange('Lightning Bolt', { language: 'de', cardId: 1 })],
+    )
+    expect(result).toContain('- Lightning Bolt (LEA:161) [foil] [de] [keep] {my first rare} &1')
+  })
+
+  test('set-language to en clears the token (bare line means English)', () => {
+    const result = applyTargetedChangesToContent(
+      languageCollection,
+      'collection',
+      { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 2 },
+      [createSetLanguageChange('Sol Ring', { language: 'en', cardId: 2 })],
+    )
+    expect(result).toContain('- Sol Ring (C21:263) &2')
+    expect(result).not.toContain('[zhs]')
   })
 })

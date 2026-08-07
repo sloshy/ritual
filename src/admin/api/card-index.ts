@@ -105,6 +105,7 @@ async function loadCardIndex(): Promise<CardIndexResponse> {
       collectorNumber: pc.collectorNumber,
       finish: pc.finish,
       condition: pc.condition,
+      language: pc.language,
       note: pc.note,
       cardId: pc.cardId,
       copyIndex: pc.copyIndex,

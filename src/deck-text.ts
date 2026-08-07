@@ -1,9 +1,11 @@
 import type { Card, DeckData } from './types'
 import { printingSuffix } from './card-line'
+import { languageToken } from './card-language'
 
 /**
  * Format a single deck card line in the canonical markdown format, e.g.
- * `2 Lightning Bolt (2XM:157) [foil] [LP] {note} &5`. Pure string formatting
+ * `2 Lightning Bolt (2XM:157) [foil] [LP] [ja] {note} &5`. The language token
+ * is omitted for English (a bare line means `en`). Pure string formatting
  * shared by the deck markdown serializer, the CLI importers, and the admin save
  * handlers. Lives here (a browser-safe, type-only module) so the public site can
  * reuse it without pulling in the node-only `deck-file` helpers.
@@ -16,6 +18,7 @@ export function serializeCardLine(card: Card): string {
   if (card.condition && card.condition !== 'NM') {
     line += ` [${card.condition}]`
   }
+  line += languageToken(card.language)
   if (card.note) {
     line += ` {${card.note}}`
   }

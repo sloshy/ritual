@@ -13,6 +13,12 @@ import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from './cache/constants'
 import { INCLUDE_ALL, defaultSiteSelection, type SiteSelectionConfig } from './site/list-selection'
 import { parseExportPresets, type ExportPreset } from './export/presets'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from './editor/search-debounce'
+import {
+  DEFAULT_CARD_LANGUAGE,
+  invalidLanguageMessage,
+  isCardLanguage,
+  type CardLanguage,
+} from './card-language'
 import { printingKey } from './printing-key'
 
 export { INCLUDE_ALL } from './site/list-selection'
@@ -119,6 +125,13 @@ export interface RitualConfig {
    */
   defaultCurrency: PriceCurrency
   /**
+   * The language stamped on newly added cards, and the selector for which
+   * Scryfall bulk backs the card cache (`en` → `default_cards`, anything else →
+   * `all_cards`). A bare card line always means `en` regardless of this setting —
+   * files stay self-describing. Always present, defaulting to `en`.
+   */
+  defaultLanguage: CardLanguage
+  /**
    * How long cache-refreshing operations wait for the cache-write lock held by
    * another process before failing. Always present, defaulting to 300 (5 minutes).
    */
@@ -184,6 +197,7 @@ const DEFAULT_CONFIG = {
   collectionsDir: './collections',
   wantedDir: './wanted',
   defaultCurrency: DEFAULT_CURRENCY,
+  defaultLanguage: DEFAULT_CARD_LANGUAGE,
   cacheLockTimeoutSeconds: DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
   cacheSource: 'scryfall',
   searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
@@ -629,6 +643,21 @@ export function parseDefaultCurrency(value: unknown): PriceCurrency | ConfigPars
 }
 
 /**
+ * Parse the `defaultLanguage` config value. Absent falls back to `en`; an
+ * unrecognized value is reported as a parse error for the caller to surface.
+ * Only the canonical Scryfall codes are accepted here — aliases like `jp` are
+ * a `config set`-time convenience, not a persisted spelling.
+ */
+export function parseDefaultLanguage(value: unknown): CardLanguage | ConfigParseError {
+  if (value === undefined) return DEFAULT_CARD_LANGUAGE
+  if (typeof value === 'string') {
+    const lower = value.toLowerCase()
+    if (isCardLanguage(lower)) return lower
+  }
+  return { error: invalidLanguageMessage(value, 'for "defaultLanguage"') }
+}
+
+/**
  * Parse a `cacheLockTimeoutSeconds` value. Returns the number when it is a
  * positive integer, the default when absent, or a parse error when malformed.
  */
@@ -738,6 +767,11 @@ function applyDefaults(parsed: ParsedConfig): RitualConfig {
       parseDefaultCurrency(parsed.defaultCurrency),
       'defaultCurrency',
       DEFAULT_CURRENCY,
+    ),
+    defaultLanguage: parseOrWarn(
+      parseDefaultLanguage(parsed.defaultLanguage),
+      'defaultLanguage',
+      DEFAULT_CARD_LANGUAGE,
     ),
     cacheLockTimeoutSeconds: parseOrWarn(
       parseCacheLockTimeoutSeconds(parsed.cacheLockTimeoutSeconds),
@@ -902,6 +936,15 @@ export function getWantedDir(config: RitualConfig = getRitualConfig()): string {
 /** The configured default price currency (`usd` unless overridden). */
 export function getDefaultCurrency(config: RitualConfig = getRitualConfig()): PriceCurrency {
   return config.defaultCurrency
+}
+
+/**
+ * The configured default card language (`en` unless overridden): the language
+ * stamped on newly added cards and the selector for which Scryfall bulk backs
+ * the card cache.
+ */
+export function getDefaultLanguage(config: RitualConfig = getRitualConfig()): CardLanguage {
+  return config.defaultLanguage
 }
 
 /** How long to wait for the cache-write lock, in seconds (300 unless overridden). */

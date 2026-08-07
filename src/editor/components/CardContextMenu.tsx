@@ -25,6 +25,11 @@ interface CardContextMenuProps {
    */
   onSetLabel?: () => void
   /**
+   * Open the language picker for the targeted card (every copy of the tile).
+   * Absent on read-only pages, hiding the item.
+   */
+  onSetLanguage?: () => void
+  /**
    * Open the move-to-section picker for the targeted card. Present whenever section
    * moves apply (the picker offers the other sections plus "New section…").
    */
@@ -87,6 +92,13 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
         {(setLabel) => (
           <button class="card-context-menu-item" onClick={() => setLabel()()}>
             Set Label…
+          </button>
+        )}
+      </Show>
+      <Show when={props.onSetLanguage}>
+        {(setLanguage) => (
+          <button class="card-context-menu-item" onClick={() => setLanguage()()}>
+            Set Language…
           </button>
         )}
       </Show>

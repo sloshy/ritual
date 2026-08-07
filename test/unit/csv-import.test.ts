@@ -6,6 +6,7 @@ import {
   guessHasHeader,
   normalizeCondition,
   normalizeFinish,
+  normalizeLanguage,
   normalizeQuantity,
   normalizeSection,
   parseColumnsSpec,
@@ -16,6 +17,7 @@ import {
   type CsvRow,
 } from '../../src/importers/csv'
 import { formatScriptingCommand } from '../../src/commands/import'
+import type { CardLanguage } from '../../src/card-language'
 import type { Condition, Finish } from '../../src/types'
 
 function rowsOf(result: ReturnType<typeof parseCsv>): CsvRow[] {
@@ -321,6 +323,40 @@ describe('normalizeQuantity', () => {
   })
 })
 
+describe('normalizeLanguage', () => {
+  test.each<[string, string]>([
+    ['ja', 'ja'],
+    ['JA', 'ja'],
+    ['JP', 'ja'],
+    ['kr', 'ko'],
+    ['SP', 'es'],
+    ['cs', 'zhs'],
+    ['CT', 'zht'],
+    ['Japanese', 'ja'],
+    ['simplified chinese', 'zhs'],
+    ['Phyrexian', 'ph'],
+  ])("normalizes '%s' to '%s'", (input, expected) => {
+    expect(normalizeLanguage(input)).toEqual({ ok: true, value: expected as CardLanguage })
+  })
+
+  test('an empty cell means no language', () => {
+    expect(normalizeLanguage('')).toEqual({ ok: true, value: undefined })
+    expect(normalizeLanguage('   ')).toEqual({ ok: true, value: undefined })
+  })
+
+  test('an explicit English normalizes to undefined — a bare line is how en is written', () => {
+    expect(normalizeLanguage('en')).toEqual({ ok: true, value: undefined })
+    expect(normalizeLanguage('English')).toEqual({ ok: true, value: undefined })
+  })
+
+  test('rejects a value naming no language', () => {
+    expect(normalizeLanguage('klingon')).toEqual({
+      ok: false,
+      error: "Unrecognized language 'klingon'",
+    })
+  })
+})
+
 describe('convertCsvRows', () => {
   const row = (cells: string[], lineNumber: number): CsvRow => ({
     cells,
@@ -430,6 +466,37 @@ describe('convertCsvRows', () => {
     expect(entries[0]!.condition).toBeUndefined()
   })
 
+  test('carries a mapped language column, dropping the token for English cells', () => {
+    const mapping = parseColumnsSpec(
+      'name=1,set=2,collector-number=3,language=4',
+      'collection',
+    ) as ColumnMapping
+    const { entries, failures } = convertCsvRows(
+      [
+        row(['Sol Ring', 'C19', '221', 'JP'], 1),
+        row(['Sol Ring', 'C19', '221', 'EN'], 2),
+        row(['Sol Ring', 'C19', '221', ''], 3),
+      ],
+      mapping,
+      'collection',
+    )
+    expect(failures).toEqual([])
+    expect(entries.map((entry) => entry.language)).toEqual(['ja', undefined, undefined])
+  })
+
+  test('a bad language cell fails its row with the standard per-row error', () => {
+    const mapping = parseColumnsSpec('name=1,language=2', 'deck') as ColumnMapping
+    const { entries, failures } = convertCsvRows(
+      [row(['Sol Ring', 'klingon'], 4), row(['Arcane Signet', 'German'], 5)],
+      mapping,
+      'deck',
+    )
+    expect(entries.map((entry) => entry.language)).toEqual(['de'])
+    expect(failures).toEqual([
+      { lineNumber: 4, raw: 'Sol Ring,klingon', reason: "Unrecognized language 'klingon'" },
+    ])
+  })
+
   test('keeps explicit sections verbatim on flat lists', () => {
     const mapping = parseColumnsSpec('name=1,set=2,collector-number=3,section=4', 'collection')
     const { entries } = convertCsvRows(
@@ -456,5 +523,11 @@ describe('header guessing', () => {
       collectorNumber: 3,
       finish: 4,
     })
+  })
+
+  test('recognizes language headers, long and short', () => {
+    expect(guessHasHeader(['Language', 'Something'])).toBe(true)
+    expect(guessColumns(['Name', 'Language'])).toEqual({ name: 0, language: 1 })
+    expect(guessColumns(['Name', 'Lang'])).toEqual({ name: 0, language: 1 })
   })
 })

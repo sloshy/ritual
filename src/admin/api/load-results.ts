@@ -1,5 +1,6 @@
 import type { Condition, DeckData, Finish } from '../../types'
 import type { CardLabel } from '../../card-labels'
+import type { CardLanguage } from '../../card-language'
 import type { ParsedWantedEntry } from '../../editor/wanted-entries'
 import type { DeckCardLoadResult, EntryCardLoadResult } from './card-data-loader'
 import type { ListCounts, ListLoadView, ListSectionCount } from './list-load-params'
@@ -23,6 +24,8 @@ export interface CollectionEntry {
   collectorNumber: string
   finish?: Finish
   condition?: Condition
+  /** The line's `[ja]`-style language token. Absent means `en` (a bare line). */
+  language?: CardLanguage
   /**
    * The entry's label override. Effective labels are this when present, else
    * the list-level `labels` on the load body.

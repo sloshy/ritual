@@ -82,6 +82,26 @@ describe('applyOutgoingMoves', () => {
     expect(result.droppedNotes).toEqual([])
   })
 
+  test('keeps the moved card’s [ja] token on the destination line and changelog', async () => {
+    // The editor's dual-list save path: a move-from event carries the source
+    // entry's language, and the destination side must write it back rather
+    // than landing the copy as a bare (English) line.
+    const change = createMoveFromChange('Lightning Bolt', {
+      set: 'lea',
+      collectorNumber: '161',
+      language: 'ja',
+      cardId: 1,
+      to: { type: 'deck', name: 'My Deck' },
+    })
+    await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, [change])
+
+    const deckContent = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.md'), 'utf-8')
+    expect(deckContent).toContain('1 Lightning Bolt (LEA:161) [ja]')
+
+    const changelog = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.changes.md'), 'utf-8')
+    expect(changelog).toMatch(/Moved "Lightning Bolt" \(LEA:161\) \[ja\].*from Collection 'Binder'/)
+  })
+
   test('throws moving a printing-less card into a collection', async () => {
     const change = createMoveFromChange('Counterspell', {
       cardId: 1,
@@ -249,6 +269,70 @@ describe('POST /api/move/selected', () => {
     const body = (await resp.json()) as { success: boolean; message: string }
     expect(body.success).toBe(false)
     expect(body.message).toContain('toSection')
+  })
+
+  test('a language arrival-override stamps the destination line, and en clears it', async () => {
+    // ja on arrival: the moved copy lands in the collection with a [ja] token.
+    const res = await move([
+      {
+        listType: 'deck',
+        listSlug: 'my-deck',
+        name: 'Sol Ring',
+        cardId: 1,
+        copyIndex: 0,
+        toType: 'collection',
+        toSlug: 'binder',
+        language: 'ja',
+      },
+    ])
+    expect(res.success).toBe(true)
+    expect(res.moved).toBe(1)
+    const coll = await fs.readFile(path.join(tmpDir, 'collections', 'binder.md'), 'utf-8')
+    expect(coll).toContain('Sol Ring (C19:221) [ja]')
+
+    // en on arrival: moving the now-[ja] copy back clears the token — a bare
+    // line means English, so the serializer must not write [en].
+    const back = await move([
+      {
+        listType: 'collection',
+        listSlug: 'binder',
+        name: 'Sol Ring',
+        cardId: 2,
+        toType: 'deck',
+        toSlug: 'my-deck',
+        language: 'en',
+      },
+    ])
+    expect(back.success).toBe(true)
+    expect(back.moved).toBe(1)
+    const deckContent = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.md'), 'utf-8')
+    expect(deckContent).toContain('Sol Ring')
+    expect(deckContent).not.toContain('[ja]')
+    expect(deckContent).not.toContain('[en]')
+  })
+
+  test('rejects an unknown language code', async () => {
+    const req = new Request('http://localhost/api/move/selected', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        moves: [
+          {
+            listType: 'deck',
+            listSlug: 'my-deck',
+            name: 'Sol Ring',
+            cardId: 1,
+            copyIndex: 0,
+            toType: 'collection',
+            toSlug: 'binder',
+            language: 'klingon',
+          },
+        ],
+      }),
+    })
+    const resp = await handleSelectedMove(req)
+    expect(resp.status).toBe(400)
+    expect(((await resp.json()) as { success: boolean }).success).toBe(false)
   })
 
   test('rejects a malformed body', async () => {

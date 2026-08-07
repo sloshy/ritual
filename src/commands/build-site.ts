@@ -26,6 +26,7 @@ import {
   getCollectionsDir,
   getDecksDir,
   getDefaultCurrency,
+  getDefaultLanguage,
   getRitualConfig,
   getSearchDebounceMs,
   getSiteApiBaseUrl,
@@ -932,6 +933,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       availableCurrencies,
       pricesDate,
       searchDebounceMs: getSearchDebounceMs(),
+      defaultLanguage: getDefaultLanguage(),
       // Present only for split deployments (static site on a CDN + separately
       // hosted `ritual serve --api`); `serve --api` itself serves index.json
       // dynamically and shadows this value with a same-origin marker.

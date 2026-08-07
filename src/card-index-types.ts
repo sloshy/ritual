@@ -8,6 +8,7 @@
  */
 
 import type { Condition, Finish } from './types'
+import type { CardLanguage } from './card-language'
 import type { ListType } from './list-type'
 
 /**
@@ -25,6 +26,8 @@ export type MovePhysicalCard = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The line's language token, when present. Absent means `en`. */
+  language?: CardLanguage
   note?: string
   cardId?: number
   copyIndex?: number

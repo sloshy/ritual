@@ -158,8 +158,8 @@ describe('export command (Integration)', () => {
 
       expect(result.exitCode).toBe(0)
       const [header, first] = result.stdout.split('\n')
-      expect(header).toBe('Name,Set,Collector Number,Finish,Condition,Quantity')
-      expect(first).toBe('Sol Ring,C21,263,foil,,1')
+      expect(header).toBe('Name,Set,Collector Number,Finish,Condition,Language,Quantity')
+      expect(first).toBe('Sol Ring,C21,263,foil,,,1')
     })
   }, 60_000)
 
@@ -174,9 +174,9 @@ describe('export command (Integration)', () => {
       // is not cached, so its id cell is empty and the run says so — the value
       // spellings themselves are pinned by the renderer's unit tests.
       expect(result.stdout).toBe(
-        'Scryfall ID,Quantity,Variant,Condition\n' +
-          '1b59533a-3e38-495d-873e-2f89fbd08494,1,Foil,NM\n' +
-          ',1,Normal,LP\n',
+        'Scryfall ID,Quantity,Variant,Condition,Language\n' +
+          '1b59533a-3e38-495d-873e-2f89fbd08494,1,Foil,NM,EN\n' +
+          ',1,Normal,LP,EN\n',
       )
       expect(result.stderr).toContain(
         'No Scryfall ID for Lightning Bolt (LEA:161): the printing is not in the Scryfall cache.',

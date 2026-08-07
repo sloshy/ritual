@@ -160,5 +160,21 @@ describe('findTargetEntryIndex', () => {
       const idx = findTargetEntryIndex(sparse, change({ cardName: 'Opt', set: 'xln' }))
       expect(idx).toBe(-1)
     })
+
+    test('language is deliberately not part of targeting', () => {
+      // A set-language change targets like set-finish: by cardId/fileOrder/
+      // name+printing. An entry's language is an attribute the change edits,
+      // never a filter — a [ja] entry is found by a plain name match, and two
+      // same-printing entries differing only by language are disambiguated by
+      // cardId, exactly like two same-printing copies are.
+      const multilingual: (TargetableEntry & { language?: string })[] = [
+        { name: 'Sol Ring', set: 'c21', collectorNumber: '1', language: 'ja', cardId: 1 },
+        { name: 'Sol Ring', set: 'c21', collectorNumber: '1', cardId: 2 },
+      ]
+      expect(findTargetEntryIndex(multilingual, change({ cardName: 'Sol Ring' }))).toBe(0)
+      expect(findTargetEntryIndex(multilingual, change({ cardName: 'Sol Ring', cardId: 2 }))).toBe(
+        1,
+      )
+    })
   })
 })

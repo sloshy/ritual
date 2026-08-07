@@ -122,6 +122,7 @@ describe('summarizeSellValue', () => {
       // 2 paused copies + 1 unquoted copy.
       notOnBuylistCount: 3,
       overLimitCount: 2,
+      nonEnglishCount: 0,
     })
   })
 
@@ -131,6 +132,22 @@ describe('summarizeSellValue', () => {
       sellableCount: 0,
       notOnBuylistCount: 4,
       overLimitCount: 0,
+      nonEnglishCount: 0,
+    })
+  })
+
+  test('counts non-English copies separately — they are never quotable', async () => {
+    await seedQuotes([{ key: 'dsk:1:nonfoil', productId: 10, priceBuy: 2, qtyBuying: 4 }])
+
+    // Same printing, but the entry carries a [ja] token: the English quote for
+    // dsk:1 must not price it.
+    const jaCard = { ...card('1', 2), language: 'ja' as const }
+    expect(summarizeSellValue([jaCard])).toEqual({
+      value: 0,
+      sellableCount: 0,
+      notOnBuylistCount: 0,
+      overLimitCount: 0,
+      nonEnglishCount: 2,
     })
   })
 })
@@ -143,14 +160,33 @@ describe('sellShortfallNote', () => {
         sellableCount: 4,
         notOnBuylistCount: 0,
         overLimitCount: 0,
+        nonEnglishCount: 0,
       }),
     ).toBeNull()
   })
 
   test('names both shortfall kinds, singularizing a lone card', () => {
     expect(
-      sellShortfallNote({ value: 0, sellableCount: 0, notOnBuylistCount: 1, overLimitCount: 2 }),
+      sellShortfallNote({
+        value: 0,
+        sellableCount: 0,
+        notOnBuylistCount: 1,
+        overLimitCount: 2,
+        nonEnglishCount: 0,
+      }),
     ).toBe("(1 card not on buylist, 2 over the buyer's limit)")
+  })
+
+  test('names non-English copies with their own not-quotable wording', () => {
+    expect(
+      sellShortfallNote({
+        value: 0,
+        sellableCount: 0,
+        notOnBuylistCount: 0,
+        overLimitCount: 0,
+        nonEnglishCount: 1,
+      }),
+    ).toBe('(1 non-English card — not quotable)')
   })
 })
 

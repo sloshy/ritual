@@ -15,6 +15,7 @@ import {
   validateContentHash,
   finishListSave,
   listSaveResponse,
+  normalizeRequestLanguages,
   normalizeRequestNotes,
   refuseUnreadableBaseline,
   type ListSaveTail,
@@ -55,6 +56,11 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     const allDeckCards = deck.sections.flatMap((s) => s.cards)
     const noteError = normalizeRequestNotes(changes, allDeckCards)
     if (noteError) return noteError
+
+    // The request's deck cards are serialized directly, so their languages are
+    // validated alongside the changes'.
+    const languageError = normalizeRequestLanguages(changes, allDeckCards)
+    if (languageError) return languageError
 
     const decksDir = getDecksDir()
     const resolved = await resolveListFileOrRefuse(resolveDeckFile, {

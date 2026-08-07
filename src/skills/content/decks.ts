@@ -113,7 +113,7 @@ ${sessionSemantics({
   fileNoun: 'deck file',
   editScope: "the deck's existing lines",
   editFields:
-    "change a line's printing, add/remove copies, move it to another section, edit its note, or remove it entirely",
+    "change a line's printing or language, add/remove copies, move it to another section, edit its note, or remove it entirely",
   undoAddVerb: 'takes back',
   changeKinds: 'copy adds, field edits, and removals',
   discardTarget: 'same-line changes',

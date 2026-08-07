@@ -1,4 +1,6 @@
 import { type Page } from '@playwright/test'
+import type { CardLanguage } from '../../../src/card-language'
+import type { DefaultLanguageOverride } from '../../../src/editor/default-language'
 import type { SearchDebounceOverride } from '../../../src/editor/search-debounce'
 
 /**
@@ -18,4 +20,19 @@ export async function disableSearchDebounce(page: Page): Promise<void> {
   await page.addInitScript(() => {
     ;(window as unknown as SearchDebounceOverride).__ritualSearchDebounceMs__ = 0
   })
+}
+
+/**
+ * Pin the page's default card language through the `__ritualDefaultLanguage__`
+ * seam (`src/editor/default-language.ts`), which always wins over any
+ * configured value — so a spec can exercise "the default language is ja"
+ * without a config file or a mocked config endpoint.
+ *
+ * Like {@link disableSearchDebounce}, call it before the page navigates: the
+ * init script runs on each document load.
+ */
+export async function setDefaultLanguage(page: Page, code: CardLanguage): Promise<void> {
+  await page.addInitScript((language: string) => {
+    ;(window as unknown as DefaultLanguageOverride).__ritualDefaultLanguage__ = language
+  }, code)
 }

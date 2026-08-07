@@ -4,7 +4,8 @@ import { matchesAllTerms } from '../term-match'
 import { getFrontFaceName } from '../scryfall/card-utils'
 import { extractCardTypeTags, matchesCardTypes } from './card-types'
 import { matchesTags } from './card-tags'
-import { printingKey } from '../printing-key'
+import { printingKey, printingLanguageKey } from '../printing-key'
+import { displayLanguage } from '../card-language'
 import { displayFinish } from '../finish-condition'
 import {
   CARD_LABEL_SELECTIONS,
@@ -339,14 +340,26 @@ function frontFaceKey(name: string): string {
  * it and one from the entry, as every other printing identity on the site does
  * (`buylistRequestFor`). Mixing the two sources would key a pinned entry whose
  * printing missed the cache under its own set code and the fallback printing's
- * collector number — a pair that may name a real, different printing.
+ * collector number — a pair that may name a real, different printing. The
+ * *language* is the exception: it comes from the entry's token, because the
+ * resolved card only reflects it when the cache baked an `@lang` object.
  */
 function copiesKey(card: CardData, mode: CopiesMatchMode): string {
   const name = frontFaceKey(card.name)
   if (mode === 'name') return name
   const printing = card.card
   if (printing === null) return name
-  const key = printingKey(printing.set, printing.collector_number)
+  // Language is a variant dimension under `printing`/`finish`, folded to the
+  // plain key for English (a bare line is English): a `[ja]` copy must not add
+  // into the same total as its English twin. It is keyed off the ENTRY's
+  // language token, not the resolved card — under the default `en` cache no
+  // `@lang` object is baked, so the resolved card would read `en` for a `[ja]`
+  // entry and merge the two.
+  const lang = displayLanguage(card.language)
+  const key =
+    lang !== 'en'
+      ? printingLanguageKey(printing.set, printing.collector_number, lang)
+      : printingKey(printing.set, printing.collector_number)
   return mode === 'printing' ? key : `${key}|${displayFinish(printing, card.finish)}`
 }
 

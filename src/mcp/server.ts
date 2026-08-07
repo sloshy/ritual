@@ -28,6 +28,10 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   unmatched? } — code is "conflict" | "invalid-request" | "internal".
 - Card names on writes are validated against the local cache; an unknown one is rejected with the
   closest cached names, and a cold cache says to run refresh_cache.
+- Card language: an entry without a language field is English ("en" — a bare card line always
+  means English). Adds never prompt for one — the defaultLanguage config key stamps new cards;
+  set-language / the language fields change it afterwards. Non-English copies are not quotable
+  on the Card Kingdom buylist (its feed is English-only).
 - Network vs local, by name: search_scryfall queries Scryfall; find_cards and autocomplete_card
   read your lists and your local cache. get_sell_report reads the locally cached Card Kingdom
   buylist; refresh_buylist is what downloads it.`

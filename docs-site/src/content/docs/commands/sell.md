@@ -48,9 +48,9 @@ Each entry lands in one of three states:
 
 - **buying** — CK lists an active offer: the cash price per Near Mint copy, capped at their buy quantity (`×2 of 4` means they'll take 2 of your 4).
 - **not buying** — the product exists on CK's list but their buy quantity is 0 (their feed keeps token prices on paused offers; those are not real quotes).
-- **no match** — no CK product was found, with a reason: the card cache has no printings for the name, the pinned printing isn't in the cache, or the printing simply isn't in CK's catalog.
+- **no match** — no CK product was found, with a reason: the card cache has no printings for the name, the pinned printing isn't in the cache, the printing simply isn't in CK's catalog — or the entry is **non-English** (a `[ja]`-style [language token](/commands/edit/#card-language)): Card Kingdom's feed is English-only, so a foreign copy is reported as `no-match` with reason `non-english` rather than silently quoted at the English price.
 
-Identical variant lines (same name, printing, finish, and condition, within a section) are aggregated first, so a playset spelled as four collection lines reports as one entry with quantity 4. Entries matching the same CK product draw down one shared buy-quantity budget, so several lists holding the same card never sum past CK's cap.
+Identical variant lines (same name, printing, finish, condition, and language, within a section) are aggregated first, so a playset spelled as four collection lines reports as one entry with quantity 4. Entries matching the same CK product draw down one shared buy-quantity budget, so several lists holding the same card never sum past CK's cap.
 
 Buy prices are Card Kingdom's **cash** quotes for **Near Mint** copies: played conditions are graded down on receipt, store credit typically pays more, and quotes change daily. Treat the report as a planning tool, not a locked-in offer.
 

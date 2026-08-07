@@ -87,6 +87,7 @@ export const MOCK_CONFIG = {
   collectionsDir: './collections',
   wantedDir: './wanted',
   defaultCurrency: 'eur',
+  defaultLanguage: 'en',
   cacheLockTimeoutSeconds: 300,
   cacheSource: 'scryfall',
   searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
@@ -135,21 +136,19 @@ export async function mockAuditLogApi(page: Page): Promise<void> {
 }
 
 /**
- * Mock the config API endpoints
+ * Mock the config API endpoints. `overrides` are merged over {@link MOCK_CONFIG}
+ * per test (e.g. `{ defaultLanguage: 'ja' }` to exercise the admin shell's
+ * config→runtime default-language wiring). Install it BEFORE the first
+ * navigation when the value under test is read at app boot — the logged-in
+ * Layout fetches `/api/config` once on mount.
  */
-export async function mockConfigApi(page: Page): Promise<void> {
-  await fulfillJson(
-    page,
-    '**/api/config',
-    { success: true, config: MOCK_CONFIG },
-    { method: 'GET' },
-  )
-  await fulfillJson(
-    page,
-    '**/api/config',
-    { success: true, config: MOCK_CONFIG },
-    { method: 'PUT' },
-  )
+export async function mockConfigApi(
+  page: Page,
+  overrides: Partial<RitualConfig> = {},
+): Promise<void> {
+  const config: RitualConfig = { ...MOCK_CONFIG, ...overrides }
+  await fulfillJson(page, '**/api/config', { success: true, config }, { method: 'GET' })
+  await fulfillJson(page, '**/api/config', { success: true, config }, { method: 'PUT' })
 }
 
 /**

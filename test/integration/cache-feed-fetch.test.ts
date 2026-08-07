@@ -27,6 +27,7 @@ async function mockFeed(
   http: MockHttpClient,
   stamp: string,
   cardLines: unknown[] = [{ name: 'Sol Ring', set: 'cmr' }],
+  options: { includeAllCards?: boolean } = {},
 ): Promise<FeedFixture> {
   const artifacts: Array<{ kind: CacheFeedEntry['kind']; name: string; body: Uint8Array }> = [
     {
@@ -34,6 +35,16 @@ async function mockFeed(
       name: `default-cards-${stamp}.jsonl.gz`,
       body: gzipJsonLines(cardLines),
     },
+    ...(options.includeAllCards
+      ? [
+          {
+            kind: 'all-cards' as const,
+            name: `all-cards-${stamp}.jsonl.gz`,
+            // The every-language bulk: the same card plus a foreign object.
+            body: gzipJsonLines([...cardLines, { name: 'Sol Ring', set: 'cmr', lang: 'ja' }]),
+          },
+        ]
+      : []),
     {
       kind: 'oracle-tags',
       // Tag content never changes across these fixtures, so — like the real
@@ -120,8 +131,9 @@ describe('CacheFeedClient (HTTP download path)', () => {
       )
       expect(await sha256Of(onDisk)).toBe(await sha256Of(bodies[entry.fileName]!))
     }
-    // The ingest callback received the default-cards path.
-    expect(ingested[0]!.defaultCards).toContain('default-cards-20260705.jsonl.gz')
+    // The ingest callback received the default-cards path and its bulk type.
+    expect(ingested[0]!.cards).toContain('default-cards-20260705.jsonl.gz')
+    expect(ingested[0]!.cardBulkType).toBe('default_cards')
 
     const state = parseCacheFeedClientState(
       JSON.parse(await fs.readFile(path.join(dataDir, 'state.json'), 'utf-8')),
@@ -187,7 +199,7 @@ describe('CacheFeedClient (HTTP download path)', () => {
 
     const result = await client.sync()
     expect(result.outcome).toBe('ingested')
-    expect(ingested[0]!.defaultCards).toBe(path.join(dataDir, 'files', entry.fileName))
+    expect(ingested[0]!.cards).toBe(path.join(dataDir, 'files', entry.fileName))
   })
 
   test('restores an artifact renamed upstream without content changes', async () => {
@@ -211,6 +223,74 @@ describe('CacheFeedClient (HTTP download path)', () => {
     http.mock(FEED_URL, () => new Response(JSON.stringify({ version: 99 })))
     // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
     await expect(client.sync()).rejects.toThrow('unsupported version')
+  })
+
+  /** A client configured for the every-language card bulk (non-en defaultLanguage). */
+  function allCardsClient(): CacheFeedClient {
+    return new CacheFeedClient({
+      feedUrl: FEED_URL,
+      dataDir,
+      http,
+      p2p: false,
+      cardKind: 'all-cards',
+      ingest: async (files) => {
+        ingested.push(files)
+      },
+      log: () => {},
+    })
+  }
+
+  test('an all-cards client ingests the all-cards artifact, not default-cards', async () => {
+    await mockFeed(http, '20260705', undefined, { includeAllCards: true })
+    const allClient = allCardsClient()
+    try {
+      const result = await allClient.sync()
+      expect(result.outcome).toBe('ingested')
+      expect(ingested[0]!.cards).toContain('all-cards-20260705.jsonl.gz')
+      expect(ingested[0]!.cardBulkType).toBe('all_cards')
+      // The default-cards artifact was never downloaded.
+      const names = await fs.readdir(path.join(dataDir, 'files'))
+      expect(names).not.toContain('default-cards-20260705.jsonl.gz')
+    } finally {
+      await allClient.stop()
+    }
+  })
+
+  test('per-card-kind state: a default-cards ingest does not satisfy an all-cards client', async () => {
+    await mockFeed(http, '20260705', undefined, { includeAllCards: true })
+    await client.sync()
+    expect(ingested[0]!.cardBulkType).toBe('default_cards')
+
+    // Same feed, but the client now wants the other card bulk — the state
+    // recorded for 'default-cards' must not read as "unchanged" here.
+    const allClient = allCardsClient()
+    try {
+      const result = await allClient.sync()
+      expect(result.outcome).toBe('ingested')
+      expect(ingested[1]!.cardBulkType).toBe('all_cards')
+    } finally {
+      await allClient.stop()
+    }
+  })
+
+  test('an all-cards client fails clearly when the feed does not publish all-cards', async () => {
+    await mockFeed(http, '20260705')
+    const allClient = allCardsClient()
+    try {
+      // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+      await expect(allClient.sync()).rejects.toThrow("no 'all-cards' entry")
+    } finally {
+      await allClient.stop()
+    }
+  })
+
+  test('a default-cards client ignores an all-cards entry in the feed', async () => {
+    await mockFeed(http, '20260705', undefined, { includeAllCards: true })
+    const result = await client.sync()
+    expect(result.outcome).toBe('ingested')
+    expect(ingested[0]!.cards).toContain('default-cards-20260705.jsonl.gz')
+    const names = await fs.readdir(path.join(dataDir, 'files'))
+    expect(names).not.toContain('all-cards-20260705.jsonl.gz')
   })
 })
 

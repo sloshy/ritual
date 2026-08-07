@@ -6,17 +6,29 @@ import { usePointerCoarse } from '../ui/useMediaQuery'
 import type { ListRef } from '../change-event'
 import type { NamedListRef } from './combined-list'
 import type { PriceCurrency } from '../price-currency'
-import type { CardSelectionControl } from './useCardSelection'
+import type { CardSelectionControl, SelectedCard } from './useCardSelection'
 import { useSelectionCopy } from './useSelectionCopy'
 import { addSelectionToTrade } from './useSelectionTrade'
 import { openSelectionView } from './SelectionModal'
 import { promptListMove, promptSectionMove } from './move-prompt'
 import { promptCardLabels } from './label-prompt'
+import { promptCardLanguage } from '../editor/language-prompt'
 import type { CardLabel } from '../card-labels'
+import { displayLanguage, type CardLanguage } from '../card-language'
 import { BUYER_DISPLAY_NAMES } from '../buylist'
 import { cartBuyer } from './sell-mode'
 
 const PANEL_WIDTH = 220
+
+/**
+ * The one language every selected card shares (folding bare lines to `en`), or
+ * undefined for a mixed selection — the language picker marks it as current.
+ */
+function commonSelectionLanguage(cards: SelectedCard[]): CardLanguage | undefined {
+  if (cards.length === 0) return undefined
+  const first = displayLanguage(cards[0]?.language)
+  return cards.every((c) => displayLanguage(c.language) === first) ? first : undefined
+}
 
 /**
  * Bulk edit operations exposed by the selection menu when a list is open in edit
@@ -37,6 +49,11 @@ export interface SelectionEditActions {
   removeAll: () => void
   setFoil: () => void
   setNonfoil: () => void
+  /**
+   * Set the language on the selection (`en` clears the token). Absent until the
+   * owning editor exposes a language handler — the item hides itself then.
+   */
+  setLanguage?: (language: CardLanguage) => void
   changePrinting: () => void
   /** Present for decks only. */
   setCommander?: () => void
@@ -254,6 +271,26 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
             >
               Set as Nonfoil
             </button>
+            <Show when={actions().setLanguage}>
+              {(setLanguage) => (
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="selection-menu-item"
+                  onClick={() => {
+                    // Capture before closing: the close may unmount this <Show>,
+                    // and the picker's callback runs after that. The picker marks
+                    // the selection's common language, when it has one.
+                    const apply = setLanguage()
+                    const current = commonSelectionLanguage(props.selection.selected())
+                    props.onClose()
+                    promptCardLanguage(current, apply)
+                  }}
+                >
+                  Set Language…
+                </button>
+              )}
+            </Show>
             <button
               type="button"
               role="menuitem"

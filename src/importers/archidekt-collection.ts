@@ -1,3 +1,4 @@
+import { displayLanguage, type CardLanguage } from '../card-language'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
 import { isRecord } from '../json'
 import type { Condition, Finish } from '../types'
@@ -12,8 +13,83 @@ import type { ArchidektCard, ArchidektCardModifier } from './archidekt-types'
 /** Archidekt game id for Paper — the only game Ritual syncs. */
 export const ARCHIDEKT_GAME_PAPER = 1
 
-/** Archidekt language id for English; every record Ritual creates uses it. */
+/** Archidekt language id for English — the fallback for languages Archidekt cannot model. */
 export const ARCHIDEKT_LANGUAGE_ENGLISH = 1
+
+/**
+ * Archidekt's numeric language ids (1–11) ↔ Ritual's {@link CardLanguage}
+ * codes, from `research/archidekt-collection-api.md`. Archidekt models only
+ * these eleven; Ritual's remaining codes (`ph`, `la`, `grc`, `he`, `ar`, `sa`)
+ * have no id and push as English with a warning. Declared as literal pairs —
+ * like `CONDITIONS_BY_ID` below, the types are proven by the table rather than
+ * asserted back on — and both direction maps derive from this one table, so
+ * the two directions can never disagree.
+ */
+export const ARCHIDEKT_LANGUAGE_PAIRS = [
+  [1, 'en'],
+  [2, 'zht'],
+  [3, 'de'],
+  [4, 'fr'],
+  [5, 'it'],
+  [6, 'ja'],
+  [7, 'ko'],
+  [8, 'pt'],
+  [9, 'ru'],
+  [10, 'zhs'],
+  [11, 'es'],
+] as const satisfies readonly (readonly [number, CardLanguage])[]
+
+const ARCHIDEKT_LANGUAGES_BY_ID = new Map<number, CardLanguage>(ARCHIDEKT_LANGUAGE_PAIRS)
+const ARCHIDEKT_IDS_BY_LANGUAGE = new Map<CardLanguage, number>(
+  ARCHIDEKT_LANGUAGE_PAIRS.map(([id, language]) => [language, id]),
+)
+
+/**
+ * The short language codes Archidekt's **CSV** import/export uses
+ * (`EN CT DE FR IT JP KR PT RU CS SP`) — the reverse of
+ * `normalizeLanguageValue`'s alias table. Same coverage as the numeric ids:
+ * a language with no id has no CSV code either.
+ */
+const ARCHIDEKT_CSV_LANGUAGE_CODES: Partial<Record<CardLanguage, string>> = {
+  en: 'EN',
+  zht: 'CT',
+  de: 'DE',
+  fr: 'FR',
+  it: 'IT',
+  ja: 'JP',
+  ko: 'KR',
+  pt: 'PT',
+  ru: 'RU',
+  zhs: 'CS',
+  es: 'SP',
+}
+
+/**
+ * Parse an Archidekt language id into a {@link CardLanguage}, or null for an id
+ * outside the documented 1–11 range. Callers degrade a null to English with a
+ * warning rather than skipping the record — the card itself is still real.
+ */
+export function parseArchidektLanguage(languageId: number): CardLanguage | null {
+  return ARCHIDEKT_LANGUAGES_BY_ID.get(languageId) ?? null
+}
+
+/**
+ * The Archidekt language id for a Ritual language, or null when Archidekt
+ * cannot represent it (`ph`, `la`, `grc`, `he`, `ar`, `sa`). A missing entry
+ * language resolves to English, like everywhere else.
+ */
+export function archidektLanguageId(language: CardLanguage | undefined): number | null {
+  return ARCHIDEKT_IDS_BY_LANGUAGE.get(displayLanguage(language)) ?? null
+}
+
+/**
+ * The code an Archidekt CSV cell carries for a Ritual language (`ja` → `JP`),
+ * or null when Archidekt has no code for it. A missing entry language resolves
+ * to English (`EN`).
+ */
+export function archidektCsvLanguage(language: CardLanguage | undefined): string | null {
+  return ARCHIDEKT_CSV_LANGUAGE_CODES[displayLanguage(language)] ?? null
+}
 
 /** Record ids per `/api/collection/bulk/` request, matching Archidekt's own batching. */
 export const ARCHIDEKT_BULK_BATCH_SIZE = 25

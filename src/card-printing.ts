@@ -1,4 +1,11 @@
 import type { ScryfallCard } from './types'
+import {
+  displayLanguage,
+  scryfallCardLanguage,
+  sortLanguages,
+  type CardLanguage,
+} from './card-language'
+import { cardPrintingKey } from './printing-key'
 
 /** The two fields that together pin a printing; either may be absent. */
 export type PrintingFields = { set?: string; collectorNumber?: string }
@@ -71,16 +78,81 @@ export function hasSpecificPrinting<T extends PrintingFields>(
  * pattern used wherever a specific printing must be resolved from a card's full
  * printing list (deck/collection/wanted rendering, static-site generation, and
  * pricing).
+ *
+ * Language-aware: when `language` is given (or defaulted — a missing value
+ * means `en`, and a card object with no `lang` is likewise treated as `en`),
+ * the card object in that language wins. When the cache holds no object in the
+ * requested language, the English object for the same `set:cn` is the
+ * fallback — it is the printing's default object, carrying prices and images —
+ * and failing that, whatever object the cache does hold for that `set:cn`.
  */
 export function findPrinting(
   printings: ScryfallCard[] | undefined,
   set: string | undefined,
   collectorNumber: string | undefined,
+  language?: CardLanguage,
 ): ScryfallCard | undefined {
   if (!printings || !set || !collectorNumber) return undefined
   const lowerSet = set.toLowerCase()
   const lowerNumber = collectorNumber.toLowerCase()
-  return printings.find(
+  const candidates = printings.filter(
     (p) => p.set.toLowerCase() === lowerSet && p.collector_number.toLowerCase() === lowerNumber,
   )
+  const wanted = displayLanguage(language)
+  return (
+    candidates.find((p) => scryfallCardLanguage(p) === wanted) ??
+    candidates.find((p) => scryfallCardLanguage(p) === 'en') ??
+    candidates[0]
+  )
+}
+
+/**
+ * Every language the cache holds a card object in for one `set:cn` printing,
+ * in {@link CARD_LANGUAGES} canonical order (deduped; an object with no `lang`
+ * counts as `en`). Empty when the printing is not in the list at all. Callers
+ * should mind {@link PrintingsSource}: only a `complete` list — and then only
+ * one built from the `all_cards` bulk — can be read as "these are all the
+ * languages this printing exists in".
+ */
+export function printingLanguages(
+  printings: ScryfallCard[] | undefined,
+  set: string | undefined,
+  collectorNumber: string | undefined,
+): CardLanguage[] {
+  if (!printings || !set || !collectorNumber) return []
+  const lowerSet = set.toLowerCase()
+  const lowerNumber = collectorNumber.toLowerCase()
+  const found = new Set<CardLanguage>()
+  for (const p of printings) {
+    if (p.set.toLowerCase() !== lowerSet || p.collector_number.toLowerCase() !== lowerNumber) {
+      continue
+    }
+    found.add(scryfallCardLanguage(p))
+  }
+  // Every member is a CardLanguage, so the canonical sort cannot reorder an
+  // unknown code into the list — the cast just restores the element type.
+  return sortLanguages(found) as CardLanguage[]
+}
+
+/**
+ * Collapse a printings list to one card object per `set:cn` printing — under an
+ * `all_cards` cache a printing appears once per language, and pickers must
+ * offer printings, not language objects. The English (default) object wins each
+ * printing's slot whatever order the list arrived in; a printing available in
+ * no other language keeps its sole foreign object. Order is the input's
+ * first-appearance order (Map insertion order), so upstream sorting (release
+ * date, `comparePrintings`) shows through.
+ */
+export function dedupePrintingsByKey(printings: ScryfallCard[]): ScryfallCard[] {
+  const byKey = new Map<string, ScryfallCard>()
+  for (const p of printings) {
+    const key = cardPrintingKey(p)
+    const existing = byKey.get(key)
+    if (!existing) {
+      byKey.set(key, p)
+    } else if (scryfallCardLanguage(existing) !== 'en' && scryfallCardLanguage(p) === 'en') {
+      byKey.set(key, p)
+    }
+  }
+  return [...byKey.values()]
 }

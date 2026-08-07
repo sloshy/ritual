@@ -34,6 +34,13 @@ export interface PrintingIdentity {
   /** Absent on the rare printing Scryfall reports without a release date. */
   releasedAt?: string
   finishes: string[]
+  /**
+   * Scryfall language code of this card object; **absent means English**
+   * (`en`), matching how the cache stores `ScryfallCard.lang`. With an
+   * `all_cards`-backed cache the same set:collectorNumber can appear once per
+   * language.
+   */
+  lang?: string
 }
 
 /** Printing identity + prices: the lean projection the price tools use. */
@@ -100,6 +107,10 @@ export function summarizePrintingIdentity(card: ScryfallCard): PrintingIdentity 
     rarity: card.rarity,
     releasedAt: card.released_at,
     finishes: card.finishes,
+    // Folded at the boundary rather than echoed: the cache omits `en`, but raw
+    // Scryfall JSON spells it out, and the projection's contract is one spelling
+    // — absent means English.
+    lang: card.lang === 'en' ? undefined : card.lang,
   }
 }
 

@@ -16,6 +16,7 @@ import {
   type SiteConfig,
   type SiteSelectionConfig,
 } from './ritual-config'
+import { invalidLanguageMessage, normalizeLanguageValue } from './card-language'
 import { getAtPath } from './utils'
 
 type ConfigFieldType = 'string' | 'boolean' | 'number' | 'string[]'
@@ -119,6 +120,7 @@ export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
   collectionsDir: 'string',
   wantedDir: 'string',
   defaultCurrency: 'string',
+  defaultLanguage: 'string',
   cacheLockTimeoutSeconds: 'number',
   cacheSource: 'string',
   cacheFeedUrl: 'string',
@@ -383,6 +385,18 @@ export function applyConfigSet(
       return parsed
     }
     newValue = parsed
+  }
+  // defaultLanguage is a constrained string; accept the common aliases
+  // (`jp`→`ja`, `sp`→`es`, full names like "Japanese") as a set-time
+  // convenience, but persist only the canonical Scryfall code.
+  if (property === 'defaultLanguage') {
+    const normalized = normalizeLanguageValue(rawValue)
+    if (normalized === null) {
+      return {
+        error: invalidLanguageMessage(rawValue, 'for "defaultLanguage"'),
+      }
+    }
+    newValue = normalized
   }
   // cacheSource and cacheFeedUrl are constrained strings; reject invalid values
   // here rather than persisting something the loader silently resets.

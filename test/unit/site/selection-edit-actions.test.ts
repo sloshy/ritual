@@ -19,6 +19,7 @@ function harness(withCommander = true) {
     removeCopy: record('removeCopy'),
     removeAll: record('removeAll'),
     setFinish: (cards, finish: Finish) => calls.push({ name: 'setFinish', cards, arg: finish }),
+    setLanguage: (cards, language) => calls.push({ name: 'setLanguage', cards, arg: language }),
     changePrinting: record('changePrinting'),
     setCommander: withCommander ? record('setCommander') : undefined,
     moveToSection: (cards, section) => calls.push({ name: 'moveToSection', cards, arg: section }),
@@ -84,6 +85,13 @@ describe('buildSelectionEditActions', () => {
       { name: 'setFinish', cards: h.cards, arg: 'nonfoil' },
     ])
     expect(h.cleared()).toBe(2)
+  })
+
+  test('setLanguage passes the language and clears', () => {
+    const h = harness()
+    h.actions.setLanguage!('ja')
+    expect(h.calls).toEqual([{ name: 'setLanguage', cards: h.cards, arg: 'ja' }])
+    expect(h.cleared()).toBe(1)
   })
 
   test('moveToSection passes the section name and clears', () => {

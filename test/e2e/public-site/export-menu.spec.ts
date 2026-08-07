@@ -59,9 +59,9 @@ test.describe('Page-header export menu', () => {
 
     expect(download.suggestedFilename()).toBe('Test_Collection.csv')
     const lines = readFileSync(await download.path(), 'utf-8').split('\n')
-    expect(lines[0]).toBe('Name,Set,Collector Number,Finish,Condition,Quantity')
-    expect(lines).toContain('Priced Card,TST,10,nonfoil,NM,1')
-    expect(lines).toContain('Unpriced Card,TST,11,nonfoil,NM,1')
+    expect(lines[0]).toBe('Name,Set,Collector Number,Finish,Condition,Language,Quantity')
+    expect(lines).toContain('Priced Card,TST,10,nonfoil,NM,,1')
+    expect(lines).toContain('Unpriced Card,TST,11,nonfoil,NM,,1')
   })
 
   test('copies a wanted list to the clipboard as text', async ({ page }) => {

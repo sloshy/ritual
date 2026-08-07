@@ -1,4 +1,5 @@
 import type { ScryfallCard } from './types'
+import type { CardLanguage } from './card-language'
 
 /**
  * The canonical `set:collectorNumber` key for one printing, with **both halves
@@ -35,6 +36,22 @@ export function printingKey(set: string, collectorNumber: string): string {
 }
 
 /**
+ * The per-language variant of {@link printingKey}: `set:cn@lang`. The plain
+ * `set:cn` key keeps holding the printing's *default-language* object (the one
+ * the `default_cards` bulk carries); an `@lang` key holds the same printing's
+ * card object in one alternate language. `@` cannot appear in a set code or
+ * collector number, so the two key forms can never collide. Like the plain
+ * key, this is a lookup key, never display text.
+ */
+export function printingLanguageKey(
+  set: string,
+  collectorNumber: string,
+  lang: CardLanguage,
+): string {
+  return `${printingKey(set, collectorNumber)}@${lang}`
+}
+
+/**
  * `SET:collectorNumber` as the UI and markdown spell it: set code uppercased,
  * collector number verbatim. The display counterpart of {@link printingKey} —
  * uppercasing a whole key would also fold the collector number's own case.
@@ -53,6 +70,8 @@ export type PrintingRef = {
   name: string
   set?: string
   collectorNumber?: string
+  /** The line's language token, when present. Absent means `en` (a bare line means English). */
+  language?: CardLanguage
 }
 
 /**
@@ -75,6 +94,14 @@ export type PrintingRef = {
  *   printings it has), so fall back to the representative rather than showing
  *   nothing.
  *
+ * A non-`en` ref first tries its {@link printingLanguageKey} (`set:cn@lang`,
+ * holding the alternate-language card object), then falls through the plain
+ * `set:cn` key — which still holds the printing's default-language object, the
+ * right fallback for prices and images when no per-language object was baked.
+ * The explicit-`null` contract applies to **both** key forms: an `@lang` key
+ * written as `null` records "looked for, not in the cache" and is returned
+ * as-is rather than falling through to a different object.
+ *
  * Callers apply their own session-cache overlay to the result; this returns the
  * raw map value.
  */
@@ -83,6 +110,10 @@ export function lookupPrintingCard(
   ref: PrintingRef,
 ): ScryfallCard | null {
   if (ref.set && ref.collectorNumber) {
+    if (ref.language !== undefined && ref.language !== 'en') {
+      const langKey = printingLanguageKey(ref.set, ref.collectorNumber, ref.language)
+      if (Object.hasOwn(cards, langKey)) return cards[langKey] ?? null
+    }
     const key = printingKey(ref.set, ref.collectorNumber)
     if (Object.hasOwn(cards, key)) return cards[key] ?? null
   }

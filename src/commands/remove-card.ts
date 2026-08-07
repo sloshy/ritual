@@ -1,6 +1,6 @@
 import { Command, InvalidArgumentError } from 'commander'
 import path from 'node:path'
-import { createRemoveChange } from '../change-event'
+import { createRemoveChange, printingOptionsFrom } from '../change-event'
 import type { CardMutationChange } from '../list-mutate'
 import { applyTargetedChanges } from './line-mutate'
 import {
@@ -162,15 +162,7 @@ async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Prom
   // drops the line at zero; flat-list engines remove the single matching entry.
   const changes: CardMutationChange[] = []
   for (let i = 0; i < copies; i++) {
-    changes.push(
-      createRemoveChange(target.name, {
-        set: target.set,
-        collectorNumber: target.collectorNumber,
-        finish: target.finish,
-        condition: target.condition,
-        cardId: target.cardId,
-      }),
-    )
+    changes.push(createRemoveChange(target.name, printingOptionsFrom(target)))
   }
   // A dry run resolves the list, the target, and every validation above, then
   // stops before the first write: no list file, no changelog, no sidecar.

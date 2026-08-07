@@ -15,6 +15,8 @@
  * ```
  */
 
+import { isCardLanguage, normalizeLanguageValue, type CardLanguage } from './card-language'
+
 export type ChangelogAction =
   | 'Added'
   | 'Removed'
@@ -22,6 +24,7 @@ export type ChangelogAction =
   | 'Unset as commander'
   | 'Set finish'
   | 'Set printing'
+  | 'Set language'
   | 'Set note'
   | 'Cleared note'
   | 'Set labels'
@@ -38,6 +41,13 @@ export type ChangelogChange = {
   collectorNumber?: string
   finish?: string
   condition?: string
+  /**
+   * Language code for `Set language` lines and `[ja]`-annotated printing
+   * descriptors. Unlike `finish` this is a narrowed {@link CardLanguage} —
+   * both producers validate the code before assigning it. Absent means
+   * English — `en` is never annotated.
+   */
+  language?: CardLanguage
   note?: string
   /** Label tokens for `Set labels` lines (loose strings, like `finish`). */
   labels?: string[]
@@ -54,9 +64,12 @@ export type ChangelogPage = {
   changes: ChangelogChange[]
 }
 
-// The board alternation must stay in sync with `BOARDS` in `types.ts`.
+// The board alternation must stay in sync with `BOARDS` in `types.ts`. Three
+// optional bracket groups: finish, condition, and language can all be
+// annotated on one line (`(NEO:234) [foil] [LP] [ja]`); each token is
+// classified by value-set membership, not position.
 const CHANGE_LINE_REGEX =
-  /^-\s+(Added|Removed|Set|Unset)\s+(.+?)(?:\s+\(([^)]+)\))?(?:\s+\[([^\]]+)\])?(?:\s+\[([^\]]+)\])?(?:\s+(?:to|from)\s+(Commander|Main|Sideboard|Maybeboard))?(?:\s+&\d+)?\s*$/
+  /^-\s+(Added|Removed|Set|Unset)\s+(.+?)(?:\s+\(([^)]+)\))?(?:\s+\[([^\]]+)\])?(?:\s+\[([^\]]+)\])?(?:\s+\[([^\]]+)\])?(?:\s+(?:to|from)\s+(Commander|Main|Sideboard|Maybeboard))?(?:\s+&\d+)?\s*$/
 
 /**
  * Matches `Set note on Card Name &5 to "the note text"`. Card-name group is non-greedy
@@ -81,6 +94,17 @@ const CLEARED_LABELS_LINE_REGEX = /^-\s+Cleared\s+labels\s+on\s+(.+?)(?:\s+&\d+)
  * non-greedy so the trailing `&N` and the printing descriptor are captured separately.
  */
 const SET_PRINTING_LINE_REGEX = /^-\s+Set\s+(.+?)\s+printing\s+to\s+(.+?)(?:\s+&\d+)?\s*$/
+/**
+ * Matches `Set language of "Card Name" to Japanese &5`. The card name is
+ * anchored on the writer's quotes so a name containing ` to ` (`Ashes to
+ * Ashes`) cannot split early; a legacy unquoted name falls back to a
+ * non-greedy group. The language group is non-greedy so the trailing `&N`
+ * stays separate; multi-word names (`Simplified Chinese`) still parse because
+ * the language
+ * group runs to the end of the line.
+ */
+const SET_LANGUAGE_LINE_REGEX =
+  /^-\s+Set\s+language\s+of\s+(?:"([^"]*)"|(.+?))\s+to\s+(.+?)(?:\s+&\d+)?\s*$/
 /** Matches the `SET:CN [finish] [condition]` descriptor inside a set-printing line. */
 const PRINTING_DESCRIPTOR_REGEX = /^([^\s:]+):([^\s[]+)((?:\s*\[[^\]]+\])*)\s*$/
 
@@ -156,6 +180,20 @@ export function parseChangeLine(line: string): ChangelogChange | null {
     return { action: 'Cleared labels', cardName: stripQuotes(clearedLabels[1]) }
   }
 
+  // "Set language of X to Japanese" carries a free-form language name the
+  // generic regex would misread as part of the card name — match it directly first.
+  const setLanguage = line.match(SET_LANGUAGE_LINE_REGEX)
+  if (setLanguage) {
+    // The quoted alternative captures the name unwrapped; the legacy unquoted
+    // fallback still normalizes through stripQuotes.
+    const cardName = setLanguage[1] ?? stripQuotes(setLanguage[2] ?? '')
+    const language = setLanguage[3] !== undefined ? normalizeLanguageValue(setLanguage[3]) : null
+    // A descriptor naming no known language is a malformed line — fail rather
+    // than silently discarding the language the line was meant to carry.
+    if (language === null) return null
+    return { action: 'Set language', cardName, language }
+  }
+
   // "Set X printing to ..." carries an unparenthesized `SET:CN` descriptor that the
   // generic regex (which expects `(SET:CN)`) can't read — match it directly first.
   const setPrinting = line.match(SET_PRINTING_LINE_REGEX)
@@ -166,10 +204,13 @@ export function parseChangeLine(line: string): ChangelogChange | null {
     if (printing?.[1] && printing[2]) {
       let finish: string | undefined
       let condition: string | undefined
+      let language: CardLanguage | undefined
       for (const bracketMatch of (printing[3] ?? '').matchAll(/\[([^\]]+)\]/g)) {
         const value = bracketMatch[1]!
-        if (FINISH_VALUES.has(value.toLowerCase())) finish = value.toLowerCase()
+        const lower = value.toLowerCase()
+        if (FINISH_VALUES.has(lower)) finish = lower
         else if (CONDITION_VALUES.has(value.toUpperCase())) condition = value.toUpperCase()
+        else if (isCardLanguage(lower)) language = lower
       }
       return {
         action: 'Set printing',
@@ -178,6 +219,7 @@ export function parseChangeLine(line: string): ChangelogChange | null {
         collectorNumber: printing[2],
         finish,
         condition,
+        language,
       }
     }
     // The only valid descriptor without a SET:CN is the explicit name-only marker.
@@ -192,7 +234,7 @@ export function parseChangeLine(line: string): ChangelogChange | null {
   const match = line.match(CHANGE_LINE_REGEX)
   if (!match) return null
 
-  const [, action, rawCardName, setCn, bracket1, bracket2, board] = match
+  const [, action, rawCardName, setCn, bracket1, bracket2, bracket3, board] = match
   if (!action || !rawCardName) return null
 
   let cardName = stripQuotes(rawCardName)
@@ -235,13 +277,17 @@ export function parseChangeLine(line: string): ChangelogChange | null {
 
   let finish: string | undefined
   let condition: string | undefined
+  let language: CardLanguage | undefined
 
-  for (const bracket of [bracket1, bracket2]) {
+  for (const bracket of [bracket1, bracket2, bracket3]) {
     if (!bracket) continue
-    if (FINISH_VALUES.has(bracket.toLowerCase())) {
-      finish = bracket.toLowerCase()
+    const lower = bracket.toLowerCase()
+    if (FINISH_VALUES.has(lower)) {
+      finish = lower
     } else if (CONDITION_VALUES.has(bracket.toUpperCase())) {
       condition = bracket.toUpperCase()
+    } else if (isCardLanguage(lower)) {
+      language = lower
     }
   }
 
@@ -254,6 +300,7 @@ export function parseChangeLine(line: string): ChangelogChange | null {
     collectorNumber,
     finish,
     condition,
+    language,
     board: normalizedBoard,
   }
 }

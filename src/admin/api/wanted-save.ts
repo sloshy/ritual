@@ -16,6 +16,7 @@ import {
   validateContentHash,
   finishListSave,
   listSaveResponse,
+  normalizeRequestLanguages,
   normalizeRequestNotes,
   refuseUnreadableBaseline,
   type ListSaveTail,
@@ -52,6 +53,11 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
 
     const noteError = normalizeRequestNotes(changes, entries)
     if (noteError) return noteError
+
+    // The request's entries are serialized directly, so their languages are
+    // validated alongside the changes'.
+    const languageError = normalizeRequestLanguages(changes, entries)
+    if (languageError) return languageError
 
     const wantedListsDir = getWantedDir()
     const resolved = await resolveListFileOrRefuse(resolveFlatListFile, {

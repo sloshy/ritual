@@ -1,4 +1,5 @@
 import { Command, InvalidArgumentError } from 'commander'
+import { languageToken } from '../card-language'
 import { loadExportEntries } from '../export/entries'
 import {
   diffLists,
@@ -80,7 +81,7 @@ function sideLabels(a: DiffListRef, b: DiffListRef): SideLabels {
   return { a: a.name, b: b.name }
 }
 
-/** `(SET:number)` / `[finish]` suffix for one printing bucket; empty for a plain unpinned nonfoil. */
+/** `(SET:number)` / `[finish]` / `[lang]` suffix for one printing bucket; empty for a plain unpinned nonfoil. */
 function printingSuffix(printing: DiffPrinting | undefined): string {
   if (!printing) return ''
   let suffix = ''
@@ -89,6 +90,8 @@ function printingSuffix(printing: DiffPrinting | undefined): string {
     suffix += ` (${printing.set.toUpperCase()}${number})`
   }
   if (printing.finish !== 'nonfoil') suffix += ` [${printing.finish}]`
+  // The buckets split on language, so a non-English one must say which it is.
+  suffix += languageToken(printing.language)
   return suffix
 }
 
@@ -98,7 +101,7 @@ function printingBreakdownItem(printing: DiffPrinting): string {
     ? `${printing.set.toUpperCase()}${printing.collectorNumber ? `:${printing.collectorNumber}` : ''}`
     : 'no printing'
   const finish = printing.finish === 'nonfoil' ? '' : ` [${printing.finish}]`
-  return `${base}${finish} x${printing.quantity}`
+  return `${base}${finish}${languageToken(printing.language)} x${printing.quantity}`
 }
 
 /** Whether a side's printings are just "one unpinned nonfoil bucket" (no breakdown needed). */
@@ -108,7 +111,8 @@ function isPlainBucket(printings: DiffPrinting[]): boolean {
     printings.length === 1 &&
     only !== undefined &&
     only.set === undefined &&
-    only.finish === 'nonfoil'
+    only.finish === 'nonfoil' &&
+    only.language === undefined
   )
 }
 

@@ -5,15 +5,24 @@ import {
   ARCHIDEKT_CSV_MAX_COLUMNS,
   ARCHIDEKT_GAME_PAPER,
   ARCHIDEKT_LANGUAGE_ENGLISH,
+  ARCHIDEKT_LANGUAGE_PAIRS,
   archidektConditionId,
   archidektCsvCondition,
+  archidektCsvLanguage,
+  archidektLanguageId,
   archidektModifier,
   parseArchidektCondition,
+  parseArchidektLanguage,
   parseArchidektModifier,
   validateArchidektCsvColumns,
   type ArchidektCsvColumn,
 } from '../../../src/importers/archidekt-collection'
 import type { ArchidektCardModifier } from '../../../src/importers/archidekt-types'
+import {
+  CARD_LANGUAGES,
+  normalizeLanguageValue,
+  type CardLanguage,
+} from '../../../src/card-language'
 import type { Condition, Finish } from '../../../src/types'
 
 describe('Archidekt collection enums', () => {
@@ -94,6 +103,84 @@ describe('Archidekt collection enums', () => {
     expect(ARCHIDEKT_BULK_BATCH_SIZE).toBe(25)
     expect(ARCHIDEKT_CSV_CHUNK_SIZE).toBe(2000)
     expect(ARCHIDEKT_CSV_MAX_COLUMNS).toBe(20)
+  })
+})
+
+describe('Archidekt language mapping', () => {
+  // The full documented id table (research/archidekt-collection-api.md),
+  // pinned in both directions.
+  test.each<[number, CardLanguage]>([
+    [1, 'en'],
+    [2, 'zht'],
+    [3, 'de'],
+    [4, 'fr'],
+    [5, 'it'],
+    [6, 'ja'],
+    [7, 'ko'],
+    [8, 'pt'],
+    [9, 'ru'],
+    [10, 'zhs'],
+    [11, 'es'],
+  ])('maps Archidekt language id %i to %s and back', (id, language) => {
+    expect(parseArchidektLanguage(id)).toBe(language)
+    expect(archidektLanguageId(language)).toBe(id)
+  })
+
+  test('an id outside the documented range parses to null', () => {
+    expect(parseArchidektLanguage(0)).toBeNull()
+    expect(parseArchidektLanguage(12)).toBeNull()
+    expect(parseArchidektLanguage(-1)).toBeNull()
+  })
+
+  test('a missing language resolves to the English id', () => {
+    expect(archidektLanguageId(undefined)).toBe(ARCHIDEKT_LANGUAGE_ENGLISH)
+  })
+
+  test.each<CardLanguage>(['ph', 'la', 'grc', 'he', 'ar', 'sa'])(
+    'Archidekt cannot represent %s (no id, no CSV code)',
+    (language) => {
+      expect(archidektLanguageId(language)).toBeNull()
+      expect(archidektCsvLanguage(language)).toBeNull()
+    },
+  )
+
+  test.each<[CardLanguage | undefined, string]>([
+    [undefined, 'EN'],
+    ['en', 'EN'],
+    ['zht', 'CT'],
+    ['de', 'DE'],
+    ['fr', 'FR'],
+    ['it', 'IT'],
+    ['ja', 'JP'],
+    ['ko', 'KR'],
+    ['pt', 'PT'],
+    ['ru', 'RU'],
+    ['zhs', 'CS'],
+    ['es', 'SP'],
+  ])('CSV language code for %s is %s', (language, code) => {
+    expect(archidektCsvLanguage(language)).toBe(code)
+  })
+
+  test('every CSV code normalizes back to the language it was written for', () => {
+    // Alias-drift guard: the CSV codes are the reverse of
+    // `normalizeLanguageValue`'s alias table (JP→ja, CS→zhs, …). If either
+    // table changes without the other, a pushed CSV would re-import as a
+    // different language.
+    for (const language of CARD_LANGUAGES) {
+      const code = archidektCsvLanguage(language)
+      if (code === null) continue
+      expect(normalizeLanguageValue(code)).toBe(language)
+    }
+  })
+
+  test('every id-mapped language has a CSV code, and only those', () => {
+    for (const language of CARD_LANGUAGES) {
+      const hasId = archidektLanguageId(language) !== null
+      const hasCode = archidektCsvLanguage(language) !== null
+      expect(hasCode).toBe(hasId)
+    }
+    // Eleven ids, per the documented enum.
+    expect(ARCHIDEKT_LANGUAGE_PAIRS).toHaveLength(11)
   })
 })
 

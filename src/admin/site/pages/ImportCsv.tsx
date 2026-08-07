@@ -74,6 +74,7 @@ function emptySelections(): ColumnSelections {
     'collector-number': -1,
     condition: -1,
     finish: -1,
+    language: -1,
     section: -1,
     quantity: -1,
   }

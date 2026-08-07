@@ -24,6 +24,18 @@ import {
 } from '../printing-pagination'
 import { stepQuantity } from '../../ui/quantity'
 import { searchDebounceMs } from '../search-debounce'
+import {
+  displayLanguage,
+  formatLanguageList,
+  languageBadge,
+  languageDisplayName,
+  scryfallCardLanguage,
+  storedLanguage,
+  type CardLanguage,
+} from '../../card-language'
+import { defaultLanguage } from '../default-language'
+import { dedupePrintingsByKey, printingLanguages } from '../../card-printing'
+import { resolvePrintingLanguage } from '../../printing-language'
 
 type CardSearchModalProps = {
   open: boolean
@@ -54,7 +66,27 @@ type AddOptionsInput = {
   condition: Condition | undefined
 }
 
-type Step = 'search' | 'printing' | 'finish-condition'
+type Step = 'search' | 'printing' | 'language-notice' | 'finish-condition'
+
+/**
+ * A picked printing held while the language-notice step asks whether to proceed:
+ * the printing is not available in the configured default language, so
+ * continuing stamps `language` on the entry instead.
+ */
+type LanguageNotice = {
+  printing: ScryfallCard
+  /** The language the entry will be stamped with on Continue. */
+  language: CardLanguage
+  /** Every language this `set:cn` is available in. */
+  available: CardLanguage[]
+  /**
+   * The full printing list the language was resolved against, committed as-is
+   * on Continue so the commit can never diverge from what the notice showed
+   * (e.g. when the auto-advance path resolved against a fresher list than
+   * `allLanguagePrintings()`).
+   */
+  allPrintings: ScryfallCard[]
+}
 
 /** DOM id of the finish/condition step's quantity ticker, shared by its ↑/↓ navigation. */
 const QUANTITY_STEPPER_ID = 'add-card-qty'
@@ -97,12 +129,20 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   const [highlightedIndex, setHighlightedIndex] = createSignal(-1)
   const [previewCard, setPreviewCard] = createSignal<PreviewCard | null>(null)
 
-  // Step 2: Printing selection
+  // Step 2: Printing selection. The grid shows one row per physical printing
+  // (`printings`, deduped by set:cn); `allLanguagePrintings` keeps the full
+  // fetched list — one object per language under an `all_cards` cache — for
+  // language resolution and for handing to the card-data stores.
   const [selectedCardName, setSelectedCardName] = createSignal('')
   const [printings, setPrintings] = createSignal<ScryfallCard[]>([])
+  const [allLanguagePrintings, setAllLanguagePrintings] = createSignal<ScryfallCard[]>([])
   const [printingHighlightIndex, setPrintingHighlightIndex] = createSignal(0)
   const [printingsPage, setPrintingsPage] = createSignal(0)
   const [loadingPrintings, setLoadingPrintings] = createSignal(false)
+
+  // Step 2b: language notice — the picked printing does not exist in the
+  // configured default language, so the user confirms the stamped language.
+  const [languageNotice, setLanguageNotice] = createSignal<LanguageNotice | null>(null)
 
   // Tracks whether the set filter was applied to the current `printings()` value,
   // and whether it had to fall back because no printings matched.
@@ -215,6 +255,12 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   const [selectedPrinting, setSelectedPrinting] = createSignal<ScryfallCard | null>(null)
   const [selectedFinish, setSelectedFinish] = createSignal<Finish>('nonfoil')
   const [selectedCondition, setSelectedCondition] = createSignal<Condition>('NM')
+  // The language the committed entry will be stamped with (undefined = English,
+  // which writes a bare line). Resolved when the printing is picked; adding
+  // never asks about language beyond the availability notice step.
+  const [selectedAddLanguage, setSelectedAddLanguage] = createSignal<CardLanguage | undefined>(
+    undefined,
+  )
   const [quantity, setQuantity] = createSignal(1)
 
   let inputRef: HTMLInputElement | undefined
@@ -239,12 +285,15 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     setPreviewCard(null)
     setSelectedCardName('')
     setPrintings([])
+    setAllLanguagePrintings([])
+    setLanguageNotice(null)
     setPrintingHighlightIndex(0)
     setPrintingsPage(0)
     setLoadingPrintings(false)
     setSelectedPrinting(null)
     setSelectedFinish(props.defaults?.finish ?? 'nonfoil')
     setSelectedCondition(defaultCondition() ?? 'NM')
+    setSelectedAddLanguage(undefined)
     setQuantity(1)
     setSetFilterFellBack(false)
     typedQuery = ''
@@ -345,7 +394,11 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     setPrintingsPage(0)
     try {
       const allPrintings = await props.search.printings(cardName)
-      const filtered = applySetFilter(allPrintings)
+      setAllLanguagePrintings(allPrintings)
+      // One grid row per physical printing: an `all_cards` cache returns one
+      // object per language for the same set:cn, deduped here preferring the
+      // English (default) object.
+      const filtered = applySetFilter(dedupePrintingsByKey(allPrintings))
       setPrintings(filtered)
       // When the set-code default narrows to a single matching printing AND no
       // fallback was triggered, auto-advance with that printing — this is the
@@ -363,18 +416,54 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     }
   }
 
-  // Select a printing → add directly or move to finish/condition step.
-  // `unfilteredPrintings` is the full list to surface to the consumer, used when the
-  // grid was narrowed by the set-code default but the parent still wants the full set.
+  // Select a printing → add directly or move to finish/condition step, via the
+  // language-notice step when the printing is unavailable in the configured
+  // default language. `unfilteredPrintings` is the full list to surface to the
+  // consumer, used when the grid was narrowed by the set-code default (or
+  // deduped by language) but the parent still wants the full set.
   const selectPrinting = (printing: ScryfallCard | null, unfilteredPrintings?: ScryfallCard[]) => {
-    const allPrintings = unfilteredPrintings ?? printings()
+    const allPrintings = unfilteredPrintings ?? allLanguagePrintings()
     if (!printing) {
-      const cheapest = allPrintings.length > 0 ? getCheapestPrinting(allPrintings) : undefined
+      // No language is ever stamped here: without a set:cn there is no printing
+      // whose available languages could be checked, so the entry stays bare (en).
+      // Cheapest over one row per printing — foreign objects carry no prices of
+      // their own and must not shadow the priced English object.
+      const deduped = dedupePrintingsByKey(allPrintings)
+      const cheapest = deduped.length > 0 ? getCheapestPrinting(deduped) : undefined
       props.onAddCard(selectedCardName(), undefined, cheapest, allPrintings)
       props.onClose()
       return
     }
 
+    const available = printingLanguages(allPrintings, printing.set, printing.collector_number)
+    const { language, honoredPreferred } = resolvePrintingLanguage(
+      allPrintings,
+      printing.set,
+      printing.collector_number,
+      displayLanguage(defaultLanguage()),
+    )
+    if (!honoredPreferred) {
+      // The printing is not available in the default language: surface a notice
+      // with Continue (stamps `language`) and Back. This is the only language
+      // interaction adding a card ever has. Deliberately stricter than
+      // TradePrintingPicker (which notices only when the picked row itself is
+      // non-default): the grid shows one row per set:cn, so the user never
+      // explicitly chose a language and must be told when one is forced.
+      setLanguageNotice({ printing, language, available, allPrintings })
+      setStep('language-notice')
+      return
+    }
+    commitPrinting(printing, language, allPrintings)
+  }
+
+  /** Proceed with a picked printing whose entry language has been resolved. */
+  const commitPrinting = (
+    printing: ScryfallCard,
+    language: CardLanguage,
+    allPrintings: ScryfallCard[],
+  ) => {
+    // English writes a bare line, so it is stamped as "no token".
+    const languageOption = storedLanguage(language)
     const auto = resolveAutoOptions(printing)
     if (auto) {
       props.onAddCard(
@@ -384,6 +473,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
           collectorNumber: auto.printing.collector_number,
           finish: auto.finish,
           condition: auto.condition,
+          language: languageOption,
         },
         auto.printing,
         allPrintings,
@@ -395,6 +485,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     // Fall through to the finish/condition step — pre-fill from defaults where
     // possible so the user only confirms unspecified fields.
     setSelectedPrinting(printing)
+    setSelectedAddLanguage(languageOption)
     // `printingFinishes` (not a bare `.filter(isFinish)`) so a printing that
     // models no usable finish still offers nonfoil rather than nothing.
     const availableFinishes = printingFinishes(printing)
@@ -552,9 +643,10 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
         collectorNumber: printing.collector_number,
         finish: selectedFinish(),
         condition: usesCondition() ? selectedCondition() : undefined,
+        language: selectedAddLanguage(),
       },
       printing,
-      printings(),
+      allLanguagePrintings(),
       usesQuantity() ? quantity() : 1,
     )
     if (addAnother) {
@@ -642,9 +734,13 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   )
 
   const goBack = () => {
-    if (step() === 'finish-condition') {
+    if (step() === 'language-notice') {
+      setLanguageNotice(null)
+      setStep('printing')
+    } else if (step() === 'finish-condition') {
       setStep('printing')
       setSelectedPrinting(null)
+      setSelectedAddLanguage(undefined)
       // The count belongs to the printing being confirmed: another printing may
       // be resolved by defaults and added straight from the grid, where there is
       // no ticker to show what would be committed.
@@ -669,10 +765,36 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     }
   }
 
+  /** Continue past the language notice, committing the printing with its stamped language. */
+  const confirmLanguageNotice = () => {
+    const notice = languageNotice()
+    if (!notice) return
+    setLanguageNotice(null)
+    commitPrinting(notice.printing, notice.language, notice.allPrintings)
+  }
+
+  // Language-notice step keys: Enter continues (buttons exempt, so a focused
+  // "← Back" still activates itself through its default action).
+  useDocumentKeydown(
+    (e) => {
+      if (e.key !== 'Enter') return
+      if (e.target instanceof HTMLButtonElement) return
+      e.preventDefault()
+      confirmLanguageNotice()
+    },
+    () => props.open && step() === 'language-notice',
+  )
+
   // Keyboard hints shown in the footer, mirroring the public site's quick-switch
   // dialog. Each step advertises its own navigation: a flat result list, a card
   // grid (row-wise ↑/↓, card-wise ←/→), and the finish/condition radio groups.
   const keyHints = createMemo<KeyHint[]>(() => {
+    if (step() === 'language-notice') {
+      return [
+        { keys: ['Enter'], label: 'continue' },
+        { keys: ['Esc'], label: 'close' },
+      ]
+    }
     if (step() === 'printing') {
       return [
         { keys: ['←', '→'], label: 'printing' },
@@ -824,6 +946,11 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                         <Show when={imageUrl}>
                           {(url) => <img src={url()} alt={printing.name} loading="lazy" />}
                         </Show>
+                        {/* A printing whose default object is non-English (e.g. a
+                            Japanese-only alternate) wears its language code. */}
+                        <Show when={languageBadge(scryfallCardLanguage(printing))}>
+                          {(badge) => <span class="printing-lang-badge">{badge()}</span>}
+                        </Show>
                         <div class="printing-label">
                           {printing.set.toUpperCase()} #{printing.collector_number}
                           {' · '}
@@ -856,6 +983,50 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
             </div>
           </Show>
         </>
+      </Show>
+
+      {/* Language notice: the picked printing does not exist in the configured
+          default language — Continue stamps the resolved language, Back returns
+          to the printing grid. */}
+      <Show when={step() === 'language-notice' && languageNotice()}>
+        {(notice) => (
+          <>
+            <div class="search-modal-header">
+              <button onClick={goBack} class="search-tab-btn">
+                ← Back
+              </button>
+              <h3 class="modal-heading-flex">
+                {selectedCardName()} ({notice().printing.set.toUpperCase()}:
+                {notice().printing.collector_number})
+              </h3>
+            </div>
+            <div class="search-modal-body">
+              <div class="search-modal-hint">
+                <Show
+                  when={notice().available.length > 1}
+                  fallback={
+                    <>
+                      This printing is only available in {formatLanguageList(notice().available)}.
+                    </>
+                  }
+                >
+                  This printing is not available in{' '}
+                  {languageDisplayName(displayLanguage(defaultLanguage()))} — only{' '}
+                  {formatLanguageList(notice().available)}. It will be added in{' '}
+                  {languageDisplayName(notice().language)}.
+                </Show>
+              </div>
+              <div class="add-card-actions">
+                <button onClick={confirmLanguageNotice} class="btn-add-card">
+                  Continue
+                  <span class="btn-key-hint" aria-hidden="true">
+                    <KeyChips keys={['Enter']} />
+                  </span>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </Show>
 
       <Show when={step() === 'finish-condition' && selectedPrinting()}>

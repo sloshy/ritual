@@ -8,6 +8,7 @@
  */
 
 import type { BuylistQuote, BuylistQuoteRequest } from '../buylist'
+import { displayLanguage } from '../card-language'
 import {
   lookupSkuPrinting,
   productUrl,
@@ -99,11 +100,16 @@ export type PrintingMatch = {
  * requested finish first (99.5% product coverage), then the sku-derived
  * printing index for the remainder. Returns null when CK's catalog has nothing
  * for the printing — the caller renders that as "not on the buylist".
+ *
+ * A non-English request short-circuits to null before any index is consulted:
+ * CK's feed is English-only, and quoting the English product's price for a
+ * foreign copy would be a wrong price, not a helpful approximation.
  */
 export function matchPrinting(
   index: CardKingdomIndex,
   printing: QuotePrinting,
 ): PrintingMatch | null {
+  if (displayLanguage(printing.language) !== 'en') return null
   if (printing.scryfallId !== undefined && printing.scryfallId !== '') {
     const byId = (index.byScryfallId.get(printing.scryfallId) ?? []).filter(
       (product) => product.finish === printing.finish,

@@ -85,25 +85,28 @@ describe('matchSectionHeader', () => {
 // ── Serializer round-trip ────────────────────────────────────────────
 
 const collectionLine = (e: CollectionEntry): string =>
-  formatCollectionLine(
-    e.name,
-    e.set,
-    e.collectorNumber,
-    e.finish ?? 'nonfoil',
-    e.condition,
-    e.labels,
-    e.note,
-    e.cardId,
-  )
+  formatCollectionLine({
+    cardName: e.name,
+    set: e.set,
+    collectorNumber: e.collectorNumber,
+    finish: e.finish ?? 'nonfoil',
+    condition: e.condition,
+    language: e.language,
+    labels: e.labels,
+    note: e.note,
+    cardId: e.cardId,
+  })
 
 const wantedLine = (e: WantedListEntry): string =>
-  formatWantedListLine(
-    e.name,
-    e.set && e.collectorNumber ? { set: e.set, collectorNumber: e.collectorNumber } : undefined,
-    e.finish,
-    e.note,
-    e.cardId,
-  )
+  formatWantedListLine({
+    name: e.name,
+    printing:
+      e.set && e.collectorNumber ? { set: e.set, collectorNumber: e.collectorNumber } : undefined,
+    finish: e.finish,
+    language: e.language,
+    note: e.note,
+    cardId: e.cardId,
+  })
 
 describe('serializeSectionedList round-trip', () => {
   test('promotes the implicit Main section to an explicit ## Main header', () => {

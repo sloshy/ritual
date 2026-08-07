@@ -12,6 +12,7 @@ import {
   type ArchidektCollectionTag,
 } from '../../../src/importers/archidekt-collection'
 import type { CollectionEntry } from '../../../src/collection-file'
+import type { CardLanguage } from '../../../src/card-language'
 import type { CardPrintingsLookup } from '../../../src/card-printing'
 import { DEFAULT_SECTION, type Condition, type Finish, type ScryfallCard } from '../../../src/types'
 
@@ -19,6 +20,8 @@ import { DEFAULT_SECTION, type Condition, type Finish, type ScryfallCard } from 
 export type EntryOptions = {
   finish?: Finish
   condition?: Condition
+  /** The line's `[ja]`-style token; absent means a bare (English) line. */
+  language?: CardLanguage
   cardId?: number
   note?: string
   section?: string
@@ -39,6 +42,7 @@ export function entry(
     section: options.section ?? DEFAULT_SECTION,
     finish: options.finish,
     condition: options.condition,
+    language: options.language,
     cardId: options.cardId,
     note: options.note,
   }

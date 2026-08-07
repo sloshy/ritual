@@ -65,6 +65,14 @@ describe('appendChangelog', () => {
       makeChange({ action: 'set-commander', cardName: 'Atraxa' }),
       makeChange({ action: 'unset-commander', cardName: 'Atraxa' }),
       makeChange({ action: 'set-finish', cardName: 'Sol Ring', finish: 'foil' }),
+      makeChange({ action: 'set-language', cardName: 'Sol Ring', language: 'ja' }),
+      makeChange({
+        cardName: 'Ambition’s Cost',
+        set: 'NEO',
+        collectorNumber: '234',
+        finish: 'foil',
+        language: 'ja',
+      }),
       makeChange({
         cardName: 'Black Lotus',
         set: 'LEA',
@@ -91,6 +99,10 @@ describe('appendChangelog', () => {
     expect(content).toContain('- Unset "Atraxa" as commander')
     // Finish change
     expect(content).toContain('- Set "Sol Ring" finish to foil')
+    // Language change uses the display name, not the code
+    expect(content).toContain('- Set language of "Sol Ring" to Japanese')
+    // A non-en add annotates the language token after finish/condition
+    expect(content).toContain('- Added "Ambition’s Cost" (NEO:234) [foil] [ja]')
     // Condition info for collection cards
     expect(content).toContain('- Added "Black Lotus" (LEA:1) [LP]')
   })

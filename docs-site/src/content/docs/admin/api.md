@@ -263,7 +263,7 @@ Get the printings of a card, newest first. Uses the card cache with fallback to 
 | `name`    | Exact card name                                                      | Yes      |
 | `limit`   | Max printings returned. A positive integer; anything else is a `400` | No       |
 
-`limit` is **opt-in**: omitting it returns every printing, which is what the public/hosted site's printing pickers depend on. When it truncates the list, `totalPrintings` reports how many there were.
+`limit` is **opt-in**: omitting it returns every printing, which is what the public/hosted site's printing pickers depend on. `limit` and `totalPrintings` count **distinct printings** (set + collector number): with an `all_cards`-backed cache (a non-English [`defaultLanguage`](/configuration/#default-language)) a printing can hold several card objects — one per language, each carrying its `lang` — and every language object of an included printing rides along, so a client never sees a printing with half its languages missing. When `limit` truncates the list, `totalPrintings` reports how many distinct printings there were.
 
 There is deliberately no `includePrices` parameter — dropping a printing's price block is a projection, and each client projects what it needs from one honest response (the MCP `get_card_printings` tool does exactly that).
 
@@ -274,9 +274,12 @@ There is deliberately no `includePrices` parameter — dropping a printing's pri
   "success": true,
   "printings": [{ "id": "...", "set": "2xm" }],
   "totalPrintings": 37,
+  "languages": ["en"],
   "complete": true
 }
 ```
+
+`languages` summarizes every language the card's full printing list exists in (before any `limit` truncation), `en` first, folding an absent `lang` to `en` — `["en"]` for any `default_cards`-backed lookup.
 
 `complete` is `false` when the card cache holds no printing list for the name and the response came from the single-card Scryfall fallback: the one printing returned is whatever that lookup found, **not** the card's only printing. A client must not present such a list as exhaustive — run [`ritual cache preload-all`](/commands/cache/) to get a real one.
 
@@ -454,19 +457,25 @@ Report the card cache's size, freshness, tag coverage, and source — the same p
   "priceAgeHours": 6,
   "priceStale": false,
   "tagsPresent": true,
-  "source": "local"
+  "source": "local",
+  "defaultLanguage": "en",
+  "cardBulkType": "default_cards",
+  "bulkTypeStale": false
 }
 ```
 
-| Field             | Description                                                                      |
-| ----------------- | -------------------------------------------------------------------------------- |
-| `empty`           | Whether the cache holds no cards at all                                          |
-| `cardCount`       | Distinct card **names** cached (each holds an array of printings)                |
-| `lastCardRefresh` | ISO-8601 time of the last bulk refresh, or `null` until one has run              |
-| `priceAgeHours`   | Whole hours since that refresh (prices ride in the bulk data), or `null`         |
-| `priceStale`      | `true` when prices are older than 24 hours, or their age is unknown              |
-| `tagsPresent`     | Whether any sampled card carries oracle/art tags                                 |
-| `source`          | `local`, or `cache-server` when a [cache server](/commands/cache/) is configured |
+| Field             | Description                                                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `empty`           | Whether the cache holds no cards at all                                                                                                                       |
+| `cardCount`       | Distinct card **names** cached (each holds an array of printings)                                                                                             |
+| `lastCardRefresh` | ISO-8601 time of the last bulk refresh, or `null` until one has run                                                                                           |
+| `priceAgeHours`   | Whole hours since that refresh (prices ride in the bulk data), or `null`                                                                                      |
+| `priceStale`      | `true` when prices are older than 24 hours, or their age is unknown                                                                                           |
+| `tagsPresent`     | Whether any sampled card carries oracle/art tags                                                                                                              |
+| `source`          | `local`, or `cache-server` when a [cache server](/commands/cache/) is configured                                                                              |
+| `defaultLanguage` | The configured [`defaultLanguage`](/configuration/#default-language)                                                                                          |
+| `cardBulkType`    | Which bulk built the cache (`default_cards`/`all_cards`), or `null` when no ingest has recorded provenance                                                    |
+| `bulkTypeStale`   | `true` when the cache's bulk disagrees with `defaultLanguage` — a full refresh is needed (see [bulk selection](/commands/cache/#bulk-selection-and-language)) |
 
 ## Price Summary
 
@@ -722,8 +731,11 @@ sell read path: `503` with the remedy when no feed has been downloaded.
 
 `buyer` defaults to `cardkingdom` (the only buyer today). `scryfallId` is optional but is the
 primary join key when the caller has it; `set`/`collectorNumber` always form the response key and
-drive the sku fallback for the ~0.5% of Card Kingdom products with no Scryfall id. At most 500
-printings per request.
+drive the sku fallback for the ~0.5% of Card Kingdom products with no Scryfall id. The optional
+`language` is the entry's [language code](/configuration/#default-language) (absent means English):
+the buyer feeds are English-only, so a non-`en` printing is never matched — its key is simply
+absent from `quotes`, never quoted at the English product's price. At most 500 printings per
+request.
 
 **Response:**
 
@@ -812,6 +824,10 @@ Save deck changes. Writes the updated deck file and appends to the changelog. Pa
 ### Unreadable lines block a save
 
 All three save routes parse the file as it stands on disk before applying anything, and refuse with `400` when that parse yields any [`warnings`](#load-deck) — a line the parser cannot read, or a [fenced code block](/commands/edit/#fenced-code-blocks), is content the re-serializing write would delete along with any `&N` ids it held. The message names the file and each entry (each entry states its own extent, so no aggregate line count is claimed). Nothing is written. Fix the line, or remove the fenced block, and retry; `GET /api/{type}/:slug` reports the same list in its `warnings` field.
+
+### Language validation
+
+All three save routes validate every [language](/commands/edit/#card-language) a request carries — a `set-language` change **requires** its `language` field, an unknown code anywhere is a `400` naming the offender and listing the 17 valid Scryfall codes, and `en` on an entry folds to no token on the written line (a bare line always means English).
 
 ### `validateCardNames`
 
@@ -1230,7 +1246,7 @@ Only `cards` is filtered. `lists` is **always** the full roster, because clients
 }
 ```
 
-`set`, `collectorNumber`, `finish`, `condition`, and `note` are each present only when the card line carries them.
+`set`, `collectorNumber`, `finish`, `condition`, `language`, and `note` are each present only when the card line carries them.
 
 ## Commit Moves
 
@@ -1238,7 +1254,7 @@ Only `cards` is filtered. `lists` is **always** the full roster, because clients
 POST /api/move/commit
 ```
 
-Apply a batch of queued moves atomically. The move state is rebuilt from disk and each move is applied via the shared move engine, writing the source/destination files and their changelogs. The optional printing fields override the destination printing (used when a printing-less card is moved into a collection). The optional `toSection` (deck destinations only — `400` otherwise) places the card in that deck section, matched by exact name and created when missing; without it the default section is used. Moves whose `cardKey` or destination can no longer be resolved are skipped and reported. When git auto-commit is enabled, the written files are committed in a single commit, the same as the editor save endpoints.
+Apply a batch of queued moves atomically. The move state is rebuilt from disk and each move is applied via the shared move engine, writing the source/destination files and their changelogs. The optional printing fields override the destination printing (used when a printing-less card is moved into a collection); the optional `language` overrides the card's language on arrival (`en` clears the token — a bare line means English), and without it the card's existing language rides along. The optional `toSection` (deck destinations only — `400` otherwise) places the card in that deck section, matched by exact name and created when missing; without it the default section is used. Moves whose `cardKey` or destination can no longer be resolved are skipped and reported. When git auto-commit is enabled, the written files are committed in a single commit, the same as the editor save endpoints.
 
 **Request Body:**
 
@@ -1253,7 +1269,8 @@ Apply a batch of queued moves atomically. The move state is rebuilt from disk an
       "set": "2xm",
       "collectorNumber": "270",
       "finish": "nonfoil",
-      "condition": "NM"
+      "condition": "NM",
+      "language": "ja"
     }
   ]
 }
@@ -1283,7 +1300,7 @@ Apply a batch of queued moves atomically. The move state is rebuilt from disk an
 POST /api/move/selected
 ```
 
-Move a batch of selected cards across lists atomically — backs the cross-list **Move all selected** multi-select action. Each item addresses its source card by list + identity (the same `cardId`/`copyIndex` scheme as [Remove Cards](#remove-cards)) and its destination by `toType` + `toSlug`. The optional printing fields and `toSection` behave exactly as in [Commit Moves](#commit-moves). Cards or destinations that can no longer be resolved — or whose destination is the list they already live in — are skipped and reported. The optional [`validateCardNames`](#validatecardnames) flag applies here too.
+Move a batch of selected cards across lists atomically — backs the cross-list **Move all selected** multi-select action. Each item addresses its source card by list + identity (the same `cardId`/`copyIndex` scheme as [Remove Cards](#remove-cards)) and its destination by `toType` + `toSlug`. The optional printing fields, `language`, and `toSection` behave exactly as in [Commit Moves](#commit-moves). Cards or destinations that can no longer be resolved — or whose destination is the list they already live in — are skipped and reported. The optional [`validateCardNames`](#validatecardnames) flag applies here too.
 
 **Request Body:**
 

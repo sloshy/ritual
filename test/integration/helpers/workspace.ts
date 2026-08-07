@@ -9,6 +9,7 @@ import { serializeDeckToMarkdown, type DeckFrontMatter } from '../../../src/deck
 import { serializeSectionedList } from '../../../src/section-format'
 import { formatCollectionLine, formatWantedListLine } from '../../../src/card-line'
 import type { CardLabel } from '../../../src/card-labels'
+import type { CardLanguage } from '../../../src/card-language'
 import { frontMatterFromLabels, withFrontMatter } from '../../../src/editor/list-export'
 import {
   DEFAULT_SECTION,
@@ -16,6 +17,7 @@ import {
   type Condition,
   type DeckSection,
   type Finish,
+  type ScryfallCard,
 } from '../../../src/types'
 
 /**
@@ -51,6 +53,73 @@ export async function writeConfig(dir: string, extra: Record<string, unknown> = 
   await fs.writeFile(
     path.join(dir, 'ritual.config.json'),
     JSON.stringify({ ...STANDARD_CONFIG, ...extra }),
+  )
+}
+
+/** Options for {@link seedCardCache}. */
+export type SeedCardCacheOptions = {
+  /**
+   * Overwrite the whole cache file with exactly `cards` instead of merging the
+   * given names over what it already holds — the way a fresh bulk download
+   * (e.g. an `all_cards` ingest with per-language objects) replaces the cache.
+   */
+  replace?: boolean
+}
+
+/** One cached name's entry, as `cache.json` stores it. */
+type SeedCacheEntry = { timestamp: number; data: ScryfallCard[]; lowercaseName: string }
+
+/** The slice of the on-disk cache schema the seeder reads and writes. */
+type SeedCacheFile = {
+  prices: Record<string, unknown>
+  cards: Record<string, SeedCacheEntry>
+  cardNameIndex: Record<string, string>
+  metadata: { cards: { lastRefreshedAt: number } }
+}
+
+/**
+ * Seed the workspace's on-disk Scryfall card cache with synthetic printings so
+ * printing/name resolution runs fully offline. The metadata stamp is what a
+ * completed bulk download leaves behind — it marks each entry as the card's
+ * *complete* printing list and keeps every refresh prompt (and network call)
+ * from triggering. Merges over an existing cache file by default; see
+ * {@link SeedCardCacheOptions.replace}.
+ */
+export async function seedCardCache(
+  dir: string,
+  cards: Record<string, ScryfallCard[]>,
+  options: SeedCardCacheOptions = {},
+): Promise<void> {
+  const cachePath = path.join(dir, 'cache', 'cache.json')
+  const now = Date.now()
+  let file: SeedCacheFile = {
+    prices: {},
+    cards: {},
+    cardNameIndex: {},
+    metadata: { cards: { lastRefreshedAt: now } },
+  }
+  if (options.replace !== true) {
+    try {
+      file = { ...file, ...(JSON.parse(await fs.readFile(cachePath, 'utf-8')) as SeedCacheFile) }
+    } catch {
+      // No existing cache — merging over nothing is the fresh-file case.
+    }
+  }
+  for (const [name, printings] of Object.entries(cards)) {
+    file.cards[name] = { timestamp: now, data: printings, lowercaseName: name.toLowerCase() }
+    file.cardNameIndex[name.toLowerCase()] = name
+  }
+  file.metadata = { cards: { lastRefreshedAt: now } }
+  await fs.mkdir(path.dirname(cachePath), { recursive: true })
+  await fs.writeFile(cachePath, JSON.stringify(file))
+}
+
+/** Stamp the cache's bulk provenance sidecar, as a bulk ingest would. */
+export async function writeBulkProvenance(dir: string, bulkType: string): Promise<void> {
+  await fs.mkdir(path.join(dir, 'cache'), { recursive: true })
+  await fs.writeFile(
+    path.join(dir, 'cache', 'card-bulk.json'),
+    JSON.stringify({ bulkType, recordedAt: new Date().toISOString() }),
   )
 }
 
@@ -168,6 +237,8 @@ export type CollectionFixtureEntry = {
   collectorNumber: string
   finish?: Finish
   condition?: Condition
+  /** The line's `[ja]`-style language token; omit for English. */
+  language?: CardLanguage
   /** Per-card label override (`[keep]`, `[sale,trade]`). */
   labels?: CardLabel[]
   note?: string
@@ -191,16 +262,17 @@ export function collectionMarkdown(fixture: CollectionFixture & { title: string 
     fixture.entries.map(sectioned),
     fixture.sectionOrder ?? [],
     (entry) =>
-      formatCollectionLine(
-        entry.name,
-        entry.set,
-        entry.collectorNumber,
-        entry.finish ?? 'nonfoil',
-        entry.condition,
-        entry.labels,
-        entry.note,
-        entry.cardId,
-      ),
+      formatCollectionLine({
+        cardName: entry.name,
+        set: entry.set,
+        collectorNumber: entry.collectorNumber,
+        finish: entry.finish ?? 'nonfoil',
+        condition: entry.condition,
+        language: entry.language,
+        labels: entry.labels,
+        note: entry.note,
+        cardId: entry.cardId,
+      }),
   )
   return withFrontMatter(frontMatterFromLabels(fixture.labels), body)
 }
@@ -225,6 +297,8 @@ export type WantedFixtureEntry = {
   set?: string
   collectorNumber?: string
   finish?: Finish
+  /** The line's `[ja]`-style language token; omit for English. */
+  language?: CardLanguage
   note?: string
   cardId?: number
   section?: string
@@ -244,15 +318,17 @@ export function wantedMarkdown(fixture: WantedFixture & { title: string }): stri
     fixture.entries.map(sectioned),
     fixture.sectionOrder ?? [],
     (entry) =>
-      formatWantedListLine(
-        entry.name,
-        entry.set && entry.collectorNumber
-          ? { set: entry.set, collectorNumber: entry.collectorNumber }
-          : undefined,
-        entry.finish,
-        entry.note,
-        entry.cardId,
-      ),
+      formatWantedListLine({
+        name: entry.name,
+        printing:
+          entry.set && entry.collectorNumber
+            ? { set: entry.set, collectorNumber: entry.collectorNumber }
+            : undefined,
+        finish: entry.finish,
+        language: entry.language,
+        note: entry.note,
+        cardId: entry.cardId,
+      }),
   )
 }
 

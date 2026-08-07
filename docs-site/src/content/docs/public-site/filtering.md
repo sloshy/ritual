@@ -57,7 +57,7 @@ The Copies row carries its own three-way toggle, beside the label:
 - **Number** — only entries with the same set code _and_ collector number count together, across finishes. Use it to find the printings you have several of, rather than the names.
 - **Exact** — only the same set code, collector number, _and_ finish count together, so a foil and a nonfoil of one printing are two different things.
 
-Condition is never part of the comparison: a played copy and a near-mint copy of the same printing are still two copies of it. Entries with no card data behind them fall back to counting by name under all three modes.
+Under **Number** and **Exact**, language separates copies too: a `[ja]` copy counts apart from its English twin of the same printing. Condition is never part of the comparison: a played copy and a near-mint copy of the same printing are still two copies of it. Entries with no card data behind them fall back to counting by name under all three modes.
 
 On a deck page the count is per section — the mainboard, the sideboard, and the extras (maybeboard, tokens) are counted separately, so a card in the maybeboard is compared against the maybeboard alone.
 

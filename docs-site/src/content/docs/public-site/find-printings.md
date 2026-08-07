@@ -24,7 +24,7 @@ Copies are **not merged**: a `3x` deck line appears as three side-by-side cards,
 Two display modes, toggled at the top of the dialog (the choice is remembered for the session):
 
 - **Binder** — a card-art grid; foil copies shimmer with the same sheen as the normal list views.
-- **List** — compact rows showing each copy's set, collector number, finish, condition, and price, with the same hover art preview (and foil sheen) as list-view pages.
+- **List** — compact rows showing each copy's set, collector number, finish, condition, language (uppercase, when the entry records one), and price, with the same hover art preview (and foil sheen) as list-view pages.
 
 ## Jumping to a copy
 

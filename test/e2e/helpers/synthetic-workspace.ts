@@ -431,6 +431,7 @@ const RITUAL_CONFIG = {
   collectionsDir: './collections',
   wantedDir: './wanted',
   defaultCurrency: 'usd',
+  defaultLanguage: 'en',
   cacheLockTimeoutSeconds: 300,
   cacheSource: 'scryfall',
   searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,

@@ -318,8 +318,12 @@ export function csvImportSection(options: CsvImportSectionOptions): string {
   )
   const closing = wrapProse(
     `\`--columns\` maps fields to 1-based column numbers (fields: \`name\`, ` +
-      `\`set\`, \`collector-number\`, \`condition\`, \`finish\`, \`section\`, ` +
-      `\`quantity\`); ${options.requiredColumns}. Add \`--no-header\` when the ` +
+      `\`set\`, \`collector-number\`, \`condition\`, \`finish\`, \`language\`, ` +
+      `\`section\`, \`quantity\` — language cells take Scryfall codes or aliases ` +
+      `like \`JP\`/\`Japanese\`, and an empty cell means English; when no ` +
+      `language column is mapped, pinned rows are stamped with the configured ` +
+      `\`defaultLanguage\` when the printing exists in it); ` +
+      `${options.requiredColumns}. Add \`--no-header\` when the ` +
       `first row is data — a scripted run without it drops the first row as a ` +
       `header and warns when that row looks like data. Add \`--overwrite\` to replace an existing ` +
       `${options.typeNoun}, or \`--append\` to add to one (${options.appendNote}).` +

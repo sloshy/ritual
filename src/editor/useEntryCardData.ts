@@ -1,7 +1,6 @@
 import { createStore, produce, reconcile } from 'solid-js/store'
 import type { ScryfallCard } from '../types'
-import { buildPrintingKeys } from './card-data-utils'
-import { cardPrintingKey } from '../printing-key'
+import { buildPrintingKeys, indexPrintingCard } from './card-data-utils'
 
 export type EntryCardData = {
   cards: Record<string, ScryfallCard | null>
@@ -31,7 +30,9 @@ export function useEntryCardData(): [EntryCardData, EntryCardDataActions] {
         produce((draft) => {
           if (card) {
             draft.cards[cardName] = card
-            draft.cards[cardPrintingKey(card)] = card
+            // Foreign-language objects key under `set:cn@lang`; the plain slot
+            // keeps (or falls back to) the default-language object.
+            indexPrintingCard(draft.cards, card)
           }
           if (printings && printings.length > 0) {
             Object.assign(draft.cards, buildPrintingKeys(printings))

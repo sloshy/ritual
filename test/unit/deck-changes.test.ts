@@ -703,6 +703,71 @@ describe('applyChangeToDeck — change-printing support', () => {
     expect(cards[0]!.quantity).toBe(5)
   })
 
+  test('add with a different language creates a separate entry (language is a variant dimension)', () => {
+    const deck = makeDeck()
+    // Same printing, but Japanese: must NOT merge into the English line.
+    const result = applyChangeToDeck(deck, {
+      action: 'add',
+      cardName: 'Lightning Bolt',
+      set: 'lea',
+      collectorNumber: '161',
+      finish: 'nonfoil',
+      language: 'ja',
+      cardId: 99,
+    })
+    const cards = result.sections[0]!.cards
+    expect(cards).toHaveLength(2)
+    expect(cards[0]!.quantity).toBe(4)
+    expect(cards[1]!.language).toBe('ja')
+    expect(cards[1]!.quantity).toBe(1)
+  })
+
+  test('add with the same language merges (missing folds to en on both sides)', () => {
+    let deck = makeDeck()
+    deck = applyChangeToDeck(deck, {
+      action: 'add',
+      cardName: 'Lightning Bolt',
+      set: 'lea',
+      collectorNumber: '161',
+      finish: 'nonfoil',
+      language: 'en',
+    })
+    const cards = deck.sections[0]!.cards
+    expect(cards).toHaveLength(1)
+    expect(cards[0]!.quantity).toBe(5)
+  })
+
+  test('set-language rewrites the card in place; en clears the stored value', () => {
+    const deck = makeDeck()
+    const toJa = applyChangeToDeck(deck, {
+      action: 'set-language',
+      cardName: 'Lightning Bolt',
+      cardId: 5,
+      language: 'ja',
+    })
+    expect(toJa.sections[0]!.cards[0]!.language).toBe('ja')
+
+    const backToEn = applyChangeToDeck(toJa, {
+      action: 'set-language',
+      cardName: 'Lightning Bolt',
+      cardId: 5,
+      language: 'en',
+    })
+    // Cleared, matching what a re-parse of the bare serialized line yields.
+    expect(backToEn.sections[0]!.cards[0]!.language).toBeUndefined()
+  })
+
+  test('set-language misses when no card matches', () => {
+    const deck = makeDeck()
+    let missed = ''
+    applyChangeToDeck(
+      deck,
+      { action: 'set-language', cardName: 'Sol Ring', language: 'ja' },
+      { onMiss: (reason) => (missed = reason) },
+    )
+    expect(missed).toBe('no-target')
+  })
+
   test('set-printing retargets the entry by cardId in place', () => {
     const deck = makeDeck()
     const result = applyChangeToDeck(deck, {

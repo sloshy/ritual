@@ -142,6 +142,12 @@ export interface CardData {
    * state one (deck and wanted lines default to nonfoil wherever it matters).
    */
   finish?: Finish
+  /**
+   * The entry's `[ja]`-style language token. Absent means `en` (a bare line).
+   * Comes from the ENTRY, not the resolved Scryfall card — under the default
+   * `en` cache no `@lang` object is baked, so the resolved card cannot say.
+   */
+  language?: CardLanguage
   /** Oracle (functional) tag slugs, shared across printings. Empty when untagged. */
   oracleTags: string[]
   /** Art (illustration) tag slugs for this printing. Empty when untagged. */
@@ -168,6 +174,7 @@ export interface CardGroup<T extends CardData = CardData> {
 import { BUYLIST_CURRENCY } from '../buylist'
 import type { Finish, ScryfallCard } from '../types'
 import type { CardLabel } from '../card-labels'
+import type { CardLanguage } from '../card-language'
 import type { PriceCurrency } from '../price-currency'
 import { getCurrencySymbol, getCurrencySuffix } from '../price-currency'
 

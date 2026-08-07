@@ -1,17 +1,12 @@
 import { describe, test, expect } from 'bun:test'
-import { findPrinting, hasSpecificPrinting, printingsAreComplete } from '../../src/card-printing'
-import type { ScryfallCard } from '../../src/types'
-import { makeScryfallCard } from '../test-utils'
-
-function printing(set: string, collectorNumber: string): ScryfallCard {
-  return makeScryfallCard({
-    id: `${set}-${collectorNumber}`,
-    name: 'Lightning Bolt',
-    set,
-    set_name: set.toUpperCase(),
-    collector_number: collectorNumber,
-  })
-}
+import {
+  dedupePrintingsByKey,
+  findPrinting,
+  hasSpecificPrinting,
+  printingLanguages,
+  printingsAreComplete,
+} from '../../src/card-printing'
+import { makePrintingIn as printing } from '../test-utils'
 
 const LEA = printing('lea', '161')
 const M10 = printing('m10', '146')
@@ -46,6 +41,96 @@ describe('findPrinting', () => {
   test('returns undefined when set or collector number is absent', () => {
     expect(findPrinting(PRINTINGS, undefined, '161')).toBeUndefined()
     expect(findPrinting(PRINTINGS, 'lea', undefined)).toBeUndefined()
+  })
+})
+
+describe('findPrinting language awareness', () => {
+  const NEO_EN = printing('neo', '234', 'en')
+  const NEO_JA = printing('neo', '234', 'ja')
+  const NEO_BARE = printing('neo', '235') // no lang field: treated as en
+  const STA_JA_ONLY = printing('sta', '1', 'ja')
+  const MULTILANG = [NEO_EN, NEO_JA, NEO_BARE, STA_JA_ONLY]
+
+  test('selects the card object in the requested language', () => {
+    expect(findPrinting(MULTILANG, 'neo', '234', 'ja')).toBe(NEO_JA)
+    expect(findPrinting(MULTILANG, 'neo', '234', 'en')).toBe(NEO_EN)
+  })
+
+  test('a missing language means en, and a card object with no lang counts as en', () => {
+    // Bare call (no language) keeps the pre-language behavior of picking the
+    // English object, and a lang-less object satisfies an explicit en request.
+    expect(findPrinting(MULTILANG, 'neo', '234')).toBe(NEO_EN)
+    expect(findPrinting(MULTILANG, 'neo', '235', 'en')).toBe(NEO_BARE)
+    expect(findPrinting(MULTILANG, 'neo', '235')).toBe(NEO_BARE)
+  })
+
+  test('falls back to the en object when the requested language is not cached', () => {
+    // The English object is the printing's default one — prices and images
+    // live there — so a [ko] line on an en-only cache still resolves.
+    expect(findPrinting(MULTILANG, 'neo', '234', 'ko')).toBe(NEO_EN)
+    expect(findPrinting(MULTILANG, 'neo', '235', 'ja')).toBe(NEO_BARE)
+  })
+
+  test('falls back to the only cached object when neither the requested language nor en exists', () => {
+    expect(findPrinting(MULTILANG, 'sta', '1', 'ko')).toBe(STA_JA_ONLY)
+    expect(findPrinting(MULTILANG, 'sta', '1')).toBe(STA_JA_ONLY)
+  })
+})
+
+describe('printingLanguages', () => {
+  const MULTILANG = [
+    printing('neo', '234', 'ja'),
+    printing('neo', '234', 'en'),
+    printing('neo', '234', 'ja'), // duplicate language: deduped
+    printing('neo', '235'), // no lang: counts as en
+    printing('m10', '146', 'de'),
+  ]
+
+  test('lists the languages cached for one set:cn, deduped, in canonical order', () => {
+    // en before ja regardless of cache order (CARD_LANGUAGES order).
+    expect(printingLanguages(MULTILANG, 'neo', '234')).toEqual(['en', 'ja'])
+  })
+
+  test('a card object with no lang counts as en', () => {
+    expect(printingLanguages(MULTILANG, 'neo', '235')).toEqual(['en'])
+  })
+
+  test('matches set and collector number case-insensitively', () => {
+    expect(printingLanguages(MULTILANG, 'NEO', '234')).toEqual(['en', 'ja'])
+  })
+
+  test('empty for an unknown printing or missing inputs', () => {
+    expect(printingLanguages(MULTILANG, 'neo', '999')).toEqual([])
+    expect(printingLanguages(undefined, 'neo', '234')).toEqual([])
+    expect(printingLanguages(MULTILANG, undefined, '234')).toEqual([])
+    expect(printingLanguages(MULTILANG, 'neo', undefined)).toEqual([])
+  })
+})
+
+describe('dedupePrintingsByKey', () => {
+  const STA_EN = printing('sta', '42', 'en')
+  const STA_JA = printing('sta', '42', 'ja')
+  const WAR_JA_ONLY = printing('war', '76★', 'ja')
+
+  test('collapses per-language objects to one row per set:cn, preferring the en object', () => {
+    // ja listed first: the en object must still win the slot.
+    expect(dedupePrintingsByKey([STA_JA, STA_EN, LEA])).toEqual([STA_EN, LEA])
+  })
+
+  test('keeps one row per set:cn across several printings, en preferred', () => {
+    expect(dedupePrintingsByKey([LEA, STA_JA, STA_EN, WAR_JA_ONLY])).toEqual([
+      LEA,
+      STA_EN,
+      WAR_JA_ONLY,
+    ])
+  })
+
+  test('keeps a printing that only exists in a non-en language', () => {
+    expect(dedupePrintingsByKey([WAR_JA_ONLY])).toEqual([WAR_JA_ONLY])
+  })
+
+  test('preserves first-appearance order of printings (Map insertion order)', () => {
+    expect(dedupePrintingsByKey([STA_JA, LEA, STA_EN])).toEqual([STA_EN, LEA])
   })
 })
 

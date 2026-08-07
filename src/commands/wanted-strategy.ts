@@ -4,6 +4,8 @@ import {
   finishRows,
   isFinish,
   lookupPinnedPrinting,
+  promptLanguageChoice,
+  resolveAddedLanguage,
   resolveCardPrinting,
   VALID_FINISHES,
 } from './collection-helpers'
@@ -47,11 +49,14 @@ import {
 import type { WantedListCardEntry } from '../site/data-types'
 import type { Finish, ScryfallCard } from '../types'
 import {
+  consolidateSetLanguage,
   consolidateSetPrinting,
+  createSetLanguageChange,
   createSetPrintingChange,
   type ChangeEvent,
   type PrintingTuple,
 } from '../change-event'
+import { displayLanguage, type CardLanguage } from '../card-language'
 
 type SpecificityPromptResponse = { specificity?: 'name-only' | 'specific' }
 type FinishPromptResponse = { finish?: string }
@@ -114,25 +119,29 @@ export function createWantedStrategy(
     session,
     state,
     renderLine: (name, snapshot, cardId) =>
-      formatWantedListLine(
+      formatWantedListLine({
         name,
-        snapshot.options.set && snapshot.options.collectorNumber
-          ? { set: snapshot.options.set, collectorNumber: snapshot.options.collectorNumber }
-          : undefined,
-        snapshot.options.finish,
-        snapshot.note,
+        printing:
+          snapshot.options.set && snapshot.options.collectorNumber
+            ? { set: snapshot.options.set, collectorNumber: snapshot.options.collectorNumber }
+            : undefined,
+        finish: snapshot.options.finish,
+        language: snapshot.options.language,
+        note: snapshot.note,
         cardId,
-      ).trim(),
+      }).trim(),
     renderEntry: (entry) =>
-      formatWantedListLine(
-        entry.name,
-        entry.set && entry.collectorNumber
-          ? { set: entry.set, collectorNumber: entry.collectorNumber }
-          : undefined,
-        entry.finish,
-        entry.note,
-        entry.cardId,
-      ).trim(),
+      formatWantedListLine({
+        name: entry.name,
+        printing:
+          entry.set && entry.collectorNumber
+            ? { set: entry.set, collectorNumber: entry.collectorNumber }
+            : undefined,
+        finish: entry.finish,
+        language: entry.language,
+        note: entry.note,
+        cardId: entry.cardId,
+      }).trim(),
     sessionAdds: [],
     editUndo: [],
     originals: new Map(),
@@ -167,12 +176,18 @@ export function createWantedStrategy(
       const specificity = await promptSpecificity(cardName)
       if (!specificity) return
 
+      // A fresh add stamps the configured default language (adding never
+      // prompts for language); the picker's availability confirm may override.
+      const nameOnlyOptions = { language: resolveAddedLanguage(undefined) }
       if (specificity === 'name-only') {
-        await applyFlatListCardEntry(list, ctx, cardName, {}, isEditing, { kind: 'cheapest' })
+        await applyFlatListCardEntry(list, ctx, cardName, nameOnlyOptions, isEditing, {
+          kind: 'cheapest',
+        })
         return
       }
 
       let printing = input.preselected
+      let pickedLanguage: CardLanguage | undefined
       if (!printing) {
         const result = await resolveCardPrinting(cardName, sessionConfig, excludeDigitalOnly)
         // A cancel must not fall through to the name-only fallback below — the
@@ -183,10 +198,13 @@ export function createWantedStrategy(
           // Name-only entries are first-class in the wanted-list format, so fall
           // back to one rather than dropping the card.
           console.error('No printings found. Adding name only.')
-          await applyFlatListCardEntry(list, ctx, cardName, {}, false, { kind: 'cheapest' })
+          await applyFlatListCardEntry(list, ctx, cardName, nameOnlyOptions, false, {
+            kind: 'cheapest',
+          })
           return
         }
         printing = result.printing
+        pickedLanguage = result.language
       }
 
       // Prompt for finish (with "No preference" option for wanted lists). Forcing
@@ -206,6 +224,7 @@ export function createWantedStrategy(
           set: printing.set.toLowerCase(),
           collectorNumber: printing.collector_number,
           finish,
+          language: resolveAddedLanguage(pickedLanguage),
         },
         isEditing,
         { kind: 'specific', printing },
@@ -232,6 +251,7 @@ export function createWantedStrategy(
         { title: '🖼️  Change Printing', value: 'printing' },
         // Finish only annotates a specific printing; name-only entries have none to change.
         ...(hasPrinting ? [{ title: '✨ Change Finish', value: 'finish' }] : []),
+        { title: '🌐 Change Language', value: 'language' },
         { title: '📝 Edit Note', value: 'note' },
         { title: '🗑️  Remove', value: 'remove' },
       ])
@@ -255,6 +275,9 @@ export function createWantedStrategy(
             set: result.printing.set.toLowerCase(),
             collectorNumber: result.printing.collector_number,
             finish: finishResult === 'nopreference' ? undefined : finishResult,
+            // The entry keeps its language across a printing change unless the
+            // picker's availability confirm resolved a different one.
+            language: result.language ?? displayLanguage(entry.language),
           }
         }
 
@@ -285,6 +308,23 @@ export function createWantedStrategy(
           inverse: createSetPrintingChange(entry.name, { ...entryPrinting(entry), cardId }),
           consolidate: (changes, original) =>
             consolidateSetPrinting(changes, entry.name, target, entryPrinting(original), cardId),
+        })
+        logUpdated(cardId, entry.name)
+        return
+      }
+
+      if (action === 'language') {
+        const language = await promptLanguageChoice(entry.language)
+        if (language === null || language === displayLanguage(entry.language)) return
+        applyFlatListFieldEdit(list, ctx, entry, cardId, {
+          label: `language on ${entry.name}`,
+          change: createSetLanguageChange(entry.name, { language, cardId }),
+          inverse: createSetLanguageChange(entry.name, {
+            language: displayLanguage(entry.language),
+            cardId,
+          }),
+          consolidate: (changes, original) =>
+            consolidateSetLanguage(changes, entry.name, language, original.language, cardId),
         })
         logUpdated(cardId, entry.name)
         return

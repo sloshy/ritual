@@ -4,6 +4,7 @@ import { fulfillJson } from '../helpers/fulfill'
 import { mockConfigApi, mockTotpApi, MOCK_CONFIG } from '../helpers/mock-admin'
 
 type ConfigPutBody = {
+  defaultLanguage?: string
   cacheSource?: string
   cacheFeedUrl?: string
   searchDebounceMs?: number
@@ -47,6 +48,9 @@ test.describe('Settings Page', () => {
       String(MOCK_CONFIG.cacheLockTimeoutSeconds),
     )
     await expect(main.locator('select[name="cacheSource"]')).toHaveValue(MOCK_CONFIG.cacheSource)
+    await expect(main.locator('select[name="defaultLanguage"]')).toHaveValue(
+      MOCK_CONFIG.defaultLanguage,
+    )
     await expect(main.locator('input[name="cacheFeedUrl"]')).toHaveValue('')
     await expect(main.locator('input[name="searchDebounceMs"]')).toHaveValue(
       String(MOCK_CONFIG.searchDebounceMs),
@@ -64,6 +68,19 @@ test.describe('Settings Page', () => {
     const request = await requestPromise
     const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
     expect(body.searchDebounceMs).toBe(250)
+  })
+
+  test('changing the default language persists the selected code', async ({ page }) => {
+    const main = page.locator('main')
+    await main.locator('select[name="defaultLanguage"]').selectOption('ja')
+
+    const requestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const request = await requestPromise
+    const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
+    expect(body.defaultLanguage).toBe('ja')
   })
 
   test('public-site include lists default to the wildcard and exclude lists are empty', async ({

@@ -106,6 +106,20 @@ describe('createLiveSiteData', () => {
     expect((JSON.parse(after!.body) as DeckDetail).changelog).toBeDefined()
   })
 
+  test('serves the configured defaultLanguage, honoring a config edit without a restart', async () => {
+    const live = createLiveSiteData()
+    const before = JSON.parse((await live.getIndex()).body) as SiteIndex
+    expect(before.defaultLanguage).toBe('en')
+
+    const configPath = path.join(dir, 'ritual.config.json')
+    const config = JSON.parse(await fs.readFile(configPath, 'utf-8')) as Record<string, unknown>
+    config.defaultLanguage = 'ja'
+    await fs.writeFile(configPath, JSON.stringify(config, null, 2))
+
+    const after = JSON.parse((await live.getIndex()).body) as SiteIndex
+    expect(after.defaultLanguage).toBe('ja')
+  })
+
   test('honors selection config changes without a restart', async () => {
     const live = createLiveSiteData()
     expect(await live.getDetail('deck', 'emberwild-aggro')).not.toBeNull()

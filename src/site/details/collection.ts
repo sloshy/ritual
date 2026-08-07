@@ -6,6 +6,7 @@ import type { CardLabel } from '../../card-labels'
 import { parseTitleFromContent } from '../../section-format'
 import type { ChangelogPage } from '../../changelog-parser'
 import { findPrinting } from '../../card-printing'
+import { displayLanguage, scryfallCardLanguage } from '../../card-language'
 import { displayFinish } from '../../finish-condition'
 import { getCardPriceForFinish } from '../../price-currency'
 import { resolveCardImageSources } from '../image-sources'
@@ -18,7 +19,7 @@ import {
   slugifyListName,
 } from './shared'
 import type { SiteDetailContext } from './types'
-import { printingKey } from '../../printing-key'
+import { printingKey, printingLanguageKey } from '../../printing-key'
 
 export type LoadedCollection = {
   displayName: string
@@ -110,6 +111,32 @@ export async function buildCollectionArtifacts(
       }
     }
 
+    // Bake the alternate-language card object for non-en entries under its
+    // `set:cn@lang` key, beside the plain key's default-language object. The
+    // page's `lookupPrintingCard` reads the `@lang` key first, so a `[ja]` line
+    // shows the ja scan while pricing still comes from the default object. No
+    // explicit-null is written on a miss — falling through to the plain key's
+    // default-language object is the right degraded rendering, and the price
+    // beside it is that object's anyway.
+    const language = displayLanguage(entry.language)
+    if (language !== 'en') {
+      const langKey = printingLanguageKey(entry.set, entry.collectorNumber, language)
+      if (!cardMap[langKey]) {
+        const printings =
+          printingsMap[entry.name] ??
+          (printingsMap[entry.name] = await ctx.getPrintings(entry.name))
+        const langCard = findPrinting(printings, entry.set, entry.collectorNumber, language)
+        if (langCard && scryfallCardLanguage(langCard) === language) {
+          cardMap[langKey] = langCard
+          await ctx.onCardShipped?.(langCard)
+        } else {
+          ctx.warn?.(
+            `  ⚠️  No ${language} card object for '${entry.name}' (${entry.set.toUpperCase()}:${entry.collectorNumber}); using the default-language object`,
+          )
+        }
+      }
+    }
+
     const card = cardMap[cardKey] ?? null
     const finish = displayFinish(card, entry.finish)
     const price = card ? getCardPriceForFinish(card, finish, 'usd') : 0
@@ -133,6 +160,7 @@ export async function buildCollectionArtifacts(
       collectorNumber: entry.collectorNumber,
       finish,
       condition: entry.condition ?? 'NM',
+      language: entry.language,
       labels: entry.labels,
       price,
       fileOrder: i,

@@ -46,6 +46,7 @@ export type CollectionEntrySource = {
   collectorNumber: string
   finish?: CollectionCardEntry['finish']
   condition?: CollectionCardEntry['condition']
+  language?: CollectionCardEntry['language']
   labels?: CollectionCardEntry['labels']
   section?: string
   note?: string
@@ -68,6 +69,10 @@ export function toCollectionCardEntries(
     collectorNumber: e.collectorNumber,
     finish: e.finish ?? 'nonfoil',
     condition: e.condition ?? 'NM',
+    // Resolved like finish/condition: a bare line reads as `en`. Safe to feed
+    // back to the serializer — `formatCollectionLine` omits the token for `en`,
+    // so bare lines still round-trip as bare lines.
+    language: e.language ?? 'en',
     labels: e.labels,
     price: 0,
     fileOrder: i,
@@ -102,6 +107,7 @@ export function applyChangeToCollection(
         collectorNumber: change.collectorNumber ?? '',
         finish: change.finish ?? 'nonfoil',
         condition: change.condition ?? 'NM',
+        language: change.language ?? 'en',
         labels:
           change.labels && change.labels.length > 0
             ? normalizeCardLabels(change.labels)
@@ -148,9 +154,21 @@ export function applyChangeToCollection(
               // A collection entry always carries a grade in memory; clearing
               // means NM, which the serializer writes without an annotation.
               condition: applyConditionUpdate(change.condition, e.condition) ?? 'NM',
+              // Unlike finish, an absent language leaves the entry's alone —
+              // language changes have their own set-language event.
+              language: change.language ?? e.language,
             }
           : e,
       )
+    }
+
+    case 'set-language': {
+      const idx = findTargetEntryIndex(entries, change)
+      if (idx === -1) {
+        options?.onMiss?.('no-target')
+        return entries
+      }
+      return entries.map((e, i) => (i === idx ? { ...e, language: change.language } : e))
     }
 
     case 'set-note': {
@@ -218,6 +236,7 @@ export function applyChangeToCollection(
           collectorNumber: change.collectorNumber,
           finish: change.finish,
           condition: change.condition,
+          language: change.language,
           fileOrder: change.fileOrder,
         },
         options,
@@ -233,6 +252,7 @@ export function applyChangeToCollection(
         collectorNumber: change.collectorNumber,
         finish: change.finish,
         condition: change.condition,
+        language: change.language,
       })
   }
 }

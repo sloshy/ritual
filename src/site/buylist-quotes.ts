@@ -25,9 +25,21 @@ import {
 } from '../buylist'
 import { apiUrl } from './api-base'
 import { displayFinish } from '../finish-condition'
+import { scryfallCardLanguage } from '../card-language'
 import { getCardPriceForFinish } from '../price-currency'
 import { sellModeActive } from './sell-mode'
 import type { Finish, ScryfallCard } from '../types'
+
+/**
+ * Whether a displayed card object is a non-English printing. The buyer's feed
+ * is English-only and keyed by `set:cn`, which an alternate-language object
+ * *shares* with its English twin — so quoting it would silently price a
+ * Japanese card at the English offer. Non-English cards are therefore never
+ * requested or priced; they surface as "non-English — not quotable".
+ */
+export function isNonEnglishCard(card: ScryfallCard | null): boolean {
+  return card !== null && scryfallCardLanguage(card) !== 'en'
+}
 
 /** Printings per request; the server caps a batch at 500. */
 const QUOTE_BATCH_SIZE = 400
@@ -157,7 +169,8 @@ export function buylistFieldsFor(
   // Gated on the mode, not just on the store: quotes outlive a toggle-off (they
   // are only cleared by a buyer switch), so without this a card would keep its
   // buylist price — and its on-buylist grouping — after sell mode was turned off.
-  if (!card || !sellModeActive()) return NO_BUYLIST_FIELDS
+  // Non-English cards are never quotable (see isNonEnglishCard).
+  if (!card || !sellModeActive() || isNonEnglishCard(card)) return NO_BUYLIST_FIELDS
   const resolvedFinish = displayFinish(card, finish)
   const quote = quoteFor(card.set, card.collector_number, resolvedFinish)
   // Retail read in the buyer's currency, not the page's: subtracting a EUR
@@ -174,12 +187,16 @@ export function buylistFieldsFor(
   }
 }
 
-/** The quote request for a displayed printing, or null when it has no resolved card. */
+/**
+ * The quote request for a displayed printing, or null when it has no resolved
+ * card — or when the card is a non-English object, which is never quotable
+ * (see {@link isNonEnglishCard}) and so never worth a request.
+ */
 export function buylistRequestFor(
   card: ScryfallCard | null,
   finish: Finish | undefined,
 ): BuylistQuoteRequest | null {
-  if (!card) return null
+  if (!card || isNonEnglishCard(card)) return null
   return {
     set: card.set.toLowerCase(),
     collectorNumber: card.collector_number,

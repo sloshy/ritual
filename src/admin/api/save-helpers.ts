@@ -20,6 +20,12 @@ import {
 } from '../../cardkingdom'
 import { normalizeNote } from '../../note-helpers'
 import { parseCardLabelsValue } from '../../card-labels'
+import {
+  invalidLanguageMessage,
+  isCardLanguage,
+  storedLanguage,
+  type CardLanguage,
+} from '../../card-language'
 import type { ChangeEvent } from '../../change-event'
 import type { DroppedNote } from '../../commands/move-io'
 import type { SaveEffect } from '../../editor/save-effects'
@@ -258,6 +264,100 @@ export function normalizeRequestLabels(changes: ChangeEvent[]): Response | null 
       if (!result.ok) return badRequest(result.message)
       change.labels = result.labels.length > 0 ? result.labels : undefined
     }
+  }
+  return null
+}
+
+/**
+ * An entry (deck card or wanted row) whose request-supplied language needs
+ * validating. `unknown` on purpose: the request body is cast unvalidated, and
+ * this is the boundary that exists to *prove* the value, not assume it.
+ */
+type RequestLanguageEntry = { language?: unknown }
+
+/**
+ * Lowercase-normalize and validate the incoming value of one `language` field.
+ * Returns the canonical code or the 400 refusal naming the offender. The
+ * request body is cast unvalidated, so this is the boundary that keeps an
+ * unknown code out of the serializer.
+ */
+type RequiredLanguageFieldResult =
+  | { ok: true; language: CardLanguage }
+  | { ok: false; response: Response }
+
+/** {@link requireLanguageField}'s shape, with "field absent" as a legal outcome. */
+type OptionalLanguageFieldResult =
+  | { ok: true; language: CardLanguage | undefined }
+  | { ok: false; response: Response }
+
+/** The required variant: the field must be present and name a known language. */
+function requireLanguageField(raw: unknown, where: string): RequiredLanguageFieldResult {
+  const value = typeof raw === 'string' ? raw.toLowerCase() : null
+  if (value === null || !isCardLanguage(value)) {
+    return {
+      ok: false,
+      response: badRequest(invalidLanguageMessage(raw, `on ${where}`)),
+    }
+  }
+  return { ok: true, language: value }
+}
+
+/** The optional variant: an absent field is legal (English / leave alone). */
+function normalizeLanguageField(raw: unknown, where: string): OptionalLanguageFieldResult {
+  if (raw === undefined) return { ok: true, language: undefined }
+  return requireLanguageField(raw, where)
+}
+
+/**
+ * Validate and lowercase-normalize the language on every language-carrying
+ * change (`set-language`, `add`, `remove`, `set-printing`, `move-from`,
+ * `move-to`) and on every request entry that will be re-serialized, mutating
+ * each in place — mirroring {@link normalizeRequestLabels} /
+ * {@link normalizeRequestNotes}. A `set-language` change *requires* the field;
+ * everywhere else it is optional (absent means English). Returns a 400 Response
+ * naming the first offender, or null when all are legal.
+ */
+export function normalizeRequestLanguages(
+  changes: ChangeEvent[],
+  entries: RequestLanguageEntry[],
+): Response | null {
+  for (const change of changes) {
+    switch (change.action) {
+      case 'set-language': {
+        if (change.language === undefined) {
+          return badRequest('A set-language change requires a "language".')
+        }
+        const result = requireLanguageField(
+          change.language,
+          `set-language change for "${change.cardName}"`,
+        )
+        if (!result.ok) return result.response
+        change.language = result.language
+        break
+      }
+      case 'add':
+      case 'remove':
+      case 'set-printing':
+      case 'move-from':
+      case 'move-to': {
+        const result = normalizeLanguageField(
+          change.language,
+          `${change.action} change for "${change.cardName}"`,
+        )
+        if (!result.ok) return result.response
+        change.language = result.language
+        break
+      }
+      default:
+        break
+    }
+  }
+  for (const entry of entries) {
+    if (entry.language === undefined) continue
+    const result = normalizeLanguageField(entry.language, 'a card entry')
+    if (!result.ok) return result.response
+    // `en` folds back to the written-value shape (a bare line means English).
+    entry.language = storedLanguage(result.language)
   }
   return null
 }

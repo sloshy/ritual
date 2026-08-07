@@ -92,6 +92,35 @@ describe('resolveExportScryfallIds', () => {
     expect(asked.asked).toEqual([])
   })
 
+  test('a [ja] entry resolves the Japanese object id when the cache holds it', async () => {
+    const boltJa = makeScryfallCard({
+      id: '9f0a30cf-b9d6-4b7e-8a6b-2a8b1c3d4e5f',
+      name: 'Lightning Bolt',
+      set: 'lea',
+      collector_number: '161',
+      lang: 'ja',
+    })
+    const { entries } = await resolveExportScryfallIds(
+      [entry({ language: 'ja' }), entry({ fileOrder: 1 })],
+      lookup([bolt, boltJa]).lookup,
+    )
+
+    // The Japanese entry exports the Japanese object's id; the bare entry the
+    // English one — the same printing, two ids.
+    expect(entries[0]?.scryfallId).toBe(boltJa.id)
+    expect(entries[1]?.scryfallId).toBe(bolt.id)
+  })
+
+  test('a [ja] entry falls back to the English object under an English-only cache', async () => {
+    const { entries, warnings } = await resolveExportScryfallIds(
+      [entry({ language: 'ja' })],
+      lookup([bolt]).lookup,
+    )
+
+    expect(entries[0]?.scryfallId).toBe(bolt.id)
+    expect(warnings).toEqual([])
+  })
+
   test('looks each distinct name up once however many copies it has', async () => {
     const asked = lookup([bolt])
     await resolveExportScryfallIds(

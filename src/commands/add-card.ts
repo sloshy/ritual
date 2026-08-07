@@ -22,7 +22,11 @@ import {
   promptFinishAndCondition,
   formatCollectionLine,
   ensureCollectionFile,
+  resolveAddedLanguage,
 } from './collection-helpers'
+import { dedupePrintingsByKey } from '../card-printing'
+import { resolvePrintingLanguage } from '../printing-language'
+import type { CardLanguage } from '../card-language'
 import {
   applyConditionUpdate,
   isCondition,
@@ -65,6 +69,7 @@ import {
 } from '../resolve-list'
 import {
   ensureFinishAvailable,
+  parseLanguageFlag,
   resolveListTypeFlag,
   resolvePinnedPrinting,
   runCommandAction,
@@ -84,7 +89,12 @@ import {
 } from './scripting'
 import { divertConsoleLogToStderr } from '../mcp/stdout-guard'
 import { CardCommandError } from '../errors'
-import { getCollectionsDir, getDefaultCurrency, getWantedDir } from '../ritual-config'
+import {
+  getCollectionsDir,
+  getDefaultCurrency,
+  getDefaultLanguage,
+  getWantedDir,
+} from '../ritual-config'
 import { listFileName } from '../list-file-name'
 
 /**
@@ -111,6 +121,8 @@ type AddCardOptions = {
   quantity: number
   finish?: Finish
   condition?: ConditionUpdate
+  /** Explicit `--language` override; otherwise the configured default applies. */
+  language?: CardLanguage
   /** Label override the new card starts with — collections only. */
   label?: CardLabel[]
   exact?: boolean
@@ -148,6 +160,8 @@ type AddCardSuccess = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The recorded language; omitted for English (bare-line default). */
+  language?: CardLanguage
   /** Collection adds only: the label override the new line carries. */
   labels?: CardLabel[]
   quantity?: number
@@ -233,6 +247,11 @@ export function registerAddCardCommand(program: Command): void {
       '-c, --condition <condition>',
       'Card condition: NM, LP, MP, HP, DMG, or NONE to record no condition (decks and collections only)',
       parseConditionFlag,
+    )
+    .option(
+      '--language <code>',
+      "Card language (e.g. ja); overrides the configured defaultLanguage. Never prompted — en is a bare line's default",
+      (value: string) => parseLanguageFlag(value),
     )
     .option(
       '--label <labels>',
@@ -623,6 +642,20 @@ async function selectCardAutocomplete(
 
 // ── Per-type add flows ────────────────────────────────────────────────────────
 
+/**
+ * The language a fresh add records. Adding never prompts for language: the
+ * `--language` flag wins, then a language the printing picker's availability
+ * confirm resolved (a printing that does not exist in the configured default),
+ * then the configured `defaultLanguage`. `en` collapses to undefined — the
+ * serializers omit the token for English, and a bare line always means `en`.
+ */
+function resolveAddLanguage(
+  flag: CardLanguage | undefined,
+  resolved: CardLanguage | undefined,
+): CardLanguage | undefined {
+  return resolveAddedLanguage(flag ?? resolved)
+}
+
 async function addToDeck(
   target: AddCardTarget,
   selectedName: string,
@@ -643,6 +676,7 @@ async function addToDeck(
     collectorNumber: pinned?.collector_number,
     finish: options.finish,
     condition: applyConditionUpdate(options.condition, undefined),
+    language: resolveAddLanguage(options.language, undefined),
   }
   const placement: DeckAddPlacement = {
     section: options.section,
@@ -666,6 +700,7 @@ async function addToDeck(
       collectorNumber: card.collectorNumber,
       finish: card.finish,
       condition: card.condition,
+      language: card.language,
       quantity: options.quantity,
       cardId: outcome.cardId,
       section: outcome.section,
@@ -693,9 +728,10 @@ async function addToCollection(
   options: AddCardOptions,
   scripting: ScriptingOptions,
 ): Promise<void> {
-  const printing = pin
-    ? await resolvePinnedPrinting(selectedName, pin)
+  const resolved = pin
+    ? { printing: await resolvePinnedPrinting(selectedName, pin) }
     : await promptCollectionPrinting(selectedName)
+  const printing = resolved.printing
 
   if (options.finish !== undefined) ensureFinishAvailable(selectedName, printing, options.finish)
 
@@ -708,17 +744,18 @@ async function addToCollection(
     throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
   }
 
+  const language = resolveAddLanguage(options.language, resolved.language)
   const cardId = await allocateNextIdFromFile(target.filePath)
-  const line = formatCollectionLine(
-    selectedName,
-    printing.set,
-    printing.collector_number,
-    finishAndCondition.finish,
-    finishAndCondition.condition,
-    options.label,
-    undefined,
+  const line = formatCollectionLine({
+    cardName: selectedName,
+    set: printing.set,
+    collectorNumber: printing.collector_number,
+    finish: finishAndCondition.finish,
+    condition: finishAndCondition.condition,
+    language,
+    labels: options.label,
     cardId,
-  )
+  })
   if (!options.dryRun) {
     await ensureTargetFile(target)
     await appendFileWithHash(target.filePath, line)
@@ -728,6 +765,7 @@ async function addToCollection(
         collectorNumber: printing.collector_number,
         finish: finishAndCondition.finish,
         condition: finishAndCondition.condition,
+        language,
         labels: options.label,
         cardId,
       }),
@@ -743,6 +781,7 @@ async function addToCollection(
       collectorNumber: printing.collector_number,
       finish: finishAndCondition.finish,
       condition: finishAndCondition.condition,
+      language,
       labels: options.label,
       cardId,
     },
@@ -757,6 +796,16 @@ async function addToCollection(
 }
 
 /**
+ * A resolved add printing: the card object plus, when the printing does not
+ * exist in the configured default language, the language the entry records
+ * instead (see {@link PrintingResolution} in collection-helpers).
+ */
+type AddPrintingResolution = {
+  printing: ScryfallCard
+  language?: CardLanguage
+}
+
+/**
  * Resolve a printing when no strict pin was given. Interactively this is the
  * shared printing picker; without a terminal the picker would silently
  * auto-answer with its first suggestion (and under `--no-input` it must not
@@ -766,7 +815,7 @@ async function addToCollection(
 async function resolveInteractivePrinting(
   cardName: string,
   makeFailure: () => CardCommandError,
-): Promise<ScryfallCard> {
+): Promise<AddPrintingResolution> {
   if (promptsUnavailable()) {
     // Cache-only, and only when the cache holds the card's whole printing list:
     // a cache-miss `/cards/named` fallback always returns exactly one printing,
@@ -775,19 +824,31 @@ async function resolveInteractivePrinting(
     const result = await getCardPrintingsResult(cardName, { network: false })
     if (!printingsAreComplete(result)) throw makeFailure()
     const printings = result.printings.filter((p) => !isDigitalOnlySet(p.set))
-    if (printings.length === 1) return printings[0]!
-    throw makeFailure()
+    // One printing may span several language objects under an all_cards cache;
+    // the dedupe keeps "single printing" meaning single set:cn, not single object.
+    const distinct = dedupePrintingsByKey(printings)
+    if (distinct.length !== 1) throw makeFailure()
+    const printing = distinct[0]!
+    // No terminal to confirm on: apply the silent-source rule (default if
+    // available, else en, else the only available language).
+    const resolved = resolvePrintingLanguage(
+      printings,
+      printing.set,
+      printing.collector_number,
+      getDefaultLanguage(),
+    )
+    return { printing, language: resolved.honoredPreferred ? undefined : resolved.language }
   }
   const result = await resolveCardPrinting(cardName, {}, true)
   if (result.kind === 'cancelled') {
     throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
   }
   if (result.kind === 'none') throw makeFailure()
-  return result.printing
+  return { printing: result.printing, language: result.language }
 }
 
 /** Interactive printing selection for a collection add (no strict pin given). */
-async function promptCollectionPrinting(cardName: string): Promise<ScryfallCard> {
+async function promptCollectionPrinting(cardName: string): Promise<AddPrintingResolution> {
   return resolveInteractivePrinting(
     cardName,
     () =>
@@ -811,13 +872,19 @@ async function addToWanted(
   const mode = await resolveWantedMode(selectedName, pin, options)
 
   if (mode === 'name-only') {
+    const language = resolveAddLanguage(options.language, undefined)
     const cardId = await allocateNextIdFromFile(target.filePath)
-    const line = formatWantedListLine(selectedName, undefined, options.finish, undefined, cardId)
+    const line = formatWantedListLine({
+      name: selectedName,
+      finish: options.finish,
+      language,
+      cardId,
+    })
     if (!options.dryRun) {
       await ensureTargetFile(target)
       await appendFileWithHash(target.filePath, line)
       await appendChangelog(target.filePath, target.name, [
-        createAddChange(selectedName, { finish: options.finish, cardId }),
+        createAddChange(selectedName, { finish: options.finish, language, cardId }),
       ])
     }
     emitSuccess(
@@ -826,6 +893,7 @@ async function addToWanted(
         list: target.name,
         cardName: selectedName,
         finish: options.finish,
+        language,
         cardId,
       },
       `${addVerb(options.dryRun ?? false)}: ${line.trim()}`,
@@ -837,9 +905,10 @@ async function addToWanted(
   }
 
   // Specific printing flow
-  const printing = pin
-    ? await resolvePinnedPrinting(selectedName, pin)
+  const resolved = pin
+    ? { printing: await resolvePinnedPrinting(selectedName, pin) }
     : await resolveWantedPrinting(selectedName)
+  const printing = resolved.printing
 
   if (options.finish !== undefined) ensureFinishAvailable(selectedName, printing, options.finish)
 
@@ -849,14 +918,15 @@ async function addToWanted(
   }
   const finish = finishResult === 'nopreference' ? undefined : finishResult
 
+  const language = resolveAddLanguage(options.language, resolved.language)
   const cardId = await allocateNextIdFromFile(target.filePath)
-  const line = formatWantedListLine(
-    selectedName,
-    { set: printing.set, collectorNumber: printing.collector_number },
+  const line = formatWantedListLine({
+    name: selectedName,
+    printing: { set: printing.set, collectorNumber: printing.collector_number },
     finish,
-    undefined,
+    language,
     cardId,
-  )
+  })
   if (!options.dryRun) {
     await ensureTargetFile(target)
     await appendFileWithHash(target.filePath, line)
@@ -865,6 +935,7 @@ async function addToWanted(
         set: printing.set.toLowerCase(),
         collectorNumber: printing.collector_number,
         finish,
+        language,
         cardId,
       }),
     ])
@@ -878,6 +949,7 @@ async function addToWanted(
       set: printing.set.toLowerCase(),
       collectorNumber: printing.collector_number,
       finish,
+      language,
       cardId,
     },
     `${addVerb(options.dryRun ?? false)}: ${line.trim()}`,
@@ -921,7 +993,7 @@ async function resolveWantedMode(
  * printings, prompt cancelled, or several candidates with no terminal to ask
  * on) is an explicit error rather than a silent fallback to a name-only entry.
  */
-async function resolveWantedPrinting(cardName: string): Promise<ScryfallCard> {
+async function resolveWantedPrinting(cardName: string): Promise<AddPrintingResolution> {
   return resolveInteractivePrinting(
     cardName,
     () =>

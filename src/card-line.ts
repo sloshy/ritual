@@ -1,5 +1,6 @@
 import type { Finish, Condition } from './types'
 import { formatCardLabels, type CardLabel } from './card-labels'
+import { displayLanguage, languageToken, type CardLanguage } from './card-language'
 
 /** A specific printing reference (set code + collector number) for a card line. */
 export type CardPrinting = { set: string; collectorNumber: string }
@@ -90,8 +91,10 @@ export function aggregateQuantities<E>(
 
 /**
  * Aggregation key grouping identical card variants (name + printing + finish +
- * condition). Finish and condition distinguish variants so quantities are never
- * summed across them, even in outputs that print neither.
+ * condition + language). Finish, condition, and language distinguish variants
+ * so quantities are never summed across them, even in outputs that print none
+ * of the three. The language dimension folds a missing value to `en` (a bare
+ * line means English), so `[en]` and bare lines group together.
  */
 export function variantKey(
   name: string,
@@ -99,53 +102,73 @@ export function variantKey(
   collectorNumber: string | undefined,
   finish: string | undefined,
   condition: string | undefined,
+  language: CardLanguage | undefined,
 ): string {
-  return `${name}|${set ?? ''}|${collectorNumber ?? ''}|${finish ?? ''}|${condition ?? ''}`
+  return `${name}|${set ?? ''}|${collectorNumber ?? ''}|${finish ?? ''}|${condition ?? ''}|${displayLanguage(language)}`
+}
+
+/** Named fields for {@link formatCollectionLine}. */
+export type CollectionLineFields = {
+  cardName: string
+  set: string
+  collectorNumber: string
+  finish: Finish
+  condition?: Condition
+  /** Omitted (or `en`) writes a bare line — the token is never written for English. */
+  language?: CardLanguage
+  /** Written only when non-empty; absent means "inherit the list default". */
+  labels?: readonly CardLabel[]
+  note?: string
+  cardId?: number
 }
 
 /**
  * Format a single collection card line in the canonical markdown format, e.g.
- * `- Sol Ring (LTC:284) [foil] [LP] [keep] {note} &12`. The default NM
+ * `- Sol Ring (LTC:284) [foil] [LP] [ja] [keep] {note} &12`. The default NM
  * condition is omitted (matching deck lines) — only non-NM conditions are
- * written — and a label override is written only when present (an absent
+ * written — the language token is omitted for English (a bare line means
+ * `en`), and a label override is written only when present (an absent
  * override means "inherit the list default"). Pure string formatting shared by
  * the CLI, the admin save handlers, and the public editor's export.
  */
-export function formatCollectionLine(
-  cardName: string,
-  set: string,
-  collectorNumber: string,
-  finish: Finish,
-  condition: Condition | undefined,
-  labels?: readonly CardLabel[],
-  note?: string,
-  cardId?: number,
-): string {
+export function formatCollectionLine(fields: CollectionLineFields): string {
+  const { cardName, set, collectorNumber, finish, condition, language, labels, note, cardId } =
+    fields
   let line = `- ${cardName} (${set.toUpperCase()}:${collectorNumber})`
   if (finish !== 'nonfoil') line += ` [${finish}]`
   if (condition && condition !== 'NM') line += ` [${condition}]`
+  line += languageToken(language)
   if (labels && labels.length > 0) line += ` [${formatCardLabels(labels)}]`
   if (note) line += ` {${note}}`
   if (cardId !== undefined) line += ` &${cardId}`
   return line + '\n'
 }
 
+/** Named fields for {@link formatWantedListLine}. */
+export type WantedLineFields = {
+  name: string
+  /** Absent for a name-only wanted entry. */
+  printing?: CardPrinting
+  finish?: Finish
+  /** Omitted (or `en`) writes a bare line — the token is never written for English. */
+  language?: CardLanguage
+  note?: string
+  cardId?: number
+}
+
 /**
  * Format a single wanted-list card line in the canonical markdown format. The
- * printing and finish are optional (a wanted entry may be name-only), and wanted
- * lists never carry a condition. Pure string formatting, shared like
+ * printing, finish, and language are optional (a wanted entry may be
+ * name-only; an English language is never written), and wanted lists never
+ * carry a condition. Pure string formatting, shared like
  * {@link formatCollectionLine}.
  */
-export function formatWantedListLine(
-  name: string,
-  printing?: CardPrinting,
-  finish?: Finish,
-  note?: string,
-  cardId?: number,
-): string {
+export function formatWantedListLine(fields: WantedLineFields): string {
+  const { name, printing, finish, language, note, cardId } = fields
   let line = `- ${name}`
   if (printing) line += ` (${printing.set.toUpperCase()}:${printing.collectorNumber})`
   if (finish && finish !== 'nonfoil') line += ` [${finish}]`
+  line += languageToken(language)
   if (note) line += ` {${note}}`
   if (cardId !== undefined) line += ` &${cardId}`
   return line + '\n'

@@ -1595,6 +1595,15 @@ body {
   font-family: var(--font-mono);
 }
 
+/* Language-availability notice beside the picker's confirm actions. Same quiet
+   styling as the pagination info, but its own class so the two can diverge. */
+.trade-picker-language-notice {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  align-self: center;
+  margin-right: auto;
+}
+
 /* ===== Mobile Column Toggle ===== */
 .col-toggle {
   display: none;

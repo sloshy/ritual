@@ -8,6 +8,10 @@ import { isFinish } from '../finish-condition'
 import { isCardSideways, resolveCardImageSources } from './image-sources'
 import { defaultFinishForCard } from './trade-finish'
 import { printingKey } from '../printing-key'
+import { resolvePrintingLanguage } from '../printing-language'
+import { formatLanguageList, type CardLanguage } from '../card-language'
+import { defaultLanguage } from '../editor/default-language'
+import { pickedPrintingLanguage } from './printing-prompt'
 import { useTooltip } from './useTooltip'
 
 export interface TradePrintingPickerProps {
@@ -79,6 +83,9 @@ const PickerItem: Component<PickerItemProps> = (props) => {
       <div class="trade-picker-item-info">
         <span class="trade-picker-set">
           {props.printing.set.toUpperCase()}:{props.printing.collector_number}
+          <Show when={pickedPrintingLanguage(props.printing)}>
+            {(lang) => <> · {lang().toUpperCase()}</>}
+          </Show>
           <Show when={props.desired}>
             <span class="trade-picker-wanted-tag">Wanted</span>
           </Show>
@@ -124,6 +131,12 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
   const [selectedFinish, setSelectedFinish] = createSignal<Finish>('nonfoil')
   const [page, setPage] = createSignal(0)
   const [filterText, setFilterText] = createSignal('')
+  // Set when confirming a printing that exists only in a non-default language:
+  // the pick pauses on a "Only available in <language>" notice whose Continue
+  // stamps that language (the object itself carries it) and whose Back returns
+  // to the list. A deliberate pick of an alternate-language object *alongside*
+  // a default-language one is badged in the list and needs no notice.
+  const [languageNotice, setLanguageNotice] = createSignal<CardLanguage | null>(null)
 
   const desired = createMemo(() => new Set(props.desiredPrintings ?? []))
   const isDesired = (printing: ScryfallCard): boolean =>
@@ -162,14 +175,34 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
     ),
   )
 
-  createEffect(() => {
-    const p = selectedPrinting()
-    if (p) setSelectedFinish(defaultFinishForCard(p))
-  })
+  // Explicitly keyed on the selection: picking a different printing resets the
+  // finish default and dismisses any pending language notice.
+  createEffect(
+    on(selectedPrinting, (p) => {
+      if (p) setSelectedFinish(defaultFinishForCard(p))
+      setLanguageNotice(null)
+    }),
+  )
 
   const handleConfirm = () => {
     const p = selectedPrinting()
     if (!p) return
+    const language = pickedPrintingLanguage(p)
+    // Notices only when the default language is unavailable — unlike
+    // CardSearchModal's always-notice rule, because this list shows one row per
+    // language, so picking a non-default row is already an explicit choice.
+    if (language && languageNotice() === null) {
+      const resolved = resolvePrintingLanguage(
+        props.printings,
+        p.set,
+        p.collector_number,
+        defaultLanguage(),
+      )
+      if (!resolved.honoredPreferred) {
+        setLanguageNotice(language)
+        return
+      }
+    }
     props.onSelect(p, selectedFinish())
   }
 
@@ -264,14 +297,34 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
           </div>
         </Show>
         <Show when={selectedPrinting()}>
-          <div class="trade-picker-actions">
-            <button class="btn btn-success" onClick={handleConfirm}>
-              Add to Trade
-            </button>
-            <button class="btn btn-secondary" onClick={props.onClose}>
-              Cancel
-            </button>
-          </div>
+          <Show
+            when={languageNotice()}
+            fallback={
+              <div class="trade-picker-actions">
+                <button class="btn btn-success" onClick={handleConfirm}>
+                  Add to Trade
+                </button>
+                <button class="btn btn-secondary" onClick={props.onClose}>
+                  Cancel
+                </button>
+              </div>
+            }
+          >
+            {(notice) => (
+              <div class="trade-picker-actions">
+                <span class="trade-picker-language-notice">
+                  This printing is only available in {formatLanguageList([notice()])} — it will be
+                  recorded as [{notice()}].
+                </span>
+                <button class="btn btn-success" onClick={handleConfirm}>
+                  Continue
+                </button>
+                <button class="btn btn-secondary" onClick={() => setLanguageNotice(null)}>
+                  Back
+                </button>
+              </div>
+            )}
+          </Show>
         </Show>
       </Show>
     </Modal>

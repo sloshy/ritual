@@ -74,7 +74,13 @@ import {
   collectionToCsv,
   frontMatterFromLabels,
 } from '../editor/list-export'
-import { printingKey } from '../printing-key'
+import { lookupPrintingCard, printingKey } from '../printing-key'
+import {
+  displayLanguage,
+  languageDisplayName,
+  storedLanguage,
+  type CardLanguage,
+} from '../card-language'
 
 // Collections always have a specific printing, so 'printing' grouping does not apply.
 type CollectionGroupBy = Exclude<GroupBy, 'printing'>
@@ -230,13 +236,29 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   // Read-mode ⋯ menu (cross-list lookups only); edit mode uses the editor's own menu.
   const readMenu = useReadCardMenu()
 
+  /**
+   * The entry's language as a variant dimension, folded so a bare line and an
+   * explicit `en` agree; `undefined` display value means "no badge".
+   */
+  const entryLanguage = (entry: CollectionCardEntry): CardLanguage | undefined =>
+    storedLanguage(entry.language)
+
+  /**
+   * The card object an entry *displays*: the `@lang` object for a non-en entry
+   * when the build baked one, else the printing's default-language object.
+   * Pricing deliberately does not use this — an entry prices from its printing's
+   * default object regardless of language (see `currencyEntries`).
+   */
+  const entryCard = (entry: CollectionCardEntry): ScryfallCard | null =>
+    overlayCard(lookupPrintingCard(props.cards, entry))
+
   // Aggregate copy counts per card variant for correct trade maxQty.
   // Mirrors the groupKey logic in useTradeData to ensure consistent deduplication.
   const collectionQtyMap = createMemo(() => {
     const map = new Map<string, number>()
     for (const entry of props.entries) {
       if (entry.note) continue
-      const key = `${entry.name}|${entry.set.toLowerCase()}|${entry.collectorNumber}|${entry.finish}|${entry.condition}`
+      const key = `${entry.name}|${entry.set.toLowerCase()}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${displayLanguage(entry.language)}`
       map.set(key, (map.get(key) ?? 0) + 1)
     }
     return map
@@ -254,13 +276,13 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
    * are exactly the entries it visually represents.
    */
   const duplicateGroupKey = (entry: CollectionCardEntry): string =>
-    `${entry.name}|${entry.set}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${formatCardLabels(entry.labels ?? [])}`
+    `${entry.name}|${entry.set}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${displayLanguage(entry.language)}|${formatCardLabels(entry.labels ?? [])}`
 
   const buildCollectionSearchEntry = (
     entry: CollectionCardEntry,
     scryfallCard: ScryfallCard | null,
   ): TradeSearchEntry => {
-    const groupKey = `${entry.name}|${entry.set.toLowerCase()}|${entry.collectorNumber}|${entry.finish}|${entry.condition}`
+    const groupKey = `${entry.name}|${entry.set.toLowerCase()}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${displayLanguage(entry.language)}`
     const maxQty = entry.note ? 1 : (collectionQtyMap().get(groupKey) ?? 1)
     const labels = entryLabels(entry)
     return {
@@ -270,6 +292,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       collectorNumber: entry.collectorNumber,
       finish: entry.finish,
       condition: entry.condition,
+      language: entryLanguage(entry),
       labels: labels.length > 0 ? labels : undefined,
       note: entry.note,
       price: entry.price,
@@ -282,8 +305,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   }
 
   const handleCollectionAddToTrade = async (entry: CollectionCardEntry) => {
-    const cardKey = printingKey(entry.set, entry.collectorNumber)
-    const scryfallCard = props.cards[cardKey] ?? null
+    const scryfallCard = entryCard(entry)
     const searchEntry = buildCollectionSearchEntry(entry, scryfallCard)
     // Guarded: a keep-labeled card confirms once before its first trade add.
     // This one handler covers both the tile "+ Trade" button and the card modal.
@@ -296,9 +318,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   }
 
   const isCollectionCardAddDisabled = (entry: CollectionCardEntry): boolean => {
-    const cardKey = printingKey(entry.set, entry.collectorNumber)
-    const scryfallCard = props.cards[cardKey] ?? null
-    const searchEntry = buildCollectionSearchEntry(entry, scryfallCard)
+    const searchEntry = buildCollectionSearchEntry(entry, entryCard(entry))
     return !canAddMoreToLeft(searchEntry)
   }
 
@@ -317,10 +337,11 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     return currencyEntries().reduce((sum, e) => sum + e.price, 0)
   })
 
-  // Build flat card list from entries
+  // Build flat card list from entries. The displayed card is language-resolved
+  // (a `[ja]` entry shows its ja scan when baked); the price stays the one
+  // `currencyEntries` computed from the printing's default-language object.
   const toCardData = (entry: CollectionCardEntry, quantity: number): CardData => {
-    const cardKey = printingKey(entry.set, entry.collectorNumber)
-    const card = overlayCard(props.cards[cardKey] ?? null)
+    const card = entryCard(entry)
     return {
       name: entry.name,
       quantity,
@@ -339,6 +360,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       artTags: card?.artTags ?? [],
       labels: entryLabels(entry),
       finish: entry.finish,
+      language: entryLanguage(entry),
       ...buylistFieldsFor(card, entry.finish),
       card,
     }
@@ -427,10 +449,11 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     return null
   })
 
+  // Language-resolved like the tiles, so a `[ja]` entry's modal shows the ja scan.
   const modalCard = createMemo((): ScryfallCard | null => {
-    if (!modalEntry()) return null
-    const cardKey = printingKey(modalEntry()!.set, modalEntry()!.collectorNumber)
-    return props.cards[cardKey] ?? null
+    const entry = modalEntry()
+    if (!entry) return null
+    return entryCard(entry)
   })
 
   const modalAddToTrade = createMemo(() => {
@@ -485,6 +508,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         collectorNumber: entry?.collectorNumber,
         finish: entry?.finish,
         condition: entry?.condition,
+        language: entry ? entryLanguage(entry) : undefined,
         labels: entry ? entryLabels(entry) : undefined,
         note: entry?.note,
         quantity: c.quantity,
@@ -525,6 +549,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         onTooltipLeave={() => setTooltip(null)}
         collectionFinish={entry?.finish}
         collectionCondition={entry?.condition}
+        collectionLanguage={entry ? entryLanguage(entry) : undefined}
         collectionSetCN={entry ? `${entry.set.toUpperCase()}:${entry.collectorNumber}` : undefined}
         collectionPrice={entry?.price}
         labelBadges={entry?.labels}
@@ -568,6 +593,10 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     }
     if (entry.condition) {
       parts.push({ label: 'condition', value: entry.condition })
+    }
+    const language = entryLanguage(entry)
+    if (language) {
+      parts.push({ label: 'language', value: languageDisplayName(language) })
     }
     // The modal is the full-truth view, so it shows the *effective* labels —
     // inherited defaults included — unlike the tiles, which badge overrides only.

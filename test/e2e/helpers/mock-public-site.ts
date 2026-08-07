@@ -37,6 +37,7 @@ export function makeSiteIndex(overrides: Partial<SiteIndex> = {}): SiteIndex {
     defaultCurrency: 'usd',
     availableCurrencies: ['usd'],
     searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
+    defaultLanguage: 'en',
     ...overrides,
   }
 }
@@ -2218,4 +2219,83 @@ export async function mockPublicSiteForFindPrintings(page: Page): Promise<void> 
   await fulfillJson(page, '**/decks/print-deck.json', PRINT_DECK)
   await fulfillJson(page, '**/collections/print-binder.json', PRINT_BINDER)
   await fulfillJson(page, '**/wanted/print-wanted.json', PRINT_WANTED)
+}
+
+// ===== Collection with an alternate-language ([ja]) entry =====
+
+/** The default-language (English) object for the language binder's printing. */
+export const MOCK_LANG_CARD_EN = makeMockScryfallCard({
+  id: 'lang-card-en',
+  name: 'Language Card',
+  cmc: 2,
+  type_line: 'Artifact',
+  prices: { usd: '2.00' },
+  set: 'tst',
+  collector_number: '9',
+  image_uris: { normal: 'https://img.test/lang-en.jpg' },
+})
+
+/** The same printing's Japanese card object, baked under `tst:9@ja`. */
+export const MOCK_LANG_CARD_JA = makeMockScryfallCard({
+  id: 'lang-card-ja',
+  name: 'Language Card',
+  cmc: 2,
+  type_line: 'Artifact',
+  lang: 'ja',
+  // Foreign objects typically carry no prices; the page must price the entry
+  // from the default-language object regardless.
+  set: 'tst',
+  collector_number: '9',
+  image_uris: { normal: 'https://img.test/lang-ja.jpg' },
+})
+
+const MOCK_LANG_BINDER_DETAIL = {
+  name: 'Lang Binder',
+  entries: [
+    makeCollectionEntry({
+      name: 'Language Card',
+      collectorNumber: '9',
+      price: 2.0,
+      fileOrder: 0,
+      cardId: 1,
+    }),
+    makeCollectionEntry({
+      name: 'Language Card',
+      collectorNumber: '9',
+      language: 'ja',
+      price: 2.0,
+      fileOrder: 1,
+      cardId: 2,
+    }),
+  ],
+  cards: {
+    'tst:9': MOCK_LANG_CARD_EN,
+    'tst:9@ja': MOCK_LANG_CARD_JA,
+  },
+  printings: { 'Language Card': [MOCK_LANG_CARD_EN, MOCK_LANG_CARD_JA] },
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  totalPrice: 4.0,
+  defaultCurrency: 'usd',
+} satisfies CollectionDetail
+
+const MOCK_SITE_INDEX_WITH_LANG_BINDER = makeSiteIndex({
+  collections: [
+    makeCollectionSummary({
+      slug: 'lang-binder',
+      name: 'Lang Binder',
+      cardCount: 2,
+      totalPrice: 4.0,
+    }),
+  ],
+})
+
+/**
+ * Mock a collection holding an English and a Japanese copy of one printing,
+ * with the ja card object baked under its `set:cn@ja` key — for the language
+ * badge / ja-scan-resolution / Set Language tests.
+ */
+export async function mockPublicSiteCollectionWithLanguages(page: Page): Promise<void> {
+  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_WITH_LANG_BINDER)
+  await fulfillJson(page, '**/collections/lang-binder.json', MOCK_LANG_BINDER_DETAIL)
 }

@@ -4,6 +4,7 @@ import { isCardSideways, resolveCardImageSources } from './image-sources'
 import type { PriceCurrency } from '../price-currency'
 import { formatPrice } from '../price-currency'
 import type { TradeCardEntry } from './data-types'
+import { languageBadge } from '../card-language'
 import { QuantityStepper } from '../ui/QuantityStepper'
 
 export interface TradeCardRowProps {
@@ -34,9 +35,13 @@ export const TradeCardRow: Component<TradeCardRowProps> = (props) => {
   }
 
   const setCN = () => {
-    const { set, collectorNumber } = props.card
-    if (set && collectorNumber) return `${set.toUpperCase()}:${collectorNumber}`
-    if (set) return set.toUpperCase()
+    const { set, collectorNumber, language } = props.card
+    // Non-English rows carry their language beside the printing (`LEA:161 · JA`),
+    // like the list tiles; a bare/en row shows the printing alone.
+    const badge = languageBadge(language)
+    const lang = badge ? ` · ${badge}` : ''
+    if (set && collectorNumber) return `${set.toUpperCase()}:${collectorNumber}${lang}`
+    if (set) return `${set.toUpperCase()}${lang}`
     return null
   }
 

@@ -388,6 +388,7 @@ function flattenToEntries(deckData: DeckData): ImportCardEntry[] {
         collectorNumber: card.collectorNumber,
         finish: card.finish,
         condition: card.condition,
+        language: card.language,
         note: card.note,
         section: section.name,
       })
@@ -1024,7 +1025,10 @@ async function runCsvImport(
     logger.warn(`Overwriting ${path.basename(existingPath)}...`)
   }
 
-  const result = await applyCsvImport({ listType, name, mode, format }, entries, { dryRun })
+  const result = await applyCsvImport({ listType, name, mode, format }, entries, {
+    dryRun,
+    sourceHadLanguageColumn: mapping.language !== undefined,
+  })
   if ('error' in result) {
     emitError('runtime_error', result.error, scripting)
     process.exitCode = ExitCode.RuntimeError

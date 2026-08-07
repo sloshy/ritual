@@ -23,6 +23,7 @@ import {
   finishListSave,
   listSaveResponse,
   normalizeRequestLabels,
+  normalizeRequestLanguages,
   normalizeRequestNotes,
   refuseUnreadableBaseline,
   type ListSaveTail,
@@ -61,6 +62,11 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
 
     const labelError = normalizeRequestLabels(changes)
     if (labelError) return labelError
+
+    // Collection entries are rebuilt server-side from the baseline file, so only
+    // the changes carry request-supplied languages here.
+    const languageError = normalizeRequestLanguages(changes, [])
+    if (languageError) return languageError
 
     const printingError = findCollectionPrintingError(changes)
     if (printingError) return apiError(printingError, 400)

@@ -7,6 +7,7 @@ import { ManaCost, OracleText } from './symbols'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, getCardPriceForFinish, formatPrice } from '../price-currency'
 import { defaultPrintingFinish } from '../finish-condition'
+import { languageBadge, scryfallCardLanguage } from '../card-language'
 import { capitalize } from './utils'
 import { findPrintingsAvailable, openFindPrintings } from './find-printings'
 
@@ -178,6 +179,9 @@ export const CardModal: Component<CardModalProps> = (props) => {
             const pImg = p.image_uris?.normal ?? p.card_faces?.[0]?.image_uris?.normal ?? ''
             const pUrl = `https://scryfall.com/card/${p.set}/${p.collector_number}`
             const isFoil = p.finishes?.length === 1 && p.finishes[0] !== 'nonfoil'
+            // Alternate-language objects (from an all_cards cache) are badged so
+            // two tiles sharing a set:cn are tellable apart. Absent lang = en.
+            const pLang = languageBadge(scryfallCardLanguage(p))
             // Quote the printing at the finish it's actually read at, which also
             // covers a printing offered only in foil *and* etched.
             const pPrice = getCardPriceForFinish(p, defaultPrintingFinish(p), props.currency)
@@ -195,6 +199,7 @@ export const CardModal: Component<CardModalProps> = (props) => {
                 <div class="printing-label">
                   <span class="printing-label-set">
                     {p.set.toUpperCase()}:{p.collector_number}
+                    <Show when={pLang}> · {pLang}</Show>
                   </span>
                   <Show when={pPrice > 0}>
                     {' '}

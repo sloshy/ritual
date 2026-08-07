@@ -26,6 +26,7 @@ import {
 import {
   currencySchema,
   finishSchema,
+  languageSchema,
   listRefSchema,
   listSlugRefSchema,
   listTypeSchema,
@@ -110,8 +111,19 @@ export interface ListListsResult {
 export interface CardPrintingsResult {
   name: string
   printings: PrintingListing[]
-  /** Printings found before `limit` truncated the list; absent when nothing was dropped. */
+  /**
+   * Distinct set:collectorNumber printings found before `limit` truncated the
+   * list; absent when nothing was dropped. With an `all_cards`-backed cache a
+   * printing can appear once per language, and the count is of printings, not
+   * per-language card objects.
+   */
   totalPrintings?: number
+  /**
+   * Every language the card's full printing list exists in (`en` first),
+   * folding an absent `lang` to `en`. `["en"]` for any English-only
+   * (default_cards-backed) cache.
+   */
+  languages: string[]
   /**
    * Whether the list is the card's complete printing set. False when the local
    * card cache holds no bulk-downloaded entry for the name — the one printing
@@ -221,6 +233,12 @@ const buylistPrintingSchema = z.object({
   set: setCodeField.describe('Set code of the printing.'),
   collectorNumber: z.string().min(1).describe('Collector number of the printing.'),
   finish: z.enum(VALID_FINISHES).describe('Finish of the copy being quoted.'),
+  language: languageSchema
+    .optional()
+    .describe(
+      'Language of the copy being quoted; omitted means English. The buyer only quotes ' +
+        'English copies, so a non-English copy gets no quote.',
+    ),
   scryfallId: z
     .string()
     .optional()
@@ -513,7 +531,10 @@ export function registerReadTools(server: McpServer): void {
       title: 'Get card printings',
       description:
         'List the printings of a card, newest first, which is what a set/collectorNumber ' +
-        'argument on the edit tools needs. Capped at 20 by default. Prices are left out unless ' +
+        'argument on the edit tools needs. Capped at 20 distinct printings by default; with a ' +
+        'non-English cache every language object of an included printing rides along (its lang ' +
+        'field says which — absent means "en"), and languages summarizes every language the ' +
+        'card exists in. Prices are left out unless ' +
         'includePrices is set; use get_card_price for the cheapest and representative printings ' +
         'instead. When `complete` is false the local card cache holds no printing list for this ' +
         'name, so the printings shown are whatever one lookup returned — run refresh_cache before ' +
@@ -546,6 +567,7 @@ export function registerReadTools(server: McpServer): void {
           printings: data.printings.map(
             includePrices === true ? summarizePrinting : summarizePrintingIdentity,
           ),
+          languages: data.languages,
           complete: data.complete,
         }
         if (data.totalPrintings !== undefined) result.totalPrintings = data.totalPrintings
@@ -735,7 +757,10 @@ export function registerReadTools(server: McpServer): void {
     'get_config',
     {
       title: 'Get config',
-      description: 'Get the current Ritual configuration.',
+      description:
+        'Get the current Ritual configuration, including defaultLanguage — the Scryfall ' +
+        'language code stamped on newly added cards (and what decides which Scryfall bulk ' +
+        'backs the card cache).',
       inputSchema: z.object({}),
       outputSchema: fromJsonSchema<ConfigResult>(CONFIG_OUTPUT),
       annotations: { readOnlyHint: true },
@@ -754,7 +779,10 @@ export function registerReadTools(server: McpServer): void {
       description:
         'Report the local Scryfall card cache: whether it is empty, how many cards it holds, ' +
         'when it was last refreshed, how old its prices are and whether they are stale, whether ' +
-        'Scryfall Tagger tags are present, and where the cache is served from. ' +
+        'Scryfall Tagger tags are present, where the cache is served from, and which Scryfall ' +
+        'bulk built it (cardBulkType — default_cards for an English defaultLanguage, all_cards ' +
+        'otherwise; bulkTypeStale means the cache and the configured defaultLanguage disagree ' +
+        'and a full refresh_cache is needed). ' +
         'Check empty and priceStale before pricing: an empty or stale cache is exactly what ' +
         'get_price_report errors on, and refresh_cache is the fix. Diagnostic only — reading ' +
         'this never refreshes or writes the cache.',

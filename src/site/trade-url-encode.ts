@@ -1,5 +1,16 @@
+import { displayLanguage } from '../card-language'
 import type { TradeCardEntry } from './data-types'
 import { defaultFinishForCard, resolveTradeFinish } from './trade-finish'
+
+/**
+ * The `~lang` suffix of an sf token (`@sfId[:finish][~lang]`), empty for
+ * English — a bare token means `en`, like a bare card line. Tilde rather than a
+ * second colon so the finish and language suffixes cannot be confused.
+ */
+function languageSuffix(card: TradeCardEntry): string {
+  const language = displayLanguage(card.language)
+  return language === 'en' ? '' : `~${language}`
+}
 
 function buildSourceGroup(sourceName: string, tokens: string[]): string {
   return `${encodeURIComponent(sourceName)}:${tokens.join(',')}`
@@ -29,6 +40,7 @@ function encodeDeckCards(cards: TradeCardEntry[]): string {
       token += `@${card.scryfallCard.id}`
       const finish = resolveTradeFinish(card.scryfallCard, card.finish)
       if (finish !== defaultFinishForCard(card.scryfallCard)) token += `:${finish}`
+      token += languageSuffix(card)
     }
     const bucket = groups.get(card.sourceName) ?? []
     bucket.push(token)
@@ -48,7 +60,8 @@ function encodeWantedCards(cards: TradeCardEntry[]): string {
     const defaultFinish = sfId ? defaultFinishForCard(card.scryfallCard) : 'nonfoil'
     const tokens = sourceIds.map((id) => {
       if (!sfId) return String(id)
-      return resolvedFinish !== defaultFinish ? `${id}@${sfId}:${resolvedFinish}` : `${id}@${sfId}`
+      const finishPart = resolvedFinish !== defaultFinish ? `:${resolvedFinish}` : ''
+      return `${id}@${sfId}${finishPart}${languageSuffix(card)}`
     })
     const bucket = groups.get(card.sourceName) ?? []
     bucket.push(...tokens)
@@ -63,9 +76,8 @@ function encodeScryfallCards(cards: TradeCardEntry[]): string {
     .map((c) => {
       const finish = resolveTradeFinish(c.scryfallCard, c.finish)
       const defaultFinish = defaultFinishForCard(c.scryfallCard)
-      return finish !== defaultFinish
-        ? `x${c.qty}@${c.scryfallCard!.id}:${finish}`
-        : `x${c.qty}@${c.scryfallCard!.id}`
+      const finishPart = finish !== defaultFinish ? `:${finish}` : ''
+      return `x${c.qty}@${c.scryfallCard!.id}${finishPart}${languageSuffix(c)}`
     })
     .join(',')
 }

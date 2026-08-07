@@ -146,6 +146,100 @@ describe('parseChangelog', () => {
     })
   })
 
+  test('parses "Set language of X to <name>" into the language code', () => {
+    const content = `# Changelog
+
+## 2026-01-01T00:00:00Z
+
+- Set language of "Sol Ring" to Japanese &5
+- Set language of "Sol Ring" to Simplified Chinese
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Set language',
+      cardName: 'Sol Ring',
+      language: 'ja',
+    })
+    // Multi-word display names parse too — the &N-less form as well.
+    expect(pages[0]!.changes[1]).toEqual({
+      action: 'Set language',
+      cardName: 'Sol Ring',
+      language: 'zhs',
+    })
+  })
+
+  test('a quoted card name containing " to " does not split the language early', () => {
+    // Regression: lazy groups used to split on the FIRST " to ", so this line
+    // failed to parse and vanished from history.
+    const content = `# Changelog
+
+## 2026-01-01T00:00:00Z
+
+- Set language of "Ashes to Ashes" to Japanese &5
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Set language',
+      cardName: 'Ashes to Ashes',
+      language: 'ja',
+    })
+  })
+
+  test('drops a "Set language" line naming no known language', () => {
+    const content = `# Changelog
+
+## 2026-01-01T00:00:00Z
+
+- Set language of "Sol Ring" to Klingon &5
+`
+    const pages = parseChangelog(content)
+    expect(pages).toHaveLength(0)
+  })
+
+  test('classifies a [ja] bracket on add/remove lines as the language', () => {
+    const content = `# Changelog
+
+## 2026-01-01T00:00:00Z
+
+- Added "Ambition's Cost" (NEO:234) [foil] [LP] [ja] &7
+- Removed "Sol Ring" [ja]
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Added',
+      cardName: "Ambition's Cost",
+      set: 'neo',
+      collectorNumber: '234',
+      finish: 'foil',
+      condition: 'LP',
+      language: 'ja',
+    })
+    expect(pages[0]!.changes[1]).toEqual({
+      action: 'Removed',
+      cardName: 'Sol Ring',
+      language: 'ja',
+    })
+  })
+
+  test('parses a [ja] token inside a set-printing descriptor', () => {
+    const content = `# Changelog
+
+## 2026-01-01T00:00:00Z
+
+- Set "Lightning Bolt" printing to M10:146 [foil] [ja] &5
+`
+    const pages = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Set printing',
+      cardName: 'Lightning Bolt',
+      set: 'm10',
+      collectorNumber: '146',
+      finish: 'foil',
+      condition: undefined,
+      language: 'ja',
+    })
+  })
+
   test('parses a non-main board suffix without polluting the card name', () => {
     const content = `# Changelog
 

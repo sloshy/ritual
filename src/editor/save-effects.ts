@@ -1,4 +1,5 @@
 import type { Card, Condition, DeckData, Finish } from '../types'
+import { displayLanguage, storedLanguage, type CardLanguage } from '../card-language'
 
 /**
  * What a save did to individual card lines, computed by diffing the list as it
@@ -33,6 +34,8 @@ export interface SaveEffectPrinting {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Present only for a non-English line — `en` folds away like the written token. */
+  language?: CardLanguage
 }
 
 /** One entry a save created, dropped, or changed — reported post-write, ids resolved. */
@@ -73,6 +76,8 @@ export interface EffectEntry {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** Absent means `en` (the bare-line default). */
+  language?: CardLanguage
   note?: string
   section?: string
 }
@@ -87,6 +92,7 @@ interface EffectLine {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  language?: CardLanguage
   note?: string
 }
 
@@ -111,6 +117,7 @@ function toLine(card: Card, cardId: number, section: string | undefined): Effect
     collectorNumber: card.collectorNumber,
     finish: card.finish,
     condition: card.condition,
+    language: card.language,
     note: card.note,
   }
 }
@@ -129,6 +136,7 @@ function flattenEntries(entries: readonly EffectEntry[]): EffectLine[] {
       collectorNumber: entry.collectorNumber,
       finish: entry.finish,
       condition: entry.condition,
+      language: entry.language,
       note: entry.note,
     })
   }
@@ -145,7 +153,9 @@ function flattenEntries(entries: readonly EffectEntry[]): EffectLine[] {
  * adjacent field edits cancel out and drop an `updated` entirely. The set code
  * is lowercased on both sides, per the project's set-code rule — comparing raw
  * would report every line in a file as changed the first time a case-only
- * normalization ran through it.
+ * normalization ran through it. The language folds a missing value to `en` for
+ * the same reason: one side of the diff may carry the resolved value while the
+ * other carries the written token.
  */
 function signature(line: EffectLine): string {
   return JSON.stringify([
@@ -154,6 +164,7 @@ function signature(line: EffectLine): string {
     line.collectorNumber ?? '',
     line.finish ?? '',
     line.condition ?? '',
+    displayLanguage(line.language),
     line.section ?? '',
     line.note ?? '',
     line.quantity,
@@ -182,6 +193,10 @@ function printingOf(line: EffectLine): SaveEffectPrinting | undefined {
   if (line.collectorNumber !== undefined) printing.collectorNumber = line.collectorNumber
   if (line.finish !== undefined) printing.finish = line.finish
   if (line.condition !== undefined) printing.condition = line.condition
+  // Folded like the written token: one side of the diff may carry a resolved
+  // `en` while the other carries a bare line, and neither is worth reporting.
+  const language = storedLanguage(line.language)
+  if (language !== undefined) printing.language = language
   return Object.keys(printing).length > 0 ? printing : undefined
 }
 

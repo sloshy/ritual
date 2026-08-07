@@ -7,7 +7,12 @@ import type { FlatPrinting } from './flat-list-controller'
 
 /** Printing fields logged when a wanted entry is added/removed (wanted lists carry no condition). */
 export function wantedPrintingOf(entry: WantedListCardEntry): FlatPrinting {
-  return { set: entry.set, collectorNumber: entry.collectorNumber, finish: entry.finish }
+  return {
+    set: entry.set,
+    collectorNumber: entry.collectorNumber,
+    finish: entry.finish,
+    language: entry.language,
+  }
 }
 
 /**
@@ -20,10 +25,14 @@ export function applyWantedChangePrinting(ctx: ChangePrintingContext<WantedListC
   const cardId = target.cardIds[0]
   if (cardId === undefined) return
 
+  // `language` rides along when the picker resolved one (a printing unavailable
+  // in the default language); absent, the set-printing leaves the entry's
+  // language alone.
   const newPrinting: PrintingTuple = {
     set: options.set,
     collectorNumber: options.collectorNumber,
     finish: options.finish,
+    language: options.language,
   }
   const currentPrinting: PrintingTuple = {
     set: target.set,
@@ -42,6 +51,7 @@ export function applyWantedChangePrinting(ctx: ChangePrintingContext<WantedListC
           set: options.set,
           collectorNumber: options.collectorNumber,
           finish: options.finish,
+          language: options.language,
           cardId,
         })
       : prev,

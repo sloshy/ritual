@@ -58,7 +58,7 @@ Cards can be selected across every view mode for bulk actions. Hovering a card i
 Opening the button reveals a menu of actions over that list's selection:
 
 - **Copy as Text** — copies a quantity-prefixed `N Card Name (SET:Collector Number)` list to the clipboard
-- **Copy as CSV** — copies the selection as CSV (`Name,Set,Collector Number,Finish,Condition,Quantity`)
+- **Copy as CSV** — copies the selection as CSV (`Name,Set,Collector Number,Finish,Condition,Language,Quantity`)
 - **Clear selection** — deselects the current list's cards only
 
 The public site adds an **Add to Trade** action here; the admin site omits it because it has no Trade Planner page.
@@ -71,6 +71,7 @@ While a list is open in edit mode, the **Selected (N)** menu also gains an **edi
 - **Remove from list** (decks: **Remove from deck**) — remove every copy of each selected card
 - **Set as Foil** / **Set as Nonfoil** — set the finish on each selected card that supports it (others are skipped)
 - **Change Printing…** — runs the printing picker over the selected cards one at a time (cancelling skips that card and continues)
+- **Set Language…** — opens the [language picker](#card-language) and applies the chosen language to every selected card
 - **Set as Commander** — decks only; marks each selected card as a commander
 - **Set Label…** — collections only; opens the [label picker](#card-labels) and applies the chosen override to every selected card
 - **Move to section…** — opens a picker to move every selected card into an existing section, or **New section…** to name a new one
@@ -146,7 +147,7 @@ A deck folds the added copies into one entry with a quantity; collections and wa
 
 ### Context Menu
 
-Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil**, **Change Printing…**, and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**; the Collection Editor offers [**Set Label…**](#card-labels).
+Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil**, **Change Printing…**, [**Set Language…**](#card-language), and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**; the Collection Editor offers [**Set Label…**](#card-labels).
 
 #### Move to Section
 
@@ -178,12 +179,20 @@ When the card represents more than one copy (a Deck Editor entry with quantity >
 
 Every printing change is recorded as a change event tagged with the card ID and the target printing, and appears in the changelog (e.g. `Set "Lightning Bolt" printing to M10:146 [foil] &5`).
 
+### Card Language
+
+Every card entry has a [language](/commands/edit/#card-language) — a Scryfall code written on the line as a lowercase bracket token (`[ja]`) and omitted for English, so a bare line always means `en`.
+
+- **Set Language…** in a card's `⋯` context menu (and in the multi-select **Selected** menu) opens a picker over the 17 Scryfall languages, with the current one marked. Picking **English** clears the token. The change is a pending `set-language` edit like any other — undoable, listed in **Changes**, and written on save (changelog: `Set language of "Sol Ring" to Japanese &7`).
+- **Adding never asks for a language**: new cards are stamped with the configured [`defaultLanguage`](/configuration/#default-language) (editable on the admin **Settings** page). Change an individual copy afterwards with **Set Language…**.
+- The **printing picker** shows one tile per physical printing (set + collector number), never one per language object. Under a non-English default, a printing that does not exist in that language is marked with a notice — picking it records the copy in the language that does exist (English when available) rather than inventing a language Scryfall has no card object for.
+
 ### Change Tracking
 
 All edits are tracked as in-memory change events until explicitly saved.
 
 - **Changes** button shows the count of pending changes and opens a dialog listing them
-- Additive changes (add card, set commander, set finish, set printing) are shown in green
+- Additive changes (add card, set commander, set finish, set printing, set language) are shown in green
 - Destructive changes (remove card) are shown in red
 - Opposite changes cancel out automatically (e.g., adding then removing the same card)
 - Card names in the changes dialog are clickable links that open the card detail modal

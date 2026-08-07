@@ -5,7 +5,7 @@ import { getBannedPrintings } from '../../ritual-config'
 import { extractChangelogCardNames, parseChangelog } from '../../changelog-parser'
 import type { ScryfallCard } from '../../types'
 import type { PriceCurrency } from '../../price-currency'
-import { cardPrintingKey } from '../../printing-key'
+import { indexPrintingCard } from '../../editor/card-data-utils'
 
 const ALL_CURRENCIES: PriceCurrency[] = ['usd', 'eur', 'tix']
 
@@ -117,8 +117,11 @@ export async function loadEntryCardData(cardNames: Set<string>): Promise<EntryCa
     if (cached && cached.length > 0) {
       printings[name] = cached
 
+      // Foreign-language objects key under `set:cn@lang`; the plain `set:cn`
+      // slot keeps the default-language (en) object so unpinned lines and
+      // English entries resolve exactly as before an `all_cards` cache.
       for (const card of cached) {
-        cards[cardPrintingKey(card)] = card
+        indexPrintingCard(cards, card)
       }
 
       const sorted = [...cached].sort((a, b) =>
@@ -130,11 +133,11 @@ export async function loadEntryCardData(cardNames: Set<string>): Promise<EntryCa
       const card = await fetchCardData(name, { silent: true })
       cards[name] = card
       if (card) {
-        cards[cardPrintingKey(card)] = card
+        indexPrintingCard(cards, card)
         try {
           printings[name] = await getCardPrintings(name)
           for (const p of printings[name]) {
-            cards[cardPrintingKey(p)] = p
+            indexPrintingCard(cards, p)
           }
         } catch {
           printings[name] = [card]
