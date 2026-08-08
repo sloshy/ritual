@@ -7,8 +7,8 @@ import {
   isAdditiveChange,
   isSamePrinting,
   createChangeId,
-  formatChange,
 } from '../../src/change-event'
+import { formatChange } from '../../src/change-message'
 import type { ChangeEvent, ChangeAction } from '../../src/change-event'
 import { applyChangeToDeck } from '../../src/editor/deck-changes'
 import type { DeckData } from '../../src/types'

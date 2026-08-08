@@ -1,6 +1,12 @@
-import { describe, it, expect, beforeEach } from 'bun:test'
+import { describe, it, expect, afterEach, beforeEach } from 'bun:test'
 import { saveEditorChanges } from '../../../src/editor/saveEditorChanges'
-import type { EditorStatusActions } from '../../../src/editor/useEditorStatus'
+import {
+  renderStatus,
+  type EditorStatusActions,
+  type EditorStatusMessage,
+} from '../../../src/editor/useEditorStatus'
+import { tDynamic } from '../../../src/i18n/t'
+import { currentLocale } from '../../../src/i18n/runtime'
 
 describe('saveEditorChanges', () => {
   type Call = { method: string; args: unknown[] }
@@ -12,17 +18,33 @@ describe('saveEditorChanges', () => {
     discardCalled = true
   }
 
+  /**
+   * What a stored status message renders to. The status store holds
+   * `{ key, params }` so a locale switch can re-render it, but what these cases
+   * are about is the wording the user ends up seeing, so they assert on that.
+   */
+  const shown = (message: EditorStatusMessage): string =>
+    renderStatus((key, params) => tDynamic(currentLocale(), key, params), message)
+
+  // Every case below installs its own `globalThis.fetch` stub. Restored after
+  // each one, or the last stub — a 400 refusal — leaks into every test file that
+  // runs after this one in the same `bun test` process.
+  const realFetch = globalThis.fetch
+  afterEach(() => {
+    globalThis.fetch = realFetch
+  })
+
   beforeEach(() => {
     calls = []
     discardCalled = false
     statusActions = {
       loadStart: () => calls.push({ method: 'loadStart', args: [] }),
       loadSuccess: () => calls.push({ method: 'loadSuccess', args: [] }),
-      loadError: (error) => calls.push({ method: 'loadError', args: [error] }),
+      loadError: (error) => calls.push({ method: 'loadError', args: [shown(error)] }),
       saveStart: () => calls.push({ method: 'saveStart', args: [] }),
-      saveSuccess: (message) => calls.push({ method: 'saveSuccess', args: [message] }),
-      saveError: (error) => calls.push({ method: 'saveError', args: [error] }),
-      setError: (error) => calls.push({ method: 'setError', args: [error] }),
+      saveSuccess: (message) => calls.push({ method: 'saveSuccess', args: [shown(message)] }),
+      saveError: (error) => calls.push({ method: 'saveError', args: [shown(error)] }),
+      setError: (error) => calls.push({ method: 'setError', args: [shown(error)] }),
     }
   })
 
@@ -179,5 +201,29 @@ describe('saveEditorChanges', () => {
       },
     ])
     expect(result?.conflict).toBe(true)
+  })
+
+  it('stores its own wording unrendered, and server prose as text', async () => {
+    const recorded: EditorStatusMessage[] = []
+    const capture: EditorStatusActions = {
+      ...statusActions,
+      saveSuccess: (message) => recorded.push(message),
+      saveError: (error) => recorded.push(error),
+    }
+
+    globalThis.fetch = (async () => ({ json: async () => ({ success: true }) }) as Response) as any
+    await saveEditorChanges('/api/test/save', {}, capture, discardAll)
+
+    globalThis.fetch = (async () =>
+      ({
+        status: 400,
+        json: async () => ({ success: false, error: 'Bad request data' }),
+      }) as Response) as any
+    await saveEditorChanges('/api/test/save', {}, capture, discardAll)
+
+    expect(recorded).toEqual([
+      { kind: 'key', key: 'ui.editor.saveSuccess', params: undefined },
+      { kind: 'text', text: 'Bad request data' },
+    ])
   })
 })

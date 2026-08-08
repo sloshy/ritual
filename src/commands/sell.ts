@@ -2,6 +2,7 @@ import { Command, InvalidArgumentError } from 'commander'
 import { ensureCardCachePresent, emptyCacheAdvice } from '../cache/freshness'
 import { adoptCardKingdomFeed, ensureCardKingdomFeed } from '../cardkingdom'
 import { formatPrintingAnnotation } from '../change-event'
+import { compareData } from '../i18n/collate'
 import { formatPrice } from '../price-currency'
 import { addRefreshOption, resolveRefreshMode, type RefreshMode } from '../refresh'
 import { listTypeFromFlags, type ListLocation } from '../resolve-list'
@@ -38,9 +39,12 @@ import {
   type CsvOutputFormat,
   type ScriptingOptions,
 } from './scripting'
+import { t } from '../i18n/t'
 
-export const SELL_DISCLAIMER =
-  '⚠️  Buy prices are Card Kingdom cash quotes for Near Mint copies: played conditions are graded down, quantities are capped at their listed limits, and quotes change daily. Store credit typically pays more.'
+/** The footer every text report ends with, unless `--quiet` drops it. */
+export function sellDisclaimer(): string {
+  return t('cli.sell.disclaimer')
+}
 
 type SellCommandOptions = Partial<Omit<ScriptingOptions, 'output'>> & {
   output?: CsvOutputFormat
@@ -78,26 +82,52 @@ export function formatBuyingEntryLine(entry: BuyingSellEntry): string {
   const price = formatPrice(entry.priceBuy, 'usd')
   const quantity =
     entry.sellableQuantity < entry.quantity
-      ? `×${entry.sellableQuantity} of ${entry.quantity}`
-      : `×${entry.sellableQuantity}`
-  const value = entry.sellableQuantity > 1 ? ` = ${formatPrice(entry.value, 'usd')}` : ''
-  return `${price} ${quantity}${value}  ${entry.name}${formatPrintingAnnotation(entry)} · ${ckProductSegment(entry)} · max ${entry.qtyBuying}`
+      ? t('cli.sell.quantityCapped', {
+          sellable: entry.sellableQuantity,
+          quantity: entry.quantity,
+        })
+      : t('cli.sell.quantity', { quantity: entry.sellableQuantity })
+  const value =
+    entry.sellableQuantity > 1
+      ? t('cli.sell.lineValue', { value: formatPrice(entry.value, 'usd') })
+      : ''
+  return t('cli.sell.buyingLine', {
+    price,
+    quantity,
+    value,
+    name: entry.name,
+    annotation: formatPrintingAnnotation(entry),
+    product: ckProductSegment(entry),
+    max: entry.qtyBuying,
+  })
 }
 
 /** One text line for an entry CK is not buying (or that failed to match). */
 export function formatUnsoldEntryLine(entry: SellReportEntry): string {
   const label =
     entry.status === 'no-match'
-      ? `no match (${entry.noMatchReason})`
-      : `not buying (${ckProductSegment(entry)})`
-  return `${entry.name}${formatPrintingAnnotation(entry)} ×${entry.quantity} — ${label}`
+      ? t('cli.sell.noMatch', { reason: entry.noMatchReason })
+      : t('cli.sell.notBuying', { product: ckProductSegment(entry) })
+  return t('cli.sell.unsoldLine', {
+    name: entry.name,
+    annotation: formatPrintingAnnotation(entry),
+    quantity: entry.quantity,
+    label,
+  })
 }
 
 /** The one-line summary of a list's totals, shared by the block header and tests. */
 export function formatSellListTitle(summary: SellListSummary): string {
   const skipped = summary.notBuyingCount + summary.noMatchCount
-  const tail = skipped > 0 ? ` (${skipped} not bought)` : ''
-  return `[${summary.type}] ${summary.name} — CK buys ${summary.sellableCount} of ${summary.cardCount} cards · ${formatPrice(summary.totalValue, 'usd')}${tail}`
+  const tail = skipped > 0 ? t('cli.sell.listTitleSkipped', { count: skipped }) : ''
+  return t('cli.sell.listTitle', {
+    type: summary.type,
+    name: summary.name,
+    sellable: summary.sellableCount,
+    total: summary.cardCount,
+    value: formatPrice(summary.totalValue, 'usd'),
+    tail,
+  })
 }
 
 /** The report's header lines: feed provenance and age. */
@@ -106,13 +136,19 @@ export function formatSellHeaderLines(
   now: number,
 ): string[] {
   const age = formatDuration(now - feed.feedRetrievedAt)
-  const generated = feed.feedCreatedAt === '' ? '' : ` · generated ${feed.feedCreatedAt}`
-  return [`Card Kingdom buylist${generated} · retrieved ${age} ago`]
+  const generated =
+    feed.feedCreatedAt === '' ? '' : t('cli.sell.headerGenerated', { date: feed.feedCreatedAt })
+  return [t('cli.sell.header', { generated, age })]
 }
 
 /** The grand-totals footer line. */
 export function formatSellTotalsLine(totals: SellReportTotals): string {
-  return `Total: ${formatPrice(totals.totalValue, 'usd')} for ${totals.sellableCount} of ${totals.cardCount} cards across ${totals.listCount} list${totals.listCount === 1 ? '' : 's'}`
+  return t('cli.sell.totals', {
+    value: formatPrice(totals.totalValue, 'usd'),
+    sellable: totals.sellableCount,
+    total: totals.cardCount,
+    counted: t('domain.count.lists', { count: totals.listCount }),
+  })
 }
 
 /** How {@link renderSellReportText} decorates the report. */
@@ -136,7 +172,7 @@ export function renderSellReportText(view: SellReportView, options: SellTextOpti
     )
     const buying = listEntries
       .filter(isBuyingEntry)
-      .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))
+      .sort((a, b) => b.value - a.value || compareData(a.name, b.name))
     const unsold = listEntries.filter((entry) => entry.status !== 'buying')
 
     lines.push('', formatSellListTitle(summary))
@@ -145,12 +181,15 @@ export function renderSellReportText(view: SellReportView, options: SellTextOpti
       for (const entry of unsold) lines.push(`  ${formatUnsoldEntryLine(entry)}`)
     } else if (unsold.length > 0) {
       lines.push(
-        `  (${summary.notBuyingCount} not buying, ${summary.noMatchCount} unmatched — rerun with --all to list them)`,
+        t('cli.sell.unsoldSummary', {
+          notBuying: summary.notBuyingCount,
+          noMatch: summary.noMatchCount,
+        }),
       )
     }
   }
   lines.push('', formatSellTotalsLine(view.totals))
-  if (!options.quiet) lines.push('', SELL_DISCLAIMER)
+  if (!options.quiet) lines.push('', sellDisclaimer())
   return `${lines.join('\n')}\n`
 }
 
@@ -160,25 +199,20 @@ export function registerSellCommand(program: Command): void {
       addOutputOption(
         program
           .command('sell')
-          .description("Check what Card Kingdom's buylist pays for cards in your lists")
-          .argument(
-            '[list...]',
-            'Lists to check (any type; deck:/collection:/wanted: prefixes work). Default: every collection',
-          )
-          .option('--deck', 'Scope to decks (also disambiguates list names)')
-          .option('--collection', 'Scope to collections (also disambiguates list names)')
-          .option('--wanted', 'Scope to wanted lists (also disambiguates list names)')
-          .option('--sets <codes>', 'Only cards from these set codes (comma-separated)', (value) =>
-            parseSetCodesInput(value),
-          )
-          .option('--min <price>', 'Only offers of at least this much per copy', parseMinPriceFlag)
-          .option('--all', 'Also list entries CK is not buying (text output)')
-          .option('--out <file>', "Write the output to a file instead of stdout ('-' for stdout)"),
+          .description(t('help.sell.description'))
+          .argument('[list...]', t('help.sell.listArg'))
+          .option('--deck', t('help.sell.deck'))
+          .option('--collection', t('help.sell.collection'))
+          .option('--wanted', t('help.sell.wanted'))
+          .option('--sets <codes>', t('help.sell.sets'), (value) => parseSetCodesInput(value))
+          .option('--min <price>', t('help.sell.min'), parseMinPriceFlag)
+          .option('--all', t('help.sell.all'))
+          .option('--out <file>', t('help.sell.out')),
         CSV_OUTPUT_FORMATS,
         'text',
       ),
     ),
-    'Buylist + card cache refresh policy: ask (a day-old buylist redownloads without asking; the first download prompts, skipped when unanswerable), auto, no-bulk, never',
+    t('help.sell.refresh'),
   ).action(async (listArgs: string[], options: SellCommandOptions) => {
     const format: CsvOutputFormat = options.output ?? 'text'
     const scripting = csvScriptingOptions(format, options.quiet ?? false)
@@ -192,7 +226,13 @@ export function registerSellCommand(program: Command): void {
 
     const type = listTypeFromFlags(options)
     if (type === 'conflict') {
-      emitError('usage_error', 'Use only one of --deck, --collection, or --wanted.', scripting)
+      emitError(
+        'usage_error',
+        t('cli.listScope.oneTypeFlag'),
+        scripting,
+        undefined,
+        'cli.listScope.oneTypeFlag',
+      )
       process.exitCode = ExitCode.UsageError
       return
     }
@@ -219,16 +259,9 @@ export function registerSellCommand(program: Command): void {
     }
 
     try {
-      const cacheReady = await ensureCardCachePresent(
-        refreshMode,
-        'Buylist matching requires the Scryfall card database.',
-      )
+      const cacheReady = await ensureCardCachePresent(refreshMode, t('cli.sell.cacheRequirement'))
       if (!cacheReady) {
-        emitError(
-          'runtime_error',
-          emptyCacheAdvice('The card cache is empty; buylist matching requires it.'),
-          scripting,
-        )
+        emitError('runtime_error', emptyCacheAdvice(t('cli.sell.emptyCache')), scripting)
         process.exitCode = ExitCode.RuntimeError
         return
       }
@@ -304,7 +337,10 @@ export function registerSellCommand(program: Command): void {
       await emitToFileOrStdout(content, {
         outPath,
         quiet: scripting.quiet,
-        confirm: outPath === undefined ? undefined : { file: (target) => `Wrote ${target}` },
+        confirm:
+          outPath === undefined
+            ? undefined
+            : { file: (target) => t('cli.sell.wroteFile', { file: target }) },
       })
     } catch (e) {
       emitActionError(e, scripting)

@@ -1,5 +1,6 @@
 import { type ListType, LIST_TYPES, LIST_TYPE_DISPLAY } from '../../list-type'
 import type { ListInfo } from '../../list-info'
+import type { ParameterlessKey } from '../../i18n/t'
 
 /** Opaque `${type}:${slug}` identifier for a list in the admin UI. */
 export type ListId = string
@@ -12,10 +13,17 @@ export function listInfoId(list: ListInfo): ListId {
   return listId(list.type, list.slug)
 }
 
-/** Lists grouped under a single list type, with non-empty groups only. */
+/**
+ * Lists grouped under a single list type, with non-empty groups only.
+ *
+ * `labelKey` is a {@link MessageKey}, not rendered text: a group list is built
+ * inside a `createMemo` keyed on the *lists*, which does not re-run for a locale
+ * change — so a rendered heading would stay in the previous language. Consumers
+ * resolve it with `useTKey()` at render time.
+ */
 export type ListTypeGroup = {
   type: ListType
-  label: string
+  labelKey: ParameterlessKey
   lists: ListInfo[]
 }
 
@@ -27,7 +35,7 @@ export type ListTypeGroup = {
 export function groupListsByType(lists: ListInfo[]): ListTypeGroup[] {
   return LIST_TYPES.map((type) => ({
     type,
-    label: LIST_TYPE_DISPLAY[type].label,
+    labelKey: LIST_TYPE_DISPLAY[type].label,
     lists: lists.filter((l) => l.type === type),
   })).filter((g) => g.lists.length > 0)
 }

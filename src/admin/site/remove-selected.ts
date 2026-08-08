@@ -2,6 +2,7 @@ import type { SelectedCard } from '../../site/useCardSelection'
 import type { PrintingTuple } from '../../change-event'
 import type { NamedListRef } from '../../site/combined-list'
 import { promptForPrinting } from '../../site/printing-prompt'
+import { t } from '../../i18n/t'
 import type {
   RemoveCommitItem,
   RemoveCommitResponse,
@@ -133,7 +134,7 @@ export async function moveSelectedAdmin(
       skipped: 0,
       droppedNotes: [],
       warnings: [],
-      message: 'No cards to move.',
+      message: t('admin.move.nothingToMove'),
     }
   }
   const resp = await fetch('/api/move/selected', {

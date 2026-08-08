@@ -29,7 +29,8 @@ import { listDeckFiles } from './importers/text-file'
 import { getCollectionsDir, getDecksDir, getWantedDir, type RitualConfig } from './ritual-config'
 import { isPathWithinDir } from './path-validation'
 import { isListMarkdownFile, listFileName, normalizeListName } from './list-file-name'
-import { LIST_TYPES, LIST_TYPE_DISPLAY, isListType, type ListType } from './list-type'
+import { t, type MessageParams } from './i18n/t'
+import { LIST_TYPES, isListType, listTypeSingularTitle, type ListType } from './list-type'
 
 /**
  * The folding every tier below the byte-exact one matches in. Defined in
@@ -87,7 +88,16 @@ export function parseListArgument(raw: string): ListArgument {
 }
 
 /** A `deck:`/`collection:`/`wanted:` prefix contradicting the command's type flag. */
-export type ListArgumentConflict = { kind: 'type-conflict'; message: string }
+export type ListArgumentConflict = {
+  kind: 'type-conflict'
+  message: string
+  /**
+   * The parameters {@link message} was rendered with, so a caller putting this
+   * refusal on the wire can carry the key *and* its params — `errors.resolveList.typeConflict`
+   * interpolates three of them, and a key without them re-renders as literal tokens.
+   */
+  params: MessageParams<'errors.resolveList.typeConflict'>
+}
 
 export type ListArgumentResult = ListArgument | ListArgumentConflict
 
@@ -109,11 +119,15 @@ export function resolveListArgument(
 ): ListArgumentResult {
   const arg = parseListArgument(raw)
   if (arg.type !== undefined && flagType !== undefined && arg.type !== flagType) {
+    const conflictParams: MessageParams<'errors.resolveList.typeConflict'> = {
+      type: arg.type,
+      query: raw,
+      flag: flagType,
+    }
     return {
       kind: 'type-conflict',
-      message:
-        `'${raw}' selects a ${typeNoun(arg.type)}, which conflicts with --${flagType}. ` +
-        `Drop the '${arg.type}:' prefix or the --${flagType} flag.`,
+      params: conflictParams,
+      message: t('errors.resolveList.typeConflict', conflictParams),
     }
   }
   return { type: arg.type ?? flagType, name: arg.name }
@@ -250,11 +264,6 @@ export function listTypeFromFlags(flags: ListTypeFlags): ListType | undefined | 
   return selected[0]
 }
 
-/** A short label for a list type, suitable for inline error text (e.g. "deck"). */
-function typeNoun(type: ListType): string {
-  return type === 'wanted' ? 'wanted list' : type
-}
-
 /**
  * How the caller lets a user disambiguate a list name, which decides the remedy
  * line on an ambiguity error. The hint describes the caller's **argument grammar**,
@@ -303,12 +312,10 @@ function typeMoreAdvice(matches: ListLocation[]): string {
       matches.filter((other) => normalizeListName(other.name) === normalizeListName(m.name))
         .length === 1,
   )
-  if (narrowing) return `Type more of the name to narrow the match (e.g. '${narrowing.name}').`
+  if (narrowing) return t('errors.resolveList.adviceNarrowExample', { name: narrowing.name })
   const exact = byteUnique[0]
-  if (exact) {
-    return `Type one list's exact full name, spelled and capitalized as its file is (e.g. '${exact.name}').`
-  }
-  return 'Type more of the name to narrow the match.'
+  if (exact) return t('errors.resolveList.adviceExactName', { name: exact.name })
+  return t('errors.resolveList.adviceNarrow')
 }
 
 /**
@@ -327,22 +334,39 @@ function ambiguityAdvice(error: AmbiguousError, hint: ResolveHint): string {
   if (sameType) return typeMoreAdvice(error.matches)
   switch (hint) {
     case 'type-flags':
-      return 'Disambiguate with --deck, --collection, or --wanted.'
+      return t('errors.resolveList.adviceTypeFlags')
     case 'type-prefix': {
       const types = resolvingTypes(error)
       if (types.length === 0) return typeMoreAdvice(error.matches)
       // Quoted: a name with a space must survive being pasted into a shell.
-      const prefixes = types.map((t) => `'${t}:${error.query}'`)
-      return `Disambiguate with a type prefix, e.g. ${prefixes.join(' or ')}.`
+      return t('errors.resolveList.adviceTypePrefix', {
+        prefixes: joinAlternatives(types.map((type) => `'${type}:${error.query}'`)),
+      })
     }
     case 'type-field': {
       const types = resolvingTypes(error)
       if (types.length === 0) return typeMoreAdvice(error.matches)
-      return `Set the list's type to ${types.map((t) => `'${t}'`).join(' or ')}.`
+      return t('errors.resolveList.adviceTypeField', {
+        types: joinAlternatives(types.map((type) => `'${type}'`)),
+      })
     }
     case 'none':
       return typeMoreAdvice(error.matches)
   }
+}
+
+/**
+ * Join quoted alternatives for the two "e.g. …" remedies.
+ *
+ * i18n-exempt: deliberately *not* `Intl.ListFormat` disjunction. The joined
+ * items are shell-pasteable literals (`'deck:burn'`), and the list is at most
+ * three long and always the same three slugs; the English disjunction format
+ * would insert serial commas around them ("a, b, or c"), which reads as part of
+ * the value being quoted. Recorded as a known gap rather than a hidden one: a
+ * translator cannot currently change this separator.
+ */
+function joinAlternatives(items: readonly string[]): string {
+  return items.join(' or ')
 }
 
 /**
@@ -354,20 +378,23 @@ export function formatResolveListError(error: ResolveListError, hint: ResolveHin
   switch (error.kind) {
     case 'no-lists':
       return error.type
-        ? `No ${LIST_TYPE_DISPLAY[error.type].label.toLowerCase()} found.`
-        : `No decks, collections, or wanted lists found.`
+        ? t('errors.resolveList.noListsOfType', { type: error.type })
+        : t('errors.resolveList.noLists')
     case 'not-found':
       return error.type
-        ? `No ${typeNoun(error.type)} named '${error.query}' found.`
-        : `No deck, collection, or wanted list named '${error.query}' found.`
+        ? t('errors.resolveList.notFoundOfType', { type: error.type, query: error.query })
+        : t('errors.resolveList.notFound', { query: error.query })
     case 'ambiguous': {
-      const lines = error.matches
-        .map((m) => `  - ${LIST_TYPE_DISPLAY[m.type].label.replace(/s$/, '')}: ${m.name}`)
+      const matches = error.matches
+        .map((m) =>
+          t('errors.resolveList.match', { type: listTypeSingularTitle(m.type), name: m.name }),
+        )
         .join('\n')
-      return (
-        `'${error.query}' is ambiguous — it matches multiple lists:\n${lines}\n` +
-        ambiguityAdvice(error, hint)
-      )
+      return t('errors.resolveList.ambiguous', {
+        query: error.query,
+        matches,
+        advice: ambiguityAdvice(error, hint),
+      })
     }
   }
 }

@@ -1,5 +1,6 @@
 import { type Component, For } from 'solid-js'
 import { Modal } from '../../../ui/Modal'
+import { useT } from '../../../ui/i18n'
 
 /** A candidate change set to combine into, paired with its index in the full set list. */
 export type CombineCandidate = {
@@ -23,12 +24,12 @@ type CombineSetDialogProps = {
  * set is then deleted. Mirrors the CLI `history` command's combine prompt.
  */
 export const CombineSetDialog: Component<CombineSetDialogProps> = (props) => {
+  const t = useT()
   return (
     <Modal open={props.open} onClose={props.onCancel} size="md" panelClass="modal-panel--prompt">
-      <h3>Combine change sets</h3>
+      <h3>{t('admin.combine.title')}</h3>
       <p class="dialog-message">
-        Choose a set to merge into {props.targetTimestamp}. Its entries move in and it is then
-        deleted; {props.targetTimestamp} keeps its timestamp.
+        {t('admin.combine.message', { timestamp: props.targetTimestamp })}
       </p>
       <div class="history-combine-list">
         <For each={props.candidates}>
@@ -40,7 +41,7 @@ export const CombineSetDialog: Component<CombineSetDialogProps> = (props) => {
             >
               <span class="history-set-time">{candidate.timestamp}</span>
               <span class="history-set-count">
-                {candidate.changeCount} change{candidate.changeCount === 1 ? '' : 's'}
+                {t('ui.count.changes', { count: candidate.changeCount })}
               </span>
             </button>
           )}
@@ -48,7 +49,7 @@ export const CombineSetDialog: Component<CombineSetDialogProps> = (props) => {
       </div>
       <div class="confirm-dialog-actions">
         <button type="button" class="btn btn-secondary" onClick={props.onCancel}>
-          Cancel
+          {t('ui.dialog.cancel')}
         </button>
       </div>
     </Modal>

@@ -1,6 +1,7 @@
 import { Show, createMemo, type Component } from 'solid-js'
 import { formatOklch, parseColor, type OklchColor } from './oklch-color'
 import type { LengthUnit } from './theme-vars-metadata'
+import { useT } from '../ui/i18n'
 
 type ColorPickerProps = {
   value: string
@@ -33,6 +34,7 @@ function alphaGradient(l: number, c: number, h: number): string {
 }
 
 export const ColorPicker: Component<ColorPickerProps> = (props) => {
+  const t = useT()
   const parsed = createMemo<OklchColor | null>(() => parseColor(props.value))
 
   const update = (patch: Partial<OklchColor>): void => {
@@ -53,7 +55,7 @@ export const ColorPicker: Component<ColorPickerProps> = (props) => {
         fallback={
           <div class="theme-color-picker-raw">
             <label>
-              Raw value
+              {t('site.theme.rawValue')}
               <input
                 type="text"
                 value={props.value}
@@ -64,9 +66,7 @@ export const ColorPicker: Component<ColorPickerProps> = (props) => {
                 }}
               />
             </label>
-            <div class="theme-color-picker-hint">
-              Couldn't parse as a color — edit the raw CSS value.
-            </div>
+            <div class="theme-color-picker-hint">{t('site.theme.rawHint')}</div>
           </div>
         }
       >
@@ -74,7 +74,7 @@ export const ColorPicker: Component<ColorPickerProps> = (props) => {
           <>
             <div
               class="theme-color-picker-swatch swatch-checkerboard"
-              aria-label="Current color preview"
+              aria-label={t('site.theme.colorPreview')}
             >
               <span
                 class="theme-color-picker-swatch-fill"
@@ -82,6 +82,7 @@ export const ColorPicker: Component<ColorPickerProps> = (props) => {
               />
             </div>
             <label class="theme-color-picker-slider">
+              {/* i18n-exempt: OKLch axis abbreviation (lightness), not prose */}
               <span>L</span>
               <input
                 type="range"
@@ -95,6 +96,7 @@ export const ColorPicker: Component<ColorPickerProps> = (props) => {
               <output>{color().l.toFixed(1)}%</output>
             </label>
             <label class="theme-color-picker-slider">
+              {/* i18n-exempt: OKLch axis abbreviation (chroma), not prose */}
               <span>C</span>
               <input
                 type="range"
@@ -108,6 +110,7 @@ export const ColorPicker: Component<ColorPickerProps> = (props) => {
               <output>{color().c.toFixed(3)}</output>
             </label>
             <label class="theme-color-picker-slider">
+              {/* i18n-exempt: OKLch axis abbreviation (hue), not prose */}
               <span>H</span>
               <input
                 type="range"
@@ -122,6 +125,7 @@ export const ColorPicker: Component<ColorPickerProps> = (props) => {
             </label>
             <Show when={showAlphaSlider()}>
               <label class="theme-color-picker-slider">
+                {/* i18n-exempt: OKLch axis abbreviation (alpha), not prose */}
                 <span>A</span>
                 <input
                   type="range"
@@ -136,6 +140,7 @@ export const ColorPicker: Component<ColorPickerProps> = (props) => {
               </label>
             </Show>
             <label class="theme-color-picker-text">
+              {/* i18n-exempt: format name */}
               <span>CSS</span>
               <input
                 type="text"

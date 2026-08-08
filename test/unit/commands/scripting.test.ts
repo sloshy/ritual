@@ -145,6 +145,48 @@ describe('scripting command helpers', () => {
     expect(parsed.error.details.page).toBe(1)
   })
 
+  /**
+   * `message` follows the user's UI locale, so a script matching on it would
+   * break the day a translation shipped. `code` and `messageKey` are the pair
+   * that does not move — and `messageKey` is the finer of the two, since one
+   * `code` covers several distinct failures.
+   */
+  test('emitError carries a locale-invariant messageKey beside the code', async () => {
+    const output = await captureOutput('stderr', () => {
+      emitError(
+        'usage_error',
+        '--fields requires --output json or --output ndjson.',
+        { output: 'ndjson', quiet: false },
+        undefined,
+        'errors.scripting.fieldsNeedStructuredOutput',
+      )
+    })
+
+    expect(JSON.parse(output)).toEqual({
+      error: {
+        code: 'usage_error',
+        messageKey: 'errors.scripting.fieldsNeedStructuredOutput',
+        message: '--fields requires --output json or --output ndjson.',
+      },
+    })
+  })
+
+  test('an error with no catalog key behind it omits the field entirely', async () => {
+    // A failure quoting an external error verbatim (a filesystem errno, a
+    // Scryfall response) has no key, and the envelope must stay exactly what it
+    // was rather than carrying a null.
+    const output = await captureOutput('stderr', () => {
+      emitError('runtime_error', 'ENOSPC: no space left on device', {
+        output: 'ndjson',
+        quiet: false,
+      })
+    })
+
+    expect(output).toBe(
+      '{"error":{"code":"runtime_error","message":"ENOSPC: no space left on device"}}\n',
+    )
+  })
+
   test('classifyFileReadError maps a missing file to not-found', () => {
     const enoent = Object.assign(new Error('no such file'), { code: 'ENOENT' })
     expect(classifyFileReadError(enoent)).toEqual({

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  CARD_LABEL_DISPLAY_NAMES,
+  cardLabelName,
   CARD_LABELS,
   effectiveLabels,
   formatCardLabels,
@@ -114,10 +114,10 @@ describe('effectiveLabels', () => {
   })
 })
 
-describe('CARD_LABEL_DISPLAY_NAMES', () => {
+describe('cardLabelName', () => {
   test('spells the agreed wording', () => {
-    expect(CARD_LABEL_DISPLAY_NAMES.sale).toBe('For sale')
-    expect(CARD_LABEL_DISPLAY_NAMES.trade).toBe('For trade')
-    expect(CARD_LABEL_DISPLAY_NAMES.keep).toBe('To keep')
+    expect(cardLabelName('sale')).toBe('For sale')
+    expect(cardLabelName('trade')).toBe('For trade')
+    expect(cardLabelName('keep')).toBe('To keep')
   })
 })

@@ -51,7 +51,6 @@ test.describe('Admin list multi-select', () => {
       removeBody = JSON.parse(route.request().postData() ?? '{}')
       return { success: true, removed: 1, requested: 1, skipped: 0, message: 'ok' }
     })
-    page.on('dialog', (dialog) => void dialog.accept())
 
     await selectCard(page, 0)
 
@@ -62,6 +61,13 @@ test.describe('Admin list multi-select', () => {
     await page
       .locator('.selection-menu-panel .selection-menu-item', { hasText: 'Remove all selected' })
       .click()
+
+    // An in-app ConfirmDialog, not `window.confirm`: the browser's own prompt
+    // takes its button words from the OS language and cannot be translated, so
+    // the shell asks with the same dialog every other confirmation uses.
+    const confirm = page.locator('.modal-shell[open] .confirm-dialog-actions .btn-danger')
+    await expect(confirm).toHaveText('Remove')
+    await confirm.click()
 
     await expect.poll(() => removeBody).not.toBeNull()
     const removes = (removeBody!.removes ?? []) as Array<{

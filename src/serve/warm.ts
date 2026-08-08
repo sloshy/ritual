@@ -2,6 +2,7 @@ import { cardCache, ensureCacheForCards } from '../cache'
 import { offerBulkPriceRefresh, offerTagDownload } from '../cache/freshness'
 import { sampleTagsPresent } from '../cache/status'
 import { getErrorMessage } from '../errors'
+import { t } from '../i18n/t'
 import { loadRitualConfig, type RitualConfig } from '../ritual-config'
 import { bulkAllowed, type RefreshMode } from '../refresh'
 import { dirForType } from '../resolve-list'
@@ -120,7 +121,7 @@ export async function warmSiteCache(
   const siteCardNames = await collectSiteCardNames(config)
   const uniqueCards = [...siteCardNames]
   const count = uniqueCards.length
-  console.log(`Found ${count} unique card${count === 1 ? '' : 's'} across the served lists.`)
+  console.log(`Found ${t('cli.serve.uniqueCards', { count })} across the served lists.`)
 
   await cardCache.purgeExpiredBlocklist()
 

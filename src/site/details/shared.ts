@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { compareData } from '../../i18n/collate'
 import fs from 'node:fs/promises'
 import {
   extractChangelogCardNames,
@@ -7,6 +8,7 @@ import {
 } from '../../changelog-parser'
 import { computeRepresentativePrints } from '../../scryfall'
 import { getErrorMessage } from '../../errors'
+import { t } from '../../i18n/t'
 import type { ScryfallCard } from '../../types'
 import type { SiteDetailContext } from './types'
 
@@ -19,7 +21,7 @@ import type { SiteDetailContext } from './types'
  */
 export function listReadErrorMessage(error: unknown, filePath: string): string {
   if ((error as NodeJS.ErrnoException | null)?.code === 'ENOENT') {
-    return `File not found: ${filePath}`
+    return t('site.detail.fileNotFound', { path: filePath })
   }
   return getErrorMessage(error)
 }
@@ -34,7 +36,7 @@ export function slugifyListName(name: string): string {
 
 /** Printings sorted newest-first by release date (input is not mutated). */
 export function sortPrintingsByRelease(printings: ScryfallCard[]): ScryfallCard[] {
-  return [...printings].sort((a, b) => (b.released_at ?? '').localeCompare(a.released_at ?? ''))
+  return [...printings].sort((a, b) => compareData(b.released_at ?? '', a.released_at ?? ''))
 }
 
 export type ListSidecars = {

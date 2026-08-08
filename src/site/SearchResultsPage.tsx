@@ -12,6 +12,7 @@ import {
   mergeSymbolMaps,
 } from './combined-list'
 import { searchResults } from './search-results-state'
+import { useI18n } from '../ui/i18n'
 
 interface SearchResultsPageProps {
   currency: PriceCurrency
@@ -32,6 +33,7 @@ interface SourceLink {
  * pending search shows an empty state pointing back to Find.
  */
 export const SearchResultsPage: Component<SearchResultsPageProps> = (props) => {
+  const { t, tSegments } = useI18n()
   const symbolMap = createMemo(() => mergeSymbolMaps(searchResults()?.loaded ?? []))
 
   const cards = createMemo((): CombinedCardData[] => {
@@ -74,8 +76,18 @@ export const SearchResultsPage: Component<SearchResultsPageProps> = (props) => {
       when={searchResults()}
       fallback={
         <div class="page-container">
+          {/* Segments, not concatenation: the link sits mid-sentence and a
+              translator must be free to move it. */}
           <div class="combined-empty">
-            No search results yet. <a href="#/find">Go to Find</a> to search for cards.
+            <For
+              each={tSegments('site.searchResults.none', {
+                link: t('site.searchResults.goToFind'),
+              })}
+            >
+              {(segment) =>
+                segment.kind === 'param' ? <a href="#/find">{segment.value}</a> : segment.value
+              }
+            </For>
           </div>
         </div>
       }
@@ -87,12 +99,12 @@ export const SearchResultsPage: Component<SearchResultsPageProps> = (props) => {
         currency={props.currency}
         useScryfallImgUrls={props.useScryfallImgUrls}
         enableTrade
-        title="Search Results"
-        emptyMessage="No matching cards."
+        title={t('site.searchResults.title')}
+        emptyMessage={t('site.searchResults.empty')}
         header={
           <Show when={sources().length > 0}>
             <p class="combined-sources">
-              From:{' '}
+              {t('site.searchResults.from')}{' '}
               <For each={sources()}>
                 {(s, i) => (
                   <>

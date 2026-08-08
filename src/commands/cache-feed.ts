@@ -11,6 +11,7 @@ import {
   resolveRefreshMs,
   scheduleRecurringTask,
 } from '../cache/cadence'
+import { t } from '../i18n/t'
 import { ExitCode, parsePort } from './scripting'
 import { DAY_REFRESH_MS } from '../cache-server/constants'
 import type { RefreshCadence } from '../cache-server/types'
@@ -56,7 +57,7 @@ type CacheFeedHostCommandOptions = {
 function parseHostCardsChoice(value: string): HostCardsChoice {
   const lower = value.toLowerCase()
   if ((HOST_CARDS_CHOICES as readonly string[]).includes(lower)) return lower as HostCardsChoice
-  throw new InvalidArgumentError("--cards must be one of: 'default', 'all', 'both'.")
+  throw new InvalidArgumentError(t('cli.cacheFeed.invalidCards'))
 }
 
 /**
@@ -82,45 +83,23 @@ function log(message: string): void {
 
 /** Wire `cache feed host` and `cache feed fetch` under the parent `cache` command. */
 export function registerCacheFeedSubcommand(cache: Command): void {
-  const feed = cache.command('feed').description('Share Scryfall bulk cache data peer-to-peer')
+  const feed = cache.command('feed').description(t('help.cacheFeed.description'))
 
   addTorrentPortOption(
     feed
       .command('host')
-      .description(
-        'Host a cache feed: download the raw Scryfall bulk files, torrent them, ' +
-          'and serve + seed them for other ritual clients',
-      )
-      .option('-p, --port <number>', 'Port for the feed HTTP server', parsePort, 4010)
-      .option('--host <hostname>', 'Host interface for the feed HTTP server', '127.0.0.1')
-      .option(
-        '--public-url <url>',
-        'Public base URL peers reach this host at (embedded in the feed and web-seed URLs; ' +
-          'defaults to http://<host>:<port>)',
-      )
-      .option(
-        '--refresh <interval>',
-        "Re-check Scryfall for new bulk data on an interval (supported: 'daily', 'weekly', " +
-          "'monthly'; falls back to RITUAL_CACHE_FEED_REFRESH, then 'daily')",
-        parseRefreshCadence,
-      )
-      .option(
-        '--upstream <url>',
-        'Bulk manifest URL to source artifacts from',
-        DEFAULT_BULK_API_URL,
-      )
-      .option('--dir <path>', 'Feed data directory (defaults to <cache>/feed)')
-      .option(
-        '--cards <which>',
-        "Card bulk(s) to publish: 'default' (English-only default_cards), 'all' " +
-          "(every-language all_cards), or 'both' (defaults to whichever the " +
-          'defaultLanguage config key demands)',
-        parseHostCardsChoice,
-      )
-      .option('--no-seed', 'Serve the feed and files over HTTP only, without BitTorrent seeding'),
-    'Fixed TCP port for incoming torrent peers',
+      .description(t('help.cacheFeed.host'))
+      .option('-p, --port <number>', t('help.cacheFeed.hostPort'), parsePort, 4010)
+      .option('--host <hostname>', t('help.cacheFeed.hostHost'), '127.0.0.1')
+      .option('--public-url <url>', t('help.cacheFeed.publicUrl'))
+      .option('--refresh <interval>', t('help.cacheFeed.hostRefresh'), parseRefreshCadence)
+      .option('--upstream <url>', t('help.cacheFeed.upstream'), DEFAULT_BULK_API_URL)
+      .option('--dir <path>', t('help.cacheFeed.dir'))
+      .option('--cards <which>', t('help.cacheFeed.cards'), parseHostCardsChoice)
+      .option('--no-seed', t('help.cacheFeed.hostNoSeed')),
+    t('help.cacheFeed.torrentPort'),
   )
-    .option('-v, --verbose', 'Log every feed-server request', false)
+    .option('-v, --verbose', t('help.cacheFeed.hostVerbose'), false)
     .action(async (options: CacheFeedHostCommandOptions) => {
       const feedDir = options.dir ?? path.join(getCacheDir(), 'feed')
       const publicUrl = options.publicUrl ?? `http://${options.host}:${options.port}`
@@ -139,11 +118,11 @@ export function registerCacheFeedSubcommand(cache: Command): void {
         await host.refresh()
       } catch (e) {
         if (!host.currentFeed()) {
-          console.error(`${CACHE_FEED_LOG_PREFIX} Initial feed generation failed:`, e)
+          console.error(`${CACHE_FEED_LOG_PREFIX} ${t('cli.cacheFeed.initialFeedFailed')}`, e)
           process.exitCode = ExitCode.RuntimeError
           return
         }
-        log(`Refresh failed (${getErrorMessage(e)}); serving the existing feed.`)
+        log(t('cli.cacheFeed.refreshFailed', { reason: getErrorMessage(e) }))
       }
 
       let seeder: FeedSeeder | null = null
@@ -156,14 +135,22 @@ export function registerCacheFeedSubcommand(cache: Command): void {
           await seeder.start()
           await seeder.sync(await host.torrentFiles())
         } catch (e) {
-          console.error(`${CACHE_FEED_LOG_PREFIX} Failed to start seeding:`, getErrorMessage(e))
+          console.error(
+            `${CACHE_FEED_LOG_PREFIX} ${t('cli.cacheFeed.seedStartFailed')}`,
+            getErrorMessage(e),
+          )
           // Destroy the torrent client so no live handle keeps the process open.
           await seeder.stop()
           process.exitCode = ExitCode.RuntimeError
           return
         }
         const port = seeder.port()
-        log(`Seeding ${seeder.stats().torrents} torrents${port ? ` on TCP port ${port}` : ''}.`)
+        const torrents = seeder.stats().torrents
+        log(
+          port
+            ? t('cli.cacheFeed.seedingTorrentsOnPort', { count: torrents, port })
+            : t('cli.cacheFeed.seedingTorrents', { count: torrents }),
+        )
       }
 
       try {
@@ -185,7 +172,7 @@ export function registerCacheFeedSubcommand(cache: Command): void {
         // Most likely the port is already in use. Stop the seeder so its
         // torrent client doesn't keep the failed process alive.
         console.error(
-          `${CACHE_FEED_LOG_PREFIX} Failed to start the feed server:`,
+          `${CACHE_FEED_LOG_PREFIX} ${t('cli.cacheFeed.serverStartFailed')}`,
           getErrorMessage(e),
         )
         if (seeder) await seeder.stop()
@@ -203,37 +190,35 @@ export function registerCacheFeedSubcommand(cache: Command): void {
             await seeder.sync(await host.torrentFiles())
           }
         },
-        (error) => console.error(`${CACHE_FEED_LOG_PREFIX} Scheduled feed refresh failed:`, error),
+        (error) =>
+          console.error(
+            `${CACHE_FEED_LOG_PREFIX} ${t('cli.cacheFeed.scheduledRefreshFailed')}`,
+            error,
+          ),
       )
 
-      log(`Feed server listening on http://${options.host}:${options.port}/${FEED_FILENAME}`)
-      log(`Public URL: ${publicUrl}`)
+      log(
+        t('cli.cacheFeed.listening', {
+          url: `http://${options.host}:${options.port}/${FEED_FILENAME}`,
+        }),
+      )
+      log(t('cli.cacheFeed.publicUrl', { url: publicUrl }))
       if (!options.seed) {
-        log('BitTorrent seeding disabled (--no-seed); serving over HTTP only.')
+        log(t('cli.cacheFeed.seedingDisabled'))
       }
     })
 
   addTorrentPortOption(
     addFeedUrlOption(
-      feed
-        .command('fetch')
-        .description(
-          'Sync the card cache from a cache feed, then stay open seeding the ' +
-            'artifacts to other peers (Ctrl+C to stop)',
-        ),
-      'Feed URL (defaults to the cacheFeedUrl config key, then the built-in default)',
+      feed.command('fetch').description(t('help.cacheFeed.fetch')),
+      t('help.cacheFeed.fetchFeedUrl'),
     )
-      .option('--no-p2p', 'Download over plain HTTP instead of BitTorrent')
-      .option('--no-seed', 'Exit after ingesting instead of staying open to seed'),
-    'Fixed TCP port for incoming torrent peers',
+      .option('--no-p2p', t('help.cacheFeed.fetchNoP2p'))
+      .option('--no-seed', t('help.cacheFeed.fetchNoSeed')),
+    t('help.cacheFeed.torrentPort'),
   )
-    .option('--force', 'Re-download and re-ingest even when the feed is unchanged', false)
-    .option(
-      '--refresh <interval>',
-      "Re-check the feed while seeding (supported: 'daily', 'weekly', 'monthly'; " +
-        "falls back to RITUAL_CACHE_FEED_REFRESH, then 'daily')",
-      parseRefreshCadence,
-    )
+    .option('--force', t('help.cacheFeed.fetchForce'), false)
+    .option('--refresh <interval>', t('help.cacheFeed.fetchRefresh'), parseRefreshCadence)
     .action(async (options: CacheFeedFetchCommandOptions) => {
       const feedUrl = resolveFeedUrl(options.url)
       const client = createCacheFeedClient({
@@ -242,20 +227,21 @@ export function registerCacheFeedSubcommand(cache: Command): void {
         ...(options.torrentPort !== undefined ? { torrentPort: options.torrentPort } : {}),
       })
 
-      log(`Syncing from ${feedUrl}`)
+      log(t('cli.cacheFeed.syncing', { url: feedUrl }))
       let result: FeedSyncResult
       try {
         result = await client.sync({ force: options.force })
       } catch (e) {
-        console.error(`${CACHE_FEED_LOG_PREFIX} Feed sync failed:`, getErrorMessage(e))
+        console.error(
+          `${CACHE_FEED_LOG_PREFIX} ${t('cli.cacheFeed.syncFailed')}`,
+          getErrorMessage(e),
+        )
         await client.stop()
         process.exitCode = ExitCode.RuntimeError
         return
       }
       log(
-        result.outcome === 'ingested'
-          ? 'Card cache updated from the feed.'
-          : 'Feed is unchanged; card cache is already current.',
+        result.outcome === 'ingested' ? t('cli.cacheFeed.ingested') : t('cli.cacheFeed.unchanged'),
       )
 
       if (!options.seed) {
@@ -267,15 +253,20 @@ export function registerCacheFeedSubcommand(cache: Command): void {
       try {
         await client.seedAll(result.feed)
       } catch (e) {
-        console.error(`${CACHE_FEED_LOG_PREFIX} Failed to start seeding:`, getErrorMessage(e))
+        console.error(
+          `${CACHE_FEED_LOG_PREFIX} ${t('cli.cacheFeed.seedStartFailed')}`,
+          getErrorMessage(e),
+        )
         await client.stop()
         process.exitCode = ExitCode.RuntimeError
         return
       }
       const port = client.torrentPortInUse()
+      const seeded = client.seededCount()
       log(
-        `Seeding ${client.seededCount()} artifacts${port ? ` on TCP port ${port}` : ''}. ` +
-          'Press Ctrl+C to stop.',
+        port
+          ? t('cli.cacheFeed.seedingArtifactsOnPort', { count: seeded, port })
+          : t('cli.cacheFeed.seedingArtifacts', { count: seeded }),
       )
 
       const refreshMs =
@@ -285,11 +276,15 @@ export function registerCacheFeedSubcommand(cache: Command): void {
         async () => {
           const next = await client.sync()
           if (next.outcome === 'ingested') {
-            log('Feed changed; card cache updated.')
+            log(t('cli.cacheFeed.feedChanged'))
             await client.seedAll(next.feed)
           }
         },
-        (error) => console.error(`${CACHE_FEED_LOG_PREFIX} Scheduled feed re-check failed:`, error),
+        (error) =>
+          console.error(
+            `${CACHE_FEED_LOG_PREFIX} ${t('cli.cacheFeed.scheduledRecheckFailed')}`,
+            error,
+          ),
       )
 
       // Clearing the refresh timer and destroying the torrent client releases
@@ -298,7 +293,7 @@ export function registerCacheFeedSubcommand(cache: Command): void {
       // a second Ctrl+C force-quits if shutdown ever wedges.
       process.once('SIGINT', () => {
         void (async () => {
-          log('Stopping seeding...')
+          log(t('cli.cacheFeed.stopping'))
           clearInterval(refreshTimer)
           await client.stop()
         })()

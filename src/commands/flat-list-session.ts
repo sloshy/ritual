@@ -31,6 +31,7 @@ import {
   formatSpecificPrintingPrice,
 } from '../price-currency'
 import { getDefaultCurrency } from '../ritual-config'
+import { t } from '../i18n/t'
 import { trackAdd, trackAnotherCopy, trackEdit } from '../session-changelog'
 import { parseCollectionFile, type CollectionEntry } from '../collection-file'
 import { parseWantedListFile, type WantedListEntry } from './wanted-helpers'
@@ -401,14 +402,18 @@ export async function applyFlatListCardEntry<E extends FlatListEntry>(
     ctx.lastChangeIndex = trackEdit(ctx.sessionChanges, ctx.lastChangeIndex, addEvent, true)
     state.snapshot = { options, note: state.snapshot?.note }
     ctx.lastAdded = { name: cardName, hasNote: ctx.lastAdded.hasNote, cardId }
-    console.log(`Edited: ${list.renderLine(cardName, state.snapshot, cardId)}`)
+    console.log(
+      t('cli.edit.editedLine', { line: list.renderLine(cardName, state.snapshot, cardId) }),
+    )
   } else {
     applyFlatListChange(session, addEvent)
     ctx.lastChangeIndex = trackAdd(ctx.sessionChanges, addEvent)
     list.sessionAdds.push(cardId)
     state.snapshot = { options }
     ctx.lastAdded = { name: cardName, hasNote: false, cardId }
-    console.log(`Added: ${list.renderLine(cardName, state.snapshot, cardId)}`)
+    console.log(
+      t('cli.edit.addedLine', { line: list.renderLine(cardName, state.snapshot, cardId) }),
+    )
     if (price.kind === 'cheapest') {
       const printings = await getCardPrintings(cardName)
       const currency = getDefaultCurrency()
@@ -452,7 +457,10 @@ export async function addAnotherFlatListCopy<E extends FlatListEntry>(
   ctx.lastAddedCount++
   ctx.lastAdded = { ...ctx.lastAdded, cardId }
   console.log(
-    `Added: ${list.renderLine(ctx.lastAdded.name, state.snapshot, cardId)} (${ctx.lastAddedCount}x total)`,
+    t('cli.edit.addedLineTotal', {
+      line: list.renderLine(ctx.lastAdded.name, state.snapshot, cardId),
+      count: ctx.lastAddedCount,
+    }),
   )
 }
 
@@ -473,7 +481,7 @@ export function listFlatListSessionAdds<E extends NamedFlatListEntry>(
     const entry = list.session.entries.find((e) => e.cardId === cardId)
     return entry
       ? { label: list.renderEntry(entry), name: entry.name }
-      : { label: `(removed) &${cardId}`, name: `&${cardId}` }
+      : { label: t('cli.edit.removedPlaceholder', { id: cardId }), name: `&${cardId}` }
   })
 }
 
@@ -521,7 +529,7 @@ export function discardFlatListAdd<E extends NamedFlatListEntry>(
   // conservative move; the discarded card's own edit events were filtered above.
   if (list.editUndo.length > 0) {
     list.editUndo = []
-    console.log('(Edit undo history cleared by the discard.)')
+    console.log(t('cli.edit.undoHistoryCleared'))
   }
 
   // The discarded card may have been the "last added"; reset so the copy/edit
@@ -530,5 +538,5 @@ export function discardFlatListAdd<E extends NamedFlatListEntry>(
   ctx.lastChangeIndex = null
   ctx.lastAddedCount = 0
   list.state.snapshot = null
-  console.log(`Discarded: ${entry.name}`)
+  console.log(t('cli.edit.discardedCard', { name: entry.name }))
 }

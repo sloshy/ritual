@@ -3,6 +3,8 @@ import { createSignal, createMemo, For, Show, onCleanup, createEffect, onMount }
 import type { ScryfallCard, Finish } from '../types'
 import type { PriceCurrency } from '../price-currency'
 import { normalizeCardName } from '../term-match'
+import { useT } from '../ui/i18n'
+import type { TranslateFn } from '../i18n/t'
 import { formatPrice, getCardPriceForFinish } from '../price-currency'
 import type {
   TradeCardEntry,
@@ -43,16 +45,29 @@ import {
 } from './useTradeState'
 import { useStuck } from './useStuck'
 
-function formatDecodeWarning(w: TradeDecodeWarning): string {
+/**
+ * Render one decode warning. Takes the translator rather than reaching for the
+ * module-level `t`, so the list re-renders in the new language when the locale
+ * switches.
+ */
+function formatDecodeWarning(t: TranslateFn, w: TradeDecodeWarning): string {
   switch (w.kind) {
     case 'unknown-source':
-      return `${w.sourceKind} "${w.sourceName}" was not found.`
+      return t('site.trade.unknownSource', {
+        sourceKind: w.sourceKind,
+        sourceName: w.sourceName,
+      })
     case 'unknown-card-ids':
-      return `Card${w.ids.length > 1 ? 's' : ''} with ID${w.ids.length > 1 ? 's' : ''} ${w.ids.join(', ')} not found in ${w.sourceKind} "${w.sourceName}".`
+      return t('site.trade.unknownCardIds', {
+        count: w.ids.length,
+        ids: w.ids.join(', '),
+        sourceKind: w.sourceKind,
+        sourceName: w.sourceName,
+      })
     case 'unknown-scryfall-id':
-      return `Scryfall card "${w.sfId}" could not be loaded.`
+      return t('site.trade.unknownScryfallId', { id: w.sfId })
     case 'malformed-token':
-      return `Could not parse trade URL token "${w.token}".`
+      return t('site.trade.malformedToken', { token: w.token })
   }
 }
 
@@ -82,6 +97,7 @@ interface TradePageProps {
 }
 
 export const TradePage: Component<TradePageProps> = (props) => {
+  const t = useT()
   const tradeData = useTradeData({
     collections: () => props.collections(),
     decks: () => props.decks(),
@@ -220,11 +236,11 @@ export const TradePage: Component<TradePageProps> = (props) => {
 
   const rightModeControl = createMemo((): TradeColumnModeControl => {
     if (rightMode() === 'wanted-cache') {
-      return { kind: 'note', text: "Searches use the hosted API's card cache." }
+      return { kind: 'note', text: t('site.trade.cacheNote') }
     }
     return {
       kind: 'toggle',
-      label: 'Search Scryfall instead',
+      label: t('site.trade.searchScryfall'),
       active: scryfallMode(),
       onChange: handleScryfallModeChange,
     }
@@ -464,8 +480,8 @@ export const TradePage: Component<TradePageProps> = (props) => {
       params.toString().length > 0 ? `${tradeBase()}?${params.toString()}` : tradeBase()
     window.history.replaceState({}, '', urlStr)
     void navigator.clipboard.writeText(urlStr).then(
-      () => showToast('Link copied to clipboard', copyButtonRef),
-      () => showToast('Could not copy — link is in the address bar', copyButtonRef),
+      () => showToast(t('site.trade.linkCopied'), copyButtonRef),
+      () => showToast(t('site.trade.linkCopyFailed'), copyButtonRef),
     )
   }
 
@@ -505,20 +521,19 @@ export const TradePage: Component<TradePageProps> = (props) => {
     if (updatingPrices()) return
     const entries = [...leftCards(), ...rightCards()]
     if (!entries.some((c) => c.scryfallCard)) {
-      showToast('No cards to update', updatePricesButtonRef)
+      showToast(t('site.trade.noCardsToUpdate'), updatePricesButtonRef)
       return
     }
     setUpdatingPrices(true)
     try {
       const updated = await fetchUpdatedCards(entries)
       if (updated.size === 0) {
-        showToast('Could not update prices', updatePricesButtonRef)
+        showToast(t('site.trade.priceUpdateFailed'), updatePricesButtonRef)
         return
       }
       setLeftCards((prev) => repriceWithUpdatedCards(prev, updated))
       setRightCards((prev) => repriceWithUpdatedCards(prev, updated))
-      const noun = updated.size === 1 ? 'card' : 'cards'
-      showToast(`Updated prices for ${updated.size} ${noun}`, updatePricesButtonRef)
+      showToast(t('site.trade.pricesUpdated', { count: updated.size }), updatePricesButtonRef)
     } finally {
       setUpdatingPrices(false)
     }
@@ -558,7 +573,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
   return (
     <div class="trade-page">
       <div class="page-header">
-        <h1 class="page-title">Trade Editor</h1>
+        <h1 class="page-title">{t('site.trade.title')}</h1>
       </div>
 
       <div ref={primaryToolbarSentinelRef} aria-hidden="true" class="toolbar-sentinel" />
@@ -570,21 +585,19 @@ export const TradePage: Component<TradePageProps> = (props) => {
             onClick={() => void handleUpdatePrices()}
             disabled={updatingPrices()}
           >
-            {updatingPrices() ? '↻ Updating…' : '↻ Update prices'}
+            {updatingPrices() ? t('site.trade.updatingPrices') : t('site.trade.updatePrices')}
           </button>
           <button class="btn btn-secondary" onClick={handleResetRequest}>
-            Reset
+            {t('site.trade.reset')}
           </button>
           <span class="primary-toolbar-sep" />
           <button ref={copyButtonRef} class="btn btn-secondary" onClick={handleCopyLink}>
-            Copy Link
+            {t('site.trade.copyLink')}
           </button>
         </div>
         <div class="primary-toolbar-right">
           <span class="trade-summary-side">
-            <span class="trade-summary-count">
-              {leftCount()} {leftCount() === 1 ? 'card' : 'cards'}
-            </span>
+            <span class="trade-summary-count">{t('ui.count.cards', { count: leftCount() })}</span>
             <span style="color: var(--text-dim)">·</span>
             <span class="trade-summary-price">{formatPrice(leftTotal(), props.currency)}</span>
           </span>
@@ -592,13 +605,11 @@ export const TradePage: Component<TradePageProps> = (props) => {
           <span class="trade-summary-side">
             <span class="trade-summary-price">{formatPrice(rightTotal(), props.currency)}</span>
             <span style="color: var(--text-dim)">·</span>
-            <span class="trade-summary-count">
-              {rightCount()} {rightCount() === 1 ? 'card' : 'cards'}
-            </span>
+            <span class="trade-summary-count">{t('ui.count.cards', { count: rightCount() })}</span>
           </span>
           <span class="primary-toolbar-sep" />
           <span class="primary-toolbar-balance">
-            <span class="trade-summary-balance-label">Difference</span>
+            <span class="trade-summary-balance-label">{t('site.trade.difference')}</span>
             <span class={`trade-summary-balance-value ${balanceTone()}`}>
               {balance() >= 0 ? '+' : '−'}
               {formatPrice(Math.abs(balance()), props.currency)}
@@ -610,17 +621,17 @@ export const TradePage: Component<TradePageProps> = (props) => {
       <Show when={decodeWarnings().length > 0}>
         <div class="trade-decode-warnings" role="status" aria-live="polite">
           <div class="trade-decode-warnings-head">
-            <strong>Some cards from this saved trade could not be loaded.</strong>
+            <strong>{t('site.trade.decodeWarningsHead')}</strong>
             <button
               class="trade-decode-warnings-dismiss"
               onClick={() => setDecodeWarnings([])}
-              aria-label="Dismiss warnings"
+              aria-label={t('site.trade.dismissWarnings')}
             >
               ×
             </button>
           </div>
           <ul class="trade-decode-warnings-list">
-            <For each={decodeWarnings()}>{(w) => <li>{formatDecodeWarning(w)}</li>}</For>
+            <For each={decodeWarnings()}>{(w) => <li>{formatDecodeWarning(t, w)}</li>}</For>
           </ul>
         </div>
       </Show>
@@ -630,7 +641,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
           classList={{ active: activePane() === 'left' }}
           onClick={() => setActivePane('left')}
         >
-          Offering
+          {t('site.trade.offering')}
           <span class="col-toggle-meta">
             {leftCount()} · {formatPrice(leftTotal(), props.currency)}
           </span>
@@ -639,7 +650,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
           classList={{ active: activePane() === 'right' }}
           onClick={() => setActivePane('right')}
         >
-          Receiving
+          {t('site.trade.receiving')}
           <span class="col-toggle-meta">
             {rightCount()} · {formatPrice(rightTotal(), props.currency)}
           </span>
@@ -666,7 +677,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
           mode={includeDecks() ? 'collection-decks' : 'collection'}
           modeControl={{
             kind: 'toggle',
-            label: 'Include cards in decks',
+            label: t('site.trade.includeDecks'),
             active: includeDecks(),
             onChange: () => setIncludeDecks((prev) => !prev),
           }}
@@ -708,18 +719,15 @@ export const TradePage: Component<TradePageProps> = (props) => {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 id="trade-reset-title" class="trade-confirm-title">
-              Clear this trade?
+              {t('site.trade.clearTitle')}
             </h3>
-            <p class="trade-confirm-message">
-              This will remove every card from both sides. The link in your address bar will also be
-              cleared.
-            </p>
+            <p class="trade-confirm-message">{t('site.trade.clearMessage')}</p>
             <div class="trade-confirm-actions">
               <button class="btn btn-secondary" onClick={() => setResetConfirmOpen(false)}>
-                Cancel
+                {t('ui.dialog.cancel')}
               </button>
               <button class="btn btn-danger" onClick={handleResetConfirm}>
-                Clear trade
+                {t('site.trade.clearConfirm')}
               </button>
             </div>
           </div>

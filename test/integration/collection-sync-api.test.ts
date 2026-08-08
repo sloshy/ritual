@@ -4,14 +4,15 @@ import path from 'node:path'
 import { cardCache } from '../../src/cache'
 import { scryfallIdIndex } from '../../src/cache/scryfall-id-index'
 import {
-  ACCOUNT_REQUIRED_MESSAGE,
+  accountRequiredText,
   handleCollectionSyncRun,
   handleCollectionSyncStatus,
-  LOGIN_REQUIRED_MESSAGE,
+  loginRequiredText,
   type CollectionSyncRunResponse,
   type CollectionSyncStatusResponse,
 } from '../../src/admin/api/collection-sync'
 import { dispatchRoute } from '../../src/admin/server'
+import { compareData } from '../../src/i18n/collate'
 import type { RouteProgress, RouteProgressSink } from '../../src/progress'
 import type { ArchidektToken } from '../../src/auth/interfaces'
 import type { CollectionSyncEvent } from '../../src/collection-sync/engine'
@@ -150,7 +151,10 @@ describe('collection-sync API', () => {
     expect(status).toBe(401)
     expect(body).toEqual({
       success: false,
-      message: LOGIN_REQUIRED_MESSAGE,
+      message: loginRequiredText(),
+      // The refusal carries its catalog key beside the English, so the admin UI
+      // relabels it on a language switch while MCP still reads the same prose.
+      messageKey: 'admin.api.collectionSync.loginRequired',
       loginRequired: true,
     })
   })
@@ -164,7 +168,8 @@ describe('collection-sync API', () => {
     expect(status).toBe(401)
     expect(body).toEqual({
       success: false,
-      message: ACCOUNT_REQUIRED_MESSAGE,
+      message: accountRequiredText(),
+      messageKey: 'admin.api.collectionSync.accountRequired',
       loginRequired: true,
     })
   })
@@ -265,7 +270,7 @@ describe('collection-sync API', () => {
     })
     // Sorted, because which binder the run happened to read first says nothing
     // about the ambiguity — the per-list counts are what a caller needs.
-    expect([...(ambiguous?.lists ?? [])].sort((a, b) => a.list.localeCompare(b.list))).toEqual([
+    expect([...(ambiguous?.lists ?? [])].sort((a, b) => compareData(a.list, b.list))).toEqual([
       { list: 'binder', copies: 1 },
       { list: 'longbox', copies: 1 },
     ])

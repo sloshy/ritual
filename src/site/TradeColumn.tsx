@@ -1,5 +1,7 @@
 import type { Component } from 'solid-js'
 import { createMemo, createSignal, For, Show } from 'solid-js'
+import { useT } from '../ui/i18n'
+import type { MessageKey } from '../i18n/messages/en'
 import type { PriceCurrency } from '../price-currency'
 import { formatPrice } from '../price-currency'
 import type { TradeCardEntry } from './data-types'
@@ -33,51 +35,64 @@ export type TradeColumnModeControl =
   | { kind: 'toggle'; label: string; active: boolean; onChange: () => void }
   | { kind: 'note'; text: string }
 
+/**
+ * Every key this table's copy may name. Narrower than `MessageKey` so `t()` can
+ * render one without params, and `Extract` turns a key that no longer exists in
+ * the catalog into `never` — a compile error at the table below.
+ */
+type TradeModeMessageKey = Extract<MessageKey, `site.tradeMode.${string}`>
+
+/**
+ * One search mode's copy. Every text field is a {@link MessageKey}, not rendered
+ * text: this table is evaluated once at module load, so a string here would
+ * freeze the column's pill, placeholder, and empty state in whatever language
+ * the bundle booted in.
+ */
 type TradeColumnModeCopy = {
   /** `source-pill` modifier class, which colours the pill's dot. */
   tone: 'collection' | 'deck' | 'wanted' | 'scryfall'
-  label: string
-  placeholder: string
-  emptyMessage: string
+  label: TradeModeMessageKey
+  placeholderKey: TradeModeMessageKey
+  emptyMessage: TradeModeMessageKey
   /** Subline for a bare card-name suggestion; `null` in modes that yield none. */
-  searchLabel: string | null
+  searchLabel: TradeModeMessageKey | null
 }
 
 const MODE_COPY: Record<TradeColumnMode, TradeColumnModeCopy> = {
   collection: {
     tone: 'collection',
-    label: 'Collection',
-    placeholder: 'Search your collections…',
-    emptyMessage: 'No cards yet. Search above to add from your collections.',
+    label: 'site.tradeMode.collection.label',
+    placeholderKey: 'site.tradeMode.collection.placeholder',
+    emptyMessage: 'site.tradeMode.collection.empty',
     searchLabel: null,
   },
   'collection-decks': {
     tone: 'deck',
-    label: 'Collection + Decks',
-    placeholder: 'Search collections + decks…',
-    emptyMessage: 'No cards yet. Search above to add from your collections or decks.',
+    label: 'site.tradeMode.collectionDecks.label',
+    placeholderKey: 'site.tradeMode.collectionDecks.placeholder',
+    emptyMessage: 'site.tradeMode.collectionDecks.empty',
     searchLabel: null,
   },
   wanted: {
     tone: 'wanted',
-    label: 'Wanted List',
-    placeholder: 'Search your wanted lists…',
-    emptyMessage: 'No cards yet. Search above to add from a wanted list.',
+    label: 'site.tradeMode.wanted.label',
+    placeholderKey: 'site.tradeMode.wanted.placeholder',
+    emptyMessage: 'site.tradeMode.wanted.empty',
     searchLabel: null,
   },
   scryfall: {
     tone: 'scryfall',
-    label: 'Scryfall',
-    placeholder: "Scryfall search: e.g. 't:creature c:r'",
-    emptyMessage: 'No cards yet. Search Scryfall above to add any printing.',
-    searchLabel: 'Scryfall',
+    label: 'site.tradeMode.scryfall.label',
+    placeholderKey: 'site.tradeMode.scryfall.placeholder',
+    emptyMessage: 'site.tradeMode.scryfall.empty',
+    searchLabel: 'site.tradeMode.scryfall.searchLabel',
   },
   'wanted-cache': {
     tone: 'wanted',
-    label: 'Wanted List + Card Cache',
-    placeholder: 'Search your wanted lists and the card cache…',
-    emptyMessage: 'No cards yet. Search above to add from a wanted list or any card in the cache.',
-    searchLabel: 'Card cache',
+    label: 'site.tradeMode.wantedCache.label',
+    placeholderKey: 'site.tradeMode.wantedCache.placeholder',
+    emptyMessage: 'site.tradeMode.wantedCache.empty',
+    searchLabel: 'site.tradeMode.wantedCache.searchLabel',
   },
 }
 
@@ -108,6 +123,7 @@ export interface TradeColumnProps {
 }
 
 export const TradeColumn: Component<TradeColumnProps> = (props) => {
+  const t = useT()
   const [showSuggest, setShowSuggest] = createSignal(false)
   let inputRef: HTMLInputElement | undefined
 
@@ -115,7 +131,7 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
   const totalPrice = createMemo(() => props.cards.reduce((s, c) => s + (c.price ?? 0) * c.qty, 0))
   const totalCount = createMemo(() => props.cards.reduce((s, c) => s + c.qty, 0))
 
-  const title = () => (props.side === 'left' ? 'Offering' : 'Receiving')
+  const title = () => (props.side === 'left' ? t('site.trade.offering') : t('site.trade.receiving'))
 
   const copy = (): TradeColumnModeCopy => MODE_COPY[props.mode]
 
@@ -164,15 +180,18 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
   }
 
   const suggestionSubline = (item: AutocompleteItem): string => {
-    if (item.kind === 'search') return copy().searchLabel ?? ''
+    if (item.kind === 'search') {
+      const searchLabel = copy().searchLabel
+      return searchLabel === null ? '' : t(searchLabel)
+    }
     const { entry } = item
     switch (entry.sourceKind) {
       case 'collection':
         return entry.sourceName
       case 'deck':
-        return `In ${entry.sourceName}`
+        return t('site.tradeColumn.fromDeck', { name: entry.sourceName })
       case 'wanted':
-        return `from ${entry.sourceName}`
+        return t('site.tradeColumn.fromWanted', { name: entry.sourceName })
     }
   }
 
@@ -186,7 +205,7 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
   const suggestionPrice = (item: AutocompleteItem): string => {
     if (item.kind === 'search') return ''
     const price = item.entry.price
-    if (price === undefined || price <= 0) return 'N/A'
+    if (price === undefined || price <= 0) return t('site.tradeColumn.priceUnavailable')
     return formatPrice(price, props.currency)
   }
 
@@ -203,14 +222,14 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
         <div class="trade-col-title-row">
           <h2 class="trade-col-title">{title()}</h2>
           <span class="trade-col-meta">
-            {totalCount()} {totalCount() === 1 ? 'card' : 'cards'} ·{' '}
+            {t('ui.count.cards', { count: totalCount() })} ·{' '}
             <strong>{totalPrice() > 0 ? formatPrice(totalPrice(), props.currency) : '—'}</strong>
           </span>
         </div>
         <div class="trade-col-source">
           <span class={`source-pill ${copy().tone}`}>
             <span class="source-dot" />
-            {copy().label}
+            {t(copy().label)}
           </span>
         </div>
       </div>
@@ -222,7 +241,7 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
             ref={inputRef}
             type="text"
             class="search-input"
-            placeholder={copy().placeholder}
+            placeholder={t(copy().placeholderKey)}
             value={props.searchQuery}
             onInput={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -262,7 +281,7 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
               when={props.autocompleteItems.length > 0}
               fallback={
                 <Show when={!props.autocompleteLoading}>
-                  <div class="search-suggest-empty">No matches. Try a different query.</div>
+                  <div class="search-suggest-empty">{t('site.tradeColumn.noSuggestions')}</div>
                 </Show>
               }
             >
@@ -304,19 +323,19 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
       </div>
 
       <div class="col-toolbar">
-        <span class="col-toolbar-label">Sort</span>
+        <span class="col-toolbar-label">{t('site.tradeColumn.sort')}</span>
         <div class="view-toggle">
           <button
             classList={{ active: props.sort.by === 'name' }}
             onClick={() => props.onSortChange('name')}
           >
-            Name
+            {t('site.tradeColumn.sortName')}
           </button>
           <button
             classList={{ active: props.sort.by === 'price' }}
             onClick={() => props.onSortChange('price')}
           >
-            Price
+            {t('site.tradeColumn.sortPrice')}
           </button>
         </div>
         <button
@@ -324,14 +343,14 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
           classList={{ active: props.sort.reverse }}
           onClick={props.onReverseToggle}
         >
-          {props.sort.reverse ? '↑↓ Reversed' : '↑↓ Reverse'}
+          {props.sort.reverse ? t('site.tradeColumn.reversed') : t('site.tradeColumn.reverse')}
         </button>
       </div>
 
       <div class="trade-list">
         <Show
           when={sortedCards().length > 0}
-          fallback={<div class="trade-list-empty">{copy().emptyMessage}</div>}
+          fallback={<div class="trade-list-empty">{t(copy().emptyMessage)}</div>}
         >
           <For each={sortedCards()}>
             {(card) => (
@@ -351,7 +370,7 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
       </div>
 
       <div class="trade-col-foot">
-        <span class="trade-col-foot-label">Total</span>
+        <span class="trade-col-foot-label">{t('site.tradeColumn.total')}</span>
         <span class="trade-col-foot-total">
           {totalPrice() > 0 ? formatPrice(totalPrice(), props.currency) : '—'}
         </span>

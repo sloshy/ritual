@@ -20,8 +20,10 @@ const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
-// Deliberately not the admin CSP: the public site's index.html carries an
-// inline theme-bootstrap script and loads remote Scryfall assets.
+// Deliberately not the admin CSP: the public site loads remote Scryfall assets.
+// Its theme and locale bootstrap is an external, same-origin `boot.js`, so a
+// `script-src 'self'` policy would be satisfiable here — the image sources are
+// what still are not.
 const BASE_HEADERS: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -47,8 +49,8 @@ function withHeaders(response: Response, extra: Record<string, string>): Respons
  */
 export function startSiteServer(options: SiteServerOptions): StaticSiteServer {
   const { port, hostname, distDir } = options
-  const live = createLiveSiteData()
-  const routes = buildSiteRoutes(live)
+  const live = createLiveSiteData({ distDir })
+  const routes = buildSiteRoutes(live, distDir)
 
   return Bun.serve({
     port,

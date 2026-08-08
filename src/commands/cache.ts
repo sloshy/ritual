@@ -14,6 +14,8 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from './scripting'
+import { t } from '../i18n/t'
+import { displayWidth, padEndDisplay } from '../i18n/width'
 
 /** Flags for `cache preload-all`. */
 type CachePreloadAllOptions = {
@@ -30,71 +32,78 @@ type StatusRow = { label: string; value: string }
 
 function formatCacheStatusText(status: CacheStatusResult): string {
   const rows: StatusRow[] = [
-    { label: 'Empty', value: String(status.empty) },
-    { label: 'Card names', value: String(status.cardCount) },
-    { label: 'Last card refresh', value: status.lastCardRefresh ?? 'never' },
+    { label: t('cli.cache.rowEmpty'), value: String(status.empty) },
+    { label: t('cli.cache.rowCardNames'), value: String(status.cardCount) },
     {
-      label: 'Price age (hours)',
-      value: status.priceAgeHours === null ? 'n/a' : String(status.priceAgeHours),
+      label: t('cli.cache.rowLastCardRefresh'),
+      value: status.lastCardRefresh ?? t('cli.cache.valueNever'),
     },
-    { label: 'Prices stale', value: String(status.priceStale) },
-    { label: 'Tags present', value: String(status.tagsPresent) },
-    { label: 'Source', value: status.source },
-    { label: 'Default language', value: status.defaultLanguage },
-    { label: 'Card bulk', value: status.cardBulkType ?? 'unrecorded' },
-    { label: 'Bulk stale', value: String(status.bulkTypeStale) },
+    {
+      label: t('cli.cache.rowPriceAgeHours'),
+      value:
+        status.priceAgeHours === null
+          ? t('cli.cache.valueNotApplicable')
+          : String(status.priceAgeHours),
+    },
+    { label: t('cli.cache.rowPricesStale'), value: String(status.priceStale) },
+    { label: t('cli.cache.rowTagsPresent'), value: String(status.tagsPresent) },
+    { label: t('cli.cache.rowSource'), value: status.source },
+    { label: t('cli.cache.rowDefaultLanguage'), value: status.defaultLanguage },
+    {
+      label: t('cli.cache.rowCardBulk'),
+      value: status.cardBulkType ?? t('cli.cache.valueUnrecorded'),
+    },
+    { label: t('cli.cache.rowBulkStale'), value: String(status.bulkTypeStale) },
   ]
-  const width = Math.max(...rows.map((row) => row.label.length)) + 1
-  return rows.map((row) => `${`${row.label}:`.padEnd(width)} ${row.value}`).join('\n')
+  // Display columns, not code units: a label is ASCII today, but padding is a
+  // terminal-width problem and `padEnd` gets it wrong the moment one is not.
+  const width = Math.max(...rows.map((row) => displayWidth(row.label))) + 1
+  return rows.map((row) => `${padEndDisplay(`${row.label}:`, width)} ${row.value}`).join('\n')
 }
 
 export function registerCacheCommand(program: Command): void {
-  const cache = program.command('cache').description('Manage card cache')
+  const cache = program.command('cache').description(t('help.cache.description'))
 
   // `--output` only: the status report *is* the command's output, so there is
   // no non-essential chatter for `--quiet` to suppress.
-  addOutputOption(
-    cache
-      .command('status')
-      .description(
-        'Report card-cache state (size, freshness, tags, source, card bulk / language mode) without prompting or refreshing',
-      ),
-  ).action(async (options: Partial<ScriptingOptions>) => {
-    const scripting = normalizeScriptingOptions(options, 'text')
-    const status = await collectCacheStatus()
-    // Always exit 0 — an empty cache is a reportable state, not a failure;
-    // scripts branch on the `empty` field.
-    if (scripting.output === 'text') {
-      emitOutput(formatCacheStatusText(status), scripting)
-      return
-    }
-    emitOutput(status, scripting)
-  })
+  addOutputOption(cache.command('status').description(t('help.cache.status'))).action(
+    async (options: Partial<ScriptingOptions>) => {
+      const scripting = normalizeScriptingOptions(options, 'text')
+      const status = await collectCacheStatus()
+      // Always exit 0 — an empty cache is a reportable state, not a failure;
+      // scripts branch on the `empty` field.
+      if (scripting.output === 'text') {
+        emitOutput(formatCacheStatusText(status), scripting)
+        return
+      }
+      emitOutput(status, scripting)
+    },
+  )
 
   cache
     .command('preload-set')
-    .description('Download and cache all cards for a given set')
-    .argument('<setCode>', 'Set code to preload (e.g. khm, lea)')
+    .description(t('help.cache.preloadSet'))
+    .argument('<setCode>', t('help.cache.preloadSetArg'))
     .action(async (setCode: string) => {
       const normalizedSetCode = setCode.toLowerCase()
       const displayCode = normalizedSetCode.toUpperCase()
-      console.log(`Preloading set '${displayCode}'...`)
+      console.log(t('cli.cache.preloadingSet', { set: displayCode }))
       try {
         // A set is preloaded whole (every result page), and an HTTP failure
         // comes back as data instead of an empty list, so a typo'd set code and
         // a dead network are no longer both reported as success.
         const result = await searchAllPages(`set:${normalizedSetCode}`)
         if (result.kind === 'failed') {
-          console.error(`Failed to preload set '${displayCode}': ${result.message}`)
+          console.error(
+            t('cli.cache.preloadSetFailed', { set: displayCode, reason: result.message }),
+          )
           process.exitCode = ExitCode.RuntimeError
           return
         }
         if (result.matched === 0) {
           // Scryfall answers an unknown set code with "nothing matched"; there is
           // no such thing as a real, empty set.
-          console.error(
-            `No cards found for set '${displayCode}' — check the set code (see https://scryfall.com/sets).`,
-          )
+          console.error(t('cli.cache.preloadSetNotFound', { set: displayCode }))
           process.exitCode = ExitCode.NotFound
           return
         }
@@ -103,14 +112,18 @@ export function registerCacheCommand(program: Command): void {
           // set, which `cacheRealPrintings` filters out. Not a typo, so not a
           // NotFound: the user asked for a real set and got an honest answer.
           console.log(
-            `Set '${displayCode}' matched ${result.matched} item${result.matched === 1 ? '' : 's'}, none of which are real printings ` +
-              '(token and Art Series sets are not cached).',
+            t('cli.cache.preloadSetNoPrintings', {
+              set: displayCode,
+              counted: t('domain.count.items', { count: result.matched }),
+            }),
           )
           return
         }
-        console.log(`Successfully cached ${result.cards.length} cards for set '${displayCode}'`)
+        console.log(t('cli.cache.preloadSetDone', { count: result.cards.length, set: displayCode }))
       } catch (e) {
-        console.error(`Failed to preload set '${displayCode}':`, getErrorMessage(e))
+        console.error(
+          t('cli.cache.preloadSetFailed', { set: displayCode, reason: getErrorMessage(e) }),
+        )
         process.exitCode = ExitCode.RuntimeError
       }
     })
@@ -118,17 +131,11 @@ export function registerCacheCommand(program: Command): void {
   addFeedUrlOption(
     cache
       .command('preload-all')
-      .description(
-        'Download and cache all Scryfall card data (bulk), including oracle and art tags',
-      )
-      .option(
-        '--source <source>',
-        "Where to download from: 'scryfall' or 'feed' (overrides the cacheSource config key for this run)",
-        parseCacheSourceFlag,
-      ),
-    'Feed URL for a feed-sourced refresh (implies --source feed; defaults to the cacheFeedUrl config key)',
+      .description(t('help.cache.preloadAll'))
+      .option('--source <source>', t('help.cache.preloadAllSource'), parseCacheSourceFlag),
+    t('help.cache.preloadAllFeedUrl'),
   )
-    .option('--force', 'Re-download and re-ingest even when the feed is unchanged', false)
+    .option('--force', t('help.cache.preloadAllForce'), false)
     .action(async (options: CachePreloadAllOptions) => {
       const conflict = feedUrlSourceConflict(options.source, options.url)
       if (conflict !== undefined) {
@@ -143,21 +150,19 @@ export function registerCacheCommand(program: Command): void {
           force: options.force,
         })
       } catch (e) {
-        console.error('Failed to preload card cache:', getErrorMessage(e))
+        console.error(t('cli.cache.preloadAllFailed', { reason: getErrorMessage(e) }))
         process.exitCode = ExitCode.RuntimeError
       }
     })
 
   cache
     .command('refresh-tags')
-    .description(
-      'Re-download oracle and art tag bulks and re-attach them to cached cards (no full card re-download)',
-    )
+    .description(t('help.cache.refreshTags'))
     .action(async () => {
       try {
         await refreshTags()
       } catch (e) {
-        console.error('Failed to refresh tags:', getErrorMessage(e))
+        console.error(t('cli.cache.refreshTagsFailed', { reason: getErrorMessage(e) }))
         process.exitCode = ExitCode.RuntimeError
       }
     })

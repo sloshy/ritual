@@ -4,12 +4,16 @@ import { InvalidArgumentError, type Command } from 'commander'
 import { getBaseDir } from '../base-dir'
 import type { ErrorCode } from '../types'
 import {
+  CardCommandError,
   ExitCode,
   getErrorMessage,
   hasErrorCode,
   isBrokenPipeError,
+  type ErrorMessageRef,
   type ExitCodeValue,
 } from '../errors'
+import type { MessageKey } from '../i18n/messages/en'
+import { t, type RenderParams } from '../i18n/t'
 import { parseEnumField } from '../parse-enum'
 import { formatResolveListError, type ResolveHint, type ResolveListError } from '../resolve-list'
 import { getAtPath } from '../utils'
@@ -172,7 +176,7 @@ export function addOutputOption(
 ): Command {
   return command.option(
     '--output <format>',
-    `Output format: ${formats.join(', ')}`,
+    t('help.global.output', { formats: formats.join(', ') }),
     (value) => parseEnumFlag(value, formats, 'output format'),
     defaultOutput,
   )
@@ -180,11 +184,7 @@ export function addOutputOption(
 
 /** Register the shared `--quiet` flag with the repo-wide convention's wording. */
 export function addQuietOption(command: Command): Command {
-  return command.option(
-    '--quiet',
-    'Suppress progress and status messages (never the data payload)',
-    false,
-  )
+  return command.option('--quiet', t('help.global.quiet'), false)
 }
 
 /** The option attribute {@link addDryRunOption} registers. */
@@ -197,11 +197,7 @@ export function addDryRunOption(command: Command, description: string): Command 
 
 /** Register the shared `--fields <list>` projection flag for json/ndjson output. */
 export function addFieldsOption(command: Command): Command {
-  return command.option(
-    '--fields <list>',
-    'Comma-separated fields for json/ndjson output',
-    parseFields,
-  )
+  return command.option('--fields <list>', t('help.global.fields'), parseFields)
 }
 
 export function normalizeScriptingOptions(
@@ -276,22 +272,52 @@ export function installScriptingLogger(options: ScriptingOptions): void {
   }
 }
 
+/**
+ * The `error` object of the structured envelope. `code` and `messageKey` are the
+ * locale-invariant halves — the pair a script or an agent matches on — while
+ * `message` is prose that follows the user's UI locale. `messageKey` is dropped
+ * by `JSON.stringify` when the failure has no catalog key behind it, so an
+ * envelope that has always been English stays byte-identical.
+ */
+type ErrorEnvelope = {
+  code: ErrorCode
+  messageKey: MessageKey | undefined
+  /**
+   * What `messageKey` interpolates. Carrying the key without them would make the
+   * key un-renderable — a client re-rendering `errors.enum.invalid` alone gets
+   * literal `{field}` / `{value}` / `{choices}` tokens. Dropped by
+   * `JSON.stringify` when absent, so a params-free failure is unchanged.
+   */
+  messageParams: RenderParams | undefined
+  message: string
+  details: unknown
+}
+
 export function emitError(
   code: ErrorCode,
   message: string,
   options: ScriptingOptions,
   details?: unknown,
+  // A bare key for the common params-free failure, or the whole ref when the
+  // message interpolates — carrying a parameterised key without its parameters
+  // would hand a client a key it cannot render.
+  messageRef?: MessageKey | ErrorMessageRef,
 ): void {
-  if (options.output === 'json') {
-    writeStderr(`${JSON.stringify({ error: { code, message, details } }, null, 2)}\n`)
+  if (options.output === 'text') {
+    writeStderr(`${message}\n`)
     return
   }
-  if (options.output === 'ndjson') {
-    writeStderr(`${JSON.stringify({ error: { code, message, details } })}\n`)
-    return
+  const ref: ErrorMessageRef | undefined =
+    typeof messageRef === 'string' ? { key: messageRef } : messageRef
+  const envelope: ErrorEnvelope = {
+    code,
+    messageKey: ref?.key,
+    messageParams: ref?.params,
+    message,
+    details,
   }
-
-  writeStderr(`${message}\n`)
+  const indent = options.output === 'json' ? 2 : undefined
+  writeStderr(`${JSON.stringify({ error: envelope }, null, indent)}\n`)
 }
 
 /**
@@ -306,7 +332,11 @@ export function emitActionError(error: unknown, options: ScriptingOptions): void
     markStdoutClosed()
     return
   }
-  emitError('runtime_error', getErrorMessage(error), options, error)
+  const messageRef =
+    error instanceof CardCommandError && error.messageKey !== undefined
+      ? { key: error.messageKey, params: error.messageParams }
+      : undefined
+  emitError('runtime_error', getErrorMessage(error), options, error, messageRef)
   process.exitCode = ExitCode.RuntimeError
 }
 
@@ -320,7 +350,13 @@ export function rejectFieldsWithTextOutput(
   options: ScriptingOptions,
 ): boolean {
   if (fields !== undefined && fields.length > 0 && options.output === 'text') {
-    emitError('usage_error', '--fields requires --output json or --output ndjson.', options)
+    emitError(
+      'usage_error',
+      t('errors.scripting.fieldsNeedStructuredOutput'),
+      options,
+      undefined,
+      'errors.scripting.fieldsNeedStructuredOutput',
+    )
     process.exitCode = ExitCode.UsageError
     return true
   }
@@ -332,7 +368,7 @@ export type CardSummary = { name: string; set: string }
 
 /** The shared one-line text rendering for a fetched card: `Name (SET)`. */
 export function renderCardSummary(card: CardSummary): string {
-  return `${card.name} (${card.set.toUpperCase()})`
+  return t('cli.card.summary', { name: card.name, set: card.set.toUpperCase() })
 }
 
 /**
@@ -347,16 +383,48 @@ export function emitResolveListError(
   hint: ResolveHint,
 ): void {
   const message = formatResolveListError(error, hint)
+  const ref = resolveListMessageRef(error)
   switch (error.kind) {
     case 'ambiguous':
-      emitError('usage_error', message, options)
+      emitError('usage_error', message, options, undefined, ref)
       process.exitCode = ExitCode.UsageError
       return
     case 'no-lists':
     case 'not-found':
-      emitError('not_found', message, options)
+      emitError('not_found', message, options, undefined, ref)
       process.exitCode = ExitCode.NotFound
       return
+  }
+}
+
+/**
+ * The catalog key `formatResolveListError` rendered from, **with its
+ * parameters** — the discriminator a script gets in the structured envelope. It
+ * distinguishes the type-scoped refusals from the cross-type ones, which
+ * `error.code` alone cannot: both a missing deck and a missing list of any kind
+ * are `not_found`.
+ *
+ * The params ride along because these keys interpolate: a client that re-renders
+ * from the key alone would otherwise print literal `{type}` / `{query}` tokens.
+ * `matches`/`advice` are deliberately not reproduced — they are already inside
+ * the rendered `message`, and rebuilding them would duplicate
+ * `formatResolveListError`'s body.
+ */
+function resolveListMessageRef(error: ResolveListError): ErrorMessageRef {
+  switch (error.kind) {
+    case 'no-lists':
+      return error.type
+        ? { key: 'errors.resolveList.noListsOfType', params: { type: error.type } }
+        : { key: 'errors.resolveList.noLists' }
+    case 'not-found':
+      return error.type
+        ? {
+            key: 'errors.resolveList.notFoundOfType',
+            params: { type: error.type, query: error.query },
+          }
+        : { key: 'errors.resolveList.notFound', params: { query: error.query } }
+    case 'ambiguous':
+      return { key: 'errors.resolveList.ambiguous', params: { query: error.query } }
   }
 }
 
@@ -436,7 +504,7 @@ export function classifyFileReadError(error: unknown): FileReadFailure {
 export function parsePort(value: string): number {
   const port = Number.parseInt(value, 10)
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    throw new InvalidArgumentError('Port must be an integer between 1 and 65535.')
+    throw new InvalidArgumentError(t('errors.scripting.portRange'))
   }
   return port
 }
@@ -448,7 +516,7 @@ export function parseFields(value: string): string[] {
     .filter((field) => field.length > 0)
 
   if (fields.length === 0) {
-    throw new InvalidArgumentError('Expected at least one field for --fields.')
+    throw new InvalidArgumentError(t('errors.scripting.fieldsEmpty'))
   }
 
   return fields

@@ -1,3 +1,4 @@
+import { pickMessage, type ApiMessage } from '../admin/api/result'
 import type { ChangeEvent } from '../change-event'
 import type { ListType } from '../list-type'
 import {
@@ -159,9 +160,8 @@ export function mutateList(
  * `applied` is the batch size, which is honest under the all-or-nothing
  * contract: a call that returns at all applied every change it was given.
  */
-export interface MutationResult {
+export interface MutationResult extends ApiMessage {
   applied: number
-  message: string
   listType: ListType
   slug: string
   /**
@@ -187,7 +187,11 @@ export async function applyMutation(
   const saved = await mutateList(type, slug, changes)
   return {
     applied: changes.length,
-    message: saved.message,
+    // The whole message triple, not just the rendered English: every other tool
+    // result is `OmitSuccess<HandlerResponse>` and carries the pair
+    // structurally, and mcp.md documents that as a blanket property of results
+    // the shared admin handlers produce.
+    ...pickMessage(saved),
     listType: type,
     slug,
     effects: saved.effects,

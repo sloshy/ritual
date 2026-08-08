@@ -15,6 +15,8 @@ import type {
 import { CSV_UPLOAD_THRESHOLD } from '../../../src/collection-sync/csv'
 import type { AmbiguousRemoval } from '../../../src/collection-sync/describe'
 import type { CardIndexResponse } from '../../../src/admin/api/card-index'
+import { apiMessage } from '../../../src/admin/api/result'
+import { renderSyncSummaryEnglish, type SyncSummary } from '../../../src/admin/api/sync-summary'
 import {
   type BundleImportResponse,
   type BundleImportResult,
@@ -32,6 +34,7 @@ import type { RitualConfig } from '../../../src/ritual-config'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
 import { fulfillJson } from './fulfill'
 import { MOCK_COLLECTION_DETAIL, MOCK_WANTED_LIST_DETAIL, makeMockScryfallCard } from './mock-cards'
+import { localeTag } from '../../../src/i18n/locale-tag'
 
 type MockDeck = {
   slug: string
@@ -88,6 +91,7 @@ export const MOCK_CONFIG = {
   wantedDir: './wanted',
   defaultCurrency: 'eur',
   defaultLanguage: 'en',
+  uiLocale: localeTag('en'),
   cacheLockTimeoutSeconds: 300,
   cacheSource: 'scryfall',
   searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
@@ -160,7 +164,10 @@ export async function mockBuildSiteApi(page: Page): Promise<void> {
   // server no longer sends.
   const body: BuildSiteResponse = {
     success: true,
-    message: 'Site built successfully',
+    // The whole message triple, as the handler sends it: the alert renders the
+    // key when it has one, so a mock carrying only English would silently test
+    // the fallback path instead of the real one.
+    ...apiMessage('admin.api.buildSite.built'),
     outDir: '/tmp/ritual-e2e/dist',
     durationMs: 1234,
   }
@@ -334,7 +341,7 @@ export async function mockCacheRefreshApi(page: Page): Promise<void> {
   await fulfillJson(
     page,
     '**/api/cache/refresh',
-    { success: true, message: 'Cache refreshed successfully' },
+    { success: true, ...apiMessage('admin.api.cache.refreshed') },
     { method: 'POST' },
   )
 }
@@ -476,9 +483,13 @@ export async function mockDeckSyncApi(
     (route: Route): DeckSyncRunResponse => {
       posted.push(route.request().postDataJSON())
       // Typed against the real response so the mock cannot drift from the handler.
+      const summary: SyncSummary = {
+        clauses: [apiMessage('admin.api.deckSync.pulled', { count: currentDecks.length })],
+      }
       return {
         success: true,
-        message: `Pulled ${currentDecks.length} decks.`,
+        message: renderSyncSummaryEnglish(summary),
+        summary,
         report: {
           direction: 'pull',
           decks: currentDecks.map((deck) => ({ name: deck.name, status: 'synced' })),
@@ -604,9 +615,20 @@ export async function mockCollectionSyncApi(
           pending: 0,
         }),
       )
+      const summary: SyncSummary = {
+        clauses: [
+          apiMessage('admin.api.collectionSync.totalsInto', {
+            action: 'pulled',
+            added: results.length,
+            removed: 0,
+            into: pullTarget,
+          }),
+        ],
+      }
       return {
         success: true,
-        message: `Pulled +${results.length} added, -0 removed into "${pullTarget}".`,
+        message: renderSyncSummaryEnglish(summary),
+        summary,
         report: {
           direction: 'pull',
           into: pullTarget,
@@ -753,7 +775,12 @@ export async function mockMoveCardsApi(
 
   await fulfillJson(page, '**/api/move/commit', (route: Route) => {
     onCommit?.(route.request().postDataJSON())
-    return { success: true, moved: 1, skipped: 0, message: 'Moved 1 card.' }
+    return {
+      success: true,
+      moved: 1,
+      skipped: 0,
+      ...apiMessage('admin.api.move.moved', { count: 1 }),
+    }
   })
 
   const binder: CollectionFullLoadResult = {
@@ -858,6 +885,6 @@ export async function mockChangeHistoryApi(
 
   await fulfillJson(page, '**/api/history/deck/history-deck/save', (route: Route) => {
     onSave?.(route.request().postDataJSON())
-    return { success: true, message: 'Saved.', setCount: 1 }
+    return { success: true, ...apiMessage('admin.api.history.saved', { count: 1 }), setCount: 1 }
   })
 }

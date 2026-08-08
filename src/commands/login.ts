@@ -4,7 +4,8 @@ import { ArchidektAuth } from '../auth/ArchidektAuth'
 import type { ArchidektLoginStatus } from '../auth/interfaces'
 import { FileTokenStore } from '../auth/FileTokenStore'
 import { loginWithCredentials, promptForLoginOutcome } from '../auth/login-helper'
-import { CardCommandError } from '../errors'
+import { localizedCommandError } from '../errors'
+import { t } from '../i18n/t'
 import { runCommandAction } from './card-target'
 import { readPasswordFromStdin } from './prompts-helpers'
 import {
@@ -58,10 +59,10 @@ async function runArchidektLogin(options: LoginArchidektOptions): Promise<void> 
       if (user) {
         const token = await auth.getToken()
         if (token) {
-          console.log(`Logged in as ${user.username}`)
+          console.log(t('cli.login.loggedInAs', { username: user.username }))
           return
         }
-        console.log(`Session for ${user.username} expired.`)
+        console.log(t('cli.login.sessionExpiredFor', { username: user.username }))
       }
     } catch {
       // Ignore errors during check, proceed to login
@@ -70,19 +71,15 @@ async function runArchidektLogin(options: LoginArchidektOptions): Promise<void> 
 
   if (headless) {
     if (options.username === undefined || options.passwordStdin !== true) {
-      throw new CardCommandError(
+      throw localizedCommandError(
         'usage_error',
-        'Non-interactive login requires both --username and --password-stdin.',
         ExitCode.UsageError,
+        'cli.login.needsCredentialFlags',
       )
     }
     const password = await readPasswordFromStdin()
     if (password.length === 0) {
-      throw new CardCommandError(
-        'usage_error',
-        'The password read from stdin is empty.',
-        ExitCode.UsageError,
-      )
+      throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.login.emptyPassword')
     }
     const outcome = await loginWithCredentials(auth, { username: options.username, password })
     if (outcome === 'failed') {
@@ -105,8 +102,8 @@ async function runArchidektLogin(options: LoginArchidektOptions): Promise<void> 
 /** The account half of the status line: whoever the stored token names. */
 function describeAccount(status: ArchidektLoginStatus): string {
   return status.username === null
-    ? 'Logged in to Archidekt (the stored login does not name an account)'
-    : `Logged in to Archidekt as ${status.username}`
+    ? t('cli.login.accountUnnamed')
+    : t('cli.login.accountNamed', { username: status.username })
 }
 
 /**
@@ -116,17 +113,20 @@ function describeAccount(status: ArchidektLoginStatus): string {
  * login where neither token is usable asks for a fresh sign-in.
  */
 export function describeLoginStatus(status: ArchidektLoginStatus): string {
-  if (!status.loggedIn) return 'Not logged in.'
+  if (!status.loggedIn) return t('cli.login.notLoggedIn')
   const account = describeAccount(status)
   if (status.loginRequired) {
-    return `${account} (session expired — run "ritual login archidekt")`
+    return t('cli.login.statusExpired', { account })
   }
   if (!status.accessTokenValid) {
-    return `${account} (access token expired; it refreshes on the next request)`
+    return t('cli.login.statusRefreshable', { account })
   }
   return status.accessTokenExpiration === null
     ? account
-    : `${account} (session valid until ${status.accessTokenExpiration})`
+    : t('cli.login.statusValidUntil', {
+        account,
+        expiration: status.accessTokenExpiration,
+      })
 }
 
 async function runLoginStatus(scripting: ScriptingOptions): Promise<void> {
@@ -160,9 +160,7 @@ async function runLoginLogout(scripting: ScriptingOptions): Promise<void> {
   if (scripting.output === 'text') {
     if (scripting.quiet) return
     emitOutput(
-      user
-        ? `Logged out of Archidekt (was ${user.username}). Stored token cleared.`
-        : 'No stored Archidekt login to clear.',
+      user ? t('cli.login.loggedOut', { username: user.username }) : t('cli.login.nothingToClear'),
       scripting,
     )
     return
@@ -174,33 +172,31 @@ async function runLoginLogout(scripting: ScriptingOptions): Promise<void> {
 }
 
 export function registerLoginCommand(program: Command): void {
-  const loginCommand = program.command('login').description('Login to a supported website')
+  const loginCommand = program.command('login').description(t('help.login.description'))
 
   loginCommand
     .command('archidekt')
-    .description('Login to Archidekt')
-    .option('-f, --force-login', 'Force a new login even if a session exists')
-    .option('--username <username>', 'Archidekt username or email (for scripting)')
-    .option('--password-stdin', 'Read the password from stdin (for scripting)', false)
+    .description(t('help.login.archidekt'))
+    .option('-f, --force-login', t('help.login.forceLogin'))
+    .option('--username <username>', t('help.login.username'))
+    .option('--password-stdin', t('help.login.passwordStdin'), false)
     .action(async (options: LoginArchidektOptions) => {
       await runCommandAction(TEXT_SCRIPTING, () => runArchidektLogin(options))
     })
 
   // `--output` only: the status line is the whole payload, so there is no
   // non-essential chatter for `--quiet` to suppress.
-  addOutputOption(
-    loginCommand
-      .command('status')
-      .description('Show the stored Archidekt login and whether its session is still usable'),
-  ).action(async (options: LoginScriptingOptions) => {
-    const scripting = normalizeScriptingOptions(options)
-    await runCommandAction(scripting, () => runLoginStatus(scripting))
-  })
+  addOutputOption(loginCommand.command('status').description(t('help.login.status'))).action(
+    async (options: LoginScriptingOptions) => {
+      const scripting = normalizeScriptingOptions(options)
+      await runCommandAction(scripting, () => runLoginStatus(scripting))
+    },
+  )
 
-  addScriptingOptions(
-    loginCommand.command('logout').description('Clear the stored Archidekt login'),
-  ).action(async (options: LoginScriptingOptions) => {
-    const scripting = normalizeScriptingOptions(options)
-    await runCommandAction(scripting, () => runLoginLogout(scripting))
-  })
+  addScriptingOptions(loginCommand.command('logout').description(t('help.login.logout'))).action(
+    async (options: LoginScriptingOptions) => {
+      const scripting = normalizeScriptingOptions(options)
+      await runCommandAction(scripting, () => runLoginLogout(scripting))
+    },
+  )
 }

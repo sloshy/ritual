@@ -1,4 +1,12 @@
 import { Command } from 'commander'
+import { isCatalogEntryError, parseCatalogEntry } from '../i18n/catalog'
+import { compareData } from '../i18n/collate'
+import { en, type MessageKey } from '../i18n/messages/en'
+import { isLocaleTagError, parseLocaleTag } from '../i18n/locale-tag'
+import { DEFAULT_LOCALE } from '../i18n/runtime'
+import { t } from '../i18n/t'
+import type { LocaleCatalog, LocaleTag } from '../i18n/types'
+import { bakedDictionaries } from '../generated/locales'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import {
@@ -32,7 +40,10 @@ import {
   getSiteApiBaseUrl,
   getSiteSellMode,
   getSiteSelectionConfig,
+  getUiLocale,
   getWantedDir,
+  isConfigParseError,
+  parseUiLocale,
 } from '../ritual-config'
 import type {
   DeckSummary,
@@ -57,16 +68,25 @@ import {
   isThemeName,
   parseCustomTheme,
   resolveThemeName,
-  themeBootstrapScript,
   themeNames,
   type CustomTheme,
 } from '../themes'
+import { appBootScript, BOOT_SCRIPT_FILE, renderAppShell } from '../site/html-shell'
 import { ExitCode } from './scripting'
 import { addRefreshOption, bulkAllowed, refreshStaleAllowed, type RefreshMode } from '../refresh'
 
 export interface BuildSiteOptions {
   verbose?: boolean
   cacheImages?: boolean
+  /**
+   * The UI locale baked into this site: `<html lang>`/`dir` and
+   * `index.json.uiLocale`. Defaults to the `uiLocale` config value.
+   */
+  locale?: string
+  /** Which dictionaries to publish into `dist/locales/`. `all` means every one available. */
+  locales?: string[]
+  /** Dictionary JSON files to load from disk, the locale analogue of `--theme-file`. */
+  localeFile?: string[]
   /**
    * Selection flags are optional-variadic, so commander answers `true` for a
    * bare `--decks`; {@link selectionFlagNames} turns that into a usage error.
@@ -140,21 +160,188 @@ async function loadCustomThemes(paths: readonly string[]): Promise<CustomTheme[]
     try {
       raw = await fs.readFile(filePath, 'utf-8')
     } catch (err) {
-      return `Failed to read --theme-file '${filePath}': ${getErrorMessage(err)}`
+      return t('cli.buildSite.themeFileUnreadable', {
+        path: filePath,
+        reason: getErrorMessage(err),
+      })
     }
     let parsed: unknown
     try {
       parsed = JSON.parse(raw)
     } catch (err) {
-      return `--theme-file '${filePath}' is not valid JSON: ${getErrorMessage(err)}`
+      return t('cli.buildSite.themeFileNotJson', {
+        path: filePath,
+        reason: getErrorMessage(err),
+      })
     }
     const result = parseCustomTheme(parsed)
     if (typeof result === 'string') {
-      return `--theme-file '${filePath}': ${result}`
+      return t('cli.buildSite.themeFileInvalid', { path: filePath, reason: result })
     }
     themes.push(result)
   }
   return themes
+}
+
+// ---------------------------------------------------------------------------
+// Locales
+// ---------------------------------------------------------------------------
+
+/** One dictionary this build can publish, ready to write. */
+export type BuildLocale = {
+  tag: LocaleTag
+  catalog: LocaleCatalog
+}
+
+/**
+ * Parse a `--locale-file` document into a dictionary, or explain why it is not
+ * one.
+ *
+ * Deliberately tolerant about *coverage* and strict about *shape*: keys the
+ * English catalog does not have are dropped (a dictionary written against an
+ * older build is still worth shipping — `t()` falls back per key), while a
+ * value {@link parseCatalogEntry} refuses is a malformed file and fails the
+ * build. `scripts/check-locales.ts` is the full validator; this is the build's
+ * own gate on untrusted input, and it shares the shape parser with the browser's
+ * dictionary fetch so the two can never disagree about what `t()` can render.
+ */
+export function parseLocaleFile(raw: string): LocaleCatalog | string {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (err) {
+    return t('cli.buildSite.localeFileNotJson', { reason: getErrorMessage(err) })
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return t('cli.buildSite.localeFileNotObject')
+  }
+  const catalog: LocaleCatalog = {}
+  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (!(key in en)) continue
+    // The shape rule itself comes from `src/i18n/catalog.ts`, which is also what
+    // the browser's dictionary fetch and `scripts/check-locales.ts` use. Only the
+    // build-specific behavior stays here: drop keys English does not have, and
+    // wrap the parser's explanation in a `cli.buildSite.localeFile*` message.
+    const entry = parseCatalogEntry(value)
+    if (isCatalogEntryError(entry)) {
+      return t('cli.buildSite.localeFileBadValue', { key, reason: entry.error })
+    }
+    catalog[key] = entry
+  }
+  return catalog
+}
+
+/**
+ * Load every `--locale-file`. The file *name* is the locale tag (`de-AT.json`),
+ * matching the `locales/<tag>.json` layout translators work in and
+ * `check-locales.ts --emit-template` writes.
+ *
+ * Returns an error message string on the first failure, like
+ * {@link loadCustomThemes}.
+ */
+async function loadLocaleFiles(paths: readonly string[]): Promise<BuildLocale[] | string> {
+  const locales: BuildLocale[] = []
+  for (const filePath of paths) {
+    const name = path.basename(filePath).replace(/\.json$/i, '')
+    const tag = parseLocaleTag(name)
+    if (isLocaleTagError(tag)) {
+      return t('cli.buildSite.localeFileBadTag', { path: filePath, reason: tag.error })
+    }
+    let raw: string
+    try {
+      raw = await fs.readFile(filePath, 'utf-8')
+    } catch (err) {
+      return t('cli.buildSite.localeFileUnreadable', {
+        path: filePath,
+        reason: getErrorMessage(err),
+      })
+    }
+    const parsed = parseLocaleFile(raw)
+    if (typeof parsed === 'string') {
+      return t('cli.buildSite.localeFileInvalid', { path: filePath, reason: parsed })
+    }
+    locales.push({ tag, catalog: parsed })
+  }
+  return locales
+}
+
+/** What {@link planLocales} decides from. Nothing is read ambiently. */
+export type LocalePlanInput = {
+  /** The `--locale` value as typed, or undefined to fall back to the configured one. */
+  locale: string | undefined
+  /** The `--locales` values as typed, or undefined for the default (English only). */
+  locales: readonly string[] | undefined
+  /** The configured `uiLocale` — the baked default when no flag names one. */
+  configured: LocaleTag
+  /** Every dictionary this build could publish. English is implicit and never listed. */
+  available: readonly BuildLocale[]
+}
+
+/** The locale decisions a build acts on. */
+export type LocaleBuildPlan = {
+  /** The baked default: `<html lang>`/`dir` and `index.json.uiLocale`. */
+  locale: LocaleTag
+  /** The dictionaries to publish into `dist/locales/`, English first. */
+  emitted: BuildLocale[]
+  /** Non-fatal notes to print — a baked locale with no dictionary, so far. */
+  warnings: string[]
+}
+
+/**
+ * Decide which locale this site is baked in and which dictionaries ship with
+ * it. Pure, so the flag semantics are unit-testable; returns an error message
+ * string for a usage error, per the repo's parser convention.
+ *
+ * A baked locale with no dictionary is a *warning*, not an error: a catalog
+ * with zero coverage is the degenerate case of a partial one, and per the
+ * missing-key contract those must stay shippable. A `--locales` tag with no
+ * dictionary is an error, because that flag's whole job is to name files to
+ * emit.
+ */
+export function planLocales(input: LocalePlanInput): LocaleBuildPlan | string {
+  const bakedRaw = input.locale ?? input.configured
+  const baked = parseUiLocale(bakedRaw)
+  if (isConfigParseError(baked)) {
+    return t('cli.buildSite.localeInvalid', { value: bakedRaw, reason: baked.error })
+  }
+
+  const byTag = new Map<string, BuildLocale>()
+  for (const entry of input.available) byTag.set(entry.tag.toLowerCase(), entry)
+
+  const wanted: LocaleTag[] = [DEFAULT_LOCALE]
+  const addTag = (tag: LocaleTag): void => {
+    if (!wanted.some((existing) => existing.toLowerCase() === tag.toLowerCase())) wanted.push(tag)
+  }
+
+  for (const requested of input.locales ?? []) {
+    if (requested.trim().toLowerCase() === 'all') {
+      for (const entry of input.available) addTag(entry.tag)
+      continue
+    }
+    const tag = parseUiLocale(requested)
+    if (isConfigParseError(tag)) {
+      return t('cli.buildSite.localesInvalid', { value: requested, reason: tag.error })
+    }
+    if (tag !== DEFAULT_LOCALE && !byTag.has(tag.toLowerCase())) {
+      return t('cli.buildSite.localesUnknown', { tag })
+    }
+    addTag(tag)
+  }
+
+  const warnings: string[] = []
+  // The baked default is always emitted: a site whose shell says `lang="de"`
+  // must be able to fetch the German dictionary it names.
+  if (baked !== DEFAULT_LOCALE) {
+    if (byTag.has(baked.toLowerCase())) addTag(baked)
+    else {
+      warnings.push(t('cli.buildSite.bakedLocaleUndictionaried', { tag: baked }))
+    }
+  }
+
+  const emitted: BuildLocale[] = wanted.map(
+    (tag) => byTag.get(tag.toLowerCase()) ?? { tag, catalog: en },
+  )
+  return { locale: baked, emitted, warnings }
 }
 
 /** How the three list categories are named in build output. */
@@ -183,10 +370,27 @@ type SourceCategory = {
   buildable: ListSourceEntry[]
 }
 
-/** `3 decks` / `1 collection` — one pluralizer for every list-count message. */
-function countOf(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`
-}
+/**
+ * `3 decks` / `1 collection` — the counted-noun message for each list kind.
+ * Keys rather than rendered strings, so the table can be built at module load
+ * without freezing the wording in the locale that happened to be active then.
+ */
+const KIND_COUNT = {
+  deck: 'domain.count.decks',
+  collection: 'domain.count.collections',
+  'wanted list': 'domain.count.wantedLists',
+} as const satisfies Record<ListKind, MessageKey>
+
+/**
+ * The `$select` branch each list kind picks. A stable token rather than the
+ * English noun, so a translator never has to reproduce `'wanted list'` as a
+ * JSON key to hit the right branch.
+ */
+const KIND_BRANCH = {
+  deck: 'deck',
+  collection: 'collection',
+  'wanted list': 'wanted',
+} as const satisfies Record<ListKind, string>
 
 /** Deck sources may be URLs; those are fetched rather than resolved to a file. */
 function isDeckUrl(source: string): boolean {
@@ -213,7 +417,7 @@ export function selectionFlagNames(
 ): SelectionFlagResult {
   if (value === undefined || value === false) return { ok: true, names: undefined }
   if (value === true || (Array.isArray(value) && value.length === 0)) {
-    return { ok: false, error: `${flag} requires at least one name.` }
+    return { ok: false, error: t('cli.buildSite.selectionFlagEmpty', { flag }) }
   }
   return { ok: true, names: value }
 }
@@ -225,13 +429,21 @@ export function selectionFlagNames(
  * site is untouched", which is the fact a reader most needs from this block.
  */
 function reportSkippedSources(skipped: SkippedSource[], published: boolean): void {
-  console.error(`\n⚠️  ${countOf(skipped.length, 'source')} could not be built:`)
-  for (const source of skipped) {
-    console.error(`  - ${source.kind} '${source.name}': ${source.reason}`)
-  }
   console.error(
-    published ? 'The site was published without them.' : 'The published site was left unchanged.',
+    `\n${t('cli.buildSite.skippedHeader', {
+      counted: t('domain.count.sources', { count: skipped.length }),
+    })}`,
   )
+  for (const source of skipped) {
+    console.error(
+      t('cli.buildSite.skippedEntry', {
+        kind: KIND_BRANCH[source.kind],
+        name: source.name,
+        reason: source.reason,
+      }),
+    )
+  }
+  console.error(published ? t('cli.buildSite.publishedWithout') : t('cli.buildSite.leftUnchanged'))
 }
 
 export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
@@ -275,6 +487,34 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     }
     initialThemeName = resolved
   }
+
+  // Dictionaries this build could publish: whatever was baked into the binary
+  // (`RITUAL_BUNDLED_LOCALES`) plus whatever `--locale-file` hands it. The file
+  // path is how a *released* binary mints a locale it was never built with —
+  // the same escape hatch `--theme-file` gives themes.
+  const localeFilesResult = await loadLocaleFiles(options.localeFile ?? [])
+  if (typeof localeFilesResult === 'string') {
+    console.error(localeFilesResult)
+    process.exitCode = ExitCode.RuntimeError
+    return
+  }
+  const availableLocaleCatalogs: BuildLocale[] = [
+    ...bakedDictionaries.map(({ tag, catalog }): BuildLocale => ({ tag, catalog })),
+    // Last wins: a file on disk overrides a baked dictionary for the same tag.
+    ...localeFilesResult,
+  ]
+  const localePlan = planLocales({
+    locale: options.locale,
+    locales: options.locales,
+    configured: getUiLocale(),
+    available: availableLocaleCatalogs,
+  })
+  if (typeof localePlan === 'string') {
+    console.error(localePlan)
+    process.exitCode = ExitCode.UsageError
+    return
+  }
+  for (const warning of localePlan.warnings) console.warn(warning)
 
   const outDir = resolveOutDir(options.outDir)
   if (!outDir.ok) {
@@ -365,7 +605,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
   const skipped: SkippedSource[] = []
   const skipSource = (kind: ListKind, name: string, reason: string, explicit: boolean): void => {
     skipped.push({ kind, name, reason, explicit })
-    console.error(`Failed to load ${kind} '${name}': ${reason}`)
+    console.error(t('cli.buildSite.loadFailed', { kind: KIND_BRANCH[kind], name, reason }))
   }
 
   const deckCategory: SourceCategory = {
@@ -394,27 +634,48 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     const { selection: resolved } = category
     if (resolved.explicit) {
       for (const name of resolved.missing) {
-        skipSource(category.kind, name, `no ${category.kind} named that in ${category.dir}`, true)
+        skipSource(
+          category.kind,
+          name,
+          t('cli.buildSite.sourceMissing', {
+            kind: KIND_BRANCH[category.kind],
+            dir: category.dir,
+          }),
+          true,
+        )
       }
       for (const { name, matches } of resolved.ambiguous) {
         skipSource(
           category.kind,
           name,
-          `matches ${countOf(matches.length, category.kind)} (${matches.join(', ')}) — name one exactly`,
+          t('cli.buildSite.sourceAmbiguous', {
+            counted: t(KIND_COUNT[category.kind], { count: matches.length }),
+            matches: matches.join(', '),
+          }),
           true,
         )
       }
     } else {
       for (const name of resolved.unmatchedIncludes) {
         console.warn(
-          `⚠️  site.${category.configKey} lists '${name}', which matches no ${category.kind} in ${category.dir} — it may have been renamed or removed.`,
+          t('cli.buildSite.includeUnmatched', {
+            kind: KIND_BRANCH[category.kind],
+            configKey: category.configKey,
+            name,
+            dir: category.dir,
+          }),
         )
       }
       // "Found" describes discovery, so it is printed for the config selection
       // only — a name that came from a flag was given, not found.
       if (resolved.sources.length > 0) {
         const names = resolved.sources.map((s) => s.displayName).join(', ')
-        console.log(`Found ${countOf(resolved.sources.length, category.kind)}: ${names}`)
+        console.log(
+          t('cli.buildSite.foundSources', {
+            counted: t(KIND_COUNT[category.kind], { count: resolved.sources.length }),
+            names,
+          }),
+        )
       }
     }
     // A file that exists but could not be read carries its reason from
@@ -441,10 +702,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     deckUrls.length === 0 &&
     categories.every((category) => category.selection.sources.length === 0)
   ) {
-    console.error(
-      'Nothing to build: no decks, collections, or wanted lists were found. ' +
-        'Create one with `ritual new deck "My Deck"` (or run `ritual edit`), then build again.',
-    )
+    console.error(t('cli.buildSite.nothingToBuild'))
     process.exitCode = ExitCode.RuntimeError
     return
   }
@@ -453,12 +711,8 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
   // interactive by default).
   const mode = options.refresh ?? 'ask'
 
-  console.log('Building static site...')
-  if (cacheImages) {
-    console.log('Caching deck card images locally and using dist/images paths.')
-  } else {
-    console.log('Using Scryfall image URLs from card data and skipping deck image downloads.')
-  }
+  console.log(t('cli.buildSite.starting'))
+  console.log(cacheImages ? t('cli.buildSite.cachingImages') : t('cli.buildSite.usingImageUrls'))
 
   // Build into a scratch directory and swap it into place only once the build
   // has succeeded: clearing the output directory first meant any later failure
@@ -474,13 +728,11 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     // Fetch and download symbols. `never` means "use the existing cache as-is",
     // so an uncached symbology is left uncached rather than downloaded — the site
     // then renders without mana symbols, which the warning says out loud.
-    console.log('Fetching and downloading mana symbols...')
+    console.log(t('cli.buildSite.fetchingSymbols'))
     const symbologyNetwork = refreshStaleAllowed(mode)
     let symbols = await fetchSymbology({ network: symbologyNetwork })
     if (symbols.length === 0 && !symbologyNetwork) {
-      console.warn(
-        '⚠️  No cached symbology and --refresh never: mana symbols will be missing from the site. Re-run with --refresh auto to download them.',
-      )
+      console.warn(t('cli.buildSite.noSymbology'))
     }
     const symbolMap: Record<string, string> = {} // { "{W}": "images/symbols/W.svg" }
     const missingSymbols = new Set<string>()
@@ -493,7 +745,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
             const filename = await downloadSymbol(s, symbolsDir)
             symbolMap[s.symbol] = `images/symbols/${filename}`
           } catch (e) {
-            console.error(`Failed to download symbol ${s.symbol}:`, e)
+            console.error(t('cli.buildSite.symbolDownloadFailed', { symbol: s.symbol }), e)
           }
         }),
       )
@@ -519,7 +771,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
           for (const m of matches) if (!symbolMap[m]) missingSymbols.add(m)
           return
         }
-        console.log('Found new symbols in text. Refreshing symbology...')
+        console.log(t('cli.buildSite.refreshingSymbology'))
         symbols = await fetchSymbology({ force: true })
         await updateSymbolMap()
 
@@ -544,12 +796,14 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
      */
     const collectDeck = async (loaded: LoadedDeck): Promise<void> => {
       loadedDecks.push(loaded)
-      console.log(`  - Loaded ${loaded.data.name}`)
+      console.log(t('cli.buildSite.loadedDeck', { name: loaded.data.name }))
       for (const name of await deckCardNames(loaded)) allCardNames.add(name)
     }
 
     // Phase 1: Load Decks
-    if (deckUrls.length + deckCategory.buildable.length > 0) console.log('Loading decks...')
+    if (deckUrls.length + deckCategory.buildable.length > 0) {
+      console.log(t('cli.buildSite.loadingDecks'))
+    }
     for (const url of deckUrls) {
       let result: Awaited<ReturnType<typeof fetchDeckFromUrl>>
       try {
@@ -573,7 +827,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         continue
       }
       for (const warning of result.warnings) {
-        console.warn(`  ⚠️  ${source.displayName}: ${warning}`)
+        console.warn(t('cli.buildSite.sourceWarning', { name: source.displayName, warning }))
       }
       await collectDeck(result)
     }
@@ -594,7 +848,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
 
     const uniqueCards = Array.from(allCardNames)
     const totalCards = uniqueCards.length
-    console.log(`\nFound ${totalCards} unique cards.`)
+    console.log(`\n${t('cli.buildSite.uniqueCards', { count: totalCards })}`)
 
     // Ensure the full card cache has been bulk-downloaded at least once per week,
     // and trigger a bulk refresh if many cards are missing. Suppressed when bulk
@@ -607,9 +861,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         allowBulk: bulkAllowed(mode),
       }))
     } catch (e) {
-      console.error(
-        `Card cache download failed; building with the existing cache. ${getErrorMessage(e)}`,
-      )
+      console.error(t('cli.buildSite.cacheDownloadFailed', { reason: getErrorMessage(e) }))
     }
 
     // Collect missing card names (for verbose output and individual fetching)
@@ -623,17 +875,19 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
 
     if (options.verbose) {
       if (missingCards.length > 0) {
-        console.log(`Fetch List (${missingCards.length}):`)
-        missingCards.forEach((c) => console.log(` - ${c}`))
+        console.log(t('cli.buildSite.fetchListHeader', { count: missingCards.length }))
+        for (const name of missingCards) {
+          console.log(t('cli.buildSite.fetchListEntry', { name }))
+        }
       } else {
-        console.log('All cards are cached.')
+        console.log(t('cli.buildSite.allCardsCached'))
       }
     }
 
     const lastBulkRefresh = await cardCache.getLastRefreshedAt?.()
     await offerBulkPriceRefresh(uniqueCards, mode, cacheJustRefreshed)
 
-    console.log('Fetching data...')
+    console.log(t('cli.buildSite.fetchingData'))
 
     const updateProgress = (current: number, total: number) => {
       const width = 30
@@ -694,7 +948,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
           // Use cached prices when they're fresh, or when --refresh never forbids
           // refetching merely-stale prices.
           const sortedPrintings = [...printings].sort((a, b) =>
-            (b.released_at ?? '').localeCompare(a.released_at ?? ''),
+            compareData(b.released_at ?? '', a.released_at ?? ''),
           )
           repPrints = computeRepresentativePrints(
             sortedPrintings,
@@ -712,7 +966,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
           const cheap = repPrints.usd?.cheapest ?? null
           if (!rep) {
             globalMissingCards.usd!.add(name)
-            console.warn(`⚠️  '${name}' has no USD pricing.`)
+            console.warn(t('cli.buildSite.noPricing', { name, currency: 'USD' }))
           } else {
             globalCardMap[name] = rep
           }
@@ -724,7 +978,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
           const cheap = repPrints.eur?.cheapest ?? null
           if (!rep) {
             globalMissingCards.eur!.add(name)
-            console.warn(`⚠️  '${name}' has no EUR pricing.`)
+            console.warn(t('cli.buildSite.noPricing', { name, currency: 'EUR' }))
           }
           globalCheapestCardMapEur[name] = cheap ?? rep ?? card
         }
@@ -734,7 +988,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
           const cheap = repPrints.tix?.cheapest ?? null
           if (!rep) {
             globalMissingCards.tix!.add(name)
-            console.warn(`⚠️  '${name}' has no TIX pricing.`)
+            console.warn(t('cli.buildSite.noPricing', { name, currency: 'TIX' }))
           }
           globalCheapestCardMapTix[name] = cheap ?? rep ?? card
         }
@@ -810,8 +1064,8 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       // workspace whose lists priced nothing because there are no cards in them.
       console.error(
         totalCards === 0
-          ? 'No cards to price: every selected list is empty, so there is nothing to build.'
-          : emptyCacheAdvice('No price data found in the card cache.'),
+          ? t('cli.buildSite.noCardsToPrice')
+          : emptyCacheAdvice(t('cli.buildSite.noPriceData')),
       )
       process.exitCode = ExitCode.RuntimeError
       return false
@@ -853,7 +1107,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     }
 
     // Phase 3: Generate JSON data files and SPA bundle
-    console.log('Generating data files...')
+    console.log(t('cli.buildSite.generatingData'))
     const decksSummaries: DeckSummary[] = []
     const decksDataDir = path.join(buildDir, 'decks')
     await fs.mkdir(decksDataDir, { recursive: true })
@@ -869,7 +1123,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     const collectionsDataDir = path.join(buildDir, 'collections')
     await fs.mkdir(collectionsDataDir, { recursive: true })
 
-    if (collectionCategory.buildable.length > 0) console.log('Loading collections...')
+    if (collectionCategory.buildable.length > 0) console.log(t('cli.buildSite.loadingCollections'))
 
     for (const source of collectionCategory.buildable) {
       const loaded = await loadCollectionSource(collectionsDir, source.basename)
@@ -878,10 +1132,10 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         continue
       }
       for (const w of loaded.warnings) {
-        console.warn(`  ⚠️  ${source.displayName}: ${w}`)
+        console.warn(t('cli.buildSite.sourceWarning', { name: source.displayName, warning: w }))
       }
       if (loaded.entries.length === 0) {
-        console.log(`  ${source.displayName}: no valid entries, skipping`)
+        console.log(t('cli.buildSite.noValidEntries', { name: source.displayName }))
         continue
       }
 
@@ -889,7 +1143,11 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       await Bun.write(path.join(collectionsDataDir, `${slug}.json`), JSON.stringify(detail))
       collectionsSummaries.push(summary)
       console.log(
-        `  - Loaded ${summary.name} (${countOf(summary.cardCount, 'card')}, $${summary.totalPrice.toFixed(2)})`,
+        t('cli.buildSite.loadedList', {
+          name: summary.name,
+          counted: t('domain.count.cards', { count: summary.cardCount }),
+          price: summary.totalPrice.toFixed(2),
+        }),
       )
     }
 
@@ -899,7 +1157,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     const wantedListsDataDir = path.join(buildDir, 'wanted')
     await fs.mkdir(wantedListsDataDir, { recursive: true })
 
-    if (wantedCategory.buildable.length > 0) console.log('Loading wanted lists...')
+    if (wantedCategory.buildable.length > 0) console.log(t('cli.buildSite.loadingWantedLists'))
 
     for (const source of wantedCategory.buildable) {
       const loaded = await loadWantedSource(wantedListsSourceDir, source.basename)
@@ -908,10 +1166,10 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         continue
       }
       for (const w of loaded.warnings) {
-        console.warn(`  ⚠️  ${source.displayName}: ${w}`)
+        console.warn(t('cli.buildSite.sourceWarning', { name: source.displayName, warning: w }))
       }
       if (loaded.entries.length === 0) {
-        console.log(`  ${source.displayName}: no valid entries, skipping`)
+        console.log(t('cli.buildSite.noValidEntries', { name: source.displayName }))
         continue
       }
 
@@ -919,7 +1177,11 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       await Bun.write(path.join(wantedListsDataDir, `${slug}.json`), JSON.stringify(detail))
       wantedListsSummaries.push(summary)
       console.log(
-        `  - Loaded ${summary.name} (${countOf(summary.cardCount, 'card')}, $${summary.totalPrice.toFixed(2)})`,
+        t('cli.buildSite.loadedList', {
+          name: summary.name,
+          counted: t('domain.count.cards', { count: summary.cardCount }),
+          price: summary.totalPrice.toFixed(2),
+        }),
       )
     }
 
@@ -934,6 +1196,11 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       pricesDate,
       searchDebounceMs: getSearchDebounceMs(),
       defaultLanguage: getDefaultLanguage(),
+      // The interface language, not the card language: `defaultLanguage` above
+      // decides which printing of a card is shown, this decides what Ritual's
+      // own text says. The two are orthogonal on purpose.
+      uiLocale: localePlan.locale,
+      availableLocales: localePlan.emitted.map((entry) => entry.tag),
       // Present only for split deployments (static site on a CDN + separately
       // hosted `ritual serve --api`); `serve --api` itself serves index.json
       // dynamically and shadows this value with a same-origin marker.
@@ -946,44 +1213,49 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     await Bun.write(path.join(buildDir, 'index.json'), JSON.stringify(siteIndex))
 
     // Write pre-built SPA
-    console.log('Writing Web App...')
+    console.log(t('cli.buildSite.writingApp'))
     await Bun.write(path.join(buildDir, 'app.js'), siteSpaAssets.appJs)
 
-    // Defense-in-depth: theme names always pass through `resolveThemeName`
-    // or `parseCustomTheme` which enforce safe identifier patterns, but
-    // re-validate at the HTML interpolation site so a future refactor can't
-    // silently introduce attribute-injection.
-    const safeInitialTheme = /^[a-z0-9][a-z0-9-]*$/.test(initialThemeName)
-      ? initialThemeName
-      : 'default'
-    const initialThemeAttr =
-      safeInitialTheme === 'default' ? '' : ` data-theme="${safeInitialTheme}"`
+    // Dictionaries as data, next to the one JS bundle. English is inline in the
+    // bundle and never fetched; it is written anyway so a static host serves a
+    // complete, self-describing `availableLocales` set.
+    const localesDir = path.join(buildDir, 'locales')
+    await fs.mkdir(localesDir, { recursive: true })
+    for (const entry of localePlan.emitted) {
+      await Bun.write(path.join(localesDir, `${entry.tag}.json`), JSON.stringify(entry.catalog))
+    }
+    console.log(
+      t('cli.buildSite.writingLocales', {
+        counted: t('domain.count.files', { count: localePlan.emitted.length }),
+        locale: localePlan.locale,
+      }),
+    )
 
-    // Generate index.html shell
-    const indexHtml = `<!DOCTYPE html>
-  <html lang="en"${initialThemeAttr}>
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Ritual</title>
-    <link rel="icon" type="image/svg+xml" href="app.svg">
-    <script>${themeBootstrapScript}</script>
-    <link rel="stylesheet" href="styles.css">
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="app.js"></script>
-  </body>
-  </html>`
-    await Bun.write(path.join(buildDir, 'index.html'), indexHtml)
+    // Theme *and* locale bootstrap, external so a `script-src 'self'` policy
+    // accepts it — the public site has no such header today, but the admin does
+    // and both shells are now the same code.
+    await Bun.write(path.join(buildDir, BOOT_SCRIPT_FILE), appBootScript)
+    await Bun.write(
+      path.join(buildDir, 'index.html'),
+      renderAppShell({
+        lang: localePlan.locale,
+        // i18n-exempt: the product name, a proper noun that is the same in every locale
+        title: 'Ritual',
+        initialTheme: initialThemeName,
+        viewport: 'width=device-width, initial-scale=1.0, viewport-fit=cover',
+      }),
+    )
 
     // Write bundled CSS — emit every built-in theme as a `:root[data-theme=...]`
     // block so the runtime can switch by toggling the html attribute, plus
     // any custom themes from --theme-file.
     console.log(
-      `Writing CSS (initial theme: ${initialThemeName}${
-        customThemes.length > 0 ? `, +${customThemes.length} custom` : ''
-      })...`,
+      customThemes.length > 0
+        ? t('cli.buildSite.writingCssCustom', {
+            theme: initialThemeName,
+            count: customThemes.length,
+          })
+        : t('cli.buildSite.writingCss', { theme: initialThemeName }),
     )
     const allThemes = generateAllThemesCss()
     const customThemesCss = customThemes.map((t) => generateCustomThemeCss(t)).join('\n')
@@ -1002,7 +1274,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     reportSkippedSources(skipped, published)
     if (!published) process.exitCode = ExitCode.RuntimeError
   }
-  if (published) console.log(`Site generated in ${distDir}`)
+  if (published) console.log(t('cli.buildSite.done', { dir: distDir }))
 }
 
 /**
@@ -1010,56 +1282,64 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
  * Shared by `build-site` and `serve --build` so the two stay in sync.
  */
 export function applyBuildSiteOptions(command: Command): Command {
-  return addRefreshOption(
-    command,
-    'Card cache refresh policy: ask (default; bulk-downloads an empty or stale cache without asking, prompts for the price and tag refreshes), auto, no-bulk, never',
+  return (
+    addRefreshOption(command, t('help.buildSite.refresh'))
+      .option('-v, --verbose', t('help.buildSite.verbose'))
+      .option('--cache-images', t('help.buildSite.cacheImages'))
+      .option('--decks [names...]', t('help.buildSite.decks'))
+      .option('--collections [names...]', t('help.buildSite.collections'))
+      .option('--wanted-lists [names...]', t('help.buildSite.wantedLists'))
+      .option('--currencies <list>', t('help.buildSite.currencies'))
+      .option(
+        '--theme <name>',
+        t('help.buildSite.theme', { themes: themeNames.join(', ') }),
+        'default',
+      )
+      .option('--theme-file <path...>', t('help.buildSite.themeFile'))
+      // Declared here so `build-site --help` documents the flag on the command it
+      // belongs to — but see `resolveBuildLocale`: the root program declares
+      // `--locale` too, and commander gives the root the value from either
+      // position, so this declaration never receives one.
+      .option('--locale <tag>', t('help.buildSite.locale'))
+      .option('--locales <tags...>', t('help.buildSite.locales'))
+      .option('--locale-file <path...>', t('help.buildSite.localeFile'))
+      .option('--moxfield-user-agent <agent>', t('help.buildSite.moxfieldUserAgent'))
+      .option('--out-dir <path>', t('help.buildSite.outDir'))
   )
-    .option('-v, --verbose', 'Show list of cards to be fetched')
-    .option(
-      '--cache-images',
-      'Download and use local deck card images instead of Scryfall image URLs',
-    )
-    .option(
-      '--decks [names...]',
-      'Deck names or URLs to build (default: the site.includeDecks config selection)',
-    )
-    .option(
-      '--collections [names...]',
-      'Collection names to build (default: the site.includeCollections config selection)',
-    )
-    .option(
-      '--wanted-lists [names...]',
-      'Wanted list names to build (default: the site.includeWantedLists config selection)',
-    )
-    .option(
-      '--currencies <list>',
-      'Comma-separated currencies to include: usd, eur, tix (default: all three; first is default)',
-    )
-    .option(
-      '--theme <name>',
-      `Initial theme baked into the generated HTML (${themeNames.join(', ')}, or a custom theme name loaded via --theme-file)`,
-      'default',
-    )
-    .option(
-      '--theme-file <path...>',
-      'Load one or more custom theme JSON files; their names become selectable alongside the built-ins',
-    )
-    .option(
-      '--moxfield-user-agent <agent>',
-      'Moxfield-approved unique User-Agent string (required for Moxfield deck URLs unless MOXFIELD_USER_AGENT is set)',
-    )
-    .option(
-      '--out-dir <path>',
-      'Publish into this directory instead of dist/ (relative paths resolve against the Ritual directory); `serve` without --build serves it instead',
-    )
+}
+
+/** What {@link resolveBuildLocale} reads off the command tree. */
+type GlobalLocaleOption = {
+  locale?: string
+}
+
+/**
+ * The `--locale <tag>` this build was given, from either flag position.
+ *
+ * `--locale` is declared twice: on the root program (the language Ritual's own
+ * output speaks) and on the build surface (the locale baked into the generated
+ * site). Commander resolves a flag against the *root* command while it scans
+ * for the subcommand's operands, so the root consumes `build-site --locale de`
+ * before the subcommand ever sees it and `options.locale` here is always
+ * undefined. `optsWithGlobals()` is where the value actually lands.
+ *
+ * Read it rather than renaming the flag, so both documented spellings —
+ * `ritual build-site --locale de` and `ritual --locale de build-site` — bake the
+ * locale they name. The root's `argParser` has already rejected a malformed tag
+ * with exit 2 by this point.
+ */
+export function resolveBuildLocale(
+  command: Command,
+  options: BuildSiteOptions,
+): string | undefined {
+  return options.locale ?? command.optsWithGlobals<GlobalLocaleOption>().locale
 }
 
 export function registerBuildSiteCommand(program: Command): void {
-  applyBuildSiteOptions(
-    program
-      .command('build-site')
-      .description('Generate a static website for your decks, collections, and wanted lists'),
-  ).action(async (options: BuildSiteOptions) => {
-    await runBuildSite(options)
+  const command = applyBuildSiteOptions(
+    program.command('build-site').description(t('help.buildSite.description')),
+  )
+  command.action(async (options: BuildSiteOptions) => {
+    await runBuildSite({ ...options, locale: resolveBuildLocale(command, options) })
   })
 }

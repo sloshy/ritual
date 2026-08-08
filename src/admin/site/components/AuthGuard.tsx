@@ -1,6 +1,7 @@
 import type { Component } from 'solid-js'
 import { createSignal, Show } from 'solid-js'
 import { FlameIcon } from '../../../site/FlameIcon'
+import { useT } from '../../../ui/i18n'
 import { MIN_PASSWORD_LENGTH } from '../../validation'
 
 interface AuthGuardSetupProps {
@@ -24,6 +25,7 @@ type RateLimitResponse = { retryAfterSeconds?: number }
 type SetupResponse = { success: boolean; message: string }
 
 export const AuthGuard: Component<AuthGuardProps> = (props) => {
+  const t = useT()
   const [username, setUsername] = createSignal('')
   const [password, setPassword] = createSignal('')
   const [totpCode, setTotpCode] = createSignal('')
@@ -36,12 +38,12 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
     setError(null)
 
     if (!username() || !password()) {
-      setError('Username and password are required')
+      setError(t('admin.auth.credentialsRequired'))
       return
     }
 
     if (!props.isLogin && password().length < MIN_PASSWORD_LENGTH) {
-      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+      setError(t('admin.auth.passwordTooShort', { count: MIN_PASSWORD_LENGTH }))
       return
     }
 
@@ -68,25 +70,25 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
             const data = (await resp.json()) as LoginErrorResponse
             if (data.totpRequired && !showTotp()) {
               setShowTotp(true)
-              setError('Two-factor authentication code required')
+              setError(t('admin.auth.totpRequired'))
             } else if (data.totpRequired) {
-              setError('Invalid TOTP code')
+              setError(t('admin.auth.totpInvalid'))
             } else {
-              setError(data.message ?? 'Invalid username or password')
+              setError(data.message ?? t('admin.auth.invalidCredentials'))
             }
           } catch {
-            setError('Invalid username or password')
+            setError(t('admin.auth.invalidCredentials'))
           }
         } else if (resp.status === 429) {
           try {
             const data = (await resp.json()) as RateLimitResponse
             const secs = data.retryAfterSeconds ?? 300
-            setError(`Too many failed attempts. Try again in ${Math.ceil(secs / 60)} minute(s).`)
+            setError(t('admin.auth.rateLimited', { count: Math.ceil(secs / 60) }))
           } catch {
-            setError('Too many failed attempts. Try again later.')
+            setError(t('admin.auth.rateLimitedLater'))
           }
         } else {
-          setError('Invalid username or password')
+          setError(t('admin.auth.invalidCredentials'))
         }
       } else {
         const resp = await fetch('/api/setup', {
@@ -107,14 +109,14 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
           if (loginResp.ok) {
             props.onSetupComplete()
           } else {
-            setError('Account created but login failed. Try signing in.')
+            setError(t('admin.auth.setupLoginFailed'))
           }
         } else {
           setError(data.message)
         }
       }
     } catch {
-      setError('Connection failed')
+      setError(t('admin.auth.connectionFailed'))
     } finally {
       setLoading(false)
     }
@@ -125,17 +127,17 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
       <div class="login-card">
         <h1 class="login-title">
           <FlameIcon class="login-title-icon" />
-          Ritual Admin
+          {t('admin.layout.title')}
         </h1>
         <p class="login-subtitle">
-          {props.isLogin ? 'Sign in to continue' : 'Create your admin account'}
+          {props.isLogin ? t('admin.auth.signInSubtitle') : t('admin.auth.createSubtitle')}
         </p>
         <Show when={error()}>
           <div class="alert alert-error">{error()}</div>
         </Show>
         <form onSubmit={(e) => void handleSubmit(e)}>
           <div class="form-group">
-            <label class="form-label">Username</label>
+            <label class="form-label">{t('admin.auth.username')}</label>
             <input
               type="text"
               class="form-input"
@@ -145,7 +147,7 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
             />
           </div>
           <div class="form-group">
-            <label class="form-label">Password</label>
+            <label class="form-label">{t('admin.auth.password')}</label>
             <input
               type="password"
               class="form-input"
@@ -155,7 +157,7 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
           </div>
           <Show when={showTotp()}>
             <div class="form-group">
-              <label class="form-label">Two-Factor Code</label>
+              <label class="form-label">{t('admin.auth.totpCode')}</label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -171,11 +173,15 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
           </Show>
           <Show when={!props.isLogin}>
             <p class="form-hint auth-hint">
-              Password must be at least {MIN_PASSWORD_LENGTH} characters.
+              {t('admin.auth.passwordHint', { count: MIN_PASSWORD_LENGTH })}
             </p>
           </Show>
           <button type="submit" class="btn btn-primary btn-full" disabled={loading()}>
-            {loading() ? 'Please wait...' : props.isLogin ? 'Sign In' : 'Create Account'}
+            {loading()
+              ? t('admin.auth.pleaseWait')
+              : props.isLogin
+                ? t('admin.auth.signIn')
+                : t('admin.auth.createAccount')}
           </button>
         </form>
       </div>

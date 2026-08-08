@@ -1,3 +1,7 @@
+import { compareData, compareDisplay } from '../i18n/collate'
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
+
 export type ViewMode = 'binder' | 'list' | 'overlap' | 'stack'
 export type CardSize = 'large' | 'medium' | 'small'
 export const CARD_SIZE_WIDTHS = {
@@ -37,22 +41,38 @@ export type PriceGroupStrategy = 'archidekt' | 'five' | 'ten'
 /** A labeled option for a toolbar `<select>`, carrying its precise value type. */
 export type SelectOption<T extends string = string> = { value: T; label: string }
 
+/**
+ * The same option before its label is rendered. Module-level option tables hold
+ * this shape — a `MessageKey` rather than text — because they are evaluated once
+ * at import, and a rendered string there would leave the toolbar dropdowns in
+ * the boot-time language after a locale switch. The `value` half is a persisted
+ * URL token and stays locale-independent.
+ */
+export type SelectOptionKey<T extends string = string> = { value: T; label: MessageKey }
+
+/**
+ * Every key naming a toolbar sort field. Narrower than `MessageKey` so `t()`
+ * can render one without params, and `Extract` turns a key that no longer
+ * exists in the catalog into `never` — a compile error at the table below.
+ */
+export type SortByMessageKey = Extract<MessageKey, `domain.sortBy.${string}`>
+
 /** Canonical display label for each sort field; the single source of truth for toolbar option labels. */
 export const SORT_BY_LABELS = {
-  name: 'Name',
-  cmc: 'Mana Value',
-  price: 'Price',
-  'buylist-price': 'Buylist Price',
-  'buylist-spread': 'Buylist vs Price',
-  edhrec: 'EDHRec Rank',
-  'file-order': 'File Order',
-  'set-code': 'Set Code',
-  'color-identity': 'Color Identity',
-} as const satisfies Record<SortBy, string>
+  name: 'domain.sortBy.name',
+  cmc: 'domain.sortBy.cmc',
+  price: 'domain.sortBy.price',
+  'buylist-price': 'domain.sortBy.buylistPrice',
+  'buylist-spread': 'domain.sortBy.buylistSpread',
+  edhrec: 'domain.sortBy.edhrec',
+  'file-order': 'domain.sortBy.fileOrder',
+  'set-code': 'domain.sortBy.setCode',
+  'color-identity': 'domain.sortBy.colorIdentity',
+} as const satisfies Record<SortBy, SortByMessageKey>
 
 /**
  * Every sort field, derived from the labels rather than restated. `satisfies
- * Record<SortBy, string>` above makes the key set exactly `SortBy`, so a new
+ * Record<SortBy, SortByMessageKey>` above makes the key set exactly `SortBy`, so a new
  * member is a compile error there instead of a shared link whose `sort=` value
  * silently fails to parse.
  */
@@ -64,9 +84,20 @@ export const SORT_BYS = Object.keys(SORT_BY_LABELS) as readonly SortBy[]
  * that validates a shared link's `group=` — offer exactly the same set.
  */
 export const SELL_GROUP_BY_OPTIONS = [
-  { value: 'buylist-price', label: 'Buylist Price' },
-  { value: 'on-buylist', label: 'On Buylist' },
-] as const satisfies readonly SelectOption<GroupBy>[]
+  { value: 'buylist-price', label: 'domain.groupBy.buylistPrice' },
+  { value: 'on-buylist', label: 'domain.groupBy.onBuylist' },
+] as const satisfies readonly SelectOptionKey<GroupBy>[]
+
+/**
+ * The group-by values sell mode adds. Narrower than `GroupBy`, so a page whose
+ * own group-by union is a subset of it can still spread these options in.
+ */
+export type SellGroupBy = (typeof SELL_GROUP_BY_OPTIONS)[number]['value']
+
+/** {@link SELL_GROUP_BY_OPTIONS} with its labels rendered in the active locale. */
+export function sellGroupByOptions(): SelectOption<SellGroupBy>[] {
+  return SELL_GROUP_BY_OPTIONS.map((option) => ({ value: option.value, label: t(option.label) }))
+}
 
 /** The sort fields sell mode adds. */
 export const SELL_SORT_BYS = [
@@ -95,9 +126,9 @@ export function sortByValuesFor(
  */
 export function sortByOptions(
   values: readonly SortBy[],
-  overrides?: Partial<Record<SortBy, string>>,
+  overrides?: Partial<Record<SortBy, SortByMessageKey>>,
 ): SelectOption<SortBy>[] {
-  return values.map((value) => ({ value, label: overrides?.[value] ?? SORT_BY_LABELS[value] }))
+  return values.map((value) => ({ value, label: t(overrides?.[value] ?? SORT_BY_LABELS[value]) }))
 }
 
 export interface CardData {
@@ -328,11 +359,11 @@ export function groupTotalPrice(cards: CardData[]): number {
 function compareByField(a: CardData, b: CardData, sortBy: SortBy): number {
   switch (sortBy) {
     case 'name':
-      return a.name.localeCompare(b.name)
+      return compareDisplay(a.name, b.name)
     case 'file-order':
       return a.fileOrder - b.fileOrder
     case 'set-code':
-      return a.setCode.localeCompare(b.setCode)
+      return compareData(a.setCode, b.setCode)
     case 'color-identity':
       return colorIdentitySortValue(a.colorIdentity) - colorIdentitySortValue(b.colorIdentity)
     // Spelled out because the field name differs from the sort key; the default
@@ -363,7 +394,7 @@ export function compareBySortLayers(
     const result = compareByField(a, b, layer.sortBy)
     if (result !== 0) return layer.reverse ? -result : result
   }
-  return a.name.localeCompare(b.name)
+  return compareDisplay(a.name, b.name)
 }
 
 export function getCardTypeCategory(typeLine: string): string {

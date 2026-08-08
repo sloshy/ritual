@@ -12,6 +12,7 @@ import {
   parseDefaultLanguage,
   parseSearchDebounceMs,
   parseSiteConfig,
+  parseUiLocale,
   refreshRitualConfig,
   saveRitualConfig,
   type ConfigParseError,
@@ -44,6 +45,7 @@ const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set(
     wantedDir: true,
     defaultCurrency: true,
     defaultLanguage: true,
+    uiLocale: true,
     cacheLockTimeoutSeconds: true,
     cacheSource: true,
     cacheFeedUrl: true,
@@ -72,6 +74,7 @@ const DIRECTORY_CONFIG_KEYS = ['decksDir', 'collectionsDir', 'wantedDir'] as con
 type ScalarConfigKey =
   | 'defaultCurrency'
   | 'defaultLanguage'
+  | 'uiLocale'
   | 'cacheLockTimeoutSeconds'
   | 'cacheSource'
   | 'searchDebounceMs'
@@ -134,6 +137,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     const scalarError =
       applyScalarUpdate(raw, updates, 'defaultCurrency', parseDefaultCurrency) ??
       applyScalarUpdate(raw, updates, 'defaultLanguage', parseDefaultLanguage) ??
+      applyScalarUpdate(raw, updates, 'uiLocale', parseUiLocale) ??
       applyScalarUpdate(raw, updates, 'cacheLockTimeoutSeconds', parseCacheLockTimeoutSeconds) ??
       applyScalarUpdate(raw, updates, 'cacheSource', parseCacheSource) ??
       applyScalarUpdate(raw, updates, 'searchDebounceMs', parseSearchDebounceMs)

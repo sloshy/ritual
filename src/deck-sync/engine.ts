@@ -13,6 +13,7 @@ import { ArchidektClient, createPacedArchidektClient } from '../clients/Archidek
 import { listDeckFiles, parseDeckText, type DeckParseResult } from '../importers/text-file'
 import { unreadableLines } from '../markdown-fence'
 import { getErrorMessage } from '../errors'
+import { t } from '../i18n/t'
 import {
   parseDeckFrontMatter,
   serializeDeckToMarkdown,
@@ -597,7 +598,7 @@ async function resolveTargetDecks(
         continue
       }
       const lines = entry.deck.warnings.length
-      const reason = `${lines} unreadable line${lines === 1 ? '' : 's'} would be dropped by a sync`
+      const reason = `${t('domain.count.unreadableLines', { count: lines })} would be dropped by a sync`
       const result: DeckSyncDeckResult = { name: entry.deck.name, status: 'failed', reason }
       // Logged like every other failure, so a refused deck carries its reason
       // inline rather than only in the list emitted above.

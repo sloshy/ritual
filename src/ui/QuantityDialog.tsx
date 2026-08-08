@@ -1,6 +1,7 @@
 import { type Component, createSignal } from 'solid-js'
 import { Modal } from './Modal'
 import { clampQuantity } from './quantity'
+import { useT } from './i18n'
 
 export interface QuantityDialogProps {
   open: boolean
@@ -23,6 +24,7 @@ export interface QuantityDialogProps {
  */
 export const QuantityDialog: Component<QuantityDialogProps> = (props) => {
   const [count, setCount] = createSignal(1)
+  const t = useT()
 
   const clampedCount = (): number => clampQuantity(count(), 1, props.total)
 
@@ -38,7 +40,7 @@ export const QuantityDialog: Component<QuantityDialogProps> = (props) => {
       <h3>{props.title}</h3>
       <p class="dialog-message">{props.message}</p>
       <div class="change-printing-qty-field">
-        <label for={props.inputId}>Copies</label>
+        <label for={props.inputId}>{t('ui.quantity.copies')}</label>
         <input
           id={props.inputId}
           class="form-input"
@@ -48,11 +50,11 @@ export const QuantityDialog: Component<QuantityDialogProps> = (props) => {
           value={count()}
           onInput={(e) => setCount(Number(e.currentTarget.value))}
         />
-        <span class="text-muted">of {props.total}</span>
+        <span class="text-muted">{t('ui.quantity.ofTotal', { total: props.total })}</span>
       </div>
       <div class="confirm-dialog-actions">
         <button type="button" class="btn btn-secondary" onClick={props.onCancel}>
-          Cancel
+          {t('ui.dialog.cancel')}
         </button>
         <button
           type="button"

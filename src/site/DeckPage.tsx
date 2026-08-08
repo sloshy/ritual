@@ -1,13 +1,15 @@
 import { buylistFieldsFor } from './buylist-quotes'
 import { useSellMode } from './useSellMode'
 import { sellableFromCardData, selectionToCartCsv } from './sell-value'
-import { BUYER_DISPLAY_NAMES } from '../buylist'
+import { buyerName } from '../buylist'
 import { cartBuyer } from './sell-mode'
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
 import { normalizeCardName } from '../term-match'
+import { useT } from '../ui/i18n'
+import type { MessageKey } from '../i18n/messages/en'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
@@ -25,6 +27,7 @@ import {
   type SortBy,
   type CardData,
   type CardGroup,
+  type SelectOption,
   groupAndSortCards,
   groupTotalPrice,
   sortByOptions,
@@ -67,15 +70,33 @@ import { deckToCsv } from '../editor/list-export'
 
 type DeckTradePicker = { cardName: string; printings: ScryfallCard[]; deckEntry: Card }
 
-type DeckGroupByOption = { value: GroupBy; label: string }
+/**
+ * Every key a group-by dropdown label may name. Narrower than `MessageKey` so
+ * `t()` can render one without params, and `Extract` turns a key that no longer
+ * exists in the catalog into `never` — a compile error at the table below.
+ */
+type GroupByMessageKey = Extract<MessageKey, `site.groupBy.${string}` | `domain.groupBy.${string}`>
+
+/**
+ * A group-by choice before its label is rendered. The `value` half is a
+ * persisted URL token and stays locale-independent.
+ */
+type DeckGroupByOption = { value: GroupBy; label: GroupByMessageKey }
+
+/**
+ * The deck's group-by choices. Labels are {@link MessageKey}s, not rendered
+ * text: this table is evaluated once at module load, so a rendered string would
+ * freeze the dropdown in whatever language the bundle booted in. The `value`
+ * side stays locale-independent — it is what `group=` carries in a shared URL.
+ */
 const DECK_GROUP_BY_OPTIONS: DeckGroupByOption[] = [
-  { value: 'type', label: 'Type' },
-  { value: 'section', label: 'Section' },
-  { value: 'cmc', label: 'Mana Value' },
-  { value: 'color-identity', label: 'Color Identity' },
-  { value: 'price', label: 'Price' },
-  { value: 'printing', label: 'Printing' },
-  { value: 'none', label: 'None' },
+  { value: 'type', label: 'site.groupBy.type' },
+  { value: 'section', label: 'site.groupBy.section' },
+  { value: 'cmc', label: 'site.groupBy.cmc' },
+  { value: 'color-identity', label: 'site.groupBy.colorIdentity' },
+  { value: 'price', label: 'site.groupBy.price' },
+  { value: 'printing', label: 'site.groupBy.printing' },
+  { value: 'none', label: 'site.groupBy.none' },
 ]
 
 /**
@@ -86,7 +107,7 @@ const DECK_GROUP_BY_OPTIONS: DeckGroupByOption[] = [
 function deckGroupByOptions(sellMode: boolean): DeckGroupByOption[] {
   if (!sellMode) return DECK_GROUP_BY_OPTIONS
   const withoutNone = DECK_GROUP_BY_OPTIONS.filter((o) => o.value !== 'none')
-  return [...withoutNone, ...SELL_GROUP_BY_OPTIONS, { value: 'none', label: 'None' }]
+  return [...withoutNone, ...SELL_GROUP_BY_OPTIONS, { value: 'none', label: 'site.groupBy.none' }]
 }
 
 // The sort fields this page offers, in order — shared by the toolbar's dropdown
@@ -167,6 +188,7 @@ export interface DeckPageProps {
 }
 
 export const DeckPage: Component<DeckPageProps> = (props) => {
+  const t = useT()
   const selection = useCardSelection({ kind: 'deck', name: props.deck.name })
   const editActions = createMemo(() =>
     props.bulkEdit ? buildSelectionEditActions(props.bulkEdit, selection) : undefined,
@@ -192,6 +214,12 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   // link may name, while the dropdown offers only what is currently on.
   const sortValuesFor = (sellMode: boolean): readonly SortBy[] =>
     sortByValuesFor(DECK_SORT_BYS, sellMode)
+  /** The dropdown's options with their labels rendered in the active locale. */
+  const groupByOptions = (): SelectOption<GroupBy>[] =>
+    deckGroupByOptions(sell.active()).map((option) => ({
+      value: option.value,
+      label: t(option.label),
+    }))
   useListViewUrlSync({
     toolbar,
     filters: cardFilters,
@@ -524,7 +552,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     if (!buyer) return []
     return [
       {
-        label: `${BUYER_DISPLAY_NAMES[buyer]} cart (.csv)`,
+        label: t('site.export.buyerCart', { buyer: buyerName(buyer) }),
         extension: 'csv',
         mime: 'text/csv',
         serialize: () => {
@@ -664,11 +692,13 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         <div>
           <h1 class="page-title">{props.deck.name}</h1>
           <p class="page-stats">
-            Total: {formatPrice(totalPrice(), props.currency)}
+            {t('site.stats.total', { amount: formatPrice(totalPrice(), props.currency) })}
             <Show when={!cardFilters.filters.hideExtras && partitioned().extraCards.length > 0}>
               <span class="page-stats-label">
                 {' '}
-                (all cards: {formatPrice(totalPrice() + extrasPrice(), props.currency)})
+                {t('site.deck.allCardsPrice', {
+                  amount: formatPrice(totalPrice() + extrasPrice(), props.currency),
+                })}
               </span>
             </Show>
             <FilteredPriceStat
@@ -690,14 +720,15 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           <SellModeNotice sellMode={sell.active()} />
           <Show when={props.deck.sourceUrl}>
             <a href={props.deck.sourceUrl} target="_blank" rel="noreferrer" class="copy-link">
-              Imported from{' '}
-              {(() => {
-                if (props.deck.sourceUrl!.includes('moxfield.com')) return 'Moxfield'
-                if (props.deck.sourceUrl!.includes('archidekt.com')) return 'Archidekt'
-                if (props.deck.sourceUrl!.includes('mtggoldfish.com')) return 'MTGGoldfish'
-                return 'Source'
-              })()}{' '}
-              ↗
+              {t('site.deck.importedFrom', {
+                source: (() => {
+                  // i18n-exempt: site names are proper nouns and stay as spelled.
+                  if (props.deck.sourceUrl!.includes('moxfield.com')) return 'Moxfield'
+                  if (props.deck.sourceUrl!.includes('archidekt.com')) return 'Archidekt'
+                  if (props.deck.sourceUrl!.includes('mtggoldfish.com')) return 'MTGGoldfish'
+                  return t('site.deck.sourceGeneric')
+                })(),
+              })}
             </a>
           </Show>
         </div>
@@ -712,7 +743,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           <div class="btn-group">
             <Show when={props.onCombine}>
               <button onClick={() => props.onCombine!()} class="btn btn-secondary">
-                Combine with list…
+                {t('site.page.combineWithList')}
               </button>
             </Show>
             <Show when={props.changelog && props.changelog.length > 0}>
@@ -720,7 +751,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
                 onClick={() => setShowChangelog(true)}
                 class="btn btn-secondary btn-view-changes"
               >
-                View Changes
+                {t('site.page.viewChanges')}
               </button>
             </Show>
             <Show when={props.enableExport}>
@@ -744,7 +775,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         cardSize={cardSize()}
         onCardSizeChange={setCardSize}
         groupBy={groupBy()}
-        groupByOptions={deckGroupByOptions(sell.active())}
+        groupByOptions={groupByOptions()}
         onGroupByChange={(v) => setGroupBy(v as GroupBy)}
         sortLayers={sortLayers()}
         sortByOptions={sortByOptions(sortValuesFor(sell.active()))}
@@ -766,7 +797,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           hasLowestPriceCards()
             ? [
                 {
-                  label: 'Lowest Price',
+                  label: t('site.deck.lowestPrice'),
                   checked: lowestPrice(),
                   onChange: () => setLowestPrice((prev) => !prev),
                 },
@@ -832,9 +863,10 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           >
             <span>⚠️</span>
             <span class="missing-toggle-label">
-              {currentMissingCards().length} card
-              {currentMissingCards().length > 1 ? 's' : ''} missing {props.currency.toUpperCase()}{' '}
-              pricing
+              {t('site.deck.missingPricing', {
+                count: currentMissingCards().length,
+                currency: props.currency.toUpperCase(),
+              })}
             </span>
             <span class="missing-toggle-arrow">{missingCardsExpanded() ? '▲' : '▼'}</span>
           </button>
@@ -858,6 +890,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           <CardSection
             label={
               props.deck.sections.find((s) => s.name.toLowerCase().includes('commander'))?.name ??
+              // i18n-exempt: a board name, English by contract (see BOARDS).
               'Commander'
             }
             cards={partitioned().commanderCards}
@@ -881,7 +914,11 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         {/* Sideboard always shown at bottom, ungrouped */}
         <Show when={filteredSideboardCards().length > 0}>
           <CardSection
-            label={props.deck.sections.find((s) => isSideboardSection(s.name))?.name ?? 'Sideboard'}
+            label={
+              props.deck.sections.find((s) => isSideboardSection(s.name))?.name ??
+              // i18n-exempt: a board name, English by contract (see BOARDS).
+              'Sideboard'
+            }
             cards={filteredSideboardCards()}
             currency={props.currency}
             renderCard={renderDeckCard(false)}
@@ -962,6 +999,7 @@ type ExpandableTextProps = {
 }
 
 function ExpandableText(props: ExpandableTextProps) {
+  const t = useT()
   const [expanded, setExpanded] = createSignal(false)
 
   return (
@@ -973,7 +1011,7 @@ function ExpandableText(props: ExpandableTextProps) {
         />
       </div>
       <button class="link-action" onClick={() => setExpanded((prev) => !prev)}>
-        {expanded() ? 'Show less' : 'Read more'}
+        {expanded() ? t('site.deck.showLess') : t('site.deck.readMore')}
       </button>
     </div>
   )
@@ -990,6 +1028,7 @@ type ExpandablePrimerProps = {
 }
 
 function ExpandablePrimer(props: ExpandablePrimerProps) {
+  const t = useT()
   const [expanded, setExpanded] = createSignal(Boolean(props.primerOpen || props.sectionId))
 
   // buildToc is a fast O(n) line-scan; createMemo with auto-tracking ensures it only
@@ -1013,7 +1052,7 @@ function ExpandablePrimer(props: ExpandablePrimerProps) {
         when={expanded()}
         fallback={
           <div>
-            <p class="text-hint">This deck has a primer.</p>
+            <p class="text-hint">{t('site.deck.hasPrimer')}</p>
             <button
               class="link-action"
               aria-expanded={false}
@@ -1022,7 +1061,7 @@ function ExpandablePrimer(props: ExpandablePrimerProps) {
                 history.replaceState(null, '', deckPrimerHash(props.slug, true))
               }}
             >
-              Read more
+              {t('site.deck.readMore')}
             </button>
           </div>
         }
@@ -1031,7 +1070,7 @@ function ExpandablePrimer(props: ExpandablePrimerProps) {
           <div class={`primer-layout ${toc().length > 0 ? 'primer-layout--with-toc' : ''}`}>
             <Show when={toc().length > 0}>
               <nav class="primer-toc">
-                <p class="primer-toc-title">Contents</p>
+                <p class="primer-toc-title">{t('site.deck.primerContents')}</p>
                 <ul>
                   <For each={toc()}>
                     {(h) => (
@@ -1059,7 +1098,7 @@ function ExpandablePrimer(props: ExpandablePrimerProps) {
               history.replaceState(null, '', deckPrimerHash(props.slug, false))
             }}
           >
-            Show less
+            {t('site.deck.showLess')}
           </button>
         </div>
       </Show>

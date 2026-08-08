@@ -1,7 +1,16 @@
 import { createSignal, type Accessor } from 'solid-js'
 import { type ListRef, listRefLabel } from '../change-event'
+import { t } from '../i18n/t'
 
-/** One selectable destination in the move-target picker. */
+/**
+ * One selectable destination in the move-target picker.
+ *
+ * `title` and `label` are rendered text rather than message keys because a
+ * prompt is built from live data — list names, section names — that has no key
+ * to hold. They are resolved with the non-reactive module-level `t` at the
+ * moment the picker opens, which is sound here: the picker is short-lived and
+ * modal, so there is no window in which a locale switch could leave it stale.
+ */
 export interface MoveTargetOption {
   /** Display label for the option button. */
   label: string
@@ -46,7 +55,7 @@ export function closeMovePrompt(): void {
  */
 export function promptListMove<T extends ListRef>(targets: T[], onPick: (dest: T) => void): void {
   promptMoveTarget({
-    title: 'Move to list',
+    title: t('site.move.toListTitle'),
     options: targets.map((dest) => ({
       label: listRefLabel(dest),
       onSelect: () => onPick(dest),
@@ -64,13 +73,13 @@ export function promptSectionMove(
   onNew: () => void,
 ): void {
   promptMoveTarget({
-    title: 'Move to section',
+    title: t('site.move.toSectionTitle'),
     options: [
       ...sections.map((section) => ({
         label: section,
         onSelect: () => onPick(section),
       })),
-      { label: 'New section…', variant: 'create', onSelect: onNew },
+      { label: t('site.move.newSection'), variant: 'create', onSelect: onNew },
     ],
   })
 }

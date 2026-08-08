@@ -1,3 +1,5 @@
+import type { MessageKey } from './i18n/messages/en'
+import { paramsOf, t, type MessageRef, type RenderParams, type TranslateArgs } from './i18n/t'
 import type { ErrorCode } from './types'
 
 /** Safely extract an error message from an unknown thrown value. */
@@ -59,16 +61,60 @@ export const ExitCode = {
 
 export type ExitCodeValue = (typeof ExitCode)[keyof typeof ExitCode]
 
+/**
+ * The locale-invariant identity of a failure's prose: the catalog key that
+ * produced it, plus the parameters it was rendered with. Carried *beside* the
+ * rendered `message` rather than instead of it, so nothing downstream has to
+ * learn to render — `--output json` gains a stable discriminator scripts can
+ * match on, and every text path keeps printing what it printed before.
+ */
+export type ErrorMessageRef = MessageRef
+
 /** Structured error thrown by one-shot card commands. The action handler should
  * `instanceof`-check this to convert it into an `emitError` call. */
 export class CardCommandError extends Error {
   readonly code: ErrorCode
   readonly exitCode: ExitCodeValue
   readonly details?: unknown
-  constructor(code: ErrorCode, message: string, exitCode: ExitCodeValue, details?: unknown) {
+  /**
+   * The catalog key `message` was rendered from, when it was rendered from one.
+   * Optional because a failure may still quote an external error verbatim
+   * (a Scryfall response, a filesystem errno) that has no key at all.
+   */
+  readonly messageKey?: MessageKey
+  readonly messageParams?: RenderParams
+  /** The pair above, as one value — what `emitError` wants. */
+  readonly messageRef?: ErrorMessageRef
+  constructor(
+    code: ErrorCode,
+    message: string,
+    exitCode: ExitCodeValue,
+    details?: unknown,
+    messageRef?: ErrorMessageRef,
+  ) {
     super(message)
     this.code = code
     this.exitCode = exitCode
     this.details = details
+    this.messageKey = messageRef?.key
+    this.messageParams = messageRef?.params
+    this.messageRef = messageRef
   }
+}
+
+/**
+ * Build a {@link CardCommandError} from a catalog key: the message is rendered
+ * in the active UI locale and the key travels with it. The one way to raise a
+ * localized command failure, so `message` and `messageKey` can never disagree —
+ * constructing the error by hand and passing a key that does not match the
+ * prose would put a lie into the `--output json` envelope.
+ */
+export function localizedCommandError<K extends MessageKey>(
+  code: ErrorCode,
+  exitCode: ExitCodeValue,
+  key: K,
+  ...args: TranslateArgs<K>
+): CardCommandError {
+  const params = paramsOf(args)
+  return new CardCommandError(code, t(key, ...args), exitCode, undefined, { key, params })
 }

@@ -3,6 +3,7 @@ import type { PriceCurrency } from '../price-currency'
 import type { SelectedCard } from './useCardSelection'
 import type { TradeSearchEntry } from './useTradeData'
 import { normalizeCardName } from '../term-match'
+import { t } from '../i18n/t'
 import { addEntryToLeft, addEntryToRight, showTradeToast } from './useTradeState'
 import { resolveCardThumbnailUrl } from './image-sources'
 import { pickedPrintingLanguage, promptForPrinting } from './printing-prompt'
@@ -96,7 +97,7 @@ export async function addSelectionToTrade(
 
   if (added > 0) {
     showTradeToast(
-      `Added ${added} card${added > 1 ? 's' : ''} to trade`,
+      t('site.trade.added', { count: added }),
       resolveCardThumbnailUrl(firstAddedCard, useScryfallImgUrls),
     )
   }

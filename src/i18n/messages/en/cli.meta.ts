@@ -1,0 +1,479 @@
+/** Translator metadata for the `cli.*` namespace. See `src/i18n/types.ts`. */
+
+import type { MetaFor } from '../../types'
+import type { cliMessages } from './cli'
+
+/**
+ * The interactive card session renders its menu inside a hard row budget
+ * (`SESSION_MENU_LIMIT = 17`), so every `cli.menu.*` entry carries a length
+ * budget the catalog validator enforces. A menu row that wraps costs a second
+ * terminal line, which pushes Save and Exit — the items at the menu's foot —
+ * below the fold. German and Finnish labels run 30–50% longer than English, so
+ * this is a real constraint rather than a theoretical one.
+ *
+ * Three tiers, sized against the English text they hold: a short verb phrase, a
+ * full sentence-length row, and a row that also interpolates a card name (whose
+ * own width is not the translator's to control, hence the tighter frame).
+ */
+const MENU_SHORT = 28
+const MENU_MAX_LEN = 48
+const MENU_WITH_NAME = 40
+
+export const cliMeta = {
+  'cli.addCard.matchCount': {
+    description:
+      'How many cards fuzzily match a name the user typed exactly. {shown} is the number as displayed and may be "100+" when the search stopped counting, so it is a separate parameter from the {count} that selects the plural form. The verb lives here rather than in cli.addCard.noExactMatch because it agrees with the count; the whole sentence reads "No exact match for \'X\'. 3 cards match that name."',
+  },
+  'cli.cleanup.unreadableFiles': {
+    description:
+      '`ritual cleanup` could not parse some list files and left them alone. Note the verb agreement between the forms.',
+  },
+  'cli.cleanup.decksNeedFormat': {
+    description:
+      '`ritual cleanup` found decks with no declared format and could not ask (no terminal). The flag name --skip-formats is never translated.',
+  },
+  'cli.resolveAmbiguity.needsDecision': {
+    description:
+      'A collection sync cannot decide which list loses copies and has no terminal to ask in. {advice} is a pre-rendered sentence naming --removal-priority.',
+  },
+  'cli.resolveAmbiguity.confirm': {
+    description:
+      'Confirmation prompt offering to walk through ambiguous removals one at a time. Ends in a question mark.',
+  },
+  'cli.move.movedFewer': {
+    description:
+      'A move found fewer copies than asked for. {moved} is how many actually moved; {count} is how many were requested and selects the plural form.',
+  },
+  'cli.move.notEnoughCopies': {
+    description:
+      "A list holds fewer copies than the move asked for. {count} is what is available, {requested} what was asked for, {name} the card name and {list} the list's rendered name.",
+  },
+  'cli.scry.pageRange': {
+    description:
+      'Which pages of Scryfall results were fetched, spliced into a truncation notice. The singular form names page 1 alone; the plural is an inclusive range starting at 1.',
+  },
+  'cli.serve.buildFlagsIgnored': {
+    description:
+      'Flags that only mean something with --build were passed to a plain `ritual serve`. {flags} is a comma-joined list of flag names, never translated; the verb agrees with how many were given.',
+  },
+  'cli.serve.uniqueCards': {
+    description:
+      'How many distinct cards the served lists mention, spliced into "Found … across the served lists."',
+  },
+
+  'cli.skills.written': {
+    description:
+      'Summary line after writing agent skills to disk. {verb} names both the tense and the preposition English needs, because the two are coupled: "installedTo" is `ritual skills install`, "installedIn" the same write during `ritual init-site`, "updatedIn" a refresh. {counted} is a pre-rendered count and noun; {dir} is a filesystem path, never translated.',
+  },
+  'cli.skills.upToDate': {
+    description:
+      'Summary line for skills that already matched what Ritual would write. {counted} is a pre-rendered count and noun.',
+  },
+  'cli.skills.skipped': {
+    description:
+      'Summary line for skills left untouched because the user had edited them. {forceHint} is a pre-rendered sentence naming the flag that would overwrite them.',
+  },
+  'cli.skills.absent': {
+    description:
+      'Summary line for skills that are not installed at all. The trailing pronoun agrees with the count; the backticked command is never translated.',
+  },
+
+  'cli.sync.unreadableDecks': {
+    description:
+      'Heading above the list of unparseable lines found in decks about to sync. The verb agrees with the count.',
+  },
+  'cli.sync.unreadableCollectionLists': {
+    description: 'The collection-list wording of the previous key.',
+  },
+  'cli.sync.confirmDecks': {
+    description:
+      'Confirmation prompt asking whether decks with unreadable lines may sync anyway. {cost} is a pre-rendered clause saying what accepting costs, e.g. "dropping those lines".',
+  },
+  'cli.sync.confirmCollectionLists': {
+    description: 'The collection-list wording of the previous key.',
+  },
+  'cli.sync.refuseDecks': {
+    description:
+      'Refusal shown when decks with unreadable lines need confirmation but there is no terminal to ask in. --yes is a flag name and is never translated.',
+  },
+  'cli.sync.refuseCollectionLists': {
+    description: 'The collection-list wording of the previous key.',
+  },
+
+  'cli.prompt.reason.noInput': {
+    description:
+      'Why prompting is impossible, shown in the parenthetical of "Input required: … (…)". This branch means the user asked for it; the flag and variable names are never translated.',
+  },
+  'cli.prompt.reason.noTty': {
+    description:
+      'The other branch of the previous key: stdin is not a terminal (a pipe, a CI job). The remedy is different, so the two must not be worded alike.',
+  },
+  'cli.prompt.subject.pass': {
+    description:
+      'Noun phrase for a refusal whose remedy is a flag or argument. {what} is that flag or argument spelled exactly as it is typed (e.g. "--from and --to") and is never translated. Reads as "Input required: pass --from and --to (…)".',
+  },
+  'cli.prompt.subject.interactiveInput': {
+    description:
+      'Fallback noun phrase for a prompt that has not yet been given a subject of its own. Deliberately vague — a converted prompt should name what it wanted instead.',
+  },
+  'cli.prompt.subject.listType': {
+    description:
+      'Noun phrase for the import prompt asking whether the file is a deck, collection, or wanted list.',
+  },
+  'cli.prompt.subject.filterValue': {
+    description:
+      'Noun phrase for the shared free-text filter prompt (the price browser and the export wizard).',
+  },
+  'cli.prompt.subject.exitChoice': {
+    description:
+      'Noun phrase for the unsaved-changes exit menu, which cannot be answered without a terminal.',
+  },
+  'cli.prompt.noMatches': {
+    description:
+      "Override for the `prompts` library's autocomplete empty state. Shown in place of a choice row, so keep it short and lowercase like the library's own default.",
+  },
+  'cli.prompt.toggleOn': {
+    description: "Override for the `prompts` library's toggle 'on' label.",
+  },
+  'cli.prompt.toggleOff': {
+    description: "Override for the `prompts` library's toggle 'off' label.",
+  },
+  'cli.card.summary': {
+    description:
+      'One-line rendering of a fetched card. {name} is the card name and {set} its set code, already uppercased; neither is translated. Only the punctuation around them is.',
+  },
+
+  'cli.menu.saveAndExit': {
+    description: 'Unsaved-changes exit menu row: write pending changes to disk and leave.',
+    maxLen: MENU_SHORT,
+  },
+  'cli.menu.exitWithoutSaving': {
+    description: 'Unsaved-changes exit menu row: throw pending changes away and leave.',
+    maxLen: MENU_SHORT,
+  },
+  'cli.menu.cancelKeepEditing': {
+    description: 'Unsaved-changes exit menu row: dismiss the menu and stay in the editor.',
+    maxLen: MENU_SHORT,
+  },
+  'cli.menu.exit': {
+    description: 'Session menu row that leaves the editor. Sits at the foot of the menu.',
+    maxLen: MENU_SHORT,
+  },
+  'cli.menu.back': {
+    description: 'Row that returns to the previous screen without choosing anything.',
+    maxLen: MENU_SHORT,
+  },
+  'cli.menu.cancel': {
+    description: 'Row that abandons the current per-entry action menu.',
+    maxLen: MENU_SHORT,
+  },
+  'cli.menu.switchList': {
+    description:
+      'Session menu row (unified editor only) that returns to the list selection menu, keeping unsaved changes in memory.',
+    maxLen: MENU_SHORT,
+  },
+  'cli.menu.addExactCopy': {
+    description:
+      'Session menu row adding another copy of the last card, reusing its printing, finish and condition. {name} is the card name.',
+    maxLen: MENU_WITH_NAME,
+  },
+  'cli.menu.addSimilarCopy': {
+    description:
+      'Session menu row adding a copy of the last card while re-asking for printing, finish and condition. {name} is the card name.',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.menu.addNote': {
+    description:
+      'Session menu row attaching a note to the last added card. {name} is the card name.',
+    maxLen: MENU_WITH_NAME,
+  },
+  'cli.menu.editPrevious': {
+    description:
+      'Session menu row re-opening the last added card to change its options in place rather than adding a copy. {name} is the card name.',
+    maxLen: MENU_WITH_NAME,
+  },
+  'cli.menu.undoLastAdd': {
+    description: 'Session menu row taking back the most recent add. {name} is that card name.',
+    maxLen: MENU_WITH_NAME,
+  },
+  'cli.menu.undoLastEdit': {
+    description:
+      'Session menu row reversing the most recent edit. {label} is a pre-rendered description of that edit, e.g. "printing on Sol Ring".',
+    maxLen: MENU_WITH_NAME,
+  },
+  'cli.menu.configureFilters': {
+    description:
+      'Session menu row re-opening the session-wide filters (set codes, default finish and condition).',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.menu.collectorMode': {
+    description:
+      'Session menu row switching card entry from names to collector numbers within a chosen set.',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.menu.nameMode': {
+    description: 'Session menu row switching card entry back from collector numbers to names.',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.menu.manageSets': {
+    description:
+      'Session menu row (collector mode) opening the set-code manager. {set} is the active set code in uppercase, or the `cli.menu.noSetCode` placeholder.',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.menu.editMode': {
+    description:
+      'Session menu row switching from adding cards to editing the entries already in the list.',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.menu.addMode': {
+    description: 'Session menu row switching back from editing entries to adding cards.',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.menu.viewChanges': {
+    description:
+      'Session menu row opening the list of changes made this session, any of which can be discarded. {count} is how many there are.',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.menu.save': {
+    description:
+      'Session menu row writing pending changes to disk without leaving the session. {count} is how many are pending.',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.menu.saveDirty': {
+    description:
+      'The previous row when the list differs from disk in a way that is not a counted card change (a deck format edit), so there is no number to show.',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.menu.saveAll': {
+    description:
+      'Session menu row (unified editor) writing every open list. {scope} is a pre-rendered phrase describing how much is pending, from `cli.menu.saveAllScope` or a plain list count.',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.menu.saveAllScope': {
+    description:
+      'The {scope} of the previous key when changes are spread over several lists. {count} is the total number of changes, {lists} a pre-rendered "N lists".',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.menu.saveCurrent': {
+    description:
+      "Session menu row (unified editor) writing only the list being edited, when another open list also has pending changes. {count} is this list's change count.",
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.menu.saveCurrentPlain': {
+    description: 'The previous row with no change count, for a list dirty in some uncounted way.',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.menu.addSetCode': {
+    description: 'Set-code manager row that asks for another set code to load.',
+    maxLen: MENU_SHORT,
+  },
+  'cli.menu.removeSetCode': {
+    description: 'Set-code manager row that drops one of the loaded set codes.',
+    maxLen: MENU_SHORT,
+  },
+  'cli.menu.setCodeActive': {
+    description:
+      'Set-code manager row for the set currently being entered against. {code} is the set code in uppercase and is never translated.',
+    maxLen: MENU_SHORT,
+  },
+  'cli.menu.noSetCode': {
+    description:
+      'Placeholder shown in place of a set code when collector mode has none loaded yet.',
+    maxLen: MENU_SHORT,
+  },
+
+  'cli.session.loadingCards': {
+    description: 'Progress line before the card database is read for autocomplete.',
+  },
+  'cli.session.reloadingCards': {
+    description: 'The previous line after the session filters changed.',
+  },
+  'cli.session.loadedCards': {
+    description: 'How many cards the autocomplete was loaded with.',
+  },
+  'cli.session.cacheEmpty': {
+    description:
+      'Lead sentence of the refusal to start a session with no cached cards; advice on how to fill the cache is appended after it.',
+  },
+  'cli.session.createdFile': {
+    description:
+      'A list file did not exist and was created. {label} is the kind of list ("deck", "collection"), {file} the file name.',
+  },
+  'cli.session.usingFile': {
+    description: 'The previous line when the file already existed.',
+  },
+  'cli.session.loadingSetData': {
+    description: 'Progress line before collector-mode set data is read.',
+  },
+  'cli.session.loadingSet': {
+    description: 'Progress line naming one set being read. {set} is an uppercase set code.',
+  },
+  'cli.session.setCardsLoaded': {
+    description:
+      'How many cards a set contributed, indented under the previous line. Keep the two leading spaces.',
+  },
+  'cli.session.filtersUpdated': {
+    description: 'Confirmation that the session-wide filters were re-applied.',
+  },
+  'cli.session.changesSaved': { description: 'Confirmation that the list file was written.' },
+  'cli.session.changelogSaved': {
+    description: "Confirmation that the session's changelog block was appended.",
+  },
+  'cli.session.discardedAll': {
+    description: 'Confirmation that the user chose to leave without saving.',
+  },
+  'cli.session.exitingEditor': { description: 'Farewell line from the unified multi-list editor.' },
+  'cli.session.exitingManager': {
+    description:
+      'Farewell line from a single-list session. {manager} names the surface, e.g. "collection manager".',
+  },
+  'cli.session.returningToLists': {
+    description: 'Shown when a unified-editor session backs out to the list selection menu.',
+  },
+  'cli.session.cardNotFound': {
+    description: 'The autocomplete was submitted with nothing selected. Keep the leading icon.',
+  },
+  'cli.session.setFiltersActive': {
+    description:
+      'Follow-up to the previous line explaining that set filters may be hiding the card. {sets} is a comma-joined list of uppercase set codes and is never translated.',
+  },
+  'cli.session.addingSimilar': {
+    description:
+      'Announces re-entry of the last card with its option prompts forced. {name} is the card name.',
+  },
+  'cli.session.noteAdded': {
+    description:
+      'Confirmation that a note was attached. {name} is the card name, {note} the note text.',
+  },
+  'cli.session.switchedToEdit': {
+    description: 'Confirmation of the switch to edit mode, with a hint at what to do next.',
+  },
+  'cli.session.switchedToAdd': { description: 'Confirmation of the switch back to add mode.' },
+  'cli.session.switchedToCollector': {
+    description:
+      'Confirmation of the switch to collector-number entry. {set} is the active set code in uppercase.',
+  },
+  'cli.session.switchedToName': { description: 'Confirmation of the switch back to name entry.' },
+  'cli.session.editingCard': {
+    description: 'Announces that the last added card is being re-opened. {name} is the card name.',
+  },
+  'cli.session.activeSetChanged': {
+    description:
+      'Confirmation that collector entry now targets another set. {set} is a set code in uppercase.',
+  },
+  'cli.session.setAlreadyAdded': {
+    description: 'The set code the user typed was already loaded. {set} is that code in uppercase.',
+  },
+  'cli.session.noSetsToRemove': {
+    description: "Refusal of the set-code manager's remove action when nothing is loaded.",
+  },
+  'cli.session.setRemoved': {
+    description: 'Confirmation that a set code was dropped. {set} is that code in uppercase.',
+  },
+  'cli.session.noChanges': {
+    description: 'The session-changes screen was opened with nothing to show.',
+  },
+  'cli.session.discardBlocked': {
+    description:
+      'A session change cannot be taken back yet because a later change depends on it. {reason} is a pre-rendered clause naming the blocker.',
+  },
+  'cli.session.forceOptions': {
+    description:
+      'Suffix marking an autocomplete row selected with a trailing "!", which forces the option prompts past the session defaults. {title} is the card name.',
+  },
+  'cli.session.streakHint': {
+    description:
+      'Parenthetical appended to the card prompt while the same card is being added repeatedly. {count} is how many in a row, {name} the card name. Keep the leading space: it is what separates this from the prompt text.',
+  },
+
+  'cli.session.promptSearchToEdit': {
+    description: 'Card prompt while the session is in edit mode.',
+  },
+  'cli.session.promptCardName': {
+    description:
+      'Card prompt while adding by name. {streak} is the possibly-empty `cli.session.streakHint`, which carries its own leading space.',
+  },
+  'cli.session.promptCollectorNumber': {
+    description:
+      'Card prompt while adding by collector number. {set} is the active set code in uppercase (or the SET placeholder); {streak} carries its own leading space.',
+  },
+  'cli.session.promptSetPlaceholder': {
+    description:
+      'Stands in for the set code in the previous prompt before any set is loaded. Uppercase, like the codes it replaces.',
+  },
+  'cli.session.promptNote': { description: 'Prompt for a note on the card just added.' },
+  'cli.session.promptNoteEdit': {
+    description: "Prompt for an existing entry's note, where submitting nothing clears it.",
+  },
+  'cli.session.promptEditEntry': {
+    description:
+      'Heading of the per-entry action menu. {entry} is the rendered card line and is never translated.',
+  },
+  'cli.session.promptManageSets': {
+    description: 'Heading of the collector-mode set-code manager.',
+  },
+  'cli.session.promptAddSetCode': { description: 'Prompt for another set code to load.' },
+  'cli.session.promptSelectSetToRemove': {
+    description: 'Prompt for which loaded set code to drop.',
+  },
+  'cli.session.promptCollectorSets': {
+    description:
+      'Prompt for the initial set codes when collector mode is entered with none loaded. The example codes are real Magic sets and may stay as they are.',
+  },
+  'cli.session.promptSetFilter': {
+    description:
+      'Session-filter prompt for the set codes autocomplete is restricted to. The example codes are real Magic sets and may stay as they are.',
+  },
+  'cli.session.promptDefaultFinish': {
+    description: 'Session-filter prompt for the finish new cards get without being asked.',
+  },
+  'cli.session.promptDefaultCondition': {
+    description: 'Session-filter prompt for the condition new cards get without being asked.',
+  },
+  'cli.session.promptDiscardChange': {
+    description:
+      'Confirmation before taking back one session change. {label} is the rendered change line and is never translated.',
+  },
+  'cli.session.promptPickChangeToDiscard': {
+    description: 'Heading of the session-changes screen. {count} is how many changes it lists.',
+  },
+  'cli.session.validateSetCodeEmpty': {
+    description: 'Inline validation shown when the set-code prompt is submitted empty.',
+  },
+  'cli.session.validateSetCodeRequired': {
+    description: 'Inline validation shown when the collector-mode set list is submitted empty.',
+  },
+  'cli.session.finishAlwaysPrompt': {
+    description:
+      'Session-filter choice leaving the finish unset, so every add asks. Paired with the finish names below.',
+  },
+  'cli.session.finishNonfoil': {
+    description:
+      'Session-filter choice for the plain finish. The persisted slug stays `nonfoil`; only this label is translated.',
+  },
+  'cli.session.finishFoil': {
+    description: 'Session-filter choice for the foil finish. The persisted slug stays `foil`.',
+  },
+  'cli.session.finishEtched': {
+    description: 'Session-filter choice for the etched finish. The persisted slug stays `etched`.',
+  },
+  'cli.session.conditionAlwaysPrompt': {
+    description: 'Session-filter choice leaving the condition unset, so every add asks.',
+  },
+  'cli.session.conditionDontCare': {
+    description:
+      'Session-filter choice recording no condition at all on new cards — distinct from leaving it unset, which asks each time.',
+  },
+
+  'cli.exitMenu.promptCounted': {
+    description:
+      'Heading of the unsaved-changes exit menu when the editor knows how many changes are pending.',
+  },
+  'cli.exitMenu.prompt': {
+    description: 'The previous heading when the editor only knows that something is unsaved.',
+  },
+
+  'cli.import.promptListType': {
+    description: 'Prompt asking which kind of list an import should create or extend.',
+  },
+} as const satisfies MetaFor<typeof cliMessages>

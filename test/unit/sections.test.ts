@@ -15,12 +15,12 @@ import {
 import {
   replaySectionOrder,
   consolidateSetSection,
-  formatChange,
   formatChangeCore,
   createSetSectionChange,
   createAddSectionChange,
   type ChangeEvent,
 } from '../../src/change-event'
+import { formatChange } from '../../src/change-message'
 import { applyChangeToCollection } from '../../src/editor/collection-changes'
 import { applyChangeToWantedList } from '../../src/editor/wanted-changes'
 import { applyChangeToDeck } from '../../src/editor/deck-changes'

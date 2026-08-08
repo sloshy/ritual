@@ -1,5 +1,6 @@
 import { type JSX, Show, Switch, Match, For, createSignal, createMemo, onCleanup } from 'solid-js'
 import { useNavigationGuard } from '../../../editor/navigation-guard'
+import { useT, useTKey } from '../../../ui/i18n'
 import { ConfirmDialog } from '../../../ui/ConfirmDialog'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { useSearchDebounce } from '../hooks/useSearchDebounce'
@@ -46,6 +47,8 @@ type MoveFlow = {
 }
 
 export function MoveCards(): JSX.Element {
+  const t = useT()
+  const tKey = useTKey()
   const defaultCurrency = useDefaultCurrency()
   useSearchDebounce()
   const session = useMoveSession()
@@ -72,10 +75,9 @@ export function MoveCards(): JSX.Element {
   }
   onCleanup(guard.register({ attempt: guardedNavigate, isDirty: () => session.pendingCount() > 0 }))
 
-  const leaveMessage = createMemo(() => {
-    const count = session.pendingCount()
-    return `${count} queued move${count === 1 ? '' : 's'} ${count === 1 ? 'has' : 'have'} not been saved, and will be lost.`
-  })
+  const leaveMessage = createMemo(() =>
+    t('admin.move.unsavedWarning', { count: session.pendingCount() }),
+  )
 
   const listNameOf = (type: ListInfo['type'], slug: string): string =>
     session.lists().find((l) => l.type === type && l.slug === slug)?.name ?? slug
@@ -177,8 +179,15 @@ export function MoveCards(): JSX.Element {
   const quantityMessage = createMemo(() => {
     const f = flow()
     if (!f) return ''
-    const dest = f.dest ? ` to ${f.dest.name}` : ''
-    return `How many of the ${f.available} copies of ${f.target.cardName} do you want to move${dest}?`
+    // Two whole sentences rather than one with an optional trailing clause: a
+    // destination spliced onto the end of a question does not survive word order.
+    return f.dest
+      ? t('admin.moveCards.quantityMessageTo', {
+          total: f.available,
+          name: f.target.cardName,
+          dest: f.dest.name,
+        })
+      : t('admin.moveCards.quantityMessage', { total: f.available, name: f.target.cardName })
   })
 
   const showSearch = createMemo(() => session.search().trim().length >= 2)
@@ -210,7 +219,7 @@ export function MoveCards(): JSX.Element {
       <div class="move-toolbar">
         <div class="deck-selector-container move-toolbar-select">
           <label class="deck-selector-label" for="move-list-select">
-            Browse list
+            {t('admin.moveCards.selectorLabel')}
           </label>
           <select
             id="move-list-select"
@@ -218,10 +227,10 @@ export function MoveCards(): JSX.Element {
             value={session.viewedListId() ?? ''}
             onChange={onSelectorChange}
           >
-            <option value="">— Choose a list —</option>
+            <option value="">{t('admin.select.chooseList')}</option>
             <For each={listsByType()}>
               {(group) => (
-                <optgroup label={group.label}>
+                <optgroup label={tKey(group.labelKey)}>
                   <For each={group.lists}>
                     {(list) => <option value={listInfoId(list)}>{list.name}</option>}
                   </For>
@@ -233,13 +242,13 @@ export function MoveCards(): JSX.Element {
 
         <div class="move-search-field">
           <label class="deck-selector-label" for="move-search-input">
-            Search cards
+            {t('admin.moveCards.searchLabel')}
           </label>
           <input
             id="move-search-input"
             class="form-input move-search-input"
             type="text"
-            placeholder="Type a card name to search every list…"
+            placeholder={t('admin.moveCards.searchPlaceholder')}
             value={session.search()}
             onInput={(e) => session.setSearch(e.currentTarget.value)}
           />
@@ -253,10 +262,10 @@ export function MoveCards(): JSX.Element {
             onClick={() => setFiltersOpen((v) => !v)}
           >
             <span class="btn-defaults-caret">{filtersOpen() ? '▾' : '▴'}</span>
-            Filters
+            {t('admin.moveCards.filters')}
           </button>
           <button type="button" class="btn-changes" onClick={() => setPendingOpen(true)}>
-            Pending
+            {t('admin.moveCards.pending')}
             <Show when={session.pendingCount() > 0}>
               <span class="changes-badge">{session.pendingCount()}</span>
             </Show>
@@ -267,7 +276,7 @@ export function MoveCards(): JSX.Element {
             disabled={session.pendingCount() === 0 || session.saving()}
             onClick={() => void session.commit()}
           >
-            {session.saving() ? 'Saving...' : 'Save Moves'}
+            {session.saving() ? t('admin.moveCards.saving') : t('admin.moveCards.save')}
           </button>
           <button
             type="button"
@@ -275,7 +284,7 @@ export function MoveCards(): JSX.Element {
             disabled={session.pendingCount() === 0}
             onClick={() => session.discardAll()}
           >
-            Discard
+            {t('admin.moveCards.discard')}
           </button>
         </div>
       </div>
@@ -296,14 +305,11 @@ export function MoveCards(): JSX.Element {
 
       <StatusAlerts status={session.status()} error={session.error()} />
 
-      <Show when={session.loaded()} fallback={<p class="text-muted">Loading lists…</p>}>
-        <Switch
-          fallback={
-            <p class="text-muted move-empty">
-              Choose a list to browse, or search for a card to move.
-            </p>
-          }
-        >
+      <Show
+        when={session.loaded()}
+        fallback={<p class="text-muted">{t('admin.moveCards.loadingLists')}</p>}
+      >
+        <Switch fallback={<p class="text-muted move-empty">{t('admin.moveCards.empty')}</p>}>
           <Match when={showSearch()}>
             <MoveSearchResults
               query={session.search().trim()}
@@ -314,7 +320,9 @@ export function MoveCards(): JSX.Element {
             />
           </Match>
           <Match when={isLoadingView()}>
-            <p class="text-muted">Loading {session.viewedList()?.name}…</p>
+            <p class="text-muted">
+              {t('admin.moveCards.loadingList', { name: session.viewedList()?.name ?? '' })}
+            </p>
           </Match>
           <Match when={deckView()}>
             {(view) => (
@@ -404,10 +412,10 @@ export function MoveCards(): JSX.Element {
       {/* Quantity prompt for multi-copy moves */}
       <QuantityDialog
         open={flow()?.step === 'quantity'}
-        title="Move cards"
+        title={t('admin.moveCards.quantityTitle')}
         message={quantityMessage()}
         total={quantityTotal()}
-        confirmLabel="Move"
+        confirmLabel={t('admin.moveCards.moveConfirm')}
         inputId="move-qty"
         onConfirm={onQuantity}
         onCancel={cancelFlow}
@@ -430,9 +438,9 @@ export function MoveCards(): JSX.Element {
         {(leave) => (
           <ConfirmDialog
             open={true}
-            title="Discard queued moves?"
+            title={t('admin.moveCards.leaveTitle')}
             message={leaveMessage()}
-            confirmLabel="Discard"
+            confirmLabel={t('admin.moveCards.leaveConfirm')}
             destructive
             onConfirm={() => {
               const { proceed } = leave()

@@ -12,10 +12,11 @@ import {
   type DryRunOptions,
   type ScriptingOptions,
 } from './scripting'
-import { CardCommandError } from '../errors'
+import { CardCommandError, localizedCommandError } from '../errors'
+import { t, type MessageParams } from '../i18n/t'
 import {
+  addListTypeFlags,
   describeEntry,
-  listTypeLabel,
   parseCardIdFlag,
   resolveListSelection,
   resolveListTypeFlag,
@@ -39,30 +40,26 @@ type RemoveCardOptions = {
 function parseQuantityFlag(value: string): number {
   const parsed = parsePositiveInteger(value)
   if (parsed === undefined) {
-    throw new InvalidArgumentError(`--quantity must be a positive integer (got '${value}').`)
+    throw new InvalidArgumentError(t('cli.cardOps.quantityPositive', { value }))
   }
   return parsed
 }
 
 export function registerRemoveCardCommand(program: Command): void {
   const command = addScriptingOptions(
-    program
-      .command('remove-card')
-      .description('Remove a card from a deck, collection, or wanted list')
-      .argument(
-        '[listName]',
-        'Name of the deck, collection, or wanted list (resolved across all types unless a type flag is given)',
-      )
-      .argument('[cardName...]', 'Name of the card to remove (fuzzy match)')
-      .option('--deck', 'Resolve the name as a deck')
-      .option('--collection', 'Resolve the name as a collection')
-      .option('--wanted', 'Resolve the name as a wanted list')
-      .option('--card-id <id>', 'Disambiguate by card ID (the &N suffix in list files)')
-      .option('-q, --quantity <n>', 'Number of copies to remove (decks only)', parseQuantityFlag)
-      .option('--all-copies', "Remove every copy on the card's line (decks only)", false),
+    addListTypeFlags(
+      program
+        .command('remove-card')
+        .description(t('help.removeCard.description'))
+        .argument('[listName]', t('help.listArg.crossType'))
+        .argument('[cardName...]', t('help.removeCard.cardName')),
+    )
+      .option('--card-id <id>', t('help.cardId.disambiguate'))
+      .option('-q, --quantity <n>', t('help.removeCard.quantity'), parseQuantityFlag)
+      .option('--all-copies', t('help.removeCard.allCopies'), false),
     'text',
   )
-  addDryRunOption(command, 'Report what would be removed without writing anything')
+  addDryRunOption(command, t('help.removeCard.dryRun'))
   command.action(
     async (
       listNameArg: string | undefined,
@@ -111,10 +108,10 @@ async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Prom
   const cardId = input.cardId !== undefined ? parseCardIdFlag(input.cardId) : undefined
 
   if (input.quantity !== undefined && input.allCopies) {
-    throw new CardCommandError(
+    throw localizedCommandError(
       'usage_error',
-      '--quantity and --all-copies are mutually exclusive.',
       ExitCode.UsageError,
+      'cli.removeCard.quantityAllCopiesExclusive',
     )
   }
 
@@ -122,19 +119,22 @@ async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Prom
   const listSlug = path.basename(filePath, '.md')
 
   if (type !== 'deck') {
-    const noun = listTypeLabel(type).toLowerCase()
+    // One sentence per list type: the noun it names is gendered in most target
+    // languages, so it cannot be spliced into a shared frame.
     if (input.allCopies) {
-      throw new CardCommandError(
+      throw localizedCommandError(
         'usage_error',
-        `--all-copies only applies to decks — each ${noun} entry is one physical card. Remove other copies individually (disambiguate with --card-id).`,
         ExitCode.UsageError,
+        'cli.removeCard.allCopiesDeckOnly',
+        { type },
       )
     }
     if (input.quantity !== undefined && input.quantity > 1) {
-      throw new CardCommandError(
+      throw localizedCommandError(
         'usage_error',
-        `--quantity only applies to decks — each ${noun} entry is one physical card. Remove other copies individually (disambiguate with --card-id).`,
         ExitCode.UsageError,
+        'cli.removeCard.quantityDeckOnly',
+        { type },
       )
     }
   }
@@ -148,11 +148,17 @@ async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Prom
     const lineQuantity = target.quantity ?? 1
     copies = input.allCopies ? lineQuantity : (input.quantity ?? 1)
     if (copies > lineQuantity) {
+      const params: MessageParams<'cli.removeCard.tooManyCopies'> = {
+        count: copies,
+        name: target.name,
+        available: lineQuantity,
+      }
       throw new CardCommandError(
         'usage_error',
-        `Cannot remove ${copies} copies of '${target.name}' — the deck has ${lineQuantity}.`,
+        t('cli.removeCard.tooManyCopies', params),
         ExitCode.UsageError,
         { quantity: lineQuantity },
+        { key: 'cli.removeCard.tooManyCopies', params },
       )
     }
     remaining = lineQuantity - copies
@@ -170,9 +176,14 @@ async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Prom
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
-      const prefix = input.dryRun ? '[dry-run] Would remove' : 'Removed'
       emitOutput(
-        `${prefix} ${copies} x ${describeEntry(target)} from ${listSlug} (${remaining} remaining)`,
+        t('cli.removeCard.removed', {
+          mode: input.dryRun ? 'preview' : 'done',
+          count: copies,
+          entry: describeEntry(target),
+          list: listSlug,
+          remaining,
+        }),
         scripting,
       )
     }

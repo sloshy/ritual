@@ -4,6 +4,7 @@ import type { CardLanguage } from '../card-language'
 import type { PriceCurrency } from '../price-currency'
 import type { ChangelogPage } from '../changelog-parser'
 import type { DeckFormatKey } from '../deck-format'
+import type { LocaleTag } from '../i18n/types'
 
 export interface DeckSummary {
   slug: string
@@ -190,6 +191,19 @@ export interface SiteIndex {
   searchDebounceMs: number
   /** The configured default card language, baked from config like {@link searchDebounceMs}. */
   defaultLanguage: CardLanguage
+  /**
+   * The UI locale this site was built for — the language its own chrome speaks,
+   * never the card language ({@link SiteIndex.defaultLanguage}). Stamped into
+   * `<html lang>` too, and the last tier of the browser's precedence chain: a
+   * `?locale=` query, a stored choice, or `navigator.languages` all outrank it.
+   */
+  uiLocale: LocaleTag
+  /**
+   * Every locale this deployment publishes a dictionary for, English first. The
+   * in-app language switcher appears only when there is more than one; each
+   * non-English entry is fetchable at `locales/<tag>.json`.
+   */
+  availableLocales: LocaleTag[]
   /**
    * Base URL of a live read-only API backing this site. `''` = same origin
    * (injected by `ritual serve --api`, which serves index.json dynamically and

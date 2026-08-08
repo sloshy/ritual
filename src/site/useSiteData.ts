@@ -6,6 +6,18 @@ import { setSearchDebounceMs } from '../editor/search-debounce'
 import { setDefaultLanguage } from '../editor/default-language'
 import { apiActive, apiBase, dataUrl, reportDataFetchError, setApiBase } from './api-base'
 import { isAbortError } from './utils'
+import {
+  currentLocale,
+  DEFAULT_LOCALE,
+  ensureLocaleLoaded,
+  resolveBrowserLocale,
+  setLocale as setRuntimeLocale,
+  writeStoredLocale,
+  readStoredLocale,
+  type LocaleOverride,
+} from '../i18n/runtime'
+import type { LocaleTag } from '../i18n/types'
+import { localeDirection } from './html-shell'
 
 export type UseSiteDataResult = {
   deckList: Accessor<DeckSummary[] | null>
@@ -21,8 +33,44 @@ export type UseSiteDataResult = {
    * *and* a live API is answering, since quotes are never baked.
    */
   sellMode: Accessor<boolean>
+  /**
+   * The UI locale in force — the one a dictionary is actually loaded for, which
+   * is not always the one that was asked for (an unreachable dictionary
+   * degrades to English rather than failing the boot).
+   */
+  uiLocale: Accessor<LocaleTag>
+  /**
+   * Every locale this deployment publishes a dictionary for, English first. The
+   * language switcher shows itself only when there is more than one.
+   */
+  availableLocales: Accessor<LocaleTag[]>
+  /**
+   * Switch the UI language: fetch the dictionary if it is not loaded yet, apply
+   * it, remember the choice, and restamp `<html lang dir>`. Resolves with the
+   * locale actually applied.
+   */
+  switchLocale: (tag: LocaleTag) => Promise<LocaleTag>
   /** Refetch the index from the live backend. No-op in static mode. */
   refetch: () => void
+}
+
+/** The `?locale=` value from the hash query, or undefined when there is none. */
+function localeFromHashQuery(): string | undefined {
+  const hash = window.location.hash
+  const start = hash.indexOf('?')
+  if (start < 0) return undefined
+  return new URLSearchParams(hash.slice(start + 1)).get('locale') ?? undefined
+}
+
+/**
+ * Stamp the resolved locale onto the document, matching what the shell's
+ * `boot.js` did before first paint so a runtime switch leaves no stale `lang`
+ * behind for screen readers, hyphenation, or a future RTL stylesheet.
+ */
+function applyDocumentLocale(tag: LocaleTag): void {
+  const element = document.documentElement
+  element.lang = tag
+  element.dir = localeDirection(tag)
 }
 
 export function useSiteData(): UseSiteDataResult {
@@ -38,10 +86,15 @@ export function useSiteData(): UseSiteDataResult {
   ])
   const [pricesDate, setPricesDate] = createSignal<string | null>(null)
   const [sellModeConfigured, setSellModeConfigured] = createSignal(false)
+  const [uiLocale, setUiLocale] = createSignal<LocaleTag>(currentLocale())
+  const [availableLocales, setAvailableLocales] = createSignal<LocaleTag[]>([DEFAULT_LOCALE])
 
   // The configured default currency is applied once; live refetches must not
   // clobber a currency the user has since picked.
   let currencyApplied = false
+  // Same for the language: the index carries the site's baked default, and a
+  // refetch must not undo a switch the user made since.
+  let localeApplied = false
 
   const applyIndex = (data: SiteIndex): void => {
     // Batched: this runs from async contexts (no auto-batching), and consumers
@@ -60,9 +113,54 @@ export function useSiteData(): UseSiteDataResult {
       if (data.pricesDate) setPricesDate(data.pricesDate)
       if (typeof data.searchDebounceMs === 'number') setSearchDebounceMs(data.searchDebounceMs)
       if (data.defaultLanguage) setDefaultLanguage(data.defaultLanguage)
+      // Absent on sites built before locales existed, which reads as English-only.
+      if (data.availableLocales && data.availableLocales.length > 0) {
+        setAvailableLocales(data.availableLocales)
+      }
       // Absent on sites built before sell mode existed, which reads as off.
       setSellModeConfigured(data.sellMode === true)
     })
+  }
+
+  /**
+   * Apply a locale to the runtime, the document, and the exposed signal, having
+   * first made sure its dictionary is loaded.
+   */
+  const applyLocale = async (tag: LocaleTag, signal?: AbortSignal): Promise<LocaleTag> => {
+    const usable = await ensureLocaleLoaded(tag, signal ? { signal } : undefined)
+    setRuntimeLocale(usable)
+    applyDocumentLocale(usable)
+    setUiLocale(usable)
+    return usable
+  }
+
+  /**
+   * Resolve the boot locale from the index and the browser, and load its
+   * dictionary — in the same batch as the index fetch, so there is no second
+   * round trip before the first paint of translated text. English is inline in
+   * the bundle and costs nothing here.
+   */
+  const bootLocale = async (data: SiteIndex, signal: AbortSignal): Promise<void> => {
+    if (localeApplied) return
+    localeApplied = true
+    const resolved = resolveBrowserLocale({
+      override: (globalThis as unknown as LocaleOverride).__ritualLocale__,
+      query: localeFromHashQuery(),
+      stored: readStoredLocale(),
+      preferred: navigator.languages,
+      configured: data.uiLocale,
+      available: data.availableLocales ?? [DEFAULT_LOCALE],
+    })
+    await applyLocale(resolved, signal)
+  }
+
+  const switchLocale = async (tag: LocaleTag): Promise<LocaleTag> => {
+    const applied = await applyLocale(tag)
+    // What was applied, not what was asked for: if the dictionary could not be
+    // fetched this remembers English, so the next load does not re-run a fetch
+    // that just failed.
+    writeStoredLocale(applied)
+    return applied
   }
 
   const fetchIndex = async (url: string, signal?: AbortSignal): Promise<SiteIndex> => {
@@ -81,13 +179,18 @@ export function useSiteData(): UseSiteDataResult {
         // Split deployment: prefer the remote live index, keeping the baked
         // copy (and degrading to static behavior) when it is unreachable.
         try {
-          applyIndex(await fetchIndex(dataUrl('index.json'), signal))
+          const live = await fetchIndex(dataUrl('index.json'), signal)
+          applyIndex(live)
+          // Dictionaries are static assets of *this* origin even in a split
+          // deployment, so only the locale *choice* comes from the live index.
+          await bootLocale(live, signal)
           return
         } catch (e) {
           reportDataFetchError(e)
         }
       }
       applyIndex(data)
+      await bootLocale(data, signal)
     } catch (e) {
       if (isAbortError(e)) return
       console.error('Failed to load index:', e)
@@ -141,6 +244,9 @@ export function useSiteData(): UseSiteDataResult {
     // Quotes are only ever fetched, never baked, so a static site cannot offer
     // sell mode however it was configured.
     sellMode: () => sellModeConfigured() && apiActive(),
+    uiLocale,
+    availableLocales,
+    switchLocale,
     refetch,
   }
 }

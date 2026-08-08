@@ -1,4 +1,5 @@
-import { formatChange, type ChangeEvent } from '../change-event'
+import type { ChangeEvent } from '../change-event'
+import { formatChange } from '../change-message'
 import type { ListType } from '../list-type'
 
 /**
@@ -75,6 +76,14 @@ export type UnmatchedTarget = { type: ListType; slug: string }
  * that rejects a batch (MCP mutations, the collection save handler, the
  * one-shot CLI path) so the phrasing cannot drift. Surfaces append their own
  * recovery hints — this text stays client-neutral.
+ *
+ * **English by contract, deliberately not routed through `t()`.** Its callers
+ * are `src/mcp/mutations.ts` and `src/admin/api/collection-save.ts`, and MCP
+ * result prose is English regardless of the operator's UI locale (plan §11).
+ * The editors never render it: they surface the *rendered* `message` the API
+ * returned, as `statusText`. It becomes localizable when Phase 5 widens
+ * `ApiResult` with a `messageKey`, which is where the split between "what the
+ * agent reads" and "what the human reads" is introduced.
  */
 export function describeUnmatchedChanges(
   unmatched: readonly UnmatchedChange<ChangeEvent>[],

@@ -12,6 +12,8 @@ import { resolvePrintingLanguage } from '../printing-language'
 import { formatLanguageList, type CardLanguage } from '../card-language'
 import { defaultLanguage } from '../editor/default-language'
 import { pickedPrintingLanguage } from './printing-prompt'
+import { finishChipName } from './printing-display'
+import { useT } from '../ui/i18n'
 import { useTooltip } from './useTooltip'
 
 export interface TradePrintingPickerProps {
@@ -46,6 +48,7 @@ interface PickerItemProps {
 }
 
 const PickerItem: Component<PickerItemProps> = (props) => {
+  const t = useT()
   const { frontImage } = resolveCardImageSources(props.printing, Boolean(props.useScryfallImgUrls))
   const finishes: Finish[] = props.printing.finishes.filter(isFinish)
   if (finishes.length === 0) finishes.push('nonfoil')
@@ -87,7 +90,7 @@ const PickerItem: Component<PickerItemProps> = (props) => {
             {(lang) => <> · {lang().toUpperCase()}</>}
           </Show>
           <Show when={props.desired}>
-            <span class="trade-picker-wanted-tag">Wanted</span>
+            <span class="trade-picker-wanted-tag">{t('site.tradePicker.wantedTag')}</span>
           </Show>
         </span>
         <span class="trade-picker-release">{props.printing.released_at ?? ''}</span>
@@ -96,10 +99,15 @@ const PickerItem: Component<PickerItemProps> = (props) => {
             {(p, i) => (
               <>
                 <Show when={i() > 0}> </Show>
-                <span classList={{ 'trade-picker-price-secondary': i() > 0 }} title={p.finish}>
+                <span
+                  classList={{ 'trade-picker-price-secondary': i() > 0 }}
+                  title={finishChipName(t, p.finish)}
+                >
                   <Show when={i() > 0}>(</Show>
-                  {p.value > 0 ? formatPrice(p.value, props.currency) : 'N/A'}
-                  <Show when={i() > 0}> {p.finish})</Show>
+                  {p.value > 0
+                    ? formatPrice(p.value, props.currency)
+                    : t('site.tradePicker.priceNA')}
+                  <Show when={i() > 0}> {finishChipName(t, p.finish)})</Show>
                 </span>
               </>
             )}
@@ -117,7 +125,7 @@ const PickerItem: Component<PickerItemProps> = (props) => {
                 props.onSelectFinish(props.printing, finish)
               }}
             >
-              {finish}
+              {finishChipName(t, finish)}
             </button>
           )}
         </For>
@@ -127,6 +135,7 @@ const PickerItem: Component<PickerItemProps> = (props) => {
 }
 
 export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) => {
+  const t = useT()
   const [selectedPrinting, setSelectedPrinting] = createSignal<ScryfallCard | null>(null)
   const [selectedFinish, setSelectedFinish] = createSignal<Finish>('nonfoil')
   const [page, setPage] = createSignal(0)
@@ -215,7 +224,7 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
       open
       onClose={props.onClose}
       size="lg"
-      aria-label={`Select printing for ${props.cardName}`}
+      aria-label={t('site.tradePicker.aria', { name: props.cardName })}
       panelClass="trade-picker-modal"
       overlay={
         <div
@@ -226,13 +235,17 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
           style={`left:${tip.tooltipPos().left}px;top:${tip.tooltipPos().top}px;`}
         >
           <Show when={tip.tooltip()}>
-            {(t) => <img src={t().src} alt="" class={t().sideways ? 'tooltip-rotated' : ''} />}
+            {(preview) => (
+              <img src={preview().src} alt="" class={preview().sideways ? 'tooltip-rotated' : ''} />
+            )}
           </Show>
         </div>
       }
     >
       <div class="trade-picker-header">
-        <span class="trade-picker-title">Select Printing: {props.cardName}</span>
+        <span class="trade-picker-title">
+          {t('site.tradePicker.title', { name: props.cardName })}
+        </span>
         <button class="trade-picker-close" onClick={props.onClose}>
           ×
         </button>
@@ -241,19 +254,19 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
         <input
           type="text"
           class="trade-picker-filter"
-          placeholder="Filter by set code (e.g. mkm, lea)…"
+          placeholder={t('site.tradePicker.filterPlaceholder')}
           value={filterText()}
           onInput={(e) => setFilterText(e.target.value)}
           autocomplete="off"
         />
       </div>
       <Show when={props.loading}>
-        <div class="trade-picker-loading">Loading printings…</div>
+        <div class="trade-picker-loading">{t('site.tradePicker.loading')}</div>
       </Show>
       <Show when={!props.loading}>
         <div class="trade-picker-list">
           <Show when={orderedPrintings().length === 0 && props.printings.length > 0}>
-            <div class="trade-picker-loading">No printings match that set code.</div>
+            <div class="trade-picker-loading">{t('site.tradePicker.noMatches')}</div>
           </Show>
           <For each={pagedPrintings()}>
             {(printing) => (
@@ -282,17 +295,21 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page() === 0}
             >
-              ← Prev
+              {t('site.pagination.prev')}
             </button>
             <span class="trade-picker-pagination-info">
-              Page {page() + 1} of {totalPages()} · {orderedPrintings().length} printings
+              {t('site.tradePicker.pageInfo', {
+                page: page() + 1,
+                total: totalPages(),
+                count: orderedPrintings().length,
+              })}
             </span>
             <button
               class="btn btn-secondary"
               onClick={() => setPage((p) => Math.min(totalPages() - 1, p + 1))}
               disabled={page() >= totalPages() - 1}
             >
-              Next →
+              {t('site.pagination.next')}
             </button>
           </div>
         </Show>
@@ -302,10 +319,10 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
             fallback={
               <div class="trade-picker-actions">
                 <button class="btn btn-success" onClick={handleConfirm}>
-                  Add to Trade
+                  {t('site.trade.addAction')}
                 </button>
                 <button class="btn btn-secondary" onClick={props.onClose}>
-                  Cancel
+                  {t('ui.dialog.cancel')}
                 </button>
               </div>
             }
@@ -313,14 +330,16 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
             {(notice) => (
               <div class="trade-picker-actions">
                 <span class="trade-picker-language-notice">
-                  This printing is only available in {formatLanguageList([notice()])} — it will be
-                  recorded as [{notice()}].
+                  {t('site.tradePicker.languageNotice', {
+                    language: formatLanguageList([notice()]),
+                    token: notice(),
+                  })}
                 </span>
                 <button class="btn btn-success" onClick={handleConfirm}>
-                  Continue
+                  {t('site.tradePicker.continue')}
                 </button>
                 <button class="btn btn-secondary" onClick={() => setLanguageNotice(null)}>
-                  Back
+                  {t('site.tradePicker.back')}
                 </button>
               </div>
             )}

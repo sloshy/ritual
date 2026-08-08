@@ -26,6 +26,7 @@ import {
   listTypeFromFlags,
   resolveList,
   resolveListArgument,
+  type ListArgumentConflict,
   type ListTypeFlags,
   type ResolveListError,
 } from '../resolve-list'
@@ -46,7 +47,8 @@ import {
   type PrintingFields,
 } from '../card-printing'
 import { readRecordedCardBulkType } from '../cache/bulk-provenance'
-import { CardCommandError, getErrorMessage } from '../errors'
+import { CardCommandError, getErrorMessage, localizedCommandError } from '../errors'
+import { t, type MessageParams } from '../i18n/t'
 import { parsePositiveInteger } from '../parse-number'
 import type { CardLabel } from '../card-labels'
 import {
@@ -90,12 +92,35 @@ export async function runCommandAction(
     await run()
   } catch (err) {
     if (err instanceof CardCommandError) {
-      emitError(err.code, err.message, scripting, err.details)
+      // The catalog key travels beside the rendered prose, so `--output json`
+      // carries a locale-invariant discriminator alongside `error.code`.
+      emitError(err.code, err.message, scripting, err.details, err.messageRef)
       process.exitCode = err.exitCode
       return
     }
     throw err
   }
+}
+
+/**
+ * The shared "the user cancelled a prompt" refusal. Every interactive selector
+ * in the one-shot commands ends here, so the wording and the exit code cannot
+ * drift between them.
+ */
+export function cancelledError(): CardCommandError {
+  return localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.cancelled')
+}
+
+/**
+ * The shared refusal for a `deck:`/`collection:`/`wanted:` prefix that
+ * contradicts the command's type flag. The prose is rendered by the resolver
+ * itself; this only attaches the exit code and the resolver's catalog key.
+ */
+export function listArgumentConflictError(conflict: ListArgumentConflict): CardCommandError {
+  return new CardCommandError('usage_error', conflict.message, ExitCode.UsageError, undefined, {
+    key: 'errors.resolveList.typeConflict',
+    params: conflict.params,
+  })
 }
 
 export type ResolveTargetInput = {
@@ -118,11 +143,9 @@ export type CardCommandResultBase = {
 export function parseCardIdFlag(raw: string): number {
   const parsed = parsePositiveInteger(raw)
   if (parsed === undefined) {
-    throw new CardCommandError(
-      'usage_error',
-      `--card-id must be a positive integer (got '${raw}').`,
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.cardIdPositive', {
+      value: raw,
+    })
   }
   return parsed
 }
@@ -166,9 +189,9 @@ export type ResolveListSelectionOptions = {
  */
 export function addListTypeFlags(command: Command): Command {
   return command
-    .option('--deck', 'Resolve the name as a deck')
-    .option('--collection', 'Resolve the name as a collection')
-    .option('--wanted', 'Resolve the name as a wanted list')
+    .option('--deck', t('help.listFlags.deck'))
+    .option('--collection', t('help.listFlags.collection'))
+    .option('--wanted', t('help.listFlags.wanted'))
 }
 
 /**
@@ -183,7 +206,13 @@ export function resolveListTypeFlag(
 ): ListType | undefined | 'conflict' {
   const type = listTypeFromFlags(flags)
   if (type === 'conflict') {
-    emitError('usage_error', 'Specify only one of --deck, --collection, or --wanted.', scripting)
+    emitError(
+      'usage_error',
+      t('cli.cardOps.oneTypeFlag'),
+      scripting,
+      undefined,
+      'cli.cardOps.oneTypeFlag',
+    )
     process.exitCode = ExitCode.UsageError
   }
   return type
@@ -218,9 +247,7 @@ export async function resolveListSelection(
 ): Promise<ResolvedList> {
   if (listName !== undefined) {
     const arg = resolveListArgument(listName, type)
-    if (isListArgumentConflict(arg)) {
-      throw new CardCommandError('usage_error', arg.message, ExitCode.UsageError)
-    }
+    if (isListArgumentConflict(arg)) throw listArgumentConflictError(arg)
     const resolved = await resolveList(arg.name, arg.type)
     if (isResolveListError(resolved)) throw resolveErrorToCommandError(resolved)
     return { type: resolved.type, filePath: resolved.filePath }
@@ -232,22 +259,22 @@ export async function resolveListSelection(
     ? allLocations.filter((loc) => options.pickerTypes!.includes(loc.type))
     : allLocations
   if (locations.length === 0) {
-    throw new CardCommandError(
-      'not_found',
-      type
-        ? `No ${listTypeLabel(type).toLowerCase()} files found. Create one first.`
-        : 'No decks, collections, or wanted lists found. Create one first.',
-      ExitCode.NotFound,
-    )
+    // One sentence per list type rather than a spliced noun: the noun is
+    // gendered in most target languages, so the sentence around it changes too.
+    throw type
+      ? localizedCommandError('not_found', ExitCode.NotFound, 'cli.cardOps.noListFilesOfType', {
+          type,
+        })
+      : localizedCommandError('not_found', ExitCode.NotFound, 'cli.cardOps.noListFiles')
   }
 
   let exited = false
   const resp = await prompts({
     type: 'autocomplete',
     name: 'index',
-    message: 'Select a list:',
+    message: t('cli.cardOps.promptSelectList'),
     choices: locations.map((loc, i) => ({
-      title: `${loc.name} — ${listTypeLabel(loc.type)}`,
+      title: t('cli.cardOps.listChoice', { name: loc.name, type: listTypeLabel(loc.type) }),
       value: i,
     })),
     limit: 15,
@@ -255,12 +282,14 @@ export async function resolveListSelection(
       if (state.exited) exited = true
     },
   })
-  if (exited || typeof resp.index !== 'number') {
-    throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
-  }
+  if (exited || typeof resp.index !== 'number') throw cancelledError()
   const chosen = locations[resp.index]
   if (!chosen) {
-    throw new CardCommandError('runtime_error', 'Selection out of range.', ExitCode.RuntimeError)
+    throw localizedCommandError(
+      'runtime_error',
+      ExitCode.RuntimeError,
+      'cli.cardOps.selectionOutOfRange',
+    )
   }
   return { type: chosen.type, filePath: chosen.filePath }
 }
@@ -324,17 +353,16 @@ export async function resolveTarget(
 ): Promise<EntryRef> {
   const entries = await loadEntryRefs(type, filePath)
   if (entries.length === 0) {
-    throw new CardCommandError('not_found', `${listTypeLabel(type)} is empty.`, ExitCode.NotFound)
+    throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.cardOps.listEmpty', { type })
   }
 
   if (input.cardId !== undefined) {
     const matches = entries.filter((e) => e.cardId === input.cardId)
     if (matches.length === 0) {
-      throw new CardCommandError(
-        'not_found',
-        `No card with id ${input.cardId} found in ${path.basename(filePath)}.`,
-        ExitCode.NotFound,
-      )
+      throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.cardOps.noCardWithId', {
+        id: input.cardId,
+        file: path.basename(filePath),
+      })
     }
     // Card IDs are unique per file, so we expect exactly one match.
     const matched = matches[0]!
@@ -350,11 +378,10 @@ export async function resolveTarget(
     // Exact-name matches beat substring matches (see matchByNormalizedName).
     const matched = matchByNormalizedName(entries, input.cardName, (e) => e.name)
     if (matched.length === 0) {
-      throw new CardCommandError(
-        'not_found',
-        `No card matching '${input.cardName}' found in ${path.basename(filePath)}.`,
-        ExitCode.NotFound,
-      )
+      throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.cardOps.noCardMatching', {
+        name: input.cardName,
+        file: path.basename(filePath),
+      })
     }
     if (matched.length === 1) return matched[0]!
     throw new CardCommandError(
@@ -372,6 +399,7 @@ export async function resolveTarget(
           language: e.language,
         })),
       },
+      { key: 'cli.cardOps.ambiguousCard' },
     )
   }
 
@@ -392,11 +420,17 @@ export function ensureCardIdMatchesName(check: CardIdNameCheck): void {
   const { cardId, entryName, requestedName } = check
   if (requestedName === undefined) return
   if (matchByNormalizedName([entryName], requestedName, (name) => name).length > 0) return
+  const params: MessageParams<'cli.cardOps.cardIdNameMismatch'> = {
+    cardId,
+    entryName,
+    requestedName,
+  }
   throw new CardCommandError(
     'usage_error',
-    `--card-id ${cardId} is '${entryName}', which does not match '${requestedName}'. Pass one selector or the other.`,
+    t('cli.cardOps.cardIdNameMismatch', params),
     ExitCode.UsageError,
     { cardId, entryName, requestedName },
+    { key: 'cli.cardOps.cardIdNameMismatch', params },
   )
 }
 
@@ -413,10 +447,11 @@ export type CardIdNameCheck = {
 function formatAmbiguityMessage(search: string, matches: EntryRef[]): string {
   const lines = matches
     .slice(0, 10)
-    .map((m) => `  - ${describeEntry(m)}`)
+    .map((m) => t('cli.cardOps.matchLine', { entry: describeEntry(m) }))
     .join('\n')
-  const suffix = matches.length > 10 ? `\n  ... and ${matches.length - 10} more` : ''
-  return `Multiple cards match '${search}'. Pick one with --card-id <id> or run interactively:\n${lines}${suffix}`
+  const suffix =
+    matches.length > 10 ? `\n${t('cli.cardOps.andMore', { count: matches.length - 10 })}` : ''
+  return t('cli.cardOps.ambiguousCard', { name: search, matches: `${lines}${suffix}` })
 }
 
 /** One-line human description of an entry: name, printing annotation, `&id`. */
@@ -429,14 +464,16 @@ export function describeEntry(entry: EntryRef): string {
 async function promptCardSelection(entries: EntryRef[]): Promise<EntryRef> {
   requireInteractive('a card name or --card-id <id>')
   const choices = entries.map((e, i) => ({
-    title: describeEntry(e) + (e.note ? ` — note: "${e.note}"` : ''),
+    title: e.note
+      ? t('cli.cardOps.cardChoiceWithNote', { entry: describeEntry(e), note: e.note })
+      : describeEntry(e),
     value: i,
   }))
   let exited = false
   const resp = await prompts({
     type: 'autocomplete',
     name: 'index',
-    message: 'Select a card:',
+    message: t('cli.cardOps.promptSelectCard'),
     choices,
     limit: 15,
     suggest: async (rawInput, suggestChoices) => {
@@ -452,20 +489,26 @@ async function promptCardSelection(entries: EntryRef[]): Promise<EntryRef> {
       if (state.exited) exited = true
     },
   })
-  if (exited || typeof resp.index !== 'number') {
-    throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
-  }
+  if (exited || typeof resp.index !== 'number') throw cancelledError()
   const target = entries[resp.index]
   if (!target) {
-    throw new CardCommandError('runtime_error', 'Selection out of range.', ExitCode.RuntimeError)
+    throw localizedCommandError(
+      'runtime_error',
+      ExitCode.RuntimeError,
+      'cli.cardOps.selectionOutOfRange',
+    )
   }
   return target
 }
 
+/**
+ * A list type's name as the one-shot commands' pickers show it. Deliberately a
+ * `$select` message rather than the lowercase file-format vocabulary in
+ * `src/list-type.ts`: this one is display text, and nothing may case-fold it —
+ * a sentence that needs the lowercase form gets its own whole-sentence message.
+ */
 export function listTypeLabel(type: ListType): string {
-  if (type === 'deck') return 'Deck'
-  if (type === 'collection') return 'Collection'
-  return 'Wanted list'
+  return t('cli.cardOps.typeLabel', { type })
 }
 
 // ── Printing pins ─────────────────────────────────────────────────────────────
@@ -489,30 +532,33 @@ function sameCardName(a: string, b: string): boolean {
  * asserting it is the card's only "available printing".
  */
 async function verifyPinAgainstScryfall(cardName: string, pin: PrintingPin): Promise<ScryfallCard> {
-  const advice = `The card cache holds no printing list for '${cardName}'. Run 'ritual cache preload-all' to download it.`
+  const advice = t('cli.cardOps.noCachedPrintingList', { name: cardName })
+  const printingLabel = `${pin.set.toUpperCase()}:${pin.collectorNumber}`
   let printing: ScryfallCard | null
   try {
     printing = await fetchPrintingByCollectorNumber(pin.set, pin.collectorNumber)
   } catch (err) {
-    throw new CardCommandError(
+    throw localizedCommandError(
       'runtime_error',
-      `Failed to verify printing ${pin.set.toUpperCase()}:${pin.collectorNumber}: ${getErrorMessage(err)}. ${advice}`,
       ExitCode.RuntimeError,
+      'cli.cardOps.verifyPrintingFailed',
+      { printing: printingLabel, reason: getErrorMessage(err), advice },
     )
   }
   if (!printing) {
-    throw new CardCommandError(
+    throw localizedCommandError(
       'usage_error',
-      `Could not verify printing ${pin.set.toUpperCase()}:${pin.collectorNumber} of '${cardName}' with Scryfall. ${advice}`,
       ExitCode.UsageError,
+      'cli.cardOps.printingUnverified',
+      { printing: printingLabel, name: cardName, advice },
     )
   }
   if (!sameCardName(printing.name, cardName)) {
-    throw new CardCommandError(
-      'usage_error',
-      `${pin.set.toUpperCase()}:${pin.collectorNumber} is '${printing.name}', not '${cardName}'.`,
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.printingIsOther', {
+      printing: printingLabel,
+      actual: printing.name,
+      name: cardName,
+    })
   }
   return printing
 }
@@ -542,10 +588,11 @@ export async function resolvePinnedPrinting(
     printings = result.printings
   } catch (err) {
     if (err instanceof CardCommandError) throw err
-    throw new CardCommandError(
+    throw localizedCommandError(
       'runtime_error',
-      `Failed to look up printings for '${cardName}': ${getErrorMessage(err)}`,
       ExitCode.RuntimeError,
+      'cli.cardOps.printingLookupFailed',
+      { name: cardName, reason: getErrorMessage(err) },
     )
   }
   const match = matchPrintingPin(cardName, printings, pin.set, pin.collectorNumber)
@@ -591,10 +638,11 @@ export async function ensureFinishAvailableForEntry(
     result = await getCardPrintingsResult(cardName, { network: false })
   } catch (err) {
     if (err instanceof CardCommandError) throw err
-    throw new CardCommandError(
+    throw localizedCommandError(
       'runtime_error',
-      `Failed to look up printings for '${cardName}': ${getErrorMessage(err)}`,
       ExitCode.RuntimeError,
+      'cli.cardOps.printingLookupFailed',
+      { name: cardName, reason: getErrorMessage(err) },
     )
   }
   if (!printingsAreComplete(result)) return { checked: false, reason: 'cache-miss' }
@@ -647,10 +695,11 @@ export async function ensureLanguageAvailableForEntry(
     result = await getCardPrintingsResult(cardName, { network: false })
   } catch (err) {
     if (err instanceof CardCommandError) throw err
-    throw new CardCommandError(
+    throw localizedCommandError(
       'runtime_error',
-      `Failed to look up printings for '${cardName}': ${getErrorMessage(err)}`,
       ExitCode.RuntimeError,
+      'cli.cardOps.printingLookupFailed',
+      { name: cardName, reason: getErrorMessage(err) },
     )
   }
   const available = printingLanguages(result.printings, entry.set, entry.collectorNumber)
@@ -662,11 +711,19 @@ export async function ensureLanguageAvailableForEntry(
     available.length > 0 &&
     (await readRecordedCardBulkType()) === 'all_cards'
   ) {
+    const params: MessageParams<'cli.cardOps.languageUnavailable'> = {
+      printing: printingLabel,
+      name: cardName,
+      language: languageDisplayName(language),
+      code: language,
+      available: formatLanguageList(available),
+    }
     throw new CardCommandError(
       'usage_error',
-      `Printing ${printingLabel} of '${cardName}' is not available in ${languageDisplayName(language)} (${language}). Available languages: ${formatLanguageList(available)}.`,
+      t('cli.cardOps.languageUnavailable', params),
       ExitCode.UsageError,
       { availableLanguages: available },
+      { key: 'cli.cardOps.languageUnavailable', params },
     )
   }
 
@@ -677,18 +734,24 @@ export async function ensureLanguageAvailableForEntry(
     return { checked: false, reason: 'verify-failed', detail: getErrorMessage(err) }
   }
   if (!printing) {
-    throw new CardCommandError(
+    throw localizedCommandError(
       'usage_error',
-      `Scryfall has no ${languageDisplayName(language)} (${language}) object for printing ${printingLabel} of '${cardName}'.`,
       ExitCode.UsageError,
+      'cli.cardOps.noLanguageObject',
+      {
+        language: languageDisplayName(language),
+        code: language,
+        printing: printingLabel,
+        name: cardName,
+      },
     )
   }
   if (!sameCardName(printing.name, cardName)) {
-    throw new CardCommandError(
-      'usage_error',
-      `${printingLabel} is '${printing.name}', not '${cardName}'.`,
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.printingIsOther', {
+      printing: printingLabel,
+      actual: printing.name,
+      name: cardName,
+    })
   }
   return { checked: true }
 }
@@ -708,10 +771,16 @@ export function ensureFinishAvailable(
   const match = matchFinishPin(cardName, printing, finish)
   if (!match.ok) {
     const message = carriedOver
-      ? `${match.message} The entry already records ${finish}; pass --finish to record an available one.`
+      ? t('cli.cardOps.finishCarriedOver', { reason: match.message, finish })
       : match.message
-    throw new CardCommandError('usage_error', message, ExitCode.UsageError, {
-      availableFinishes: match.available,
-    })
+    throw new CardCommandError(
+      'usage_error',
+      message,
+      ExitCode.UsageError,
+      { availableFinishes: match.available },
+      carriedOver
+        ? { key: 'cli.cardOps.finishCarriedOver', params: { reason: match.message, finish } }
+        : undefined,
+    )
   }
 }

@@ -1,17 +1,22 @@
 import prompts, { type Choice } from 'prompts'
+import { compareData } from '../i18n/collate'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { getAllCardNames, getCardsBySet } from '../scryfall'
 import { emptyCacheAdvice, refreshCardCacheForSession } from '../cache/freshness'
 import type { RefreshMode } from '../refresh'
 import type { Condition, Finish, ScryfallCard } from '../types'
-import { CONDITION_LABELS, isCondition, isFinish, VALID_CONDITIONS } from '../finish-condition'
+import { conditionLabel, isCondition, isFinish, VALID_CONDITIONS } from '../finish-condition'
 import type { PromptState } from './prompts-types'
 import { appendChangelog } from '../changelog-writer'
 import { createSetNoteChange, type ChangeEvent } from '../change-event'
 import { writeFileWithHash } from '../content-hash'
 import { formatSetCodesForDisplay, parseSetCodesInput } from '../set-codes'
-import { matchesAllNameTerms, rankNameMatches } from '../term-match'
+import { rankNameMatches } from '../term-match'
+import type { MessageKey } from '../i18n/messages/en'
+import { DEFAULT_LOCALE } from '../i18n/runtime'
+import { t, tIn, type TranslateArgs } from '../i18n/t'
+import { matchesChoiceTerms } from './menu-search'
 import { promptExitMenu } from './prompts-helpers'
 import { ExitCode } from './scripting'
 import { isListMarkdownFile } from '../list-file-name'
@@ -97,11 +102,43 @@ export type MenuSentinel = (typeof MENU_SENTINEL_VALUES)[number]
 const MENU_SENTINELS = new Set<string>(MENU_SENTINEL_VALUES)
 
 /** A session-menu choice, its value pinned to a real sentinel. Assignable to {@link Choice}. */
-export type MenuChoice = { title: string; value: MenuSentinel }
+export type MenuChoice = {
+  title: string
+  value: MenuSentinel
+  /**
+   * English terms that also select this row, so the typing a user has in their
+   * fingers keeps working after the menu is translated. Under English these
+   * equal the title and change nothing. See `menu-search.ts`.
+   */
+  searchAliases: string[]
+}
 
 /** Build a session-menu choice, constraining the value to a real sentinel. */
-export function menuItem(title: string, value: MenuSentinel): MenuChoice {
-  return { title, value }
+export function menuItem(
+  title: string,
+  value: MenuSentinel,
+  searchAliases: string[] = [],
+): MenuChoice {
+  return { title, value, searchAliases }
+}
+
+/**
+ * Build a session-menu choice from a catalog key, rendering the label in the
+ * active locale and recording its English rendering as a search alias in the
+ * same call. Keeping the two together is the point: an alias derived from the
+ * catalog cannot fall out of date with its label the way a hand-written list
+ * would, and a new menu row gets muscle-memory search for free.
+ *
+ * `icon` is decoration, not text: it stays out of the catalog so it cannot be
+ * translated away, and out of the `maxLen` budget, which measures the words.
+ */
+function menuRow<K extends MessageKey>(
+  icon: string,
+  value: MenuSentinel,
+  key: K,
+  ...args: TranslateArgs<K>
+): MenuChoice {
+  return menuItem(`${icon} ${t(key, ...args)}`, value, [tIn(DEFAULT_LOCALE, key, ...args)])
 }
 
 /** Whether a prompt value is exactly a known sentinel (vs. a card name or object choice). */
@@ -337,14 +374,14 @@ async function loadCardNamesOrWarn(
   sets: string[] | undefined,
   excludeDigitalOnly: boolean,
 ): Promise<string[] | null> {
-  console.log('Loading card database for autocomplete...')
+  console.log(t('cli.session.loadingCards'))
   const cardNames = await getAllCardNames({ sets, excludeDigitalOnly })
   if (cardNames.length === 0) {
-    console.error(emptyCacheAdvice('Card cache is empty.'))
+    console.error(emptyCacheAdvice(t('cli.session.cacheEmpty')))
     process.exitCode = ExitCode.RuntimeError
     return null
   }
-  console.log(`Loaded ${cardNames.length} cards.`)
+  console.log(t('cli.session.loadedCards', { count: cardNames.length }))
   return cardNames
 }
 
@@ -362,9 +399,9 @@ export async function ensureListFile(
   const filePath = path.join(dir, fileName)
   if (!(await Bun.file(filePath).exists())) {
     await writeFileWithHash(filePath, initialContent)
-    console.log(`Created new ${label} file: ${fileName}`)
+    console.log(t('cli.session.createdFile', { label, file: fileName }))
   } else {
-    console.log(`Using ${label} file: ${fileName}`)
+    console.log(t('cli.session.usingFile', { label, file: fileName }))
   }
   return filePath
 }
@@ -413,12 +450,12 @@ export async function loadCollectorSets(
   config: CollectorSessionConfig,
   setCodes: string[],
 ): Promise<void> {
-  console.log('Loading set data...')
+  console.log(t('cli.session.loadingSetData'))
   for (const setCode of setCodes) {
-    console.log(`Loading ${setCode.toUpperCase()}...`)
+    console.log(t('cli.session.loadingSet', { set: setCode.toUpperCase() }))
     const cardMap = await getCardsBySet(setCode)
     config.setCardMaps.set(setCode.toLowerCase(), cardMap)
-    console.log(`  ${cardMap.size} cards loaded`)
+    console.log(t('cli.session.setCardsLoaded', { count: cardMap.size }))
   }
   config.collectorSets = setCodes
   config.activeSetIndex = 0
@@ -445,19 +482,21 @@ export function buildSessionConfigQuestions(
     {
       type: 'text',
       name: 'sets',
-      message: 'Filter by Set Codes (comma separated, e.g. "ECL, ECC"):',
+      message: t('cli.session.promptSetFilter'),
       initial: config.sets ? formatSetCodesForDisplay(config.sets) : '',
       format: (val: string) => parseSetCodesInput(val),
     },
     {
       type: 'select',
       name: 'finish',
-      message: 'Default Finish:',
+      message: t('cli.session.promptDefaultFinish'),
+      // The values are the persisted finish slugs and never move; only the
+      // rows' titles are localized.
       choices: [
-        { title: 'None (Always Prompt)', value: '' },
-        { title: 'Nonfoil', value: 'nonfoil' },
-        { title: 'Foil', value: 'foil' },
-        { title: 'Etched', value: 'etched' },
+        { title: t('cli.session.finishAlwaysPrompt'), value: '' },
+        { title: t('cli.session.finishNonfoil'), value: 'nonfoil' },
+        { title: t('cli.session.finishFoil'), value: 'foil' },
+        { title: t('cli.session.finishEtched'), value: 'etched' },
       ],
       initial: config.finish ? ['', 'nonfoil', 'foil', 'etched'].indexOf(config.finish) : 0,
     },
@@ -466,11 +505,11 @@ export function buildSessionConfigQuestions(
     questions.push({
       type: 'select',
       name: 'condition',
-      message: 'Default Condition:',
+      message: t('cli.session.promptDefaultCondition'),
       choices: [
-        { title: 'None (Always Prompt)', value: '' },
-        { title: "Don't Care", value: 'NONE' },
-        ...VALID_CONDITIONS.map((c) => ({ title: CONDITION_LABELS[c], value: c })),
+        { title: t('cli.session.conditionAlwaysPrompt'), value: '' },
+        { title: t('cli.session.conditionDontCare'), value: 'NONE' },
+        ...VALID_CONDITIONS.map((c) => ({ title: conditionLabel(c), value: c })),
       ],
       initial: 0,
     })
@@ -508,9 +547,9 @@ export async function reloadCardNames(
   config: SessionConfig,
   excludeDigitalOnly: boolean,
 ): Promise<string[]> {
-  console.log('Reloading card database with new filters...')
+  console.log(t('cli.session.reloadingCards'))
   const cardNames = await getAllCardNames({ sets: config.sets, excludeDigitalOnly })
-  console.log(`Loaded ${cardNames.length} cards.`)
+  console.log(t('cli.session.loadedCards', { count: cardNames.length }))
   return cardNames
 }
 
@@ -529,7 +568,7 @@ export async function promptSessionConfigUpdate(
   )) as SessionConfigAnswers
   applySessionConfigAnswers(config, answers)
   const cardNames = await reloadCardNames(config, excludeDigitalOnly)
-  console.log('Session filters updated.')
+  console.log(t('cli.session.filtersUpdated'))
   return cardNames
 }
 
@@ -538,21 +577,24 @@ export async function promptSessionConfigUpdate(
 /** Interactive add/remove/switch of the collector-mode set codes. */
 export async function manageSetCodes(config: CollectorSessionConfig): Promise<void> {
   while (true) {
-    const setChoices: Choice[] = config.collectorSets.map((code, idx) => ({
-      title: `${idx === config.activeSetIndex ? '→ ' : '  '}${code.toUpperCase()}${idx === config.activeSetIndex ? ' (active)' : ''}`,
-      value: { type: 'toggle', index: idx },
-    }))
+    const setChoices: Choice[] = config.collectorSets.map((code, idx) => {
+      const active = idx === config.activeSetIndex
+      const label = active
+        ? t('cli.menu.setCodeActive', { code: code.toUpperCase() })
+        : code.toUpperCase()
+      return { title: `${active ? '→ ' : '  '}${label}`, value: { type: 'toggle', index: idx } }
+    })
 
     setChoices.push(
-      { title: '+ Add Set Code', value: { type: 'add' } },
-      { title: '- Remove Set Code', value: { type: 'remove' } },
-      { title: '← Back', value: { type: 'back' } },
+      { title: `+ ${t('cli.menu.addSetCode')}`, value: { type: 'add' } },
+      { title: `- ${t('cli.menu.removeSetCode')}`, value: { type: 'remove' } },
+      { title: `← ${t('cli.menu.back')}`, value: { type: 'back' } },
     )
 
     const response = (await prompts({
       type: 'select',
       name: 'action',
-      message: 'Manage Set Codes:',
+      message: t('cli.session.promptManageSets'),
       choices: setChoices,
     })) as SetActionPromptResponse
 
@@ -563,7 +605,9 @@ export async function manageSetCodes(config: CollectorSessionConfig): Promise<vo
     if (response.action.type === 'toggle') {
       config.activeSetIndex = response.action.index
       console.log(
-        `Active set changed to: ${config.collectorSets[config.activeSetIndex]?.toUpperCase()}`,
+        t('cli.session.activeSetChanged', {
+          set: config.collectorSets[config.activeSetIndex]?.toUpperCase() ?? '',
+        }),
       )
       break
     }
@@ -572,34 +616,35 @@ export async function manageSetCodes(config: CollectorSessionConfig): Promise<vo
       const addResponse = (await prompts({
         type: 'text',
         name: 'code',
-        message: 'Enter set code to add:',
-        validate: (val: string) => (val.trim().length > 0 ? true : 'Set code cannot be empty'),
+        message: t('cli.session.promptAddSetCode'),
+        validate: (val: string) =>
+          val.trim().length > 0 ? true : t('cli.session.validateSetCodeEmpty'),
       })) as CodePromptResponse
 
       if (addResponse.code) {
         const newCode = addResponse.code.trim().toLowerCase()
         if (!config.collectorSets.includes(newCode)) {
-          console.log(`Loading ${newCode.toUpperCase()}...`)
+          console.log(t('cli.session.loadingSet', { set: newCode.toUpperCase() }))
           const cardMap = await getCardsBySet(newCode)
           config.setCardMaps.set(newCode, cardMap)
           config.collectorSets.push(newCode)
-          console.log(`  ${cardMap.size} cards loaded`)
+          console.log(t('cli.session.setCardsLoaded', { count: cardMap.size }))
         } else {
-          console.log(`Set ${newCode.toUpperCase()} already added.`)
+          console.log(t('cli.session.setAlreadyAdded', { set: newCode.toUpperCase() }))
         }
       }
     }
 
     if (response.action.type === 'remove') {
       if (config.collectorSets.length === 0) {
-        console.log('No sets to remove.')
+        console.log(t('cli.session.noSetsToRemove'))
         continue
       }
 
       const removeResponse = (await prompts({
         type: 'select',
         name: 'code',
-        message: 'Select set to remove:',
+        message: t('cli.session.promptSelectSetToRemove'),
         choices: config.collectorSets.map((code) => ({
           title: code.toUpperCase(),
           value: code,
@@ -614,7 +659,7 @@ export async function manageSetCodes(config: CollectorSessionConfig): Promise<vo
           if (config.activeSetIndex >= config.collectorSets.length) {
             config.activeSetIndex = Math.max(0, config.collectorSets.length - 1)
           }
-          console.log(`Removed ${removeResponse.code.toUpperCase()}`)
+          console.log(t('cli.session.setRemoved', { set: removeResponse.code.toUpperCase() }))
         }
       }
     }
@@ -641,8 +686,8 @@ export async function promptEditAction(
   const response = (await prompts({
     type: 'select',
     name: 'action',
-    message: `Edit ${entryLabel}:`,
-    choices: [...actions, { title: '← Cancel', value: CANCEL_ACTION }],
+    message: t('cli.session.promptEditEntry', { entry: entryLabel }),
+    choices: [...actions, { title: `← ${t('cli.menu.cancel')}`, value: CANCEL_ACTION }],
     onState: (state: PromptState) => {
       if (state.exited) isExited = true
     },
@@ -662,7 +707,7 @@ export async function promptNoteEdit(currentNote: string | undefined): Promise<N
   const response = (await prompts({
     type: 'text',
     name: 'note',
-    message: 'Note (empty clears it):',
+    message: t('cli.session.promptNoteEdit'),
     initial: currentNote ?? '',
   })) as NotePromptResponse
   if (response.note === undefined) return null
@@ -719,10 +764,10 @@ export type MenuBuildInput = {
 }
 
 /** The Save label: the change count when there is one, plain otherwise (dirty-only saves). */
-function saveLabel(changeCount: number): string {
+function saveItem(changeCount: number): MenuChoice {
   return changeCount > 0
-    ? `💾 Save ${changeCount} change(s) (keep editing)`
-    : '💾 Save changes (keep editing)'
+    ? menuRow('💾', '__SAVE__', 'cli.menu.save', { count: changeCount })
+    : menuRow('💾', '__SAVE__', 'cli.menu.saveDirty')
 }
 
 /** The Save/Switch List menu entries, which differ between single- and multi-list sessions. */
@@ -730,33 +775,31 @@ function buildSaveAndSwitchItems(input: MenuBuildInput): Choice[] {
   const { changeCount, multiList } = input
   const currentUnsaved = changeCount > 0 || input.dirty === true
   if (!multiList) {
-    return currentUnsaved ? [menuItem(saveLabel(changeCount), '__SAVE__')] : []
+    return currentUnsaved ? [saveItem(changeCount)] : []
   }
 
   const items: Choice[] = []
   if (multiList.listsWithChanges > 1) {
     // With only dirty models and no tracked change events, a "0 across N
     // lists" count would misread as nothing to save, so drop the count.
+    const lists = t('domain.count.lists', { count: multiList.listsWithChanges })
     const scope =
       multiList.totalChangeCount > 0
-        ? `${multiList.totalChangeCount} across ${multiList.listsWithChanges} lists`
-        : `${multiList.listsWithChanges} lists`
-    items.push(menuItem(`💾 Save all changes (${scope})`, '__SAVE__'))
+        ? t('cli.menu.saveAllScope', { count: multiList.totalChangeCount, lists })
+        : lists
+    items.push(menuRow('💾', '__SAVE__', 'cli.menu.saveAll', { scope }))
     if (currentUnsaved && !multiList.scoped) {
       items.push(
-        menuItem(
-          changeCount > 0
-            ? `💾 Save current list changes (${changeCount})`
-            : '💾 Save current list changes',
-          '__SAVE_CURRENT__',
-        ),
+        changeCount > 0
+          ? menuRow('💾', '__SAVE_CURRENT__', 'cli.menu.saveCurrent', { count: changeCount })
+          : menuRow('💾', '__SAVE_CURRENT__', 'cli.menu.saveCurrentPlain'),
       )
     }
   } else if (multiList.listsWithChanges === 1) {
     // Only one list has anything unsaved, so save-all and save-current coincide.
-    items.push(menuItem(saveLabel(multiList.totalChangeCount), '__SAVE__'))
+    items.push(saveItem(multiList.totalChangeCount))
   }
-  items.push(menuItem('🔀 Switch List', '__SWITCH_LIST__'))
+  items.push(menuRow('🔀', '__SWITCH_LIST__', 'cli.menu.switchList'))
   return items
 }
 
@@ -790,31 +833,32 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
     sessionChangeCount,
     cardChoices,
   } = input
+  // Emoji whose glyph renders double-width carry a second space, so the labels
+  // beside them still line up. That padding is layout, not text, which is why
+  // the icons live here rather than in the catalog.
   const modeItems: Choice[] =
     mode === 'name'
       ? [
-          menuItem('⚙️  Configure Session Filters', '__CONFIG__'),
-          menuItem('🔢 Switch to Collector Number Mode', '__COLLECTOR_MODE__'),
+          menuRow('⚙️ ', '__CONFIG__', 'cli.menu.configureFilters'),
+          menuRow('🔢', '__COLLECTOR_MODE__', 'cli.menu.collectorMode'),
         ]
       : [
-          menuItem(
-            `📦 Manage Set Codes (Active: ${activeSet.toUpperCase() || 'none'})`,
-            '__MANAGE_SETS__',
-          ),
-          menuItem('🔤 Switch to Name Mode', '__NAME_MODE__'),
+          menuRow('📦', '__MANAGE_SETS__', 'cli.menu.manageSets', {
+            set: activeSet.toUpperCase() || t('cli.menu.noSetCode'),
+          }),
+          menuRow('🔤', '__NAME_MODE__', 'cli.menu.nameMode'),
         ]
 
   const undoItems: Choice[] = [
     ...(sessionAdds.length > 0
       ? [
-          menuItem(
-            `↩️  Undo Last Add (${sessionAdds[sessionAdds.length - 1]!.name})`,
-            '__UNDO_LAST__',
-          ),
+          menuRow('↩️ ', '__UNDO_LAST__', 'cli.menu.undoLastAdd', {
+            name: sessionAdds[sessionAdds.length - 1]!.name,
+          }),
         ]
       : []),
     ...(editUndoLabel !== null
-      ? [menuItem(`↩️  Undo Last Edit (${editUndoLabel})`, '__UNDO_EDIT__')]
+      ? [menuRow('↩️ ', '__UNDO_EDIT__', 'cli.menu.undoLastEdit', { label: editUndoLabel })]
       : []),
   ]
 
@@ -822,34 +866,33 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
   // add-mode shortcuts (copies, notes, filters) only make sense while adding.
   const actionItems: Choice[] =
     sessionMode === 'edit'
-      ? [...undoItems, menuItem('➕ Switch to Add Mode', '__ADD_MODE__')]
+      ? [...undoItems, menuRow('➕', '__ADD_MODE__', 'cli.menu.addMode')]
       : [
           ...(lastAdded
             ? [
-                menuItem(`➕ Add Exact Copy (${lastAdded.name})`, '__ADD_ANOTHER__'),
-                menuItem(
-                  `➕ Add Similar Copy (${lastAdded.name}, choose new options)`,
-                  '__ADD_SIMILAR__',
-                ),
+                menuRow('➕', '__ADD_ANOTHER__', 'cli.menu.addExactCopy', { name: lastAdded.name }),
+                menuRow('➕', '__ADD_SIMILAR__', 'cli.menu.addSimilarCopy', {
+                  name: lastAdded.name,
+                }),
                 ...(!lastAdded.hasNote
-                  ? [menuItem(`📝 Add Note (${lastAdded.name})`, '__ADD_NOTE__')]
+                  ? [menuRow('📝', '__ADD_NOTE__', 'cli.menu.addNote', { name: lastAdded.name })]
                   : []),
-                menuItem(`✏️  Edit Previous Card (${lastAdded.name})`, '__EDIT_LAST__'),
+                menuRow('✏️ ', '__EDIT_LAST__', 'cli.menu.editPrevious', { name: lastAdded.name }),
               ]
             : []),
           ...undoItems,
           ...extraItems,
           ...modeItems,
-          menuItem('🛠️  Switch to Edit Mode (edit existing cards)', '__EDIT_MODE__'),
+          menuRow('🛠️ ', '__EDIT_MODE__', 'cli.menu.editMode'),
         ]
 
   return [
     ...actionItems,
     ...(sessionChangeCount > 0
-      ? [menuItem(`📋 View Session Changes (${sessionChangeCount})`, '__CHANGES__')]
+      ? [menuRow('📋', '__CHANGES__', 'cli.menu.viewChanges', { count: sessionChangeCount })]
       : []),
     ...buildSaveAndSwitchItems(input),
-    menuItem('🚪 Exit', '__EXIT__'),
+    menuRow('🚪', '__EXIT__', 'cli.menu.exit'),
     ...cardChoices,
   ]
 }
@@ -867,14 +910,18 @@ export function buildCollectorChoices(setCardMap: Map<string, ScryfallCard>): Ch
     const numA = parseInt(a.value.num, 10) || 0
     const numB = parseInt(b.value.num, 10) || 0
     if (numA !== numB) return numA - numB
-    return a.value.num.localeCompare(b.value.num)
+    return compareData(a.value.num, b.value.num)
   })
   return collectorChoices
 }
 
-/** Filter choices so every space-separated term of `input` appears in the title. */
+/**
+ * Filter choices so every space-separated term of `input` appears in the title —
+ * or, for a translated menu row, in the English terms it carries alongside it.
+ * See `menu-search.ts` for why both are matched.
+ */
 function filterByTerms(input: string, choices: Choice[]): Choice[] {
-  return choices.filter((choice) => matchesAllNameTerms(choice.title, input))
+  return choices.filter((choice) => matchesChoiceTerms(choice, input))
 }
 
 /**
@@ -910,7 +957,7 @@ export function suggestNameMode(input: string, choices: Choice[]): Choice[] {
         ? m
         : {
             ...m,
-            title: `${m.title} (Force Options)`,
+            title: t('cli.session.forceOptions', { title: m.title }),
             value: `${m.value}${FORCE_SUFFIX}`,
           },
     )
@@ -982,9 +1029,9 @@ export async function confirmMultiListExit(multiList: MultiListSessionControls):
     const choice = await promptExitMenu(multiList.totalChangeCount())
     if (choice === 'cancel') return false
     if (choice === 'save') await multiList.saveAll()
-    else console.log('Discarded all unsaved changes.')
+    else console.log(t('cli.session.discardedAll'))
   }
-  console.log('Exiting editor.')
+  console.log(t('cli.session.exitingEditor'))
   return true
 }
 
@@ -1026,14 +1073,14 @@ export async function saveCardSession(
   }
   if (strategy.hasUnsavedChanges()) {
     await strategy.persist()
-    console.log('Changes saved.')
+    console.log(t('cli.session.changesSaved'))
   }
   if (ctx.sessionChanges.length > 0) {
     await appendChangelog(saveTarget.filePath, saveTarget.listName, ctx.sessionChanges, {
       continueSession: ctx.hasSavedChangelog,
     })
     ctx.hasSavedChangelog = true
-    console.log('Changelog saved.')
+    console.log(t('cli.session.changelogSaved'))
   }
 }
 
@@ -1065,29 +1112,29 @@ async function viewSessionChanges(
   while (true) {
     const items = strategy.listSessionChanges()
     if (items.length === 0) {
-      console.log('No changes this session.')
+      console.log(t('cli.session.noChanges'))
       return
     }
     const response = (await prompts({
       type: 'select',
       name: 'index',
-      message: `${items.length} change(s) this session — select one to discard it:`,
+      message: t('cli.session.promptPickChangeToDiscard', { count: items.length }),
       choices: [
         ...items.map((item, index) => ({ title: item.label, value: index })).reverse(),
-        { title: '← Back', value: null },
+        { title: `← ${t('cli.menu.back')}`, value: null },
       ],
     })) as ChangeIndexPromptResponse
     if (response.index == null) return
     const item = items[response.index]
     if (!item) return
     if (item.blocked) {
-      console.log(`Cannot discard this change yet — ${item.blocked}.`)
+      console.log(t('cli.session.discardBlocked', { reason: item.blocked }))
       continue
     }
     const confirmResponse = (await prompts({
       type: 'confirm',
       name: 'confirm',
-      message: `Discard ${item.label}?`,
+      message: t('cli.session.promptDiscardChange', { label: item.label }),
       initial: false,
     })) as ConfirmPromptResponse
     if (confirmResponse.confirm) {
@@ -1163,16 +1210,19 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
         : undefined,
     })
 
-    const streakHint: string =
+    const streak: string =
       ctx.lastAdded && ctx.lastAddedCount > 0
-        ? ` (${ctx.lastAddedCount}x ${ctx.lastAdded.name})`
+        ? t('cli.session.streakHint', { count: ctx.lastAddedCount, name: ctx.lastAdded.name })
         : ''
     const promptMessage: string =
       sessionMode === 'edit'
-        ? 'Search for a card to edit'
+        ? t('cli.session.promptSearchToEdit')
         : sessionConfig.entryMode === 'name'
-          ? `Enter card name to add${streakHint}`
-          : `Enter collector # for ${activeSet.toUpperCase() || 'SET'}${streakHint}`
+          ? t('cli.session.promptCardName', { streak })
+          : t('cli.session.promptCollectorNumber', {
+              set: activeSet.toUpperCase() || t('cli.session.promptSetPlaceholder'),
+              streak,
+            })
 
     const response = (await prompts({
       type: 'autocomplete',
@@ -1197,7 +1247,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
     // In a multi-list session, Esc backs out to the list selection menu (like
     // Switch List) rather than exiting — unsaved changes stay in memory.
     if (multiList && (isExited || menuAction === '__SWITCH_LIST__')) {
-      console.log('Returning to list selection.')
+      console.log(t('cli.session.returningToLists'))
       return { reason: 'switch', cardNames }
     }
 
@@ -1210,9 +1260,9 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
         const choice = await promptExitMenu(ctx.sessionChanges.length)
         if (choice === 'cancel') continue
         if (choice === 'save') await saveCardSession(strategy, ctx)
-        else console.log('Discarded all unsaved changes.')
+        else console.log(t('cli.session.discardedAll'))
       }
-      console.log(`Exiting ${strategy.managerLabel}.`)
+      console.log(t('cli.session.exitingManager', { manager: strategy.managerLabel }))
       return { reason: 'exit', cardNames }
     }
 
@@ -1234,10 +1284,12 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
     }
 
     if (!response.cardName) {
-      console.error('❌ Card not found.')
+      console.error(t('cli.session.cardNotFound'))
       if (sessionConfig.sets && sessionConfig.sets.length > 0) {
         console.warn(
-          `(Note: Set filters are active: ${formatSetCodesForDisplay(sessionConfig.sets)}. The card might exist in a different set.)`,
+          t('cli.session.setFiltersActive', {
+            sets: formatSetCodesForDisplay(sessionConfig.sets),
+          }),
         )
       }
       continue
@@ -1250,7 +1302,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
     }
 
     if (menuAction === '__ADD_SIMILAR__' && ctx.lastAdded) {
-      console.log(`Adding a similar copy of ${ctx.lastAdded.name}:`)
+      console.log(t('cli.session.addingSimilar', { name: ctx.lastAdded.name }))
       await strategy.handleCard(ctx, similarCopyInput(ctx.lastAdded))
       continue
     }
@@ -1260,7 +1312,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
       const noteResponse = (await prompts({
         type: 'text',
         name: 'note',
-        message: 'Enter note:',
+        message: t('cli.session.promptNote'),
       })) as NotePromptResponse
       const note = noteResponse.note?.trim()
       if (note) {
@@ -1270,20 +1322,20 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
         ctx.sessionChanges.push(change)
         ctx.lastAdded = { ...target, hasNote: true }
         strategy.noteAdded?.(note)
-        console.log(`Note added to ${target.name}: ${note}`)
+        console.log(t('cli.session.noteAdded', { name: target.name, note }))
       }
       continue
     }
 
     if (menuAction === '__EDIT_MODE__') {
       sessionMode = 'edit'
-      console.log('Switched to edit mode. Pick an existing card to change or remove it.')
+      console.log(t('cli.session.switchedToEdit'))
       continue
     }
 
     if (menuAction === '__ADD_MODE__') {
       sessionMode = 'add'
-      console.log('Switched to add mode.')
+      console.log(t('cli.session.switchedToAdd'))
       continue
     }
 
@@ -1297,23 +1349,25 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
         const setsResponse = (await prompts({
           type: 'text',
           name: 'sets',
-          message: 'Enter set codes to use (comma-separated, e.g., "FDN, SPG"):',
+          message: t('cli.session.promptCollectorSets'),
           validate: (val: string) =>
-            val.trim().length > 0 ? true : 'At least one set code required',
+            val.trim().length > 0 ? true : t('cli.session.validateSetCodeRequired'),
         })) as SetsPromptResponse
         if (!setsResponse.sets) continue
         await loadCollectorSets(sessionConfig, parseSetCodesInput(setsResponse.sets))
       }
       sessionConfig.entryMode = 'collector'
       console.log(
-        `Switched to collector number mode. Active set: ${sessionConfig.collectorSets[sessionConfig.activeSetIndex]?.toUpperCase()}`,
+        t('cli.session.switchedToCollector', {
+          set: sessionConfig.collectorSets[sessionConfig.activeSetIndex]?.toUpperCase() ?? '',
+        }),
       )
       continue
     }
 
     if (menuAction === '__NAME_MODE__') {
       sessionConfig.entryMode = 'name'
-      console.log('Switched to name mode.')
+      console.log(t('cli.session.switchedToName'))
       continue
     }
 
@@ -1336,7 +1390,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
       await viewSessionChanges(strategy, ctx)
       // The session's own list was discarded, so back out to the selection menu.
       if (strategy.discarded?.()) {
-        console.log('Returning to list selection.')
+        console.log(t('cli.session.returningToLists'))
         return { reason: 'switch', cardNames }
       }
       continue
@@ -1364,7 +1418,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
         cardName = ctx.lastAdded.name
         forcePrompts = true
         intent = 'edit-last'
-        console.log(`Editing: ${ctx.lastAdded.name}`)
+        console.log(t('cli.session.editingCard', { name: ctx.lastAdded.name }))
       }
     } else if (isCollectorChoiceValue(response.cardName)) {
       cardName = response.cardName.card.name

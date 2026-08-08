@@ -10,15 +10,22 @@ import {
   on,
   onCleanup,
 } from 'solid-js'
-import { type ChangeEvent, formatChange } from '../../change-event'
-import { countLabel } from '../../editor/change-bundle'
+import type { ChangeEvent } from '../../change-event'
+import { formatChange } from '../../change-message'
+import { useT, useTSegments } from '../../ui/i18n'
 import type { ListType } from '../../list-type'
 import { LIST_TYPE_DISPLAY } from '../../list-type'
 import { downloadTextFile } from './download'
 
-/** A "download the updated list file" action (deck .txt, collection .md/.csv, etc.). */
+/**
+ * A "download the updated list file" action (deck .txt, collection .md/.csv, etc.).
+ *
+ * `label` is an accessor, not a string: the actions are built once when the
+ * editor mounts, so a rendered label would be stuck in the language that was
+ * active then. Reading it inside the panel's JSX makes it locale-reactive.
+ */
 export type ListFileExport = {
-  label: string
+  label: () => string
   filename: string
   /** Built lazily so it reflects the latest edits when clicked. */
   build: () => string
@@ -98,6 +105,8 @@ type ExportSnapshot = {
  * every list's changes, and the pending changes can be reviewed before exporting.
  */
 export const ExportPanel: Component<ExportPanelProps> = (props) => {
+  const t = useT()
+  const tSegments = useTSegments()
   const [copied, setCopied] = createSignal(false)
   const [saved, setSaved] = createSignal(false)
   const [scope, setScope] = createSignal<ExportScope>('current')
@@ -224,13 +233,18 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
           if (e.target === e.currentTarget) props.onClose()
         }}
       >
-        <div class="export-panel" role="dialog" aria-modal="true" aria-label="Export your edits">
+        <div
+          class="export-panel"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('site.editor.exportTitle')}
+        >
           <div class="export-panel-header">
-            <h3 class="export-panel-title">Export your edits</h3>
+            <h3 class="export-panel-title">{t('site.editor.exportTitle')}</h3>
             <button
               type="button"
               class="export-panel-close"
-              aria-label="Close"
+              aria-label={t('ui.dialog.close')}
               onClick={props.onClose}
             >
               ×
@@ -238,17 +252,17 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
           </div>
 
           <Show when={showScope()}>
-            <div class="export-panel-scope" role="group" aria-label="Export scope">
+            <div class="export-panel-scope" role="group" aria-label={t('site.editor.exportScope')}>
               <button
                 type="button"
                 class="export-panel-scope-option"
                 data-active={activeScope() === 'current'}
                 aria-pressed={activeScope() === 'current'}
                 disabled={!hasCurrent()}
-                title={hasCurrent() ? undefined : 'Open a single list to export just its changes'}
+                title={hasCurrent() ? undefined : t('site.editor.scopeThisListHint')}
                 onClick={() => setScope('current')}
               >
-                This list ({countLabel(currentCount(), 'change')})
+                {t('site.editor.scopeThisList', { count: currentCount() })}
               </button>
               <Show when={isCombinedView()}>
                 <button
@@ -258,7 +272,7 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
                   aria-pressed={activeScope() === 'combined'}
                   onClick={() => setScope('combined')}
                 >
-                  Current lists ({countLabel(combinedCount(), 'change')})
+                  {t('site.editor.scopeCurrentLists', { count: combinedCount() })}
                 </button>
               </Show>
               <button
@@ -268,20 +282,28 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
                 aria-pressed={activeScope() === 'all'}
                 onClick={() => setScope('all')}
               >
-                All lists ({countLabel(allCount(), 'change')})
+                {t('site.editor.scopeAllLists', { count: allCount() })}
               </button>
             </div>
           </Show>
 
           <p class="export-panel-count">
-            <Switch fallback={<>Exporting {countLabel(currentCount(), 'change')}</>}>
+            <Switch
+              fallback={t('site.editor.exporting', {
+                changes: t('ui.count.changes', { count: currentCount() }),
+              })}
+            >
               <Match when={activeScope() === 'all'}>
-                Exporting {countLabel(allCount(), 'change')} across{' '}
-                {countLabel(allListCount(), 'list')}
+                {t('site.editor.exportingAcross', {
+                  changes: t('ui.count.changes', { count: allCount() }),
+                  lists: t('ui.count.lists', { count: allListCount() }),
+                })}
               </Match>
               <Match when={activeScope() === 'combined'}>
-                Exporting {countLabel(combinedCount(), 'change')} across{' '}
-                {countLabel(combinedListCount(), 'list')}
+                {t('site.editor.exportingAcross', {
+                  changes: t('ui.count.changes', { count: combinedCount() }),
+                  lists: t('ui.count.lists', { count: combinedListCount() }),
+                })}
               </Match>
             </Switch>
           </p>
@@ -293,7 +315,7 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
               aria-expanded={reviewOpen()}
               onClick={() => setReviewOpen(!reviewOpen())}
             >
-              {reviewOpen() ? 'Hide changes' : 'Review changes'}
+              {reviewOpen() ? t('site.editor.reviewHide') : t('site.editor.reviewShow')}
             </button>
             <Show when={reviewOpen()}>
               <div class="export-panel-review" data-scope={activeScope()}>
@@ -301,8 +323,11 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
                   {(group) => (
                     <div class="export-panel-review-group">
                       <div class="export-panel-review-list">
-                        {LIST_TYPE_DISPLAY[group.kind].icon} {group.name} —{' '}
-                        {countLabel(group.changes.length, 'change')}
+                        {t('site.editor.reviewGroup', {
+                          icon: LIST_TYPE_DISPLAY[group.kind].icon,
+                          name: group.name,
+                          changes: t('ui.count.changes', { count: group.changes.length }),
+                        })}
                       </div>
                       <ul class="export-panel-review-changes">
                         <For each={group.changes}>
@@ -323,7 +348,7 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
               disabled={scopeCount() === 0}
               onClick={downloadJson}
             >
-              Download change list (JSON)
+              {t('site.editor.downloadJson')}
             </button>
             <button
               type="button"
@@ -331,7 +356,7 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
               disabled={scopeCount() === 0}
               onClick={() => void copyJson()}
             >
-              {copied() ? 'Copied!' : 'Copy JSON'}
+              {copied() ? t('site.editor.copied') : t('site.editor.copyJson')}
             </button>
             <For each={props.fileExports ?? []}>
               {(fx) => (
@@ -340,15 +365,18 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
                   class="btn btn-secondary"
                   onClick={() => downloadTextFile(fx.filename, fx.build(), fx.mime)}
                 >
-                  {fx.label}
+                  {fx.label()}
                 </button>
               )}
             </For>
           </div>
 
           <p class="export-panel-hint">
-            Apply the JSON with the admin site's Import Changes page or{' '}
-            <code>ritual import-changes</code>.
+            <For each={tSegments('site.editor.applyHint', { command: 'ritual import-changes' })}>
+              {(segment) =>
+                segment.kind === 'param' ? <code>{segment.value}</code> : segment.value
+              }
+            </For>
           </p>
 
           <Show when={props.onSaveToBrowser != null}>
@@ -364,7 +392,7 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
                     setTimeout(() => setSaved(false), 2000)
                   }}
                 >
-                  {saved() ? 'Saved to browser ✓' : 'Save edits to this browser'}
+                  {saved() ? t('site.editor.savedToBrowser') : t('site.editor.saveToBrowser')}
                 </button>
                 <Show when={props.hasSavedSession}>
                   <button
@@ -372,13 +400,11 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
                     class="btn btn-secondary"
                     onClick={() => props.onClearSaved?.()}
                   >
-                    Clear saved edits
+                    {t('site.editor.clearSaved')}
                   </button>
                 </Show>
               </div>
-              <p class="export-panel-hint">
-                Saved only in this browser (localStorage) until you clear it — never uploaded.
-              </p>
+              <p class="export-panel-hint">{t('site.editor.browserOnlyHint')}</p>
             </div>
           </Show>
         </div>

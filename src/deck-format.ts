@@ -1,3 +1,5 @@
+import type { MessageKey } from './i18n/messages/en'
+import { t } from './i18n/t'
 import { DEFAULT_SECTION, type DeckData, type DeckSection } from './types'
 
 /**
@@ -29,7 +31,12 @@ export type DeckFormatKey =
   | 'limited'
 
 interface FormatInfo {
-  label: string
+  /**
+   * The format's display name, as a {@link MessageKey} rather than rendered
+   * text: this table is evaluated once at module load, so a string would freeze
+   * every deck cover and format picker in the boot-time language.
+   */
+  label: MessageKey
   /**
    * The card count expected for a "standard" deck in this format. Counts only
    * the main deck (commander/oathbreaker/signature included; sideboard,
@@ -40,32 +47,72 @@ interface FormatInfo {
   hasCommandZone: boolean
 }
 
-const FORMAT_INFO: Record<DeckFormatKey, FormatInfo> = {
-  commander: { label: 'Commander', expectedMainboardSize: 100, hasCommandZone: true },
-  oathbreaker: { label: 'Oathbreaker', expectedMainboardSize: 60, hasCommandZone: true },
-  standard: { label: 'Standard', expectedMainboardSize: 60, hasCommandZone: false },
-  modern: { label: 'Modern', expectedMainboardSize: 60, hasCommandZone: false },
-  pioneer: { label: 'Pioneer', expectedMainboardSize: 60, hasCommandZone: false },
-  legacy: { label: 'Legacy', expectedMainboardSize: 60, hasCommandZone: false },
-  vintage: { label: 'Vintage', expectedMainboardSize: 60, hasCommandZone: false },
-  pauper: { label: 'Pauper', expectedMainboardSize: 60, hasCommandZone: false },
-  historic: { label: 'Historic', expectedMainboardSize: 60, hasCommandZone: false },
-  alchemy: { label: 'Alchemy', expectedMainboardSize: 60, hasCommandZone: false },
-  explorer: { label: 'Explorer', expectedMainboardSize: 60, hasCommandZone: false },
-  timeless: { label: 'Timeless', expectedMainboardSize: 60, hasCommandZone: false },
-  'penny-dreadful': { label: 'Penny Dreadful', expectedMainboardSize: 60, hasCommandZone: false },
-  brawl: { label: 'Brawl', expectedMainboardSize: 60, hasCommandZone: true },
-  'historic-brawl': { label: 'Historic Brawl', expectedMainboardSize: 100, hasCommandZone: true },
-  'duel-commander': { label: 'Duel Commander', expectedMainboardSize: 100, hasCommandZone: true },
-  'pauper-commander': {
-    label: 'Pauper Commander',
+const FORMAT_INFO = {
+  commander: {
+    label: 'domain.deckFormat.commander',
     expectedMainboardSize: 100,
     hasCommandZone: true,
   },
-  'pre-dh': { label: 'PreDH', expectedMainboardSize: 100, hasCommandZone: true },
-  'pre-modern': { label: 'Pre-Modern', expectedMainboardSize: 60, hasCommandZone: false },
-  limited: { label: 'Limited', expectedMainboardSize: 40, hasCommandZone: false },
-}
+  oathbreaker: {
+    label: 'domain.deckFormat.oathbreaker',
+    expectedMainboardSize: 60,
+    hasCommandZone: true,
+  },
+  standard: {
+    label: 'domain.deckFormat.standard',
+    expectedMainboardSize: 60,
+    hasCommandZone: false,
+  },
+  modern: { label: 'domain.deckFormat.modern', expectedMainboardSize: 60, hasCommandZone: false },
+  pioneer: { label: 'domain.deckFormat.pioneer', expectedMainboardSize: 60, hasCommandZone: false },
+  legacy: { label: 'domain.deckFormat.legacy', expectedMainboardSize: 60, hasCommandZone: false },
+  vintage: { label: 'domain.deckFormat.vintage', expectedMainboardSize: 60, hasCommandZone: false },
+  pauper: { label: 'domain.deckFormat.pauper', expectedMainboardSize: 60, hasCommandZone: false },
+  historic: {
+    label: 'domain.deckFormat.historic',
+    expectedMainboardSize: 60,
+    hasCommandZone: false,
+  },
+  alchemy: { label: 'domain.deckFormat.alchemy', expectedMainboardSize: 60, hasCommandZone: false },
+  explorer: {
+    label: 'domain.deckFormat.explorer',
+    expectedMainboardSize: 60,
+    hasCommandZone: false,
+  },
+  timeless: {
+    label: 'domain.deckFormat.timeless',
+    expectedMainboardSize: 60,
+    hasCommandZone: false,
+  },
+  'penny-dreadful': {
+    label: 'domain.deckFormat.pennyDreadful',
+    expectedMainboardSize: 60,
+    hasCommandZone: false,
+  },
+  brawl: { label: 'domain.deckFormat.brawl', expectedMainboardSize: 60, hasCommandZone: true },
+  'historic-brawl': {
+    label: 'domain.deckFormat.historicBrawl',
+    expectedMainboardSize: 100,
+    hasCommandZone: true,
+  },
+  'duel-commander': {
+    label: 'domain.deckFormat.duelCommander',
+    expectedMainboardSize: 100,
+    hasCommandZone: true,
+  },
+  'pauper-commander': {
+    label: 'domain.deckFormat.pauperCommander',
+    expectedMainboardSize: 100,
+    hasCommandZone: true,
+  },
+  'pre-dh': { label: 'domain.deckFormat.preDh', expectedMainboardSize: 100, hasCommandZone: true },
+  'pre-modern': {
+    label: 'domain.deckFormat.preModern',
+    expectedMainboardSize: 60,
+    hasCommandZone: false,
+  },
+  limited: { label: 'domain.deckFormat.limited', expectedMainboardSize: 40, hasCommandZone: false },
+} as const satisfies Record<DeckFormatKey, FormatInfo>
 
 /**
  * Alternate spellings that resolve to a canonical key. Covers the names external
@@ -90,7 +137,7 @@ const FORMAT_ALIASES: Record<string, DeckFormatKey> = {
 }
 
 export function getDeckFormatLabel(format: DeckFormatKey): string {
-  return FORMAT_INFO[format].label
+  return t(FORMAT_INFO[format].label)
 }
 
 /** Whether decks of this format have a command zone. */
@@ -294,8 +341,13 @@ export interface DeckCountLabel {
   suffix?: string
 }
 
+/**
+ * `1 card` / `30 cards`. A thin alias for the shared count message, kept while
+ * the public site's own call sites still reach for a function rather than a
+ * key; those become direct `t()` calls when that surface converts.
+ */
 export function pluralizeCards(count: number): string {
-  return `${count} card${count === 1 ? '' : 's'}`
+  return t('domain.count.cards', { count })
 }
 
 /**
@@ -310,6 +362,7 @@ export function getDeckCountLabel(
 ): DeckCountLabel {
   if (!format) return { primary: pluralizeCards(mainboardSize) }
   const info = FORMAT_INFO[format]
-  if (mainboardSize === info.expectedMainboardSize) return { primary: info.label }
-  return { primary: info.label, suffix: `(${pluralizeCards(mainboardSize)})` }
+  const label = t(info.label)
+  if (mainboardSize === info.expectedMainboardSize) return { primary: label }
+  return { primary: label, suffix: `(${pluralizeCards(mainboardSize)})` }
 }

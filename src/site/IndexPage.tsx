@@ -3,16 +3,17 @@ import { createMemo, createSignal, For, Match, Show, Switch } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { formatPriceWithMissing } from '../price-currency'
-import { getDeckCountLabel, pluralizeCards } from '../deck-format'
+import { getDeckCountLabel } from '../deck-format'
 import { getSummaryLowestPrice, getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
 import { CoverCard } from './CoverCard'
 import { IndexToolbar } from './IndexToolbar'
 import type { ListType } from '../list-type'
 import { combinedAllHref } from './combined-list'
-import { CARD_LABEL_DISPLAY_NAMES } from '../card-labels'
 import { withLabelsParam } from './list-view-url'
 import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
+import type { MessageKey } from '../i18n/messages/en'
+import { useI18n, useT } from '../ui/i18n'
 import {
   DEFAULT_INDEX_GROUP,
   DEFAULT_INDEX_SORT,
@@ -56,6 +57,7 @@ const SectionHeader: Component<SectionHeaderProps> = (props) => (
 
 interface ViewAllLinkProps {
   type: ListType
+  /** Already-rendered text: the caller reads it from `t`, keeping this presentational. */
   label: string
 }
 
@@ -79,16 +81,22 @@ type LabelQuery =
 
 /** One destination in the collections "View all..." menu. */
 interface CollectionView {
-  label: string
+  label: MessageKey
   query: LabelQuery
 }
 
+/**
+ * The menu's rows. Each label is one whole message rather than
+ * `'View all ' + cardLabelName(...).toLowerCase()`: a verb spliced onto a
+ * lowercased noun survives neither case nor gender outside English, and the
+ * concatenated form left the visible text with no string to translate.
+ */
 const COLLECTION_VIEWS = [
-  { label: 'View all collections', query: [] },
-  { label: `View all ${CARD_LABEL_DISPLAY_NAMES.sale.toLowerCase()}`, query: ['sale'] },
-  { label: `View all ${CARD_LABEL_DISPLAY_NAMES.trade.toLowerCase()}`, query: ['trade'] },
-  { label: 'View all for sale or trade', query: ['sale', 'trade'] },
-  { label: `View all ${CARD_LABEL_DISPLAY_NAMES.keep.toLowerCase()}`, query: ['keep'] },
+  { label: 'site.index.viewAllCollections', query: [] },
+  { label: 'site.index.viewAllSale', query: ['sale'] },
+  { label: 'site.index.viewAllTrade', query: ['trade'] },
+  { label: 'site.index.viewAllSaleOrTrade', query: ['sale', 'trade'] },
+  { label: 'site.index.viewAllKeep', query: ['keep'] },
 ] as const satisfies readonly CollectionView[]
 
 /**
@@ -100,6 +108,7 @@ const COLLECTION_VIEWS = [
  * preserves foreign params).
  */
 const CollectionViewAllMenu: Component = () => {
+  const t = useT()
   const toggle = useAnchoredToggle()
   return (
     <div class="view-all-menu">
@@ -111,16 +120,16 @@ const CollectionViewAllMenu: Component = () => {
         aria-expanded={toggle.open()}
         onClick={toggle.toggleOpen}
       >
-        View all...
+        {t('site.index.viewAllMenu')}
         <span aria-hidden="true">{toggle.open() ? ' ▴' : ' ▾'}</span>
       </button>
       <AdaptiveMenu
         toggle={toggle}
         width={230}
         panelClass="selection-menu-panel"
-        title="View collections"
+        title={t('site.index.viewAllMenuTitle')}
         role="menu"
-        aria-label="View collections"
+        aria-label={t('site.index.viewAllMenuTitle')}
       >
         <For each={COLLECTION_VIEWS}>
           {(view) => (
@@ -130,7 +139,7 @@ const CollectionViewAllMenu: Component = () => {
               href={withLabelsParam(combinedAllHref('collection'), view.query)}
               onClick={() => toggle.close()}
             >
-              {view.label}
+              {t(view.label)}
             </a>
           )}
         </For>
@@ -145,16 +154,26 @@ interface DeckCoverLinkProps {
 }
 
 const DeckCoverLink: Component<DeckCoverLinkProps> = (props) => {
+  const { t, locale } = useI18n()
   const total = createMemo(() => getSummaryTotalPrice(props.deck, props.currency))
   const lowest = createMemo(() => getSummaryLowestPrice(props.deck, props.currency))
   const missing = createMemo(() => getSummaryMissingPriceCount(props.deck, props.currency))
-  const countLabel = createMemo(() => getDeckCountLabel(props.deck.format, props.deck.cardCount))
+  // `getDeckCountLabel` renders through the module-level (non-reactive) `t`, so
+  // the locale signal is read here to re-derive the label on a language switch.
+  const countLabel = createMemo(() => {
+    locale()
+    return getDeckCountLabel(props.deck.format, props.deck.cardCount)
+  })
   return (
     <a href={`#/deck/${props.deck.slug}`} class="card-grid-link">
       <CoverCard
         name={props.deck.name}
         image={props.deck.featuredCardImage || null}
-        subtitle={props.deck.commander ? `Commander: ${props.deck.commander}` : undefined}
+        subtitle={
+          props.deck.commander
+            ? t('site.index.commander', { name: props.deck.commander })
+            : undefined
+        }
         label={countLabel().primary}
         labelSuffix={countLabel().suffix}
         priceLabel={formatPriceWithMissing(total(), props.currency, missing())}
@@ -173,6 +192,7 @@ interface ListCoverLinkProps {
 }
 
 const ListCoverLink: Component<ListCoverLinkProps> = (props) => {
+  const t = useT()
   const total = createMemo(() => getSummaryTotalPrice(props.item, props.currency))
   const missing = createMemo(() => getSummaryMissingPriceCount(props.item, props.currency))
   return (
@@ -180,7 +200,7 @@ const ListCoverLink: Component<ListCoverLinkProps> = (props) => {
       <CoverCard
         name={props.item.name}
         image={props.item.featuredCardImage || null}
-        label={pluralizeCards(props.item.cardCount)}
+        label={t('domain.count.cards', { count: props.item.cardCount })}
         priceLabel={formatPriceWithMissing(total(), props.currency, missing())}
       />
     </a>
@@ -188,6 +208,7 @@ const ListCoverLink: Component<ListCoverLinkProps> = (props) => {
 }
 
 export const IndexPage: Component<IndexPageProps> = (props) => {
+  const t = useT()
   // Decks support both sorting and grouping by format.
   const [deckSort, setDeckSort] = createSignal<IndexSort>(DEFAULT_INDEX_SORT)
   const [deckGroup, setDeckGroup] = createSignal<IndexGroup>(DEFAULT_INDEX_GROUP)
@@ -218,9 +239,9 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
         fallback={
           <>
             <SectionHeader
-              title="My Decks"
+              title={t('site.index.decks')}
               show={props.decks.length > 0}
-              control={<ViewAllLink type="deck" label="View all decks" />}
+              control={<ViewAllLink type="deck" label={t('site.index.viewAllDecks')} />}
             />
             <IndexToolbar
               sort={deckSort()}
@@ -244,7 +265,9 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
               <For each={deckGroups()}>
                 {(group) => (
                   <section class="deck-index-group">
-                    <h2 class="deck-index-group-title">{group.label}</h2>
+                    <h2 class="deck-index-group-title">
+                      {group.label ?? t('site.index.otherFormat')}
+                    </h2>
                     <div class="card-grid-responsive">
                       <For each={group.decks}>
                         {(deck) => <DeckCoverLink deck={deck} currency={props.currency} />}
@@ -259,7 +282,7 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
       >
         <Match when={props.activeTab === 'collections'}>
           <SectionHeader
-            title="My Collections"
+            title={t('site.index.collections')}
             show={props.collections.length > 0}
             control={<CollectionViewAllMenu />}
           />
@@ -280,9 +303,9 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
         </Match>
         <Match when={props.activeTab === 'wanted'}>
           <SectionHeader
-            title="My Wanted Lists"
+            title={t('site.index.wanted')}
             show={props.wantedLists.length > 0}
-            control={<ViewAllLink type="wanted" label="View all wanted lists" />}
+            control={<ViewAllLink type="wanted" label={t('site.index.viewAllWanted')} />}
           />
           <IndexToolbar
             sort={wantedSort()}

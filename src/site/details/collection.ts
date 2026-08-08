@@ -1,3 +1,4 @@
+import { t } from '../../i18n/t'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { parseCollectionFile } from '../../collection-file'
@@ -131,7 +132,11 @@ export async function buildCollectionArtifacts(
           await ctx.onCardShipped?.(langCard)
         } else {
           ctx.warn?.(
-            `  ⚠️  No ${language} card object for '${entry.name}' (${entry.set.toUpperCase()}:${entry.collectorNumber}); using the default-language object`,
+            `  ⚠️  ${t('site.detail.noLanguageCard', {
+              language,
+              name: entry.name,
+              printing: `${entry.set.toUpperCase()}:${entry.collectorNumber}`,
+            })}`,
           )
         }
       }

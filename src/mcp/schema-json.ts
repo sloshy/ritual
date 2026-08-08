@@ -1052,8 +1052,35 @@ export const EXPORT_CARDS_OUTPUT: JsonSchemaType = {
   ],
 }
 
+/**
+ * The message triple an admin-authored response carries.
+ *
+ * `message` is **always English** and always present — that is the contract
+ * this catalogue has always had, and localizing it would change what an agent
+ * reads. The other two are the same sentence unrendered, for a client that has
+ * a translator (the admin UI); `messageKey` doubles as a locale-invariant
+ * discriminator a script can match on instead of matching prose. Optional
+ * because handlers gain keys incrementally.
+ */
+type MessageProperties = {
+  message: JsonSchemaType
+  messageKey: JsonSchemaType
+  messageParams: JsonSchemaType
+}
+
+const MESSAGE_PROPS: MessageProperties = {
+  message: str(),
+  messageKey: str(
+    'Catalog key the English `message` was rendered from — stable across locales, so a client may match on it instead of on prose. Absent when the text has no catalog entry.',
+  ),
+  messageParams: openObject('The parameters `messageKey` interpolates.'),
+}
+
 export const CREATE_LIST_OUTPUT: JsonSchemaType = obj(
-  { message: str(), slug: str('The new list’s slug — how every other tool addresses it.') },
+  {
+    ...MESSAGE_PROPS,
+    slug: str('The new list’s slug — how every other tool addresses it.'),
+  },
   ['message', 'slug'],
 )
 
@@ -1134,7 +1161,7 @@ export const MUTATION_OUTPUT: JsonSchemaType = withDefs(
   obj(
     {
       applied: int('Changes applied; equal to the batch size, since edits are all-or-nothing.'),
-      message: str(),
+      ...MESSAGE_PROPS,
       listType: LIST_TYPE,
       slug: str(),
       effects: arr(
@@ -1156,7 +1183,7 @@ export const MOVE_SELECTED_CARDS_OUTPUT: JsonSchemaType = withDefs(
       skipped: int('Moves whose card or destination could not be resolved.'),
       droppedNotes: arr(ref('DroppedNote'), 'Notes the destination could not keep.'),
       warnings: arr(str(), 'List files that could not be fully read.'),
-      message: str(),
+      ...MESSAGE_PROPS,
     },
     ['moved', 'requested', 'skipped', 'droppedNotes', 'warnings', 'message'],
   ),
@@ -1169,14 +1196,14 @@ export const REMOVE_SELECTED_CARDS_OUTPUT: JsonSchemaType = obj(
     requested: int(),
     skipped: int('Items whose card could not be resolved.'),
     warnings: arr(str(), 'List files that could not be fully read.'),
-    message: str(),
+    ...MESSAGE_PROPS,
   },
   ['removed', 'requested', 'skipped', 'warnings', 'message'],
 )
 
 export const RENAME_LIST_OUTPUT: JsonSchemaType = obj(
   {
-    message: str(),
+    ...MESSAGE_PROPS,
     newSlug: str('Address the list by this from now on.'),
     newFilePath: str('The list’s file path after the rename.'),
     oldFilePath: str('The path it occupied before the rename.'),
@@ -1186,20 +1213,20 @@ export const RENAME_LIST_OUTPUT: JsonSchemaType = obj(
 
 export const DELETE_LIST_OUTPUT: JsonSchemaType = obj(
   {
-    message: str(),
+    ...MESSAGE_PROPS,
     deletedFiles: arr(str(), 'Every file removed: the list plus whichever sidecars it had.'),
   },
   ['message', 'deletedFiles'],
 )
 
 export const REWRITE_HISTORY_OUTPUT: JsonSchemaType = obj(
-  { message: str(), setCount: int('Change sets written.') },
+  { ...MESSAGE_PROPS, setCount: int('Change sets written.') },
   ['message', 'setCount'],
 )
 
 export const BUILD_SITE_OUTPUT: JsonSchemaType = obj(
   {
-    message: str(),
+    ...MESSAGE_PROPS,
     outDir: str('Directory the built site was published to.'),
     durationMs: int('Wall-clock build time, in milliseconds.'),
   },
@@ -1214,7 +1241,7 @@ export const BUILD_SITE_OUTPUT: JsonSchemaType = obj(
  * and a shared const would have made each of those a change to every member.
  * Exactly the coupling `$defs` reuse should never introduce.
  */
-export const REFRESH_CACHE_OUTPUT: JsonSchemaType = obj({ message: str() }, ['message'])
+export const REFRESH_CACHE_OUTPUT: JsonSchemaType = obj({ ...MESSAGE_PROPS }, ['message'])
 
 export const REFRESH_BUYLIST_OUTPUT: JsonSchemaType = obj(
   {
@@ -1230,11 +1257,27 @@ export const REFRESH_BUYLIST_OUTPUT: JsonSchemaType = obj(
   ['refreshed', 'feedRetrievedAt', 'feedCreatedAt', 'productCount', 'warnings'],
 )
 
+/**
+ * A run summary as its clauses, beside the English sentence `message` already
+ * carries. The clause list is what lets a client join and pluralize a summary
+ * in its own language rather than re-parsing English prose.
+ */
+const SYNC_SUMMARY: JsonSchemaType = obj(
+  {
+    clauses: arr(
+      obj(MESSAGE_PROPS, ['message']),
+      'The summary’s clauses in reading order, each an English sentence fragment plus the catalog key it came from. Joined with a locale-appropriate separator and terminated by the renderer, so no clause carries final punctuation.',
+    ),
+  },
+  ['clauses'],
+)
+
 const SYNC_DIRECTION = enumOf(['pull', 'push'])
 
 export const SYNC_DECKS_OUTPUT: JsonSchemaType = obj(
   {
     message: str(),
+    summary: SYNC_SUMMARY,
     report: obj(
       {
         direction: SYNC_DIRECTION,
@@ -1245,12 +1288,13 @@ export const SYNC_DECKS_OUTPUT: JsonSchemaType = obj(
       ['direction', 'decks', 'failedCount', 'unreadable'],
     ),
   },
-  ['message', 'report'],
+  ['message', 'summary', 'report'],
 )
 
 export const SYNC_COLLECTION_OUTPUT: JsonSchemaType = obj(
   {
     message: str(),
+    summary: SYNC_SUMMARY,
     report: obj(
       {
         direction: SYNC_DIRECTION,
@@ -1291,7 +1335,7 @@ export const SYNC_COLLECTION_OUTPUT: JsonSchemaType = obj(
       ],
     ),
   },
-  ['message', 'report'],
+  ['message', 'summary', 'report'],
 )
 
 /**

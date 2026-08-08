@@ -1,6 +1,10 @@
 import type { ScryfallCard, ErrorCode, Finish } from './types'
 import { getErrorMessage, type ExitCodeValue } from './errors'
 import { displayFinish, printingFinishes, VALID_FINISHES } from './finish-condition'
+import { numberFormat } from './i18n/format'
+import { currentLocale } from './i18n/runtime'
+import { t } from './i18n/t'
+import { displayWidth, padEndDisplay } from './i18n/width'
 
 export type PriceCurrency = 'usd' | 'eur' | 'tix'
 
@@ -42,10 +46,64 @@ export function getPriceField(currency: PriceCurrency): BasePriceField {
   return PRICE_FIELDS[currency].nonfoil
 }
 
-export function formatPrice(amount: number, currency: PriceCurrency): string {
+/**
+ * The **locale-invariant** money format: symbol, two decimals separated by a
+ * literal `.`, then the currency suffix — `$12.30`, `€4.00`, `1.25 tix`.
+ *
+ * This is the machine-contract half of the split described in the localization
+ * plan (§6.4). Every path whose output is *parsed* rather than read must use
+ * it, and CSV is the sharp case: `Intl.NumberFormat('de-DE')` renders `12,30`,
+ * and a comma decimal separator inside a comma-delimited file silently shifts
+ * every following column. Making that unrepresentable is the whole point of
+ * having a second function rather than a `locale` parameter someone can forget.
+ *
+ * Use it for: CSV and other delimited exports, values written to disk, and
+ * anything a downstream importer re-parses. Use {@link formatPrice} for text a
+ * human reads.
+ *
+ * **No production caller today** — `src/export/**`, `src/csv.ts` and
+ * `src/buylist/cart-csv.ts` render no price columns yet. It exists ahead of the
+ * need on purpose: the guard has to be in place *before* the first price column
+ * lands, because the failure it prevents is silent. Wire it up when one does.
+ */
+export function formatPriceInvariant(amount: number, currency: PriceCurrency): string {
   const symbol = getCurrencySymbol(currency)
   const suffix = getCurrencySuffix(currency)
   return `${symbol}${amount.toFixed(2)}${suffix}`
+}
+
+/**
+ * The ISO 4217 code each currency formats as. `tix` has none — Magic Online
+ * event tickets are not a currency ICU knows — which is exactly why it is
+ * absent here and rendered through a message instead.
+ */
+const ISO_CURRENCY_CODES = {
+  usd: 'USD',
+  eur: 'EUR',
+} as const satisfies Partial<Record<PriceCurrency, string>>
+
+/**
+ * A price for a human to read: `Intl.NumberFormat` in the active UI locale,
+ * so a German reader gets `1.234,50 €` rather than `€1234.50`.
+ *
+ * The counterpart of {@link formatPriceInvariant}, which never moves. Use that
+ * one for anything a machine re-parses — the grouping separator this function
+ * introduces (`$1,234.50`) would corrupt a CSV cell on its own, before any
+ * non-English locale is involved.
+ */
+export function formatPrice(amount: number, currency: PriceCurrency): string {
+  const locale = currentLocale()
+  if (currency === 'tix') {
+    const formatted = numberFormat(locale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
+    return t('domain.currency.tix', { amount: formatted })
+  }
+  return numberFormat(locale, {
+    style: 'currency',
+    currency: ISO_CURRENCY_CODES[currency],
+  }).format(amount)
 }
 
 /** Like formatPrice, but returns 'N/A' when amount is 0 (i.e. no price data available). */
@@ -61,8 +119,7 @@ export function formatPriceWithMissing(
 ): string {
   const base = formatPrice(amount, currency)
   if (missingCount > 0) {
-    const cardWord = missingCount === 1 ? 'card' : 'cards'
-    return `At least ${base} (missing ${missingCount} ${cardWord})`
+    return t('domain.price.atLeastMissing', { price: base, count: missingCount })
   }
   return base
 }
@@ -213,18 +270,22 @@ const PRICE_COLUMN_GAP = '  '
  */
 export function formatPriceColumn<T>(rows: readonly PriceColumnRow<T>[]): PriceColumnChoice<T>[] {
   const isPriced = (row: PriceColumnRow<T>): boolean => row.prices.some((cell) => cell !== null)
+  // Widths are terminal columns, not code units: a Japanese card name occupies
+  // two columns per character, so `String.length` would leave its row short and
+  // knock every price out of alignment. `[ja]` card-language support already
+  // puts such names in this column.
   const labelWidth = Math.min(
     MAX_PRICE_COLUMN_LABEL,
-    rows.reduce((max, row) => (isPriced(row) ? Math.max(max, row.label.length) : max), 0),
+    rows.reduce((max, row) => (isPriced(row) ? Math.max(max, displayWidth(row.label)) : max), 0),
   )
   const columnCount = rows.reduce((max, row) => Math.max(max, row.prices.length), 0)
   const columnWidths = Array.from({ length: columnCount }, (_, index) =>
-    rows.reduce((max, row) => Math.max(max, row.prices[index]?.length ?? 0), 0),
+    rows.reduce((max, row) => Math.max(max, displayWidth(row.prices[index] ?? '')), 0),
   )
   return rows.map((row) => {
     if (!isPriced(row)) return { title: row.label, value: row.value }
-    const cells = columnWidths.map((width, index) => (row.prices[index] ?? '').padEnd(width))
-    const title = `${row.label.padEnd(labelWidth)}${PRICE_COLUMN_GAP}${cells.join(PRICE_COLUMN_GAP)}`
+    const cells = columnWidths.map((width, index) => padEndDisplay(row.prices[index] ?? '', width))
+    const title = `${padEndDisplay(row.label, labelWidth)}${PRICE_COLUMN_GAP}${cells.join(PRICE_COLUMN_GAP)}`
     return { title: title.trimEnd(), value: row.value }
   })
 }

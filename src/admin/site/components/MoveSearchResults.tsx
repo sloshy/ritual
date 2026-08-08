@@ -1,5 +1,6 @@
 import { type Component, For, Show } from 'solid-js'
 import { LIST_TYPE_DISPLAY } from '../../../list-type'
+import { useT } from '../../../ui/i18n'
 import { formatPrintingAnnotation } from '../../../change-event'
 import type { ScryfallCard } from '../../../types'
 import { resolveCardImageSources, isCardSideways } from '../../../site/image-sources'
@@ -34,6 +35,7 @@ function annotation(group: CardGroup): string {
  * preview (the same hover behaviour as the list views on other pages).
  */
 export const MoveSearchResults: Component<MoveSearchResultsProps> = (props) => {
+  const t = useT()
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
 
   // Resolve the specific printing's card (falling back to the by-name representative).
@@ -52,13 +54,11 @@ export const MoveSearchResults: Component<MoveSearchResultsProps> = (props) => {
         when={props.results.length > 0}
         fallback={
           <p class="text-muted move-search-empty">
-            No cards match “{props.query}” in the enabled source lists.
+            {t('admin.moveSearch.empty', { query: props.query })}
           </p>
         }
       >
-        <p class="page-stats">
-          {props.results.length} match{props.results.length === 1 ? '' : 'es'}
-        </p>
+        <p class="page-stats">{t('admin.move.matches', { count: props.results.length })}</p>
         <ul class="move-search-list">
           <For each={props.results}>
             {(group) => (
@@ -66,7 +66,7 @@ export const MoveSearchResults: Component<MoveSearchResultsProps> = (props) => {
                 <button
                   type="button"
                   class="move-search-row"
-                  aria-label={`Move ${group.name} to another list`}
+                  aria-label={t('admin.moveSearch.moveLabel', { name: group.name })}
                   // Anchor the menu at the click point, not the full-width row, so it
                   // opens next to the cursor rather than at the screen edge.
                   onClick={(e) => props.onMove(group, new DOMRect(e.clientX, e.clientY, 0, 0))}

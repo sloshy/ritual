@@ -5,11 +5,11 @@ import { sseResponse } from '../../sse'
 import type { RouteProgressSink } from '../../progress'
 import { apiHandler } from '../utils'
 import { collectCacheStatus, type CacheStatusResult } from '../../cache/status'
+import { apiMessage, type ApiMessage } from './result'
 
 /** `POST /api/cache/refresh` — the card cache was rebuilt from Scryfall. */
-export interface CacheRefreshResponse {
+export interface CacheRefreshResponse extends ApiMessage {
   success: true
-  message: string
 }
 
 /** `GET /api/cache/status` body: the collector's report, flattened onto the success envelope. */
@@ -90,7 +90,7 @@ export function handleCacheRefresh(onProgress?: RouteProgressSink): Promise<Resp
     await preloadCache(
       onProgress === undefined ? undefined : { onProgress: cacheRefreshProgress(onProgress) },
     )
-    const resp: CacheRefreshResponse = { success: true, message: 'Cache refreshed successfully' }
+    const resp: CacheRefreshResponse = { success: true, ...apiMessage('admin.api.cache.refreshed') }
     return Response.json(resp)
   })
 }
@@ -98,15 +98,15 @@ export function handleCacheRefresh(onProgress?: RouteProgressSink): Promise<Resp
 /** The event vocabulary of `GET /api/cache/refresh/stream`. */
 type CacheRefreshStreamEvents = {
   progress: CacheRefreshEvent
-  done: { message: string }
-  error: { message: string }
+  done: ApiMessage
+  error: ApiMessage
 }
 
 export function handleCacheRefreshStream(): Promise<Response> {
   const response = sseResponse<CacheRefreshStreamEvents>(async (send) => {
     try {
       await preloadCache({ onProgress: (event) => send('progress', event) })
-      send('done', { message: 'Cache refreshed successfully' })
+      send('done', apiMessage('admin.api.cache.refreshed'))
     } catch (error) {
       // EventSource cannot read a non-2xx body, so a failure rides the stream.
       send('error', { message: getErrorMessage(error) })

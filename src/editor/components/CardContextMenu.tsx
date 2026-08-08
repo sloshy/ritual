@@ -2,6 +2,7 @@ import { type Component, createMemo, Show } from 'solid-js'
 import type { Finish, ScryfallCard } from '../../types'
 import type { ListRef } from '../../change-event'
 import { useAnchoredMenu } from '../../ui/useAnchoredMenu'
+import { useT } from '../../ui/i18n'
 import { findPrintingsAvailable, openFindPrintings } from '../../site/find-printings'
 
 const MENU_WIDTH = 180
@@ -50,12 +51,16 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
     onClose: () => props.onClose(),
   })
 
+  const t = useT()
+
   const supportsFoil = createMemo(() => props.card?.finishes?.includes('foil') ?? false)
   const supportsNonfoil = createMemo(() => props.card?.finishes?.includes('nonfoil') ?? false)
   const isFoilOrEtched = createMemo(
     () => props.currentFinish === 'foil' || props.currentFinish === 'etched',
   )
-  const foilButtonLabel = createMemo(() => (isFoilOrEtched() ? 'Set as Nonfoil' : 'Set as Foil'))
+  const foilButtonLabel = createMemo(() =>
+    isFoilOrEtched() ? t('ui.cardMenu.setNonfoil') : t('ui.cardMenu.setFoil'),
+  )
   const foilButtonDisabled = createMemo(() =>
     isFoilOrEtched() ? !supportsNonfoil() : !supportsFoil(),
   )
@@ -66,7 +71,7 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
       ref={setMenuRef}
       style={style()}
       role="menu"
-      aria-label={`Options for ${props.cardName}`}
+      aria-label={t('ui.cardMenu.options', { name: props.cardName })}
     >
       <Show when={props.onSetFoil}>
         {(setFoil) => (
@@ -84,21 +89,21 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
       <Show when={props.onChangePrinting}>
         {(changePrinting) => (
           <button class="card-context-menu-item" onClick={() => changePrinting()()}>
-            Change Printing…
+            {t('ui.cardMenu.changePrinting')}
           </button>
         )}
       </Show>
       <Show when={props.onSetLabel}>
         {(setLabel) => (
           <button class="card-context-menu-item" onClick={() => setLabel()()}>
-            Set Label…
+            {t('ui.cardMenu.setLabel')}
           </button>
         )}
       </Show>
       <Show when={props.onSetLanguage}>
         {(setLanguage) => (
           <button class="card-context-menu-item" onClick={() => setLanguage()()}>
-            Set Language…
+            {t('ui.cardMenu.setLanguage')}
           </button>
         )}
       </Show>
@@ -109,7 +114,7 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
             <Show when={props.onSetCommander}>
               {(setCommander) => (
                 <button class="card-context-menu-item" onClick={() => setCommander()()}>
-                  Set as Commander
+                  {t('ui.cardMenu.setCommander')}
                 </button>
               )}
             </Show>
@@ -118,7 +123,7 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
           <Show when={props.onUnsetCommander}>
             {(unsetCommander) => (
               <button class="card-context-menu-item" onClick={() => unsetCommander()()}>
-                Unset as Commander
+                {t('ui.cardMenu.unsetCommander')}
               </button>
             )}
           </Show>
@@ -127,13 +132,13 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
       <Show when={props.onMoveToSection}>
         {(moveToSection) => (
           <button class="card-context-menu-item" onClick={() => moveToSection()()}>
-            Move to section…
+            {t('ui.cardMenu.moveToSection')}
           </button>
         )}
       </Show>
       <Show when={props.onMoveToList && (props.moveTargets?.length ?? 0) > 0}>
         <button class="card-context-menu-item" onClick={() => props.onMoveToList!()}>
-          Move to list…
+          {t('ui.cardMenu.moveToList')}
         </button>
       </Show>
       {/* Cross-list printing lookup; hidden where no FindPrintingsModal is
@@ -148,7 +153,7 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
             openFindPrintings(name)
           }}
         >
-          Find in Lists
+          {t('ui.cardMenu.findInLists')}
         </button>
       </Show>
     </div>

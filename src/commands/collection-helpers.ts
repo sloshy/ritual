@@ -2,7 +2,8 @@ import prompts, { type Choice } from 'prompts'
 import type { PromptState } from './prompts-types'
 import { getCardPrintings, isDigitalOnlySet } from '../scryfall'
 import type { ScryfallCard, Finish, Condition } from '../types'
-import { capitalize } from '../utils'
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
 import type { ConditionUpdate } from '../change-event'
 import {
   dedupePrintingsByKey,
@@ -23,8 +24,8 @@ import { resolvePrintingLanguage } from '../printing-language'
 import {
   VALID_FINISHES,
   VALID_CONDITIONS,
-  CONDITION_LABELS,
   applyConditionUpdate,
+  conditionLabel,
   isFinish,
   isCondition,
   printingFinishes,
@@ -42,14 +43,7 @@ import { listFileName, unusableFileNameMessage } from '../list-file-name'
 import { ensureListFile } from './card-session'
 import { requireInteractive } from '../no-input'
 
-export {
-  VALID_FINISHES,
-  VALID_CONDITIONS,
-  CONDITION_LABELS,
-  isFinish,
-  isCondition,
-  printingFinishes,
-}
+export { VALID_FINISHES, VALID_CONDITIONS, conditionLabel, isFinish, isCondition, printingFinishes }
 
 type FinishPromptResponse = { finish?: string }
 type ConditionPromptResponse = { condition?: string }
@@ -69,7 +63,28 @@ export async function ensureCollectionFile(collectionName: string): Promise<stri
   if (fileName === null) {
     throw new Error(unusableFileNameMessage(collectionName))
   }
-  return ensureListFile(getCollectionsDir(), fileName, `# ${collectionName}\n\n`, 'collection')
+  return ensureListFile(
+    getCollectionsDir(),
+    fileName,
+    `# ${collectionName}\n\n`,
+    t('cli.edit.listNoun', { type: 'collection' }),
+  )
+}
+
+/**
+ * A finish's display name. A key table rather than `capitalize(finish)`: the
+ * slugs are file-format vocabulary that must never move, and capitalising one
+ * leaves a translator with no string to translate at all (plan §7.3).
+ */
+const FINISH_LABELS = {
+  nonfoil: 'cli.session.finishNonfoil',
+  foil: 'cli.session.finishFoil',
+  etched: 'cli.session.finishEtched',
+} as const satisfies Record<Finish, MessageKey>
+
+/** A finish's display name in the active UI locale. */
+export function finishLabel(finish: Finish): string {
+  return t(FINISH_LABELS[finish])
 }
 
 /** Minimal config used when filtering card printings by set. */
@@ -137,10 +152,16 @@ export function printingChoices(
       const languages = printingLanguages(printings, p.set, p.collector_number)
       const languageBadge =
         languages.length > 0 && !languages.includes(defaultLanguage)
-          ? ` (${languages.join(', ')} only)`
+          ? ` ${t('cli.printing.languageBadge', { languages: languages.join(', ') })}`
           : ''
+      const row = t('cli.printing.row', {
+        setName: p.set_name,
+        set: p.set.toUpperCase(),
+        number: p.collector_number,
+        rarity: p.rarity,
+      })
       return {
-        label: `${p.set_name} (${p.set.toUpperCase()}) #${p.collector_number} [${p.rarity}]${languageBadge}`,
+        label: `${row}${languageBadge}`,
         prices: finishes.map((finish) => formatPrintingFinishCell(p, finish, currency)),
         value: p,
       }
@@ -166,7 +187,7 @@ export function finishRows(
   current?: Finish,
 ): FinishChoiceItem<Finish>[] {
   return finishes.map((f) => ({
-    label: f === current ? `${capitalize(f)} (current)` : capitalize(f),
+    label: f === current ? t('cli.edit.current', { label: finishLabel(f) }) : finishLabel(f),
     finish: f,
     value: f,
   }))
@@ -265,10 +286,20 @@ async function promptLanguageFallback(
   const response = (await prompts({
     type: 'select',
     name: 'choice',
-    message: `${printing.set.toUpperCase()}:${printing.collector_number} is not available in ${languageDisplayName(defaultLanguage)} — only ${availableNames}.`,
+    message: t('cli.printing.languageUnavailable', {
+      printing: `${printing.set.toUpperCase()}:${printing.collector_number}`,
+      language: languageDisplayName(defaultLanguage),
+      available: availableNames,
+    }),
     choices: [
-      { title: `Use ${languageDisplayName(stamp)} (${stamp})`, value: 'confirm' },
-      { title: '← Pick another printing', value: 'back' },
+      {
+        title: t('cli.printing.useLanguage', {
+          language: languageDisplayName(stamp),
+          code: stamp,
+        }),
+        value: 'confirm',
+      },
+      { title: `← ${t('cli.printing.pickAnother')}`, value: 'back' },
     ],
     onState: (state: PromptState) => {
       if (state.exited) isExited = true
@@ -294,9 +325,7 @@ export async function resolveCardPrinting(
     if (filtered.length > 0) {
       printings = filtered
     } else {
-      console.warn(
-        `No printings found matching set filters [${config.sets.join(', ')}]. Showing all printings.`,
-      )
+      console.warn(t('cli.printing.noSetFilterMatch', { sets: config.sets.join(', ') }))
     }
   }
 
@@ -318,7 +347,7 @@ export async function resolveCardPrinting(
       const printingResponse = (await prompts({
         type: 'autocomplete',
         name: 'printing',
-        message: 'Select Printing:',
+        message: t('cli.printing.promptSelect'),
         choices,
         limit: 15,
         suggest: async (rawInput, choices) => suggestPrintings(String(rawInput), choices),
@@ -381,11 +410,14 @@ export async function promptLanguageChoice(
   const response = (await prompts({
     type: 'select',
     name: 'value',
-    message: 'Language:',
-    choices: CARD_LANGUAGES.map((code) => ({
-      title: `${languageDisplayName(code)} (${code})${code === resolved ? ' (current)' : ''}`,
-      value: code,
-    })),
+    message: t('cli.printing.promptLanguage'),
+    choices: CARD_LANGUAGES.map((code) => {
+      const row = t('cli.printing.languageRow', { name: languageDisplayName(code), code })
+      return {
+        title: code === resolved ? t('cli.edit.current', { label: row }) : row,
+        value: code,
+      }
+    }),
     initial: currentIndex,
     onState: (state: PromptState) => {
       if (state.exited) isExited = true
@@ -432,7 +464,7 @@ export function matchPrintingPin(
   if (printings.length === 0) {
     return {
       ok: false,
-      message: `No printings of '${cardName}' found in the card cache.`,
+      message: t('cli.printing.noneCached', { name: cardName }),
       available,
       totalPrintings: 0,
     }
@@ -440,11 +472,16 @@ export function matchPrintingPin(
   const listed = available.map((p) => `${p.set.toUpperCase()}:${p.collectorNumber}`).join(', ')
   const more =
     printings.length > MAX_LISTED_PRINTINGS
-      ? `, and ${printings.length - MAX_LISTED_PRINTINGS} more`
+      ? t('cli.printing.andMore', { count: printings.length - MAX_LISTED_PRINTINGS })
       : ''
   return {
     ok: false,
-    message: `No printing ${set.toUpperCase()}:${collectorNumber} of '${cardName}'. Available printings: ${listed}${more}.`,
+    message: t('cli.printing.pinNotFound', {
+      printing: `${set.toUpperCase()}:${collectorNumber}`,
+      name: cardName,
+      listed,
+      more,
+    }),
     available,
     totalPrintings: printings.length,
   }
@@ -467,7 +504,12 @@ export function matchFinishPin(
   if (available.includes(finish)) return { ok: true }
   return {
     ok: false,
-    message: `Printing ${printing.set.toUpperCase()}:${printing.collector_number} of '${cardName}' is not available in ${finish}. Available finishes: ${available.join(', ')}.`,
+    message: t('cli.printing.finishUnavailable', {
+      printing: `${printing.set.toUpperCase()}:${printing.collector_number}`,
+      name: cardName,
+      finish,
+      available: available.join(', '),
+    }),
     available,
   }
 }
@@ -494,7 +536,7 @@ export async function promptFinishAndCondition(
     const finishResponse = (await prompts({
       type: 'select',
       name: 'finish',
-      message: 'Select Finish:',
+      message: t('cli.printing.promptFinish'),
       choices,
     })) as FinishPromptResponse
     const chosenFinish = finishResponse.finish
@@ -516,10 +558,10 @@ export async function promptFinishAndCondition(
     const conditionResponse = (await prompts({
       type: 'select',
       name: 'condition',
-      message: 'Condition:',
+      message: t('cli.printing.promptCondition'),
       choices: [
-        { title: "Don't Care", value: '' },
-        ...VALID_CONDITIONS.map((c) => ({ title: CONDITION_LABELS[c], value: c })),
+        { title: t('cli.session.conditionDontCare'), value: '' },
+        ...VALID_CONDITIONS.map((c) => ({ title: conditionLabel(c), value: c })),
       ],
     })) as ConditionPromptResponse
     if (conditionResponse.condition === undefined) return null

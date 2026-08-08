@@ -12,6 +12,7 @@ import {
 } from '../../list-lifecycle'
 import { apiHandler } from '../utils'
 import { resolveListFileOrRefuse, type ListFileResult, type ResolveListFile } from './list-file'
+import { apiMessage, type ApiMessage } from './result'
 import { apiError, autoCommitAndPush, readJsonObjectBody } from './save-helpers'
 import { parseSlugFromUrl } from './target'
 
@@ -38,16 +39,14 @@ export interface ListLifecycleConfig {
 }
 
 /** `POST /api/{deck,collection,wanted}/create` — the new list's slug. */
-export interface ListCreateResponse {
+export interface ListCreateResponse extends ApiMessage {
   success: true
-  message: string
   slug: string
 }
 
 /** `POST /api/{deck,collection,wanted}/:slug/rename` — where the list moved to. */
-export interface ListRenameResponse {
+export interface ListRenameResponse extends ApiMessage {
   success: true
-  message: string
   newSlug: string
   /** The list's path after the rename — a client should not have to rebuild it. */
   newFilePath: string
@@ -56,9 +55,8 @@ export interface ListRenameResponse {
 }
 
 /** `DELETE /api/{deck,collection,wanted}/:slug` — the list is gone. */
-export interface ListDeleteResponse {
+export interface ListDeleteResponse extends ApiMessage {
   success: true
-  message: string
   /** Every file removed: the list plus whichever sidecars it had. */
   deletedFiles: string[]
 }
@@ -98,7 +96,7 @@ export function handleListCreate(req: Request, cfg: ListLifecycleConfig): Promis
 
     const resp: ListCreateResponse = {
       success: true,
-      message: `Created ${cfg.label} '${trimmedName}'`,
+      ...apiMessage('admin.api.list.created', { listType: cfg.kind, name: trimmedName }),
       slug: result.slug,
     }
     return Response.json(resp)
@@ -133,7 +131,7 @@ export function handleListRename(req: Request, cfg: ListLifecycleConfig): Promis
 
     const resp: ListRenameResponse = {
       success: true,
-      message: `Renamed ${cfg.label} to '${trimmedName}'`,
+      ...apiMessage('admin.api.list.renamed', { listType: cfg.kind, name: trimmedName }),
       newSlug: result.newSlug,
       newFilePath: result.newFilePath,
       oldFilePath: result.oldFilePath,
@@ -175,7 +173,7 @@ export function handleListDelete(req: Request, cfg: ListLifecycleConfig): Promis
 
     const resp: ListDeleteResponse = {
       success: true,
-      message: `Deleted ${cfg.label} '${displayName}'`,
+      ...apiMessage('admin.api.list.deleted', { listType: cfg.kind, name: displayName }),
       deletedFiles: result.deletedFiles,
     }
     return Response.json(resp)

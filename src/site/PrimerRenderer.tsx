@@ -1,6 +1,7 @@
 import type { Component, JSX } from 'solid-js'
 import type { ScryfallCard } from '../types'
 import type { PrimerHeading } from '../primer-parser'
+import { useT } from '../ui/i18n'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -58,6 +59,7 @@ type InlineProps = {
 
 // Component (not a plain function) so Solid establishes a rendering boundary per segment.
 const InlineContent: Component<InlineProps> = (props) => {
+  const t = useT()
   const parts: Array<JSX.Element | string> = []
   const tokenRe = /(\[\[[^\]]+\]\]|\*\*[^*]+\*\*|\*[^*]+\*)/g
   let lastIndex = 0
@@ -77,7 +79,7 @@ const InlineContent: Component<InlineProps> = (props) => {
         <div class="primer-youtube">
           <iframe
             src={`https://www.youtube.com/embed/${videoId}`}
-            title="YouTube video"
+            title={t('site.primer.youtubeTitle')}
             allowfullscreen
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           />
@@ -96,7 +98,7 @@ const InlineContent: Component<InlineProps> = (props) => {
         <span
           class={`primer-card-link ${cardKey ? 'primer-card-link--found' : 'primer-card-link--missing'}`}
           role="button"
-          aria-label={`Open card: ${cardName}`}
+          aria-label={t('site.primer.openCard', { name: cardName })}
           tabIndex={0}
           onClick={() => props.onOpenModal(resolvedName)}
           onKeyDown={(e) => {

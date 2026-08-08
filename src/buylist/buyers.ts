@@ -7,8 +7,11 @@
  * is the only buyer today; a second one is an entry here plus a branch where
  * quotes are sourced, not a plugin registry.
  *
- * Browser-safe: no imports, no Node built-ins.
+ * Browser-safe: no Node built-ins.
  */
+
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
 
 /** Every buyer Ritual can quote against, in display order. */
 export const BUYERS = ['cardkingdom'] as const
@@ -18,10 +21,20 @@ export type BuyerId = (typeof BUYERS)[number]
 /** The buyer selected when none was chosen. */
 export const DEFAULT_BUYER: BuyerId = 'cardkingdom'
 
-/** Buyer names as rendered in the UI and in CLI output. */
+/**
+ * Message keys for the buyer names rendered in the UI and in CLI output. Keys
+ * rather than text so a locale switch relabels the toolbar's buyer dropdown and
+ * the cart export rows, which read a module-level table. Resolve with
+ * {@link buyerName}.
+ */
 export const BUYER_DISPLAY_NAMES = {
-  cardkingdom: 'Card Kingdom',
-} as const satisfies Record<BuyerId, string>
+  cardkingdom: 'domain.buyer.cardkingdom',
+} as const satisfies Record<BuyerId, MessageKey>
+
+/** A buyer's name in the active UI locale. */
+export function buyerName(buyer: BuyerId): string {
+  return t(BUYER_DISPLAY_NAMES[buyer])
+}
 
 /**
  * Buyers whose sell-cart file format Ritual can render. The cart builder speaks

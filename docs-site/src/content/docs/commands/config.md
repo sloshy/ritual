@@ -27,6 +27,7 @@ All subcommands accept the standard scripting options:
 | `wantedDir`               | `string` | `./wanted`      |
 | `defaultCurrency`         | `string` | `usd`           |
 | `defaultLanguage`         | `string` | `en`            |
+| `uiLocale`                | `string` | `en`            |
 | `cacheLockTimeoutSeconds` | `number` | `300`           |
 | `cacheSource`             | `string` | `scryfall`      |
 | `cacheFeedUrl`            | `string` | —               |
@@ -35,6 +36,14 @@ All subcommands accept the standard scripting options:
 `defaultCurrency` must be one of `usd`, `eur`, or `tix`; it sets the currency every price-touching command defaults to.
 
 `defaultLanguage` is the Scryfall language code stamped on newly added cards (`en es fr de it pt ja ko ru zhs zht he la grc ar sa ph` — Scryfall's codes, not ISO: Chinese is `zhs`/`zht`). `config set` accepts aliases (`jp`, `Japanese`, ...) and persists the canonical code; an unknown value is rejected listing all 17 codes. **A non-English value switches card-cache downloads — including the cache feed — to Scryfall's much larger `all_cards` bulk.** See [Configuration → Default language](/configuration/#default-language).
+
+`uiLocale` is the language **Ritual's own interface text** is written in — a BCP-47 tag
+(`en`, `de`, `de-AT`, `pt-BR`), persisted canonicalized (`de-at` → `de-AT`); a tag no
+language is known for is rejected. **This is not `defaultLanguage`**: that one picks
+which _printing of a card_ is recorded and has a real download cost, while this one only
+changes what language Ritual speaks. See [Configuration → Interface language](/configuration/#interface-language),
+[Localization](/localization/), and [`ritual locale`](/commands/locale/), which prints
+both settings side by side.
 
 `cacheLockTimeoutSeconds` is how long a cache-refreshing operation waits for another process's refresh to finish before failing — see [Configuration → Cache lock timeout](/configuration/#cache-lock-timeout).
 
@@ -123,6 +132,7 @@ The rest of the `site` key (the deployment settings) is managed exclusively by `
 ./ritual config set admin.gitEnabled true
 ./ritual config set decksDir ./my-decks
 ./ritual config set defaultLanguage ja        # aliases work too: jp, Japanese
+./ritual config set uiLocale de-AT            # the interface language, not the card language
 ./ritual config set admin.ipAllowList "192.168.1.0/24" "10.0.0.1"   # replaces the whole list
 ./ritual config set --add admin.ipAllowList "10.0.0.2"
 ./ritual config set --remove admin.ipAllowList "10.0.0.1"

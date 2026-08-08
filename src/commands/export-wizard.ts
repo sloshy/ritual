@@ -12,7 +12,6 @@
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import type { Choice } from 'prompts'
-import { countLabel } from '../editor/change-bundle'
 import {
   CONDITION_FILTER_NONE,
   exportEntryKey,
@@ -24,7 +23,7 @@ import {
   type ExportFilters,
   type LabelFilterValue,
 } from '../export/entries'
-import { CARD_LABEL_DISPLAY_NAMES, CARD_LABEL_SELECTION_NONE, CARD_LABELS } from '../card-labels'
+import { cardLabelName, CARD_LABEL_SELECTION_NONE, CARD_LABELS } from '../card-labels'
 import { renderExport, saveExportPreset } from '../export/output'
 import {
   EXPORT_FORMAT_EXTENSIONS,
@@ -40,12 +39,14 @@ import {
 import {
   DEFAULT_EXPORT_COLUMNS,
   EXPORT_PROPERTIES,
-  EXPORT_PROPERTY_HINTS,
   EXPORT_PROPERTY_LABELS,
   exportPropertyLabel,
   type ExportProperty,
 } from '../export/render'
-import { CONDITION_LABELS, VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
+import { exportPropertyHint } from '../export-hints'
+import { conditionLabel, VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
 import { LIST_TYPE_DISPLAY } from '../list-type'
 import { listLocations, type ListLocation } from '../resolve-list'
 import { getExportPresets } from '../ritual-config'
@@ -117,16 +118,16 @@ export function formatExportEntryChoice(entry: ExportEntry): string {
 
 /** "name "sol" · set LEA · foil · NM/none" — the active filters, or "none". */
 export function formatFiltersSegment(filters: ExportFilters): string {
-  if (!hasActiveExportFilters(filters)) return 'none'
+  if (!hasActiveExportFilters(filters)) return t('cli.exportWizard.filtersNone')
   const parts: string[] = []
-  if (filters.name) parts.push(`name "${filters.name}"`)
-  if (filters.set) parts.push(`set ${filters.set.toUpperCase()}`)
+  if (filters.name) parts.push(t('cli.exportWizard.filterName', { value: filters.name }))
+  if (filters.set) parts.push(t('cli.exportWizard.filterSet', { value: filters.set.toUpperCase() }))
   if (filters.finish) parts.push(filters.finish)
   if (filters.conditions && filters.conditions.length > 0) {
     parts.push(filters.conditions.join('/'))
   }
   if (filters.labels && filters.labels.length > 0) {
-    parts.push(`labels ${filters.labels.join('/')}`)
+    parts.push(t('cli.exportWizard.filterLabels', { value: filters.labels.join('/') }))
   }
   return parts.join(' · ')
 }
@@ -134,32 +135,46 @@ export function formatFiltersSegment(filters: ExportFilters): string {
 /** The main menu's at-a-glance summary of the configured export. */
 export function formatWizardHeaderLines(state: ExportWizardState, entryCount: number): string[] {
   const sources: string[] = []
-  if (state.lists.length > 0) sources.push(countLabel(state.lists.length, 'list'))
-  if (state.picked.length > 0) sources.push(`${countLabel(state.picked.length, 'picked card')}`)
-  const sourceText = sources.length > 0 ? sources.join(' + ') : 'nothing selected'
+  if (state.lists.length > 0) sources.push(t('domain.count.lists', { count: state.lists.length }))
+  if (state.picked.length > 0)
+    sources.push(t('domain.count.pickedCards', { count: state.picked.length }))
+  const sourceText =
+    sources.length > 0 ? sources.join(' + ') : t('cli.exportWizard.nothingSelected')
   // Text/md exports have fixed line formats, so their header omits the
   // (unused) column selection.
-  let formatLine = `Format: ${state.settings.format.toUpperCase()}`
+  let formatLine = t('cli.exportWizard.formatLine', {
+    format: state.settings.format.toUpperCase(),
+  })
   if (exportFormatUsesColumns(state.settings.format)) {
-    formatLine += ` · Columns: ${state.settings.columns
-      .map((column) => exportPropertyLabel(column, state.settings.dialect))
-      .join(', ')}`
+    formatLine += t('cli.exportWizard.columnsSegment', {
+      columns: state.settings.columns
+        .map((column) => exportPropertyLabel(column, state.settings.dialect))
+        .join(', '),
+    })
     // Only a non-default dialect is worth a line: `ritual` spellings are what
     // the list files already say.
     if (state.settings.dialect !== 'ritual') {
-      formatLine += ` · ${state.settings.dialect} values`
+      formatLine += ` · ${t('cli.exportWizard.dialectValues', { dialect: state.settings.dialect })}`
     }
   }
   const lines: string[] = [
-    `📤 Sources: ${sourceText} — ${countLabel(entryCount, 'card')} to export`,
-    `Filters: ${formatFiltersSegment(state.filters)}`,
+    `📤 ${t('cli.exportWizard.sourcesLine', {
+      sources: sourceText,
+      cards: t('domain.count.cards', { count: entryCount }),
+    })}`,
+    t('cli.exportWizard.filtersLine', { filters: formatFiltersSegment(state.filters) }),
     formatLine,
   ]
   if (state.settings.format === 'csv') {
     lines.push(
-      `CSV: header ${state.settings.header ? 'on' : 'off'} · ${
-        state.settings.quoteAll ? 'quote all cells' : 'minimal quoting'
-      }`,
+      t('cli.exportWizard.csvLine', {
+        header: t(state.settings.header ? 'cli.exportWizard.on' : 'cli.exportWizard.off'),
+        quoting: t(
+          state.settings.quoteAll
+            ? 'cli.exportWizard.quoteAllCells'
+            : 'cli.exportWizard.minimalQuoting',
+        ),
+      }),
     )
   }
   return lines
@@ -179,57 +194,71 @@ export function buildWizardMenuChoices(
 ): Choice[] {
   const choices: Choice[] = [
     {
-      title: `📋 Add lists (${state.lists.length} selected)`,
+      title: `📋 ${t('cli.exportWizard.menuAddLists', { count: state.lists.length })}`,
       value: { kind: 'add-lists' } satisfies ExportWizardSelection,
     },
     {
-      title: `🃏 Add individual cards (${state.picked.length} picked)`,
+      title: `🃏 ${t('cli.exportWizard.menuAddCards', { count: state.picked.length })}`,
       value: { kind: 'add-cards' } satisfies ExportWizardSelection,
     },
     {
-      title: `🔍 Filters: ${formatFiltersSegment(state.filters)}`,
+      title: `🔍 ${t('cli.exportWizard.menuFilters', {
+        filters: formatFiltersSegment(state.filters),
+      })}`,
       value: { kind: 'filters' } satisfies ExportWizardSelection,
     },
   ]
   if (presetCount > 0) {
     choices.push({
-      title: `📂 Load preset (${presetCount} available)`,
+      title: `📂 ${t('cli.exportWizard.menuLoadPreset', { count: presetCount })}`,
       value: { kind: 'load-preset' } satisfies ExportWizardSelection,
     })
   }
   choices.push({
-    title: `📄 Format: ${state.settings.format.toUpperCase()}`,
+    title: `📄 ${t('cli.exportWizard.menuFormat', {
+      format: state.settings.format.toUpperCase(),
+    })}`,
     value: { kind: 'format' } satisfies ExportWizardSelection,
   })
   // Text/md lines are fixed, so the column and CSV-option menus disappear.
   if (exportFormatUsesColumns(state.settings.format)) {
     choices.push({
-      title: `🧱 Columns (${state.settings.columns.length})`,
+      title: `🧱 ${t('cli.exportWizard.menuColumns', { count: state.settings.columns.length })}`,
       value: { kind: 'columns' } satisfies ExportWizardSelection,
     })
   }
   if (state.settings.format === 'csv') {
     choices.push({
-      title: `⚙️ CSV options: header ${state.settings.header ? 'on' : 'off'} · ${
-        state.settings.quoteAll ? 'quote all' : 'minimal quoting'
-      }`,
+      title: `⚙️ ${t('cli.exportWizard.menuCsvOptions', {
+        header: t(state.settings.header ? 'cli.exportWizard.on' : 'cli.exportWizard.off'),
+        quoting: t(
+          state.settings.quoteAll ? 'cli.exportWizard.quoteAll' : 'cli.exportWizard.minimalQuoting',
+        ),
+      })}`,
       value: { kind: 'csv-options' } satisfies ExportWizardSelection,
     })
   }
   choices.push(
     {
-      title: '📌 Save current settings as a preset',
+      title: `📌 ${t('cli.exportWizard.menuSavePreset')}`,
       value: { kind: 'save-preset' } satisfies ExportWizardSelection,
     },
     {
-      title: `👀 Review ${countLabel(entryCount, 'card')}`,
+      title: `👀 ${t('cli.exportWizard.menuReview', {
+        cards: t('domain.count.cards', { count: entryCount }),
+      })}`,
       value: { kind: 'review' } satisfies ExportWizardSelection,
     },
     {
-      title: `📤 Export ${countLabel(entryCount, 'card')}`,
+      title: `📤 ${t('cli.exportWizard.menuExport', {
+        cards: t('domain.count.cards', { count: entryCount }),
+      })}`,
       value: { kind: 'export' } satisfies ExportWizardSelection,
     },
-    { title: '🚪 Exit', value: { kind: 'exit' } satisfies ExportWizardSelection },
+    {
+      title: `🚪 ${t('cli.exportWizard.menuExit')}`,
+      value: { kind: 'exit' } satisfies ExportWizardSelection,
+    },
   )
   return choices
 }
@@ -247,14 +276,14 @@ async function promptAddLists(
       (location) => !state.lists.some((selected) => sameList(selected, location)),
     )
     if (remaining.length === 0) {
-      console.log('Every list is already selected.')
+      console.log(t('cli.exportWizard.allListsSelected'))
       return
     }
     const pick = await ask<ListLocation | typeof DONE_SENTINEL>({
       type: 'autocomplete',
-      message: `Add a list (${state.lists.length} selected)`,
+      message: t('cli.exportWizard.promptAddList', { count: state.lists.length }),
       choices: [
-        { title: '✔ Done', value: DONE_SENTINEL },
+        { title: t('cli.exportWizard.done'), value: DONE_SENTINEL },
         ...remaining.map(
           (location): Choice => ({
             title: `${LIST_TYPE_DISPLAY[location.type].icon} ${location.name}`,
@@ -276,14 +305,14 @@ async function promptAddCards(state: ExportWizardState, allEntries: ExportEntry[
     const pickedKeys = new Set(state.picked.map(exportEntryKey))
     const remaining = allEntries.filter((entry) => !pickedKeys.has(exportEntryKey(entry)))
     if (remaining.length === 0) {
-      console.log('Every card is already picked.')
+      console.log(t('cli.exportWizard.allCardsPicked'))
       return
     }
     const pick = await ask<ExportEntry | typeof DONE_SENTINEL>({
       type: 'autocomplete',
-      message: `Add a card (${state.picked.length} picked) — type to search all lists`,
+      message: t('cli.exportWizard.promptAddCard', { count: state.picked.length }),
       choices: [
-        { title: '✔ Done', value: DONE_SENTINEL },
+        { title: t('cli.exportWizard.done'), value: DONE_SENTINEL },
         ...remaining.map(
           (entry): Choice => ({ title: formatExportEntryChoice(entry), value: entry }),
         ),
@@ -300,11 +329,14 @@ async function promptAddCards(state: ExportWizardState, allEntries: ExportEntry[
 async function promptFinishFilter(current: Finish | undefined): Promise<Finish | undefined> {
   const pick = await ask<Finish | 'any'>({
     type: 'select',
-    message: 'Show cards with finish',
+    message: t('cli.exportWizard.promptFinish'),
     choices: [
-      { title: `Any${current === undefined ? ' (current)' : ''}`, value: 'any' },
+      {
+        title: `${t('cli.exportWizard.any')}${current === undefined ? t('cli.exportWizard.currentSuffix') : ''}`,
+        value: 'any',
+      },
       ...VALID_FINISHES.map((finish) => ({
-        title: `${finish}${finish === current ? ' (current)' : ''}`,
+        title: `${finish}${finish === current ? t('cli.exportWizard.currentSuffix') : ''}`,
         value: finish,
       })),
     ],
@@ -333,8 +365,11 @@ async function promptToggleFilter<T extends string>(
       type: 'select',
       message,
       choices: [
-        { title: '✔ Done', value: 'done' },
-        { title: `Any (clear the filter)${selected.size === 0 ? ' (current)' : ''}`, value: 'any' },
+        { title: t('cli.exportWizard.done'), value: 'done' },
+        {
+          title: `${t('cli.exportWizard.anyClearFilter')}${selected.size === 0 ? t('cli.exportWizard.currentSuffix') : ''}`,
+          value: 'any',
+        },
         ...options.map((option) => ({
           title: `${mark(option.value)} ${option.title}`,
           value: option.value,
@@ -358,13 +393,13 @@ async function promptConditionFilter(
   current: ConditionFilterValue[] | undefined,
 ): Promise<ConditionFilterValue[] | undefined> {
   return promptToggleFilter(
-    'Show cards with condition (toggle any combination)',
+    t('cli.exportWizard.promptCondition'),
     [
       ...VALID_CONDITIONS.map((condition) => ({
         value: condition,
-        title: `${condition} — ${CONDITION_LABELS[condition]}`,
+        title: `${condition} — ${conditionLabel(condition)}`,
       })),
-      { value: CONDITION_FILTER_NONE, title: 'No condition marked' },
+      { value: CONDITION_FILTER_NONE, title: t('cli.exportWizard.noConditionMarked') },
     ],
     current,
   )
@@ -379,13 +414,13 @@ async function promptLabelsFilter(
   current: LabelFilterValue[] | undefined,
 ): Promise<LabelFilterValue[] | undefined> {
   return promptToggleFilter(
-    'Show collection cards with labels (toggle any combination)',
+    t('cli.exportWizard.promptLabels'),
     [
       ...CARD_LABELS.map((label) => ({
         value: label,
-        title: `${label} — ${CARD_LABEL_DISPLAY_NAMES[label]}`,
+        title: `${label} — ${cardLabelName(label)}`,
       })),
-      { value: CARD_LABEL_SELECTION_NONE, title: 'No labels at all' },
+      { value: CARD_LABEL_SELECTION_NONE, title: t('cli.exportWizard.noLabels') },
     ],
     current,
   )
@@ -395,43 +430,62 @@ async function promptFilters(state: ExportWizardState): Promise<void> {
   while (true) {
     const pick = await ask<'name' | 'set' | 'finish' | 'condition' | 'labels' | 'back'>({
       type: 'select',
-      message: 'Filters (applied to the whole export)',
+      message: t('cli.exportWizard.promptFilters'),
       choices: [
-        { title: `Name contains: ${state.filters.name ?? 'any'}`, value: 'name' },
         {
-          title: `Set code: ${state.filters.set ? state.filters.set.toUpperCase() : 'any'}`,
+          title: t('cli.exportWizard.filterRowName', {
+            value: state.filters.name ?? t('cli.exportWizard.anyValue'),
+          }),
+          value: 'name',
+        },
+        {
+          title: t('cli.exportWizard.filterRowSet', {
+            value: state.filters.set
+              ? state.filters.set.toUpperCase()
+              : t('cli.exportWizard.anyValue'),
+          }),
           value: 'set',
         },
-        { title: `Finish: ${state.filters.finish ?? 'any'}`, value: 'finish' },
         {
-          title: `Condition: ${
-            state.filters.conditions && state.filters.conditions.length > 0
-              ? state.filters.conditions.join('/')
-              : 'any'
-          }`,
+          title: t('cli.exportWizard.filterRowFinish', {
+            value: state.filters.finish ?? t('cli.exportWizard.anyValue'),
+          }),
+          value: 'finish',
+        },
+        {
+          title: t('cli.exportWizard.filterRowCondition', {
+            value:
+              state.filters.conditions && state.filters.conditions.length > 0
+                ? state.filters.conditions.join('/')
+                : t('cli.exportWizard.anyValue'),
+          }),
           value: 'condition',
         },
         {
-          title: `Labels: ${
-            state.filters.labels && state.filters.labels.length > 0
-              ? state.filters.labels.join('/')
-              : 'any'
-          }`,
+          title: t('cli.exportWizard.filterRowLabels', {
+            value:
+              state.filters.labels && state.filters.labels.length > 0
+                ? state.filters.labels.join('/')
+                : t('cli.exportWizard.anyValue'),
+          }),
           value: 'labels',
         },
-        { title: '← Back', value: 'back' },
+        { title: t('cli.exportWizard.back'), value: 'back' },
       ],
     })
     if (!pick || pick === 'back') return
     switch (pick) {
       case 'name':
         state.filters.name = await promptTextFilter(
-          'Name terms (empty for any)',
+          t('cli.exportWizard.promptNameTerms'),
           state.filters.name,
         )
         break
       case 'set':
-        state.filters.set = await promptTextFilter('Set code (empty for any)', state.filters.set)
+        state.filters.set = await promptTextFilter(
+          t('cli.exportWizard.promptSetCode'),
+          state.filters.set,
+        )
         break
       case 'finish':
         state.filters.finish = await promptFinishFilter(state.filters.finish)
@@ -447,20 +501,20 @@ async function promptFilters(state: ExportWizardState): Promise<void> {
 }
 
 /** Menu labels for the format picker; the raw format key is the value. */
-const FORMAT_CHOICE_LABELS: Record<ExportFormat, string> = {
-  csv: 'CSV',
-  json: 'JSON',
-  text: 'Plain text (1 Name (SET:CN))',
-  md: 'Markdown (canonical list markdown, no &N ids)',
-}
+const FORMAT_CHOICE_LABELS = {
+  csv: 'domain.exportFormat.csv',
+  json: 'domain.exportFormat.json',
+  text: 'domain.exportFormat.text',
+  md: 'domain.exportFormat.md',
+} as const satisfies Record<ExportFormat, MessageKey>
 
 async function promptFormat(state: ExportWizardState): Promise<void> {
   const pick = await ask<ExportFormat>({
     type: 'select',
-    message: 'Export format',
+    message: t('cli.exportWizard.promptFormat'),
     choices: EXPORT_FORMATS.map(
       (format): Choice => ({
-        title: `${FORMAT_CHOICE_LABELS[format]}${state.settings.format === format ? ' (current)' : ''}`,
+        title: `${t(FORMAT_CHOICE_LABELS[format])}${state.settings.format === format ? t('cli.exportWizard.currentSuffix') : ''}`,
         value: format,
       }),
     ),
@@ -486,16 +540,18 @@ export async function promptColumns(
     const choices: Choice[] = []
     if (order.length === 0) {
       choices.push({
-        title: `Keep current (${current.map((c) => EXPORT_PROPERTY_LABELS[c]).join(' → ')})`,
+        title: t('cli.exportWizard.keepCurrent', {
+          columns: current.map((c) => EXPORT_PROPERTY_LABELS[c]).join(' → '),
+        }),
         value: KEEP_SENTINEL,
       })
     } else {
-      choices.push({ title: '✔ Done', value: DONE_SENTINEL })
+      choices.push({ title: t('cli.exportWizard.done'), value: DONE_SENTINEL })
     }
-    choices.push({ title: '↺ Reset to default', value: RESET_SENTINEL })
+    choices.push({ title: t('cli.exportWizard.resetDefault'), value: RESET_SENTINEL })
     choices.push(
       ...remaining.map((property): Choice => {
-        const hint = EXPORT_PROPERTY_HINTS[property]
+        const hint = exportPropertyHint(property)
         return {
           title: `${EXPORT_PROPERTY_LABELS[property]}${hint ? ` (${hint})` : ''}`,
           value: property,
@@ -504,8 +560,10 @@ export async function promptColumns(
     )
     const message =
       order.length > 0
-        ? `Order so far: ${order.map((c) => EXPORT_PROPERTY_LABELS[c]).join(' → ')}`
-        : 'Pick columns in output order'
+        ? t('cli.exportWizard.orderSoFar', {
+            columns: order.map((c) => EXPORT_PROPERTY_LABELS[c]).join(' → '),
+          })
+        : t('cli.exportWizard.pickColumns')
     const pick = await ask<
       ExportProperty | typeof KEEP_SENTINEL | typeof RESET_SENTINEL | typeof DONE_SENTINEL
     >({
@@ -529,14 +587,23 @@ async function promptCsvOptions(state: ExportWizardState): Promise<void> {
   while (true) {
     const pick = await ask<'header' | 'quoting' | 'back'>({
       type: 'select',
-      message: 'CSV options',
+      message: t('cli.exportWizard.promptCsvOptions'),
       choices: [
-        { title: `Header row: ${state.settings.header ? 'on' : 'off'}`, value: 'header' },
         {
-          title: `Quoting: ${state.settings.quoteAll ? 'always quote' : 'minimal'}`,
+          title: t('cli.exportWizard.csvHeaderRow', {
+            value: t(state.settings.header ? 'cli.exportWizard.on' : 'cli.exportWizard.off'),
+          }),
+          value: 'header',
+        },
+        {
+          title: t('cli.exportWizard.csvQuoting', {
+            value: t(
+              state.settings.quoteAll ? 'cli.exportWizard.alwaysQuote' : 'cli.exportWizard.minimal',
+            ),
+          }),
           value: 'quoting',
         },
-        { title: '← Back', value: 'back' },
+        { title: t('cli.exportWizard.back'), value: 'back' },
       ],
     })
     if (!pick || pick === 'back') return
@@ -551,10 +618,10 @@ export function formatPresetSummary(name: string, preset: ExportPreset): string 
     preset.format.toUpperCase(),
     preset.columns.map((column) => exportPropertyLabel(column, preset.dialect)).join(', '),
   ]
-  if (preset.header === false) parts.push('no header')
-  if (preset.quoteAll) parts.push('quote all')
+  if (preset.header === false) parts.push(t('cli.exportWizard.presetNoHeader'))
+  if (preset.quoteAll) parts.push(t('cli.exportWizard.quoteAll'))
   if (preset.dialect !== undefined && preset.dialect !== 'ritual') {
-    parts.push(`${preset.dialect} values`)
+    parts.push(t('cli.exportWizard.dialectValues', { dialect: preset.dialect }))
   }
   return `${name} — ${parts.join(' · ')}`
 }
@@ -565,7 +632,7 @@ async function promptLoadPreset(state: ExportWizardState): Promise<void> {
   if (names.length === 0) return
   const pick = await ask<string>({
     type: 'select',
-    message: 'Load preset',
+    message: t('cli.exportWizard.promptLoadPreset'),
     choices: names.map((name) => ({
       title: formatPresetSummary(name, findExportPreset(name, saved)!),
       value: name,
@@ -573,14 +640,14 @@ async function promptLoadPreset(state: ExportWizardState): Promise<void> {
   })
   if (!pick) return
   state.settings = resolveExportSettings(findExportPreset(pick, saved), {})
-  console.log(`✓ Loaded preset '${pick}'`)
+  console.log(`✓ ${t('cli.exportWizard.loadedPreset', { name: pick })}`)
 }
 
 async function promptSavePreset(state: ExportWizardState): Promise<void> {
   const name = await ask<string>({
     type: 'text',
-    message: 'Preset name',
-    validate: (value: string) => (value.trim().length > 0 ? true : 'Enter a name'),
+    message: t('cli.exportWizard.promptPresetName'),
+    validate: (value: string) => (value.trim().length > 0 ? true : t('cli.exportWizard.enterName')),
   })
   if (!name) return
   const trimmed = name.trim()
@@ -588,23 +655,23 @@ async function promptSavePreset(state: ExportWizardState): Promise<void> {
   if (getExportPresets()[trimmed]) {
     const overwrite = await ask<boolean>({
       type: 'confirm',
-      message: `Preset '${trimmed}' exists. Overwrite?`,
+      message: t('cli.exportWizard.presetExists', { name: trimmed }),
       initial: false,
     })
     if (!overwrite) return
   }
   await saveExportPreset(trimmed, state.settings)
-  console.log(`✓ Saved preset '${trimmed}'`)
+  console.log(`✓ ${t('cli.exportWizard.savedPreset', { name: trimmed })}`)
 }
 
 /** Print the assembled entries; returns to the menu. */
 function showReview(entries: ExportEntry[]): void {
   console.log('')
   if (entries.length === 0) {
-    console.log('Nothing selected yet — add lists or individual cards first.')
+    console.log(t('cli.exportWizard.reviewEmpty'))
   } else {
     for (const entry of entries) console.log(`  ${formatExportEntryChoice(entry)}`)
-    console.log(`  — ${countLabel(entries.length, 'card')}`)
+    console.log(`  — ${t('domain.count.cards', { count: entries.length })}`)
   }
   console.log('')
 }
@@ -612,12 +679,12 @@ function showReview(entries: ExportEntry[]): void {
 /** Prompt for a path and write the export. Returns true when a file was written. */
 async function promptExport(entries: ExportEntry[], state: ExportWizardState): Promise<boolean> {
   if (entries.length === 0) {
-    console.log('Nothing to export yet — add lists or individual cards first.')
+    console.log(t('cli.exportWizard.exportEmpty'))
     return false
   }
   const target = await ask<string>({
     type: 'text',
-    message: 'Output file',
+    message: t('cli.exportWizard.promptOutputFile'),
     initial: `export.${EXPORT_FORMAT_EXTENSIONS[state.settings.format]}`,
   })
   if (!target || !target.trim()) return false
@@ -626,7 +693,12 @@ async function promptExport(entries: ExportEntry[], state: ExportWizardState): P
   for (const warning of rendered.warnings) console.warn(`⚠️  ${warning}`)
   await fs.mkdir(path.dirname(resolved), { recursive: true })
   await fs.writeFile(resolved, rendered.content + '\n', 'utf-8')
-  console.log(`✓ Exported ${countLabel(entries.length, 'card')} to ${resolved}`)
+  console.log(
+    `✓ ${t('cli.export.exportedToFile', {
+      cards: t('domain.count.cards', { count: entries.length }),
+      target: resolved,
+    })}`,
+  )
   return true
 }
 
@@ -634,7 +706,7 @@ async function promptExport(entries: ExportEntry[], state: ExportWizardState): P
 export async function runExportWizard(): Promise<void> {
   const allLocations = await listLocations()
   if (allLocations.length === 0) {
-    console.log('No decks, collections, or wanted lists found.')
+    console.log(t('errors.resolveList.noLists'))
     return
   }
   const loaded = await loadExportEntries(allLocations)
@@ -656,14 +728,14 @@ export async function runExportWizard(): Promise<void> {
     const presetCount = exportPresetNames(getExportPresets()).length
     const selection = await ask<ExportWizardSelection>({
       type: 'select',
-      message: 'Export',
+      message: t('cli.exportWizard.menuTitle'),
       choices: buildWizardMenuChoices(state, entries.length, presetCount),
     })
     if (!selection || selection.kind === 'exit') {
       if (entries.length > 0) {
         const confirmed = await ask<boolean>({
           type: 'confirm',
-          message: 'Exit without exporting?',
+          message: t('cli.exportWizard.confirmExit'),
           initial: false,
         })
         if (!confirmed) continue

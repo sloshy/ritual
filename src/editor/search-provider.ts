@@ -1,18 +1,33 @@
 import type { ScryfallCard } from '../types'
 import type { AutocompleteResponse } from '../api/autocomplete'
 import type { CardPrintingsResponse } from '../api/card-printings'
+import type { MessageKey } from '../i18n/messages/en'
+import type { MessageParams } from '../i18n/t'
+import type { MessageSegment } from '../i18n/types'
 
 /**
- * A subtle attribution note about where a provider's searches go, rendered by
- * the search UI as `{prefix}<a href={linkUrl}>{linkText}</a>{suffix}`. Present
- * on providers whose backend (and therefore result set) differs from the local
- * card cache the other editors search.
+ * A segment renderer — `useTSegments()` from inside a component, so a note built
+ * with it tracks the locale signal and re-renders on a switch.
+ */
+export type SegmentRenderer = <K extends MessageKey>(
+  key: K,
+  params: MessageParams<K>,
+) => MessageSegment[]
+
+/**
+ * A subtle attribution note about where a provider's searches go. Present on
+ * providers whose backend (and therefore result set) differs from the local card
+ * cache the other editors search.
+ *
+ * The note is built as segments rather than the `{prefix, linkText, suffix}`
+ * triple it used to be: splitting a sentence around its link fixes the link's
+ * position in the sentence, which does not survive translation. The search UI
+ * renders the one `param` segment as the anchor, wherever it falls.
  */
 export type SearchSourceNote = {
-  prefix: string
-  linkText: string
+  /** Build the note's segments; the single `param` segment becomes the link. */
+  segments: (tSegments: SegmentRenderer) => MessageSegment[]
   linkUrl: string
-  suffix: string
 }
 
 /**

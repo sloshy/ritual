@@ -3,10 +3,12 @@ import { createSignal, createMemo, For, Show } from 'solid-js'
 import { Modal } from '../../ui/Modal'
 import type { ScryfallCard } from '../../types'
 import type { PriceCurrency } from '../../price-currency'
-import { type ChangeEvent, isAdditiveChange, formatChange } from '../../change-event'
+import { type ChangeEvent, isAdditiveChange } from '../../change-event'
+import { formatChange } from '../../change-message'
 import { useTooltip } from '../../site/useTooltip'
 import { getCardImageUrl } from '../../card-image'
 import { CardModal } from '../../site/CardModal'
+import { useT } from '../../ui/i18n'
 
 interface ChangesDialogProps {
   open: boolean
@@ -22,6 +24,7 @@ interface ChangesDialogProps {
 export const ChangesDialog: Component<ChangesDialogProps> = (props) => {
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
   const [selectedCard, setSelectedCard] = createSignal<string | null>(null)
+  const t = useT()
 
   const modalCard = createMemo(() => {
     const name = selectedCard()
@@ -41,19 +44,21 @@ export const ChangesDialog: Component<ChangesDialogProps> = (props) => {
         size="lg"
         placement="top"
         panelClass="changes-modal"
-        aria-label="Pending changes"
+        aria-label={t('ui.editor.pendingChanges')}
         overlay={
           <div
             ref={tooltipRef}
             class={`changes-card-tooltip ${tooltip() ? 'visible' : ''}`}
             style={`left:${tooltipPos().left}px;top:${tooltipPos().top}px;`}
           >
-            <Show when={tooltip()}>{(t) => <img src={t().src} alt="" />}</Show>
+            <Show when={tooltip()}>{(preview) => <img src={preview().src} alt="" />}</Show>
           </div>
         }
       >
         <div class="search-modal-header">
-          <h3 class="modal-heading">Pending Changes ({props.changes.length})</h3>
+          <h3 class="modal-heading">
+            {t('ui.editor.pendingChangesTitle', { count: props.changes.length })}
+          </h3>
           <button type="button" class="modal-close-btn" onClick={props.onClose}>
             &times;
           </button>
@@ -61,7 +66,7 @@ export const ChangesDialog: Component<ChangesDialogProps> = (props) => {
         <div class="changes-dialog">
           <Show
             when={props.changes.length > 0}
-            fallback={<div class="empty-state">No pending changes</div>}
+            fallback={<div class="empty-state">{t('ui.editor.noPendingChanges')}</div>}
           >
             <For each={props.changes}>
               {(change) => {

@@ -21,6 +21,8 @@
  * quantity-weighted, matching the public site's missing-price counts.
  */
 
+import { compareData } from './i18n/collate'
+
 import * as fs from 'node:fs/promises'
 import { findPrinting, hasSpecificPrinting, type CardPrintingsLookup } from './card-printing'
 import { parseCollectionFile } from './collection-file'
@@ -534,25 +536,25 @@ export function comparePricedEntries(
   let result: number
   switch (field) {
     case 'name':
-      result = a.name.localeCompare(b.name)
+      result = compareData(a.name, b.name)
       break
     case 'set':
-      result = (a.set ?? '').localeCompare(b.set ?? '') || a.name.localeCompare(b.name)
+      result = compareData(a.set ?? '', b.set ?? '') || compareData(a.name, b.name)
       break
     case 'price':
-      result = a.price - b.price || a.name.localeCompare(b.name)
+      result = a.price - b.price || compareData(a.name, b.name)
       break
     case 'lowest':
-      result = a.lowest - b.lowest || a.name.localeCompare(b.name)
+      result = a.lowest - b.lowest || compareData(a.name, b.name)
       break
     case 'cmc':
-      result = a.cmc - b.cmc || a.name.localeCompare(b.name)
+      result = a.cmc - b.cmc || compareData(a.name, b.name)
       break
     case 'edhrec':
-      result = a.edhrecRank - b.edhrecRank || a.name.localeCompare(b.name)
+      result = a.edhrecRank - b.edhrecRank || compareData(a.name, b.name)
       break
     case 'quantity':
-      result = a.quantity - b.quantity || a.name.localeCompare(b.name)
+      result = a.quantity - b.quantity || compareData(a.name, b.name)
       break
   }
   return descending ? -result : result

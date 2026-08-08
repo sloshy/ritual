@@ -266,6 +266,41 @@ describe('ritual skills command (Integration)', () => {
     })
   })
 
+  test('installs the same English skill files under a non-English UI locale', async () => {
+    await withTempDir(async (dir) => {
+      // Skill content is English by contract (plan §11): it is model-facing
+      // prose, and `ritual-content-hash` decides machine-managed vs user-edited
+      // at one fixed path — a per-locale body would make every install look
+      // edited the moment the reader's language changed.
+      const english = await runCli(['skills', 'install', 'ritual', 'ritual-site'], dir)
+      expect(english.exitCode).toBe(0)
+      const paths = ['ritual', 'ritual-site'].map((name) =>
+        path.join(dir, '.claude', 'skills', name, 'SKILL.md'),
+      )
+      const installed = await Promise.all(paths.map((file) => fs.readFile(file, 'utf-8')))
+
+      // `--force` so the files are genuinely rewritten rather than reported
+      // up-to-date: an unchanged file proves nothing about what would be written.
+      const pseudo = await runCli(['skills', 'install', 'ritual', 'ritual-site', '--force'], dir, {
+        RITUAL_LOCALE: 'en-XA',
+      })
+      expect(pseudo.exitCode).toBe(0)
+      for (const [index, file] of paths.entries()) {
+        expect(await fs.readFile(file, 'utf-8')).toBe(installed[index]!)
+      }
+
+      // Vacuity guard: the *command's* own status lines do follow the locale,
+      // so the run really did happen in en-XA — the files above are unchanged
+      // because their content is fenced, not because the flag did nothing.
+      // Matched on the pseudo-locale's actual signature — a bracketed run holding
+      // an accented substitute — rather than on a bare `[`, which any future
+      // English status line carrying a `[dry-run]` prefix or an `[n/m]` counter
+      // would trip over for a reason unrelated to localization.
+      expect(pseudo.stdout).toMatch(/\[[^[\]]*[\u0100-\u024f\u1e00-\u1eff][^[\]]*\]/)
+      expect(english.stdout).not.toMatch(/\[[^[\]]*[\u0100-\u024f\u1e00-\u1eff][^[\]]*\]/)
+    })
+  })
+
   test('re-running install reports up-to-date and preserves the installed bytes', async () => {
     await withTempDir(async (dir) => {
       await runCli(['skills', 'install', 'ritual-decks'], dir)

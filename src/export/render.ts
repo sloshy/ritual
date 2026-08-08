@@ -66,19 +66,6 @@ export const EXPORT_PROPERTY_LABELS: Record<ExportProperty, string> = {
 }
 
 /**
- * Parenthetical hints appended to a column's label wherever columns are being
- * *chosen* (the wizard picker) — never in CSV headers, where the bare label is
- * the cell value.
- */
-export const EXPORT_PROPERTY_HINTS: Partial<Record<ExportProperty, string>> = {
-  edition: 'set + collector number',
-  scryfallId: 'resolved from the local Scryfall cache',
-  isFoil: 'true when foil or etched',
-  language: 'Scryfall language code; blank for English',
-  labels: "effective labels — the card's override or its list default",
-}
-
-/**
  * The vocabulary an export is written in. `ritual` (the default) writes Ritual's
  * own spellings — the file format's values, unchanged. A non-default dialect
  * writes another tool's spellings for the same properties, so an export can be
@@ -117,14 +104,6 @@ export function exportPropertyLabel(
   dialect: ExportDialect = 'ritual',
 ): string {
   return DIALECT_PROPERTY_LABELS[dialect][property] ?? EXPORT_PROPERTY_LABELS[property]
-}
-
-/** The property keys joined for help text, with parenthetical hints where one exists. */
-export function describeExportProperties(): string {
-  return EXPORT_PROPERTIES.map((property) => {
-    const hint = EXPORT_PROPERTY_HINTS[property]
-    return hint ? `${property} (${hint})` : property
-  }).join(', ')
 }
 
 /** Default column set and order, matching the site's fixed CSV export columns. */

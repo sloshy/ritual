@@ -1,4 +1,5 @@
 import type { ScryfallCard } from '../types'
+import { compareData, compareDataNumeric } from '../i18n/collate'
 import { scryfallCardLanguage } from '../card-language'
 
 export type CardNameFilter = {
@@ -123,8 +124,8 @@ function compareCollectorNumbers(a: string, b: string): number {
   const numA = parseInt(a, 10)
   const numB = parseInt(b, 10)
   if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB
-  if (!isNaN(numA) && !isNaN(numB)) return a.localeCompare(b)
-  return a.localeCompare(b, undefined, { numeric: true })
+  if (!isNaN(numA) && !isNaN(numB)) return compareData(a, b)
+  return compareDataNumeric(a, b)
 }
 
 /**
@@ -136,8 +137,8 @@ function compareCollectorNumbers(a: string, b: string): number {
 export function comparePrintings(a: ScryfallCard, b: ScryfallCard): number {
   const dateA = a.released_at ?? ''
   const dateB = b.released_at ?? ''
-  if (dateA !== dateB) return dateB.localeCompare(dateA)
-  const setCmp = a.set.localeCompare(b.set)
+  if (dateA !== dateB) return compareData(dateB, dateA)
+  const setCmp = compareData(a.set, b.set)
   if (setCmp !== 0) return setCmp
   const cnCmp = compareCollectorNumbers(a.collector_number, b.collector_number)
   if (cnCmp !== 0) return cnCmp
@@ -146,5 +147,5 @@ export function comparePrintings(a: ScryfallCard, b: ScryfallCard): number {
   if (langA === langB) return 0
   if (langA === 'en') return -1
   if (langB === 'en') return 1
-  return langA.localeCompare(langB)
+  return compareData(langA, langB)
 }

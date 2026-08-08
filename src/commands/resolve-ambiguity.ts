@@ -26,6 +26,7 @@ import type { AmbiguityResolutionOutcome } from '../collection-sync/engine'
 import type { RemovalAssignment, RemovalChoice } from '../collection-sync/diff'
 import type { Logger } from '../logger'
 import { ask } from './prompts-helpers'
+import { t } from '../i18n/t'
 
 /** The prompt seam: the shared {@link ask} helper in production, a stub in tests. */
 export type AskPrompt = typeof ask
@@ -46,12 +47,8 @@ export type AmbiguityResolutionRequest = {
 }
 
 /** How to settle the ambiguity without a terminal — the one actionable hint. */
-const PRIORITY_ADVICE =
-  'Pass --removal-priority <list> (repeatable, in priority order) to say which lists may lose copies, or run in a terminal to resolve them one by one.'
-
-/** `2 ambiguous removals` / `1 ambiguous removal`. */
-function countOf(count: number): string {
-  return `${count} ambiguous removal${count === 1 ? '' : 's'}`
+function priorityAdvice(): string {
+  return t('cli.resolveAmbiguity.priorityAdvice')
 }
 
 /**
@@ -67,22 +64,27 @@ export async function resolveAmbiguousRemovals(
   const prompt = request.ask ?? ask
 
   if (!interactive) {
-    const verb = ambiguous.length === 1 ? 'needs' : 'need'
     return {
       ok: false,
-      message: `${countOf(ambiguous.length)} ${verb} a decision. ${PRIORITY_ADVICE}`,
+      message: t('cli.resolveAmbiguity.needsDecision', {
+        count: ambiguous.length,
+        advice: priorityAdvice(),
+      }),
     }
   }
 
   const confirmed = await prompt<boolean>({
     type: 'confirm',
-    message: `${ambiguous.length} removal${ambiguous.length === 1 ? ' is' : 's are'} ambiguous. Resolve them one by one now?`,
+    message: t('cli.resolveAmbiguity.confirm', { count: ambiguous.length }),
     initial: false,
   })
   if (confirmed !== true) {
     return {
       ok: false,
-      message: `${countOf(ambiguous.length)} left unresolved. ${PRIORITY_ADVICE}`,
+      message: t('cli.resolveAmbiguity.leftUnresolved', {
+        counted: t('domain.count.ambiguousRemovals', { count: ambiguous.length }),
+        advice: priorityAdvice(),
+      }),
     }
   }
 
@@ -90,7 +92,11 @@ export async function resolveAmbiguousRemovals(
   for (const entry of ambiguous) {
     const card = describeCollectionKey(entry.name, entry.parts)
     logger.info(
-      `${card}: ${entry.quantity} to remove — copies live in ${describeAmbiguousLists(entry.lists)}.`,
+      t('cli.resolveAmbiguity.copiesLiveIn', {
+        card,
+        count: entry.quantity,
+        lists: describeAmbiguousLists(entry.lists),
+      }),
     )
 
     // Counted down as copies are placed, so each prompt offers only the lists
@@ -101,15 +107,26 @@ export async function resolveAmbiguousRemovals(
     for (let copy = 1; copy <= entry.quantity; copy++) {
       const list = await prompt<string>({
         type: 'select',
-        message: `Which list lost ${card}? (copy ${copy} of ${entry.quantity})`,
+        message: t('cli.resolveAmbiguity.promptWhichList', {
+          card,
+          copy,
+          total: entry.quantity,
+        }),
         choices: [...remaining]
           .filter(([, left]) => left > 0)
-          .map(([name, left]) => ({ title: `${name} (${left} left)`, value: name })),
+          .map(([name, left]) => ({
+            title: t('cli.resolveAmbiguity.listChoice', { name, left }),
+            value: name,
+          })),
       })
       if (list === undefined) {
         return {
           ok: false,
-          message: `Cancelled after ${copy - 1} of ${entry.quantity} copies of ${card}.`,
+          message: t('cli.resolveAmbiguity.cancelledAfter', {
+            done: copy - 1,
+            total: entry.quantity,
+            card,
+          }),
         }
       }
       remaining.set(list, (remaining.get(list) ?? 0) - 1)

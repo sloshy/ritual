@@ -152,15 +152,25 @@ ritual skills list --output json
 
 ## The skills
 
-| Skill                | Covers                                                                                                                                                                      |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ritual`             | Overview, workspace layout, file format, global options, and setup.                                                                                                         |
-| `ritual-decks`       | Create, import, sync, and price decks.                                                                                                                                      |
-| `ritual-collections` | Manage collections, sync them with Archidekt, price them, and check them against Card Kingdom's buylist.                                                                    |
-| `ritual-wanted`      | Manage and price wanted lists.                                                                                                                                              |
-| `ritual-edit`        | Card edits across any list: non-interactive commands, applying exported change bundles, card exports (CSV, JSON, plain text, Markdown), and the unified interactive editor. |
-| `ritual-cards`       | Card lookup and Scryfall searches.                                                                                                                                          |
-| `ritual-site`        | Build, serve, and administer the site, wire up the CI publishing pipeline (cache keys, changelog change detection), and run the MCP server.                                 |
+| Skill                | Covers                                                                                                                                                                                                                |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ritual`             | Overview, workspace layout, file format, global options (including `--locale`), the `ritual locale` command and its `--detect` probe, and setup.                                                                      |
+| `ritual-decks`       | Create, import, sync, and price decks.                                                                                                                                                                                |
+| `ritual-collections` | Manage collections, sync them with Archidekt, price them, and check them against Card Kingdom's buylist.                                                                                                              |
+| `ritual-wanted`      | Manage and price wanted lists.                                                                                                                                                                                        |
+| `ritual-edit`        | Card edits across any list: non-interactive commands, applying exported change bundles, card exports (CSV, JSON, plain text, Markdown), and the unified interactive editor.                                           |
+| `ritual-cards`       | Card lookup and Scryfall searches.                                                                                                                                                                                    |
+| `ritual-site`        | Build, serve, and administer the site (including its `--locale` / `--locales` / `--locale-file` language flags), wire up the CI publishing pipeline (cache keys, changelog change detection), and run the MCP server. |
+
+## Skill content is always English
+
+The installed `SKILL.md` files are **not** translated, whatever your
+[UI locale](/localization/) is: they are model-facing prose, densely interleaved with CLI flags,
+file paths, and tool names that cannot be translated, and their `ritual-content-hash` marker is
+what decides machine-managed versus user-edited at one fixed path — a per-locale copy would make
+every installed skill look edited. The command's own **status lines and errors** do follow your UI
+locale; the written file content — and the `description` that `skills list --output json` reports —
+does not.
 
 ## Keeping skills current
 
@@ -191,3 +201,4 @@ full set.
 - [`init-site`](/commands/init-site/) — scaffolds a repository for publishing and can install these skills.
 - [`mcp`](/commands/mcp/) — expose the same operations to MCP-native agents as tool calls.
 - [`admin`](/commands/admin/) — the browser-based editor for the same lists.
+- [Localization](/localization/) — what follows the UI locale, and what (skill content included) never does.

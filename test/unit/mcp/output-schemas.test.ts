@@ -3,6 +3,8 @@ import type { Client } from '@modelcontextprotocol/client'
 import { fromJsonSchema, type JsonSchemaType } from '@modelcontextprotocol/server'
 import {
   BUILD_SITE_OUTPUT,
+  CREATE_LIST_OUTPUT,
+  DELETE_LIST_OUTPUT,
   EXPORT_CARDS_OUTPUT,
   FIND_CARDS_OUTPUT,
   GET_CACHE_STATUS_OUTPUT,
@@ -10,8 +12,12 @@ import {
   GET_LIST_OUTPUT,
   GET_PRICE_REPORT_OUTPUT,
   IMPORT_CSV_OUTPUT,
+  MOVE_SELECTED_CARDS_OUTPUT,
   MUTATION_OUTPUT,
   REFRESH_CACHE_OUTPUT,
+  REMOVE_SELECTED_CARDS_OUTPUT,
+  RENAME_LIST_OUTPUT,
+  REWRITE_HISTORY_OUTPUT,
   SYNC_COLLECTION_OUTPUT,
   SYNC_DECKS_OUTPUT,
   TOOL_ERROR_OUTPUT,
@@ -202,6 +208,9 @@ describe('MCP output schemas, as authored', () => {
     expect(Object.keys(mutation.properties ?? {})).toEqual([
       'applied',
       'message',
+      // The localization pair every other admin-authored result carries.
+      'messageKey',
+      'messageParams',
       'listType',
       'slug',
       'effects',
@@ -350,6 +359,18 @@ describe('MCP output schemas, as authored', () => {
       // And reject one missing its required fields.
       expect(await validates(BUILD_SITE_OUTPUT, {})).toBe(false)
       expect(await validates(BUILD_SITE_OUTPUT, { message: 'Site built successfully' })).toBe(false)
+      // The localization pair rides beside `message` on every admin-authored
+      // response: optional (handlers gain keys incrementally) but accepted, so
+      // a widened handler never turns a working tool into an isError result.
+      expect(
+        await validates(BUILD_SITE_OUTPUT, {
+          message: 'Site built successfully',
+          messageKey: 'admin.api.buildSite.built',
+          messageParams: {},
+          outDir: '/tmp/dist',
+          durationMs: 12,
+        }),
+      ).toBe(true)
     })
 
     test('import_csv accepts a partly-failed import, failure rows and all', async () => {
@@ -379,7 +400,12 @@ describe('MCP output schemas, as authored', () => {
       // requires but the report never carries is a compile error here rather
       // than a sample quietly written to match whatever the schema said.
       const deckSample: DeckSyncResult = {
-        message: 'Synced 1 deck',
+        message: 'Synced 1 deck.',
+        // The clause list beside the English sentence: what a client joins and
+        // pluralizes in its own language instead of re-parsing the prose.
+        summary: {
+          clauses: [{ message: 'Synced 1 deck', messageKey: 'admin.api.deckSync.pulled' }],
+        },
         report: {
           direction: 'pull',
           decks: [{ name: 'Burn', status: 'synced' }],
@@ -404,11 +430,60 @@ describe('MCP output schemas, as authored', () => {
       }
       expect(
         await validates(SYNC_COLLECTION_OUTPUT, {
-          message: 'Synced 1 list',
+          message: 'Synced 1 list.',
+          summary: {
+            clauses: [{ message: 'Synced 1 list', messageKey: 'admin.api.collectionSync.totals' }],
+          },
           report: collectionReport,
         }),
       ).toBe(true)
     })
+  })
+
+  test('every admin-authored message advertises its localization pair', () => {
+    // The response shape the admin API was widened to (plan §7.7): `message`
+    // stays rendered English and required — that is what an agent reads and it
+    // never moves — while `messageKey`/`messageParams` ride beside it, optional,
+    // for a client that renders in the reader's locale. A schema that advertised
+    // `message` alone would be a schema a client cannot discover the key from.
+    const keyed: JsonSchemaType[] = [
+      CREATE_LIST_OUTPUT,
+      RENAME_LIST_OUTPUT,
+      DELETE_LIST_OUTPUT,
+      REWRITE_HISTORY_OUTPUT,
+      BUILD_SITE_OUTPUT,
+      REFRESH_CACHE_OUTPUT,
+      MOVE_SELECTED_CARDS_OUTPUT,
+      REMOVE_SELECTED_CARDS_OUTPUT,
+      MUTATION_OUTPUT,
+    ]
+    for (const schema of keyed) {
+      const node = schema as unknown as SchemaNode
+      const properties = Object.keys(node.properties ?? {})
+      for (const field of ['message', 'messageKey', 'messageParams']) {
+        expect(properties).toContain(field)
+      }
+      // Required English, optional key: the pair is additive, never a new thing
+      // a client must handle.
+      expect(node.required).toContain('message')
+      expect(node.required ?? []).not.toContain('messageKey')
+      expect(node.required ?? []).not.toContain('messageParams')
+    }
+
+    // A sync run has no single key — its summary is a list of clauses — so the
+    // structure rides as `summary` instead, and it is required: a client that
+    // never sees it is a client stuck re-parsing English prose.
+    for (const schema of [SYNC_DECKS_OUTPUT, SYNC_COLLECTION_OUTPUT]) {
+      const node = schema as unknown as SchemaNode
+      expect(node.required).toContain('summary')
+      const clause = node.properties?.summary?.properties?.clauses?.items
+      expect(Object.keys(clause?.properties ?? {})).toEqual([
+        'message',
+        'messageKey',
+        'messageParams',
+      ])
+      expect(clause?.required).toEqual(['message'])
+    }
   })
 
   test('the tool-error payload is formalized, though it is never an outputSchema arm', async () => {

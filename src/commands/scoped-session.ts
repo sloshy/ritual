@@ -1,5 +1,6 @@
 import type { Choice } from 'prompts'
 import type { ChangeEvent } from '../change-event'
+import { t } from '../i18n/t'
 import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from '../list-type'
 import {
   createCardSessionContext,
@@ -17,7 +18,7 @@ import {
 import {
   hasUnsavedChanges,
   listRefLabel,
-  NEW_LIST_TITLES,
+  newListTitle,
   type OpenList,
   type UnifiedListRef,
 } from './edit-lists'
@@ -45,9 +46,8 @@ export const LIST_SCOPES: readonly ListScope[] = ['all', ...LIST_TYPES]
 
 /** The scope's menu title, e.g. `🗃️ All Lists` or `🎴 All Decks`. */
 export function listScopeTitle(scope: ListScope): string {
-  if (scope === 'all') return '🗃️ All Lists'
-  const { icon, label } = LIST_TYPE_DISPLAY[scope]
-  return `${icon} All ${label}`
+  if (scope === 'all') return `🗃️ ${t('cli.scope.allLists')}`
+  return `${LIST_TYPE_DISPLAY[scope].icon} ${t('cli.scope.allOfType', { type: scope })}`
 }
 
 /** Whether a list belongs to a scope. Every list is in the `all` scope. */
@@ -130,13 +130,15 @@ export function buildAddTargetChoices(lists: OpenList[], scope: ListScope): Choi
   return [
     ...lists.map(
       (open): Choice => ({
-        title: `${listRefLabel(open.ref)}${open.isNew() ? ' (new)' : ''}`,
+        title: open.isNew()
+          ? t('cli.edit.new', { label: listRefLabel(open.ref) })
+          : listRefLabel(open.ref),
         value: { kind: 'list', open } satisfies AddTarget,
       }),
     ),
     ...scopeCreatableTypes(scope).map(
       (type): Choice => ({
-        title: NEW_LIST_TITLES[type],
+        title: newListTitle(type),
         value: { kind: 'new', type } satisfies AddTarget,
       }),
     ),
@@ -150,7 +152,7 @@ async function promptAddTarget(
 ): Promise<AddTarget | undefined> {
   return ask<AddTarget>({
     type: 'autocomplete',
-    message: 'Add to which list?',
+    message: t('cli.edit.promptAddTarget'),
     choices: buildAddTargetChoices(lists, scope),
     limit: 12,
     suggest: suggestByTitleTerms,
@@ -177,7 +179,7 @@ export function createScopedSession(args: ScopedSessionArgs): ScopedSession {
   let changeTargets: ChangeTarget[] = []
 
   const strategy: CardSessionStrategy = {
-    managerLabel: 'editor',
+    managerLabel: t('cli.manager.editor'),
     // No file of its own: the engine's Save routes to the multi-list `saveAll`,
     // which writes each open list to its own file and changelog.
     saveTarget: null,
@@ -227,7 +229,7 @@ export function createScopedSession(args: ScopedSessionArgs): ScopedSession {
       const target = await promptAddTarget(lists(), scope)
       const open = target?.kind === 'new' ? await createList(target.type) : target?.open
       if (!open) {
-        console.log('No list selected. Skipping.')
+        console.log(t('cli.edit.noListSelected'))
         return
       }
       state.activeFile = open.ref.file

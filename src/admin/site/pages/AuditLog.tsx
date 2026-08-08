@@ -1,18 +1,21 @@
 import { type JSX, createSignal, onMount, Show, For } from 'solid-js'
 import type { AuditEntry } from '../../audit-log'
+import { useT } from '../../../ui/i18n'
 import { PageHeading } from '../components/PageHeading'
+import { formatDateTime } from '../../../ui/format'
 
 type AuditLogResponse = { success: boolean; entries: AuditEntry[] }
 
 function formatDate(ts: string): string {
   try {
-    return new Date(ts).toLocaleString()
+    return formatDateTime(ts)
   } catch {
     return ts
   }
 }
 
 export function AuditLog(): JSX.Element {
+  const t = useT()
   const [entries, setEntries] = createSignal<AuditEntry[]>([])
   const [loading, setLoading] = createSignal(true)
   const [error, setError] = createSignal<string | null>(null)
@@ -26,7 +29,7 @@ export function AuditLog(): JSX.Element {
         setEntries(data.entries)
       }
     } catch {
-      setError('Failed to load audit log')
+      setError(t('admin.auditLog.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -41,7 +44,7 @@ export function AuditLog(): JSX.Element {
       when={!loading()}
       fallback={
         <div>
-          <p class="text-muted">Loading audit log...</p>
+          <p class="text-muted">{t('admin.auditLog.loading')}</p>
         </div>
       }
     >
@@ -49,7 +52,7 @@ export function AuditLog(): JSX.Element {
         <div class="audit-header">
           <PageHeading page="audit-log" />
           <button class="btn btn-secondary" onClick={() => void fetchLog()}>
-            Refresh
+            {t('admin.auditLog.refresh')}
           </button>
         </div>
 
@@ -59,18 +62,18 @@ export function AuditLog(): JSX.Element {
 
         <Show
           when={entries().length > 0}
-          fallback={<p class="text-muted">No login attempts recorded yet.</p>}
+          fallback={<p class="text-muted">{t('admin.auditLog.empty')}</p>}
         >
           <div class="audit-scroll">
             <table class="audit-table">
               <thead>
                 <tr>
-                  <th>Time</th>
-                  <th>Status</th>
-                  <th>Username</th>
-                  <th>IP</th>
-                  <th class="audit-responsive-md">Reason</th>
-                  <th class="audit-responsive-lg">User Agent</th>
+                  <th>{t('admin.auditLog.colTime')}</th>
+                  <th>{t('admin.auditLog.colStatus')}</th>
+                  <th>{t('admin.auditLog.colUsername')}</th>
+                  <th>{t('admin.auditLog.colIp')}</th>
+                  <th class="audit-responsive-md">{t('admin.auditLog.colReason')}</th>
+                  <th class="audit-responsive-lg">{t('admin.auditLog.colUserAgent')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -80,7 +83,7 @@ export function AuditLog(): JSX.Element {
                       <td class="audit-cell-nowrap">{formatDate(entry.timestamp)}</td>
                       <td>
                         <span class={entry.success ? 'badge badge-success' : 'badge badge-error'}>
-                          {entry.success ? 'Success' : 'Failed'}
+                          {entry.success ? t('admin.auditLog.success') : t('admin.auditLog.failed')}
                         </span>
                       </td>
                       <td>{entry.username}</td>

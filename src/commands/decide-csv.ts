@@ -16,6 +16,7 @@
 import { ARCHIDEKT_IMPORT_URL } from '../collection-sync/csv'
 import type { CsvUploadDecision, CsvUploadQuestion } from '../collection-sync/engine'
 import { ask } from './prompts-helpers'
+import { t } from '../i18n/t'
 
 /** The prompt seam: the shared {@link ask} helper in production, a stub in tests. */
 export type AskPrompt = typeof ask
@@ -36,8 +37,9 @@ export type CsvUploadRequest = {
 }
 
 /** How to settle the question without a terminal — the two flags that do it. */
-const FLAG_ADVICE =
-  'Pass --csv to upload them as one CSV import, or --csv-file <path> to write the CSV for a manual upload.'
+function flagAdvice(): string {
+  return t('cli.csvUpload.flagAdvice')
+}
 
 /** What each answer means, in the order the prompt offers them. */
 type CsvChoice = 'upload' | 'export' | 'individual' | 'cancel'
@@ -60,28 +62,40 @@ export function defaultCsvFileName(date: Date): string {
 export async function decideCsvUpload(request: CsvUploadRequest): Promise<CsvUploadDecision> {
   const { question, interactive } = request
   const prompt = request.ask ?? ask
-  const cards = `${question.additions} card${question.additions === 1 ? '' : 's'}`
+  const cards = t('domain.count.cards', { count: question.additions })
 
   if (!interactive) {
     return {
       kind: 'abort',
-      message: `${cards} would be added — more than ${question.threshold}, so adding them one at a time would cost ${question.additions} printing searches. ${FLAG_ADVICE}`,
+      message: t('cli.csvUpload.tooMany', {
+        cards,
+        threshold: question.threshold,
+        searches: question.additions,
+        advice: flagAdvice(),
+      }),
     }
   }
 
   const choice = await prompt<CsvChoice>({
     type: 'select',
-    message: `${cards} would be added — more than ${question.threshold}. How should they reach Archidekt?`,
+    message: t('cli.csvUpload.prompt', {
+      count: question.additions,
+      cards,
+      threshold: question.threshold,
+    }),
     choices: [
-      { title: 'Upload them automatically as one CSV import (recommended)', value: 'upload' },
-      { title: 'Save the CSV to a file for a manual upload', value: 'export' },
-      { title: 'Add them individually (slow; may be rate limited)', value: 'individual' },
-      { title: 'Cancel the run', value: 'cancel' },
+      { title: t('cli.csvUpload.optionUpload'), value: 'upload' },
+      { title: t('cli.csvUpload.optionExport'), value: 'export' },
+      { title: t('cli.csvUpload.optionIndividual'), value: 'individual' },
+      { title: t('cli.csvUpload.optionCancel'), value: 'cancel' },
     ],
   })
 
   if (choice === undefined || choice === 'cancel') {
-    return { kind: 'abort', message: `Cancelled before adding ${cards}. ${FLAG_ADVICE}` }
+    return {
+      kind: 'abort',
+      message: t('cli.csvUpload.cancelled', { cards, advice: flagAdvice() }),
+    }
   }
   if (choice === 'upload') return { kind: 'upload' }
   if (choice === 'individual') return { kind: 'individual' }
@@ -89,11 +103,14 @@ export async function decideCsvUpload(request: CsvUploadRequest): Promise<CsvUpl
   const suggestion = defaultCsvFileName(request.now?.() ?? new Date())
   const path = await prompt<string>({
     type: 'text',
-    message: `Write the CSV where? (import it at ${ARCHIDEKT_IMPORT_URL})`,
+    message: t('cli.csvUpload.promptPath', { url: ARCHIDEKT_IMPORT_URL }),
     initial: suggestion,
   })
   if (path === undefined) {
-    return { kind: 'abort', message: `Cancelled before adding ${cards}. ${FLAG_ADVICE}` }
+    return {
+      kind: 'abort',
+      message: t('cli.csvUpload.cancelled', { cards, advice: flagAdvice() }),
+    }
   }
   // An empty answer means the suggestion (the prompt shows it prefilled, and
   // clearing it is not a way of naming a file).

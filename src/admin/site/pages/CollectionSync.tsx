@@ -17,6 +17,9 @@ import type {
 } from '../../../collection-sync/engine'
 import { describeAmbiguousRemoval, type AmbiguousRemoval } from '../../../collection-sync/describe'
 import { normalizeListName } from '../../../list-file-name'
+import { useT, useTKey, useTSegments } from '../../../ui/i18n'
+import { t as tStatic, type TranslateFn } from '../../../i18n/t'
+import { PAGE_DISPLAY } from '../routing'
 import { unreadableConsequence, type SyncDirection } from '../../../sync-common'
 import { AmbiguousRemovalsPanel, RemovalPriorityPicker } from '../components/AmbiguousRemovals'
 import { ArchidektLoginForm, ArchidektSessionAlert } from '../components/ArchidektSession'
@@ -54,19 +57,24 @@ import { openSyncStream, type SyncStream } from '../sync-stream'
  */
 
 const DIRECTIONS: SyncChoice<SyncDirection>[] = [
-  {
-    id: 'pull',
-    label: 'Pull',
-    description:
-      'Archidekt → local. Adds copies your lists are missing to the target list below, and removes copies Archidekt no longer has. Removing only some of a printing’s copies when they are spread across several lists needs the removal priority below — which one lost it is otherwise unknowable, and a real run stops without writing anything.',
-  },
-  {
-    id: 'push',
-    label: 'Push',
-    description:
-      'Local → Archidekt. Creates, grows, trims, and deletes records in your Archidekt collection until it matches the lists in scope. Nothing is written locally.',
-  },
+  { id: 'pull', labelKey: 'admin.sync.pull', descriptionKey: 'admin.collectionSync.pullDesc' },
+  { id: 'push', labelKey: 'admin.sync.push', descriptionKey: 'admin.collectionSync.pushDesc' },
 ]
+
+/** Which verb the run button uses: a dry run previews, otherwise the direction. */
+type SyncAction = 'preview' | 'pull' | 'push'
+
+/**
+ * The run button's label. One key per verb — see the twin in `DeckSync.tsx` for
+ * why a `{verb}` parameter is not an option.
+ */
+function runLabel(t: TranslateFn, action: SyncAction, whole: boolean, count: number): string {
+  if (whole) return t('admin.sync.wholeCollectionAction', { action })
+  if (action === 'preview') return t('admin.sync.previewLists', { count })
+  return action === 'pull'
+    ? t('admin.sync.pullLists', { count })
+    : t('admin.sync.pushLists', { count })
+}
 
 /** Which local lists a run compares against the account's collection. */
 type ScopeChoice = 'all' | 'lists'
@@ -74,15 +82,13 @@ type ScopeChoice = 'all' | 'lists'
 const SCOPES: SyncChoice<ScopeChoice>[] = [
   {
     id: 'all',
-    label: 'Whole collection',
-    description:
-      'Compare every collection list against your Archidekt collection, including lists created since this page loaded.',
+    labelKey: 'admin.collectionSync.scopeAll',
+    descriptionKey: 'admin.collectionSync.scopeAllDesc',
   },
   {
     id: 'lists',
-    label: 'Selected lists',
-    description:
-      'Compare only the lists you pick. The remote side is still your whole Archidekt collection, so cards that live only in the lists you left out read as missing — pair this with a change filter when the selection is not the whole story.',
+    labelKey: 'admin.collectionSync.scopeLists',
+    descriptionKey: 'admin.collectionSync.scopeListsDesc',
   },
 ]
 
@@ -121,13 +127,26 @@ function offeredTarget(
   )
 }
 
-/** A completed list's tally, shown beside its row. Nothing to say when it changed nothing. */
+/**
+ * A completed list's tally, shown beside its row. Nothing to say when it changed
+ * nothing.
+ *
+ * Rendered once, as the run reports it, and stored in the run log — the log is a
+ * record of what happened rather than live chrome, so it is not re-rendered on a
+ * locale switch (the engine's own log lines beside it never could be).
+ */
 function resultMeta(result: CollectionSyncListResult): string | undefined {
   if (result.added === 0 && result.removed === 0) return undefined
-  return `+${result.added} added, -${result.removed} removed`
+  return tStatic('admin.collectionSync.resultMeta', {
+    added: result.added,
+    removed: result.removed,
+  })
 }
 
 export function CollectionSync(): JSX.Element {
+  const t = useT()
+  const tKey = useTKey()
+  const tSegments = useTSegments()
   const [lists, setLists] = createSignal<CollectionSyncList[]>([])
   const [archidekt, setArchidekt] = createSignal<ArchidektLoginStatus | null>(null)
   const [lastSynced, setLastSynced] = createSignal<string | null>(null)
@@ -175,7 +194,7 @@ export function CollectionSync(): JSX.Element {
     try {
       const resp = await fetch('/api/collection-sync', { credentials: 'same-origin' })
       if (!resp.ok) {
-        setLoadError('Could not load collection lists.')
+        setLoadError(t('admin.collectionSync.loadFailed'))
         return
       }
       const data = (await resp.json()) as CollectionSyncStatusResponse
@@ -205,7 +224,7 @@ export function CollectionSync(): JSX.Element {
         )
       })
     } catch {
-      setLoadError('Could not load collection lists.')
+      setLoadError(t('admin.collectionSync.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -269,7 +288,10 @@ export function CollectionSync(): JSX.Element {
     // shows one destination while the run uses another.
     const exists = options.some((option) => isTargetOption(option, configured))
     if (configured !== '' && !exists) {
-      options.unshift({ value: configured, label: `${configured} (will be created)` })
+      options.unshift({
+        value: configured,
+        label: t('admin.collectionSync.willBeCreated', { name: configured }),
+      })
     }
     return options
   })
@@ -278,10 +300,8 @@ export function CollectionSync(): JSX.Element {
   const isChosenTarget = (option: TargetOption): boolean => isTargetOption(option, into())
 
   const actionLabel = createMemo(() => {
-    const verb = dryRun() ? 'Preview' : direction() === 'pull' ? 'Pull' : 'Push'
-    if (scope() === 'all') return `${verb} whole collection`
-    const count = selected().length
-    return `${verb} ${count} list${count === 1 ? '' : 's'}`
+    const action: SyncAction = dryRun() ? 'preview' : direction()
+    return runLabel(t, action, scope() === 'all', selected().length)
   })
 
   /** Create or update one list's row, preserving arrival order. */
@@ -445,7 +465,7 @@ export function CollectionSync(): JSX.Element {
       })
       finishRun(data.message, data.report)
     } catch {
-      failRun('Failed to sync the collection.', false)
+      failRun(t('admin.collectionSync.failed'), false)
     }
   }
 
@@ -488,10 +508,10 @@ export function CollectionSync(): JSX.Element {
       streamUrl(ignoreUnreadableLines),
       {
         progress: (event) => handleSyncEvent(event, ignoreUnreadableLines),
-        done: (event) => finishRun(event?.message ?? 'Sync complete.', event?.report),
+        done: (event) => finishRun(event?.message ?? t('admin.sync.complete'), event?.report),
         failed: (event) =>
           failRun(
-            event?.message ?? 'Failed to sync the collection.',
+            event?.message ?? t('admin.collectionSync.failed'),
             event?.loginRequired === true,
           ),
         disconnected: (received) => {
@@ -500,7 +520,7 @@ export function CollectionSync(): JSX.Element {
             // The run is already in flight server-side; re-issuing it could push
             // a second time. Report the drop and let the user reload to see
             // where it landed.
-            failRun('The connection dropped mid-sync. Reload to see how far the run got.', false)
+            failRun(t('admin.sync.connectionDropped'), false)
             return
           }
           // Never connected: retry once over plain JSON so a proxy that buffers
@@ -516,13 +536,12 @@ export function CollectionSync(): JSX.Element {
   return (
     <div>
       <PageHeading page="collection-sync" />
-      <p class="page-desc">
-        Sync your collection lists with the Archidekt collection of the signed-in account. Copies
-        are matched by printing, finish, and condition; an account has one collection, so every list
-        in scope is compared against it at once.
-      </p>
+      <p class="page-desc">{t('admin.collectionSync.desc')}</p>
 
-      <Show when={!loading()} fallback={<p class="text-muted">Loading collection lists…</p>}>
+      <Show
+        when={!loading()}
+        fallback={<p class="text-muted">{t('admin.collectionSync.loading')}</p>}
+      >
         <Show when={archidekt()}>
           {(status) => (
             <div class="archidekt-status">
@@ -539,15 +558,15 @@ export function CollectionSync(): JSX.Element {
         </Show>
 
         <p class="sync-last-run">
-          Last synced:{' '}
+          {t('admin.sync.lastSyncedLabel')}{' '}
           <span class="sync-last-run-value">
-            {relativeTime(lastSynced()) ?? 'never — this account has not synced yet'}
+            {relativeTime(lastSynced()) ?? t('admin.collectionSync.neverAny')}
           </span>
         </p>
 
         <ChoicePicker
-          heading="Direction"
-          label="Sync direction"
+          heading={t('admin.sync.directionHeading')}
+          label={t('admin.sync.directionLabel')}
           class="sync-direction"
           options={DIRECTIONS}
           value={direction()}
@@ -556,8 +575,8 @@ export function CollectionSync(): JSX.Element {
         />
 
         <ChoicePicker
-          heading="Scope"
-          label="Collection lists to sync"
+          heading={t('admin.collectionSync.scopeHeading')}
+          label={t('admin.collectionSync.scopeLabel')}
           class="sync-scope"
           options={SCOPES}
           value={scope()}
@@ -568,7 +587,7 @@ export function CollectionSync(): JSX.Element {
         <Show when={scope() === 'lists'}>
           <Show
             when={lists().length > 0}
-            fallback={<p class="text-muted">No collection lists yet — there is nothing to pick.</p>}
+            fallback={<p class="text-muted">{t('admin.collectionSync.noLists')}</p>}
           >
             <ul class="sync-select-list sync-scope-lists">
               <For each={lists()}>
@@ -599,15 +618,30 @@ export function CollectionSync(): JSX.Element {
 
         {/* A push writes nothing locally, so it has nowhere to put anything. */}
         <Show when={direction() === 'pull'}>
-          <h3 class="section-subheading">Add new cards to</h3>
+          <h3 class="section-subheading">{t('admin.collectionSync.intoHeading')}</h3>
+          {/* Two marked-up spans mid-sentence, so the message renders as segments
+              and each parameter takes its own markup. */}
           <p class="sync-choice-desc">
-            A card that appeared on Archidekt belongs in <em>some</em> list and only you know which,
-            so every addition lands in this one. It defaults to the{' '}
-            <code>collectionSync.pullTarget</code> setting, and is created if it does not exist yet.
+            <For
+              each={tSegments('admin.collectionSync.intoDesc', {
+                emphasis: t('admin.collectionSync.intoDescEmphasis'),
+                setting: t('admin.collectionSync.intoSetting'),
+              })}
+            >
+              {(segment) =>
+                segment.kind === 'param' && segment.name === 'emphasis' ? (
+                  <em>{segment.value}</em>
+                ) : segment.kind === 'param' ? (
+                  <code>{segment.value}</code>
+                ) : (
+                  segment.value
+                )
+              }
+            </For>
           </p>
           <select
             class="form-input sync-pull-target"
-            aria-label="List a pull adds new cards to"
+            aria-label={t('admin.collectionSync.intoLabel')}
             disabled={running()}
             onChange={(e) => setInto(e.currentTarget.value)}
           >
@@ -653,7 +687,7 @@ export function CollectionSync(): JSX.Element {
             disabled={running()}
             onChange={(e) => setDryRun(e.currentTarget.checked)}
           />
-          Preview only — report what would change without writing files or touching Archidekt
+          {t('admin.collectionSync.dryRun')}
         </label>
 
         {/* Held apart from the Archidekt session banner above, which is also an alert. */}
@@ -666,17 +700,29 @@ export function CollectionSync(): JSX.Element {
           disabled={running() || loginRequired() || scopeEmpty()}
           onClick={() => handleSync()}
         >
-          {running() ? 'Syncing…' : actionLabel()}
+          {running() ? t('admin.sync.syncing') : actionLabel()}
         </button>
         {/* Only when a login form is actually rendered above — a status that
             failed to load leaves the load error to explain the disabled button. */}
         <Show when={archidekt()?.loginRequired === true}>
+          {/* The link sits mid-sentence, so the message renders as segments and
+              only the {link} parameter becomes an anchor. */}
           <p class="text-muted">
-            Sign in to Archidekt above to sync, or manage the stored session on the{' '}
-            <NavLink page="archidekt-login" class="sync-login-link">
-              Archidekt Login
-            </NavLink>{' '}
-            page.
+            <For
+              each={tSegments('admin.collectionSync.signInPrompt', {
+                link: tKey(PAGE_DISPLAY['archidekt-login'].label),
+              })}
+            >
+              {(segment) =>
+                segment.kind === 'param' ? (
+                  <NavLink page="archidekt-login" class="sync-login-link">
+                    {segment.value}
+                  </NavLink>
+                ) : (
+                  segment.value
+                )
+              }
+            </For>
           </p>
         </Show>
 
@@ -695,9 +741,9 @@ export function CollectionSync(): JSX.Element {
         <Show when={unreadable().length > 0}>
           <UnreadableLinesPanel
             sources={unreadable()}
-            noun="collection list"
+            leadKey="admin.sync.unreadableLists"
             consequence={unreadableConsequence('collection', direction())}
-            confirmLabel="Sync anyway and lose those lines"
+            confirmLabel={t('admin.collectionSync.confirmUnreadable')}
             disabled={running()}
             onConfirm={() => handleSync(true)}
           />

@@ -125,7 +125,7 @@ describe('history --show (Integration)', () => {
       await seedDeck(dir, CHANGELOG)
       const result = await runCli(['history', 'test', '--show'], dir)
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain("Change history for Deck 'test' — 2 change set(s).")
+      expect(result.stdout).toContain("Change history for Deck 'test' — 2 change sets.")
       expect(result.stdout).toContain(`${NEWER_TS}  (1 change):`)
       expect(result.stdout).toContain(`${OLDER_TS}  (2 changes):`)
       expect(result.stdout.indexOf(NEWER_TS)).toBeLessThan(result.stdout.indexOf(OLDER_TS))

@@ -5,6 +5,7 @@
 // flame visible even if a theme omits the vars.
 
 import { createUniqueId, type JSX } from 'solid-js'
+import { useT } from '../ui/i18n'
 import {
   defaultFlameStops,
   flameInnerGradient,
@@ -26,6 +27,7 @@ function stop(stopKey: keyof typeof flameStopVars): string {
 }
 
 export function FlameIcon(props: FlameIconProps): JSX.Element {
+  const t = useT()
   // Unique per instance so multiple flames on one page can't collide on a
   // shared gradient id (referencing `url(#…)` would otherwise resolve to the
   // first definition for every instance).
@@ -37,7 +39,7 @@ export function FlameIcon(props: FlameIconProps): JSX.Element {
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 512 512"
       role="img"
-      aria-label="Ritual logo"
+      aria-label={t('site.brand.logoAlt')}
     >
       <defs>
         <radialGradient

@@ -59,7 +59,14 @@ import { listFilePath, normalizeListName } from '../resolve-list'
 import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list-type'
 import { ask, promptListType } from './prompts-helpers'
 import { isNoInput, promptsUnavailable } from '../no-input'
-import { CardCommandError, getErrorMessage, hasErrorCode, isBrokenPipeError } from '../errors'
+import {
+  CardCommandError,
+  getErrorMessage,
+  hasErrorCode,
+  isBrokenPipeError,
+  localizedCommandError,
+} from '../errors'
+import { t, type MessageParams } from '../i18n/t'
 
 interface SaveListOptions {
   forceOverwrite?: boolean
@@ -176,11 +183,9 @@ function saveInfo(resolvedOptions: Required<SaveListOptions>, message: string): 
  * path's own wording) so the advice and the usage exit code never diverge.
  */
 function importConflictError(target: string): CardCommandError {
-  return new CardCommandError(
-    'usage_error',
-    `Import conflict for '${target}'. Re-run with --overwrite or --yes to replace it.`,
-    ExitCode.UsageError,
-  )
+  return localizedCommandError('usage_error', ExitCode.UsageError, 'cli.import.conflict', {
+    target,
+  })
 }
 
 type ConflictResolution =
@@ -192,7 +197,7 @@ type ConflictResolution =
 async function promptConflictResolution(renamePrompt: string): Promise<ConflictResolution> {
   let response = ''
   while (!['o', 'r', 'c'].includes(response)) {
-    response = (await promptUser('Action: [O]verwrite, [R]ename, [C]ancel? ')).toLowerCase()
+    response = (await promptUser(t('cli.import.conflictAction'))).toLowerCase()
   }
 
   if (response === 'c') return { action: 'cancel' }
@@ -283,7 +288,7 @@ export async function saveDeck(
     filePath = path.join(decksDir, conflictFile)
     action = 'overwritten'
     if (!resolvedOptions.dryRun) {
-      getLogger().warn(`Overwriting ${conflictFile}...`)
+      getLogger().warn(t('cli.import.overwritingFile', { file: conflictFile }))
     }
   } else if (conflictFile && !shouldOverwrite) {
     if (resolvedOptions.noPrompts) {
@@ -291,15 +296,15 @@ export async function saveDeck(
     }
 
     if (conflictReason === 'id') {
-      getLogger().warn(`\nDeck already exists (ID Match): ${conflictFile}`)
+      getLogger().warn(`\n${t('cli.import.deckExistsId', { file: conflictFile })}`)
     } else {
-      getLogger().warn(`\nFile already exists (Name Conflict): ${conflictFile}`)
+      getLogger().warn(`\n${t('cli.import.fileExistsName', { file: conflictFile })}`)
     }
 
-    const resolution = await promptConflictResolution('Enter new filename (without .md): ')
+    const resolution = await promptConflictResolution(t('cli.import.promptNewFileName'))
 
     if (resolution.action === 'cancel') {
-      getLogger().warn('Import cancelled.')
+      getLogger().warn(t('cli.import.cancelledSave'))
       return { status: 'cancelled' }
     } else if (resolution.action === 'rename') {
       // The typed-in name goes through the same naming rule as any other list, so
@@ -312,19 +317,19 @@ export async function saveDeck(
       filePath = path.join(decksDir, fileName)
       action = 'renamed'
       if (!isPathWithinDir(filePath, decksDir)) {
-        throw new Error(`Name '${resolution.newName}' is not a valid deck file name`)
+        throw new Error(t('cli.import.invalidDeckFileName', { name: resolution.newName }))
       }
 
       // Double check new filename
       if (await Bun.file(filePath).exists()) {
-        getLogger().error(`File '${fileName}' also exists. Aborting.`)
-        throw new Error('File exists')
+        getLogger().error(t('cli.import.renameTargetExists', { file: fileName }))
+        throw new Error(t('cli.import.fileExists'))
       }
     } else {
       // Overwrite existing file.
       filePath = path.join(decksDir, conflictFile)
       action = 'overwritten'
-      getLogger().warn(`Overwriting ${conflictFile}...`)
+      getLogger().warn(t('cli.import.overwritingFile', { file: conflictFile }))
     }
   }
 
@@ -356,21 +361,21 @@ export async function saveDeck(
     saveInfo(
       resolvedOptions,
       action === 'overwritten'
-        ? `[dry-run] Would overwrite deck: ${filePath}`
-        : `[dry-run] Would save deck to: ${filePath}`,
+        ? t('cli.import.dryRunOverwriteDeck', { path: filePath })
+        : t('cli.import.dryRunSaveDeck', { path: filePath }),
     )
     if (primerMarkdown) {
-      saveInfo(resolvedOptions, `[dry-run] Would save primer to: ${primerPath}`)
+      saveInfo(resolvedOptions, t('cli.import.dryRunSavePrimer', { path: primerPath }))
     }
     return outcome
   }
 
   await writeFileWithHash(filePath, fileContent)
-  saveInfo(resolvedOptions, `Successfully imported deck to: ${filePath}`)
+  saveInfo(resolvedOptions, t('cli.import.savedDeck', { path: filePath }))
 
   if (primerMarkdown) {
     await Bun.write(primerPath, primerMarkdown + '\n')
-    saveInfo(resolvedOptions, `Successfully saved primer to: ${primerPath}`)
+    saveInfo(resolvedOptions, t('cli.import.savedPrimer', { path: primerPath }))
   }
 
   return outcome
@@ -420,8 +425,11 @@ export async function saveFlatList(
       const preview = missing.slice(0, 5).map((entry) => entry.name)
       const rest = missing.length - preview.length
       throw new Error(
-        `Cannot import as a collection: ${missing.length} card line(s) have no printing ` +
-          `(set and collector number required): ${preview.join(', ')}${rest > 0 ? `, and ${rest} more` : ''}`,
+        t('cli.import.collectionNeedsPrinting', {
+          count: missing.length,
+          names: preview.join(', '),
+          more: rest > 0 ? t('cli.import.andMore', { count: rest }) : '',
+        }),
       )
     }
   }
@@ -447,18 +455,18 @@ export async function saveFlatList(
     mode = 'overwrite'
     action = 'overwritten'
     if (!resolvedOptions.dryRun) {
-      getLogger().warn(`Overwriting ${path.basename(filePath)}...`)
+      getLogger().warn(t('cli.import.overwritingFile', { file: path.basename(filePath) }))
     }
   } else if (exists) {
     if (resolvedOptions.noPrompts) {
       throw importConflictError(path.basename(filePath))
     }
 
-    getLogger().warn(`\nFile already exists (Name Conflict): ${path.basename(filePath)}`)
-    const resolution = await promptConflictResolution(`Enter new ${label} name: `)
+    getLogger().warn(`\n${t('cli.import.fileExistsName', { file: path.basename(filePath) })}`)
+    const resolution = await promptConflictResolution(t('cli.import.promptNewListName', { label }))
 
     if (resolution.action === 'cancel') {
-      getLogger().warn('Import cancelled.')
+      getLogger().warn(t('cli.import.cancelledSave'))
       return { status: 'cancelled' }
     } else if (resolution.action === 'rename') {
       name = resolution.newName
@@ -466,13 +474,13 @@ export async function saveFlatList(
       action = 'renamed'
 
       if (await Bun.file(filePath).exists()) {
-        getLogger().error(`File '${path.basename(filePath)}' also exists. Aborting.`)
-        throw new Error('File exists')
+        getLogger().error(t('cli.import.renameTargetExists', { file: path.basename(filePath) }))
+        throw new Error(t('cli.import.fileExists'))
       }
     } else {
       mode = 'overwrite'
       action = 'overwritten'
-      getLogger().warn(`Overwriting ${path.basename(filePath)}...`)
+      getLogger().warn(t('cli.import.overwritingFile', { file: path.basename(filePath) }))
     }
   }
 
@@ -480,8 +488,8 @@ export async function saveFlatList(
     saveInfo(
       resolvedOptions,
       action === 'overwritten'
-        ? `[dry-run] Would overwrite ${label}: ${filePath}`
-        : `[dry-run] Would save ${label} to: ${filePath}`,
+        ? t('cli.import.dryRunOverwriteList', { label, path: filePath })
+        : t('cli.import.dryRunSaveList', { label, path: filePath }),
     )
     return { status: 'saved', filePath, name, action }
   }
@@ -491,7 +499,7 @@ export async function saveFlatList(
     throw new Error(result.error)
   }
 
-  saveInfo(resolvedOptions, `Successfully imported ${label} to: ${result.filePath}`)
+  saveInfo(resolvedOptions, t('cli.import.savedList', { label, path: result.filePath }))
   return { status: 'saved', filePath: result.filePath, name, action }
 }
 
@@ -504,9 +512,7 @@ async function resolveImportListType(
   // but says so — the type was defaulted, not chosen. Without --no-input the
   // prompt itself fails when no terminal is available (the ask() guard).
   if (isNoInput()) {
-    getLogger().info(
-      'No --type given; importing as a deck (pass --type to import a collection or wanted list).',
-    )
+    getLogger().info(t('cli.import.defaultedToDeck'))
     return 'deck'
   }
 
@@ -538,12 +544,12 @@ function rejectedFlagForSource(
     const flag = firstCsvOnlyFlag(options)
     if (flag !== undefined) {
       return kind === 'url'
-        ? `${flag} does not apply to URL imports.`
-        : `${flag} requires a CSV source (a .csv file, or --csv to force CSV parsing).`
+        ? t('cli.import.flagNotForUrl', { flag })
+        : t('cli.import.flagNeedsCsv', { flag })
     }
   }
   if (kind !== 'url' && options.moxfieldUserAgent !== undefined) {
-    return `--moxfield-user-agent only applies to URL imports; it does not apply to ${kind === 'csv' ? 'CSV' : 'text-file'} imports.`
+    return t('cli.import.moxfieldAgentSourceOnly', { kind })
   }
   return undefined
 }
@@ -554,7 +560,7 @@ function rejectedFlagForSource(
  * like a successful no-op to a script.
  */
 function emitCancelled(scripting: ScriptingOptions): void {
-  emitError('usage_error', 'Cancelled.', scripting)
+  emitError('usage_error', t('cli.import.cancelled'), scripting, undefined, 'cli.import.cancelled')
   process.exitCode = ExitCode.UsageError
 }
 
@@ -609,7 +615,7 @@ function reportSkippedLines(warnings: string[], scripting: ScriptingOptions): vo
   if (warnings.length === 0) return
   if (scripting.output === 'text') {
     const logger = getLogger()
-    logger.error(`${warnings.length} line(s) could not be imported:`)
+    logger.error(t('cli.import.linesNotImported', { count: warnings.length }))
     for (const warning of warnings) {
       logger.error(`  ${warning}`)
     }
@@ -628,7 +634,7 @@ function reportAdvisories(advisories: string[]): void {
   if (advisories.length === 0) return
   const logger = getLogger()
   for (const advisory of advisories) {
-    logger.warn(`Warning: ${advisory}`)
+    logger.warn(t('cli.import.advisory', { message: advisory }))
   }
 }
 
@@ -676,14 +682,16 @@ function buildColumnChoices(
   optional: boolean,
 ): ColumnChoice[] {
   const choices: ColumnChoice[] = []
-  if (optional) choices.push({ title: '(not in this file)', value: -1 })
+  if (optional) choices.push({ title: t('cli.import.columnNotPresent'), value: -1 })
   for (let i = 0; i < columnCount; i++) {
     if (usedColumns.has(i)) continue
     const header = headerCells?.[i]
     const sample = sampleCells[i]
     let title =
-      header !== undefined && header !== '' ? `Column ${i + 1}: "${header}"` : `Column ${i + 1}`
-    if (sample !== undefined && sample !== '') title += ` — e.g. "${sample}"`
+      header !== undefined && header !== ''
+        ? t('cli.import.columnWithHeader', { number: i + 1, header })
+        : t('cli.import.column', { number: i + 1 })
+    if (sample !== undefined && sample !== '') title += t('cli.import.columnSample', { sample })
     choices.push({ title, value: i })
   }
   return choices
@@ -726,7 +734,9 @@ async function promptColumnMapping(
       guessedIndex === undefined ? 0 : choices.findIndex((c) => c.value === guessedIndex)
     const selection = await ask<number>({
       type: 'select',
-      message: `Which column holds: ${CSV_FIELD_LABELS[field]}?${required ? '' : ' (optional)'}`,
+      message: required
+        ? t('cli.import.promptWhichColumn', { field: CSV_FIELD_LABELS[field] })
+        : t('cli.import.promptWhichColumnOptional', { field: CSV_FIELD_LABELS[field] }),
       choices,
       initial: initial === -1 ? 0 : initial,
     })
@@ -750,9 +760,9 @@ function toFailureOutput(failure: CsvRowFailure): ImportCsvFailureOutput {
 
 function reportFailures(failures: CsvRowFailure[]): void {
   const logger = getLogger()
-  logger.error(`${failures.length} row(s) failed to import:`)
+  logger.error(t('cli.import.rowsFailed', { count: failures.length }))
   for (const failure of failures) {
-    logger.error(`  Line ${failure.lineNumber}: ${failure.raw}`)
+    logger.error(`  ${t('cli.import.failureLine', { line: failure.lineNumber, raw: failure.raw })}`)
     logger.error(`    ${failure.reason}`)
   }
 }
@@ -772,7 +782,13 @@ async function runCsvImport(
   const dryRun = options.dryRun === true
 
   if (options.overwrite === true && options.append === true) {
-    emitError('usage_error', '--overwrite and --append are mutually exclusive', scripting)
+    emitError(
+      'usage_error',
+      t('cli.import.overwriteAppendExclusive'),
+      scripting,
+      undefined,
+      'cli.import.overwriteAppendExclusive',
+    )
     process.exitCode = ExitCode.UsageError
     return
   }
@@ -782,19 +798,37 @@ async function runCsvImport(
     content = await fs.readFile(file, 'utf-8')
   } catch (error) {
     const failure = classifyFileReadError(error)
-    emitError(failure.errorCode, `Could not read CSV file: ${file}`, scripting)
+    emitError(
+      failure.errorCode,
+      t('cli.import.csvUnreadable', { path: file }),
+      scripting,
+      undefined,
+      'cli.import.csvUnreadable',
+    )
     process.exitCode = failure.exitCode
     return
   }
 
   const parsed = parseCsv(content)
   if ('error' in parsed) {
-    emitError('runtime_error', `Failed to parse CSV: ${parsed.error}`, scripting)
+    emitError(
+      'runtime_error',
+      t('cli.import.csvParseFailed', { reason: parsed.error }),
+      scripting,
+      undefined,
+      'cli.import.csvParseFailed',
+    )
     process.exitCode = ExitCode.RuntimeError
     return
   }
   if (parsed.rows.length === 0) {
-    emitError('runtime_error', 'CSV file contains no rows', scripting)
+    emitError(
+      'runtime_error',
+      t('cli.import.csvNoRows'),
+      scripting,
+      undefined,
+      'cli.import.csvNoRows',
+    )
     process.exitCode = ExitCode.RuntimeError
     return
   }
@@ -805,7 +839,13 @@ async function runCsvImport(
 
   let name = options.name?.trim()
   if (name === '') {
-    emitError('usage_error', 'List name cannot be empty', scripting)
+    emitError(
+      'usage_error',
+      t('cli.import.nameEmpty'),
+      scripting,
+      undefined,
+      'cli.import.nameEmpty',
+    )
     process.exitCode = ExitCode.UsageError
     return
   }
@@ -838,8 +878,10 @@ async function runCsvImport(
     if (missing.length > 0) {
       emitError(
         'usage_error',
-        `Missing required flags for a scripted import (prompts are unavailable): ${missing.join(', ')}`,
+        t('cli.import.missingScriptedFlags', { flags: missing.join(', ') }),
         scripting,
+        undefined,
+        'cli.import.missingScriptedFlags',
       )
       process.exitCode = ExitCode.UsageError
       return
@@ -857,15 +899,23 @@ async function runCsvImport(
   }
 
   if (format !== undefined && listType !== 'deck') {
-    emitError('usage_error', '--deck-format only applies to deck imports', scripting)
+    emitError(
+      'usage_error',
+      t('cli.import.deckFormatDeckOnly'),
+      scripting,
+      undefined,
+      'cli.import.deckFormatDeckOnly',
+    )
     process.exitCode = ExitCode.UsageError
     return
   }
   if (format !== undefined && flagMode === 'append') {
     emitError(
       'usage_error',
-      '--deck-format only applies when creating a deck, not when appending',
+      t('cli.import.deckFormatNotAppend'),
       scripting,
+      undefined,
+      'cli.import.deckFormatNotAppend',
     )
     process.exitCode = ExitCode.UsageError
     return
@@ -874,8 +924,9 @@ async function runCsvImport(
   if (name === undefined) {
     const picked = await ask<string>({
       type: 'text',
-      message: `Name of the ${listTypeLabel(listType)} to create or append to:`,
-      validate: (value: string) => (value.trim().length > 0 ? true : 'Name cannot be empty'),
+      message: t('cli.import.promptListName', { label: listTypeLabel(listType) }),
+      validate: (value: string) =>
+        value.trim().length > 0 ? true : t('cli.import.nameEmptyValidation'),
     })
     if (picked === undefined) return cancelled()
     name = picked.trim()
@@ -901,19 +952,21 @@ async function runCsvImport(
       // not a runtime failure — with the extra `--append` option CSV has.
       emitError(
         'usage_error',
-        `Import conflict for '${path.basename(existingPath)}'. Re-run with --append to add to it, or --overwrite/--yes to replace it.`,
+        t('cli.import.conflictCsv', { target: path.basename(existingPath) }),
         scripting,
+        undefined,
+        'cli.import.conflictCsv',
       )
       process.exitCode = ExitCode.UsageError
       return
     } else {
       const picked = await ask<CsvImportMode | 'cancel'>({
         type: 'select',
-        message: `'${path.basename(existingPath)}' already exists. What should happen?`,
+        message: t('cli.import.promptExisting', { file: path.basename(existingPath) }),
         choices: [
-          { title: 'Append the cards to it', value: 'append' },
-          { title: 'Overwrite it with the import', value: 'overwrite' },
-          { title: 'Cancel', value: 'cancel' },
+          { title: t('cli.import.choiceAppend'), value: 'append' },
+          { title: t('cli.import.choiceOverwrite'), value: 'overwrite' },
+          { title: t('cli.menu.cancel'), value: 'cancel' },
         ],
       })
       if (picked === undefined || picked === 'cancel') return cancelled()
@@ -924,7 +977,7 @@ async function runCsvImport(
   if (listType === 'deck' && mode !== 'append' && format === undefined) {
     const picked = await ask<DeckFormatKey>({
       type: 'select',
-      message: 'Deck format:',
+      message: t('cli.import.promptDeckFormat'),
       choices: DECK_FORMAT_KEYS.map((key) => ({ title: getDeckFormatLabel(key), value: key })),
     })
     if (picked === undefined) return cancelled()
@@ -948,14 +1001,20 @@ async function runCsvImport(
     const firstRow = parsed.rows[0]!
     const headerAnswer = await ask<boolean>({
       type: 'confirm',
-      message: 'Does the first row contain column headers?',
+      message: t('cli.import.promptHasHeader'),
       initial: guessHasHeader(firstRow.cells),
     })
     if (headerAnswer === undefined) return cancelled()
     hasHeader = headerAnswer
 
     if (hasHeader && parsed.rows.length < 2) {
-      emitError('runtime_error', 'CSV file contains a header row but no data rows', scripting)
+      emitError(
+        'runtime_error',
+        t('cli.import.csvHeaderNoData'),
+        scripting,
+        undefined,
+        'cli.import.csvHeaderNoData',
+      )
       process.exitCode = ExitCode.RuntimeError
       return
     }
@@ -985,17 +1044,14 @@ async function runCsvImport(
   // that row looks like data (an almost-certainly-lost card).
   if (hasHeader && options.columns !== undefined) {
     const firstRow = parsed.rows[0]!
-    if (!scripting.quiet) logger.info(`Skipping header row: ${firstRow.raw}`)
+    if (!scripting.quiet) logger.info(t('cli.import.skippingHeader', { row: firstRow.raw }))
     if (!guessHasHeader(firstRow.cells)) {
-      logger.warn(
-        `Warning: the first row does not look like a header but was skipped as one: ${firstRow.raw}` +
-          ' — pass --no-header to import it as a card.',
-      )
+      logger.warn(t('cli.import.headerLooksLikeData', { row: firstRow.raw }))
     }
   }
 
   if (wizardRan && scripting.output === 'text' && !scripting.quiet) {
-    logger.info('\nTo repeat this import without the setup wizard, run:')
+    logger.info(`\n${t('cli.import.repeatHint')}`)
     logger.info(
       `  ${formatScriptingCommand(file, listType, name, mode, format, mapping, hasHeader, !isCsvPath(file))}\n`,
     )
@@ -1003,16 +1059,26 @@ async function runCsvImport(
 
   const dataRows = hasHeader ? parsed.rows.slice(1) : parsed.rows
   if (dataRows.length === 0) {
-    emitError('runtime_error', 'CSV file contains no data rows', scripting)
+    emitError(
+      'runtime_error',
+      t('cli.import.csvNoDataRows'),
+      scripting,
+      undefined,
+      'cli.import.csvNoDataRows',
+    )
     process.exitCode = ExitCode.RuntimeError
     return
   }
 
   const { entries, failures } = convertCsvRows(dataRows, mapping, listType)
   if (entries.length === 0) {
-    emitError('runtime_error', 'No rows could be imported.', scripting, {
-      failures: failures.map(toFailureOutput),
-    })
+    emitError(
+      'runtime_error',
+      t('cli.import.noRowsImported'),
+      scripting,
+      { failures: failures.map(toFailureOutput) },
+      'cli.import.noRowsImported',
+    )
     if (scripting.output === 'text') reportFailures(failures)
     process.exitCode = ExitCode.RuntimeError
     return
@@ -1022,7 +1088,7 @@ async function runCsvImport(
   // run is otherwise silent, so it goes to stderr and survives --quiet (the
   // dry-run line below carries the same disclosure for a preview).
   if (mode === 'overwrite' && existingPath !== null && !dryRun) {
-    logger.warn(`Overwriting ${path.basename(existingPath)}...`)
+    logger.warn(t('cli.import.overwritingFile', { file: path.basename(existingPath) }))
   }
 
   const result = await applyCsvImport({ listType, name, mode, format }, entries, {
@@ -1039,22 +1105,30 @@ async function runCsvImport(
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
+      // Both the dry-run preview and the confirmation take the same parameters,
+      // so the bag is built once and typed by the message it feeds.
+      const applied: MessageParams<'cli.import.appliedCsv'> = {
+        mode: result.mode,
+        count: result.cardCount,
+        listType,
+        name,
+        path: result.filePath,
+      }
       if (dryRun) {
-        const verb = result.mode === 'append' ? 'append' : 'import'
-        const preposition = result.mode === 'append' ? 'to' : 'into'
         // A dry run that would replace an existing list must say so — the one
         // mode whose purpose is previewing destructive effects.
         logger.info(
           replacing
-            ? `[dry-run] Would overwrite ${listType} '${name}' with ${result.cardCount} card(s): ${result.filePath}`
-            : `[dry-run] Would ${verb} ${result.cardCount} card(s) ${preposition} ${listType} '${name}': ${result.filePath}`,
+            ? t('cli.import.dryRunOverwriteCsv', {
+                listType,
+                name,
+                count: result.cardCount,
+                path: result.filePath,
+              })
+            : t('cli.import.dryRunApplyCsv', applied),
         )
       } else {
-        const verb = result.mode === 'append' ? 'Appended' : 'Imported'
-        const preposition = result.mode === 'append' ? 'to' : 'into'
-        logger.info(
-          `${verb} ${result.cardCount} card(s) ${preposition} ${listType} '${name}': ${result.filePath}`,
-        )
+        logger.info(t('cli.import.appliedCsv', applied))
       }
     }
     if (failures.length > 0) reportFailures(failures)
@@ -1081,39 +1155,22 @@ export function registerImportCommand(program: Command): void {
     addDryRunOption(
       program
         .command('import')
-        .description(
-          'Import a deck from a URL (Archidekt, Moxfield, MTGGoldfish), or a deck, collection, or wanted list from a local text or CSV file',
-        )
-        .argument('<source>', 'URL or file path (.csv files are imported as CSV)')
-        .option(
-          '-t, --type <type>',
-          `List type for a file import: ${LIST_TYPES.join(', ')} (URLs always import decks)`,
-        )
-        .option('--name <name>', 'CSV only: name of the list to create or append to')
-        .option(
-          '--deck-format <format>',
-          'CSV only: deck format when creating a deck (e.g. commander, modern)',
-        )
+        .description(t('help.import.description'))
+        .argument('<source>', t('help.import.source'))
+        .option('-t, --type <type>', t('help.import.type', { types: LIST_TYPES.join(', ') }))
+        .option('--name <name>', t('help.import.name'))
+        .option('--deck-format <format>', t('help.import.deckFormat'))
         .option(
           '-c, --columns <mapping>',
-          `CSV only: column mapping like 'name=1,set=2,collector-number=3' (1-based; fields: ${CSV_FIELDS.join(', ')}). Skips the interactive setup wizard.`,
+          t('help.import.columns', { fields: CSV_FIELDS.join(', ') }),
         )
-        .option('--no-header', 'CSV only: treat the first row as data instead of a header row')
-        .option(
-          '--append',
-          'CSV only: append the cards to an existing list instead of creating a new one',
-        )
-        .option('--csv', 'Treat the source file as CSV regardless of its extension')
-        .option('-o, --overwrite', 'Overwrite existing lists without prompting')
-        .option(
-          '-y, --yes',
-          'Automatically answer yes to the overwrite confirmation on import conflicts',
-        )
-        .option(
-          '--moxfield-user-agent <agent>',
-          'Moxfield-approved unique User-Agent string (required for Moxfield imports unless MOXFIELD_USER_AGENT is set)',
-        ),
-      'Preview actions without writing files',
+        .option('--no-header', t('help.import.noHeader'))
+        .option('--append', t('help.import.append'))
+        .option('--csv', t('help.import.csv'))
+        .option('-o, --overwrite', t('help.import.overwrite'))
+        .option('-y, --yes', t('help.import.yes'))
+        .option('--moxfield-user-agent <agent>', t('help.import.moxfieldUserAgent')),
+      t('help.import.dryRun'),
     ),
   ).action(async (source: string, options: ImportCommandOptions) => {
     const scripting = normalizeScriptingOptions(options)
@@ -1129,8 +1186,10 @@ export function registerImportCommand(program: Command): void {
       if (!isListType(normalized)) {
         emitError(
           'usage_error',
-          `Invalid list type '${options.type}'. Use: ${LIST_TYPES.join(', ')}`,
+          t('cli.import.invalidListType', { value: options.type, choices: LIST_TYPES.join(', ') }),
           scripting,
+          undefined,
+          'cli.import.invalidListType',
         )
         process.exitCode = ExitCode.UsageError
         return
@@ -1156,8 +1215,10 @@ export function registerImportCommand(program: Command): void {
     if (kind === 'url' && typeFlag !== undefined && typeFlag !== 'deck') {
       emitError(
         'usage_error',
-        `URL imports only support decks; importing a ${listTypeLabel(typeFlag)} from a URL is not supported.`,
+        t('cli.import.urlDeckOnly', { label: listTypeLabel(typeFlag) }),
         scripting,
+        undefined,
+        'cli.import.urlDeckOnly',
       )
       process.exitCode = ExitCode.UsageError
       return
@@ -1194,12 +1255,18 @@ export function registerImportCommand(program: Command): void {
       }
 
       if (!(await Bun.file(source).exists())) {
-        emitError('not_found', `File not found: ${source}`, scripting)
+        emitError(
+          'not_found',
+          t('cli.import.fileNotFound', { path: source }),
+          scripting,
+          undefined,
+          'cli.import.fileNotFound',
+        )
         process.exitCode = ExitCode.NotFound
         return
       }
 
-      if (!scripting.quiet) logger.info(`Reading cards from file: ${source}...`)
+      if (!scripting.quiet) logger.info(t('cli.import.readingFile', { path: source }))
       // Import reads the Arena/MTGO export dialect on top of Ritual's own
       // grammar, and reads through ``` fences (a pasted decklist usually
       // arrives wrapped in one); loads of workspace list files deliberately do
@@ -1233,7 +1300,7 @@ export function registerImportCommand(program: Command): void {
       // needed but prompts are unavailable (no terminal, or --no-input);
       // keep its exit code instead of flattening it to a runtime error.
       if (error instanceof CardCommandError) {
-        emitError(error.code, error.message, scripting, error.details)
+        emitError(error.code, error.message, scripting, error.details, error.messageRef)
         process.exitCode = error.exitCode
         return
       }
@@ -1242,7 +1309,13 @@ export function registerImportCommand(program: Command): void {
         markStdoutClosed()
         return
       }
-      emitError('runtime_error', `Failed to import: ${getErrorMessage(error)}`, scripting)
+      emitError(
+        'runtime_error',
+        t('cli.import.failed', { reason: getErrorMessage(error) }),
+        scripting,
+        undefined,
+        'cli.import.failed',
+      )
       process.exitCode = ExitCode.RuntimeError
     }
   })

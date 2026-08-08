@@ -20,6 +20,8 @@ import {
   type OutputFormat,
   type ScriptingOptions,
 } from './scripting'
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
 
 /** `skills list` registers only `--output`; see the registration comment. */
 type SkillsListOptions = { output?: OutputFormat }
@@ -47,12 +49,9 @@ type SkillsInstallReport = {
 function addSkillsWriteOptions(command: Command): Command {
   return addScriptingOptions(
     command
-      .option('--global', 'Target ~/.claude/skills instead of the project directory')
-      .option(
-        '--dir <path>',
-        'Project directory that should contain .claude/skills (defaults to the base dir)',
-      )
-      .option('-f, --force', 'Overwrite skill files even when they have local edits'),
+      .option('--global', t('help.skills.global'))
+      .option('--dir <path>', t('help.skills.dir'))
+      .option('-f, --force', t('help.skills.force')),
   )
 }
 
@@ -67,16 +66,18 @@ function printSkillResultLines(results: SkillInstallResult[]): void {
   for (const result of results) {
     switch (result.status) {
       case 'written':
-        console.log(`✓ ${result.name} → ${displayPath(result.path)}`)
+        console.log(
+          t('cli.skills.resultWritten', { name: result.name, path: displayPath(result.path) }),
+        )
         break
       case 'up-to-date':
-        console.log(`• ${result.name} already up to date`)
+        console.log(t('cli.skills.resultUpToDate', { name: result.name }))
         break
       case 'skipped':
-        console.log(`• ${result.name} has local edits (skipped)`)
+        console.log(t('cli.skills.resultSkipped', { name: result.name }))
         break
       case 'absent':
-        console.log(`• ${result.name} not installed (skipped)`)
+        console.log(t('cli.skills.resultAbsent', { name: result.name }))
         break
       default: {
         result.status satisfies never
@@ -86,21 +87,32 @@ function printSkillResultLines(results: SkillInstallResult[]): void {
   }
 }
 
-/** Pluralize a skill noun phrase for a count. */
-function skillNoun(count: number, noun = 'skill'): string {
-  return `${noun}${count === 1 ? '' : 's'}`
-}
+/**
+ * How a summary names what it counted. `skill` is the bare word the `skills`
+ * subcommands use, having just said the word themselves; `agentSkill` is the
+ * fuller "Ritual agent skill" that `init-site` needs, because its summary
+ * arrives with no such context. Message keys rather than nouns spliced into a
+ * sentence: only the catalog can make the count and the noun agree.
+ */
+export type SkillNoun = 'skill' | 'agentSkill'
+
+const SKILL_COUNT = {
+  skill: 'domain.count.skills',
+  agentSkill: 'domain.count.agentSkills',
+} as const satisfies Record<SkillNoun, MessageKey>
 
 /** How {@link printSkillsWriteSummary} words its lines for one consumer. */
 export type SkillsWriteSummaryOptions = {
-  /** Verb for the written-count line: 'Installed' or 'Updated'. */
-  verb: 'Installed' | 'Updated'
-  /** Preposition between the verb phrase and the directory: 'to' or 'in'. */
-  preposition: 'to' | 'in'
+  /**
+   * Which verb the written-count line uses. English also varies the
+   * preposition ('installed … to' vs 'updated … in'), so both live in the one
+   * `cli.skills.written` message rather than being concatenated here.
+   */
+  verb: 'installedTo' | 'installedIn' | 'updatedIn'
   /** The target directory as it should be rendered in the summary lines. */
   dir: string
-  /** Noun for a single skill; defaults to 'skill' (init-site passes 'Ritual agent skill'). */
-  noun?: string
+  /** Which noun names a skill; defaults to `skill`. */
+  noun?: SkillNoun
   /** The re-run that overwrites locally edited files, e.g. 're-run with --force to overwrite them'. */
   forceHint: string
   /** Print the written-count line even when nothing was written (the skills subcommands always do). */
@@ -128,27 +140,31 @@ export function printSkillsWriteSummary(
     absent: 0,
   }
   for (const result of results) counts[result.status]++
-  const noun = options.noun ?? 'skill'
+  const countKey = SKILL_COUNT[options.noun ?? 'skill']
+  const counted = (count: number): string => t(countKey, { count })
 
   if (counts.written > 0 || options.alwaysReportWritten) {
     console.log(
-      `✓ ${options.verb} ${counts.written} ${skillNoun(counts.written, noun)} ${options.preposition} ${options.dir}`,
+      t('cli.skills.written', {
+        verb: options.verb,
+        counted: counted(counts.written),
+        dir: options.dir,
+      }),
     )
   }
   if (counts['up-to-date'] > 0) {
-    console.log(
-      `• ${counts['up-to-date']} ${skillNoun(counts['up-to-date'], noun)} already up to date`,
-    )
+    console.log(t('cli.skills.upToDate', { counted: counted(counts['up-to-date']) }))
   }
   if (counts.skipped > 0) {
     console.log(
-      `⊘ ${counts.skipped} ${skillNoun(counts.skipped, noun)} with local edits left untouched (${options.forceHint})`,
+      t('cli.skills.skipped', {
+        counted: counted(counts.skipped),
+        forceHint: options.forceHint,
+      }),
     )
   }
   if (options.reportAbsent && counts.absent > 0) {
-    console.log(
-      `• ${counts.absent} ${skillNoun(counts.absent, noun)} not installed; use \`ritual skills install\` to add ${counts.absent === 1 ? 'it' : 'them'}`,
-    )
+    console.log(t('cli.skills.absent', { count: counts.absent, counted: counted(counts.absent) }))
   }
 }
 
@@ -188,16 +204,12 @@ async function runSkillsWrite(
 }
 
 export function registerSkillsCommand(program: Command): void {
-  const skills = program
-    .command('skills')
-    .description(
-      'Install Claude Code agent skills that teach AI agents how to drive Ritual from a local workspace',
-    )
+  const skills = program.command('skills').description(t('help.skills.description'))
 
   // `list` gets `--output` but no `--quiet`: its whole output is the payload,
   // so there is no non-essential chatter to suppress and an inert flag would
   // only advertise a behavior the command does not have.
-  addOutputOption(skills.command('list').description('List the available Ritual skills')).action(
+  addOutputOption(skills.command('list').description(t('help.skills.list'))).action(
     (options: SkillsListOptions) => {
       const scripting = normalizeScriptingOptions(options)
 
@@ -218,11 +230,7 @@ export function registerSkillsCommand(program: Command): void {
   )
 
   addSkillsWriteOptions(
-    skills
-      .command('install [names...]')
-      .description(
-        'Install Ritual skills into .claude/skills (or ~/.claude/skills with --global). Installs every skill when no names are given.',
-      ),
+    skills.command('install [names...]').description(t('help.skills.install')),
   ).action(async (names: string[], options: SkillsWriteCommandOptions) => {
     const scripting = normalizeScriptingOptions(options)
     const report = await runSkillsWrite(names, options, scripting, installSkills)
@@ -231,20 +239,15 @@ export function registerSkillsCommand(program: Command): void {
     printSkillResultLines(report.results)
     console.log('')
     printSkillsWriteSummary(report.results, {
-      verb: 'Installed',
-      preposition: 'to',
+      verb: 'installedTo',
       dir: report.skillsDir,
-      forceHint: 're-run with --force to overwrite them with the current version',
+      forceHint: t('cli.skills.forceHintRerun'),
       alwaysReportWritten: true,
     })
   })
 
   addSkillsWriteOptions(
-    skills
-      .command('update [names...]')
-      .description(
-        'Refresh already-installed Ritual skills to the current version. Never installs skills that are not present; use install for that.',
-      ),
+    skills.command('update [names...]').description(t('help.skills.update')),
   ).action(async (names: string[], options: SkillsWriteCommandOptions) => {
     const scripting = normalizeScriptingOptions(options)
     const report = await runSkillsWrite(names, options, scripting, refreshInstalledSkills)
@@ -253,10 +256,9 @@ export function registerSkillsCommand(program: Command): void {
     printSkillResultLines(report.results)
     console.log('')
     printSkillsWriteSummary(report.results, {
-      verb: 'Updated',
-      preposition: 'in',
+      verb: 'updatedIn',
       dir: report.skillsDir,
-      forceHint: 're-run with --force to overwrite them with the current version',
+      forceHint: t('cli.skills.forceHintRerun'),
       alwaysReportWritten: true,
       reportAbsent: true,
     })

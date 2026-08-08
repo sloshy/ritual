@@ -112,9 +112,10 @@ test.describe('Public deck editor', () => {
     await page.locator('.export-panel-close').click()
     await expect(page.locator('.export-panel')).toHaveCount(0)
 
-    // Exit edit mode via the navbar Edit/Done toggle (confirms discarding the change).
-    page.on('dialog', (d) => void d.accept())
+    // Exit edit mode via the navbar Edit/Done toggle. Discarding is confirmed
+    // through the in-app dialog, not a browser `window.confirm`.
     await page.locator('.btn-edit', { hasText: 'Done' }).click()
+    await page.locator('.confirm-dialog-actions .btn-danger').click()
     await expect(page.locator('.edit-banner')).toHaveCount(0)
     await expect(page.locator('.btn-edit')).toBeVisible()
   })

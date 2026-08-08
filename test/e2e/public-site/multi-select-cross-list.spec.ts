@@ -201,9 +201,10 @@ test.describe('Cross-list multi-select', () => {
     await expect(page.locator('.changes-badge')).toHaveText('1')
     await expect(page.locator('.card-item .qty-badge', { hasText: '2x' })).toHaveCount(1)
 
-    // Exiting edit mode ends the session and discards the in-memory edits.
-    page.once('dialog', (d) => void d.accept())
+    // Exiting edit mode ends the session and discards the in-memory edits. The
+    // discard is confirmed through the in-app dialog, not `window.confirm`.
     await page.locator('.btn-edit', { hasText: 'Done' }).click()
+    await page.locator('.confirm-dialog-actions .btn-danger').click()
     await expect(page.locator('.edit-banner')).toHaveCount(0)
     await page.locator('.btn-edit').click()
     await expect(page.locator('.changes-badge')).toHaveCount(0)

@@ -19,6 +19,7 @@ import {
   resolveList,
   type ListLocation,
 } from '../resolve-list'
+import { t } from '../i18n/t'
 import {
   addOutputOption,
   emitActionError,
@@ -50,7 +51,7 @@ type DiffCommandResult = {
 function parseByFlag(value: string): DiffBy {
   const normalized = value.toLowerCase()
   if (isDiffBy(normalized)) return normalized
-  throw new InvalidArgumentError(`Invalid mode '${value}'. Use 'name' or 'printing'.`)
+  throw new InvalidArgumentError(t('cli.diff.invalidMode', { value }))
 }
 
 /**
@@ -99,7 +100,7 @@ function printingSuffix(printing: DiffPrinting | undefined): string {
 function printingBreakdownItem(printing: DiffPrinting): string {
   const base = printing.set
     ? `${printing.set.toUpperCase()}${printing.collectorNumber ? `:${printing.collectorNumber}` : ''}`
-    : 'no printing'
+    : t('cli.diff.noPrinting')
   const finish = printing.finish === 'nonfoil' ? '' : ` [${printing.finish}]`
   return `${base}${finish}${languageToken(printing.language)} x${printing.quantity}`
 }
@@ -119,25 +120,32 @@ function isPlainBucket(printings: DiffPrinting[]): boolean {
 function formatOnlyLine(only: DiffOnly, by: DiffBy): string {
   if (by === 'printing') {
     // Printing mode: the identity is a single printing bucket.
-    return `  ${only.quantity} ${only.name}${printingSuffix(only.printings[0])}`
+    return t('cli.diff.onlyLine', {
+      quantity: only.quantity,
+      card: `${only.name}${printingSuffix(only.printings[0])}`,
+    })
   }
   const breakdown = isPlainBucket(only.printings)
     ? ''
     : ` (${only.printings.map(printingBreakdownItem).join(', ')})`
-  return `  ${only.quantity} ${only.name}${breakdown}`
+  return t('cli.diff.onlyLine', { quantity: only.quantity, card: `${only.name}${breakdown}` })
 }
 
 function formatMismatchLine(match: DiffMatch, by: DiffBy, labels: SideLabels): string {
   const identity =
     by === 'printing' ? `${match.name}${printingSuffix(match.a.printings[0])}` : match.name
-  return `  ${identity}: ${match.a.quantity} in ${labels.a}, ${match.b.quantity} in ${labels.b}`
+  return t('cli.diff.mismatchLine', {
+    card: identity,
+    aQuantity: match.a.quantity,
+    aList: labels.a,
+    bQuantity: match.b.quantity,
+    bList: labels.b,
+  })
 }
 
 /** Render the human-readable diff: the three sections, or the identical-lists line. */
 export function renderTextDiff(a: DiffListRef, b: DiffListRef, result: ListDiffResult): string {
-  if (isListDiffEmpty(result)) {
-    return `Lists are identical by ${result.by}.`
-  }
+  if (isListDiffEmpty(result)) return t('cli.diff.identical', { by: result.by })
 
   const labels = sideLabels(a, b)
   const mismatches = result.matches.filter((m) => m.a.quantity !== m.b.quantity)
@@ -146,7 +154,7 @@ export function renderTextDiff(a: DiffListRef, b: DiffListRef, result: ListDiffR
   if (result.onlyInA.length > 0) {
     sections.push(
       [
-        `Only in ${labels.a} (${result.onlyInA.length})`,
+        t('cli.diff.onlyInHeading', { list: labels.a, count: result.onlyInA.length }),
         ...result.onlyInA.map((only) => formatOnlyLine(only, result.by)),
       ].join('\n'),
     )
@@ -154,7 +162,7 @@ export function renderTextDiff(a: DiffListRef, b: DiffListRef, result: ListDiffR
   if (result.onlyInB.length > 0) {
     sections.push(
       [
-        `Only in ${labels.b} (${result.onlyInB.length})`,
+        t('cli.diff.onlyInHeading', { list: labels.b, count: result.onlyInB.length }),
         ...result.onlyInB.map((only) => formatOnlyLine(only, result.by)),
       ].join('\n'),
     )
@@ -162,7 +170,7 @@ export function renderTextDiff(a: DiffListRef, b: DiffListRef, result: ListDiffR
   if (mismatches.length > 0) {
     sections.push(
       [
-        `Different quantities (${mismatches.length})`,
+        t('cli.diff.quantityHeading', { count: mismatches.length }),
         ...mismatches.map((match) => formatMismatchLine(match, result.by, labels)),
       ].join('\n'),
     )
@@ -194,7 +202,7 @@ async function runDiff(
   // so it always reaches stderr, in every output mode. The structured envelope
   // additionally carries `warnings` for consumers.
   emitWarnings(
-    warnings.map((warning) => `⚠️  ${warning}`),
+    warnings.map((warning) => t('cli.diff.warningLine', { warning })),
     scripting,
     { essential: true },
   )
@@ -223,13 +231,10 @@ export function registerDiffCommand(program: Command): void {
   addOutputOption(
     program
       .command('diff')
-      .description('Compare two lists by card name or exact printing')
-      .argument('<listA>', 'First list; an optional deck:/collection:/wanted: prefix pins the type')
-      .argument(
-        '<listB>',
-        'Second list; an optional deck:/collection:/wanted: prefix pins the type',
-      )
-      .option('--by <mode>', "Identity to compare by: 'name' or 'printing'", parseByFlag, 'name'),
+      .description(t('help.diff.description'))
+      .argument('<listA>', t('help.diff.listA'))
+      .argument('<listB>', t('help.diff.listB'))
+      .option('--by <mode>', t('help.diff.by'), parseByFlag, 'name'),
   ).action(async (rawA: string, rawB: string, options: DiffCommandOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
     try {

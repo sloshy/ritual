@@ -12,6 +12,7 @@ import {
 import { applyCsvImport, type CsvImportMode } from '../../importers/csv-apply'
 import { dirForType } from '../../resolve-list'
 import { apiHandler } from '../utils'
+import type { ApiMessage } from './result'
 import { autoCommitAndPush, badRequest, readJsonObjectBody } from './save-helpers'
 
 /**
@@ -45,9 +46,8 @@ export interface ImportCsvRequest {
  * `import-changes.ts` records for the bundle import). A 400 here means the
  * *request* was malformed, never that some rows were.
  */
-export interface ImportCsvResponse {
+export interface ImportCsvResponse extends ApiMessage {
   success: true
-  message: string
   /**
    * **Copies** imported — the sum of the accepted rows' quantities, not the row
    * count. Always present; `0` when every row failed validation.

@@ -368,8 +368,6 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
     <EditorShell
       entityLabel="deck"
       selectorId="deck-select"
-      selectorLabel="Select Deck"
-      selectorPlaceholder="Choose a deck"
       editor={editor}
       cardData={ctrl.cardData}
       search={props.search}

@@ -4,19 +4,28 @@
 // grouped, what controls to render, and what description to show users.
 // New themable variables MUST be added here — if a value is referenced
 // from CSS via `var(--…)`, it should be in this list.
+//
+// This table is evaluated once at import, so it holds message *keys* rather
+// than rendered text (plan §7.2): `ThemeEditor` resolves them through `useTKey`
+// at render time, which is what lets a locale switch relabel the editor.
+
+import type { MessageKey } from '../i18n/messages/en'
 
 export type ThemeVarType = 'color' | 'length'
 
 /** Units a `length` theme variable may be authored in. */
 export type LengthUnit = 'px' | '%'
 
+/** A `site.themeVar.*` or `site.themeGroup.*` catalog key. */
+export type ThemeVarMessageKey = Extract<MessageKey, `site.theme${'Var' | 'Group'}.${string}`>
+
 export type ThemeVarMeta = {
   /** CSS custom property name, e.g. `--bg-body`. */
   name: string
   /** Short user-facing label shown in the editor. */
-  label: string
+  label: ThemeVarMessageKey
   /** One-sentence description shown in the editor's tooltip / details pane. */
-  description: string
+  description: ThemeVarMessageKey
   /** Group key used to bucket variables under tabs in the editor toolbar. */
   group: ThemeVarGroupId
   /** Control type — determines the picker rendered for this variable. */
@@ -40,103 +49,102 @@ export type ThemeVarGroupId =
 
 export type ThemeVarGroup = {
   id: ThemeVarGroupId
-  label: string
-  description: string
+  label: ThemeVarMessageKey
+  description: ThemeVarMessageKey
 }
 
 export const themeVarGroups: ThemeVarGroup[] = [
   {
     id: 'surfaces',
-    label: 'Surfaces',
-    description: 'Page and panel backgrounds at every interaction depth.',
+    label: 'site.themeGroup.surfaces.label',
+    description: 'site.themeGroup.surfaces.description',
   },
   {
     id: 'borders',
-    label: 'Borders',
-    description: 'Border, separator, and focus-outline colors.',
+    label: 'site.themeGroup.borders.label',
+    description: 'site.themeGroup.borders.description',
   },
   {
     id: 'text',
-    label: 'Text',
-    description: 'Foreground text colors at varying emphasis levels.',
+    label: 'site.themeGroup.text.label',
+    description: 'site.themeGroup.text.description',
   },
   {
     id: 'accent',
-    label: 'Accent',
-    description: 'Highlight color used for links, focus rings, and visual emphasis.',
+    label: 'site.themeGroup.accent.label',
+    description: 'site.themeGroup.accent.description',
   },
   {
     id: 'buttons',
-    label: 'Buttons',
-    description: 'Surfaces and labels for the various button styles.',
+    label: 'site.themeGroup.buttons.label',
+    description: 'site.themeGroup.buttons.description',
   },
   {
     id: 'status',
-    label: 'Status',
-    description:
-      'Success and error semantic colors. Bright on dark themes, deep on light themes for legibility.',
+    label: 'site.themeGroup.status.label',
+    description: 'site.themeGroup.status.description',
   },
   {
     id: 'overlays',
-    label: 'Overlays',
-    description:
-      'Translucent dark scrims — and the text drawn on them — for modals, tooltips, and gradients on top of card art. Universal across themes.',
+    label: 'site.themeGroup.overlays.label',
+    description: 'site.themeGroup.overlays.description',
   },
   {
     id: 'modals',
-    label: 'Modals',
-    description: 'Corner rounding and drop-shadow shared by every modal dialog.',
+    label: 'site.themeGroup.modals.label',
+    description: 'site.themeGroup.modals.description',
   },
   {
     id: 'flame',
-    label: 'Flame icon',
-    description:
-      'Gradient stops for the app’s candle-flame logo and browser-tab favicon. Derived from the accent by default; the flame recolors live as you edit them.',
+    label: 'site.themeGroup.flame.label',
+    description: 'site.themeGroup.flame.description',
   },
   {
     id: 'labels',
-    label: 'Labels',
-    description:
-      'Tones for the For sale / For trade / To keep badges on collection cards and trade rows.',
+    label: 'site.themeGroup.labels.label',
+    description: 'site.themeGroup.labels.description',
   },
-  { id: 'misc', label: 'Misc', description: 'Sizing tokens and other non-color values.' },
+  {
+    id: 'misc',
+    label: 'site.themeGroup.misc.label',
+    description: 'site.themeGroup.misc.description',
+  },
 ]
 
 export const themeVarMetadata: ThemeVarMeta[] = [
   // ----- Surfaces -----
   {
     name: '--bg-body',
-    label: 'Page background',
-    description: 'The main background filling the entire viewport.',
+    label: 'site.themeVar.bgBody.label',
+    description: 'site.themeVar.bgBody.description',
     group: 'surfaces',
     type: 'color',
   },
   {
     name: '--bg-panel',
-    label: 'Panel background',
-    description: 'Background for raised surfaces — modals, sidebars, deck covers.',
+    label: 'site.themeVar.bgPanel.label',
+    description: 'site.themeVar.bgPanel.description',
     group: 'surfaces',
     type: 'color',
   },
   {
     name: '--bg-hover',
-    label: 'Hover background',
-    description: 'Subtle hover state for list rows, buttons, and other interactive surfaces.',
+    label: 'site.themeVar.bgHover.label',
+    description: 'site.themeVar.bgHover.description',
     group: 'surfaces',
     type: 'color',
   },
   {
     name: '--bg-active',
-    label: 'Active background',
-    description:
-      'Pressed / selected state — accent-tinted to signal an active selection (e.g. an active toolbar button).',
+    label: 'site.themeVar.bgActive.label',
+    description: 'site.themeVar.bgActive.description',
     group: 'surfaces',
     type: 'color',
   },
   {
     name: '--bg-subtle',
-    label: 'Subtle background',
-    description: 'Slightly recessed surface, used for inputs and inset areas.',
+    label: 'site.themeVar.bgSubtle.label',
+    description: 'site.themeVar.bgSubtle.description',
     group: 'surfaces',
     type: 'color',
   },
@@ -144,29 +152,29 @@ export const themeVarMetadata: ThemeVarMeta[] = [
   // ----- Borders -----
   {
     name: '--border',
-    label: 'Default border',
-    description: 'Standard 1px borders between panels, cards, and inputs.',
+    label: 'site.themeVar.border.label',
+    description: 'site.themeVar.border.description',
     group: 'borders',
     type: 'color',
   },
   {
     name: '--border-hover',
-    label: 'Hover border',
-    description: 'Border color when an interactive surface is hovered.',
+    label: 'site.themeVar.borderHover.label',
+    description: 'site.themeVar.borderHover.description',
     group: 'borders',
     type: 'color',
   },
   {
     name: '--border-focus',
-    label: 'Focus border',
-    description: 'Border color around the actively focused input or control.',
+    label: 'site.themeVar.borderFocus.label',
+    description: 'site.themeVar.borderFocus.description',
     group: 'borders',
     type: 'color',
   },
   {
     name: '--border-separator',
-    label: 'Separator',
-    description: 'Faint horizontal rules between rows in lists and modals.',
+    label: 'site.themeVar.borderSeparator.label',
+    description: 'site.themeVar.borderSeparator.description',
     group: 'borders',
     type: 'color',
   },
@@ -174,43 +182,43 @@ export const themeVarMetadata: ThemeVarMeta[] = [
   // ----- Text -----
   {
     name: '--text-primary',
-    label: 'Primary text',
-    description: 'Highest-emphasis text — headings and key labels.',
+    label: 'site.themeVar.textPrimary.label',
+    description: 'site.themeVar.textPrimary.description',
     group: 'text',
     type: 'color',
   },
   {
     name: '--text-body',
-    label: 'Body text',
-    description: 'Default body copy color.',
+    label: 'site.themeVar.textBody.label',
+    description: 'site.themeVar.textBody.description',
     group: 'text',
     type: 'color',
   },
   {
     name: '--text-secondary',
-    label: 'Secondary text',
-    description: 'De-emphasised text — subtitles, helper text.',
+    label: 'site.themeVar.textSecondary.label',
+    description: 'site.themeVar.textSecondary.description',
     group: 'text',
     type: 'color',
   },
   {
     name: '--text-muted',
-    label: 'Muted text',
-    description: 'Quiet metadata text — counts, file paths, set codes.',
+    label: 'site.themeVar.textMuted.label',
+    description: 'site.themeVar.textMuted.description',
     group: 'text',
     type: 'color',
   },
   {
     name: '--text-dim',
-    label: 'Dim text',
-    description: 'Lowest-emphasis text — placeholders and inactive labels.',
+    label: 'site.themeVar.textDim.label',
+    description: 'site.themeVar.textDim.description',
     group: 'text',
     type: 'color',
   },
   {
     name: '--text-accent',
-    label: 'Accent text',
-    description: 'Accent-colored text used for tag labels, quantity badges, and links.',
+    label: 'site.themeVar.textAccent.label',
+    description: 'site.themeVar.textAccent.description',
     group: 'text',
     type: 'color',
   },
@@ -218,46 +226,43 @@ export const themeVarMetadata: ThemeVarMeta[] = [
   // ----- Accent -----
   {
     name: '--accent',
-    label: 'Accent',
-    description:
-      'The primary highlight color of the theme. Used for focus rings, primary links, and emphasis.',
+    label: 'site.themeVar.accent.label',
+    description: 'site.themeVar.accent.description',
     group: 'accent',
     type: 'color',
   },
   {
     name: '--accent-hover',
-    label: 'Accent hover',
-    description: 'Accent color shifted slightly for hover states.',
+    label: 'site.themeVar.accentHover.label',
+    description: 'site.themeVar.accentHover.description',
     group: 'accent',
     type: 'color',
   },
   {
     name: '--accent-dim',
-    label: 'Accent dim',
-    description: 'Dimmed accent color for borders and subtle emphasis.',
+    label: 'site.themeVar.accentDim.label',
+    description: 'site.themeVar.accentDim.description',
     group: 'accent',
     type: 'color',
   },
   {
     name: '--card-link',
-    label: 'Card link',
-    description:
-      'Blue hyperlink color for card names (e.g. in the changes dialog). Deep on light themes, soft on dark themes.',
+    label: 'site.themeVar.cardLink.label',
+    description: 'site.themeVar.cardLink.description',
     group: 'accent',
     type: 'color',
   },
   {
     name: '--card-link-hover',
-    label: 'Card link hover',
-    description: 'Hover color for card-name hyperlinks.',
+    label: 'site.themeVar.cardLinkHover.label',
+    description: 'site.themeVar.cardLinkHover.description',
     group: 'accent',
     type: 'color',
   },
   {
     name: '--progress-end',
-    label: 'Progress bar end',
-    description:
-      'Far end of the progress-bar gradient (the near end is the accent). A fixed teal across themes.',
+    label: 'site.themeVar.progressEnd.label',
+    description: 'site.themeVar.progressEnd.description',
     group: 'accent',
     type: 'color',
   },
@@ -265,86 +270,85 @@ export const themeVarMetadata: ThemeVarMeta[] = [
   // ----- Buttons -----
   {
     name: '--btn-bg',
-    label: 'Button surface',
-    description: 'Background for the default secondary buttons.',
+    label: 'site.themeVar.btnBg.label',
+    description: 'site.themeVar.btnBg.description',
     group: 'buttons',
     type: 'color',
   },
   {
     name: '--btn-hover',
-    label: 'Button hover',
-    description: 'Hover background for default secondary buttons.',
+    label: 'site.themeVar.btnHover.label',
+    description: 'site.themeVar.btnHover.description',
     group: 'buttons',
     type: 'color',
   },
   {
     name: '--btn-text',
-    label: 'Button label',
-    description: 'Text color on default secondary buttons.',
+    label: 'site.themeVar.btnText.label',
+    description: 'site.themeVar.btnText.description',
     group: 'buttons',
     type: 'color',
   },
   {
     name: '--btn-primary',
-    label: 'Primary button',
-    description: 'Background for primary call-to-action buttons.',
+    label: 'site.themeVar.btnPrimary.label',
+    description: 'site.themeVar.btnPrimary.description',
     group: 'buttons',
     type: 'color',
   },
   {
     name: '--btn-primary-hover',
-    label: 'Primary button hover',
-    description: 'Hover state for primary call-to-action buttons.',
+    label: 'site.themeVar.btnPrimaryHover.label',
+    description: 'site.themeVar.btnPrimaryHover.description',
     group: 'buttons',
     type: 'color',
   },
   {
     name: '--btn-danger',
-    label: 'Danger button',
-    description: 'Background for destructive action buttons.',
+    label: 'site.themeVar.btnDanger.label',
+    description: 'site.themeVar.btnDanger.description',
     group: 'buttons',
     type: 'color',
   },
   {
     name: '--btn-danger-hover',
-    label: 'Danger button hover',
-    description: 'Hover state for destructive action buttons.',
+    label: 'site.themeVar.btnDangerHover.label',
+    description: 'site.themeVar.btnDangerHover.description',
     group: 'buttons',
     type: 'color',
   },
   {
     name: '--btn-export',
-    label: 'Export button',
-    description: 'Background for export/download buttons.',
+    label: 'site.themeVar.btnExport.label',
+    description: 'site.themeVar.btnExport.description',
     group: 'buttons',
     type: 'color',
   },
   {
     name: '--btn-export-hover',
-    label: 'Export button hover',
-    description: 'Hover state for export/download buttons.',
+    label: 'site.themeVar.btnExportHover.label',
+    description: 'site.themeVar.btnExportHover.description',
     group: 'buttons',
     type: 'color',
   },
   {
     name: '--btn-add',
-    label: 'Add button',
-    description: 'Background for "Add" / success buttons. Universal green.',
+    label: 'site.themeVar.btnAdd.label',
+    description: 'site.themeVar.btnAdd.description',
     group: 'buttons',
     type: 'color',
   },
   {
     name: '--btn-add-hover',
-    label: 'Add button hover',
-    description: 'Hover state for "Add" / success buttons.',
+    label: 'site.themeVar.btnAddHover.label',
+    description: 'site.themeVar.btnAddHover.description',
     group: 'buttons',
     type: 'color',
   },
   {
     name: '--btn-on-color-text',
-    label: 'On-color label',
-    description:
-      'Text color used on saturated colored buttons (primary / add / export). Should contrast with the button background, not the page background.',
+    label: 'site.themeVar.btnOnColorText.label',
+    description: 'site.themeVar.btnOnColorText.description',
     group: 'buttons',
     type: 'color',
   },
@@ -352,72 +356,71 @@ export const themeVarMetadata: ThemeVarMeta[] = [
   // ----- Status -----
   {
     name: '--success-bg',
-    label: 'Success background',
-    description: 'Translucent green background for success banners.',
+    label: 'site.themeVar.successBg.label',
+    description: 'site.themeVar.successBg.description',
     group: 'status',
     type: 'color',
   },
   {
     name: '--success-border',
-    label: 'Success border',
-    description: 'Border for success banners and badges.',
+    label: 'site.themeVar.successBorder.label',
+    description: 'site.themeVar.successBorder.description',
     group: 'status',
     type: 'color',
   },
   {
     name: '--success-text',
-    label: 'Success text',
-    description: 'Green text for prices, confirmations, and additions.',
+    label: 'site.themeVar.successText.label',
+    description: 'site.themeVar.successText.description',
     group: 'status',
     type: 'color',
   },
   {
     name: '--error',
-    label: 'Error',
-    description: 'Solid error/danger color used in destructive button hovers.',
+    label: 'site.themeVar.error.label',
+    description: 'site.themeVar.error.description',
     group: 'status',
     type: 'color',
   },
   {
     name: '--error-bg',
-    label: 'Error background',
-    description: 'Translucent red background for error banners and danger buttons.',
+    label: 'site.themeVar.errorBg.label',
+    description: 'site.themeVar.errorBg.description',
     group: 'status',
     type: 'color',
   },
   {
     name: '--error-border',
-    label: 'Error border',
-    description: 'Border for error banners and danger buttons.',
+    label: 'site.themeVar.errorBorder.label',
+    description: 'site.themeVar.errorBorder.description',
     group: 'status',
     type: 'color',
   },
   {
     name: '--error-text',
-    label: 'Error text',
-    description: 'Red text used for warnings and removal markers.',
+    label: 'site.themeVar.errorText.label',
+    description: 'site.themeVar.errorText.description',
     group: 'status',
     type: 'color',
   },
   {
     name: '--warning-bg',
-    label: 'Warning background',
-    description:
-      'Translucent amber background for cautionary notices (e.g. stale prices, missing tag data).',
+    label: 'site.themeVar.warningBg.label',
+    description: 'site.themeVar.warningBg.description',
     group: 'status',
     type: 'color',
   },
   {
     name: '--warning-border',
-    label: 'Warning border',
-    description: 'Border for cautionary notice banners.',
+    label: 'site.themeVar.warningBorder.label',
+    description: 'site.themeVar.warningBorder.description',
     group: 'status',
     type: 'color',
   },
   {
     name: '--warning-text',
-    label: 'Warning text',
-    description: 'Amber text for cautionary notice banners.',
+    label: 'site.themeVar.warningText.label',
+    description: 'site.themeVar.warningText.description',
     group: 'status',
     type: 'color',
   },
@@ -425,23 +428,22 @@ export const themeVarMetadata: ThemeVarMeta[] = [
   // ----- Labels -----
   {
     name: '--label-sale',
-    label: 'For sale',
-    description: 'Tone of the SALE badge on collection cards labeled for sale.',
+    label: 'site.themeVar.labelSale.label',
+    description: 'site.themeVar.labelSale.description',
     group: 'labels',
     type: 'color',
   },
   {
     name: '--label-trade',
-    label: 'For trade',
-    description: 'Tone of the TRADE badge on collection cards labeled for trade.',
+    label: 'site.themeVar.labelTrade.label',
+    description: 'site.themeVar.labelTrade.description',
     group: 'labels',
     type: 'color',
   },
   {
     name: '--label-keep',
-    label: 'To keep',
-    description:
-      'Tone of the KEEP badge on collection cards labeled to keep, and the Keep tag on trade rows.',
+    label: 'site.themeVar.labelKeep.label',
+    description: 'site.themeVar.labelKeep.description',
     group: 'labels',
     type: 'color',
   },
@@ -449,52 +451,50 @@ export const themeVarMetadata: ThemeVarMeta[] = [
   // ----- Overlays -----
   {
     name: '--overlay-light',
-    label: 'Light overlay',
-    description: 'Translucent dark scrim for shadows and small backdrops.',
+    label: 'site.themeVar.overlayLight.label',
+    description: 'site.themeVar.overlayLight.description',
     group: 'overlays',
     type: 'color',
   },
   {
     name: '--overlay-medium',
-    label: 'Medium overlay',
-    description: 'Translucent dark scrim for tooltips and hover backdrops.',
+    label: 'site.themeVar.overlayMedium.label',
+    description: 'site.themeVar.overlayMedium.description',
     group: 'overlays',
     type: 'color',
   },
   {
     name: '--overlay-heavy',
-    label: 'Heavy overlay',
-    description: 'Strong dark scrim for modal backdrops and image gradients.',
+    label: 'site.themeVar.overlayHeavy.label',
+    description: 'site.themeVar.overlayHeavy.description',
     group: 'overlays',
     type: 'color',
   },
   {
     name: '--card-label-text',
-    label: 'Card label text',
-    description:
-      'Card name shown on the hover label over card art. Stays bright on every theme so it reads against the dark scrim.',
+    label: 'site.themeVar.cardLabelText.label',
+    description: 'site.themeVar.cardLabelText.description',
     group: 'overlays',
     type: 'color',
   },
   {
     name: '--card-label-meta',
-    label: 'Card label meta',
-    description: 'Secondary detail (e.g. foil/etched finish) on the card hover label.',
+    label: 'site.themeVar.cardLabelMeta.label',
+    description: 'site.themeVar.cardLabelMeta.description',
     group: 'overlays',
     type: 'color',
   },
   {
     name: '--card-label-price',
-    label: 'Card label price',
-    description: 'Price shown on the card hover label — a universally bright green.',
+    label: 'site.themeVar.cardLabelPrice.label',
+    description: 'site.themeVar.cardLabelPrice.description',
     group: 'overlays',
     type: 'color',
   },
   {
     name: '--card-label-buylist',
-    label: 'Card buylist price',
-    description:
-      'Buylist offer shown beside the retail price in sell mode — a universally bright amber.',
+    label: 'site.themeVar.cardLabelBuylist.label',
+    description: 'site.themeVar.cardLabelBuylist.description',
     group: 'overlays',
     type: 'color',
   },
@@ -502,16 +502,16 @@ export const themeVarMetadata: ThemeVarMeta[] = [
   // ----- Modals -----
   {
     name: '--modal-radius',
-    label: 'Modal radius',
-    description: 'Corner rounding of modal dialog panels.',
+    label: 'site.themeVar.modalRadius.label',
+    description: 'site.themeVar.modalRadius.description',
     group: 'modals',
     type: 'length',
     unit: 'px',
   },
   {
     name: '--modal-shadow-color',
-    label: 'Modal shadow',
-    description: 'Tint of the drop shadow cast by modal dialog panels.',
+    label: 'site.themeVar.modalShadowColor.label',
+    description: 'site.themeVar.modalShadowColor.description',
     group: 'modals',
     type: 'color',
   },
@@ -519,43 +519,43 @@ export const themeVarMetadata: ThemeVarMeta[] = [
   // ----- Flame icon -----
   {
     name: '--flame-outer-1',
-    label: 'Flame body (bright)',
-    description: 'Brightest part of the flame’s dark outer body, near the inner core.',
+    label: 'site.themeVar.flameOuter1.label',
+    description: 'site.themeVar.flameOuter1.description',
     group: 'flame',
     type: 'color',
   },
   {
     name: '--flame-outer-2',
-    label: 'Flame body (mid)',
-    description: 'Mid tone of the flame’s outer body.',
+    label: 'site.themeVar.flameOuter2.label',
+    description: 'site.themeVar.flameOuter2.description',
     group: 'flame',
     type: 'color',
   },
   {
     name: '--flame-outer-3',
-    label: 'Flame body (edge)',
-    description: 'Darkest tone at the outer edge of the flame.',
+    label: 'site.themeVar.flameOuter3.label',
+    description: 'site.themeVar.flameOuter3.description',
     group: 'flame',
     type: 'color',
   },
   {
     name: '--flame-inner-1',
-    label: 'Flame core (hot)',
-    description: 'The hot, near-white center of the flame’s glowing inner core.',
+    label: 'site.themeVar.flameInner1.label',
+    description: 'site.themeVar.flameInner1.description',
     group: 'flame',
     type: 'color',
   },
   {
     name: '--flame-inner-2',
-    label: 'Flame core (glow)',
-    description: 'Mid glow of the flame’s inner core.',
+    label: 'site.themeVar.flameInner2.label',
+    description: 'site.themeVar.flameInner2.description',
     group: 'flame',
     type: 'color',
   },
   {
     name: '--flame-inner-3',
-    label: 'Flame core (base)',
-    description: 'Saturated base of the flame’s inner core.',
+    label: 'site.themeVar.flameInner3.label',
+    description: 'site.themeVar.flameInner3.description',
     group: 'flame',
     type: 'color',
   },
@@ -563,9 +563,8 @@ export const themeVarMetadata: ThemeVarMeta[] = [
   // ----- Misc -----
   {
     name: '--card-radius',
-    label: 'Card radius',
-    description:
-      'Corner rounding of card images, as a percentage of the card width, so it scales with the card at every display size.',
+    label: 'site.themeVar.cardRadius.label',
+    description: 'site.themeVar.cardRadius.description',
     group: 'misc',
     type: 'length',
     unit: '%',

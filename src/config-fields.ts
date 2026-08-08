@@ -10,6 +10,7 @@ import {
   parseCollectionSyncPullTarget,
   parseDefaultCurrency,
   parseSiteApiBaseUrl,
+  parseUiLocale,
   type AdminConfig,
   type CollectionSyncConfig,
   type RitualConfig,
@@ -121,6 +122,7 @@ export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
   wantedDir: 'string',
   defaultCurrency: 'string',
   defaultLanguage: 'string',
+  uiLocale: 'string',
   cacheLockTimeoutSeconds: 'number',
   cacheSource: 'string',
   cacheFeedUrl: 'string',
@@ -397,6 +399,16 @@ export function applyConfigSet(
       }
     }
     newValue = normalized
+  }
+  // uiLocale is a constrained string (a BCP-47 tag naming a language the engine
+  // knows); validate and canonicalize (`de-at` → `de-AT`) here rather than
+  // persisting a typo the loader would silently reset to English.
+  if (property === 'uiLocale') {
+    const parsed = parseUiLocale(rawValue)
+    if (isConfigParseError(parsed)) {
+      return parsed
+    }
+    newValue = parsed
   }
   // cacheSource and cacheFeedUrl are constrained strings; reject invalid values
   // here rather than persisting something the loader silently resets.

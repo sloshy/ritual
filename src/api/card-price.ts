@@ -1,4 +1,5 @@
 import { cardCache } from '../cache'
+import { compareData } from '../i18n/collate'
 import {
   fetchRepresentativePrints,
   computeRepresentativePrints,
@@ -81,7 +82,7 @@ export async function handleCardPrice(req: Request): Promise<Response> {
     }
 
     const sorted = [...printings].sort((a, b) =>
-      (b.released_at ?? '').localeCompare(a.released_at ?? ''),
+      compareData(b.released_at ?? '', a.released_at ?? ''),
     )
     const repPrints = computeRepresentativePrints(
       sorted,

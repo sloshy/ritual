@@ -24,13 +24,19 @@ import {
   generateAllThemesCss,
   isThemeName,
   resolveThemeName,
-  themeBootstrapScript,
   themeFlameStops,
   themeNames,
   type ThemeName,
 } from '../themes'
+import { appBootScript, BOOT_SCRIPT_FILE, renderAppShell } from '../site/html-shell'
+import { bakedDictionaries } from '../generated/locales'
+import { en } from '../i18n/messages/en'
+import { DEFAULT_LOCALE } from '../i18n/runtime'
+import { t } from '../i18n/t'
+import type { LocaleTag } from '../i18n/types'
+import { getUiLocale } from '../ritual-config'
 import { buildFlameSvg } from '../flame'
-import { CardCommandError } from '../errors'
+import { localizedCommandError } from '../errors'
 import { runCommandAction } from './card-target'
 import { requireInteractive } from '../no-input'
 import { readPasswordFromStdin } from './prompts-helpers'
@@ -59,26 +65,37 @@ type EmbeddedMcpConfig = {
   token: string
 }
 
-function buildIndexHtml(initialTheme: ThemeName): string {
-  const attr = initialTheme === 'default' ? '' : ` data-theme="${initialTheme}"`
+function buildIndexHtml(initialTheme: ThemeName, locale: LocaleTag): string {
   // In source/dev mode, pull in the live-reload client so the browser refreshes when the dev
   // orchestrator restarts the server after a source edit. External (not inline) to satisfy CSP.
   const devReload = isRunningFromSource() ? '\n  <script src="__dev_reload.js"></script>' : ''
-  return `<!DOCTYPE html>
-<html lang="en"${attr}>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ritual Admin</title>
-  <link rel="icon" type="image/svg+xml" href="app.svg">
-  <script>${themeBootstrapScript}</script>
-  <link rel="stylesheet" href="styles.css">${devReload}
-</head>
-<body>
-  <div id="app"></div>
-  <script type="module" src="app.js"></script>
-</body>
-</html>`
+  return renderAppShell({
+    lang: locale,
+    // i18n-exempt: the product name, a proper noun that is the same in every locale
+    title: 'Ritual Admin',
+    initialTheme,
+    extraHead: devReload,
+  })
+}
+
+/**
+ * Write the boot script and every bundled dictionary into `.admin-dist`.
+ *
+ * The admin regenerates that directory on every start, so the dictionaries ride
+ * along with `app.js` and `styles.css` and need no separate build step. The
+ * admin's *initial* locale still comes from `GET /api/config`, which is why
+ * changing `uiLocale` there takes effect with no rebuild at all.
+ */
+async function writeAdminBootAssets(adminDistDir: string): Promise<void> {
+  await Bun.write(path.join(adminDistDir, BOOT_SCRIPT_FILE), appBootScript)
+  const localesDir = path.join(adminDistDir, 'locales')
+  await fs.mkdir(localesDir, { recursive: true })
+  // English is inline in the bundle and never fetched; written anyway so the
+  // admin's locale list is discoverable from the same directory as the rest.
+  await Bun.write(path.join(localesDir, `${DEFAULT_LOCALE}.json`), JSON.stringify(en))
+  for (const { tag, catalog } of bakedDictionaries) {
+    await Bun.write(path.join(localesDir, `${tag}.json`), JSON.stringify(catalog))
+  }
 }
 
 async function buildAdminJs(srcDir: string, adminDistDir: string): Promise<void> {
@@ -115,25 +132,13 @@ async function buildAdminCss(srcDir: string, adminDistDir: string): Promise<void
 }
 
 export function registerAdminCommand(program: Command): void {
-  const admin = addRefreshOption(
-    program.command('admin').description('Start the web admin interface'),
-  )
-    .option('-p, --port <number>', 'Port to serve on', parsePort, 8080)
-    .option('--host <address>', 'Host address to bind to', '0.0.0.0')
-    .option(
-      '--theme <name>',
-      `Initial theme baked into the served HTML (${themeNames.join(', ')})`,
-      'default',
-    )
-    .option(
-      '--mcp',
-      'Also serve an MCP (Model Context Protocol) endpoint in this process (requires --mcp-token)',
-    )
-    .option('--mcp-port <number>', 'Port for the embedded MCP server (with --mcp)', parsePort, 8765)
-    .option(
-      '--mcp-token <secret>',
-      'Bearer token required on the embedded MCP endpoint (with --mcp; or set RITUAL_MCP_TOKEN)',
-    )
+  const admin = addRefreshOption(program.command('admin').description(t('help.admin.description')))
+    .option('-p, --port <number>', t('help.admin.port'), parsePort, 8080)
+    .option('--host <address>', t('help.admin.host'), '0.0.0.0')
+    .option('--theme <name>', t('help.admin.theme', { themes: themeNames.join(', ') }), 'default')
+    .option('--mcp', t('help.admin.mcp'))
+    .option('--mcp-port <number>', t('help.admin.mcpPort'), parsePort, 8765)
+    .option('--mcp-token <secret>', t('help.admin.mcpToken'))
     .action(async (options: AdminCommandOptions) => {
       const port = options.port
       const host = options.host
@@ -152,21 +157,19 @@ export function registerAdminCommand(program: Command): void {
       if (options.mcp) {
         const mcpToken = resolveMcpToken(options.mcpToken)
         if (!mcpToken) {
-          console.error(
-            '--mcp requires a bearer token: pass --mcp-token <secret> or set RITUAL_MCP_TOKEN.',
-          )
+          console.error(t('cli.admin.mcpTokenRequired'))
           process.exitCode = ExitCode.UsageError
           return
         }
         if (options.mcpPort === port) {
-          console.error('--mcp-port must differ from the admin --port.')
+          console.error(t('cli.admin.mcpPortConflict'))
           process.exitCode = ExitCode.UsageError
           return
         }
         embeddedMcp = { port: options.mcpPort, token: mcpToken }
       }
 
-      console.log('Preparing admin interface...')
+      console.log(t('cli.admin.preparing'))
 
       await ensureFreshCardCache(options.refresh)
 
@@ -201,12 +204,19 @@ export function registerAdminCommand(program: Command): void {
         )
       }
 
-      await Bun.write(path.join(adminDistDir, 'index.html'), buildIndexHtml(themeName))
+      await writeAdminBootAssets(adminDistDir)
+      // The shell's `lang` is the configured locale; the app re-resolves it from
+      // `GET /api/config` (and the user's own stored choice) once it boots, so
+      // this only has to be right for the first paint.
+      await Bun.write(
+        path.join(adminDistDir, 'index.html'),
+        buildIndexHtml(themeName, getUiLocale()),
+      )
       // Flame favicon tinted to the baked theme so the browser tab matches the
       // in-app logo (the admin has no live theme switcher, so this is static).
       await Bun.write(path.join(adminDistDir, 'app.svg'), buildFlameSvg(themeFlameStops(themeName)))
 
-      console.log('Admin interface ready.')
+      console.log(t('cli.admin.ready'))
 
       const adminServer = await startAdminServer({ port, host, distDir: adminDistDir })
 
@@ -233,7 +243,10 @@ export function registerAdminCommand(program: Command): void {
         void Promise.allSettled([mcpServer?.stop(true), adminServer.stop(true)]).then((results) => {
           results.forEach((result, index) => {
             if (result.status === 'rejected') {
-              console.error(`${labels[index]} teardown failed:`, result.reason)
+              console.error(
+                t('cli.admin.teardownFailed', { label: labels[index] ?? '' }),
+                result.reason,
+              )
             }
           })
         })
@@ -275,10 +288,10 @@ async function promptForPassword(): Promise<string> {
   const response = await prompts({
     type: 'password',
     name: 'password',
-    message: 'Password',
+    message: t('cli.admin.promptPassword'),
   })
   if (typeof response.password !== 'string') {
-    throw new CardCommandError('usage_error', 'Password entry cancelled.', ExitCode.UsageError)
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.admin.passwordCancelled')
   }
   return response.password
 }
@@ -299,21 +312,19 @@ async function resolvePassword(options: AccountSubcommandOptions): Promise<strin
 /** Validate an optional username against the same limits as the HTTP setup handler. */
 function validateUsername(username: string): void {
   if (username.length > MAX_USERNAME_LENGTH) {
-    throw new CardCommandError('usage_error', 'Username is too long', ExitCode.UsageError)
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.admin.usernameTooLong')
   }
 }
 
 /** Validate password length against the same limits as the HTTP setup handler. */
 function validatePassword(password: string): void {
   if (password.length > MAX_PASSWORD_LENGTH) {
-    throw new CardCommandError('usage_error', 'Password is too long', ExitCode.UsageError)
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.admin.passwordTooLong')
   }
   if (password.length < MIN_PASSWORD_LENGTH) {
-    throw new CardCommandError(
-      'usage_error',
-      `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.admin.passwordTooShort', {
+      min: MIN_PASSWORD_LENGTH,
+    })
   }
 }
 
@@ -325,11 +336,7 @@ async function auditAccountEvent(username: string, reason: string): Promise<void
 /** Fail with a not-found unless the admin credentials file exists. */
 async function requireAdminUser(): Promise<void> {
   if (!(await adminUserExists())) {
-    throw new CardCommandError(
-      'not_found',
-      "No admin user exists. Run 'ritual admin setup' to create one.",
-      ExitCode.NotFound,
-    )
+    throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.admin.noUser')
   }
 }
 
@@ -337,25 +344,25 @@ function registerSetupSubcommand(admin: Command): void {
   addScriptingOptions(
     admin
       .command('setup')
-      .description('Create the admin account without starting the server')
-      .option('--username <username>', 'Username for the new admin account')
-      .option('--password-stdin', 'Read the password from stdin (for scripting)', false),
+      .description(t('help.admin.setup'))
+      .option('--username <username>', t('help.admin.setupUsername'))
+      .option('--password-stdin', t('help.admin.setupPasswordStdin'), false),
     'text',
   ).action(async (options: AccountSubcommandOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
     await runCommandAction(scripting, async () => {
       const username = options.username
       if (!username) {
-        throw new CardCommandError('usage_error', '--username is required.', ExitCode.UsageError)
+        throw localizedCommandError(
+          'usage_error',
+          ExitCode.UsageError,
+          'cli.admin.usernameRequired',
+        )
       }
       validateUsername(username)
 
       if (await adminUserExists()) {
-        throw new CardCommandError(
-          'runtime_error',
-          'Admin user already exists',
-          ExitCode.RuntimeError,
-        )
+        throw localizedCommandError('runtime_error', ExitCode.RuntimeError, 'cli.admin.userExists')
       }
 
       const password = await resolvePassword(options)
@@ -366,7 +373,7 @@ function registerSetupSubcommand(admin: Command): void {
 
       if (scripting.output === 'text') {
         if (!scripting.quiet) {
-          emitOutput(`Admin user '${username}' created.`, scripting)
+          emitOutput(t('cli.admin.userCreated', { username }), scripting)
         }
         return
       }
@@ -380,9 +387,9 @@ function registerResetPasswordSubcommand(admin: Command): void {
   addScriptingOptions(
     admin
       .command('reset-password')
-      .description('Reset the admin password (and optionally replace the username)')
-      .option('--username <username>', 'Also replace the admin username')
-      .option('--password-stdin', 'Read the new password from stdin (for scripting)', false),
+      .description(t('help.admin.resetPassword'))
+      .option('--username <username>', t('help.admin.resetPasswordUsername'))
+      .option('--password-stdin', t('help.admin.resetPasswordStdin'), false),
     'text',
   ).action(async (options: AccountSubcommandOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
@@ -400,7 +407,7 @@ function registerResetPasswordSubcommand(admin: Command): void {
 
       if (scripting.output === 'text') {
         if (!scripting.quiet) {
-          emitOutput(`Password reset for admin user '${username}'.`, scripting)
+          emitOutput(t('cli.admin.passwordReset', { username }), scripting)
         }
         return
       }
@@ -412,9 +419,7 @@ function registerResetPasswordSubcommand(admin: Command): void {
 
 function registerDisableTotpSubcommand(admin: Command): void {
   addScriptingOptions(
-    admin
-      .command('disable-totp')
-      .description('Disable TOTP two-factor auth (clears active and pending enrollment)'),
+    admin.command('disable-totp').description(t('help.admin.disableTotp')),
     'text',
   ).action(async (options: Partial<ScriptingOptions>) => {
     const scripting = normalizeScriptingOptions(options, 'text')
@@ -426,7 +431,11 @@ function registerDisableTotpSubcommand(admin: Command): void {
       // both active and pending secrets must be clearable.
       const secret = await getTotpSecret()
       if (secret === null) {
-        throw new CardCommandError('runtime_error', 'TOTP is not enabled', ExitCode.RuntimeError)
+        throw localizedCommandError(
+          'runtime_error',
+          ExitCode.RuntimeError,
+          'cli.admin.totpNotEnabled',
+        )
       }
 
       await setTotpSecret(null)
@@ -435,7 +444,7 @@ function registerDisableTotpSubcommand(admin: Command): void {
 
       if (scripting.output === 'text') {
         if (!scripting.quiet) {
-          emitOutput('TOTP disabled.', scripting)
+          emitOutput(t('cli.admin.totpDisabled'), scripting)
         }
         return
       }

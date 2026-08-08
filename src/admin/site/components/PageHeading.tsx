@@ -1,4 +1,5 @@
 import type { JSX } from 'solid-js'
+import { useTKey } from '../../../ui/i18n'
 import { PAGE_DISPLAY, type Page } from '../routing'
 
 type PageHeadingProps = { page: Page }
@@ -9,10 +10,10 @@ type PageHeadingProps = { page: Page }
  * another on the page itself.
  */
 export function PageHeading(props: PageHeadingProps): JSX.Element {
-  const display = () => PAGE_DISPLAY[props.page]
+  const tKey = useTKey()
   return (
     <h2 class="section-heading">
-      {display().icon} {display().label}
+      {PAGE_DISPLAY[props.page].icon} {tKey(PAGE_DISPLAY[props.page].label)}
     </h2>
   )
 }

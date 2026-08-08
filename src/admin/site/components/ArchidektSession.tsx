@@ -1,5 +1,7 @@
 import { type JSX, createSignal, Match, Switch } from 'solid-js'
 import type { ArchidektLoginStatus } from '../../../auth/interfaces'
+import { useT } from '../../../ui/i18n'
+import { apiMessage } from '../../api/result'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from './StatusAlerts'
 
@@ -12,23 +14,22 @@ interface SessionAlertProps {
  * Login page and any page that needs an account before it can act (Sync Decks).
  */
 export function ArchidektSessionAlert(props: SessionAlertProps): JSX.Element {
+  const t = useT()
   return (
     <Switch
       fallback={
         <div class="alert alert-success">
-          Signed in as {props.status.username ?? 'your Archidekt account'}.
+          {t('admin.archidekt.signedIn', {
+            username: props.status.username ?? t('admin.archidekt.yourAccount'),
+          })}
         </div>
       }
     >
       <Match when={!props.status.loggedIn}>
-        <p class="text-muted">
-          Not signed in to Archidekt. Sign in below to use Archidekt account features.
-        </p>
+        <p class="text-muted">{t('admin.archidekt.notSignedIn')}</p>
       </Match>
       <Match when={props.status.loginRequired}>
-        <div class="alert alert-error">
-          Your Archidekt session has expired. A login is required to use Archidekt account features.
-        </div>
+        <div class="alert alert-error">{t('admin.archidekt.expired')}</div>
       </Match>
     </Switch>
   )
@@ -44,6 +45,7 @@ interface LoginFormProps {
  * performs the login and stores the token the CLI uses too.
  */
 export function ArchidektLoginForm(props: LoginFormProps): JSX.Element {
+  const t = useT()
   const [username, setUsername] = createSignal('')
   const [password, setPassword] = createSignal('')
   const { status, error, loading, run } = useApiAction()
@@ -58,7 +60,7 @@ export function ArchidektLoginForm(props: LoginFormProps): JSX.Element {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username(), password: password() }),
       },
-      'Login failed',
+      apiMessage('admin.archidekt.loginFailed'),
     )
     if (ok) {
       setPassword('')
@@ -71,7 +73,7 @@ export function ArchidektLoginForm(props: LoginFormProps): JSX.Element {
       <StatusAlerts status={status()} error={error()} />
       <form onSubmit={(e) => void handleLogin(e)} class="form-container">
         <div>
-          <label class="form-label">Username or Email</label>
+          <label class="form-label">{t('admin.archidekt.usernameLabel')}</label>
           <input
             type="text"
             class="form-input"
@@ -80,7 +82,7 @@ export function ArchidektLoginForm(props: LoginFormProps): JSX.Element {
           />
         </div>
         <div>
-          <label class="form-label">Password</label>
+          <label class="form-label">{t('admin.archidekt.passwordLabel')}</label>
           <input
             type="password"
             class="form-input"
@@ -93,7 +95,7 @@ export function ArchidektLoginForm(props: LoginFormProps): JSX.Element {
           class="btn btn-primary"
           disabled={loading() || !username() || !password()}
         >
-          {loading() ? 'Logging in...' : 'Login to Archidekt'}
+          {loading() ? t('admin.archidekt.loggingIn') : t('admin.archidekt.login')}
         </button>
       </form>
     </>

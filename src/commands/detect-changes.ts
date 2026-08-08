@@ -1,4 +1,7 @@
 import { Command } from 'commander'
+import { compareData } from '../i18n/collate'
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { parseTitleFromContent } from '../section-format'
@@ -18,7 +21,8 @@ import { loadDeckFile } from '../importers/text-file'
 import { parseCollectionFile } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
 import { appendChangelog } from '../changelog-writer'
-import { formatChange, type ChangeEvent } from '../change-event'
+import type { ChangeEvent } from '../change-event'
+import { formatChange } from '../change-message'
 import { getBaseDir } from '../base-dir'
 import {
   classifySidecarWithHash,
@@ -334,7 +338,7 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
         warnings.push({
           kind: 'missing-file',
           file: fc.path,
-          message: `skipped ${fc.path}: changed in the range but missing from the working tree`,
+          message: t('cli.detectChanges.missingFile', { path: fc.path }),
         })
         continue
       }
@@ -420,11 +424,12 @@ export async function applyDetectedChanges(
 
     try {
       await fs.access(oldChangesPath)
+      const paths = { from: changesPath(oldPath), to: changesPath(newPath) }
       if (dryRun) {
-        log(`  Would rename: ${changesPath(oldPath)} → ${changesPath(newPath)}`)
+        log(`  ${t('cli.detectChanges.wouldRename', paths)}`)
       } else {
         await fs.rename(oldChangesPath, newChangesPath)
-        log(`  Renamed: ${changesPath(oldPath)} → ${changesPath(newPath)}`)
+        log(`  ${t('cli.detectChanges.renamed', paths)}`)
       }
     } catch {
       // Old changes file doesn't exist — nothing to rename
@@ -439,10 +444,10 @@ export async function applyDetectedChanges(
     try {
       await fs.access(deletePath)
       if (dryRun) {
-        log(`  Would delete: ${changesPath(result.file)}`)
+        log(`  ${t('cli.detectChanges.wouldDelete', { path: changesPath(result.file) })}`)
       } else {
         await fs.rm(deletePath)
-        log(`  Deleted: ${changesPath(result.file)}`)
+        log(`  ${t('cli.detectChanges.deleted', { path: changesPath(result.file) })}`)
       }
     } catch {
       // Changes file doesn't exist — nothing to delete
@@ -458,16 +463,16 @@ export async function applyDetectedChanges(
     const label = `${result.kind}/${path.basename(result.file, '.md')}`
 
     if (result.ritualClean) {
-      log(`  ${label}: up to date with Ritual — skipping`)
+      log(`  ${t('cli.detectChanges.upToDate', { label })}`)
       continue
     }
 
     if (result.changes.length === 0) {
-      log(`  ${label}: no card changes detected`)
+      log(`  ${t('cli.detectChanges.noCardChanges', { label })}`)
       continue
     }
 
-    log(`  ${label}: ${result.changes.length} change(s)`)
+    log(`  ${t('cli.detectChanges.changeCount', { label, count: result.changes.length })}`)
     for (const change of result.changes) {
       log(`    ${formatChange(change)}`)
     }
@@ -519,7 +524,7 @@ export async function inspectListSidecars(baseDir: string): Promise<SidecarInspe
       hash: classification.hash,
     })
   }
-  return inspections.sort((a, b) => a.file.localeCompare(b.file))
+  return inspections.sort((a, b) => compareData(a.file, b.file))
 }
 
 /** The files an inspection pass found carrying edits Ritual has not recorded. */
@@ -536,12 +541,11 @@ function unrecorded(stamped: readonly StampedFile[]): StampedFile[] {
 function stampWarnings(stamped: readonly StampedFile[], dryRun: boolean): string[] {
   const lost = unrecorded(stamped)
   if (lost.length === 0) return []
-  const verb = dryRun ? 'would stamp' : 'stamped'
-  const count = `${lost.length} file${lost.length === 1 ? '' : 's'}`
-  return [
-    `⚠️  ${verb} ${count} with unrecorded edits — these edits will not receive changelog entries:`,
-    ...lost.map((inspection) => `⚠️    ${inspection.file}`),
-  ]
+  const warning = t('cli.detectChanges.stampWarning', {
+    mode: dryRun ? 'dryRun' : 'applied',
+    count: t('domain.count.files', { count: lost.length }),
+  })
+  return [`⚠️  ${warning}`, ...lost.map((inspection) => `⚠️    ${inspection.file}`)]
 }
 
 // ── Mode: --hash-only ────────────────────────────────────────────────
@@ -582,20 +586,25 @@ async function runHashOnly(
   }
 
   if (stamped.length === 0) {
-    console.log('No list files found.')
+    console.log(t('cli.detectChanges.noListFiles'))
     return
   }
-  const count = `${stamped.length} file${stamped.length === 1 ? '' : 's'}`
-  console.log(`\n${dryRun ? 'Would stamp' : 'Stamped'} ${count}.`)
+  console.log(
+    `\n${t('cli.detectChanges.stamped', {
+      mode: dryRun ? 'dryRun' : 'applied',
+      count: t('domain.count.files', { count: stamped.length }),
+    })}`,
+  )
 }
 
 // ── Mode: --verify ───────────────────────────────────────────────────
 
-const VERIFY_LABELS: Record<SidecarState, string> = {
-  clean: 'clean',
-  diverged: 'diverged',
-  missing: 'no sidecar',
-}
+/** Message keys for the per-file states `--verify` prints. */
+const VERIFY_LABELS = {
+  clean: 'domain.sidecar.clean',
+  diverged: 'domain.sidecar.diverged',
+  missing: 'domain.sidecar.missing',
+} as const satisfies Record<SidecarState, MessageKey>
 
 async function runVerify(baseDir: string, scripting: ScriptingOptions): Promise<void> {
   const files = await inspectListSidecars(baseDir)
@@ -622,23 +631,24 @@ async function runVerify(baseDir: string, scripting: ScriptingOptions): Promise<
   if (scripting.quiet) return
 
   for (const file of files) {
-    console.log(`${file.file}: ${VERIFY_LABELS[file.state]}`)
+    console.log(`${file.file}: ${t(VERIFY_LABELS[file.state])}`)
   }
 
   if (files.length === 0) {
-    console.log('No list files found.')
+    console.log(t('cli.detectChanges.noListFiles'))
     return
   }
 
   console.log(
-    `\n${files.length} file${files.length === 1 ? '' : 's'}: ${counts.clean} clean, ` +
-      `${counts.diverged} diverged, ${counts.missing} without a sidecar.`,
+    `\n${t('cli.detectChanges.verifySummary', {
+      files: t('domain.count.files', { count: files.length }),
+      clean: counts.clean,
+      diverged: counts.diverged,
+      missing: counts.missing,
+    })}`,
   )
   if (drifted > 0) {
-    console.log(
-      'Run "ritual detect-changes <commit>" to record these edits in changelogs, ' +
-        'or "ritual detect-changes --hash-only" to stamp them as already recorded.',
-    )
+    console.log(t('cli.detectChanges.verifyAdvice'))
   }
 }
 
@@ -673,36 +683,34 @@ async function runDetect(
     // git could not answer at all — reporting "not a git repository" here would
     // send the user to --hash-only, which forfeits changelog entries, for a
     // repository that is fine.
-    fail(describeGitFailure(repoProbe.error, 'Failed to check for a git repository'))
+    fail(describeGitFailure(repoProbe.error, t('cli.detectChanges.gitProbeFailed')))
     return
   }
   if (!repoProbe.present) {
-    fail(
-      `Not a git repository: ${cwd}\n  Detection reads git history. Use "ritual detect-changes --hash-only" to stamp .sha256 sidecars without git.`,
-    )
+    fail(t('cli.detectChanges.notGitRepo', { path: cwd }))
     return
   }
 
   const refProbe = probeGitRef(commit, cwd)
   if (!refProbe.ok) {
-    fail(describeGitFailure(refProbe.error, `Failed to resolve ${commit}`))
+    fail(describeGitFailure(refProbe.error, t('cli.detectChanges.resolveRefFailed', { commit })))
     return
   }
   if (!refProbe.present) {
-    fail(`Unknown git ref: ${commit}\n  Pass a commit, tag, or branch that exists in ${cwd}.`)
+    fail(t('cli.detectChanges.unknownRef', { commit, path: cwd }))
     return
   }
 
   if (chatty) {
-    console.log(`Comparing against ${commit}...`)
-    if (dryRun) console.log('(dry run — no files will be modified)\n')
+    console.log(t('cli.detectChanges.comparing', { commit }))
+    if (dryRun) console.log(`${t('cli.detectChanges.dryRunNotice')}\n`)
   }
 
   let output: DetectChangesOutput
   try {
     output = await detectChanges(commit, cwd)
   } catch (err) {
-    fail(describeGitFailure(err, 'Failed to detect changes'))
+    fail(describeGitFailure(err, t('cli.detectChanges.detectFailed')))
     return
   }
 
@@ -721,7 +729,7 @@ async function runDetect(
   if (text && output.results.length === 0 && output.renames.size === 0) {
     // With everything skipped, the warnings above already said what happened —
     // claiming "no changes detected" would contradict them and the exit code.
-    if (chatty && !skipped) console.log('No deck, collection, or wanted list changes detected.')
+    if (chatty && !skipped) console.log(t('cli.detectChanges.noChanges'))
     return
   }
 
@@ -729,7 +737,7 @@ async function runDetect(
   try {
     updated = await applyDetectedChanges(output, cwd, { dryRun, quiet: !chatty })
   } catch (err) {
-    fail(`Failed to apply detected changes: ${getErrorMessage(err)}`)
+    fail(t('cli.detectChanges.applyFailed', { reason: getErrorMessage(err) }))
     return
   }
 
@@ -750,11 +758,11 @@ async function runDetect(
   if (!chatty) return
 
   if (dryRun) {
-    console.log('\nDry run complete. No files were modified.')
+    console.log(`\n${t('cli.detectChanges.dryRunComplete')}`)
   } else if (updated > 0) {
-    console.log('\nChangelogs updated.')
+    console.log(`\n${t('cli.detectChanges.changelogsUpdated')}`)
   } else {
-    console.log('\nNo changelog updates needed.')
+    console.log(`\n${t('cli.detectChanges.noChangelogUpdates')}`)
   }
 }
 
@@ -783,24 +791,20 @@ export function selectDetectChangesMode(
   const verify = options.verify === true
 
   if (hashOnly && verify) {
-    return { ok: false, message: '--hash-only and --verify cannot be combined.' }
+    return { ok: false, message: t('cli.detectChanges.modesExclusive') }
   }
   if (verify && options.dryRun === true) {
-    return { ok: false, message: '--verify never writes, so --dry-run does not apply.' }
+    return { ok: false, message: t('cli.detectChanges.verifyNoDryRun') }
   }
   if (!hashOnly && !verify) {
     if (commit === undefined) {
-      return {
-        ok: false,
-        message:
-          'Missing required argument <commit>. Pass a commit to diff against, or use --hash-only / --verify to work without git.',
-      }
+      return { ok: false, message: t('cli.detectChanges.missingCommit') }
     }
     return { ok: true, mode: 'detect', commit }
   }
   if (commit !== undefined) {
     const flag = hashOnly ? '--hash-only' : '--verify'
-    return { ok: false, message: `The <commit> argument is not used with ${flag}.` }
+    return { ok: false, message: t('cli.detectChanges.commitNotUsed', { flag }) }
   }
   return { ok: true, mode: hashOnly ? 'hash-only' : 'verify' }
 }
@@ -812,14 +816,11 @@ export function registerDetectChangesCommand(program: Command): void {
     addDryRunOption(
       program
         .command('detect-changes')
-        .description('Record changelog entries for hand-edited lists, or manage .sha256 sidecars')
-        .argument('[commit]', 'Git commit hash or ref to diff against (e.g. HEAD~1, abc123)')
-        .option(
-          '--hash-only',
-          'Stamp .sha256 sidecars from current content (no git, no changelog entries)',
-        )
-        .option('--verify', "Report each list file's sidecar status and write nothing"),
-      'Preview what would change without writing files',
+        .description(t('help.detectChanges.description'))
+        .argument('[commit]', t('help.detectChanges.commit'))
+        .option('--hash-only', t('help.detectChanges.hashOnly'))
+        .option('--verify', t('help.detectChanges.verify')),
+      t('help.detectChanges.dryRun'),
     ),
   ).action(async (commit: string | undefined, options: DetectChangesCliOptions) => {
     const scripting = normalizeScriptingOptions(options)
@@ -849,7 +850,13 @@ export function registerDetectChangesCommand(program: Command): void {
           return
       }
     } catch (error) {
-      emitError('runtime_error', `detect-changes failed: ${getErrorMessage(error)}`, scripting)
+      emitError(
+        'runtime_error',
+        t('cli.detectChanges.failed', { reason: getErrorMessage(error) }),
+        scripting,
+        undefined,
+        'cli.detectChanges.failed',
+      )
       process.exitCode = ExitCode.RuntimeError
     }
   })

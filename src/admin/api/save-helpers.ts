@@ -29,6 +29,7 @@ import {
 import type { ChangeEvent } from '../../change-event'
 import type { DroppedNote } from '../../commands/move-io'
 import type { SaveEffect } from '../../editor/save-effects'
+import { apiMessage, type ApiMessage } from './result'
 import type { ListSaveResponse } from './move-save'
 
 /**
@@ -42,9 +43,8 @@ import type { ListSaveResponse } from './move-save'
  * failure into one shape) keep their own declarations — those extra fields are
  * a wire contract, not duplication.
  */
-export interface ApiErrorResponse {
+export interface ApiErrorResponse extends ApiMessage {
   success: false
-  message: string
 }
 
 /**
@@ -60,15 +60,25 @@ export interface ApiConflictResponse extends ApiErrorResponse {
   conflict: true
 }
 
-/** Build the shared refusal body at `status`. */
-export function apiError(message: string, status: number): Response {
-  const body: ApiErrorResponse = { success: false, message }
+/**
+ * Build the shared refusal body at `status`.
+ *
+ * Takes either bare English — the common case, since most refusals are composed
+ * from the caller's own field names and have no catalog entry — or the whole
+ * {@link ApiMessage} triple, which is how a keyed refusal keeps its key on the
+ * way out.
+ */
+export function apiError(reason: string | ApiMessage, status: number): Response {
+  const body: ApiErrorResponse = {
+    success: false,
+    ...(typeof reason === 'string' ? { message: reason } : reason),
+  }
   return Response.json(body, { status })
 }
 
 /** {@link apiError} at the status a refusal almost always carries. */
-export function badRequest(message: string): Response {
-  return apiError(message, 400)
+export function badRequest(reason: string | ApiMessage): Response {
+  return apiError(reason, 400)
 }
 
 /**
@@ -445,7 +455,10 @@ export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailRe
 export function listSaveResponse(tail: ListSaveTail, outcome: ListSaveOutcome): ListSaveResponse {
   return {
     success: true,
-    message: `Saved ${tail.changes.length} changes to ${tail.changelogName}`,
+    ...apiMessage('admin.api.save.saved', {
+      count: tail.changes.length,
+      name: tail.changelogName,
+    }),
     contentHash: outcome.contentHash,
     droppedNotes: outcome.droppedNotes,
     effects: outcome.effects,

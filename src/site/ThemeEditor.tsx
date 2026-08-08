@@ -38,6 +38,7 @@ import {
   type ThemeVarMeta,
 } from './theme-vars-metadata'
 import { ColorPicker, LengthPicker } from './ColorPicker'
+import { useT, useTKey } from '../ui/i18n'
 
 type ThemeOption = {
   value: string
@@ -60,6 +61,8 @@ function readBaseVars(): ThemeCssVars {
 }
 
 export const ThemeEditor: Component = () => {
+  const t = useT()
+  const tKey = useTKey()
   const theme = useTheme()
   const [activeGroup, setActiveGroup] = createSignal<ThemeVarGroupId>('surfaces')
   const [openVar, setOpenVar] = createSignal<string | null>(null)
@@ -113,14 +116,16 @@ export const ThemeEditor: Component = () => {
     try {
       text = await file.text()
     } catch {
-      setImportError('Could not read file')
+      setImportError(t('site.theme.readError'))
       return
     }
     let parsed: unknown
     try {
       parsed = JSON.parse(text)
     } catch (e) {
-      setImportError(`Invalid JSON: ${e instanceof Error ? e.message : String(e)}`)
+      setImportError(
+        t('site.theme.invalidJson', { error: e instanceof Error ? e.message : String(e) }),
+      )
       return
     }
     const result = parseCustomTheme(parsed)
@@ -195,12 +200,17 @@ export const ThemeEditor: Component = () => {
   })
 
   return (
-    <div ref={editorRef} class="theme-editor" role="region" aria-label="Theme editor">
+    <div
+      ref={editorRef}
+      class="theme-editor"
+      role="region"
+      aria-label={t('site.theme.editorTitle')}
+    >
       <div class="theme-editor-row theme-editor-row-top">
         <div class="theme-editor-left">
-          <span class="theme-editor-title">Theme editor</span>
+          <span class="theme-editor-title">{t('site.theme.editorTitle')}</span>
           <label class="theme-editor-base-select">
-            <span class="theme-editor-base-label">Base:</span>
+            <span class="theme-editor-base-label">{t('site.theme.baseLabel')}</span>
             <select value={theme.theme()} onChange={(e) => theme.switchBaseTheme(e.target.value)}>
               <For each={BASE_THEME_OPTIONS}>
                 {(opt) => <option value={opt.value}>{opt.label}</option>}
@@ -208,7 +218,7 @@ export const ThemeEditor: Component = () => {
             </select>
           </label>
           <label class="theme-editor-name">
-            <span>Custom name:</span>
+            <span>{t('site.theme.customNameLabel')}</span>
             <input
               type="text"
               value={customName()}
@@ -219,10 +229,10 @@ export const ThemeEditor: Component = () => {
         </div>
         <div class="theme-editor-right">
           <button type="button" class="theme-editor-btn" onClick={resetAll}>
-            Reset all
+            {t('site.theme.resetAll')}
           </button>
           <button type="button" class="theme-editor-btn" onClick={pickImport}>
-            Import…
+            {t('site.theme.import')}
           </button>
           <input
             ref={fileInputRef}
@@ -241,14 +251,14 @@ export const ThemeEditor: Component = () => {
             class="theme-editor-btn theme-editor-btn-primary"
             onClick={downloadJson}
           >
-            Download JSON
+            {t('site.theme.downloadJson')}
           </button>
           <button
             type="button"
             class="theme-editor-btn theme-editor-btn-exit"
             onClick={exitEditor}
-            aria-label="Close theme editor"
-            title="Close theme editor"
+            aria-label={t('site.theme.closeEditor')}
+            title={t('site.theme.closeEditor')}
           >
             ✕
           </button>
@@ -267,9 +277,9 @@ export const ThemeEditor: Component = () => {
               onClick={() => setActiveGroup(group.id)}
               role="tab"
               aria-selected={activeGroup() === group.id}
-              title={group.description}
+              title={tKey(group.description)}
             >
-              {group.label}
+              {tKey(group.label)}
             </button>
           )}
         </For>
@@ -324,6 +334,8 @@ const PICKER_VIEWPORT_MARGIN = 8
 type PickerPos = { top: number; left: number }
 
 const ThemeVarSwatch: Component<ThemeVarSwatchProps> = (props) => {
+  const t = useT()
+  const tKey = useTKey()
   let btnRef: HTMLButtonElement | undefined
   const [pos, setPos] = createSignal<PickerPos | null>(null)
 
@@ -362,7 +374,7 @@ const ThemeVarSwatch: Component<ThemeVarSwatchProps> = (props) => {
         class="theme-editor-swatch-btn"
         classList={{ 'theme-editor-swatch-overridden': props.isOverridden }}
         onClick={props.onToggle}
-        title={props.meta.description}
+        title={tKey(props.meta.description)}
       >
         <span class="theme-editor-swatch swatch-checkerboard" aria-hidden="true">
           <Show
@@ -372,21 +384,21 @@ const ThemeVarSwatch: Component<ThemeVarSwatchProps> = (props) => {
             <span class="theme-editor-swatch-fill" style={{ background: props.value }} />
           </Show>
         </span>
-        <span class="theme-editor-swatch-label">{props.meta.label}</span>
+        <span class="theme-editor-swatch-label">{tKey(props.meta.label)}</span>
       </button>
       <Show when={props.isOpen && pos()}>
         {(p) => (
           <div
             class="theme-editor-picker"
             role="dialog"
-            aria-label={`Edit ${props.meta.label}`}
+            aria-label={t('site.theme.editVar', { name: tKey(props.meta.label) })}
             style={{ top: `${p().top}px`, left: `${p().left}px` }}
           >
             <div class="theme-editor-picker-header">
-              <strong>{props.meta.label}</strong>
+              <strong>{tKey(props.meta.label)}</strong>
               <code class="theme-editor-picker-varname">{props.meta.name}</code>
             </div>
-            <p class="theme-editor-picker-desc">{props.meta.description}</p>
+            <p class="theme-editor-picker-desc">{tKey(props.meta.description)}</p>
             <Show
               when={props.meta.type === 'color'}
               fallback={
@@ -401,7 +413,7 @@ const ThemeVarSwatch: Component<ThemeVarSwatchProps> = (props) => {
                 class="theme-editor-btn theme-editor-btn-link"
                 onClick={props.onReset}
               >
-                Reset to base theme
+                {t('site.theme.resetVar')}
               </button>
             </Show>
           </div>

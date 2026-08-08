@@ -11,6 +11,9 @@
  * into its module graph.
  */
 
+import type { MessageKey } from './i18n/messages/en'
+import { t } from './i18n/t'
+
 // ── Direction ─────────────────────────────────────────────────────────
 
 export const SYNC_DIRECTIONS = ['push', 'pull'] as const
@@ -34,11 +37,15 @@ export const SYNC_CHANGE_FILTERS = ['additions', 'removals'] as const
  */
 export type SyncChangeFilter = (typeof SYNC_CHANGE_FILTERS)[number]
 
-/** The side of the diff a filter drops, as a singular noun for log lines. */
-const DROPPED_NOUN: Record<SyncChangeFilter, string> = {
-  additions: 'removal',
-  removals: 'addition',
-}
+/**
+ * The line reporting what each filter dropped, as a {@link MessageKey} rather
+ * than rendered text: this table is evaluated once at module load, so a string
+ * would freeze the sentence in whatever language was active at import.
+ */
+const SKIPPED_MESSAGE = {
+  additions: 'domain.sync.skippedRemovals',
+  removals: 'domain.sync.skippedAdditions',
+} as const satisfies Record<SyncChangeFilter, MessageKey>
 
 /**
  * The log line for what a filter left out, e.g.
@@ -56,8 +63,7 @@ export function describeSkippedChanges(
   skipped: number,
 ): string | null {
   if (!filter || skipped <= 0) return null
-  const noun = DROPPED_NOUN[filter]
-  return `Skipped ${skipped} ${noun}${skipped === 1 ? '' : 's'} (applying ${filter} only).`
+  return t(SKIPPED_MESSAGE[filter], { count: skipped })
 }
 
 // ── Rate limiting ─────────────────────────────────────────────────────

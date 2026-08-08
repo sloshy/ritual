@@ -2,6 +2,8 @@ import { type JSX, createSignal, onMount, For, Match, Show, Switch } from 'solid
 import type { BuylistStatusResponse } from '../../../buylist'
 import type { ApiErrorResponse } from '../../api/save-helpers'
 import type { SellRefreshResponse } from '../../api/sell'
+import { formatDateTime, formatNumber } from '../../../ui/format'
+import { useT, useTSegments } from '../../../ui/i18n'
 
 /**
  * The Card Kingdom buylist's explicit refresh control.
@@ -23,10 +25,12 @@ type FeedState =
   | { kind: 'present'; status: BuylistStatusResponse }
 
 function formatStamp(epochMs: number): string {
-  return new Date(epochMs).toLocaleString()
+  return formatDateTime(epochMs)
 }
 
 export function BuylistRefreshCard(): JSX.Element {
+  const t = useT()
+  const tSegments = useTSegments()
   const [state, setState] = createSignal<FeedState>({ kind: 'loading' })
   const [refreshing, setRefreshing] = createSignal(false)
   const [message, setMessage] = createSignal<string | null>(null)
@@ -47,13 +51,13 @@ export function BuylistRefreshCard(): JSX.Element {
         // instead would swallow the server's remedy text.
         setState({
           kind: 'error',
-          message: data.success === false ? data.message : 'Failed to read the buylist status',
+          message: data.success === false ? data.message : t('admin.buylist.statusFailed'),
         })
         return
       }
       setState({ kind: 'present', status: data })
     } catch {
-      setState({ kind: 'error', message: 'Failed to read the buylist status' })
+      setState({ kind: 'error', message: t('admin.buylist.statusFailed') })
     }
   }
 
@@ -83,7 +87,7 @@ export function BuylistRefreshCard(): JSX.Element {
       })
       const data = (await response.json()) as SellRefreshResponse | ApiErrorResponse
       if (!response.ok || data.success !== true) {
-        setMessage(data.success === false ? data.message : 'Failed to refresh the buylist')
+        setMessage(data.success === false ? data.message : t('admin.buylist.refreshFailed'))
         return
       }
       // A failed download that fell back to the stale cached feed answers 200
@@ -92,12 +96,12 @@ export function BuylistRefreshCard(): JSX.Element {
       setWarnings(data.warnings)
       setMessage(
         data.warnings.length > 0
-          ? 'The buylist was not updated.'
-          : `Buylist updated — ${data.productCount.toLocaleString()} products.`,
+          ? t('admin.buylist.notUpdated')
+          : t('admin.buylist.updated', { count: data.productCount }),
       )
       await loadStatus()
     } catch {
-      setMessage('Failed to refresh the buylist')
+      setMessage(t('admin.buylist.refreshFailed'))
     } finally {
       setRefreshing(false)
     }
@@ -105,35 +109,36 @@ export function BuylistRefreshCard(): JSX.Element {
 
   return (
     <section class="cache-card">
-      <h2 class="cache-card-title">Card Kingdom buylist</h2>
+      <h2 class="cache-card-title">{t('admin.buylist.title')}</h2>
+      {/* The command sits mid-sentence and has to render as code, so the message
+          is drawn as segments and only the {command} parameter gets markup —
+          which leaves a translator free to move it. */}
       <p class="page-desc">
-        Card Kingdom’s pricelist feed (~70 MB), used by <code>ritual sell</code> and the public
-        site’s sell mode. No page load downloads it; server startup refreshes a day-old copy, and
-        this button forces one now.
+        <For each={tSegments('admin.buylist.desc', { command: t('admin.buylist.command') })}>
+          {(segment) => (segment.kind === 'param' ? <code>{segment.value}</code> : segment.value)}
+        </For>
       </p>
 
       {/* One arm per FeedState, so the states stay structurally exclusive. */}
       <Switch>
         <Match when={state().kind === 'missing'}>
-          <p class="cache-card-empty">
-            No buylist has been downloaded yet. Refresh to fetch it for the first time.
-          </p>
+          <p class="cache-card-empty">{t('admin.buylist.empty')}</p>
         </Match>
         <Match when={failureMessage()}>{(text) => <p class="cache-card-error">{text()}</p>}</Match>
         <Match when={loadedStatus()}>
           {(status) => (
             <dl class="cache-card-facts">
-              <dt>Downloaded</dt>
+              <dt>{t('admin.buylist.downloadedLabel')}</dt>
               <dd>
                 {formatStamp(status().feedRetrievedAt)}
                 <Show when={status().stale}>
-                  <span class="cache-card-stale"> (stale)</span>
+                  <span class="cache-card-stale"> {t('admin.buylist.stale')}</span>
                 </Show>
               </dd>
-              <dt>Card Kingdom stamp</dt>
+              <dt>{t('admin.buylist.stampLabel')}</dt>
               <dd>{status().feedCreatedAt || '—'}</dd>
-              <dt>Products</dt>
-              <dd>{status().productCount.toLocaleString()}</dd>
+              <dt>{t('admin.buylist.productsLabel')}</dt>
+              <dd>{formatNumber(status().productCount)}</dd>
             </dl>
           )}
         </Match>
@@ -151,7 +156,7 @@ export function BuylistRefreshCard(): JSX.Element {
         onClick={() => void handleRefresh()}
         disabled={refreshing() || state().kind === 'loading'}
       >
-        {refreshing() ? 'Downloading…' : 'Refresh buylist'}
+        {refreshing() ? t('admin.buylist.downloading') : t('admin.buylist.refresh')}
       </button>
     </section>
   )

@@ -10,7 +10,9 @@
  */
 
 import type { Choice } from 'prompts'
-import { LIST_TYPE_DISPLAY, LIST_TYPES, type ListType } from '../list-type'
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
+import { LIST_TYPE_DISPLAY, LIST_TYPES, listTypeTitle, type ListType } from '../list-type'
 import { printingFinishes } from '../finish-condition'
 import {
   formatPrice,
@@ -41,24 +43,46 @@ import { formatDuration } from '../utils'
 import { matchesAllTerms } from '../term-match'
 import type { ScryfallCard } from '../types'
 import { ask, promptTextFilter } from './prompts-helpers'
+import { dateTimeFormat } from '../i18n/format'
+import { currentLocale } from '../i18n/runtime'
 
-export const SORT_FIELD_LABELS: Record<PriceSortField, string> = {
-  name: 'Name',
-  price: 'Price',
-  lowest: 'Lowest price',
-  set: 'Set code',
-  cmc: 'Mana value',
-  edhrec: 'EDHREC rank',
-  quantity: 'Quantity',
+/**
+ * Message keys for the price browser's sort fields — keys rather than rendered
+ * rows because this table is evaluated once at module load. Resolve with
+ * {@link sortFieldLabel}.
+ */
+export const SORT_FIELD_LABELS = {
+  name: 'domain.priceSort.name',
+  price: 'domain.priceSort.price',
+  lowest: 'domain.priceSort.lowest',
+  set: 'domain.priceSort.set',
+  cmc: 'domain.priceSort.cmc',
+  edhrec: 'domain.priceSort.edhrec',
+  quantity: 'domain.priceSort.quantity',
+} as const satisfies Record<PriceSortField, MessageKey>
+
+/** A price-browser sort field's name in the active UI locale. */
+export function sortFieldLabel(field: PriceSortField): string {
+  return t(SORT_FIELD_LABELS[field])
 }
 
-const UNPRICED_REASON_TEXT: Record<UnpricedReason, string> = {
-  'no-printings': 'card not found in the local card database',
-  'printing-not-found': 'printing not found in the card database',
-  'currency-unavailable': 'not available in this currency’s game',
-  'finish-unpriced-in-currency': 'this finish has no price in this currency',
-  'no-price-data': 'no price data for this printing',
+/** The active sort direction, worded for the browser's control rows. */
+function directionLabel(descending: boolean): string {
+  return descending ? t('cli.price.directionDescending') : t('cli.price.directionAscending')
 }
+
+/**
+ * Why an entry has no price. Message keys, not rendered strings: this table is
+ * built once at module load, so holding text would freeze every reason in
+ * whatever locale happened to be active then.
+ */
+const UNPRICED_REASON = {
+  'no-printings': 'cli.price.unpricedNoPrintings',
+  'printing-not-found': 'cli.price.unpricedPrintingNotFound',
+  'currency-unavailable': 'cli.price.unpricedCurrencyUnavailable',
+  'finish-unpriced-in-currency': 'cli.price.unpricedFinishUnpriced',
+  'no-price-data': 'cli.price.unpricedNoPriceData',
+} as const satisfies Record<UnpricedReason, MessageKey>
 
 /** What the user picked on the main screen. */
 export type PriceMainSelection =
@@ -81,14 +105,34 @@ export function createDefaultBrowserState(): CardBrowserState {
 
 /** "Total $12.34 · Lowest $10.00 · 2 unpriced" (lowest/unpriced only when they add information). */
 export function formatTotalsSegment(totals: PriceTotals, currency: PriceCurrency): string {
-  const parts: string[] = [`Total ${formatPrice(totals.total, currency)}`]
+  const parts: string[] = [
+    t('cli.price.totalsTotal', { price: formatPrice(totals.total, currency) }),
+  ]
   if (totals.lowestTotal !== totals.total) {
-    parts.push(`Lowest ${formatPrice(totals.lowestTotal, currency)}`)
+    parts.push(t('cli.price.totalsLowest', { price: formatPrice(totals.lowestTotal, currency) }))
   }
   if (totals.unpricedCount > 0) {
-    parts.push(`${totals.unpricedCount} unpriced`)
+    parts.push(t('cli.price.totalsUnpriced', { count: totals.unpricedCount }))
   }
   return parts.join(' · ')
+}
+
+/**
+ * Date and time down to the second, in the active UI locale.
+ *
+ * The fields are spelled out rather than left to `Date.prototype.toLocaleString`
+ * for two reasons: that method takes no explicit tag, and Bun resolves none from
+ * the environment, so it would silently render US English on a German machine.
+ */
+function formatTimestamp(epochMs: number): string {
+  return dateTimeFormat(currentLocale(), {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+  }).format(new Date(epochMs))
 }
 
 /** The main screen's at-a-glance header: cache age, per-type totals, grand total. */
@@ -99,21 +143,32 @@ export function formatReportHeaderLines(
 ): string[] {
   const updated =
     lastRefreshedAt === null
-      ? 'unknown'
-      : `${new Date(lastRefreshedAt).toLocaleString()} (${formatDuration(now - lastRefreshedAt)} ago)`
+      ? t('cli.price.updatedUnknown')
+      : t('cli.price.updatedAt', {
+          timestamp: formatTimestamp(lastRefreshedAt),
+          age: formatDuration(now - lastRefreshedAt),
+        })
   const lines: string[] = [
-    `💰 Prices last updated: ${updated} · Currency: ${report.currency.toUpperCase()}`,
+    t('cli.price.headerUpdated', { updated, currency: report.currency.toUpperCase() }),
     '',
   ]
   for (const typeTotal of report.typeTotals) {
     const display = LIST_TYPE_DISPLAY[typeTotal.type]
     lines.push(
-      `${display.icon} ${display.label} (${typeTotal.listCount}) — ${formatTotalsSegment(typeTotal, report.currency)}`,
+      t('cli.price.headerTypeTotals', {
+        icon: display.icon,
+        title: listTypeTitle(typeTotal.type),
+        count: typeTotal.listCount,
+        totals: formatTotalsSegment(typeTotal, report.currency),
+      }),
     )
   }
   if (report.typeTotals.length > 1) {
     lines.push(
-      `💵 All lists (${report.totals.listCount}) — ${formatTotalsSegment(report.totals, report.currency)}`,
+      t('cli.price.headerGrandTotals', {
+        count: report.totals.listCount,
+        totals: formatTotalsSegment(report.totals, report.currency),
+      }),
     )
   }
   return lines
@@ -121,8 +176,12 @@ export function formatReportHeaderLines(
 
 /** One list's menu row: icon, name, totals, unpriced badge, card count. */
 export function formatListChoiceTitle(summary: ListPriceSummary, currency: PriceCurrency): string {
-  const icon = LIST_TYPE_DISPLAY[summary.type].icon
-  return `${icon} ${summary.name} — ${formatTotalsSegment(summary, currency)} · ${summary.cardCount} cards`
+  return t('cli.price.listRow', {
+    icon: LIST_TYPE_DISPLAY[summary.type].icon,
+    name: summary.name,
+    totals: formatTotalsSegment(summary, currency),
+    count: summary.cardCount,
+  })
 }
 
 /** The main screen menu: every list (grouped by type), then the global actions. */
@@ -143,10 +202,13 @@ export function buildMainMenuChoices(report: PriceReport): Choice[] {
   )
   return [
     ...listChoices,
-    { title: '🔎 Search all cards', value: { kind: 'search' } satisfies PriceMainSelection },
-    { title: '🔄 Refresh prices', value: { kind: 'refresh' } satisfies PriceMainSelection },
-    { title: '💱 Change currency', value: { kind: 'currency' } satisfies PriceMainSelection },
-    { title: '🚪 Exit', value: { kind: 'exit' } satisfies PriceMainSelection },
+    { title: t('cli.price.menuSearch'), value: { kind: 'search' } satisfies PriceMainSelection },
+    { title: t('cli.price.menuRefresh'), value: { kind: 'refresh' } satisfies PriceMainSelection },
+    {
+      title: t('cli.price.menuCurrency'),
+      value: { kind: 'currency' } satisfies PriceMainSelection,
+    },
+    { title: t('cli.price.menuExit'), value: { kind: 'exit' } satisfies PriceMainSelection },
   ]
 }
 
@@ -204,28 +266,39 @@ export function buildCardBrowserChoices(
   currency: PriceCurrency,
   options: CardBrowserOptions,
 ): Choice[] {
-  const direction = state.descending ? 'descending' : 'ascending'
   const controls: Choice[] = [
     {
-      title: `↕️ Sort: ${SORT_FIELD_LABELS[state.sort]} (${direction})`,
+      title: t('cli.price.controlSort', {
+        field: sortFieldLabel(state.sort),
+        direction: directionLabel(state.descending),
+      }),
       value: { kind: 'sort' } satisfies CardBrowserSelection,
     },
     {
-      title: `🔤 Set code filter: ${state.filters.set ? state.filters.set.toUpperCase() : 'all'}`,
+      title: t('cli.price.controlSetFilter', {
+        value: state.filters.set ? state.filters.set.toUpperCase() : t('cli.price.filterAll'),
+      }),
       value: { kind: 'filter-set' } satisfies CardBrowserSelection,
     },
     {
-      title: `#️⃣ Collector number filter: ${state.filters.collector ?? 'all'}`,
+      title: t('cli.price.controlCollectorFilter', {
+        value: state.filters.collector ?? t('cli.price.filterAll'),
+      }),
       value: { kind: 'filter-collector' } satisfies CardBrowserSelection,
     },
   ]
   if (options.withTypeFilter) {
     controls.push({
-      title: `🗂️ List type filter: ${state.filters.type ? LIST_TYPE_DISPLAY[state.filters.type].label : 'all'}`,
+      title: t('cli.price.controlTypeFilter', {
+        value: state.filters.type ? listTypeTitle(state.filters.type) : t('cli.price.filterAll'),
+      }),
       value: { kind: 'filter-type' } satisfies CardBrowserSelection,
     })
   }
-  controls.push({ title: '← Back', value: { kind: 'back' } satisfies CardBrowserSelection })
+  controls.push({
+    title: t('cli.price.menuBack'),
+    value: { kind: 'back' } satisfies CardBrowserSelection,
+  })
   return [
     ...controls,
     ...visible.map(
@@ -257,30 +330,45 @@ export function formatEntryDetailLines(entry: PricedEntry, currency: PriceCurren
   const display = LIST_TYPE_DISPLAY[entry.listType]
   const lines: string[] = [
     `${entry.name}${printing}${finish}`,
-    `  List: ${display.icon} ${entry.listName} (${entry.section})`,
+    t('cli.price.detailList', {
+      icon: display.icon,
+      name: entry.listName,
+      section: entry.section,
+    }),
   ]
   if (!entry.pinned && entry.set) {
-    lines.push('  Printing shown is representative — the entry does not pin one.')
+    lines.push(t('cli.price.detailRepresentative'))
   }
   const unit = formatPriceOrNA(entry.price, currency)
   const lineTotal =
     entry.quantity > 1
-      ? ` · ${formatPrice(entry.price * entry.quantity, currency)} for ${entry.quantity}`
+      ? t('cli.price.detailLineTotal', {
+          total: formatPrice(entry.price * entry.quantity, currency),
+          count: entry.quantity,
+        })
       : ''
-  lines.push(`  Price: ${unit}${lineTotal}`)
+  lines.push(t('cli.price.detailPrice', { price: unit, lineTotal }))
   if (entry.unpricedReason) {
-    lines.push(`  Unpriced: ${UNPRICED_REASON_TEXT[entry.unpricedReason]}`)
+    lines.push(t('cli.price.detailUnpriced', { reason: t(UNPRICED_REASON[entry.unpricedReason]) }))
   }
   if (entry.lowest > 0 && entry.lowest !== entry.price) {
     const lowestPrinting =
       entry.lowestSet && entry.lowestCollectorNumber
         ? ` (${entry.lowestSet.toUpperCase()}:${entry.lowestCollectorNumber})${entry.lowestFinish ? ` [${entry.lowestFinish}]` : ''}`
         : ''
-    lines.push(`  Lowest: ${formatPrice(entry.lowest, currency)}${lowestPrinting}`)
+    lines.push(
+      t('cli.price.detailLowest', {
+        price: formatPrice(entry.lowest, currency),
+        printing: lowestPrinting,
+      }),
+    )
   }
   if (entry.typeLine) {
-    const rank = entry.edhrecRank < UNRANKED_EDHREC ? ` · EDHREC #${entry.edhrecRank}` : ''
-    lines.push(`  ${entry.typeLine} · Mana value ${entry.cmc}${rank}`)
+    const rank =
+      entry.edhrecRank < UNRANKED_EDHREC
+        ? t('cli.price.detailEdhrec', { rank: entry.edhrecRank })
+        : ''
+    lines.push(t('cli.price.detailTypeLine', { typeLine: entry.typeLine, cmc: entry.cmc, rank }))
   }
   return lines
 }
@@ -326,7 +414,7 @@ export type PriceBrowserDeps = {
 async function promptMainSelection(report: PriceReport): Promise<PriceMainSelection | undefined> {
   return ask<PriceMainSelection>({
     type: 'autocomplete',
-    message: 'Select a list to browse',
+    message: t('cli.price.promptMainMenu'),
     choices: buildMainMenuChoices(report),
     limit: 14,
     suggest: async (rawInput: string, choices: Choice[]) =>
@@ -337,14 +425,19 @@ async function promptMainSelection(report: PriceReport): Promise<PriceMainSelect
 async function promptSortChange(state: CardBrowserState): Promise<void> {
   const selection = await ask<PriceSortField | 'direction'>({
     type: 'select',
-    message: 'Sort by',
+    message: t('cli.price.promptSortBy'),
     choices: [
-      ...PRICE_SORT_FIELDS.map((field) => ({
-        title: `${SORT_FIELD_LABELS[field]}${field === state.sort ? ' (current)' : ''}`,
-        value: field,
-      })),
+      ...PRICE_SORT_FIELDS.map((field): Choice => {
+        const label = sortFieldLabel(field)
+        return {
+          title: field === state.sort ? t('cli.price.sortFieldCurrent', { field: label }) : label,
+          value: field,
+        }
+      }),
       {
-        title: `Toggle direction (currently ${state.descending ? 'descending' : 'ascending'})`,
+        title: t('cli.price.sortToggleDirection', {
+          direction: directionLabel(state.descending),
+        }),
         value: 'direction',
       },
     ],
@@ -364,13 +457,26 @@ async function promptSortChange(state: CardBrowserState): Promise<void> {
 async function promptTypeFilter(current: ListType | undefined): Promise<ListType | undefined> {
   const selection = await ask<ListType | 'all'>({
     type: 'select',
-    message: 'Show cards from',
+    message: t('cli.price.promptTypeFilter'),
     choices: [
-      { title: `All list types${current === undefined ? ' (current)' : ''}`, value: 'all' },
-      ...LIST_TYPES.map((type) => ({
-        title: `${LIST_TYPE_DISPLAY[type].icon} ${LIST_TYPE_DISPLAY[type].label}${type === current ? ' (current)' : ''}`,
-        value: type,
-      })),
+      {
+        title:
+          current === undefined
+            ? t('cli.price.typeFilterAllCurrent')
+            : t('cli.price.typeFilterAll'),
+        value: 'all',
+      },
+      ...LIST_TYPES.map((type): Choice => {
+        const icon = LIST_TYPE_DISPLAY[type].icon
+        const title = listTypeTitle(type)
+        return {
+          title:
+            type === current
+              ? t('cli.price.typeFilterRowCurrent', { icon, title })
+              : `${icon} ${title}`,
+          value: type,
+        }
+      }),
     ],
   })
   if (selection === undefined) return current
@@ -389,9 +495,12 @@ async function showEntryDetail(
   const printings = printingsByName.get(entry.name) ?? []
   const choices: Choice[] = []
   if (printings.length > 0) {
-    choices.push({ title: `📜 All printings & prices (${printings.length})`, value: 'printings' })
+    choices.push({
+      title: t('cli.price.allPrintings', { count: printings.length }),
+      value: 'printings',
+    })
   }
-  choices.push({ title: '← Back', value: 'back' })
+  choices.push({ title: t('cli.price.menuBack'), value: 'back' })
   const action = await ask<'back' | 'printings'>({ type: 'select', message: entry.name, choices })
   if (action === 'printings') {
     console.log('')
@@ -411,10 +520,15 @@ async function runCardBrowser(
   while (true) {
     const visible = visibleBrowserEntries(entries, state)
     console.log('')
-    console.log(`${heading} — ${formatTotalsSegment(sumPricedEntries(visible), currency)}`)
+    console.log(
+      t('cli.price.browserHeading', {
+        heading,
+        totals: formatTotalsSegment(sumPricedEntries(visible), currency),
+      }),
+    )
     const selection = await ask<CardBrowserSelection>({
       type: 'autocomplete',
-      message: 'Type to filter by name, set, or collector number',
+      message: t('cli.price.promptBrowser'),
       choices: buildCardBrowserChoices(visible, state, currency, options),
       limit: 15,
       suggest: async (rawInput: string, choices: Choice[]) =>
@@ -429,11 +543,14 @@ async function runCardBrowser(
         await promptSortChange(state)
         break
       case 'filter-set':
-        state.filters.set = await promptTextFilter('Set code (empty for all)', state.filters.set)
+        state.filters.set = await promptTextFilter(
+          t('cli.price.promptSetFilter'),
+          state.filters.set,
+        )
         break
       case 'filter-collector':
         state.filters.collector = await promptTextFilter(
-          'Collector number (empty for all)',
+          t('cli.price.promptCollectorFilter'),
           state.filters.collector,
         )
         break
@@ -447,11 +564,14 @@ async function runCardBrowser(
 async function promptCurrencyChange(current: PriceCurrency): Promise<PriceCurrency | undefined> {
   return ask<PriceCurrency>({
     type: 'select',
-    message: 'Price currency',
-    choices: VALID_CURRENCIES.map((currency) => ({
-      title: `${currency.toUpperCase()}${currency === current ? ' (current)' : ''}`,
-      value: currency,
-    })),
+    message: t('cli.price.promptCurrency'),
+    choices: VALID_CURRENCIES.map((currency): Choice => {
+      const code = currency.toUpperCase()
+      return {
+        title: currency === current ? t('cli.price.currencyRowCurrent', { currency: code }) : code,
+        value: currency,
+      }
+    }),
   })
 }
 
@@ -492,7 +612,7 @@ export async function runPriceBrowser(deps: PriceBrowserDeps): Promise<void> {
         break
       case 'search':
         await runCardBrowser(
-          '🔎 All cards',
+          t('cli.price.allCardsHeading'),
           built.report.entries,
           currency,
           built.printingsByName,
@@ -503,7 +623,7 @@ export async function runPriceBrowser(deps: PriceBrowserDeps): Promise<void> {
         )
         break
       case 'refresh':
-        console.log('Refreshing prices from Scryfall...')
+        console.log(t('cli.price.refreshing'))
         await deps.refreshPrices()
         lastRefreshedAt = await deps.getLastRefreshedAt()
         built = await deps.rebuild(currency)

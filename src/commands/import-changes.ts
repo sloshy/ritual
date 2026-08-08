@@ -1,12 +1,13 @@
 import { Command } from 'commander'
 import fs from 'node:fs/promises'
-import { formatChange } from '../change-event'
+import { formatChange } from '../change-message'
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
 import { LIST_TYPE_DISPLAY, listTypeLabel } from '../list-type'
 import {
   type ChangeBundle,
   type ChangeBundleList,
   bundleChangeCount,
-  countLabel,
   parseChangeBundle,
 } from '../editor/change-bundle'
 import {
@@ -46,13 +47,22 @@ type ImportChangesOptions = {
 type ImportChangesReport = BundleImportResponse
 
 function listHeading(list: ChangeBundleList): string {
-  return `${LIST_TYPE_DISPLAY[list.kind].icon} ${list.name} (${listTypeLabel(list.kind)} '${list.slug}')`
+  return `${LIST_TYPE_DISPLAY[list.kind].icon} ${t('cli.importChanges.listHeading', {
+    name: list.name,
+    type: listTypeLabel(list.kind),
+    slug: list.slug,
+  })}`
 }
 
 /** Print the full change list grouped by target list, for pre-apply review. */
 function printPreview(bundle: ChangeBundle): void {
   for (const list of bundle.lists) {
-    console.log(`\n${listHeading(list)} — ${countLabel(list.changes.length, 'change')}`)
+    console.log(
+      `\n${t('cli.importChanges.previewHeading', {
+        heading: listHeading(list),
+        changes: t('domain.count.changes', { count: list.changes.length }),
+      })}`,
+    )
     for (const change of list.changes) {
       console.log(`  • ${formatChange(change)}`)
     }
@@ -61,10 +71,10 @@ function printPreview(bundle: ChangeBundle): void {
 }
 
 /** Why a change was skipped, in the wording the CLI prints. */
-const CONFLICT_REASON_LABEL: Record<ImportConflict['reason'], string> = {
-  'target-not-found': 'card not found',
-  'not-applicable': 'not applicable to this list',
-}
+const CONFLICT_REASON_LABEL = {
+  'target-not-found': 'domain.importConflict.targetNotFound',
+  'not-applicable': 'domain.importConflict.notApplicable',
+} as const satisfies Record<ImportConflict['reason'], MessageKey>
 
 /**
  * The per-reason breakdown for a list's skipped changes — `card not found: 2,
@@ -77,7 +87,7 @@ function summarizeConflictReasons(conflicts: readonly ImportConflict[]): string 
     counts.set(conflict.reason, (counts.get(conflict.reason) ?? 0) + 1)
   }
   return [...counts.entries()]
-    .map(([reason, count]) => `${CONFLICT_REASON_LABEL[reason]}: ${count}`)
+    .map(([reason, count]) => `${t(CONFLICT_REASON_LABEL[reason])}: ${count}`)
     .join(', ')
 }
 
@@ -86,7 +96,7 @@ function printResults(result: BundleImportResult, quiet: boolean): void {
   for (const list of result.lists) {
     const heading = `${LIST_TYPE_DISPLAY[list.kind].icon} ${list.name}`
     if (list.error !== undefined) {
-      console.error(`✗ ${heading}: ${list.error}`)
+      console.error(`✗ ${t('cli.importChanges.listFailed', { heading, reason: list.error })}`)
       continue
     }
     // Skipped changes are the one thing `--quiet` must never hide: nothing else
@@ -95,15 +105,27 @@ function printResults(result: BundleImportResult, quiet: boolean): void {
     if (quiet) {
       if (list.conflicts.length > 0) {
         console.error(
-          `⚠ ${heading}: ${countLabel(list.conflicts.length, 'change')} skipped (${summarizeConflictReasons(list.conflicts)})`,
+          `⚠ ${t('cli.importChanges.listSkipped', {
+            heading,
+            changes: t('domain.count.changes', { count: list.conflicts.length }),
+            reasons: summarizeConflictReasons(list.conflicts),
+          })}`,
         )
       }
       continue
     }
-    console.log(`✓ ${heading}: applied ${countLabel(list.applied, 'change')}`)
+    console.log(
+      `✓ ${t('cli.importChanges.listApplied', {
+        heading,
+        changes: t('domain.count.changes', { count: list.applied }),
+      })}`,
+    )
     for (const conflict of list.conflicts) {
       console.error(
-        `  ⚠ Skipped (${CONFLICT_REASON_LABEL[conflict.reason]}): ${formatChange(conflict.change)}`,
+        `  ⚠ ${t('cli.importChanges.skippedChange', {
+          reason: t(CONFLICT_REASON_LABEL[conflict.reason]),
+          change: formatChange(conflict.change),
+        })}`,
       )
     }
   }
@@ -113,9 +135,9 @@ export function registerImportChangesCommand(program: Command): void {
   addScriptingOptions(
     program
       .command('import-changes')
-      .description('Apply a change bundle exported from the site editor to your lists')
-      .argument('<file>', 'Path to the exported change-bundle JSON (one or more lists)')
-      .option('-y, --yes', 'Apply without asking for confirmation', false),
+      .description(t('help.importChanges.description'))
+      .argument('<file>', t('help.importChanges.file'))
+      .option('-y, --yes', t('help.importChanges.yes'), false),
   ).action(async (file: string, options: ImportChangesOptions) => {
     const scripting = normalizeScriptingOptions(options)
     // The apply path resolves cards through the shared data layer, whose logger
@@ -130,8 +152,13 @@ export function registerImportChangesCommand(program: Command): void {
       const failure = classifyFileReadError(error)
       emitError(
         failure.errorCode,
-        `Cannot read '${file}': ${error instanceof Error ? error.message : error}`,
+        t('cli.importChanges.unreadable', {
+          file,
+          reason: error instanceof Error ? error.message : String(error),
+        }),
         scripting,
+        undefined,
+        'cli.importChanges.unreadable',
       )
       process.exitCode = failure.exitCode
       return
@@ -139,14 +166,26 @@ export function registerImportChangesCommand(program: Command): void {
 
     const bundle = parseChangeBundle(text)
     if (typeof bundle === 'string') {
-      emitError('usage_error', `Invalid change bundle: ${bundle}`, scripting)
+      emitError(
+        'usage_error',
+        t('cli.importChanges.invalidBundle', { reason: bundle }),
+        scripting,
+        undefined,
+        'cli.importChanges.invalidBundle',
+      )
       process.exitCode = ExitCode.UsageError
       return
     }
 
     const total = bundleChangeCount(bundle)
     if (total === 0) {
-      emitError('not_found', 'The file contains no changes to apply.', scripting)
+      emitError(
+        'not_found',
+        t('cli.importChanges.empty'),
+        scripting,
+        undefined,
+        'cli.importChanges.empty',
+      )
       process.exitCode = ExitCode.NotFound
       return
     }
@@ -160,19 +199,30 @@ export function registerImportChangesCommand(program: Command): void {
       if (!canPromptWithOutput(scripting)) {
         emitError(
           'usage_error',
-          'Confirmation required: pass --yes to apply changes non-interactively.',
+          t('cli.importChanges.confirmationRequired'),
           scripting,
+          undefined,
+          'cli.importChanges.confirmationRequired',
         )
         process.exitCode = ExitCode.UsageError
         return
       }
       const confirmed = await ask<boolean>({
         type: 'confirm',
-        message: `Apply ${countLabel(total, 'change')} to ${countLabel(bundle.lists.length, 'list')}?`,
+        message: t('cli.importChanges.confirmApply', {
+          changes: t('domain.count.changes', { count: total }),
+          lists: t('domain.count.lists', { count: bundle.lists.length }),
+        }),
         initial: false,
       })
       if (!confirmed) {
-        emitError('usage_error', 'Cancelled.', scripting)
+        emitError(
+          'usage_error',
+          t('cli.import.cancelled'),
+          scripting,
+          undefined,
+          'cli.import.cancelled',
+        )
         process.exitCode = ExitCode.UsageError
         return
       }

@@ -5,9 +5,15 @@ import { startSiteServer } from '../serve/server'
 import { sellModeWarning, warmCardKingdomFeed } from '../cardkingdom'
 import { cardCacheReady, warmSiteCache } from '../serve/warm'
 import { resolveOutDir } from '../site/dist-dir'
-import { applyBuildSiteOptions, runBuildSite, type BuildSiteOptions } from './build-site'
+import {
+  applyBuildSiteOptions,
+  resolveBuildLocale,
+  runBuildSite,
+  type BuildSiteOptions,
+} from './build-site'
 import { ExitCode, parsePort } from './scripting'
 import { serveStaticSite, serveUrl } from './serve-helpers'
+import { t } from '../i18n/t'
 
 export type ServeCliOptions = BuildSiteOptions & {
   port: number
@@ -36,16 +42,11 @@ export function shouldBuildBeforeServing(options: BuildDecision, siteIsBuilt: bo
 export function registerServeCommand(program: Command): void {
   const command = program
     .command('serve')
-    .description('Serve the generated static site, optionally building it first')
-    .option('-p, --port <number>', 'Port to serve on', parsePort, 3000)
-    .option('--host <address>', 'Host address to bind to', '0.0.0.0')
-    .option('--build', 'Build the site before serving it')
-    .option(
-      '--api',
-      'Serve a live read-only data API alongside the site: list data is computed ' +
-        'from the markdown files on request, and card search uses the card cache ' +
-        'with the same term matching as the admin editor',
-    )
+    .description(t('help.serve.description'))
+    .option('-p, --port <number>', t('help.serve.port'), parsePort, 3000)
+    .option('--host <address>', t('help.serve.host'), '0.0.0.0')
+    .option('--build', t('help.serve.build'))
+    .option('--api', t('help.serve.api'))
 
   // Everything applyBuildSiteOptions registers only matters under --build.
   // Diffing the option list around the call keeps the build-only set in sync
@@ -66,8 +67,10 @@ export function registerServeCommand(program: Command): void {
         .map((option) => option.long ?? option.name())
       if (givenBuildFlags.length > 0) {
         console.error(
-          `${givenBuildFlags.join(', ')} only appl${givenBuildFlags.length === 1 ? 'ies' : 'y'} ` +
-            `when building; add --build to build the site before serving.`,
+          t('cli.serve.buildFlagsIgnored', {
+            count: givenBuildFlags.length,
+            flags: givenBuildFlags.join(', '),
+          }),
         )
         process.exitCode = ExitCode.UsageError
         return
@@ -91,14 +94,15 @@ export function registerServeCommand(program: Command): void {
     const build = shouldBuildBeforeServing(options, await hasBuiltSite())
 
     if (build) {
-      console.log('Building site...')
+      console.log(t('cli.serve.building'))
       try {
         // ServeCliOptions extends BuildSiteOptions, so the whole options
         // object doubles as the build options (the extra serve fields are
-        // ignored by the build).
-        await runBuildSite(options)
+        // ignored by the build). `--locale` is the one field commander does
+        // not put here — see `resolveBuildLocale`.
+        await runBuildSite({ ...options, locale: resolveBuildLocale(command, options) })
       } catch (err) {
-        console.error('Build failed:', getErrorMessage(err))
+        console.error(t('cli.serve.buildFailed', { reason: getErrorMessage(err) }))
         process.exitCode = ExitCode.RuntimeError
         return
       }
@@ -116,9 +120,10 @@ export function registerServeCommand(program: Command): void {
     // broken site rather than an unbuilt one.
     if (!(await hasBuiltSite())) {
       console.error(
-        `No built site found in ${distDir}. Build it first with \`ritual build-site${
-          options.outDir === undefined ? '' : ` --out-dir ${options.outDir}`
-        }\`, or re-run this command with --build.`,
+        t('cli.serve.noBuiltSite', {
+          dir: distDir,
+          outDirFlag: options.outDir === undefined ? '' : ` --out-dir ${options.outDir}`,
+        }),
       )
       process.exitCode = ExitCode.RuntimeError
       return
@@ -126,9 +131,7 @@ export function registerServeCommand(program: Command): void {
 
     if (options.api === true) {
       if (options.cacheImages === true) {
-        console.warn(
-          'Note: live data always uses Scryfall image URLs; --cache-images only affects static assets.',
-        )
+        console.warn(t('cli.serve.cacheImagesNote'))
       }
       // Live payloads are computed from the card cache with no Scryfall
       // fallback, so the server holds itself to the same cache freshness a build
@@ -138,21 +141,19 @@ export function registerServeCommand(program: Command): void {
       const mode = options.refresh ?? 'ask'
       const ready = build ? await cardCacheReady() : (await warmSiteCache(mode)).ready
       if (!ready) {
-        console.warn(
-          'Card cache is empty — card search will return no results until the cache is preloaded.',
-        )
+        console.warn(t('cli.serve.emptyCardCache'))
       }
       // Sell mode quotes from the Card Kingdom feed, and the quote routes never
       // download (they are unauthenticated and CORS-open). Startup is the only
       // moment this process can keep a day-old feed current, so it does.
       const buylistWarning = sellModeWarning(await warmCardKingdomFeed(mode))
       if (buylistWarning !== undefined) console.warn(buylistWarning)
-      console.log(`Serving site + live API from ${distDir} at ${serveUrl(host, port)}...`)
+      console.log(t('cli.serve.servingWithApi', { dir: distDir, url: serveUrl(host, port) }))
       startSiteServer({ distDir, port, hostname: host })
       return
     }
 
-    console.log(`Serving site from ${distDir} at ${serveUrl(host, port)}...`)
+    console.log(t('cli.serve.serving', { dir: distDir, url: serveUrl(host, port) }))
     serveStaticSite({ distDir, port, hostname: host })
   })
 }

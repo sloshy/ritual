@@ -2,6 +2,7 @@ import { type Component, For, Show, createMemo } from 'solid-js'
 import { LIST_TYPE_DISPLAY } from '../../../list-type'
 import type { ListInfo } from '../../../list-info'
 import { type ListId, listInfoId, groupListsByType } from '../list-grouping'
+import { useT, useTKey, useTSegments } from '../../../ui/i18n'
 
 interface MoveFiltersPanelProps {
   lists: ListInfo[]
@@ -19,45 +20,59 @@ interface MoveFiltersPanelProps {
  * Mirrors the editor's expandable add-card-defaults panel placement.
  */
 export const MoveFiltersPanel: Component<MoveFiltersPanelProps> = (props) => {
+  const t = useT()
+  const tKey = useTKey()
+  const tSegments = useTSegments()
   const groups = createMemo(() => groupListsByType(props.lists))
 
   return (
     <div class="move-filters-body">
       <div class="move-filters-header">
+        {/* Both emphasized words sit mid-sentence, so the message renders as
+            segments and only the parameters get markup — a translator keeps
+            control of where they go. */}
         <p class="form-hint">
-          Choose which lists you can move cards <strong>from</strong> (browsed and searched) and{' '}
-          <strong>to</strong> (offered as destinations).
+          <For
+            each={tSegments('admin.moveFilters.help', {
+              from: t('admin.moveFilters.fromWord'),
+              to: t('admin.moveFilters.toWord'),
+            })}
+          >
+            {(segment) =>
+              segment.kind === 'param' ? <strong>{segment.value}</strong> : segment.value
+            }
+          </For>
         </p>
         <div class="move-filters-bulk">
-          <span class="move-filters-bulk-label">From:</span>
+          <span class="move-filters-bulk-label">{t('admin.moveFilters.fromLabel')}</span>
           <button
             type="button"
             class="btn btn-secondary btn-xs"
             onClick={() => props.setAllSources(true)}
           >
-            All
+            {t('admin.moveFilters.all')}
           </button>
           <button
             type="button"
             class="btn btn-secondary btn-xs"
             onClick={() => props.setAllSources(false)}
           >
-            None
+            {t('admin.moveFilters.none')}
           </button>
-          <span class="move-filters-bulk-label">To:</span>
+          <span class="move-filters-bulk-label">{t('admin.moveFilters.toLabel')}</span>
           <button
             type="button"
             class="btn btn-secondary btn-xs"
             onClick={() => props.setAllDests(true)}
           >
-            All
+            {t('admin.moveFilters.all')}
           </button>
           <button
             type="button"
             class="btn btn-secondary btn-xs"
             onClick={() => props.setAllDests(false)}
           >
-            None
+            {t('admin.moveFilters.none')}
           </button>
         </div>
       </div>
@@ -65,20 +80,20 @@ export const MoveFiltersPanel: Component<MoveFiltersPanelProps> = (props) => {
       <div class="move-filters-grid" role="table">
         <div class="move-filters-row move-filters-row--head" role="row">
           <span class="move-filters-name" role="columnheader">
-            List
+            {t('admin.moveFilters.colList')}
           </span>
           <span class="move-filters-col" role="columnheader">
-            From
+            {t('admin.moveFilters.colFrom')}
           </span>
           <span class="move-filters-col" role="columnheader">
-            To
+            {t('admin.moveFilters.colTo')}
           </span>
         </div>
         <For each={groups()}>
           {(group) => (
             <>
               <div class="move-filters-group-label">
-                {LIST_TYPE_DISPLAY[group.type].icon} {group.label}
+                {LIST_TYPE_DISPLAY[group.type].icon} {tKey(group.labelKey)}
               </div>
               <For each={group.lists}>
                 {(list) => {
@@ -91,7 +106,7 @@ export const MoveFiltersPanel: Component<MoveFiltersPanelProps> = (props) => {
                       <span class="move-filters-col" role="cell">
                         <input
                           type="checkbox"
-                          aria-label={`Move from ${list.name}`}
+                          aria-label={t('admin.moveFilters.moveFrom', { name: list.name })}
                           checked={props.sourceEnabled(id)}
                           onChange={() => props.toggleSource(id)}
                         />
@@ -99,7 +114,7 @@ export const MoveFiltersPanel: Component<MoveFiltersPanelProps> = (props) => {
                       <span class="move-filters-col" role="cell">
                         <input
                           type="checkbox"
-                          aria-label={`Move to ${list.name}`}
+                          aria-label={t('admin.moveFilters.moveTo', { name: list.name })}
                           checked={props.destEnabled(id)}
                           onChange={() => props.toggleDest(id)}
                         />
@@ -114,7 +129,7 @@ export const MoveFiltersPanel: Component<MoveFiltersPanelProps> = (props) => {
       </div>
 
       <Show when={props.lists.length === 0}>
-        <p class="text-muted">No lists found.</p>
+        <p class="text-muted">{t('admin.moveFilters.noLists')}</p>
       </Show>
     </div>
   )

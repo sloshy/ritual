@@ -125,6 +125,9 @@ ritual build-site --wanted-lists "To Buy"                  # specific wanted lis
 ritual build-site --currencies usd,eur             # currencies to include (first is default)
 ritual build-site --theme izzet                    # initial theme baked into the HTML
 ritual build-site --theme-file my-theme.json       # load custom theme JSON files (their names become selectable)
+ritual build-site --locale de-AT                   # UI locale baked into the site (html lang/dir, opening language)
+ritual build-site --locales en de-AT               # dictionaries to publish (\`all\` = every locale this build has)
+ritual build-site --locale-file de-AT.json         # load dictionary JSON files, named for their tag
 ritual build-site --refresh never                  # build from cached data as-is
 ritual build-site --refresh auto                   # refresh stale cache (bulk download allowed)
 ritual build-site --out-dir ./preview               # publish into another directory instead of dist/
@@ -132,6 +135,45 @@ ritual build-site --out-dir ./preview               # publish into another direc
 
 \`--cache-images\` downloads card images locally instead of hot-linking Scryfall;
 \`-v\`/\`--verbose\` lists the cards to be fetched.
+
+### Site language
+
+The three locale flags decide what language the published site speaks. They are
+about **Ritual's own interface text** — the \`defaultLanguage\` config key is a
+different setting entirely (which printing of a card is used), and the two are
+independent.
+
+- \`--locale <tag>\` bakes the default: the shell's \`<html lang>\`/\`dir\`, the
+  \`uiLocale\` field of \`index.json\`, and the language the site opens in. Defaults
+  to the \`uiLocale\` config value. The baked locale is always published, and a
+  baked locale this build has no dictionary for is a **warning** — the site
+  renders English rather than failing.
+- \`--locales <tags...>\` (space-separated, not comma-separated) picks which
+  dictionaries land in \`dist/locales/\`, which is exactly what the in-app language
+  switcher offers; the switcher is hidden when only one locale shipped. Default
+  \`en\`; \`all\` publishes every locale this build carries. A tag with no
+  dictionary is a usage error (exit 2).
+- \`--locale-file <path...>\` loads dictionary JSON files from disk, each named for
+  its tag (\`de-AT.json\`), and adds them to the selectable set — the same escape
+  hatch \`--theme-file\` gives themes, and the way a **released binary publishes a
+  locale it was never built with**. A file that cannot be read or is not a valid
+  dictionary fails the build (exit 1); a file overrides a built-in dictionary for
+  the same tag.
+
+Per-locale URL prefixes are just a loop — no flag needed:
+
+\`\`\`bash
+for tag in en fr ja; do
+  ritual build-site --locale "$tag" --locales "$tag" --out-dir "dist/$tag"
+done
+\`\`\`
+
+Visitors switch language in the running site without a reload, and the choice
+sticks (remembered in \`localStorage\`). A \`locale=<tag>\` parameter in the hash
+query (\`#/decks?locale=de-AT\`) wins at load without replacing what is
+remembered, which is how a link can be shared in a chosen language. Card names
+and oracle text are unaffected — those follow \`defaultLanguage\` and the per-card
+\`[ja]\` tokens.
 
 ${wrapProse(
   'Every build writes into a scratch directory and swaps it into place only on ' +
@@ -224,7 +266,11 @@ with the admin editor's term matching instead of Scryfall. The trade page
 follows suit: its search covers the wanted lists and the cache together (no
 Scryfall toggle), and shared trade links resolve their cards from the cache.
 There are no write routes — public edits still travel as export/import change
-bundles.
+bundles. The live index also carries the current \`uiLocale\`, so a
+\`config set uiLocale\` takes effect on the next page load with no rebuild; the
+dictionaries offered in the switcher are still the files in the served
+directory's \`locales/\`, so publishing a *new* language needs a
+\`build-site --locales\` run.
 
 Live payloads come from the card cache with no Scryfall fallback, so startup
 applies the **same cache freshness gates \`build-site\` applies** — over the cards
@@ -271,6 +317,13 @@ ritual admin -p 9000
 ritual admin --theme izzet         # initial theme baked into the admin UI
 ritual admin --refresh never       # skip the startup cache check, use cached data as-is
 \`\`\`
+
+The admin's **Settings** page edits the same config keys the CLI does, including
+\`uiLocale\` — the admin serves every locale the binary carries and reads its own
+language from \`GET /api/config\`, so switching it rebuilds nothing. There is no
+\`--locale\` build flag here: \`ritual admin\` regenerates its bundle (and its
+dictionaries) on every start, and \`--locale\`/\`RITUAL_LOCALE\` still set the
+language of the command's **terminal** output.
 
 With the \`admin.gitEnabled\` and \`admin.gitAutoCommit\` config keys set, saves
 made through the admin UI (and the MCP server, which reuses the admin handlers)
@@ -344,6 +397,14 @@ operations as tools — an alternative to driving the CLI for MCP-native clients
 ritual mcp                                         # stdio transport (default)
 ritual mcp --transport http --port 8765 --token "$RITUAL_MCP_TOKEN"
 \`\`\`
+
+**MCP prose is English by contract.** Tool names, titles, descriptions, parameter
+docs, the server instructions, and the \`message\` field of every tool result stay
+English no matter what \`--locale\` / \`RITUAL_LOCALE\` / \`uiLocale\` say — those
+settings move the CLI's own terminal output and the two web UIs, never this
+surface. Results that come from an admin handler carry \`messageKey\` (plus
+\`messageParams\` when the sentence interpolates) beside the English \`message\`: a
+stable, locale-invariant identifier to match on instead of matching prose.
 
 The HTTP transport binds \`--host\` (default \`127.0.0.1\`). Without a token
 (\`--token\` or \`RITUAL_MCP_TOKEN\`) it serves unauthenticated on loopback only —

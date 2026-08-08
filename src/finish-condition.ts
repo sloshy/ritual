@@ -1,4 +1,7 @@
 import type { ConditionUpdate } from './change-event'
+import type { MessageKey } from './i18n/messages/en'
+import { t } from './i18n/t'
+import { parseEnumField } from './parse-enum'
 import type { Finish, Condition, ScryfallCard } from './types'
 
 export const VALID_FINISHES = ['nonfoil', 'foil', 'etched'] as const satisfies readonly Finish[]
@@ -10,13 +13,23 @@ export const VALID_CONDITIONS = [
   'DMG',
 ] as const satisfies readonly Condition[]
 
-/** Human-readable labels for the condition codes, shared by every condition prompt. */
-export const CONDITION_LABELS: Record<Condition, string> = {
-  NM: 'Near Mint',
-  LP: 'Lightly Played',
-  MP: 'Moderately Played',
-  HP: 'Heavily Played',
-  DMG: 'Damaged',
+/**
+ * Message keys for the condition codes, shared by every condition prompt. Keys
+ * rather than rendered text: the table is evaluated once at module load, so a
+ * string here would freeze every condition menu in the boot-time language.
+ * Resolve with {@link conditionLabel}.
+ */
+export const CONDITION_LABELS = {
+  NM: 'domain.condition.nm',
+  LP: 'domain.condition.lp',
+  MP: 'domain.condition.mp',
+  HP: 'domain.condition.hp',
+  DMG: 'domain.condition.dmg',
+} as const satisfies Record<Condition, MessageKey>
+
+/** A condition code's human-readable name in the active UI locale. */
+export function conditionLabel(condition: Condition): string {
+  return t(CONDITION_LABELS[condition])
 }
 
 export function isFinish(value: string | undefined): value is Finish {
@@ -28,13 +41,15 @@ export function isFinish(value: string | undefined): value is Finish {
  * {@link VALID_FINISHES}. Returns the normalized finish, or an error message
  * string (discriminate with {@link isFinish}) — callers wrap it in their own
  * error type (commander's `InvalidArgumentError` vs `CardCommandError`).
+ *
+ * Delegates to {@link parseEnumField} so both the case-insensitive matching rule
+ * and the refusal's wording come from the one place every other fixed-choice
+ * option in the project gets them — this used to hand-roll an untranslated twin
+ * of `errors.enum.invalid`.
  */
 export function normalizeFinishValue(raw: string): Finish | string {
-  const normalized = raw.toLowerCase()
-  if (!isFinish(normalized)) {
-    return `Invalid finish '${raw}'. Use one of: ${VALID_FINISHES.join(', ')}.`
-  }
-  return normalized
+  const result = parseEnumField(raw, VALID_FINISHES, 'finish')
+  return result.ok ? result.value : result.message
 }
 
 export function isCondition(value: string | undefined): value is Condition {

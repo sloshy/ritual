@@ -10,6 +10,7 @@
 
 import type { CardLanguage } from '../card-language'
 import { formatPrintingAnnotation } from '../change-event'
+import { t } from '../i18n/t'
 import type { Condition, Finish } from '../types'
 
 /**
@@ -118,9 +119,12 @@ export function describeCsvFailureReasons(failures: readonly CollectionCsvFailur
   return parts.join(', ')
 }
 
-/** `1 card (1 row)` / `30 cards (28 rows)` — what a CSV covers. */
+/**
+ * `1 card (1 row)` / `30 cards (28 rows)` — what a CSV covers. Two independent
+ * counts, so two messages: one plural form cannot govern both.
+ */
 export function describeCsvSize(cards: number, rows: number): string {
-  return `${cards} card${cards === 1 ? '' : 's'} (${rows} row${rows === 1 ? '' : 's'})`
+  return `${t('domain.count.cards', { count: cards })} (${t('domain.count.rows', { count: rows })})`
 }
 
 /**

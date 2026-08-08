@@ -15,6 +15,7 @@ import {
 } from 'solid-js'
 import type { DeckDetail, CollectionDetail, WantedListDetail } from './data-types'
 import type { PriceCurrency } from '../price-currency'
+import { formatDateTime } from '../ui/format'
 import { IndexPage } from './IndexPage'
 import { DeckPage } from './DeckPage'
 import { DeckEditView } from './editor/DeckEditView'
@@ -48,7 +49,7 @@ import { useFetchJson } from './useFetchJson'
 import { tradeToast } from './useTradeState'
 import { SelectionMenu } from './SelectionMenu'
 import { SelectionModal, isSelectionViewOpen, closeSelectionView } from './SelectionModal'
-import { useAllSelections } from './useCardSelection'
+import { useAllSelections, type RemoveAllTarget } from './useCardSelection'
 import { removeAllSelectedPublic, moveAllSelectedPublic } from './remove-selected'
 import {
   clearEditSessions,
@@ -69,10 +70,20 @@ import { FlameIcon } from './FlameIcon'
 import { ThemeEditor } from './ThemeEditor'
 import { MobileTabBar } from './MobileTabBar'
 import { CurrencySelector, EditModeButton, ThemeHeaderControls } from './HeaderControls'
+import { LanguageSwitcher } from './LanguageSwitcher'
 import { NAV_DESTINATIONS, type NavActiveState } from './nav-destinations'
+import { createI18nStore, I18nProvider, useI18n } from '../ui/i18n'
+import { registerSiteMessages } from '../i18n/register/site'
+import type { LocaleTag } from '../i18n/types'
 import { useMobileLayout } from '../ui/useMediaQuery'
 
+// The English catalog is registered per surface, not imported by the runtime
+// (plan §4.2): this is what keeps the CLI's `cli.*` / `help.*` inventory —
+// half the catalog — out of this bundle. Module scope, before anything renders.
+registerSiteMessages()
+
 function App() {
+  const { t, tSegments, setLocale: publishLocale } = useI18n()
   const { route, visible } = useRouting()
   const {
     deckList,
@@ -84,6 +95,9 @@ function App() {
     availableCurrencies,
     pricesDate,
     sellMode: sellModeAvailable,
+    uiLocale,
+    availableLocales,
+    switchLocale,
     refetch: refetchSiteData,
   } = useSiteData()
 
@@ -106,6 +120,21 @@ function App() {
       notifyCurrencyChanged()
     })
   }
+
+  // Switching the UI language loads the target dictionary before it takes
+  // effect, so the switch is fire-and-forget from the control's point of view:
+  // `switchLocale` resolves to whatever was actually applied (English, if the
+  // fetch failed) and updates the signals the header reads.
+  const changeLocale = (tag: LocaleTag) => {
+    void switchLocale(tag)
+  }
+
+  // `useSiteData` owns locale resolution — boot precedence and the dictionary
+  // fetch both live there — but it writes plain module state, which Solid
+  // cannot observe. Mirroring what it applied into the i18n store is what makes
+  // every `t()` in the tree re-render, for the boot resolution and for a
+  // runtime switch alike.
+  createEffect(() => publishLocale(uiLocale()))
 
   // Site-wide edit mode: a single toggle that persists across navigation. While
   // on, the list in view (if any) is shown in its editor, and moving to another
@@ -130,12 +159,29 @@ function App() {
   // when nothing is selected) and acts on the whole selection across every list.
   const allSelections = useAllSelections()
 
+  // Cross-list removal is destructive and irreversible from here, so it goes
+  // through the in-app ConfirmDialog rather than `window.confirm` — a native
+  // dialog cannot be styled, cannot be localized, and blocks the whole tab.
+  //
+  // The *cards* are snapshotted alongside the count, not just the count:
+  // `window.confirm` blocked the tab, so re-reading the selection afterwards was
+  // safe. A non-blocking dialog is not — the title would name the selection as
+  // it was when the dialog opened while the removal acted on whatever is
+  // selected when it is confirmed.
+  const [removeAllTarget, setRemoveAllTarget] = createSignal<RemoveAllTarget | null>(null)
+
   const handleRemoveAll = () => {
     const cards = allSelections.selected()
     const count = cards.reduce((sum, c) => sum + c.quantity, 0)
-    if (!window.confirm(`Remove ${count} selected card${count === 1 ? '' : 's'} from their lists?`))
-      return
-    removeAllSelectedPublic(cards)
+    if (count === 0) return
+    setRemoveAllTarget({ cards, count })
+  }
+
+  const confirmRemoveAll = () => {
+    const target = removeAllTarget()
+    setRemoveAllTarget(null)
+    if (target === null) return
+    removeAllSelectedPublic(target.cards)
     allSelections.clear()
   }
 
@@ -389,19 +435,16 @@ function App() {
         <div class="site-header-main">
           <a href="#/" class="site-logo">
             <FlameIcon class="site-logo-icon" />
+            {/* i18n-exempt: the program's own name, never translated. */}
             <span class="site-logo-text">Ritual</span>
           </a>
           <Show when={apiActive() || apiDegraded()}>
             <span
               class="site-live-badge"
               classList={{ 'site-live-badge--offline': apiDegraded() }}
-              title={
-                apiDegraded()
-                  ? 'The live backend is unreachable — showing the built-in site data'
-                  : 'Backed by a live API — list data and card search are served fresh'
-              }
+              title={apiDegraded() ? t('site.app.offlineTitle') : t('site.app.liveTitle')}
             >
-              {apiDegraded() ? 'Offline' : 'Live'}
+              {apiDegraded() ? t('site.app.offline') : t('site.app.live')}
             </span>
           </Show>
           <span class="site-nav-sep">|</span>
@@ -411,7 +454,7 @@ function App() {
             <For each={NAV_DESTINATIONS}>
               {(d) => (
                 <NavLink href={d.href} active={navActive()[d.key]}>
-                  {d.label}
+                  {t(d.label)}
                 </NavLink>
               )}
             </For>
@@ -419,16 +462,18 @@ function App() {
           <button
             type="button"
             class="quick-switch-trigger"
-            aria-label="Open quick switch (Ctrl+K)"
-            title="Quick switch (Ctrl+K)"
+            aria-label={t('site.app.quickSwitchAria')}
+            title={t('site.app.quickSwitchTitle')}
             onClick={() => setQuickSwitchOpen(true)}
           >
             <span class="quick-switch-trigger-icon" aria-hidden="true">
               ⌕
             </span>
-            <span class="quick-switch-trigger-label">Quick switch</span>
+            <span class="quick-switch-trigger-label">{t('site.app.quickSwitch')}</span>
             <span class="quick-switch-trigger-kbd" aria-hidden="true">
+              {/* i18n-exempt: physical key names, printed on the keyboard. */}
               <kbd>Ctrl</kbd>
+              {/* i18n-exempt: physical key names, printed on the keyboard. */}
               <kbd>K</kbd>
             </span>
           </button>
@@ -439,6 +484,11 @@ function App() {
               currency={currency()}
               available={availableCurrencies()}
               onChange={changeCurrency}
+            />
+            <LanguageSwitcher
+              locale={uiLocale()}
+              available={availableLocales()}
+              onChange={changeLocale}
             />
             <EditModeButton
               editMode={editMode()}
@@ -451,8 +501,8 @@ function App() {
             currency={currency()}
             enableTrade
             useScryfallImgUrls={useScryfallImgUrls()}
-            label="All Selected"
-            clearLabel="Clear all selections"
+            label={t('site.app.allSelected')}
+            clearLabel={t('site.app.clearAllSelections')}
             buttonClass="selection-menu-btn--navbar"
             showViewAll
             onRemoveAll={editMode() ? handleRemoveAll : undefined}
@@ -467,9 +517,13 @@ function App() {
               type="button"
               class="header-utility-toggle"
               classList={{ 'header-utility-toggle--open': headerUtilityOpen() }}
-              aria-label={headerUtilityOpen() ? 'Hide display options' : 'Show display options'}
+              aria-label={
+                headerUtilityOpen()
+                  ? t('site.app.hideDisplayOptions')
+                  : t('site.app.showDisplayOptions')
+              }
               aria-expanded={headerUtilityOpen()}
-              title="Display options"
+              title={t('site.app.displayOptions')}
               onClick={() => setHeaderUtilityOpen((v) => !v)}
             >
               <span aria-hidden="true">⚙</span>
@@ -485,6 +539,11 @@ function App() {
               currency={currency()}
               available={availableCurrencies()}
               onChange={changeCurrency}
+            />
+            <LanguageSwitcher
+              locale={uiLocale()}
+              available={availableLocales()}
+              onChange={changeLocale}
             />
             <EditModeButton
               editMode={editMode()}
@@ -505,9 +564,7 @@ function App() {
                     <span class="edit-banner-icon" aria-hidden="true">
                       ✎
                     </span>
-                    <span class="edit-mode-hint">
-                      Edit mode is on — open a single deck, collection, or wanted list to edit.
-                    </span>
+                    <span class="edit-mode-hint">{t('site.app.editModeHint')}</span>
                   </div>
                   <div class="edit-banner-controls">
                     <button
@@ -515,7 +572,7 @@ function App() {
                       class="btn btn-export"
                       onClick={() => setOffListExportOpen(true)}
                     >
-                      Export…
+                      {t('site.app.export')}
                     </button>
                   </div>
                 </div>
@@ -533,11 +590,12 @@ function App() {
 
       <Show when={pricesDate()}>
         <div class="prices-date">
-          Prices accurate as of{' '}
-          {new Date(pricesDate()!).toLocaleDateString(undefined, {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
+          {t('site.app.pricesDate', {
+            date: formatDateTime(pricesDate()!, {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            }),
           })}
         </div>
       </Show>
@@ -746,8 +804,18 @@ function App() {
       </main>
 
       <footer class="site-footer">
+        {/* Segments, not concatenation: the link sits mid-sentence and a
+            translator must be free to move it. */}
         <p>
-          Generated by <a href="https://github.com/sloshy/ritual">ritual</a>
+          <For each={tSegments('site.app.generatedBy', { tool: 'ritual' })}>
+            {(segment) =>
+              segment.kind === 'param' ? (
+                <a href="https://github.com/sloshy/ritual">{segment.value}</a>
+              ) : (
+                segment.value
+              )
+            }
+          </For>
         </p>
       </footer>
 
@@ -766,12 +834,12 @@ function App() {
       />
 
       <Show when={tradeToast()}>
-        {(t) => (
+        {(toast) => (
           <div class="trade-add-toast" aria-live="polite">
-            <Show when={t().imageUrl}>
+            <Show when={toast().imageUrl}>
               {(url) => <img class="trade-add-toast-thumb" src={url()} alt="" />}
             </Show>
-            {t().name} added to Trade
+            {t('site.app.tradeToastAdded', { name: toast().name })}
           </div>
         )}
       </Show>
@@ -846,11 +914,25 @@ function App() {
         {(prompt) => (
           <ConfirmDialog
             open
-            title={`${prompt().cardName} is marked "To keep"`}
-            message='This card is labeled "To keep". Add it to the trade anyway? You will not be asked again.'
-            confirmLabel="Add anyway"
+            title={t('site.app.keepTradeTitle', { name: prompt().cardName })}
+            message={t('site.app.keepTradeMessage')}
+            confirmLabel={t('site.app.keepTradeConfirm')}
             onConfirm={() => prompt().onConfirm()}
             onCancel={() => prompt().onCancel()}
+          />
+        )}
+      </Show>
+
+      {/* Cross-list "remove every selected card" confirmation (was window.confirm). */}
+      <Show when={removeAllTarget()}>
+        {(target) => (
+          <ConfirmDialog
+            open
+            title={t('ui.selection.confirmRemoveAll', { count: target().count })}
+            confirmLabel={t('site.app.removeSelectedConfirm')}
+            destructive
+            onConfirm={confirmRemoveAll}
+            onCancel={() => setRemoveAllTarget(null)}
           />
         )}
       </Show>
@@ -898,15 +980,21 @@ function ErrorMessage(props: ErrorMessageProps) {
 function Root() {
   const themeStore = createThemeStore()
   syncFaviconToTheme(themeStore)
+  // The i18n store wraps everything, exactly like the theme store: `useT()`
+  // reads its locale signal on every call, so a language switch re-renders the
+  // whole tree rather than only the components that happen to remount.
+  const i18nStore = createI18nStore()
   return (
-    <ThemeProvider store={themeStore}>
-      <EditChromeProvider>
-        <Show when={themeStore.editorOpen()}>
-          <ThemeEditor />
-        </Show>
-        <App />
-      </EditChromeProvider>
-    </ThemeProvider>
+    <I18nProvider store={i18nStore}>
+      <ThemeProvider store={themeStore}>
+        <EditChromeProvider>
+          <Show when={themeStore.editorOpen()}>
+            <ThemeEditor />
+          </Show>
+          <App />
+        </EditChromeProvider>
+      </ThemeProvider>
+    </I18nProvider>
   )
 }
 

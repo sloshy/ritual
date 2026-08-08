@@ -7,7 +7,7 @@ import path from 'node:path'
 import '../../src/scryfall'
 import { cardCache } from '../../src/cache'
 import { getBaseDir, setBaseDir } from '../../src/base-dir'
-import { SELL_DISCLAIMER } from '../../src/commands/sell'
+import { sellDisclaimer } from '../../src/commands/sell'
 import type { SellReportPayload } from '../../src/sell-report'
 import type { ScryfallCard } from '../../src/types'
 import { makeCardKingdomCacheFile, makeCardKingdomProduct, makeScryfallCard } from '../test-utils'
@@ -154,7 +154,7 @@ describe('sell CLI (Integration)', () => {
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain('[collection] binder')
     expect(result.stdout).toContain('Total: $4.40 for 3 of 4 cards across 1 list')
-    expect(result.stdout).toContain(SELL_DISCLAIMER)
+    expect(result.stdout).toContain(sellDisclaimer())
   })
 
   test('--min filters offers and recomputes totals', async () => {

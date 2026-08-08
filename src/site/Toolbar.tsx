@@ -1,5 +1,5 @@
 import type { Component, JSX } from 'solid-js'
-import { Show, For, Index, createSignal } from 'solid-js'
+import { Show, For, Index, createMemo, createSignal } from 'solid-js'
 import type {
   ViewMode,
   CardSize,
@@ -9,7 +9,6 @@ import type {
   PriceGroupStrategy,
 } from './card-sorting'
 import type { PriceCurrency } from '../price-currency'
-import { capitalize } from './utils'
 import { useStuck } from './useStuck'
 import { FilterMenu } from './FilterMenu'
 import type { CardFiltersControl } from './useCardFilters'
@@ -18,12 +17,20 @@ import { BottomSheet } from '../ui/BottomSheet'
 import { selectionModeActive, toggleSelectionMode } from './selection-mode'
 import type { SellModeControl } from './sell-mode'
 import { buylistLoading } from './buylist-quotes'
-import { BUYERS, BUYER_DISPLAY_NAMES, parseBuyerId } from '../buylist'
+import { BUYERS, buyerName, parseBuyerId, type BuyerId } from '../buylist'
+import type { MessageKey } from '../i18n/messages/en'
+import { useI18n } from '../ui/i18n'
 
 type ExtraToggle = {
   label: string
   checked: boolean
   onChange: () => void
+}
+
+/** One row of the sell-mode buyer dropdown, with its name already rendered. */
+type BuyerOption = {
+  id: BuyerId
+  name: string
 }
 
 interface ToolbarProps {
@@ -73,11 +80,36 @@ const VIEW_MODE_ICONS: Record<ViewMode, string> = {
   list: '☰',
 }
 
+/**
+ * Tooltips for the view-mode and card-size buttons, as message *keys* rather
+ * than rendered text — these tables are evaluated once at import, so a table of
+ * strings would keep the toolbar in the boot-time language after a locale
+ * switch. Resolved where they are rendered.
+ *
+ * They also replace a `capitalize(mode)`/`capitalize(size)` concatenation,
+ * which left the visible text with no string a translator could ever find.
+ */
+const VIEW_MODE_TITLES = {
+  binder: 'site.viewMode.binder',
+  overlap: 'site.viewMode.overlap',
+  stack: 'site.viewMode.stack',
+  list: 'site.viewMode.list',
+} as const satisfies Record<ViewMode, MessageKey>
+
+/** The single-letter glyph on each card-size button. Not translated. */
 const CARD_SIZE_LABELS: Record<CardSize, string> = {
   large: 'L',
   medium: 'M',
   small: 'S',
 }
+
+const CARD_SIZE_TITLES = {
+  large: 'site.cardSize.large',
+  medium: 'site.cardSize.medium',
+  small: 'site.cardSize.small',
+} as const satisfies Record<CardSize, MessageKey>
+
+const CARD_SIZES: readonly CardSize[] = ['large', 'medium', 'small']
 
 type ToolbarSelectProps<T extends string> = {
   value: T
@@ -139,6 +171,7 @@ function ToolbarSelect<T extends string>(props: ToolbarSelectProps<T>): JSX.Elem
  * whose fan-out interaction requires hover.
  */
 export const Toolbar: Component<ToolbarProps> = (props) => {
+  const { t, locale } = useI18n()
   const { stuck, sentinelRef } = useStuck()
   const mobile = useMobileLayout()
   const coarse = usePointerCoarse()
@@ -155,7 +188,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
           <button
             data-view={mode}
             class={props.viewMode === mode ? 'active' : ''}
-            title={`${capitalize(mode)} View`}
+            title={t(VIEW_MODE_TITLES[mode])}
             onClick={() => props.onViewModeChange(mode)}
           >
             {VIEW_MODE_ICONS[mode]}
@@ -167,15 +200,17 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
 
   const sizeToggle = () => (
     <div class="view-toggle">
-      {(['large', 'medium', 'small'] as CardSize[]).map((size) => (
-        <button
-          class={props.cardSize === size ? 'active' : ''}
-          title={`${capitalize(size)} cards`}
-          onClick={() => props.onCardSizeChange(size)}
-        >
-          {CARD_SIZE_LABELS[size]}
-        </button>
-      ))}
+      <For each={CARD_SIZES}>
+        {(size) => (
+          <button
+            class={props.cardSize === size ? 'active' : ''}
+            title={t(CARD_SIZE_TITLES[size])}
+            onClick={() => props.onCardSizeChange(size)}
+          >
+            {CARD_SIZE_LABELS[size]}
+          </button>
+        )}
+      </For>
     </div>
   )
 
@@ -186,10 +221,10 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
         class="toolbar-toggle"
         classList={{ active: selectionModeActive() }}
         aria-pressed={selectionModeActive()}
-        title="Selection mode: tap cards to select them"
+        title={t('site.toolbar.selectModeTitle')}
         onClick={toggleSelectionMode}
       >
-        Select
+        {t('site.toolbar.selectMode')}
       </button>
     </Show>
   )
@@ -211,6 +246,15 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
       showBuylistFilter={Boolean(props.sell?.active)}
     />
   )
+
+  // `buyerName` renders through the module-level (non-reactive) `t`, so this
+  // memo reads the locale signal itself to re-derive the option list on a
+  // language switch. The store writes the runtime locale before the signal, so
+  // the names re-render in the new language rather than one behind.
+  const buyerOptions = createMemo<BuyerOption[]>(() => {
+    locale()
+    return BUYERS.map((id) => ({ id, name: buyerName(id) }))
+  })
 
   // Built once and shared by both layout branches, like `filterMenu`: crossing
   // the mobile breakpoint must move the same instance rather than remount it.
@@ -236,14 +280,10 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
               // it suppresses interim announcements rather than making one. The
               // announcement is the live region below.
               aria-busy={busy()}
-              title={
-                busy()
-                  ? 'Sell mode: fetching buylist prices…'
-                  : 'Sell mode: show buylist prices and filters'
-              }
+              title={busy() ? t('site.toolbar.sellModeBusyTitle') : t('site.toolbar.sellModeTitle')}
               onClick={() => sell().onToggle()}
             >
-              Sell mode
+              {t('site.toolbar.sellMode')}
               <Show when={busy()}>
                 <span class="toolbar-busy-spinner" aria-hidden="true" />
               </Show>
@@ -251,12 +291,12 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
             {/* Mounted unconditionally so its text *changes* — a live region
                 created at the same moment as its content does not announce. */}
             <span class="visually-hidden" role="status">
-              {busy() ? 'Fetching buylist prices' : ''}
+              {busy() ? t('site.toolbar.sellModeBusyStatus') : ''}
             </span>
             <Show when={sell().active}>
               <div class="toolbar-group">
                 <label class="toolbar-label" for="buylist-buyer">
-                  Buyer:
+                  {t('site.toolbar.buyerLabel')}
                 </label>
                 <select
                   id="buylist-buyer"
@@ -264,8 +304,8 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
                   value={sell().buyer}
                   onChange={(e) => sell().onBuyerChange(parseBuyerId(e.currentTarget.value))}
                 >
-                  <For each={BUYERS}>
-                    {(buyer) => <option value={buyer}>{BUYER_DISPLAY_NAMES[buyer]}</option>}
+                  <For each={buyerOptions()}>
+                    {(buyer) => <option value={buyer.id}>{buyer.name}</option>}
                   </For>
                 </select>
               </div>
@@ -292,9 +332,9 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
         props.onPriceGroupStrategyChange(e.currentTarget.value as PriceGroupStrategy)
       }
     >
-      <option value="archidekt">Archidekt</option>
-      <option value="five">Every $5</option>
-      <option value="ten">Every $10</option>
+      <option value="archidekt">{t('site.brackets.archidekt')}</option>
+      <option value="five">{t('site.brackets.five')}</option>
+      <option value="ten">{t('site.brackets.ten')}</option>
     </select>
   )
 
@@ -336,8 +376,10 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
               class="toolbar-toggle toolbar-sort-reverse"
               classList={{ active: layer().reverse }}
               aria-pressed={layer().reverse}
-              title={layer().reverse ? 'Sorted descending' : 'Sorted ascending'}
-              aria-label="Reverse this sort"
+              title={
+                layer().reverse ? t('site.toolbar.sortDescending') : t('site.toolbar.sortAscending')
+              }
+              aria-label={t('site.toolbar.sortReverse')}
               onClick={() => toggleLayerReverse(index)}
             >
               <span aria-hidden="true">↑↓</span>
@@ -346,8 +388,8 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
               <button
                 type="button"
                 class="toolbar-toggle toolbar-sort-remove"
-                title="Remove this sort"
-                aria-label="Remove this sort"
+                title={t('site.toolbar.sortRemove')}
+                aria-label={t('site.toolbar.sortRemove')}
                 onClick={() => removeLayer(index)}
               >
                 <span aria-hidden="true">−</span>
@@ -360,8 +402,8 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
         <button
           type="button"
           class="toolbar-toggle toolbar-sort-add"
-          title="Add another sort"
-          aria-label="Add another sort"
+          title={t('site.toolbar.sortAdd')}
+          aria-label={t('site.toolbar.sortAdd')}
           onClick={addLayer}
         >
           <span aria-hidden="true">+</span>
@@ -379,7 +421,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
         aria-pressed={props.reverseGroups}
         onClick={props.onReverseGroupsChange}
       >
-        <span aria-hidden="true">↑↓</span> Reverse Sections
+        <span aria-hidden="true">↑↓</span> {t('site.toolbar.reverseSections')}
       </button>
     </Show>
   )
@@ -420,7 +462,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
                 aria-expanded={sortSheetOpen()}
                 onClick={() => setSortSheetOpen(true)}
               >
-                Sort <span aria-hidden="true">▾</span>
+                {t('site.toolbar.sortSheet')} <span aria-hidden="true">▾</span>
               </button>
               {selectModeToggle()}
               {sellControls}
@@ -429,38 +471,38 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
               <BottomSheet
                 open={sortSheetOpen()}
                 onClose={() => setSortSheetOpen(false)}
-                title="Sort & Group"
+                title={t('site.toolbar.sortSheetTitle')}
               >
                 <div class="sheet-controls">
                   <div class="sheet-control">
-                    <span class="sheet-control-label">Group</span>
+                    <span class="sheet-control-label">{t('site.toolbar.sheetGroup')}</span>
                     {groupSelect()}
                   </div>
                   <Show when={props.groupBy === 'price' || props.groupBy === 'buylist-price'}>
                     <div class="sheet-control">
-                      <span class="sheet-control-label">Brackets</span>
+                      <span class="sheet-control-label">{t('site.toolbar.sheetBrackets')}</span>
                       {bracketsSelect()}
                     </div>
                   </Show>
                   <div class="sheet-control">
-                    <span class="sheet-control-label">Sort</span>
+                    <span class="sheet-control-label">{t('site.toolbar.sheetSort')}</span>
                     {sortControls()}
                   </div>
                   <Show when={props.groupBy !== 'none'}>
                     <div class="sheet-control">
-                      <span class="sheet-control-label">Order</span>
+                      <span class="sheet-control-label">{t('site.toolbar.sheetOrder')}</span>
                       <div class="sheet-control-group">{reverseGroupsToggle()}</div>
                     </div>
                   </Show>
                   <Show when={props.viewMode !== 'list'}>
                     <div class="sheet-control">
-                      <span class="sheet-control-label">Card size</span>
+                      <span class="sheet-control-label">{t('site.toolbar.sheetCardSize')}</span>
                       {sizeToggle()}
                     </div>
                   </Show>
                   <Show when={props.extraToggles && props.extraToggles.length > 0}>
                     <div class="sheet-control">
-                      <span class="sheet-control-label">Extras</span>
+                      <span class="sheet-control-label">{t('site.toolbar.sheetExtras')}</span>
                       <div class="sheet-control-group">{extraToggleButtons()}</div>
                     </div>
                   </Show>
@@ -472,17 +514,17 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
           {viewToggle()}
           <Show when={props.viewMode !== 'list'}>{sizeToggle()}</Show>
           <div class="toolbar-group">
-            <label class="toolbar-label">Group:</label>
+            <label class="toolbar-label">{t('site.toolbar.groupLabel')}</label>
             {groupSelect()}
           </div>
           <Show when={props.groupBy === 'price' || props.groupBy === 'buylist-price'}>
             <div class="toolbar-group">
-              <label class="toolbar-label">Brackets:</label>
+              <label class="toolbar-label">{t('site.toolbar.bracketsLabel')}</label>
               {bracketsSelect()}
             </div>
           </Show>
           <div class="toolbar-group">
-            <label class="toolbar-label">Sort:</label>
+            <label class="toolbar-label">{t('site.toolbar.sortLabel')}</label>
             {sortControls()}
           </div>
           {reverseGroupsToggle()}

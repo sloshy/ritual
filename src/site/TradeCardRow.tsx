@@ -6,6 +6,7 @@ import { formatPrice } from '../price-currency'
 import type { TradeCardEntry } from './data-types'
 import { languageBadge } from '../card-language'
 import { QuantityStepper } from '../ui/QuantityStepper'
+import { useT } from '../ui/i18n'
 
 export interface TradeCardRowProps {
   card: TradeCardEntry
@@ -28,6 +29,7 @@ const SOURCE_TAG_CLASSES: Record<TradeCardEntry['source'], SourceTagClass> = {
 }
 
 export const TradeCardRow: Component<TradeCardRowProps> = (props) => {
+  const t = useT()
   const imageUrl = () => {
     const sf = props.card.scryfallCard
     if (!sf) return null
@@ -48,11 +50,11 @@ export const TradeCardRow: Component<TradeCardRowProps> = (props) => {
   const sourceLabel = (): string => {
     switch (props.card.source) {
       case 'collection':
-        return 'Collection'
+        return t('site.tradeRow.sourceCollection')
       case 'deck':
-        return `Deck · ${props.card.sourceName}`
+        return t('site.tradeRow.sourceDeck', { name: props.card.sourceName })
       case 'wanted':
-        return 'Wanted'
+        return t('site.tradeRow.sourceWanted')
       case 'scryfall':
         // Which backend answered this card's lookup — "Cache" on a hosted site,
         // "Scryfall" when the browser had to ask Scryfall itself.
@@ -85,7 +87,7 @@ export const TradeCardRow: Component<TradeCardRowProps> = (props) => {
           {/* An explicit reminder that this card is labeled "To keep" — shown
               always, whether or not the add-time dialog has been acknowledged. */}
           <Show when={props.card.labels?.includes('keep')}>
-            <span class="src-tag label-keep-tag">Keep</span>
+            <span class="src-tag label-keep-tag">{t('site.tradeRow.keepBadge')}</span>
           </Show>
         </span>
       </div>
@@ -96,8 +98,8 @@ export const TradeCardRow: Component<TradeCardRowProps> = (props) => {
           <button
             class="trade-row-edit"
             onClick={props.onEdit}
-            title="Edit printing"
-            aria-label="Edit printing"
+            title={t('site.tradeRow.editPrinting')}
+            aria-label={t('site.tradeRow.editPrinting')}
           >
             ✎
           </button>
@@ -110,7 +112,7 @@ export const TradeCardRow: Component<TradeCardRowProps> = (props) => {
         <QuantityStepper
           value={props.card.qty}
           max={props.card.maxQty}
-          maxReachedTitle={`Only ${props.card.maxQty} available`}
+          maxReachedTitle={t('site.tradeRow.maxAvailable', { count: props.card.maxQty ?? 0 })}
           onChange={(next) => props.onUpdateQty(next - props.card.qty)}
         />
       </Show>
@@ -119,12 +121,14 @@ export const TradeCardRow: Component<TradeCardRowProps> = (props) => {
           {formatPrice(totalPrice(), props.currency)}
           <Show when={props.card.qty > 1}>
             <span class="trade-row-price-each">
-              {formatPrice(props.card.price!, props.currency)} ea
+              {t('site.tradeRow.priceEach', {
+                amount: formatPrice(props.card.price!, props.currency),
+              })}
             </span>
           </Show>
         </Show>
       </span>
-      <button class="trade-row-remove" onClick={props.onRemove} title="Remove from trade">
+      <button class="trade-row-remove" onClick={props.onRemove} title={t('site.tradeRow.remove')}>
         ✕
       </button>
     </div>

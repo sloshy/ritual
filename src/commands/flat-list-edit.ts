@@ -12,6 +12,7 @@ import type { Condition, Finish } from '../types'
 import type { CardLabel } from '../card-labels'
 import { displayLanguage, type CardLanguage } from '../card-language'
 import { allocateId, claimId, releaseId } from '../card-id'
+import { t } from '../i18n/t'
 import {
   promptNoteEdit,
   type CardSessionContext,
@@ -176,13 +177,17 @@ export async function editFlatListNote<E extends EditableFlatListEntry>(
   const edit = await promptNoteEdit(entry.note)
   if (!edit) return
   applyFlatListFieldEdit(list, ctx, entry, cardId, {
-    label: `note on ${entry.name}`,
+    label: t('cli.editLabel.note', { name: entry.name }),
     change: createSetNoteChange(entry.name, { note: edit.note, cardId }),
     inverse: createSetNoteChange(entry.name, { note: edit.before, cardId }),
     consolidate: (changes, original) =>
       consolidateSetNote(changes, entry.name, edit.note, original.note ?? '', cardId),
   })
-  console.log(edit.note ? `Note set on ${entry.name}.` : `Note cleared on ${entry.name}.`)
+  console.log(
+    edit.note
+      ? t('cli.edit.noteSet', { name: entry.name })
+      : t('cli.edit.noteCleared', { name: entry.name }),
+  )
 }
 
 type ConfirmPromptResponse = { confirm?: boolean }
@@ -197,7 +202,7 @@ export async function removeFlatListEntry<E extends EditableFlatListEntry>(
   const confirmResponse = (await prompts({
     type: 'confirm',
     name: 'confirm',
-    message: `Remove ${list.renderEntry(entry)}?`,
+    message: t('cli.edit.confirmRemove', { line: list.renderEntry(entry) }),
     initial: false,
   })) as ConfirmPromptResponse
   if (!confirmResponse.confirm) return
@@ -262,14 +267,14 @@ export function performFlatListRemoval<E extends EditableFlatListEntry>(
   list.editUndo.push({
     cardId,
     kind: 'removal',
-    label: `removal of ${removed.name}`,
+    label: t('cli.editLabel.removal', { name: removed.name }),
     inverse,
     addedToChangelog: [removeEvent],
     removedFromChangelog: displaced,
     reclaimId: cardId,
   })
   resetStaleLastAdded(list, ctx, cardId)
-  console.log(`Removed: ${list.renderEntry(removed)}`)
+  console.log(t('cli.edit.removedLine', { line: list.renderEntry(removed) }))
 }
 
 /** Label of the operation Undo Last Edit would revert, or null when the stack is empty. */
@@ -308,7 +313,7 @@ export function undoFlatListEditAt<E extends EditableFlatListEntry>(
   if (!undo) return
   const blocked = targetedUndoBlocker(list.editUndo, index)
   if (blocked) {
-    console.log(`Cannot discard "${undo.label}" yet — ${blocked}.`)
+    console.log(t('cli.edit.cannotDiscardYet', { label: undo.label, reason: blocked }))
     return
   }
   list.editUndo.splice(index, 1)
@@ -327,7 +332,7 @@ export function undoFlatListEditAt<E extends EditableFlatListEntry>(
 
   swapUndoChangelog(ctx, undo)
   resetStaleLastAdded(list, ctx, undo.cardId)
-  console.log(`Undid ${undo.label}.`)
+  console.log(t('cli.edit.undid', { label: undo.label }))
 }
 
 /**

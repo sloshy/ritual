@@ -1,5 +1,7 @@
 import { type JSX, For } from 'solid-js'
+import { useT, useTKey } from '../../../ui/i18n'
 import type { SyncChangeFilter } from '../../../sync-common'
+import type { ParameterlessKey } from '../../../i18n/t'
 
 /**
  * The controls both sync pages are built from.
@@ -10,15 +12,21 @@ import type { SyncChangeFilter } from '../../../sync-common'
  * drift.
  */
 
-/** One option of a {@link ChoicePicker}: what it is called and what picking it does. */
+/**
+ * One option of a {@link ChoicePicker}: what it is called and what picking it
+ * does. Both are {@link MessageKey}s rather than text — the option tables are
+ * built once at module load, so rendered strings would leave every choice in the
+ * boot-time language after a locale switch. `id` is the persisted/URL value and
+ * never moves.
+ */
 export type SyncChoice<T extends string> = {
   id: T
-  label: string
-  description: string
+  labelKey: ParameterlessKey
+  descriptionKey: ParameterlessKey
 }
 
 type ChoicePickerProps<T extends string> = {
-  /** The control's heading, e.g. `Direction`. */
+  /** The control's heading, e.g. "Direction", already rendered. */
   heading: string
   /** The group's accessible name, which says what is being chosen. */
   label: string
@@ -37,6 +45,7 @@ type ChoicePickerProps<T extends string> = {
  * .sync-choice-desc`) rather than every description on the page.
  */
 export function ChoicePicker<T extends string>(props: ChoicePickerProps<T>): JSX.Element {
+  const tKey = useTKey()
   const selected = (): SyncChoice<T> | undefined =>
     props.options.find((option) => option.id === props.value)
 
@@ -54,12 +63,17 @@ export function ChoicePicker<T extends string>(props: ChoicePickerProps<T>): JSX
               disabled={props.disabled}
               onClick={() => props.onSelect(option.id)}
             >
-              {option.label}
+              {tKey(option.labelKey)}
             </button>
           )}
         </For>
       </div>
-      <p class="sync-choice-desc">{selected()?.description}</p>
+      <p class="sync-choice-desc">
+        {(() => {
+          const choice = selected()
+          return choice ? tKey(choice.descriptionKey) : ''
+        })()}
+      </p>
     </div>
   )
 }
@@ -76,22 +90,16 @@ export type ChangeFilterChoice = SyncChangeFilter | 'all'
  * pull and Archidekt on a push.
  */
 const CHANGE_FILTERS: SyncChoice<ChangeFilterChoice>[] = [
-  {
-    id: 'all',
-    label: 'All changes',
-    description: 'Apply every difference: cards added, cards removed, and quantity changes.',
-  },
+  { id: 'all', labelKey: 'admin.sync.filterAll', descriptionKey: 'admin.sync.filterAllDesc' },
   {
     id: 'additions',
-    label: 'Additions only',
-    description:
-      'Only add cards. New cards and quantity increases are applied to the destination (your list files on a pull, Archidekt on a push); removals and decreases are reported but skipped.',
+    labelKey: 'admin.sync.filterAdditions',
+    descriptionKey: 'admin.sync.filterAdditionsDesc',
   },
   {
     id: 'removals',
-    label: 'Removals only',
-    description:
-      'Only take cards away. Removals and quantity decreases are applied to the destination; new cards and increases are reported but skipped.',
+    labelKey: 'admin.sync.filterRemovals',
+    descriptionKey: 'admin.sync.filterRemovalsDesc',
   },
 ]
 
@@ -103,10 +111,11 @@ type ChangeFilterPickerProps = {
 
 /** The page's form of the CLI's `--only <additions|removals>`. */
 export function ChangeFilterPicker(props: ChangeFilterPickerProps): JSX.Element {
+  const t = useT()
   return (
     <ChoicePicker
-      heading="Changes"
-      label="Changes to apply"
+      heading={t('admin.sync.filterHeading')}
+      label={t('admin.sync.filterLabel')}
       class="sync-change-filter"
       options={CHANGE_FILTERS}
       value={props.value}

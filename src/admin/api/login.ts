@@ -1,15 +1,15 @@
 import { ArchidektAuth } from '../../auth/ArchidektAuth'
 import { FileTokenStore } from '../../auth/FileTokenStore'
 import { getErrorMessage } from '../../errors'
+import { apiMessage, type ApiMessage } from './result'
 
 interface ArchidektLoginRequest {
   username: string
   password: string
 }
 
-interface ArchidektLoginResponse {
+interface ArchidektLoginResponse extends ApiMessage {
   success: boolean
-  message: string
   username?: string
 }
 
@@ -21,7 +21,7 @@ export async function handleArchidektLogin(req: Request): Promise<Response> {
     if (!username || !password) {
       const resp: ArchidektLoginResponse = {
         success: false,
-        message: 'username and password are required',
+        ...apiMessage('admin.api.archidekt.credentialsRequired'),
       }
       return Response.json(resp, { status: 400 })
     }
@@ -34,7 +34,7 @@ export async function handleArchidektLogin(req: Request): Promise<Response> {
 
     const resp: ArchidektLoginResponse = {
       success: true,
-      message: `Logged in as ${user?.username ?? username}`,
+      ...apiMessage('admin.api.archidekt.loggedIn', { username: user?.username ?? username }),
       username: user?.username ?? username,
     }
     return Response.json(resp)

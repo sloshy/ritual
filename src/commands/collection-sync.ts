@@ -32,12 +32,13 @@ import {
   type ScopedIndenter,
   type UnreadableSubject,
 } from './sync-helpers'
+import { t } from '../i18n/t'
 
 /** Commander argParser for `--into`: the name of the list a pull adds cards to. */
 export function parsePullTarget(value: string): string {
   const trimmed = value.trim()
   if (trimmed === '') {
-    throw new InvalidArgumentError('--into requires a collection list name.')
+    throw new InvalidArgumentError(t('cli.collectionSync.intoRequiresName'))
   }
   return trimmed
 }
@@ -49,7 +50,7 @@ export function parsePullTarget(value: string): string {
 export function parseRemovalPriority(value: string, previous: string[]): string[] {
   const trimmed = value.trim()
   if (trimmed === '') {
-    throw new InvalidArgumentError('--removal-priority requires a collection list name.')
+    throw new InvalidArgumentError(t('cli.collectionSync.removalPriorityRequiresName'))
   }
   return [...previous, trimmed]
 }
@@ -58,7 +59,7 @@ export function parseRemovalPriority(value: string, previous: string[]): string[
 export function parseCsvFile(value: string): string {
   const trimmed = value.trim()
   if (trimmed === '') {
-    throw new InvalidArgumentError('--csv-file requires a file path.')
+    throw new InvalidArgumentError(t('cli.collectionSync.csvFileRequiresPath'))
   }
   return trimmed
 }
@@ -75,7 +76,7 @@ export type CollectionSyncCommandOptions = {
 } & Partial<ScriptingOptions>
 
 /** What this command calls the things it syncs, in prompts and warnings. */
-const LISTS: UnreadableSubject = { one: 'collection list', many: 'collection lists' }
+const LISTS: UnreadableSubject = 'collectionLists'
 
 /**
  * The pull target: `--into`, else the `collectionSync.pullTarget` config key,
@@ -88,8 +89,8 @@ function resolvePullTarget(into: string | undefined): string {
 
 function unreadableCost(direction: SyncDirection): string {
   return direction === 'pull'
-    ? 'removing the lines above'
-    : 'removing those cards from your Archidekt collection'
+    ? t('cli.sync.costRemoveLines')
+    : t('cli.sync.costRemoveFromArchidekt')
 }
 
 /**
@@ -111,7 +112,7 @@ function renderSyncEvent(
   switch (event.kind) {
     case 'list-start':
       indent.start(event.list)
-      logger.info(`Syncing "${event.list}" (${direction})...`)
+      logger.info(t('cli.sync.syncing', { name: event.list, direction }))
       return
     case 'log': {
       const line = indent.line(event.list, event.message)
@@ -149,11 +150,18 @@ function summarize(report: CollectionSyncReport): string {
   const { added, removed, pending } = report.totals
   // Copies written to a CSV file are not on Archidekt yet, so they are counted
   // apart from the ones that were pushed — see `csvNote` for where they went.
-  const waiting = pending > 0 ? `, ${pending} awaiting upload` : ''
-  const change = `+${added} added, -${removed} removed${waiting}`
-  const where = report.direction === 'pull' ? ` (additions into "${report.into}")` : ''
-  if (report.errors.length > 0) return `Not synced: ${change}${where}.`
-  return report.dryRun ? `[dry-run] Would sync: ${change}${where}.` : `Synced: ${change}${where}.`
+  const waiting = pending > 0 ? t('cli.collectionSync.awaitingUpload', { count: pending }) : ''
+  const change = t('cli.collectionSync.tally', { added, removed, waiting })
+  // `into` is null only on a push, which this branch excludes; String() keeps
+  // the previous template-literal rendering for the unreachable case.
+  const where =
+    report.direction === 'pull'
+      ? t('cli.collectionSync.intoClause', { list: String(report.into) })
+      : ''
+  if (report.errors.length > 0) return t('cli.collectionSync.notSynced', { change, where })
+  return report.dryRun
+    ? t('cli.collectionSync.wouldSync', { change, where })
+    : t('cli.collectionSync.synced', { change, where })
 }
 
 /**
@@ -165,12 +173,21 @@ function summarize(report: CollectionSyncReport): string {
 function csvNote(report: CollectionSyncReport): string | undefined {
   const csv = report.csv
   if (!csv) return undefined
-  const cards = `${csv.cards} card${csv.cards === 1 ? '' : 's'}`
+  const cards = t('domain.count.cards', { count: csv.cards })
   if (csv.status === 'exported') {
-    return `${cards} were not pushed: upload ${csv.path} at ${ARCHIDEKT_IMPORT_URL} to add them.`
+    return t('cli.collectionSync.csvExported', {
+      count: csv.cards,
+      cards,
+      path: csv.path,
+      url: ARCHIDEKT_IMPORT_URL,
+    })
   }
   if (csv.status === 'planned' && csv.destination === 'export') {
-    return `[dry-run] ${cards} would await a manual upload of ${csv.path} at ${ARCHIDEKT_IMPORT_URL}.`
+    return t('cli.collectionSync.csvPlanned', {
+      cards,
+      path: csv.path,
+      url: ARCHIDEKT_IMPORT_URL,
+    })
   }
   return undefined
 }
@@ -180,36 +197,21 @@ export function registerCollectionSyncCommand(program: Command): void {
     addRefreshOption(
       addSyncOptions(
         addSyncDirectionArgument(
-          program.command('collection-sync').description('Sync collection changes with Archidekt'),
+          program.command('collection-sync').description(t('help.collectionSync.description')),
         ),
-        'collection lists',
+        'collectionLists',
       )
-        .argument(
-          '[lists...]',
-          'Collection lists to sync (defaults to every collection list); the remote side is always the whole Archidekt collection',
-        )
-        .option(
-          '--into <list>',
-          'Collection list a pull adds new cards to, created if needed (default: the collectionSync.pullTarget config key)',
-          parsePullTarget,
-        )
+        .argument('[lists...]', t('help.collectionSync.lists'))
+        .option('--into <list>', t('help.collectionSync.into'), parsePullTarget)
         .option(
           '--removal-priority <list>',
-          'Collection list an ambiguous removal may take copies from, in the order given (repeatable)',
+          t('help.collectionSync.removalPriority'),
           parseRemovalPriority,
           [] as string[],
         )
-        .option(
-          '--csv',
-          `Upload a push's new cards as one CSV import instead of adding them one at a time (automatic above ${CSV_UPLOAD_THRESHOLD})`,
-          false,
-        )
-        .option(
-          '--csv-file <path>',
-          "Write a push's new cards to this CSV file for a manual upload instead of pushing them",
-          parseCsvFile,
-        ),
-      "Card cache refresh policy when a push's new cards take the CSV path: ask (prompt; without a terminal, fails the run like never), auto, no-bulk, never",
+        .option('--csv', t('help.collectionSync.csv', { threshold: CSV_UPLOAD_THRESHOLD }), false)
+        .option('--csv-file <path>', t('help.collectionSync.csvFile'), parseCsvFile),
+      t('help.collectionSync.refresh'),
     ),
   ).action(
     async (direction: SyncDirection, lists: string[], options: CollectionSyncCommandOptions) => {
@@ -225,8 +227,10 @@ export function registerCollectionSyncCommand(program: Command): void {
       if (options.csv === true && options.csvFile !== undefined) {
         emitError(
           'usage_error',
-          '--csv and --csv-file cannot be combined: --csv uploads the new cards, --csv-file writes them to a file instead of pushing them.',
+          t('cli.collectionSync.csvFlagsExclusive'),
           scripting,
+          undefined,
+          'cli.collectionSync.csvFlagsExclusive',
         )
         process.exitCode = ExitCode.UsageError
         return
@@ -236,18 +240,18 @@ export function registerCollectionSyncCommand(program: Command): void {
       if (!session) return
 
       if (direction === 'push' && options.into !== undefined) {
-        logger.warn('Ignoring --into: it only applies to a pull.')
+        logger.warn(t('cli.collectionSync.ignoringInto'))
       }
 
       const removalPriority = options.removalPriority ?? []
       if (direction === 'push' && removalPriority.length > 0) {
-        logger.warn('Ignoring --removal-priority: it only applies to a pull.')
+        logger.warn(t('cli.collectionSync.ignoringRemovalPriority'))
       }
 
       if (direction === 'pull') {
-        if (options.csv === true) logger.warn('Ignoring --csv: it only applies to a push.')
+        if (options.csv === true) logger.warn(t('cli.collectionSync.ignoringCsv'))
         if (options.csvFile !== undefined) {
-          logger.warn('Ignoring --csv-file: it only applies to a push.')
+          logger.warn(t('cli.collectionSync.ignoringCsvFile'))
         }
       }
 
@@ -304,7 +308,12 @@ export function registerCollectionSyncCommand(program: Command): void {
       }
 
       if (report.failedCount > 0) {
-        logger.error(`${report.failedCount} of ${report.lists.length} collection lists failed`)
+        logger.error(
+          t('cli.collectionSync.listsFailed', {
+            failed: report.failedCount,
+            total: report.lists.length,
+          }),
+        )
       }
       // Run-level errors (a failed collection fetch, records that could not be
       // deleted) belong to no list, so they are counted separately — but they

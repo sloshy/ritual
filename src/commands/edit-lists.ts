@@ -1,6 +1,8 @@
 import path from 'node:path'
 import type { DeckFormatKey } from '../deck-format'
-import { LIST_TYPE_DISPLAY, listTypeLabel, type ListType } from '../list-type'
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
+import { LIST_TYPE_DISPLAY, type ListType } from '../list-type'
 import { dirForType, normalizeListName } from '../resolve-list'
 import type { DeckData } from '../types'
 import {
@@ -74,11 +76,20 @@ export function listRefLabel(ref: UnifiedListRef): string {
   return `${LIST_TYPE_DISPLAY[ref.type].icon} ${ref.name}`
 }
 
-/** The create-new menu items, shared by the selection menu and the add-target prompt. */
-export const NEW_LIST_TITLES: Record<ListType, string> = {
-  deck: '➕ New Deck',
-  collection: '➕ New Collection',
-  wanted: '➕ New Wanted List',
+/**
+ * The create-new menu items, shared by the selection menu and the add-target
+ * prompt. Message keys rather than rendered rows — this table is evaluated once
+ * at module load. The `➕` marker is layout, not wording, so it stays here.
+ */
+const NEW_LIST_TITLES = {
+  deck: 'domain.newList.deck',
+  collection: 'domain.newList.collection',
+  wanted: 'domain.newList.wanted',
+} as const satisfies Record<ListType, MessageKey>
+
+/** The create-new menu row for a list type, in the active UI locale. */
+export function newListTitle(type: ListType): string {
+  return `➕ ${t(NEW_LIST_TITLES[type])}`
 }
 
 /** Enumerate every list on disk for the selection menu (decks by display name). */
@@ -164,7 +175,7 @@ export function trackListCreation(
 ): TrackedCreation {
   let isNew = true
   let discarded = false
-  const creationLabel = `Created this ${listTypeLabel(ref.type)}`
+  const creationLabel = t('cli.edit.creationChange', { type: ref.type })
 
   const strategy: CardSessionStrategy = {
     ...inner,
@@ -180,7 +191,7 @@ export function trackListCreation(
       if (!isNew) return changes
       const blocked =
         changes.length > 0
-          ? `discard this ${listTypeLabel(ref.type)}'s ${changes.length} card change(s) first`
+          ? t('cli.edit.discardCardChangesFirst', { type: ref.type, count: changes.length })
           : undefined
       return [{ label: creationLabel, blocked }, ...changes]
     },
@@ -192,7 +203,7 @@ export function trackListCreation(
       if (inner.listSessionChanges().length > 0) return
       discarded = true
       onDiscard()
-      console.log(`Discarded ${listTypeLabel(ref.type)} "${ref.name}".`)
+      console.log(t('cli.edit.discardedList', { type: ref.type, name: ref.name }))
     },
   }
   return { strategy, isNew: () => isNew }

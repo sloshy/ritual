@@ -1,6 +1,8 @@
 import { type Component, createSignal, For, Show } from 'solid-js'
 import type { Finish, Condition } from '../../types'
 import { VALID_FINISHES, VALID_CONDITIONS } from '../../finish-condition'
+import { useT, useTKey } from '../../ui/i18n'
+import type { ParameterlessKey } from '../../i18n/t'
 import {
   type EditorDefaults,
   type UseEditorDefaultsResult,
@@ -8,10 +10,15 @@ import {
   formatSetCodesForDisplay,
 } from '../useEditorDefaults'
 
-const FINISH_LABELS: Record<Finish, string> = {
-  nonfoil: 'Nonfoil',
-  foil: 'Foil',
-  etched: 'Etched',
+/**
+ * Message keys, not rendered text: the table is built once at module load, so a
+ * rendered string would keep the radio labels in the boot language after a
+ * locale switch (plan §7.2).
+ */
+const FINISH_LABELS: Record<Finish, ParameterlessKey> = {
+  nonfoil: 'ui.editor.finishNonfoil',
+  foil: 'ui.editor.finishFoil',
+  etched: 'ui.editor.finishEtched',
 }
 
 type EditorDefaultsFormProps = {
@@ -31,6 +38,8 @@ function readCondition(d: EditorDefaults): Condition | undefined {
  * active-state indicator live on the action bar itself.
  */
 export const EditorDefaultsForm: Component<EditorDefaultsFormProps> = (props) => {
+  const t = useT()
+  const tKey = useTKey()
   // `setsInput` is a draft input value that commits to the canonical state on
   // blur/Enter. The seed read of `defaults` is intentionally not reactive —
   // external mutations to sets go through `handleClear` which keeps the draft
@@ -60,13 +69,13 @@ export const EditorDefaultsForm: Component<EditorDefaultsFormProps> = (props) =>
     <div class="editor-defaults-body">
       <div class="editor-defaults-row">
         <label class="editor-defaults-label" for="defaults-sets">
-          Set codes
+          {t('ui.editor.defaultsSets')}
         </label>
         <input
           id="defaults-sets"
           type="text"
           class="form-input editor-defaults-sets-input"
-          placeholder="e.g. FDN, SPG"
+          placeholder={t('ui.editor.defaultsSetsPlaceholder')}
           value={setsInput()}
           onInput={(e) => setSetsInput(e.currentTarget.value)}
           onBlur={commitSets}
@@ -77,14 +86,11 @@ export const EditorDefaultsForm: Component<EditorDefaultsFormProps> = (props) =>
             }
           }}
         />
-        <p class="form-hint editor-defaults-hint">
-          When set, the printing picker shows only matching printings (with fallback to all if none
-          match). Comma-separated, case-insensitive.
-        </p>
+        <p class="form-hint editor-defaults-hint">{t('ui.editor.defaultsSetsHint')}</p>
       </div>
 
       <div class="editor-defaults-row">
-        <span class="editor-defaults-label">Finish</span>
+        <span class="editor-defaults-label">{t('ui.field.finish')}</span>
         <div class="editor-defaults-options">
           <label
             class={`editor-defaults-option${d().finish === undefined ? ' editor-defaults-option--selected' : ''}`}
@@ -95,7 +101,7 @@ export const EditorDefaultsForm: Component<EditorDefaultsFormProps> = (props) =>
               checked={d().finish === undefined}
               onChange={() => props.defaults.setFinish(undefined)}
             />
-            Ask each time
+            {t('ui.editor.defaultsAskEachTime')}
           </label>
           <For each={VALID_FINISHES}>
             {(finish) => (
@@ -108,7 +114,7 @@ export const EditorDefaultsForm: Component<EditorDefaultsFormProps> = (props) =>
                   checked={d().finish === finish}
                   onChange={() => props.defaults.setFinish(finish)}
                 />
-                {FINISH_LABELS[finish]}
+                {tKey(FINISH_LABELS[finish])}
               </label>
             )}
           </For>
@@ -117,7 +123,7 @@ export const EditorDefaultsForm: Component<EditorDefaultsFormProps> = (props) =>
 
       <Show when={props.showCondition}>
         <div class="editor-defaults-row">
-          <span class="editor-defaults-label">Condition</span>
+          <span class="editor-defaults-label">{t('ui.field.condition')}</span>
           <div class="editor-defaults-options">
             <label
               class={`editor-defaults-option${readCondition(d()) === undefined ? ' editor-defaults-option--selected' : ''}`}
@@ -128,7 +134,7 @@ export const EditorDefaultsForm: Component<EditorDefaultsFormProps> = (props) =>
                 checked={readCondition(d()) === undefined}
                 onChange={() => props.defaults.setCondition(undefined)}
               />
-              Ask each time
+              {t('ui.editor.defaultsAskEachTime')}
             </label>
             <For each={VALID_CONDITIONS}>
               {(condition: Condition) => (
@@ -156,7 +162,7 @@ export const EditorDefaultsForm: Component<EditorDefaultsFormProps> = (props) =>
           onClick={handleClear}
           disabled={!props.defaults.hasActive()}
         >
-          Clear all
+          {t('ui.editor.defaultsClear')}
         </button>
       </div>
     </div>

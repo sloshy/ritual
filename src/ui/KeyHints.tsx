@@ -1,4 +1,5 @@
 import { type Component, For } from 'solid-js'
+import type { ParameterlessKey } from '../i18n/t'
 
 /**
  * A key as it is spelled on screen. Closed so every surface renders the same
@@ -21,8 +22,15 @@ export type KeyLabel =
   | '+'
   | '-'
 
-/** A keyboard affordance: the keys to press, and what pressing them does. */
-export type KeyHint = { keys: readonly KeyLabel[]; label: string }
+/**
+ * A keyboard affordance: the keys to press, and what pressing them does.
+ *
+ * `label` is a {@link MessageKey}, never rendered text. Hint tables are built at
+ * module load (`EDITOR_SHORTCUTS`) or inside a memo that a locale switch does
+ * not invalidate, so holding a string would leave the shortcuts reference and
+ * the dialog footers in the previous language after a switch.
+ */
+export type KeyHint = { keys: readonly KeyLabel[]; label: ParameterlessKey }
 
 type KeyChipsProps = Pick<KeyHint, 'keys'>
 

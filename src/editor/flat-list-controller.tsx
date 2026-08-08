@@ -6,6 +6,7 @@ import type { ChangeInput, ListRef, PrintingTuple } from '../change-event'
 import type { SelectedCard } from '../site/useCardSelection'
 import type { CardContextInfo } from './context-menu'
 import type { ListEditorConfig, UseEditorResult } from './useEditor'
+import type { EditorEntity } from './entity'
 import type { ListType } from '../list-type'
 import { contextInfoFromSelected } from './selected-to-context'
 import { printingForMove } from '../site/printing-prompt'
@@ -408,10 +409,8 @@ export function FlatListContextMenu<E extends FlatEntry>(
 
 type FlatListEditorShellProps<E extends FlatEntry> = {
   ctrl: FlatListController<E>
-  entityLabel: string
+  entityLabel: EditorEntity
   selectorId: string
-  selectorLabel: string
-  selectorPlaceholder: string
   defaults: UseEditorDefaultsResult
   search: SearchProvider
   requirePrinting: boolean
@@ -434,8 +433,6 @@ export function FlatListEditorShell<E extends FlatEntry>(
     <EditorShell
       entityLabel={props.entityLabel}
       selectorId={props.selectorId}
-      selectorLabel={props.selectorLabel}
-      selectorPlaceholder={props.selectorPlaceholder}
       editor={props.ctrl.editor}
       cardData={props.ctrl.cardData}
       search={props.search}

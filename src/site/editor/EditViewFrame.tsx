@@ -1,5 +1,7 @@
 import { type JSX, Show, batch, createEffect, createSignal, onMount, onCleanup } from 'solid-js'
 import type { ChangeEvent } from '../../change-event'
+import { ConfirmDialog } from '../../ui/ConfirmDialog'
+import { useT } from '../../ui/i18n'
 import {
   type ChangeBundleList,
   CHANGE_BUNDLE_FILENAME,
@@ -24,7 +26,12 @@ import {
   clearEditSession,
   hasEditSession,
 } from './edit-session-storage'
-import { listEditSessions, rememberEditSession, recallEditSession } from './edit-session-memory'
+import {
+  listEditSessions,
+  needsDiscardConfirm,
+  rememberEditSession,
+  recallEditSession,
+} from './edit-session-memory'
 
 type EditViewFrameProps = {
   changeCount: number
@@ -75,11 +82,24 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
   const [exportOpen, setExportOpen] = createSignal(false)
   const [importOpen, setImportOpen] = createSignal(false)
   const [savedExists, setSavedExists] = createSignal(false)
+  const [exitConfirmOpen, setExitConfirmOpen] = createSignal(false)
   const [restorable, setRestorable] = createSignal<ChangeBundleList | null>(null)
   // Remembered in-memory edits awaiting (re)application once the editor has loaded.
   const [pendingImport, setPendingImport] = createSignal<ChangeEvent[] | null>(null)
 
   const editChrome = useEditChrome()
+  const t = useT()
+
+  /**
+   * Leaving edit mode, confirming first when edits would be lost. The frame owns
+   * the confirmation (rather than each editor calling `window.confirm`) because
+   * it is the one component mounted for every public editor and it can host a
+   * real dialog — a blocking browser prompt has no string a catalog can reach.
+   */
+  const requestExit = (): void => {
+    if (needsDiscardConfirm(props.changeCount)) setExitConfirmOpen(true)
+    else props.onExit()
+  }
 
   // Publish the edit controls to the navbar while this editor is mounted. Register
   // the chrome and active session first, then decide what (if anything) to restore —
@@ -92,7 +112,7 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
       onDiscard: () => props.onDiscard(),
       onExport: () => setExportOpen(true),
       onLoadChanges: () => setImportOpen(true),
-      onExit: () => props.onExit(),
+      onExit: requestExit,
     })
     // kind/slug/bulkEdit are stable per mount (one editor per list); remount the
     // frame to change them. The cross-list navbar reads this to apply removals live.
@@ -189,16 +209,13 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
       <Show when={restorable()}>
         {(saved) => (
           <div class="edit-restore-bar" role="status">
-            <span>
-              You saved edits to this list in this browser ({saved().changes.length}{' '}
-              {saved().changes.length === 1 ? 'change' : 'changes'}). Restore them?
-            </span>
+            <span>{t('site.editor.restorePrompt', { count: saved().changes.length })}</span>
             <div class="edit-restore-actions">
               <button type="button" class="btn btn-export" onClick={() => handleRestore(saved())}>
-                Restore
+                {t('site.editor.restore')}
               </button>
               <button type="button" class="btn btn-secondary" onClick={() => setRestorable(null)}>
-                Dismiss
+                {t('site.editor.dismiss')}
               </button>
             </div>
           </div>
@@ -229,6 +246,19 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
         expectedKind={props.kind}
         expectedSlug={props.slug}
         onImport={(changes) => props.onImport(changes)}
+      />
+
+      <ConfirmDialog
+        open={exitConfirmOpen()}
+        title={t('site.editor.exitTitle')}
+        message={t('site.editor.exitMessage')}
+        confirmLabel={t('site.editor.exitConfirm')}
+        destructive
+        onConfirm={() => {
+          setExitConfirmOpen(false)
+          props.onExit()
+        }}
+        onCancel={() => setExitConfirmOpen(false)}
       />
     </div>
   )

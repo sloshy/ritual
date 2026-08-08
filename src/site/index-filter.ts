@@ -1,4 +1,6 @@
 import type { DeckSummary } from './data-types'
+import { compareDisplayBase } from '../i18n/collate'
+import type { MessageKey } from '../i18n/messages/en'
 import type { PriceCurrency } from '../price-currency'
 import { getSummaryLowestPrice, getSummaryTotalPrice } from './utils'
 import { getDeckFormatLabel } from '../deck-format'
@@ -9,36 +11,50 @@ export type IndexGroup = 'none' | 'format'
 export const DEFAULT_INDEX_SORT: IndexSort = 'alpha'
 export const DEFAULT_INDEX_GROUP: IndexGroup = 'none'
 
-export interface IndexSortOption {
+/**
+ * A row of an index toolbar dropdown. `label` is a {@link MessageKey}, not
+ * rendered text: these tables are built once at module load, so a table of
+ * strings would leave the dropdowns in the boot-time language after a locale
+ * switch. `value` stays an English slug — it is what the URL carries.
+ *
+ * The tables below are `as const`, and the exported option types are derived
+ * from them, so a consumer's `t(option.label)` keeps the literal key type and
+ * stays a compile-time-checked call rather than an untyped lookup.
+ */
+type IndexSortOptionShape = {
   value: IndexSort
-  label: string
+  label: MessageKey
 }
 
-export interface IndexGroupOption {
+type IndexGroupOptionShape = {
   value: IndexGroup
-  label: string
+  label: MessageKey
 }
 
-export const INDEX_SORT_OPTIONS: IndexSortOption[] = [
-  { value: 'alpha', label: 'Alphabetical' },
-  { value: 'recent', label: 'Recently updated' },
-  { value: 'price', label: 'Current price' },
-  { value: 'lowestPrice', label: 'Lowest price' },
-]
+export const INDEX_SORT_OPTIONS = [
+  { value: 'alpha', label: 'site.index.sortAlphabetical' },
+  { value: 'recent', label: 'site.index.sortRecent' },
+  { value: 'price', label: 'site.index.sortPrice' },
+  { value: 'lowestPrice', label: 'site.index.sortLowestPrice' },
+] as const satisfies readonly IndexSortOptionShape[]
+
+export type IndexSortOption = (typeof INDEX_SORT_OPTIONS)[number]
 
 /**
  * Sort options for the collection and wanted-list index tabs. "Lowest price"
  * (the cheapest-printing-per-card total) only makes sense for decks, so it is
  * omitted here.
  */
-export const LIST_SORT_OPTIONS: IndexSortOption[] = INDEX_SORT_OPTIONS.filter(
+export const LIST_SORT_OPTIONS: readonly IndexSortOption[] = INDEX_SORT_OPTIONS.filter(
   (o) => o.value !== 'lowestPrice',
 )
 
-export const INDEX_GROUP_OPTIONS: IndexGroupOption[] = [
-  { value: 'none', label: 'None' },
-  { value: 'format', label: 'Format' },
-]
+export const INDEX_GROUP_OPTIONS = [
+  { value: 'none', label: 'site.index.groupNone' },
+  { value: 'format', label: 'site.index.groupFormat' },
+] as const satisfies readonly IndexGroupOptionShape[]
+
+export type IndexGroupOption = (typeof INDEX_GROUP_OPTIONS)[number]
 
 /**
  * Narrow a raw `<select>` value to the sort union, falling back to the default.
@@ -48,7 +64,7 @@ export const INDEX_GROUP_OPTIONS: IndexGroupOption[] = [
  */
 export function parseIndexSort(
   raw: string,
-  options: readonly IndexSortOption[] = INDEX_SORT_OPTIONS,
+  options: readonly IndexSortOptionShape[] = INDEX_SORT_OPTIONS,
 ): IndexSort {
   return options.find((o) => o.value === raw)?.value ?? DEFAULT_INDEX_SORT
 }
@@ -75,8 +91,6 @@ export interface SortableSummary {
   lowestPriceTix?: number
 }
 
-const ALPHA_COLLATOR = new Intl.Collator(undefined, { sensitivity: 'base' })
-
 function assertNever(value: never): never {
   throw new Error(`Unhandled sort value: ${String(value)}`)
 }
@@ -89,7 +103,10 @@ function compareSummaries(
 ): number {
   switch (sort) {
     case 'alpha':
-      return ALPHA_COLLATOR.compare(a.name, b.name)
+      // Was a bare `new Intl.Collator(undefined, …)`, which follows whatever
+      // locale the host browser happens to have — the same index could sort two
+      // ways on two machines. It now follows the *UI* locale explicitly.
+      return compareDisplayBase(a.name, b.name)
     case 'recent': {
       // Most recent first by default. Items without a timestamp sort last.
       const aT = a.lastUpdatedAt
@@ -127,19 +144,23 @@ export function sortSummaries<T extends SortableSummary>(
 export interface DeckGroup {
   /** Stable key used for keyed rendering. */
   key: string
-  /** Display label for the group header. */
-  label: string
+  /**
+   * Display label for the group header, or `null` for the bucket of decks with
+   * no detected format — the view renders that one from
+   * `site.index.otherFormat`. Grouping runs outside any reactive scope, so it
+   * hands the caller a decision rather than a string frozen in one language.
+   */
+  label: string | null
   decks: DeckSummary[]
 }
 
 const UNKNOWN_FORMAT_KEY = '__no-format__'
-const UNKNOWN_FORMAT_LABEL = 'Other'
 
 /**
  * Partition decks into groups by format, preserving the input order within
  * each group (callers should sort beforehand). Group ordering matches first
- * appearance — `Map` iteration order is insertion order — with the "Other"
- * bucket (decks without a detected format) always last.
+ * appearance — `Map` iteration order is insertion order — with the unlabeled
+ * bucket (decks without a detected format, `label: null`) always last.
  */
 export function groupDecksByFormat(decks: readonly DeckSummary[]): DeckGroup[] {
   const byKey = new Map<string, DeckGroup>()
@@ -152,7 +173,7 @@ export function groupDecksByFormat(decks: readonly DeckSummary[]): DeckGroup[] {
     }
     byKey.set(key, {
       key,
-      label: deck.format ? getDeckFormatLabel(deck.format) : UNKNOWN_FORMAT_LABEL,
+      label: deck.format ? getDeckFormatLabel(deck.format) : null,
       decks: [deck],
     })
   }

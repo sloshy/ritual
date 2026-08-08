@@ -1,5 +1,13 @@
 import { type JSX, For } from 'solid-js'
+import { useT } from '../../../ui/i18n'
 import type { UnreadableSource } from '../../../sync-common'
+
+/**
+ * The lead sentence, which names the kind of file the run refused. A message
+ * key rather than a noun to splice into one sentence: "N decks contain lines…"
+ * inflects the noun *and* the verb, and only the catalog can express that.
+ */
+export type UnreadableLeadKey = 'admin.sync.unreadableDecks' | 'admin.sync.unreadableLists'
 
 /**
  * The browser's stand-in for the CLI's confirmation prompt: the run refused
@@ -8,12 +16,12 @@ import type { UnreadableSource } from '../../../sync-common'
  *
  * Shared by both sync pages so the sentence a user reads before agreeing to lose
  * lines — and the markup the e2e specs assert against — cannot drift between
- * them. Only the noun, the consequence, and the button label differ.
+ * them. Only the lead, the consequence, and the button label differ.
  */
 export type UnreadableLinesPanelProps = {
   sources: readonly UnreadableSource[]
-  /** Singular noun for the count, e.g. `deck`; pluralized with a trailing `s`. */
-  noun: string
+  /** Which lead sentence to render — one per synced file kind. */
+  leadKey: UnreadableLeadKey
   /** What syncing anyway would do to the listed lines. */
   consequence: string
   confirmLabel: string
@@ -22,12 +30,11 @@ export type UnreadableLinesPanelProps = {
 }
 
 export function UnreadableLinesPanel(props: UnreadableLinesPanelProps): JSX.Element {
+  const t = useT()
   return (
     <div class="sync-unreadable">
       <p class="sync-unreadable-lead">
-        {props.sources.length} {props.noun}
-        {props.sources.length === 1 ? '' : 's'} contain lines Ritual cannot read.{' '}
-        {props.consequence}
+        {t(props.leadKey, { count: props.sources.length })} {props.consequence}
       </p>
       <ul class="sync-unreadable-list">
         <For each={props.sources}>

@@ -11,7 +11,7 @@
   "license": "AGPL-3.0-only",
   "scripts": {
     "build": "sh scripts/build.sh",
-    "build:assets": "sh scripts/bundle-assets.sh && bun run scripts/generate-licenses.ts",
+    "build:assets": "bun run scripts/generate-licenses.ts && bun run scripts/generate-locales.ts && sh scripts/bundle-assets.sh",
     "dev": "bun scripts/dev.ts",
     "version:sync": "bun run scripts/sync-version.ts",
     "serve": "bun run index.ts serve --build",
@@ -21,8 +21,8 @@
     "precommit": "bun run scripts/precommit.ts",
     "verify": "bun run scripts/precommit.ts --full",
     "test": "bun run scripts/precommit.ts --test",
-    "test:it": "bun run build && bunx tsc --noEmit && RITUAL_IT_PREBUILT=1 bun test test/integration",
-    "test:e2e": "sh scripts/bundle-assets.sh && bunx playwright test",
+    "test:it": "RITUAL_BUNDLED_LOCALES=en-XA bun run build && bunx tsc --noEmit && RITUAL_IT_PREBUILT=1 bun test test/integration",
+    "test:e2e": "RITUAL_BUNDLED_LOCALES=en bun run build:assets && bunx playwright test",
     "prepare": "husky"
   },
   "bin": {

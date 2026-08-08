@@ -2,6 +2,7 @@ import { Command, Option } from 'commander'
 import { isLoopbackHost } from '../mcp/host'
 import { runHttpServer, runStdioServer } from '../mcp/run'
 import { resolveMcpToken } from '../mcp/token'
+import { t } from '../i18n/t'
 import { ExitCode, parsePort } from './scripting'
 
 type McpTransport = 'stdio' | 'http'
@@ -27,45 +28,29 @@ const HTTP_ONLY_OPTIONS: readonly HttpOnlyOption[] = [
 export function registerMcpCommand(program: Command): void {
   program
     .command('mcp')
-    .description(
-      'Start an MCP (Model Context Protocol) server exposing deck, collection, and wanted-list ' +
-        'management to AI agents',
-    )
+    .description(t('help.mcp.description'))
     .addOption(
-      new Option('--transport <type>', 'Transport to use')
+      new Option('--transport <type>', t('help.mcp.transport'))
         .choices(['stdio', 'http'])
         .default('stdio'),
     )
-    .option('-p, --port <number>', 'Port for the HTTP transport', parsePort, 8765)
-    .option('--host <address>', 'Host to bind for the HTTP transport', '127.0.0.1')
-    .option(
-      '--token <secret>',
-      'Require this bearer token on the HTTP transport (or set RITUAL_MCP_TOKEN)',
-    )
-    .option(
-      '--allow-unauthenticated',
-      'Serve the HTTP transport without a bearer token on a non-loopback host',
-    )
+    .option('-p, --port <number>', t('help.mcp.port'), parsePort, 8765)
+    .option('--host <address>', t('help.mcp.host'), '127.0.0.1')
+    .option('--token <secret>', t('help.mcp.token'))
+    .option('--allow-unauthenticated', t('help.mcp.allowUnauthenticated'))
     .action(async (options: McpCommandOptions, command: Command) => {
       if (options.transport === 'http') {
         const token = resolveMcpToken(options.token)
         if (!token) {
           if (!isLoopbackHost(options.host)) {
             if (!options.allowUnauthenticated) {
-              console.error(
-                `Refusing to serve MCP without authentication on non-loopback host '${options.host}'. ` +
-                  'Pass --token <secret> (or set RITUAL_MCP_TOKEN), or pass --allow-unauthenticated to override.',
-              )
+              console.error(t('cli.mcp.refusingUnauthenticated', { host: options.host }))
               process.exitCode = ExitCode.UsageError
               return
             }
-            console.error(
-              `Warning: serving MCP without authentication on '${options.host}' (--allow-unauthenticated).`,
-            )
+            console.error(t('cli.mcp.unauthenticatedWarning', { host: options.host }))
           } else {
-            console.error(
-              `No token set; serving unauthenticated MCP on loopback host '${options.host}'.`,
-            )
+            console.error(t('cli.mcp.unauthenticatedLoopback', { host: options.host }))
           }
         }
         const server = await runHttpServer({
@@ -78,7 +63,7 @@ export function registerMcpCommand(program: Command): void {
         const shutdown = (): void => {
           void server
             .stop(true)
-            .catch((error: unknown) => console.error('MCP HTTP teardown failed:', error))
+            .catch((error: unknown) => console.error(t('cli.mcp.httpTeardownFailed'), error))
         }
         process.once('SIGINT', shutdown)
         process.once('SIGTERM', shutdown)
@@ -91,9 +76,7 @@ export function registerMcpCommand(program: Command): void {
         ({ name }) => command.getOptionValueSource(name) === 'cli',
       ).map(({ flag }) => flag)
       if (ignoredFlags.length > 0) {
-        console.error(
-          `Warning: ${ignoredFlags.join(', ')} only apply to --transport http and are ignored under stdio.`,
-        )
+        console.error(t('cli.mcp.stdioIgnoredFlags', { flags: ignoredFlags.join(', ') }))
       }
       runStdioServer()
     })

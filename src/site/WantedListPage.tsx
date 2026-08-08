@@ -1,13 +1,15 @@
 import { buylistFieldsFor } from './buylist-quotes'
 import { useSellMode } from './useSellMode'
 import { sellableFromCardData, selectionToCartCsv } from './sell-value'
-import { BUYER_DISPLAY_NAMES } from '../buylist'
+import { buyerName } from '../buylist'
 import { cartBuyer } from './sell-mode'
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, sessionCacheVersion } from './session-cache'
 import { normalizeCardName } from '../term-match'
+import { useT } from '../ui/i18n'
+import type { MessageKey } from '../i18n/messages/en'
 import { displayFinish } from '../finish-condition'
 import { storedLanguage } from '../card-language'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
@@ -38,7 +40,7 @@ import { ChangelogModal } from './ChangelogModal'
 import { useCardNavScroll } from './card-nav'
 import { TooltipOverlay } from './TooltipOverlay'
 import { useReadCardMenu } from './useReadCardMenu'
-import { capitalize } from './utils'
+import { finishName, rarityName } from './printing-display'
 import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
@@ -67,8 +69,22 @@ import { buildSelectionEditActions } from './selection-edit-actions'
 import type { FlatBulkEdit } from '../editor/flat-list-controller'
 import { ExportMenu, type ExportFormat, type ExtraExportFormat } from './ExportMenu'
 import { wantedToText, wantedToMarkdown, wantedToCsv } from '../editor/list-export'
+import type { MetaEntry } from './meta-entry'
 
 type WantedListGroupBy = GroupBy
+
+/**
+ * Every key a group-by dropdown label may name. Narrower than `MessageKey` so
+ * `t()` can render one without params, and `Extract` turns a key that no longer
+ * exists in the catalog into `never` — a compile error at the table below.
+ */
+type GroupByMessageKey = Extract<MessageKey, `site.groupBy.${string}` | `domain.groupBy.${string}`>
+
+/**
+ * A group-by choice before its label is rendered. The `value` half is a
+ * persisted URL token and stays locale-independent.
+ */
+type WantedGroupByOption = { value: WantedListGroupBy; label: GroupByMessageKey }
 
 // The sort fields this page offers, in order — shared by the toolbar's dropdown
 // options and the URL sync's validation of incoming sort layers.
@@ -81,7 +97,6 @@ const WANTED_SORT_BYS: readonly SortBy[] = [
   'set-code',
   'edhrec',
 ]
-type MetaEntry = { label: string; value: string }
 type WantedTradePicker = {
   cardName: string
   printings: ScryfallCard[]
@@ -143,6 +158,7 @@ interface WantedListPageProps {
 }
 
 export const WantedListPage: Component<WantedListPageProps> = (props) => {
+  const t = useT()
   const selection = useCardSelection({ kind: 'wanted', name: props.name })
   const editActions = createMemo(() =>
     props.bulkEdit ? buildSelectionEditActions(props.bulkEdit, selection) : undefined,
@@ -154,19 +170,25 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   // `sellMode` is a parameter rather than a read of the toolbar signal so the URL
   // sync can ask for the *full* option set (what a shared link may legally name)
   // while the dropdown shows only what is currently offered.
-  const groupByOptionsFor = (sellMode: boolean): SelectOption<WantedListGroupBy>[] => [
-    ...(hasSections() ? [{ value: 'section' as const, label: 'Section' }] : []),
-    { value: 'type', label: 'Type' },
-    { value: 'cmc', label: 'Mana Value' },
-    { value: 'color-identity', label: 'Color Identity' },
-    { value: 'price', label: 'Price' },
-    { value: 'printing', label: 'Printing' },
+  const groupByOptionsFor = (sellMode: boolean): WantedGroupByOption[] => [
+    ...(hasSections()
+      ? [{ value: 'section' as const, label: 'site.groupBy.section' as const }]
+      : []),
+    { value: 'type', label: 'site.groupBy.type' },
+    { value: 'cmc', label: 'site.groupBy.cmc' },
+    { value: 'color-identity', label: 'site.groupBy.colorIdentity' },
+    { value: 'price', label: 'site.groupBy.price' },
+    { value: 'printing', label: 'site.groupBy.printing' },
     ...(sellMode ? SELL_GROUP_BY_OPTIONS : []),
-    { value: 'none', label: 'None' },
+    { value: 'none', label: 'site.groupBy.none' },
   ]
   // A plain accessor, not a memo: `createMemo` evaluates eagerly, and `sell` is
   // declared below. Rebuilding a seven-element array on read costs nothing.
-  const groupByOptions = (): SelectOption<WantedListGroupBy>[] => groupByOptionsFor(sell.active())
+  const groupByOptions = (): SelectOption<WantedListGroupBy>[] =>
+    groupByOptionsFor(sell.active()).map((option) => ({
+      value: option.value,
+      label: t(option.label),
+    }))
   // A parameter, not a read of the live mode, for the same reason as the
   // group-by options: the URL sync validates against the full set a shared
   // link may name, while the dropdown offers only what is currently on.
@@ -378,7 +400,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     if (!buyer) return []
     return [
       {
-        label: `${BUYER_DISPLAY_NAMES[buyer]} cart (.csv)`,
+        label: t('site.export.buyerCart', { buyer: buyerName(buyer) }),
         extension: 'csv',
         mime: 'text/csv',
         serialize: () => {
@@ -444,9 +466,9 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   const stateLabel = (state: string): string => {
     switch (state) {
       case 'name-only':
-        return 'any printing'
+        return t('site.wanted.anyPrinting')
       case 'printing':
-        return 'any finish'
+        return t('site.wanted.anyFinish')
       default:
         return ''
     }
@@ -552,7 +574,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     if (entry.finish) {
       parts.push({
         label: 'finish',
-        value: capitalize(entry.finish),
+        value: finishName(t, entry.finish),
       })
     }
     const sl = stateLabel(entry.state)
@@ -561,7 +583,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     }
     parts.push({
       label: 'rarity',
-      value: capitalize(card.rarity),
+      value: rarityName(t, card.rarity),
     })
     return parts
   })
@@ -594,8 +616,10 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         <div>
           <h1 class="page-title">{props.name}</h1>
           <p class="page-stats">
-            {props.entries.length} cards · Total:{' '}
-            {formatPrice(computedTotalPrice(), props.currency)}
+            {t('site.stats.cardsAndTotal', {
+              count: props.entries.length,
+              amount: formatPrice(computedTotalPrice(), props.currency),
+            })}
             <FilteredPriceStat
               filters={cardFilters}
               amount={filteredTotalPrice()}
@@ -625,7 +649,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
           <div class="btn-group">
             <Show when={props.onCombine}>
               <button onClick={() => props.onCombine!()} class="btn btn-secondary">
-                Combine with list…
+                {t('site.page.combineWithList')}
               </button>
             </Show>
             <Show when={props.changelog && props.changelog.length > 0}>
@@ -633,7 +657,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
                 onClick={() => setShowChangelog(true)}
                 class="btn btn-secondary btn-view-changes"
               >
-                View Changes
+                {t('site.page.viewChanges')}
               </button>
             </Show>
             <Show when={props.enableExport}>

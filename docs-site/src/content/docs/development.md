@@ -167,6 +167,18 @@ the type check, and the whole-repo format check in `verify` — wait for the
 build to finish. Unit tests run with `--parallel`, the type check is
 incremental, and lint is multithreaded (`--concurrency auto`).
 
+One of the build-independent checks is the **message-catalog validator**
+(`scripts/check-locales.ts`), which validates every file in `locales/` against
+the English catalog — placeholders, plural categories, length budgets. It runs
+in all three modes, so a broken translation cannot be committed. Run it on its
+own while working on a locale:
+
+```bash
+bun run scripts/check-locales.ts --report
+```
+
+See [Localization → Contributing a locale](/localization/#contributing-a-locale).
+
 `bun run precommit` and `bun run test` add `--cache` to lint for a fast local
 loop. `bun run verify` deliberately runs lint **cold**: the type-aware rules can
 otherwise return a stale pass for a file whose type dependencies changed but

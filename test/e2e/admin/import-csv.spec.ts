@@ -36,7 +36,7 @@ test.describe('Import CSV Page', () => {
     await expect(main.locator('.checkbox-label input[type="checkbox"]').first()).toBeChecked()
     await expect(main.locator('select[data-field="name"]')).toHaveValue('0')
     await expect(main.locator('select[data-field="quantity"]')).toHaveValue('3')
-    await expect(main.getByText('2 data row(s) detected')).toBeVisible()
+    await expect(main.getByText('2 data rows detected')).toBeVisible()
 
     await main.locator('input.form-input').fill('Red Binder')
     await expect(button).toBeEnabled()

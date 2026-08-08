@@ -3,6 +3,7 @@ import { formatPrintingAnnotation } from '../../../change-event'
 import { LIST_TYPE_DISPLAY } from '../../../list-type'
 import type { PendingMove } from '../move-overlay'
 import { Modal } from '../../../ui/Modal'
+import { useT } from '../../../ui/i18n'
 
 interface MovePendingDialogProps {
   open: boolean
@@ -24,6 +25,7 @@ function cardLabel(move: PendingMove): string {
 
 /** Lists every queued move (from → to) with per-row removal, mirroring the editor's changes dialog. */
 export const MovePendingDialog: Component<MovePendingDialogProps> = (props) => {
+  const t = useT()
   return (
     <Modal
       open={props.open}
@@ -31,10 +33,10 @@ export const MovePendingDialog: Component<MovePendingDialogProps> = (props) => {
       size="md"
       panelClass="modal-panel--prompt move-pending-dialog"
     >
-      <h3>Pending moves ({props.pending.length})</h3>
+      <h3>{t('admin.movePending.title', { count: props.pending.length })}</h3>
       <Show
         when={props.pending.length > 0}
-        fallback={<p class="dialog-message">No moves queued yet.</p>}
+        fallback={<p class="dialog-message">{t('admin.movePending.empty')}</p>}
       >
         <ul class="move-pending-list">
           <For each={props.pending}>
@@ -54,9 +56,9 @@ export const MovePendingDialog: Component<MovePendingDialogProps> = (props) => {
                   type="button"
                   class="btn btn-secondary btn-sm move-pending-remove"
                   onClick={() => props.onRemove(move.id)}
-                  aria-label={`Discard move of ${move.source.name}`}
+                  aria-label={t('admin.movePending.discardOne', { name: move.source.name })}
                 >
-                  Discard
+                  {t('admin.movePending.discard')}
                 </button>
               </li>
             )}
@@ -66,11 +68,11 @@ export const MovePendingDialog: Component<MovePendingDialogProps> = (props) => {
       <div class="confirm-dialog-actions">
         <Show when={props.pending.length > 0}>
           <button type="button" class="btn btn-danger" onClick={props.onDiscardAll}>
-            Discard all
+            {t('admin.movePending.discardAll')}
           </button>
         </Show>
         <button type="button" class="btn btn-secondary" onClick={props.onClose}>
-          Done
+          {t('ui.dialog.done')}
         </button>
       </div>
     </Modal>

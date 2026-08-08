@@ -1,14 +1,21 @@
 import { type JSX, createSignal, createMemo, onCleanup, Show, For } from 'solid-js'
+import { useT, useTKey } from '../../../ui/i18n'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { PageHeading } from '../components/PageHeading'
 import { BuylistRefreshCard } from '../components/BuylistRefreshCard'
 import type { CacheRefreshEvent } from '../../../scryfall/progress'
+import type { ParameterlessKey } from '../../../i18n/t'
 
 type Stage = 'idle' | 'connecting' | 'download' | 'save' | 'done' | 'error'
 
+/**
+ * One rendered step of a refresh. `labelKey` is a {@link MessageKey}, not text:
+ * {@link stages} is built once at module load, so a rendered string would leave
+ * the step list in the boot-time language after a locale switch.
+ */
 interface StageInfo {
   id: Stage
-  label: string
+  labelKey: ParameterlessKey
   icon: string
 }
 
@@ -35,8 +42,8 @@ function isRenderedStage(stage: CacheRefreshEvent['stage']): stage is RenderedSt
 // The bulk download streams: cards are parsed and processed as bytes arrive,
 // so downloading and processing are a single stage.
 const stages: StageInfo[] = [
-  { id: 'download', label: 'Downloading & processing card data', icon: '📡' },
-  { id: 'save', label: 'Saving to cache', icon: '💾' },
+  { id: 'download', labelKey: 'admin.cache.stageDownload', icon: '📡' },
+  { id: 'save', labelKey: 'admin.cache.stageSave', icon: '💾' },
 ]
 
 function stageIndex(stage: Stage): number {
@@ -55,6 +62,8 @@ function stageStatus(info: StageInfo, current: Stage): 'pending' | 'active' | 'd
 }
 
 export function CacheRefresh(): JSX.Element {
+  const t = useT()
+  const tKey = useTKey()
   const [stage, setStage] = createSignal<Stage>('idle')
   const [percentage, setPercentage] = createSignal(0)
   const [progressMessage, setProgressMessage] = createSignal('')
@@ -66,7 +75,7 @@ export function CacheRefresh(): JSX.Element {
   })
   const fallbackRefresh = async () => {
     setStage('download')
-    setProgressMessage('Refreshing cache (progress unavailable)...')
+    setProgressMessage(t('admin.cache.fallbackProgress'))
     try {
       const resp = await fetch('/api/cache/refresh', {
         method: 'POST',
@@ -83,7 +92,7 @@ export function CacheRefresh(): JSX.Element {
       }
     } catch {
       setStage('error')
-      setError('Failed to refresh cache')
+      setError(t('admin.cache.refreshFailed'))
     }
   }
 
@@ -121,7 +130,7 @@ export function CacheRefresh(): JSX.Element {
           setStatus(data.message)
         } catch {
           setStage('done')
-          setStatus('Cache refreshed successfully')
+          setStatus(t('admin.cache.refreshed'))
         }
         es.close()
         eventSourceRef = null
@@ -135,7 +144,7 @@ export function CacheRefresh(): JSX.Element {
             const data = JSON.parse(msgEvent.data as string) as CacheErrorEventData
             setError(data.message)
           } catch {
-            setError('Cache refresh failed')
+            setError(t('admin.cache.streamFailed'))
           }
         } else {
           // Connection error — fall back to POST
@@ -161,7 +170,7 @@ export function CacheRefresh(): JSX.Element {
   return (
     <div>
       <PageHeading page="cache-refresh" />
-      <p class="page-desc">Download and cache all Scryfall card data. This will take some time.</p>
+      <p class="page-desc">{t('admin.cache.desc')}</p>
       <StatusAlerts status={status()} error={error()} />
 
       <Show when={isRunning()}>
@@ -169,7 +178,7 @@ export function CacheRefresh(): JSX.Element {
           <Show when={stage() === 'download'}>
             <div class="progress-gap">
               <div class="progress-label">
-                <span class="text-accent">Downloading</span>
+                <span class="text-accent">{t('admin.cache.downloading')}</span>
                 <span class="text-secondary">{percentage()}%</span>
               </div>
               <div class="progress-track">
@@ -190,7 +199,7 @@ export function CacheRefresh(): JSX.Element {
                     <span class="progress-stage-icon">
                       {st() === 'done' ? '✓' : st() === 'active' ? s.icon : '○'}
                     </span>
-                    {s.label}
+                    {tKey(s.labelKey)}
                   </div>
                 )
               }}
@@ -204,7 +213,7 @@ export function CacheRefresh(): JSX.Element {
         onClick={() => void handleRefresh()}
         disabled={isRunning()}
       >
-        {isRunning() ? 'Refreshing...' : 'Refresh Cache'}
+        {isRunning() ? t('admin.cache.refreshing') : t('admin.cache.refresh')}
       </button>
 
       <BuylistRefreshCard />

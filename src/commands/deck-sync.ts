@@ -37,6 +37,8 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from './scripting'
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
 
 export type DeckSyncCommandOptions = {
   dryRun?: boolean
@@ -72,10 +74,14 @@ export type DeckSyncStatusRow =
   | { kind: 'collection-state-error'; reason: string }
 
 /** What this command calls the things it syncs, in prompts and warnings. */
-const DECKS: UnreadableSubject = { one: 'deck', many: 'decks' }
+const DECKS: UnreadableSubject = 'decks'
 
-/** What accepting the unreadable lines costs — a sync re-serializes the file. */
-const UNREADABLE_COST = 'removing the lines above'
+/**
+ * What accepting the unreadable lines costs — a sync re-serializes the file.
+ * A message key rather than rendered text, so the module-level constant cannot
+ * freeze the clause in whatever locale happened to be active at import time.
+ */
+const UNREADABLE_COST = 'cli.sync.costRemoveLines' satisfies MessageKey
 
 /**
  * Render one sync event as a console line. Deck-scoped messages are indented
@@ -93,7 +99,7 @@ function renderSyncEvent(
   switch (event.kind) {
     case 'deck-start':
       indent.start(event.deck)
-      logger.info(`Syncing "${event.deck}" (${direction})...`)
+      logger.info(t('cli.sync.syncing', { name: event.deck, direction }))
       return
     case 'log': {
       const line = indent.line(event.deck, event.message)
@@ -116,11 +122,6 @@ function renderSyncEvent(
   }
 }
 
-/** `1 deck` / `3 decks`. */
-function deckCount(count: number): string {
-  return `${count} deck${count === 1 ? '' : 's'}`
-}
-
 /**
  * The run's closing tally, the counterpart of collection-sync's — a text-mode
  * run otherwise ends with nothing to say how many decks synced, and the report
@@ -140,10 +141,14 @@ export function summarizeDeckRun(report: DeckSyncReport, dryRun: boolean): strin
 
   const changed = synced.length - unchanged
   const parts = [
-    `${dryRun ? '[dry-run] Would sync' : 'Synced'} ${deckCount(synced.length)} (${changed} with changes)`,
+    t('cli.deckSync.syncedDecks', {
+      mode: dryRun ? 'dryRun' : 'applied',
+      decks: t('domain.count.decks', { count: synced.length }),
+      changed,
+    }),
   ]
-  if (skipped > 0) parts.push(`${skipped} skipped`)
-  if (report.failedCount > 0) parts.push(`${report.failedCount} failed`)
+  if (skipped > 0) parts.push(t('cli.deckSync.skipped', { count: skipped }))
+  if (report.failedCount > 0) parts.push(t('cli.deckSync.failed', { count: report.failedCount }))
   return `${parts.join(', ')}.`
 }
 
@@ -157,7 +162,7 @@ export function confirmUnreadableDecks(
   return confirmUnreadableSync({
     sources: decks,
     subject: DECKS,
-    cost: UNREADABLE_COST,
+    cost: t(UNREADABLE_COST),
     yes,
     scripting,
     logger,
@@ -166,8 +171,14 @@ export function confirmUnreadableDecks(
 
 /** The text lines `deck-sync link` prints for a completed (or previewed) link. */
 export function describeLink(result: DeckLinkResult): string[] {
-  const prefix = result.dryRun ? '[dry-run] Would link' : 'Linked'
-  const lines = [`${prefix} "${result.name}" to ${result.sourceUrl} (deck ${result.sourceId}).`]
+  const lines = [
+    t('cli.deckSync.linked', {
+      mode: result.dryRun ? 'dryRun' : 'applied',
+      name: result.name,
+      url: result.sourceUrl,
+      id: result.sourceId,
+    }),
+  ]
   // Keyed off the whole previous link, not just its URL: the metadata API can
   // leave a deck carrying a `sourceId` with no `sourceUrl`, and replacing that
   // id silently would be the one case the user most needs told about.
@@ -176,7 +187,14 @@ export function describeLink(result: DeckLinkResult): string[] {
     previous &&
     (previous.sourceUrl !== result.sourceUrl || previous.sourceId !== result.sourceId)
   ) {
-    lines.push(`It was linked to ${previous.sourceUrl ?? `deck ${previous.sourceId}`}.`)
+    lines.push(
+      t('cli.deckSync.previouslyLinked', {
+        // `sourceId` is only absent when `sourceUrl` is present (a
+        // PreviousDeckLink carries at least one), so the String() is a
+        // formality that keeps the previous rendering for the unreachable case.
+        target: previous.sourceUrl ?? t('cli.deckSync.deckRef', { id: String(previous.sourceId) }),
+      }),
+    )
   }
   return lines
 }
@@ -221,24 +239,33 @@ async function runDeckLink(
 export function describeSyncStatus(status: DeckSyncStatusOutput): string[] {
   const lines: string[] = []
   if (status.decks.length === 0) {
-    lines.push('No Archidekt-linked decks. Link one with "ritual deck-sync link <deck> <url>".')
+    lines.push(t('cli.deckSync.noLinkedDecks'))
   } else {
-    lines.push(`${deckCount(status.decks.length)} linked to Archidekt:`)
+    lines.push(
+      t('cli.deckSync.linkedHeading', {
+        decks: t('domain.count.decks', { count: status.decks.length }),
+      }),
+    )
     for (const deck of status.decks) {
       lines.push(`  ${deck.name} — ${deck.sourceUrl}`)
-      lines.push(`    last synced: ${deck.lastSynced ?? 'never'}`)
+      lines.push(
+        `    ${t('cli.deckSync.lastSynced', { when: deck.lastSynced ?? t('cli.deckSync.never') })}`,
+      )
     }
   }
   if (status.collection !== null) {
     lines.push(
-      `Collection: last synced ${status.collection.lastSynced} (Archidekt user ${status.collection.username}).`,
+      t('cli.deckSync.collectionSynced', {
+        when: status.collection.lastSynced,
+        username: status.collection.username,
+      }),
     )
   } else if (status.collectionStateError !== null) {
     // Not "never synced": that would be a positive claim about an account whose
     // record is merely unreadable.
-    lines.push(`Collection: sync state unreadable (${status.collectionStateError}).`)
+    lines.push(t('cli.deckSync.collectionUnreadable', { reason: status.collectionStateError }))
   } else {
-    lines.push('Collection: never synced.')
+    lines.push(t('cli.deckSync.collectionNever'))
   }
   return lines
 }
@@ -310,39 +337,37 @@ async function runSync(
   }
 
   if (report.failedCount > 0) {
-    logger.error(`${report.failedCount} of ${report.decks.length} decks failed`)
+    logger.error(
+      t('cli.deckSync.decksFailed', { failed: report.failedCount, total: report.decks.length }),
+    )
     process.exitCode = ExitCode.RuntimeError
   }
 }
 
 /** What each direction's subcommand says it does. */
-const DIRECTION_DESCRIPTIONS: Record<SyncDirection, string> = {
-  pull: 'Apply Archidekt deck changes to the local deck files',
-  push: 'Send local deck changes to the decks you own on Archidekt',
-}
+const DIRECTION_DESCRIPTIONS = {
+  pull: 'help.deckSync.pull',
+  push: 'help.deckSync.push',
+} as const satisfies Record<SyncDirection, MessageKey>
 
 export function registerDeckSyncCommand(program: Command): void {
   // Every direction is a subcommand rather than a `<direction>` positional, so
   // `link` and `status` can sit beside them: commander resolves a flag declared
   // on both a command and its parent to the *parent*, so a command carrying
   // `--dry-run`/`--output` cannot also host subcommands that take their own.
-  const deckSync = program.command('deck-sync').description('Sync deck changes with Archidekt')
+  const deckSync = program.command('deck-sync').description(t('help.deckSync.description'))
 
   for (const direction of SYNC_DIRECTIONS) {
     const command = addScriptingOptions(
       addSyncOptions(
-        deckSync.command(direction).description(DIRECTION_DESCRIPTIONS[direction]),
+        deckSync.command(direction).description(t(DIRECTION_DESCRIPTIONS[direction])),
         'decks',
-      ).argument('[decks...]', 'Deck names to sync (defaults to all Archidekt decks)'),
+      ).argument('[decks...]', t('help.deckSync.decks')),
     )
     // Only a push writes to Archidekt, so only a push has remote changes to
     // overwrite; a pull would have nothing to force.
     if (direction === 'push') {
-      command.option(
-        '--force',
-        'Overwrite a remote deck that changed since its last sync (see deck-sync status)',
-        false,
-      )
+      command.option('--force', t('help.deckSync.force'), false)
     }
     command.action(async (decks: string[], options: DeckSyncCommandOptions) => {
       await runSync(direction, decks, options)
@@ -355,10 +380,10 @@ export function registerDeckSyncCommand(program: Command): void {
     addDryRunOption(
       deckSync
         .command('link')
-        .description('Link a local deck to a deck that already exists on Archidekt')
-        .argument('<deck>', 'Deck name to link')
-        .argument('<url>', 'Archidekt deck URL, e.g. https://archidekt.com/decks/123456'),
-      'Report what would be linked without writing the deck file',
+        .description(t('help.deckSync.link'))
+        .argument('<deck>', t('help.deckSync.linkDeck'))
+        .argument('<url>', t('help.deckSync.linkUrl')),
+      t('help.deckSync.linkDryRun'),
     ),
   ).action(async (deckName: string, url: string, options: DeckLinkCommandOptions) => {
     const scripting = normalizeScriptingOptions(options)
@@ -369,12 +394,10 @@ export function registerDeckSyncCommand(program: Command): void {
   // `--quiet` to suppress. Read-only and offline — it never triggers the card-ID
   // backfill either, because neither `status` nor `deck-sync status` is in
   // `COMMANDS_WITH_ID_BACKFILL` (the hook matches both spellings).
-  addOutputOption(
-    deckSync
-      .command('status')
-      .description('Show which decks are linked to Archidekt, and when each last synced'),
-  ).action(async (options: Partial<ScriptingOptions>) => {
-    const scripting = normalizeScriptingOptions(options)
-    await runCommandAction(scripting, () => runDeckSyncStatus(scripting))
-  })
+  addOutputOption(deckSync.command('status').description(t('help.deckSync.status'))).action(
+    async (options: Partial<ScriptingOptions>) => {
+      const scripting = normalizeScriptingOptions(options)
+      await runCommandAction(scripting, () => runDeckSyncStatus(scripting))
+    },
+  )
 }

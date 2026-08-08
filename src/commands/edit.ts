@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import type { Choice } from 'prompts'
-import { LIST_TYPES, LIST_TYPE_DISPLAY, listTypeLabel, type ListType } from '../list-type'
+import { t } from '../i18n/t'
+import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from '../list-type'
 import { parseSetCodesInput } from '../set-codes'
 import {
   buildInitialSessionConfig,
@@ -18,7 +19,7 @@ import {
   collectListRefs,
   hasUnsavedChanges,
   newListSession,
-  NEW_LIST_TITLES,
+  newListTitle,
   openListSession,
   pendingListCollision,
   type OpenList,
@@ -88,8 +89,8 @@ export type PendingChangesByFile = Map<string, ListPendingState>
 function pendingBadge(pending: ListPendingState | undefined): string {
   if (!pending) return ''
   const parts = [
-    ...(pending.isNew ? ['new'] : []),
-    ...(pending.changes > 0 ? [`${pending.changes} unsaved change(s)`] : []),
+    ...(pending.isNew ? [t('cli.edit.badgeNew')] : []),
+    ...(pending.changes > 0 ? [t('cli.edit.badgeUnsaved', { count: pending.changes })] : []),
   ]
   return parts.length > 0 ? ` — ${parts.join(', ')}` : ''
 }
@@ -136,11 +137,11 @@ export function buildListSelectionChoices(
     ...listChoices,
     ...LIST_TYPES.map(
       (type): Choice => ({
-        title: NEW_LIST_TITLES[type],
+        title: newListTitle(type),
         value: { kind: 'new', type } satisfies UnifiedSelection,
       }),
     ),
-    { title: '🚪 Exit', value: { kind: 'exit' } satisfies UnifiedSelection },
+    { title: `🚪 ${t('cli.menu.exit')}`, value: { kind: 'exit' } satisfies UnifiedSelection },
   ]
 }
 
@@ -151,7 +152,7 @@ export function buildListSelectionChoices(
 async function promptListToEdit(choices: Choice[]): Promise<UnifiedSelection | undefined> {
   return ask<UnifiedSelection>({
     type: 'autocomplete',
-    message: 'Select a list to edit',
+    message: t('cli.edit.promptSelectList'),
     choices,
     limit: 12,
     suggest: suggestByTitleTerms,
@@ -166,9 +167,9 @@ async function promptListToEdit(choices: Choice[]): Promise<UnifiedSelection | u
 async function promptNewListName(type: ListType): Promise<string | null> {
   const name = await ask<string>({
     type: 'text',
-    message: `Enter name for new ${listTypeLabel(type)}:`,
+    message: t('cli.edit.promptNewListName', { type }),
     validate: (value: string) => {
-      if (value.trim().length === 0) return 'Name cannot be empty'
+      if (value.trim().length === 0) return t('cli.edit.nameEmpty')
       if (!isUsableFileName(value)) return unusableFileNameMessage(value)
       return true
     },
@@ -192,20 +193,17 @@ const PLAIN_TEXT_OUTPUT: ScriptingOptions = { output: 'text', quiet: false }
 export function registerEditCommand(program: Command): void {
   const editCommand = program
     .command('edit')
-    .description('Edit any deck, collection, or wanted list in one interactive session')
-    .argument(
-      '[listName]',
-      'Open this list directly, skipping the selection menu (optionally with a deck:/collection:/wanted: prefix)',
-    )
-    .option('--deck', 'Resolve the list name as a deck')
-    .option('--collection', 'Resolve the list name as a collection')
-    .option('--wanted', 'Resolve the list name as a wanted list')
-    .option('-s, --sets <codes>', 'Filter by set codes (comma-separated, e.g., "FDN, SPG")')
-    .option('-f, --finish <finish>', 'Default finish (nonfoil, foil, etched)')
-    .option('-c, --condition <condition>', 'Default condition (NM, LP, MP, HP, DMG)')
-    .option('--section <name>', 'Add deck cards to this section (otherwise prompts per card)')
-    .option('--collector', 'Start in collector number mode')
-    .option('--allow-digital-only-cards', 'Include digital-only sets (e.g., Alchemy)')
+    .description(t('help.edit.description'))
+    .argument('[listName]', t('help.edit.listName'))
+    .option('--deck', t('help.edit.deck'))
+    .option('--collection', t('help.edit.collection'))
+    .option('--wanted', t('help.edit.wanted'))
+    .option('-s, --sets <codes>', t('help.edit.sets'))
+    .option('-f, --finish <finish>', t('help.edit.finish'))
+    .option('-c, --condition <condition>', t('help.edit.condition'))
+    .option('--section <name>', t('help.edit.section'))
+    .option('--collector', t('help.edit.collector'))
+    .option('--allow-digital-only-cards', t('help.edit.allowDigitalOnly'))
   addRefreshOption(editCommand)
   editCommand.action(async (listNameArg: string | undefined, options: EditCommandOptions) => {
     // Conflicting type flags are a usage error with or without a [listName] —
@@ -240,9 +238,7 @@ export function registerEditCommand(program: Command): void {
     if (promptsUnavailable()) {
       emitError(
         'usage_error',
-        inputRequiredError(
-          'the interactive editor is unavailable — use the one-shot commands (add-card, remove-card, set-card, note, move) to edit lists from scripts',
-        ).message,
+        inputRequiredError(t('cli.edit.noInteractiveEditor')).message,
         PLAIN_TEXT_OUTPUT,
       )
       process.exitCode = ExitCode.UsageError
@@ -289,7 +285,7 @@ export function registerEditCommand(program: Command): void {
       const file = listFilePath(type, name)
       if (!file) return undefined
       if (openLists.has(file)) {
-        console.error(`A ${listTypeLabel(type)} already exists at ${file}.`)
+        console.error(t('cli.edit.listFileExists', { type, file }))
         return undefined
       }
       // Lists created earlier in this session are not on disk yet, so
@@ -298,10 +294,7 @@ export function registerEditCommand(program: Command): void {
       // pair the refusal exists to prevent. Check the session first.
       const pending = pendingListCollision(openLists.values(), type, name)
       if (pending) {
-        console.error(
-          `A ${listTypeLabel(type)} named '${pending.ref.name}' is already open in this session ` +
-            `(it matches '${name}' under list-name folding).`,
-        )
+        console.error(t('cli.edit.pendingCollision', { type, name: pending.ref.name, query: name }))
         return undefined
       }
       // The same refusal `new` and the admin route give, so a list created here
@@ -322,14 +315,16 @@ export function registerEditCommand(program: Command): void {
         () => openLists.delete(file),
       )
       openLists.set(file, created)
-      console.log(`Created ${listTypeLabel(type)} "${name}" (saved when you save the editor).`)
+      console.log(t('cli.edit.createdList', { type, name }))
       return created
     }
 
     const saveAll = async (): Promise<void> => {
       for (const open of unsavedLists()) {
-        const verb = open.isNew() ? 'Creating' : 'Saving'
-        console.log(`${verb} ${listTypeLabel(open.ref.type)} "${open.ref.name}"...`)
+        const params = { type: open.ref.type, name: open.ref.name }
+        console.log(
+          open.isNew() ? t('cli.edit.creatingList', params) : t('cli.edit.savingList', params),
+        )
         await saveCardSession(open.strategy, open.ctx)
         // Also clears the list's pending-creation change, now that it is on disk.
         resetCardSessionTracking(open.strategy, open.ctx)
@@ -386,7 +381,7 @@ export function registerEditCommand(program: Command): void {
         const inScope = listsInScope(scope, refs)
         // Edit mode autocompletes over every in-scope list's entries, so they
         // must all be loaded up front — the engine builds that picker synchronously.
-        console.log(`Opening ${inScope.length} lists...`)
+        console.log(t('cli.edit.openingLists', { count: inScope.length }))
         const files: string[] = []
         for (const ref of inScope) files.push((await openList(ref)).ref.file)
         const session = createScopedSession({

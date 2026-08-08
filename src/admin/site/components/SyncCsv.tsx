@@ -6,6 +6,9 @@ import {
   type CollectionCsvFailure,
 } from '../../../collection-sync/describe'
 import type { CollectionSyncCsv } from '../../../collection-sync/engine'
+import type { MessageSegment } from '../../../i18n/types'
+import type { TranslateFn } from '../../../i18n/t'
+import { useT, useTSegments } from '../../../ui/i18n'
 
 /**
  * The Sync Collection page's two surfaces for how a push's **new cards** reach
@@ -35,18 +38,29 @@ export type CsvUploadToggleProps = {
   dryRun: boolean
 }
 
-type ThresholdCountProps = { value: number }
-
 /**
  * The threshold as a sentence reads it. The server owns the number, so until the
  * status has landed there is no number to name — and "more than 0 of them" is a
  * claim the page must not make.
  */
-function ThresholdCount(props: ThresholdCountProps): JSX.Element {
+function thresholdText(t: TranslateFn, value: number): string {
+  return value > 0 ? String(value) : t('admin.csvToggle.thresholdFew')
+}
+
+/** Render a message's segments, bolding the one named `emphasis`. */
+function emphasized(segments: MessageSegment[]): JSX.Element {
   return (
-    <Show when={props.value > 0} fallback={<>a few</>}>
-      {props.value}
-    </Show>
+    <For each={segments}>
+      {(segment) =>
+        segment.kind === 'param' && segment.name === 'emphasis' ? (
+          <strong>{segment.value}</strong>
+        ) : segment.kind === 'param' && segment.name === 'real' ? (
+          <em>{segment.value}</em>
+        ) : (
+          segment.value
+        )
+      }
+    </For>
   )
 }
 
@@ -58,15 +72,30 @@ function ThresholdCount(props: ThresholdCountProps): JSX.Element {
  * prompt to fall back to.
  */
 export function CsvUploadToggle(props: CsvUploadToggleProps): JSX.Element {
+  const t = useT()
+  const tSegments = useTSegments()
+
+  /**
+   * Swapped rather than corrected after the fact: over the threshold a preview
+   * reports the upload it would make and never fails, so the sentence has to be
+   * true in whichever mode it is read.
+   */
+  const warning = (): MessageSegment[] =>
+    props.dryRun
+      ? tSegments('admin.csvToggle.offPreview', {
+          threshold: thresholdText(t, props.threshold),
+          real: t('admin.csvToggle.offPreviewReal'),
+          emphasis: t('admin.csvToggle.failsWithoutPushing'),
+        })
+      : tSegments('admin.csvToggle.offRun', {
+          threshold: thresholdText(t, props.threshold),
+          emphasis: t('admin.csvToggle.failsWithoutPushing'),
+        })
+
   return (
     <div class="sync-csv">
-      <h3 class="section-subheading">New cards</h3>
-      <p class="sync-choice-desc">
-        A printing your Archidekt collection does not have yet costs a search plus a create, paced
-        half a second apart, so a first push of a real collection would take hundreds of requests.
-        Uploaded as one CSV import it takes one, with every row built from your local Scryfall
-        cache. Quantity changes and removals never ride it.
-      </p>
+      <h3 class="section-subheading">{t('admin.csvToggle.heading')}</h3>
+      <p class="sync-choice-desc">{t('admin.csvToggle.desc')}</p>
       <label class="sync-csv-toggle">
         <input
           type="checkbox"
@@ -74,30 +103,10 @@ export function CsvUploadToggle(props: CsvUploadToggleProps): JSX.Element {
           disabled={props.disabled}
           onChange={(e) => props.onChange(e.currentTarget.checked)}
         />
-        Upload new cards as one CSV import
+        {t('admin.csvToggle.label')}
       </label>
       <Show when={!props.value}>
-        <p class="sync-csv-warning">
-          {/* Swapped rather than corrected after the fact: over the threshold a
-              preview reports the upload it would make and never fails, so the
-              sentence has to be true in whichever mode it is read. */}
-          <Show
-            when={props.dryRun}
-            fallback={
-              <>
-                Off: new cards are added one at a time, and a push with more than{' '}
-                <ThresholdCount value={props.threshold} /> of them{' '}
-                <strong>fails without pushing anything at all</strong> — a browser cannot be asked
-                half way through a run, so this toggle is that answer.
-              </>
-            }
-          >
-            Off: new cards would be added one at a time — though a preview still reports the upload
-            it would make. A <em>real</em> push with more than{' '}
-            <ThresholdCount value={props.threshold} /> of them{' '}
-            <strong>fails without pushing anything at all</strong>.
-          </Show>
-        </p>
+        <p class="sync-csv-warning">{emphasized(warning())}</p>
       </Show>
     </div>
   )
@@ -110,57 +119,56 @@ export type CsvOutcomePanelProps = {
 /** Read in a list-rendering position, so its identity is stable per report. */
 const NO_FAILURES: readonly CollectionCsvFailure[] = []
 
+/** Render a message's segments, wrapping every parameter named `code` in `<code>`. */
+function withCode(segments: MessageSegment[]): JSX.Element {
+  return (
+    <For each={segments}>
+      {(segment) => (segment.kind === 'param' ? <code>{segment.value}</code> : segment.value)}
+    </For>
+  )
+}
+
+type OutcomeLeadProps = { csv: CollectionSyncCsv }
+
 /**
  * What the CSV did, in one sentence. An exhaustive switch rather than a `Switch`
  * with four narrowing `Match`es: a new outcome status is then a compile error
  * here, the way a new event kind is one in the page's own event handler.
  */
-function outcomeLead(csv: CollectionSyncCsv): JSX.Element {
+function OutcomeLead(props: OutcomeLeadProps): JSX.Element {
+  const t = useT()
+  const tSegments = useTSegments()
+  const csv = props.csv
   const size = describeCsvSize(csv.cards, csv.rows)
   switch (csv.status) {
     case 'uploaded':
       return (
         <>
-          Uploaded {size} to Archidekt as a CSV import in {csv.chunks} request
-          {csv.chunks === 1 ? '' : 's'}.
+          {t('admin.syncCsv.uploaded', { size, count: csv.chunks })}
           <Show when={csv.unconfirmedChunks > 0}>
             {' '}
-            Archidekt's answer to {csv.unconfirmedChunks} of them could not be read, so those rows
-            are counted as imported without confirmation — the run log has what it said.
+            {t('admin.csvOutcome.unconfirmed', { count: csv.unconfirmedChunks })}
           </Show>
         </>
       )
     case 'exported':
-      return (
-        <>
-          Wrote {size} to <code>{csv.path}</code> instead of pushing them — those cards reach
-          Archidekt only once that file is imported by hand.
-        </>
-      )
+      return withCode(tSegments('admin.csvOutcome.exported', { size, path: csv.path }))
     case 'planned':
       return csv.destination === 'upload' ? (
-        <>Would upload {size} to Archidekt as one CSV import — nothing was searched or sent.</>
+        <>{t('admin.csvOutcome.plannedUpload', { size })}</>
       ) : (
-        <>
-          Would write {size} to <code>{csv.path}</code> instead of pushing them.
-        </>
+        withCode(tSegments('admin.csvOutcome.plannedExport', { size, path: csv.path }))
       )
     case 'failed':
-      return (
-        <>
-          The CSV import failed: {csv.message} Those cards were not added; the rest of the run
-          applied.
-        </>
-      )
+      return <>{t('admin.csvOutcome.failed', { message: csv.message })}</>
     case 'empty':
       // The count is the whole content of this outcome, so the lead carries it and
       // the uncached note below is suppressed rather than repeating it.
-      return (
-        <>
-          No CSV was built: not one of the {csv.uncached} new cards has a printing in your Scryfall
-          cache, so no row could be keyed by a Scryfall ID. Refresh the cache (
-          <code>ritual cache preload-all</code>) and run again.
-        </>
+      return withCode(
+        tSegments('admin.csvOutcome.empty', {
+          count: csv.uncached,
+          command: t('admin.csvOutcome.emptyCommand'),
+        }),
       )
     default: {
       // Every outcome must be worded; a new status is a compile error.
@@ -179,6 +187,7 @@ function outcomeLead(csv: CollectionSyncCsv): JSX.Element {
  * and rendering it costs a line.
  */
 export function CsvOutcomePanel(props: CsvOutcomePanelProps): JSX.Element {
+  const t = useT()
   /** Rows Archidekt did not import; only an upload can have any. */
   const failures = createMemo((): readonly CollectionCsvFailure[] =>
     props.csv.status === 'uploaded' ? props.csv.failures : NO_FAILURES,
@@ -191,26 +200,32 @@ export function CsvOutcomePanel(props: CsvOutcomePanelProps): JSX.Element {
    */
   const uncachedNote = (): string => {
     const count = props.csv.uncached
-    const cards = `${count} new card${count === 1 ? '' : 's'}`
-    const them = count === 1 ? 'it' : 'they'
-    const added = props.csv.status === 'planned' ? 'would be added' : 'were added'
-    return `${cards} could not ride the CSV (the printing is not in your Scryfall cache), so ${them} ${added} one at a time instead.`
+    // Two keys rather than one with a tense parameter: the catalog does not
+    // nest a select inside a plural, and the pronoun agrees with both.
+    return props.csv.status === 'planned'
+      ? t('admin.syncCsv.uncachedPlanned', { count })
+      : t('admin.syncCsv.uncachedApplied', { count })
   }
 
   /** How many rows Archidekt refused, and why — the run log's own wording. */
   const failuresNote = (): string => {
     const reasons = describeCsvFailureReasons(failures())
-    const dropped = `${failures().length} of ${props.csv.rows} rows`
-    return `Archidekt did not import ${dropped}${reasons === '' ? '' : ` (${reasons})`}. The lists holding those cards are reported as failed.`
+    return t('admin.csvOutcome.failuresLead', {
+      dropped: failures().length,
+      total: props.csv.rows,
+      reasons: reasons === '' ? '' : ` (${reasons})`,
+    })
   }
 
   /** One refused row: the card, and Archidekt's reason for it. */
   const failureNote = (failure: CollectionCsvFailure): string =>
-    `${failure.card} — ${describeCsvFailure(failure)}`
+    t('admin.csvOutcome.failure', { card: failure.card, reason: describeCsvFailure(failure) })
 
   return (
     <div class="sync-csv-outcome" data-status={props.csv.status}>
-      <p class="sync-csv-outcome-lead">{outcomeLead(props.csv)}</p>
+      <p class="sync-csv-outcome-lead">
+        <OutcomeLead csv={props.csv} />
+      </p>
 
       {/* A printing the cache does not hold has no Scryfall id, so it cannot be
           a row — the run added it the slow way instead. When *every* addition was

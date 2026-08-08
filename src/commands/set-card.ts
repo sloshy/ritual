@@ -25,8 +25,10 @@ import {
   type DryRunOptions,
   type ScriptingOptions,
 } from './scripting'
-import { CardCommandError } from '../errors'
+import { localizedCommandError } from '../errors'
+import { t } from '../i18n/t'
 import {
+  addListTypeFlags,
   describeEntry,
   ensureFinishAvailable,
   ensureFinishAvailableForEntry,
@@ -99,7 +101,7 @@ function parseConditionFlag(value: string): ConditionUpdate {
   if (normalized === 'NONE') return 'NONE'
   if (!isCondition(normalized)) {
     throw new InvalidArgumentError(
-      `Invalid condition '${value}'. Use one of: ${VALID_CONDITIONS.join(', ')}, or NONE to clear the recorded condition.`,
+      t('cli.setCard.invalidCondition', { value, choices: VALID_CONDITIONS.join(', ') }),
     )
   }
   return normalized
@@ -114,51 +116,43 @@ export function parseLabelFlag(value: string): CardLabel[] {
   if (value.trim().toLowerCase() === 'none') return []
   const parsed = parseCardLabelsToken(value)
   if (!parsed.ok) {
-    throw new InvalidArgumentError(`${parsed.message} Or pass 'none' to clear the override.`)
+    throw new InvalidArgumentError(t('cli.setCard.labelWithNone', { reason: parsed.message }))
   }
   return parsed.labels
 }
 
 export function registerSetCardCommand(program: Command): void {
   const command = addScriptingOptions(
-    program
-      .command('set-card')
-      .description(
-        "Update a card's printing, finish, condition, label, section, or commander status in place",
-      )
-      .argument(
-        '[listName]',
-        'Name of the deck, collection, or wanted list (resolved across all types unless a type flag is given)',
-      )
-      .argument('[cardName...]', 'Name of the card to update (fuzzy match)')
-      .option('--deck', 'Resolve the name as a deck')
-      .option('--collection', 'Resolve the name as a collection')
-      .option('--wanted', 'Resolve the name as a wanted list')
-      .option('--card-id <id>', 'Disambiguate by card ID (the &N suffix in list files)')
-      .option('--set <code>', 'New set code — requires --collector-number', parseSetFlag)
-      .option('--collector-number <cn>', 'New collector number — requires --set')
-      .option('--finish <finish>', `New finish: ${VALID_FINISHES.join(', ')}`, parseFinishFlag)
+    addListTypeFlags(
+      program
+        .command('set-card')
+        .description(t('help.setCard.description'))
+        .argument('[listName]', t('help.listArg.crossType'))
+        .argument('[cardName...]', t('help.setCard.cardName')),
+    )
+      .option('--card-id <id>', t('help.cardId.disambiguate'))
+      .option('--set <code>', t('help.setCard.set'), parseSetFlag)
+      .option('--collector-number <cn>', t('help.setCard.collectorNumber'))
       .option(
-        '--language <code>',
-        'New language (e.g. ja); en clears the token — a bare line means English. Recorded as its own change, even alongside --set/--collector-number',
-        (value: string) => parseLanguageFlag(value, '(en clears the token)'),
+        '--finish <finish>',
+        t('help.setCard.finish', { finishes: VALID_FINISHES.join(', ') }),
+        parseFinishFlag,
+      )
+      .option('--language <code>', t('help.setCard.language'), (value: string) =>
+        parseLanguageFlag(value, t('cli.setCard.languageFlagHint')),
       )
       .option(
         '--condition <condition>',
-        `New condition: ${VALID_CONDITIONS.join(', ')}, or NONE to clear it (decks and collections only)`,
+        t('help.setCard.condition', { choices: VALID_CONDITIONS.join(', ') }),
         parseConditionFlag,
       )
-      .option(
-        '--label <labels>',
-        'New label override: sale,trade (combinable), keep, or none to clear it (collections only)',
-        parseLabelFlag,
-      )
-      .option('--section <name>', 'Move the card to this section, created if missing (decks only)')
-      .option('--commander', 'Move the card to the Commander section (decks only)')
-      .option('--no-commander', 'Move the card out of the Commander section (decks only)'),
+      .option('--label <labels>', t('help.setCard.label'), parseLabelFlag)
+      .option('--section <name>', t('help.setCard.section'))
+      .option('--commander', t('help.setCard.commander'))
+      .option('--no-commander', t('help.setCard.noCommander')),
     'text',
   )
-  addDryRunOption(command, 'Report what would change without writing anything')
+  addDryRunOption(command, t('help.setCard.dryRun'))
   command.action(
     async (listNameArg: string | undefined, cardNameParts: string[], options: SetCardOptions) => {
       const scripting = normalizeScriptingOptions(options, 'text')
@@ -220,9 +214,9 @@ type SetCardResult = CardCommandResultBase & {
  * reported as a grade now recorded on the line.
  */
 function describeConditionUpdate(condition: ConditionUpdate): string {
-  if (condition === 'NONE') return 'condition → none (grade cleared)'
-  if (condition === 'NM') return 'condition → NM (written as an ungraded line — NM is the default)'
-  return `condition → ${condition}`
+  if (condition === 'NONE') return t('cli.setCard.conditionCleared')
+  if (condition === 'NM') return t('cli.setCard.conditionDefault')
+  return t('cli.setCard.conditionSet', { condition })
 }
 
 /**
@@ -230,10 +224,11 @@ function describeConditionUpdate(condition: ConditionUpdate): string {
  * a bare line is English — so it must not read as a token now on the line.
  */
 function describeLanguageUpdate(language: CardLanguage): string {
-  if (language === 'en') {
-    return 'language → en (token cleared — a bare line means English)'
-  }
-  return `language → ${language} (${languageDisplayName(language)})`
+  if (language === 'en') return t('cli.setCard.languageCleared')
+  return t('cli.setCard.languageSet', {
+    code: language,
+    language: languageDisplayName(language),
+  })
 }
 
 /**
@@ -247,22 +242,23 @@ function describeSkippedFinishCheck(
   target: EntryRef,
   reason: FinishCheckSkip,
 ): string {
-  const lead = `Note: could not verify finish '${finish}' for ${describeEntry(target)}`
+  const entry = describeEntry(target)
   if (reason === 'printing-unknown') {
-    return `${lead} — ${target.set?.toUpperCase()}:${target.collectorNumber} is not a known printing of '${target.name}'.`
+    return t('cli.setCard.finishCheckUnknownPrinting', {
+      finish,
+      entry,
+      printing: `${target.set?.toUpperCase()}:${target.collectorNumber}`,
+      name: target.name,
+    })
   }
-  return `${lead} — the card cache holds no complete printing list for it. Run 'ritual cache preload-all' to enable the check.`
+  return t('cli.setCard.finishCheckCacheMiss', { finish, entry })
 }
 
 async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise<void> {
   const cardId = input.cardId !== undefined ? parseCardIdFlag(input.cardId) : undefined
 
   if ((input.set !== undefined) !== (input.collectorNumber !== undefined)) {
-    throw new CardCommandError(
-      'usage_error',
-      '--set and --collector-number must be given together.',
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.pinNeedsBoth')
   }
   const hasMutation =
     input.set !== undefined ||
@@ -273,42 +269,30 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     input.section !== undefined ||
     input.commander !== undefined
   if (!hasMutation) {
-    throw new CardCommandError(
-      'usage_error',
-      'Specify at least one change: --set/--collector-number, --finish, --condition, --language, --label, --section, --commander, or --no-commander.',
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.setCard.noChangeGiven')
   }
 
   const { type, filePath } = await resolveListSelection(input.listName, input.type)
   const listSlug = path.basename(filePath, '.md')
 
   if (type === 'wanted' && input.condition !== undefined) {
-    throw new CardCommandError(
-      'usage_error',
-      'Wanted list entries do not track condition — --condition applies to decks and collections only.',
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.wantedNoCondition')
   }
   if (type !== 'deck' && input.section !== undefined) {
-    throw new CardCommandError(
-      'usage_error',
-      '--section only applies to decks.',
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.setCard.sectionDecksOnly')
   }
   if (type !== 'collection' && input.label !== undefined) {
-    throw new CardCommandError(
+    throw localizedCommandError(
       'usage_error',
-      '--label only applies to collections.',
       ExitCode.UsageError,
+      'cli.cardOps.labelCollectionsOnly',
     )
   }
   if (type !== 'deck' && input.commander !== undefined) {
-    throw new CardCommandError(
+    throw localizedCommandError(
       'usage_error',
-      '--commander/--no-commander only apply to decks.',
       ExitCode.UsageError,
+      'cli.setCard.commanderDecksOnly',
     )
   }
 
@@ -354,7 +338,15 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     if (!check.checked && check.reason === 'verify-failed') {
       emitWarnings(
         [
-          `Note: could not verify that ${printingForLanguage.set?.toUpperCase()}:${printingForLanguage.collectorNumber} exists in ${languageDisplayName(input.language)} (${input.language}) — Scryfall could not be reached${check.detail ? `: ${check.detail}` : ''}. Recording it as asserted.`,
+          t('cli.setCard.languageUnverified', {
+            printing: `${printingForLanguage.set?.toUpperCase()}:${printingForLanguage.collectorNumber}`,
+            language: languageDisplayName(input.language),
+            code: input.language,
+            detail:
+              check.detail !== undefined
+                ? t('cli.setCard.reasonSuffix', { reason: check.detail })
+                : '',
+          }),
         ],
         scripting,
       )
@@ -378,8 +370,14 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
         cardId: target.cardId,
       }),
     )
-    applied.push(`printing → ${input.set.toUpperCase()}:${input.collectorNumber}`)
-    if (input.finish !== undefined) applied.push(`finish → ${input.finish}`)
+    applied.push(
+      t('cli.setCard.appliedPrinting', {
+        printing: `${input.set.toUpperCase()}:${input.collectorNumber}`,
+      }),
+    )
+    if (input.finish !== undefined) {
+      applied.push(t('cli.setCard.appliedFinish', { finish: input.finish }))
+    }
     if (input.condition !== undefined) applied.push(describeConditionUpdate(input.condition))
   } else if (input.condition !== undefined) {
     // There is no standalone set-condition event; a set-printing carrying the
@@ -395,12 +393,14 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
       }),
     )
     applied.push(describeConditionUpdate(input.condition))
-    if (input.finish !== undefined) applied.push(`finish → ${input.finish}`)
+    if (input.finish !== undefined) {
+      applied.push(t('cli.setCard.appliedFinish', { finish: input.finish }))
+    }
   } else if (input.finish !== undefined) {
     changes.push(
       createSetFinishChange(target.name, { finish: input.finish, cardId: target.cardId }),
     )
-    applied.push(`finish → ${input.finish}`)
+    applied.push(t('cli.setCard.appliedFinish', { finish: input.finish }))
   }
 
   if (input.language !== undefined) {
@@ -418,20 +418,20 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     changes.push(createSetLabelChange(target.name, { labels: input.label, cardId: target.cardId }))
     applied.push(
       input.label.length === 0
-        ? 'label → none (list default)'
-        : `label → ${input.label.join(', ')}`,
+        ? t('cli.setCard.labelCleared')
+        : t('cli.setCard.appliedLabel', { labels: input.label.join(', ') }),
     )
   }
   if (input.section !== undefined) {
     changes.push(createSetSectionChange(target.name, input.section, target.cardId))
-    applied.push(`section → ${input.section}`)
+    applied.push(t('cli.setCard.appliedSection', { section: input.section }))
   }
   if (input.commander === true) {
     changes.push(createSetCommanderChange(target.name, { cardId: target.cardId }))
-    applied.push('commander')
+    applied.push(t('cli.setCard.appliedCommander'))
   } else if (input.commander === false) {
     changes.push(createUnsetCommanderChange(target.name, { cardId: target.cardId }))
-    applied.push('not commander')
+    applied.push(t('cli.setCard.appliedNotCommander'))
   }
 
   // A dry run resolves the list, the target, and every validation above, then
@@ -440,9 +440,13 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
-      const prefix = input.dryRun ? '[dry-run] Would update' : 'Updated'
       emitOutput(
-        `${prefix} ${describeEntry(target)} in ${listSlug}: ${applied.join(', ')}`,
+        t('cli.setCard.updated', {
+          mode: input.dryRun ? 'preview' : 'done',
+          entry: describeEntry(target),
+          list: listSlug,
+          changes: applied.join(', '),
+        }),
         scripting,
       )
     }

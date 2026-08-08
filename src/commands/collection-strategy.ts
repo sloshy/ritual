@@ -1,6 +1,8 @@
 import prompts from 'prompts'
+import { DEFAULT_LOCALE } from '../i18n/runtime'
+import { t, tIn } from '../i18n/t'
 import {
-  CONDITION_LABELS,
+  conditionLabel,
   finishChoices,
   finishRows,
   formatCollectionLine,
@@ -90,7 +92,7 @@ async function promptFinishChoice(
   const response = (await prompts({
     type: 'select',
     name: 'value',
-    message: 'Finish:',
+    message: t('cli.printing.promptFinishShort'),
     choices,
     initial: Math.max(0, VALID_FINISHES.indexOf(current)),
   })) as ValuePromptResponse
@@ -116,7 +118,8 @@ async function promptLabelChoiceFrom(
     name: 'value',
     message,
     choices: choices.map((choice, i) => ({
-      title: i === currentIndex ? `${choice.label} (current)` : choice.label,
+      title:
+        i === currentIndex ? t('cli.edit.current', { label: t(choice.label) }) : t(choice.label),
       value: formatCardLabels(choice.labels),
     })),
     initial: Math.max(0, currentIndex),
@@ -134,7 +137,7 @@ async function promptLabelChoiceFrom(
 async function promptLabelChoice(
   current: readonly CardLabel[] | undefined,
 ): Promise<CardLabel[] | null> {
-  return promptLabelChoiceFrom(CARD_LABEL_CHOICES, current, 'Label:')
+  return promptLabelChoiceFrom(CARD_LABEL_CHOICES, current, t('cli.collection.promptLabel'))
 }
 
 /** Pick a condition for an existing entry, defaulting the cursor to the current one. */
@@ -142,9 +145,10 @@ async function promptConditionChoice(current: Condition): Promise<Condition | nu
   const response = (await prompts({
     type: 'select',
     name: 'value',
-    message: 'Condition:',
+    message: t('cli.printing.promptCondition'),
     choices: VALID_CONDITIONS.map((c) => ({
-      title: c === current ? `${CONDITION_LABELS[c]} (current)` : CONDITION_LABELS[c],
+      title:
+        c === current ? t('cli.edit.current', { label: conditionLabel(c) }) : conditionLabel(c),
       value: c,
     })),
     initial: Math.max(0, VALID_CONDITIONS.indexOf(current)),
@@ -197,7 +201,9 @@ export function createCollectionStrategy(
   /** Re-render the entry after an edit (apply replaces entry objects). */
   const logUpdated = (cardId: number, fallbackName: string): void => {
     const updated = findFlatListEntry(list, cardId)
-    console.log(`Changed: ${updated ? list.renderEntry(updated) : fallbackName}`)
+    console.log(
+      t('cli.edit.changedLine', { line: updated ? list.renderEntry(updated) : fallbackName }),
+    )
   }
 
   /** The list's current default labels, read from the session's front-matter block. */
@@ -220,10 +226,7 @@ export function createCollectionStrategy(
       // the metadata write path gives).
       const mapping = readFrontMatterMapping(session.frontMatter.raw)
       if (!mapping.ok) {
-        console.error(
-          "The file's front matter could not be read as YAML, so editing the default labels " +
-            'would overwrite it. Fix the block by hand first.',
-        )
+        console.error(t('cli.collection.frontMatterUnreadable'))
         return
       }
     }
@@ -234,7 +237,7 @@ export function createCollectionStrategy(
     const labels = await promptLabelChoiceFrom(
       CARD_LABEL_DEFAULT_CHOICES,
       current,
-      'Default labels:',
+      t('cli.collection.promptDefaultLabels'),
     )
     if (labels === null) return
     // A stored value the parser refuses reads as "none" above, but re-picking
@@ -249,21 +252,25 @@ export function createCollectionStrategy(
     session.dirty = true
     console.log(
       labels.length > 0
-        ? `Default labels set to [${formatCardLabels(labels)}].`
-        : 'Default labels cleared.',
+        ? t('cli.collection.defaultLabelsSet', { labels: formatCardLabels(labels) })
+        : t('cli.collection.defaultLabelsCleared'),
     )
   }
 
   return {
-    managerLabel: 'collection manager',
+    managerLabel: t('cli.manager.collection'),
     saveTarget: { filePath: session.filePath, listName },
     sessionConfig,
-    extraMenuItems: (): MenuChoice[] => [
-      menuItem(
-        `🏷️  Edit List Labels (default: ${formatCardLabels(currentDefaultLabels()) || 'none'})`,
-        '__LIST_LABELS__',
-      ),
-    ],
+    extraMenuItems: (): MenuChoice[] => {
+      const params = {
+        labels: formatCardLabels(currentDefaultLabels()) || t('cli.collection.labelsNone'),
+      }
+      return [
+        menuItem(`🏷️  ${t('cli.collection.menuListLabels', params)}`, '__LIST_LABELS__', [
+          tIn(DEFAULT_LOCALE, 'cli.collection.menuListLabels', params),
+        ]),
+      ]
+    },
     handleSentinel: async (_ctx: CardSessionContext, value: MenuSentinel): Promise<void> => {
       if (value === '__LIST_LABELS__') await editListLabels()
     },
@@ -290,7 +297,7 @@ export function createCollectionStrategy(
         if (result.kind === 'none') {
           // A collection entry requires a printing (name-only lines are not part of the
           // collection format), so there is nothing sensible to add here.
-          if (!isEditing) console.error('No printings found. Skipping.')
+          if (!isEditing) console.error(t('cli.collection.noPrintingsSkip'))
           return
         }
         printing = result.printing
@@ -336,13 +343,13 @@ export function createCollectionStrategy(
       const entry = findFlatListEntry(list, cardId)
       if (!entry) return
       const action = await promptEditAction(list.renderEntry(entry), [
-        { title: '🖼️  Change Printing', value: 'printing' },
-        { title: '✨ Change Finish', value: 'finish' },
-        { title: '📋 Change Condition', value: 'condition' },
-        { title: '🌐 Change Language', value: 'language' },
-        { title: '🏷️  Change Label', value: 'label' },
-        { title: '📝 Edit Note', value: 'note' },
-        { title: '🗑️  Remove', value: 'remove' },
+        { title: `🖼️  ${t('cli.editAction.changePrinting')}`, value: 'printing' },
+        { title: `✨ ${t('cli.editAction.changeFinish')}`, value: 'finish' },
+        { title: `📋 ${t('cli.editAction.changeCondition')}`, value: 'condition' },
+        { title: `🌐 ${t('cli.editAction.changeLanguage')}`, value: 'language' },
+        { title: `🏷️  ${t('cli.editAction.changeLabel')}`, value: 'label' },
+        { title: `📝 ${t('cli.editAction.editNote')}`, value: 'note' },
+        { title: `🗑️  ${t('cli.editAction.remove')}`, value: 'remove' },
       ])
       if (!action) return
 
@@ -350,7 +357,7 @@ export function createCollectionStrategy(
         const result = await resolveCardPrinting(entry.name, sessionConfig, excludeDigitalOnly)
         if (result.kind === 'cancelled') return
         if (result.kind === 'none') {
-          console.error('No printings found.')
+          console.error(t('cli.edit.noPrintings'))
           return
         }
         const finishAndCondition = await promptFinishAndCondition(
@@ -371,7 +378,7 @@ export function createCollectionStrategy(
         }
         const before = entryPrinting(entry)
         applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: `printing on ${entry.name}`,
+          label: t('cli.editLabel.printing', { name: entry.name }),
           change: createSetPrintingChange(entry.name, { ...target, cardId }),
           inverse: createSetPrintingChange(entry.name, { ...before, cardId }),
           consolidate: (changes, original) =>
@@ -385,7 +392,7 @@ export function createCollectionStrategy(
         const finish = await promptFinishChoice(entry.finish, await lookupPinnedPrinting(entry))
         if (!finish || finish === entry.finish) return
         applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: `finish on ${entry.name}`,
+          label: t('cli.editLabel.finish', { name: entry.name }),
           change: createSetFinishChange(entry.name, { finish, cardId }),
           inverse: createSetFinishChange(entry.name, { finish: entry.finish, cardId }),
           consolidate: (changes, original) =>
@@ -402,7 +409,7 @@ export function createCollectionStrategy(
         // current printing plus the new condition is the canonical encoding.
         const target: PrintingTuple = { ...entryPrinting(entry), condition }
         applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: `condition on ${entry.name}`,
+          label: t('cli.editLabel.condition', { name: entry.name }),
           change: createSetPrintingChange(entry.name, { ...target, cardId }),
           inverse: createSetPrintingChange(entry.name, { ...entryPrinting(entry), cardId }),
           consolidate: (changes, original) =>
@@ -416,7 +423,7 @@ export function createCollectionStrategy(
         const language = await promptLanguageChoice(entry.language)
         if (language === null || language === displayLanguage(entry.language)) return
         applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: `language on ${entry.name}`,
+          label: t('cli.editLabel.language', { name: entry.name }),
           change: createSetLanguageChange(entry.name, { language, cardId }),
           inverse: createSetLanguageChange(entry.name, {
             language: displayLanguage(entry.language),
@@ -435,7 +442,7 @@ export function createCollectionStrategy(
           return
         }
         applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: `labels on ${entry.name}`,
+          label: t('cli.editLabel.labels', { name: entry.name }),
           change: createSetLabelChange(entry.name, { labels, cardId }),
           inverse: createSetLabelChange(entry.name, { labels: [...(entry.labels ?? [])], cardId }),
           consolidate: (changes, original) =>

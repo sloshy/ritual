@@ -1,5 +1,6 @@
 import { createAdminUser, adminUserExists } from '../auth'
 import { apiHandler } from '../utils'
+import type { ApiMessage } from './result'
 import {
   MAX_BODY_SIZE,
   MAX_USERNAME_LENGTH,
@@ -12,9 +13,8 @@ interface SetupRequest {
   password: string
 }
 
-interface SetupResponse {
+interface SetupResponse extends ApiMessage {
   success: boolean
-  message: string
 }
 
 export function handleSetup(req: Request): Promise<Response> {

@@ -1,5 +1,5 @@
-// The site header's utility controls: currency, the edit-mode toggle, and the
-// theme menu.
+// The site header's utility controls: currency, the edit-mode toggle, the
+// language switcher, and the theme menu.
 //
 // They live inline in the header on desktop, but at phone widths the header has
 // no room for them alongside the logo and quick switch — there they move into a
@@ -9,6 +9,7 @@
 
 import { type Component, Show, createEffect, createSignal, onCleanup } from 'solid-js'
 import { type PriceCurrency, isPriceCurrency } from '../price-currency'
+import { useT } from '../ui/i18n'
 import { ThemePicker } from './ThemePicker'
 import { useTheme } from './useTheme'
 
@@ -18,31 +19,34 @@ export type CurrencySelectorProps = {
   onChange: (currency: PriceCurrency) => void
 }
 
-export const CurrencySelector: Component<CurrencySelectorProps> = (props) => (
-  <div class="currency-selector">
-    <label class="currency-label">Prices:</label>
-    <select
-      class="currency-select"
-      value={props.currency}
-      onChange={(e) => {
-        // The options below are the only values this can produce, but go through
-        // the guard rather than asserting the union onto an arbitrary string.
-        const next = e.target.value
-        if (isPriceCurrency(next)) props.onChange(next)
-      }}
-    >
-      <Show when={props.available.includes('usd')}>
-        <option value="usd">USD ($)</option>
-      </Show>
-      <Show when={props.available.includes('eur')}>
-        <option value="eur">EUR (€)</option>
-      </Show>
-      <Show when={props.available.includes('tix')}>
-        <option value="tix">TIX</option>
-      </Show>
-    </select>
-  </div>
-)
+export const CurrencySelector: Component<CurrencySelectorProps> = (props) => {
+  const t = useT()
+  return (
+    <div class="currency-selector">
+      <label class="currency-label">{t('site.header.pricesLabel')}</label>
+      <select
+        class="currency-select"
+        value={props.currency}
+        onChange={(e) => {
+          // The options below are the only values this can produce, but go through
+          // the guard rather than asserting the union onto an arbitrary string.
+          const next = e.target.value
+          if (isPriceCurrency(next)) props.onChange(next)
+        }}
+      >
+        <Show when={props.available.includes('usd')}>
+          <option value="usd">{t('site.header.currencyUsd')}</option>
+        </Show>
+        <Show when={props.available.includes('eur')}>
+          <option value="eur">{t('site.header.currencyEur')}</option>
+        </Show>
+        <Show when={props.available.includes('tix')}>
+          <option value="tix">{t('site.header.currencyTix')}</option>
+        </Show>
+      </select>
+    </div>
+  )
+}
 
 export type EditModeButtonProps = {
   editMode: boolean
@@ -51,29 +55,35 @@ export type EditModeButtonProps = {
   onToggle: () => void
 }
 
-export const EditModeButton: Component<EditModeButtonProps> = (props) => (
-  <button
-    type="button"
-    class="btn btn-secondary btn-edit"
-    classList={{ 'btn-edit--active': props.editMode }}
-    title={
-      props.editMode
-        ? 'Leave edit mode'
-        : props.editableListInView
-          ? 'Edit this list locally'
-          : 'Enter edit mode, then open a list to edit'
-    }
-    onClick={props.onToggle}
-  >
-    <span class="btn-edit-icon" aria-hidden="true">
-      {props.editMode ? '✓' : '✏️'}
-    </span>
-    <span class="btn-edit-label">{props.editMode ? 'Done' : 'Edit'}</span>
-  </button>
-)
+export const EditModeButton: Component<EditModeButtonProps> = (props) => {
+  const t = useT()
+  return (
+    <button
+      type="button"
+      class="btn btn-secondary btn-edit"
+      classList={{ 'btn-edit--active': props.editMode }}
+      title={
+        props.editMode
+          ? t('site.header.editModeLeave')
+          : props.editableListInView
+            ? t('site.header.editModeEditList')
+            : t('site.header.editModeEnter')
+      }
+      onClick={props.onToggle}
+    >
+      <span class="btn-edit-icon" aria-hidden="true">
+        {props.editMode ? '✓' : '✏️'}
+      </span>
+      <span class="btn-edit-label">
+        {props.editMode ? t('site.header.editModeDone') : t('site.header.editModeEdit')}
+      </span>
+    </button>
+  )
+}
 
 /** The "Theme" button and the palette popover it anchors. */
 export const ThemeHeaderControls: Component = () => {
+  const t = useT()
   const theme = useTheme()
   const [pickerOpen, setPickerOpen] = createSignal(false)
   let wrapperRef: HTMLDivElement | undefined
@@ -102,13 +112,13 @@ export const ThemeHeaderControls: Component = () => {
         onClick={() => setPickerOpen((v) => !v)}
         aria-haspopup="dialog"
         aria-expanded={pickerOpen()}
-        title={theme.editorOpen() ? 'Theme menu (editor open)' : 'Theme menu'}
+        title={theme.editorOpen() ? t('site.header.themeMenuEditing') : t('site.header.themeMenu')}
       >
         <span class="theme-customize-btn-icon" aria-hidden="true">
           🎨
         </span>
         <span class="theme-customize-btn-label">
-          {theme.editorOpen() ? 'Editing theme' : 'Theme'}
+          {theme.editorOpen() ? t('site.header.themeEditing') : t('site.header.theme')}
         </span>
       </button>
       <ThemePicker open={pickerOpen()} onClose={() => setPickerOpen(false)} />

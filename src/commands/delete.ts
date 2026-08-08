@@ -7,10 +7,17 @@ import {
   listDisplayName,
   requireDeleteConfirmation,
 } from '../list-lifecycle'
-import { listTypeLabel, type ListType } from '../list-type'
+import { type ListType } from '../list-type'
 import { type ListTypeFlags } from '../resolve-list'
 import { CardCommandError } from '../errors'
-import { resolveListSelection, resolveListTypeFlag, runCommandAction } from './card-target'
+import { t } from '../i18n/t'
+import {
+  addListTypeFlags,
+  cancelledError,
+  resolveListSelection,
+  resolveListTypeFlag,
+  runCommandAction,
+} from './card-target'
 import { requireInteractive } from '../no-input'
 import { lifecycleErrorToCommandError } from './lifecycle'
 import type { PromptState } from './prompts-types'
@@ -35,17 +42,12 @@ type DeleteResult = {
 
 export function registerDeleteCommand(program: Command): void {
   addScriptingOptions(
-    program
-      .command('delete')
-      .description('Delete a deck, collection, or wanted list and its sidecar files')
-      .argument(
-        '<list>',
-        "Name of the list (optionally prefixed with 'deck:', 'collection:', or 'wanted:')",
-      )
-      .option('--deck', 'Resolve the name as a deck')
-      .option('--collection', 'Resolve the name as a collection')
-      .option('--wanted', 'Resolve the name as a wanted list')
-      .option('--confirm <name>', "The list's display name, confirming the deletion"),
+    addListTypeFlags(
+      program
+        .command('delete')
+        .description(t('help.delete.description'))
+        .argument('<list>', t('help.listArg.prefixed')),
+    ).option('--confirm <name>', t('help.delete.confirm')),
     'text',
   ).action(async (listArg: string, options: DeleteOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
@@ -93,7 +95,7 @@ export async function runDelete(
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
-      emitOutput(`Deleted ${listTypeLabel(resolved.type)} '${displayName}'`, scripting)
+      emitOutput(t('cli.delete.deleted', { type: resolved.type, name: displayName }), scripting)
     }
     return
   }
@@ -123,8 +125,8 @@ export function deleteConfirmationText(
   filePath: string,
 ): DeleteConfirmationText {
   return {
-    notice: `About to delete ${listTypeLabel(type).toLowerCase()} '${displayName}' (${filePath}) and its sidecar files.`,
-    prompt: `Type '${displayName}' to confirm:`,
+    notice: t('cli.delete.notice', { type, name: displayName, file: filePath }),
+    prompt: t('cli.delete.promptConfirm', { name: displayName }),
   }
 }
 
@@ -139,8 +141,6 @@ async function promptConfirmName(message: string): Promise<string> {
       if (state.exited) exited = true
     },
   })
-  if (exited || typeof resp.value !== 'string') {
-    throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
-  }
+  if (exited || typeof resp.value !== 'string') throw cancelledError()
   return resp.value
 }

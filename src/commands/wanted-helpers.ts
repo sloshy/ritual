@@ -11,6 +11,7 @@ import {
   type CardLanguage,
 } from '../card-language'
 import { finishChoices, finishRows, isFinish } from './collection-helpers'
+import { t } from '../i18n/t'
 import { parseFlatListFrontMatter, type FlatListFrontMatter } from '../flat-list-front-matter'
 import { getWantedDir } from '../ritual-config'
 import { listFileName, unusableFileNameMessage } from '../list-file-name'
@@ -170,7 +171,12 @@ export async function ensureWantedListFile(name: string): Promise<string> {
   if (fileName === null) {
     throw new Error(unusableFileNameMessage(name))
   }
-  return ensureListFile(getWantedDir(), fileName, `# ${name}\n\n`, 'wanted list')
+  return ensureListFile(
+    getWantedDir(),
+    fileName,
+    `# ${name}\n\n`,
+    t('cli.edit.listNoun', { type: 'wanted' }),
+  )
 }
 
 export type WantedListSessionConfig = Omit<SessionConfig, 'condition'>
@@ -220,7 +226,7 @@ export async function promptWantedFinish(
 
   const choices = finishChoices<WantedFinishChoiceValue>(
     [
-      { label: 'No preference (any finish)', value: NO_PREFERENCE },
+      { label: t('cli.wanted.noPreferenceAny'), value: NO_PREFERENCE },
       ...finishRows(availableFinishes),
     ],
     printing,
@@ -230,7 +236,7 @@ export async function promptWantedFinish(
   const response = (await prompts({
     type: 'select',
     name: 'finish',
-    message: 'Select Finish:',
+    message: t('cli.printing.promptFinish'),
     choices,
     onState: (state: PromptState) => {
       if (state.exited) isExited = true

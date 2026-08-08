@@ -1,4 +1,5 @@
 import { type JSX, For, Show } from 'solid-js'
+import { useT } from '../../../ui/i18n'
 import type { SyncRunItem, SyncRunMessage, SyncRunStatus } from '../sync-run'
 
 /**
@@ -21,9 +22,10 @@ type SyncRunLogProps = {
 }
 
 export function SyncRunLog(props: SyncRunLogProps): JSX.Element {
+  const t = useT()
   return (
     <Show when={props.items.length > 0 || props.notes.length > 0}>
-      <h3 class="section-subheading">Progress</h3>
+      <h3 class="section-subheading">{t('admin.sync.progress')}</h3>
       <ul class="sync-run">
         <For each={props.notes}>
           {(message) => (

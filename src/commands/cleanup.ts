@@ -20,7 +20,7 @@ import { listNameCollision } from '../list-lifecycle'
 import { moveListFileAndSidecars, renameListThroughTemp } from '../list-sidecars'
 import { isSameFile as statSameFile, type SameFileCheck } from '../same-file'
 import { collectionToMarkdown, wantedToMarkdown } from '../editor/list-export'
-import { CardCommandError, getErrorMessage } from '../errors'
+import { getErrorMessage, localizedCommandError } from '../errors'
 import { runCommandAction } from './card-target'
 import { promptDeckFormat } from './deck-helpers'
 import { readCollectionFile, readWantedFile } from './flat-list-session'
@@ -33,6 +33,7 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from './scripting'
+import { t } from '../i18n/t'
 
 /**
  * The `ritual cleanup` command: one pass over every deck, collection, and wanted
@@ -240,8 +241,8 @@ async function readWantedDocument(location: ListLocation): Promise<ListDocument>
 /** Record a file the cleanup could not read, and skip it. */
 function markUnreadable(result: CleanupResult, error: unknown): CleanupResult {
   result.unreadable = true
-  result.warnings.push(`could not be read: ${getErrorMessage(error)}`)
-  result.warnings.push('skipped: fix the file and rerun cleanup')
+  result.warnings.push(t('cli.cleanup.couldNotRead', { reason: getErrorMessage(error) }))
+  result.warnings.push(t('cli.cleanup.skipped'))
   return result
 }
 
@@ -309,9 +310,11 @@ export async function cleanupList(
       ? null
       : await listNameCollision(location.type, document.displayName, location.filePath, sameFile)
     if (occupied) {
-      result.warnings.push(`not renamed to '${targetBase}': another list already has that file`)
+      result.warnings.push(t('cli.cleanup.notRenamedOccupied', { file: targetBase }))
     } else if (collision) {
-      result.warnings.push(`not renamed to '${targetBase}': ${collision.message}`)
+      result.warnings.push(
+        t('cli.cleanup.notRenamedCollision', { file: targetBase, reason: collision.message }),
+      )
     } else {
       targetPath = candidate
       result.renamedTo = targetBase
@@ -330,7 +333,7 @@ export async function cleanupList(
   if (document.parseWarnings.length > 0) {
     result.rewriteBlocked = true
     result.warnings.push(...document.parseWarnings)
-    result.warnings.push('not rewritten: fix the lines above and rerun cleanup')
+    result.warnings.push(t('cli.cleanup.notRewritten'))
   } else {
     result.rewritten = document.canonical !== document.original
   }
@@ -385,12 +388,18 @@ type CleanupReport = {
 /** The action phrases reported for one cleaned-up file, e.g. `renamed to 'Winota Stax.md'`. */
 function describeActions(result: CleanupResult, dryRun: boolean, skipFormats: boolean): string[] {
   const actions: string[] = []
-  if (result.formatSet) actions.push(`format set to ${result.formatSet}`)
-  if (result.renamedTo) actions.push(`renamed to '${result.renamedTo}'`)
-  if (result.rewritten) actions.push('rewritten in canonical form')
+  if (result.formatSet) {
+    actions.push(t('cli.cleanup.actionFormatSet', { format: result.formatSet }))
+  }
+  if (result.renamedTo) actions.push(t('cli.cleanup.actionRenamed', { file: result.renamedTo }))
+  if (result.rewritten) actions.push(t('cli.cleanup.actionRewritten'))
   if (result.missingFormat) {
     actions.push(
-      dryRun ? 'needs a format' : skipFormats ? 'format skipped' : 'left without a format',
+      dryRun
+        ? t('cli.cleanup.actionNeedsFormat')
+        : skipFormats
+          ? t('cli.cleanup.actionFormatSkipped')
+          : t('cli.cleanup.actionNoFormat'),
     )
   }
   return actions
@@ -398,16 +407,15 @@ function describeActions(result: CleanupResult, dryRun: boolean, skipFormats: bo
 
 /** The line printed above the format prompt, explaining what the deck's shape suggests. */
 function formatSignalNote(deckName: string, signal: DeckFormatSignal): string {
-  const lead = `Deck '${deckName}' has no format`
   switch (signal.kind) {
     case 'command-zone':
-      return `${lead} — a commander was detected, so command-zone formats are listed first.`
+      return t('cli.cleanup.signalCommandZone', { name: deckName })
     case 'constructed-60':
-      return `${lead} — ${signal.mainDeckSize} cards with no commander, so 60-card constructed formats are listed first.`
+      return t('cli.cleanup.signalConstructed', { name: deckName, count: signal.mainDeckSize })
     case 'limited':
-      return `${lead} — ${signal.mainDeckSize} cards with no commander suggests Limited (sealed or draft).`
+      return t('cli.cleanup.signalLimited', { name: deckName, count: signal.mainDeckSize })
     case 'none':
-      return `${lead}.`
+      return t('cli.cleanup.signalNone', { name: deckName })
   }
 }
 
@@ -437,11 +445,11 @@ async function runCleanup(
     const formatless = preview.filter((result) => result.missingFormat)
     if (formatless.length > 0) {
       const names = formatless.map((result) => path.relative(baseDir, result.filePath)).join(', ')
-      throw new CardCommandError(
+      throw localizedCommandError(
         'usage_error',
-        `${formatless.length} deck(s) have no format and prompts are unavailable (${names}). ` +
-          'Re-run with --skip-formats to leave them untouched, or run interactively to choose formats.',
         ExitCode.UsageError,
+        'cli.cleanup.formatlessDecks',
+        { count: formatless.length, names },
       )
     }
   }
@@ -462,41 +470,45 @@ async function runCleanup(
       const rel = path.relative(baseDir, result.filePath)
       const actions = describeActions(result, dryRun, skipFormats)
       if (actions.length > 0 && !scripting.quiet) {
-        console.log(`${prefix}${rel}: ${actions.join(', ')}`)
+        console.log(t('cli.cleanup.fileLine', { prefix, file: rel, actions: actions.join(', ') }))
       }
       for (const warning of result.warnings) {
-        console.warn(`${prefix}${rel}: warning: ${warning}`)
+        console.warn(t('cli.cleanup.fileWarning', { prefix, file: rel, warning }))
       }
     }
 
     if (!scripting.quiet) {
-      const files = (count: number): string => `${count} list file${count === 1 ? '' : 's'}`
       if (results.length === 0) {
-        console.log('No list files found.')
+        console.log(t('cli.cleanup.noListFiles'))
       } else if (reported.length === 0) {
-        console.log(`Checked ${files(results.length)}; everything is already clean.`)
+        console.log(
+          t('cli.cleanup.allClean', {
+            counted: t('domain.count.listFiles', { count: results.length }),
+          }),
+        )
       } else {
         // Count only what a run would actually write — a deck that merely
         // needs a format (unanswerable without a prompt) is reported above but
         // is not a pending change, and `--check`'s exit code agrees.
         const changing = reported.filter(wouldChangeFile).length
         if (changing > 0) {
-          const verb = dryRun ? 'Would clean up' : 'Cleaned up'
-          console.log(`\n${verb} ${changing} of ${files(results.length)}.`)
+          console.log(
+            `\n${t('cli.cleanup.summary', {
+              mode: dryRun ? 'preview' : 'done',
+              changed: changing,
+              counted: t('domain.count.listFiles', { count: results.length }),
+            })}`,
+          )
         }
         const unreadable = reported.filter((result) => result.unreadable).length
         if (unreadable > 0) {
-          console.error(
-            `${unreadable} file${unreadable === 1 ? '' : 's'} could not be read and ${unreadable === 1 ? 'was' : 'were'} skipped (see the warnings above).`,
-          )
+          console.error(t('cli.cleanup.unreadableFiles', { count: unreadable }))
         }
         // Only decks left without a format count here — a file that was skipped
         // or merely warned about is not a deck waiting on an answer.
         const formatOnly = reported.filter((result) => result.missingFormat === true).length
         if (formatOnly > 0) {
-          console.log(
-            `${formatOnly} deck${formatOnly === 1 ? '' : 's'} still need${formatOnly === 1 ? 's' : ''} a format (run interactively to choose, or pass --skip-formats to leave as-is).`,
-          )
+          console.log(t('cli.cleanup.decksNeedFormat', { count: formatOnly }))
         }
       }
     }
@@ -533,23 +545,11 @@ async function runCleanup(
 export function registerCleanupCommand(program: Command): void {
   addScriptingOptions(
     addDryRunOption(
-      program
-        .command('cleanup')
-        .description(
-          'Normalize every list file: canonical formatting, file names that match list names, and a format for every deck',
-        ),
-      'Report what would change without writing anything',
+      program.command('cleanup').description(t('help.cleanup.description')),
+      t('help.cleanup.dryRun'),
     )
-      .option(
-        '--skip-formats',
-        'Never prompt for deck formats; leave formatless decks untouched and report them',
-      )
-      .addOption(
-        new Option(
-          '--check',
-          'Like --dry-run, but exit 1 when any file would change (for hooks and CI)',
-        ).implies({ dryRun: true }),
-      ),
+      .option('--skip-formats', t('help.cleanup.skipFormats'))
+      .addOption(new Option('--check', t('help.cleanup.check')).implies({ dryRun: true })),
   ).action(async (options: CleanupCommandOptions) => {
     const scripting = normalizeScriptingOptions(options)
     await runCommandAction(scripting, () => runCleanup(options, scripting))

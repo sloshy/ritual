@@ -17,6 +17,7 @@
  * "missing means English" rule is applied when a resolved value is needed.
  */
 
+import { compareData } from './i18n/collate'
 import type { ScryfallCard } from './types'
 
 /** Every card language, in Scryfall's canonical listing order. */
@@ -46,8 +47,19 @@ export type CardLanguage = (typeof CARD_LANGUAGES)[number]
 /** The language a bare card line means, and the shipped `defaultLanguage` config value. */
 export const DEFAULT_CARD_LANGUAGE: CardLanguage = 'en'
 
-/** English display name for every card language. Backs {@link languageDisplayName}. */
-export const LANGUAGE_NAMES: Record<CardLanguage, string> = {
+/**
+ * The **frozen English** name of every card language, and the only table the
+ * reverse lookup is built from.
+ *
+ * This is not a display table. {@link LANGUAGE_BY_NAME} inverts it so
+ * `normalizeLanguageValue('Japanese') → 'ja'`, which backs `config set
+ * defaultLanguage`, CSV import, the malformed-token hint, and — critically —
+ * `changelog-parser.ts`, which re-reads `Set language of "X" to Japanese` out
+ * of a persisted `.changes.md`. Translating these strings would make an old
+ * changelog unparseable, so they are English by contract (plan §4.9) and
+ * `languageLabel` is where a localized name comes from instead.
+ */
+export const LANGUAGE_PARSE_NAMES: Record<CardLanguage, string> = {
   en: 'English',
   es: 'Spanish',
   fr: 'French',
@@ -86,9 +98,9 @@ const LANGUAGE_ALIASES: Record<string, CardLanguage> = {
   ct: 'zht',
 }
 
-/** Lowercased display name → code, built once from {@link LANGUAGE_NAMES}. */
+/** Lowercased English name → code, built once from {@link LANGUAGE_PARSE_NAMES}. */
 const LANGUAGE_BY_NAME: ReadonlyMap<string, CardLanguage> = new Map(
-  (Object.entries(LANGUAGE_NAMES) as [CardLanguage, string][]).map(([code, name]) => [
+  (Object.entries(LANGUAGE_PARSE_NAMES) as [CardLanguage, string][]).map(([code, name]) => [
     name.toLowerCase(),
     code,
   ]),
@@ -110,9 +122,67 @@ export function normalizeLanguageValue(raw: string): CardLanguage | null {
   return LANGUAGE_BY_NAME.get(value) ?? null
 }
 
-/** The English display name for a language code (`ja` → `Japanese`). */
+/**
+ * The **frozen English** name for a language code (`ja` → `Japanese`).
+ *
+ * Every persisted or re-parsed surface uses this: `formatChangeCore`'s
+ * `Set language of "X" to Japanese` line, and anything else whose output a
+ * parser has to read back. Display surfaces that may be translated call
+ * {@link languageLabel} instead.
+ */
+// Remaining display callers still on this frozen English table — CollectionPage,
+// editor/language-prompt, CardSearchModal, admin Settings, collection-helpers,
+// card-target, set-card — move to `languageLabel` in the domain-vocabulary pass.
+// **New display code must use `languageLabel`**; this is the parse-side name.
 export function languageDisplayName(code: CardLanguage): string {
-  return LANGUAGE_NAMES[code]
+  return LANGUAGE_PARSE_NAMES[code]
+}
+
+/**
+ * Memoized `Intl.DisplayNames` per UI locale. Built lazily and never with a
+ * bare (host-resolved) locale — Bun resolves none from the environment, so the
+ * tag is always passed in explicitly.
+ */
+const languageDisplayNames = new Map<string, Intl.DisplayNames | null>()
+
+function displayNamesFor(locale: string): Intl.DisplayNames | null {
+  const cached = languageDisplayNames.get(locale)
+  if (cached !== undefined) return cached
+  let names: Intl.DisplayNames | null
+  try {
+    names = new Intl.DisplayNames([locale], { type: 'language', fallback: 'none' })
+  } catch {
+    // An unusable tag is not worth failing a render over; English is the answer.
+    names = null
+  }
+  languageDisplayNames.set(locale, names)
+  return names
+}
+
+/**
+ * The name of a card language **in the UI locale** (`ja` → `Japanese` under
+ * `en`, `Japanisch` under `de`) — the display half of the split described on
+ * {@link LANGUAGE_PARSE_NAMES}.
+ *
+ * Scryfall's vocabulary is not BCP-47: `zhs`, `zht` and `ph` name no language
+ * ICU knows, so `fallback: 'none'` makes those lookups return `undefined` and
+ * the frozen English name stands in. Under `en` this returns exactly
+ * {@link LANGUAGE_PARSE_NAMES} for every one of the 17 codes, so English output
+ * is unchanged by the split.
+ *
+ * The locale is a required argument rather than read ambiently: this module is
+ * imported by the changelog writer's dependency graph, and a hidden read of the
+ * active locale is exactly what must never leak into a persisted line.
+ */
+export function languageLabel(code: CardLanguage, locale: string): string {
+  const frozen = LANGUAGE_PARSE_NAMES[code]
+  const names = displayNamesFor(locale)
+  if (names === null) return frozen
+  try {
+    return names.of(code) ?? frozen
+  } catch {
+    return frozen
+  }
 }
 
 /**
@@ -166,7 +236,8 @@ export function sortLanguages(codes: Iterable<string>): string[] {
     if (indexA !== -1 && indexB !== -1) return indexA - indexB
     if (indexA !== -1) return -1
     if (indexB !== -1) return 1
-    return a.localeCompare(b)
+    // Codes, not names: the order must not move with the UI locale.
+    return compareData(a, b)
   })
 }
 

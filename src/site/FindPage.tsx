@@ -3,10 +3,11 @@ import { createSignal, createMemo, onCleanup, For, Show } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { formatPrice, formatPriceOrNA } from '../price-currency'
-import { LIST_TYPE_DISPLAY, type ListType } from '../list-type'
+import { useT } from '../ui/i18n'
+import { LIST_TYPE_DISPLAY, listTypeTitle, type ListType } from '../list-type'
 import { CardItem } from './CardItem'
 import { CardModal } from './CardModal'
-import { capitalize } from './utils'
+import { finishName, rarityName } from './printing-display'
 import { seedCards, seedPrintings, sessionCacheVersion } from './session-cache'
 import { TooltipOverlay } from './TooltipOverlay'
 import { useTooltip } from './useTooltip'
@@ -47,18 +48,8 @@ interface FindResultGroup {
   cards: CombinedCardData[]
 }
 
-const PLACEHOLDER = `Paste card names, one per line, e.g.
-
-Lightning Bolt
-Sol Ring
-Bruce Banner`
-
-/** "1 card" / "3 cards" — count plus a regular-plural noun. */
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`
-}
-
 export const FindPage: Component<FindPageProps> = (props) => {
+  const t = useT()
   const [text, setText] = createSignal('')
   const [loaded, setLoaded] = createSignal<LoadedListDetail[] | null>(null)
   const [searching, setSearching] = createSignal(false)
@@ -223,19 +214,19 @@ export const FindPage: Component<FindPageProps> = (props) => {
   const matchedCount = createMemo(() => matchedCards().reduce((sum, c) => sum + c.quantity, 0))
 
   const modalMeta = createMemo((): MetaEntry[] | undefined => {
-    const t = modalTile()
-    if (!t) return undefined
-    const tile = t.selectedTile
+    const card = modalTile()
+    if (!card) return undefined
+    const tile = card.selectedTile
     const parts: MetaEntry[] = [
-      { label: 'price', value: formatPriceOrNA(t.price, props.currency) },
-      { label: 'list', value: t.sourceName },
+      { label: 'price', value: formatPriceOrNA(card.price, props.currency) },
+      { label: 'list', value: card.sourceName },
     ]
-    if (t.hasPrinting && tile.set) {
+    if (card.hasPrinting && tile.set) {
       parts.push({ label: 'set', value: `${tile.set.toUpperCase()}:${tile.collectorNumber}` })
     }
-    if (tile.finish) parts.push({ label: 'finish', value: capitalize(tile.finish) })
+    if (tile.finish) parts.push({ label: 'finish', value: finishName(t, tile.finish) })
     if (tile.condition) parts.push({ label: 'condition', value: tile.condition })
-    if (t.card) parts.push({ label: 'rarity', value: capitalize(t.card.rarity) })
+    if (card.card) parts.push({ label: 'rarity', value: rarityName(t, card.card.rarity) })
     return parts
   })
 
@@ -270,17 +261,14 @@ export const FindPage: Component<FindPageProps> = (props) => {
     <div class="page-container find-page">
       <div class="page-header">
         <div>
-          <h1 class="page-title">Find Cards</h1>
-          <p class="page-stats">
-            Search every list by card name. Paste your own list of cards to see which appear, and
-            where.
-          </p>
+          <h1 class="page-title">{t('site.find.title')}</h1>
+          <p class="page-stats">{t('site.find.subtitle')}</p>
         </div>
       </div>
 
       <textarea
         class="find-input"
-        placeholder={PLACEHOLDER}
+        placeholder={t('site.find.placeholder')}
         rows={8}
         value={text()}
         onInput={(e) => setText(e.currentTarget.value)}
@@ -297,7 +285,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
           disabled={!canSearch()}
           onClick={() => void runSearch('replace')}
         >
-          {searching() ? 'Searching…' : 'Search'}
+          {searching() ? t('site.find.searching') : t('site.find.search')}
         </button>
         <Show when={searched()}>
           <button
@@ -306,36 +294,40 @@ export const FindPage: Component<FindPageProps> = (props) => {
             disabled={!canSearch()}
             onClick={() => void runSearch('add')}
           >
-            Add Cards to Search
+            {t('site.find.addCards')}
           </button>
         </Show>
       </div>
 
       <Show when={searched() && notFoundCount() > 0}>
         <div class="find-warning" role="status">
-          {plural(notFoundCount(), 'card')} could not be found. The unmatched
-          {notFoundCount() === 1 ? ' name remains' : ' names remain'} in the box above.
+          {t('site.find.notFound', { count: notFoundCount() })}
         </div>
       </Show>
 
       <Show when={searched()}>
         <Show
           when={matchedCards().length > 0}
-          fallback={<div class="find-empty">No matching cards found in any list.</div>}
+          fallback={<div class="find-empty">{t('site.find.noMatches')}</div>}
         >
           <p class="find-summary">
-            Found {plural(matchedCount(), 'card')} across {plural(resultGroups().length, 'list')}.
+            {t('site.find.summary', {
+              cards: t('ui.count.cards', { count: matchedCount() }),
+              lists: t('ui.count.lists', { count: resultGroups().length }),
+            })}
           </p>
 
           <div class="find-selection-bar" role="status">
-            <span class="find-selection-count">{plural(selectedCopies(), 'card')} selected</span>
+            <span class="find-selection-count">
+              {t('site.find.selected', { count: selectedCopies() })}
+            </span>
             <button
               type="button"
               class="btn btn-secondary"
               disabled={allSelected()}
               onClick={selectAll}
             >
-              Select All
+              {t('site.find.selectAll')}
             </button>
             <button
               type="button"
@@ -343,7 +335,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
               disabled={selectedCards().length === 0}
               onClick={() => void addSelectedToTrade()}
             >
-              Add Selected to Trade
+              {t('site.find.addSelectedToTrade')}
             </button>
             <button
               type="button"
@@ -351,7 +343,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
               disabled={selectedCards().length === 0}
               onClick={viewSelectedAsList}
             >
-              View Selected as List
+              {t('site.find.viewSelectedAsList')}
             </button>
             <button
               type="button"
@@ -359,7 +351,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
               disabled={selectedCards().length === 0}
               onClick={() => setSelectedKeys(new Set<string>())}
             >
-              Clear Selection
+              {t('site.find.clearSelection')}
             </button>
           </div>
 
@@ -383,7 +375,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
                         aria-pressed={
                           state() === 'all' ? true : state() === 'partial' ? 'mixed' : false
                         }
-                        aria-label={`Select all cards from ${group.name}`}
+                        aria-label={t('site.find.selectGroupAria', { name: group.name })}
                         onClick={() => toggleGroup(group)}
                       >
                         <span class="card-select-check" aria-hidden="true">
@@ -397,7 +389,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
                       </h2>
                       <span class="find-result-kind">
                         <span aria-hidden="true">{LIST_TYPE_DISPLAY[group.kind].icon}</span>{' '}
-                        {LIST_TYPE_DISPLAY[group.kind].label}
+                        {listTypeTitle(group.kind)}
                       </span>
                       <span class="section-count">
                         {group.cards.reduce((sum, c) => sum + c.quantity, 0)}

@@ -13,6 +13,7 @@ import type { ListInfo } from '../../../list-info'
 import type { HistoryLoadResponse, HistorySaveResponse } from '../../api/history'
 import type { ApiErrorResponse } from '../../api/save-helpers'
 import type { ListsResponse } from '../../api/lists'
+import { t } from '../../../i18n/t'
 import { type ListId, listInfoId } from '../list-grouping'
 
 export type UseHistorySessionResult = {
@@ -107,7 +108,7 @@ export function useHistorySession(): UseHistorySessionResult {
       setLists(data.lists)
       setLoaded(true)
     } catch (err) {
-      setError(`Failed to load lists: ${errorMessage(err)}`)
+      setError(t('admin.history.loadListsFailed', { reason: errorMessage(err) }))
     }
   }
 
@@ -134,7 +135,7 @@ export function useHistorySession(): UseHistorySessionResult {
       setOriginalSerialized(serializeChangeSets({ header: data.header, sets: loadedSets }))
       setUndoStack([])
     } catch (err) {
-      setError(`Failed to load ${list.name}: ${errorMessage(err)}`)
+      setError(t('admin.history.loadFailed', { name: list.name, reason: errorMessage(err) }))
     } finally {
       setDetailLoading(false)
     }
@@ -227,7 +228,7 @@ export function useHistorySession(): UseHistorySessionResult {
       setUndoStack([])
       setStatus(data.message)
     } catch (err) {
-      setError(`Failed to save: ${errorMessage(err)}`)
+      setError(t('admin.history.saveFailed', { reason: errorMessage(err) }))
     } finally {
       setSaving(false)
     }

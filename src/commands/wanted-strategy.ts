@@ -57,6 +57,7 @@ import {
   type PrintingTuple,
 } from '../change-event'
 import { displayLanguage, type CardLanguage } from '../card-language'
+import { t } from '../i18n/t'
 
 type SpecificityPromptResponse = { specificity?: 'name-only' | 'specific' }
 type FinishPromptResponse = { finish?: string }
@@ -66,10 +67,10 @@ async function promptSpecificity(cardName: string): Promise<'name-only' | 'speci
   const response = (await prompts({
     type: 'select',
     name: 'specificity',
-    message: `How specific for ${cardName}?`,
+    message: t('cli.wanted.promptSpecificity', { name: cardName }),
     choices: [
-      { title: 'Name only (cheapest printing)', value: 'name-only' },
-      { title: 'Choose specific printing', value: 'specific' },
+      { title: t('cli.wanted.specificityNameOnly'), value: 'name-only' },
+      { title: t('cli.wanted.specificitySpecific'), value: 'specific' },
     ],
   })) as SpecificityPromptResponse
   return response.specificity ?? null
@@ -88,7 +89,10 @@ async function promptWantedFinishChoice(
   const choices = finishChoices<WantedFinishChoiceValue>(
     [
       {
-        label: current === undefined ? 'No preference (current)' : 'No preference (any finish)',
+        label:
+          current === undefined
+            ? t('cli.edit.current', { label: t('cli.wanted.noPreference') })
+            : t('cli.wanted.noPreferenceAny'),
         value: NO_PREFERENCE,
       },
       ...finishRows(VALID_FINISHES, current),
@@ -98,7 +102,7 @@ async function promptWantedFinishChoice(
   const response = (await prompts({
     type: 'select',
     name: 'finish',
-    message: 'Finish:',
+    message: t('cli.printing.promptFinishShort'),
     choices,
     initial: current === undefined ? 0 : Math.max(0, VALID_FINISHES.indexOf(current) + 1),
   })) as FinishPromptResponse
@@ -150,11 +154,13 @@ export function createWantedStrategy(
   /** Re-render the entry after an edit (apply replaces entry objects). */
   const logUpdated = (cardId: number, fallbackName: string): void => {
     const updated = findFlatListEntry(list, cardId)
-    console.log(`Changed: ${updated ? list.renderEntry(updated) : fallbackName}`)
+    console.log(
+      t('cli.edit.changedLine', { line: updated ? list.renderEntry(updated) : fallbackName }),
+    )
   }
 
   return {
-    managerLabel: 'wanted list manager',
+    managerLabel: t('cli.manager.wanted'),
     saveTarget: { filePath: session.filePath, listName },
     // The wanted list has no condition, but the shared engine config carries the
     // full shape; the condition field is simply never read by this strategy.
@@ -197,7 +203,7 @@ export function createWantedStrategy(
           if (isEditing) return
           // Name-only entries are first-class in the wanted-list format, so fall
           // back to one rather than dropping the card.
-          console.error('No printings found. Adding name only.')
+          console.error(t('cli.edit.noPrintingsNameOnly'))
           await applyFlatListCardEntry(list, ctx, cardName, nameOnlyOptions, false, {
             kind: 'cheapest',
           })
@@ -248,12 +254,14 @@ export function createWantedStrategy(
       if (!entry) return
       const hasPrinting = Boolean(entry.set && entry.collectorNumber)
       const action = await promptEditAction(list.renderEntry(entry), [
-        { title: '🖼️  Change Printing', value: 'printing' },
+        { title: `🖼️  ${t('cli.editAction.changePrinting')}`, value: 'printing' },
         // Finish only annotates a specific printing; name-only entries have none to change.
-        ...(hasPrinting ? [{ title: '✨ Change Finish', value: 'finish' }] : []),
-        { title: '🌐 Change Language', value: 'language' },
-        { title: '📝 Edit Note', value: 'note' },
-        { title: '🗑️  Remove', value: 'remove' },
+        ...(hasPrinting
+          ? [{ title: `✨ ${t('cli.editAction.changeFinish')}`, value: 'finish' }]
+          : []),
+        { title: `🌐 ${t('cli.editAction.changeLanguage')}`, value: 'language' },
+        { title: `📝 ${t('cli.editAction.editNote')}`, value: 'note' },
+        { title: `🗑️  ${t('cli.editAction.remove')}`, value: 'remove' },
       ])
       if (!action) return
 
@@ -266,7 +274,7 @@ export function createWantedStrategy(
           const result = await resolveCardPrinting(entry.name, sessionConfig, excludeDigitalOnly)
           if (result.kind === 'cancelled') return
           if (result.kind === 'none') {
-            console.error('No printings found.')
+            console.error(t('cli.edit.noPrintings'))
             return
           }
           const finishResult = await promptWantedFinish(result.printing, undefined)
@@ -283,7 +291,7 @@ export function createWantedStrategy(
 
         const before = entryPrinting(entry)
         applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: `printing on ${entry.name}`,
+          label: t('cli.editLabel.printing', { name: entry.name }),
           change: createSetPrintingChange(entry.name, { ...target, cardId }),
           inverse: createSetPrintingChange(entry.name, { ...before, cardId }),
           consolidate: (changes, original) =>
@@ -303,7 +311,7 @@ export function createWantedStrategy(
         // cannot express, so finish edits ride on a set-printing of the same printing.
         const target: PrintingTuple = { ...entryPrinting(entry), finish }
         applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: `finish on ${entry.name}`,
+          label: t('cli.editLabel.finish', { name: entry.name }),
           change: createSetPrintingChange(entry.name, { ...target, cardId }),
           inverse: createSetPrintingChange(entry.name, { ...entryPrinting(entry), cardId }),
           consolidate: (changes, original) =>
@@ -317,7 +325,7 @@ export function createWantedStrategy(
         const language = await promptLanguageChoice(entry.language)
         if (language === null || language === displayLanguage(entry.language)) return
         applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: `language on ${entry.name}`,
+          label: t('cli.editLabel.language', { name: entry.name }),
           change: createSetLanguageChange(entry.name, { language, cardId }),
           inverse: createSetLanguageChange(entry.name, {
             language: displayLanguage(entry.language),

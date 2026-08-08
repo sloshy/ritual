@@ -26,6 +26,7 @@
 
 import { ArchidektClient, createPacedArchidektClient } from '../clients/ArchidektClient'
 import { getErrorMessage } from '../errors'
+import { t } from '../i18n/t'
 import type {
   ArchidektCollectionRecord,
   CollectionCsvUploadResult,
@@ -881,7 +882,7 @@ async function loadLists(
       continue
     }
     const count = list.warnings.length
-    const reason = `${count} unreadable line${count === 1 ? '' : 's'} would be dropped by a sync`
+    const reason = `${t('domain.count.unreadableLines', { count })} would be dropped by a sync`
     emit({ kind: 'log', level: 'warn', list: null, message: `${list.file}: ${reason}` })
     results.fail(list.name, reason)
     results.finish(list.name)
@@ -1007,7 +1008,7 @@ async function pullFromArchidekt(
       kind: 'log',
       level: 'error',
       list: null,
-      message: `Not adding ${copies} cop${copies === 1 ? 'y' : 'ies'}: some collection lists in scope could not be read, so cards they already hold would be duplicated into "${flow.into}". Fix or accept those lists and run again.`,
+      message: `Not adding ${t('domain.count.copies', { count: copies })}: some collection lists in scope could not be read, so cards they already hold would be duplicated into "${flow.into}". Fix or accept those lists and run again.`,
     })
     applicable = { ...applicable, additions: [] }
   }
@@ -1356,7 +1357,7 @@ async function pushToArchidekt(
         kind: 'log',
         level: 'error',
         list: null,
-        message: `Not removing ${copies} cop${copies === 1 ? 'y' : 'ies'} from Archidekt: some collection lists in scope could not be read, so cards they still hold would look gone. Fix or accept those lists and run again.`,
+        message: `Not removing ${t('domain.count.copies', { count: copies })} from Archidekt: some collection lists in scope could not be read, so cards they still hold would look gone. Fix or accept those lists and run again.`,
       })
       operations = operations.filter((operation) => operationRemoved(operation) === 0)
     }
@@ -1645,7 +1646,7 @@ async function pushAdditionsAsCsv(
       kind: 'log',
       level: 'warn',
       list: null,
-      message: `${count} addition${count === 1 ? '' : 's'} cannot ride the CSV (the printing is not in the Scryfall cache); ${count === 1 ? 'it is' : 'they are'} added one at a time instead.`,
+      message: t('domain.sync.csvUncachedAdditions', { count }),
     })
   }
   const counts: CollectionSyncCsvCounts = {
@@ -1756,7 +1757,7 @@ async function pushAdditionsAsCsv(
       kind: 'log',
       level: 'warn',
       list: null,
-      message: `${unpaired} refused row${unpaired === 1 ? '' : 's'} could not be matched to a card; the copies they carried are credited on faith — a later push reconciles anything actually missed.`,
+      message: `${t('domain.count.refusedRows', { count: unpaired })} could not be matched to a card; the copies they carried are credited on faith — a later push reconciles anything actually missed.`,
     })
   }
   const refused = new Set<PushCreate>(failed)
@@ -1788,7 +1789,7 @@ async function pushAdditionsAsCsv(
     }
     failRows(
       failed,
-      `${failures.length} card${failures.length === 1 ? '' : 's'} could not be imported from the CSV`,
+      `${t('domain.count.cards', { count: failures.length })} could not be imported from the CSV`,
     )
   }
 
@@ -1798,7 +1799,7 @@ async function pushAdditionsAsCsv(
     kind: 'log',
     level: 'info',
     list: null,
-    message: `Imported ${describeCsvSize(imported, landed.length)} from the CSV in ${result.chunkCount} request${result.chunkCount === 1 ? '' : 's'}.`,
+    message: `Imported ${describeCsvSize(imported, landed.length)} from the CSV in ${t('domain.count.requests', { count: result.chunkCount })}.`,
   })
 
   return {

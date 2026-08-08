@@ -1,8 +1,16 @@
 import type { KeyHint } from '../ui/KeyHints'
+import type { ParameterlessKey } from '../i18n/t'
 
-/** A titled set of related shortcuts, as listed in the shortcuts dialog. */
+/**
+ * A titled set of related shortcuts, as listed in the shortcuts dialog.
+ *
+ * Both `title` and each hint's label are {@link MessageKey}s rather than
+ * rendered text: this table is evaluated once at module load, so a rendered
+ * string would freeze the whole reference in whichever language happened to be
+ * active when the bundle booted.
+ */
 export type ShortcutGroup = {
-  title: string
+  title: ParameterlessKey
   hints: readonly KeyHint[]
 }
 
@@ -16,48 +24,54 @@ export type ShortcutGroup = {
  */
 export const EDITOR_SHORTCUTS: readonly ShortcutGroup[] = [
   {
-    title: 'Editor',
+    // i18n-exempt: a message key, not text — resolved by ShortcutsDialog at render
+    title: 'ui.shortcuts.groupEditor',
     hints: [
-      { keys: ['Ctrl', 'Enter'], label: 'Add a card' },
-      { keys: ['Ctrl', 'B'], label: 'Focus the action bar' },
-      { keys: ['?'], label: 'Show this list' },
+      { keys: ['Ctrl', 'Enter'], label: 'ui.shortcuts.addCard' },
+      { keys: ['Ctrl', 'B'], label: 'ui.shortcuts.focusActionBar' },
+      { keys: ['?'], label: 'ui.shortcuts.showThisList' },
     ],
   },
   {
-    title: 'In the action bar',
+    // i18n-exempt: a message key, not text — resolved by ShortcutsDialog at render
+    title: 'ui.shortcuts.groupActionBar',
     hints: [
-      { keys: ['←', '→', 'Tab'], label: 'Move between buttons' },
-      { keys: ['Enter'], label: 'Activate the focused button' },
-      { keys: ['Esc'], label: 'Return focus to the list' },
+      { keys: ['←', '→', 'Tab'], label: 'ui.shortcuts.moveBetweenButtons' },
+      { keys: ['Enter'], label: 'ui.shortcuts.activateButton' },
+      { keys: ['Esc'], label: 'ui.shortcuts.returnFocus' },
     ],
   },
   {
-    title: 'Add card — search',
+    // i18n-exempt: a message key, not text — resolved by ShortcutsDialog at render
+    title: 'ui.shortcuts.groupAddCardSearch',
     hints: [
-      { keys: ['↑', '↓'], label: 'Move through results' },
-      { keys: ['Enter'], label: 'Choose the highlighted card' },
+      { keys: ['↑', '↓'], label: 'ui.shortcuts.moveThroughResults' },
+      { keys: ['Enter'], label: 'ui.shortcuts.chooseCard' },
     ],
   },
   {
-    title: 'Add card — printings',
+    // i18n-exempt: a message key, not text — resolved by ShortcutsDialog at render
+    title: 'ui.shortcuts.groupAddCardPrintings',
     hints: [
-      { keys: ['←', '→'], label: 'Previous / next printing' },
-      { keys: ['↑', '↓'], label: 'Previous / next row' },
-      { keys: ['Enter'], label: 'Choose the highlighted printing' },
+      { keys: ['←', '→'], label: 'ui.shortcuts.prevNextPrinting' },
+      { keys: ['↑', '↓'], label: 'ui.shortcuts.prevNextRow' },
+      { keys: ['Enter'], label: 'ui.shortcuts.choosePrinting' },
     ],
   },
   {
-    title: 'Add card — finish & condition',
+    // i18n-exempt: a message key, not text — resolved by ShortcutsDialog at render
+    title: 'ui.shortcuts.groupAddCardFinish',
     hints: [
-      { keys: ['←', '→'], label: 'Change the focused group’s value' },
-      { keys: ['↑', '↓', 'Tab'], label: 'Move to the next group' },
-      { keys: ['+', '-'], label: 'Adjust the quantity to add' },
-      { keys: ['Enter'], label: 'Add the card' },
-      { keys: ['Ctrl', 'Enter'], label: 'Add the card, then start another' },
+      { keys: ['←', '→'], label: 'ui.shortcuts.changeGroupValue' },
+      { keys: ['↑', '↓', 'Tab'], label: 'ui.shortcuts.nextGroup' },
+      { keys: ['+', '-'], label: 'ui.shortcuts.adjustQuantity' },
+      { keys: ['Enter'], label: 'ui.shortcuts.addTheCard' },
+      { keys: ['Ctrl', 'Enter'], label: 'ui.shortcuts.addThenAnother' },
     ],
   },
   {
-    title: 'Any dialog',
-    hints: [{ keys: ['Esc'], label: 'Close' }],
+    // i18n-exempt: a message key, not text — resolved by ShortcutsDialog at render
+    title: 'ui.shortcuts.groupAnyDialog',
+    hints: [{ keys: ['Esc'], label: 'ui.shortcuts.close' }],
   },
 ]

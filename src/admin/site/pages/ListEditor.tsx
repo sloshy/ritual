@@ -1,5 +1,6 @@
 import { type JSX, batch, createSignal, untrack, Switch, Match, For } from 'solid-js'
 import { type ListType, LIST_TYPES, LIST_TYPE_DISPLAY } from '../../../list-type'
+import { useTKey } from '../../../ui/i18n'
 import { useNavigationGuard } from '../../../editor/navigation-guard'
 import { useRouting } from '../routing'
 import { useSearchDebounce } from '../hooks/useSearchDebounce'
@@ -18,6 +19,7 @@ import { PageHeading } from '../components/PageHeading'
  * address bar always names what is on screen and the link can be shared.
  */
 export function ListEditor(): JSX.Element {
+  const tKey = useTKey()
   const routing = useRouting()
   // A snapshot of where the URL pointed when this page mounted — arriving
   // anywhere else remounts it, so it never needs to track the route.
@@ -62,7 +64,7 @@ export function ListEditor(): JSX.Element {
               onClick={() => selectType(type)}
             >
               <span class="nav-icon">{LIST_TYPE_DISPLAY[type].icon}</span>
-              {LIST_TYPE_DISPLAY[type].label}
+              {tKey(LIST_TYPE_DISPLAY[type].label)}
             </button>
           )}
         </For>

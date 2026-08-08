@@ -6,6 +6,20 @@ The admin site exposes these API endpoints for deck and collection editing. All 
 
 For general admin API endpoints (authentication, config, audit log, etc.), see the [admin command reference](/commands/admin/#http-api-reference).
 
+## The message triple
+
+Every response body — success or refusal — carries user-facing prose as up to three fields:
+
+| Field           | Presence | Meaning                                                                                                                                                                                  |
+| --------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `message`       | always   | The sentence, rendered in **English**. What `curl`, scripts, and the MCP server read; it never follows the operator's UI locale.                                                         |
+| `messageKey`    | optional | The message-catalog key `message` was rendered from — locale-invariant, so a client may match on it instead of on prose. Absent when the handler has no catalog entry for that sentence. |
+| `messageParams` | optional | The parameters `messageKey` interpolates. Absent for a message that takes none.                                                                                                          |
+
+The pair is additive: a client that ignores it sees exactly what it always did. The admin SPA
+prefers it, which is what relabels an alert already on screen when the UI language changes without
+a round trip. Match on `messageKey`, never on the English text.
+
 ## Error responses
 
 Every route refuses a request with the same body, whatever the status:
@@ -13,9 +27,14 @@ Every route refuses a request with the same body, whatever the status:
 ```json
 {
   "success": false,
-  "message": "…"
+  "message": "…",
+  "messageKey": "admin.api.…",
+  "messageParams": { "…": "…" }
 }
 ```
+
+`messageKey`/`messageParams` follow [the message triple](#the-message-triple) above — present on a
+keyed refusal, absent on one whose prose has no catalog entry.
 
 A handful of routes carry extra fields on failure, and only where they are a wire contract rather than duplication: [Card Details](#card-details) adds `card: null`, [Card Search](#card-search) keeps its paging fields and an empty `cards` array, and [Card Autocomplete](#card-autocomplete) and [Card Printings](#card-printings) fold success and failure into one shape. A save that loses an optimistic-concurrency race additionally carries `conflict: true` with its `409`.
 
@@ -71,8 +90,8 @@ wanted lists share one handler apiece, differing only in how a slug resolves to 
 `newFilePath`/`oldFilePath` are the list's paths after and before the rename; `deletedFiles` is
 every path the delete removed (the list plus whichever sidecars it had).
 
-A refusal is the shared error envelope (`{ success: false, message }`) at the status the refusal
-carries: `400` for a missing or invalid argument, `404` for a list that is not there, `409` for a
+A refusal is the shared error envelope (`{ success: false, message }`, plus the optional
+[`messageKey`/`messageParams`](#the-message-triple) pair) at the status the refusal carries: `400` for a missing or invalid argument, `404` for a list that is not there, `409` for a
 target name already taken.
 
 `409` covers more than a byte-identical file name: create and rename refuse any name that
@@ -1675,6 +1694,20 @@ writes nothing, so those decks are previewed rather than refused.
 {
   "success": true,
   "message": "Pulled 2 decks, 1 skipped.",
+  "summary": {
+    "clauses": [
+      {
+        "message": "Pulled 2 decks",
+        "messageKey": "admin.api.deckSync.pulled",
+        "messageParams": { "count": 2 }
+      },
+      {
+        "message": "1 skipped",
+        "messageKey": "admin.api.deckSync.skipped",
+        "messageParams": { "count": 1 }
+      }
+    ]
+  },
   "report": {
     "direction": "pull",
     "decks": [
@@ -1691,6 +1724,12 @@ writes nothing, so those decks are previewed rather than refused.
   }
 }
 ```
+
+`summary` is **required** on a completed run: the same sentence as `message`, split into ordered
+keyed clauses so a client with a translator renders it in the reader's locale — with that locale's
+plural categories and list separators — instead of re-parsing the English. Each clause is a
+[message triple](#the-message-triple); clauses carry no final punctuation, since the renderer
+supplies the terminator. `message` stays byte for byte what it always was.
 
 `success` reports whether the run could be performed, **not** whether every deck synced — a run with
 per-deck failures still returns `200` with `success: true` and a non-zero `report.failedCount`, so
@@ -1716,7 +1755,7 @@ Three event types are emitted:
 | Event      | Payload                                                                                                                                                                                                                                                     |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `progress` | One step of the run: `{ kind: "deck-start", deck, index, total }`, `{ kind: "log", level, deck, message }` (`deck` is `null` for run-level lines), `{ kind: "deck-result", result }`, or `{ kind: "unreadable-lines", decks: [{ name, file, warnings }] }`. |
-| `done`     | `{ message, report }` — the same message and report the JSON endpoint returns.                                                                                                                                                                              |
+| `done`     | `{ message, messageKey?, messageParams?, summary, report }` — the same [message triple](#the-message-triple), keyed `summary`, and report the JSON endpoint returns.                                                                                        |
 | `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                                              |
 
 Failures are reported inside the stream rather than as an HTTP status, since `EventSource` exposes no
@@ -1849,6 +1888,15 @@ previewed rather than refused.
 {
   "success": true,
   "message": "Pulled +1 added, -0 removed into \"Inbox\".",
+  "summary": {
+    "clauses": [
+      {
+        "message": "Pulled +1 added, -0 removed into \"Inbox\"",
+        "messageKey": "admin.api.collectionSync.pulled",
+        "messageParams": { "added": 1, "removed": 0, "into": "Inbox" }
+      }
+    ]
+  },
   "report": {
     "direction": "pull",
     "into": "Inbox",
@@ -1864,6 +1912,9 @@ previewed rather than refused.
   }
 }
 ```
+
+`summary` is **required**, and works exactly as it does for [Sync Decks](#sync-decks): the same
+sentence as `message` split into keyed clauses for a client that renders it in the reader's locale.
 
 `success` reports whether the run could be performed, **not** whether every list synced — a run with
 per-list failures still returns `200` with `success: true` and a non-zero `report.failedCount`.
@@ -1922,7 +1973,7 @@ Three event types are emitted:
 | Event      | Payload                                                                                                                                                                                                                         |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `progress` | One step of the run: `{ kind: "list-start", list, index, total }`, `{ kind: "log", level, list, message }` (`list` is `null` for run-level lines), `{ kind: "list-result", result }`, or `{ kind: "unreadable-lines", lists }`. |
-| `done`     | `{ message, report }` — the same message and report the JSON endpoint returns.                                                                                                                                                  |
+| `done`     | `{ message, messageKey?, messageParams?, summary, report }` — the same [message triple](#the-message-triple), keyed `summary`, and report the JSON endpoint returns.                                                            |
 | `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                  |
 
 Failures are reported inside the stream rather than as an HTTP status, since `EventSource` exposes no

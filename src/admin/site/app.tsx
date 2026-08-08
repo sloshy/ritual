@@ -1,6 +1,7 @@
 import { Dynamic, render } from 'solid-js/web'
 import {
   type Component,
+  createEffect,
   createMemo,
   createSignal,
   onMount,
@@ -34,6 +35,14 @@ import { MoveCards } from './pages/MoveCards'
 import { History } from './pages/History'
 import { setBuylistFetcher } from '../../site/buylist-quotes'
 import { adminBuylistFetcher } from './editor-backend'
+import { createI18nStore, I18nProvider, useI18n } from '../../ui/i18n'
+import { registerAdminMessages } from '../../i18n/register/admin'
+import { bootAdminLocale, useAdminLocale } from './hooks/useAdminLocale'
+
+// The English catalog is registered per surface, not imported by the runtime
+// (plan §4.2): this is what keeps the CLI's `cli.*` / `help.*` inventory —
+// half the catalog — out of this bundle. Module scope, before anything renders.
+registerAdminMessages()
 
 // The shared list pages fetch buylist quotes through a module-level transport;
 // on admin that transport must carry the session cookie. Installed once, at
@@ -62,6 +71,13 @@ const PAGE_COMPONENTS: Record<Page, Component> = {
 }
 
 function App() {
+  const { t, setLocale: publishLocale } = useI18n()
+  const uiLocale = useAdminLocale()
+  // `useAdminLocale` owns resolution and dictionary loading (plain module state,
+  // which Solid cannot observe); mirroring what it applied into the i18n store is
+  // what makes every `t()` in the tree re-render on a switch.
+  createEffect(() => publishLocale(uiLocale()))
+
   const [setupRequired, setSetupRequired] = createSignal<boolean | null>(null)
   const [totpEnabled, setTotpEnabled] = createSignal(false)
   const [loggedIn, setLoggedIn] = createSignal(false)
@@ -131,7 +147,7 @@ function App() {
     <Switch>
       <Match when={setupRequired() === null}>
         <div class="flex-center-vh">
-          <p class="text-muted">Loading...</p>
+          <p class="text-muted">{t('admin.app.loading')}</p>
         </div>
       </Match>
       <Match when={setupRequired()}>
@@ -176,7 +192,24 @@ function App() {
   )
 }
 
+/**
+ * The i18n store wraps the whole app: `useT()` reads its locale signal on every
+ * call, so a language switch re-renders every translated string in one pass.
+ * The boot resolution runs before the first render so the sign-in screen — which
+ * mounts long before `/api/config` can be read — already speaks the remembered
+ * language.
+ */
+function Root() {
+  bootAdminLocale()
+  const i18nStore = createI18nStore()
+  return (
+    <I18nProvider store={i18nStore}>
+      <App />
+    </I18nProvider>
+  )
+}
+
 const root = document.getElementById('app')
 if (root) {
-  render(() => <App />, root)
+  render(() => <Root />, root)
 }

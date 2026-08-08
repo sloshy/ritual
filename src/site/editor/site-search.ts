@@ -1,12 +1,12 @@
 import type { SearchProvider, SearchSourceNote } from '../../editor/search-provider'
 import { autocompleteCardNames, fetchCardPrintings } from '../card-search'
 import { apiActive } from '../api-base'
+import { t } from '../../i18n/t'
 
 const SCRYFALL_NOTE: SearchSourceNote = {
-  prefix: 'Search uses the ',
-  linkText: 'Scryfall API',
+  segments: (tSegments) =>
+    tSegments('ui.addCard.sourceNote', { link: t('ui.addCard.scryfallApi') }),
   linkUrl: 'https://scryfall.com/docs/api/cards/autocomplete',
-  suffix: ' — results may differ from the admin editor.',
 }
 
 /**

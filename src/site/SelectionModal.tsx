@@ -2,14 +2,17 @@ import type { Accessor, Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
 import { Modal } from '../ui/Modal'
 import type { NamedListRef } from './combined-list'
-import type { CardSelectionControl, SelectedCard } from './useCardSelection'
+import type { CardSelectionControl, SelectedCard, SelectionSourceKind } from './useCardSelection'
 import { groupSelectionsBySource } from './useCardSelection'
 import { useSelectionCopy } from './useSelectionCopy'
 import { promptListMove } from './move-prompt'
 import { TooltipOverlay } from './TooltipOverlay'
 import { useTooltip } from './useTooltip'
-import { capitalize } from './utils'
-import { BUYER_DISPLAY_NAMES } from '../buylist'
+import { finishName } from './printing-display'
+import { useT } from '../ui/i18n'
+import type { TranslateFn } from '../i18n/t'
+import type { MessageKey } from '../i18n/messages/en'
+import { buyerName } from '../buylist'
 import { cartBuyer } from './sell-mode'
 import { BUYLIST_CURRENCY } from './card-sorting'
 import { sellShortfallNote, summarizeSellValue } from './sell-value'
@@ -28,13 +31,27 @@ export function closeSelectionView(): void {
 
 type GroupMode = 'order' | 'source'
 
-const sourceLabel = (kind: string, name: string): string => `${capitalize(kind)} · ${name}`
+/**
+ * The compact name of the kind of list a selected card came from. Keys, not
+ * strings: this table is evaluated once at module load, so rendered text here
+ * would survive a locale switch unchanged. The short singular forms are
+ * deliberate — `domain.listTypeSingular.wanted` ("Wanted List") is a heading,
+ * while this sits inline beside a card name.
+ */
+const SOURCE_KIND_LABELS = {
+  deck: 'site.selection.sourceDeck',
+  collection: 'site.selection.sourceCollection',
+  wanted: 'site.selection.sourceWanted',
+} as const satisfies Record<SelectionSourceKind, MessageKey>
+
+const sourceLabel = (t: TranslateFn, kind: SelectionSourceKind, name: string): string =>
+  `${t(SOURCE_KIND_LABELS[kind])} · ${name}`
 
 /** Parenthesised printing/finish/condition label, e.g. `(LEA:161 · Foil · LP)`, or null. */
-function printingLabel(card: SelectedCard): string | null {
+function printingLabel(t: TranslateFn, card: SelectedCard): string | null {
   const parts = [
     card.set && card.collectorNumber ? `${card.set.toUpperCase()}:${card.collectorNumber}` : null,
-    card.finish && card.finish !== 'nonfoil' ? capitalize(card.finish) : null,
+    card.finish && card.finish !== 'nonfoil' ? finishName(t, card.finish) : null,
     card.condition ?? null,
   ].filter((part): part is string => Boolean(part))
   return parts.length > 0 ? `(${parts.join(' · ')})` : null
@@ -60,6 +77,7 @@ export interface SelectionModalProps {
  * removed, and the copy/clear actions mirror the dropdown menu.
  */
 export const SelectionModal: Component<SelectionModalProps> = (props) => {
+  const t = useT()
   const [groupMode, setGroupMode] = createSignal<GroupMode>('order')
   const copy = useSelectionCopy(() => props.selection.selected())
   const sellSummary = createMemo(() => summarizeSellValue(props.selection.selected()))
@@ -89,7 +107,7 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
       open={props.open}
       onClose={props.onClose}
       size="lg"
-      aria-label="Selected cards"
+      aria-label={t('site.selection.modalAria')}
       panelClass="selection-modal"
       overlay={
         <TooltipOverlay
@@ -101,15 +119,17 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
       }
     >
       <div class="selection-modal-header">
-        <span class="selection-modal-title">Selected Cards ({props.selection.count()})</span>
+        <span class="selection-modal-title">
+          {t('site.selection.modalTitle', { count: props.selection.count() })}
+        </span>
         <span class="selection-modal-value">
           {formatPrice(
             props.selection.value(props.currency ?? DEFAULT_CURRENCY),
             props.currency ?? DEFAULT_CURRENCY,
           )}
           <Show when={cartBuyer()}>
-            {' · sell '}
-            {formatPrice(sellSummary().value, BUYLIST_CURRENCY)}
+            {' · '}
+            {t('site.selection.sell')} {formatPrice(sellSummary().value, BUYLIST_CURRENCY)}
             <Show when={sellShortfallNote(sellSummary())}>
               {(note) => <span class="selection-modal-note"> {note()}</span>}
             </Show>
@@ -118,7 +138,7 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
         <button
           type="button"
           class="selection-modal-close"
-          aria-label="Close"
+          aria-label={t('ui.dialog.close')}
           onClick={props.onClose}
         >
           ×
@@ -126,21 +146,21 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
       </div>
 
       <div class="selection-modal-controls">
-        <span class="selection-modal-controls-label">Group:</span>
+        <span class="selection-modal-controls-label">{t('site.selection.group')}</span>
         <div class="view-toggle">
           <button
             type="button"
             classList={{ active: groupMode() === 'order' }}
             onClick={() => setGroupMode('order')}
           >
-            Selection order
+            {t('site.selection.groupOrder')}
           </button>
           <button
             type="button"
             classList={{ active: groupMode() === 'source' }}
             onClick={() => setGroupMode('source')}
           >
-            By source
+            {t('site.selection.groupSource')}
           </button>
         </div>
       </div>
@@ -166,7 +186,7 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
             {(group) => (
               <div class="selection-modal-group">
                 <div class="selection-modal-group-header">
-                  {sourceLabel(group.kind, group.name)} ({group.cards.length})
+                  {sourceLabel(t, group.kind, group.name)} ({group.cards.length})
                 </div>
                 <For each={group.cards}>
                   {(card) => (
@@ -186,15 +206,15 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
 
       <div class="selection-modal-actions">
         <button type="button" class="btn btn-secondary" onClick={() => void copy.copyText()}>
-          Copy as Text
+          {t('site.selection.copyText')}
         </button>
         <button type="button" class="btn btn-secondary" onClick={() => void copy.copyCsv()}>
-          Copy as CSV
+          {t('site.selection.copyCsv')}
         </button>
         <Show when={cartBuyer()}>
           {(buyer) => (
             <button type="button" class="btn btn-secondary" onClick={() => void copy.copyCart()}>
-              Copy {BUYER_DISPLAY_NAMES[buyer()]} cart CSV
+              {t('site.selection.copyCart', { buyer: buyerName(buyer()) })}
             </button>
           )}
         </Show>
@@ -209,7 +229,7 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
               })
             }
           >
-            Move all to list…
+            {t('site.selection.moveAllToList')}
           </button>
         </Show>
         <Show when={props.onRemoveAll}>
@@ -222,7 +242,7 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
                 props.onClose()
               }}
             >
-              Remove all selected
+              {t('site.selection.removeAll')}
             </button>
           )}
         </Show>
@@ -234,7 +254,7 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
             props.onClose()
           }}
         >
-          Clear all selections
+          {t('site.selection.clearAll')}
         </button>
         <Show when={copy.status()}>
           <span class="selection-modal-status" aria-live="polite">
@@ -255,26 +275,29 @@ type SelectionRowProps = {
   onLeave: () => void
 }
 
-const SelectionRow: Component<SelectionRowProps> = (props) => (
-  <div class="selection-modal-row" onMouseEnter={props.onHover} onMouseLeave={props.onLeave}>
-    <button
-      type="button"
-      class="selection-modal-row-remove"
-      aria-label={`Remove ${props.card.name}`}
-      title="Remove from selection"
-      onClick={props.onRemove}
-    >
-      ×
-    </button>
-    <span class="selection-modal-row-qty">{props.card.quantity}×</span>
-    <span class="selection-modal-row-name">{props.card.name}</span>
-    <Show when={printingLabel(props.card)}>
-      {(label) => <span class="selection-modal-row-printing">{label()}</span>}
-    </Show>
-    <Show when={props.showSource}>
-      <span class="selection-modal-row-source">
-        {sourceLabel(props.card.sourceKind, props.card.sourceName)}
-      </span>
-    </Show>
-  </div>
-)
+const SelectionRow: Component<SelectionRowProps> = (props) => {
+  const t = useT()
+  return (
+    <div class="selection-modal-row" onMouseEnter={props.onHover} onMouseLeave={props.onLeave}>
+      <button
+        type="button"
+        class="selection-modal-row-remove"
+        aria-label={t('site.selection.removeCard', { name: props.card.name })}
+        title={t('site.selection.removeFromSelection')}
+        onClick={props.onRemove}
+      >
+        ×
+      </button>
+      <span class="selection-modal-row-qty">{props.card.quantity}×</span>
+      <span class="selection-modal-row-name">{props.card.name}</span>
+      <Show when={printingLabel(t, props.card)}>
+        {(label) => <span class="selection-modal-row-printing">{label()}</span>}
+      </Show>
+      <Show when={props.showSource}>
+        <span class="selection-modal-row-source">
+          {sourceLabel(t, props.card.sourceKind, props.card.sourceName)}
+        </span>
+      </Show>
+    </div>
+  )
+}

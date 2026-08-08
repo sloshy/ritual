@@ -13,6 +13,6 @@ jump to a category:
 - **Site** — [build-site](/commands/build-site/), [serve](/commands/serve/), [init-site](/commands/init-site/), [admin](/commands/admin/)
 - **Integrations** — [login](/commands/login/), [deck-sync](/commands/deck-sync/), [collection-sync](/commands/collection-sync/), [mcp](/commands/mcp/), [skills](/commands/skills/)
 - **Cache** — [cache](/commands/cache/)
-- **Utilities** — [cleanup](/commands/cleanup/), [detect-changes](/commands/detect-changes/), [list-all-cards](/commands/list-all-cards/), [config](/commands/config/)
+- **Utilities** — [cleanup](/commands/cleanup/), [detect-changes](/commands/detect-changes/), [list-all-cards](/commands/list-all-cards/), [config](/commands/config/), [locale](/commands/locale/)
 - **Reference** — [List Resolution](/commands/list-resolution/)
 - **Legal** — [license](/commands/license/), [dep-license](/commands/dep-license/)

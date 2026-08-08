@@ -39,6 +39,8 @@ import { getCollectionSyncPullTarget, getCollectionsDir } from '../../ritual-con
 import { sseResponse } from '../../sse'
 import { itemStartProgress, itemsDoneProgress, type RouteProgressSink } from '../../progress'
 import { apiHandler } from '../utils'
+import { apiMessage, pickMessage, type ApiMessage } from './result'
+import { renderSyncSummaryEnglish, type SyncSummary, type SyncSummaryClause } from './sync-summary'
 import { autoCommitAndPush, readJsonObjectBody } from './save-helpers'
 import {
   isRecord,
@@ -50,17 +52,39 @@ import {
   type SyncRequestCore,
 } from './sync-request'
 
-/** Shown whenever the stored Archidekt token cannot be used or refreshed. */
-export const LOGIN_REQUIRED_MESSAGE =
-  'Not signed into Archidekt. Sign in to sync your collection with Archidekt.'
+/**
+ * Shown whenever the stored Archidekt token cannot be used or refreshed.
+ *
+ * Rendered from the catalog rather than written out again, so the English a
+ * script matches on and the sentence the admin UI translates can never drift.
+ *
+ * A function rather than a module-level constant: message namespaces are
+ * registered by the surface entry point (`src/i18n/register/*`, plan §4.2),
+ * which runs after every module body has been evaluated. Rendering at module
+ * scope would freeze the key string into the response.
+ */
+function loginRequiredMessage(): ApiMessage {
+  return apiMessage('admin.api.collectionSync.loginRequired')
+}
+
+/** {@link loginRequiredMessage}'s rendered English, for callers that only want the text. */
+export function loginRequiredText(): string {
+  return loginRequiredMessage().message
+}
 
 /**
  * Shown when a token is stored but the login predates recording which account it
  * belongs to. A collection is fetched by numeric user id, so there is nothing to
  * sync against until the user signs in again.
  */
-export const ACCOUNT_REQUIRED_MESSAGE =
-  'The stored Archidekt login does not name an account. Sign in to Archidekt again to record it.'
+function accountRequiredMessage(): ApiMessage {
+  return apiMessage('admin.api.collectionSync.accountRequired')
+}
+
+/** {@link accountRequiredMessage}'s rendered English. See {@link loginRequiredText}. */
+export function accountRequiredText(): string {
+  return accountRequiredMessage().message
+}
 
 /** One collection list a run can be scoped to. */
 export type CollectionSyncList = {
@@ -149,8 +173,8 @@ export const CSV_FILE_UNSUPPORTED_MESSAGE =
  * is a success carrying a non-zero `report.failedCount`.
  */
 export type CollectionSyncRunResponse =
-  | { success: true; message: string; report: CollectionSyncReport }
-  | { success: false; message: string; loginRequired: boolean }
+  | (ApiMessage & { success: true; report: CollectionSyncReport; summary: SyncSummary })
+  | (ApiMessage & { success: false; loginRequired: boolean })
 
 // ── Request parsing ───────────────────────────────────────────────────
 
@@ -252,52 +276,80 @@ export function parseCollectionSyncQuery(params: URLSearchParams): CollectionSyn
 
 // ── Running a sync ────────────────────────────────────────────────────
 
-const RUN_VERBS = { pull: 'Pulled', push: 'Pushed' } as const satisfies Record<
+/**
+ * Which tense/direction the lead clause reads in. A select branch rather than a
+ * spliced-in verb: the whole clause is one sentence a translator controls.
+ */
+const RUN_ACTIONS = { pull: 'pulled', push: 'pushed' } as const satisfies Record<
   SyncDirection,
   string
 >
 
-function pluralize(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`
-}
-
 /**
- * A one-line summary of a completed run, suitable for an alert in the UI.
+ * A completed run's summary as keyed clauses. The structured producer;
+ * {@link describeRun} is its English rendering.
  *
  * Copies are the unit, not lists: one card can live in several lists, and both
  * directions move copies rather than files. A pull names the list its additions
  * landed in, which is the one thing about a run the per-list results do not make
  * obvious.
  */
-export function describeRun(report: CollectionSyncReport): string {
+export function summarizeRun(report: CollectionSyncReport): SyncSummary {
   if (report.lists.length === 0 && report.errors.length === 0) {
-    return 'No collection lists found to sync.'
+    return { clauses: [apiMessage('admin.api.collectionSync.noLists')] }
   }
 
   const { added, removed, skipped, pending } = report.totals
-  const verb = report.dryRun ? 'Previewed' : RUN_VERBS[report.direction]
-  const where = report.direction === 'pull' && added > 0 ? ` into "${report.into}"` : ''
-  const parts = [`${verb} +${added} added, -${removed} removed${where}`]
+  const action = report.dryRun ? 'previewed' : RUN_ACTIONS[report.direction]
+  const into = report.direction === 'pull' && added > 0 ? report.into : null
+  const clauses: SyncSummaryClause[] = [
+    into === null
+      ? apiMessage('admin.api.collectionSync.totals', { action, added, removed })
+      : apiMessage('admin.api.collectionSync.totalsInto', {
+          action,
+          added,
+          removed,
+          into: String(into),
+        }),
+  ]
 
   // Written to a CSV file rather than pushed: those cards are not on Archidekt
   // until the file is imported by hand, so they are never counted as added.
-  if (pending > 0) parts.push(`${pending} awaiting a manual CSV upload`)
-  if (skipped > 0) parts.push(`${skipped} filtered out`)
+  if (pending > 0) {
+    clauses.push(apiMessage('admin.api.collectionSync.pending', { count: pending }))
+  }
+  if (skipped > 0) {
+    clauses.push(apiMessage('admin.api.collectionSync.filtered', { count: skipped }))
+  }
   // Counted rather than called "skipped": an ambiguous removal a `removalPriority`
   // placed *did* apply, and one nothing could place failed the whole run instead
   // of being stepped over. Either way `errors` says which it was.
   if (report.ambiguous.length > 0) {
-    parts.push(pluralize(report.ambiguous.length, 'ambiguous removal'))
+    clauses.push(
+      apiMessage('admin.api.collectionSync.ambiguous', { count: report.ambiguous.length }),
+    )
   }
-  if (report.failedCount > 0) parts.push(`${pluralize(report.failedCount, 'list')} failed`)
-  if (report.errors.length > 0) parts.push(pluralize(report.errors.length, 'error'))
-  return `${parts.join(', ')}.`
+  if (report.failedCount > 0) {
+    clauses.push(apiMessage('admin.api.collectionSync.listsFailed', { count: report.failedCount }))
+  }
+  if (report.errors.length > 0) {
+    clauses.push(apiMessage('admin.api.collectionSync.errors', { count: report.errors.length }))
+  }
+  return { clauses }
+}
+
+/**
+ * A one-line English summary of a completed run — what the response's `message`
+ * carries, and what a client without a translator shows.
+ */
+export function describeRun(report: CollectionSyncReport): string {
+  return renderSyncSummaryEnglish(summarizeRun(report))
 }
 
 /** The outcome of a run attempt: either a finished report or a reason it never started. */
 type RunOutcome =
   | { ok: true; report: CollectionSyncReport }
-  | { ok: false; status: number; message: string; loginRequired: boolean }
+  | (ApiMessage & { ok: false; status: number; loginRequired: boolean })
 
 /**
  * Resolve the Archidekt session, run the sync, and auto-commit any list files it
@@ -312,13 +364,13 @@ async function performSync(
   const auth = new ArchidektAuth(new FileTokenStore())
   const token = await auth.getToken()
   if (!token) {
-    return { ok: false, status: 401, message: LOGIN_REQUIRED_MESSAGE, loginRequired: true }
+    return { ok: false, status: 401, ...loginRequiredMessage(), loginRequired: true }
   }
   // A collection belongs to an account rather than to a file, so the run needs
   // the numeric user id the login stored alongside the token.
   const user = await auth.getStoredUser()
   if (!user) {
-    return { ok: false, status: 401, message: ACCOUNT_REQUIRED_MESSAGE, loginRequired: true }
+    return { ok: false, status: 401, ...accountRequiredMessage(), loginRequired: true }
   }
 
   const { report, writtenFiles } = await runCollectionSync({
@@ -398,9 +450,12 @@ export function handleCollectionSyncStatus(): Promise<Response> {
   })
 }
 
-/** A run that never started, as the JSON endpoint reports it. */
-function runRefused(message: string, status: number, loginRequired = false): Response {
-  const body: CollectionSyncRunResponse = { success: false, message, loginRequired }
+/**
+ * A run that never started, as the JSON endpoint reports it. Takes the whole
+ * message triple so a keyed refusal keeps its key on the way out.
+ */
+function runRefused(reason: ApiMessage, status: number, loginRequired = false): Response {
+  const body: CollectionSyncRunResponse = { success: false, ...pickMessage(reason), loginRequired }
   return Response.json(body, { status })
 }
 
@@ -447,19 +502,22 @@ export function handleCollectionSyncRun(
 
     const parsed = parseCollectionSyncBody(raw)
     if (typeof parsed === 'string') {
-      return runRefused(parsed, 400)
+      // A validation message is composed from the caller's own field names, so
+      // it carries no catalog key — the English text is the whole of it.
+      return runRefused({ message: parsed }, 400)
     }
 
     const mapping = onProgress === undefined ? undefined : collectionSyncProgressEvents(onProgress)
     const outcome = await performSync(parsed, mapping?.onEvent)
     if (!outcome.ok) {
-      return runRefused(outcome.message, outcome.status, outcome.loginRequired)
+      return runRefused(outcome, outcome.status, outcome.loginRequired)
     }
 
     // A run that completed is a success even when individual lists failed —
     // `report.failedCount`, each list's `reason`, and `report.errors` carry that
     // detail.
-    const message = describeRun(outcome.report)
+    const summary = summarizeRun(outcome.report)
+    const message = renderSyncSummaryEnglish(summary)
     // On the engine's scale, not `report.lists.length`: the report also holds
     // lists that never emitted a `list-start`, so counting it would move the
     // denominator out from under every frame already sent.
@@ -467,6 +525,7 @@ export function handleCollectionSyncRun(
     const body: CollectionSyncRunResponse = {
       success: true,
       message,
+      summary,
       report: outcome.report,
     }
     return Response.json(body)
@@ -474,9 +533,12 @@ export function handleCollectionSyncRun(
 }
 
 /** `event: done` payload — the same shape the JSON endpoint returns. */
-export type CollectionSyncDoneEvent = { message: string; report: CollectionSyncReport }
+export type CollectionSyncDoneEvent = ApiMessage & {
+  report: CollectionSyncReport
+  summary: SyncSummary
+}
 /** `event: error` payload for a run that never produced a report. */
-export type CollectionSyncErrorEvent = { message: string; loginRequired: boolean }
+export type CollectionSyncErrorEvent = ApiMessage & { loginRequired: boolean }
 
 /** The event vocabulary of `GET /api/collection-sync/stream`, name paired with payload. */
 type CollectionSyncStreamEvents = {
@@ -505,10 +567,11 @@ export function handleCollectionSyncStream(req: Request): Promise<Response> {
 
       const outcome = await performSync(parsed, (event) => send('progress', event))
       if (!outcome.ok) {
-        send('error', { message: outcome.message, loginRequired: outcome.loginRequired })
+        send('error', { ...pickMessage(outcome), loginRequired: outcome.loginRequired })
         return
       }
-      send('done', { message: describeRun(outcome.report), report: outcome.report })
+      const summary = summarizeRun(outcome.report)
+      send('done', { message: renderSyncSummaryEnglish(summary), summary, report: outcome.report })
     } catch (error) {
       send('error', { message: getErrorMessage(error), loginRequired: false })
     }

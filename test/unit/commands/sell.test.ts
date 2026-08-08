@@ -6,7 +6,7 @@ import {
   formatSellTotalsLine,
   formatUnsoldEntryLine,
   renderSellReportText,
-  SELL_DISCLAIMER,
+  sellDisclaimer,
 } from '../../../src/commands/sell'
 import { csvScriptingOptions } from '../../../src/commands/scripting'
 import type {
@@ -151,18 +151,18 @@ describe('sell text formatting', () => {
     expect(brief.startsWith('header')).toBe(true)
     expect(brief).toContain('rerun with --all')
     expect(brief).not.toContain('Paused')
-    expect(brief).toContain(SELL_DISCLAIMER)
+    expect(brief).toContain(sellDisclaimer())
 
     const verbose = renderSellReportText(view, { header: ['header'], all: true, quiet: false })
     expect(verbose).toContain('Paused')
     expect(verbose).not.toContain('rerun with --all')
-    expect(verbose).toContain(SELL_DISCLAIMER)
+    expect(verbose).toContain(sellDisclaimer())
   })
 
   test('--quiet drops only the disclaimer', () => {
     const view = { lists: [summary], entries: [entry()], totals }
     const quiet = renderSellReportText(view, { header: [], all: false, quiet: true })
-    expect(quiet).not.toContain(SELL_DISCLAIMER)
+    expect(quiet).not.toContain(sellDisclaimer())
     expect(quiet).toContain('CK buys 2 of 5 cards')
   })
 })

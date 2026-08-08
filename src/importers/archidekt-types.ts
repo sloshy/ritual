@@ -1,4 +1,6 @@
 import { BOARDS, type Card, type DeckData, type DeckSection, type Finish } from '../types'
+import { compareData } from '../i18n/collate'
+import { t } from '../i18n/t'
 import { getDeckFormatLabel, parseDeckFormat, type DeckFormatKey } from '../deck-format'
 import { resolvePrinting } from '../card-line'
 import { getLogger } from '../logger'
@@ -275,7 +277,7 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
 
   if (unnamedEntries > 0) {
     getLogger().warn(
-      `Archidekt deck ${deckId}: skipped ${unnamedEntries} card entr${unnamedEntries === 1 ? 'y' : 'ies'} with no card name.`,
+      `Archidekt deck ${deckId}: skipped ${t('domain.count.cardEntries', { count: unnamedEntries })} with no card name.`,
     )
   }
 
@@ -291,7 +293,7 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
   sections.sort((a, b) => {
     const idxA = sortOrder.indexOf(a.name)
     const idxB = sortOrder.indexOf(b.name)
-    if (idxA === -1 && idxB === -1) return a.name.localeCompare(b.name)
+    if (idxA === -1 && idxB === -1) return compareData(a.name, b.name)
     if (idxA === -1) return 1
     if (idxB === -1) return -1
     return idxA - idxB

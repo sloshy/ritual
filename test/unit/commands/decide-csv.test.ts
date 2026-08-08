@@ -155,7 +155,7 @@ describe('decideCsvUpload', () => {
     })
 
     expect(asked[0]?.message).toBe(
-      '1 card would be added — more than 0. How should they reach Archidekt?',
+      '1 card would be added — more than 0. How should it reach Archidekt?',
     )
   })
 })

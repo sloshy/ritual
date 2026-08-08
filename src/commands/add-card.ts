@@ -68,7 +68,9 @@ import {
   type ListTypeFlags,
 } from '../resolve-list'
 import {
+  cancelledError,
   ensureFinishAvailable,
+  listArgumentConflictError,
   parseLanguageFlag,
   resolveListTypeFlag,
   resolvePinnedPrinting,
@@ -88,7 +90,7 @@ import {
   type ScriptingOptions,
 } from './scripting'
 import { divertConsoleLogToStderr } from '../mcp/stdout-guard'
-import { CardCommandError } from '../errors'
+import { CardCommandError, localizedCommandError } from '../errors'
 import {
   getCollectionsDir,
   getDefaultCurrency,
@@ -96,6 +98,7 @@ import {
   getWantedDir,
 } from '../ritual-config'
 import { listFileName } from '../list-file-name'
+import { t } from '../i18n/t'
 
 /**
  * Parse existing &N IDs from a file and allocate the next available ID.
@@ -187,7 +190,7 @@ function parseConditionFlag(value: string): Condition | 'NONE' {
   if (normalized === 'NONE') return 'NONE'
   if (!isCondition(normalized)) {
     throw new InvalidArgumentError(
-      `Invalid condition '${value}'. Use one of: ${VALID_CONDITIONS.join(', ')}, or NONE to record no condition.`,
+      t('cli.addCard.invalidCondition', { value, choices: VALID_CONDITIONS.join(', ') }),
     )
   }
   return normalized
@@ -196,7 +199,7 @@ function parseConditionFlag(value: string): Condition | 'NONE' {
 function parseQuantityFlag(value: string): number {
   const parsed = parsePositiveInteger(value.trim())
   if (parsed === undefined) {
-    throw new InvalidArgumentError('Quantity must be a positive integer.')
+    throw new InvalidArgumentError(t('cli.addCard.quantityPositive'))
   }
   return parsed
 }
@@ -212,7 +215,7 @@ function parseSetFlag(value: string): string {
 function parseCollectorNumberFlag(value: string): string {
   const normalized = value.trim()
   if (normalized === '') {
-    throw new InvalidArgumentError('Collector number cannot be empty.')
+    throw new InvalidArgumentError(t('cli.addCard.collectorNumberEmpty'))
   }
   return normalized
 }
@@ -232,59 +235,38 @@ function parseAddLabelFlag(value: string): CardLabel[] {
 export function registerAddCardCommand(program: Command): void {
   const command = program
     .command('add-card')
-    .description('Add a card to a deck, collection, or wanted list by name')
-    .argument(
-      '<targetName>',
-      'Name of the deck, collection, or wanted list (resolved across all types unless a type flag is given)',
+    .description(t('help.addCard.description'))
+    .argument('<targetName>', t('help.listArg.crossType'))
+    .argument('<cardName...>', t('help.addCard.cardName'))
+    .option('--deck', t('help.listFlags.deck'))
+    .option('--collection', t('help.addCard.collectionFlag'))
+    .option('--wanted', t('help.addCard.wantedFlag'))
+    .option('-q, --quantity <number>', t('help.addCard.quantity'), parseQuantityFlag, 1)
+    .option('-f, --finish <finish>', t('help.addCard.finish'), parseFinishFlag)
+    .option('-c, --condition <condition>', t('help.addCard.condition'), parseConditionFlag)
+    .option('--language <code>', t('help.addCard.language'), (value: string) =>
+      parseLanguageFlag(value),
     )
-    .argument('<cardName...>', 'Name of the card to search for')
-    .option('--deck', 'Resolve the name as a deck')
-    .option('--collection', 'Resolve the name as a collection (created if missing)')
-    .option('--wanted', 'Resolve the name as a wanted list (created if missing)')
-    .option('-q, --quantity <number>', 'Number of copies to add (deck only)', parseQuantityFlag, 1)
-    .option('-f, --finish <finish>', 'Card finish: nonfoil, foil, etched', parseFinishFlag)
-    .option(
-      '-c, --condition <condition>',
-      'Card condition: NM, LP, MP, HP, DMG, or NONE to record no condition (decks and collections only)',
-      parseConditionFlag,
-    )
-    .option(
-      '--language <code>',
-      "Card language (e.g. ja); overrides the configured defaultLanguage. Never prompted — en is a bare line's default",
-      (value: string) => parseLanguageFlag(value),
-    )
-    .option(
-      '--label <labels>',
-      'Label the new card: sale,trade (combinable) or keep (collections only)',
-      parseAddLabelFlag,
-    )
-    .option('--section <name>', 'Deck section to add to, created if missing (decks only)')
-    .option('--commander', "Add the card to the deck's Commander section (decks only)")
-    .option('-e, --exact', 'Use exact matching (skip interactive selection if name matches)', false)
-    .option(
-      '--set <code>',
-      'Pin an exact printing by set code (requires --collector-number)',
-      parseSetFlag,
-    )
+    .option('--label <labels>', t('help.addCard.label'), parseAddLabelFlag)
+    .option('--section <name>', t('help.addCard.section'))
+    .option('--commander', t('help.addCard.commander'))
+    .option('-e, --exact', t('help.addCard.exact'), false)
+    .option('--set <code>', t('help.addCard.set'), parseSetFlag)
     .option(
       '--collector-number <number>',
-      'Pin an exact printing by collector number (requires --set)',
+      t('help.addCard.collectorNumber'),
       parseCollectorNumberFlag,
     )
   command.addOption(
-    new Option(
-      '--name-only',
-      'Wanted lists: add the card by name without choosing a printing',
-    ).conflicts(['specific', 'set', 'collectorNumber']),
+    new Option('--name-only', t('help.addCard.nameOnly')).conflicts([
+      'specific',
+      'set',
+      'collectorNumber',
+    ]),
   )
-  command.addOption(
-    new Option(
-      '--specific',
-      'Wanted lists: record a specific printing (via --set/--collector-number or interactive selection)',
-    ),
-  )
+  command.addOption(new Option('--specific', t('help.addCard.specific')))
   addRefreshOption(command)
-  addDryRunOption(command, 'Report what would be added without writing anything')
+  addDryRunOption(command, t('help.addCard.dryRun'))
   addScriptingOptions(command).action(
     async (targetName: string, cardNameParts: string[], options: AddCardOptions) => {
       const scripting = normalizeScriptingOptions(options, 'text')
@@ -320,9 +302,7 @@ async function runAddCard(input: RunInput, scripting: ScriptingOptions): Promise
   // optional `deck:`/`collection:`/`wanted:` prefix supplies the type, and
   // contradicting the type flag is a usage error rather than a silent override.
   const listArg = resolveListArgument(input.targetName, input.type)
-  if (isListArgumentConflict(listArg)) {
-    throw new CardCommandError('usage_error', listArg.message, ExitCode.UsageError)
-  }
+  if (isListArgumentConflict(listArg)) throw listArgumentConflictError(listArg)
   const type = listArg.type
 
   // Every check that can refuse the run happens before anything is written —
@@ -334,11 +314,13 @@ async function runAddCard(input: RunInput, scripting: ScriptingOptions): Promise
   if (!cacheResult.ready) {
     throw new CardCommandError(
       'runtime_error',
-      emptyCacheAdvice('Card cache is not available.'),
+      emptyCacheAdvice(t('cli.addCard.cacheUnavailable')),
       ExitCode.RuntimeError,
+      undefined,
+      { key: 'cli.addCard.cacheUnavailable' },
     )
   }
-  info(`Loaded ${cacheResult.cardCount} cards from cache.`, scripting)
+  info(t('cli.addCard.loadedFromCache', { count: cacheResult.cardCount }), scripting)
 
   const target = await resolveAddCardTarget(listArg.name, type)
   if (type === undefined) validateTargetFlags(target.type, pin, options)
@@ -373,11 +355,7 @@ function resolvePrintingPinFlags(
 ): PrintingPin | undefined {
   if (set === undefined && collectorNumber === undefined) return undefined
   if (set === undefined || collectorNumber === undefined) {
-    throw new CardCommandError(
-      'usage_error',
-      '--set and --collector-number must be given together.',
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.pinNeedsBoth')
   }
   return { set, collectorNumber }
 }
@@ -393,39 +371,23 @@ function validateTargetFlags(
   options: AddCardOptions,
 ): void {
   if (type !== 'wanted' && (options.nameOnly || options.specific)) {
-    throw new CardCommandError(
-      'usage_error',
-      '--name-only and --specific apply only to wanted list targets.',
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.addCard.wantedOnlyFlags')
   }
   if (type === 'wanted' && options.condition !== undefined) {
-    throw new CardCommandError(
-      'usage_error',
-      'Wanted list entries do not track condition — --condition applies to decks and collections only.',
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.wantedNoCondition')
   }
   if (type !== 'collection' && options.label !== undefined) {
-    throw new CardCommandError(
+    throw localizedCommandError(
       'usage_error',
-      '--label only applies to collections.',
       ExitCode.UsageError,
+      'cli.cardOps.labelCollectionsOnly',
     )
   }
   if (type !== 'deck' && (options.section !== undefined || options.commander)) {
-    throw new CardCommandError(
-      'usage_error',
-      '--section and --commander apply only to deck targets.',
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.addCard.deckOnlyFlags')
   }
   if (type !== 'deck' && options.quantity !== 1) {
-    throw new CardCommandError(
-      'usage_error',
-      '--quantity applies only to deck targets (collection and wanted entries are one physical card per line).',
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.addCard.quantityDeckOnly')
   }
   if (
     type === 'wanted' &&
@@ -434,9 +396,7 @@ function validateTargetFlags(
     pin === undefined &&
     promptsUnavailable()
   ) {
-    throw inputRequiredError(
-      'wanted-list adds are interactive by default — pass --name-only, --specific, or --set/--collector-number',
-    )
+    throw inputRequiredError('cli.prompt.subject.wantedAdd')
   }
 }
 
@@ -459,10 +419,11 @@ async function resolveAddCardTarget(
   type: ListType | undefined,
 ): Promise<AddCardTarget> {
   if (name.endsWith('.changes') || name.endsWith('.changes.md')) {
-    throw new CardCommandError(
+    throw localizedCommandError(
       'usage_error',
-      `'${name}' is a changelog file and cannot be used as a list.`,
       ExitCode.UsageError,
+      'cli.addCard.changelogNotAList',
+      { name },
     )
   }
 
@@ -475,11 +436,9 @@ async function resolveAddCardTarget(
   // whether that is one missing list or an empty workspace.
   if ((resolved.kind === 'not-found' || resolved.kind === 'no-lists') && type) {
     if (type === 'deck') {
-      throw new CardCommandError(
-        'not_found',
-        `No deck named '${name}' found. Create it first with 'ritual new deck'.`,
-        ExitCode.NotFound,
-      )
+      throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.addCard.deckNotFound', {
+        name,
+      })
     }
     // The list is about to be created, so its name has to be usable as a file name.
     const fileName = listFileName(name)
@@ -550,14 +509,13 @@ async function resolveCardName(
     const match = findExactMatch(cardNameInput, cardNames)
     if (!match) {
       const matchCount = countTermMatches(cardNameInput, cardNames, 100)
-      const countLabel = matchCount >= 100 ? '100+' : String(matchCount)
-      throw new CardCommandError(
-        'not_found',
-        `No exact match for '${cardNameInput}'. ${countLabel} card${matchCount !== 1 ? 's' : ''} match that name.`,
-        ExitCode.NotFound,
-      )
+      const shown = matchCount >= 100 ? '100+' : String(matchCount)
+      throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.addCard.noExactMatch', {
+        name: cardNameInput,
+        matches: t('cli.addCard.matchCount', { count: matchCount, shown }),
+      })
     }
-    info(`Exact match found: ${match}`, scripting)
+    info(t('cli.addCard.exactMatchFound', { name: match }), scripting)
     return match
   }
 
@@ -568,21 +526,15 @@ async function resolveCardName(
     const match = findExactMatch(cardNameInput, cardNames)
     if (match) return match
     if (countTermMatches(cardNameInput, cardNames, 1) === 0) {
-      throw new CardCommandError(
-        'not_found',
-        `No cards found matching '${cardNameInput}'.`,
-        ExitCode.NotFound,
-      )
+      throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.addCard.noCardsMatching', {
+        name: cardNameInput,
+      })
     }
-    throw inputRequiredError(
-      `pass the full card name — '${cardNameInput}' does not exactly match a cached card name, and the card picker cannot open`,
-    )
+    throw inputRequiredError('cli.prompt.subject.fullCardName', { name: cardNameInput })
   }
 
   const selected = await selectCardAutocomplete(cardNames, cardNameInput)
-  if (!selected) {
-    throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
-  }
+  if (!selected) throw cancelledError()
   return selected
 }
 
@@ -601,15 +553,16 @@ async function selectCardAutocomplete(
     filteredNames = cardNames.filter((name) => matchesAllNameTerms(name, initialSearch))
 
     if (filteredNames.length === 0) {
-      throw new CardCommandError(
-        'not_found',
-        `No cards found matching '${initialSearch}'.`,
-        ExitCode.NotFound,
-      )
+      throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.addCard.noCardsMatching', {
+        name: initialSearch,
+      })
     }
 
     console.log(
-      `Found ${filteredNames.length} card${filteredNames.length !== 1 ? 's' : ''} matching '${initialSearch}'.`,
+      t('cli.addCard.foundMatching', {
+        counted: t('domain.count.cards', { count: filteredNames.length }),
+        name: initialSearch,
+      }),
     )
 
     filteredNames = rankNameMatches(filteredNames, initialSearch, (name) => name)
@@ -621,7 +574,7 @@ async function selectCardAutocomplete(
   const response = await prompts({
     type: 'autocomplete',
     name: 'cardName',
-    message: 'Select a card:',
+    message: t('cli.cardOps.promptSelectCard'),
     choices,
     limit: 15,
     suggest: async (rawInput, choices) => {
@@ -691,6 +644,7 @@ async function addToDeck(
     : await applyDeckAdd(target.filePath, card, options.quantity, placement)
 
   const printingLabel = pinned ? ` (${pinned.set.toUpperCase()}:${pinned.collector_number})` : ''
+  const dryRun = options.dryRun ?? false
   emitSuccess(
     {
       type: 'deck',
@@ -705,9 +659,14 @@ async function addToDeck(
       cardId: outcome.cardId,
       section: outcome.section,
     },
-    `${addVerb(options.dryRun ?? false)} '${options.quantity} ${selectedName}${printingLabel}' to ${path.basename(target.filePath)} (${outcome.section})`,
+    t('cli.addCard.addedToDeck', {
+      mode: addMode(dryRun),
+      card: `${options.quantity} ${selectedName}${printingLabel}`,
+      file: path.basename(target.filePath),
+      section: outcome.section,
+    }),
     scripting,
-    options.dryRun ?? false,
+    dryRun,
   )
 }
 
@@ -740,9 +699,7 @@ async function addToCollection(
     { finish: options.finish, condition: options.condition },
     false,
   )
-  if (!finishAndCondition) {
-    throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
-  }
+  if (!finishAndCondition) throw cancelledError()
 
   const language = resolveAddLanguage(options.language, resolved.language)
   const cardId = await allocateNextIdFromFile(target.filePath)
@@ -785,7 +742,7 @@ async function addToCollection(
       labels: options.label,
       cardId,
     },
-    `${addVerb(options.dryRun ?? false)}: ${line.trim()}`,
+    t('cli.addCard.addedLine', { mode: addMode(options.dryRun ?? false), line: line.trim() }),
     scripting,
     options.dryRun ?? false,
   )
@@ -840,23 +797,20 @@ async function resolveInteractivePrinting(
     return { printing, language: resolved.honoredPreferred ? undefined : resolved.language }
   }
   const result = await resolveCardPrinting(cardName, {}, true)
-  if (result.kind === 'cancelled') {
-    throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
-  }
+  if (result.kind === 'cancelled') throw cancelledError()
   if (result.kind === 'none') throw makeFailure()
   return { printing: result.printing, language: result.language }
 }
 
 /** Interactive printing selection for a collection add (no strict pin given). */
 async function promptCollectionPrinting(cardName: string): Promise<AddPrintingResolution> {
-  return resolveInteractivePrinting(
-    cardName,
-    () =>
-      new CardCommandError(
-        'runtime_error',
-        `No printing selected for '${cardName}'. Pass --set and --collector-number to pin one.`,
-        ExitCode.RuntimeError,
-      ),
+  return resolveInteractivePrinting(cardName, () =>
+    localizedCommandError(
+      'runtime_error',
+      ExitCode.RuntimeError,
+      'cli.addCard.noPrintingSelected',
+      { name: cardName },
+    ),
   )
 }
 
@@ -896,7 +850,7 @@ async function addToWanted(
         language,
         cardId,
       },
-      `${addVerb(options.dryRun ?? false)}: ${line.trim()}`,
+      t('cli.addCard.addedLine', { mode: addMode(options.dryRun ?? false), line: line.trim() }),
       scripting,
       options.dryRun ?? false,
     )
@@ -913,9 +867,7 @@ async function addToWanted(
   if (options.finish !== undefined) ensureFinishAvailable(selectedName, printing, options.finish)
 
   const finishResult = await promptWantedFinish(printing, options.finish)
-  if (finishResult === 'cancelled') {
-    throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
-  }
+  if (finishResult === 'cancelled') throw cancelledError()
   const finish = finishResult === 'nopreference' ? undefined : finishResult
 
   const language = resolveAddLanguage(options.language, resolved.language)
@@ -952,7 +904,7 @@ async function addToWanted(
       language,
       cardId,
     },
-    `${addVerb(options.dryRun ?? false)}: ${line.trim()}`,
+    t('cli.addCard.addedLine', { mode: addMode(options.dryRun ?? false), line: line.trim() }),
     scripting,
     options.dryRun ?? false,
   )
@@ -975,16 +927,14 @@ async function resolveWantedMode(
   const specificityResponse = await prompts({
     type: 'select',
     name: 'specificity',
-    message: `How specific for ${selectedName}?`,
+    message: t('cli.addCard.promptSpecificity', { name: selectedName }),
     choices: [
-      { title: 'Name only (any copy)', value: 'name-only' },
-      { title: 'Choose specific printing', value: 'specific' },
+      { title: t('cli.addCard.specificityNameOnly'), value: 'name-only' },
+      { title: t('cli.addCard.specificityChoosePrinting'), value: 'specific' },
     ],
   })
 
-  if (!specificityResponse.specificity) {
-    throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
-  }
+  if (!specificityResponse.specificity) throw cancelledError()
   return specificityResponse.specificity as WantedAddMode
 }
 
@@ -994,14 +944,13 @@ async function resolveWantedMode(
  * on) is an explicit error rather than a silent fallback to a name-only entry.
  */
 async function resolveWantedPrinting(cardName: string): Promise<AddPrintingResolution> {
-  return resolveInteractivePrinting(
-    cardName,
-    () =>
-      new CardCommandError(
-        'runtime_error',
-        `Could not resolve a printing for '${cardName}'. Pass --set and --collector-number, or use --name-only.`,
-        ExitCode.RuntimeError,
-      ),
+  return resolveInteractivePrinting(cardName, () =>
+    localizedCommandError(
+      'runtime_error',
+      ExitCode.RuntimeError,
+      'cli.addCard.noPrintingResolved',
+      { name: cardName },
+    ),
   )
 }
 
@@ -1016,12 +965,16 @@ function info(message: string, scripting: ScriptingOptions): void {
 }
 
 /**
- * The verb a success line opens with: a dry run reports what *would* happen.
- * Callers build their own message so the tense reads naturally in each flow.
+ * Which branch of a success message a run selects: a dry run reports what
+ * *would* happen, so the whole sentence — not a spliced verb — differs. The
+ * catalog entries are `$select` tables keyed on this value.
  */
-function addVerb(dryRun: boolean): string {
-  return dryRun ? 'Would add' : 'Added'
+function addMode(dryRun: boolean): AddMode {
+  return dryRun ? 'preview' : 'done'
 }
+
+/** The `$select` branch names the `cli.addCard.added*` messages offer. */
+type AddMode = 'done' | 'preview'
 
 function emitSuccess(
   payload: AddCardSuccess,
@@ -1030,7 +983,9 @@ function emitSuccess(
   dryRun: boolean,
 ): void {
   if (scripting.output === 'text') {
-    if (!scripting.quiet) emitOutput(dryRun ? `[dry-run] ${textLine}` : textLine, scripting)
+    if (!scripting.quiet) {
+      emitOutput(dryRun ? t('cli.cardOps.dryRunLine', { line: textLine }) : textLine, scripting)
+    }
     return
   }
   emitOutput(dryRun ? { ...payload, dryRun: true as const } : payload, scripting)

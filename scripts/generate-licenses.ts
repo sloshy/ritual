@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { compareData } from '../src/i18n/collate'
 
 type DepLicenseEntry = {
   name: string
@@ -101,7 +102,7 @@ const entries: DepLicenseEntry[] = results.filter((e): e is DepLicenseEntry => e
 
 entries.sort((a, b) => {
   if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1
-  return a.name.localeCompare(b.name)
+  return compareData(a.name, b.name)
 })
 
 const primaryCount = entries.filter((e) => e.isPrimary).length

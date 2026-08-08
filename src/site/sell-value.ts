@@ -16,6 +16,7 @@ import { isNonEnglishCard, quoteFor } from './buylist-quotes'
 import { displayFinish } from '../finish-condition'
 import { displayLanguage, type CardLanguage } from '../card-language'
 import type { CardData } from './card-sorting'
+import { t } from '../i18n/t'
 
 /**
  * The minimum a card must carry to be priced against a buylist: how many copies,
@@ -149,26 +150,17 @@ export function summarizeSellValue(cards: readonly SellableCard[]): SellValueSum
 export function sellShortfallNote(summary: SellValueSummary): string | null {
   const parts: string[] = []
   if (summary.notOnBuylistCount > 0) {
-    parts.push(
-      `${summary.notOnBuylistCount} ${pluralizeCards(summary.notOnBuylistCount)} not on buylist`,
-    )
+    parts.push(t('site.sell.notOnBuylist', { count: summary.notOnBuylistCount }))
   }
   if (summary.overLimitCount > 0) {
-    parts.push(`${summary.overLimitCount} over the buyer's limit`)
+    parts.push(t('site.sell.overLimit', { count: summary.overLimitCount }))
   }
   if (summary.nonEnglishCount > 0) {
     // The buyer's feed is English-only; these copies are structurally
     // unquotable, not merely unlisted, so they get their own wording.
-    parts.push(
-      `${summary.nonEnglishCount} non-English ${pluralizeCards(summary.nonEnglishCount)} — not quotable`,
-    )
+    parts.push(t('site.sell.nonEnglish', { count: summary.nonEnglishCount }))
   }
   return parts.length > 0 ? `(${parts.join(', ')})` : null
-}
-
-/** Named to avoid shadowing by the `cards` parameter every other export here takes. */
-function pluralizeCards(count: number): string {
-  return count === 1 ? 'card' : 'cards'
 }
 
 /**

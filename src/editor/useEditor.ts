@@ -23,7 +23,10 @@ import type {
 } from '../change-event'
 import { retargetImportedChanges, type ImportConflict } from './import-changes'
 import type { ContextMenuState, CardContextInfo } from './context-menu'
-import type { EditorStatus, EditorStatusActions } from './useEditorStatus'
+import { type EditorStatus, type EditorStatusActions, statusMessage } from './useEditorStatus'
+import { type EditorEntity, entityListType } from './entity'
+import type { ListType } from '../list-type'
+import { useT } from '../ui/i18n'
 import type { DialogState } from './useDialogState'
 import type { UseCardIdPoolResult } from './useCardIdPool'
 import type { UseCardChangesResult } from './useCardChanges'
@@ -138,8 +141,12 @@ export type EditorConfig<TData> = {
   commit: CommitSink<TData>
   /** Whether to render the list selector dropdown. Defaults to true (admin); the public single-item editor hides it. */
   showSelector?: boolean
-  /** Human-readable entity name for error messages */
-  entityLabel: string
+  /**
+   * Which kind of list this editor edits. Names the entity in status text
+   * ("Loading deck…") by selecting a per-type message rather than splicing a
+   * noun into a frame.
+   */
+  entityLabel: EditorEntity
 
   /** Process the load payload into editor state. Return null on failure. */
   processLoadResponse: (response: unknown) => LoadResult<TData> | null
@@ -358,6 +365,8 @@ export function useEditor<TData, TCardEntry = unknown>(
   const [pendingNav, setPendingNav] = createSignal<PendingNavigation | null>(null)
 
   const [status, statusActions] = useEditorStatus()
+  const t = useT()
+  const listType = (): ListType => entityListType(config.entityLabel)
   const dialogs = useDialogState()
   const pool = useCardIdPool()
   const changes = useCardChanges<TCardEntry>()
@@ -392,7 +401,9 @@ export function useEditor<TData, TCardEntry = unknown>(
         // the selection would silently fail to stick.
         if (initialSlug) setSlug(initialSlug)
       })
-      .catch(() => statusActions.setError(`Failed to load ${config.entityLabel} list`))
+      .catch(() =>
+        statusActions.setError(statusMessage('ui.editor.loadListFailed', { listType: listType() })),
+      )
   })
 
   // Fetch data when slug changes
@@ -420,12 +431,12 @@ export function useEditor<TData, TCardEntry = unknown>(
             setHasSavedThisSession(false)
             statusActions.loadSuccess()
           } else {
-            statusActions.loadError(`Failed to load ${config.entityLabel}`)
+            statusActions.loadError(statusMessage('ui.editor.loadFailed', { listType: listType() }))
           }
         })
         .catch((err: unknown) => {
           if (err instanceof Error && err.name === 'AbortError') return
-          statusActions.loadError(`Failed to load ${config.entityLabel}`)
+          statusActions.loadError(statusMessage('ui.editor.loadFailed', { listType: listType() }))
         })
 
       onCleanup(() => controller.abort())
@@ -596,10 +607,14 @@ export function useEditor<TData, TCardEntry = unknown>(
 
   const startChangePrinting = (target: CardContextInfo) => {
     if (!config.applyChangePrinting) return
+    // Named rather than inline: `x > 1 ? 'a' : 'b'` reads as plural morphology
+    // both to a human and to `ritual/no-inline-plural`, and this is a step
+    // token, not user-facing text.
+    const asksForCount = target.quantity > 1
     setChangePrinting({
       target,
-      step: target.quantity > 1 ? 'quantity' : 'printing',
-      count: target.quantity > 1 ? target.quantity : 1,
+      step: asksForCount ? 'quantity' : 'printing',
+      count: asksForCount ? target.quantity : 1,
     })
   }
 
@@ -778,9 +793,9 @@ export function useEditor<TData, TCardEntry = unknown>(
   // case-insensitively (a rename may keep its own name via `allowExisting`).
   const sectionNameError = (value: string, allowExisting?: string): string | null => {
     const trimmed = value.trim()
-    if (!trimmed) return 'Enter a section name.'
+    if (!trimmed) return t('ui.editor.sectionNameRequired')
     const clash = sectionOrder().find((s) => s.toLowerCase() === trimmed.toLowerCase())
-    if (clash && clash !== allowExisting) return `A section named “${clash}” already exists.`
+    if (clash && clash !== allowExisting) return t('ui.editor.sectionExists', { name: clash })
     return null
   }
 
@@ -788,10 +803,10 @@ export function useEditor<TData, TCardEntry = unknown>(
     // Close the editor-level menu; the deck editor's parallel menu state is cleared by its wrapper.
     setContextMenuCard(null)
     setTextPrompt({
-      title: 'Move to new section',
-      label: 'New section name',
+      title: t('ui.editor.moveToNewSection'),
+      label: t('ui.editor.newSectionName'),
       initialValue: '',
-      confirmLabel: 'Move',
+      confirmLabel: t('ui.editor.move'),
       validate: (v) => sectionNameError(v),
       onConfirm: (v) => {
         handleMoveCardsToSection(targets, v.trim())
@@ -804,10 +819,10 @@ export function useEditor<TData, TCardEntry = unknown>(
 
   const promptRenameSection = (oldName: string) => {
     setTextPrompt({
-      title: 'Rename section',
-      label: 'Section name',
+      title: t('ui.editor.renameSection'),
+      label: t('ui.editor.sectionName'),
       initialValue: oldName,
-      confirmLabel: 'Rename',
+      confirmLabel: t('ui.editor.rename'),
       validate: (v) => sectionNameError(v, oldName),
       onConfirm: (v) => {
         handleRenameSection(oldName, v.trim())

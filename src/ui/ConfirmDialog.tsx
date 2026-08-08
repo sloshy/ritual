@@ -1,5 +1,6 @@
 import { type Component, Show } from 'solid-js'
 import { Modal } from './Modal'
+import { useT } from './i18n'
 
 type ConfirmDialogProps = {
   open: boolean
@@ -17,6 +18,7 @@ type ConfirmDialogProps = {
  * Used wherever an action needs a plain confirmation without a typed value.
  */
 export const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
+  const t = useT()
   return (
     <Modal open={props.open} onClose={props.onCancel} size="md" panelClass="modal-panel--prompt">
       <h3>{props.title}</h3>
@@ -25,7 +27,7 @@ export const ConfirmDialog: Component<ConfirmDialogProps> = (props) => {
       </Show>
       <div class="confirm-dialog-actions">
         <button type="button" class="btn btn-secondary" onClick={props.onCancel}>
-          Cancel
+          {t('ui.dialog.cancel')}
         </button>
         <button
           type="button"

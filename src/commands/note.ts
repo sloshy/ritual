@@ -14,8 +14,11 @@ import {
 } from './scripting'
 import { normalizeNote } from '../note-helpers'
 import { requireInteractive } from '../no-input'
-import { CardCommandError } from '../errors'
+import { CardCommandError, localizedCommandError } from '../errors'
+import { t } from '../i18n/t'
 import {
+  addListTypeFlags,
+  cancelledError,
   parseCardIdFlag,
   resolveListSelection,
   resolveListTypeFlag,
@@ -37,30 +40,19 @@ type NoteOptions = {
 
 export function registerNoteCommand(program: Command): void {
   addScriptingOptions(
-    program
-      .command('note')
-      .description(
-        'Set, replace, or clear the note on a card in a deck, collection, or wanted list',
-      )
-      .argument(
-        '[listName]',
-        'Name of the deck, collection, or wanted list (resolved across all types unless a type flag is given)',
-      )
-      .argument('[cardName...]', 'Name of the card whose note to set or clear (fuzzy match)')
-      .option('--deck', 'Resolve the name as a deck')
-      .option('--collection', 'Resolve the name as a collection')
-      .option('--wanted', 'Resolve the name as a wanted list')
-      .addOption(
-        new Option(
-          '-n, --note <text>',
-          'Note text (replaces any existing note). If omitted, you will be prompted.',
-        ).conflicts('clear'),
-      )
-      .addOption(new Option('--clear', 'Remove the note from the card').conflicts('note'))
-      .option('--card-id <id>', 'Disambiguate by card ID (the &N suffix in list files)')
+    addListTypeFlags(
+      program
+        .command('note')
+        .description(t('help.note.description'))
+        .argument('[listName]', t('help.listArg.crossType'))
+        .argument('[cardName...]', t('help.note.cardName')),
+    )
+      .addOption(new Option('-n, --note <text>', t('help.note.note')).conflicts('clear'))
+      .addOption(new Option('--clear', t('help.note.clear')).conflicts('note'))
+      .option('--card-id <id>', t('help.cardId.disambiguate'))
       // Long form only: `-n` is already this command's `--note`, and the shared
       // `addDryRunOption` would claim it.
-      .option('--dry-run', 'Report what the note would become without writing anything'),
+      .option('--dry-run', t('help.note.dryRun')),
     'text',
   ).action(
     async (listNameArg: string | undefined, cardNameParts: string[], options: NoteOptions) => {
@@ -147,9 +139,15 @@ async function runNote(input: RunInput, scripting: ScriptingOptions): Promise<vo
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
-      const idLabel = target.cardId !== undefined ? ` &${target.cardId}` : ''
-      const prefix = input.dryRun ? '[dry-run] Would set' : 'Set'
-      emitOutput(`${prefix} note on ${target.name}${idLabel} to "${noteText}"`, scripting)
+      emitOutput(
+        t('cli.note.set', {
+          mode: input.dryRun ? 'preview' : 'done',
+          name: target.name,
+          id: cardIdLabel(target),
+          note: noteText,
+        }),
+        scripting,
+      )
     }
     return
   }
@@ -176,16 +174,20 @@ async function runClear(
   scripting: ScriptingOptions,
   dryRun: boolean,
 ): Promise<void> {
-  const idLabel = target.cardId !== undefined ? ` &${target.cardId}` : ''
-
   // Idempotent: if the card already has no note, succeed without rewriting the
   // file or appending a changelog entry. Scripting clients can detect this from
   // the `previousNote: null` field in the JSON output.
   if (target.note === undefined || target.note === '') {
     if (scripting.output === 'text') {
       if (!scripting.quiet) {
-        const prefix = dryRun ? '[dry-run] ' : ''
-        emitOutput(`${prefix}No note on ${target.name}${idLabel}; nothing to clear.`, scripting)
+        emitOutput(
+          t('cli.note.nothingToClear', {
+            mode: dryRun ? 'preview' : 'done',
+            name: target.name,
+            id: cardIdLabel(target),
+          }),
+          scripting,
+        )
       }
       return
     }
@@ -208,8 +210,14 @@ async function runClear(
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
-      const prefix = dryRun ? '[dry-run] Would clear' : 'Cleared'
-      emitOutput(`${prefix} note on ${target.name}${idLabel}`, scripting)
+      emitOutput(
+        t('cli.note.cleared', {
+          mode: dryRun ? 'preview' : 'done',
+          name: target.name,
+          id: cardIdLabel(target),
+        }),
+        scripting,
+      )
     }
     return
   }
@@ -224,6 +232,15 @@ async function runClear(
     previousNote,
   }
   emitOutput(result, scripting)
+}
+
+/**
+ * The ` &N` suffix a card's line carries, or the empty string. Attached to the
+ * preceding token with no space of its own, so a translator keeps it next to
+ * the card name it identifies.
+ */
+function cardIdLabel(target: EntryRef): string {
+  return target.cardId !== undefined ? ` &${target.cardId}` : ''
 }
 
 // ── Note text resolution ──────────────────────────────────────────────────────
@@ -242,15 +259,15 @@ async function resolveNoteText(
   const resp = await prompts({
     type: 'text',
     name: 'note',
-    message: existingNote ? `Replace note (current: "${existingNote}"):` : 'Note text:',
+    message: existingNote
+      ? t('cli.note.promptReplace', { current: existingNote })
+      : t('cli.note.promptText'),
     initial: existingNote ?? '',
     onState: (state: PromptState) => {
       if (state.exited) exited = true
     },
   })
-  if (exited || typeof resp.note !== 'string') {
-    throw new CardCommandError('usage_error', 'Cancelled.', ExitCode.UsageError)
-  }
+  if (exited || typeof resp.note !== 'string') throw cancelledError()
   return validateOrThrow(resp.note)
 }
 
@@ -264,11 +281,7 @@ function validateOrThrow(raw: string): string {
     throw new CardCommandError('usage_error', result.error, ExitCode.UsageError)
   }
   if (result.note === '') {
-    throw new CardCommandError(
-      'usage_error',
-      'Note text cannot be empty. Use --clear to remove a note.',
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.note.emptyNote')
   }
   return result.note
 }

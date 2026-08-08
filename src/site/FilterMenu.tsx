@@ -20,6 +20,9 @@ import {
 } from './card-filters'
 import { CARD_LABEL_DISPLAY_NAMES } from '../card-labels'
 import { type PriceCurrency, getCurrencySymbol } from '../price-currency'
+import type { MessageKey } from '../i18n/messages/en'
+import { useT } from '../ui/i18n'
+import type { ParamsOf, TranslateFn } from '../i18n/t'
 import { formatCardTypeForDisplay, parseCardTypesInput, scanCardTypeInput } from './card-types'
 import {
   COLOR_MATCH_MODES,
@@ -198,48 +201,88 @@ function ChipFilterRow<T extends string>(props: ChipFilterRowProps<T>): JSX.Elem
   )
 }
 
-/** The button text and tooltip for one mode, before it is paired with its value. */
-type FilterModeCopy = { label: string; title: string }
+/**
+ * A message key whose message takes no parameters.
+ *
+ * The label tables below are looked up at runtime, so `t()` cannot see which
+ * key it is being handed and would otherwise demand the union of *every*
+ * message parameter in the catalog. Narrowing to the parameter-free keys keeps
+ * the lookup a checked call: adding a `{placeholder}` to one of these messages
+ * becomes a compile error here rather than a `{name}` rendered on screen.
+ */
+type PlainMessageKey = {
+  [K in MessageKey]: [ParamsOf<K>] extends [never] ? K : never
+}[MessageKey]
 
 /**
- * Expand per-mode copy into options, in the canonical mode order. Keying the copy
- * by mode means adding a mode to `FilterMatchMode` fails to compile here until it
- * is given a label, rather than silently rendering one button fewer.
+ * The button text and tooltip for one mode, as message *keys*.
+ *
+ * These tables are built once at module load, so holding rendered strings would
+ * leave every filter's segmented control in the boot-time language after a
+ * locale switch — the whole menu would go stale while the page around it
+ * translated. The keys are resolved by {@link modeOptions} at render time.
+ */
+type FilterModeCopy = { labelKey: PlainMessageKey; titleKey: PlainMessageKey }
+
+/**
+ * Expand per-mode copy into rendered options, in the canonical mode order.
+ * Keying the copy by mode means adding a mode to `FilterMatchMode` fails to
+ * compile here until it is given a label, rather than silently rendering one
+ * button fewer.
  */
 function modeOptions<M extends string>(
   modes: readonly M[],
   copy: Record<M, FilterModeCopy>,
+  t: TranslateFn,
 ): readonly FilterModeOption<M>[] {
-  return modes.map((value) => ({ value, ...copy[value] }))
+  return modes.map((value) => ({
+    value,
+    label: t(copy[value].labelKey),
+    title: t(copy[value].titleKey),
+  }))
 }
 
 /**
- * Build the match-mode options for a tag-style filter (types, oracle tags, art
- * tags), whose tooltips only differ by the noun they name.
+ * Match-mode copy for a tag-style filter (types, oracle tags, art tags).
+ *
+ * The tooltips used to be built from one template plus a `${noun}` — which
+ * reads fine in English and nowhere else, since the noun would have to be
+ * declined and may not sit at the end of the sentence. Each filter now names
+ * its own whole sentence.
  */
-function matchModeOptions(noun: string): readonly FilterModeOption<FilterMatchMode>[] {
-  return modeOptions(FILTER_MATCH_MODES, {
-    include: { label: 'Include', title: `Match cards with any of the selected ${noun}` },
-    exclude: { label: 'Exclude', title: `Hide cards with any of the selected ${noun}` },
-    exact: { label: 'Exact', title: `Match cards with all of the selected ${noun}` },
-  })
-}
+const CARD_TYPE_MODE_COPY = {
+  include: { labelKey: 'site.filterMode.include', titleKey: 'site.filterMode.cardTypeInclude' },
+  exclude: { labelKey: 'site.filterMode.exclude', titleKey: 'site.filterMode.cardTypeExclude' },
+  exact: { labelKey: 'site.filterMode.exact', titleKey: 'site.filterMode.cardTypeExact' },
+} as const satisfies Record<FilterMatchMode, FilterModeCopy>
 
-const COLOR_MODE_OPTIONS = modeOptions(COLOR_MATCH_MODES, {
-  subset: { label: 'Subset', title: 'Card could be played in a deck of the selected colors' },
-  include: { label: 'Include', title: 'Card uses at least one of the selected colors' },
-  exclude: { label: 'Exclude', title: 'Card uses none of the selected colors' },
-  exact: { label: 'Exact', title: 'Color identity is exactly the selected colors' },
-})
+const ORACLE_TAG_MODE_COPY = {
+  include: { labelKey: 'site.filterMode.include', titleKey: 'site.filterMode.oracleTagInclude' },
+  exclude: { labelKey: 'site.filterMode.exclude', titleKey: 'site.filterMode.oracleTagExclude' },
+  exact: { labelKey: 'site.filterMode.exact', titleKey: 'site.filterMode.oracleTagExact' },
+} as const satisfies Record<FilterMatchMode, FilterModeCopy>
 
-const SET_MODE_OPTIONS = modeOptions(SET_CODE_FILTER_MODES, {
-  include: { label: 'Include', title: 'Show only cards from the selected sets' },
-  exclude: { label: 'Exclude', title: 'Hide cards from the selected sets' },
-})
+const ART_TAG_MODE_COPY = {
+  include: { labelKey: 'site.filterMode.include', titleKey: 'site.filterMode.artTagInclude' },
+  exclude: { labelKey: 'site.filterMode.exclude', titleKey: 'site.filterMode.artTagExclude' },
+  exact: { labelKey: 'site.filterMode.exact', titleKey: 'site.filterMode.artTagExact' },
+} as const satisfies Record<FilterMatchMode, FilterModeCopy>
+
+const COLOR_MODE_COPY = {
+  subset: { labelKey: 'site.filterMode.subset', titleKey: 'site.filterMode.colorSubset' },
+  include: { labelKey: 'site.filterMode.include', titleKey: 'site.filterMode.colorInclude' },
+  exclude: { labelKey: 'site.filterMode.exclude', titleKey: 'site.filterMode.colorExclude' },
+  exact: { labelKey: 'site.filterMode.exact', titleKey: 'site.filterMode.colorExact' },
+} as const satisfies Record<(typeof COLOR_MATCH_MODES)[number], FilterModeCopy>
+
+const SET_MODE_COPY = {
+  include: { labelKey: 'site.filterMode.include', titleKey: 'site.filterMode.setInclude' },
+  exclude: { labelKey: 'site.filterMode.exclude', titleKey: 'site.filterMode.setExclude' },
+} as const satisfies Record<(typeof SET_CODE_FILTER_MODES)[number], FilterModeCopy>
 
 /**
  * What the copies filter treats as the same card when it adds quantities up.
- * Sits on the Copies row itself rather than reusing `matchModeOptions`: these
+ * Sits on the Copies row itself rather than reusing the tag-filter copy: these
  * modes pick a grouping key, not an any-of/none-of/all-of relationship.
  *
  * The labels are the user's vocabulary and the values are the code's, so they
@@ -247,15 +290,11 @@ const SET_MODE_OPTIONS = modeOptions(SET_CODE_FILTER_MODES, {
  * names what you type into a collector-number field while `printing` names what
  * the filter groups by. `title` carries the meaning either way.
  */
-const COPIES_MODE_OPTIONS = modeOptions(COPIES_MATCH_MODES, {
-  name: { label: 'Name', title: 'Count every printing of the card name together' },
-  printing: { label: 'Number', title: 'Count only the same set code and collector number' },
-  finish: { label: 'Exact', title: 'Count only the same printing in the same finish' },
-})
-
-const CARD_TYPE_MODE_OPTIONS = matchModeOptions('types')
-const ORACLE_TAG_MODE_OPTIONS = matchModeOptions('oracle tags')
-const ART_TAG_MODE_OPTIONS = matchModeOptions('art tags')
+const COPIES_MODE_COPY = {
+  name: { labelKey: 'site.filterMode.name', titleKey: 'site.filterMode.copiesName' },
+  printing: { labelKey: 'site.filterMode.number', titleKey: 'site.filterMode.copiesNumber' },
+  finish: { labelKey: 'site.filterMode.exact', titleKey: 'site.filterMode.copiesFinish' },
+} as const satisfies Record<(typeof COPIES_MATCH_MODES)[number], FilterModeCopy>
 
 export interface FilterMenuProps {
   filters: CardFiltersControl
@@ -278,31 +317,64 @@ export interface FilterMenuProps {
   showBuylistFilter?: boolean
 }
 
+/** A chip's copy before it is rendered: keys, not text. See {@link FilterModeCopy}. */
+type ChipCopy<T extends string> = { value: T; labelKey: PlainMessageKey; titleKey: PlainMessageKey }
+
 /**
- * The labels filter's chips, in canonical order. `keep` and `none` replace the
- * whole selection when picked — `toggleLabelFilterOption` enforces it — so the
- * titles say so rather than letting the chips silently deselect each other.
+ * The labels filter's chips, in canonical order. The label wording is shared
+ * with every other label surface (`CARD_LABEL_DISPLAY_NAMES`), so the chips and
+ * the badges on the cards can never disagree.
+ *
+ * `keep` and `none` replace the whole selection when picked —
+ * `toggleLabelFilterOption` enforces it — so the titles say so rather than
+ * letting the chips silently deselect each other.
  */
-const LABEL_FILTER_OPTION_COPY: readonly ChipFilterOption<LabelFilterOption>[] = [
-  { value: 'sale', label: CARD_LABEL_DISPLAY_NAMES.sale, title: 'Cards labeled for sale' },
-  { value: 'trade', label: CARD_LABEL_DISPLAY_NAMES.trade, title: 'Cards labeled for trade' },
+const LABEL_FILTER_COPY = [
+  {
+    value: 'sale',
+    labelKey: CARD_LABEL_DISPLAY_NAMES.sale,
+    titleKey: 'site.filter.labelSaleTitle',
+  },
+  {
+    value: 'trade',
+    labelKey: CARD_LABEL_DISPLAY_NAMES.trade,
+    titleKey: 'site.filter.labelTradeTitle',
+  },
   {
     value: 'keep',
-    label: CARD_LABEL_DISPLAY_NAMES.keep,
-    title: 'Cards labeled to keep (never combined with the other labels)',
+    labelKey: CARD_LABEL_DISPLAY_NAMES.keep,
+    titleKey: 'site.filter.labelKeepTitle',
   },
-  { value: 'none', label: 'Unlabeled', title: 'Cards with no labels at all' },
-]
+  { value: 'none', labelKey: 'site.filter.labelUnlabeled', titleKey: 'site.filter.labelNoneTitle' },
+] as const satisfies readonly ChipCopy<LabelFilterOption>[]
 
 /** The buylist filter's chips, in canonical order. The two combine freely (OR). */
-const BUYLIST_FILTER_OPTION_COPY: readonly ChipFilterOption<BuylistFilterOption>[] = [
-  { value: 'on', label: 'On buylist', title: 'Cards the buyer has a listing for' },
-  { value: 'off', label: 'Not on buylist', title: 'Cards the buyer has no listing for' },
-]
+const BUYLIST_FILTER_COPY = [
+  { value: 'on', labelKey: 'site.filter.buylistOn', titleKey: 'site.filter.buylistOnTitle' },
+  { value: 'off', labelKey: 'site.filter.buylistOff', titleKey: 'site.filter.buylistOffTitle' },
+] as const satisfies readonly ChipCopy<BuylistFilterOption>[]
+
+/** Render a chip table's keys in the active locale. See {@link modeOptions}. */
+function chipOptions<T extends string>(
+  copy: readonly ChipCopy<T>[],
+  t: TranslateFn,
+): readonly ChipFilterOption<T>[] {
+  return copy.map((chip) => ({
+    value: chip.value,
+    label: t(chip.labelKey),
+    title: t(chip.titleKey),
+  }))
+}
 
 type TagFilterRowProps = {
   /** Heading for the row (e.g. "Oracle Tags"). */
   label: string
+  /**
+   * Accessible name for the match-mode control. Passed in rather than built
+   * from `label`: a `${label} match mode` template is a two-word noun phrase
+   * that does not survive translation.
+   */
+  modeAriaLabel: string
   /** id linking the label to the input; also the e2e hook (e.g. "filter-oracle-tags"). */
   inputId: string
   placeholder: string
@@ -328,7 +400,7 @@ const TagFilterRow: Component<TagFilterRowProps> = (props) => {
           {props.label}
         </label>
         <FilterModeToggle
-          ariaLabel={`${props.label} match mode`}
+          ariaLabel={props.modeAriaLabel}
           options={props.modeOptions}
           value={props.mode}
           onChange={props.onMode}
@@ -361,6 +433,8 @@ type NumericFilterRowProps = {
   onOp: (op: NumericComparator) => void
   /** The raw draft text shown in the field (debounced from the store). */
   value: string
+  /** Placeholder for the empty field, meaning "no bound — anything passes". */
+  valuePlaceholder: string
   onValueInput: (raw: string) => void
   /** Commit any pending value immediately when the field loses focus. */
   onValueBlur: () => void
@@ -413,7 +487,7 @@ const NumericFilterRow: Component<NumericFilterRowProps> = (props) => {
           min="0"
           step={props.step}
           inputmode={props.inputMode}
-          placeholder="Any"
+          placeholder={props.valuePlaceholder}
           aria-invalid={props.error !== null}
           value={props.value}
           onInput={(e) => props.onValueInput(e.currentTarget.value)}
@@ -430,6 +504,7 @@ const NumericFilterRow: Component<NumericFilterRowProps> = (props) => {
  * hide lands/unpriced toggles, name terms, color identity, set codes, mana value.
  */
 export const FilterMenu: Component<FilterMenuProps> = (props) => {
+  const t = useT()
   const toggle = useAnchoredToggle()
 
   return (
@@ -443,7 +518,7 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
         aria-haspopup="true"
         onClick={toggle.toggleOpen}
       >
-        Filters
+        {t('site.filter.title')}
         <Show when={props.filters.activeCount() > 0}>
           <span class="filter-menu-badge">{props.filters.activeCount()}</span>
         </Show>
@@ -453,9 +528,9 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
         toggle={toggle}
         width={PANEL_WIDTH}
         panelClass="filter-menu-panel"
-        title="Filters"
+        title={t('site.filter.title')}
         role="group"
-        aria-label="Card filters"
+        aria-label={t('site.filter.ariaLabel')}
       >
         <FilterPanelBody
           filters={props.filters}
@@ -475,6 +550,7 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
 }
 
 const FilterPanelBody: Component<FilterMenuProps> = (props) => {
+  const t = useT()
   // The free-text and numeric filters commit to the store 250ms after the user stops
   // typing, so fast typing no longer triggers a filter+re-render pass per keystroke.
   // The fields still echo keystrokes instantly via each input's `draft`.
@@ -512,7 +588,7 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
   // fall back to a bare "Price".
   const priceLabel = (): string => {
     const symbol = getCurrencySymbol(props.currency)
-    return symbol ? `Price (${symbol})` : 'Price'
+    return symbol ? t('site.filter.priceWithSymbol', { symbol }) : t('site.filter.price')
   }
 
   const handleClearAll = () => {
@@ -539,7 +615,7 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
           aria-pressed={props.filters.filters.hideLands}
           onClick={() => props.filters.update({ hideLands: !props.filters.filters.hideLands })}
         >
-          Hide Lands
+          {t('site.filter.hideLands')}
         </button>
         <button
           type="button"
@@ -550,7 +626,7 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
             props.filters.update({ hideUnpriced: !props.filters.filters.hideUnpriced })
           }
         >
-          Hide Unpriced
+          {t('site.filter.hideUnpriced')}
         </button>
         <Show when={props.showHideExtras}>
           <button
@@ -560,7 +636,7 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
             aria-pressed={props.filters.filters.hideExtras}
             onClick={() => props.filters.update({ hideExtras: !props.filters.filters.hideExtras })}
           >
-            Hide Extras
+            {t('site.filter.hideExtras')}
           </button>
         </Show>
         {/* Rendered even with nothing active (disabled) rather than shown conditionally,
@@ -571,18 +647,18 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
           disabled={props.filters.activeCount() === 0}
           onClick={handleClearAll}
         >
-          Clear
+          {t('site.filter.clear')}
         </button>
       </div>
       <div class="filter-row">
         <label class="filter-label" for="filter-name">
-          Name
+          {t('site.filter.name')}
         </label>
         <input
           id="filter-name"
           class="filter-input"
           type="text"
-          placeholder="Search terms…"
+          placeholder={t('site.filter.namePlaceholder')}
           value={nameInput.draft()}
           onInput={(e) => nameInput.onInput(e.currentTarget.value)}
           onBlur={nameInput.flush}
@@ -590,10 +666,10 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
       </div>
       <div class="filter-row">
         <div class="filter-type-header">
-          <span class="filter-label">Color Identity</span>
+          <span class="filter-label">{t('site.filter.colorIdentity')}</span>
           <FilterModeToggle
-            ariaLabel="Color match mode"
-            options={COLOR_MODE_OPTIONS}
+            ariaLabel={t('site.filter.colorMode')}
+            options={modeOptions(COLOR_MATCH_MODES, COLOR_MODE_COPY, t)}
             value={props.filters.filters.colorMode}
             onChange={(colorMode) => props.filters.update({ colorMode })}
           />
@@ -635,7 +711,10 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
           >
             <Show
               when={props.symbolMap['{C}']}
-              fallback={<span class="filter-color-letter">C</span>}
+              fallback={
+                /* i18n-exempt: mana symbol letter (colorless), not prose */
+                <span class="filter-color-letter">C</span>
+              }
             >
               {(src) => <img src={src()} alt={COLORLESS_NAME} class="mana-symbol" />}
             </Show>
@@ -644,9 +723,9 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
       </div>
       <Show when={props.showLabelsFilter}>
         <ChipFilterRow
-          label="Labels"
-          ariaLabel="Label filter"
-          options={LABEL_FILTER_OPTION_COPY}
+          label={t('site.filter.labels')}
+          ariaLabel={t('site.filter.labelMode')}
+          options={chipOptions(LABEL_FILTER_COPY, t)}
           selected={props.filters.filters.labels}
           onToggle={(value) =>
             props.filters.update({
@@ -657,9 +736,9 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
       </Show>
       <Show when={props.showBuylistFilter}>
         <ChipFilterRow
-          label="Buylist"
-          ariaLabel="Buylist filter"
-          options={BUYLIST_FILTER_OPTION_COPY}
+          label={t('site.filter.buylist')}
+          ariaLabel={t('site.filter.buylistMode')}
+          options={chipOptions(BUYLIST_FILTER_COPY, t)}
           selected={props.filters.filters.onBuylist}
           onToggle={(value) =>
             props.filters.update({
@@ -671,11 +750,11 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
       <div class="filter-row">
         <div class="filter-type-header">
           <label class="filter-label" for="filter-sets">
-            Sets
+            {t('site.filter.sets')}
           </label>
           <FilterModeToggle
-            ariaLabel="Set match mode"
-            options={SET_MODE_OPTIONS}
+            ariaLabel={t('site.filter.setMode')}
+            options={modeOptions(SET_CODE_FILTER_MODES, SET_MODE_COPY, t)}
             value={props.filters.filters.setCodeMode}
             onChange={(setCodeMode) => props.filters.update({ setCodeMode })}
           />
@@ -685,8 +764,8 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
           options={props.setCodeOptions}
           onChange={(setCodes) => props.filters.update({ setCodes })}
           inputId="filter-sets"
-          placeholder="Set codes…"
-          suggestionsLabel="Set code suggestions"
+          placeholder={t('site.filter.setsPlaceholder')}
+          suggestionsLabel={t('site.filter.setsSuggestions')}
           format={(code) => code.toUpperCase()}
           query={(draft) => draft.trim().toLowerCase()}
           matches={(code, query) => code.startsWith(query)}
@@ -697,11 +776,11 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
       <div class="filter-row">
         <div class="filter-type-header">
           <label class="filter-label" for="filter-types">
-            Card Type
+            {t('site.filter.cardType')}
           </label>
           <FilterModeToggle
-            ariaLabel="Card type match mode"
-            options={CARD_TYPE_MODE_OPTIONS}
+            ariaLabel={t('site.filter.cardTypeMode')}
+            options={modeOptions(FILTER_MATCH_MODES, CARD_TYPE_MODE_COPY, t)}
             value={props.filters.filters.cardTypeMode}
             onChange={(cardTypeMode) => props.filters.update({ cardTypeMode })}
           />
@@ -711,8 +790,8 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
           options={props.cardTypeOptions}
           onChange={(cardTypes) => props.filters.update({ cardTypes })}
           inputId="filter-types"
-          placeholder="Card types…"
-          suggestionsLabel="Card type suggestions"
+          placeholder={t('site.filter.cardTypePlaceholder')}
+          suggestionsLabel={t('site.filter.cardTypeSuggestions')}
           format={formatCardTypeForDisplay}
           // Strip a leading open quote so suggestions still appear while typing `"Time…`.
           query={(draft) => draft.trim().toLowerCase().replace(/^"/, '')}
@@ -728,36 +807,39 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         />
       </div>
       <TagFilterRow
-        label="Oracle Tags"
+        label={t('site.filter.oracleTags')}
+        modeAriaLabel={t('site.filter.oracleTagMode')}
         inputId="filter-oracle-tags"
-        placeholder="Oracle tags…"
-        suggestionsLabel="Oracle tag suggestions"
+        placeholder={t('site.filter.oracleTagsPlaceholder')}
+        suggestionsLabel={t('site.filter.oracleTagsSuggestions')}
         options={props.oracleTagOptions}
         selected={props.filters.filters.oracleTags}
-        modeOptions={ORACLE_TAG_MODE_OPTIONS}
+        modeOptions={modeOptions(FILTER_MATCH_MODES, ORACLE_TAG_MODE_COPY, t)}
         mode={props.filters.filters.oracleTagMode}
         onTags={(oracleTags) => props.filters.update({ oracleTags })}
         onMode={(oracleTagMode) => props.filters.update({ oracleTagMode })}
       />
       <TagFilterRow
-        label="Art Tags"
+        label={t('site.filter.artTags')}
+        modeAriaLabel={t('site.filter.artTagMode')}
         inputId="filter-art-tags"
-        placeholder="Art tags…"
-        suggestionsLabel="Art tag suggestions"
+        placeholder={t('site.filter.artTagsPlaceholder')}
+        suggestionsLabel={t('site.filter.artTagsSuggestions')}
         options={props.artTagOptions}
         selected={props.filters.filters.artTags}
-        modeOptions={ART_TAG_MODE_OPTIONS}
+        modeOptions={modeOptions(FILTER_MATCH_MODES, ART_TAG_MODE_COPY, t)}
         mode={props.filters.filters.artTagMode}
         onTags={(artTags) => props.filters.update({ artTags })}
         onMode={(artTagMode) => props.filters.update({ artTagMode })}
       />
       <NumericFilterRow
-        label="Mana Value"
+        label={t('site.filter.manaValue')}
         inputId="filter-mana-value"
-        ariaLabel="Mana value comparison"
+        ariaLabel={t('site.filter.manaValueCompare')}
         op={props.filters.filters.manaValueOp}
         onOp={(manaValueOp) => props.filters.update({ manaValueOp })}
         value={manaValueInput.draft()}
+        valuePlaceholder={t('site.filter.numericPlaceholder')}
         onValueInput={manaValueInput.onInput}
         onValueBlur={manaValueInput.flush}
         error={manaValueInput.error()}
@@ -767,10 +849,11 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
       <NumericFilterRow
         label={priceLabel()}
         inputId="filter-price"
-        ariaLabel="Price comparison"
+        ariaLabel={t('site.filter.priceCompare')}
         op={props.filters.filters.priceOp}
         onOp={(priceOp) => props.filters.update({ priceOp })}
         value={priceInput.draft()}
+        valuePlaceholder={t('site.filter.numericPlaceholder')}
         onValueInput={priceInput.onInput}
         onValueBlur={priceInput.flush}
         error={priceInput.error()}
@@ -781,12 +864,13 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         <NumericFilterRow
           // Always "$": a buyer's offer is USD whatever the page displays, so
           // labelling it with the active currency would misstate it.
-          label="Buylist ($)"
+          label={t('site.filter.buylistPrice')}
           inputId="filter-buylist-price"
-          ariaLabel="Buylist price comparison"
+          ariaLabel={t('site.filter.buylistPriceCompare')}
           op={props.filters.filters.buylistPriceOp}
           onOp={(buylistPriceOp) => props.filters.update({ buylistPriceOp })}
           value={buylistPriceInput.draft()}
+          valuePlaceholder={t('site.filter.numericPlaceholder')}
           onValueInput={buylistPriceInput.onInput}
           onValueBlur={buylistPriceInput.flush}
           error={buylistPriceInput.error()}
@@ -795,12 +879,13 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         />
       </Show>
       <NumericFilterRow
-        label="Copies"
+        label={t('site.filter.copies')}
         inputId="filter-copies"
-        ariaLabel="Copies comparison"
+        ariaLabel={t('site.filter.copiesCompare')}
         op={props.filters.filters.copiesOp}
         onOp={(copiesOp) => props.filters.update({ copiesOp })}
         value={copiesInput.draft()}
+        valuePlaceholder={t('site.filter.numericPlaceholder')}
         onValueInput={copiesInput.onInput}
         onValueBlur={copiesInput.flush}
         error={copiesInput.error()}
@@ -808,8 +893,8 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         inputMode="numeric"
         modeToggle={
           <FilterModeToggle
-            ariaLabel="Copies match mode"
-            options={COPIES_MODE_OPTIONS}
+            ariaLabel={t('site.filter.copiesMode')}
+            options={modeOptions(COPIES_MATCH_MODES, COPIES_MODE_COPY, t)}
             value={props.filters.filters.copiesMode}
             onChange={(copiesMode) => props.filters.update({ copiesMode })}
           />

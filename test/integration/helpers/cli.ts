@@ -11,6 +11,45 @@ export type CliResult = {
   stderr: string
 }
 
+/**
+ * Locale env for spawned-CLI tests: clear every POSIX locale variable the CLI's
+ * OS detection reads and pin the UI locale to English.
+ *
+ * The suite asserts on English output in ~1,860 places. Without this, a
+ * developer whose shell exports `LANG=de_DE.UTF-8` fails hundreds of stdout
+ * assertions locally while CI (on `LANG=C.UTF-8`) passes — and it reads as
+ * flakiness, exactly the failure the `RITUAL_BASE_DIR: undefined` scrub below
+ * was added to prevent.
+ *
+ * `undefined` removes the variable from the child's environment. Suites that
+ * exercise locale resolution itself opt back in through `runCli`'s `env`, which
+ * is merged last.
+ */
+export const LOCALE_ENV: Record<string, string | undefined> = {
+  LANG: undefined,
+  LC_ALL: undefined,
+  LC_MESSAGES: undefined,
+  LC_NUMERIC: undefined,
+  LC_TIME: undefined,
+  LANGUAGE: undefined,
+  RITUAL_LOCALE: 'en',
+}
+
+/**
+ * The generated pseudo-locale, baked into the binary these tests spawn.
+ *
+ * Shipping builds carry English only (`RITUAL_BUNDLED_LOCALES` defaults to
+ * `en`, and English is inline in the catalog rather than baked). Test builds
+ * add `en-XA` because it is the only locale that can prove a string was routed
+ * through `t()`: its output is bracketed, so anything still in plain ASCII was
+ * never translated. Nothing else changes — the suite pins `RITUAL_LOCALE=en`,
+ * so an extra dictionary on the shelf is invisible to every other assertion.
+ *
+ * `package.json`'s `test:it` sets the same value for the build it runs ahead of
+ * the suite; this keeps a directly invoked `bun test` building the same binary.
+ */
+export const TEST_BUNDLED_LOCALES = 'en-XA'
+
 let binaryReady = false
 
 /**
@@ -28,6 +67,7 @@ export async function ensureBinary(): Promise<void> {
     cwd: repoRoot,
     stdout: 'pipe',
     stderr: 'pipe',
+    env: { ...process.env, RITUAL_BUNDLED_LOCALES: TEST_BUNDLED_LOCALES },
   })
   const code = await build.exited
   if (code !== 0) {
@@ -60,6 +100,7 @@ export async function runCli(
       // exported in the developer's shell must not redirect every spawned CLI.
       // Tests that exercise the variable opt back in through `env`.
       RITUAL_BASE_DIR: undefined,
+      ...LOCALE_ENV,
       ...env,
     },
   })

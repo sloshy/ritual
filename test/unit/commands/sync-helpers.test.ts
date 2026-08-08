@@ -19,8 +19,8 @@ import type { ScriptingOptions } from '../../../src/commands/scripting'
  * be able to print.
  */
 
-const LISTS: UnreadableSubject = { one: 'collection list', many: 'collection lists' }
-const DECKS: UnreadableSubject = { one: 'deck', many: 'decks' }
+const LISTS: UnreadableSubject = 'collectionLists'
+const DECKS: UnreadableSubject = 'decks'
 
 function source(name: string, warnings: string[]): UnreadableSource {
   return { name, file: `${name.toLowerCase().replace(/\s+/g, '-')}.md`, warnings }

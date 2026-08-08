@@ -1,13 +1,15 @@
 import { buylistFieldsFor } from './buylist-quotes'
 import { useSellMode } from './useSellMode'
 import { sellableFromCardData, selectionToCartCsv } from './sell-value'
-import { BUYER_DISPLAY_NAMES } from '../buylist'
+import { buyerName } from '../buylist'
 import { cartBuyer } from './sell-mode'
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
 import { normalizeCardName } from '../term-match'
+import { useT } from '../ui/i18n'
+import type { MessageKey } from '../i18n/messages/en'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
@@ -16,12 +18,7 @@ import type { ScryfallCard } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { CollectionCardEntry } from './data-types'
 import type { MetaEntry } from './meta-entry'
-import {
-  CARD_LABEL_DISPLAY_NAMES,
-  effectiveLabels,
-  formatCardLabels,
-  type CardLabel,
-} from '../card-labels'
+import { cardLabelName, effectiveLabels, formatCardLabels, type CardLabel } from '../card-labels'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
 import { getCardPriceForFinish, formatPrice, formatPriceOrNA } from '../price-currency'
@@ -43,7 +40,7 @@ import { ChangelogModal } from './ChangelogModal'
 import { useCardNavScroll } from './card-nav'
 import { TooltipOverlay } from './TooltipOverlay'
 import { useReadCardMenu } from './useReadCardMenu'
-import { capitalize } from './utils'
+import { finishName, rarityName } from './printing-display'
 import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
@@ -84,6 +81,19 @@ import {
 
 // Collections always have a specific printing, so 'printing' grouping does not apply.
 type CollectionGroupBy = Exclude<GroupBy, 'printing'>
+
+/**
+ * Every key a group-by dropdown label may name. Narrower than `MessageKey` so
+ * `t()` can render one without params, and `Extract` turns a key that no longer
+ * exists in the catalog into `never` — a compile error at the table below.
+ */
+type GroupByMessageKey = Extract<MessageKey, `site.groupBy.${string}` | `domain.groupBy.${string}`>
+
+/**
+ * A group-by choice before its label is rendered. The `value` half is a
+ * persisted URL token and stays locale-independent.
+ */
+type CollectionGroupByOption = { value: CollectionGroupBy; label: GroupByMessageKey }
 
 // The sort fields this page offers, in order — shared by the toolbar's dropdown
 // options and the URL sync's validation of incoming sort layers.
@@ -155,6 +165,7 @@ interface CollectionPageProps {
 }
 
 export const CollectionPage: Component<CollectionPageProps> = (props) => {
+  const t = useT()
   const selection = useCardSelection({ kind: 'collection', name: props.name })
   const editActions = createMemo(() =>
     props.bulkEdit ? buildSelectionEditActions(props.bulkEdit, selection) : undefined,
@@ -166,18 +177,24 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   // `sellMode` is a parameter rather than a read of the toolbar signal so the URL
   // sync can ask for the *full* option set (what a shared link may legally name)
   // while the dropdown shows only what is currently offered.
-  const groupByOptionsFor = (sellMode: boolean): SelectOption<CollectionGroupBy>[] => [
-    ...(hasSections() ? [{ value: 'section' as const, label: 'Section' }] : []),
-    { value: 'type', label: 'Type' },
-    { value: 'cmc', label: 'Mana Value' },
-    { value: 'color-identity', label: 'Color Identity' },
-    { value: 'price', label: 'Price' },
+  const groupByOptionsFor = (sellMode: boolean): CollectionGroupByOption[] => [
+    ...(hasSections()
+      ? [{ value: 'section' as const, label: 'site.groupBy.section' as const }]
+      : []),
+    { value: 'type', label: 'site.groupBy.type' },
+    { value: 'cmc', label: 'site.groupBy.cmc' },
+    { value: 'color-identity', label: 'site.groupBy.colorIdentity' },
+    { value: 'price', label: 'site.groupBy.price' },
     ...(sellMode ? SELL_GROUP_BY_OPTIONS : []),
-    { value: 'none', label: 'None' },
+    { value: 'none', label: 'site.groupBy.none' },
   ]
   // A plain accessor, not a memo: `createMemo` evaluates eagerly, and `sell` is
   // declared below. Rebuilding a seven-element array on read costs nothing.
-  const groupByOptions = (): SelectOption<CollectionGroupBy>[] => groupByOptionsFor(sell.active())
+  const groupByOptions = (): SelectOption<CollectionGroupBy>[] =>
+    groupByOptionsFor(sell.active()).map((option) => ({
+      value: option.value,
+      label: t(option.label),
+    }))
   // A parameter, not a read of the live mode, for the same reason as the
   // group-by options: the URL sync validates against the full set a shared
   // link may name, while the dropdown offers only what is currently on.
@@ -418,7 +435,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     if (!buyer) return []
     return [
       {
-        label: `${BUYER_DISPLAY_NAMES[buyer]} cart (.csv)`,
+        label: t('site.export.buyerCart', { buyer: buyerName(buyer) }),
         extension: 'csv',
         mime: 'text/csv',
         serialize: () => {
@@ -588,7 +605,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     if (entry.finish) {
       parts.push({
         label: 'finish',
-        value: capitalize(entry.finish),
+        value: finishName(t, entry.finish),
       })
     }
     if (entry.condition) {
@@ -604,12 +621,12 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     if (labels.length > 0) {
       parts.push({
         label: 'labels',
-        value: labels.map((l) => CARD_LABEL_DISPLAY_NAMES[l]).join(' · '),
+        value: labels.map(cardLabelName).join(' · '),
       })
     }
     parts.push({
       label: 'rarity',
-      value: capitalize(card.rarity),
+      value: rarityName(t, card.rarity),
     })
     return parts
   })
@@ -647,8 +664,10 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         <div>
           <h1 class="page-title">{props.name}</h1>
           <p class="page-stats">
-            {props.entries.length} cards · Total:{' '}
-            {formatPrice(computedTotalPrice(), props.currency)}
+            {t('site.stats.cardsAndTotal', {
+              count: props.entries.length,
+              amount: formatPrice(computedTotalPrice(), props.currency),
+            })}
             <FilteredPriceStat
               filters={cardFilters}
               amount={filteredTotalPrice()}
@@ -678,7 +697,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
           <div class="btn-group">
             <Show when={props.onCombine}>
               <button onClick={() => props.onCombine!()} class="btn btn-secondary">
-                Combine with list…
+                {t('site.page.combineWithList')}
               </button>
             </Show>
             <Show when={props.changelog && props.changelog.length > 0}>
@@ -686,7 +705,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
                 onClick={() => setShowChangelog(true)}
                 class="btn btn-secondary btn-view-changes"
               >
-                View Changes
+                {t('site.page.viewChanges')}
               </button>
             </Show>
             <Show when={props.enableExport}>
@@ -728,7 +747,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         showLabelsFilter
         extraToggles={[
           {
-            label: 'Group Duplicates',
+            label: t('site.collection.groupDuplicates'),
             checked: groupDuplicates(),
             onChange: () => setGroupDuplicates((prev) => !prev),
           },

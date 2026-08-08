@@ -1,5 +1,6 @@
 import { type Component, type JSX, Show } from 'solid-js'
 import { useDialogModal } from './useDialogModal'
+import { useT } from './i18n'
 
 /** Slide-out duration; matches the `.sheet-shell` / `.sheet-panel` transitions in modal.css. */
 const SHEET_EXIT_MS = 200
@@ -24,6 +25,7 @@ export type BottomSheetProps = {
  * Modal: Escape, backdrop tap, or the header's × button.
  */
 export const BottomSheet: Component<BottomSheetProps> = (props) => {
+  const t = useT()
   const dialog = useDialogModal(() => props.open, {
     onDismiss: () => props.onClose(),
     exitMs: SHEET_EXIT_MS,
@@ -49,7 +51,7 @@ export const BottomSheet: Component<BottomSheetProps> = (props) => {
           <button
             type="button"
             class="sheet-close"
-            aria-label="Close"
+            aria-label={t('ui.dialog.close')}
             onClick={dialog.requestClose}
           >
             ✕

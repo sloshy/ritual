@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import fs from 'node:fs/promises'
 import { classifyFetchCard, scryfallClient } from '../scryfall'
 import { getErrorMessage } from '../errors'
+import { t } from '../i18n/t'
 import {
   addFieldsOption,
   addOutputOption,
@@ -53,12 +54,12 @@ export function registerCardCommand(program: Command): void {
     addFieldsOption(
       program
         .command('card')
-        .description('Look up a single card by name using Scryfall')
-        .argument('[name]', 'Card name to search for')
-        .option('--fuzzy', 'Use fuzzy matching instead of exact', false)
-        .option('--set <code>', 'Filter by set code')
-        .option('--stdin', 'Read card names from stdin (one per line)')
-        .option('--from-file <path>', 'Read card names from file (one per line)'),
+        .description(t('help.card.description'))
+        .argument('[name]', t('help.card.name'))
+        .option('--fuzzy', t('help.card.fuzzy'), false)
+        .option('--set <code>', t('help.card.set'))
+        .option('--stdin', t('help.card.stdin'))
+        .option('--from-file <path>', t('help.card.fromFile')),
     ),
     OUTPUT_FORMATS,
     'json',
@@ -68,7 +69,13 @@ export function registerCardCommand(program: Command): void {
       return
     }
     if (options.stdin && options.fromFile) {
-      emitError('usage_error', 'Use either --stdin or --from-file, not both.', scriptingOptions)
+      emitError(
+        'usage_error',
+        t('cli.card.stdinOrFile'),
+        scriptingOptions,
+        undefined,
+        'cli.card.stdinOrFile',
+      )
       process.exitCode = ExitCode.UsageError
       return
     }
@@ -84,8 +91,10 @@ export function registerCardCommand(program: Command): void {
         const failure = classifyFileReadError(e)
         emitError(
           failure.errorCode,
-          `Could not read file '${options.fromFile}': ${getErrorMessage(e)}`,
+          t('cli.card.readFailed', { file: options.fromFile, reason: getErrorMessage(e) }),
           scriptingOptions,
+          undefined,
+          'cli.card.readFailed',
         )
         process.exitCode = failure.exitCode
         return
@@ -98,8 +107,10 @@ export function registerCardCommand(program: Command): void {
     if (names.length === 0) {
       emitError(
         'usage_error',
-        'Provide a card name argument or use --stdin/--from-file for batch input.',
+        t('cli.card.nameRequired'),
         scriptingOptions,
+        undefined,
+        'cli.card.nameRequired',
       )
       process.exitCode = ExitCode.UsageError
       return
@@ -129,15 +140,23 @@ export function registerCardCommand(program: Command): void {
       if (outcome.kind === 'failed') {
         emitError(
           'runtime_error',
-          `Failed to fetch card '${cardName}': ${outcome.message}`,
+          t('cli.card.fetchFailed', { name: cardName, reason: outcome.message }),
           scriptingOptions,
+          undefined,
+          'cli.card.fetchFailed',
         )
         hadFailure = true
         continue
       }
 
       if (outcome.kind === 'not-found') {
-        emitError('not_found', `Card '${cardName}' not found.`, scriptingOptions)
+        emitError(
+          'not_found',
+          t('cli.card.notFound', { name: cardName }),
+          scriptingOptions,
+          undefined,
+          'cli.card.notFound',
+        )
         hadMissing = true
         continue
       }

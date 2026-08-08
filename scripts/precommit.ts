@@ -41,6 +41,8 @@ type Check = {
   cmd: string[]
   // True if the check reads a build-generated asset and must wait for the build.
   needsBuild: boolean
+  // Extra environment for the child, merged over this process's own.
+  env?: Record<string, string>
 }
 
 type CheckResult = {
@@ -56,7 +58,45 @@ type Plan = {
 }
 
 const CODE_FILE_PATTERN = /\.(js|ts|tsx)$/
-const DISPLAY_ORDER = ['build', 'typecheck', 'lint', 'test:unit', 'format']
+const DISPLAY_ORDER = ['build', 'typecheck', 'lint', 'locales', 'test:unit', 'format']
+
+/**
+ * Message-catalog validation, blocking in all three modes. `needsBuild: false`
+ * — it reads the hand-written English catalog and `locales/*.json`, never a
+ * build artifact. (The build writes the generated pseudo-locale concurrently;
+ * `generate-locales.ts` publishes it with a rename so this check can never see
+ * a partial file.)
+ *
+ * Run with no flags, which since Phase 7 means dead-key detection is on: an
+ * English key with no `t('…')` call site fails the run. `--allow-dead-keys`
+ * exists for a branch that lands catalog entries ahead of their call sites.
+ */
+const LOCALES_CHECK: Check = {
+  name: 'locales',
+  cmd: ['bun', 'run', 'scripts/check-locales.ts'],
+  needsBuild: false,
+}
+
+/**
+ * The unit suite, run with missing message keys and missing plural/select
+ * parameters made fatal (plan §10).
+ *
+ * `t()` degrades in production — a gap renders the key string rather than
+ * throwing, because a missing translation must never take a command down. That
+ * is exactly wrong for a verification run: the degradation is silent, and a test
+ * asserting on rendered prose would pass against a key that was never wired.
+ * `RITUAL_I18N_STRICT=1` flips the same seam `check-locales.ts` covers
+ * statically into a runtime failure, so the two agree.
+ *
+ * Set here rather than in the shell so `bun run test`, `bun run verify` and the
+ * Husky hook all get it; the Playwright suite gets it from `playwright.config.ts`.
+ */
+const UNIT_TEST_CHECK: Check = {
+  name: 'test:unit',
+  cmd: ['bun', 'test', 'test/unit', '--parallel'],
+  needsBuild: false,
+  env: { RITUAL_I18N_STRICT: '1' },
+}
 
 async function getStagedFiles(): Promise<string[]> {
   // --diff-filter=ACMR excludes deletions, whose paths no longer exist on disk.
@@ -82,7 +122,8 @@ async function planChecks(mode: Mode): Promise<Plan> {
           // Cold (no --cache): type-aware rules can otherwise return a stale pass
           // for a file whose type dependencies changed but whose own bytes did not.
           { name: 'lint', cmd: ['bun', 'run', 'lint'], needsBuild: false },
-          { name: 'test:unit', cmd: ['bun', 'test', 'test/unit', '--parallel'], needsBuild: false },
+          LOCALES_CHECK,
+          UNIT_TEST_CHECK,
           // Whole-repo prettier reads `app.compiled.js` / admin compiled CSS,
           // which are not in `.prettierignore`, so it must wait for the build.
           { name: 'format', cmd: ['bun', 'run', 'check-format'], needsBuild: true },
@@ -98,7 +139,8 @@ async function planChecks(mode: Mode): Promise<Plan> {
           // stale-pass risk it carries for type-aware rules is acceptable here;
           // `verify` (full mode) runs cold as the correctness gate.
           { name: 'lint', cmd: ['bun', 'run', 'lint', '--cache'], needsBuild: false },
-          { name: 'test:unit', cmd: ['bun', 'test', 'test/unit', '--parallel'], needsBuild: false },
+          LOCALES_CHECK,
+          UNIT_TEST_CHECK,
         ],
       }
 
@@ -113,6 +155,9 @@ async function planChecks(mode: Mode): Promise<Plan> {
           cmd: ['bunx', 'prettier', '--check', '--ignore-unknown', ...staged],
           needsBuild: false,
         })
+        // Not gated on code files: a translator's commit touches only
+        // `locales/*.json`, and validation is the whole review gate for it.
+        checks.push(LOCALES_CHECK)
       }
       if (codeFiles.length > 0) {
         checks.push(
@@ -131,7 +176,7 @@ async function planChecks(mode: Mode): Promise<Plan> {
             needsBuild: false,
           },
           { name: 'typecheck', cmd: ['bunx', 'tsc', '--noEmit'], needsBuild: true },
-          { name: 'test:unit', cmd: ['bun', 'test', 'test/unit', '--parallel'], needsBuild: false },
+          UNIT_TEST_CHECK,
         )
       }
 
@@ -142,7 +187,13 @@ async function planChecks(mode: Mode): Promise<Plan> {
 
 async function runCheck(check: Check): Promise<CheckResult> {
   const start = performance.now()
-  const proc = Bun.spawn(check.cmd, { stdout: 'pipe', stderr: 'pipe' })
+  const proc = Bun.spawn(check.cmd, {
+    stdout: 'pipe',
+    stderr: 'pipe',
+    // Bun.spawn replaces the environment wholesale when `env` is given, so the
+    // parent's own variables are spread back in first.
+    env: check.env === undefined ? undefined : { ...process.env, ...check.env },
+  })
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),

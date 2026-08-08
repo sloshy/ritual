@@ -12,9 +12,14 @@ import {
   getSearchDebounceMs,
   getSiteSelectionConfig,
   getSiteSellMode,
+  getUiLocale,
   loadRitualConfig,
   type RitualConfig,
 } from '../ritual-config'
+import { compareData } from '../i18n/collate'
+import { isLocaleTagError, parseLocaleTag } from '../i18n/locale-tag'
+import { DEFAULT_LOCALE } from '../i18n/runtime'
+import type { LocaleTag } from '../i18n/types'
 import { dirForType } from '../resolve-list'
 import { enumerateSources } from './lists'
 import { deckCardNames, flatListCardNames } from '../site/details/card-names'
@@ -50,6 +55,17 @@ export type LiveJson = {
 export interface LiveSiteData {
   getIndex(): Promise<LiveJson>
   getDetail(kind: ListType, slug: string): Promise<LiveJson | null>
+}
+
+/** What the live payloads need to know about the tree they are served from. */
+export type LiveSiteDataOptions = {
+  /**
+   * The published site directory. Only the locale dictionaries are read from
+   * it: `availableLocales` must describe the files the browser can actually
+   * fetch, which is whatever the last build wrote into `dist/locales/`, not
+   * what this binary happens to carry.
+   */
+  distDir?: string
 }
 
 /** All three currencies are always served live (build-site's default set). */
@@ -100,7 +116,34 @@ function logParseWarnings(kind: ListType, basename: string, warnings: readonly s
   }
 }
 
-export function createLiveSiteData(): LiveSiteData {
+/**
+ * The locales the served tree has dictionaries for, English first.
+ *
+ * Read from disk on every index request rather than memoized: a rebuild into
+ * the same directory can add or remove languages under a running server, and
+ * one `readdir` is noise next to the per-list stats the same request already
+ * does.
+ */
+async function publishedLocales(distDir: string | undefined): Promise<LocaleTag[]> {
+  if (distDir === undefined) return [DEFAULT_LOCALE]
+  let entries: string[]
+  try {
+    entries = await fs.readdir(path.join(distDir, 'locales'))
+  } catch {
+    return [DEFAULT_LOCALE]
+  }
+  const tags: LocaleTag[] = []
+  for (const name of entries) {
+    if (!name.endsWith('.json')) continue
+    const tag = parseLocaleTag(name.slice(0, -'.json'.length))
+    if (isLocaleTagError(tag) || tag === DEFAULT_LOCALE) continue
+    tags.push(tag)
+  }
+  tags.sort(compareData)
+  return [DEFAULT_LOCALE, ...tags]
+}
+
+export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteData {
   const listMemo = new Map<string, BuiltList>()
   // slug lookup for details, refreshed by every index enumeration.
   const slugMap = new Map<string, BuiltList>()
@@ -156,6 +199,10 @@ export function createLiveSiteData(): LiveSiteData {
       bannedPrintings: [...getBannedPrintings(config)].sort(),
       searchDebounceMs: getSearchDebounceMs(config),
       defaultLanguage: getDefaultLanguage(config),
+      // Every field the index payload reads from config has to be here, or a
+      // `config set` of it is invisible until some unrelated file's mtime moves
+      // — the failure mode this allowlist exists to make reviewable.
+      uiLocale: getUiLocale(config),
       selection: getSiteSelectionConfig(config.site),
       sellMode: getSiteSellMode(config),
     })
@@ -286,6 +333,8 @@ export function createLiveSiteData(): LiveSiteData {
       pricesDate,
       searchDebounceMs: getSearchDebounceMs(config),
       defaultLanguage: getDefaultLanguage(config),
+      uiLocale: getUiLocale(config),
+      availableLocales: await publishedLocales(options.distDir),
       // Same-origin marker: this payload is only ever served by `serve --api`.
       apiBaseUrl: '',
       sellMode: getSiteSellMode(config),

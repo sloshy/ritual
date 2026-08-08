@@ -1,5 +1,6 @@
 import { type Component, createMemo, createSignal, Show } from 'solid-js'
 import { Modal } from '../../ui/Modal'
+import { useT } from '../../ui/i18n'
 
 type TextPromptDialogProps = {
   open: boolean
@@ -20,6 +21,7 @@ type TextPromptDialogProps = {
 export const TextPromptDialog: Component<TextPromptDialogProps> = (props) => {
   let inputRef: HTMLInputElement | undefined
   const [value, setValue] = createSignal('')
+  const t = useT()
 
   const error = createMemo(() => props.validate?.(value()) ?? null)
   const canConfirm = () => error() === null && value().trim() !== ''
@@ -73,7 +75,7 @@ export const TextPromptDialog: Component<TextPromptDialogProps> = (props) => {
       </div>
       <div class="confirm-dialog-actions">
         <button type="button" class="btn btn-secondary" onClick={props.onCancel}>
-          Cancel
+          {t('ui.dialog.cancel')}
         </button>
         <button type="button" class="btn btn-primary" disabled={!canConfirm()} onClick={confirm}>
           {props.confirmLabel}

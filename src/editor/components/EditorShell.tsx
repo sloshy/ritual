@@ -4,6 +4,7 @@ import type { UseEditorResult, ListItem } from '../useEditor'
 import type { UseEditorDefaultsResult } from '../useEditorDefaults'
 import type { SearchProvider } from '../search-provider'
 import type { ListType } from '../../list-type'
+
 import { ChangesDialog } from './ChangesDialog'
 import { ImportChangesDialog } from './ImportChangesDialog'
 import { DiscardConfirmDialog } from './DiscardConfirmDialog'
@@ -13,6 +14,9 @@ import { EditorActionBar, focusActionBar } from './EditorActionBar'
 import { TextPromptDialog } from './TextPromptDialog'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { useEditorShortcuts } from '../useEditorShortcuts'
+import { type EditorEntity, entityListType } from '../entity'
+import { renderStatus } from '../useEditorStatus'
+import { useT, useTDynamic } from '../../ui/i18n'
 
 type BaseCardData = {
   cards: Record<string, ScryfallCard | null>
@@ -21,11 +25,9 @@ type BaseCardData = {
 }
 
 type EditorShellProps<TData, TCardEntry> = {
-  /** Lowercase entity noun for status text (e.g. "deck", "wanted list"). */
-  entityLabel: string
+  /** Which kind of list is being edited; names it in the loading placeholder. */
+  entityLabel: EditorEntity
   selectorId: string
-  selectorLabel: string
-  selectorPlaceholder: string
   editor: UseEditorResult<TData, TCardEntry>
   cardData: BaseCardData
   /** Backend resolving card search (admin API or Scryfall), forwarded to the search modals. */
@@ -54,6 +56,9 @@ export function EditorShell<TData, TCardEntry>(
   props: EditorShellProps<TData, TCardEntry>,
 ): JSX.Element {
   const editor = props.editor
+  const t = useT()
+  const tDyn = useTDynamic()
+  const listType = (): ListType => entityListType(props.entityLabel)
   let actionBarEl: HTMLDivElement | undefined
   const [showShortcuts, setShowShortcuts] = createSignal(false)
 
@@ -69,7 +74,7 @@ export function EditorShell<TData, TCardEntry>(
       <Show when={editor.showSelector}>
         <div class="deck-selector-container">
           <label class="deck-selector-label" for={props.selectorId}>
-            {props.selectorLabel}
+            {t('ui.editor.selectorLabel', { listType: listType() })}
           </label>
           <select
             id={props.selectorId}
@@ -77,7 +82,9 @@ export function EditorShell<TData, TCardEntry>(
             value={editor.slug() ?? ''}
             onChange={editor.handleSelect}
           >
-            <option value="">— {props.selectorPlaceholder} —</option>
+            <option value="">
+              — {t('ui.editor.selectorPlaceholder', { listType: listType() })} —
+            </option>
             <For each={editor.list()}>
               {(item: ListItem) => <option value={item.slug}>{item.name}</option>}
             </For>
@@ -87,13 +94,13 @@ export function EditorShell<TData, TCardEntry>(
 
       {/* Status messages */}
       <Show when={editor.status.error}>
-        <div class="alert alert-error">{editor.status.error}</div>
+        {(error) => <div class="alert alert-error">{renderStatus(tDyn, error())}</div>}
       </Show>
       <Show when={editor.status.saveStatus}>
-        <div class="alert alert-success">{editor.status.saveStatus}</div>
+        {(saved) => <div class="alert alert-success">{renderStatus(tDyn, saved())}</div>}
       </Show>
       <Show when={editor.status.loading}>
-        <p class="text-muted">Loading {props.entityLabel}...</p>
+        <p class="text-muted">{t('ui.editor.loading', { listType: listType() })}</p>
       </Show>
 
       {/* Content slot */}

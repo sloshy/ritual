@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import { Glob } from 'bun'
+import path from 'node:path'
 import matter from 'gray-matter'
 import {
   SKILLS,
@@ -49,6 +51,19 @@ describe('skill catalog invariants', () => {
     ['ritual-decks', '--moxfield-user-agent'],
     ['ritual-collections', 'advisories'],
     ['ritual', 'Fenced code blocks are prose'],
+    // The UI-locale surface. An agent that cannot tell `uiLocale` from
+    // `defaultLanguage` will reach for the expensive one (a non-`en`
+    // `defaultLanguage` switches the cache to the multi-GB all-cards bulk), so
+    // each spelling of the interface setting is named where it is used.
+    ['ritual', '--locale <tag>'],
+    ['ritual', 'RITUAL_LOCALE'],
+    ['ritual', 'uiLocale'],
+    ['ritual', 'ritual locale'],
+    ['ritual-site', '--locale <tag>'],
+    ['ritual-site', '--locales <tags...>'],
+    ['ritual-site', '--locale-file <path...>'],
+    // The other half of the contract: what the locale never moves.
+    ['ritual-site', 'English by contract'],
   ])('the %s skill documents %p', (skillName, phrase) => {
     const skill = SKILLS.find((s) => s.name === skillName)
     expect(skill).toBeDefined()
@@ -134,6 +149,43 @@ describe('skill bodies name only tools that exist', () => {
     // naming tools, would leave the loop above asserting nothing at all.
     expect(seen.length).toBeGreaterThan(0)
   })
+})
+
+describe('skill content is English by contract', () => {
+  /**
+   * Skill bodies are model-facing prose (plan §11), and their content hash is
+   * what `classifyInstalledSkill` uses to tell a machine-managed install from a
+   * user-edited one at one fixed path — a body that changed with the reader's
+   * UI locale would make every installed skill look edited the moment the
+   * language changed. The fence is an import boundary, checked textually the
+   * way `test/unit/i18n-conventions.test.ts` checks the persistence fence: no
+   * content module may reach the message catalog at all.
+   *
+   * `catalog.ts` is deliberately *not* fenced — its "Unknown skill" refusal is
+   * ordinary CLI prose and does come from the catalog. Only the content is
+   * frozen.
+   */
+  test('no skill content module imports src/i18n', async () => {
+    const root = path.resolve(import.meta.dir, '../..')
+    const files = [...new Glob('src/skills/content/*.ts').scanSync(root)].sort()
+    // Vacuity guard: a moved directory would otherwise scan nothing.
+    expect(files.length).toBeGreaterThan(0)
+
+    const offenders: string[] = []
+    for (const file of files) {
+      const source = await Bun.file(path.join(root, file)).text()
+      if (/from\s+['"][^'"]*\bi18n\b/.test(source)) offenders.push(file)
+    }
+    expect(offenders).toEqual([])
+  })
+
+  // A companion "no skill body carries pseudo-locale text" case used to sit here.
+  // It was unfalsifiable: `SKILLS` is built at import time under the default `en`
+  // locale, and the case never activated `en-XA`, so a body that *had* gone
+  // through `t()` would still have rendered as plain ASCII. Activating the
+  // pseudo-locale before `src/skills/catalog.ts` is first imported is not
+  // practical under module caching, and the end-to-end property is covered by
+  // `test/integration/skills-install.test.ts`.
 })
 
 describe('validateSkill', () => {

@@ -1,4 +1,5 @@
 import { type Component, Show, For, createSignal } from 'solid-js'
+import { useT } from '../ui/i18n'
 
 type TagFilterWarningProps = {
   /**
@@ -16,6 +17,7 @@ type TagFilterWarningProps = {
  * expands to name the affected cards.
  */
 export const TagFilterWarning: Component<TagFilterWarningProps> = (props) => {
+  const t = useT()
   const [open, setOpen] = createSignal(false)
   const count = () => props.untaggedCardNames.length
 
@@ -31,10 +33,7 @@ export const TagFilterWarning: Component<TagFilterWarningProps> = (props) => {
           <span class="tag-filter-warning-icon" aria-hidden="true">
             ⚠
           </span>
-          <span>
-            {count()} added {count() === 1 ? 'card has' : 'cards have'} no tag data — the tag filter
-            may not match {count() === 1 ? 'it' : 'them'}
-          </span>
+          <span>{t('site.tagFilter.untagged', { count: count() })}</span>
           <span class="tag-filter-warning-caret" aria-hidden="true">
             {open() ? '▾' : '▸'}
           </span>

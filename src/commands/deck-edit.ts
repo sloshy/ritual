@@ -18,6 +18,7 @@ import {
   type PrintingTuple,
 } from '../change-event'
 import { displayLanguage, type CardLanguage } from '../card-language'
+import { t } from '../i18n/t'
 import { allocateId, assignMissingDeckCardIds, collectDeckCardIds, createIdPool } from '../card-id'
 import { applyChangeToDeck } from '../editor/deck-changes'
 import { normalizeBoard } from '../deck-sync/diff'
@@ -195,13 +196,13 @@ export function discardDeckSessionAdd(
   // conservative move; the discarded line's own events were filtered already.
   if (state.editUndo.length > 0) {
     state.editUndo = []
-    console.log('(Edit undo history cleared by the discard.)')
+    console.log(t('cli.edit.undoHistoryCleared'))
   }
 
   ctx.lastAdded = null
   ctx.lastChangeIndex = null
   ctx.lastAddedCount = 0
-  console.log(`Discarded: ${outcome.discarded.name}`)
+  console.log(t('cli.edit.discardedCard', { name: outcome.discarded.name }))
   return true
 }
 
@@ -240,7 +241,9 @@ export function applyDeckFieldEdit(
 function logUpdatedLine(state: DeckSessionState, cardId: number, fallbackName: string): void {
   const located = findCardById(state.deck, cardId)
   console.log(
-    `Changed: ${located ? renderDeckCardLine(located.card, located.section.name) : fallbackName}`,
+    t('cli.edit.changedLine', {
+      line: located ? renderDeckCardLine(located.card, located.section.name) : fallbackName,
+    }),
   )
 }
 
@@ -255,13 +258,13 @@ async function promptMoveSection(deck: DeckData, current: string): Promise<strin
   const response = (await prompts({
     type: 'select',
     name: 'section',
-    message: 'Move to which section?',
+    message: t('cli.deck.promptMoveSection'),
     choices: [
       ...deckSectionNames(deck).map((n) => ({
-        title: n === current ? `${n} (current)` : n,
+        title: n === current ? t('cli.edit.current', { label: n }) : n,
         value: n,
       })),
-      { title: '+ New Section', value: NEW_SECTION },
+      { title: `+ ${t('cli.deck.newSection')}`, value: NEW_SECTION },
     ],
     onState: (promptState: PromptState) => {
       if (promptState.exited) isExited = true
@@ -291,14 +294,19 @@ export async function editDeckCard(
   const sectionName = located.section.name
 
   const action = await promptEditAction(renderDeckCardLine(card, sectionName), [
-    { title: '🖼️  Change Printing', value: 'printing' },
-    { title: '➕ Add a Copy', value: 'add-copy' },
-    ...(card.quantity > 1 ? [{ title: '➖ Remove a Copy', value: 'remove-copy' }] : []),
-    { title: '🌐 Change Language', value: 'language' },
-    { title: '🗂️  Move to Section', value: 'move' },
-    { title: '📝 Edit Note', value: 'note' },
+    { title: `🖼️  ${t('cli.editAction.changePrinting')}`, value: 'printing' },
+    { title: `➕ ${t('cli.editAction.addCopy')}`, value: 'add-copy' },
+    ...(card.quantity > 1
+      ? [{ title: `➖ ${t('cli.editAction.removeCopy')}`, value: 'remove-copy' }]
+      : []),
+    { title: `🌐 ${t('cli.editAction.changeLanguage')}`, value: 'language' },
+    { title: `🗂️  ${t('cli.editAction.moveToSection')}`, value: 'move' },
+    { title: `📝 ${t('cli.editAction.editNote')}`, value: 'note' },
     {
-      title: card.quantity > 1 ? `🗑️  Remove All Copies (${card.quantity})` : '🗑️  Remove Card',
+      title:
+        card.quantity > 1
+          ? `🗑️  ${t('cli.editAction.removeAllCopies', { count: card.quantity })}`
+          : `🗑️  ${t('cli.editAction.removeCard')}`,
       value: 'remove-line',
     },
   ])
@@ -308,7 +316,7 @@ export async function editDeckCard(
     const result = await resolveCardPrinting(card.name, deps.sessionConfig, deps.excludeDigitalOnly)
     if (result.kind === 'cancelled') return
     if (result.kind === 'none') {
-      console.error('No printings found.')
+      console.error(t('cli.edit.noPrintings'))
       return
     }
     const finishAndCondition = await promptFinishAndCondition(
@@ -328,7 +336,7 @@ export async function editDeckCard(
     }
     const before = cardPrinting(card)
     applyDeckFieldEdit(state, ctx, card, sectionName, cardId, {
-      label: `printing on ${card.name}`,
+      label: t('cli.editLabel.printing', { name: card.name }),
       change: createSetPrintingChange(card.name, { ...target, cardId }),
       inverse: createSetPrintingChange(card.name, { ...before, cardId }),
       consolidate: (changes, original) =>
@@ -351,7 +359,13 @@ export async function editDeckCard(
     // The new copy joins the session adds, so the regular Undo Last Add /
     // Discard menu owns reverting it (no edit-undo entry).
     state.sessionAdds.push({ cardId, name: card.name, printing, section: sectionName })
-    console.log(`Added another ${card.name} to ${sectionName} (${card.quantity + 1}x total)`)
+    console.log(
+      t('cli.deck.addedAnother', {
+        name: card.name,
+        section: sectionName,
+        count: card.quantity + 1,
+      }),
+    )
     return
   }
 
@@ -364,7 +378,7 @@ export async function editDeckCard(
     const language = await promptLanguageChoice(card.language)
     if (language === null || language === displayLanguage(card.language)) return
     applyDeckFieldEdit(state, ctx, card, sectionName, cardId, {
-      label: `language on ${card.name}`,
+      label: t('cli.editLabel.language', { name: card.name }),
       change: createSetLanguageChange(card.name, { language, cardId }),
       inverse: createSetLanguageChange(card.name, {
         language: displayLanguage(card.language),
@@ -381,7 +395,7 @@ export async function editDeckCard(
     const target = await promptMoveSection(state.deck, sectionName)
     if (!target || target === sectionName) return
     applyDeckFieldEdit(state, ctx, card, sectionName, cardId, {
-      label: `section of ${card.name}`,
+      label: t('cli.editLabel.section', { name: card.name }),
       change: createSetSectionChange(card.name, target, cardId),
       inverse: createSetSectionChange(card.name, sectionName, cardId),
       consolidate: (changes, original) =>
@@ -412,13 +426,17 @@ export async function editDeckNote(
   const edit = await promptNoteEdit(card.note)
   if (!edit) return
   applyDeckFieldEdit(state, ctx, card, sectionName, cardId, {
-    label: `note on ${card.name}`,
+    label: t('cli.editLabel.note', { name: card.name }),
     change: createSetNoteChange(card.name, { note: edit.note, cardId }),
     inverse: createSetNoteChange(card.name, { note: edit.before, cardId }),
     consolidate: (changes, original) =>
       consolidateSetNote(changes, card.name, edit.note, original.note ?? '', cardId),
   })
-  console.log(edit.note ? `Note set on ${card.name}.` : `Note cleared on ${card.name}.`)
+  console.log(
+    edit.note
+      ? t('cli.edit.noteSet', { name: card.name })
+      : t('cli.edit.noteCleared', { name: card.name }),
+  )
 }
 
 /**
@@ -454,7 +472,7 @@ export function performDeckCopyRemoval(
   state.editUndo.push({
     cardId,
     kind: 'removal',
-    label: `removing a copy of ${card.name}`,
+    label: t('cli.editLabel.removeCopy', { name: card.name }),
     inverse: [
       createAddChange(card.name, {
         ...cardPrinting(card),
@@ -481,7 +499,9 @@ async function removeDeckLine(
   const confirmResponse = (await prompts({
     type: 'confirm',
     name: 'confirm',
-    message: `Remove ${renderDeckCardLine(located.card, located.section.name)}?`,
+    message: t('cli.edit.confirmRemove', {
+      line: renderDeckCardLine(located.card, located.section.name),
+    }),
     initial: false,
   })) as ConfirmPromptResponse
   if (!confirmResponse.confirm) return
@@ -551,14 +571,14 @@ export function performDeckLineRemoval(
   state.editUndo.push({
     cardId,
     kind: 'removal',
-    label: `removal of ${snapshot.name}`,
+    label: t('cli.editLabel.removal', { name: snapshot.name }),
     inverse,
     addedToChangelog: removeEvents,
     removedFromChangelog: displaced,
     reclaimId: cardId,
   })
   resetStaleLastAdded(ctx, cardId)
-  console.log(`Removed: ${snapshot.name} from ${sectionName}`)
+  console.log(t('cli.deck.removedFromSection', { name: snapshot.name, section: sectionName }))
 }
 
 /** Label of the operation Undo Last Edit would revert, or null when the stack is empty. */
@@ -592,7 +612,7 @@ export function undoDeckEditAt(
   if (!undo) return
   const blocked = targetedUndoBlocker(state.editUndo, index)
   if (blocked) {
-    console.log(`Cannot discard "${undo.label}" yet — ${blocked}.`)
+    console.log(t('cli.edit.cannotDiscardYet', { label: undo.label, reason: blocked }))
     return
   }
   state.editUndo.splice(index, 1)
@@ -612,7 +632,7 @@ export function undoDeckEditAt(
 
   swapUndoChangelog(ctx, undo)
   resetStaleLastAdded(ctx, undo.cardId)
-  console.log(`Undid ${undo.label}.`)
+  console.log(t('cli.edit.undid', { label: undo.label }))
 }
 
 /** The copies added this session rendered for the Undo Last Add picker. */

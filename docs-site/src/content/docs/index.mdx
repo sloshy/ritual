@@ -89,6 +89,7 @@ These options are available on every command:
 | `--base-dir <path>`          | `RITUAL_BASE_DIR`     | Use this directory instead of the current working directory                 |
 | `--cache-server <host:port>` | `RITUAL_CACHE_SERVER` | Use a remote cache server instead of local cache files                      |
 | `--no-input`                 | `RITUAL_NO_INPUT`     | Never prompt; fail or use documented defaults where input would be required |
+| `--locale <tag>`             | `RITUAL_LOCALE`       | Language for Ritual's own interface text (BCP-47, e.g. `de-AT`)             |
 
 In every case the flag wins when both are given, and an empty or whitespace-only environment variable counts as **not set**.
 
@@ -156,6 +157,24 @@ The parenthetical names which of the two causes applied, since the remedies diff
 
 Where a question has a documented default, that default is used instead of failing — each command's page says which: `--refresh ask` is declined rather than answered wherever it is a prompt — but three commands document their own reading, and two of them download without asking: [`build-site`](/commands/build-site/#card-cache-refresh) bulk-downloads an empty or stale card cache automatically, since it cannot build without card data; [`sell`](/commands/sell/#feed-freshness) redownloads an already-downloaded Card Kingdom buylist once it is a day old (as do [`admin`](/commands/admin/) and [`serve --api`](/commands/serve/#live-api-mode---api) at startup), since a day-old feed quotes yesterday's offers — only the _first_ buylist download prompts; and [`collection-sync`](/commands/collection-sync/#cache-freshness) fails the run instead of skipping, and a text `import` without `--type` falls back to a deck **under an explicit `--no-input`** (a merely piped run still errors, since nothing said which type was meant).
 
+### `--locale`
+
+Sets the language **Ritual's own interface text** is written in — output, prompts, menus, help, and errors. It takes a [BCP-47](https://www.rfc-editor.org/info/bcp47) tag (`en`, `de`, `de-AT`, `pt-BR`), which is canonicalized, so `--locale de-at` and `--locale de-AT` are the same thing.
+
+```bash
+ritual --locale de lists            # this one run
+export RITUAL_LOCALE=de             # this shell
+ritual config set uiLocale de       # this workspace, persistently
+```
+
+The full precedence is `--locale` → `RITUAL_LOCALE` → the [`uiLocale`](/configuration/#interface-language) config key → your OS locale → `en`. Only the flag is strict: a tag naming no known language is a usage error (exit code `2`), while a bad `RITUAL_LOCALE` or `uiLocale` warns and falls through to the next tier, since an unusable interface language is cosmetic and refusing to run over one would be worse than the misconfiguration.
+
+Run [`ritual locale`](/commands/locale/) to see which tier won — or [`ritual locale --detect`](/commands/locale/#detecting-the-os-locale) to run the deeper OS probes (Windows/macOS) and optionally save the result as `uiLocale`.
+
+:::note[Not the card language]
+`--locale` is about the language **Ritual speaks**. Which _printing of a card_ gets recorded is [`defaultLanguage`](/configuration/#default-language), a separate setting with a separate vocabulary. They are independent — see [Localization](/localization/). No translations ship yet, so today every locale renders English text (dates, numbers, and currency still follow the tag).
+:::
+
 ## The card-ID backfill
 
 Every card line in a deck, collection, or wanted list file carries a stable internal ID — the `&N` suffix (e.g. `1 Sol Ring &5`). The tools manage these IDs; never hand-author or renumber them. When a file is missing IDs (typically after a hand edit), Ritual backfills them automatically before running any command that **rewrites list card lines or needs every line to already carry an ID**: the editors (`edit`, `history`'s editor mode, `admin` — the server itself, not its `setup`/`reset-password`/`disable-totp` subcommands — `mcp`, and `serve --build`/`--api`), the one-shot card commands (`add-card`, `remove-card`, `set-card`, `note`, `move`), the importers and syncs (`import`, `import-account`, `import-changes`, `deck-sync pull`/`deck-sync push` — but not the read-only `deck-sync status` or the front-matter-only `deck-sync link` — and `collection-sync`), and the whole-workspace passes (`cleanup`, `build-site`).
@@ -207,7 +226,7 @@ Three flags and one exit-code vocabulary behave the same way on every command th
 
 `--output text|json|ndjson` selects the **envelope** the command writes to stdout — never a file format, never a destination. `json` emits exactly one document per run (a batch of card lookups or a multi-page search is still one array); `ndjson` streams one JSON object per line; `text` is the human rendering. Three commands widen or drop the value list rather than redefining the flag: [`scry`](/commands/scry/) adds `--output csv` (Scryfall renders the CSV itself), [`sell`](/commands/sell/) adds `--output csv` too (a different payload — Card Kingdom's sell-cart upload rows, not the report re-rendered), and [`export`](/commands/export/) has no `--output` at all — its stdout payload _is_ the export, chosen with `--format csv|json|text|md` and redirected with `--out <file>`.
 
-Errors always go to **stderr**, structured to match: `{"error": {"code", "message", "details"}}` under `json`/`ndjson`, a plain line under `text`. stdout stays parseable in every case.
+Errors always go to **stderr**, structured to match: `{"error": {"code", "messageKey", "messageParams", "message", "details"}}` under `json`/`ndjson`, a plain line under `text`. `code` and `messageKey` are locale-invariant — match on those; `message` is prose that follows the UI locale (`messageKey`/`messageParams` are omitted when the failure has no message-catalog entry behind it, such as an error quoted verbatim from Scryfall or the filesystem). stdout stays parseable in every case.
 
 ### `--quiet` suppresses chatter, never data
 

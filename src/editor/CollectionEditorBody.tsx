@@ -66,8 +66,6 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
       ctrl={ctrl}
       entityLabel="collection"
       selectorId="collection-select"
-      selectorLabel="Select Collection"
-      selectorPlaceholder="Choose a collection"
       defaults={props.defaults}
       search={props.search}
       requirePrinting={true}

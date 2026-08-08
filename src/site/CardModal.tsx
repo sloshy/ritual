@@ -1,6 +1,7 @@
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, on, For, Show } from 'solid-js'
 import { Modal } from '../ui/Modal'
+import { compareData, compareDisplay } from '../i18n/collate'
 import type { ScryfallCard } from '../types'
 import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost, OracleText } from './symbols'
@@ -8,15 +9,14 @@ import type { PriceCurrency } from '../price-currency'
 import { getCardPrice, getCardPriceForFinish, formatPrice } from '../price-currency'
 import { defaultPrintingFinish } from '../finish-condition'
 import { languageBadge, scryfallCardLanguage } from '../card-language'
-import { capitalize } from './utils'
+import { rarityName } from './printing-display'
+import { useT } from '../ui/i18n'
 import { findPrintingsAvailable, openFindPrintings } from './find-printings'
+// The one shared declaration: this component renders every page's meta table, so a
+// local copy could only ever drift from the tables it is handed.
+import type { MetaEntry } from './meta-entry'
 
 type PrintingsSortField = 'released_at' | 'set_name' | 'price'
-
-interface CardModalMetaEntry {
-  label: string
-  value: string
-}
 
 interface CardModalProps {
   open: boolean
@@ -27,13 +27,14 @@ interface CardModalProps {
   currency: PriceCurrency
   printings: ScryfallCard[]
   onClose: () => void
-  meta?: CardModalMetaEntry[]
+  meta?: MetaEntry[]
   note?: string
   onAddToTrade?: () => void
   addToTradeDisabled?: boolean
 }
 
 export const CardModal: Component<CardModalProps> = (props) => {
+  const t = useT()
   const [showingBack, setShowingBack] = createSignal(false)
   const [showPrintings, setShowPrintings] = createSignal(false)
   const [showTags, setShowTags] = createSignal(false)
@@ -79,9 +80,9 @@ export const CardModal: Component<CardModalProps> = (props) => {
       : null,
   )
 
-  const defaultMeta = createMemo((): CardModalMetaEntry[] => {
+  const defaultMeta = createMemo((): MetaEntry[] => {
     if (props.meta) return props.meta
-    const parts: CardModalMetaEntry[] = []
+    const parts: MetaEntry[] = []
     if (props.card) {
       const price = getCardPrice(props.card, props.currency)
       if (price > 0) parts.push({ label: 'price', value: formatPrice(price, props.currency) })
@@ -91,7 +92,7 @@ export const CardModal: Component<CardModalProps> = (props) => {
       })
       parts.push({
         label: 'rarity',
-        value: capitalize(props.card.rarity),
+        value: rarityName(t, props.card.rarity),
       })
     }
     return parts
@@ -107,10 +108,10 @@ export const CardModal: Component<CardModalProps> = (props) => {
         case 'released_at': {
           const da = a.released_at ?? ''
           const db = b.released_at ?? ''
-          return dir * db.localeCompare(da)
+          return dir * compareData(db, da)
         }
         case 'set_name': {
-          const cmp = a.set_name.localeCompare(b.set_name)
+          const cmp = compareDisplay(a.set_name, b.set_name)
           if (cmp !== 0) return dir * cmp
           const na = parseInt(a.collector_number, 10) || 0
           const nb = parseInt(b.collector_number, 10) || 0
@@ -142,11 +143,13 @@ export const CardModal: Component<CardModalProps> = (props) => {
     <div class="modal-printings-view">
       <div class="modal-printings-header">
         <button class="modal-printings-back" onClick={() => setShowPrintings(false)}>
-          ← Back
+          {t('site.cardModal.back')}
         </button>
         <h3>
-          Other Printings of {props.card?.name ?? props.cardName ?? 'Unknown'} (
-          {props.printings.length})
+          {t('site.cardModal.otherPrintingsHeading', {
+            name: props.card?.name ?? props.cardName ?? t('site.cardModal.unknownName'),
+            count: props.printings.length,
+          })}
         </h3>
         <div class="printings-sort-controls">
           <select
@@ -157,13 +160,17 @@ export const CardModal: Component<CardModalProps> = (props) => {
               setPrintingsPage(0)
             }}
           >
-            <option value="released_at">Release Date</option>
-            <option value="set_name">Set Name</option>
-            <option value="price">Price</option>
+            <option value="released_at">{t('site.cardModal.sortReleaseDate')}</option>
+            <option value="set_name">{t('site.cardModal.sortSetName')}</option>
+            <option value="price">{t('site.cardModal.sortPrice')}</option>
           </select>
           <button
             class="printings-sort-reverse"
-            title={printingsSortReversed() ? 'Reversed' : 'Normal order'}
+            title={
+              printingsSortReversed()
+                ? t('site.cardModal.sortReversed')
+                : t('site.cardModal.sortNormal')
+            }
             onClick={() => {
               setPrintingsSortReversed((prev) => !prev)
               setPrintingsPage(0)
@@ -217,16 +224,19 @@ export const CardModal: Component<CardModalProps> = (props) => {
             disabled={printingsPage() === 0}
             onClick={() => setPrintingsPage(printingsPage() - 1)}
           >
-            ← Prev
+            {t('site.pagination.prev')}
           </button>
           <span>
-            Page {printingsPage() + 1} of {totalPrintingsPages()}
+            {t('site.pagination.pageOf', {
+              page: printingsPage() + 1,
+              total: totalPrintingsPages(),
+            })}
           </span>
           <button
             disabled={printingsPage() >= totalPrintingsPages() - 1}
             onClick={() => setPrintingsPage(printingsPage() + 1)}
           >
-            Next →
+            {t('site.pagination.next')}
           </button>
         </div>
       </Show>
@@ -239,9 +249,11 @@ export const CardModal: Component<CardModalProps> = (props) => {
       onClose={props.onClose}
       size="xl"
       panelClass="card-modal"
-      aria-label={`Card details: ${props.card?.name ?? props.cardName ?? 'Card'}`}
+      aria-label={t('site.cardModal.aria', {
+        name: props.card?.name ?? props.cardName ?? t('site.cardModal.unknownCard'),
+      })}
     >
-      <button class="modal-close" aria-label="Close" onClick={props.onClose}>
+      <button class="modal-close" aria-label={t('ui.dialog.close')} onClick={props.onClose}>
         &times;
       </button>
       <Show
@@ -261,7 +273,7 @@ export const CardModal: Component<CardModalProps> = (props) => {
                     fallback={
                       <img
                         src={imgSources()?.backImage ?? ''}
-                        alt={`${props.cardName ?? ''} (Back)`}
+                        alt={t('site.cardModal.backImageAlt', { name: props.cardName ?? '' })}
                       />
                     }
                   >
@@ -278,13 +290,13 @@ export const CardModal: Component<CardModalProps> = (props) => {
                   <img
                     class="card-modal-flip-back"
                     src={imgSources()?.backImage ?? ''}
-                    alt={`${props.cardName ?? ''} (Back)`}
+                    alt={t('site.cardModal.backImageAlt', { name: props.cardName ?? '' })}
                   />
                 </div>
               </Show>
               <Show when={isDfc() && imgSources()?.backImage}>
                 <button class="flip-btn" onClick={() => setShowingBack((prev) => !prev)}>
-                  Flip ⇄
+                  {t('site.cardModal.flip')}
                 </button>
               </Show>
             </div>
@@ -307,19 +319,19 @@ export const CardModal: Component<CardModalProps> = (props) => {
                 <For each={defaultMeta()}>{(m) => <span>{m.value}</span>}</For>
               </div>
               <Show when={props.note}>
-                <div class="modal-note">NOTE: {props.note}</div>
+                <div class="modal-note">{t('site.cardModal.note', { note: props.note ?? '' })}</div>
               </Show>
               <div class="modal-actions">
                 <Show when={scryfallUrl()}>
                   {(url) => (
                     <a href={url()} target="_blank" rel="noopener noreferrer">
-                      View on Scryfall ↗
+                      {t('site.cardModal.viewOnScryfall')}
                     </a>
                   )}
                 </Show>
                 <Show when={props.printings.length > 0}>
                   <button onClick={() => setShowPrintings(true)}>
-                    Other Printings ({props.printings.length})
+                    {t('site.cardModal.otherPrintingsButton', { count: props.printings.length })}
                   </button>
                 </Show>
                 {/* Cross-list printing lookup; hidden where no FindPrintingsModal
@@ -338,13 +350,13 @@ export const CardModal: Component<CardModalProps> = (props) => {
                         props.onClose()
                       }}
                     >
-                      Find in Lists
+                      {t('site.cardModal.findInLists')}
                     </button>
                   )}
                 </Show>
                 <Show when={props.card}>
                   <button aria-expanded={showTags()} onClick={() => setShowTags((prev) => !prev)}>
-                    Tags {showTags() ? '▾' : '▸'}
+                    {t('site.cardModal.tags')} {showTags() ? '▾' : '▸'}
                   </button>
                 </Show>
                 <Show when={props.onAddToTrade !== undefined}>
@@ -352,10 +364,12 @@ export const CardModal: Component<CardModalProps> = (props) => {
                     onClick={props.onAddToTrade}
                     disabled={props.addToTradeDisabled}
                     title={
-                      props.addToTradeDisabled ? 'Already at maximum quantity' : 'Add to trade'
+                      props.addToTradeDisabled
+                        ? t('site.card.atMaxQuantity')
+                        : t('site.card.addToTrade')
                     }
                   >
-                    + Add to Trade
+                    {t('site.cardModal.addToTrade')}
                   </button>
                 </Show>
               </div>
@@ -367,18 +381,14 @@ export const CardModal: Component<CardModalProps> = (props) => {
                       <span class="modal-tags-warning-icon" aria-hidden="true">
                         ⚠
                       </span>
-                      <span>
-                        No tag data for this card — the card cache is incomplete. Tags are only
-                        available for cards the site was built with; rebuild the cache to include
-                        them.
-                      </span>
+                      <span>{t('site.cardModal.noTagData')}</span>
                     </div>
                   }
                 >
                   <div class="modal-tags">
                     <Show when={oracleTags().length > 0}>
                       <div class="modal-tags-group">
-                        <span class="modal-tags-label">Oracle Tags</span>
+                        <span class="modal-tags-label">{t('site.cardModal.oracleTags')}</span>
                         <div class="modal-tags-list">
                           <For each={oracleTags()}>
                             {(tag) => <span class="modal-tag">{tag}</span>}
@@ -388,7 +398,7 @@ export const CardModal: Component<CardModalProps> = (props) => {
                     </Show>
                     <Show when={artTags().length > 0}>
                       <div class="modal-tags-group">
-                        <span class="modal-tags-label">Art Tags</span>
+                        <span class="modal-tags-label">{t('site.cardModal.artTags')}</span>
                         <div class="modal-tags-list">
                           <For each={artTags()}>
                             {(tag) => <span class="modal-tag">{tag}</span>}

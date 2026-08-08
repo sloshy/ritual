@@ -17,6 +17,7 @@ import {
 } from '../../commands/history-helpers'
 import { resolveListFile } from './list-info'
 import { listSlug } from '../../list-info'
+import { apiMessage, type ApiMessage } from './result'
 import { autoCommitAndPush, apiError, badRequest, readJsonObjectBody } from './save-helpers'
 import { parseListTarget } from './target'
 
@@ -29,7 +30,7 @@ export type HistoryLoadResponse = {
   /** Raw change lines describing the list's current state, for the rewrite action. */
   defaultLines: string[]
 }
-export type HistorySaveResponse = { success: true; message: string; setCount: number }
+export type HistorySaveResponse = ApiMessage & { success: true; setCount: number }
 
 /** Untrusted save body, validated before narrowing to `{ sets: ChangeSet[] }`. */
 type RawSaveBody = { sets?: unknown }
@@ -159,7 +160,7 @@ export async function handleHistorySave(req: Request): Promise<Response> {
 
     const body: HistorySaveResponse = {
       success: true,
-      message: `Saved ${sets.length} change set${sets.length === 1 ? '' : 's'}.`,
+      ...apiMessage('admin.api.history.saved', { count: sets.length }),
       setCount: sets.length,
     }
     return Response.json(body)

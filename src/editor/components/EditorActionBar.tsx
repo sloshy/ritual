@@ -3,6 +3,7 @@ import type { UseEditorDefaultsResult } from '../useEditorDefaults'
 import type { SectionInfo } from '../useEditor'
 import { EditorDefaultsForm } from './EditorDefaultsForm'
 import { Modal } from '../../ui/Modal'
+import { useT } from '../../ui/i18n'
 
 type EditorActionBarProps = {
   changeCount: number
@@ -54,6 +55,7 @@ export function focusActionBar(bar: HTMLElement | undefined): void {
 }
 
 export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
+  const t = useT()
   const [defaultsOpen, setDefaultsOpen] = createSignal(false)
   const [sectionsOpen, setSectionsOpen] = createSignal(false)
   const [newSectionName, setNewSectionName] = createSignal('')
@@ -122,10 +124,10 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
         <button
           type="button"
           class="btn-add"
-          title="Add a card (Ctrl+Enter)"
+          title={t('ui.editor.addCardTitle')}
           onClick={props.onAddCard}
         >
-          + Add Card
+          {t('ui.editor.addCard')}
         </button>
         <button
           type="button"
@@ -134,32 +136,32 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
           onClick={() => setDefaultsOpen((v) => !v)}
         >
           <span class="btn-defaults-caret">{defaultsOpen() ? '▾' : '▴'}</span>
-          Add Card Defaults
+          {t('ui.editor.addCardDefaults')}
           <Show when={props.defaults.hasActive()}>
-            <span class="btn-defaults-dot" aria-label="defaults active" />
+            <span class="btn-defaults-dot" aria-label={t('ui.editor.defaultsActive')} />
           </Show>
         </button>
         <button type="button" class="btn-sections" onClick={() => setSectionsOpen(true)}>
-          Sections
+          {t('ui.editor.sections')}
         </button>
         <Show when={props.onEditLabels}>
           <button type="button" class="btn-labels" onClick={() => props.onEditLabels!()}>
-            Labels
+            {t('ui.editor.labels')}
           </button>
         </Show>
         <Show when={props.onImport}>
           <button type="button" class="btn-import" onClick={() => props.onImport!()}>
-            Import…
+            {t('ui.editor.import')}
           </button>
         </Show>
         <button type="button" class="btn-changes" onClick={props.onShowChanges}>
-          Changes
+          {t('ui.editor.changes')}
           <Show when={props.changeCount > 0}>
             <span class="changes-badge">{props.changeCount}</span>
           </Show>
         </button>
         <button type="button" class="btn-undo" disabled={!props.canUndo} onClick={props.onUndo}>
-          Undo
+          {t('ui.editor.undo')}
         </button>
         <Show when={props.showSave ?? true}>
           <button
@@ -168,7 +170,7 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
             disabled={props.changeCount === 0 || props.saving}
             onClick={props.onSave}
           >
-            {props.saving ? 'Saving...' : 'Save Changes'}
+            {props.saving ? t('ui.editor.saving') : t('ui.editor.saveChanges')}
           </button>
         </Show>
         <Show when={props.showDiscard ?? true}>
@@ -178,14 +180,14 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
             disabled={props.changeCount === 0}
             onClick={props.onDiscard}
           >
-            Discard Changes
+            {t('ui.editor.discardChanges')}
           </button>
         </Show>
         <button
           type="button"
           class="btn-shortcuts"
-          title="Keyboard shortcuts (?)"
-          aria-label="Keyboard shortcuts"
+          title={t('ui.editor.shortcutsTitle')}
+          aria-label={t('ui.editor.shortcutsLabel')}
           onClick={props.onShowShortcuts}
         >
           ?
@@ -198,16 +200,14 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
         size="md"
         panelClass="modal-panel--prompt section-manager"
       >
-        <h3>Manage Sections</h3>
-        <p class="dialog-message">
-          Sections group cards on the list page. Names must be unique (case-insensitive).
-        </p>
+        <h3>{t('ui.editor.manageSections')}</h3>
+        <p class="dialog-message">{t('ui.editor.sectionsHelp')}</p>
 
         <div class="section-manager-add">
           <input
             type="text"
             class={`form-input section-manager-input${duplicateOf() ? ' form-input--invalid' : ''}`}
-            placeholder="New section name"
+            placeholder={t('ui.editor.newSectionName')}
             aria-invalid={duplicateOf() ? 'true' : undefined}
             value={newSectionName()}
             onInput={(e) => setNewSectionName(e.currentTarget.value)}
@@ -224,11 +224,11 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
             disabled={!canAddSection()}
             onClick={submitNewSection}
           >
-            Add Section
+            {t('ui.editor.addSection')}
           </button>
         </div>
         <Show when={duplicateOf()}>
-          {(name) => <p class="form-error">A section named “{name()}” already exists.</p>}
+          {(name) => <p class="form-error">{t('ui.editor.sectionExists', { name: name() })}</p>}
         </Show>
 
         <ul class="section-manager-list">
@@ -244,16 +244,16 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
                   class="btn btn-secondary btn-sm section-manager-rename"
                   onClick={() => props.onRequestRename(section.name)}
                 >
-                  Rename
+                  {t('ui.editor.rename')}
                 </button>
                 <button
                   type="button"
                   class="btn btn-secondary btn-sm section-manager-delete"
                   disabled={section.count > 0}
-                  title={section.count > 0 ? 'Only empty sections can be deleted' : undefined}
+                  title={section.count > 0 ? t('ui.editor.deleteSectionDisabled') : undefined}
                   onClick={() => props.onRemoveSection(section.name)}
                 >
-                  Delete
+                  {t('ui.editor.delete')}
                 </button>
               </li>
             )}
@@ -262,7 +262,7 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
 
         <div class="confirm-dialog-actions">
           <button type="button" class="btn btn-secondary" onClick={closeSections}>
-            Done
+            {t('ui.dialog.done')}
           </button>
         </div>
       </Modal>

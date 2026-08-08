@@ -214,7 +214,9 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'Merge a partial Ritual configuration into the current one (e.g. admin git settings, ' +
         'defaultLanguage — the canonical Scryfall code stamped on newly added cards, whose ' +
         'non-"en" values switch cache downloads to the much larger all-cards bulk — ' +
-        'or site.bannedPrintings — "SET:COLLECTOR" printings barred from auto-selection as a ' +
+        'uiLocale — the unrelated interface language, a BCP-47 tag such as "de-AT" with no ' +
+        'download cost; do not reach for defaultLanguage when the user asks to change the ' +
+        'interface language — or site.bannedPrintings — "SET:COLLECTOR" printings barred from auto-selection as a ' +
         'card\'s default printing). Nested "admin" fields merge; other top-level keys replace. ' +
         'Unknown keys — top-level or nested in "admin" — are rejected.',
       inputSchema: z.object({

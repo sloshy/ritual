@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+import { compareData } from '../i18n/collate'
 import { loadListInfos, type ListInfo } from '../list-info'
 import { LIST_TYPES } from '../list-type'
 import { type ListTypeFlags } from '../resolve-list'
@@ -9,6 +10,8 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from './scripting'
+import { displayWidth, padEndDisplay } from '../i18n/width'
+import { t } from '../i18n/t'
 
 type ListsOptions = ListTypeFlags & Partial<ScriptingOptions>
 
@@ -16,10 +19,10 @@ export function registerListsCommand(program: Command): void {
   addScriptingOptions(
     program
       .command('lists')
-      .description('Enumerate every deck, collection, and wanted list')
-      .option('--deck', 'Only list decks')
-      .option('--collection', 'Only list collections')
-      .option('--wanted', 'Only list wanted lists'),
+      .description(t('help.lists.description'))
+      .option('--deck', t('help.lists.deck'))
+      .option('--collection', t('help.lists.collection'))
+      .option('--wanted', t('help.lists.wanted')),
     'text',
   ).action(async (options: ListsOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
@@ -32,14 +35,16 @@ export function registerListsCommand(program: Command): void {
 
     if (scripting.output === 'text') {
       if (rows.length === 0) {
-        if (!scripting.quiet) emitOutput('(no lists)', scripting)
+        if (!scripting.quiet) emitOutput(t('cli.lists.empty'), scripting)
         return
       }
-      const typeWidth = Math.max(...rows.map((row) => row.type.length))
-      const slugWidth = Math.max(...rows.map((row) => row.slug.length))
+      // Terminal columns, not code units — a slug is ASCII but a list name is
+      // not, and the same padding helper is what keeps every table honest.
+      const typeWidth = Math.max(...rows.map((row) => displayWidth(row.type)))
+      const slugWidth = Math.max(...rows.map((row) => displayWidth(row.slug)))
       for (const row of rows) {
         emitOutput(
-          `${row.type.padEnd(typeWidth)}  ${row.slug.padEnd(slugWidth)}  ${row.name}`,
+          `${padEndDisplay(row.type, typeWidth)}  ${padEndDisplay(row.slug, slugWidth)}  ${row.name}`,
           scripting,
         )
       }
@@ -54,6 +59,6 @@ export function registerListsCommand(program: Command): void {
 function sortListInfos(rows: ListInfo[]): ListInfo[] {
   return rows.toSorted(
     (a, b) =>
-      LIST_TYPES.indexOf(a.type) - LIST_TYPES.indexOf(b.type) || a.slug.localeCompare(b.slug, 'en'),
+      LIST_TYPES.indexOf(a.type) - LIST_TYPES.indexOf(b.type) || compareData(a.slug, b.slug),
   )
 }

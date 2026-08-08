@@ -1,6 +1,7 @@
 import { type Component, For, Show, createMemo } from 'solid-js'
 import type { ListInfo } from '../../../list-info'
 import { groupListsByType } from '../list-grouping'
+import { useT, useTKey } from '../../../ui/i18n'
 import { useAnchoredMenu } from '../../../ui/useAnchoredMenu'
 
 const MENU_WIDTH = 220
@@ -20,6 +21,8 @@ interface MoveDestinationMenuProps {
  * the shared anchored-menu positioning.
  */
 export const MoveDestinationMenu: Component<MoveDestinationMenuProps> = (props) => {
+  const t = useT()
+  const tKey = useTKey()
   const { setMenuRef, style } = useAnchoredMenu({
     anchorRect: () => props.anchorRect,
     width: MENU_WIDTH,
@@ -34,16 +37,16 @@ export const MoveDestinationMenu: Component<MoveDestinationMenuProps> = (props) 
       ref={setMenuRef}
       style={style()}
       role="menu"
-      aria-label={`Move ${props.cardName} to`}
+      aria-label={t('admin.moveMenu.label', { name: props.cardName })}
     >
       <Show
         when={props.destinations.length > 0}
-        fallback={<div class="card-context-menu-empty">No eligible destinations</div>}
+        fallback={<div class="card-context-menu-empty">{t('admin.moveMenu.empty')}</div>}
       >
         <For each={grouped()}>
           {(group) => (
             <>
-              <div class="card-context-menu-label">{group.label}</div>
+              <div class="card-context-menu-label">{tKey(group.labelKey)}</div>
               <For each={group.lists}>
                 {(dest) => (
                   <button

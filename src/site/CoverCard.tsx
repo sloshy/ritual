@@ -1,5 +1,6 @@
 import type { Component } from 'solid-js'
 import { Show } from 'solid-js'
+import { useT } from '../ui/i18n'
 
 interface CoverCardProps {
   name: string
@@ -14,10 +15,14 @@ interface CoverCardProps {
 }
 
 export const CoverCard: Component<CoverCardProps> = (props) => {
+  const t = useT()
   return (
     <div class="deck-cover">
       <div class="cover-image">
-        <Show when={props.image} fallback={<div class="cover-placeholder">No Image</div>}>
+        <Show
+          when={props.image}
+          fallback={<div class="cover-placeholder">{t('site.cover.noImage')}</div>}
+        >
           {(src) => <img src={src()} alt={props.name} />}
         </Show>
         <div class="cover-overlay" />
@@ -38,7 +43,9 @@ export const CoverCard: Component<CoverCardProps> = (props) => {
         <span class="cover-prices">
           <span>{props.priceLabel}</span>
           <Show when={props.secondaryPriceLabel}>
-            <span class="cover-lowest">low {props.secondaryPriceLabel}</span>
+            <span class="cover-lowest">
+              {t('site.cover.lowPrice', { price: props.secondaryPriceLabel ?? '' })}
+            </span>
           </Show>
         </span>
       </div>

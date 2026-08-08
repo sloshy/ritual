@@ -1,7 +1,8 @@
 import { Command } from 'commander'
 import { createList, isListLifecycleError } from '../list-lifecycle'
-import { isListType, listTypeLabel, type ListType } from '../list-type'
-import { CardCommandError } from '../errors'
+import { isListType, type ListType } from '../list-type'
+import { localizedCommandError } from '../errors'
+import { t } from '../i18n/t'
 import { runCommandAction } from './card-target'
 import { lifecycleErrorToCommandError } from './lifecycle'
 import {
@@ -25,13 +26,10 @@ export function registerNewCommand(program: Command): void {
   addScriptingOptions(
     program
       .command('new')
-      .description('Create a new deck, collection, or wanted list')
-      .argument('<type>', "List type: 'deck', 'collection', or 'wanted'")
-      .argument('<name...>', 'Name of the list')
-      .option(
-        '-f, --format <format>',
-        'Deck format (decks only; default: commander). Pass an invalid value to list every accepted format, or see the new command docs.',
-      ),
+      .description(t('help.new.description'))
+      .argument('<type>', t('help.new.type'))
+      .argument('<name...>', t('help.new.name'))
+      .option('-f, --format <format>', t('help.new.format')),
     'text',
   ).action(async (rawType: string, nameParts: string[], options: NewOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
@@ -48,18 +46,12 @@ async function runNew(
   scripting: ScriptingOptions,
 ): Promise<void> {
   if (!isListType(rawType)) {
-    throw new CardCommandError(
-      'usage_error',
-      `Invalid list type '${rawType}'. Use 'deck', 'collection', or 'wanted'.`,
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.new.invalidType', {
+      value: rawType,
+    })
   }
   if (format !== undefined && rawType !== 'deck') {
-    throw new CardCommandError(
-      'usage_error',
-      '--format only applies to decks.',
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.new.formatDecksOnly')
   }
 
   const result = await createList(rawType, name, format)
@@ -67,7 +59,7 @@ async function runNew(
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
-      emitOutput(`Created ${listTypeLabel(rawType)}: ${result.filePath}`, scripting)
+      emitOutput(t('cli.new.created', { type: rawType, file: result.filePath }), scripting)
     }
     return
   }

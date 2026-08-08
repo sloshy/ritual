@@ -790,14 +790,30 @@ export function isAdditiveChange(action: ChangeAction): boolean {
 }
 
 /**
+ * The loosely-typed printing fields the annotation formatters read. Deliberately
+ * `string` rather than the `Finish` / `Condition` / `CardLanguage` unions: the
+ * same annotation has to be rendered from a {@link ChangeEvent} (typed) and from
+ * a `ChangelogChange` parsed back out of `.changes.md` (loose strings). One
+ * widened parameter is what lets both go through this single implementation
+ * instead of the mirrored copy `src/site/changelog-format.ts` used to carry.
+ */
+export type PrintingAnnotationInput = {
+  set?: string
+  collectorNumber?: string
+  finish?: string
+  condition?: string
+  language?: string
+}
+
+/**
  * Format the ` [finish] [condition] [lang]` suffix shared by printing
  * annotations and the set-printing description. Empty when all three are at
  * their defaults (`nonfoil` / `NM` / `en`) — the same tokens a card line omits.
  */
 export function formatFinishConditionTail(
-  finish?: Finish,
-  condition?: ConditionUpdate,
-  language?: CardLanguage,
+  finish?: string,
+  condition?: string,
+  language?: string,
 ): string {
   const finishInfo = finish && finish !== 'nonfoil' ? ` [${finish}]` : ''
   // `NONE` clears the grade and `NM` is the unrecorded default: neither is
@@ -813,7 +829,7 @@ export function formatFinishConditionTail(
  * Format the ` (SET:CN) [finish] [condition] [lang]` annotation tail used in
  * changelog lines and entry descriptions. Empty when none of the fields are set.
  */
-export function formatPrintingAnnotation(change: PrintingTuple): string {
+export function formatPrintingAnnotation(change: PrintingAnnotationInput): string {
   const printingInfo =
     change.set && change.collectorNumber
       ? ` (${change.set.toUpperCase()}:${change.collectorNumber})`
@@ -847,7 +863,28 @@ type FormatChangeOptions = {
   quoteCardName?: boolean
 }
 
-/** Format a change event as a human-readable description, shared by formatChange and changelog writer */
+/**
+ * Serialize a change event as a `.changes.md` line body. **Persistence only —
+ * English by contract. This function must never be localized, and this module
+ * must never import `src/i18n`** (asserted by the persistence-fence scan in
+ * `test/unit/i18n-conventions.test.ts`).
+ *
+ * The bytes it produces are a data format, not prose:
+ *
+ * - `changelog-parser.ts` re-reads them with regexes anchored on the English
+ *   verbs (`Added` / `Removed` / `Set` / `Unset`) and on the English language
+ *   names from `LANGUAGE_PARSE_NAMES`. A translated line parses to *zero*
+ *   changes and renders an empty history **with no error** — silent data loss.
+ * - `.sha256` sidecars hash the exact bytes, so a locale-dependent line would
+ *   make `detect-changes` report spurious edits on a machine with a different
+ *   `LANG`.
+ * - The files are git-diffable and shared between collaborators whose UI
+ *   locales need not agree.
+ *
+ * Display is a separate concern with a separate implementation: `changeMessage`
+ * in `src/change-message.ts` is the **single** renderer for every user-facing
+ * surface (CLI, public site, admin). Do not add a display caller here.
+ */
 export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions): string {
   const { tense } = opts
   // Section-meta changes (add/remove/rename-section) carry no card, so guard the reads.
@@ -925,11 +962,12 @@ export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions)
   }
 }
 
-/** Format a change event as a human-readable description */
-export function formatChange(change: ChangeEvent): string {
-  return formatChangeCore(change, { tense: 'present' })
-}
-
+/**
+ * Name a list the way a changelog line names it (`Deck 'Standard Burn'`).
+ *
+ * English by contract for the same reason as {@link formatChangeCore}: it is
+ * spliced into persisted `Moved "X" to Deck 'Y'` lines.
+ */
 export function listRefLabel(ref: ListRef): string {
   if (ref.type === 'deck') return `Deck '${ref.name}'`
   if (ref.type === 'collection') return `Collection '${ref.name}'`

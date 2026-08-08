@@ -23,6 +23,8 @@ import {
   totalPrintingPages,
 } from '../printing-pagination'
 import { stepQuantity } from '../../ui/quantity'
+import { useT, useTKey, useTSegments } from '../../ui/i18n'
+import type { TranslateFn } from '../../i18n/t'
 import { searchDebounceMs } from '../search-debounce'
 import {
   displayLanguage,
@@ -113,14 +115,27 @@ function getCheapestPrinting(printings: ScryfallCard[]): ScryfallCard | undefine
   return sorted[0]
 }
 
-function formatPrice(card: ScryfallCard): string {
+/**
+ * The grid tile's price line. Only the wrapper is localized: the amount itself
+ * is still a bare `$` + Scryfall's USD string, which the currency sweep
+ * (plan §6.4 / Phase 3) replaces with an `Intl.NumberFormat` rendering.
+ */
+function formatPrice(t: TranslateFn, card: ScryfallCard): string {
   if (card.prices.usd !== null) return `$${card.prices.usd}`
-  if (card.prices.usd_foil !== null) return `$${card.prices.usd_foil} (foil)`
-  if (card.prices.usd_etched !== null) return `$${card.prices.usd_etched} (etched)`
-  return 'N/A'
+  if (card.prices.usd_foil !== null) {
+    return t('ui.addCard.priceFoil', { price: `$${card.prices.usd_foil}` })
+  }
+  if (card.prices.usd_etched !== null) {
+    return t('ui.addCard.priceEtched', { price: `$${card.prices.usd_etched}` })
+  }
+  return t('ui.addCard.priceUnknown')
 }
 
 export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
+  const t = useT()
+  // The footer hints are message keys held in a memo, resolved at render.
+  const tKey = useTKey()
+  const tSegments = useTSegments()
   const [step, setStep] = createSignal<Step>('search')
 
   // Step 1: Search
@@ -791,33 +806,33 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   const keyHints = createMemo<KeyHint[]>(() => {
     if (step() === 'language-notice') {
       return [
-        { keys: ['Enter'], label: 'continue' },
-        { keys: ['Esc'], label: 'close' },
+        { keys: ['Enter'], label: 'ui.hint.continue' },
+        { keys: ['Esc'], label: 'ui.hint.close' },
       ]
     }
     if (step() === 'printing') {
       return [
-        { keys: ['←', '→'], label: 'printing' },
-        { keys: ['↑', '↓'], label: 'row' },
-        { keys: ['Enter'], label: 'select' },
-        { keys: ['Esc'], label: 'close' },
+        { keys: ['←', '→'], label: 'ui.hint.printing' },
+        { keys: ['↑', '↓'], label: 'ui.hint.row' },
+        { keys: ['Enter'], label: 'ui.hint.select' },
+        { keys: ['Esc'], label: 'ui.hint.close' },
       ]
     }
     if (step() === 'finish-condition') {
       const hints: KeyHint[] = [
-        { keys: ['←', '→'], label: 'choose' },
-        { keys: ['↑', '↓', 'Tab'], label: 'next group' },
+        { keys: ['←', '→'], label: 'ui.hint.choose' },
+        { keys: ['↑', '↓', 'Tab'], label: 'ui.hint.nextGroup' },
       ]
-      if (usesQuantity()) hints.push({ keys: ['+', '-'], label: 'quantity' })
-      hints.push({ keys: ['Enter'], label: 'add card' })
-      if (canAddAnother()) hints.push({ keys: ['Ctrl', 'Enter'], label: 'add + another' })
-      hints.push({ keys: ['Esc'], label: 'close' })
+      if (usesQuantity()) hints.push({ keys: ['+', '-'], label: 'ui.hint.quantity' })
+      hints.push({ keys: ['Enter'], label: 'ui.hint.addCard' })
+      if (canAddAnother()) hints.push({ keys: ['Ctrl', 'Enter'], label: 'ui.hint.addAnother' })
+      hints.push({ keys: ['Esc'], label: 'ui.hint.close' })
       return hints
     }
     return [
-      { keys: ['↑', '↓'], label: 'navigate' },
-      { keys: ['Enter'], label: 'select' },
-      { keys: ['Esc'], label: 'close' },
+      { keys: ['↑', '↓'], label: 'ui.hint.navigate' },
+      { keys: ['Enter'], label: 'ui.hint.select' },
+      { keys: ['Esc'], label: 'ui.hint.close' },
     ]
   })
 
@@ -843,7 +858,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       size="lg"
       placement="top"
       panelClass="search-modal"
-      aria-label="Add card"
+      aria-label={t('ui.addCard.title')}
       panelRef={(el) => (modalRef = el)}
       overlay={
         <Show when={previewCard() && step() === 'search'}>
@@ -861,7 +876,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
             <input
               ref={inputRef}
               type="text"
-              placeholder="Search for a card..."
+              placeholder={t('ui.addCard.searchPlaceholder')}
               value={query()}
               onInput={(e) => handleInputChange(e.currentTarget.value)}
               onKeyDown={handleSearchKeyDown}
@@ -870,11 +885,17 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
           <Show when={props.search.sourceNote}>
             {(note) => (
               <p class="search-source-note">
-                {note().prefix}
-                <a href={note().linkUrl} target="_blank" rel="noopener noreferrer">
-                  {note().linkText}
-                </a>
-                {note().suffix}
+                <For each={note().segments(tSegments)}>
+                  {(segment) =>
+                    segment.kind === 'param' ? (
+                      <a href={note().linkUrl} target="_blank" rel="noopener noreferrer">
+                        {segment.value}
+                      </a>
+                    ) : (
+                      segment.value
+                    )
+                  }
+                </For>
               </p>
             )}
           </Show>
@@ -909,20 +930,22 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
         <>
           <div class="search-modal-header">
             <button onClick={goBack} class="search-tab-btn">
-              ← Back
+              {t('ui.addCard.back')}
             </button>
-            <h3 class="modal-heading-flex">Select a printing for {selectedCardName()}</h3>
+            <h3 class="modal-heading-flex">
+              {t('ui.addCard.selectPrinting', { name: selectedCardName() })}
+            </h3>
           </div>
           <div class="search-modal-body">
             <Show
               when={!loadingPrintings()}
-              fallback={<div class="empty-state">Loading printings…</div>}
+              fallback={<div class="empty-state">{t('ui.addCard.loadingPrintings')}</div>}
             >
               <Show when={setFilterFellBack()}>
                 <div class="search-modal-hint">
-                  No printings match the set filter (
-                  {props.defaults?.sets.map((s) => s.toUpperCase()).join(', ')}). Showing all
-                  printings.
+                  {t('ui.addCard.setFilterFellBack', {
+                    sets: (props.defaults?.sets ?? []).map((code) => code.toUpperCase()).join(', '),
+                  })}
                 </div>
               </Show>
               <div class="printing-select-grid" ref={printingGridRef}>
@@ -931,7 +954,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                     class={`printing-no-printing${printingHighlightIndex() === 0 ? ' printing-no-printing--highlighted' : ''}`}
                     onClick={() => selectPrinting(null)}
                   >
-                    No specific printing
+                    {t('ui.addCard.noSpecificPrinting')}
                   </button>
                 </Show>
                 <For each={paginatedPrintings()}>
@@ -954,7 +977,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                         <div class="printing-label">
                           {printing.set.toUpperCase()} #{printing.collector_number}
                           {' · '}
-                          {formatPrice(printing)}
+                          {formatPrice(t, printing)}
                         </div>
                       </button>
                     )
@@ -969,16 +992,19 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                 disabled={printingsPage() === 0}
                 onClick={() => goToPage(printingsPage() - 1)}
               >
-                ← Prev
+                {t('ui.addCard.prevPage')}
               </button>
               <span>
-                Page {printingsPage() + 1} of {totalPrintingsPages()}
+                {t('ui.addCard.pageOf', {
+                  page: printingsPage() + 1,
+                  total: totalPrintingsPages(),
+                })}
               </span>
               <button
                 disabled={printingsPage() >= totalPrintingsPages() - 1}
                 onClick={() => goToPage(printingsPage() + 1)}
               >
-                Next →
+                {t('ui.addCard.nextPage')}
               </button>
             </div>
           </Show>
@@ -993,32 +1019,34 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
           <>
             <div class="search-modal-header">
               <button onClick={goBack} class="search-tab-btn">
-                ← Back
+                {t('ui.addCard.back')}
               </button>
               <h3 class="modal-heading-flex">
-                {selectedCardName()} ({notice().printing.set.toUpperCase()}:
-                {notice().printing.collector_number})
+                {t('ui.addCard.printingHeading', {
+                  name: selectedCardName(),
+                  set: notice().printing.set.toUpperCase(),
+                  number: notice().printing.collector_number,
+                })}
               </h3>
             </div>
             <div class="search-modal-body">
               <div class="search-modal-hint">
                 <Show
                   when={notice().available.length > 1}
-                  fallback={
-                    <>
-                      This printing is only available in {formatLanguageList(notice().available)}.
-                    </>
-                  }
+                  fallback={t('ui.addCard.languageOnly', {
+                    languages: formatLanguageList(notice().available),
+                  })}
                 >
-                  This printing is not available in{' '}
-                  {languageDisplayName(displayLanguage(defaultLanguage()))} — only{' '}
-                  {formatLanguageList(notice().available)}. It will be added in{' '}
-                  {languageDisplayName(notice().language)}.
+                  {t('ui.addCard.languageUnavailable', {
+                    preferred: languageDisplayName(displayLanguage(defaultLanguage())),
+                    languages: formatLanguageList(notice().available),
+                    language: languageDisplayName(notice().language),
+                  })}
                 </Show>
               </div>
               <div class="add-card-actions">
                 <button onClick={confirmLanguageNotice} class="btn-add-card">
-                  Continue
+                  {t('ui.dialog.continue')}
                   <span class="btn-key-hint" aria-hidden="true">
                     <KeyChips keys={['Enter']} />
                   </span>
@@ -1034,11 +1062,14 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
           <>
             <div class="search-modal-header">
               <button onClick={goBack} class="search-tab-btn">
-                ← Back
+                {t('ui.addCard.back')}
               </button>
               <h3 class="modal-heading-flex">
-                Set finish & condition for {selectedCardName()} ({printing().set.toUpperCase()}:
-                {printing().collector_number})
+                {t('ui.addCard.finishConditionHeading', {
+                  name: selectedCardName(),
+                  set: printing().set.toUpperCase(),
+                  number: printing().collector_number,
+                })}
               </h3>
             </div>
             <div class="search-modal-body">
@@ -1050,7 +1081,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                   }
                 >
                   <div class="finish-condition-section">
-                    <h4>Finish</h4>
+                    <h4>{t('ui.field.finish')}</h4>
                     <div class="radio-group">
                       <For each={printing().finishes}>
                         {(finish) => (
@@ -1076,7 +1107,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
 
                 <Show when={usesCondition()}>
                   <div class="finish-condition-section">
-                    <h4>Condition</h4>
+                    <h4>{t('ui.field.condition')}</h4>
                     <div class="radio-group">
                       <For each={VALID_CONDITIONS}>
                         {(condition) => (
@@ -1100,20 +1131,20 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
 
                 <Show when={usesQuantity()}>
                   <div class="finish-condition-section">
-                    <h4>Quantity</h4>
+                    <h4>{t('ui.field.quantity')}</h4>
                     <QuantityStepper
                       id={QUANTITY_STEPPER_ID}
                       value={quantity()}
                       onChange={setQuantity}
                       focusable
-                      label="Quantity to add"
+                      label={t('ui.addCard.quantityToAdd')}
                     />
                   </div>
                 </Show>
 
                 <div class="add-card-actions">
                   <button onClick={() => handleAddWithOptions()} class="btn-add-card">
-                    Add Card
+                    {t('ui.addCard.add')}
                     {quantityBadge()}
                     <span class="btn-key-hint" aria-hidden="true">
                       <KeyChips keys={['Enter']} />
@@ -1121,7 +1152,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                   </button>
                   <Show when={canAddAnother()}>
                     <button onClick={() => handleAddWithOptions(true)} class="btn-add-card">
-                      Add Another Card
+                      {t('ui.addCard.addAnother')}
                       {quantityBadge()}
                       <span class="btn-key-hint" aria-hidden="true">
                         <KeyChips keys={['Ctrl', 'Enter']} />
@@ -1140,7 +1171,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
           {(hint) => (
             <span>
               <KeyChips keys={hint.keys} />
-              {hint.label}
+              {tKey(hint.label)}
             </span>
           )}
         </For>

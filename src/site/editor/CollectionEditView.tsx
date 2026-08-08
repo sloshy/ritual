@@ -21,8 +21,8 @@ import { CollectionPage } from '../CollectionPage'
 import { siteSearch } from './site-search'
 import { backfillImportedCard } from './backfill-added-card'
 import { EditViewFrame } from './EditViewFrame'
-import { confirmDiscardOnExit } from './edit-session-memory'
 import { safeFilename } from './safe-filename'
+import { useT } from '../../ui/i18n'
 
 type CollectionEditViewProps = {
   detail: CollectionDetail
@@ -39,6 +39,7 @@ type CollectionEditViewProps = {
 export const CollectionEditView: Component<CollectionEditViewProps> = (props) => {
   const defaults = useEditorDefaults('collection')
   const [originalModalCard, setOriginalModalCard] = createSignal<string | null>(null)
+  const t = useT()
 
   const buildConfig = (
     cardActions: EntryCardDataActions,
@@ -94,17 +95,13 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
 
   const changeCount = () => ctrl.editor.changes.changeCount()
 
-  const handleExit = () => {
-    if (confirmDiscardOnExit(changeCount())) props.onExit()
-  }
-
   const safe = () => safeFilename(props.detail.name)
 
   return (
     <EditViewFrame
       changeCount={changeCount()}
       onDiscard={ctrl.editor.dialogs.openDiscard}
-      onExit={handleExit}
+      onExit={props.onExit}
       jsonFilename={`${safe()}-edits.json`}
       kind="collection"
       slug={props.slug}
@@ -116,7 +113,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
       ready={() => !ctrl.editor.status.loading && ctrl.editor.data() != null}
       fileExports={[
         {
-          label: 'Download updated collection (.md)',
+          label: () => t('site.editor.downloadCollection'),
           filename: `${safe()}.md`,
           build: () =>
             collectionToMarkdown(
@@ -127,7 +124,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
             ),
         },
         {
-          label: 'Download CSV',
+          label: () => t('site.editor.downloadCollectionCsv'),
           filename: `${safe()}.csv`,
           mime: 'text/csv',
           build: () => collectionToCsv(ctrl.editor.data() ?? []),

@@ -16,8 +16,11 @@ import { scoreMatch } from './quick-switch-search'
 import { fetchJson } from './useFetchJson'
 import { detailUrl } from './api-base'
 import { getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
-import { getDeckCountLabel, pluralizeCards } from '../deck-format'
+import { getDeckCountLabel } from '../deck-format'
 import { listHref } from './combined-list'
+import type { MessageKey } from '../i18n/messages/en'
+import { useI18n } from '../ui/i18n'
+import type { TranslateFn } from '../i18n/t'
 import {
   cardPrintingKey,
   formatPrintingLabel,
@@ -188,29 +191,39 @@ interface QuickSwitchProps {
   useScryfallImgUrls: Accessor<boolean>
 }
 
-const KIND_LABEL: Record<ListKind | 'commander' | 'card' | 'printing', string> = {
-  deck: 'Deck',
-  collection: 'Collection',
-  wanted: 'Wanted',
-  commander: 'Commander',
-  card: 'Card',
-  printing: 'Printing',
-}
+/**
+ * The kind badge on a result row, and the sentence naming the list a card was
+ * found in — both as message *keys*, since these tables are built once at
+ * import and would otherwise pin the dialog to the boot-time language.
+ *
+ * The subtitle used to be `in ${noun} "${name}"` off a table of bare nouns.
+ * Splicing a noun into a preposition phrase does not survive translation (the
+ * preposition, the article and the noun's case all move together), so each list
+ * kind now carries its whole sentence.
+ */
+const KIND_LABEL = {
+  deck: 'site.quickSwitch.kindDeck',
+  collection: 'site.quickSwitch.kindCollection',
+  wanted: 'site.quickSwitch.kindWanted',
+  commander: 'site.quickSwitch.kindCommander',
+  card: 'site.quickSwitch.kindCard',
+  printing: 'site.quickSwitch.kindPrinting',
+} as const satisfies Record<ListKind | 'commander' | 'card' | 'printing', MessageKey>
 
-const KIND_SUBTITLE_LABEL: Record<ListKind, string> = {
-  deck: 'deck',
-  collection: 'collection',
-  wanted: 'wanted list',
-}
+const KIND_PARENT_MESSAGE = {
+  deck: 'site.quickSwitch.inDeck',
+  collection: 'site.quickSwitch.inCollection',
+  wanted: 'site.quickSwitch.inWanted',
+} as const satisfies Record<ListKind, MessageKey>
 
 const MAX_LIST_RESULTS = 8
 const MAX_COMMANDER_RESULTS = 6
 const MAX_CARD_RESULTS = 12
 const MAX_PRINTING_RESULTS = 12
 
-function entryKindLabel(entry: QuickSwitchEntry): string {
-  if (entry.kind === 'list') return KIND_LABEL[entry.listKind]
-  return KIND_LABEL[entry.kind]
+function entryKindLabel(entry: QuickSwitchEntry, t: TranslateFn): string {
+  if (entry.kind === 'list') return t(KIND_LABEL[entry.listKind])
+  return t(KIND_LABEL[entry.kind])
 }
 
 function entryPrimary(entry: QuickSwitchEntry): string {
@@ -220,13 +233,16 @@ function entryPrimary(entry: QuickSwitchEntry): string {
   return entry.setCollectorDisplay
 }
 
-function entrySubtitle(entry: QuickSwitchEntry): string | undefined {
+function entrySubtitle(entry: QuickSwitchEntry, t: TranslateFn): string | undefined {
   if (entry.kind === 'list') return entry.subtitle
-  if (entry.kind === 'commander') return `in ${KIND_SUBTITLE_LABEL.deck} "${entry.deckName}"`
-  return `in ${KIND_SUBTITLE_LABEL[entry.parentKind]} "${entry.parentName}"`
+  if (entry.kind === 'commander') {
+    return t(KIND_PARENT_MESSAGE.deck, { name: entry.deckName })
+  }
+  return t(KIND_PARENT_MESSAGE[entry.parentKind], { name: entry.parentName })
 }
 
 export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
+  const { t, locale } = useI18n()
   const [query, setQuery] = createSignal('')
   const [activeIndex, setActiveIndex] = createSignal(0)
   const [details, setDetails] = createSignal<LoadedDetail[]>([])
@@ -263,6 +279,9 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
 
   const listEntries = createMemo<ListEntry[]>(() => {
     const cur = props.currency()
+    // `getDeckCountLabel` and `t('domain.count.cards')` below both render text,
+    // so this memo tracks the locale and re-derives every row on a switch.
+    locale()
     const out: ListEntry[] = []
     for (const d of props.decks() ?? []) {
       const countLabel = getDeckCountLabel(d.format, d.cardCount)
@@ -272,7 +291,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
         href: listHref('deck', d.slug),
         image: d.featuredCardImage || '',
         name: d.name,
-        subtitle: d.commander ? `Commander: ${d.commander}` : undefined,
+        subtitle: d.commander ? t('site.index.commander', { name: d.commander }) : undefined,
         label: countLabel.primary,
         labelSuffix: countLabel.suffix,
         total: getSummaryTotalPrice(d, cur),
@@ -286,7 +305,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
         href: listHref('collection', c.slug),
         image: c.featuredCardImage || '',
         name: c.name,
-        label: pluralizeCards(c.cardCount),
+        label: t('domain.count.cards', { count: c.cardCount }),
         total: getSummaryTotalPrice(c, cur),
         missing: getSummaryMissingPriceCount(c, cur),
       })
@@ -298,7 +317,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
         href: listHref('wanted', w.slug),
         image: w.featuredCardImage || '',
         name: w.name,
-        label: pluralizeCards(w.cardCount),
+        label: t('domain.count.cards', { count: w.cardCount }),
         total: getSummaryTotalPrice(w, cur),
         missing: getSummaryMissingPriceCount(w, cur),
       })
@@ -476,7 +495,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
         class="quick-switch-backdrop"
         role="dialog"
         aria-modal="true"
-        aria-label="Quick switch"
+        aria-label={t('site.quickSwitch.title')}
         onClick={(e) => {
           if (e.target === e.currentTarget) props.onClose()
         }}
@@ -486,7 +505,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
             ref={inputEl}
             class="quick-switch-input"
             type="text"
-            placeholder="Jump to a list, commander, or card..."
+            placeholder={t('site.quickSwitch.placeholder')}
             value={query()}
             onInput={(e) => {
               setQuery(e.currentTarget.value)
@@ -500,11 +519,11 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
           <div class="quick-switch-results" ref={listEl}>
             <Show
               when={filtered().length > 0}
-              fallback={<div class="quick-switch-empty">No matches</div>}
+              fallback={<div class="quick-switch-empty">{t('site.quickSwitch.noMatches')}</div>}
             >
               <For each={filtered()}>
                 {(entry, i) => {
-                  const subtitle = entrySubtitle(entry)
+                  const subtitle = entrySubtitle(entry, t)
                   return (
                     <button
                       type="button"
@@ -523,7 +542,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
                       </div>
                       <div class="quick-switch-row-main">
                         <div class="quick-switch-row-title">
-                          <span class="quick-switch-row-kind">{entryKindLabel(entry)}</span>
+                          <span class="quick-switch-row-kind">{entryKindLabel(entry, t)}</span>
                           <span class="quick-switch-row-name">{entryPrimary(entry)}</span>
                           {entry.kind === 'printing' && entry.cardName ? (
                             <span class="quick-switch-row-name-aux">{entry.cardName}</span>
@@ -555,13 +574,15 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
           <div class="quick-switch-footer">
             <span>
               <kbd>↑</kbd>
-              <kbd>↓</kbd> navigate
+              <kbd>↓</kbd> {t('site.quickSwitch.navigate')}
             </span>
             <span>
-              <kbd>Enter</kbd> open
+              {/* i18n-exempt: keyboard key names as printed on the key */}
+              <kbd>Enter</kbd> {t('site.quickSwitch.open')}
             </span>
             <span>
-              <kbd>Esc</kbd> close
+              {/* i18n-exempt: keyboard key names as printed on the key */}
+              <kbd>Esc</kbd> {t('site.quickSwitch.close')}
             </span>
           </div>
         </div>

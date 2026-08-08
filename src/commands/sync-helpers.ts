@@ -30,6 +30,8 @@ import {
   type ScriptingOptions,
 } from './scripting'
 import type { Command } from 'commander'
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
 
 /** Commander argParser for the `<direction>` positional: only push/pull are valid. */
 export function parseSyncDirection(value: string): SyncDirection {
@@ -50,33 +52,24 @@ export function parseSyncChangeFilter(value: string): SyncChangeFilter {
  * the *parent*, so shared flags and subcommands cannot coexist on one command).
  */
 export function addSyncDirectionArgument(command: Command): Command {
-  return command.argument(
-    '<direction>',
-    "Sync direction: 'push' (local → Archidekt) or 'pull' (Archidekt → local)",
-    parseSyncDirection,
-  )
+  return command.argument('<direction>', t('help.sync.direction'), parseSyncDirection)
 }
+
+/** Which sync surface {@link addSyncOptions} is registering options for. */
+export type SyncSubject = 'decks' | 'collectionLists'
 
 /**
  * Register the `--only` / `-y, --yes` / `--dry-run` options every sync surface
  * takes, so their spellings, argParsers, and help text cannot drift. `subject`
- * is the plural noun the `--yes` text names (`decks`, `collection lists`); each
- * command adds its own remaining arguments and options around this call.
+ * selects the noun the `--yes` text names; it is a `$select` branch rather than
+ * an interpolated noun so a translator controls the whole sentence (plan §7.3).
  */
-export function addSyncOptions(command: Command, subject: string): Command {
+export function addSyncOptions(command: Command, subject: SyncSubject): Command {
   return addDryRunOption(
     command
-      .option(
-        '-y, --yes',
-        `Sync ${subject} with unreadable lines without asking (those lines are lost)`,
-        false,
-      )
-      .option(
-        '--only <changes>',
-        "Apply only 'additions' or 'removals' (relative to the sync destination)",
-        parseSyncChangeFilter,
-      ),
-    'Report what would sync without writing files or pushing changes',
+      .option('-y, --yes', t('help.sync.yes', { subject }), false)
+      .option('--only <changes>', t('help.sync.only'), parseSyncChangeFilter),
+    t('help.sync.dryRun'),
   )
 }
 
@@ -156,7 +149,7 @@ function refuseRun(message: string, scripting: ScriptingOptions): null {
 export async function requireArchidektToken(scripting: ScriptingOptions): Promise<string | null> {
   const token = await new ArchidektAuth(new FileTokenStore()).getToken()
   if (token) return token
-  return refuseRun('Not signed into Archidekt. Run "ritual login archidekt" first.', scripting)
+  return refuseRun(t('cli.sync.notSignedIn'), scripting)
 }
 
 /**
@@ -170,29 +163,45 @@ export async function requireArchidektSession(
   const auth = new ArchidektAuth(new FileTokenStore())
   const token = await auth.getToken()
   if (!token) {
-    return refuseRun('Not signed into Archidekt. Run "ritual login archidekt" first.', scripting)
+    return refuseRun(t('cli.sync.notSignedIn'), scripting)
   }
   const user = await auth.getStoredUser()
   if (!user) {
-    return refuseRun(
-      'The stored Archidekt login does not name an account. Re-run "ritual login archidekt" to record it.',
-      scripting,
-    )
+    return refuseRun(t('cli.sync.accountUnnamed'), scripting)
   }
   return { token, account: { id: user.id, username: user.username } }
 }
 
 /** What a sync command calls the things it syncs, for the messages below. */
-export type UnreadableSubject = {
-  /** Singular noun, e.g. `deck`. */
-  one: string
-  /** Plural noun, e.g. `decks`. */
-  many: string
-}
+export type UnreadableSubject = 'decks' | 'collectionLists'
 
-/** `1 deck` / `3 collection lists` — a count with the right noun. */
-function countOf(count: number, subject: UnreadableSubject): string {
-  return `${count} ${count === 1 ? subject.one : subject.many}`
+/**
+ * The three sentences the unreadable-line gate says, once per subject.
+ *
+ * A whole sentence per subject rather than a noun interpolated into a shared
+ * frame: English already inflects the verb with the count ("1 deck contains" /
+ * "2 decks contain"), and most target languages also inflect the verb, the
+ * article, or the numeral for the noun's gender. A `{subject}` parameter cannot
+ * carry any of that. Message keys, so the table can be built at module load.
+ */
+const UNREADABLE_MESSAGES = {
+  decks: {
+    heading: 'cli.sync.unreadableDecks',
+    confirm: 'cli.sync.confirmDecks',
+    refuse: 'cli.sync.refuseDecks',
+  },
+  collectionLists: {
+    heading: 'cli.sync.unreadableCollectionLists',
+    confirm: 'cli.sync.confirmCollectionLists',
+    refuse: 'cli.sync.refuseCollectionLists',
+  },
+} as const satisfies Record<UnreadableSubject, UnreadableMessages>
+
+/** The message keys one subject's gate renders. */
+type UnreadableMessages = {
+  heading: MessageKey
+  confirm: MessageKey
+  refuse: MessageKey
 }
 
 /**
@@ -210,9 +219,8 @@ export function describeUnreadable(
     `  ${source.file} ("${source.name}"):`,
     ...source.warnings.map((warning) => `    ${warning}`),
   ])
-  const verb = sources.length === 1 ? 'contains' : 'contain'
   return [
-    `${countOf(sources.length, subject)} ${verb} lines Ritual cannot read.`,
+    t(UNREADABLE_MESSAGES[subject].heading, { count: sources.length }),
     consequence,
     ...lines,
   ].join('\n')
@@ -248,16 +256,14 @@ export async function confirmUnreadableSync(
   if (yes) return true
 
   if (!canPromptWithOutput(scripting)) {
-    logger.error(
-      `Confirmation required: pass --yes to sync these ${subject.many} non-interactively (${cost}), or fix the lines first.`,
-    )
+    logger.error(t(UNREADABLE_MESSAGES[subject].refuse, { cost }))
     return false
   }
 
   return (
     (await ask<boolean>({
       type: 'confirm',
-      message: `Sync ${countOf(sources.length, subject)} anyway, ${cost}?`,
+      message: t(UNREADABLE_MESSAGES[subject].confirm, { count: sources.length, cost }),
       initial: false,
     })) === true
   )

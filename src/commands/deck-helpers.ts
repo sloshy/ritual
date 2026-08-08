@@ -1,4 +1,6 @@
 import * as fs from 'node:fs/promises'
+import { compareData } from '../i18n/collate'
+import { t } from '../i18n/t'
 import path from 'node:path'
 import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
@@ -76,7 +78,12 @@ export function deckFilePath(name: string): string {
  */
 export async function ensureDeckFile(name: string, format: DeckFormatKey): Promise<string> {
   const content = newDeckMarkdown(name, format)
-  return ensureListFile(getDecksDir(), path.basename(deckFilePath(name)), content, 'deck')
+  return ensureListFile(
+    getDecksDir(),
+    path.basename(deckFilePath(name)),
+    content,
+    t('cli.edit.listNoun', { type: 'deck' }),
+  )
 }
 
 /**
@@ -88,7 +95,10 @@ export function deckFormatChoices(
   keys: readonly DeckFormatKey[] = DECK_FORMAT_KEYS,
 ): prompts.Choice[] {
   return keys.map((key) => ({
-    title: key === current ? `${getDeckFormatLabel(key)} (current)` : getDeckFormatLabel(key),
+    title:
+      key === current
+        ? t('cli.edit.current', { label: getDeckFormatLabel(key) })
+        : getDeckFormatLabel(key),
     value: key,
   }))
 }
@@ -113,7 +123,7 @@ export async function promptDeckFormat(
   const choices = deckFormatChoices(current, keys)
   const format = await ask<DeckFormatKey>({
     type: 'select',
-    message: 'Deck format:',
+    message: t('cli.deck.promptFormat'),
     choices,
     initial: current ? Math.max(0, keys.indexOf(current)) : 0,
   })
@@ -129,7 +139,7 @@ export async function loadDeck(filePath: string): Promise<LoadedDeck> {
   // canonical serializer cannot emit — would be dropped by that save. Warn up
   // front rather than losing them silently.
   for (const warning of unreadableLines(parseResult)) {
-    console.warn(`${path.basename(filePath)}: ${warning}`)
+    console.warn(t('cli.edit.fileWarning', { file: path.basename(filePath), warning }))
   }
   const deck = assignMissingDeckCardIds(parsed)
   const frontMatter = await parseDeckFrontMatter(filePath)
@@ -286,14 +296,24 @@ export function discardDeckCopy(state: DeckDiscardState, index: number): DeckDis
 const PROMPT_EVERY_TIME = '__PROMPT__'
 const NEW_SECTION = '__NEW__'
 
+/**
+ * How the session's pinned target section reads mid-sentence: the section's own
+ * name, or the localized "prompt every time" phrase when nothing is pinned.
+ * Shared by the confirmations here and the deck strategy's menu row, so the two
+ * can never describe the same setting differently.
+ */
+export function targetSectionDisplay(config: DeckSessionConfig): string {
+  return config.targetSection ?? t('cli.deck.promptEveryTimeInline')
+}
+
 /** Prompt for a free-form new section name. Returns the trimmed name, or null on cancel/empty. */
 export async function promptNewSectionName(): Promise<string | null> {
   const response = (await prompts({
     type: 'text',
     name: 'name',
-    message: 'New section name:',
+    message: t('cli.deck.promptNewSectionName'),
     initial: 'Main',
-    validate: (val: string) => (val.trim().length > 0 ? true : 'Section name cannot be empty'),
+    validate: (val: string) => (val.trim().length > 0 ? true : t('cli.deck.sectionNameEmpty')),
   })) as SectionNameResponse
   const name = response.name?.trim()
   return name ? name : null
@@ -314,10 +334,10 @@ export async function resolveTargetSection(
   const response = (await prompts({
     type: 'select',
     name: 'section',
-    message: 'Add to which section?',
+    message: t('cli.deck.promptAddSection'),
     choices: [
       ...existing.map((n) => ({ title: n, value: n })),
-      { title: '+ New Section', value: NEW_SECTION },
+      { title: `+ ${t('cli.deck.newSection')}`, value: NEW_SECTION },
     ],
     onState: (state: PromptState) => {
       if (state.exited) isExited = true
@@ -337,9 +357,9 @@ export async function promptSetTargetSection(
   config: DeckSessionConfig,
 ): Promise<void> {
   const choices = [
-    { title: 'Prompt every time', value: PROMPT_EVERY_TIME },
+    { title: t('cli.deck.promptEveryTime'), value: PROMPT_EVERY_TIME },
     ...deckSectionNames(deck).map((n) => ({ title: n, value: n })),
-    { title: '+ New Section', value: NEW_SECTION },
+    { title: `+ ${t('cli.deck.newSection')}`, value: NEW_SECTION },
   ]
   const initial = config.targetSection
     ? Math.max(
@@ -350,7 +370,7 @@ export async function promptSetTargetSection(
   const response = (await prompts({
     type: 'select',
     name: 'section',
-    message: 'Add cards to section:',
+    message: t('cli.deck.promptTargetSection'),
     choices,
     initial,
   })) as SectionPromptResponse
@@ -363,7 +383,7 @@ export async function promptSetTargetSection(
   } else {
     config.targetSection = response.section
   }
-  console.log(`Target section: ${config.targetSection ?? 'prompt every time'}.`)
+  console.log(t('cli.deck.targetSectionSet', { section: targetSectionDisplay(config) }))
 }
 
 /**
@@ -377,9 +397,9 @@ export async function promptDeckConfigUpdate(
   excludeDigitalOnly: boolean,
 ): Promise<string[]> {
   const sectionChoices = [
-    { title: 'Prompt every time', value: PROMPT_EVERY_TIME },
+    { title: t('cli.deck.promptEveryTime'), value: PROMPT_EVERY_TIME },
     ...deckSectionNames(deck).map((n) => ({ title: n, value: n })),
-    { title: 'New section…', value: NEW_SECTION },
+    { title: t('cli.deck.newSectionMore'), value: NEW_SECTION },
   ]
   const currentSectionIndex = sessionConfig.targetSection
     ? Math.max(
@@ -393,7 +413,7 @@ export async function promptDeckConfigUpdate(
     {
       type: 'select',
       name: 'section',
-      message: 'Add cards to section:',
+      message: t('cli.deck.promptTargetSection'),
       choices: sectionChoices,
       initial: currentSectionIndex,
     },
@@ -411,9 +431,7 @@ export async function promptDeckConfigUpdate(
   }
 
   const cardNames = await reloadCardNames(sessionConfig, excludeDigitalOnly)
-  console.log(
-    `Session filters updated. Target section: ${sessionConfig.targetSection ?? 'prompt every time'}.`,
-  )
+  console.log(t('cli.deck.filtersUpdatedSection', { section: targetSectionDisplay(sessionConfig) }))
   return cardNames
 }
 
@@ -436,5 +454,8 @@ export async function listExistingDecks(): Promise<ExistingDeck[]> {
       return { name: await readDeckName(file), file }
     }),
   )
-  return decks.sort((a, b) => a.name.localeCompare(b.name))
+  // Pinned English rather than `compareDisplay`: the deck picker's order is what
+  // the CLI integration tests assert on, and a developer with a non-English host
+  // locale must see the same ordering CI does.
+  return decks.sort((a, b) => compareData(a.name, b.name))
 }

@@ -151,13 +151,16 @@ describe('groupDecksByFormat', () => {
     expect(groups[1]!.decks.map((d) => d.slug)).toEqual(['b'])
   })
 
-  test('decks without a detected format land in the "Other" group, sorted last', () => {
+  // The unlabeled bucket carries `label: null` rather than a rendered "Other":
+  // grouping runs outside any reactive scope, so a string here would freeze that
+  // one heading in the boot-time language. The view resolves it.
+  test('decks without a detected format land in the unlabeled group, sorted last', () => {
     const decks: DeckSummary[] = [
       makeDeck({ slug: 'a', name: 'Alpha', format: null }),
       makeDeck({ slug: 'b', name: 'Bravo', format: 'commander' }),
     ]
     const groups = groupDecksByFormat(decks)
-    expect(groups.map((g) => g.label)).toEqual(['Commander', 'Other'])
+    expect(groups.map((g) => g.label)).toEqual(['Commander', null])
     expect(groups[1]!.decks.map((d) => d.slug)).toEqual(['a'])
   })
 

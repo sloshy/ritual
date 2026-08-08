@@ -18,7 +18,7 @@ import {
 import { CardModal } from './CardModal'
 import { FilteredPriceStat, SelectedPriceStat, SellModeNotice, SellValueStat } from './PageStats'
 import { useSellMode } from './useSellMode'
-import { capitalize } from './utils'
+import { finishName, rarityName } from './printing-display'
 import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
@@ -36,7 +36,22 @@ import { useCombinedSelection, type SelectionListId } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
 import type { MetaEntry } from './meta-entry'
 import type { CombinedCardData } from './combined-list'
-import { CARD_LABEL_DISPLAY_NAMES } from '../card-labels'
+import { cardLabelName } from '../card-labels'
+import { useT } from '../ui/i18n'
+import type { MessageKey } from '../i18n/messages/en'
+
+/**
+ * Every key a group-by dropdown label may name. Narrower than `MessageKey` so
+ * `t()` can render one without params, and `Extract` turns a key that no longer
+ * exists in the catalog into `never` — a compile error at the table below.
+ */
+type GroupByMessageKey = Extract<MessageKey, `site.groupBy.${string}` | `domain.groupBy.${string}`>
+
+/**
+ * A group-by choice before its label is rendered. The `value` half is a
+ * persisted URL token and stays locale-independent.
+ */
+type CombinedGroupByOption = { value: GroupBy; label: GroupByMessageKey }
 
 // The sort fields the combined view offers, in order — shared by the toolbar's
 // dropdown options and the URL sync's validation of incoming sort layers.
@@ -89,6 +104,7 @@ interface CombinedCardsViewProps {
  * themselves and hand it in, along with the title and header.
  */
 export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
+  const t = useT()
   const toolbar = useToolbarState<GroupBy>({ groupBy: 'source', sortBy: 'name' })
   const {
     viewMode,
@@ -128,23 +144,27 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
   // `sellMode` is a parameter rather than a read of the toolbar signal so the URL
   // sync can ask for the *full* option set (what a shared link may legally name)
   // while the dropdown shows only what is currently offered.
-  const groupByOptionsFor = (sellMode: boolean): SelectOption[] => {
-    const opts: SelectOption[] = [{ value: 'source', label: 'Source List' }]
-    if (sectionOrder().length >= 2) opts.push({ value: 'section', label: 'Section' })
+  const groupByOptionsFor = (sellMode: boolean): CombinedGroupByOption[] => {
+    const opts: CombinedGroupByOption[] = [{ value: 'source', label: 'site.groupBy.source' }]
+    if (sectionOrder().length >= 2) opts.push({ value: 'section', label: 'site.groupBy.section' })
     opts.push(
-      { value: 'type', label: 'Type' },
-      { value: 'cmc', label: 'Mana Value' },
-      { value: 'color-identity', label: 'Color Identity' },
-      { value: 'price', label: 'Price' },
+      { value: 'type', label: 'site.groupBy.type' },
+      { value: 'cmc', label: 'site.groupBy.cmc' },
+      { value: 'color-identity', label: 'site.groupBy.colorIdentity' },
+      { value: 'price', label: 'site.groupBy.price' },
     )
-    if (!hasCollections()) opts.push({ value: 'printing', label: 'Printing' })
+    if (!hasCollections()) opts.push({ value: 'printing', label: 'site.groupBy.printing' })
     if (sellMode) opts.push(...SELL_GROUP_BY_OPTIONS)
-    opts.push({ value: 'none', label: 'None' })
+    opts.push({ value: 'none', label: 'site.groupBy.none' })
     return opts
   }
   // A plain accessor, not a memo: `createMemo` evaluates eagerly, and `sell` is
   // declared below. Rebuilding a small array on read costs nothing.
-  const groupByOptions = (): SelectOption[] => groupByOptionsFor(sell.active())
+  const groupByOptions = (): SelectOption[] =>
+    groupByOptionsFor(sell.active()).map((option) => ({
+      value: option.value,
+      label: t(option.label),
+    }))
   // A parameter, not a read of the live mode, for the same reason as the
   // group-by options: the URL sync validates against the full set a shared
   // link may name, while the dropdown offers only what is currently on.
@@ -155,7 +175,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
     toolbar,
     filters: cardFilters,
     defaults: { groupBy: 'source', sortBy: 'name' },
-    groupByValues: groupByOptionsFor(Boolean(props.enableSellMode)).map((o) => o.value as GroupBy),
+    groupByValues: groupByOptionsFor(Boolean(props.enableSellMode)).map((o) => o.value),
     sortByValues: sortValuesFor(Boolean(props.enableSellMode)),
     enabled: props.enableUrlState,
     // From the selection's list *kinds*, not the loaded cards: the URL params
@@ -201,25 +221,25 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
   const cardCount = createMemo(() => props.cards.reduce((sum, c) => sum + c.quantity, 0))
 
   const modalMeta = createMemo((): MetaEntry[] | undefined => {
-    const t = modalTile()
-    if (!t) return undefined
-    const tile = t.selectedTile
+    const card = modalTile()
+    if (!card) return undefined
+    const tile = card.selectedTile
     const parts: MetaEntry[] = [
-      { label: 'price', value: formatPriceOrNA(t.price, props.currency) },
-      { label: 'list', value: t.sourceName },
+      { label: 'price', value: formatPriceOrNA(card.price, props.currency) },
+      { label: 'list', value: card.sourceName },
     ]
-    if (t.hasPrinting && tile.set) {
+    if (card.hasPrinting && tile.set) {
       parts.push({ label: 'set', value: `${tile.set.toUpperCase()}:${tile.collectorNumber}` })
     }
-    if (tile.finish) parts.push({ label: 'finish', value: capitalize(tile.finish) })
+    if (tile.finish) parts.push({ label: 'finish', value: finishName(t, tile.finish) })
     if (tile.condition) parts.push({ label: 'condition', value: tile.condition })
-    if (t.labels.length > 0) {
+    if (card.labels.length > 0) {
       parts.push({
         label: 'labels',
-        value: t.labels.map((l) => CARD_LABEL_DISPLAY_NAMES[l]).join(' · '),
+        value: card.labels.map(cardLabelName).join(' · '),
       })
     }
-    if (t.card) parts.push({ label: 'rarity', value: capitalize(t.card.rarity) })
+    if (card.card) parts.push({ label: 'rarity', value: rarityName(t, card.card.rarity) })
     return parts
   })
 
@@ -260,7 +280,10 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
         <div>
           <h1 class="page-title">{props.title}</h1>
           <p class="page-stats">
-            {cardCount()} cards · Total: {formatPrice(totalPrice(), props.currency)}
+            {t('site.stats.cardsAndTotal', {
+              count: cardCount(),
+              amount: formatPrice(totalPrice(), props.currency),
+            })}
             <FilteredPriceStat
               filters={cardFilters}
               amount={filteredTotalPrice()}
@@ -291,7 +314,9 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
         groupByOptions={groupByOptions()}
         onGroupByChange={(v) => setGroupBy(v as GroupBy)}
         sortLayers={sortLayers()}
-        sortByOptions={sortByOptions(sortValuesFor(sell.active()), { 'file-order': 'List Order' })}
+        sortByOptions={sortByOptions(sortValuesFor(sell.active()), {
+          'file-order': 'domain.sortBy.listOrder',
+        })}
         onSortLayersChange={setSortLayers}
         priceGroupStrategy={priceGroupStrategy()}
         onPriceGroupStrategyChange={setPriceGroupStrategy}
@@ -328,7 +353,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
       </Show>
 
       <Show when={!props.loading && props.cards.length === 0 && !props.error}>
-        <div class="combined-empty">{props.emptyMessage ?? 'No cards to show.'}</div>
+        <div class="combined-empty">{props.emptyMessage ?? t('site.combined.empty')}</div>
       </Show>
 
       {/* Card sections */}

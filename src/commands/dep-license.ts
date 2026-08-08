@@ -3,6 +3,7 @@ import prompts, { type Choice } from 'prompts'
 import { depLicenses, type DepLicenseEntry } from '../generated/dep-licenses'
 import { displayWithPager, resolvePagerMode } from '../pager'
 import { promptsUnavailable, promptsUnavailableReason } from '../no-input'
+import { t } from '../i18n/t'
 import {
   addOutputOption,
   emitError,
@@ -34,7 +35,7 @@ const SEPARATOR = '__SEPARATOR__'
 
 export function formatEntry(entry: DepLicenseEntry): string {
   const header = `${entry.name} v${entry.version} — ${entry.license}\n${'─'.repeat(60)}\n\n`
-  return header + (entry.text ?? `[No license text found. SPDX identifier: ${entry.license}]\n`)
+  return header + (entry.text ?? `${t('cli.depLicense.noText', { license: entry.license })}\n`)
 }
 
 /** Project the generated entries onto the list payload (drops the license text). */
@@ -58,11 +59,11 @@ export function toDepLicenseListEntries(
 export function formatDepLicenseList(entries: readonly DepLicenseEntry[]): string {
   const primary = entries.filter((entry) => entry.isPrimary)
   const transitive = entries.filter((entry) => !entry.isPrimary)
-  const lines: string[] = ['Primary:']
+  const lines: string[] = [t('cli.depLicense.primaryHeader')]
   for (const entry of primary) {
     lines.push(`  ${entry.name} ${entry.version} ${entry.license}`)
   }
-  lines.push('Transitive:')
+  lines.push(t('cli.depLicense.transitiveHeader'))
   for (const entry of transitive) {
     lines.push(`  ${entry.name} ${entry.version} ${entry.license}`)
   }
@@ -75,17 +76,23 @@ export function registerDepLicenseCommand(program: Command): void {
   addOutputOption(
     program
       .command('dep-license')
-      .description('Show licenses of dependencies bundled with Ritual')
-      .argument('[package]', 'Package name to display directly')
-      .option('--list', 'List every bundled dependency with its version and license', false)
-      .option('--plain', 'Output directly to stdout without pager', false),
+      .description(t('help.depLicense.description'))
+      .argument('[package]', t('help.depLicense.packageArg'))
+      .option('--list', t('help.depLicense.list'), false)
+      .option('--plain', t('help.depLicense.plain'), false),
   ).action(async (packageArg: string | undefined, options: DepLicenseOptions) => {
     const scripting = normalizeScriptingOptions(options)
     const mode = resolvePagerMode(options.plain)
 
     if (options.list) {
       if (packageArg) {
-        emitError('usage_error', 'Cannot combine a package name with --list.', scripting)
+        emitError(
+          'usage_error',
+          t('cli.depLicense.listWithPackage'),
+          scripting,
+          undefined,
+          'cli.depLicense.listWithPackage',
+        )
         process.exitCode = ExitCode.UsageError
         return
       }
@@ -102,8 +109,10 @@ export function registerDepLicenseCommand(program: Command): void {
       if (!entry) {
         emitError(
           'not_found',
-          `Package '${packageArg}' not found. Run 'ritual dep-license --list' for a list.`,
+          t('cli.depLicense.packageNotFound', { name: packageArg }),
           scripting,
+          undefined,
+          'cli.depLicense.packageNotFound',
         )
         process.exitCode = ExitCode.NotFound
         return
@@ -117,8 +126,10 @@ export function registerDepLicenseCommand(program: Command): void {
     if (promptsUnavailable() || !process.stdout.isTTY) {
       emitError(
         'usage_error',
-        `Provide a package name argument or use --list (${promptsUnavailableReason()}).`,
+        t('cli.depLicense.needsPackage', { reason: promptsUnavailableReason() }),
         scripting,
+        undefined,
+        'cli.depLicense.needsPackage',
       )
       process.exitCode = ExitCode.UsageError
       return
@@ -128,12 +139,12 @@ export function registerDepLicenseCommand(program: Command): void {
     const transitive = depLicenses.filter((e) => !e.isPrimary)
 
     const choices: Choice[] = [
-      { title: '── Primary Dependencies ──', value: SEPARATOR, disabled: true },
+      { title: t('cli.depLicense.primarySeparator'), value: SEPARATOR, disabled: true },
       ...primary.map((e) => ({
         title: `${e.name} v${e.version}  (${e.license})`,
         value: e.name,
       })),
-      { title: '── Transitive Dependencies ──', value: SEPARATOR, disabled: true },
+      { title: t('cli.depLicense.transitiveSeparator'), value: SEPARATOR, disabled: true },
       ...transitive.map((e) => ({
         title: `${e.name} v${e.version}  (${e.license})`,
         value: e.name,
@@ -144,7 +155,7 @@ export function registerDepLicenseCommand(program: Command): void {
     const response = await prompts({
       type: 'autocomplete',
       name: 'pkg',
-      message: 'Select a dependency to view its license',
+      message: t('cli.depLicense.promptSelect'),
       choices,
       suggest: async (input, choices) => {
         if (!input) return choices

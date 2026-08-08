@@ -16,6 +16,7 @@
 
 import fs from 'node:fs/promises'
 import { apiHandler } from '../utils'
+import { apiMessage, type ApiMessage } from './result'
 import { apiError } from './save-helpers'
 import { getBaseDir } from '../../base-dir'
 import { defaultDistDir, ritualArgv } from '../../site/dist-dir'
@@ -31,9 +32,8 @@ import type { RouteProgressSink } from '../../progress'
 export { STALE_BUILD_DIR_MAX_AGE_MS }
 
 /** `POST /api/build-site` — the site build finished. */
-export interface BuildSiteResponse {
+export interface BuildSiteResponse extends ApiMessage {
   success: true
-  message: string
   /** The directory the build was published to (always the base dir's `dist/`). */
   outDir: string
   /** Wall-clock duration of the build, in milliseconds. */
@@ -171,7 +171,7 @@ export function handleBuildSite(
       })
       const resp: BuildSiteResponse = {
         success: true,
-        message: 'Site built successfully',
+        ...apiMessage('admin.api.buildSite.built'),
         outDir: distDir,
         durationMs,
       }

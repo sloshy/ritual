@@ -22,6 +22,8 @@ import {
 import { getErrorMessage } from '../errors'
 import { parsePositiveInteger } from '../parse-number'
 import { ask } from './prompts-helpers'
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
 
 /**
  * `scry` speaks the shared csv-widened vocabulary; its `csv` is rendered by
@@ -90,20 +92,12 @@ export type ScryUsageInput = {
  */
 export function validateScryUsage(input: ScryUsageInput): string | null {
   if (input.random) {
-    if (input.pagesFlag !== undefined) {
-      return '--pages cannot be used with --random.'
-    }
-    if (input.output === 'csv') {
-      return '--output csv cannot be used with --random.'
-    }
+    if (input.pagesFlag !== undefined) return t('cli.scry.pagesWithRandom')
+    if (input.output === 'csv') return t('cli.scry.csvWithRandom')
     return null
   }
-  if (input.countFlag !== undefined) {
-    return '--count requires --random.'
-  }
-  if (input.query === undefined) {
-    return 'A search query is required unless --random is given.'
-  }
+  if (input.countFlag !== undefined) return t('cli.scry.countNeedsRandom')
+  if (input.query === undefined) return t('cli.scry.queryRequired')
   return null
 }
 
@@ -124,17 +118,13 @@ export function registerScryCommand(program: Command): void {
     addFieldsOption(
       program
         .command('scry')
-        .description('Run a raw Scryfall card search or fetch random cards')
-        .argument('[query]', 'Scryfall search query (with --random, filters the random pick)')
-        .option(
-          '--pages <number>',
-          `Fetch up to this many pages without prompting (default 1 when prompts are unavailable, max ${MAX_SCRY_PAGES})`,
-          parseScryPages,
-        )
-        .option('--random', 'Fetch random cards instead of searching', false)
+        .description(t('help.scry.description'))
+        .argument('[query]', t('help.scry.query'))
+        .option('--pages <number>', t('help.scry.pages', { max: MAX_SCRY_PAGES }), parseScryPages)
+        .option('--random', t('help.scry.random'), false)
         .option(
           '--count <number>',
-          `Number of random cards to fetch with --random (default 1, max ${MAX_SCRY_RANDOM_COUNT})`,
+          t('help.scry.count', { max: MAX_SCRY_RANDOM_COUNT }),
           parseScryCount,
         ),
     ),
@@ -156,7 +146,13 @@ export function registerScryCommand(program: Command): void {
       return
     }
     if (options.fields && options.fields.length > 0 && format === 'csv') {
-      emitError('usage_error', '--fields cannot be used with --output csv.', scriptingOptions)
+      emitError(
+        'usage_error',
+        t('cli.scry.fieldsWithCsv'),
+        scriptingOptions,
+        undefined,
+        'cli.scry.fieldsWithCsv',
+      )
       process.exitCode = ExitCode.UsageError
       return
     }
@@ -208,7 +204,13 @@ export function registerScryCommand(program: Command): void {
 
     /** Report a page that could not be fetched, and set the runtime exit code. */
     const failPage = (message: string): void => {
-      emitError('runtime_error', `Error fetching page ${page}: ${message}`, scriptingOptions)
+      emitError(
+        'runtime_error',
+        t('cli.scry.pageFetchFailed', { page, reason: message }),
+        scriptingOptions,
+        undefined,
+        'cli.scry.pageFetchFailed',
+      )
       process.exitCode = ExitCode.RuntimeError
     }
 
@@ -232,7 +234,13 @@ export function registerScryCommand(program: Command): void {
         if (!raw || raw.length === 0) {
           // Empty result or 404
           if (page === 1) {
-            emitError('not_found', 'No results found.', scriptingOptions)
+            emitError(
+              'not_found',
+              t('cli.scry.noResults'),
+              scriptingOptions,
+              undefined,
+              'cli.scry.noResults',
+            )
             process.exitCode = ExitCode.NotFound
           }
           break
@@ -286,7 +294,7 @@ export function registerScryCommand(program: Command): void {
         if (interactivePaging) {
           const fetchNext = await ask<boolean>({
             type: 'confirm',
-            message: `Page ${page} displayed. Fetch next page?`,
+            message: t('cli.scry.promptNextPage', { page }),
             initial: true,
           })
           if (fetchNext !== true) break
@@ -320,11 +328,11 @@ export function formatTruncationNotice(
   total: number | undefined,
   pages: number,
 ): string {
-  const pageLabel = pages === 1 ? 'page 1' : `pages 1-${pages}`
+  const pageLabel = t('cli.scry.pageRange', { count: pages })
   if (fetched === undefined || total === undefined) {
-    return `More results remain (fetched ${pageLabel}); use --pages <n> for more.`
+    return t('cli.scry.truncatedUnknown', { pages: pageLabel })
   }
-  return `Fetched ${fetched} of ${total} results (${pageLabel}); use --pages <n> for more.`
+  return t('cli.scry.truncated', { fetched, total, pages: pageLabel })
 }
 
 /**
@@ -355,15 +363,23 @@ async function runRandom(
     if (outcome.kind === 'failed') {
       emitError(
         'runtime_error',
-        `Failed to fetch random card: ${outcome.message}`,
+        t('cli.scry.randomFailed', { reason: outcome.message }),
         scriptingOptions,
+        undefined,
+        'cli.scry.randomFailed',
       )
       process.exitCode = ExitCode.RuntimeError
       return
     }
 
     if (outcome.kind === 'not-found') {
-      emitError('not_found', 'No card found for the supplied random filter.', scriptingOptions)
+      emitError(
+        'not_found',
+        t('cli.scry.randomNotFound'),
+        scriptingOptions,
+        undefined,
+        'cli.scry.randomNotFound',
+      )
       process.exitCode = ExitCode.NotFound
       return
     }
@@ -388,23 +404,38 @@ async function runRandom(
  * would spend the rate limit for an hour before anyone noticed. The cap is named
  * in the message so a caller who really wants more knows what the ceiling is.
  */
-function parseBoundedInt(value: string, label: string, max: number): number {
+function parseBoundedInt(value: string, bound: BoundedFlagMessages, max: number): number {
   const parsed = parsePositiveInteger(value)
-  if (parsed === undefined) {
-    throw new InvalidArgumentError(`${label} must be a positive integer.`)
-  }
-  if (parsed > max) {
-    throw new InvalidArgumentError(`${label} must be at most ${max}.`)
-  }
+  if (parsed === undefined) throw new InvalidArgumentError(t(bound.positive))
+  if (parsed > max) throw new InvalidArgumentError(t(bound.tooLarge, { max }))
   return parsed
+}
+
+/**
+ * The two refusals a bounded numeric flag needs. A whole message per flag
+ * rather than one frame with the flag's name spliced in: the name is the
+ * sentence's subject, and a subject cannot be substituted across languages
+ * without agreement errors.
+ */
+type BoundedFlagMessages = {
+  positive: Extract<MessageKey, `cli.scry.${string}Positive`>
+  tooLarge: Extract<MessageKey, `cli.scry.${string}TooLarge`>
 }
 
 /** Commander argParser for `--pages`; exported so its bound is pinned directly. */
 export function parseScryPages(value: string): number {
-  return parseBoundedInt(value, 'Pages', MAX_SCRY_PAGES)
+  return parseBoundedInt(
+    value,
+    { positive: 'cli.scry.pagesPositive', tooLarge: 'cli.scry.pagesTooLarge' },
+    MAX_SCRY_PAGES,
+  )
 }
 
 /** Commander argParser for `--count`; exported so its bound is pinned directly. */
 export function parseScryCount(value: string): number {
-  return parseBoundedInt(value, 'Count', MAX_SCRY_RANDOM_COUNT)
+  return parseBoundedInt(
+    value,
+    { positive: 'cli.scry.countPositive', tooLarge: 'cli.scry.countTooLarge' },
+    MAX_SCRY_RANDOM_COUNT,
+  )
 }

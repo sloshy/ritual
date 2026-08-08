@@ -1,24 +1,26 @@
 import { type JSX, For, Match, Show, Switch, createMemo, createSignal } from 'solid-js'
 import { StatusAlerts } from '../components/StatusAlerts'
-import { formatChange } from '../../../change-event'
-import { LIST_TYPE_DISPLAY, listTypeLabel } from '../../../list-type'
+import { formatChange } from '../../../change-message'
+import { LIST_TYPE_DISPLAY } from '../../../list-type'
 import {
   type ChangeBundle,
   bundleChangeCount,
-  countLabel,
   parseChangeBundle,
 } from '../../../editor/change-bundle'
+import { useT, useTKey } from '../../../ui/i18n'
 import type { BundleImportResponse, BundleImportResult } from '../../api/import-changes'
 import type { ApiErrorResponse } from '../../api/save-helpers'
 import { PageHeading } from '../components/PageHeading'
+import type { ParameterlessKey } from '../../../i18n/t'
 
 type SourceMethod = 'upload' | 'text'
 
-type MethodOption = { id: SourceMethod; label: string }
+/** One tab of the source picker; `labelKey` is a {@link MessageKey}, resolved at render time. */
+type MethodOption = { id: SourceMethod; labelKey: ParameterlessKey }
 
 const METHODS: MethodOption[] = [
-  { id: 'upload', label: 'Upload File' },
-  { id: 'text', label: 'Paste Text' },
+  { id: 'upload', labelKey: 'admin.import.upload' },
+  { id: 'text', labelKey: 'admin.import.pasteText' },
 ]
 
 /**
@@ -36,6 +38,8 @@ type ApplyResponse = BundleImportResponse | ApiErrorResponse
  * re-targets and saves each list's changes and reports per-list outcomes.
  */
 export function ImportChanges(): JSX.Element {
+  const t = useT()
+  const tKey = useTKey()
   const [method, setMethod] = createSignal<SourceMethod>('upload')
   const [fileName, setFileName] = createSignal('')
   const [fileContent, setFileContent] = createSignal('')
@@ -90,16 +94,16 @@ export function ImportChanges(): JSX.Element {
       })
       const data = (await resp.json()) as ApplyResponse
       if (!data.success) {
-        setError(data.message || 'Failed to apply changes')
+        setError(data.message || t('admin.importChanges.applyFailed'))
         return
       }
       setResult(data)
       // A list that failed to load or save still leaves a report worth showing,
       // so the banner is the only thing that changes.
       if (data.failedCount > 0) setError(data.message)
-      else setStatus(data.message || 'Changes applied')
+      else setStatus(data.message || t('admin.importChanges.applied'))
     } catch {
-      setError('Failed to apply changes')
+      setError(t('admin.importChanges.applyFailed'))
     } finally {
       setLoading(false)
     }
@@ -108,10 +112,7 @@ export function ImportChanges(): JSX.Element {
   return (
     <div>
       <PageHeading page="import-changes" />
-      <p class="text-muted">
-        Apply a change bundle exported from the site editor, covering one or more lists. Review the
-        pending changes below, then apply them to your list files.
-      </p>
+      <p class="text-muted">{t('admin.importChanges.desc')}</p>
       <StatusAlerts status={status()} error={error()} />
 
       <Show when={result()}>
@@ -127,12 +128,19 @@ export function ImportChanges(): JSX.Element {
                     when={!list.error}
                     fallback={<span class="import-changes-result-error">{list.error}</span>}
                   >
-                    <span>applied {countLabel(list.applied, 'change')}</span>
+                    <span>{t('admin.importChanges.appliedCount', { count: list.applied })}</span>
                   </Show>
                   <Show when={list.conflicts.length > 0}>
                     <ul class="import-changes-conflicts">
                       <For each={list.conflicts}>
-                        {(c) => <li>⚠ Skipped (card not found): {formatChange(c.change)}</li>}
+                        {(c) => (
+                          <li>
+                            ⚠{' '}
+                            {t('admin.importChanges.skipped', {
+                              change: formatChange(c.change),
+                            })}
+                          </li>
+                        )}
                       </For>
                     </ul>
                   </Show>
@@ -144,7 +152,7 @@ export function ImportChanges(): JSX.Element {
       </Show>
 
       <div class="form-container">
-        <div class="segmented" role="group" aria-label="JSON source">
+        <div class="segmented" role="group" aria-label={t('admin.importChanges.sourceLabel')}>
           <For each={METHODS}>
             {(m) => (
               <button
@@ -154,7 +162,7 @@ export function ImportChanges(): JSX.Element {
                 aria-pressed={method() === m.id}
                 onClick={() => setMethod(m.id)}
               >
-                {m.label}
+                {tKey(m.labelKey)}
               </button>
             )}
           </For>
@@ -163,10 +171,10 @@ export function ImportChanges(): JSX.Element {
         <Switch>
           <Match when={method() === 'upload'}>
             <div>
-              <label class="form-label">Change bundle (JSON)</label>
+              <label class="form-label">{t('admin.importChanges.fileLabel')}</label>
               <div class="file-input-row">
                 <label class="btn btn-secondary">
-                  Choose File
+                  {t('admin.import.chooseFile')}
                   <input
                     type="file"
                     class="file-input-hidden"
@@ -174,16 +182,14 @@ export function ImportChanges(): JSX.Element {
                     onChange={(e) => void handleFileChange(e.currentTarget)}
                   />
                 </label>
-                <span class="file-input-name">{fileName() || 'No file selected'}</span>
+                <span class="file-input-name">{fileName() || t('admin.import.noFile')}</span>
               </div>
-              <p class="form-hint form-hint-top">
-                An export from the site editor's Export panel (single list or all lists)
-              </p>
+              <p class="form-hint form-hint-top">{t('admin.importChanges.fileHint')}</p>
             </div>
           </Match>
           <Match when={method() === 'text'}>
             <div>
-              <label class="form-label">Change JSON</label>
+              <label class="form-label">{t('admin.importChanges.textLabel')}</label>
               <textarea
                 class="form-input form-textarea"
                 value={text()}
@@ -193,6 +199,7 @@ export function ImportChanges(): JSX.Element {
                   setStatus(null)
                   setError(null)
                 }}
+                // i18n-exempt: the bundle's own JSON shape, a machine contract.
                 placeholder='{"format": "ritual-change-bundle", ...}'
               />
             </div>
@@ -200,7 +207,9 @@ export function ImportChanges(): JSX.Element {
         </Switch>
 
         <Show when={parseError()}>
-          <div class="alert alert-error">Invalid change bundle: {parseError()}</div>
+          <div class="alert alert-error">
+            {t('admin.importChanges.invalid', { reason: parseError() ?? '' })}
+          </div>
         </Show>
 
         <Show when={bundle()}>
@@ -208,17 +217,23 @@ export function ImportChanges(): JSX.Element {
             <>
               <div>
                 <label class="form-label">
-                  Pending changes — {countLabel(totalChanges(), 'change')} across{' '}
-                  {countLabel(b().lists.length, 'list')}
+                  {t('admin.importChanges.pendingLabel', {
+                    changes: t('ui.count.changes', { count: totalChanges() }),
+                    lists: t('ui.count.lists', { count: b().lists.length }),
+                  })}
                 </label>
                 <div class="import-changes-preview">
                   <For each={b().lists}>
                     {(list) => (
                       <div class="import-changes-preview-group">
                         <div class="import-changes-preview-list">
-                          {LIST_TYPE_DISPLAY[list.kind].icon} {list.name} (
-                          {listTypeLabel(list.kind)} '{list.slug}') —{' '}
-                          {countLabel(list.changes.length, 'change')}
+                          {LIST_TYPE_DISPLAY[list.kind].icon}{' '}
+                          {t('admin.importChanges.previewList', {
+                            listType: list.kind,
+                            name: list.name,
+                            slug: list.slug,
+                            changes: t('ui.count.changes', { count: list.changes.length }),
+                          })}
                         </div>
                         <ul class="import-changes-preview-changes">
                           <For each={list.changes}>
@@ -238,8 +253,11 @@ export function ImportChanges(): JSX.Element {
                 onClick={() => void handleApply()}
               >
                 {loading()
-                  ? 'Applying...'
-                  : `Apply ${countLabel(totalChanges(), 'change')} to ${countLabel(b().lists.length, 'list')}`}
+                  ? t('admin.importChanges.applying')
+                  : t('admin.importChanges.applyButton', {
+                      changes: t('ui.count.changes', { count: totalChanges() }),
+                      lists: t('ui.count.lists', { count: b().lists.length }),
+                    })}
               </button>
             </>
           )}

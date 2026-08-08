@@ -6,7 +6,7 @@
  */
 export {
   BUYERS,
-  BUYER_DISPLAY_NAMES,
+  buyerName,
   CART_CSV_BUYERS,
   DEFAULT_BUYER,
   isBuyerId,

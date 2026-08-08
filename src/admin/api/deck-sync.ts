@@ -16,6 +16,8 @@ import type { SyncDirection } from '../../sync-common'
 import { sseResponse } from '../../sse'
 import { itemStartProgress, itemsDoneProgress, type RouteProgressSink } from '../../progress'
 import { apiHandler } from '../utils'
+import { apiMessage, pickMessage, type ApiMessage } from './result'
+import { renderSyncSummaryEnglish, type SyncSummary, type SyncSummaryClause } from './sync-summary'
 import { autoCommitAndPush, readJsonObjectBody } from './save-helpers'
 import {
   isRecord,
@@ -26,9 +28,25 @@ import {
   type SyncRequestCore,
 } from './sync-request'
 
-/** Shown whenever the stored Archidekt token cannot be used or refreshed. */
-export const LOGIN_REQUIRED_MESSAGE =
-  'Not signed into Archidekt. Sign in to sync decks with Archidekt.'
+/**
+ * Shown whenever the stored Archidekt token cannot be used or refreshed.
+ *
+ * Rendered from the catalog rather than written out again, so the English a
+ * script matches on and the sentence the admin UI translates can never drift.
+ *
+ * A function rather than a module-level constant: message namespaces are
+ * registered by the surface entry point (`src/i18n/register/*`, plan §4.2),
+ * which runs after every module body has been evaluated. Rendering at module
+ * scope would freeze the key string into the response.
+ */
+function loginRequiredMessage(): ApiMessage {
+  return apiMessage('admin.api.deckSync.loginRequired')
+}
+
+/** {@link loginRequiredMessage}'s rendered English, for callers that only want the text. */
+export function loginRequiredText(): string {
+  return loginRequiredMessage().message
+}
 
 /** `GET /api/deck-sync`: the syncable decks and the state of the Archidekt session. */
 export type DeckSyncStatusResponse = {
@@ -59,8 +77,8 @@ export type DeckSyncRequest = SyncRequestCore & {
  * success carrying a non-zero `report.failedCount`.
  */
 export type DeckSyncRunResponse =
-  | { success: true; message: string; report: DeckSyncReport }
-  | { success: false; message: string; loginRequired: boolean }
+  | (ApiMessage & { success: true; report: DeckSyncReport; summary: SyncSummary })
+  | (ApiMessage & { success: false; loginRequired: boolean })
 
 // ── Request parsing ───────────────────────────────────────────────────
 
@@ -126,33 +144,55 @@ function countStatus(report: DeckSyncReport, status: DeckSyncStatus): number {
   return report.decks.filter((deck) => deck.status === status).length
 }
 
-function pluralizeDecks(count: number): string {
-  return `${count} deck${count === 1 ? '' : 's'}`
-}
+/**
+ * The lead clause, one key per verb.
+ *
+ * Split by verb rather than spliced from `{verb} {count} deck(s)` because the
+ * count needs a plural table and the verb needs a selector, and one level of
+ * each is all a catalog value gets — nesting them is what the plan says to
+ * solve by splitting the key instead.
+ */
+const RUN_VERB_KEYS = {
+  pull: 'admin.api.deckSync.pulled',
+  push: 'admin.api.deckSync.pushed',
+} as const satisfies Record<SyncDirection, string>
 
-const RUN_VERBS = { pull: 'Pulled', push: 'Pushed' } as const satisfies Record<
-  SyncDirection,
-  string
->
-
-/** A one-line summary of a completed run, suitable for an alert in the UI. */
-export function describeRun(report: DeckSyncReport, dryRun: boolean): string {
-  if (report.decks.length === 0) return 'No Archidekt decks found to sync.'
+/**
+ * A completed run's summary as keyed clauses. The structured producer;
+ * {@link describeRun} is its English rendering.
+ */
+export function summarizeRun(report: DeckSyncReport, dryRun: boolean): SyncSummary {
+  if (report.decks.length === 0) {
+    return { clauses: [apiMessage('admin.api.deckSync.noDecks')] }
+  }
 
   const synced = countStatus(report, 'synced')
-  const verb = dryRun ? 'Previewed' : RUN_VERBS[report.direction]
-  const parts = [`${verb} ${pluralizeDecks(synced)}`]
+  const clauses: SyncSummaryClause[] = [
+    dryRun
+      ? apiMessage('admin.api.deckSync.previewed', { count: synced })
+      : apiMessage(RUN_VERB_KEYS[report.direction], { count: synced }),
+  ]
 
   const skipped = countStatus(report, 'skipped')
-  if (skipped > 0) parts.push(`${skipped} skipped`)
-  if (report.failedCount > 0) parts.push(`${report.failedCount} failed`)
-  return `${parts.join(', ')}.`
+  if (skipped > 0) clauses.push(apiMessage('admin.api.deckSync.skipped', { count: skipped }))
+  if (report.failedCount > 0) {
+    clauses.push(apiMessage('admin.api.deckSync.failed', { count: report.failedCount }))
+  }
+  return { clauses }
+}
+
+/**
+ * A one-line English summary of a completed run — what the response's `message`
+ * carries, and what a client without a translator shows.
+ */
+export function describeRun(report: DeckSyncReport, dryRun: boolean): string {
+  return renderSyncSummaryEnglish(summarizeRun(report, dryRun))
 }
 
 /** The outcome of a run attempt: either a finished report or a reason it never started. */
 type RunOutcome =
   | { ok: true; report: DeckSyncReport }
-  | { ok: false; status: number; message: string; loginRequired: boolean }
+  | (ApiMessage & { ok: false; status: number; loginRequired: boolean })
 
 /**
  * Resolve the Archidekt token, run the sync, and auto-commit any deck files it
@@ -166,7 +206,7 @@ async function performSync(
 ): Promise<RunOutcome> {
   const token = await new ArchidektAuth(new FileTokenStore()).getToken()
   if (!token) {
-    return { ok: false, status: 401, message: LOGIN_REQUIRED_MESSAGE, loginRequired: true }
+    return { ok: false, status: 401, ...loginRequiredMessage(), loginRequired: true }
   }
 
   const { report, writtenFiles } = await runDeckSync({
@@ -206,9 +246,12 @@ export function handleDeckSyncStatus(): Promise<Response> {
   })
 }
 
-/** A run that never started, as the JSON endpoint reports it. */
-function runRefused(message: string, status: number, loginRequired = false): Response {
-  const body: DeckSyncRunResponse = { success: false, message, loginRequired }
+/**
+ * A run that never started, as the JSON endpoint reports it. Takes the whole
+ * message triple so a keyed refusal keeps its key on the way out.
+ */
+function runRefused(reason: ApiMessage, status: number, loginRequired = false): Response {
+  const body: DeckSyncRunResponse = { success: false, ...pickMessage(reason), loginRequired }
   return Response.json(body, { status })
 }
 
@@ -252,18 +295,21 @@ export function handleDeckSyncRun(req: Request, onProgress?: RouteProgressSink):
 
     const parsed = parseDeckSyncBody(raw)
     if (typeof parsed === 'string') {
-      return runRefused(parsed, 400)
+      // A validation message is composed from the caller's own field names, so
+      // it carries no catalog key — the English text is the whole of it.
+      return runRefused({ message: parsed }, 400)
     }
 
     const mapping = onProgress === undefined ? undefined : deckSyncProgressEvents(onProgress)
     const outcome = await performSync(parsed, mapping?.onEvent)
     if (!outcome.ok) {
-      return runRefused(outcome.message, outcome.status, outcome.loginRequired)
+      return runRefused(outcome, outcome.status, outcome.loginRequired)
     }
 
     // A run that completed is a success even when individual decks failed —
     // `report.failedCount` and each deck's `reason` carry that detail.
-    const message = describeRun(outcome.report, parsed.dryRun)
+    const summary = summarizeRun(outcome.report, parsed.dryRun)
+    const message = renderSyncSummaryEnglish(summary)
     // On the engine's scale, not `report.decks.length`: the report also holds
     // decks that never emitted a `deck-start`, so counting it would move the
     // denominator out from under every frame already sent.
@@ -271,6 +317,7 @@ export function handleDeckSyncRun(req: Request, onProgress?: RouteProgressSink):
     const body: DeckSyncRunResponse = {
       success: true,
       message,
+      summary,
       report: outcome.report,
     }
     return Response.json(body)
@@ -278,9 +325,9 @@ export function handleDeckSyncRun(req: Request, onProgress?: RouteProgressSink):
 }
 
 /** `event: done` payload — the same shape the JSON endpoint returns. */
-export type DeckSyncDoneEvent = { message: string; report: DeckSyncReport }
+export type DeckSyncDoneEvent = ApiMessage & { report: DeckSyncReport; summary: SyncSummary }
 /** `event: error` payload for a run that never produced a report. */
-export type DeckSyncErrorEvent = { message: string; loginRequired: boolean }
+export type DeckSyncErrorEvent = ApiMessage & { loginRequired: boolean }
 
 /** The event vocabulary of `GET /api/deck-sync/stream`, name paired with payload. */
 type DeckSyncStreamEvents = {
@@ -308,11 +355,13 @@ export function handleDeckSyncStream(req: Request): Promise<Response> {
 
       const outcome = await performSync(parsed, (event) => send('progress', event))
       if (!outcome.ok) {
-        send('error', { message: outcome.message, loginRequired: outcome.loginRequired })
+        send('error', { ...pickMessage(outcome), loginRequired: outcome.loginRequired })
         return
       }
+      const summary = summarizeRun(outcome.report, parsed.dryRun)
       send('done', {
-        message: describeRun(outcome.report, parsed.dryRun),
+        message: renderSyncSummaryEnglish(summary),
+        summary,
         report: outcome.report,
       })
     } catch (error) {

@@ -1,5 +1,6 @@
 import type { Component } from 'solid-js'
 import { For, Show } from 'solid-js'
+import { useT } from '../ui/i18n'
 import { useStuck } from './useStuck'
 import {
   INDEX_GROUP_OPTIONS,
@@ -14,7 +15,7 @@ export interface IndexToolbarProps {
   sort: IndexSort
   onSortChange: (sort: IndexSort) => void
   /** The sort options offered on this tab (decks include "Lowest price"; lists don't). */
-  sortOptions: IndexSortOption[]
+  sortOptions: readonly IndexSortOption[]
   reverse: boolean
   onReverseToggle: () => void
   /**
@@ -27,6 +28,7 @@ export interface IndexToolbarProps {
 }
 
 export const IndexToolbar: Component<IndexToolbarProps> = (props) => {
+  const t = useT()
   const { stuck, sentinelRef } = useStuck()
   return (
     <>
@@ -35,21 +37,24 @@ export const IndexToolbar: Component<IndexToolbarProps> = (props) => {
         <Show when={props.onGroupChange}>
           {(onGroupChange) => (
             <div class="toolbar-group">
-              <label class="toolbar-label">Group:</label>
+              <label class="toolbar-label">{t('site.toolbar.groupLabel')}</label>
               <select
                 class="toolbar-select"
                 value={props.group ?? 'none'}
                 onChange={(e) => onGroupChange()(parseIndexGroup(e.currentTarget.value))}
               >
+                {/* The options carry message *keys*: the table is built once at
+                    import, so a table of rendered labels would leave this
+                    dropdown in the boot-time language after a locale switch. */}
                 <For each={INDEX_GROUP_OPTIONS}>
-                  {(opt) => <option value={opt.value}>{opt.label}</option>}
+                  {(opt) => <option value={opt.value}>{t(opt.label)}</option>}
                 </For>
               </select>
             </div>
           )}
         </Show>
         <div class="toolbar-group">
-          <label class="toolbar-label">Sort:</label>
+          <label class="toolbar-label">{t('site.toolbar.sortLabel')}</label>
           <select
             class="toolbar-select"
             value={props.sort}
@@ -58,7 +63,7 @@ export const IndexToolbar: Component<IndexToolbarProps> = (props) => {
             }
           >
             <For each={props.sortOptions}>
-              {(opt) => <option value={opt.value}>{opt.label}</option>}
+              {(opt) => <option value={opt.value}>{t(opt.label)}</option>}
             </For>
           </select>
         </div>
@@ -69,7 +74,7 @@ export const IndexToolbar: Component<IndexToolbarProps> = (props) => {
           aria-pressed={props.reverse}
           onClick={props.onReverseToggle}
         >
-          <span aria-hidden="true">↑↓</span> Reverse
+          <span aria-hidden="true">↑↓</span> {t('site.toolbar.reverse')}
         </button>
       </div>
     </>

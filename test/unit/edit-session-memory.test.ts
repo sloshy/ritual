@@ -7,6 +7,7 @@ import {
   hasAnyEditSession,
   listEditSessions,
   clearEditSessions,
+  needsDiscardConfirm,
 } from '../../src/site/editor/edit-session-memory'
 
 const add = (id: string, cardId: number): ChangeEvent => ({
@@ -110,5 +111,27 @@ describe('edit-session-memory', () => {
     expect(recallEditSession('deck', 'a')).toBeUndefined()
     expect(recallEditSession('wanted', 'b')).toBeUndefined()
     expect(hasAnyEditSession()).toBe(false)
+  })
+
+  describe('needsDiscardConfirm', () => {
+    it('does not ask when nothing is pending anywhere', () => {
+      expect(needsDiscardConfirm(0)).toBe(false)
+    })
+
+    it('asks when the open list has pending edits', () => {
+      expect(needsDiscardConfirm(2)).toBe(true)
+    })
+
+    // Edit mode is site-wide: leaving it drops every list's in-memory session,
+    // so another list's pending edits have to be confirmed too.
+    it('asks when another list has pending edits, even with none on this one', () => {
+      rememberEditSession('collection', 'other', 'Other', [add('1', 5)])
+      expect(needsDiscardConfirm(0)).toBe(true)
+    })
+
+    it('does not ask when another list was opened but left unedited', () => {
+      rememberEditSession('collection', 'other', 'Other', [])
+      expect(needsDiscardConfirm(0)).toBe(false)
+    })
   })
 })

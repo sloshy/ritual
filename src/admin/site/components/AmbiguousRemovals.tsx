@@ -1,6 +1,7 @@
 import { type JSX, createMemo, For, Match, Show, Switch } from 'solid-js'
 import type { CollectionSyncList } from '../../api/collection-sync'
 import { describeAmbiguousRemoval, type AmbiguousRemoval } from '../../../collection-sync/describe'
+import { useT, useTSegments } from '../../../ui/i18n'
 
 /**
  * The Sync Collection page's two surfaces for the one thing a pull cannot work
@@ -40,6 +41,8 @@ export type RemovalPriorityPickerProps = {
  * answers them has to speak the same vocabulary.
  */
 export function RemovalPriorityPicker(props: RemovalPriorityPickerProps): JSX.Element {
+  const t = useT()
+  const tSegments = useTSegments()
   /** The heading a list is displayed under, by slug; the slug when it has none. */
   const labels = createMemo(
     () => new Map(props.lists.map((list) => [list.slug, list.name] as const)),
@@ -57,33 +60,27 @@ export function RemovalPriorityPicker(props: RemovalPriorityPickerProps): JSX.El
 
   return (
     <div class="sync-priority">
-      <h3 class="section-subheading">Removal priority</h3>
+      <h3 class="section-subheading">{t('admin.priority.heading')}</h3>
       <p class="sync-choice-desc">
-        When a printing loses copies remotely but its local copies live in several lists, nothing
-        says which one the card left. Name the lists that may give copies up, in order — the first
-        is asked first, and only these lists are touched.{' '}
-        <Show
-          when={props.dryRun}
-          fallback={
-            <>
-              Without one, a run that meets such a removal <strong>fails and writes nothing</strong>
-              .
-            </>
-          }
+        {t('admin.priority.desc')}{' '}
+        {/* The bolded consequence sits mid-sentence, so the follow-up renders as
+            segments and only the emphasized parameter gets markup. */}
+        <For
+          each={tSegments(props.dryRun ? 'admin.priority.descPreview' : 'admin.priority.descRun', {
+            emphasis: t('admin.priority.failsAndWritesNothing'),
+          })}
         >
-          A preview reports such a removal instead of failing; a real run without a priority{' '}
-          <strong>fails and writes nothing</strong>.
-        </Show>
+          {(segment) =>
+            segment.kind === 'param' ? <strong>{segment.value}</strong> : segment.value
+          }
+        </For>
       </p>
 
       <Show
         when={props.value.length > 0}
         fallback={
           <p class="sync-priority-empty">
-            No priority set —{' '}
-            {props.dryRun
-              ? 'a preview will report an ambiguous removal instead of placing it.'
-              : 'an ambiguous removal will stop the run before anything is written.'}
+            {props.dryRun ? t('admin.priority.emptyPreview') : t('admin.priority.emptyRun')}
           </p>
         }
       >
@@ -101,7 +98,7 @@ export function RemovalPriorityPicker(props: RemovalPriorityPickerProps): JSX.El
                 <button
                   type="button"
                   class="sync-priority-remove"
-                  aria-label={`Remove ${labelOf(slug)} from the removal priority`}
+                  aria-label={t('admin.priority.remove', { name: labelOf(slug) })}
                   disabled={props.disabled}
                   onClick={() => drop(slug)}
                 >
@@ -136,7 +133,7 @@ export function RemovalPriorityPicker(props: RemovalPriorityPickerProps): JSX.El
           </div>
         </Match>
         <Match when={props.lists.length === 0}>
-          <p class="text-muted">No collection lists in scope — there is nothing to prioritize.</p>
+          <p class="text-muted">{t('admin.priority.noLists')}</p>
         </Match>
       </Switch>
     </div>
@@ -154,12 +151,28 @@ export type AmbiguousRemovalsPanelProps = {
  * panel, and a preview says so in its own log.
  */
 export function AmbiguousRemovalsPanel(props: AmbiguousRemovalsPanelProps): JSX.Element {
+  const t = useT()
+  const tSegments = useTSegments()
   return (
     <div class="sync-ambiguous">
       <p class="sync-ambiguous-lead">
-        {props.removals.length} removal{props.removals.length === 1 ? '' : 's'} could not be placed,
-        so <strong>nothing was written</strong>. Set a removal priority above and run again, or keep
-        a printing's copies in one list.
+        {/* The bolded clause sits mid-sentence, so the message is rendered as
+            segments and the emphasized parameter is the one that gets markup —
+            which leaves a translator free to move it. */}
+        <For
+          each={tSegments('admin.sync.ambiguousLead', {
+            count: props.removals.length,
+            emphasis: t('admin.sync.nothingWritten'),
+          })}
+        >
+          {(segment) =>
+            segment.kind === 'param' && segment.name === 'emphasis' ? (
+              <strong>{segment.value}</strong>
+            ) : (
+              segment.value
+            )
+          }
+        </For>
       </p>
       <ul class="sync-ambiguous-list">
         <For each={props.removals}>

@@ -15,6 +15,8 @@
  * answer identically in each.
  */
 
+import type { MessageKey } from './i18n/messages/en'
+import { t } from './i18n/t'
 import { parseEnumField } from './parse-enum'
 
 /** Every label, in canonical serialization order (`sale` before `trade`). */
@@ -27,11 +29,29 @@ export const CARD_LABELS = ['sale', 'trade', 'keep'] as const
  */
 export type CardLabel = (typeof CARD_LABELS)[number]
 
-/** Human wording for each label, used by every display surface. */
-export const CARD_LABEL_DISPLAY_NAMES: Record<CardLabel, string> = {
-  sale: 'For sale',
-  trade: 'For trade',
-  keep: 'To keep',
+/**
+ * Every message key naming a label state. Narrower than `MessageKey` so `t()`
+ * can be called on a value of this type without params — `Extract` also makes a
+ * key that no longer exists in the catalog resolve to `never`, and therefore a
+ * compile error at the tables below.
+ */
+export type CardLabelMessageKey = Extract<MessageKey, `domain.label.${string}`>
+
+/**
+ * Message keys for each label's human wording, used by every display surface.
+ * Keys rather than rendered text: the table is evaluated once at module load,
+ * so strings here would leave every chip and menu row in the boot-time
+ * language after a locale switch. Resolve with {@link cardLabelName}.
+ */
+export const CARD_LABEL_DISPLAY_NAMES = {
+  sale: 'domain.label.sale',
+  trade: 'domain.label.trade',
+  keep: 'domain.label.keep',
+} as const satisfies Record<CardLabel, MessageKey>
+
+/** A label's human wording in the active UI locale ("For sale"). */
+export function cardLabelName(label: CardLabel): string {
+  return t(CARD_LABEL_DISPLAY_NAMES[label])
 }
 
 /** True when `value` is a member of the label vocabulary. */
@@ -192,8 +212,12 @@ export function effectiveLabels(
   return [...(override ?? listDefault ?? [])]
 }
 
-/** One pickable override in the label pickers, in menu order. */
-export type CardLabelChoice = { label: string; labels: readonly CardLabel[] }
+/**
+ * One pickable override in the label pickers, in menu order. `label` is a
+ * message key for the same reason {@link CARD_LABEL_DISPLAY_NAMES} holds keys —
+ * the choice lists below are module-level constants.
+ */
+export type CardLabelChoice = { label: CardLabelMessageKey; labels: readonly CardLabel[] }
 
 /**
  * The five override states every label picker offers (the CLI edit menu, the
@@ -205,9 +229,9 @@ export type CardLabelChoice = { label: string; labels: readonly CardLabel[] }
 export const CARD_LABEL_CHOICES = [
   { label: CARD_LABEL_DISPLAY_NAMES.sale, labels: ['sale'] },
   { label: CARD_LABEL_DISPLAY_NAMES.trade, labels: ['trade'] },
-  { label: 'For sale + trade', labels: ['sale', 'trade'] },
+  { label: 'domain.label.saleAndTrade', labels: ['sale', 'trade'] },
   { label: CARD_LABEL_DISPLAY_NAMES.keep, labels: ['keep'] },
-  { label: 'Use list default', labels: [] },
+  { label: 'domain.label.useListDefault', labels: [] },
 ] as const satisfies readonly CardLabelChoice[]
 
 /**
@@ -216,6 +240,6 @@ export const CARD_LABEL_CHOICES = [
  * default" clear row — "Use list default" makes no sense for the default itself.
  */
 export const CARD_LABEL_DEFAULT_CHOICES: readonly CardLabelChoice[] = [
-  { label: 'No default', labels: [] },
+  { label: 'domain.label.noDefault', labels: [] },
   ...CARD_LABEL_CHOICES.filter((choice) => choice.labels.length > 0),
 ]

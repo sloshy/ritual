@@ -1,5 +1,6 @@
 import { type JSX, Show, For, createSignal, createMemo, onCleanup } from 'solid-js'
 import { isValidIso8601 } from '../../../changelog-blocks'
+import { useT, useTKey, useTSegments } from '../../../ui/i18n'
 import { groupListsByType, listInfoId, type ListId } from '../list-grouping'
 import { useHistorySession } from '../hooks/useHistorySession'
 import { useNavigationGuard } from '../../../editor/navigation-guard'
@@ -26,6 +27,9 @@ function lineText(line: string): string {
 }
 
 export function History(): JSX.Element {
+  const t = useT()
+  const tKey = useTKey()
+  const tSegments = useTSegments()
   const session = useHistorySession()
   const guard = useNavigationGuard()
 
@@ -57,9 +61,9 @@ export function History(): JSX.Element {
     // did to get here (the router restores the URL a refused Back moved off of).
     confirm()?.onCancel?.()
     setConfirm({
-      title: 'Discard unsaved changes?',
-      message: 'Your edits to this change history will be lost.',
-      confirmLabel: 'Discard',
+      title: t('admin.history.discardTitle'),
+      message: t('admin.history.discardMessage'),
+      confirmLabel: t('admin.history.discardConfirm'),
       destructive: true,
       onConfirm: () => {
         setConfirm(null)
@@ -88,10 +92,9 @@ export function History(): JSX.Element {
 
   const requestRewrite = () =>
     setConfirm({
-      title: 'Rewrite with defaults?',
-      message:
-        'Replace all change sets with a single new set describing the list exactly as it stands now.',
-      confirmLabel: 'Rewrite',
+      title: t('admin.history.rewriteTitle'),
+      message: t('admin.history.rewriteMessage'),
+      confirmLabel: t('admin.history.rewriteConfirm'),
       destructive: false,
       onConfirm: () => {
         setConfirm(null)
@@ -102,9 +105,9 @@ export function History(): JSX.Element {
 
   const requestDiscard = () =>
     setConfirm({
-      title: 'Discard all changes?',
-      message: 'Revert to the change history as it was loaded.',
-      confirmLabel: 'Discard',
+      title: t('admin.history.discardAllTitle'),
+      message: t('admin.history.discardAllMessage'),
+      confirmLabel: t('admin.history.discardConfirm'),
       destructive: true,
       onConfirm: () => {
         setConfirm(null)
@@ -165,7 +168,7 @@ export function History(): JSX.Element {
       <div class="history-toolbar">
         <div class="deck-selector-container history-toolbar-select">
           <label class="deck-selector-label" for="history-list-select">
-            Edit history for
+            {t('admin.history.selectorLabel')}
           </label>
           <select
             id="history-list-select"
@@ -173,10 +176,10 @@ export function History(): JSX.Element {
             value={session.selectedId() ?? ''}
             onChange={onSelectChange}
           >
-            <option value="">— Choose a list —</option>
+            <option value="">{t('admin.select.chooseList')}</option>
             <For each={listsByType()}>
               {(group) => (
-                <optgroup label={group.label}>
+                <optgroup label={tKey(group.labelKey)}>
                   <For each={group.lists}>
                     {(list) => <option value={listInfoId(list)}>{list.name}</option>}
                   </For>
@@ -192,12 +195,10 @@ export function History(): JSX.Element {
               type="button"
               class="btn-defaults"
               disabled={!session.canRewrite()}
-              title={
-                session.canRewrite() ? undefined : 'The list is empty — nothing to rewrite from.'
-              }
+              title={session.canRewrite() ? undefined : t('admin.history.rewriteDisabled')}
               onClick={requestRewrite}
             >
-              🔄 Rewrite with defaults
+              🔄 {t('admin.history.rewriteButton')}
             </button>
             <button
               type="button"
@@ -205,7 +206,7 @@ export function History(): JSX.Element {
               disabled={!session.canUndo()}
               onClick={doUndo}
             >
-              Undo
+              {t('admin.history.undo')}
               <Show when={session.canUndo()}>
                 <span class="changes-badge">{session.undoCount()}</span>
               </Show>
@@ -216,7 +217,7 @@ export function History(): JSX.Element {
               disabled={!session.dirty() || session.saving()}
               onClick={() => void session.save()}
             >
-              {session.saving() ? 'Saving...' : 'Save'}
+              {session.saving() ? t('admin.history.saving') : t('admin.history.save')}
             </button>
             <button
               type="button"
@@ -224,7 +225,7 @@ export function History(): JSX.Element {
               disabled={!session.dirty()}
               onClick={requestDiscard}
             >
-              Discard
+              {t('admin.history.discard')}
             </button>
           </div>
         </Show>
@@ -232,18 +233,26 @@ export function History(): JSX.Element {
 
       <StatusAlerts status={session.status()} error={session.error()} />
 
-      <Show when={session.loaded()} fallback={<p class="text-muted">Loading lists…</p>}>
+      <Show
+        when={session.loaded()}
+        fallback={<p class="text-muted">{t('admin.history.loadingLists')}</p>}
+      >
         <Show
           when={hasList()}
-          fallback={
-            <p class="text-muted history-empty">Choose a list to edit its change history.</p>
-          }
+          fallback={<p class="text-muted history-empty">{t('admin.history.chooseList')}</p>}
         >
-          <Show when={!session.detailLoading()} fallback={<p class="text-muted">Loading…</p>}>
+          <Show
+            when={!session.detailLoading()}
+            fallback={<p class="text-muted">{t('admin.history.loading')}</p>}
+          >
             <Show when={showSummary()}>
               <p class="history-summary text-muted">
-                Change sets: {session.originalSetCount()} → {session.sets().length} · Change lines:{' '}
-                {session.originalLineCount()} → {session.lineCount()}
+                {t('admin.history.summary', {
+                  originalSets: session.originalSetCount(),
+                  sets: session.sets().length,
+                  originalLines: session.originalLineCount(),
+                  lines: session.lineCount(),
+                })}
               </p>
             </Show>
 
@@ -251,11 +260,21 @@ export function History(): JSX.Element {
               when={session.sets().length > 0}
               fallback={
                 <p class="text-muted history-empty">
-                  This list has no change history.
+                  {t('admin.history.noHistory')}
+                  {/* The button's own name sits mid-sentence and is bolded, so
+                      the hint renders as segments and only that parameter gets
+                      markup. */}
                   <Show when={session.canRewrite()}>
                     {' '}
-                    Use <strong>Rewrite with defaults</strong> to generate one from its current
-                    contents.
+                    <For
+                      each={tSegments('admin.history.noHistoryHint', {
+                        action: t('admin.history.rewriteButton'),
+                      })}
+                    >
+                      {(segment) =>
+                        segment.kind === 'param' ? <strong>{segment.value}</strong> : segment.value
+                      }
+                    </For>
                   </Show>
                 </p>
               }
@@ -276,7 +295,7 @@ export function History(): JSX.Element {
                           </span>
                           <span class="history-set-time">{set.timestamp}</span>
                           <span class="history-set-count">
-                            {set.lines.length} change{set.lines.length === 1 ? '' : 's'}
+                            {t('ui.count.changes', { count: set.lines.length })}
                           </span>
                         </button>
                         <div class="history-set-actions">
@@ -286,21 +305,21 @@ export function History(): JSX.Element {
                             disabled={session.sets().length < 2}
                             onClick={() => setCombineFor(index())}
                           >
-                            Combine
+                            {t('admin.history.combine')}
                           </button>
                           <button
                             type="button"
                             class="btn btn-secondary btn-xs"
                             onClick={() => setRetimeFor(index())}
                           >
-                            Edit time
+                            {t('admin.history.editTime')}
                           </button>
                           <button
                             type="button"
                             class="btn btn-danger btn-xs"
                             onClick={() => doDelete(index())}
                           >
-                            Delete
+                            {t('admin.history.delete')}
                           </button>
                         </div>
                       </div>
@@ -339,14 +358,12 @@ export function History(): JSX.Element {
 
       <TextPromptDialog
         open={retimeFor() !== null}
-        title="Edit timestamp"
-        label="New ISO-8601 timestamp"
+        title={t('admin.history.retimeTitle')}
+        label={t('admin.history.retimeLabel')}
         initialValue={retimeInitial()}
-        confirmLabel="Update"
+        confirmLabel={t('admin.history.retimeConfirm')}
         validate={(value) =>
-          isValidIso8601(value.trim())
-            ? null
-            : 'Must be a valid ISO-8601 timestamp (e.g. 2026-05-29T12:00:00.000Z).'
+          isValidIso8601(value.trim()) ? null : t('admin.history.retimeInvalid')
         }
         onConfirm={onRetimeConfirm}
         onCancel={() => setRetimeFor(null)}

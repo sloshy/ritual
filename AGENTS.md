@@ -58,6 +58,21 @@ set: match[3]?.toLowerCase()
 entry.set.toLowerCase() === change.set.toLowerCase()
 ```
 
+### Localization
+
+Every string a **human** reads in the CLI or either SPA goes through `t()` from `src/i18n/t.ts`, keyed into the English catalog under `src/i18n/messages/en/`. Adding a key means adding an entry in the sibling `*.meta.ts` file too — the `description` is mandatory and is the only context a translator gets. `bun run scripts/check-locales.ts` is the gate; it runs under `precommit`, `test`, and `verify`.
+
+Absolute rules, in the same spirit as Set Code Normalization above:
+
+- **Persistence fence.** `src/change-event.ts`, `src/changelog-writer.ts`, `src/changelog-parser.ts`, `src/csv.ts`, `src/buylist/cart-csv.ts`, and `src/export/**` must never import `src/i18n`. `.changes.md` prose is a **data format** that `changelog-parser.ts` re-parses on English verbs and whose `.sha256` sidecars hash exact bytes — a translated changelog parses to zero changes and shows empty history with no error. `test/unit/i18n-conventions.test.ts` scans for this; it is the highest-value test in the project.
+- **Card-line grammar is not prose.** The serializers and parsers for the `&N` / `[foil]` / `[NM]` / `[ja]` / `SET:CN` line format are English by construction. Do not route them through `t()`.
+- **Casing.** `toUpperCase()` / `toLowerCase()` are locale-invariant and are what the set-code rule wants. `toLocaleUpperCase` / `toLocaleLowerCase` are banned anywhere in `src/`.
+- **Collation.** Never call bare `localeCompare` or construct a bare `Intl.*`. Pick `compareData` (pinned English — set codes, dates, slugs, paths, any asserted CLI ordering) or `compareDisplay` (locale-aware — user-visible names) from `src/i18n/collate.ts`, and get every `Intl` factory from `src/i18n/format.ts`. The `ritual/no-bare-intl-locale` rule enforces this.
+- **Machine contracts never localize.** Exit codes, `ErrorCode`, `--output json|ndjson` payload _keys_, CSV/export headers, persisted slugs and tokens, `printingKey`. A structured error's `message` follows the UI locale; its `code` and `messageKey` do not.
+- **English by contract.** MCP tool names, titles, descriptions and `.describe()` docs; `src/skills/content/**` and skill descriptions; `docs-site/**`. These are model-facing prose and are deliberately never translated — see `research/i18n-framework-plan-2026-08-07.md` §11.
+
+Design record: `research/i18n-framework-plan-2026-08-07.md`.
+
 ### Organization
 
 New CLI commands should be added to `src/commands/` rather than directly in `index.ts`.
@@ -121,6 +136,7 @@ The admin HTTP API (`src/admin/api/`, registered in `src/admin/server.ts`) is Ri
 2. The corresponding MCP tool(s) in `src/mcp/tools/` **if the operation is exposed there**, plus the server instructions and `mcp.md`. (Not every CLI command is mirrored by an MCP tool — the auth/login surface is intentionally omitted — but anything the MCP does expose must match, and a capability the MCP needs gets an admin route first; see [API-First Surface Definition](#api-first-surface-definition) above. Where MCP tools declare result `outputSchema`s, a change to a handler's response shape must update the schema and its pinned tests in the same change.)
 3. The corresponding skill content in `src/skills/content/` (and the skill descriptions used for discovery), plus `skills.md`. The Skills are meant to mirror the **full CLI surface**, so a new or changed command almost always means a skill edit.
 4. The tests for each surface (`test/unit/mcp/*`, `test/integration/mcp-*.test.ts`, `test/unit/skills.test.ts`, `test/integration/skills-install.test.ts`).
+5. The **message catalog** — any new or reworded user-facing string is a key in `src/i18n/messages/en/` plus its mandatory `description` in the sibling `*.meta.ts`, validated by `bun run scripts/check-locales.ts`. A removed string means a removed key: dead keys are an error, not a warning. See [Localization](#localization) for what is deliberately _not_ translated.
 
 When reviewing changes that touch commands, explicitly confirm the MCP tools and Skills were updated — a CLI change with no matching MCP/Skills update is a defect, not an omission. Run the **`feature-surface-sync`** agent (see [Post-Implementation Review](#post-implementation-review)) to audit this matrix automatically whenever you touch an admin route handler, a `src/commands/` command, or a flag/option.
 

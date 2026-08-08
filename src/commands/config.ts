@@ -14,6 +14,7 @@ import {
   saveRitualConfig,
   type RitualConfig,
 } from '../ritual-config'
+import { t } from '../i18n/t'
 import {
   addScriptingOptions,
   emitError,
@@ -39,12 +40,16 @@ type ConfigUnsetResult = {
   defaultValue?: SettableValue
 }
 
+/** The interpolation params shared by the two `config list` row messages. */
+type ConfigEntryParams = {
+  property: string
+  value: string
+}
+
 const formatConfigValue = formatSettableValue
 
 export function registerConfigCommand(program: Command): void {
-  const config = program
-    .command('config')
-    .description('Inspect and modify the ritual configuration file')
+  const config = program.command('config').description(t('help.config.description'))
 
   registerSetSubcommand(config)
   registerGetSubcommand(config)
@@ -56,15 +61,11 @@ function registerSetSubcommand(config: Command): void {
   addScriptingOptions(
     config
       .command('set')
-      .description('Set or update a value in the ritual configuration file')
-      .argument('<property>', 'Config property to set (use dot notation for nested: parent.child)')
-      .argument('<value...>', 'Value(s) to set')
-      .addOption(
-        new Option('--add', 'Add value(s) to an array property instead of replacing it').conflicts(
-          'remove',
-        ),
-      )
-      .addOption(new Option('--remove', 'Remove value(s) from an array property')),
+      .description(t('help.config.set'))
+      .argument('<property>', t('help.config.setProperty'))
+      .argument('<value...>', t('help.config.setValue'))
+      .addOption(new Option('--add', t('help.config.add')).conflicts('remove'))
+      .addOption(new Option('--remove', t('help.config.remove'))),
   ).action(async (property: string, values: string[], options: ConfigSetOptions) => {
     const scripting = normalizeScriptingOptions(options)
     const mode: ArrayMode = options.add ? 'add' : options.remove ? 'remove' : 'replace'
@@ -81,7 +82,13 @@ function registerSetSubcommand(config: Command): void {
 
     if (scripting.output === 'text') {
       if (!scripting.quiet) {
-        emitOutput(`Set ${outcome.property} = ${formatConfigValue(outcome.newValue)}`, scripting)
+        emitOutput(
+          t('cli.config.set', {
+            property: outcome.property,
+            value: formatConfigValue(outcome.newValue),
+          }),
+          scripting,
+        )
       }
       return
     }
@@ -94,11 +101,8 @@ function registerGetSubcommand(config: Command): void {
   addScriptingOptions(
     config
       .command('get')
-      .description('Print the value of a single configuration property')
-      .argument(
-        '<property>',
-        'Config property to read (use dot notation for nested: parent.child)',
-      ),
+      .description(t('help.config.get'))
+      .argument('<property>', t('help.config.getProperty')),
   ).action(async (property: string, options: Partial<ScriptingOptions>) => {
     const scripting = normalizeScriptingOptions(options)
     const outcome = applyConfigGet(await loadRitualConfig(), property)
@@ -109,7 +113,13 @@ function registerGetSubcommand(config: Command): void {
       return
     }
     if (outcome.kind === 'unset') {
-      emitError('not_found', `"${property}" is not set.`, scripting)
+      emitError(
+        'not_found',
+        t('cli.config.notSet', { property }),
+        scripting,
+        undefined,
+        'cli.config.notSet',
+      )
       process.exitCode = ExitCode.NotFound
       return
     }
@@ -124,43 +134,45 @@ function registerGetSubcommand(config: Command): void {
 }
 
 function registerListSubcommand(config: Command): void {
-  addScriptingOptions(
-    config.command('list').description('Print the full effective configuration'),
-  ).action(async (options: Partial<ScriptingOptions>) => {
-    const scripting = normalizeScriptingOptions(options)
-    const current = await loadRitualConfig()
+  addScriptingOptions(config.command('list').description(t('help.config.list'))).action(
+    async (options: Partial<ScriptingOptions>) => {
+      const scripting = normalizeScriptingOptions(options)
+      const current = await loadRitualConfig()
 
-    if (scripting.output === 'text') {
-      const lines: string[] = []
-      for (const entry of listConfigEntries(current)) {
-        if (entry.value === undefined) {
-          lines.push(`${entry.property} = (unset)`)
-          continue
+      if (scripting.output === 'text') {
+        const lines: string[] = []
+        for (const entry of listConfigEntries(current)) {
+          if (entry.value === undefined) {
+            lines.push(t('cli.config.entryUnset', { property: entry.property }))
+            continue
+          }
+          const params: ConfigEntryParams = {
+            property: entry.property,
+            value: formatConfigValue(entry.value),
+          }
+          lines.push(
+            entry.isDefault ? t('cli.config.entryDefault', params) : t('cli.config.entry', params),
+          )
         }
-        const marker = entry.isDefault ? ' (default)' : ''
-        lines.push(`${entry.property} = ${formatConfigValue(entry.value)}${marker}`)
+        emitOutput(lines.join('\n'), scripting)
+        return
       }
-      emitOutput(lines.join('\n'), scripting)
-      return
-    }
 
-    // Mirror the payload of the admin server's GET /api/config (the effective
-    // config from loadRitualConfig) so `config list --output json` and the MCP
-    // get_config tool report the same values.
-    const result: RitualConfig = { ...current }
-    emitOutput(result, scripting)
-  })
+      // Mirror the payload of the admin server's GET /api/config (the effective
+      // config from loadRitualConfig) so `config list --output json` and the MCP
+      // get_config tool report the same values.
+      const result: RitualConfig = { ...current }
+      emitOutput(result, scripting)
+    },
+  )
 }
 
 function registerUnsetSubcommand(config: Command): void {
   addScriptingOptions(
     config
       .command('unset')
-      .description('Remove a configuration property, reverting it to its default')
-      .argument(
-        '<property>',
-        'Config property to unset (use dot notation for nested: parent.child)',
-      ),
+      .description(t('help.config.unset'))
+      .argument('<property>', t('help.config.unsetProperty')),
   ).action(async (property: string, options: Partial<ScriptingOptions>) => {
     const scripting = normalizeScriptingOptions(options)
     const current = await loadRitualConfig()
@@ -181,8 +193,11 @@ function registerUnsetSubcommand(config: Command): void {
       if (!scripting.quiet) {
         emitOutput(
           outcome.defaultValue !== undefined
-            ? `Reset ${outcome.property} to default (${formatConfigValue(outcome.defaultValue)})`
-            : `Unset ${outcome.property}`,
+            ? t('cli.config.reset', {
+                property: outcome.property,
+                value: formatConfigValue(outcome.defaultValue),
+              })
+            : t('cli.config.unset', { property: outcome.property }),
           scripting,
         )
       }

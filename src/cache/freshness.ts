@@ -6,6 +6,8 @@ import { bulkAllowed, shouldBulkRefresh, type BulkRefreshPrompt, type RefreshMod
 import { downloadTagIndex, refreshTags } from '../scryfall'
 import { configuredCardBulkType, type CardBulkType } from '../scryfall/bulk-manifest'
 import { getDefaultLanguage } from '../ritual-config'
+import { numberFormat } from '../i18n/format'
+import { currentLocale } from '../i18n/runtime'
 import type { TagIndex } from '../scryfall/tags'
 import type { CacheManager } from '../interfaces'
 import type { ScryfallCard } from '../types'
@@ -135,8 +137,14 @@ async function promptStaleCacheRefresh(
 ): Promise<string | null> {
   if (age <= BULK_CACHE_MAX_AGE_MS) return null
   const days = Math.floor(age / ONE_DAY_MS)
+  // Whole days, so `Intl`'s unit style says it without a hardcoded plural `s`.
+  const dayCount = numberFormat(currentLocale(), {
+    style: 'unit',
+    unit: 'day',
+    unitDisplay: 'long',
+  }).format(days)
   const accepted = await confirm({
-    message: `Card cache is ${days} day${days !== 1 ? 's' : ''} old. Would you like to update it?`,
+    message: `Card cache is ${dayCount} old. Would you like to update it?`,
     initial: false,
   })
   if (!accepted) return null

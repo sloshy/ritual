@@ -14,8 +14,12 @@ import {
   promptDeckFormat,
   promptSetTargetSection,
   resolveTargetSection,
+  targetSectionDisplay,
   writeDeck,
 } from './deck-helpers'
+import type { MessageKey } from '../i18n/messages/en'
+import { DEFAULT_LOCALE } from '../i18n/runtime'
+import { t, tIn, type TranslateArgs } from '../i18n/t'
 import { getDeckFormatLabel, resolveDeckFormat, type DeckFormatKey } from '../deck-format'
 import type { DeckFrontMatter } from '../deck-file'
 import {
@@ -51,6 +55,22 @@ import { formatSpecificPrintingPrice } from '../price-currency'
 import { getDefaultCurrency } from '../ritual-config'
 
 type TagsPromptResponse = { value?: string }
+
+/**
+ * A session-menu row built from a catalog key, recording the key's English
+ * rendering as a search alias in the same call so the typing a user has in
+ * their fingers keeps selecting the row after the menu is translated. Mirrors
+ * `menuRow` in `card-session.ts`, which does the same for the shared rows; the
+ * icon stays out of the catalog because it is layout, not wording.
+ */
+function menuRow<K extends MessageKey>(
+  icon: string,
+  value: MenuSentinel,
+  key: K,
+  ...args: TranslateArgs<K>
+): MenuChoice {
+  return menuItem(`${icon} ${t(key, ...args)}`, value, [tIn(DEFAULT_LOCALE, key, ...args)])
+}
 
 export type DeckStrategyArgs = {
   deckFile: string
@@ -95,7 +115,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
   /** The deck's format as shown in the menu: its label, or "not set". */
   const formatDisplay = (): string => {
     const format = currentFormat()
-    return format ? getDeckFormatLabel(format) : 'not set'
+    return format ? getDeckFormatLabel(format) : t('cli.deck.formatNotSet')
   }
 
   /**
@@ -110,12 +130,14 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     frontMatter.format = next
     state.deck.format = next
     state.dirty = true
-    console.log(`Format changed to ${getDeckFormatLabel(next)}.`)
+    console.log(t('cli.deck.formatChanged', { format: getDeckFormatLabel(next) }))
   }
 
   /** The deck's tags as shown in the menu: comma-joined, or "none". */
   const tagsDisplay = (): string =>
-    frontMatter.tags && frontMatter.tags.length > 0 ? frontMatter.tags.join(', ') : 'none'
+    frontMatter.tags && frontMatter.tags.length > 0
+      ? frontMatter.tags.join(', ')
+      : t('cli.deck.tagsNone')
 
   /**
    * Prompt for the deck's tags (comma-separated; empty clears them). Like a
@@ -130,7 +152,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     const response = (await prompts({
       type: 'text',
       name: 'value',
-      message: 'Tags (comma separated; empty clears them):',
+      message: t('cli.deck.promptTags'),
       initial: (frontMatter.tags ?? []).join(', '),
     })) as TagsPromptResponse
     if (response.value === undefined) return
@@ -140,7 +162,11 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     if (tags.length === 0) delete frontMatter.tags
     else frontMatter.tags = tags
     state.dirty = true
-    console.log(tags.length > 0 ? `Tags set to: ${tags.join(', ')}.` : 'Tags cleared.')
+    console.log(
+      tags.length > 0
+        ? t('cli.deck.tagsSet', { tags: tags.join(', ') })
+        : t('cli.deck.tagsCleared'),
+    )
   }
 
   /** Add a card (with or without a printing) to `section`, tracking it as the last added. */
@@ -184,20 +210,21 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
       ? ` (${printing.set.toUpperCase()}:${printing.collectorNumber})`
       : ''
     const languageInfo = languageToken(printing.language)
-    console.log(`Added: ${cardName}${printingInfo}${languageInfo} to ${section}`)
+    console.log(
+      t('cli.deck.addedCard', { card: `${cardName}${printingInfo}${languageInfo}`, section }),
+    )
   }
 
   return {
-    managerLabel: 'deck manager',
+    managerLabel: t('cli.manager.deck'),
     saveTarget: { filePath: deckFile, listName: deckName },
     sessionConfig,
     extraMenuItems: (): MenuChoice[] => [
-      menuItem(
-        `🗂️  Set Target Section (${sessionConfig.targetSection ?? 'prompt every time'})`,
-        '__SECTION__',
-      ),
-      menuItem(`🏷️  Change Format (${formatDisplay()})`, '__FORMAT__'),
-      menuItem(`🔖 Edit Tags (${tagsDisplay()})`, '__TAGS__'),
+      menuRow('🗂️ ', '__SECTION__', 'cli.deck.menuTargetSection', {
+        section: targetSectionDisplay(sessionConfig),
+      }),
+      menuRow('🏷️ ', '__FORMAT__', 'cli.deck.menuChangeFormat', { format: formatDisplay() }),
+      menuRow('🔖', '__TAGS__', 'cli.deck.menuEditTags', { tags: tagsDisplay() }),
     ],
     handleSentinel: async (_ctx: CardSessionContext, value: MenuSentinel): Promise<void> => {
       if (value === '__SECTION__') await promptSetTargetSection(state.deck, sessionConfig)
@@ -237,10 +264,10 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
           if (isEditing) return
           // Deck lines may omit the printing, so fall back to a name-only add
           // rather than dropping the card.
-          console.error('No printings found. Adding name only.')
+          console.error(t('cli.edit.noPrintingsNameOnly'))
           const section = await resolveTargetSection(state.deck, sessionConfig)
           if (!section) {
-            console.log('No section selected. Skipping.')
+            console.log(t('cli.deck.noSectionSelected'))
             return
           }
           await addToDeck(ctx, cardName, { language: resolveAddedLanguage(undefined) }, section)
@@ -288,7 +315,10 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
         ctx.lastChangeIndex = trackEdit(ctx.sessionChanges, ctx.lastChangeIndex, addEvent, true)
         lastPrinting = printingTuple
         console.log(
-          `Edited ${cardName} → ${printingTuple.set?.toUpperCase()}:${printingTuple.collectorNumber}`,
+          t('cli.deck.editedPrinting', {
+            name: cardName,
+            printing: `${printingTuple.set?.toUpperCase()}:${printingTuple.collectorNumber}`,
+          }),
         )
         return
       }
@@ -296,7 +326,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
       // ── Add a new copy to the resolved section ────────────────────
       const section = await resolveTargetSection(state.deck, sessionConfig)
       if (!section) {
-        console.log('No section selected. Skipping.')
+        console.log(t('cli.deck.noSectionSelected'))
         return
       }
       await addToDeck(ctx, cardName, printingTuple, section)
@@ -332,7 +362,11 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
       }
       ctx.lastAddedCount++
       console.log(
-        `Added another ${ctx.lastAdded.name} to ${lastSection} (${ctx.lastAddedCount}x total)`,
+        t('cli.deck.addedAnother', {
+          name: ctx.lastAdded.name,
+          section: lastSection,
+          count: ctx.lastAddedCount,
+        }),
       )
     },
 

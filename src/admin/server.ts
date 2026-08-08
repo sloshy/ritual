@@ -67,6 +67,7 @@ import {
   handleListDelete,
   type ListLifecycleConfig,
 } from './api/list-lifecycle'
+import type { ApiErrorResponse } from './api/save-helpers'
 import { resolveDeckFile, resolveFlatListFile } from './api/list-file'
 
 const COLLECTION_CFG: ListLifecycleConfig = {
@@ -513,7 +514,11 @@ async function handleRequest(
     config = await loadRitualConfig()
   } catch (error) {
     if (error instanceof RitualConfigParseError) {
-      return Response.json({ success: false, message: error.message }, { status: 500 })
+      // The shared refusal envelope, spelled out rather than routed through
+      // `apiError`: this fires before any handler is chosen. No `messageKey` —
+      // the text is the parser's own report of what is wrong with the file.
+      const body: ApiErrorResponse = { success: false, message: error.message }
+      return Response.json(body, { status: 500 })
     }
     throw error
   }

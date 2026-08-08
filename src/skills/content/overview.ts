@@ -23,7 +23,9 @@ workspace if it contains \`decks/\`, \`collections/\`, or \`wanted/\` folders, o
 - \`decks/<name>.md\` — one deck per file
 - \`collections/<name>.md\` — collections of owned cards
 - \`wanted/<name>.md\` — cards you want to acquire
-- \`<name>.changes.md\` — append-only changelog next to each list (auto-maintained)
+- \`<name>.changes.md\` — append-only changelog next to each list (auto-maintained;
+  its prose is always English whatever the UI locale — it is a data format Ritual
+  parses back, and the sites translate it for display only)
 - \`ritual.config.json\` — configuration (optional: reading config never creates
   it, so a workspace only has one once \`config set\`/\`unset\`, \`init-site\`, the
   admin Settings page, or the MCP \`update_config\` tool writes it)
@@ -169,6 +171,18 @@ still cleaned — that exits 1 in **every** mode, including \`--dry-run\`. Under
 - \`--cache-server <host:port>\` — share a card/price cache with other instances
   (the \`RITUAL_CACHE_SERVER\` environment variable does the same; host one with
   \`ritual cache server\`). A malformed address is a usage error (exit 2)
+- \`--locale <tag>\` — the language Ritual's **own interface text** speaks, as a
+  BCP-47 tag (\`de-AT\`, \`ja\`). The \`RITUAL_LOCALE\` environment variable and the
+  \`uiLocale\` config key say the same thing at lower precedence:
+  \`--locale\` → \`RITUAL_LOCALE\` → \`uiLocale\` → the OS environment → \`en\`.
+  A malformed tag on the flag is a usage error (exit 2); a malformed
+  \`RITUAL_LOCALE\`/\`uiLocale\` warns and falls through to the next tier. This is
+  **not** \`defaultLanguage\` (which picks which *printing* of a card is used) —
+  the two are independent, and a Japanese interface listing English cards is a
+  valid combination. A locale Ritual ships no dictionary for renders in English
+  rather than failing. The OS-environment tier reads \`LC_ALL\`/\`LC_MESSAGES\`/
+  \`LANGUAGE\`/\`LANG\` only; asking Windows or macOS directly costs a subprocess and
+  happens **only** under \`ritual locale --detect\`
 ${asBullet(NO_INPUT_GUARANTEE)}
 
 Exit codes are uniform across commands: **1** runtime error, **2** usage error,
@@ -181,7 +195,9 @@ not there — is always **3**, never 1.
   file format or destination. \`json\` emits exactly one document per run (a
   card batch or a multi-page search is still one array); \`ndjson\` streams one
   object per line. Errors go to stderr as
-  \`{"error":{"code","message","details"}}\` in the structured modes. Three
+  \`{"error":{"code","messageKey?","message","details"}}\` in the structured
+  modes — \`code\` and \`messageKey\` are locale-invariant (match on those, never
+  on prose), while \`message\` follows the UI locale. Three
   exceptions, all deliberate: \`scry\` and \`sell\` add a fourth value
   \`--output csv\` (Scryfall's server-side CSV and Card Kingdom's sell-cart
   upload format, respectively — \`sell\`'s csv is a different payload, not the
@@ -214,9 +230,18 @@ ritual config set defaultLanguage ja   # language stamped on newly added cards (
                                   #   aliases like jp/Japanese normalize). Non-en switches cache
                                   #   downloads to Scryfall's much larger all-cards bulk
 ritual config set searchDebounceMs 250 # web editors' add-card search debounce in ms (0 disables)
+ritual config set uiLocale de-AT  # language Ritual's own interface text speaks (BCP-47 tag).
+                                  #   NOT defaultLanguage: that one picks card printings
 ritual config get <prop>          # read one value (exit 3 when unset)
 ritual config list                # print the full effective config (defaults marked)
 ritual config unset <prop>        # revert a value to its default
+ritual locale                     # resolved UI locale, which tier supplied it, the locales
+                                  #   this build ships, and the card language, side by side
+ritual locale --detect            # opt-in: also run the OS probes (a subprocess on Windows/macOS,
+                                  #   skipped elsewhere and under WSL), report what each source
+                                  #   said, and offer to save it as uiLocale. Writes only on a
+                                  #   yes; --no-input and --output json print the finding and
+                                  #   write nothing (json carries it as suggestedUiLocale)
 ritual metadata set <list> <prop> <value...>  # list front matter, same shape as config:
                                   #   deck description/tags/format/sourceId/sourceUrl, collection labels
 ritual metadata get|list|unset <list> [prop]  # read or clear it (get exits 3 when unset)

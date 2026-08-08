@@ -17,6 +17,7 @@
 import { batch, createContext, createSignal, onCleanup, useContext } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import { isListType, type ListType } from '../../list-type'
+import type { MessageKey } from '../../i18n/messages/en'
 import type { NavigationAttempt } from '../../editor/navigation-guard'
 
 export type Page =
@@ -92,31 +93,37 @@ const PAGE_PATHS: Record<Page, string> = {
   'audit-log': 'audit',
 }
 
-/** How a page is named and pictured wherever it is referred to. */
-export type PageDisplay = { label: string; icon: string }
+/**
+ * How a page is named and pictured wherever it is referred to. `label` is a
+ * {@link MessageKey}, not rendered text — the table below is evaluated once at
+ * module load, so a string would leave the sidebar and every page heading in the
+ * boot-time language after a locale switch. Resolve it at render time with
+ * `useTKey()`, which reads the locale signal on every call.
+ */
+export type PageDisplay = { label: MessageKey; icon: string }
 
 /**
  * Single source of truth for every page's name and icon — the sidebar, the
  * dashboard cards, and each page's own heading all read it, so the three can
  * never drift apart. Mirrors `LIST_TYPE_DISPLAY`'s role for list types.
  */
-export const PAGE_DISPLAY: Record<Page, PageDisplay> = {
-  dashboard: { label: 'Dashboard', icon: '📊' },
-  'list-editor': { label: 'Edit Lists', icon: '✏️' },
-  'move-cards': { label: 'Move Cards', icon: '➡️' },
-  'list-manager': { label: 'Manage Lists', icon: '🗂️' },
-  history: { label: 'Change History', icon: '🕘' },
-  'import-deck': { label: 'Import Deck', icon: '📥' },
-  'import-csv': { label: 'Import CSV', icon: '📄' },
-  'import-changes': { label: 'Import Changes', icon: '📩' },
-  'build-site': { label: 'Build Site', icon: '🔨' },
-  'cache-refresh': { label: 'Refresh Cache', icon: '🔄' },
-  'deck-sync': { label: 'Sync Decks', icon: '🔁' },
-  'collection-sync': { label: 'Sync Collection', icon: '🔃' },
-  'archidekt-login': { label: 'Archidekt Login', icon: '🔑' },
-  settings: { label: 'Settings', icon: '⚙️' },
-  'audit-log': { label: 'Audit Log', icon: '📋' },
-}
+export const PAGE_DISPLAY = {
+  dashboard: { label: 'domain.adminPage.dashboard', icon: '📊' },
+  'list-editor': { label: 'domain.adminPage.listEditor', icon: '✏️' },
+  'move-cards': { label: 'domain.adminPage.moveCards', icon: '➡️' },
+  'list-manager': { label: 'domain.adminPage.listManager', icon: '🗂️' },
+  history: { label: 'domain.adminPage.history', icon: '🕘' },
+  'import-deck': { label: 'domain.adminPage.importDeck', icon: '📥' },
+  'import-csv': { label: 'domain.adminPage.importCsv', icon: '📄' },
+  'import-changes': { label: 'domain.adminPage.importChanges', icon: '📩' },
+  'build-site': { label: 'domain.adminPage.buildSite', icon: '🔨' },
+  'cache-refresh': { label: 'domain.adminPage.cacheRefresh', icon: '🔄' },
+  'deck-sync': { label: 'domain.adminPage.deckSync', icon: '🔁' },
+  'collection-sync': { label: 'domain.adminPage.collectionSync', icon: '🔃' },
+  'archidekt-login': { label: 'domain.adminPage.archidektLogin', icon: '🔑' },
+  settings: { label: 'domain.adminPage.settings', icon: '⚙️' },
+  'audit-log': { label: 'domain.adminPage.auditLog', icon: '📋' },
+} as const satisfies Record<Page, PageDisplay>
 
 /** Reverse of {@link PAGE_PATHS}, built once. */
 const PATH_PAGES = new Map<string, Page>(

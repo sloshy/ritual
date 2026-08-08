@@ -7,15 +7,16 @@
 
 import { promptMoveTarget } from './move-prompt'
 import { CARD_LABEL_CHOICES, type CardLabel } from '../card-labels'
+import { t } from '../i18n/t'
 
 export { CARD_LABEL_CHOICES }
 
 /** Open the label picker; `onPick` receives the new override (`[]` = clear). */
 export function promptCardLabels(onPick: (labels: CardLabel[]) => void): void {
   promptMoveTarget({
-    title: 'Set label',
+    title: t('site.labels.pickerTitle'),
     options: CARD_LABEL_CHOICES.map((choice) => ({
-      label: choice.label,
+      label: t(choice.label),
       onSelect: () => onPick([...choice.labels]),
     })),
   })

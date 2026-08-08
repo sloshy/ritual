@@ -511,7 +511,7 @@ describe('sortByOptions', () => {
 
   test('applies per-field label overrides', () => {
     // The combined view relabels 'file-order' as "List Order".
-    expect(sortByOptions(['file-order'], { 'file-order': 'List Order' })).toEqual([
+    expect(sortByOptions(['file-order'], { 'file-order': 'domain.sortBy.listOrder' })).toEqual([
       { value: 'file-order', label: 'List Order' },
     ])
   })

@@ -1,9 +1,11 @@
 import { type Component, Show, For, createSignal } from 'solid-js'
 import { type ChangeBundleList, parseChangeBundle } from '../change-bundle'
-import { type ChangeEvent, formatChange } from '../../change-event'
+import type { ChangeEvent } from '../../change-event'
+import { formatChange } from '../../change-message'
 import { type ListType, listTypeLabel } from '../../list-type'
 import type { ImportResult } from '../useEditor'
 import { Modal } from '../../ui/Modal'
+import { useT } from '../../ui/i18n'
 
 type ImportChangesDialogProps = {
   open: boolean
@@ -28,6 +30,7 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
   const [text, setText] = createSignal('')
   const [error, setError] = createSignal<string | null>(null)
   const [result, setResult] = createSignal<ImportResult | null>(null)
+  const t = useT()
 
   const handleFile = async (input: HTMLInputElement) => {
     const file = input.files?.[0]
@@ -40,13 +43,21 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
   const matchList = (lists: ChangeBundleList[]): ChangeBundleList | string => {
     const kindMatches = lists.filter((l) => l.kind === props.expectedKind)
     if (kindMatches.length === 0) {
+      // `listTypeLabel` is the lowercase file-format vocabulary, not a display
+      // name: it has no localized counterpart yet (the `domain.*` list-type
+      // messages are capitalized titles, wrong mid-sentence), so this enumeration
+      // stays English until one exists.
       const kinds = [...new Set(lists.map((l) => listTypeLabel(l.kind)))].join(', ')
-      return `This file has no changes for a ${listTypeLabel(props.expectedKind)} (it targets: ${kinds}).`
+      return t('ui.editor.importWrongKind', { listType: props.expectedKind, kinds })
     }
     const slugMatch = kindMatches.find((l) => l.slug === props.expectedSlug)
     if (slugMatch) return slugMatch
     if (kindMatches.length === 1) return kindMatches[0]!
-    return `This file has changes for ${kindMatches.length} ${listTypeLabel(props.expectedKind)}s and none match this list. Apply it with the admin Import Changes page or \`ritual import-changes\` instead.`
+    return t('ui.editor.importAmbiguous', {
+      listType: props.expectedKind,
+      count: kindMatches.length,
+      command: '`ritual import-changes`',
+    })
   }
 
   const handleImport = () => {
@@ -77,12 +88,10 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
         setResult(null)
       }}
     >
-      <h3>Import changes</h3>
+      <h3>{t('ui.editor.importTitle')}</h3>
 
       <Show when={!result()}>
-        <p class="dialog-message">
-          Upload or paste a change-list JSON to import into the current editor view.
-        </p>
+        <p class="dialog-message">{t('ui.editor.importPrompt')}</p>
         <input
           type="file"
           accept="application/json,.json"
@@ -90,7 +99,7 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
         />
         <textarea
           class="form-input import-dialog-textarea"
-          placeholder="…or paste JSON here"
+          placeholder={t('ui.editor.importPastePlaceholder')}
           rows={8}
           value={text()}
           onInput={(e) => setText(e.currentTarget.value)}
@@ -100,7 +109,7 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
         </Show>
         <div class="confirm-dialog-actions">
           <button type="button" class="btn btn-secondary" onClick={props.onClose}>
-            Cancel
+            {t('ui.dialog.cancel')}
           </button>
           <button
             type="button"
@@ -108,7 +117,7 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
             disabled={text().trim() === ''}
             onClick={handleImport}
           >
-            Import
+            {t('ui.editor.importAction')}
           </button>
         </div>
       </Show>
@@ -116,15 +125,10 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
       <Show when={result()}>
         {(r) => (
           <>
-            <p class="dialog-message">
-              Loaded {r().loaded} change{r().loaded !== 1 ? 's' : ''} as pending edits. Review them,
-              then save or export.
-            </p>
+            <p class="dialog-message">{t('ui.editor.importLoaded', { count: r().loaded })}</p>
             <Show when={r().conflicts.length > 0}>
               <p class="form-error">
-                {r().conflicts.length} change{r().conflicts.length !== 1 ? 's' : ''} could not be
-                matched to a card in this list and {r().conflicts.length !== 1 ? 'were' : 'was'}{' '}
-                skipped:
+                {t('ui.editor.importConflicts', { count: r().conflicts.length })}
               </p>
               <div class="changes-dialog changes-list-box">
                 <For each={r().conflicts}>
@@ -138,7 +142,7 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
             </Show>
             <div class="confirm-dialog-actions">
               <button type="button" class="btn btn-primary" onClick={props.onClose}>
-                Done
+                {t('ui.dialog.done')}
               </button>
             </div>
           </>

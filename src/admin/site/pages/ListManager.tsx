@@ -17,12 +17,15 @@ import {
 } from '../../../deck-format'
 import { listFileName } from '../../../list-file-name'
 import { type ListType, LIST_TYPE_DISPLAY } from '../../../list-type'
+import { useT, useTKey, useTSegments } from '../../../ui/i18n'
+import { apiMessage } from '../../api/result'
 import type { RitualConfig, SiteConfig } from '../../../ritual-config'
 import { type SiteSelectionConfig, defaultSiteSelection } from '../../../site/list-selection'
 import { fetchRitualConfig } from '../config-api'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { useApiAction } from '../hooks/useApiAction'
 import { PageHeading } from '../components/PageHeading'
+import type { ParameterlessKey } from '../../../i18n/t'
 
 type Category = 'decks' | 'collections' | 'wanted'
 type ViewState = 'list' | 'create' | 'rename' | 'delete'
@@ -32,8 +35,11 @@ type CreateBody = { name: string; format?: DeckFormatKey }
 type ExcludeKey = Extract<keyof SiteSelectionConfig, `exclude${string}`>
 
 type CategoryMeta = {
-  label: string
-  singular: string
+  /**
+   * The category's plural name as a {@link MessageKey}, resolved at render time
+   * so it follows the locale. The table below is built once at module load.
+   */
+  labelKey: ParameterlessKey
   icon: string
   listUrl: string
   listKey: 'decks' | 'collections' | 'wantedLists'
@@ -49,8 +55,7 @@ type CategoryMeta = {
 
 const CATEGORY_META: Record<Category, CategoryMeta> = {
   decks: {
-    label: LIST_TYPE_DISPLAY.deck.label,
-    singular: 'deck',
+    labelKey: LIST_TYPE_DISPLAY.deck.label,
     icon: LIST_TYPE_DISPLAY.deck.icon,
     listUrl: '/api/decks',
     listKey: 'decks',
@@ -62,8 +67,7 @@ const CATEGORY_META: Record<Category, CategoryMeta> = {
     renameUrl: (slug) => `/api/deck/${slug}/rename`,
   },
   collections: {
-    label: LIST_TYPE_DISPLAY.collection.label,
-    singular: 'collection',
+    labelKey: LIST_TYPE_DISPLAY.collection.label,
     icon: LIST_TYPE_DISPLAY.collection.icon,
     listUrl: '/api/collections',
     listKey: 'collections',
@@ -75,8 +79,7 @@ const CATEGORY_META: Record<Category, CategoryMeta> = {
     renameUrl: (slug) => `/api/collection/${slug}/rename`,
   },
   wanted: {
-    label: LIST_TYPE_DISPLAY.wanted.label,
-    singular: 'wanted list',
+    labelKey: LIST_TYPE_DISPLAY.wanted.label,
     icon: LIST_TYPE_DISPLAY.wanted.icon,
     listUrl: '/api/wanted',
     listKey: 'wantedLists',
@@ -92,6 +95,9 @@ const CATEGORY_META: Record<Category, CategoryMeta> = {
 const CATEGORIES: Category[] = ['decks', 'collections', 'wanted']
 
 export function ListManager(): JSX.Element {
+  const t = useT()
+  const tKey = useTKey()
+  const tSegments = useTSegments()
   const [category, setCategory] = createSignal<Category>('decks')
   const [items, setItems] = createSignal<ListItem[]>([])
   const [loadError, setLoadError] = createSignal<string | null>(null)
@@ -107,6 +113,48 @@ export function ListManager(): JSX.Element {
   const { status, error, loading, run, setStatus, setError } = useApiAction()
 
   const meta = createMemo((): CategoryMeta => CATEGORY_META[category()])
+  /**
+   * The list type the current tab edits — the `$select` branch every message on
+   * this page keys off. Verb + capitalized noun concatenation ("Create New " +
+   * "Deck") survives neither case nor gender, so each phrase is a whole message
+   * per list type instead (plan §7.3).
+   */
+  const listType = createMemo((): ListType => meta().listType)
+
+  // Three sentences that carry markup around one parameter. Rendered as segments
+  // so the marked-up word can sit anywhere in the sentence — a `prefix`/`suffix`
+  // pair would pin it to the middle of the English word order.
+  const codeFileName = (
+    key: 'admin.list.fileNameHint' | 'admin.list.newFileNameHint',
+    file: string,
+  ) => (
+    <For each={tSegments(key, { file })}>
+      {(segment) => (segment.kind === 'param' ? <code>{segment.value}</code> : segment.value)}
+    </For>
+  )
+  const fileNameHint = (file: string) => codeFileName('admin.list.fileNameHint', file)
+  const newFileNameHint = (file: string) => codeFileName('admin.list.newFileNameHint', file)
+
+  const boldName = (
+    key: 'admin.list.renamingWhich' | 'admin.list.deleteConfirmLabel',
+    name: string,
+  ) => (
+    <For each={tSegments(key, { name })}>
+      {(segment) => (segment.kind === 'param' ? <strong>{segment.value}</strong> : segment.value)}
+    </For>
+  )
+
+  const deleteWarning = (name: string) => (
+    <For each={tSegments('admin.list.deleteWarning', { listType: listType(), name })}>
+      {(segment) =>
+        segment.kind === 'param' && segment.name === 'name' ? (
+          <strong>{segment.value}</strong>
+        ) : (
+          segment.value
+        )
+      }
+    </For>
+  )
 
   // The file each form would write, or null when the typed name has no characters
   // usable in one. Single source of truth for the preview, the submit button, and
@@ -128,7 +176,7 @@ export function ListManager(): JSX.Element {
       const data = (await resp.json()) as Record<string, ListItem[]>
       setItems(data[m.listKey] ?? [])
     } catch {
-      setLoadError(`Failed to load ${m.label.toLowerCase()}`)
+      setLoadError(t('admin.list.loadFailed', { listType: m.listType }))
       setItems([])
     }
   }
@@ -162,11 +210,13 @@ export function ListManager(): JSX.Element {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ site: nextSite }),
       },
-      `Failed to update ${m.singular} visibility`,
+      apiMessage('admin.list.visibilityFailed', { listType: m.listType }),
     )
     if (ok) {
       setStatus(
-        `'${item.name}' is now ${makeHidden ? 'hidden from' : 'visible on'} the public site`,
+        makeHidden
+          ? apiMessage('admin.list.nowHidden', { name: item.name })
+          : apiMessage('admin.list.nowVisible', { name: item.name }),
       )
     } else {
       setConfig(cfg)
@@ -208,10 +258,12 @@ export function ListManager(): JSX.Element {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       },
-      `Failed to create ${m.singular}`,
+      apiMessage('admin.list.createFailed', { listType: m.listType }),
     )
     if (ok) {
-      setStatus(`Created ${m.singular} '${trimmed}'`)
+      // The API says exactly this after a create; reusing its key keeps the two
+      // paths from drifting into two translations of one sentence.
+      setStatus(apiMessage('admin.api.list.created', { listType: m.listType, name: trimmed }))
       resetForms()
       setView('list')
       await fetchItems()
@@ -231,10 +283,10 @@ export function ListManager(): JSX.Element {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newName: trimmed }),
       },
-      `Failed to rename ${m.singular}`,
+      apiMessage('admin.list.renameFailed', { listType: m.listType }),
     )
     if (ok) {
-      setStatus(`Renamed ${m.singular} to '${trimmed}'`)
+      setStatus(apiMessage('admin.api.list.renamed', { listType: m.listType, name: trimmed }))
       resetForms()
       setView('list')
       await fetchItems()
@@ -253,10 +305,10 @@ export function ListManager(): JSX.Element {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ confirmName: deleteConfirm() }),
       },
-      `Failed to delete ${m.singular}`,
+      apiMessage('admin.list.deleteFailed', { listType: m.listType }),
     )
     if (ok) {
-      setStatus(`Deleted ${m.singular} '${item.name}'`)
+      setStatus(apiMessage('admin.api.list.deleted', { listType: m.listType, name: item.name }))
       resetForms()
       setView('list')
       await fetchItems()
@@ -299,7 +351,7 @@ export function ListManager(): JSX.Element {
               onClick={() => setCategory(c)}
             >
               <span class="nav-icon">{CATEGORY_META[c].icon}</span>
-              {CATEGORY_META[c].label}
+              {tKey(CATEGORY_META[c].labelKey)}
             </button>
           )}
         </For>
@@ -316,13 +368,13 @@ export function ListManager(): JSX.Element {
           <div>
             <div class="deck-manager-actions">
               <button class="btn btn-primary" onClick={openCreate}>
-                + New {capitalize(meta().singular)}
+                {t('admin.list.newButton', { listType: listType() })}
               </button>
             </div>
 
             <Show
               when={items().length > 0}
-              fallback={<p class="text-muted">No {meta().label.toLowerCase()} found.</p>}
+              fallback={<p class="text-muted">{t('admin.list.empty', { listType: listType() })}</p>}
             >
               <div class="deck-list">
                 <For each={items()}>
@@ -337,7 +389,7 @@ export function ListManager(): JSX.Element {
                         <div class="deck-list-actions">
                           <label
                             class="visibility-toggle"
-                            title={`Show or hide this ${meta().singular} on the public site`}
+                            title={t('admin.list.visibilityTitle', { listType: listType() })}
                           >
                             <input
                               type="checkbox"
@@ -348,7 +400,7 @@ export function ListManager(): JSX.Element {
                             />
                             <span class="visibility-toggle-track" aria-hidden="true" />
                             <span class="visibility-toggle-label">
-                              {pub() ? 'Public' : 'Hidden'}
+                              {pub() ? t('admin.list.public') : t('admin.list.hidden')}
                             </span>
                           </label>
                           <NavLink
@@ -356,13 +408,13 @@ export function ListManager(): JSX.Element {
                             options={{ listType: meta().listType, slug: item.slug }}
                             class="btn btn-secondary btn-sm"
                           >
-                            Edit
+                            {t('admin.list.edit')}
                           </NavLink>
                           <button class="btn btn-secondary btn-sm" onClick={() => openRename(item)}>
-                            Rename
+                            {t('admin.list.rename')}
                           </button>
                           <button class="btn btn-danger btn-sm" onClick={() => openDelete(item)}>
-                            Delete
+                            {t('admin.list.delete')}
                           </button>
                         </div>
                       </div>
@@ -376,13 +428,17 @@ export function ListManager(): JSX.Element {
 
         <Show when={view() === 'create'}>
           <div class="form-container">
-            <h3 class="section-subheading">Create New {capitalize(meta().singular)}</h3>
+            <h3 class="section-subheading">
+              {t('admin.list.createTitle', { listType: listType() })}
+            </h3>
             <div>
-              <label class="form-label">{capitalize(meta().singular)} Name</label>
+              <label class="form-label">
+                {t('admin.list.nameLabel', { listType: listType() })}
+              </label>
               <input
                 type="text"
                 class="form-input"
-                placeholder={createPlaceholder(category())}
+                placeholder={t('admin.list.namePlaceholder', { listType: listType() })}
                 value={newName()}
                 onInput={(e) => setNewName(e.currentTarget.value)}
                 onKeyDown={(e) => {
@@ -395,21 +451,17 @@ export function ListManager(): JSX.Element {
                   when={newFile()}
                   fallback={
                     <p class="form-hint form-hint-top text-danger">
-                      This name has no characters that can be used in a file name.
+                      {t('admin.list.unusableName')}
                     </p>
                   }
                 >
-                  {(fileName) => (
-                    <p class="form-hint form-hint-top">
-                      File name: <code>{fileName()}</code>
-                    </p>
-                  )}
+                  {(fileName) => <p class="form-hint form-hint-top">{fileNameHint(fileName())}</p>}
                 </Show>
               </Show>
             </div>
             <Show when={meta().hasFormat}>
               <div>
-                <label class="form-label">Format</label>
+                <label class="form-label">{t('admin.list.formatLabel')}</label>
                 <select
                   class="form-input"
                   value={newFormat()}
@@ -429,10 +481,12 @@ export function ListManager(): JSX.Element {
                 onClick={() => void handleCreate()}
                 disabled={loading() || !newFile()}
               >
-                {loading() ? 'Creating...' : `Create ${capitalize(meta().singular)}`}
+                {loading()
+                  ? t('admin.list.creating')
+                  : t('admin.list.createButton', { listType: listType() })}
               </button>
               <button class="btn btn-secondary" onClick={cancel} disabled={loading()}>
-                Cancel
+                {t('ui.dialog.cancel')}
               </button>
             </div>
           </div>
@@ -442,12 +496,12 @@ export function ListManager(): JSX.Element {
           <Show when={selected()}>
             {(item) => (
               <div class="form-container">
-                <h3 class="section-subheading">Rename {capitalize(meta().singular)}</h3>
-                <p class="text-muted">
-                  Renaming: <strong>{item().name}</strong>
-                </p>
+                <h3 class="section-subheading">
+                  {t('admin.list.renameTitle', { listType: listType() })}
+                </h3>
+                <p class="text-muted">{boldName('admin.list.renamingWhich', item().name)}</p>
                 <div>
-                  <label class="form-label">New Name</label>
+                  <label class="form-label">{t('admin.list.newNameLabel')}</label>
                   <input
                     type="text"
                     class="form-input"
@@ -463,14 +517,12 @@ export function ListManager(): JSX.Element {
                       when={renameFile()}
                       fallback={
                         <p class="form-hint form-hint-top text-danger">
-                          This name has no characters that can be used in a file name.
+                          {t('admin.list.unusableName')}
                         </p>
                       }
                     >
                       {(fileName) => (
-                        <p class="form-hint form-hint-top">
-                          New file name: <code>{fileName()}</code>
-                        </p>
+                        <p class="form-hint form-hint-top">{newFileNameHint(fileName())}</p>
                       )}
                     </Show>
                   </Show>
@@ -481,10 +533,10 @@ export function ListManager(): JSX.Element {
                     onClick={() => void handleRename()}
                     disabled={loading() || !renameFile() || renameName() === item().name}
                   >
-                    {loading() ? 'Renaming...' : 'Rename'}
+                    {loading() ? t('admin.list.renaming') : t('admin.list.rename')}
                   </button>
                   <button class="btn btn-secondary" onClick={cancel} disabled={loading()}>
-                    Cancel
+                    {t('ui.dialog.cancel')}
                   </button>
                 </div>
               </div>
@@ -496,19 +548,15 @@ export function ListManager(): JSX.Element {
           <Show when={selected()}>
             {(item) => (
               <div class="form-container">
-                <h3 class="section-subheading text-danger">Delete {capitalize(meta().singular)}</h3>
+                <h3 class="section-subheading text-danger">
+                  {t('admin.list.deleteTitle', { listType: listType() })}
+                </h3>
                 <div class="delete-warning-box">
-                  <p>
-                    This will permanently delete <strong>{item().name}</strong>
-                    {category() === 'decks'
-                      ? ' and its changelog and primer'
-                      : ' and its changelog'}
-                    . This cannot be undone.
-                  </p>
+                  <p>{deleteWarning(item().name)}</p>
                 </div>
                 <div>
                   <label class="form-label">
-                    Type <strong>{item().name}</strong> to confirm
+                    {boldName('admin.list.deleteConfirmLabel', item().name)}
                   </label>
                   <input
                     type="text"
@@ -528,10 +576,12 @@ export function ListManager(): JSX.Element {
                     onClick={() => void handleDelete()}
                     disabled={loading() || deleteConfirm() !== item().name}
                   >
-                    {loading() ? 'Deleting...' : `Delete ${capitalize(meta().singular)}`}
+                    {loading()
+                      ? t('admin.list.deleting')
+                      : t('admin.list.deleteButton', { listType: listType() })}
                   </button>
                   <button class="btn btn-secondary" onClick={cancel} disabled={loading()}>
-                    Cancel
+                    {t('ui.dialog.cancel')}
                   </button>
                 </div>
               </div>
@@ -541,19 +591,4 @@ export function ListManager(): JSX.Element {
       </Show>
     </div>
   )
-}
-
-function createPlaceholder(category: Category): string {
-  switch (category) {
-    case 'decks':
-      return 'e.g. My Commander Deck'
-    case 'collections':
-      return 'e.g. Main Collection'
-    case 'wanted':
-      return 'e.g. Holiday Wishlist'
-  }
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
 }

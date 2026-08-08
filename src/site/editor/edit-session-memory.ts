@@ -1,4 +1,5 @@
 import type { ChangeEvent } from '../../change-event'
+import { t } from '../../i18n/t'
 import type { ListType } from '../../list-type'
 
 /** One list's remembered pending edits (plus its display name, for export labels). */
@@ -102,12 +103,28 @@ export function clearEditSessions(): void {
 }
 
 /**
- * Whether leaving edit mode may proceed, prompting to confirm only when edits would
- * be lost. Because edits to other lists this session also persist in memory, the
- * confirm fires when the current list has pending changes OR any other session does
- * — not just the list currently open. Shared by every public list editor's exit.
+ * Whether leaving edit mode would lose work, and therefore has to be confirmed.
+ * Because edits to other lists this session also persist in memory, this is true
+ * when the current list has pending changes OR any other session does — not just
+ * the list currently open. Shared by every public list editor's exit.
+ *
+ * Answering "is confirmation needed?" rather than running the prompt is what
+ * lets the confirmation be a real dialog: `window.confirm` is a blocking browser
+ * string that no catalog can reach and no theme can style (plan §7.3).
+ * {@link EditViewFrame} owns the dialog.
+ */
+export function needsDiscardConfirm(currentChangeCount: number): boolean {
+  return currentChangeCount > 0 || hasAnyEditSession()
+}
+
+/**
+ * The blocking-prompt form of {@link needsDiscardConfirm}, for the one caller
+ * that has no editor mounted and therefore no dialog to open: the navbar's
+ * Edit/Done toggle on a non-list page (`src/site/app.tsx`). It is the last
+ * `window.confirm` on this path and goes away when that toggle grows a
+ * `ConfirmDialog` of its own.
  */
 export function confirmDiscardOnExit(currentChangeCount: number): boolean {
-  if (currentChangeCount === 0 && !hasAnyEditSession()) return true
-  return window.confirm('Discard your edits and exit?')
+  if (!needsDiscardConfirm(currentChangeCount)) return true
+  return window.confirm(t('site.editor.exitTitle'))
 }

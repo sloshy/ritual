@@ -23,8 +23,8 @@ import { DeckPage } from '../DeckPage'
 import { siteSearch } from './site-search'
 import { backfillImportedCard } from './backfill-added-card'
 import { EditViewFrame } from './EditViewFrame'
-import { confirmDiscardOnExit } from './edit-session-memory'
 import { safeFilename } from './safe-filename'
+import { useT } from '../../ui/i18n'
 
 type DeckEditViewProps = {
   detail: DeckDetail
@@ -47,6 +47,7 @@ type DeckEditViewProps = {
 export const DeckEditView: Component<DeckEditViewProps> = (props) => {
   const defaults = useEditorDefaults('deck')
   const [originalModalCard, setOriginalModalCard] = createSignal<string | null>(null)
+  const t = useT()
 
   const deckName = () => props.detail.deck.name
 
@@ -99,15 +100,11 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
   const ctrl = useDeckEditController(buildConfig, props.slug)
   const changeCount = () => ctrl.editor.changes.changeCount()
 
-  const handleExit = () => {
-    if (confirmDiscardOnExit(changeCount())) props.onExit()
-  }
-
   return (
     <EditViewFrame
       changeCount={changeCount()}
       onDiscard={ctrl.editor.dialogs.openDiscard}
-      onExit={handleExit}
+      onExit={props.onExit}
       jsonFilename={`${safeFilename(deckName())}-edits.json`}
       kind="deck"
       slug={props.slug}
@@ -119,7 +116,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
       ready={() => !ctrl.editor.status.loading && ctrl.editor.data() != null}
       fileExports={[
         {
-          label: 'Download updated deck (.txt)',
+          label: () => t('site.editor.downloadDeck'),
           filename: `${safeFilename(deckName())}.txt`,
           build: () => {
             const d = ctrl.editor.data()

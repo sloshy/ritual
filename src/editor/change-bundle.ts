@@ -75,11 +75,18 @@ export function bundleChangeCount(bundle: ChangeBundle): number {
 }
 
 /**
- * Format a count with a simple pluralized noun (`1 change`, `3 lists`). Shared
- * by every export/import surface (export panel, admin page, CLI, API messages)
- * so the wording can never drift between them.
+ * Format a count with a simple pluralized noun (`1 change`, `3 lists`).
+ *
+ * **Being retired.** A runtime noun with an English `s` glued on has no string
+ * a translator can edit, and is wrong in every language with more than two
+ * plural categories — which is why `ritual/no-inline-plural` flags the body.
+ * The browser surfaces now render `ui.count.changes` / `ui.count.lists`
+ * instead; the one remaining caller is `src/admin/api/import-changes.ts`, whose
+ * server-authored prose is restructured in Phase 5 (plan §7.7). This function
+ * goes away with it.
  */
 export function countLabel(count: number, noun: string): string {
+  // eslint-disable-next-line ritual/no-inline-plural -- see the retirement note above
   return `${count} ${noun}${count === 1 ? '' : 's'}`
 }
 
@@ -175,6 +182,12 @@ function validateList(obj: Record<string, unknown>, where: string): ChangeBundle
  * on success or a human-readable error string describing why it was rejected —
  * the caller surfaces it to the importer. Card IDs referenced by the changes are
  * NOT resolved here; re-targeting against the live lists happens at import time.
+ *
+ * The rejection strings are **English by contract**: they name JSON field names
+ * and index positions in a file the user is expected to inspect, and the same
+ * text is what `ritual import-changes` and the MCP import tool report. They are
+ * a diagnostic vocabulary for a data format, like the format marker itself, not
+ * UI prose — see the plan's §4.9 carve-out list.
  */
 export function parseChangeBundle(text: string): ChangeBundle | string {
   let raw: unknown

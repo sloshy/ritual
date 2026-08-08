@@ -50,6 +50,7 @@ These are the values Ritual uses when there is no config file, and what a first 
   "wantedDir": "./wanted",
   "defaultCurrency": "usd",
   "defaultLanguage": "en",
+  "uiLocale": "en",
   "cacheLockTimeoutSeconds": 300,
   "cacheSource": "scryfall",
   "searchDebounceMs": 500,
@@ -116,9 +117,59 @@ These are **Scryfall's codes, not ISO codes** — Chinese is `zhs`/`zht` (not `z
 
 On card lines the language is a bracket token (`[ja]`) that is **omitted for English**: a bare line always means `en`, whatever this key says, so list files stay self-describing. The key only controls what gets stamped on _new_ cards — it never reinterprets existing lines.
 
+### This is not the interface language
+
+`defaultLanguage` decides which **printing of a card** is recorded. The language
+**Ritual's own text** is written in is a separate key, [`uiLocale`](#interface-language)
+— see below.
+
 ### The all-cards consequence
 
 Setting any non-English `defaultLanguage` switches every card-cache download — [`cache preload-all`](/commands/cache/), the freshness prompts, and the [cache feed](/commands/cache/#feed-fetch) — from Scryfall's `default_cards` bulk (one English card object per printing) to the much larger `all_cards` bulk, which carries every language's card objects. Expect a several-times-larger download and cache. The cache records which bulk built it; when that disagrees with `defaultLanguage` (in either direction), commands that check cache freshness offer (or, under `--refresh auto`, run) a full redownload — see [`cache status`](/commands/cache/#status).
+
+## Interface language
+
+| Field      | Default | Description                                                                                                                                                                                                                                                             |
+| ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `uiLocale` | `en`    | The language **Ritual's own interface text** is written in: CLI output, prompts, menus, help, and both web apps. A [BCP-47](https://www.rfc-editor.org/info/bcp47) tag such as `en`, `de`, `de-AT`, or `pt-BR`, stored canonicalized (`de-at` is persisted as `de-AT`). |
+
+:::caution[`uiLocale` is not `defaultLanguage`]
+These two keys are deliberately spelled nothing alike, because they do completely
+different jobs:
+
+- **`uiLocale`** picks the language **Ritual speaks to you**. BCP-47 tags. Free to
+  change — it costs nothing.
+- **[`defaultLanguage`](#default-language)** picks which **printing of a card** is
+  recorded. Scryfall's own codes (`ja`, `zhs`, `ph`, …). Setting it to anything other
+  than `en` switches the card cache to the [much larger `all_cards` bulk](#the-all-cards-consequence).
+
+They are independent, and every combination is valid — a German interface listing
+English printings is a normal setup. Setting one never changes the other.
+:::
+
+The value can be overridden per run or per shell without touching the file, and Ritual
+falls back to detecting your OS locale when the key is absent:
+
+```
+--locale <tag>  →  RITUAL_LOCALE  →  uiLocale  →  OS detection  →  en
+```
+
+`ritual locale` prints which of those tiers won, alongside the current
+`defaultLanguage`. Detection has real limits (notably [under WSL and on native
+Windows](/localization/#what-ritual-can-detect-per-platform)), so on those platforms
+setting this key is the reliable route.
+
+The CLI and the admin site pick the value up at runtime; the public site bakes it in on
+the next [build-site](/commands/build-site/#localized-builds), where `--locale`
+overrides it for one build — except under a live-backend
+[`serve --api`](/commands/serve/#live-api-mode---api) deployment, which reports the
+current value on every index request with no rebuild. It is also editable on the admin
+[Settings page](/commands/admin/#settings).
+
+**Translations are a separate matter from this setting.** No translated catalogs ship
+yet, so today every value renders English text (dates, numbers and currency still
+follow the tag). See [Localization](/localization/) for the full picture, including how
+to contribute one.
 
 ## Cache lock timeout
 

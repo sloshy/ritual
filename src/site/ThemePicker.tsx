@@ -21,6 +21,7 @@ import {
   onCleanup,
 } from 'solid-js'
 import { paletteToVars, themeNames, themes, type ThemeName } from '../themes'
+import { useI18n } from '../ui/i18n'
 import { useTheme } from './useTheme'
 
 type ThemePickerProps = {
@@ -50,6 +51,7 @@ const THEME_SWATCHES: ThemeSwatch[] = themeNames.map((name) => {
 })
 
 export const ThemePicker: Component<ThemePickerProps> = (props) => {
+  const { t, tSegments } = useI18n()
   const theme = useTheme()
   // When set, the user clicked a theme but has customizations they'd lose.
   // Holds the target theme until they confirm or cancel.
@@ -111,12 +113,12 @@ export const ThemePicker: Component<ThemePickerProps> = (props) => {
 
   return (
     <Show when={props.open}>
-      <div class="theme-picker" role="dialog" aria-label="Choose theme">
+      <div class="theme-picker" role="dialog" aria-label={t('site.theme.pickerTitle')}>
         <Show
           when={pendingTheme()}
           fallback={
             <>
-              <div class="theme-picker-list" role="listbox" aria-label="Built-in themes">
+              <div class="theme-picker-list" role="listbox" aria-label={t('site.theme.builtIn')}>
                 <For each={THEME_SWATCHES}>
                   {(s) => (
                     <button
@@ -139,10 +141,10 @@ export const ThemePicker: Component<ThemePickerProps> = (props) => {
               </div>
               <div class="theme-picker-footer">
                 <Show when={Object.keys(theme.customVars()).length > 0}>
-                  <span class="theme-picker-customized-tag">Customized</span>
+                  <span class="theme-picker-customized-tag">{t('site.theme.customized')}</span>
                 </Show>
                 <button type="button" class="theme-picker-customize-btn" onClick={toggleEditor}>
-                  {theme.editorOpen() ? 'Close theme editor' : 'Customize theme…'}
+                  {theme.editorOpen() ? t('site.theme.closeEditor') : t('site.theme.customize')}
                 </button>
               </div>
             </>
@@ -152,21 +154,28 @@ export const ThemePicker: Component<ThemePickerProps> = (props) => {
             <div
               class="theme-picker-confirm"
               role="alertdialog"
-              aria-label="Discard customizations?"
+              aria-label={t('site.theme.discardTitle')}
             >
+              {/* Segments, not a prefix/suffix pair: the theme name is rendered
+                  in bold mid-sentence, and a translator must be free to move it
+                  anywhere in the sentence. */}
               <p class="theme-picker-confirm-msg">
-                Switching to <strong>{target()}</strong> will discard your theme customizations.
+                <For each={tSegments('site.theme.discardMessage', { theme: target() })}>
+                  {(segment) =>
+                    segment.kind === 'param' ? <strong>{segment.value}</strong> : segment.value
+                  }
+                </For>
               </p>
               <div class="theme-picker-confirm-actions">
                 <button type="button" class="theme-picker-btn" onClick={cancelSwitch}>
-                  Cancel
+                  {t('ui.dialog.cancel')}
                 </button>
                 <button
                   type="button"
                   class="theme-picker-btn theme-picker-btn-danger"
                   onClick={confirmSwitch}
                 >
-                  Discard & switch
+                  {t('site.theme.discardConfirm')}
                 </button>
               </div>
             </div>

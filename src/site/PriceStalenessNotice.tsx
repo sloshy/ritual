@@ -1,4 +1,5 @@
 import { type Component, Show, For, createSignal } from 'solid-js'
+import { useT } from '../ui/i18n'
 
 type PriceStalenessNoticeProps = {
   /** Names of cards whose prices predate the freshest in the list. */
@@ -11,6 +12,7 @@ type PriceStalenessNoticeProps = {
  * price. Collapsed by default; expands to name the cards with the older prices.
  */
 export const PriceStalenessNotice: Component<PriceStalenessNoticeProps> = (props) => {
+  const t = useT()
   const [open, setOpen] = createSignal(false)
   const count = () => props.outdatedNames.length
 
@@ -26,9 +28,7 @@ export const PriceStalenessNotice: Component<PriceStalenessNoticeProps> = (props
           <span class="price-staleness-icon" aria-hidden="true">
             ⚠
           </span>
-          <span>
-            {count()} {count() === 1 ? 'card has' : 'cards have'} an older price than the rest
-          </span>
+          <span>{t('site.prices.staleNotice', { count: count() })}</span>
           <span class="price-staleness-caret" aria-hidden="true">
             {open() ? '▾' : '▸'}
           </span>

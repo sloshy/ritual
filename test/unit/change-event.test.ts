@@ -6,13 +6,13 @@ import {
   createRemoveChange,
   createSetLanguageChange,
   createSetPrintingChange,
-  formatChange,
   formatChangeCore,
   formatPrintingAnnotation,
   isAdditiveChange,
   isSamePrinting,
   CHANGE_ACTIONS,
 } from '../../src/change-event'
+import { formatChange } from '../../src/change-message'
 
 describe('set-language change events', () => {
   test('createSetLanguageChange carries the language and targeting fields', () => {

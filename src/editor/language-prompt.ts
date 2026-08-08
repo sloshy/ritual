@@ -7,6 +7,7 @@
  */
 
 import { promptMoveTarget } from '../site/move-prompt'
+import { t } from '../i18n/t'
 import {
   CARD_LANGUAGES,
   displayLanguage,
@@ -25,10 +26,15 @@ export function promptCardLanguage(
   onPick: (language: CardLanguage) => void,
 ): void {
   const resolved = displayLanguage(current)
+  // Plain `t()` rather than `useT()`: this is opened from an event handler, not
+  // rendered, and the picker it drives is a singleton outside any component.
   promptMoveTarget({
-    title: 'Set language',
+    title: t('ui.editor.setLanguageTitle'),
     options: CARD_LANGUAGES.map((code) => ({
-      label: code === resolved ? `${languageDisplayName(code)} ✓` : languageDisplayName(code),
+      label:
+        code === resolved
+          ? t('ui.editor.languageCurrent', { name: languageDisplayName(code) })
+          : languageDisplayName(code),
       onSelect: () => onPick(code),
     })),
   })

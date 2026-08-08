@@ -252,3 +252,13 @@ export function useAllSelections(): CardSelectionControl {
     clear: clearAllSelections,
   }
 }
+
+/**
+ * A confirmed cross-list removal, snapshotted when the dialog opens: the exact
+ * cards it will remove and the copy count its title names. Holding only the
+ * count would let the two disagree, since the dialog does not block the tab.
+ */
+export type RemoveAllTarget = {
+  cards: SelectedCard[]
+  count: number
+}

@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { handleAutocomplete } from '../api/autocomplete'
 import { handleBuylistQuotes, handleBuylistStatus, withPublicSellModeGate } from '../api/buylist'
 import { handleCards } from '../api/cards'
@@ -50,6 +51,36 @@ function detailHandler(live: LiveSiteData, kind: ListType): SiteRouteHandler {
   }
 }
 
+/** Locale tags are BCP-47, so anything else in the path is a 404, not a file read. */
+const LOCALE_TAG_PATTERN = /^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/
+
+/**
+ * Serve one published dictionary from `dist/locales/`.
+ *
+ * A dictionary is a static file with the same lifetime as `app.js`, so it is
+ * served as one — no `Accept-Language` negotiation anywhere in this server. The
+ * shell, the bundle and the dictionaries stay byte-identical whether a CDN or
+ * this process hands them out, which is what keeps a static deployment and a
+ * served one the same deployment.
+ */
+function localeHandler(distDir: string): SiteRouteHandler {
+  return async (req) => {
+    const url = new URL(req.url)
+    const file = decodeURIComponent(url.pathname.split('/').pop() ?? '')
+    const tag = file.endsWith('.json') ? file.slice(0, -'.json'.length) : ''
+    if (!LOCALE_TAG_PATTERN.test(tag)) {
+      return Response.json({ error: 'Not found' }, { status: 404 })
+    }
+    const dictionary = Bun.file(path.join(distDir, 'locales', `${tag}.json`))
+    if (!(await dictionary.exists())) {
+      return Response.json({ error: 'Not found' }, { status: 404 })
+    }
+    return new Response(dictionary, {
+      headers: { 'Content-Type': 'application/json;charset=utf-8' },
+    })
+  }
+}
+
 /**
  * The public site server's route table: live list data at the exact paths the
  * static build bakes (shadowing any baked copies in dist/), plus the
@@ -62,8 +93,9 @@ function detailHandler(live: LiveSiteData, kind: ListType): SiteRouteHandler {
  * unauthenticated wildcard-CORS endpoint must never trigger a ~70 MB download —
  * and 404 when `site.sellMode` is off.
  */
-export function buildSiteRoutes(live: LiveSiteData): SiteRoute[] {
+export function buildSiteRoutes(live: LiveSiteData, distDir: string): SiteRoute[] {
   return [
+    { method: 'GET', path: '/locales/:file', handler: localeHandler(distDir) },
     {
       method: 'GET',
       path: '/index.json',

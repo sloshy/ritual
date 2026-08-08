@@ -1,6 +1,7 @@
 import type { Component } from 'solid-js'
 import { For } from 'solid-js'
 import { Modal } from '../ui/Modal'
+import { useT } from '../ui/i18n'
 import type { MoveTargetPrompt } from './move-prompt'
 
 export interface MoveTargetPickerProps {
@@ -17,6 +18,7 @@ export interface MoveTargetPickerProps {
  * each app root (gated by a `<Show>`), so it is always open while mounted.
  */
 export const MoveTargetPicker: Component<MoveTargetPickerProps> = (props) => {
+  const t = useT()
   return (
     <Modal
       open
@@ -27,7 +29,12 @@ export const MoveTargetPicker: Component<MoveTargetPickerProps> = (props) => {
     >
       <div class="move-picker-header">
         <span class="move-picker-title">{props.prompt.title}</span>
-        <button type="button" class="move-picker-close" aria-label="Close" onClick={props.onClose}>
+        <button
+          type="button"
+          class="move-picker-close"
+          aria-label={t('ui.dialog.close')}
+          onClick={props.onClose}
+        >
           ×
         </button>
       </div>

@@ -1,9 +1,15 @@
 import { Command } from 'commander'
 import path from 'node:path'
 import { isListLifecycleError, renameList } from '../list-lifecycle'
-import { listTypeLabel, type ListType } from '../list-type'
+import { type ListType } from '../list-type'
 import { type ListTypeFlags } from '../resolve-list'
-import { resolveListSelection, resolveListTypeFlag, runCommandAction } from './card-target'
+import { t } from '../i18n/t'
+import {
+  addListTypeFlags,
+  resolveListSelection,
+  resolveListTypeFlag,
+  runCommandAction,
+} from './card-target'
 import { lifecycleErrorToCommandError } from './lifecycle'
 import {
   addScriptingOptions,
@@ -27,17 +33,13 @@ type RenameResult = {
 
 export function registerRenameCommand(program: Command): void {
   addScriptingOptions(
-    program
-      .command('rename')
-      .description('Rename a deck, collection, or wanted list')
-      .argument(
-        '<list>',
-        "Name of the list (optionally prefixed with 'deck:', 'collection:', or 'wanted:')",
-      )
-      .argument('<newName...>', 'New display name for the list')
-      .option('--deck', 'Resolve the name as a deck')
-      .option('--collection', 'Resolve the name as a collection')
-      .option('--wanted', 'Resolve the name as a wanted list'),
+    addListTypeFlags(
+      program
+        .command('rename')
+        .description(t('help.rename.description'))
+        .argument('<list>', t('help.listArg.prefixed'))
+        .argument('<newName...>', t('help.rename.newName')),
+    ),
     'text',
   ).action(async (listArg: string, newNameParts: string[], options: RenameOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
@@ -64,7 +66,12 @@ async function runRename(
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
       emitOutput(
-        `Renamed ${listTypeLabel(resolved.type)} '${result.oldName}' to '${newName}' (${result.newFilePath})`,
+        t('cli.rename.renamed', {
+          type: resolved.type,
+          oldName: result.oldName,
+          name: newName,
+          file: result.newFilePath,
+        }),
         scripting,
       )
     }

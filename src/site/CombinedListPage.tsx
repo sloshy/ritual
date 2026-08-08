@@ -3,7 +3,8 @@ import { createSignal, createMemo, createEffect, on, onCleanup, For, Show } from
 import { seedCards, seedPrintings, sessionCacheVersion } from './session-cache'
 import { apiBase } from './api-base'
 import type { PriceCurrency } from '../price-currency'
-import { LIST_TYPE_DISPLAY, type ListType } from '../list-type'
+import type { ListType } from '../list-type'
+import { useT } from '../ui/i18n'
 import { CombinedCardsView } from './CombinedCardsView'
 import type { SelectionListId } from './useCardSelection'
 import {
@@ -34,6 +35,7 @@ interface CombinedListPageProps {
 }
 
 export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
+  const t = useT()
   const [loaded, setLoaded] = createSignal<LoadedListDetail[] | null>(null)
   const [error, setError] = createSignal(false)
 
@@ -72,19 +74,23 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
 
   // Header description for an "all" view: every list, or every list of one type.
   // `null` for an explicit selection, which enumerates its lists instead.
+  // A `$select` branch per list type rather than a verb spliced onto a
+  // lowercased noun: that concatenation only ever worked in English.
   const allLabel = createMemo<string | null>(() => {
     if (!props.all) return null
     return props.allType
-      ? `Viewing all ${LIST_TYPE_DISPLAY[props.allType].label.toLowerCase()}`
-      : 'Viewing all cards from all lists'
+      ? t('site.combined.viewingAllOfType', { listType: props.allType })
+      : t('site.combined.viewingAll')
   })
 
   // Page title: "All Decks"/"All Collections"/"All Wanted Lists" for a single-type
   // "all" view, "All Cards" for every list (equivalent to all cards across types),
   // and "Combined List" for an explicit multi-list selection.
   const pageTitle = createMemo<string>(() => {
-    if (!props.all) return 'Combined List'
-    return props.allType ? `All ${LIST_TYPE_DISPLAY[props.allType].label}` : 'All Cards'
+    if (!props.all) return t('site.combined.title')
+    return props.allType
+      ? t('site.combined.allOfType', { listType: props.allType })
+      : t('site.combined.allCards')
   })
 
   const symbolMap = createMemo(() => mergeSymbolMaps(loaded() ?? []))
@@ -112,13 +118,13 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
       enableUrlState
       title={pageTitle()}
       loading={loaded() === null}
-      error={error() ? 'Failed to load one or more lists.' : undefined}
+      error={error() ? t('site.combined.loadFailed') : undefined}
       header={
         <Show
           when={allLabel()}
           fallback={
             <p class="combined-sources">
-              Combining:{' '}
+              {t('site.combined.combining')}{' '}
               <For each={props.lists}>
                 {(l, i) => (
                   <>

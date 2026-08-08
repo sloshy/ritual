@@ -2,6 +2,7 @@ import { type Component, createEffect, createSignal, For, Show, on } from 'solid
 import { Modal } from '../../../ui/Modal'
 import type { CardLabel, CardLabelChoice } from '../../../card-labels'
 import { CARD_LABEL_DEFAULT_CHOICES, sameCardLabels } from '../../../card-labels'
+import { useT, useTKey } from '../../../ui/i18n'
 import type { MetadataResponse } from '../../api/metadata'
 import type { ApiErrorResponse } from '../../api/save-helpers'
 
@@ -25,6 +26,8 @@ type CollectionLabelsModalProps = {
  * hash is adopted into the session so the next card save doesn't 409.
  */
 export const CollectionLabelsModal: Component<CollectionLabelsModalProps> = (props) => {
+  const t = useT()
+  const tKey = useTKey()
   const [selected, setSelected] = createSignal<CardLabel[]>([])
   const [saving, setSaving] = createSignal(false)
   const [error, setError] = createSignal<string | null>(null)
@@ -60,7 +63,11 @@ export const CollectionLabelsModal: Component<CollectionLabelsModalProps> = (pro
       })
       const body = (await resp.json()) as MetadataResponse | ApiErrorResponse
       if (!resp.ok || !body.success) {
-        setError(body.success === false ? body.message : `Save failed (${resp.status})`)
+        setError(
+          body.success === false
+            ? body.message
+            : t('admin.labels.saveFailed', { status: resp.status }),
+        )
         return
       }
       props.onSaved(labels.length > 0 ? labels : undefined, body.contentHash)
@@ -74,12 +81,9 @@ export const CollectionLabelsModal: Component<CollectionLabelsModalProps> = (pro
 
   return (
     <Modal open={props.open} onClose={props.onClose} size="md" panelClass="modal-panel--prompt">
-      <h3>Default Labels</h3>
-      <p class="dialog-message">
-        The default for every card in this collection. Individual cards can override it with their
-        own label.
-      </p>
-      <div class="labels-modal-choices" role="radiogroup" aria-label="Default labels">
+      <h3>{t('admin.labels.title')}</h3>
+      <p class="dialog-message">{t('admin.labels.desc')}</p>
+      <div class="labels-modal-choices" role="radiogroup" aria-label={t('admin.labels.groupLabel')}>
         <For each={CARD_LABEL_DEFAULT_CHOICES}>
           {(choice) => (
             <label class="labels-modal-choice">
@@ -89,7 +93,7 @@ export const CollectionLabelsModal: Component<CollectionLabelsModalProps> = (pro
                 checked={isSelected(choice)}
                 onChange={() => setSelected([...choice.labels])}
               />
-              {choice.label}
+              {tKey(choice.label)}
             </label>
           )}
         </For>
@@ -97,7 +101,7 @@ export const CollectionLabelsModal: Component<CollectionLabelsModalProps> = (pro
       <Show when={error()}>{(message) => <p class="form-error">{message()}</p>}</Show>
       <div class="confirm-dialog-actions">
         <button type="button" class="btn btn-secondary" onClick={props.onClose}>
-          Cancel
+          {t('ui.dialog.cancel')}
         </button>
         <button
           type="button"
@@ -105,7 +109,7 @@ export const CollectionLabelsModal: Component<CollectionLabelsModalProps> = (pro
           disabled={saving() || props.slug === null}
           onClick={() => void save()}
         >
-          {saving() ? 'Saving…' : 'Save'}
+          {saving() ? t('admin.labels.saving') : t('admin.labels.save')}
         </button>
       </div>
     </Modal>

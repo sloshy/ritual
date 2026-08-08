@@ -1,9 +1,11 @@
 import { type Accessor, batch, createSignal, createMemo, createEffect, on, onMount } from 'solid-js'
 import { createStore, type SetStoreFunction, type Store } from 'solid-js/store'
 import type { DeckData, ScryfallCard } from '../../../types'
+import { compareData, compareDisplay } from '../../../i18n/collate'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../../site/data-types'
 import { createChangeId } from '../../../change-event'
 import { formatDroppedNotesSuffix } from '../../../editor/dropped-notes'
+import { t } from '../../../i18n/t'
 import type { MoveCommitResponse } from '../../api/move'
 import type { MovePhysicalCard } from '../../../card-index-types'
 import type { CardIndexResponse } from '../../api/card-index'
@@ -157,7 +159,7 @@ function indexPrintings(
     set('cards', key, card)
   }
   const newest = [...printings].sort((a, b) =>
-    (b.released_at ?? '').localeCompare(a.released_at ?? ''),
+    compareData(b.released_at ?? '', a.released_at ?? ''),
   )[0]!
   set('cards', name, newest)
 }
@@ -214,7 +216,7 @@ export function useMoveSession(): UseMoveSessionResult {
       setAllCards(data.cards)
       setLoaded(true)
     } catch (err) {
-      setError(`Failed to load lists: ${errorMessage(err)}`)
+      setError(t('admin.move.loadListsFailed', { reason: errorMessage(err) }))
     }
   }
 
@@ -242,7 +244,7 @@ export function useMoveSession(): UseMoveSessionResult {
       const resp = await fetch(endpoint, { credentials: 'same-origin' })
       const json = (await resp.json()) as DeckLoadResponse | EntryLoadResponse
       if (!json.success) {
-        setError(`Failed to load ${list.name}`)
+        setError(t('admin.move.loadListFailed', { name: list.name }))
         return
       }
       if (list.type === 'deck') {
@@ -262,7 +264,7 @@ export function useMoveSession(): UseMoveSessionResult {
         setRichCache((prev) => ({ ...prev, [id]: entry }))
       }
     } catch (err) {
-      setError(`Failed to load ${list.name}: ${errorMessage(err)}`)
+      setError(t('admin.move.loadListFailedReason', { name: list.name, reason: errorMessage(err) }))
     } finally {
       setViewedLoading(false)
     }
@@ -346,7 +348,7 @@ export function useMoveSession(): UseMoveSessionResult {
         !keys.has(c.key) &&
         matchesNameTerms(normalizeCardName(c.name), terms),
     )
-    const groups = groupCards(matches).sort((a, b) => a.name.localeCompare(b.name))
+    const groups = groupCards(matches).sort((a, b) => compareDisplay(a.name, b.name))
     return rankNameMatches(groups, query, (group) => group.name)
   })
 
@@ -466,13 +468,12 @@ export function useMoveSession(): UseMoveSessionResult {
       await reloadBulk()
       // Force the viewed list (unchanged id) to reload now that its cache is cleared.
       setRefreshKey((k) => k + 1)
-      const skippedNote = json.skipped > 0 ? ` (${json.skipped} skipped)` : ''
+      const skippedNote =
+        json.skipped > 0 ? t('admin.move.skippedSuffix', { count: json.skipped }) : ''
       const droppedNote = formatDroppedNotesSuffix(json.droppedNotes)
-      setStatus(
-        `Moved ${json.moved} card${json.moved === 1 ? '' : 's'}.${skippedNote}${droppedNote}`,
-      )
+      setStatus(`${t('admin.api.move.moved', { count: json.moved })}${skippedNote}${droppedNote}`)
     } catch (err) {
-      setError(`Failed to save moves: ${errorMessage(err)}`)
+      setError(t('admin.move.saveFailed', { reason: errorMessage(err) }))
     } finally {
       setSaving(false)
     }

@@ -14,6 +14,7 @@ import {
 } from '../markdown-fence'
 import type { DeckData } from '../types'
 import type { ListRef } from '../change-event'
+import { t } from '../i18n/t'
 import type { PhysicalCard } from './move-helpers'
 
 export type DeckWithFrontMatter = {
@@ -44,7 +45,11 @@ async function loadStagedDeck(filePath: string): Promise<LoadStagedResult> {
   const fm = await parseDeckFrontMatter(filePath).catch(() => null)
   const parsed = await loadDeckFile(filePath).catch(() => null)
   if (fm === null || parsed === null) {
-    return { ok: false, reason: 'unreadable-file', message: `Cannot read deck file: ${filePath}` }
+    return {
+      ok: false,
+      reason: 'unreadable-file',
+      message: t('cli.move.cannotReadDeck', { file: filePath }),
+    }
   }
   // A deck side of a move is written back by re-serializing the whole file, so
   // anything the parse could not carry — a skipped line, a fenced code block —
@@ -68,7 +73,11 @@ export async function loadStagedFile(
   if (type === 'deck') return loadStagedDeck(filePath)
   const content = await fs.readFile(filePath, 'utf-8').catch(() => null)
   if (content === null) {
-    return { ok: false, reason: 'unreadable-file', message: `Cannot read file: ${filePath}` }
+    return {
+      ok: false,
+      reason: 'unreadable-file',
+      message: t('cli.move.cannotReadFile', { file: filePath }),
+    }
   }
   return { ok: true, file: { kind: 'text', content } }
 }
@@ -212,7 +221,7 @@ export function applyAddToStaged(
   }
   if (listType === 'collection') {
     if (!card.set || !card.collectorNumber) {
-      throw new Error(`Cannot add "${card.name}" to a collection without set and collector number`)
+      throw new Error(t('cli.move.collectionNeedsPrinting', { name: card.name }))
     }
     staged.content = applyAddCollectionLine(staged.content, card)
   } else {
@@ -278,10 +287,7 @@ function applyAddToDeck(
  */
 function assertAppendable(content: string, cardName: string): void {
   if (endsInsideOpenFence(content)) {
-    throw new Error(
-      `Cannot add "${cardName}": the destination file ends inside an unclosed code fence, ` +
-        `so the new card line would be read as prose. Close the fence first.`,
-    )
+    throw new Error(t('cli.move.appendIntoOpenFence', { name: cardName }))
   }
 }
 

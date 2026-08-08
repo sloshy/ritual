@@ -1,6 +1,7 @@
 import { type JSX, createMemo, type Accessor } from 'solid-js'
 import type { CardData } from './card-sorting'
 import { usePriceRefresh, type PriceRefresh, type PriceCardRef } from './usePriceRefresh'
+import { useT } from '../ui/i18n'
 
 type PublicPriceControlsInput = {
   /** The page's resolved cards, reactive — usually the page's `allCards` memo. */
@@ -31,16 +32,17 @@ type UpdatePricesButtonProps = {
 
 /** The header "Update Prices" button shared by the public list pages. */
 export function UpdatePricesButton(props: UpdatePricesButtonProps): JSX.Element {
+  const t = useT()
   return (
     <button
       type="button"
       onClick={props.prices.refresh}
       disabled={props.prices.refreshing()}
       class="btn btn-primary btn-update-prices"
-      aria-label="Update prices"
-      title="Update prices"
+      aria-label={t('site.prices.update')}
+      title={t('site.prices.update')}
     >
-      {props.prices.refreshing() ? 'Updating…' : 'Update prices'}
+      {props.prices.refreshing() ? t('site.prices.updating') : t('site.prices.update')}
     </button>
   )
 }

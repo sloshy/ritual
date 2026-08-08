@@ -18,7 +18,9 @@ import { readFrontMatterMapping } from '../front-matter-write'
 import { CARD_LABELS, isCardLabel, parseCardLabelsValue, type CardLabel } from '../card-labels'
 import { parseCollectionMetadataBody, parseDeckMetadataBody } from '../admin/api/metadata'
 import { checkArchidektLink } from '../deck-sync/link'
-import { CardCommandError } from '../errors'
+import { CardCommandError, localizedCommandError } from '../errors'
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
 import {
   formatSettableValue,
   mergeArrayValues,
@@ -99,6 +101,11 @@ type MetadataApply =
   | { type: 'deck'; filePath: string; patch: DeckMetadataPatch }
   | { type: 'collection'; filePath: string; patch: CollectionMetadataPatch }
 
+/** The `<property>` argument's help, naming each type's settable keys. */
+function metadataPropertyHelp(): string {
+  return t('help.metadata.property', { keys: DECK_METADATA_KEYS.join(', ') })
+}
+
 /** The accepted-keys listing for error messages, per list type. */
 function acceptedKeys(type: 'deck' | 'collection'): string {
   const keys = type === 'deck' ? DECK_METADATA_KEYS : COLLECTION_METADATA_KEYS
@@ -109,21 +116,33 @@ function acceptedKeys(type: 'deck' | 'collection'): string {
  * CLI wording for the deck keys that exist in front matter but are not
  * settable here — matching the vocabulary the admin route rejects, but phrased
  * for the CLI (the HTTP parser's messages point at admin routes).
+ *
+ * The table holds catalog keys rather than rendered text: it is evaluated once
+ * at module load, so a rendered string would freeze in whatever language was
+ * active when this module was first imported.
  */
-const REJECTED_KEY_MESSAGES: Record<string, string> = {
-  name: "name cannot be set here — a list's display name is changed with ritual rename, which also renames the file and its sidecars.",
-  created: 'created is stamped when the deck is created and cannot be edited.',
-  lastSynced: 'lastSynced is stamped by deck sync and cannot be edited.',
+const REJECTED_KEY_MESSAGES: Record<string, RejectedKeyMessage> = {
+  name: 'cli.metadata.rejectedName',
+  created: 'cli.metadata.rejectedCreated',
+  lastSynced: 'cli.metadata.rejectedLastSynced',
 }
+
+/**
+ * The keys naming a non-settable front-matter field. Narrowed to the three
+ * params-free messages so the refusal below needs no parameter bag.
+ */
+type RejectedKeyMessage = Extract<MessageKey, `cli.metadata.rejected${string}`>
 
 function unknownKeyError(type: 'deck' | 'collection', property: string): CardCommandError {
   const rejected = REJECTED_KEY_MESSAGES[property]
-  return new CardCommandError(
-    'usage_error',
-    rejected ??
-      `Unknown metadata field '${property}'. Accepted fields for a ${type}: ${acceptedKeys(type)}.`,
-    ExitCode.UsageError,
-  )
+  if (rejected !== undefined) {
+    return localizedCommandError('usage_error', ExitCode.UsageError, rejected)
+  }
+  return localizedCommandError('usage_error', ExitCode.UsageError, 'cli.metadata.unknownField', {
+    type,
+    property,
+    keys: acceptedKeys(type),
+  })
 }
 
 /** Throw unless `property` is settable on the target's type. */
@@ -159,11 +178,7 @@ async function resolveMetadataTarget(
 }
 
 function wantedListsCarryNoMetadata(): CardCommandError {
-  return new CardCommandError(
-    'usage_error',
-    'Wanted lists carry no metadata. Use ritual rename to change the display name.',
-    ExitCode.UsageError,
-  )
+  return localizedCommandError('usage_error', ExitCode.UsageError, 'cli.metadata.wantedNoMetadata')
 }
 
 /**
@@ -177,14 +192,11 @@ async function readFrontMatterData(target: MetadataTarget): Promise<Record<strin
   const content = await fs.readFile(target.filePath, 'utf-8')
   const mapping = readFrontMatterMapping(content)
   if (!mapping.ok) {
-    const problem =
-      mapping.reason === 'not-a-mapping'
-        ? 'is not a key/value mapping'
-        : 'could not be read as YAML'
-    throw new CardCommandError(
+    throw localizedCommandError(
       'runtime_error',
-      `The file's front matter ${problem}. Fix the block by hand first.`,
       ExitCode.RuntimeError,
+      'cli.metadata.frontMatterUnreadable',
+      { reason: mapping.reason === 'not-a-mapping' ? 'notAMapping' : 'invalidYaml' },
     )
   }
   return mapping.data
@@ -195,10 +207,11 @@ function currentCollectionLabels(data: Record<string, unknown>): CardLabel[] {
   if (data.labels === undefined) return []
   const parsed = parseCardLabelsValue(data.labels, 'labels')
   if (!parsed.ok) {
-    throw new CardCommandError(
+    throw localizedCommandError(
       'runtime_error',
-      `The stored 'labels' value is invalid: ${parsed.message}`,
       ExitCode.RuntimeError,
+      'cli.metadata.storedLabelsInvalid',
+      { reason: parsed.message },
     )
   }
   return parsed.labels
@@ -217,16 +230,12 @@ export function buildDeckSetBody(
   currentTags: readonly string[],
   mode: ArrayMode,
 ): Record<string, unknown> | string {
-  if (mode !== 'replace' && property !== 'tags') {
-    return `--add/--remove apply to array properties (a deck's: tags).`
-  }
+  if (mode !== 'replace' && property !== 'tags') return t('cli.metadata.arrayOnlyDeck')
   if (property === 'tags') {
     return { tags: mergeArrayValues(currentTags, splitCommaTokens(values), mode) }
   }
   if (property === 'description') return { description: values.join(' ') }
-  if (values.length !== 1) {
-    return `${property} takes exactly one value.`
-  }
+  if (values.length !== 1) return t('cli.metadata.singleValue', { property })
   return { [property]: values.join(' ') }
 }
 
@@ -242,17 +251,13 @@ export function buildCollectionSetBody(
   currentLabels: readonly string[],
   mode: ArrayMode,
 ): Record<string, unknown> | string {
-  if (mode !== 'replace' && property !== 'labels') {
-    return `--add/--remove apply to array properties (a collection's: labels).`
-  }
+  if (mode !== 'replace' && property !== 'labels') return t('cli.metadata.arrayOnlyCollection')
   const tokens = splitCommaTokens(values).map((token) => token.toLowerCase())
   const unknown = tokens.find((token) => !isCardLabel(token))
   if (unknown !== undefined) {
-    return `Invalid label '${unknown}'. Use one of: ${CARD_LABELS.join(', ')}.`
+    return t('cli.metadata.invalidLabel', { value: unknown, choices: CARD_LABELS.join(', ') })
   }
-  if (mode === 'replace' && tokens.length === 0) {
-    return 'No labels given. To clear the default, use ritual metadata unset.'
-  }
+  if (mode === 'replace' && tokens.length === 0) return t('cli.metadata.noLabels')
   return { labels: mergeArrayValues(currentLabels, tokens, mode) }
 }
 
@@ -270,9 +275,17 @@ function emitSetResult(
 ): void {
   if (scripting.output === 'text') {
     if (scripting.quiet) return
-    const rendered =
-      value === null ? `Cleared ${property}` : `Set ${property} = ${formatSettableValue(value)}`
-    emitOutput(`${rendered} on ${target.type} '${target.list}'`, scripting)
+    emitOutput(
+      value === null
+        ? t('cli.metadata.cleared', { type: target.type, property, list: target.list })
+        : t('cli.metadata.set', {
+            type: target.type,
+            property,
+            value: formatSettableValue(value),
+            list: target.list,
+          }),
+      scripting,
+    )
     return
   }
   const result: MetadataSetResult = {
@@ -296,12 +309,7 @@ async function applyPatch(apply: MetadataApply): Promise<void> {
 }
 
 export function registerMetadataCommand(program: Command): void {
-  const metadata = program
-    .command('metadata')
-    .description(
-      "Inspect and modify a list's front-matter metadata " +
-        '(deck description/tags/format/source link, collection default labels)',
-    )
+  const metadata = program.command('metadata').description(t('help.metadata.description'))
 
   registerSetSubcommand(metadata)
   registerGetSubcommand(metadata)
@@ -314,17 +322,12 @@ function registerSetSubcommand(metadata: Command): void {
     addListTypeFlags(
       metadata
         .command('set')
-        .description('Set or update a metadata property on a deck or collection')
-        .argument('[listName]', 'Name of the deck or collection (prompted when omitted)')
-        .argument('<property>', `Deck: ${DECK_METADATA_KEYS.join(', ')}. Collection: labels.`)
-        .argument('<value...>', 'Value(s) to set')
-        .addOption(
-          new Option(
-            '--add',
-            'Add value(s) to an array property (tags, labels) instead of replacing it',
-          ).conflicts('remove'),
-        )
-        .addOption(new Option('--remove', 'Remove value(s) from an array property')),
+        .description(t('help.metadata.set'))
+        .argument('[listName]', t('help.metadata.listName'))
+        .argument('<property>', metadataPropertyHelp())
+        .argument('<value...>', t('help.metadata.value'))
+        .addOption(new Option('--add', t('help.metadata.add')).conflicts('remove'))
+        .addOption(new Option('--remove', t('help.metadata.remove'))),
     ),
   ).action(
     async (
@@ -379,9 +382,9 @@ function registerGetSubcommand(metadata: Command): void {
     addListTypeFlags(
       metadata
         .command('get')
-        .description('Print the value of a single metadata property')
-        .argument('[listName]', 'Name of the deck or collection (prompted when omitted)')
-        .argument('<property>', `Deck: ${DECK_METADATA_KEYS.join(', ')}. Collection: labels.`),
+        .description(t('help.metadata.get'))
+        .argument('[listName]', t('help.metadata.listName'))
+        .argument('<property>', metadataPropertyHelp()),
     ),
   ).action(async (listName: string | undefined, property: string, options: MetadataTypeFlags) => {
     const scripting = normalizeScriptingOptions(options)
@@ -393,8 +396,10 @@ function registerGetSubcommand(metadata: Command): void {
       if (value === undefined) {
         emitError(
           'not_found',
-          `"${property}" is not set on ${target.type} '${target.list}'.`,
+          t('cli.metadata.notSet', { type: target.type, property, list: target.list }),
           scripting,
+          undefined,
+          'cli.metadata.notSet',
         )
         process.exitCode = ExitCode.NotFound
         return
@@ -433,8 +438,8 @@ function registerListSubcommand(metadata: Command): void {
     addListTypeFlags(
       metadata
         .command('list')
-        .description("Print a list's full front-matter metadata")
-        .argument('[listName]', 'Name of the deck or collection (prompted when omitted)'),
+        .description(t('help.metadata.list'))
+        .argument('[listName]', t('help.metadata.listName')),
     ),
   ).action(async (listName: string | undefined, options: MetadataTypeFlags) => {
     const scripting = normalizeScriptingOptions(options)
@@ -452,7 +457,9 @@ function registerListSubcommand(metadata: Command): void {
         const keys = target.type === 'deck' ? DECK_METADATA_KEYS : COLLECTION_METADATA_KEYS
         const lines = keys.map((key) => {
           const value = frontMatter[key]
-          return value === undefined ? `${key} = (unset)` : `${key} = ${formatSettableValue(value)}`
+          return value === undefined
+            ? t('cli.metadata.rowUnset', { key })
+            : t('cli.metadata.row', { key, value: formatSettableValue(value) })
         })
         emitOutput(lines.join('\n'), scripting)
         return
@@ -474,9 +481,9 @@ function registerUnsetSubcommand(metadata: Command): void {
     addListTypeFlags(
       metadata
         .command('unset')
-        .description('Remove a metadata property from a deck or collection')
-        .argument('[listName]', 'Name of the deck or collection (prompted when omitted)')
-        .argument('<property>', `Deck: ${DECK_METADATA_KEYS.join(', ')}. Collection: labels.`),
+        .description(t('help.metadata.unset'))
+        .argument('[listName]', t('help.metadata.listName'))
+        .argument('<property>', metadataPropertyHelp()),
     ),
   ).action(async (listName: string | undefined, property: string, options: MetadataTypeFlags) => {
     const scripting = normalizeScriptingOptions(options)
@@ -500,7 +507,10 @@ function registerUnsetSubcommand(metadata: Command): void {
 
       if (scripting.output === 'text') {
         if (!scripting.quiet) {
-          emitOutput(`Unset ${property} on ${target.type} '${target.list}'`, scripting)
+          emitOutput(
+            t('cli.metadata.unset', { type: target.type, property, list: target.list }),
+            scripting,
+          )
         }
         return
       }

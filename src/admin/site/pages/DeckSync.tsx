@@ -19,6 +19,9 @@ import type {
 } from '../../api/deck-sync'
 import type { DeckSyncEvent, SyncableDeck, UnreadableDeck } from '../../../deck-sync/engine'
 import { unreadableConsequence, type SyncDirection } from '../../../sync-common'
+import { useT } from '../../../ui/i18n'
+import type { TranslateFn } from '../../../i18n/t'
+import { formatDateTime } from '../../../ui/format'
 import { ArchidektLoginForm, ArchidektSessionAlert } from '../components/ArchidektSession'
 import { StatusAlerts } from '../components/StatusAlerts'
 import {
@@ -43,21 +46,30 @@ import { openSyncStream, type SyncStream } from '../sync-stream'
 import { PageHeading } from '../components/PageHeading'
 
 const DIRECTIONS: SyncChoice<SyncDirection>[] = [
-  {
-    id: 'pull',
-    label: 'Pull',
-    description:
-      'Archidekt → local. Applies remote card and format changes to your deck files and records them in each deck’s changelog.',
-  },
-  {
-    id: 'push',
-    label: 'Push',
-    description:
-      'Local → Archidekt. Sends your card additions, removals, and quantity changes to decks you own on Archidekt.',
-  },
+  { id: 'pull', labelKey: 'admin.sync.pull', descriptionKey: 'admin.deckSync.pullDesc' },
+  { id: 'push', labelKey: 'admin.sync.push', descriptionKey: 'admin.deckSync.pushDesc' },
 ]
 
+/** Which verb the run button uses: a dry run previews, otherwise the direction. */
+type SyncAction = 'preview' | 'pull' | 'push'
+
+/**
+ * The run button's label.
+ *
+ * One key per verb rather than `${verb} ${count} decks`: a plural table cannot
+ * nest inside a `$select`, and an English verb spliced into a counted noun
+ * phrase is exactly the composition the catalog exists to prevent.
+ */
+function runLabel(t: TranslateFn, action: SyncAction, all: boolean, count: number): string {
+  if (all) return t('admin.sync.allDecksAction', { action })
+  if (action === 'preview') return t('admin.sync.previewDecks', { count })
+  return action === 'pull'
+    ? t('admin.sync.pullDecks', { count })
+    : t('admin.sync.pushDecks', { count })
+}
+
 export function DeckSync(): JSX.Element {
+  const t = useT()
   const [decks, setDecks] = createSignal<SyncableDeck[]>([])
   const [archidekt, setArchidekt] = createSignal<ArchidektLoginStatus | null>(null)
   const [loading, setLoading] = createSignal(true)
@@ -89,7 +101,7 @@ export function DeckSync(): JSX.Element {
     try {
       const resp = await fetch('/api/deck-sync', { credentials: 'same-origin' })
       if (!resp.ok) {
-        setLoadError('Could not load Archidekt decks.')
+        setLoadError(t('admin.deckSync.loadFailed'))
         return
       }
       const data = (await resp.json()) as DeckSyncStatusResponse
@@ -105,7 +117,7 @@ export function DeckSync(): JSX.Element {
       })
       selectionSeeded = true
     } catch {
-      setLoadError('Could not load Archidekt decks.')
+      setLoadError(t('admin.deckSync.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -153,10 +165,8 @@ export function DeckSync(): JSX.Element {
   })
 
   const actionLabel = createMemo(() => {
-    const verb = dryRun() ? 'Preview' : direction() === 'pull' ? 'Pull' : 'Push'
-    if (allSelected()) return `${verb} all decks`
-    const count = selected().length
-    return `${verb} ${count} deck${count === 1 ? '' : 's'}`
+    const action: SyncAction = dryRun() ? 'preview' : direction()
+    return runLabel(t, action, allSelected(), selected().length)
   })
 
   /** Create or update one deck's row, preserving arrival order. */
@@ -257,7 +267,7 @@ export function DeckSync(): JSX.Element {
       })
       finishRun(data.message)
     } catch {
-      failRun('Failed to sync decks.', false)
+      failRun(t('admin.deckSync.failed'), false)
     }
   }
 
@@ -295,16 +305,16 @@ export function DeckSync(): JSX.Element {
       streamUrl(ignoreUnreadableLines),
       {
         progress: (event) => handleSyncEvent(event, ignoreUnreadableLines),
-        done: (event) => finishRun(event?.message ?? 'Sync complete.'),
+        done: (event) => finishRun(event?.message ?? t('admin.sync.complete')),
         failed: (event) =>
-          failRun(event?.message ?? 'Failed to sync decks.', event?.loginRequired === true),
+          failRun(event?.message ?? t('admin.deckSync.failed'), event?.loginRequired === true),
         disconnected: (received) => {
           stream = null
           if (received) {
             // The run is already in flight server-side; re-issuing it could push
             // a second time. Report the drop and let the user reload to see
             // where it landed.
-            failRun('The connection dropped mid-sync. Reload to see how far the run got.', false)
+            failRun(t('admin.sync.connectionDropped'), false)
             return
           }
           // Never connected: retry once over plain JSON so a proxy that buffers
@@ -320,12 +330,9 @@ export function DeckSync(): JSX.Element {
   return (
     <div>
       <PageHeading page="deck-sync" />
-      <p class="page-desc">
-        Sync decks imported from Archidekt. Decks are matched by card name and quantity; a pull also
-        adopts the deck’s Archidekt format.
-      </p>
+      <p class="page-desc">{t('admin.deckSync.desc')}</p>
 
-      <Show when={!loading()} fallback={<p class="text-muted">Loading Archidekt decks…</p>}>
+      <Show when={!loading()} fallback={<p class="text-muted">{t('admin.deckSync.loading')}</p>}>
         <Show when={archidekt()}>
           {(status) => (
             <div class="archidekt-status">
@@ -343,22 +350,18 @@ export function DeckSync(): JSX.Element {
 
         <Show
           when={decks().length > 0}
-          fallback={
-            <p class="text-muted">
-              No Archidekt decks found. Import a deck from an Archidekt URL to sync it.
-            </p>
-          }
+          fallback={<p class="text-muted">{t('admin.deckSync.none')}</p>}
         >
           <p class="sync-last-run">
-            Last synced:{' '}
+            {t('admin.sync.lastSyncedLabel')}{' '}
             <span class="sync-last-run-value">
-              {relativeTime(lastSyncedOverall()) ?? 'never — no deck has synced yet'}
+              {relativeTime(lastSyncedOverall()) ?? t('admin.deckSync.neverAny')}
             </span>
           </p>
 
           <ChoicePicker
-            heading="Direction"
-            label="Sync direction"
+            heading={t('admin.sync.directionHeading')}
+            label={t('admin.sync.directionLabel')}
             class="sync-direction"
             options={DIRECTIONS}
             value={direction()}
@@ -372,7 +375,7 @@ export function DeckSync(): JSX.Element {
             disabled={running()}
           />
 
-          <h3 class="section-subheading">Decks</h3>
+          <h3 class="section-subheading">{t('admin.deckSync.decksHeading')}</h3>
           <ul class="sync-select-list">
             <li class="sync-select-row sync-select-row--all">
               <label class="sync-select-label">
@@ -383,10 +386,13 @@ export function DeckSync(): JSX.Element {
                   disabled={running()}
                   onChange={toggleAll}
                 />
-                <span class="sync-select-name">All decks</span>
+                <span class="sync-select-name">{t('admin.deckSync.allDecks')}</span>
               </label>
               <span class="sync-select-meta">
-                {selected().length} of {decks().length} selected
+                {t('admin.deckSync.selectedCount', {
+                  count: selected().length,
+                  total: decks().length,
+                })}
               </span>
             </li>
             <For each={decks()}>
@@ -403,7 +409,7 @@ export function DeckSync(): JSX.Element {
                   </label>
                   <span
                     class="sync-select-meta"
-                    title={deck.lastSynced ? new Date(deck.lastSynced).toLocaleString() : undefined}
+                    title={deck.lastSynced ? formatDateTime(deck.lastSynced) : undefined}
                   >
                     {lastSyncedLabel(deck.lastSynced)}
                   </span>
@@ -419,7 +425,7 @@ export function DeckSync(): JSX.Element {
               disabled={running()}
               onChange={(e) => setDryRun(e.currentTarget.checked)}
             />
-            Preview only — report what would change without writing files or pushing
+            {t('admin.deckSync.dryRun')}
           </label>
 
           {/* Held apart from the Archidekt session banner above, which is also an alert. */}
@@ -432,12 +438,12 @@ export function DeckSync(): JSX.Element {
             disabled={running() || selected().length === 0 || loginRequired()}
             onClick={() => handleSync()}
           >
-            {running() ? 'Syncing…' : actionLabel()}
+            {running() ? t('admin.sync.syncing') : actionLabel()}
           </button>
           {/* Only when a login form is actually rendered above — a status that
               failed to load leaves the load error to explain the disabled button. */}
           <Show when={archidekt()?.loginRequired === true}>
-            <p class="text-muted">Sign in to Archidekt above to sync.</p>
+            <p class="text-muted">{t('admin.deckSync.signInPrompt')}</p>
           </Show>
 
           {/* The browser's stand-in for the CLI's confirmation prompt: the run
@@ -445,9 +451,9 @@ export function DeckSync(): JSX.Element {
           <Show when={unreadable().length > 0}>
             <UnreadableLinesPanel
               sources={unreadable()}
-              noun="deck"
+              leadKey="admin.sync.unreadableDecks"
               consequence={unreadableConsequence('deck', direction())}
-              confirmLabel="Sync anyway and remove those lines"
+              confirmLabel={t('admin.deckSync.confirmUnreadable')}
               disabled={running()}
               onConfirm={() => handleSync(true)}
             />

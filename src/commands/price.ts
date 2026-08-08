@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { cardCache } from '../cache'
+import { t } from '../i18n/t'
 import { emptyCacheAdvice, ensureFreshPriceData } from '../cache/freshness'
-import { listTypeLabel } from '../list-type'
 import { parseCurrencyFlagOrError, type PriceCurrency } from '../price-currency'
 import {
   filterPricedEntries,
@@ -50,9 +50,6 @@ import {
   type ScriptingOptions,
 } from './scripting'
 
-const PRICE_DISCLAIMER =
-  '⚠️  Prices are from Scryfall and reflect NM (Near Mint) market values. Card condition can significantly decrease actual value.'
-
 type PriceCommandOptions = Partial<ScriptingOptions> & {
   deck?: boolean
   collection?: boolean
@@ -68,7 +65,7 @@ type PriceCommandOptions = Partial<ScriptingOptions> & {
 }
 
 function parseSortFlag(value: string): PriceSortField {
-  return parseEnumFlag(value, PRICE_SORT_FIELDS, 'sort field')
+  return parseEnumFlag(value, PRICE_SORT_FIELDS, t('cli.price.fieldSort'))
 }
 
 /** The terminal facts the interactive-browser gate depends on. */
@@ -139,7 +136,7 @@ function emitSummary(
   }
   if (!scriptingOptions.quiet) {
     emitOutput('', scriptingOptions)
-    emitOutput(PRICE_DISCLAIMER, scriptingOptions)
+    emitOutput(t('cli.price.disclaimer'), scriptingOptions)
   }
 }
 
@@ -176,13 +173,16 @@ function emitListDetail(
   if (summary) {
     emitOutput('', scriptingOptions)
     emitOutput(
-      `  ${summary.cardCount} cards · ${formatTotalsSegment(summary, currency)}`,
+      t('cli.price.listFooter', {
+        count: summary.cardCount,
+        totals: formatTotalsSegment(summary, currency),
+      }),
       scriptingOptions,
     )
   }
   if (!scriptingOptions.quiet) {
     emitOutput('', scriptingOptions)
-    emitOutput(PRICE_DISCLAIMER, scriptingOptions)
+    emitOutput(t('cli.price.disclaimer'), scriptingOptions)
   }
 }
 
@@ -217,7 +217,10 @@ function emitCardSearch(
   }
   emitOutput('', scriptingOptions)
   emitOutput(
-    `${matches.length} matching entries · ${formatTotalsSegment(totals, currency)}`,
+    t('cli.price.searchFooter', {
+      count: matches.length,
+      totals: formatTotalsSegment(totals, currency),
+    }),
     scriptingOptions,
   )
 }
@@ -227,21 +230,22 @@ export function registerPriceCommand(program: Command): void {
     addScriptingOptions(
       program
         .command('price')
-        .description('Browse prices of every deck, collection, and wanted list')
-        .argument('[listName]', 'Open (or print) a single list instead of all lists')
-        .option('--deck', 'Only decks (also disambiguates listName)')
-        .option('--collection', 'Only collections (also disambiguates listName)')
-        .option('--wanted', 'Only wanted lists (also disambiguates listName)')
+        .description(t('help.price.description'))
+        .argument('[listName]', t('help.price.listArg'))
+        .option('--deck', t('help.price.deck'))
+        .option('--collection', t('help.price.collection'))
+        .option('--wanted', t('help.price.wanted'))
+        .option('--prices <currency>', t('help.price.prices'))
+        .option('--name <terms>', t('help.price.name'))
+        .option('--set <code>', t('help.price.set'))
+        .option('--collector <number>', t('help.price.collector'))
         .option(
-          '--prices <currency>',
-          'Price currency: usd, eur, or tix (default: the configured defaultCurrency)',
+          '--sort <field>',
+          t('help.price.sort', { fields: PRICE_SORT_FIELDS.join(', ') }),
+          parseSortFlag,
         )
-        .option('--name <terms>', 'Print cards whose name contains every term')
-        .option('--set <code>', 'Print cards from this set code')
-        .option('--collector <number>', 'Print cards with this collector number')
-        .option('--sort <field>', `Sort cards by: ${PRICE_SORT_FIELDS.join(', ')}`, parseSortFlag)
-        .option('--descending', 'Reverse the sort direction')
-        .option('--summary', 'Print the price summary instead of opening the browser'),
+        .option('--descending', t('help.price.descending'))
+        .option('--summary', t('help.price.summary')),
       'text',
     ),
   ).action(async (listName: string | undefined, options: PriceCommandOptions) => {
@@ -264,8 +268,10 @@ export function registerPriceCommand(program: Command): void {
     if (type === 'conflict') {
       emitError(
         'usage_error',
-        'Use only one of --deck, --collection, or --wanted.',
+        t('cli.listScope.oneTypeFlag'),
         scriptingOptions,
+        undefined,
+        'cli.listScope.oneTypeFlag',
       )
       process.exitCode = ExitCode.UsageError
       return
@@ -298,7 +304,11 @@ export function registerPriceCommand(program: Command): void {
       scope = interactive ? undefined : [resolved]
       if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {
         emitOutput(
-          `Pricing ${listTypeLabel(resolved.type)} "${resolved.name}"${interactive ? '' : '...'}`,
+          t('cli.price.pricingList', {
+            type: resolved.type,
+            name: resolved.name,
+            suffix: interactive ? '' : '...',
+          }),
           scriptingOptions,
         )
       }
@@ -307,11 +317,7 @@ export function registerPriceCommand(program: Command): void {
     const refreshMode = resolveRefreshMode(options.refresh, scriptingOptions.output)
     const freshness = await ensureFreshPriceData(refreshMode)
     if (!freshness.ready) {
-      emitError(
-        'runtime_error',
-        emptyCacheAdvice('The card cache is empty; prices are unavailable.'),
-        scriptingOptions,
-      )
+      emitError('runtime_error', emptyCacheAdvice(t('cli.price.emptyCache')), scriptingOptions)
       process.exitCode = ExitCode.RuntimeError
       return
     }
@@ -336,7 +342,7 @@ export function registerPriceCommand(program: Command): void {
       }
 
       if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {
-        emitOutput('Calculating prices...', scriptingOptions)
+        emitOutput(t('cli.price.calculating'), scriptingOptions)
       }
       const { built, warnings } = await buildScoped(currency, scope)
 

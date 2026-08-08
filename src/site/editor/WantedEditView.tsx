@@ -17,8 +17,8 @@ import { WantedListPage } from '../WantedListPage'
 import { siteSearch } from './site-search'
 import { backfillImportedCard } from './backfill-added-card'
 import { EditViewFrame } from './EditViewFrame'
-import { confirmDiscardOnExit } from './edit-session-memory'
 import { safeFilename } from './safe-filename'
+import { useT } from '../../ui/i18n'
 
 type WantedEditViewProps = {
   detail: WantedListDetail
@@ -35,6 +35,7 @@ type WantedEditViewProps = {
 export const WantedEditView: Component<WantedEditViewProps> = (props) => {
   const defaults = useEditorDefaults('wanted')
   const [originalModalCard, setOriginalModalCard] = createSignal<string | null>(null)
+  const t = useT()
 
   const buildConfig = (
     cardActions: EntryCardDataActions,
@@ -90,17 +91,13 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
 
   const changeCount = () => ctrl.editor.changes.changeCount()
 
-  const handleExit = () => {
-    if (confirmDiscardOnExit(changeCount())) props.onExit()
-  }
-
   const safe = () => safeFilename(props.detail.name)
 
   return (
     <EditViewFrame
       changeCount={changeCount()}
       onDiscard={ctrl.editor.dialogs.openDiscard}
-      onExit={handleExit}
+      onExit={props.onExit}
       jsonFilename={`${safe()}-edits.json`}
       kind="wanted"
       slug={props.slug}
@@ -112,7 +109,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
       ready={() => !ctrl.editor.status.loading && ctrl.editor.data() != null}
       fileExports={[
         {
-          label: 'Download updated wanted list (.md)',
+          label: () => t('site.editor.downloadWanted'),
           filename: `${safe()}.md`,
           build: () =>
             wantedToMarkdown(

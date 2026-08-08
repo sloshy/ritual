@@ -1,6 +1,9 @@
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { hashPath } from '../content-hash'
+import { compareDisplay } from '../i18n/collate'
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
 import { appendChangelog } from '../changelog-writer'
 import {
   createMoveFromChange,
@@ -167,9 +170,7 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
     if (listEntry.ref.type === 'deck') {
       const deckData = await importFromTextFile(listEntry.filePath).catch(() => null)
       if (!deckData) {
-        warnings.push(
-          `${label(listEntry.filePath)}: could not be read or parsed; its cards are missing from the index.`,
-        )
+        warnings.push(t('cli.move.listUnreadable', { file: label(listEntry.filePath) }))
         continue
       }
       for (const section of deckData.sections) {
@@ -196,14 +197,12 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
     } else if (listEntry.ref.type === 'collection') {
       const content = await fs.readFile(listEntry.filePath, 'utf-8').catch(() => null)
       if (content === null) {
-        warnings.push(
-          `${label(listEntry.filePath)}: could not be read or parsed; its cards are missing from the index.`,
-        )
+        warnings.push(t('cli.move.listUnreadable', { file: label(listEntry.filePath) }))
         continue
       }
       const parsed = parseCollectionFile(content)
       for (const warning of parsed.warnings) {
-        warnings.push(`${label(listEntry.filePath)}: ${warning}`)
+        warnings.push(t('cli.move.listWarning', { file: label(listEntry.filePath), warning }))
       }
       for (const entry of parsed.entries) {
         const key = `${listEntry.filePath}:${entry.cardId ?? entry.name}:0`
@@ -224,14 +223,12 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
     } else {
       const content = await fs.readFile(listEntry.filePath, 'utf-8').catch(() => null)
       if (content === null) {
-        warnings.push(
-          `${label(listEntry.filePath)}: could not be read or parsed; its cards are missing from the index.`,
-        )
+        warnings.push(t('cli.move.listUnreadable', { file: label(listEntry.filePath) }))
         continue
       }
       const parsed = parseWantedListFile(content)
       for (const warning of parsed.warnings) {
-        warnings.push(`${label(listEntry.filePath)}: ${warning}`)
+        warnings.push(t('cli.move.listWarning', { file: label(listEntry.filePath), warning }))
       }
       for (const entry of parsed.entries) {
         const key = `${listEntry.filePath}:${entry.cardId ?? entry.name}:0`
@@ -321,18 +318,28 @@ function truncate(str: string, maxLen: number): string {
   return str.slice(0, maxLen - 1) + '…'
 }
 
-const FINISH_LABEL: Record<Finish, string> = {
-  nonfoil: '',
-  foil: ' [Foil]',
-  etched: ' [Etched]',
+/**
+ * The catalog key each finish is labelled by, or `undefined` for the finish
+ * that needs no label at all. Keys rather than rendered text: the table is
+ * evaluated once at module load, so a string would freeze in whatever language
+ * was active when this module was first imported.
+ */
+const FINISH_LABEL: Record<Finish, FinishLabelMessage | undefined> = {
+  nonfoil: undefined,
+  foil: 'cli.move.finishFoil',
+  etched: 'cli.move.finishEtched',
 }
+
+/** The two params-free messages a finish can be labelled by. */
+type FinishLabelMessage = Extract<MessageKey, `cli.move.finish${string}`>
 
 /**
  * Human-readable label for a card's finish, shown only when the printing is not a
  * normal non-foil one. Returns e.g. ` [Foil]` / ` [Etched]`, or '' for nonfoil/unknown.
  */
 export function finishLabel(finish: Finish | undefined): string {
-  return finish ? FINISH_LABEL[finish] : ''
+  const key = finish ? FINISH_LABEL[finish] : undefined
+  return key ? t(key) : ''
 }
 
 export type CardSearchChoice = {
@@ -375,7 +382,7 @@ export function buildCardSearchChoices(
   }
 
   // Sort alphabetically by card name for consistent display
-  choices.sort((a, b) => a.title.localeCompare(b.title))
+  choices.sort((a, b) => compareDisplay(a.title, b.title))
   return choices
 }
 
@@ -472,8 +479,8 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
     if (!loaded.ok) {
       throw new Error(
         loaded.reason === 'unreadable-file'
-          ? `Destination file not found, aborting move: ${listEntry.filePath}`
-          : `Aborting move: ${loaded.message}`,
+          ? t('cli.move.abortDestinationMissing', { file: listEntry.filePath })
+          : t('cli.move.abortMove', { reason: loaded.message }),
       )
     }
     staged.set(listEntry.filePath, loaded.file)
@@ -485,8 +492,8 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
     if (!loaded.ok) {
       throw new Error(
         loaded.reason === 'unreadable-file'
-          ? `Source file not readable, aborting move: ${listEntry.filePath}`
-          : `Aborting move: ${loaded.message}`,
+          ? t('cli.move.abortSourceUnreadable', { file: listEntry.filePath })
+          : t('cli.move.abortMove', { reason: loaded.message }),
       )
     }
     staged.set(listEntry.filePath, loaded.file)
@@ -602,8 +609,8 @@ export async function commitAllRemovals(
     if (!loaded.ok) {
       throw new Error(
         loaded.reason === 'unreadable-file'
-          ? `Source file not readable, aborting remove: ${listEntry.filePath}`
-          : `Aborting remove: ${loaded.message}`,
+          ? t('cli.move.abortRemoveSourceUnreadable', { file: listEntry.filePath })
+          : t('cli.move.abortRemove', { reason: loaded.message }),
       )
     }
     staged.set(listEntry.filePath, loaded.file)

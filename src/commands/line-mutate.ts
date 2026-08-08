@@ -52,7 +52,7 @@ import {
 import { applyConditionUpdate, isCondition, isFinish } from '../finish-condition'
 import { noteOrUndefined } from '../note-helpers'
 import { ExitCode } from './scripting'
-import { CardCommandError } from '../errors'
+import { CardCommandError, localizedCommandError } from '../errors'
 import type { ListType } from '../list-type'
 import type { CardMutationChange } from '../list-mutate'
 import type { EntryRef } from './card-target'
@@ -212,20 +212,19 @@ export function applyTargetedChangesToContent(
  * changelog, then invisible to every later parse.
  */
 export function appendIntoOpenFence(): CardCommandError {
-  return new CardCommandError(
+  return localizedCommandError(
     'usage_error',
-    'The file ends inside an unclosed code fence, so a new card line appended at the end ' +
-      'would be read as prose. Close the fence first.',
     ExitCode.UsageError,
+    'cli.lineMutate.appendIntoOpenFence',
   )
 }
 
 /** Thrown when the resolved target's line has vanished between resolve and apply. */
 function targetLineGone(): CardCommandError {
-  return new CardCommandError(
+  return localizedCommandError(
     'runtime_error',
-    'Card line no longer present in file (it may have been edited concurrently).',
     ExitCode.RuntimeError,
+    'cli.lineMutate.targetLineGone',
   )
 }
 
@@ -325,11 +324,13 @@ function lineLabelsAt(lines: string[], idx: number): LineLabels {
 
 /** Thrown when the target line carries a labels token the parser refuses. */
 function conflictingLabelsToken(raw: string): CardCommandError {
-  return new CardCommandError(
+  return localizedCommandError(
     'usage_error',
-    `The target line carries a conflicting labels token [${raw}], which a rewrite would drop. ` +
-      'Fix the token in the file first.',
     ExitCode.UsageError,
+    'cli.lineMutate.conflictingLabels',
+    {
+      token: raw,
+    },
   )
 }
 

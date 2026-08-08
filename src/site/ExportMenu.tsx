@@ -2,6 +2,8 @@ import type { Component } from 'solid-js'
 import { For, Show, createSignal, onCleanup } from 'solid-js'
 import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
+import { useT } from '../ui/i18n'
+import type { MessageKey } from '../i18n/messages/en'
 import { downloadTextFile } from './editor/download'
 
 const PANEL_WIDTH = 200
@@ -9,12 +11,24 @@ const FEEDBACK_MS = 1800
 
 export type ExportFormat = 'txt' | 'md' | 'csv'
 
-type FormatOption = { value: ExportFormat; label: string; mime: string }
+/**
+ * Every key a format label may name. Narrower than `MessageKey` so `t()` can
+ * render one without params, and `Extract` turns a key that no longer exists in
+ * the catalog into `never` — a compile error at the table below.
+ */
+type FormatMessageKey = Extract<MessageKey, `site.export.format${string}`>
+
+/**
+ * A standard export format. `label` is a {@link MessageKey}, not rendered text:
+ * this table is evaluated once at module load, so holding a string would freeze
+ * the dropdown in whatever language was active when the bundle booted.
+ */
+type FormatOption = { value: ExportFormat; label: FormatMessageKey; mime: string }
 
 const FORMATS: FormatOption[] = [
-  { value: 'txt', label: 'Text (.txt)', mime: 'text/plain' },
-  { value: 'md', label: 'Markdown (.md)', mime: 'text/markdown' },
-  { value: 'csv', label: 'CSV (.csv)', mime: 'text/csv' },
+  { value: 'txt', label: 'site.export.formatTxt', mime: 'text/plain' },
+  { value: 'md', label: 'site.export.formatMd', mime: 'text/markdown' },
+  { value: 'csv', label: 'site.export.formatCsv', mime: 'text/csv' },
 ]
 
 /** A rendered extra export, plus any advisory problems worth showing. */
@@ -68,6 +82,7 @@ const safeFileName = (name: string): string =>
  * deck, collection, and wanted-list read views.
  */
 export const ExportMenu: Component<ExportMenuProps> = (props) => {
+  const t = useT()
   const [feedback, setFeedback] = createSignal<string | null>(null)
   let timer: ReturnType<typeof setTimeout> | null = null
 
@@ -86,7 +101,7 @@ export const ExportMenu: Component<ExportMenuProps> = (props) => {
   const [warnings, setWarnings] = createSignal<string[]>([])
 
   const entries = (): MenuEntry[] => [
-    ...FORMATS.map((format): MenuEntry => ({ kind: 'format', label: format.label, format })),
+    ...FORMATS.map((format): MenuEntry => ({ kind: 'format', label: t(format.label), format })),
     ...(props.extraFormats ?? []).map(
       (extra): MenuEntry => ({ kind: 'extra', label: extra.label, extra }),
     ),
@@ -110,9 +125,9 @@ export const ExportMenu: Component<ExportMenuProps> = (props) => {
   const handleCopy = async (entry: MenuEntry) => {
     try {
       await navigator.clipboard.writeText(render(entry).content)
-      flash('Copied!')
+      flash(t('site.export.copied'))
     } catch {
-      flash('Copy failed')
+      flash(t('site.export.copyFailed'))
     }
   }
 
@@ -123,13 +138,23 @@ export const ExportMenu: Component<ExportMenuProps> = (props) => {
       rendered.content,
       rendered.mime,
     )
-    flash('Downloaded!')
+    flash(t('site.export.downloaded'))
   }
 
   return (
     <div class="export-menu">
-      <ExportButton label="Copy" entries={entries()} onPick={(e) => void handleCopy(e)} />
-      <ExportButton label="Download" entries={entries()} onPick={handleDownload} />
+      <ExportButton
+        label={t('site.export.copy')}
+        menuTitle={t('site.export.copyFormat')}
+        entries={entries()}
+        onPick={(e) => void handleCopy(e)}
+      />
+      <ExportButton
+        label={t('site.export.download')}
+        menuTitle={t('site.export.downloadFormat')}
+        entries={entries()}
+        onPick={handleDownload}
+      />
       <Show when={feedback()}>
         {(message) => (
           <div class="export-feedback" role="status" aria-live="polite">
@@ -148,6 +173,11 @@ export const ExportMenu: Component<ExportMenuProps> = (props) => {
 
 type ExportButtonProps = {
   label: string
+  /**
+   * Title of the dropdown this button opens. A whole message rather than
+   * `${label} format`: verb + noun concatenation does not survive translation.
+   */
+  menuTitle: string
   entries: MenuEntry[]
   onPick: (entry: MenuEntry) => void
 }
@@ -178,9 +208,9 @@ const ExportButton: Component<ExportButtonProps> = (props) => {
         toggle={toggle}
         width={PANEL_WIDTH}
         panelClass="selection-menu-panel"
-        title={`${props.label} format`}
+        title={props.menuTitle}
         role="menu"
-        aria-label={`${props.label} format`}
+        aria-label={props.menuTitle}
       >
         <For each={props.entries}>
           {(entry) => (

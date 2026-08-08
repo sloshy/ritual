@@ -29,6 +29,7 @@ import { applyChangeToWantedList } from '../../editor/wanted-changes'
 import { toWantedCardEntries } from '../../editor/wanted-entries'
 import { buildSyntheticRequest } from '../../synthetic-request'
 import type { CollectionLoadResult, DeckLoadResult, WantedLoadResult } from './load-results'
+import type { ApiMessage } from './result'
 import { apiHandler } from '../utils'
 import { badRequest, validateBodySize } from './save-helpers'
 import { handleDeckLoad } from './deck-load'
@@ -78,7 +79,7 @@ export type BundleImportResult = {
  * flag every admin route carries and is always `true` here — read `failedCount`
  * (and each list's `error`) to tell a clean import from a partial one.
  */
-export type BundleImportResponse = BundleImportResult & { success: true; message: string }
+export type BundleImportResponse = BundleImportResult & ApiMessage & { success: true }
 
 type ApiCallResult<T> = { ok: true; data: T } | { ok: false; error: string }
 

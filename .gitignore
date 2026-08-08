@@ -59,6 +59,11 @@ styles.compiled.css
 app.compiled.js
 src/generated/
 
+# Generated pseudo-locale (scripts/generate-locales.ts derives it from the
+# English catalog on every build — never edit, never commit)
+/locales/en-XA.json
+/locales/*.json.tmp
+
 **/.claude/agent-memory/
 
 

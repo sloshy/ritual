@@ -20,6 +20,9 @@ import {
   type CardLanguage,
 } from './card-language'
 import { printingKey } from './printing-key'
+import { isLocaleTagError, parseLocaleTag } from './i18n/locale-tag'
+import { DEFAULT_LOCALE } from './i18n/runtime'
+import type { LocaleTag } from './i18n/types'
 
 export { INCLUDE_ALL } from './site/list-selection'
 export type { SiteSelectionConfig } from './site/list-selection'
@@ -132,6 +135,21 @@ export interface RitualConfig {
    */
   defaultLanguage: CardLanguage
   /**
+   * The BCP-47 tag naming the language Ritual's own interface speaks — CLI help,
+   * prompts, status output, and both web UIs. Deliberately *not* spelled
+   * "language": {@link RitualConfig.defaultLanguage} picks which *printing* of a
+   * card is used and switches which Scryfall bulk is downloaded. The two are
+   * orthogonal — a German interface listing English card names is valid and
+   * expected. Always present, defaulting to `en`.
+   *
+   * Note for locale resolution: the loader materializes `en` here whether or not
+   * the file names a value, because a defaulted key is what `config get`/`list`
+   * must report. The *precedence* chain therefore reads the file directly (see
+   * `src/i18n/config-preread.ts`) so "absent" stays distinguishable from
+   * "explicitly en" — only the latter outranks OS detection.
+   */
+  uiLocale: LocaleTag
+  /**
    * How long cache-refreshing operations wait for the cache-write lock held by
    * another process before failing. Always present, defaulting to 300 (5 minutes).
    */
@@ -198,6 +216,7 @@ const DEFAULT_CONFIG = {
   wantedDir: './wanted',
   defaultCurrency: DEFAULT_CURRENCY,
   defaultLanguage: DEFAULT_CARD_LANGUAGE,
+  uiLocale: DEFAULT_LOCALE,
   cacheLockTimeoutSeconds: DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
   cacheSource: 'scryfall',
   searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
@@ -658,6 +677,51 @@ export function parseDefaultLanguage(value: unknown): CardLanguage | ConfigParse
 }
 
 /**
+ * Parse a UI locale tag: the `uiLocale` config value, the `--locale` flag, and
+ * `RITUAL_LOCALE` all funnel through here. Absent falls back to `en`.
+ *
+ * Two gates, because BCP-47 well-formedness alone is not enough: `new
+ * Intl.Locale()` accepts `zz-ZZ` (structurally fine, no such language), which
+ * would then silently render English forever. `supportedLocalesOf` is the
+ * engine's own answer to "is this a language I know", so a typo is rejected at
+ * the edge instead of degrading invisibly.
+ *
+ * The returned tag is canonicalized (`de-at` → `de-AT`) so cache keys,
+ * comparisons, and the persisted value all agree.
+ *
+ * The message names no config key: it is shared verbatim by the `--locale`
+ * flag's argParser and by `RITUAL_LOCALE`, and the config load path prefixes the
+ * field label itself (see {@link parseOrWarn}).
+ */
+export function parseUiLocale(value: unknown): LocaleTag | ConfigParseError {
+  if (value === undefined) return DEFAULT_LOCALE
+  const parsed = parseLocaleTag(value)
+  if (isLocaleTagError(parsed)) {
+    return { error: `invalid UI locale: ${parsed.error}` }
+  }
+  if (!isRecognizedLocale(parsed)) {
+    return {
+      error: `invalid UI locale "${parsed}": no such language is known (expected a BCP-47 tag such as "en" or "de-AT")`,
+    }
+  }
+  return parsed
+}
+
+/**
+ * Whether the engine recognizes the tag's language at all. Called only with a
+ * structurally valid tag (so `supportedLocalesOf` cannot throw), but guarded
+ * anyway — an unrecognized locale must degrade to "not a locale", never to a
+ * crash on the validation path.
+ */
+function isRecognizedLocale(tag: LocaleTag): boolean {
+  try {
+    return Intl.DateTimeFormat.supportedLocalesOf([tag]).length > 0
+  } catch {
+    return false
+  }
+}
+
+/**
  * Parse a `cacheLockTimeoutSeconds` value. Returns the number when it is a
  * positive integer, the default when absent, or a parse error when malformed.
  */
@@ -773,6 +837,7 @@ function applyDefaults(parsed: ParsedConfig): RitualConfig {
       'defaultLanguage',
       DEFAULT_CARD_LANGUAGE,
     ),
+    uiLocale: parseOrWarn(parseUiLocale(parsed.uiLocale), 'uiLocale', DEFAULT_LOCALE),
     cacheLockTimeoutSeconds: parseOrWarn(
       parseCacheLockTimeoutSeconds(parsed.cacheLockTimeoutSeconds),
       'cacheLockTimeoutSeconds',
@@ -945,6 +1010,14 @@ export function getDefaultCurrency(config: RitualConfig = getRitualConfig()): Pr
  */
 export function getDefaultLanguage(config: RitualConfig = getRitualConfig()): CardLanguage {
   return config.defaultLanguage
+}
+
+/**
+ * The configured UI locale (`en` unless overridden): the language Ritual's own
+ * text speaks. Not the card language — see {@link RitualConfig.uiLocale}.
+ */
+export function getUiLocale(config: RitualConfig = getRitualConfig()): LocaleTag {
+  return config.uiLocale
 }
 
 /** How long to wait for the cache-write lock, in seconds (300 unless overridden). */

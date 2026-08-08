@@ -1,6 +1,12 @@
-import { describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import type { Choice } from 'prompts'
+import { PSEUDO_LOCALE, pseudoLocalize } from '../../scripts/generate-locales'
+import { en, type MessageKey } from '../../src/i18n/messages/en'
+import { enMeta } from '../../src/i18n/messages/en.meta'
+import { loadDictionary, resetI18nRuntime, setLocale } from '../../src/i18n/runtime'
+import { displayWidth } from '../../src/i18n/width'
 import type { ScryfallCard } from '../../src/types'
+import { localeTag } from '../../src/i18n/locale-tag'
 import {
   buildCollectorChoices,
   buildMenuChoices,
@@ -43,7 +49,7 @@ describe('isMenuChoice', () => {
 
 function nameModeChoices(): Choice[] {
   return [
-    { title: '💾 Save 1 change(s) (keep editing)', value: '__SAVE__' },
+    { title: '💾 Save 1 change (keep editing)', value: '__SAVE__' },
     { title: '🚪 Exit', value: '__EXIT__' },
     { title: 'Sol Ring', value: 'Sol Ring' },
     { title: 'Lightning Bolt', value: 'Lightning Bolt' },
@@ -249,12 +255,9 @@ describe('buildMenuChoices', () => {
     ])
   })
 
-  test('the tallest possible menu still fits the prompt window', () => {
-    // Save and Exit sit at the foot of the menu, so the prompt must be tall
-    // enough to show every item at once — otherwise the busiest session (a deck
-    // in a multi-list editor, with every shortcut showing) pushes them below the
-    // fold and they can only be reached by scrolling.
-    const tallest = buildMenuChoices({
+  /** The busiest menu the engine can build: a deck in a multi-list editor. */
+  function tallestMenuInput(): MenuBuildInput {
+    return {
       ...base,
       lastAdded: { name: 'Sol Ring', hasNote: false, cardId: 3 },
       changeCount: 2,
@@ -268,11 +271,130 @@ describe('buildMenuChoices', () => {
       ],
       multiList: { totalChangeCount: 5, listsWithChanges: 2 },
       cardChoices: [],
-    })
+    }
+  }
+
+  test('the tallest possible menu still fits the prompt window', () => {
+    // Save and Exit sit at the foot of the menu, so the prompt must be tall
+    // enough to show every item at once — otherwise the busiest session (a deck
+    // in a multi-list editor, with every shortcut showing) pushes them below the
+    // fold and they can only be reached by scrolling.
+    const tallest = buildMenuChoices(tallestMenuInput())
     // Exact equality, so the limit can drift neither below the real maximum
     // (items fall below the fold) nor above it (dead rows of empty window).
     expect(tallest.length).toBe(SESSION_MENU_LIMIT)
     expect(tallest.at(-1)?.value).toBe('__EXIT__')
+  })
+
+  /**
+   * The row budget survives translation, and the `cli.menu.*` length budgets are
+   * what keep it surviving.
+   *
+   * `SESSION_MENU_LIMIT` counts rows, and a row that is too wide for the
+   * terminal wraps onto a second one — so a 40%-longer label costs a row just as
+   * surely as a new menu item does, and pushes Save and Exit below the fold.
+   * German and Finnish run 30–50% longer than English, which the `en-XA`
+   * pseudo-locale (English + 40% padding + brackets) stands in for here.
+   *
+   * The catalog validator enforces the budgets across the whole catalog; this
+   * asserts the two things it cannot see: that every menu key actually declares
+   * one, and that the menu the engine builds is still the same seventeen rows
+   * once every label has been swapped.
+   */
+  describe('under the en-XA pseudo-locale', () => {
+    const MENU_KEY_PREFIX = 'cli.menu.'
+    /** One standard terminal line. A row wider than this wraps and costs a second. */
+    const MENU_ROW_BUDGET = 80
+    /** Rows a not-yet-converted strategy contributes, still English by definition. */
+    const UNCONVERTED_ROWS = new Set(['__SECTION__', '__FORMAT__', '__TAGS__'])
+
+    beforeAll(() => {
+      loadDictionary(PSEUDO_LOCALE, pseudoLocalize(en, enMeta))
+      setLocale(PSEUDO_LOCALE)
+    })
+
+    afterAll(() => {
+      resetI18nRuntime()
+    })
+
+    test('every cli.menu.* key declares a length budget', () => {
+      const unbudgeted = Object.keys(en)
+        .filter((key) => key.startsWith(MENU_KEY_PREFIX))
+        .filter((key) => enMeta[key as MessageKey]?.maxLen === undefined)
+      expect(unbudgeted).toEqual([])
+    })
+
+    test('the tallest menu keeps its row count and its trailing Exit', () => {
+      const tallest = buildMenuChoices(tallestMenuInput())
+      expect(tallest.length).toBe(SESSION_MENU_LIMIT)
+      expect(tallest.at(-1)?.value).toBe('__EXIT__')
+      // Every label the engine owns really was translated: an untouched row
+      // stays plain ASCII with no brackets, which is what the pseudo-locale
+      // exists to make visible.
+      const untranslated = tallest
+        .filter((choice) => !UNCONVERTED_ROWS.has(String(choice.value)))
+        .map((choice) => choice.title)
+        .filter((title) => !title.includes('['))
+      expect(untranslated).toEqual([])
+      // Shrink guard for the exemption list: once one of those rows *is*
+      // converted, this fails and forces the set to shrink, rather than the
+      // filter above quietly losing three rows of coverage forever.
+      const stillExempt = tallest
+        .filter((choice) => UNCONVERTED_ROWS.has(String(choice.value)))
+        .filter((choice) => choice.title.includes('['))
+        .map((choice) => String(choice.value))
+      expect(stillExempt).toEqual([])
+    })
+
+    test('no menu row wraps onto a second line', () => {
+      const overrun = buildMenuChoices(tallestMenuInput())
+        .map((choice) => ({ title: choice.title, width: displayWidth(choice.title) }))
+        .filter((row) => row.width > MENU_ROW_BUDGET)
+      expect(overrun).toEqual([])
+    })
+  })
+
+  /**
+   * Muscle memory survives translation.
+   *
+   * The session menu is driven entirely by typing, so translating it changes
+   * what a user can type to reach a row — silently. A Japanese catalog is used
+   * here rather than `en-XA` because the pseudo-locale only *accents* Latin
+   * letters, and search normalization strips diacritics: `Şȧṽḗ` folds straight
+   * back to `save`, so it could never fail this test whatever the code did.
+   */
+  describe('with a non-Latin menu', () => {
+    const JAPANESE = localeTag('ja')
+
+    beforeAll(() => {
+      loadDictionary(JAPANESE, {
+        'cli.menu.exit': '終了',
+        'cli.menu.saveAll': 'すべての変更を保存 ({scope})',
+        'cli.menu.switchList': 'リストを切り替える',
+      })
+      setLocale(JAPANESE)
+    })
+
+    afterAll(() => {
+      resetI18nRuntime()
+    })
+
+    test('the English terms still select a translated row', () => {
+      const menu = buildMenuChoices(tallestMenuInput())
+      expect(menu.find((choice) => choice.value === '__EXIT__')?.title).toBe('🚪 終了')
+      expect(suggestNameMode('exit', menu).map((choice) => choice.value)).toEqual(['__EXIT__'])
+      expect(suggestNameMode('save all', menu).map((choice) => choice.value)).toEqual(['__SAVE__'])
+    })
+
+    test('the translated text selects the row too, typed without spaces', () => {
+      // Japanese is not whitespace-delimited, so `リストを 切り替える` is not how
+      // anyone types it. Segmentation finds the boundaries the spaces would have
+      // marked; without it only a contiguous substring of the label would match.
+      const menu = buildMenuChoices(tallestMenuInput())
+      expect(suggestNameMode('リスト切り替える', menu).map((choice) => choice.value)).toEqual([
+        '__SWITCH_LIST__',
+      ])
+    })
   })
 
   test('edit mode pares the menu down to undo, mode switch, save/exit, and cards', () => {
@@ -375,7 +497,7 @@ describe('buildMenuChoices', () => {
     {
       label: 'single-list Save shows the pending change count',
       input: { changeCount: 3 },
-      save: '💾 Save 3 change(s) (keep editing)',
+      save: '💾 Save 3 changes (keep editing)',
       saveCurrent: null,
     },
     {
@@ -407,13 +529,13 @@ describe('buildMenuChoices', () => {
     {
       label: 'multi-list save collapses to the plain label when only one list has changes',
       input: { changeCount: 3, multiList: { totalChangeCount: 3, listsWithChanges: 1 } },
-      save: '💾 Save 3 change(s) (keep editing)',
+      save: '💾 Save 3 changes (keep editing)',
       saveCurrent: null,
     },
     {
       label: 'the collapse also applies when the one changed list is not the current one',
       input: { changeCount: 0, multiList: { totalChangeCount: 3, listsWithChanges: 1 } },
-      save: '💾 Save 3 change(s) (keep editing)',
+      save: '💾 Save 3 changes (keep editing)',
       saveCurrent: null,
     },
     {

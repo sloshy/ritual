@@ -368,9 +368,9 @@ test.describe('Touch editing', () => {
     await increment.click()
     await expect(page.locator('.changes-badge')).toHaveText('1')
 
-    // Leave edit mode, accepting the discard confirmation.
-    page.on('dialog', (d) => void d.accept())
+    // Leave edit mode, accepting the in-app discard confirmation.
     await page.locator('.btn-edit', { hasText: 'Done' }).click()
+    await page.locator('.confirm-dialog-actions .btn-danger').click()
     await expect(page.locator('.edit-banner')).toHaveCount(0)
   })
 })

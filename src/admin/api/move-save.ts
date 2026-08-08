@@ -10,6 +10,7 @@ import {
 } from '../../change-event'
 import { loadAllLists, type ListEntry, type PhysicalCard } from '../../commands/move-helpers'
 import type { SaveEffect } from '../../editor/save-effects'
+import type { ApiMessage } from './result'
 import {
   loadStagedFile,
   applyAddToStaged,
@@ -23,9 +24,8 @@ import {
  * `droppedNotes` reports notes discarded by the destination side of this save's
  * cross-list moves (deck quantity merges keep the existing line's note).
  */
-export type ListSaveResponse = {
+export type ListSaveResponse = ApiMessage & {
   success: true
-  message: string
   contentHash: string
   droppedNotes: DroppedNote[]
   /**

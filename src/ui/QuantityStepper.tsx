@@ -1,5 +1,6 @@
 import type { Component } from 'solid-js'
 import { stepQuantity } from './quantity'
+import { useT } from './i18n'
 
 type QuantityStepperBase = {
   value: number
@@ -34,6 +35,7 @@ export type QuantityStepperProps = QuantityStepperBase & QuantityStepperFocus
  * alongside radio groups that navigate the same way.
  */
 export const QuantityStepper: Component<QuantityStepperProps> = (props) => {
+  const t = useT()
   const min = () => props.min ?? 1
   const max = () => props.max ?? Infinity
   const atMin = () => props.value <= min()
@@ -78,8 +80,8 @@ export const QuantityStepper: Component<QuantityStepperProps> = (props) => {
         tabindex={props.focusable ? -1 : undefined}
         onClick={() => step(-1)}
         disabled={atMin()}
-        title="Decrease"
-        aria-label="Decrease quantity"
+        title={t('ui.quantity.decrease')}
+        aria-label={t('ui.quantity.decreaseLabel')}
       >
         -
       </button>
@@ -89,8 +91,8 @@ export const QuantityStepper: Component<QuantityStepperProps> = (props) => {
         tabindex={props.focusable ? -1 : undefined}
         onClick={() => step(1)}
         disabled={atMax()}
-        title="Increase"
-        aria-label="Increase quantity"
+        title={t('ui.quantity.increase')}
+        aria-label={t('ui.quantity.increaseLabel')}
       >
         +
       </button>

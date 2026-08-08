@@ -2,11 +2,17 @@ import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import globals from 'globals'
 import noAnonymousObjectTypes from './eslint-rules/no-anonymous-object-types.js'
+import noBareIntlLocale from './eslint-rules/no-bare-intl-locale.js'
+import noInlinePlural from './eslint-rules/no-inline-plural.js'
+import noUntranslatedLiteral from './eslint-rules/no-untranslated-literal.js'
 
 // Project-local plugin housing custom rules that enforce AGENTS.md guidelines.
 const ritualPlugin = {
   rules: {
     'no-anonymous-object-types': noAnonymousObjectTypes,
+    'no-bare-intl-locale': noBareIntlLocale,
+    'no-inline-plural': noInlinePlural,
+    'no-untranslated-literal': noUntranslatedLiteral,
   },
 }
 
@@ -33,6 +39,12 @@ export default [
       'app.svg',
       'ritual',
       '**/*.d.ts',
+      // Several unit tests create scratch directories under `test/` and delete
+      // them in `afterEach`. `precommit` runs lint and the unit suite
+      // concurrently, so a directory can vanish between ESLint enumerating it
+      // and reading it — an ENOENT that aborts the whole lint run. Skipping the
+      // walk is the fix; new tests should use `os.tmpdir()` instead.
+      'test/.test-*/**',
     ],
   },
   js.configs.recommended,
@@ -72,6 +84,23 @@ export default [
       // outside named declarations). Catches the kind of inline `{ … }`
       // shape that the recent review surfaced in `watchedDirs`.
       'ritual/no-anonymous-object-types': 'error',
+
+      // ── i18n framework (research/i18n-framework-plan-2026-08-07.md §9).
+      // All three landed at `warn` in Phase 0 and flipped to `error` per
+      // directory as each surface converted, which is what made a ~2,000-message
+      // migration reviewable instead of a big bang. Each rule carries its own
+      // scope/carve-out defaults — see the rule files.
+      //
+      // The ratchet is now fully closed: `no-inline-plural` and
+      // `no-bare-intl-locale` flipped at the end of Phase 3, and
+      // `no-untranslated-literal` at the end of Phase 7, once Phases 4–6 had
+      // routed the site, admin and CLI strings through the catalog. The
+      // remaining English-by-contract surfaces (plan §4.9, §11) are excluded by
+      // path in `eslint-rules/no-untranslated-literal.js` rather than downgraded
+      // here, so a new violation in a converted directory fails the build.
+      'ritual/no-untranslated-literal': 'error',
+      'ritual/no-bare-intl-locale': 'error',
+      'ritual/no-inline-plural': 'error',
 
       // ── Targeted: catches review issue #4 (commander `.action(cb)` lands
       // `options` as `any` because of commander's `(...args: any[])` signature).
@@ -119,6 +148,16 @@ export default [
       // Tests routinely use ad-hoc inline shapes for mock data and response
       // assertions; requiring a named type for every one would be high noise.
       'ritual/no-anonymous-object-types': 'off',
+      // Tests assert on English by design (the suite pins `locale=en`), and
+      // they construct plural fixtures deliberately.
+      'ritual/no-untranslated-literal': 'off',
+      'ritual/no-inline-plural': 'off',
+      // `ritual/no-bare-intl-locale` deliberately stays ON here. A bare
+      // `localeCompare` / `toLocaleString` in a test follows the *host* locale,
+      // which is precisely the cross-machine flakiness `LOCALE_ENV` and
+      // Playwright's `locale: 'en-US'` exist to prevent — the rule catches the
+      // one hole those two cannot cover. A test that means to exercise the bare
+      // form uses an `eslint-disable-next-line` at that line.
     },
   },
 ]

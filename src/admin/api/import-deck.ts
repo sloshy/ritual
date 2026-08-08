@@ -4,6 +4,7 @@ import { saveDeck } from '../../commands/import'
 import { listFilePath } from '../../resolve-list'
 import { autoCommitAndPush, badRequest, readJsonObjectBody } from './save-helpers'
 import { apiHandler } from '../utils'
+import type { ApiMessage } from './result'
 import type { DeckData } from '../../types'
 import { getDecksDir } from '../../ritual-config'
 
@@ -17,9 +18,8 @@ type ImportDeckRequest =
   | { mode: 'text'; content: string; name?: string; overwrite?: boolean }
 
 /** `POST /api/import-deck` — the deck that was written. */
-export interface ImportDeckResponse {
+export interface ImportDeckResponse extends ApiMessage {
   success: true
-  message: string
   /** Name of the imported deck, which is also its slug. */
   deckName: string
   /**

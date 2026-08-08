@@ -1,9 +1,16 @@
 import { combinedAllHref } from './combined-list'
+import type { MessageKey } from '../i18n/messages/en'
 
 export type NavDestination = {
   /** Identifies the destination; the source of `NavActiveState`'s keys. */
   key: string
-  label: string
+  /**
+   * The destination's name, as a {@link MessageKey} rather than rendered text.
+   * This list is evaluated once at module load, so a string would leave the
+   * header links and the mobile tab bar in the boot-time language after a
+   * locale switch — resolve it where it is rendered.
+   */
+  label: MessageKey
   href: string
   /** Tab-bar glyph. Plain Unicode (not emoji) so it renders on any platform font. */
   icon: string
@@ -17,12 +24,12 @@ export type NavDestination = {
  * of every type rather than one type's `#/combined?all=deck`.
  */
 export const NAV_DESTINATIONS = [
-  { key: 'decks', label: 'Decks', href: '#/', icon: '▦' },
-  { key: 'collections', label: 'Collections', href: '#/collections', icon: '▤' },
-  { key: 'wanted', label: 'Wanted', href: '#/wanted', icon: '★' },
-  { key: 'all', label: 'All', href: combinedAllHref(), icon: '▣' },
-  { key: 'trade', label: 'Trade', href: '#/trade', icon: '⇄' },
-  { key: 'find', label: 'Find', href: '#/find', icon: '⌕' },
+  { key: 'decks', label: 'domain.nav.decks', href: '#/', icon: '▦' },
+  { key: 'collections', label: 'domain.nav.collections', href: '#/collections', icon: '▤' },
+  { key: 'wanted', label: 'domain.nav.wanted', href: '#/wanted', icon: '★' },
+  { key: 'all', label: 'domain.nav.all', href: combinedAllHref(), icon: '▣' },
+  { key: 'trade', label: 'domain.nav.trade', href: '#/trade', icon: '⇄' },
+  { key: 'find', label: 'domain.nav.find', href: '#/find', icon: '⌕' },
 ] as const satisfies readonly NavDestination[]
 
 /**

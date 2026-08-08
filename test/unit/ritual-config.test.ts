@@ -36,6 +36,7 @@ import {
 } from '../../src/ritual-config'
 import { defaultSiteSelection } from '../../src/site/list-selection'
 import { setBaseDir } from '../../src/base-dir'
+import { localeTag } from '../../src/i18n/locale-tag'
 
 const testDir = path.join(import.meta.dir, '../.test-ritual-config')
 const configPath = path.join(testDir, 'ritual.config.json')
@@ -125,6 +126,7 @@ describe('ritual config', () => {
       wantedDir: './my-wanted',
       defaultCurrency: 'eur',
       defaultLanguage: 'ja',
+      uiLocale: localeTag('de-AT'),
       cacheLockTimeoutSeconds: 120,
       cacheSource: 'feed',
       cacheFeedUrl: 'https://feed.example/feed.json',

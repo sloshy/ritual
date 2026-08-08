@@ -6,6 +6,7 @@ import { buylistError } from './buylist-quotes'
 import { BUYLIST_CURRENCY } from './card-sorting'
 import { sellShortfallNote, type SellValueSummary } from './sell-value'
 import type { CardFiltersControl } from './useCardFilters'
+import { useT } from '../ui/i18n'
 
 type PageStatProps = {
   /** Whether this stat contributes to the line at all. */
@@ -37,11 +38,14 @@ type FilteredPriceStatProps = {
 }
 
 /** The "· Filtered: $X" stat shown next to a list's Total, while a filter narrows it. */
-export const FilteredPriceStat: Component<FilteredPriceStatProps> = (props) => (
-  <PageStat when={props.filters.narrowingCount() > 0} label="Filtered">
-    {formatPrice(props.amount, props.currency)}
-  </PageStat>
-)
+export const FilteredPriceStat: Component<FilteredPriceStatProps> = (props) => {
+  const t = useT()
+  return (
+    <PageStat when={props.filters.narrowingCount() > 0} label={t('site.stats.filtered')}>
+      {formatPrice(props.amount, props.currency)}
+    </PageStat>
+  )
+}
 
 type SelectedPriceStatProps = {
   /** Selected copies on this page; the stat hides itself when nothing is selected. */
@@ -54,11 +58,14 @@ type SelectedPriceStatProps = {
  * The "· Selected: $X" stat. Independent of sell mode — knowing what a handful
  * of picked cards is worth is useful whether or not you are selling them.
  */
-export const SelectedPriceStat: Component<SelectedPriceStatProps> = (props) => (
-  <PageStat when={props.count > 0} label="Selected">
-    {formatPrice(props.amount, props.currency)}
-  </PageStat>
-)
+export const SelectedPriceStat: Component<SelectedPriceStatProps> = (props) => {
+  const t = useT()
+  return (
+    <PageStat when={props.count > 0} label={t('site.stats.selected')}>
+      {formatPrice(props.amount, props.currency)}
+    </PageStat>
+  )
+}
 
 type SellValueStatProps = {
   /** Whether sell mode is on; the stat is hidden entirely otherwise. */
@@ -75,14 +82,17 @@ type SellValueStatProps = {
  * currency, so it is formatted with {@link BUYLIST_CURRENCY} rather than the
  * currency beside it.
  */
-export const SellValueStat: Component<SellValueStatProps> = (props) => (
-  <PageStat when={props.sellMode && props.count > 0} label="Sell value">
-    {formatPrice(props.summary.value, BUYLIST_CURRENCY)}
-    <Show when={sellShortfallNote(props.summary)}>
-      {(note) => <span class="page-stats-note"> {note()}</span>}
-    </Show>
-  </PageStat>
-)
+export const SellValueStat: Component<SellValueStatProps> = (props) => {
+  const t = useT()
+  return (
+    <PageStat when={props.sellMode && props.count > 0} label={t('site.stats.sellValue')}>
+      {formatPrice(props.summary.value, BUYLIST_CURRENCY)}
+      <Show when={sellShortfallNote(props.summary)}>
+        {(note) => <span class="page-stats-note"> {note()}</span>}
+      </Show>
+    </PageStat>
+  )
+}
 
 type SellModeNoticeProps = {
   /** Whether sell mode is on; the notice is hidden entirely otherwise. */
@@ -94,12 +104,15 @@ type SellModeNoticeProps = {
  * never been downloaded gives the user a toggle that appears to do nothing —
  * the single most likely first-run state, and the one with a clear remedy.
  */
-export const SellModeNotice: Component<SellModeNoticeProps> = (props) => (
-  <Show when={props.sellMode ? buylistError() : null}>
-    {(reason) => (
-      <p class="page-stats-warning" role="status">
-        Buylist prices are unavailable: {reason()}
-      </p>
-    )}
-  </Show>
-)
+export const SellModeNotice: Component<SellModeNoticeProps> = (props) => {
+  const t = useT()
+  return (
+    <Show when={props.sellMode ? buylistError() : null}>
+      {(reason) => (
+        <p class="page-stats-warning" role="status">
+          {t('site.stats.buylistUnavailable', { reason: reason() })}
+        </p>
+      )}
+    </Show>
+  )
+}

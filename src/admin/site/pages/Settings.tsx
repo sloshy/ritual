@@ -13,6 +13,12 @@ import {
 } from '../../../site/list-selection'
 import { fetchRitualConfig } from '../config-api'
 import { applyDefaultLanguage } from '../hooks/useDefaultLanguage'
+import { adoptConfiguredLocale, availableLocales } from '../hooks/useAdminLocale'
+import { localeEndonym } from '../../../site/LanguageSwitcher'
+import { isLocaleTagError, parseLocaleTag } from '../../../i18n/locale-tag'
+import type { LocaleTag, MessageSegment } from '../../../i18n/types'
+import { useT, useTSegments } from '../../../ui/i18n'
+import { apiMessage } from '../../api/result'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { TotpSettings } from '../components/TotpSettings'
@@ -36,13 +42,26 @@ function displayBannedPrinting(key: string): string {
 }
 
 export function Settings(): JSX.Element {
+  const t = useT()
+  const tSegments = useTSegments()
   const [config, setConfig] = createSignal<RitualConfig | null>(null)
   const { status, error, loading, run, setStatus, setError } = useApiAction()
+
+  /**
+   * Render a hint's segments with every parameter wrapped in `<code>`. The
+   * message is drawn as segments rather than split around the sample, so a
+   * translator can put the code where their word order wants it.
+   */
+  const withCode = (segments: MessageSegment[]) => (
+    <For each={segments}>
+      {(segment) => (segment.kind === 'param' ? <code>{segment.value}</code> : segment.value)}
+    </For>
+  )
 
   const fetchConfig = async () => {
     const cfg = await fetchRitualConfig()
     if (cfg) setConfig(cfg)
-    else setError('Failed to load config')
+    else setError(apiMessage('admin.settings.loadFailed'))
   }
 
   onMount(() => {
@@ -59,14 +78,18 @@ export function Settings(): JSX.Element {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(saved),
       },
-      'Failed to save settings',
+      apiMessage('admin.settings.saveFailed'),
     )
     if (ok) {
-      setStatus('Settings saved')
+      setStatus(apiMessage('admin.settings.saved'))
       // The default-language holders are primed once at boot (no per-page
       // re-fetch), so a saved change must be pushed for an already-mounted
       // editor page to stamp the new language without a reload.
       applyDefaultLanguage(saved.defaultLanguage)
+      // Same reasoning for the interface language: the admin resolves it once at
+      // boot, so a saved change has to be pushed for the running app to adopt it
+      // (it is the weakest tier, so an explicit choice still wins).
+      adoptConfiguredLocale(saved.uiLocale)
     }
   }
 
@@ -140,7 +163,7 @@ export function Settings(): JSX.Element {
       when={config()}
       fallback={
         <div>
-          <p class="text-muted">Loading settings...</p>
+          <p class="text-muted">{t('admin.settings.loading')}</p>
         </div>
       }
     >
@@ -150,40 +173,40 @@ export function Settings(): JSX.Element {
         <div class="form-container">
           {/* Directories */}
           <div>
-            <label class="form-label">Decks Directory</label>
+            <label class="form-label">{t('admin.settings.decksDir')}</label>
             <input
               type="text"
               class="form-input"
               name="decksDir"
-              placeholder="e.g. ./decks"
+              placeholder={t('admin.settings.decksDirPlaceholder')}
               value={config()!.decksDir}
               onInput={(e) => updateField('decksDir', e.currentTarget.value)}
             />
           </div>
           <div>
-            <label class="form-label">Collections Directory</label>
+            <label class="form-label">{t('admin.settings.collectionsDir')}</label>
             <input
               type="text"
               class="form-input"
               name="collectionsDir"
-              placeholder="e.g. ./collections"
+              placeholder={t('admin.settings.collectionsDirPlaceholder')}
               value={config()!.collectionsDir}
               onInput={(e) => updateField('collectionsDir', e.currentTarget.value)}
             />
           </div>
           <div>
-            <label class="form-label">Wanted List Directory</label>
+            <label class="form-label">{t('admin.settings.wantedDir')}</label>
             <input
               type="text"
               class="form-input"
               name="wantedDir"
-              placeholder="e.g. ./wanted"
+              placeholder={t('admin.settings.wantedDirPlaceholder')}
               value={config()!.wantedDir}
               onInput={(e) => updateField('wantedDir', e.currentTarget.value)}
             />
           </div>
           <div>
-            <label class="form-label">Default Price Currency</label>
+            <label class="form-label">{t('admin.settings.defaultCurrency')}</label>
             <select
               class="form-input"
               name="defaultCurrency"
@@ -192,13 +215,13 @@ export function Settings(): JSX.Element {
                 updateField('defaultCurrency', e.currentTarget.value as PriceCurrency)
               }
             >
-              <option value="usd">USD (TCGplayer)</option>
-              <option value="eur">EUR (Cardmarket)</option>
-              <option value="tix">TIX (MTGO)</option>
+              <option value="usd">{t('admin.settings.currencyUsd')}</option>
+              <option value="eur">{t('admin.settings.currencyEur')}</option>
+              <option value="tix">{t('admin.settings.currencyTix')}</option>
             </select>
           </div>
           <div>
-            <label class="form-label">Default Language</label>
+            <label class="form-label">{t('admin.settings.defaultLanguage')}</label>
             <select
               class="form-input"
               name="defaultLanguage"
@@ -211,49 +234,72 @@ export function Settings(): JSX.Element {
               <For each={CARD_LANGUAGES}>
                 {(code) => (
                   <option value={code}>
-                    {languageDisplayName(code)} ({code})
+                    {t('admin.settings.languageOption', { name: languageDisplayName(code), code })}
                   </option>
                 )}
               </For>
             </select>
-            <p class="form-hint form-hint-top">
-              The language stamped on newly added cards. Non-English defaults use the larger
-              all-languages Scryfall bulk for the card cache. A card line without a language token
-              always means English, regardless of this setting.
-            </p>
+            <p class="form-hint form-hint-top">{t('admin.settings.defaultLanguageHint')}</p>
+          </div>
+          {/* Deliberately below Default Language and worded against it: the two
+              are orthogonal, and reading one as the other is the mistake the
+              naming split exists to prevent. */}
+          <div>
+            <label class="form-label">{t('admin.settings.uiLocale')}</label>
+            <select
+              class="form-input"
+              name="uiLocale"
+              value={config()!.uiLocale}
+              onChange={(e) => {
+                // Validated at the edge like every other tag, so a hand-edited
+                // option value can never reach an `Intl` constructor.
+                const parsed = parseLocaleTag(e.currentTarget.value)
+                if (isLocaleTagError(parsed)) return
+                updateField('uiLocale', parsed)
+              }}
+            >
+              <For each={availableLocales()}>
+                {(tag: LocaleTag) => (
+                  <option value={tag} selected={tag === config()!.uiLocale} lang={tag}>
+                    {t('admin.settings.uiLocaleOption', { endonym: localeEndonym(tag), tag })}
+                  </option>
+                )}
+              </For>
+            </select>
+            <p class="form-hint form-hint-top">{t('admin.settings.uiLocaleHint')}</p>
           </div>
           <div>
-            <label class="form-label">Cache Source</label>
+            <label class="form-label">{t('admin.settings.cacheSource')}</label>
             <select
               class="form-input"
               name="cacheSource"
               value={config()!.cacheSource}
               onChange={(e) => updateField('cacheSource', e.currentTarget.value as CacheSource)}
             >
-              <option value="scryfall">Scryfall (direct bulk download)</option>
-              <option value="feed">Cache feed (peer-to-peer)</option>
+              <option value="scryfall">{t('admin.settings.cacheSourceScryfall')}</option>
+              <option value="feed">{t('admin.settings.cacheSourceFeed')}</option>
             </select>
           </div>
           <div>
-            <label class="form-label">Cache Feed URL</label>
+            <label class="form-label">{t('admin.settings.cacheFeedUrl')}</label>
             <input
               type="text"
               class="form-input"
               name="cacheFeedUrl"
-              placeholder="https://feed.example.com/feed.json (uses the built-in default when empty)"
+              placeholder={t('admin.settings.cacheFeedUrlPlaceholder')}
               value={config()!.cacheFeedUrl ?? ''}
               onInput={(e) => updateField('cacheFeedUrl', e.currentTarget.value)}
             />
           </div>
           <div>
-            <label class="form-label">Cache Lock Timeout (seconds)</label>
+            <label class="form-label">{t('admin.settings.cacheLockTimeout')}</label>
             <input
               type="number"
               class="form-input"
               name="cacheLockTimeoutSeconds"
               min={1}
               step={1}
-              placeholder="e.g. 300"
+              placeholder={t('admin.settings.cacheLockTimeoutPlaceholder')}
               value={config()!.cacheLockTimeoutSeconds}
               onInput={(e) =>
                 updateField(
@@ -264,14 +310,14 @@ export function Settings(): JSX.Element {
             />
           </div>
           <div>
-            <label class="form-label">Card Search Debounce (ms)</label>
+            <label class="form-label">{t('admin.settings.searchDebounce')}</label>
             <input
               type="number"
               class="form-input"
               name="searchDebounceMs"
               min={0}
               step={100}
-              placeholder="e.g. 500"
+              placeholder={t('admin.settings.searchDebouncePlaceholder')}
               value={config()!.searchDebounceMs}
               onInput={(e) => {
                 const n = parseInt(e.currentTarget.value, 10)
@@ -281,22 +327,18 @@ export function Settings(): JSX.Element {
                 )
               }}
             />
-            <p class="form-hint form-hint-top">
-              How long the editors' add-card search waits after a keystroke before querying
-              autocomplete. 0 disables the debounce. Applies to the public site the next time it is
-              built.
-            </p>
+            <p class="form-hint form-hint-top">{t('admin.settings.searchDebounceHint')}</p>
           </div>
 
           {/* Git settings */}
-          <h3 class="section-subheading">Git Integration</h3>
+          <h3 class="section-subheading">{t('admin.settings.gitHeading')}</h3>
           <label class="checkbox-label">
             <input
               type="checkbox"
               checked={config()!.admin.gitEnabled}
               onChange={(e) => updateAdminField('gitEnabled', e.currentTarget.checked)}
             />
-            Enable Git integration
+            {t('admin.settings.gitEnabled')}
           </label>
           <label class="checkbox-label">
             <input
@@ -305,7 +347,7 @@ export function Settings(): JSX.Element {
               onChange={(e) => updateAdminField('gitAutoCommit', e.currentTarget.checked)}
               disabled={!config()!.admin.gitEnabled}
             />
-            Auto-commit changes
+            {t('admin.settings.gitAutoCommit')}
           </label>
           <label class="checkbox-label">
             <input
@@ -314,59 +356,50 @@ export function Settings(): JSX.Element {
               onChange={(e) => updateAdminField('gitAutoPush', e.currentTarget.checked)}
               disabled={!config()!.admin.gitEnabled || !config()!.admin.gitAutoCommit}
             />
-            Auto-push after commit
+            {t('admin.settings.gitAutoPush')}
           </label>
-          <p class="form-hint">
-            When enabled, file changes from admin actions will be automatically committed to git and
-            pushed to the remote.
-          </p>
+          <p class="form-hint">{t('admin.settings.gitHint')}</p>
 
           {/* Proxy & Cookie Security */}
-          <h3 class="section-subheading">Network Security</h3>
+          <h3 class="section-subheading">{t('admin.settings.networkHeading')}</h3>
           <label class="checkbox-label">
             <input
               type="checkbox"
               checked={config()!.admin.trustProxy}
               onChange={(e) => updateAdminField('trustProxy', e.currentTarget.checked)}
             />
-            Trust reverse proxy headers
+            {t('admin.settings.trustProxy')}
           </label>
-          <p class="form-hint">
-            Enable if running behind a reverse proxy (nginx, Caddy, etc.). Only parses
-            X-Forwarded-For when enabled. Leave off for direct connections.
-          </p>
+          <p class="form-hint">{t('admin.settings.trustProxyHint')}</p>
           <label class="checkbox-label">
             <input
               type="checkbox"
               checked={config()!.admin.secureCookies}
               onChange={(e) => updateAdminField('secureCookies', e.currentTarget.checked)}
             />
-            Secure cookies (HTTPS only)
+            {t('admin.settings.secureCookies')}
           </label>
-          <p class="form-hint">
-            Set the Secure flag on session cookies so they are only sent over HTTPS. Enable when
-            using TLS or a TLS-terminating reverse proxy.
-          </p>
+          <p class="form-hint">{t('admin.settings.secureCookiesHint')}</p>
 
           {/* Two-Factor Authentication */}
-          <h3 class="section-subheading">Two-Factor Authentication (TOTP)</h3>
+          <h3 class="section-subheading">{t('admin.settings.totpHeading')}</h3>
           <TotpSettings />
 
           {/* Rate Limiting */}
-          <h3 class="section-subheading">Rate Limiting</h3>
+          <h3 class="section-subheading">{t('admin.settings.rateLimitHeading')}</h3>
           <label class="checkbox-label">
             <input
               type="checkbox"
               checked={config()!.admin.rateLimitEnabled}
               onChange={(e) => updateAdminField('rateLimitEnabled', e.currentTarget.checked)}
             />
-            Enable rate limiting
+            {t('admin.settings.rateLimitEnabled')}
           </label>
 
           <Show when={config()!.admin.rateLimitEnabled}>
             <div class="form-grid-2col">
               <div>
-                <label class="form-label">Max failed attempts</label>
+                <label class="form-label">{t('admin.settings.rateLimitMax')}</label>
                 <input
                   type="number"
                   min={1}
@@ -381,7 +414,7 @@ export function Settings(): JSX.Element {
                 />
               </div>
               <div>
-                <label class="form-label">Lockout (minutes)</label>
+                <label class="form-label">{t('admin.settings.rateLimitWindow')}</label>
                 <input
                   type="number"
                   min={1}
@@ -399,7 +432,7 @@ export function Settings(): JSX.Element {
           </Show>
 
           <div>
-            <label class="form-label">Failed auth delay (ms)</label>
+            <label class="form-label">{t('admin.settings.failedAuthDelay')}</label>
             <input
               type="number"
               min={0}
@@ -410,72 +443,63 @@ export function Settings(): JSX.Element {
                 updateAdminField('failedAuthDelayMs', parseInt(e.currentTarget.value, 10) || 0)
               }
             />
-            <p class="form-hint form-hint-top">
-              Delay before responding to invalid login attempts (helps prevent brute force).
-            </p>
+            <p class="form-hint form-hint-top">{t('admin.settings.failedAuthDelayHint')}</p>
           </div>
 
           {/* IP Allow/Deny Lists */}
-          <h3 class="section-subheading">IP Filtering</h3>
-          <p class="form-hint form-hint-gap">
-            One entry per line. Supports wildcards (*). Leave empty to allow all. If allow list is
-            set, only listed IPs can connect.
-          </p>
+          <h3 class="section-subheading">{t('admin.settings.ipHeading')}</h3>
+          <p class="form-hint form-hint-gap">{t('admin.settings.ipHint')}</p>
 
           <div>
-            <label class="form-label">IP Allow List</label>
+            <label class="form-label">{t('admin.settings.ipAllow')}</label>
             <textarea
               class="form-input form-input-monospace"
               value={listToString(config()!.admin.ipAllowList)}
               onInput={(e) => updateAdminListField('ipAllowList', e.currentTarget.value)}
-              placeholder="e.g. 192.168.1.*"
+              placeholder={t('admin.settings.ipAllowPlaceholder')}
             />
           </div>
           <div>
-            <label class="form-label">IP Deny List</label>
+            <label class="form-label">{t('admin.settings.ipDeny')}</label>
             <textarea
               class="form-input form-input-monospace"
               value={listToString(config()!.admin.ipDenyList)}
               onInput={(e) => updateAdminListField('ipDenyList', e.currentTarget.value)}
-              placeholder="e.g. 10.0.0.5"
+              placeholder={t('admin.settings.ipDenyPlaceholder')}
             />
           </div>
 
           {/* User-Agent Allow/Deny Lists */}
-          <h3 class="section-subheading">User-Agent Filtering</h3>
-          <p class="form-hint form-hint-gap">
-            One entry per line. Supports wildcards (*). Leave empty to allow all.
-          </p>
+          <h3 class="section-subheading">{t('admin.settings.uaHeading')}</h3>
+          <p class="form-hint form-hint-gap">{t('admin.settings.uaHint')}</p>
 
           <div>
-            <label class="form-label">User-Agent Allow List</label>
+            <label class="form-label">{t('admin.settings.uaAllow')}</label>
             <textarea
               class="form-input form-input-monospace"
               value={listToString(config()!.admin.userAgentAllowList)}
               onInput={(e) => updateAdminListField('userAgentAllowList', e.currentTarget.value)}
-              placeholder="e.g. Mozilla*"
+              placeholder={t('admin.settings.uaAllowPlaceholder')}
             />
           </div>
           <div>
-            <label class="form-label">User-Agent Deny List</label>
+            <label class="form-label">{t('admin.settings.uaDeny')}</label>
             <textarea
               class="form-input form-input-monospace"
               value={listToString(config()!.admin.userAgentDenyList)}
               onInput={(e) => updateAdminListField('userAgentDenyList', e.currentTarget.value)}
-              placeholder="e.g. *bot*"
+              placeholder={t('admin.settings.uaDenyPlaceholder')}
             />
           </div>
 
           {/* Public Site lists */}
-          <h3 class="section-subheading">Public Site</h3>
+          <h3 class="section-subheading">{t('admin.settings.publicSiteHeading')}</h3>
           <p class="form-hint form-hint-gap">
-            Controls which lists are published when building the public site. Enter{' '}
-            <code>{INCLUDE_ALL}</code> to include every list in that category (the default), or list
-            display names (one per line) to publish only those. Leave empty to publish none.
+            {withCode(tSegments('admin.settings.publishHint', { all: INCLUDE_ALL }))}
           </p>
 
           <div>
-            <label class="form-label">Decks to publish</label>
+            <label class="form-label">{t('admin.settings.includeDecks')}</label>
             <textarea
               class="form-input form-input-monospace"
               name="includeDecks"
@@ -485,7 +509,7 @@ export function Settings(): JSX.Element {
             />
           </div>
           <div>
-            <label class="form-label">Collections to publish</label>
+            <label class="form-label">{t('admin.settings.includeCollections')}</label>
             <textarea
               class="form-input form-input-monospace"
               name="includeCollections"
@@ -495,7 +519,7 @@ export function Settings(): JSX.Element {
             />
           </div>
           <div>
-            <label class="form-label">Wanted lists to publish</label>
+            <label class="form-label">{t('admin.settings.includeWanted')}</label>
             <textarea
               class="form-input form-input-monospace"
               name="includeWantedLists"
@@ -505,14 +529,10 @@ export function Settings(): JSX.Element {
             />
           </div>
 
-          <p class="form-hint form-hint-gap">
-            Exclude specific lists by display name (one per line), even when the publish list above
-            includes them. The visibility toggles on the Manage Lists page edit these. Leave empty
-            to exclude nothing.
-          </p>
+          <p class="form-hint form-hint-gap">{t('admin.settings.excludeHint')}</p>
 
           <div>
-            <label class="form-label">Decks to exclude</label>
+            <label class="form-label">{t('admin.settings.excludeDecks')}</label>
             <textarea
               class="form-input form-input-monospace"
               name="excludeDecks"
@@ -521,7 +541,7 @@ export function Settings(): JSX.Element {
             />
           </div>
           <div>
-            <label class="form-label">Collections to exclude</label>
+            <label class="form-label">{t('admin.settings.excludeCollections')}</label>
             <textarea
               class="form-input form-input-monospace"
               name="excludeCollections"
@@ -530,7 +550,7 @@ export function Settings(): JSX.Element {
             />
           </div>
           <div>
-            <label class="form-label">Wanted lists to exclude</label>
+            <label class="form-label">{t('admin.settings.excludeWanted')}</label>
             <textarea
               class="form-input form-input-monospace"
               name="excludeWantedLists"
@@ -540,46 +560,49 @@ export function Settings(): JSX.Element {
           </div>
 
           <p class="form-hint form-hint-gap">
-            Optional live backend for a split deployment: a statically deployed site fetches live
-            list data and cache-backed card search from a separately hosted{' '}
-            <code>ritual serve --api</code> instance at this URL (baked in by the next site build).
-            Leave empty for a fully static site.
+            {withCode(
+              tSegments('admin.settings.apiBaseUrlHint', {
+                command: t('admin.settings.apiBaseUrlCommand'),
+              }),
+            )}
           </p>
           <div>
-            <label class="form-label">API base URL</label>
+            <label class="form-label">{t('admin.settings.apiBaseUrl')}</label>
             <input
               type="text"
               class="form-input"
               name="apiBaseUrl"
               value={config()?.site?.apiBaseUrl ?? ''}
               onInput={(e) => updateApiBaseUrl(e.currentTarget.value)}
-              placeholder="https://ritual-api.example.com"
+              placeholder={t('admin.settings.apiBaseUrlPlaceholder')}
             />
           </div>
 
           {/* Banned default printings */}
-          <h3 class="section-subheading">Default Printings</h3>
+          <h3 class="section-subheading">{t('admin.settings.printingsHeading')}</h3>
           <p class="form-hint form-hint-gap">
-            Printings that may never be auto-selected as a card's default (featured) printing, one
-            per line as <code>SET:COLLECTOR</code> (e.g. <code>SLD:123</code>). When a banned
-            printing would be chosen, the next eligible printing is featured instead. Banned
-            printings can still be viewed and entered manually.
+            {withCode(
+              tSegments('admin.settings.printingsHint', {
+                format: t('admin.settings.printingsFormat'),
+                example: t('admin.settings.printingsExample'),
+              }),
+            )}
           </p>
 
           <div>
-            <label class="form-label">Banned default printings</label>
+            <label class="form-label">{t('admin.settings.bannedPrintings')}</label>
             <textarea
               class="form-input form-input-monospace"
               name="bannedPrintings"
               value={bannedPrintingsText()}
               onInput={(e) => updateBannedPrintings(e.currentTarget.value)}
-              placeholder="e.g. SLD:123"
+              placeholder={t('admin.settings.bannedPrintingsPlaceholder')}
             />
           </div>
 
           {/* Save */}
           <button class="btn btn-primary" onClick={() => void handleSave()} disabled={loading()}>
-            {loading() ? 'Saving...' : 'Save Settings'}
+            {loading() ? t('admin.settings.saving') : t('admin.settings.save')}
           </button>
         </div>
       </div>

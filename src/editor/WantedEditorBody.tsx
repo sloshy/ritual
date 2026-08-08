@@ -42,8 +42,6 @@ export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
       ctrl={ctrl}
       entityLabel="wanted list"
       selectorId="wanted-list-select"
-      selectorLabel="Select Wanted List"
-      selectorPlaceholder="Choose a wanted list"
       defaults={props.defaults}
       search={props.search}
       requirePrinting={false}

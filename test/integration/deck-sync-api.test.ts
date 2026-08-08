@@ -4,7 +4,7 @@ import * as path from 'node:path'
 import {
   handleDeckSyncRun,
   handleDeckSyncStatus,
-  LOGIN_REQUIRED_MESSAGE,
+  loginRequiredText,
   type DeckSyncRunResponse,
   type DeckSyncStatusResponse,
 } from '../../src/admin/api/deck-sync'
@@ -257,7 +257,10 @@ describe('deck-sync API', () => {
     expect(status).toBe(401)
     expect(body).toEqual({
       success: false,
-      message: LOGIN_REQUIRED_MESSAGE,
+      message: loginRequiredText(),
+      // The refusal carries its catalog key beside the English, so the admin UI
+      // relabels it on a language switch while MCP still reads the same prose.
+      messageKey: 'admin.api.deckSync.loginRequired',
       loginRequired: true,
     })
   })

@@ -760,7 +760,8 @@ export function registerReadTools(server: McpServer): void {
       description:
         'Get the current Ritual configuration, including defaultLanguage — the Scryfall ' +
         'language code stamped on newly added cards (and what decides which Scryfall bulk ' +
-        'backs the card cache).',
+        'backs the card cache) — and uiLocale, the unrelated BCP-47 tag naming the language ' +
+        'the interface speaks. Two different settings; uiLocale costs nothing to change.',
       inputSchema: z.object({}),
       outputSchema: fromJsonSchema<ConfigResult>(CONFIG_OUTPUT),
       annotations: { readOnlyHint: true },

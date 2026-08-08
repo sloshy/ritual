@@ -17,6 +17,7 @@ import type {
   BuylistStatusResponse,
 } from '../../../src/buylist'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
+import { DEFAULT_LOCALE } from '../../../src/i18n/runtime'
 import { fulfillJson } from './fulfill'
 import {
   MOCK_COLLECTION_CARD_PRICED,
@@ -38,6 +39,8 @@ export function makeSiteIndex(overrides: Partial<SiteIndex> = {}): SiteIndex {
     availableCurrencies: ['usd'],
     searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
     defaultLanguage: 'en',
+    uiLocale: DEFAULT_LOCALE,
+    availableLocales: [DEFAULT_LOCALE],
     ...overrides,
   }
 }

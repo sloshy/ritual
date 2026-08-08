@@ -1,13 +1,16 @@
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, Show, For } from 'solid-js'
 import { Modal } from '../ui/Modal'
+import { formatDateTime } from '../ui/format'
 import type { ChangelogPage } from '../changelog-parser'
 import type { ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
 import { useTooltip } from './useTooltip'
 import { resolveCardImageSources } from './image-sources'
 import { CardModal } from './CardModal'
-import { formatChangeText, isAdditiveAction } from './changelog-format'
+import { isAdditiveAction } from './changelog-format'
+import { useT } from '../ui/i18n'
+import { changeSegments, displayChangeFromLine } from '../change-message'
 
 interface ChangelogModalProps {
   open: boolean
@@ -26,6 +29,7 @@ function getCardImageUrl(card: ScryfallCard, useScryfallImgUrls: boolean): strin
 }
 
 export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
+  const t = useT()
   const [page, setPage] = createSignal(0)
   const [cardModalName, setCardModalName] = createSignal<string | null>(null)
 
@@ -38,7 +42,7 @@ export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
     const cp = currentPage()
     if (!cp) return ''
     try {
-      return new Date(cp.timestamp).toLocaleString(undefined, {
+      return formatDateTime(cp.timestamp, {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
@@ -69,20 +73,20 @@ export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
         onClose={props.onClose}
         size="lg"
         panelClass="changelog-modal"
-        aria-label="Change History"
+        aria-label={t('site.changelog.title')}
         overlay={
           <div
             ref={tooltipRef}
             class={`changelog-card-tooltip ${tooltip() ? 'visible' : ''}`}
             style={{ left: `${tooltipPos().left}px`, top: `${tooltipPos().top}px` }}
           >
-            <Show when={tooltip()}>{(t) => <img src={t().src} alt="" />}</Show>
+            <Show when={tooltip()}>{(tip) => <img src={tip().src} alt="" />}</Show>
           </div>
         }
       >
         <div class="changelog-modal-header">
-          <h3>Change History</h3>
-          <button class="modal-close" aria-label="Close" onClick={props.onClose}>
+          <h3>{t('site.changelog.title')}</h3>
+          <button class="modal-close" aria-label={t('ui.dialog.close')} onClick={props.onClose}>
             &times;
           </button>
         </div>
@@ -98,7 +102,14 @@ export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
                   card && props.useScryfallImgUrls !== undefined
                     ? getCardImageUrl(card, props.useScryfallImgUrls)
                     : null
-                const { prefix, suffix } = formatChangeText(change)
+                // Segments, not a prefix/suffix pair: the translator decides
+                // where the card name sits in the sentence, and only the
+                // `name` parameter becomes the interactive node.
+                // In a memo, not a plain call: the `<For>` item callback body runs
+                // once per item outside any tracking scope, so a rendered-once
+                // value would freeze this list in the boot language while the
+                // modal chrome around it relabeled.
+                const segments = createMemo(() => changeSegments(displayChangeFromLine(change)))
                 // Every action is categorized as additive or destructive (see
                 // isAdditiveAction), so there is no neutral middle state.
                 const colorClass = additive
@@ -109,20 +120,26 @@ export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
                   <div class={`changelog-change-item ${colorClass}`}>
                     <span class="changelog-change-icon">{additive ? '+' : '−'}</span>
                     <span>
-                      {prefix}
-                      <span
-                        class={card ? 'changelog-card-link' : ''}
-                        onClick={card ? () => setCardModalName(change.cardName) : undefined}
-                        onMouseEnter={
-                          imageUrl
-                            ? () => setTooltip({ src: imageUrl, sideways: false })
-                            : undefined
+                      <For each={segments()}>
+                        {(segment) =>
+                          segment.kind === 'param' && segment.name === 'name' ? (
+                            <span
+                              class={card ? 'changelog-card-link' : ''}
+                              onClick={card ? () => setCardModalName(change.cardName) : undefined}
+                              onMouseEnter={
+                                imageUrl
+                                  ? () => setTooltip({ src: imageUrl, sideways: false })
+                                  : undefined
+                              }
+                              onMouseLeave={imageUrl ? () => setTooltip(null) : undefined}
+                            >
+                              {segment.value}
+                            </span>
+                          ) : (
+                            segment.value
+                          )
                         }
-                        onMouseLeave={imageUrl ? () => setTooltip(null) : undefined}
-                      >
-                        {change.cardName}
-                      </span>
-                      {suffix}
+                      </For>
                     </span>
                   </div>
                 )
@@ -134,13 +151,13 @@ export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
         <Show when={totalPages() > 1}>
           <div class="changelog-modal-footer">
             <button disabled={page() <= 0} onClick={() => setPage((p) => p - 1)}>
-              ← Newer
+              {t('site.changelog.newer')}
             </button>
             <span>
               {page() + 1} / {totalPages()}
             </span>
             <button disabled={page() >= totalPages() - 1} onClick={() => setPage((p) => p + 1)}>
-              Older →
+              {t('site.changelog.older')}
             </button>
           </div>
         </Show>

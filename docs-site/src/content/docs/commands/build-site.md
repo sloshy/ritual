@@ -25,6 +25,9 @@ By default, deck card images use Scryfall URLs from card data. This can be overr
 | `--refresh <mode>`              | Card cache refresh policy: `ask` (default — bulk-downloads an empty or stale cache **without asking**, prompts for the price and tag refreshes), `auto`, `no-bulk`, or `never`. See [Card Cache Refresh](#card-cache-refresh).                                                                                                                                                                                        |
 | `--theme <name>`                | Initial theme served to first-time visitors (built-in name or a custom name from `--theme-file`). Defaults to `default`.                                                                                                                                                                                                                                                                                              |
 | `--theme-file <path...>`        | Load one or more custom theme JSON files; each is added to the runtime theme list under its declared `name`.                                                                                                                                                                                                                                                                                                          |
+| `--locale <tag>`                | UI locale baked into the generated site (BCP-47, e.g. `de-AT`): the `<html lang>`/`dir` and the language the site opens in. Defaults to the [`uiLocale`](/configuration/#interface-language) config value. Ritual's own text — **not** the card language. See [Localized builds](#localized-builds).                                                                                                                  |
+| `--locales <tags...>`           | Which locale dictionaries to publish into `dist/locales/`, which is what the in-app language switcher offers. Default: `en`. `all` publishes every locale this build has.                                                                                                                                                                                                                                             |
+| `--locale-file <path...>`       | Load one or more locale dictionary JSON files, each named for its tag (`de-AT.json`); their locales become selectable alongside the built-in ones. The locale analogue of `--theme-file`.                                                                                                                                                                                                                             |
 | `--moxfield-user-agent <agent>` | Moxfield-approved unique User-Agent string (required for Moxfield deck URLs unless `MOXFIELD_USER_AGENT` is set)                                                                                                                                                                                                                                                                                                      |
 | `--out-dir <path>`              | Publish into this directory instead of `dist/`. A relative path resolves against the Ritual directory. **The directory is replaced by the build**, so it is refused when it is the Ritual directory itself or any ancestor of it (`.`, `..`, `/`) — see [Output](#output). Useful for building a preview alongside the published site, which [`serve --out-dir`](/commands/serve/) can then serve without rebuilding. |
 
@@ -178,13 +181,54 @@ Each `--theme-file` adds a custom theme alongside the built-ins under the `name`
 
 Theme names must be lowercase letters, digits, and hyphens, and may not collide with any built-in theme name.
 
+## Localized builds
+
+The site's interface language works much like its theme: dictionaries are **data**, published beside the app rather than compiled into it, so one build can carry several languages and visitors switch between them at runtime with no reload.
+
+Three flags control it:
+
+| Flag                      | What it decides                                                                                                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--locale <tag>`          | The language the site **opens in**. Stamps `<html lang>` and `dir` before first paint, and sets `index.json.uiLocale`. Defaults to the `uiLocale` config value.           |
+| `--locales <tags...>`     | Which dictionaries land in `dist/locales/`. Default `en`; `all` publishes every locale this build has. Populates `index.json.availableLocales`, which the switcher lists. |
+| `--locale-file <path...>` | Loads a dictionary JSON from disk at build time. The **file name is the locale tag** (`de-AT.json`), matching the layout translators work in.                             |
+
+```bash
+./ritual build-site --locales en de --locale de     # opens in German, English available
+./ritual build-site --locales all                   # every dictionary this build has
+./ritual build-site --locale-file ./de-AT.json --locales en de-AT
+```
+
+`--locales` is variadic, so its tags are **space-separated**, like `--decks` and `--theme-file` (unlike `--currencies`, which takes one comma-separated value). English is always emitted whether or not you list it.
+
+`--locale-file` is the locale analogue of `--theme-file`, and it is how a **released binary publishes a language it was never built with** — hand it a validated dictionary and that locale becomes selectable like any built-in one.
+
+Details worth knowing:
+
+- **The baked locale is always published.** A site whose shell says `lang="de"` must be able to fetch the German dictionary it names, so `--locale de` implies `de` in the emitted set.
+- **A baked locale with no dictionary is a warning, not a failure.** A catalog with zero coverage is just the degenerate case of a partial one, and messages fall back to English key by key — the build says so and continues. A tag named by `--locales` that has _no_ dictionary is an error, because naming files to emit is that flag's entire job.
+- **The language switcher appears only when more than one locale was published.** A picker with one option is noise, so an English-only build shows none.
+- Everything is written into the build's scratch directory and swapped in atomically like the rest of the site, so a failed locale build leaves the previously published site standing — see [Output](#the-output-directory-is-replaced-never-half-written).
+
+Per-locale URL prefixes (for SEO or CDN path routing) are just a loop — no special mode exists:
+
+```sh
+for tag in en de ja; do
+  ritual build-site --locale "$tag" --locales "$tag" --out-dir "dist/$tag"
+done
+```
+
+This is **not** the card language. `--locale` changes what language Ritual's own text is in; which printing of a card is shown is [`defaultLanguage`](/configuration/#default-language)'s job. See [Localization](/localization/) for the full picture, including that no translations ship yet.
+
 ## Output
 
 Generates a single-page application in the `dist/` directory (or the `--out-dir` directory) containing:
 
 - `index.html` — SPA shell that loads the application
 - `app.js` — Bundled SPA with client-side routing
-- `index.json` — Deck and collection listing used by the index page (also carries the baked config, including [`site.apiBaseUrl`](/configuration/#pointing-a-static-build-at-a-live-backend-apibaseurl) when a [live backend](/public-site/hosted/) is configured)
+- `index.json` — Deck and collection listing used by the index page (also carries the baked config, including [`site.apiBaseUrl`](/configuration/#pointing-a-static-build-at-a-live-backend-apibaseurl) when a [live backend](/public-site/hosted/) is configured, plus `uiLocale` and `availableLocales` from [the locale flags](#localized-builds))
+- `boot.js` — Tiny same-origin bootstrap that applies the stored theme and stamps `<html lang>`/`dir` before first paint
+- `locales/{tag}.json` — One message dictionary per published locale, fetched on demand when the visitor switches language
 - `decks/{slug}.json` — Full deck data loaded on demand
 - `collections/{slug}.json` — Full collection data with pricing loaded on demand
 - `wanted/{slug}.json` — Full wanted list data with pricing loaded on demand

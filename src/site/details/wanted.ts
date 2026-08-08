@@ -1,3 +1,4 @@
+import { t } from '../../i18n/t'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { parseWantedListFile } from '../../commands/wanted-helpers'
@@ -184,7 +185,11 @@ export async function buildWantedArtifacts(
               await ctx.onCardShipped?.(langCard)
             } else {
               ctx.warn?.(
-                `  ⚠️  No ${language} card object for '${entry.name}' (${formatPrintingLabel(entry.set, entry.collectorNumber)}); using the default-language object`,
+                `  ⚠️  ${t('site.detail.noLanguageCard', {
+                  language,
+                  name: entry.name,
+                  printing: formatPrintingLabel(entry.set, entry.collectorNumber),
+                })}`,
               )
             }
           }

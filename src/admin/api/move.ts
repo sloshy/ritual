@@ -19,6 +19,9 @@ import type { DroppedNote } from '../../commands/move-io'
 import { listSlug } from '../../list-info'
 import { indexPhysicalCards, moveCardKey, type MovePhysicalCard } from '../../card-index-types'
 import { refuseUnknownCardNames } from './card-name-check'
+import { apiMessage, type ApiMessage } from './result'
+import { DEFAULT_LOCALE } from '../../i18n/runtime'
+import { tIn } from '../../i18n/t'
 import { autoCommitAndPush, apiError, badRequest, readJsonObjectBody } from './save-helpers'
 
 // The index vocabulary lives in `src/card-index-types.ts` — the index is the
@@ -111,14 +114,13 @@ function isMoveLanguageInvalid(language: unknown): boolean {
  * indistinguishable from "that card was already moved" unless the failure is
  * named. Always present, possibly empty.
  */
-export type MoveCommitResponse = {
+export type MoveCommitResponse = ApiMessage & {
   success: true
   moved: number
   requested: number
   skipped: number
   droppedNotes: DroppedNote[]
   warnings: string[]
-  message: string
 }
 
 /** Untrusted request body shape, validated before narrowing to {@link MoveCommitRequest}. */
@@ -195,11 +197,15 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
     // matching the editor save endpoints. The whole repo lives under the base dir, so a
     // cross-list move is committed in one pass from there. Guarded on `moved` so a no-op
     // batch never produces a "Move 0 cards" message or an empty commit.
+    //
+    // The count phrase comes from the catalog rendered in DEFAULT_LOCALE, not the
+    // active one: a commit message is git data, English by contract (plan §4.9), and
+    // routing it through `domain.count.cards` keeps one plural table for the whole repo.
     if (moved > 0) {
       await autoCommitAndPush(
         getBaseDir(),
         writtenFiles,
-        `Move ${moved} card${moved === 1 ? '' : 's'}`,
+        `Move ${tIn(DEFAULT_LOCALE, 'domain.count.cards', { count: moved })}`,
       )
     }
 
@@ -210,7 +216,7 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
       skipped,
       droppedNotes,
       warnings,
-      message: `Moved ${moved} card${moved === 1 ? '' : 's'}.`,
+      ...apiMessage('admin.api.move.moved', { count: moved }),
     }
     return Response.json(responseBody)
   } catch (error) {
@@ -242,13 +248,12 @@ export type RemoveCommitRequest = {
 }
 
 /** POST /api/remove/commit success body. See {@link MoveCommitResponse.warnings}. */
-export type RemoveCommitResponse = {
+export type RemoveCommitResponse = ApiMessage & {
   success: true
   removed: number
   requested: number
   skipped: number
   warnings: string[]
-  message: string
 }
 
 /** Untrusted request body shape, validated before narrowing to {@link RemoveCommitRequest}. */
@@ -315,7 +320,7 @@ export async function handleRemoveCommit(req: Request): Promise<Response> {
       await autoCommitAndPush(
         getBaseDir(),
         writtenFiles,
-        `Remove ${removed} card${removed === 1 ? '' : 's'}`,
+        `Remove ${tIn(DEFAULT_LOCALE, 'domain.count.cards', { count: removed })}`,
       )
     }
 
@@ -325,7 +330,7 @@ export async function handleRemoveCommit(req: Request): Promise<Response> {
       requested: body.removes.length,
       skipped,
       warnings,
-      message: `Removed ${removed} card${removed === 1 ? '' : 's'}.`,
+      ...apiMessage('admin.api.move.removed', { count: removed }),
     }
     return Response.json(responseBody)
   } catch (error) {
@@ -452,7 +457,7 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
       await autoCommitAndPush(
         getBaseDir(),
         writtenFiles,
-        `Move ${moved} card${moved === 1 ? '' : 's'}`,
+        `Move ${tIn(DEFAULT_LOCALE, 'domain.count.cards', { count: moved })}`,
       )
     }
 
@@ -463,7 +468,7 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
       skipped,
       droppedNotes,
       warnings,
-      message: `Moved ${moved} card${moved === 1 ? '' : 's'}.`,
+      ...apiMessage('admin.api.move.moved', { count: moved }),
     }
     return Response.json(responseBody)
   } catch (error) {

@@ -27,7 +27,7 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from './scripting'
-import { CardCommandError } from '../errors'
+import { CardCommandError, localizedCommandError } from '../errors'
 import {
   describeEntry,
   ensureCardIdMatchesName,
@@ -45,7 +45,8 @@ import { isFinish, normalizeFinishValue, VALID_FINISHES } from '../finish-condit
 import { parseSetCode } from '../set-codes'
 import { languageToken, type CardLanguage } from '../card-language'
 import type { Finish } from '../types'
-import type { ListType } from '../list-type'
+import { listTypeTitle, type ListType } from '../list-type'
+import { t } from '../i18n/t'
 
 /** The main move-session prompt resolves to a menu sentinel or a physical-card key. */
 type MoveSelectionResponse = { selection?: string }
@@ -60,7 +61,7 @@ type MoveSelectionResponse = { selection?: string }
  */
 function reportIndexWarnings(warnings: readonly string[]): void {
   for (const warning of warnings) {
-    process.stderr.write(`Warning: ${warning}\n`)
+    process.stderr.write(`${t('cli.move.indexWarning', { warning })}\n`)
   }
 }
 
@@ -89,11 +90,13 @@ export function buildMoveMenuChoices(pendingCount: number): Choice[] {
   return [
     {
       title:
-        pendingCount > 0 ? `📋 View Pending Changes (${pendingCount})` : '📋 View Pending Changes',
+        pendingCount > 0
+          ? t('cli.move.menuViewPendingCount', { count: pendingCount })
+          : t('cli.move.menuViewPending'),
       value: '__VIEW_PENDING__',
     },
-    { title: '⚙️  Configure Session Filters', value: '__CONFIG__' },
-    { title: '🚪 Exit', value: '__EXIT__' },
+    { title: t('cli.move.menuFilters'), value: '__CONFIG__' },
+    { title: t('cli.move.menuExit'), value: '__EXIT__' },
   ]
 }
 
@@ -116,44 +119,23 @@ export function registerMoveCommand(program: Command): void {
   addScriptingOptions(
     program
       .command('move')
-      .description(
-        'Move cards between decks, collections, and wanted lists — interactively, or scripted with --from/--to',
-      )
-      .argument('[cardName...]', 'Card to move (fuzzy match; requires --from and --to)')
-      .option(
-        '--from <list>',
-        "Source list; accepts a 'deck:'/'collection:'/'wanted:' prefix. Alone, launches the interactive session filtered to this source",
-      )
-      .option(
-        '--to <list>',
-        'Destination list (same prefix convention). Together with --from, moves without prompts',
-      )
-      .option('-q, --quantity <n>', 'Number of copies to move (default 1)')
-      .option('--card-id <id>', 'Select the source card by ID (the &N suffix in list files)')
-      .option(
-        '--set <code>',
-        'Narrow the match to this set code, or assign the printing when the card has none',
-      )
-      .option(
-        '--collector-number <cn>',
-        'Narrow the match to this collector number, or assign the printing when the card has none',
-      )
-      .option('--finish <finish>', `Narrow the match to this finish: ${VALID_FINISHES.join(', ')}`)
-      .option(
-        '--to-section <name>',
-        'Deck destinations only: add the card to this section (exact name, created if missing)',
-      ),
+      .description(t('help.move.description'))
+      .argument('[cardName...]', t('help.move.cardName'))
+      .option('--from <list>', t('help.move.from'))
+      .option('--to <list>', t('help.move.to'))
+      .option('-q, --quantity <n>', t('help.move.quantity'))
+      .option('--card-id <id>', t('help.move.cardId'))
+      .option('--set <code>', t('help.move.set'))
+      .option('--collector-number <cn>', t('help.move.collectorNumber'))
+      .option('--finish <finish>', t('help.move.finish', { finishes: VALID_FINISHES.join(', ') }))
+      .option('--to-section <name>', t('help.move.toSection')),
   ).action(async (cardNameParts: string[], options: MoveCliOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
     const cardName = cardNameParts.join(' ').trim() || undefined
 
     await runCommandAction(scripting, async () => {
       if (options.to !== undefined && options.from === undefined) {
-        throw new CardCommandError(
-          'usage_error',
-          '--to requires --from. Pass both to script a move.',
-          ExitCode.UsageError,
-        )
+        throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.toRequiresFrom')
       }
 
       if (options.from !== undefined && options.to !== undefined) {
@@ -183,10 +165,10 @@ export function registerMoveCommand(program: Command): void {
         options.finish !== undefined ||
         options.toSection !== undefined
       ) {
-        throw new CardCommandError(
+        throw localizedCommandError(
           'usage_error',
-          'Scripted moves need both --from and --to. Run `ritual move` without card arguments for the interactive session.',
           ExitCode.UsageError,
+          'cli.move.scriptedNeedsBoth',
         )
       }
 
@@ -218,11 +200,11 @@ async function runInteractiveMove(sourceFilterPath: string | undefined): Promise
   // The session is prompt-driven end to end; without a terminal (or with
   // prompts disabled via --no-input) the only path is the headless one.
   requireInteractive('--from and --to')
-  console.log('Loading all lists...')
+  console.log(t('cli.move.loadingLists'))
   const allLists = await loadAllLists()
 
   if (allLists.length === 0) {
-    console.log('No list files found. Create a deck, collection, or wanted list first.')
+    console.log(t('cli.move.noLists'))
     return
   }
 
@@ -230,18 +212,18 @@ async function runInteractiveMove(sourceFilterPath: string | undefined): Promise
   if (sourceFilterPath !== undefined) {
     sourceFilter = allLists.find((l) => l.filePath === sourceFilterPath)
     if (!sourceFilter) {
-      console.log('Source list not found among loaded lists.')
+      console.log(t('cli.move.sourceNotLoaded'))
       process.exitCode = ExitCode.NotFound
       return
     }
   }
 
-  console.log('Loading cards...')
+  console.log(t('cli.move.loadingCards'))
   const { cards: physicalCards, warnings } = await loadPhysicalCards(allLists)
   reportIndexWarnings(warnings)
 
   if (physicalCards.length === 0) {
-    console.log('No cards found in any list.')
+    console.log(t('cli.move.noCards'))
     return
   }
 
@@ -255,12 +237,15 @@ async function runInteractiveMove(sourceFilterPath: string | undefined): Promise
   }
 
   if (sourceFilter) {
-    console.log(
-      `Source filter: ${listRefLabel(sourceFilter.ref)} (widen it under Session Filters).`,
-    )
+    console.log(t('cli.move.sourceFilter', { list: listRefLabel(sourceFilter.ref) }))
   }
 
-  console.log(`Ready. ${physicalCards.length} card(s) across ${allLists.length} list(s).`)
+  console.log(
+    t('cli.move.ready', {
+      cards: t('domain.count.cards', { count: physicalCards.length }),
+      lists: t('domain.count.lists', { count: allLists.length }),
+    }),
+  )
 
   while (true) {
     let isExited = false
@@ -277,7 +262,7 @@ async function runInteractiveMove(sourceFilterPath: string | undefined): Promise
     const response = (await prompts({
       type: 'autocomplete',
       name: 'selection',
-      message: 'Search for a card to move, or choose an option:',
+      message: t('cli.move.promptSearch'),
       choices: allChoices,
       limit: 12,
       suggest: async (rawInput, choices) => {
@@ -384,10 +369,13 @@ type MoveSuccessOutput = {
 function parseQuantityFlag(raw: string): number {
   const parsed = parsePositiveInteger(raw)
   if (parsed === undefined) {
-    throw new CardCommandError(
+    throw localizedCommandError(
       'usage_error',
-      `--quantity must be a positive integer (got '${raw}').`,
       ExitCode.UsageError,
+      'cli.cardOps.quantityPositive',
+      {
+        value: raw,
+      },
     )
   }
   return parsed
@@ -418,11 +406,7 @@ function parseSetFlag(raw: string): string {
 async function runHeadlessMove(args: HeadlessMoveArgs, scripting: ScriptingOptions): Promise<void> {
   const cardId = args.cardIdRaw !== undefined ? parseCardIdFlag(args.cardIdRaw) : undefined
   if (args.cardName === undefined && cardId === undefined) {
-    throw new CardCommandError(
-      'usage_error',
-      'Provide a card name or --card-id to select the card to move.',
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.selectorRequired')
   }
 
   const selection: HeadlessSelection = {
@@ -447,34 +431,22 @@ async function runHeadlessMove(args: HeadlessMoveArgs, scripting: ScriptingOptio
     return
   }
   if (fromResolved.filePath === toResolved.filePath) {
-    throw new CardCommandError(
-      'usage_error',
-      'Source and destination are the same list.',
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.sameList')
   }
 
   const toSection = args.toSectionRaw?.trim()
   if (toSection !== undefined && toSection === '') {
-    throw new CardCommandError('usage_error', '--to-section cannot be empty.', ExitCode.UsageError)
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.toSectionEmpty')
   }
   if (toSection !== undefined && toResolved.type !== 'deck') {
-    throw new CardCommandError(
-      'usage_error',
-      '--to-section requires a deck destination.',
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.toSectionDeckOnly')
   }
 
   const allLists = await loadAllLists()
   const fromEntry = allLists.find((l) => l.filePath === fromResolved.filePath)
   const toEntry = allLists.find((l) => l.filePath === toResolved.filePath)
   if (!fromEntry || !toEntry) {
-    throw new CardCommandError(
-      'runtime_error',
-      'A resolved list could not be loaded.',
-      ExitCode.RuntimeError,
-    )
+    throw localizedCommandError('runtime_error', ExitCode.RuntimeError, 'cli.move.listNotLoaded')
   }
 
   const loaded = await loadPhysicalCards([fromEntry])
@@ -501,16 +473,19 @@ async function runHeadlessMove(args: HeadlessMoveArgs, scripting: ScriptingOptio
   // never pollutes stdout in json/ndjson mode. Data loss is essential output —
   // not suppressed by --quiet.
   for (const dn of droppedNotes) {
-    const idPart = dn.cardId !== undefined ? ` &${dn.cardId}` : ''
     process.stderr.write(
-      `Warning: note on "${dn.cardName}"${idPart} was dropped (merged onto an existing line): ${dn.note}\n`,
+      `${t('cli.move.noteDroppedWarning', {
+        name: dn.cardName,
+        id: cardIdLabel(dn.cardId),
+        note: dn.note,
+      })}\n`,
     )
   }
 
   if (moved < selection.quantity) {
     throw new CardCommandError(
       'runtime_error',
-      `Moved only ${moved} of ${selection.quantity} requested cop${selection.quantity === 1 ? 'y' : 'ies'}.`,
+      t('cli.move.movedFewer', { moved, count: selection.quantity }),
       ExitCode.RuntimeError,
       { moved, requested: selection.quantity },
     )
@@ -537,11 +512,10 @@ function selectCopies(
   if (selection.cardId !== undefined) {
     matches = all.filter((vc) => vc.card.cardId === selection.cardId)
     if (matches.length === 0) {
-      throw new CardCommandError(
-        'not_found',
-        `No card with id ${selection.cardId} found in ${label}.`,
-        ExitCode.NotFound,
-      )
+      throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.move.noCardWithId', {
+        id: selection.cardId,
+        list: label,
+      })
     }
     // A name given alongside the ID must agree with it — a stale ID would
     // otherwise move whatever card now carries it, reported as success.
@@ -553,11 +527,10 @@ function selectCopies(
   } else {
     matches = matchByNormalizedName(all, selection.cardName!, (vc) => vc.card.name)
     if (matches.length === 0) {
-      throw new CardCommandError(
-        'not_found',
-        `No card matching '${selection.cardName}' found in ${label}.`,
-        ExitCode.NotFound,
-      )
+      throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.move.noCardMatching', {
+        name: String(selection.cardName),
+        list: label,
+      })
     }
   }
 
@@ -576,11 +549,11 @@ function selectCopies(
         ? strict
         : matches.filter((vc) => printingMatches(vc.card, selection, 'compatible'))
     if (narrowed.length === 0) {
-      throw new CardCommandError(
-        'not_found',
-        `No copies of '${matches[0]!.card.name}' matching ${describeNarrowing(selection)} found in ${label}.`,
-        ExitCode.NotFound,
-      )
+      throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.move.noCopiesMatching', {
+        name: matches[0]!.card.name,
+        criteria: describeNarrowing(selection),
+        list: label,
+      })
     }
     matches = narrowed
   }
@@ -593,12 +566,13 @@ function selectCopies(
     const distinct = [...combos.values()]
     const lines = distinct
       .slice(0, 10)
-      .map((c) => `  - ${describeEntry(c)}`)
+      .map((c) => t('cli.cardOps.matchLine', { entry: describeEntry(c) }))
       .join('\n')
-    const suffix = distinct.length > 10 ? `\n  ... and ${distinct.length - 10} more` : ''
+    const suffix =
+      distinct.length > 10 ? `\n${t('cli.cardOps.andMore', { count: distinct.length - 10 })}` : ''
     throw new CardCommandError(
       'usage_error',
-      `Multiple printings match in ${label}. Narrow with --set, --collector-number, --finish, or --card-id:\n${lines}${suffix}`,
+      t('cli.move.multiplePrintings', { list: label, matches: `${lines}${suffix}` }),
       ExitCode.UsageError,
       {
         matches: distinct.map((c) => ({
@@ -610,13 +584,19 @@ function selectCopies(
           language: c.language,
         })),
       },
+      { key: 'cli.move.multiplePrintings' },
     )
   }
 
   if (matches.length < selection.quantity) {
     throw new CardCommandError(
       'not_found',
-      `Only ${matches.length} cop${matches.length === 1 ? 'y' : 'ies'} of '${matches[0]!.card.name}' in ${label} (requested ${selection.quantity}).`,
+      t('cli.move.notEnoughCopies', {
+        count: matches.length,
+        name: matches[0]!.card.name,
+        list: label,
+        requested: selection.quantity,
+      }),
       ExitCode.NotFound,
       { available: matches.length, requested: selection.quantity },
     )
@@ -665,12 +645,24 @@ function printingComboKey(card: PhysicalCard): string {
 
 function describeNarrowing(selection: HeadlessSelection): string {
   const parts: string[] = []
-  if (selection.set !== undefined) parts.push(`set ${selection.set.toUpperCase()}`)
-  if (selection.collectorNumber !== undefined) {
-    parts.push(`collector number ${selection.collectorNumber}`)
+  if (selection.set !== undefined) {
+    parts.push(t('cli.move.criteriaSet', { set: selection.set.toUpperCase() }))
   }
-  if (selection.finish !== undefined) parts.push(`finish ${selection.finish}`)
+  if (selection.collectorNumber !== undefined) {
+    parts.push(t('cli.move.criteriaCollectorNumber', { value: selection.collectorNumber }))
+  }
+  if (selection.finish !== undefined) {
+    parts.push(t('cli.move.criteriaFinish', { finish: selection.finish }))
+  }
   return parts.join(', ')
+}
+
+/**
+ * The ` &N` suffix a card line carries, or the empty string — attached to the
+ * preceding token with no space of its own.
+ */
+function cardIdLabel(cardId: number | undefined): string {
+  return cardId !== undefined ? ` &${cardId}` : ''
 }
 
 /** The printing assigned to a name-only card headed for a collection. */
@@ -700,11 +692,9 @@ async function resolvePrintingForCollection(
     return { set: printing.set.toLowerCase(), collectorNumber: printing.collector_number }
   }
   if (selection.set !== undefined || selection.collectorNumber !== undefined) {
-    throw new CardCommandError(
-      'usage_error',
-      `'${cardName}' has no printing; pass both --set and --collector-number to assign one for the collection destination.`,
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.printingNeedsBoth', {
+      name: cardName,
+    })
   }
 
   // Cache-only: only the cache's own printing list is exhaustive. A cache miss
@@ -714,11 +704,9 @@ async function resolvePrintingForCollection(
   const result = await getCardPrintingsResult(cardName, { network: false })
   const printings = result.printings
   if (!printingsAreComplete(result)) {
-    throw new CardCommandError(
-      'usage_error',
-      `No printings of '${cardName}' are known from the card cache, so its printing can't be determined. Pass --set and --collector-number to assign one for the collection destination, or run 'ritual cache preload-all'.`,
-      ExitCode.UsageError,
-    )
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.move.printingsUnknown', {
+      name: cardName,
+    })
   }
   if (printings.length === 1) {
     const p = printings[0]!
@@ -726,12 +714,18 @@ async function resolvePrintingForCollection(
   }
   const lines = printings
     .slice(0, 10)
-    .map((p) => `  - ${p.set_name} (${p.set.toUpperCase()}:${p.collector_number})`)
+    .map((p) =>
+      t('cli.move.printingLine', {
+        setName: p.set_name,
+        printing: `${p.set.toUpperCase()}:${p.collector_number}`,
+      }),
+    )
     .join('\n')
-  const suffix = printings.length > 10 ? `\n  ... and ${printings.length - 10} more` : ''
+  const suffix =
+    printings.length > 10 ? `\n${t('cli.cardOps.andMore', { count: printings.length - 10 })}` : ''
   throw new CardCommandError(
     'usage_error',
-    `'${cardName}' has multiple printings. Pick one with --set and --collector-number:\n${lines}${suffix}`,
+    t('cli.move.multipleCardPrintings', { name: cardName, printings: `${lines}${suffix}` }),
     ExitCode.UsageError,
     {
       printings: printings.map((p) => ({
@@ -740,6 +734,7 @@ async function resolvePrintingForCollection(
         setName: p.set_name,
       })),
     },
+    { key: 'cli.move.multipleCardPrintings' },
   )
 }
 
@@ -756,7 +751,12 @@ function emitMoveSuccess(
     const printingPart =
       card.set && card.collectorNumber ? ` (${card.set.toUpperCase()}:${card.collectorNumber})` : ''
     emitOutput(
-      `Moved ${moved} x ${card.name}${printingPart}${finishLabel(card.finish)}${languageToken(card.language)} from ${listRefLabel(from.ref)} to ${listRefLabel(to.ref)}`,
+      t('cli.move.moved', {
+        count: moved,
+        card: `${card.name}${printingPart}${finishLabel(card.finish)}${languageToken(card.language)}`,
+        from: listRefLabel(from.ref),
+        to: listRefLabel(to.ref),
+      }),
       scripting,
     )
     return
@@ -782,38 +782,44 @@ function emitMoveSuccess(
 async function savePendingMoves(virtualState: Map<string, VirtualCard>): Promise<void> {
   const pending = getPendingMoves(virtualState)
   if (pending.length === 0) {
-    console.log('No pending moves.')
+    console.log(t('cli.move.noPending'))
     return
   }
 
-  console.log(`Saving ${pending.length} move(s)...`)
+  console.log(t('cli.move.saving', { count: pending.length }))
   const { moved, droppedNotes } = await commitAllMoves(virtualState)
   for (const dn of droppedNotes) {
-    const idPart = dn.cardId !== undefined ? ` &${dn.cardId}` : ''
     console.log(
-      `  ⚠ Note on "${dn.cardName}"${idPart} was dropped (merged onto an existing line): ${dn.note}`,
+      t('cli.move.noteDroppedLine', {
+        name: dn.cardName,
+        id: cardIdLabel(dn.cardId),
+        note: dn.note,
+      }),
     )
   }
-  console.log(`Done. Moved ${moved} card(s).`)
+  console.log(t('cli.move.doneMoved', { count: moved }))
 }
 
 function handleViewPending(virtualState: Map<string, VirtualCard>): void {
   const pending = getPendingMoves(virtualState)
   if (pending.length === 0) {
-    console.log('No pending moves.')
+    console.log(t('cli.move.noPending'))
     return
   }
 
-  console.log(`\nPending moves (${pending.length}):`)
+  console.log(`\n${t('cli.move.pendingHeading', { count: pending.length })}`)
   for (const vc of pending) {
     const card = vc.card
-    const from = listRefLabel(vc.pendingMove.originalList.ref)
-    const to = listRefLabel(vc.currentList.ref)
     const printingPart =
       card.set && card.collectorNumber ? ` (${card.set.toUpperCase()}:${card.collectorNumber})` : ''
     const finishPart = finishLabel(card.finish) + languageToken(card.language)
-    const idPart = card.cardId !== undefined ? ` &${card.cardId}` : ''
-    console.log(`  ${card.name}${printingPart}${finishPart}${idPart}: ${from} → ${to}`)
+    console.log(
+      t('cli.move.pendingLine', {
+        card: `${card.name}${printingPart}${finishPart}${cardIdLabel(card.cardId)}`,
+        from: listRefLabel(vc.pendingMove.originalList.ref),
+        to: listRefLabel(vc.currentList.ref),
+      }),
+    )
   }
   console.log('')
 }
@@ -831,7 +837,7 @@ async function handleCardMove(
   )
 
   if (validDests.length === 0) {
-    console.log('No valid destinations available. Configure destinations in session filters.')
+    console.log(t('cli.move.noDestinations'))
     return
   }
 
@@ -853,7 +859,7 @@ async function handleCardMove(
     const destResponse = await prompts({
       type: 'autocomplete',
       name: 'dest',
-      message: `Move "${card.name}" to:`,
+      message: t('cli.move.promptDestination', { name: card.name }),
       choices: destChoices,
       limit: 15,
       suggest: async (rawInput, choices) => {
@@ -879,14 +885,14 @@ async function handleCardMove(
 
   // Only resolve printing when the chosen destination is a collection and the card lacks it
   if (destList.ref.type === 'collection' && (!card.set || !card.collectorNumber)) {
-    console.log(`"${card.name}" has no printing info. Resolve printing for collection destination.`)
+    console.log(t('cli.move.needsPrinting', { name: card.name }))
     const result = await resolveCardPrinting(card.name, {}, false)
     if (result.kind === 'cancelled') {
-      console.log('Printing selection cancelled.')
+      console.log(t('cli.move.printingCancelled'))
       return
     }
     if (result.kind === 'none') {
-      console.log(`No printings found for "${card.name}"; cannot move it to a collection.`)
+      console.log(t('cli.move.noPrintingsFound', { name: card.name }))
       return
     }
     // The picker's availability confirm may have resolved a language for the
@@ -923,7 +929,10 @@ async function handleCardMove(
       : ''
   const finishPart = finishLabel(resolvedCard.finish) + languageToken(resolvedCard.language)
   console.log(
-    `  ✓ Queued: ${resolvedCard.name}${printingPart}${finishPart} → ${listRefLabel(destList.ref)}`,
+    t('cli.move.queued', {
+      card: `${resolvedCard.name}${printingPart}${finishPart}`,
+      list: listRefLabel(destList.ref),
+    }),
   )
 }
 
@@ -932,28 +941,31 @@ async function handleConfig(config: MoveSessionConfig): Promise<void> {
     const response = await prompts({
       type: 'select',
       name: 'option',
-      message: 'Session Filters:',
+      message: t('cli.move.filtersPrompt'),
       choices: [
-        { title: 'Configure Sources (which lists to move cards FROM)', value: 'sources' },
-        { title: 'Configure Destinations (which lists to move cards TO)', value: 'destinations' },
-        { title: '← Back', value: 'back' },
+        { title: t('cli.move.configureSources'), value: 'sources' },
+        { title: t('cli.move.configureDestinations'), value: 'destinations' },
+        { title: t('cli.move.back'), value: 'back' },
       ],
     })
 
     if (!response.option || response.option === 'back') break
 
     if (response.option === 'sources') {
-      await promptListToggle(config.enabledSources, config.allLists, 'Move FROM', false)
+      await promptListToggle(config.enabledSources, config.allLists, 'from', false)
     } else if (response.option === 'destinations') {
-      await promptListToggle(config.enabledDestinations, config.allLists, 'Move TO', true)
+      await promptListToggle(config.enabledDestinations, config.allLists, 'to', true)
     }
   }
 }
 
+/** Which side of the move a toggle screen is editing. */
+type ToggleDirection = 'from' | 'to'
+
 async function promptListToggle(
   enabledSet: Set<string>,
   allLists: ListEntry[],
-  label: string,
+  direction: ToggleDirection,
   requireAtLeastOne: boolean,
 ): Promise<void> {
   const byType: ListsByType = {
@@ -975,33 +987,45 @@ async function promptListToggle(
 
     if (byType.deck.length > 0) {
       choices.push({
-        title: `[${toggleStateChar(deckState)}] Decks (${deckPaths.filter((p) => enabledSet.has(p)).length}/${deckPaths.length})`,
+        title: t('cli.move.toggleGroupDecks', {
+          state: toggleStateChar(deckState),
+          enabled: deckPaths.filter((p) => enabledSet.has(p)).length,
+          total: deckPaths.length,
+        }),
         value: 'type:deck',
       })
     }
     if (byType.collection.length > 0) {
       choices.push({
-        title: `[${toggleStateChar(collState)}] Collections (${collPaths.filter((p) => enabledSet.has(p)).length}/${collPaths.length})`,
+        title: t('cli.move.toggleGroupCollections', {
+          state: toggleStateChar(collState),
+          enabled: collPaths.filter((p) => enabledSet.has(p)).length,
+          total: collPaths.length,
+        }),
         value: 'type:collection',
       })
     }
     if (byType.wanted.length > 0) {
       choices.push({
-        title: `[${toggleStateChar(wantedState)}] Wanted Lists (${wantedPaths.filter((p) => enabledSet.has(p)).length}/${wantedPaths.length})`,
+        title: t('cli.move.toggleGroupWanted', {
+          state: toggleStateChar(wantedState),
+          enabled: wantedPaths.filter((p) => enabledSet.has(p)).length,
+          total: wantedPaths.length,
+        }),
         value: 'type:wanted',
       })
     }
 
     choices.push(
-      { title: '── Toggle All ON ──', value: '__ALL_ON__' },
-      { title: '── Toggle All OFF ──', value: '__ALL_OFF__' },
-      { title: '← Done', value: '__BACK__' },
+      { title: t('cli.move.toggleAllOn'), value: '__ALL_ON__' },
+      { title: t('cli.move.toggleAllOff'), value: '__ALL_OFF__' },
+      { title: t('cli.move.done'), value: '__BACK__' },
     )
 
     const response = await prompts({
       type: 'select',
       name: 'action',
-      message: `${label} — Toggle Lists:`,
+      message: t('cli.move.toggleListsPrompt', { direction }),
       choices,
     })
 
@@ -1018,7 +1042,7 @@ async function promptListToggle(
 
     if (response.action === '__ALL_OFF__') {
       if (requireAtLeastOne) {
-        console.log('At least one destination must remain enabled.')
+        console.log(t('cli.move.keepOneDestination'))
         continue
       }
       toggleSetAll(
@@ -1030,23 +1054,17 @@ async function promptListToggle(
     }
 
     if (response.action === 'type:deck') {
-      await promptSubListToggle(enabledSet, byType.deck, 'Decks', requireAtLeastOne, allLists)
+      await promptSubListToggle(enabledSet, byType.deck, 'deck', requireAtLeastOne, allLists)
     } else if (response.action === 'type:collection') {
       await promptSubListToggle(
         enabledSet,
         byType.collection,
-        'Collections',
+        'collection',
         requireAtLeastOne,
         allLists,
       )
     } else if (response.action === 'type:wanted') {
-      await promptSubListToggle(
-        enabledSet,
-        byType.wanted,
-        'Wanted Lists',
-        requireAtLeastOne,
-        allLists,
-      )
+      await promptSubListToggle(enabledSet, byType.wanted, 'wanted', requireAtLeastOne, allLists)
     }
   }
 }
@@ -1054,26 +1072,29 @@ async function promptListToggle(
 async function promptSubListToggle(
   enabledSet: Set<string>,
   lists: ListEntry[],
-  categoryLabel: string,
+  category: ListType,
   requireAtLeastOne: boolean,
   allLists: ListEntry[],
 ): Promise<void> {
   while (true) {
     const choices: Choice[] = lists.map((l) => ({
-      title: `[${enabledSet.has(l.filePath) ? 'X' : ' '}] ${l.ref.name}`,
+      title: t('cli.move.toggleItem', {
+        state: enabledSet.has(l.filePath) ? 'X' : ' ',
+        name: l.ref.name,
+      }),
       value: l.filePath,
     }))
 
     choices.push(
-      { title: '── Toggle All ON ──', value: '__ALL_ON__' },
-      { title: '── Toggle All OFF ──', value: '__ALL_OFF__' },
-      { title: '← Back', value: '__BACK__' },
+      { title: t('cli.move.toggleAllOn'), value: '__ALL_ON__' },
+      { title: t('cli.move.toggleAllOff'), value: '__ALL_OFF__' },
+      { title: t('cli.move.back'), value: '__BACK__' },
     )
 
     const response = await prompts({
       type: 'select',
       name: 'action',
-      message: `${categoryLabel}:`,
+      message: t('cli.move.categoryPrompt', { category: listTypeTitle(category) }),
       choices,
     })
 
@@ -1095,7 +1116,7 @@ async function promptSubListToggle(
           (p) => enabledSet.has(p) && !lists.some((l) => l.filePath === p),
         )
         if (otherEnabled.length === 0) {
-          console.log('At least one destination must remain enabled.')
+          console.log(t('cli.move.keepOneDestination'))
           continue
         }
       }
@@ -1116,7 +1137,7 @@ async function promptSubListToggle(
           (l) => enabledSet.has(l.filePath) && l.filePath !== targetPath,
         )
         if (remaining.length === 0) {
-          console.log('At least one destination must remain enabled.')
+          console.log(t('cli.move.keepOneDestination'))
           continue
         }
       }

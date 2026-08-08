@@ -1,4 +1,5 @@
 import { cardCache } from '../cache'
+import { compareData } from '../i18n/collate'
 import { apiError } from '../admin/api/save-helpers'
 import { getErrorMessage } from '../errors'
 import { matchesNameTerms, normalizeCardName, rankNameMatches, splitNameTerms } from '../term-match'
@@ -34,7 +35,7 @@ export async function handleAutocomplete(req: Request): Promise<Response> {
 
     // Alphabetical is the tiebreak the cache can offer (it holds no popularity
     // order), applied before the ranking so it only orders equally good matches.
-    matches.sort((a, b) => a.localeCompare(b))
+    matches.sort((a, b) => compareData(a, b))
     const names = rankNameMatches(matches, rawQuery, (name) => name).slice(0, MAX_SUGGESTIONS)
     return Response.json(namesResponse(names))
   } catch (error) {

@@ -1,5 +1,6 @@
 import type { RitualSkill } from './types'
 import { computeHash } from '../content-hash'
+import { t } from '../i18n/t'
 import { version } from '../version'
 import { overviewSkill } from './content/overview'
 import { decksSkill } from './content/decks'
@@ -121,8 +122,14 @@ export function selectSkills(names: readonly string[]): RitualSkill[] | string {
     else unknown.push(name)
   }
   if (unknown.length > 0) {
-    const available = SKILLS.map((skill) => skill.name).join(', ')
-    return `Unknown skill${unknown.length > 1 ? 's' : ''}: ${unknown.join(', ')}. Available: ${available}`
+    // The skill *content* is English by contract (plan §11), but this refusal is
+    // ordinary CLI prose, so it comes from the catalog. The names on both sides
+    // are identifiers and stay verbatim.
+    return t('errors.skills.unknown', {
+      count: unknown.length,
+      names: unknown.join(', '),
+      available: SKILLS.map((skill) => skill.name).join(', '),
+    })
   }
   return selected
 }

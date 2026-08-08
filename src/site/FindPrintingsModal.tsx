@@ -10,6 +10,7 @@ import {
   Show,
 } from 'solid-js'
 import { Modal } from '../ui/Modal'
+import { useT } from '../ui/i18n'
 import type { PriceCurrency } from '../price-currency'
 import { LIST_TYPE_DISPLAY } from '../list-type'
 import { CardItem } from './CardItem'
@@ -61,6 +62,7 @@ export interface FindPrintingsModalProps {
  * Rendered once at the app root and driven by {@link findPrintingsRequest}.
  */
 export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) => {
+  const t = useT()
   const [loaded, setLoaded] = createSignal<LoadedListDetail[] | null>(null)
   const [loading, setLoading] = createSignal(false)
 
@@ -140,7 +142,9 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
       onClose={closeFindPrintings}
       size="xl"
       panelClass="find-printings-modal"
-      aria-label={`Other copies of ${findPrintingsRequest()?.cardName ?? 'card'}`}
+      aria-label={t('site.findPrintings.aria', {
+        name: findPrintingsRequest()?.cardName ?? t('site.findPrintings.unknownCard'),
+      })}
       overlay={
         <TooltipOverlay
           tooltip={tooltip()}
@@ -152,13 +156,13 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
     >
       <div class="find-printings-header">
         <div class="find-printings-heading">
-          <span class="find-printings-title">Other Copies</span>
+          <span class="find-printings-title">{t('site.findPrintings.title')}</span>
           <span class="find-printings-card-name">{findPrintingsRequest()?.cardName}</span>
         </div>
         <button
           type="button"
           class="find-printings-close"
-          aria-label="Close"
+          aria-label={t('ui.dialog.close')}
           onClick={closeFindPrintings}
         >
           ×
@@ -167,9 +171,11 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
 
       <div class="find-printings-controls">
         <span class="find-printings-summary" role="status">
-          <Show when={!loading()} fallback={'Searching every list…'}>
-            {copyCount()} {copyCount() === 1 ? 'copy' : 'copies'} across {groups().length}{' '}
-            {groups().length === 1 ? 'list' : 'lists'}
+          <Show when={!loading()} fallback={t('site.findPrintings.searching')}>
+            {t('site.findPrintings.summary', {
+              count: copyCount(),
+              lists: t('ui.count.lists', { count: groups().length }),
+            })}
           </Show>
         </span>
         <div class="view-toggle">
@@ -178,14 +184,14 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
             classList={{ active: viewMode() === 'binder' }}
             onClick={() => setViewMode('binder')}
           >
-            Binder
+            {t('site.findPrintings.viewBinder')}
           </button>
           <button
             type="button"
             classList={{ active: viewMode() === 'list' }}
             onClick={() => setViewMode('list')}
           >
-            List
+            {t('site.findPrintings.viewList')}
           </button>
         </div>
       </div>
@@ -198,7 +204,7 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
           when={groups().length > 0}
           fallback={
             <Show when={!loading()}>
-              <div class="find-printings-empty">No copies found in any list.</div>
+              <div class="find-printings-empty">{t('site.findPrintings.empty')}</div>
             </Show>
           }
         >
@@ -211,7 +217,9 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
                   </span>
                   <span class="find-printings-group-name">
                     <Show when={group.isCurrent}>
-                      <span class="find-printings-group-current">Current List — </span>
+                      <span class="find-printings-group-current">
+                        {t('site.findPrintings.currentList')}{' '}
+                      </span>
                     </Show>
                     {group.name}
                   </span>

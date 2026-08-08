@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import {
+  inputRequiredError,
   isNoInput,
   promptsUnavailable,
   promptsUnavailableReason,
@@ -132,5 +133,45 @@ describe('requireInteractive', () => {
   test('passes on a TTY with input allowed', () => {
     setNoInputOverride(false)
     expect(() => requireInteractive('a card name or --card-id <id>')).not.toThrow()
+  })
+})
+
+/**
+ * The refusal frame is declarative — "Input required: <noun phrase> (<reason>)."
+ * — so the subject has to be a noun phrase from the catalog rather than the
+ * prompt's own question spliced in. Both spellings are exercised because the
+ * conversion of the ~15 prompt sites is incremental and the transitional one
+ * has to keep working meanwhile.
+ */
+describe('inputRequiredError', () => {
+  test('renders a subject key into the frame', () => {
+    setNoInputOverride(true)
+    const error = inputRequiredError('cli.prompt.subject.listType')
+    expect(error.message).toBe(
+      'Input required: the kind of list to import into (prompts are disabled by --no-input / RITUAL_NO_INPUT).',
+    )
+  })
+
+  test('renders a subject key that takes parameters', () => {
+    setNoInputOverride(true)
+    expect(
+      inputRequiredError('cli.prompt.subject.pass', { what: '--finish <foil|nonfoil>' }).message,
+    ).toBe(
+      'Input required: pass --finish <foil|nonfoil> (prompts are disabled by --no-input / RITUAL_NO_INPUT).',
+    )
+  })
+
+  test('splices a plain string verbatim, for a prompt not yet given a subject', () => {
+    setNoInputOverride(true)
+    expect(inputRequiredError('a printing to add').message).toBe(
+      'Input required: a printing to add (prompts are disabled by --no-input / RITUAL_NO_INPUT).',
+    )
+  })
+
+  test('carries the catalog key so the JSON envelope has a locale-invariant handle', () => {
+    setNoInputOverride(true)
+    const error = inputRequiredError('cli.prompt.subject.interactiveInput')
+    expect(error.messageKey).toBe('errors.input.required')
+    expect(error.messageParams?.subject).toBe('interactive input')
   })
 })

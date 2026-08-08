@@ -11,6 +11,7 @@
  */
 
 import { formatDuration } from '../../utils'
+import { t } from '../../i18n/t'
 
 /** How far a run has progressed; drives the button state and the result panel. */
 export type SyncRunPhase = 'idle' | 'running' | 'done' | 'error'
@@ -66,10 +67,10 @@ export function relativeTime(iso: string | null): string | null {
   if (Number.isNaN(time)) return null
   const elapsed = Date.now() - time
   // A clock skew (or a just-written timestamp) must not read as "in the future".
-  return `${formatDuration(Math.max(elapsed, 0))} ago`
+  return t('admin.sync.lastSyncedAgo', { duration: formatDuration(Math.max(elapsed, 0)) })
 }
 
 /** {@link relativeTime}, with the wording a never-synced row shows instead. */
 export function lastSyncedLabel(iso: string | null): string {
-  return relativeTime(iso) ?? 'never synced'
+  return relativeTime(iso) ?? t('admin.sync.neverSynced')
 }

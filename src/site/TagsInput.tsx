@@ -1,5 +1,6 @@
 import type { Component } from 'solid-js'
 import { createEffect, createMemo, createSignal, For, Show } from 'solid-js'
+import { useT } from '../ui/i18n'
 
 export type TagsInputScan = {
   /** Completed tags to commit (canonical internal form). */
@@ -39,6 +40,7 @@ export type TagsInputProps = {
  * highlighted — commits the typed text via the injected `parse`.
  */
 export const TagsInput: Component<TagsInputProps> = (props) => {
+  const t = useT()
   const [draft, setDraft] = createSignal('')
   const [focused, setFocused] = createSignal(false)
   const [activeIndex, setActiveIndex] = createSignal(-1)
@@ -120,7 +122,7 @@ export const TagsInput: Component<TagsInputProps> = (props) => {
             <button
               type="button"
               class="filter-tag-remove"
-              aria-label={`Remove ${props.format(value)}`}
+              aria-label={t('site.filter.removeTag', { value: props.format(value) })}
               onClick={() => props.onChange(props.selected.filter((v) => v !== value))}
             >
               ×

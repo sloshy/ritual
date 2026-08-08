@@ -8,6 +8,7 @@ import {
 } from '../cache/cadence'
 import { runCacheServer } from '../cache-server/server'
 import { type CacheServerCommandOptions } from '../cache-server/types'
+import { t } from '../i18n/t'
 import { ExitCode, parsePort } from './scripting'
 
 /** Wire `cache server` under the parent `cache` command. */
@@ -16,35 +17,27 @@ export function registerCacheServerSubcommand(cache: Command): void {
     addFeedUrlOption(
       cache
         .command('server')
-        .description('Start a local cache server for card and pricing data')
-        .option('-p, --port <number>', 'Port for the cache server', parsePort, 4000)
-        .option('--host <hostname>', 'Host interface for the cache server', '127.0.0.1')
+        .description(t('help.cacheServer.description'))
+        .option('-p, --port <number>', t('help.cacheServer.port'), parsePort, 4000)
+        .option('--host <hostname>', t('help.cacheServer.host'), '127.0.0.1')
         .option(
           '--cards-refresh <interval>',
-          "Run full cards cache refresh on an interval (supported: 'daily', 'weekly', 'monthly')",
+          t('help.cacheServer.cardsRefresh'),
           parseRefreshCadence,
         )
         .option(
           '--prices-refresh <interval>',
-          "Run prices cache refresh on an interval (supported: 'daily', 'weekly', 'monthly')",
+          t('help.cacheServer.pricesRefresh'),
           parseRefreshCadence,
         )
-        .option(
-          '--cache-source <source>',
-          "Where card refreshes download from: 'scryfall' or 'feed' (defaults to the cacheSource config key)",
-          parseCacheSourceFlag,
-        ),
-      'Cache feed URL for feed-sourced refreshes (defaults to the cacheFeedUrl config key)',
+        .option('--cache-source <source>', t('help.cacheServer.cacheSource'), parseCacheSourceFlag),
+      t('help.cacheServer.feedUrl'),
     ),
-    'Fixed TCP port for incoming torrent peers while seeding feed artifacts',
+    t('help.cacheServer.torrentPort'),
   )
-    .option('--no-seed', 'With a feed source, sync without seeding the artifacts back to the swarm')
-    .option('-v, --verbose', 'Log every cache-server request', false)
-    .option(
-      '--deny-http',
-      'Reject all outgoing HTTP requests (for testing with pre-populated caches)',
-      false,
-    )
+    .option('--no-seed', t('help.cacheServer.noSeed'))
+    .option('-v, --verbose', t('help.cacheServer.verbose'), false)
+    .option('--deny-http', t('help.cacheServer.denyHttp'), false)
     .action(async (options: CacheServerCommandOptions) => {
       const conflict = feedUrlSourceConflict(options.cacheSource, options.url)
       if (conflict !== undefined) {

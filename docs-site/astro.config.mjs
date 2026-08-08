@@ -12,6 +12,11 @@ export default defineConfig({
       favicon: '/app.svg',
       logo: { src: './src/assets/app.svg', alt: 'Ritual flame logo' },
       customCss: ['./src/styles/custom.css'],
+      // Root-only: these docs are English and are not localized (localizing
+      // Ritual's *UI* is a separate thing — see src/content/docs/localization.md).
+      // Declaring the root locale explicitly costs nothing and is what a future
+      // translated docs tree would extend.
+      locales: { root: { label: 'English', lang: 'en' } },
       social: [
         {
           icon: 'github',
@@ -28,6 +33,7 @@ export default defineConfig({
       sidebar: [
         { label: 'Getting Started', link: '/' },
         { slug: 'configuration' },
+        { slug: 'localization' },
         { slug: 'docker' },
         {
           label: 'Commands',
@@ -100,6 +106,7 @@ export default defineConfig({
                 'commands/detect-changes',
                 'commands/list-all-cards',
                 'commands/config',
+                'commands/locale',
               ],
             },
             {

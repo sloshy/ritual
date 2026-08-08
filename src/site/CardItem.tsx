@@ -8,12 +8,10 @@ import { ManaCost } from './symbols'
 import type { PriceCurrency } from '../price-currency'
 import { DEFAULT_CURRENCY, getCardPrice, formatPrice, formatPriceOrNA } from '../price-currency'
 import { BUYLIST_CURRENCY, type ViewMode } from './card-sorting'
-
-/** Tooltip on every buylist figure; the currency is the buyer's, not the page's. */
-const BUYLIST_PRICE_TITLE = 'Buylist offer per copy (USD)'
 import type { SelectionState } from './useCardSelection'
 import { selectionModeActive } from './selection-mode'
-import { capitalize } from './utils'
+import { finishName } from './printing-display'
+import { useT } from '../ui/i18n'
 
 type ButtonMouseEvent = MouseEvent & { currentTarget: HTMLButtonElement }
 
@@ -112,6 +110,7 @@ type SelectCheckboxProps = {
 }
 
 const SelectCheckbox: Component<SelectCheckboxProps> = (props) => {
+  const t = useT()
   const selected = () => props.state === 'all'
   const partial = () => props.state === 'partial'
   return (
@@ -120,7 +119,7 @@ const SelectCheckbox: Component<SelectCheckboxProps> = (props) => {
       class={`card-select-checkbox card-select-checkbox--${props.variant}`}
       classList={{ selected: selected(), partial: partial() }}
       aria-pressed={selected() ? true : partial() ? 'mixed' : false}
-      aria-label={props.state === 'all' ? 'Deselect card' : 'Select card'}
+      aria-label={props.state === 'all' ? t('site.card.deselect') : t('site.card.select')}
       onClick={(e) => {
         e.stopPropagation()
         props.onToggle?.()
@@ -146,22 +145,25 @@ type CardFaceProps = {
   alt: string
 }
 
-const CardFace: Component<CardFaceProps> = (props) => (
-  <Show
-    when={props.backImage}
-    fallback={<img src={props.frontImage} alt={props.alt} loading="lazy" />}
-  >
-    <div class="card-flip" classList={{ flipped: props.flipped }}>
-      <img class="card-flip-front" src={props.frontImage} alt={props.alt} loading="lazy" />
-      <img
-        class="card-flip-back"
-        src={props.backImage}
-        alt={`${props.alt} (back)`}
-        loading="lazy"
-      />
-    </div>
-  </Show>
-)
+const CardFace: Component<CardFaceProps> = (props) => {
+  const t = useT()
+  return (
+    <Show
+      when={props.backImage}
+      fallback={<img src={props.frontImage} alt={props.alt} loading="lazy" />}
+    >
+      <div class="card-flip" classList={{ flipped: props.flipped }}>
+        <img class="card-flip-front" src={props.frontImage} alt={props.alt} loading="lazy" />
+        <img
+          class="card-flip-back"
+          src={props.backImage}
+          alt={t('site.card.backFaceAlt', { name: props.alt })}
+          loading="lazy"
+        />
+      </div>
+    </Show>
+  )
+}
 
 /**
  * Translucent "flip" button shown on hover over a double-faced card in the
@@ -173,20 +175,25 @@ type FlipButtonProps = {
   onFlip: () => void
 }
 
-const FlipButton: Component<FlipButtonProps> = (props) => (
-  <button
-    type="button"
-    class="card-flip-btn"
-    classList={{ flipped: props.flipped }}
-    onClick={stopPropAnd(props.onFlip)}
-    title={props.flipped ? 'Show front face' : 'Show back face'}
-    aria-label={props.flipped ? 'Show front face' : 'Show back face'}
-  >
-    ⇄
-  </button>
-)
+const FlipButton: Component<FlipButtonProps> = (props) => {
+  const t = useT()
+  const label = () => (props.flipped ? t('site.card.showFront') : t('site.card.showBack'))
+  return (
+    <button
+      type="button"
+      class="card-flip-btn"
+      classList={{ flipped: props.flipped }}
+      onClick={stopPropAnd(props.onFlip)}
+      title={label()}
+      aria-label={label()}
+    >
+      ⇄
+    </button>
+  )
+}
 
 export const CardItem: Component<CardItemProps> = (props) => {
+  const t = useT()
   const [flipped, setFlipped] = createSignal(false)
   const toggleFlip = () => setFlipped((f) => !f)
   // Reset to the front face whenever this tile is reused for a different card
@@ -276,7 +283,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                   card().finishes[0] !== 'nonfoil'
                 ? card().finishes[0]
                 : null
-          return rawFinish ? capitalize(rawFinish) : null
+          return rawFinish ? finishName(t, rawFinish) : null
         }
 
         // Uppercased for display, like set codes; null when the entry is English.
@@ -314,7 +321,8 @@ export const CardItem: Component<CardItemProps> = (props) => {
         const showBuylist = () => buylistPrice() > 0
         // One source for both view modes: the label had to be corrected twice
         // the last time its wording changed.
-        const buylistLabel = () => `Buy ${formatPrice(buylistPrice(), BUYLIST_CURRENCY)}`
+        const buylistLabel = () =>
+          t('site.card.buylistOffer', { price: formatPrice(buylistPrice(), BUYLIST_CURRENCY) })
 
         // Buylist quotes are always the buyer's own currency (USD cash), never
         // the page's display currency, so this is formatted with BUYLIST_CURRENCY
@@ -327,7 +335,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                 <span class="card-label-price">{formatPrice(displayPrice(), currency())}</span>
               </Show>
               <Show when={showBuylist()}>
-                <span class="card-label-buylist" title={BUYLIST_PRICE_TITLE}>
+                <span class="card-label-buylist" title={t('site.card.buylistTitle')}>
                   {buylistLabel()}
                 </span>
               </Show>
@@ -394,14 +402,14 @@ export const CardItem: Component<CardItemProps> = (props) => {
                       <button
                         class="edit-btn edit-btn-increment"
                         onClick={stopPropAnd(props.onIncrement)}
-                        title="Add copy"
+                        title={t('site.card.addCopy')}
                       >
                         +
                       </button>
                       <button
                         class="edit-btn edit-btn-decrement"
                         onClick={stopPropAnd(props.onDecrement)}
-                        title="Remove copy"
+                        title={t('site.card.removeCopy')}
                       >
                         −
                       </button>
@@ -410,7 +418,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                       <button
                         class="edit-btn edit-btn-context"
                         onClick={(e) => stopPropAndRect(props.onContextMenu)(e)}
-                        title="More options"
+                        title={t('site.card.moreOptions')}
                       >
                         ⋯
                       </button>
@@ -422,8 +430,8 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     <button
                       class="edit-btn edit-btn-move"
                       onClick={stopPropAndRect(props.onMove)}
-                      title="Move To…"
-                      aria-label="Move To…"
+                      title={t('site.card.moveTo')}
+                      aria-label={t('site.card.moveTo')}
                     >
                       →
                     </button>
@@ -435,9 +443,11 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     onClick={stopPropAnd(props.onAddToTrade)}
                     disabled={props.addToTradeDisabled}
                     title={
-                      props.addToTradeDisabled ? 'Already at maximum quantity' : 'Add to trade'
+                      props.addToTradeDisabled
+                        ? t('site.card.atMaxQuantity')
+                        : t('site.card.addToTrade')
                     }
-                    aria-label="Add to trade"
+                    aria-label={t('site.card.addToTrade')}
                   >
                     +
                   </button>
@@ -492,14 +502,14 @@ export const CardItem: Component<CardItemProps> = (props) => {
                       <button
                         class="edit-btn-list"
                         onClick={stopPropAnd(props.onIncrement)}
-                        title="Add copy"
+                        title={t('site.card.addCopy')}
                       >
                         +
                       </button>
                       <button
                         class="edit-btn-list"
                         onClick={stopPropAnd(props.onDecrement)}
-                        title="Remove copy"
+                        title={t('site.card.removeCopy')}
                       >
                         −
                       </button>
@@ -508,7 +518,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                       <button
                         class="edit-btn-list"
                         onClick={(e) => stopPropAndRect(props.onContextMenu)(e)}
-                        title="More options"
+                        title={t('site.card.moreOptions')}
                       >
                         ⋯
                       </button>
@@ -520,8 +530,8 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     <button
                       class="edit-btn-list edit-btn-move"
                       onClick={stopPropAndRect(props.onMove)}
-                      title="Move To…"
-                      aria-label="Move To…"
+                      title={t('site.card.moveTo')}
+                      aria-label={t('site.card.moveTo')}
                     >
                       →
                     </button>
@@ -533,15 +543,17 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     onClick={stopPropAnd(props.onAddToTrade)}
                     disabled={props.addToTradeDisabled}
                     title={
-                      props.addToTradeDisabled ? 'Already at maximum quantity' : 'Add to trade'
+                      props.addToTradeDisabled
+                        ? t('site.card.atMaxQuantity')
+                        : t('site.card.addToTrade')
                     }
                   >
-                    + Trade
+                    {t('site.card.tradeButton')}
                   </button>
                 </Show>
                 <span class="list-price">{formatPriceOrNA(displayPrice(), currency())}</span>
                 <Show when={showBuylist()}>
-                  <span class="list-buylist-price" title={BUYLIST_PRICE_TITLE}>
+                  <span class="list-buylist-price" title={t('site.card.buylistTitle')}>
                     {buylistLabel()}
                   </span>
                 </Show>
@@ -578,14 +590,14 @@ export const CardItem: Component<CardItemProps> = (props) => {
                       <button
                         class="edit-btn edit-btn-increment"
                         onClick={stopPropAnd(props.onIncrement)}
-                        title="Add copy"
+                        title={t('site.card.addCopy')}
                       >
                         +
                       </button>
                       <button
                         class="edit-btn edit-btn-decrement"
                         onClick={stopPropAnd(props.onDecrement)}
-                        title="Remove copy"
+                        title={t('site.card.removeCopy')}
                       >
                         −
                       </button>
@@ -594,7 +606,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                       <button
                         class="edit-btn edit-btn-context"
                         onClick={(e) => stopPropAndRect(props.onContextMenu)(e)}
-                        title="More options"
+                        title={t('site.card.moreOptions')}
                       >
                         ⋯
                       </button>
@@ -606,8 +618,8 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     <button
                       class="edit-btn edit-btn-move"
                       onClick={stopPropAndRect(props.onMove)}
-                      title="Move To…"
-                      aria-label="Move To…"
+                      title={t('site.card.moveTo')}
+                      aria-label={t('site.card.moveTo')}
                     >
                       →
                     </button>
@@ -619,9 +631,11 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     onClick={stopPropAnd(props.onAddToTrade)}
                     disabled={props.addToTradeDisabled}
                     title={
-                      props.addToTradeDisabled ? 'Already at maximum quantity' : 'Add to trade'
+                      props.addToTradeDisabled
+                        ? t('site.card.atMaxQuantity')
+                        : t('site.card.addToTrade')
                     }
-                    aria-label="Add to trade"
+                    aria-label={t('site.card.addToTrade')}
                   >
                     +
                   </button>

@@ -20,7 +20,7 @@ test.describe('View Changes', () => {
     await expect(modal.locator('.changelog-timestamp')).toBeVisible()
 
     // The change-text formatting itself is unit-tested exhaustively in
-    // test/unit/site/changelog-format.test.ts; here we only pin that the modal
+    // test/unit/change-message.test.ts; here we only pin that the modal
     // wires the formatted text and the additive/destructive styling into the DOM.
     const added = modal.locator('.changelog-change-item', {
       hasText: 'Added Maybe Card to Maybeboard',

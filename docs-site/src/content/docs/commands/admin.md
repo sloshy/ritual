@@ -233,6 +233,7 @@ Configure admin settings including:
 - **Collections Directory**: path to the collections folder (default: `./collections`)
 - **Default Price Currency**: the currency price-touching surfaces default to (default: `usd`; see [Configuration](/configuration/#default-currency))
 - **Default Language**: the Scryfall language code stamped on newly added cards; a non-English value switches cache downloads to the much larger `all_cards` bulk (default: `en`; see [Configuration](/configuration/#default-language))
+- **Interface Language**: the language the admin and CLI **speak** — a BCP-47 tag, listing every locale this build ships, each named in its own language (default: `en`; see [Configuration](/configuration/#interface-language)). Deliberately placed below Default Language and worded against it: **this is not the card language**. Saving it relabels the admin immediately, with no rebuild; the public site picks it up on its next [build-site](/commands/build-site/#localized-builds). The header also carries a language switcher that changes the language for this browser only, without touching the config — see [Localization](/localization/#admin-site)
 - **Cache Lock Timeout**: seconds a cache refresh waits for another process's cache-write lock before failing (default: `300`; see [Configuration](/configuration/#cache-lock-timeout))
 - **Cache Source**: where cache refreshes download from — Scryfall directly or a peer-to-peer cache feed (default: `scryfall`; see [Configuration](/configuration/#cache-source))
 - **Cache Feed URL**: the feed URL used when the cache source is the feed (empty = the built-in default)
@@ -258,6 +259,7 @@ Settings are stored in `ritual.config.json` in the base directory. The file is s
   "wantedDir": "./wanted",
   "defaultCurrency": "usd",
   "defaultLanguage": "en",
+  "uiLocale": "en",
   "cacheLockTimeoutSeconds": 300,
   "cacheSource": "scryfall",
   "searchDebounceMs": 500,
@@ -833,6 +835,7 @@ Returns the current application configuration.
     "wantedDir": "./wanted",
     "defaultCurrency": "usd",
     "defaultLanguage": "en",
+    "uiLocale": "en",
     "cacheLockTimeoutSeconds": 300,
     "cacheSource": "scryfall",
     "searchDebounceMs": 500,
@@ -872,7 +875,7 @@ Every key in the request body is validated **before** the merge is persisted —
 
 `collectionSync` replaces wholesale like `site` rather than merging like `admin`: its fields are validated (`pullTarget` must be a non-empty list name) and any absent field takes its default, so a partial object round-trips to a complete one and a malformed value rejects the whole update with a `400`.
 
-`defaultCurrency`, `defaultLanguage` (canonical Scryfall codes only — no aliases on the API), `cacheLockTimeoutSeconds`, `cacheSource`, `cacheFeedUrl`, and `searchDebounceMs` are validated the same way as [`config set`](/commands/config/) and rejected with a `400` when malformed. `cacheFeedUrl` has one extra rule: sending it as an **empty string** explicitly clears a previously-set override (falling back to the built-in default) — omitting the field entirely, by contrast, leaves the current value untouched.
+`defaultCurrency`, `defaultLanguage` (canonical Scryfall codes only — no aliases on the API), `uiLocale` (a BCP-47 tag naming the interface language — not the card language; see [Localization](/localization/)), `cacheLockTimeoutSeconds`, `cacheSource`, `cacheFeedUrl`, and `searchDebounceMs` are validated the same way as [`config set`](/commands/config/) and rejected with a `400` when malformed. `cacheFeedUrl` has one extra rule: sending it as an **empty string** explicitly clears a previously-set override (falling back to the built-in default) — omitting the field entirely, by contrast, leaves the current value untouched.
 
 **Request body:**
 
@@ -896,6 +899,7 @@ Every key in the request body is validated **before** the merge is persisted —
     "wantedDir": "./wanted",
     "defaultCurrency": "usd",
     "defaultLanguage": "en",
+    "uiLocale": "en",
     "cacheLockTimeoutSeconds": 300,
     "cacheSource": "scryfall",
     "searchDebounceMs": 500,

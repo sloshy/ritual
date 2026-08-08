@@ -11,6 +11,7 @@ import {
 } from '../importers/url-dispatch'
 import type { DeckData } from '../types'
 import { formatResolveListError, isResolveListError, resolveList } from '../resolve-list'
+import { t } from '../i18n/t'
 
 type GetPrimerOptions = {
   moxfieldUserAgent?: string
@@ -19,15 +20,9 @@ type GetPrimerOptions = {
 export function registerGetPrimerCommand(program: Command): void {
   program
     .command('get-primer')
-    .description('Extract and output the primer for a deck as Markdown')
-    .argument(
-      '<source>',
-      'Local deck name (e.g. winota-snowball-stax) or Moxfield URL to fetch from',
-    )
-    .option(
-      '--moxfield-user-agent <agent>',
-      'Moxfield-approved unique User-Agent string (required for Moxfield URL sources unless MOXFIELD_USER_AGENT is set)',
-    )
+    .description(t('help.getPrimer.description'))
+    .argument('<source>', t('help.getPrimer.source'))
+    .option('--moxfield-user-agent <agent>', t('help.getPrimer.moxfieldUserAgent'))
     .action(async (source: string, options: GetPrimerOptions) => {
       const logger = getLogger()
 
@@ -37,9 +32,7 @@ export function registerGetPrimerCommand(program: Command): void {
         const deckId = urlMatch.deckId
         const userAgent = resolveMoxfieldUserAgent(options.moxfieldUserAgent)
         if (!userAgent) {
-          logger.error(
-            'Error: Moxfield URL sources require a unique Moxfield-approved user agent string. Set MOXFIELD_USER_AGENT or pass --moxfield-user-agent <agent>.',
-          )
+          logger.error(t('cli.getPrimer.userAgentRequired'))
           process.exitCode = ExitCode.UsageError
           return
         }
@@ -51,7 +44,7 @@ export function registerGetPrimerCommand(program: Command): void {
           const rawText = primer?.content ?? deck.primer ?? deck.description
           if (!rawText) {
             // An absent primer is a missing resource, not a runtime failure.
-            logger.error('No primer found for this deck.')
+            logger.error(t('cli.getPrimer.noPrimerFetched'))
             process.exitCode = ExitCode.NotFound
             return
           }
@@ -76,7 +69,7 @@ export function registerGetPrimerCommand(program: Command): void {
         // A deck file that vanished between resolution and read is a not-found;
         // a permission/IO failure stays a runtime error.
         const { exitCode } = classifyFileReadError(e)
-        logger.error(`Failed to read deck file '${resolved.filePath}':`, e)
+        logger.error(t('cli.getPrimer.readFailed', { file: resolved.filePath }), e)
         process.exitCode = exitCode
         return
       }
@@ -85,7 +78,7 @@ export function registerGetPrimerCommand(program: Command): void {
       if (!primerText) {
         // The primer lives in a `.primer.md` sidecar, not in the deck's
         // frontmatter — an absent one is a missing resource (exit 3).
-        logger.error(`Deck '${deckData.name}' has no primer (.primer.md sidecar).`)
+        logger.error(t('cli.getPrimer.noPrimer', { name: deckData.name }))
         process.exitCode = ExitCode.NotFound
         return
       }

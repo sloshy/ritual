@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+import { compareData, compareDataNumeric } from '../i18n/collate'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from '../base-dir'
@@ -7,7 +8,8 @@ import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
 import { listDeckFiles, loadDeckFile } from '../importers/text-file'
 import { parseCollectionFile } from '../collection-file'
 import { parseWantedListFile } from './wanted-helpers'
-import { CardCommandError, getErrorMessage, hasErrorCode } from '../errors'
+import { getErrorMessage, hasErrorCode, localizedCommandError } from '../errors'
+import { t } from '../i18n/t'
 import { runCommandAction } from './card-target'
 import {
   addScriptingOptions,
@@ -61,11 +63,11 @@ function entryKey(entry: UniqueCardEntry): string {
 }
 
 function compareEntries(a: UniqueCardEntry, b: UniqueCardEntry): number {
-  const nameCmp = a.name.toLowerCase().localeCompare(b.name.toLowerCase(), 'en')
+  const nameCmp = compareData(a.name.toLowerCase(), b.name.toLowerCase())
   if (nameCmp !== 0) return nameCmp
-  const setCmp = (a.set ?? '').localeCompare(b.set ?? '', 'en')
+  const setCmp = compareData(a.set ?? '', b.set ?? '')
   if (setCmp !== 0) return setCmp
-  return (a.collectorNumber ?? '').localeCompare(b.collectorNumber ?? '', 'en', { numeric: true })
+  return compareDataNumeric(a.collectorNumber ?? '', b.collectorNumber ?? '')
 }
 
 function relativeToBase(filePath: string): string {
@@ -166,6 +168,8 @@ export async function collectAllCards(): Promise<CollectAllCardsResult> {
 }
 
 export function formatAllCardsFile(entries: UniqueCardEntry[]): string {
+  // i18n-exempt: the manifest is a data file (a deterministic CI cache key),
+  // not display text — its heading is part of the format.
   const lines: string[] = ['# All cards', '']
   for (const entry of entries) {
     lines.push(`- ${entry.name}${printingSuffix(entry.set, entry.collectorNumber)}`)
@@ -203,10 +207,10 @@ async function runListAllCards(
   const { entries, skipped, warnings } = await collectAllCards()
 
   for (const warning of warnings) {
-    console.warn(`warning: ${warning}`)
+    console.warn(t('cli.listAllCards.warning', { warning }))
   }
   for (const skip of skipped) {
-    console.warn(`warning: skipped ${skip.file}: ${skip.reason}`)
+    console.warn(t('cli.listAllCards.skipped', { file: skip.file, reason: skip.reason }))
   }
   if (skipped.length > 0) {
     // The manifest is still emitted, but it is incomplete — surface that to CI.
@@ -217,7 +221,7 @@ async function runListAllCards(
   const outPath = resolveOutPath(out)
   // No stdout-mode confirmation: stdout is the data channel.
   const confirm: OutputConfirmation = {
-    file: (target) => `Wrote ${entries.length} cards to ${target}`,
+    file: (target) => t('cli.listAllCards.wrote', { count: entries.length, target }),
   }
   if (outPath === undefined) {
     await emitToFileOrStdout(rendered, { quiet: scripting.quiet, confirm })
@@ -227,10 +231,11 @@ async function runListAllCards(
   try {
     await emitToFileOrStdout(rendered, { outPath, quiet: scripting.quiet, confirm })
   } catch (err) {
-    throw new CardCommandError(
+    throw localizedCommandError(
       'runtime_error',
-      `Failed to write ${outPath}: ${getErrorMessage(err)}`,
       ExitCode.RuntimeError,
+      'cli.listAllCards.writeFailed',
+      { file: outPath, reason: getErrorMessage(err) },
     )
   }
 }
@@ -239,13 +244,8 @@ export function registerListAllCardsCommand(program: Command): void {
   addScriptingOptions(
     program
       .command('list-all-cards')
-      .description(
-        'Print a manifest of every unique card across decks, collections, and wanted lists. Useful as a deterministic cache key for CI builds.',
-      )
-      .option(
-        '--out <file>',
-        "Write the manifest to this file (relative to base dir) instead of stdout; '-' means stdout",
-      ),
+      .description(t('help.listAllCards.description'))
+      .option('--out <file>', t('help.listAllCards.out')),
   ).action(async (options: ListAllCardsOptions) => {
     const scripting = normalizeScriptingOptions(options)
     await runCommandAction(scripting, () => runListAllCards(options.out, scripting))

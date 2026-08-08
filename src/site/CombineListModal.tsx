@@ -1,12 +1,14 @@
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, on, For, Show } from 'solid-js'
 import { Modal } from '../ui/Modal'
+import { compareDisplay } from '../i18n/collate'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { formatPriceWithMissing } from '../price-currency'
-import { pluralizeCards } from '../deck-format'
 import { getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
-import { LIST_TYPE_DISPLAY, type ListType } from '../list-type'
+import { LIST_TYPE_DISPLAY, listTypeTitle, type ListType } from '../list-type'
+import type { MessageKey } from '../i18n/messages/en'
+import { useI18n } from '../ui/i18n'
 import type { CombinedSelection, CombinedListRef, NamedListRef } from './combined-list'
 
 /** A single selectable list in the modal, flattened from the per-type summaries. */
@@ -18,13 +20,19 @@ interface ListChoice {
 }
 
 type CombineSort = 'name' | 'count' | 'type'
-type SortOption = { value: CombineSort; label: string }
 
-const SORT_OPTIONS: SortOption[] = [
-  { value: 'name', label: 'Name' },
-  { value: 'count', label: 'Card Count' },
-  { value: 'type', label: 'Type' },
-]
+/**
+ * A sort choice. `label` is a {@link MessageKey}, not rendered text: this table
+ * is evaluated once at module load, so a string here would freeze the dropdown
+ * in the boot-time language after a locale switch.
+ */
+type SortOption = { value: CombineSort; label: MessageKey }
+
+const SORT_OPTIONS = [
+  { value: 'name', label: 'site.combine.sortName' },
+  { value: 'count', label: 'site.combine.sortCount' },
+  { value: 'type', label: 'site.combine.sortType' },
+] as const satisfies readonly SortOption[]
 
 const TYPE_ORDER: Record<ListType, number> = { deck: 0, collection: 1, wanted: 2 }
 
@@ -43,6 +51,7 @@ interface CombineListModalProps {
 }
 
 export const CombineListModal: Component<CombineListModalProps> = (props) => {
+  const { t, tSegments } = useI18n()
   const [selected, setSelected] = createSignal<Set<string>>(new Set<string>())
   const [all, setAll] = createSignal(false)
   const [sort, setSort] = createSignal<CombineSort>('name')
@@ -88,13 +97,13 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
     const list = [...choices()]
     const s = sort()
     list.sort((a, b) => {
-      if (s === 'count') return b.cardCount - a.cardCount || a.ref.name.localeCompare(b.ref.name)
+      if (s === 'count') return b.cardCount - a.cardCount || compareDisplay(a.ref.name, b.ref.name)
       if (s === 'type') {
         return (
-          TYPE_ORDER[a.ref.type] - TYPE_ORDER[b.ref.type] || a.ref.name.localeCompare(b.ref.name)
+          TYPE_ORDER[a.ref.type] - TYPE_ORDER[b.ref.type] || compareDisplay(a.ref.name, b.ref.name)
         )
       }
-      return a.ref.name.localeCompare(b.ref.name)
+      return compareDisplay(a.ref.name, b.ref.name)
     })
     return list
   })
@@ -135,16 +144,22 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
       open={props.open}
       onClose={props.onClose}
       size="lg"
-      aria-label="Combine with list"
+      aria-label={t('site.combine.title')}
       panelClass="combine-modal"
     >
       <div class="combine-modal-header">
         <div>
-          <h2 class="combine-modal-title">Combine with list</h2>
+          <h2 class="combine-modal-title">{t('site.combine.title')}</h2>
           <Show when={props.current}>
             {(cur) => (
               <p class="combine-modal-subtitle">
-                Combining with <strong>{cur().name}</strong>
+                {/* Segments, not a split sentence: the list name is emphasized
+                    wherever the translator places it. */}
+                <For each={tSegments('site.combine.combiningWith', { name: cur().name })}>
+                  {(segment) =>
+                    segment.kind === 'param' ? <strong>{segment.value}</strong> : segment.value
+                  }
+                </For>
               </p>
             )}
           </Show>
@@ -152,7 +167,7 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
         <button
           type="button"
           class="combine-modal-close"
-          aria-label="Close"
+          aria-label={t('ui.dialog.close')}
           onClick={props.onClose}
         >
           ×
@@ -166,16 +181,18 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
             checked={all()}
             onChange={(e) => setAll(e.currentTarget.checked)}
           />
-          <span>All lists</span>
+          <span>{t('site.combine.allLists')}</span>
         </label>
         <div class="combine-modal-sort">
-          <label class="toolbar-label">Sort:</label>
+          <label class="toolbar-label">{t('site.combine.sortLabel')}</label>
           <select
             class="toolbar-select"
             value={sort()}
             onChange={(e) => setSort(e.currentTarget.value as CombineSort)}
           >
-            <For each={SORT_OPTIONS}>{(opt) => <option value={opt.value}>{opt.label}</option>}</For>
+            <For each={SORT_OPTIONS}>
+              {(opt) => <option value={opt.value}>{t(opt.label)}</option>}
+            </For>
           </select>
         </div>
       </div>
@@ -183,7 +200,7 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
       <div class="combine-modal-list">
         <Show
           when={sortedChoices().length > 0}
-          fallback={<div class="combine-modal-empty">No other lists to combine with.</div>}
+          fallback={<div class="combine-modal-empty">{t('site.combine.empty')}</div>}
         >
           <For each={sortedChoices()}>
             {(choice) => (
@@ -197,9 +214,11 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
                 <span class="combine-modal-row-name">{choice.ref.name}</span>
                 <span class="combine-modal-row-type">
                   <span aria-hidden="true">{LIST_TYPE_DISPLAY[choice.ref.type].icon}</span>{' '}
-                  {LIST_TYPE_DISPLAY[choice.ref.type].label}
+                  {listTypeTitle(choice.ref.type)}
                 </span>
-                <span class="combine-modal-row-count">{pluralizeCards(choice.cardCount)}</span>
+                <span class="combine-modal-row-count">
+                  {t('domain.count.cards', { count: choice.cardCount })}
+                </span>
                 <span class="combine-modal-row-price">
                   {formatPriceWithMissing(choice.total, props.currency, choice.missing)}
                 </span>
@@ -212,11 +231,11 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
       <div class="combine-modal-footer">
         <span class="combine-modal-footer-info">
           {all()
-            ? 'All lists selected'
-            : `${selectedCount()} list${selectedCount() === 1 ? '' : 's'} selected`}
+            ? t('site.combine.allSelected')
+            : t('site.combine.selected', { count: selectedCount() })}
         </span>
         <button type="button" class="btn btn-export" disabled={!canView()} onClick={view}>
-          View
+          {t('site.combine.view')}
         </button>
       </div>
     </Modal>

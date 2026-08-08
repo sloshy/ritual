@@ -13,6 +13,7 @@ import {
 } from 'solid-js'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from '../../../list-type'
+import { useT, useTKey, useTSegments } from '../../../ui/i18n'
 import { DECK_FORMAT_KEYS, getDeckFormatLabel } from '../../../deck-format'
 import {
   CSV_FIELDS,
@@ -32,6 +33,7 @@ import {
 import type { ImportCsvResponse } from '../../api/import-csv'
 import type { ApiErrorResponse } from '../../api/save-helpers'
 import { PageHeading } from '../components/PageHeading'
+import type { ParameterlessKey } from '../../../i18n/t'
 
 type SourceMethod = 'upload' | 'text'
 
@@ -42,11 +44,12 @@ type SourceMethod = 'upload' | 'text'
  */
 type ImportCsvResult = ImportCsvResponse | ApiErrorResponse
 
-type MethodOption = { id: SourceMethod; label: string }
+/** One tab of the source picker; `labelKey` is a {@link MessageKey}, resolved at render time. */
+type MethodOption = { id: SourceMethod; labelKey: ParameterlessKey }
 
 const METHODS: MethodOption[] = [
-  { id: 'upload', label: 'Upload File' },
-  { id: 'text', label: 'Paste Text' },
+  { id: 'upload', labelKey: 'admin.import.upload' },
+  { id: 'text', labelKey: 'admin.import.pasteText' },
 ]
 
 type ImportMode = 'create' | 'append'
@@ -100,6 +103,9 @@ async function fetchLists(listType: ListType): Promise<ListSummary[]> {
 }
 
 export function ImportCsv(): JSX.Element {
+  const t = useT()
+  const tKey = useTKey()
+  const tSegments = useTSegments()
   const [method, setMethod] = createSignal<SourceMethod>('upload')
   const [fileName, setFileName] = createSignal('')
   const [fileContent, setFileContent] = createSignal('')
@@ -200,7 +206,7 @@ export function ImportCsv(): JSX.Element {
   const mappingProblem = createMemo((): string | null => {
     if (rows().length === 0) return null
     const partial = mapping()
-    if (partial.name === undefined) return 'Choose which column holds the card name'
+    if (partial.name === undefined) return t('admin.importCsv.chooseNameColumn')
     return validateMapping(partial as ColumnMapping, listType())
   })
 
@@ -228,8 +234,10 @@ export function ImportCsv(): JSX.Element {
     Array.from({ length: columnCount() }, (_, index) => {
       const header = headerCells()?.[index]
       const sample = sampleCells()[index]
-      let label = header ? `Column ${index + 1}: ${header}` : `Column ${index + 1}`
-      if (sample) label += ` (e.g. ${sample})`
+      const base = header
+        ? t('admin.importCsv.columnWithHeader', { index: index + 1, header })
+        : t('admin.importCsv.column', { index: index + 1 })
+      const label = sample ? t('admin.importCsv.columnSample', { label: base, sample }) : base
       return { value: String(index), label }
     }),
   )
@@ -265,7 +273,7 @@ export function ImportCsv(): JSX.Element {
       const data = (await resp.json()) as ImportCsvResult
       if (!resp.ok) {
         setFailures([])
-        setError(data.message || 'Failed to import CSV')
+        setError(data.message || t('admin.importCsv.failed'))
         return
       }
       const imported = data as ImportCsvResponse
@@ -276,7 +284,7 @@ export function ImportCsv(): JSX.Element {
       if (imported.cardCount === 0 && imported.failedCount > 0) setError(imported.message)
       else setStatus(imported.message)
     } catch {
-      setError('Failed to import CSV')
+      setError(t('admin.importCsv.failed'))
     } finally {
       setLoading(false)
     }
@@ -288,12 +296,28 @@ export function ImportCsv(): JSX.Element {
       <StatusAlerts status={status()} error={error()} />
       <Show when={failures().length > 0}>
         <div class="alert alert-error csv-failures">
-          <p>{failures().length} row(s) could not be imported:</p>
+          <p>{t('admin.importCsv.failuresLead', { count: failures().length })}</p>
           <ul>
             <For each={failures()}>
+              {/* The offending row sits mid-sentence and renders as code, so
+                  the message is drawn as segments. */}
               {(failure) => (
                 <li>
-                  Line {failure.lineNumber}: <code>{failure.raw}</code> — {failure.reason}
+                  <For
+                    each={tSegments('admin.importCsv.failureRow', {
+                      line: failure.lineNumber,
+                      raw: failure.raw,
+                      reason: failure.reason,
+                    })}
+                  >
+                    {(segment) =>
+                      segment.kind === 'param' && segment.name === 'raw' ? (
+                        <code>{segment.value}</code>
+                      ) : (
+                        segment.value
+                      )
+                    }
+                  </For>
                 </li>
               )}
             </For>
@@ -302,7 +326,7 @@ export function ImportCsv(): JSX.Element {
       </Show>
 
       <form onSubmit={(e) => void handleImport(e)} class="form-container">
-        <div class="segmented" role="group" aria-label="CSV source">
+        <div class="segmented" role="group" aria-label={t('admin.importCsv.sourceLabel')}>
           <For each={METHODS}>
             {(m) => (
               <button
@@ -312,7 +336,7 @@ export function ImportCsv(): JSX.Element {
                 aria-pressed={method() === m.id}
                 onClick={() => setMethod(m.id)}
               >
-                {m.label}
+                {tKey(m.labelKey)}
               </button>
             )}
           </For>
@@ -321,10 +345,10 @@ export function ImportCsv(): JSX.Element {
         <Switch>
           <Match when={method() === 'upload'}>
             <div>
-              <label class="form-label">CSV File</label>
+              <label class="form-label">{t('admin.importCsv.fileLabel')}</label>
               <div class="file-input-row">
                 <label class="btn btn-secondary">
-                  Choose File
+                  {t('admin.import.chooseFile')}
                   <input
                     type="file"
                     class="file-input-hidden"
@@ -332,20 +356,19 @@ export function ImportCsv(): JSX.Element {
                     onChange={(e) => void handleFileChange(e.currentTarget)}
                   />
                 </label>
-                <span class="file-input-name">{fileName() || 'No file selected'}</span>
+                <span class="file-input-name">{fileName() || t('admin.import.noFile')}</span>
               </div>
-              <p class="form-hint form-hint-top">
-                A CSV export from Moxfield, Deckbox, ManaBox, or similar
-              </p>
+              <p class="form-hint form-hint-top">{t('admin.importCsv.fileHint')}</p>
             </div>
           </Match>
           <Match when={method() === 'text'}>
             <div>
-              <label class="form-label">CSV Text</label>
+              <label class="form-label">{t('admin.importCsv.textLabel')}</label>
               <textarea
                 class="form-input form-textarea"
                 value={text()}
                 onInput={(e) => setText(e.currentTarget.value)}
+                // i18n-exempt: a CSV interchange sample (dialect header + a real card).
                 placeholder={'Name,Set,Collector Number,Quantity\nSol Ring,C19,221,1'}
               />
             </div>
@@ -353,7 +376,9 @@ export function ImportCsv(): JSX.Element {
         </Switch>
 
         <Show when={parseError()}>
-          <div class="alert alert-error">Failed to parse CSV: {parseError()}</div>
+          <div class="alert alert-error">
+            {t('admin.importCsv.parseFailed', { reason: parseError() ?? '' })}
+          </div>
         </Show>
 
         <Show when={rows().length > 0 && !parseError()}>
@@ -368,11 +393,11 @@ export function ImportCsv(): JSX.Element {
                 )
               }}
             />
-            First row contains column headers
+            {t('admin.importCsv.hasHeader')}
           </label>
 
           <div>
-            <label class="form-label">Column Mapping</label>
+            <label class="form-label">{t('admin.importCsv.mappingLabel')}</label>
             <div class="csv-mapping-grid">
               <For each={visibleFields()}>
                 {(field) => (
@@ -380,7 +405,7 @@ export function ImportCsv(): JSX.Element {
                     <span class="csv-mapping-label">
                       {CSV_FIELD_LABELS[field]}
                       <Show when={!requiredFields().has(field)}>
-                        <span class="csv-mapping-optional"> (optional)</span>
+                        <span class="csv-mapping-optional"> {t('admin.importCsv.optional')}</span>
                       </Show>
                     </span>
                     <select
@@ -395,10 +420,10 @@ export function ImportCsv(): JSX.Element {
                       }
                     >
                       <Show when={!requiredFields().has(field)}>
-                        <option value="-1">(not in this file)</option>
+                        <option value="-1">{t('admin.importCsv.notInFile')}</option>
                       </Show>
                       <Show when={requiredFields().has(field) && selections()[field] === -1}>
-                        <option value="-1">Select a column...</option>
+                        <option value="-1">{t('admin.importCsv.selectColumn')}</option>
                       </Show>
                       <For each={columnOptions()}>
                         {(option) => <option value={option.value}>{option.label}</option>}
@@ -412,14 +437,13 @@ export function ImportCsv(): JSX.Element {
               <p class="form-hint form-hint-top csv-mapping-problem">{mappingProblem()}</p>
             </Show>
             <p class="form-hint form-hint-top">
-              {dataRowCount()} data row(s) detected. Conditions, finishes, and sections are
-              normalized on import (e.g. “Near Mint” → NM, “F” → foil, “side” → Sideboard).
+              {t('admin.importCsv.rowsHint', { count: dataRowCount() })}
             </p>
           </div>
         </Show>
 
         <div>
-          <label class="form-label">Import Into</label>
+          <label class="form-label">{t('admin.importCsv.importIntoLabel')}</label>
           <select
             class="form-input csv-list-type"
             value={listType()}
@@ -428,14 +452,14 @@ export function ImportCsv(): JSX.Element {
             <For each={LIST_TYPES}>
               {(type) => (
                 <option value={type}>
-                  {LIST_TYPE_DISPLAY[type].icon} {LIST_TYPE_DISPLAY[type].label}
+                  {LIST_TYPE_DISPLAY[type].icon} {tKey(LIST_TYPE_DISPLAY[type].label)}
                 </option>
               )}
             </For>
           </select>
         </div>
 
-        <div class="segmented" role="group" aria-label="Import mode">
+        <div class="segmented" role="group" aria-label={t('admin.importCsv.modeLabel')}>
           <button
             type="button"
             class="segmented-option"
@@ -443,7 +467,7 @@ export function ImportCsv(): JSX.Element {
             aria-pressed={mode() === 'create'}
             onClick={() => setMode('create')}
           >
-            Create New List
+            {t('admin.importCsv.modeCreate')}
           </button>
           <button
             type="button"
@@ -452,25 +476,25 @@ export function ImportCsv(): JSX.Element {
             aria-pressed={mode() === 'append'}
             onClick={() => setMode('append')}
           >
-            Append to Existing
+            {t('admin.importCsv.modeAppend')}
           </button>
         </div>
 
         <Switch>
           <Match when={mode() === 'create'}>
             <div>
-              <label class="form-label">Name</label>
+              <label class="form-label">{t('admin.importCsv.nameLabel')}</label>
               <input
                 type="text"
                 class="form-input"
                 value={name()}
                 onInput={(e) => setName(e.currentTarget.value)}
-                placeholder="My Binder"
+                placeholder={t('admin.importCsv.namePlaceholder')}
               />
             </div>
             <Show when={listType() === 'deck'}>
               <div>
-                <label class="form-label">Format</label>
+                <label class="form-label">{t('admin.importCsv.formatLabel')}</label>
                 <select
                   class="form-input csv-format"
                   value={format()}
@@ -488,26 +512,25 @@ export function ImportCsv(): JSX.Element {
                 checked={overwrite()}
                 onChange={(e) => setOverwrite(e.currentTarget.checked)}
               />
-              Overwrite if a list with this name exists
+              {t('admin.importCsv.overwrite')}
             </label>
           </Match>
           <Match when={mode() === 'append'}>
             <div>
-              <label class="form-label">Target List</label>
+              <label class="form-label">{t('admin.importCsv.targetLabel')}</label>
               <select
                 class="form-input csv-target"
                 value={targetSlug()}
                 onChange={(e) => setTargetSlug(e.currentTarget.value)}
               >
-                <option value="">Select a list...</option>
+                <option value="">{t('admin.importCsv.selectList')}</option>
                 <For each={existingLists() ?? []}>
                   {(list) => <option value={list.slug}>{list.name}</option>}
                 </For>
               </select>
               <Show when={!existingLists.loading && (existingLists() ?? []).length === 0}>
                 <p class="form-hint form-hint-top">
-                  No {LIST_TYPE_DISPLAY[listType()].label.toLowerCase()} exist yet — create one
-                  instead.
+                  {t('admin.importCsv.noLists', { listType: listType() })}
                 </p>
               </Show>
             </div>
@@ -515,7 +538,11 @@ export function ImportCsv(): JSX.Element {
         </Switch>
 
         <button type="submit" class="btn btn-primary" disabled={loading() || !canSubmit()}>
-          {loading() ? 'Importing...' : mode() === 'append' ? 'Append Cards' : 'Import CSV'}
+          {loading()
+            ? t('admin.import.importing')
+            : mode() === 'append'
+              ? t('admin.importCsv.appendCards')
+              : t('admin.importCsv.import')}
         </button>
       </form>
     </div>

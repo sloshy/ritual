@@ -15,8 +15,9 @@ import { promptCardLabels } from './label-prompt'
 import { promptCardLanguage } from '../editor/language-prompt'
 import type { CardLabel } from '../card-labels'
 import { displayLanguage, type CardLanguage } from '../card-language'
-import { BUYER_DISPLAY_NAMES } from '../buylist'
+import { buyerName } from '../buylist'
 import { cartBuyer } from './sell-mode'
+import { useT } from '../ui/i18n'
 
 const PANEL_WIDTH = 220
 
@@ -117,6 +118,7 @@ export interface SelectionMenuProps {
  * (the toolbar, scoped to the current list) and cross-list (the navbar).
  */
 export const SelectionMenu: Component<SelectionMenuProps> = (props) => {
+  const t = useT()
   const toggle = useAnchoredToggle()
   const coarse = usePointerCoarse()
 
@@ -129,9 +131,9 @@ export const SelectionMenu: Component<SelectionMenuProps> = (props) => {
       toggle={toggle}
       width={PANEL_WIDTH}
       panelClass="selection-menu-panel"
-      title={`${props.label ?? 'Selected'} (${props.selection.count()})`}
+      title={`${props.label ?? t('site.selection.defaultLabel')} (${props.selection.count()})`}
       role="menu"
-      aria-label="Selection actions"
+      aria-label={t('site.selection.actionsAria')}
     >
       <SelectionMenuItems {...props} onClose={toggle.close} />
     </AdaptiveMenu>
@@ -151,7 +153,7 @@ export const SelectionMenu: Component<SelectionMenuProps> = (props) => {
               aria-haspopup="true"
               onClick={toggle.toggleOpen}
             >
-              {props.label ?? 'Selected'} ({props.selection.count()})
+              {props.label ?? t('site.selection.defaultLabel')} ({props.selection.count()})
               <span aria-hidden="true">{toggle.open() ? '▴' : '▾'}</span>
             </button>
             {surface()}
@@ -159,7 +161,9 @@ export const SelectionMenu: Component<SelectionMenuProps> = (props) => {
         }
       >
         <div class="selection-dock">
-          <span class="selection-dock-count">{props.selection.count()} selected</span>
+          <span class="selection-dock-count">
+            {t('site.selection.dockCount', { count: props.selection.count() })}
+          </span>
           <button
             type="button"
             ref={toggle.setButtonRef}
@@ -168,13 +172,13 @@ export const SelectionMenu: Component<SelectionMenuProps> = (props) => {
             aria-haspopup="true"
             onClick={toggle.toggleOpen}
           >
-            Actions
+            {t('site.selection.actions')}
           </button>
           <button
             type="button"
             class="selection-dock-clear"
-            aria-label={props.clearLabel ?? 'Clear selection'}
-            title={props.clearLabel ?? 'Clear selection'}
+            aria-label={props.clearLabel ?? t('site.selection.clear')}
+            title={props.clearLabel ?? t('site.selection.clear')}
             onClick={() => props.selection.clear()}
           >
             ✕
@@ -191,6 +195,7 @@ type SelectionMenuItemsProps = SelectionMenuProps & {
 }
 
 const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
+  const t = useT()
   const copy = useSelectionCopy(() => props.selection.selected())
   // "Remove a copy" (decrement) is only meaningful when at least one selected tile
   // represents more than one copy; for single-copy tiles it duplicates "Remove from
@@ -222,7 +227,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
     <>
       <Show when={props.showViewAll}>
         <button type="button" role="menuitem" class="selection-menu-item" onClick={viewAll}>
-          View all selections…
+          {t('site.selection.viewAll')}
         </button>
         <div class="selection-menu-sep" />
       </Show>
@@ -235,7 +240,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
               class="selection-menu-item"
               onClick={() => runEdit(actions().addCopy)}
             >
-              Add a copy
+              {t('site.selection.addCopy')}
             </button>
             <Show when={canRemoveCopy()}>
               <button
@@ -244,7 +249,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
                 class="selection-menu-item"
                 onClick={() => runEdit(actions().removeCopy)}
               >
-                Remove a copy
+                {t('site.selection.removeCopy')}
               </button>
             </Show>
             <button
@@ -253,7 +258,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
               class="selection-menu-item"
               onClick={() => runEdit(actions().removeAll)}
             >
-              Remove from list
+              {t('site.selection.removeFromList')}
             </button>
             <button
               type="button"
@@ -261,7 +266,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
               class="selection-menu-item"
               onClick={() => runEdit(actions().setFoil)}
             >
-              Set as Foil
+              {t('site.selection.setFoil')}
             </button>
             <button
               type="button"
@@ -269,7 +274,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
               class="selection-menu-item"
               onClick={() => runEdit(actions().setNonfoil)}
             >
-              Set as Nonfoil
+              {t('site.selection.setNonfoil')}
             </button>
             <Show when={actions().setLanguage}>
               {(setLanguage) => (
@@ -287,7 +292,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
                     promptCardLanguage(current, apply)
                   }}
                 >
-                  Set Language…
+                  {t('site.selection.setLanguage')}
                 </button>
               )}
             </Show>
@@ -297,7 +302,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
               class="selection-menu-item"
               onClick={() => runEdit(actions().changePrinting)}
             >
-              Change Printing…
+              {t('site.selection.changePrinting')}
             </button>
             <Show when={actions().setCommander}>
               {(setCommander) => (
@@ -307,7 +312,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
                   class="selection-menu-item"
                   onClick={() => runEdit(setCommander())}
                 >
-                  Set as Commander
+                  {t('site.selection.setCommander')}
                 </button>
               )}
             </Show>
@@ -325,7 +330,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
                     promptCardLabels((labels) => apply(labels))
                   }}
                 >
-                  Set Label…
+                  {t('site.selection.setLabel')}
                 </button>
               )}
             </Show>
@@ -342,7 +347,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
                 )
               }}
             >
-              Move to section…
+              {t('site.selection.moveToSection')}
             </button>
             <Show when={actions().moveTargets().length > 0}>
               <button
@@ -354,7 +359,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
                   promptListMove(actions().moveTargets(), (dest) => actions().moveToList(dest))
                 }}
               >
-                Move to list…
+                {t('site.selection.moveToList')}
               </button>
             </Show>
             <div class="selection-menu-sep" />
@@ -367,7 +372,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
         class="selection-menu-item"
         onClick={() => void copy.copyText()}
       >
-        Copy as Text
+        {t('site.selection.copyText')}
       </button>
       <button
         type="button"
@@ -375,7 +380,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
         class="selection-menu-item"
         onClick={() => void copy.copyCsv()}
       >
-        Copy as CSV
+        {t('site.selection.copyCsv')}
       </button>
       <Show when={cartBuyer()}>
         {(buyer) => (
@@ -385,7 +390,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
             class="selection-menu-item"
             onClick={() => void copy.copyCart()}
           >
-            Copy {BUYER_DISPLAY_NAMES[buyer()]} cart CSV
+            {t('site.selection.copyCart', { buyer: buyerName(buyer()) })}
           </button>
         )}
       </Show>
@@ -401,7 +406,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
           class="selection-menu-item"
           onClick={() => void addToTrade()}
         >
-          Add to Trade
+          {t('site.trade.addAction')}
         </button>
       </Show>
       <div class="selection-menu-sep" />
@@ -415,7 +420,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
             promptListMove(props.moveAllTargets?.() ?? [], (dest) => props.onMoveAll!(dest))
           }}
         >
-          Move all to list…
+          {t('site.selection.moveAllToList')}
         </button>
       </Show>
       <Show when={props.onRemoveAll}>
@@ -429,7 +434,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
               props.onClose()
             }}
           >
-            Remove all selected
+            {t('site.selection.removeAll')}
           </button>
         )}
       </Show>
@@ -442,7 +447,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
           props.onClose()
         }}
       >
-        {props.clearLabel ?? 'Clear selection'}
+        {props.clearLabel ?? t('site.selection.clear')}
       </button>
       <Show when={copy.status()}>
         <div class="selection-menu-status" aria-live="polite">

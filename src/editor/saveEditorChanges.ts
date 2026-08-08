@@ -1,6 +1,6 @@
 import type { DroppedNote } from '../commands/move-io'
 import { formatDroppedNotesSuffix } from './dropped-notes'
-import type { EditorStatusActions } from './useEditorStatus'
+import { type EditorStatusActions, statusMessage, statusText } from './useEditorStatus'
 
 type SaveResponse = {
   success: boolean
@@ -28,23 +28,32 @@ export async function saveEditorChanges(
     })
     const data = (await resp.json()) as SaveResponse
     if (data.success) {
+      // The dropped-note report is already a rendered sentence (it splices card
+      // names and their notes), so it rides in as a parameter rather than being
+      // concatenated onto a second message.
       const droppedNote = formatDroppedNotesSuffix(data.droppedNotes ?? [])
       statusActions.saveSuccess(
-        droppedNote ? `Changes saved successfully.${droppedNote}` : 'Changes saved successfully',
+        droppedNote
+          ? statusMessage('ui.editor.saveSuccessDroppedNotes', { notes: droppedNote })
+          : statusMessage('ui.editor.saveSuccess'),
       )
       discardAll()
       return data
     }
+    // `data.message` / `data.error` are prose the server authored; they arrive
+    // rendered and stay as they are until the API carries a `messageKey`
+    // (plan §7.7, Phase 5).
     if (resp.status === 409 || data.conflict) {
       statusActions.saveError(
-        data.message ?? 'Content has been modified. Please reload to continue editing.',
+        data.message ? statusText(data.message) : statusMessage('ui.editor.saveConflict'),
       )
       return data
     }
-    statusActions.saveError(data.error ?? data.message ?? 'Save failed')
+    const failure = data.error ?? data.message
+    statusActions.saveError(failure ? statusText(failure) : statusMessage('ui.editor.saveFailed'))
     return data
   } catch {
-    statusActions.saveError('Failed to save changes')
+    statusActions.saveError(statusMessage('ui.editor.saveRequestFailed'))
     return undefined
   }
 }

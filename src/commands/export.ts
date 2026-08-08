@@ -1,6 +1,6 @@
 import path from 'node:path'
 import type { Command } from 'commander'
-import { countLabel } from '../editor/change-bundle'
+import { describeExportProperties } from '../export-hints'
 import { isFinish, VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
 import { CARD_LABEL_SELECTION_NONE, CARD_LABELS } from '../card-labels'
 import { type ListType } from '../list-type'
@@ -12,7 +12,6 @@ import {
   type ExportFilters,
 } from '../export/entries'
 import {
-  describeExportProperties,
   EXPORT_DIALECTS,
   isExportDialect,
   parseColumnsFlag,
@@ -45,6 +44,8 @@ import {
   type ScriptingOptions,
 } from './scripting'
 import { runExportWizard } from './export-wizard'
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
 
 /** Raw commander option values; format/columns/finish/condition are validated in the action. */
 type ExportCommandOptions = {
@@ -118,8 +119,8 @@ export function shouldRunExportInteractive(
 
 const textOptions: ScriptingOptions = { output: 'text', quiet: false }
 
-function usageError(message: string): void {
-  emitError('usage_error', message, textOptions)
+function usageError(message: string, messageKey?: MessageKey): void {
+  emitError('usage_error', message, textOptions, undefined, messageKey)
   process.exitCode = ExitCode.UsageError
 }
 
@@ -129,7 +130,14 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
   if (options.finish !== undefined) {
     const finish = options.finish.toLowerCase()
     if (!isFinish(finish)) {
-      usageError(`Invalid finish '${options.finish}'. Use one of: ${VALID_FINISHES.join(', ')}.`)
+      usageError(
+        t('errors.enum.invalid', {
+          field: 'finish',
+          value: options.finish,
+          choices: VALID_FINISHES.join(', '),
+        }),
+        'errors.enum.invalid',
+      )
       return undefined
     }
     filters.finish = finish
@@ -175,7 +183,14 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
   if (options.dialect !== undefined) {
     const lower = options.dialect.toLowerCase()
     if (!isExportDialect(lower)) {
-      usageError(`Invalid dialect '${options.dialect}'. Use one of: ${EXPORT_DIALECTS.join(', ')}.`)
+      usageError(
+        t('errors.enum.invalid', {
+          field: 'dialect',
+          value: options.dialect,
+          choices: EXPORT_DIALECTS.join(', '),
+        }),
+        'errors.enum.invalid',
+      )
       return undefined
     }
     dialect = lower
@@ -194,7 +209,8 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
     if (options.dialect !== undefined) conflicting.push('--dialect')
     if (conflicting.length > 0) {
       usageError(
-        `${conflicting.join(' and ')} cannot be combined with --format ${format}: ${format} exports have a fixed line format. Columns, CSV options, and the value dialect apply to csv/json output only.`,
+        t('cli.export.formatFlagConflict', { flags: conflicting.join(' and '), format }),
+        'cli.export.formatFlagConflict',
       )
       return undefined
     }
@@ -227,9 +243,15 @@ async function emitExport(
     outPath: out ? path.resolve(out) : undefined,
     quiet,
     confirm: {
-      file: (target) => `✓ Exported ${countLabel(entryCount, 'card')} to ${target}`,
+      file: (target) =>
+        `✓ ${t('cli.export.exportedToFile', {
+          cards: t('domain.count.cards', { count: entryCount }),
+          target,
+        })}`,
       // Keep stdout parseable: the stdout-mode confirmation goes to stderr.
-      stdout: `Exported ${countLabel(entryCount, 'card')}`,
+      stdout: t('cli.export.exportedToStdout', {
+        cards: t('domain.count.cards', { count: entryCount }),
+      }),
     },
   })
 }
@@ -249,8 +271,13 @@ async function runFlagExport(
     if (!preset) {
       emitError(
         'not_found',
-        `No export preset named '${flags.preset}'. Available presets: ${exportPresetNames(saved).join(', ')}.`,
+        t('cli.export.unknownPreset', {
+          name: flags.preset,
+          available: exportPresetNames(saved).join(', '),
+        }),
         textOptions,
+        undefined,
+        'cli.export.unknownPreset',
       )
       process.exitCode = ExitCode.NotFound
       return
@@ -308,7 +335,7 @@ async function runFlagExport(
 
   if (flags.savePreset !== undefined) {
     await saveExportPreset(flags.savePreset, settings)
-    if (!quiet) console.log(`✓ Saved export preset '${flags.savePreset}'`)
+    if (!quiet) console.log(`✓ ${t('cli.export.savedPreset', { name: flags.savePreset })}`)
   }
 
   const rendered = await renderExport(selection.entries, settings)
@@ -325,62 +352,57 @@ export function registerExportCommand(program: Command): void {
   addQuietOption(
     program
       .command('export')
-      .description(
-        'Export cards from decks, collections, and wanted lists as CSV, JSON, plain text, or Markdown',
-      )
-      .argument(
-        '[lists...]',
-        'Lists to export; an optional deck:/collection:/wanted: prefix pins the type',
-      )
-      .option('--deck', 'Only decks (also disambiguates list names)')
-      .option('--collection', 'Only collections (also disambiguates list names)')
-      .option('--wanted', 'Only wanted lists (also disambiguates list names)')
-      .option('--all', 'Export every list (the default when no lists or --card are given)')
+      .description(t('help.export.description'))
+      .argument('[lists...]', t('help.export.lists'))
+      .option('--deck', t('help.export.deck'))
+      .option('--collection', t('help.export.collection'))
+      .option('--wanted', t('help.export.wanted'))
+      .option('--all', t('help.export.all'))
       .option(
         '--card <terms>',
-        'Add cards whose name matches every term (repeatable)',
+        t('help.export.card'),
         (value: string, previous: string[]) => [...previous, value],
         [] as string[],
       )
-      .option('--name <terms>', 'Only cards whose name contains every term')
-      .option('--set <code>', 'Only cards from this set code')
-      .option('--finish <finish>', `Only cards with this finish: ${VALID_FINISHES.join(', ')}`)
+      .option('--name <terms>', t('help.export.name'))
+      .option('--set <code>', t('help.export.set'))
+      .option('--finish <finish>', t('help.export.finish', { finishes: VALID_FINISHES.join(', ') }))
       .option(
         '--condition <list>',
-        `Only cards with one of these conditions (comma-separated): ${VALID_CONDITIONS.join(', ')}, none (no condition marked)`,
+        t('help.export.condition', { conditions: VALID_CONDITIONS.join(', ') }),
       )
       .option(
         '--labels <list>',
-        `Only collection cards whose effective labels include one of these (comma-separated): ${CARD_LABELS.join(', ')}, ${CARD_LABEL_SELECTION_NONE} (unlabeled)`,
+        t('help.export.labels', {
+          labels: CARD_LABELS.join(', '),
+          none: CARD_LABEL_SELECTION_NONE,
+        }),
       )
       // Validated by the shared argParser, but deliberately given no commander
       // default: `undefined` must keep meaning "not given" so a preset's stored
       // format can fill it in (tri-state precedence).
       .option(
         '--format <format>',
-        `Export format: ${EXPORT_FORMATS.join(', ')} (default: csv)`,
+        t('help.export.format', { formats: EXPORT_FORMATS.join(', ') }),
         (value: string) => parseEnumFlag(value, EXPORT_FORMATS, 'export format'),
       )
       .option(
         '--columns <list>',
-        `Comma-separated columns in output order (csv/json only). Available: ${describeExportProperties()}`,
+        t('help.export.columns', { properties: describeExportProperties() }),
       )
       .option(
         '--dialect <name>',
-        `Value spellings for finish and condition (csv/json only): ${EXPORT_DIALECTS.join(', ')} (default: ritual)`,
+        t('help.export.dialect', { dialects: EXPORT_DIALECTS.join(', ') }),
       )
-      .option('--no-header', 'Omit the CSV header row')
-      .option('--quote-all', 'Quote every CSV cell instead of only cells that need it')
-      .option('--out <file>', 'Write to this file instead of stdout')
-      .option(
-        '--preset <name>',
-        'Export with a saved or built-in preset (explicit flags override its values)',
-      )
-      .option('--save-preset <name>', 'Save the resolved format/columns/CSV options as a preset'),
+      .option('--no-header', t('help.export.noHeader'))
+      .option('--quote-all', t('help.export.quoteAll'))
+      .option('--out <file>', t('help.export.out'))
+      .option('--preset <name>', t('help.export.preset'))
+      .option('--save-preset <name>', t('help.export.savePreset')),
   ).action(async (listArgs: string[], options: ExportCommandOptions) => {
     const type = listTypeFromFlags(options)
     if (type === 'conflict') {
-      usageError('Use only one of --deck, --collection, or --wanted.')
+      usageError(t('cli.export.oneTypeFlag'), 'cli.export.oneTypeFlag')
       return
     }
 
@@ -394,9 +416,7 @@ export function registerExportCommand(program: Command): void {
         return
       }
       if (!hasExportRunSignal(flags, listArgs)) {
-        usageError(
-          'The export wizard needs an interactive terminal, and prompts are unavailable. Specify what to export instead — e.g. --all for every list, list names, --card picks, or filters.',
-        )
+        usageError(t('cli.export.wizardNeedsTerminal'), 'cli.export.wizardNeedsTerminal')
         return
       }
       await runFlagExport(listArgs, type, flags)

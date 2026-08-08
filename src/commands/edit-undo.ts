@@ -1,4 +1,5 @@
 import type { ChangeEvent, ConsolidateResult } from '../change-event'
+import { t } from '../i18n/t'
 import type { CardSessionContext, SessionAddItem, SessionChangeItem } from './card-session'
 
 /**
@@ -56,10 +57,10 @@ export function swapUndoChangelog(ctx: CardSessionContext, undo: EditUndoEntry):
  */
 export function targetedUndoBlocker(entries: EditUndoEntry[], index: number): string | null {
   const target = entries[index]
-  if (!target) return 'the change no longer exists'
+  if (!target) return t('cli.edit.undoBlockedGone')
   for (let later = entries.length - 1; later > index; later--) {
     if (entries[later]!.cardId === target.cardId) {
-      return `discard the newer "${entries[later]!.label}" first`
+      return t('cli.edit.undoBlockedNewer', { label: entries[later]!.label })
     }
   }
   return null
@@ -77,7 +78,11 @@ export function listSessionChangeItems(
   editUndo: EditUndoEntry[],
 ): SessionChangeItem[] {
   return [
-    ...adds.map((add): SessionChangeItem => ({ label: `➕ Added ${add.label}` })),
+    ...adds.map(
+      (add): SessionChangeItem => ({
+        label: `➕ ${t('cli.edit.sessionAdd', { label: add.label })}`,
+      }),
+    ),
     ...editUndo.map((entry, index): SessionChangeItem => {
       // Two spaces after the icon: variation-selector emoji render double-wide.
       const label = `${entry.kind === 'removal' ? '🗑️' : '✏️'}  ${entry.label}`

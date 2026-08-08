@@ -5,6 +5,7 @@ import type { ScryfallSymbol } from '../../../src/scryfall'
 import type { CachedItem, CacheSchema } from '../../../src/cache/file-cache'
 import type { RitualConfig } from '../../../src/ritual-config'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
+import { localeTag } from '../../../src/i18n/locale-tag'
 
 /**
  * Builds the fully synthetic workspace the e2e servers run against: seed
@@ -432,6 +433,7 @@ const RITUAL_CONFIG = {
   wantedDir: './wanted',
   defaultCurrency: 'usd',
   defaultLanguage: 'en',
+  uiLocale: localeTag('en'),
   cacheLockTimeoutSeconds: 300,
   cacheSource: 'scryfall',
   searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,

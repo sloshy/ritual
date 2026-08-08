@@ -26,6 +26,11 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
 - Every tool returns structuredContent against its declared outputSchema; read that, not
   content[0].text. A failure is isError with { error, code, message, conflict?, recovery?,
   unmatched? } — code is "conflict" | "invalid-request" | "internal".
+- Language: tool names, descriptions, these instructions, and every result "message" are
+  English by contract, whatever UI locale the user configured (that setting moves Ritual's own
+  terminal output and its web UIs, never this surface). Results authored by the admin API carry
+  a "messageKey" (plus "messageParams" when it interpolates) beside the English "message" — a
+  locale-invariant identifier to match on instead of matching prose.
 - Card names on writes are validated against the local cache; an unknown one is rejected with the
   closest cached names, and a cold cache says to run refresh_cache.
 - Card language: an entry without a language field is English ("en" — a bare card line always

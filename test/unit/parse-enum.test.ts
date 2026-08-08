@@ -16,10 +16,15 @@ describe('parseEnumField', () => {
     }
   })
 
+  // The refusals carry their catalog key beside the rendered prose, so a script
+  // reading `--output json` can discriminate on something that does not move
+  // when the UI locale does.
   test('refuses a non-string, naming the choices', () => {
     expect(parseEnumField(7, values, 'direction')).toEqual({
       ok: false,
       message: 'direction must be one of: push, pull.',
+      messageKey: 'errors.enum.type',
+      messageParams: { field: 'direction', choices: 'push, pull' },
     })
   })
 
@@ -27,6 +32,10 @@ describe('parseEnumField', () => {
     expect(parseEnumField('sideways', values, 'direction')).toEqual({
       ok: false,
       message: "Invalid direction 'sideways'. Use one of: push, pull.",
+      messageKey: 'errors.enum.invalid',
+      // The key travels with its parameters: a client re-rendering from
+      // `errors.enum.invalid` alone would print literal `{field}` tokens.
+      messageParams: { field: 'direction', value: 'sideways', choices: 'push, pull' },
     })
   })
 

@@ -1,19 +1,30 @@
 import { type JSX, For, Match, Show, Switch, createMemo, createSignal } from 'solid-js'
+import { useT, useTKey, useTSegments } from '../../../ui/i18n'
+import { apiMessage } from '../../api/result'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { PageHeading } from '../components/PageHeading'
+import type { ParameterlessKey } from '../../../i18n/t'
 
 type ImportMethod = 'url' | 'upload' | 'text'
 
-type MethodOption = { id: ImportMethod; label: string }
+/**
+ * One tab of the source picker. `labelKey` is a {@link MessageKey}: the table is
+ * built once at module load, so a rendered string would leave the tabs in the
+ * boot-time language after a locale switch.
+ */
+type MethodOption = { id: ImportMethod; labelKey: ParameterlessKey }
 
 const METHODS: MethodOption[] = [
-  { id: 'url', label: 'URL' },
-  { id: 'upload', label: 'Upload File' },
-  { id: 'text', label: 'Paste Text' },
+  { id: 'url', labelKey: 'admin.importDeck.methodUrl' },
+  { id: 'upload', labelKey: 'admin.import.upload' },
+  { id: 'text', labelKey: 'admin.import.pasteText' },
 ]
 
 export function ImportDeck(): JSX.Element {
+  const t = useT()
+  const tKey = useTKey()
+  const tSegments = useTSegments()
   const [method, setMethod] = createSignal<ImportMethod>('url')
   const [url, setUrl] = createSignal('')
   const [text, setText] = createSignal('')
@@ -65,7 +76,7 @@ export function ImportDeck(): JSX.Element {
         headers: { 'Content-Type': 'application/json' },
         body: requestBody(),
       },
-      'Failed to import deck',
+      apiMessage('admin.importDeck.failed'),
     )
     if (ok) {
       setUrl('')
@@ -81,7 +92,7 @@ export function ImportDeck(): JSX.Element {
       <PageHeading page="import-deck" />
       <StatusAlerts status={status()} error={error()} />
       <form onSubmit={(e) => void handleImport(e)} class="form-container">
-        <div class="segmented" role="group" aria-label="Import method">
+        <div class="segmented" role="group" aria-label={t('admin.importDeck.methodLabel')}>
           <For each={METHODS}>
             {(m) => (
               <button
@@ -91,7 +102,7 @@ export function ImportDeck(): JSX.Element {
                 aria-pressed={method() === m.id}
                 onClick={() => setMethod(m.id)}
               >
-                {m.label}
+                {tKey(m.labelKey)}
               </button>
             )}
           </For>
@@ -100,26 +111,25 @@ export function ImportDeck(): JSX.Element {
         <Switch>
           <Match when={method() === 'url'}>
             <div>
-              <label class="form-label">Deck URL</label>
+              <label class="form-label">{t('admin.importDeck.urlLabel')}</label>
               <input
                 type="text"
                 class="form-input"
                 value={url()}
                 onInput={(e) => setUrl(e.currentTarget.value)}
+                // i18n-exempt: an example URL of a third-party site, not prose.
                 placeholder="https://archidekt.com/decks/..."
               />
-              <p class="form-hint form-hint-top">
-                Supports Archidekt, Moxfield, and MTGGoldfish URLs
-              </p>
+              <p class="form-hint form-hint-top">{t('admin.importDeck.urlHint')}</p>
             </div>
           </Match>
 
           <Match when={method() === 'upload'}>
             <div>
-              <label class="form-label">Deck File</label>
+              <label class="form-label">{t('admin.importDeck.fileLabel')}</label>
               <div class="file-input-row">
                 <label class="btn btn-secondary">
-                  Choose File
+                  {t('admin.import.chooseFile')}
                   <input
                     type="file"
                     class="file-input-hidden"
@@ -127,26 +137,35 @@ export function ImportDeck(): JSX.Element {
                     onChange={(e) => void handleFileChange(e.currentTarget)}
                   />
                 </label>
-                <span class="file-input-name">{fileName() || 'No file selected'}</span>
+                <span class="file-input-name">{fileName() || t('admin.import.noFile')}</span>
               </div>
-              <p class="form-hint form-hint-top">
-                A decklist or exported deck file (markdown or plain text)
-              </p>
+              <p class="form-hint form-hint-top">{t('admin.importDeck.fileHint')}</p>
             </div>
           </Match>
 
           <Match when={method() === 'text'}>
             <div>
-              <label class="form-label">Decklist Text</label>
+              <label class="form-label">{t('admin.importDeck.textLabel')}</label>
               <textarea
                 class="form-input form-textarea"
                 value={text()}
                 onInput={(e) => setText(e.currentTarget.value)}
+                // i18n-exempt: decklist syntax — real card names and the English-by-contract `Sideboard`.
                 placeholder={'4 Lightning Bolt\n1 Sol Ring\n\n## Sideboard\n2 Pyroblast'}
               />
+              {/* Both code samples sit mid-sentence, so the hint renders as
+                  segments and each parameter takes the <code> markup. */}
               <p class="form-hint form-hint-top">
-                One card per line as <code>QTY Name</code>. Use <code>## Heading</code> lines to
-                start new sections.
+                <For
+                  each={tSegments('admin.importDeck.textHint', {
+                    syntax: t('admin.importDeck.qtyName'),
+                    heading: t('admin.importDeck.headingSyntax'),
+                  })}
+                >
+                  {(segment) =>
+                    segment.kind === 'param' ? <code>{segment.value}</code> : segment.value
+                  }
+                </For>
               </p>
             </div>
           </Match>
@@ -154,15 +173,15 @@ export function ImportDeck(): JSX.Element {
 
         <Show when={method() !== 'url'}>
           <div>
-            <label class="form-label">Deck Name</label>
+            <label class="form-label">{t('admin.importDeck.nameLabel')}</label>
             <input
               type="text"
               class="form-input"
               value={name()}
               onInput={(e) => setName(e.currentTarget.value)}
-              placeholder="Imported Deck"
+              placeholder={t('admin.importDeck.namePlaceholder')}
             />
-            <p class="form-hint form-hint-top">Used unless the text defines its own name.</p>
+            <p class="form-hint form-hint-top">{t('admin.importDeck.nameHint')}</p>
           </div>
         </Show>
 
@@ -172,10 +191,10 @@ export function ImportDeck(): JSX.Element {
             checked={overwrite()}
             onChange={(e) => setOverwrite(e.currentTarget.checked)}
           />
-          Overwrite existing deck if it exists
+          {t('admin.importDeck.overwrite')}
         </label>
         <button type="submit" class="btn btn-primary" disabled={loading() || !canSubmit()}>
-          {loading() ? 'Importing...' : 'Import Deck'}
+          {loading() ? t('admin.import.importing') : t('admin.importDeck.import')}
         </button>
       </form>
     </div>

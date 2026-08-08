@@ -10,7 +10,7 @@ import {
   type ListLocation,
   type ListTypeFlags,
 } from '../resolve-list'
-import { LIST_TYPE_DISPLAY, type ListType } from '../list-type'
+import { listTypeSingularTitle, type ListType } from '../list-type'
 import {
   cloneSets,
   combineSetsInto,
@@ -36,6 +36,7 @@ import { promptExitMenu } from './prompts-helpers'
 import { inputRequiredError, promptsUnavailable, requireInteractive } from '../no-input'
 import { runCommandAction } from './card-target'
 import { parsePositiveInteger } from '../parse-number'
+import { t } from '../i18n/t'
 
 export type HistoryOptions = ListTypeFlags &
   Partial<ScriptingOptions> & {
@@ -47,13 +48,25 @@ export type HistoryOptions = ListTypeFlags &
 function parseLimitFlag(value: string): number {
   const parsed = parsePositiveInteger(value)
   if (parsed === undefined) {
-    throw new InvalidArgumentError(`--limit must be a positive integer (got '${value}').`)
+    throw new InvalidArgumentError(t('cli.history.limitInvalid', { value }))
   }
   return parsed
 }
 
 function listTypeLabel(type: ListType): string {
-  return LIST_TYPE_DISPLAY[type].label.replace(/s$/, '')
+  return listTypeSingularTitle(type)
+}
+
+/**
+ * One change set's header line — `2026-05-29T12:00:00.000Z  (3 changes)`. The
+ * `--show` output and three editor screens all render it, and a `:` is appended
+ * where the block's lines follow, so the wording lives in exactly one place.
+ */
+function setHeading(set: ChangeSet): string {
+  return t('cli.history.setHeading', {
+    timestamp: set.timestamp,
+    changes: t('domain.count.changes', { count: set.lines.length }),
+  })
 }
 
 /** Run a single-select prompt, returning the chosen value or null on cancel/ESC. */
@@ -115,27 +128,36 @@ export function registerHistoryCommand(program: Command): void {
   addOutputOption(
     program
       .command('history')
-      .description('Compact and rewrite the change history for a deck, collection, or wanted list')
-      .argument(
-        '[listName]',
-        'Name of the deck, collection, or wanted list (resolved across all types unless a type flag is given)',
-      )
-      .option('--deck', 'Resolve the name as a deck')
-      .option('--collection', 'Resolve the name as a collection')
-      .option('--wanted', 'Resolve the name as a wanted list')
-      .option('--show', 'Print the change history and exit instead of opening the editor', false)
-      .option('--limit <n>', 'With --show: print only the newest <n> change sets', parseLimitFlag),
+      .description(t('help.history.description'))
+      .argument('[listName]', t('help.history.listName'))
+      .option('--deck', t('help.history.deck'))
+      .option('--collection', t('help.history.collection'))
+      .option('--wanted', t('help.history.wanted'))
+      .option('--show', t('help.history.show'), false)
+      .option('--limit <n>', t('help.history.limit'), parseLimitFlag),
   ).action(async (listNameArg: string | undefined, options: HistoryOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
     const type = listTypeFromFlags(options)
     if (type === 'conflict') {
-      emitError('usage_error', 'Specify only one of --deck, --collection, or --wanted.', scripting)
+      emitError(
+        'usage_error',
+        t('cli.history.typeFlagConflict'),
+        scripting,
+        undefined,
+        'cli.history.typeFlagConflict',
+      )
       process.exitCode = ExitCode.UsageError
       return
     }
 
     if (options.limit !== undefined && !options.show) {
-      emitError('usage_error', '--limit requires --show.', scripting)
+      emitError(
+        'usage_error',
+        t('cli.history.limitRequiresShow'),
+        scripting,
+        undefined,
+        'cli.history.limitRequiresShow',
+      )
       process.exitCode = ExitCode.UsageError
       return
     }
@@ -144,7 +166,13 @@ export function registerHistoryCommand(program: Command): void {
     // UI to stdout, so `history <list> --output json` without --show could only
     // ever produce ANSI noise where a payload was expected.
     if (options.output !== undefined && options.output !== 'text' && !options.show) {
-      emitError('usage_error', `--output ${options.output} requires --show.`, scripting)
+      emitError(
+        'usage_error',
+        t('cli.history.outputRequiresShow', { output: options.output }),
+        scripting,
+        undefined,
+        'cli.history.outputRequiresShow',
+      )
       process.exitCode = ExitCode.UsageError
       return
     }
@@ -155,9 +183,7 @@ export function registerHistoryCommand(program: Command): void {
     await runCommandAction(scripting, async () => {
       if (listNameArg === undefined) requireInteractive('a list name')
       if (!options.show && promptsUnavailable()) {
-        throw inputRequiredError(
-          'the interactive history editor is unavailable — use --show to print the change history from a script',
-        )
+        throw inputRequiredError(t('cli.history.noEditorHeadless'))
       }
 
       const location = await resolveLocation(listNameArg, type, scripting)
@@ -209,18 +235,19 @@ async function runHistoryShow(
   }
 
   if (allSets.length === 0) {
-    emitOutput('No change history recorded.', scripting)
+    emitOutput(t('cli.history.noHistory'), scripting)
     return
   }
 
   const lines: string[] = [
-    `Change history for ${listTypeLabel(location.type)} '${location.name}' — ${allSets.length} change set(s).`,
+    t('cli.history.heading', {
+      type: location.type,
+      name: location.name,
+      sets: t('cli.history.setCount', { count: allSets.length }),
+    }),
   ]
   for (const set of sets) {
-    lines.push(
-      '',
-      `${set.timestamp}  (${set.lines.length} change${set.lines.length === 1 ? '' : 's'}):`,
-    )
+    lines.push('', `${setHeading(set)}:`)
     for (const line of set.lines) lines.push(`  ${line}`)
     for (const line of set.trailing ?? []) lines.push(`  ${line}`)
   }
@@ -250,21 +277,22 @@ async function resolveLocation(
 
   const locations = await listLocations(type)
   if (locations.length === 0) {
+    const messageKey = type ? 'cli.history.noListsOfType' : 'errors.resolveList.noLists'
     emitError(
       'not_found',
-      type
-        ? `No ${listTypeLabel(type).toLowerCase()} lists found.`
-        : 'No decks, collections, or wanted lists found.',
+      type ? t('cli.history.noListsOfType', { type }) : t('errors.resolveList.noLists'),
       scripting,
+      undefined,
+      messageKey,
     )
     process.exitCode = ExitCode.NotFound
     return null
   }
 
   const choice = await autocompleteMenu(
-    'Select a list (type to filter):',
+    t('cli.history.promptSelectList'),
     locations.map((loc, i) => ({
-      title: `${loc.name} — ${listTypeLabel(loc.type)}`,
+      title: t('cli.history.listRow', { name: loc.name, type: listTypeLabel(loc.type) }),
       value: String(i),
     })),
   )
@@ -297,12 +325,16 @@ async function runHistoryEditor(location: ListLocation): Promise<void> {
   }
 
   console.log(
-    `\nChange history for ${listTypeLabel(location.type)} '${location.name}' — ${state.sets.length} change set(s).`,
+    `\n${t('cli.history.heading', {
+      type: location.type,
+      name: location.name,
+      sets: t('cli.history.setCount', { count: state.sets.length }),
+    })}`,
   )
 
   while (true) {
     const choice = await autocompleteMenu(
-      'Change history (type to filter sets):',
+      t('cli.history.promptMain'),
       buildMainChoices(state),
       MAIN_ACTION_VALUES,
     )
@@ -342,7 +374,7 @@ const MAIN_ACTION_VALUES: ReadonlySet<string> = new Set([
 
 export function buildMainChoices(state: EditorState): prompts.Choice[] {
   const setChoices: prompts.Choice[] = state.sets.map((s, i) => ({
-    title: `${s.timestamp}  (${s.lines.length} change${s.lines.length === 1 ? '' : 's'})`,
+    title: setHeading(s),
     value: `set:${i}`,
   }))
 
@@ -351,12 +383,15 @@ export function buildMainChoices(state: EditorState): prompts.Choice[] {
   // action must never sit above the harmless ones.
   const actions: prompts.Choice[] = []
   if (state.undoStack.length > 0) {
-    actions.push({ title: `↩️  Undo last change (${state.undoStack.length})`, value: '__undo__' })
+    actions.push({
+      title: `↩️  ${t('cli.history.undoLast', { count: state.undoStack.length })}`,
+      value: '__undo__',
+    })
   }
   actions.push(
-    { title: '🔍 Preview changes to be saved', value: '__preview__' },
-    { title: '🔄 Rewrite all change sets with defaults', value: '__rewrite__' },
-    { title: '🚪 Exit', value: '__exit__' },
+    { title: `🔍 ${t('cli.history.preview')}`, value: '__preview__' },
+    { title: `🔄 ${t('cli.history.rewrite')}`, value: '__rewrite__' },
+    { title: `🚪 ${t('cli.menu.exit')}`, value: '__exit__' },
   )
 
   return [...setChoices, ...actions]
@@ -377,9 +412,7 @@ async function handleSet(state: EditorState, index: number): Promise<void> {
   const set = state.sets[index]
   if (!set) return
 
-  console.log(
-    `\n${set.timestamp}  (${set.lines.length} change${set.lines.length === 1 ? '' : 's'}):`,
-  )
+  console.log(`\n${setHeading(set)}:`)
   for (const line of set.lines) console.log(`  ${line}`)
   if (set.trailing !== undefined && set.trailing.length > 0) {
     // Preserved hand-written text — it travels with the set (and is deleted with it).
@@ -387,17 +420,17 @@ async function handleSet(state: EditorState, index: number): Promise<void> {
   }
   console.log('')
 
-  const action = await selectMenu('Action for this change set:', [
-    { title: '➖ Delete this change set', value: 'delete' },
-    { title: '🔗 Combine with another change set', value: 'combine' },
-    { title: '✏️  Edit timestamp', value: 'retime' },
-    { title: '← Back', value: 'back' },
+  const action = await selectMenu(t('cli.history.promptSetAction'), [
+    { title: `➖ ${t('cli.history.deleteSet')}`, value: 'delete' },
+    { title: `🔗 ${t('cli.history.combineSet')}`, value: 'combine' },
+    { title: `✏️  ${t('cli.history.editTimestamp')}`, value: 'retime' },
+    { title: `← ${t('cli.menu.back')}`, value: 'back' },
   ])
 
   if (action === 'delete') {
     pushUndo(state)
     state.sets = sortNewestFirst(deleteSetAt(state.sets, index))
-    console.log('Change set deleted (in memory).')
+    console.log(t('cli.history.setDeleted'))
   } else if (action === 'combine') {
     await handleCombine(state, index)
   } else if (action === 'retime') {
@@ -408,22 +441,19 @@ async function handleSet(state: EditorState, index: number): Promise<void> {
 async function handleCombine(state: EditorState, targetIndex: number): Promise<void> {
   const others = state.sets.map((s, i) => ({ s, i })).filter(({ i }) => i !== targetIndex)
   if (others.length === 0) {
-    console.log('No other change set to combine with.')
+    console.log(t('cli.history.noOtherSet'))
     return
   }
 
   const choice = await autocompleteMenu(
-    'Combine with which other set (type to filter)? Its entries move in, then it is deleted:',
-    others.map(({ s, i }) => ({
-      title: `${s.timestamp}  (${s.lines.length} change${s.lines.length === 1 ? '' : 's'})`,
-      value: String(i),
-    })),
+    t('cli.history.promptCombine'),
+    others.map(({ s, i }) => ({ title: setHeading(s), value: String(i) })),
   )
   if (choice === null) return
 
   pushUndo(state)
   state.sets = sortNewestFirst(combineSetsInto(state.sets, targetIndex, Number(choice)))
-  console.log('Change sets combined (in memory).')
+  console.log(t('cli.history.setsCombined'))
 }
 
 async function handleRetime(state: EditorState, index: number): Promise<void> {
@@ -434,12 +464,10 @@ async function handleRetime(state: EditorState, index: number): Promise<void> {
   const resp = await prompts({
     type: 'text',
     name: 'timestamp',
-    message: 'New ISO-8601 timestamp:',
+    message: t('cli.history.promptTimestamp'),
     initial: set.timestamp,
     validate: (value: string) =>
-      isValidIso8601(value.trim())
-        ? true
-        : 'Must be a valid ISO-8601 timestamp (e.g. 2026-05-29T12:00:00.000Z).',
+      isValidIso8601(value.trim()) ? true : t('cli.history.timestampInvalid'),
     onState: (state: PromptState) => {
       if (state.exited) exited = true
     },
@@ -451,7 +479,7 @@ async function handleRetime(state: EditorState, index: number): Promise<void> {
 
   pushUndo(state)
   state.sets = sortNewestFirst(retimeSetAt(state.sets, index, next))
-  console.log('Timestamp updated (in memory).')
+  console.log(t('cli.history.timestampUpdated'))
 }
 
 async function handleRewrite(state: EditorState, location: ListLocation): Promise<void> {
@@ -459,38 +487,33 @@ async function handleRewrite(state: EditorState, location: ListLocation): Promis
   // attached to them. Say so up front rather than losing it silently.
   const droppedProse = state.sets.reduce((n, s) => n + (s.trailing?.length ?? 0), 0)
   const proseWarning =
-    droppedProse > 0 ? ` ${droppedProse} hand-written line(s) will be discarded.` : ''
-  const confirm = await selectMenu(
-    `Replace ALL change sets with a single set describing the list as it stands now?${proseWarning}`,
-    [
-      { title: '✅ Yes, rewrite with defaults', value: 'yes' },
-      { title: '← No, cancel', value: 'no' },
-    ],
-  )
+    droppedProse > 0 ? ` ${t('cli.history.proseWarning', { count: droppedProse })}` : ''
+  const confirm = await selectMenu(t('cli.history.confirmRewrite', { warning: proseWarning }), [
+    { title: `✅ ${t('cli.history.rewriteYes')}`, value: 'yes' },
+    { title: `← ${t('cli.history.rewriteNo')}`, value: 'no' },
+  ])
   if (confirm !== 'yes') return
 
   const snapshot = await loadListSnapshot(location.type, location.filePath)
   const lines = buildDefaultChangeLines(snapshot)
   if (lines.length === 0) {
-    console.log('The list is empty — nothing to rewrite.')
+    console.log(t('cli.history.emptyList'))
     return
   }
 
   pushUndo(state)
   state.sets = [{ timestamp: new Date().toISOString(), lines }]
-  console.log(
-    `Rewrote history as a single change set with ${lines.length} entr(y/ies) (in memory).`,
-  )
+  console.log(t('cli.history.rewrote', { count: lines.length }))
 }
 
 function handleUndo(state: EditorState): void {
   const previous = state.undoStack.pop()
   if (!previous) {
-    console.log('Nothing to undo.')
+    console.log(t('cli.history.nothingToUndo'))
     return
   }
   state.sets = sortNewestFirst(previous)
-  console.log('Reverted the last change.')
+  console.log(t('cli.history.reverted'))
 }
 
 async function handlePreview(state: EditorState): Promise<void> {
@@ -498,30 +521,32 @@ async function handlePreview(state: EditorState): Promise<void> {
   const originalLineCount = original.sets.reduce((n, s) => n + s.lines.length, 0)
   const currentLineCount = state.sets.reduce((n, s) => n + s.lines.length, 0)
 
-  console.log('\n── Preview of changes to be saved ──')
-  console.log(`Change sets: ${original.sets.length} → ${state.sets.length}`)
-  console.log(`Change lines: ${originalLineCount} → ${currentLineCount}`)
+  console.log(`\n${t('cli.history.previewHeading')}`)
+  console.log(
+    t('cli.history.previewSets', { before: original.sets.length, after: state.sets.length }),
+  )
+  console.log(t('cli.history.previewLines', { before: originalLineCount, after: currentLineCount }))
   if (!hasUnsavedChanges(state)) {
-    console.log('No changes pending — the file would be written unchanged.')
+    console.log(t('cli.history.noPending'))
   }
-  console.log('\nResulting change sets (newest first):')
+  console.log(`\n${t('cli.history.resultingSets')}`)
   if (state.sets.length === 0) {
-    console.log('  (none — the changelog would be emptied)')
+    console.log(`  ${t('cli.history.noneEmptied')}`)
   }
   for (const set of state.sets) {
-    console.log(
-      `  ${set.timestamp}  (${set.lines.length} change${set.lines.length === 1 ? '' : 's'})`,
-    )
+    console.log(`  ${setHeading(set)}`)
   }
   console.log('')
 
-  await selectMenu('Done previewing?', [{ title: '←  Back to menu', value: 'back' }])
+  await selectMenu(t('cli.history.promptDonePreview'), [
+    { title: `←  ${t('cli.history.backToMenu')}`, value: 'back' },
+  ])
 }
 
 /** Returns true when the editor should exit (saved or discarded), false to keep editing. */
 async function handleExit(state: EditorState, changesPath: string): Promise<boolean> {
   if (!hasUnsavedChanges(state)) {
-    console.log('No changes to save.')
+    console.log(t('cli.history.noChangesToSave'))
     return true
   }
 
@@ -529,11 +554,11 @@ async function handleExit(state: EditorState, changesPath: string): Promise<bool
 
   if (choice === 'save') {
     await fs.writeFile(changesPath, serializeChangeSets({ header: state.header, sets: state.sets }))
-    console.log(`Saved ${state.sets.length} change set(s) to ${changesPath}`)
+    console.log(t('cli.history.saved', { count: state.sets.length, file: changesPath }))
     return true
   }
   if (choice === 'discard') {
-    console.log('Discarded all changes.')
+    console.log(t('cli.history.discardedAll'))
     return true
   }
   // Cancel / ESC — keep editing.

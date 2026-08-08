@@ -1,7 +1,9 @@
 import type { Component } from 'solid-js'
 import { For } from 'solid-js'
-import { type ChangeEvent, isAdditiveChange, formatChange } from '../../change-event'
+import { type ChangeEvent, isAdditiveChange } from '../../change-event'
+import { formatChange } from '../../change-message'
 import { Modal } from '../../ui/Modal'
+import { useT } from '../../ui/i18n'
 
 interface DiscardConfirmDialogProps {
   open: boolean
@@ -11,12 +13,11 @@ interface DiscardConfirmDialogProps {
 }
 
 export const DiscardConfirmDialog: Component<DiscardConfirmDialogProps> = (props) => {
+  const t = useT()
   return (
     <Modal open={props.open} onClose={props.onCancel} size="md" panelClass="modal-panel--prompt">
-      <h3>
-        Discard {props.changes.length} change{props.changes.length !== 1 ? 's' : ''}?
-      </h3>
-      <p class="dialog-message">The following changes will be lost:</p>
+      <h3>{t('ui.editor.discardTitle', { count: props.changes.length })}</h3>
+      <p class="dialog-message">{t('ui.editor.discardMessage')}</p>
       <div class="changes-dialog changes-list-box">
         <For each={props.changes}>
           {(change) => {
@@ -32,10 +33,10 @@ export const DiscardConfirmDialog: Component<DiscardConfirmDialogProps> = (props
       </div>
       <div class="confirm-dialog-actions">
         <button type="button" class="btn btn-secondary" onClick={props.onCancel}>
-          Cancel
+          {t('ui.dialog.cancel')}
         </button>
         <button type="button" class="btn btn-danger" onClick={props.onConfirm}>
-          Yes, discard
+          {t('ui.editor.discardConfirm')}
         </button>
       </div>
     </Modal>
