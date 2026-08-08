@@ -27,6 +27,7 @@ import { QuantityDialog } from '../../../ui/QuantityDialog'
 import { CardSearchModal } from '../../../editor/components/CardSearchModal'
 import { adminSearch } from '../editor-backend'
 import { PageHeading } from '../components/PageHeading'
+import { sellModeEnabled } from '../sell-enabled'
 
 /** A navigation held back until the user says whether the queued moves may be dropped. */
 type PendingLeave = {
@@ -327,7 +328,7 @@ export function MoveCards(): JSX.Element {
           <Match when={deckView()}>
             {(view) => (
               <DeckPage
-                enableSellMode
+                enableSellMode={sellModeEnabled()}
                 deck={view().deck}
                 cards={session.cardData.cards}
                 printings={session.cardData.printings}
@@ -345,7 +346,7 @@ export function MoveCards(): JSX.Element {
           <Match when={collectionView()}>
             {(view) => (
               <CollectionPage
-                enableSellMode
+                enableSellMode={sellModeEnabled()}
                 name={view().name}
                 entries={view().entries}
                 sectionOrder={view().sectionOrder}
@@ -365,7 +366,7 @@ export function MoveCards(): JSX.Element {
           <Match when={wantedView()}>
             {(view) => (
               <WantedListPage
-                enableSellMode
+                enableSellMode={sellModeEnabled()}
                 name={view().name}
                 entries={view().entries}
                 sectionOrder={view().sectionOrder}

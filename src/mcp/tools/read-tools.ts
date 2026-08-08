@@ -5,7 +5,6 @@ import { loadProjectedList, type ListProjection } from '../projection'
 import { runTool } from '../result'
 import {
   AUTOCOMPLETE_CARD_OUTPUT,
-  CONFIG_OUTPUT,
   DIFF_LISTS_OUTPUT,
   EXPORT_CARDS_OUTPUT,
   FIND_CARDS_OUTPUT,
@@ -14,6 +13,7 @@ import {
   GET_CARD_DETAILS_OUTPUT,
   GET_CARD_PRICE_OUTPUT,
   GET_CARD_PRINTINGS_OUTPUT,
+  GET_CONFIG_OUTPUT,
   GET_HISTORY_OUTPUT,
   GET_LIST_OUTPUT,
   GET_PRICE_REPORT_OUTPUT,
@@ -68,7 +68,7 @@ import type { ListType } from '../../list-type'
 import type {
   CacheStatusResult,
   CardDetails,
-  ConfigResult,
+  GetConfigResult,
   ListsResponse,
   OmitSuccess,
   PrintingListing,
@@ -660,7 +660,8 @@ export function registerReadTools(server: McpServer): void {
         'quote per Near Mint copy, and their quantity caps. Scope with listType (default: ' +
         'collections) or lists; filter with sets / minPrice. Strictly cache-backed — errors ' +
         'when the card cache is empty (run refresh_cache) or no buylist feed has been ' +
-        'downloaded (run refresh_buylist).',
+        'downloaded (run refresh_buylist). Requires sell mode: with the site.sellMode config ' +
+        'off and no --sell-mode flag on this server, this tool errors "Not found".',
       inputSchema: sellScopeSchema,
       outputSchema: fromJsonSchema<SellReportResult>(GET_SELL_REPORT_OUTPUT),
       annotations: { readOnlyHint: true },
@@ -685,7 +686,8 @@ export function registerReadTools(server: McpServer): void {
         'variant note for variant printings, quantities capped at their buy ' +
         'limits), over the same scope and filters as get_sell_report. Upload the csv at ' +
         'cardkingdom.com/static/csvImport; warnings flag CK’s 500-title/5,000-card upload ' +
-        'caps and etched foils the format cannot express.',
+        'caps and etched foils the format cannot express. Requires sell mode, like ' +
+        'get_sell_report.',
       inputSchema: sellScopeSchema,
       outputSchema: fromJsonSchema<SellCartResult>(GET_SELL_CART_OUTPUT),
       annotations: { readOnlyHint: true },
@@ -710,7 +712,7 @@ export function registerReadTools(server: McpServer): void {
         '(a trade, a selection) without building a whole sell report; use get_sell_report ' +
         'to price entire lists. Printings the buyer has no product for are simply absent ' +
         'from the result. Strictly cache-backed — errors when no buylist feed has been ' +
-        'downloaded (run refresh_buylist).',
+        'downloaded (run refresh_buylist). Requires sell mode, like get_sell_report.',
       inputSchema: z.object({
         printings: z
           .array(buylistPrintingSchema)
@@ -761,16 +763,22 @@ export function registerReadTools(server: McpServer): void {
         'Get the current Ritual configuration, including defaultLanguage — the Scryfall ' +
         'language code stamped on newly added cards (and what decides which Scryfall bulk ' +
         'backs the card cache) — and uiLocale, the unrelated BCP-47 tag naming the language ' +
-        'the interface speaks. Two different settings; uiLocale costs nothing to change.',
+        'the interface speaks. Two different settings; uiLocale costs nothing to change. ' +
+        'config is the stored configuration; overrides is what this running server is ' +
+        'actually operating with where a session flag displaced it — a server started with ' +
+        '--sell-mode reports overrides {"site.sellMode": true} while config.site.sellMode ' +
+        'stays as stored (often unset). No overrides key means the two agree.',
       inputSchema: z.object({}),
-      outputSchema: fromJsonSchema<ConfigResult>(CONFIG_OUTPUT),
+      outputSchema: fromJsonSchema<GetConfigResult>(GET_CONFIG_OUTPUT),
       annotations: { readOnlyHint: true },
     },
     async () =>
-      runTool(async (): Promise<ConfigResult> => {
-        const data = (await callApi('GET', '/api/config')) as ConfigResponse
-        return { config: data.config }
-      }),
+      runTool(
+        // The typed strip already preserves `overrides` only when the server
+        // sent it — the key's *absence* is what says this instance follows the
+        // stored config — so the body needs no rebuild of its own.
+        (): Promise<GetConfigResult> => callApiData<ConfigResponse>('GET', '/api/config'),
+      ),
   )
 
   server.registerTool(

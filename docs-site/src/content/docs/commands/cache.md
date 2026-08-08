@@ -105,6 +105,28 @@ A failed preload exits `1`. The same refresh over HTTP
 `refresh_cache` tool that reuses it) likewise **reports the failure** rather than
 answering success unconditionally.
 
+#### The buylist rides along under sell mode
+
+When [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is enabled, `preload-all`
+updates **every** cache the workspace uses, and the [Card Kingdom buylist](/commands/sell/) is one
+of them — a site built from a day-old feed bakes yesterday's offers. After the card cache refresh
+succeeds it runs the equivalent of `ritual sell --refresh auto` on the feed: a cached copy less than
+a day old is left alone, a day-old one is redownloaded, and a missing one is downloaded (~70 MB)
+without prompting — reaching this command is already consent to bulk downloads. `--force` carries
+through, so it redownloads a feed that is merely fresh.
+
+There is no `--sell-mode` flag here: this is cache maintenance, not a surface that offers sell mode,
+so it follows the config only. **A buylist failure is a warning, never the exit code** — the card
+cache did refresh:
+
+```
+The card cache was updated, but the Card Kingdom buylist was not: <reason>
+```
+
+With sell mode off, no buylist work happens. The HTTP and MCP refreshes
+(`POST /api/cache/refresh`, `refresh_cache`) do **not** include this step — the buylist has its own
+route and tool (`POST /api/sell/refresh`, `refresh_buylist`).
+
 ### Bulk selection and language
 
 Which Scryfall bulk a card refresh downloads follows the
@@ -256,7 +278,7 @@ files. Ritual attaches these to cached cards as plain slug arrays:
   printing's illustration, so different printings of the same card can have
   different art tags.
 
-The derived tag lookup is stored in `cache/tags.json`. (The [`sell`](/commands/sell/) command keeps its Card Kingdom buylist feed in its own file, `cache/cardkingdom.json`, with its own daily freshness — the cache commands here do not manage it.)
+The derived tag lookup is stored in `cache/tags.json`. (The [`sell`](/commands/sell/) command keeps its Card Kingdom buylist feed in its own file, `cache/cardkingdom.json`, with its own daily freshness. The only cache command that touches it is [`preload-all`](#the-buylist-rides-along-under-sell-mode), and only when sell mode is enabled; `cache status`, the [cache server](#the-cache-server), and the [cache feed](#feed-fetch) all ignore it.)
 
 ## The cache server
 

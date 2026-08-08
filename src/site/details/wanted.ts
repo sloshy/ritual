@@ -18,11 +18,13 @@ import type {
   WantedListSummary,
 } from '../data-types'
 import {
+  bakeBuylistQuotes,
   includeChangelogCards,
   listReadErrorMessage,
   loadListSidecars,
   slugifyListName,
 } from './shared'
+import type { BuylistBakeSource } from './shared'
 import type { SiteDetailContext } from './types'
 import {
   cardPrintingKey,
@@ -101,6 +103,8 @@ export async function buildWantedArtifacts(
   let missingPriceCountTix = 0
   let featured: ScryfallCard | null = null
   let featuredPrice = -1
+  /** Every entry's displayed printing, for the buylist bake (empty when not baking). */
+  const buylistSources: BuylistBakeSource[] = []
 
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i]!
@@ -236,6 +240,10 @@ export async function buildWantedArtifacts(
       }
     }
 
+    // `card` is what `resolveWantedCardEntry` will hand the tile: the exact
+    // printing when the line pins one, the cheapest/representative otherwise.
+    if (ctx.buylist) buylistSources.push({ card, finish: entry.finish, language: entry.language })
+
     totalPrice += price
     totalPriceEur += priceEur
     totalPriceTix += priceTix
@@ -277,6 +285,7 @@ export async function buildWantedArtifacts(
     defaultCurrency: ctx.defaultCurrency,
     pricesDate: ctx.pricesDate,
     changelog: changelog.length > 0 ? changelog : undefined,
+    buylist: bakeBuylistQuotes(ctx, buylistSources),
   }
 
   const featuredImage = featured

@@ -1,7 +1,9 @@
 import { test, expect, type Route } from '@playwright/test'
+import type { ConfigResponse } from '../../../src/admin/api/config'
+import { defaultSiteSelection } from '../../../src/site/list-selection'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { fulfillJson } from '../helpers/fulfill'
-import { mockConfigApi, mockTotpApi, MOCK_CONFIG } from '../helpers/mock-admin'
+import { mockConfigApi, mockStatusApi, mockTotpApi, MOCK_CONFIG } from '../helpers/mock-admin'
 
 type ConfigPutBody = {
   defaultLanguage?: string
@@ -21,6 +23,7 @@ type ConfigPutBody = {
     excludeWantedLists?: string[]
     apiBaseUrl?: string
     bannedPrintings?: string[]
+    sellMode?: boolean
   }
 }
 
@@ -28,6 +31,7 @@ test.describe('Settings Page', () => {
   test.beforeEach(async ({ page }) => {
     await mockConfigApi(page)
     await mockTotpApi(page)
+    await mockStatusApi(page)
     await gotoAdminDashboard(page)
     await page.locator('.admin-sidebar .admin-nav-item:has-text("Settings")').click()
     await expect(page.locator('.section-heading')).toContainText('Settings')
@@ -55,6 +59,9 @@ test.describe('Settings Page', () => {
     await expect(main.locator('input[name="searchDebounceMs"]')).toHaveValue(
       String(MOCK_CONFIG.searchDebounceMs),
     )
+    // Sell mode is stored by presence: this config has no `site.sellMode`, so
+    // the box reads unticked. Its ticked half is the prefill describe below.
+    await expect(main.locator('input[name="sellMode"]')).not.toBeChecked()
   })
 
   test('editing the search debounce persists the new value', async ({ page }) => {
@@ -221,18 +228,27 @@ test.describe('Settings Page', () => {
   })
 })
 
-test.describe('Settings Page — banned printings prefill', () => {
+test.describe('Settings Page — site key prefill', () => {
   test.beforeEach(async ({ page }) => {
-    // Serve a config that already has a stored (lowercase) banned printing so the
-    // prefill path is exercised. PUTs echo the plain mock config back.
-    await fulfillJson(page, '**/api/config', (route: Route) => ({
-      success: true,
-      config:
-        route.request().method() === 'GET'
-          ? { ...MOCK_CONFIG, site: { bannedPrintings: ['sld:123'] } }
-          : MOCK_CONFIG,
-    }))
+    // Serve a config that already has a stored (lowercase) banned printing and
+    // sell mode on, so both prefill paths are exercised. PUTs echo the plain
+    // mock config back.
+    await fulfillJson(
+      page,
+      '**/api/config',
+      (route: Route): ConfigResponse => ({
+        success: true,
+        config:
+          route.request().method() === 'GET'
+            ? {
+                ...MOCK_CONFIG,
+                site: { ...defaultSiteSelection(), bannedPrintings: ['sld:123'], sellMode: true },
+              }
+            : MOCK_CONFIG,
+      }),
+    )
     await mockTotpApi(page)
+    await mockStatusApi(page, true)
     await gotoAdminDashboard(page)
     await page.locator('.admin-sidebar .admin-nav-item:has-text("Settings")').click()
     await expect(page.locator('.section-heading')).toContainText('Settings')
@@ -240,5 +256,9 @@ test.describe('Settings Page — banned printings prefill', () => {
 
   test('prefills stored banned printings with the set code uppercased', async ({ page }) => {
     await expect(page.locator('main textarea[name="bannedPrintings"]')).toHaveValue('SLD:123')
+  })
+
+  test('the sell mode checkbox reflects the stored site.sellMode', async ({ page }) => {
+    await expect(page.locator('main input[name="sellMode"]')).toBeChecked()
   })
 })

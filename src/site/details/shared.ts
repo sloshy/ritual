@@ -9,7 +9,10 @@ import {
 import { computeRepresentativePrints } from '../../scryfall'
 import { getErrorMessage } from '../../errors'
 import { t } from '../../i18n/t'
-import type { ScryfallCard } from '../../types'
+import { buylistRequestFor, quoteKey, type BuylistQuote } from '../../buylist'
+import type { CardLanguage } from '../../card-language'
+import type { Finish, ScryfallCard } from '../../types'
+import type { BakedBuylist } from '../data-types'
 import type { SiteDetailContext } from './types'
 
 /**
@@ -71,6 +74,73 @@ export async function loadListSidecars(
   }
 
   return { changelog, fileMtime }
+}
+
+/**
+ * One printing to quote while baking a list's buylist offers: the card object a
+ * tile will actually display, plus the entry's own finish and language tokens.
+ *
+ * Deliberately shaped like the client's `buylistRequestFor` inputs — the baked
+ * keys have to be exactly the ones `buylistFieldsFor` looks up, or sell mode
+ * shows "not on the buylist" for cards the buyer is happily buying.
+ */
+export type BuylistBakeSource = {
+  /** The displayed card; a null (unresolved) printing is skipped. */
+  card: ScryfallCard | null
+  /** The entry's `[foil]` token when it has one; resolved through `displayFinish`. */
+  finish?: Finish
+  /** The entry's `[ja]`-style token; absent means English. */
+  language?: CardLanguage
+}
+
+/**
+ * Quote every displayed printing of one list against `ctx.buylist`, keyed by
+ * {@link quoteKey}.
+ *
+ * Returns `undefined` when the context carries no buylist — the detail then
+ * omits the field entirely, which is what tells the client "nothing was quoted"
+ * as opposed to "quoted, and none of these cards are wanted" (an empty
+ * `quotes` map).
+ *
+ * Requests are built through the shared `buylistRequestFor` — the same function
+ * the client's `buylistFieldsFor` looks its quotes up with, so the keys on both
+ * sides can never drift. It also owns the English-only gate: a buyer's feed is
+ * English-only and keyed by `set:cn`, which an alternate-language object
+ * *shares* with its English twin, so quoting one would price a foreign card at
+ * the English offer.
+ *
+ * That gate deliberately runs *ahead of* the `asked` dedupe below rather than
+ * inside it. A leading `[ja]` line would otherwise claim the shared
+ * `set:cn:finish` key and leave its English twin unpriced — the behaviour pinned
+ * by 'a non-English copy is never quoted, and never suppresses its English twin'
+ * in `test/unit/site/details.test.ts`.
+ */
+export function bakeBuylistQuotes(
+  ctx: SiteDetailContext,
+  sources: readonly BuylistBakeSource[],
+): BakedBuylist | undefined {
+  const buylist = ctx.buylist
+  if (!buylist) return undefined
+
+  const quotes: Record<string, BuylistQuote> = {}
+  const asked = new Set<string>()
+  for (const source of sources) {
+    const request = buylistRequestFor(source.card, source.finish, source.language)
+    if (!request) continue
+    const key = quoteKey(request.set, request.collectorNumber, request.finish)
+    if (asked.has(key)) continue
+    asked.add(key)
+    const quote = buylist.quote(request)
+    if (quote) quotes[key] = quote
+  }
+
+  return {
+    [buylist.buyer]: {
+      quotes,
+      feedCreatedAt: buylist.feedCreatedAt,
+      feedRetrievedAt: buylist.feedRetrievedAt,
+    },
+  }
 }
 
 /**

@@ -35,6 +35,7 @@ import { DEFAULT_LOCALE } from '../i18n/runtime'
 import { t } from '../i18n/t'
 import type { LocaleTag } from '../i18n/types'
 import { getUiLocale } from '../ritual-config'
+import { addSellModeOption, applySellModeOverride } from './sell-mode-flag'
 import { buildFlameSvg } from '../flame'
 import { localizedCommandError } from '../errors'
 import { runCommandAction } from './card-target'
@@ -57,6 +58,13 @@ type AdminCommandOptions = {
   mcp?: boolean
   mcpPort: number
   mcpToken?: string
+  /**
+   * Offer sell mode for this run whatever `site.sellMode` says (enable-only;
+   * absent follows the config). The admin used to force sell mode on
+   * unconditionally; it now follows the same gate as every other surface, so a
+   * workspace that never opted in is never made to download a ~70 MB buylist.
+   */
+  sellMode?: boolean
 }
 
 /** Validated settings for the embedded MCP endpoint (`--mcp`). */
@@ -140,6 +148,10 @@ export function registerAdminCommand(program: Command): void {
     .option('--mcp-port <number>', t('help.admin.mcpPort'), parsePort, 8765)
     .option('--mcp-token <secret>', t('help.admin.mcpToken'))
     .action(async (options: AdminCommandOptions) => {
+      // Set before the buylist warm and before the server starts answering
+      // requests, so the startup refresh and the sell/buylist routes agree.
+      applySellModeOverride(options)
+
       const port = options.port
       const host = options.host
       const adminDistDir = path.join(getBaseDir(), '.admin-dist')
@@ -175,12 +187,9 @@ export function registerAdminCommand(program: Command): void {
 
       // The admin's buylist routes read a cached feed and never download; a
       // day-old one quotes yesterday's offers, so startup brings it current.
-      // `sellMode: true` because the admin always offers sell mode — the
-      // `site.sellMode` key governs what a *published* site discloses, not what
-      // your own tools can see. A workspace with no buylist is left alone.
-      const buylistWarning = sellModeWarning(
-        await warmCardKingdomFeed(options.refresh, { sellMode: true }),
-      )
+      // Gated on sell mode exactly like every other surface: `site.sellMode`, or
+      // this run's `--sell-mode`. A workspace with no buylist is left alone.
+      const buylistWarning = sellModeWarning(await warmCardKingdomFeed(options.refresh))
       if (buylistWarning !== undefined) console.warn(buylistWarning)
 
       await fs.rm(adminDistDir, { recursive: true, force: true })
@@ -254,6 +263,11 @@ export function registerAdminCommand(program: Command): void {
       process.once('SIGINT', shutdown)
       process.once('SIGTERM', shutdown)
     })
+  // The shared `--sell-mode` flag; registered through the same helper as
+  // `build-site`, `serve` and `mcp` so the four can never describe the same
+  // switch differently. Commander collects options at parse time, so this sits
+  // beside the built command rather than mid-chain.
+  addSellModeOption(admin, t('help.admin.sellMode'))
 
   registerSetupSubcommand(admin)
   registerResetPasswordSubcommand(admin)

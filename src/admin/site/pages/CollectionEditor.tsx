@@ -20,6 +20,7 @@ import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, moveTargetsExcluding } from '../move-targets'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
+import { sellModeEnabled } from '../sell-enabled'
 
 type CollectionListResponse = { collections?: { slug: string; name: string }[] }
 
@@ -121,7 +122,7 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
   return (
     <>
       <CollectionEditorBody
-        enableSellMode
+        enableSellMode={sellModeEnabled()}
         ctrl={ctrl}
         defaults={defaults}
         search={adminSearch}

@@ -4,8 +4,13 @@ import path from 'node:path'
 import type { Client } from '@modelcontextprotocol/client'
 import { cardCache } from '../../../src/cache'
 import { setupMcpClient, type McpTestSession } from './harness'
-import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../../test-utils'
+import {
+  cardKingdomFeedBody,
+  makeCardKingdomCacheFile,
+  makeCardKingdomProduct,
+} from '../../test-utils'
 import { expectSchemaRejection, toolData, toolError } from '../../mcp-test-utils'
+import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../../src/ritual-config'
 
 /**
  * Wiring-only coverage per the test layering policy: the tools are registered
@@ -13,6 +18,10 @@ import { expectSchemaRejection, toolData, toolError } from '../../mcp-test-utils
  * translation reaches the handler, and the missing-feed refusal names the
  * remedy. Matching semantics are pinned in test/unit/sell-report.test.ts
  * against the engine; handler parameter validation in test/unit/admin/sell.test.ts.
+ *
+ * Every tool here reuses an admin route that `withSellModeGate` 404s while sell
+ * mode is off, so the suite turns it on the way `ritual mcp --sell-mode` does —
+ * the temp workspace has no config file, and sell mode is off by default.
  */
 
 /** Seed a collection holding the harness's cached Sol Ring plus a CK feed for it. */
@@ -49,9 +58,11 @@ describe('sell MCP tools', () => {
   beforeEach(async () => {
     session = await setupMcpClient('sell-tools-test')
     client = session.client
+    setSiteSellModeOverride(true)
   })
 
   afterEach(async () => {
+    clearSiteSellModeOverride()
     await session.close()
   })
 
@@ -179,27 +190,7 @@ describe('sell MCP tools', () => {
     const stub = (input: string | URL | Request): Promise<Response> => {
       const url = String(input instanceof Request ? input.url : input)
       if (url.includes('api.cardkingdom.com')) {
-        return Promise.resolve(
-          Response.json({
-            meta: { created_at: '2026-08-04 06:06:09', base_url: 'https://www.cardkingdom.com/' },
-            data: [
-              {
-                id: 1,
-                sku: 'TST-0001',
-                scryfall_id: 'sf-1',
-                url: 'mtg/test/one',
-                name: 'Test Card',
-                variation: '',
-                edition: 'Test Set',
-                is_foil: 'false',
-                price_retail: '1.00',
-                qty_retail: 3,
-                price_buy: '0.50',
-                qty_buying: 10,
-              },
-            ],
-          }),
-        )
+        return Promise.resolve(Response.json(cardKingdomFeedBody()))
       }
       return originalFetch(input)
     }
@@ -214,6 +205,28 @@ describe('sell MCP tools', () => {
       expect(data.warnings).toEqual([])
     } finally {
       globalThis.fetch = originalFetch
+    }
+  })
+
+  test('every sell tool is refused when sell mode is off', async () => {
+    // Still listed — the tool set is fixed at build time — but the routes they
+    // reuse are gated, so an agent on a default workspace gets the gate's 404
+    // rather than a quote. `ritual mcp --sell-mode` (or `site.sellMode`) is the
+    // remedy the tool descriptions name.
+    await seedSellFixture(session)
+    clearSiteSellModeOverride()
+
+    const calls = [
+      { name: 'get_sell_report', arguments: {} },
+      { name: 'get_sell_cart', arguments: {} },
+      { name: 'get_buylist_quotes', arguments: { printings: [] } },
+      { name: 'refresh_buylist', arguments: {} },
+    ]
+    for (const call of calls) {
+      // The gate answers the standard refusal envelope, so its `message`
+      // survives the dispatcher instead of degrading to the meaningless
+      // "Admin request failed (HTTP 404)".
+      expect(toolError(await client.callTool(call)).message).toBe('Not found')
     }
   })
 })

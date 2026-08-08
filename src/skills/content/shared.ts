@@ -98,7 +98,8 @@ export const REFRESH_COMMANDS = wrapProse(
     `exceptions download without asking: \`build-site\` bulk-downloads an empty or ` +
     `week-old card cache, since it cannot build a site without card data, and a ` +
     `Card Kingdom buylist already downloaded is redownloaded once it is a day ` +
-    `old — by \`sell\`, and by \`admin\`/\`serve --api\` at startup — since a ` +
+    `old — by \`sell\`, and, wherever sell mode is enabled, by \`build-site\` and ` +
+    `by \`admin\`/\`serve --api\` at startup — since a ` +
     `day-old feed quotes yesterday's offers; only the first buylist download ` +
     `prompts), \`auto\` ` +
     `(refresh stale data without asking, bulk download allowed), \`no-bulk\` ` +

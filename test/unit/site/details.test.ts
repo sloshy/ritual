@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { makeScryfallCard } from '../../../test/test-utils'
+import { makeBuylistQuote, makeScryfallCard } from '../../../test/test-utils'
 import { slugifyListName } from '../../../src/site/details/shared'
 import { buildDeckArtifacts, type LoadedDeck } from '../../../src/site/details/deck'
 import {
@@ -7,7 +7,13 @@ import {
   type LoadedCollection,
 } from '../../../src/site/details/collection'
 import { buildWantedArtifacts, type LoadedWanted } from '../../../src/site/details/wanted'
-import type { SiteCardData, SiteDetailContext } from '../../../src/site/details/types'
+import type {
+  DetailBuylistContext,
+  SiteCardData,
+  SiteDetailContext,
+} from '../../../src/site/details/types'
+import type { BuylistQuote, BuylistQuoteRequest } from '../../../src/buylist'
+import { quoteKey } from '../../../src/buylist'
 import type { ScryfallCard } from '../../../src/types'
 import type { ChangelogPage } from '../../../src/changelog-parser'
 
@@ -16,6 +22,8 @@ type StubContextOptions = {
   printingsByName?: Record<string, ScryfallCard[]>
   canonicalNames?: Record<string, string>
   currencies?: SiteDetailContext['availableCurrencies']
+  /** Attach a buylist seam; absent means the builder must bake no `buylist` field. */
+  buylist?: DetailBuylistContext
 }
 
 type StubContext = {
@@ -30,6 +38,7 @@ function makeContext(options: StubContextOptions = {}): StubContext {
   const printingsByName = options.printingsByName ?? {}
   const canonicalNames = options.canonicalNames ?? {}
   const ctx: SiteDetailContext = {
+    ...(options.buylist ? { buylist: options.buylist } : {}),
     cardData: {
       cards: {},
       printings: {},
@@ -448,5 +457,267 @@ describe('language baking', () => {
     expect(detail.cards['fdn:35@ja']).toBe(angelJa)
     expect(detail.entries[0]).toMatchObject({ language: 'ja', price: 1.2 })
     expect(shipped).toEqual([angel, angelJa])
+  })
+})
+
+describe('buylist baking', () => {
+  /** A recording buylist seam: what the builder asked, and what it was told. */
+  type StubBuylist = {
+    ctx: DetailBuylistContext
+    /** Every printing the builder quoted, in the order it asked. */
+    asked: BuylistQuoteRequest[]
+  }
+
+  const FEED_CREATED_AT = '2026-08-04 06:06:09'
+  const FEED_RETRIEVED_AT = 1785850800000
+
+  const makeQuote = makeBuylistQuote
+
+  /**
+   * A seam answering from `catalog` (keyed exactly as the detail keys its baked
+   * map) and recording every ask, so the tests can pin *which* printing the
+   * builder decided a tile displays — not just what came back.
+   */
+  function stubBuylist(catalog: Record<string, BuylistQuote> = {}): StubBuylist {
+    const asked: BuylistQuoteRequest[] = []
+    return {
+      asked,
+      ctx: {
+        buyer: 'cardkingdom',
+        quote: (printing) => {
+          asked.push(printing)
+          return catalog[quoteKey(printing.set, printing.collectorNumber, printing.finish)] ?? null
+        },
+        feedCreatedAt: FEED_CREATED_AT,
+        feedRetrievedAt: FEED_RETRIEVED_AT,
+      },
+    }
+  }
+
+  /** A foil-only printing: its displayed finish is foil with no `[foil]` token. */
+  const foilOnly = makeScryfallCard({
+    id: 'angel-etched',
+    name: 'Etched Angel',
+    set: 'fdn',
+    collector_number: '400',
+    finishes: ['foil'],
+    prices: { usd_foil: '3.00' },
+  })
+
+  const binder = (entries: LoadedCollection['entries']): LoadedCollection => ({
+    displayName: 'Sell Binder',
+    entries,
+    sectionOrder: ['Main'],
+    warnings: [],
+    changelog: [],
+  })
+
+  test('a context with no buylist leaves the field off the detail entirely', async () => {
+    const { ctx } = makeContext({ printingsByName: { 'Serra Angel': [angel] } })
+    const loaded = binder([
+      {
+        name: 'Serra Angel',
+        quantity: 1,
+        set: 'fdn',
+        collectorNumber: '35',
+        section: 'Main',
+        cardId: 1,
+      },
+    ])
+
+    const { detail } = await buildCollectionArtifacts(loaded, ctx)
+
+    // Absent, not empty: "this list was never quoted" is what tells the client
+    // to explain itself rather than report an empty buylist. Asserted through
+    // the serializer as well, since the detail ships as JSON and that is where
+    // an `undefined` becomes a genuinely absent field.
+    expect(detail.buylist).toBeUndefined()
+    expect(JSON.parse(JSON.stringify(detail))).not.toHaveProperty('buylist')
+  })
+
+  test('a quoted list bakes offers under the displayed finish, with the feed stamps', async () => {
+    const buylist = stubBuylist({
+      'fdn:35:foil': makeQuote({ priceBuy: 5, name: 'Serra Angel' }),
+      'fdn:400:foil': makeQuote({ priceBuy: 2, finish: 'foil', name: 'Etched Angel' }),
+    })
+    const { ctx } = makeContext({
+      printingsByName: { 'Serra Angel': [angel], 'Etched Angel': [foilOnly] },
+      buylist: buylist.ctx,
+    })
+    const loaded = binder([
+      {
+        name: 'Serra Angel',
+        quantity: 1,
+        set: 'fdn',
+        collectorNumber: '35',
+        finish: 'foil',
+        section: 'Main',
+        cardId: 1,
+      },
+      // No `[foil]` token: a foil-only printing still displays (and quotes) as foil.
+      {
+        name: 'Etched Angel',
+        quantity: 1,
+        set: 'fdn',
+        collectorNumber: '400',
+        section: 'Main',
+        cardId: 2,
+      },
+    ])
+
+    const { detail } = await buildCollectionArtifacts(loaded, ctx)
+
+    expect(detail.buylist?.cardkingdom).toMatchObject({
+      feedCreatedAt: FEED_CREATED_AT,
+      feedRetrievedAt: FEED_RETRIEVED_AT,
+    })
+    expect(Object.keys(detail.buylist?.cardkingdom?.quotes ?? {}).sort()).toEqual([
+      'fdn:35:foil',
+      'fdn:400:foil',
+    ])
+    expect(detail.buylist?.cardkingdom?.quotes['fdn:35:foil']).toMatchObject({ priceBuy: 5 })
+    // The scryfall id goes along, so the matcher can join on it rather than
+    // guessing from the set code.
+    expect(buylist.asked).toEqual([
+      { set: 'fdn', collectorNumber: '35', finish: 'foil', scryfallId: 'angel-fdn' },
+      { set: 'fdn', collectorNumber: '400', finish: 'foil', scryfallId: 'angel-etched' },
+    ])
+  })
+
+  test('a quoted list with nothing on the buylist bakes an empty map, not an absent field', async () => {
+    const buylist = stubBuylist()
+    const { ctx } = makeContext({
+      printingsByName: { 'Serra Angel': [angel] },
+      buylist: buylist.ctx,
+    })
+    const loaded = binder([
+      {
+        name: 'Serra Angel',
+        quantity: 1,
+        set: 'fdn',
+        collectorNumber: '35',
+        section: 'Main',
+        cardId: 1,
+      },
+    ])
+
+    const { detail } = await buildCollectionArtifacts(loaded, ctx)
+
+    // The distinction the client renders differently: quoted and unwanted vs
+    // never quoted at all.
+    expect(detail.buylist?.cardkingdom?.quotes).toEqual({})
+    expect(buylist.asked).toHaveLength(1)
+  })
+
+  test('a non-English copy is never quoted, and never suppresses its English twin', async () => {
+    const angelJa = makeScryfallCard({
+      id: 'angel-fdn-ja',
+      name: 'Serra Angel',
+      set: 'fdn',
+      collector_number: '35',
+      lang: 'ja',
+      finishes: ['nonfoil', 'foil'],
+    })
+    const buylist = stubBuylist({ 'fdn:35:nonfoil': makeQuote({ name: 'Serra Angel' }) })
+    const { ctx } = makeContext({
+      printingsByName: { 'Serra Angel': [angel, angelJa] },
+      buylist: buylist.ctx,
+    })
+    // The [ja] line comes first: a language gate applied after the dedupe would
+    // let it claim the shared `fdn:35:nonfoil` key and silently unprice the
+    // English copy below it.
+    const loaded = binder([
+      {
+        name: 'Serra Angel',
+        quantity: 1,
+        set: 'fdn',
+        collectorNumber: '35',
+        language: 'ja',
+        section: 'Main',
+        cardId: 1,
+      },
+      {
+        name: 'Serra Angel',
+        quantity: 1,
+        set: 'fdn',
+        collectorNumber: '35',
+        section: 'Main',
+        cardId: 2,
+      },
+    ])
+
+    const { detail } = await buildCollectionArtifacts(loaded, ctx)
+
+    expect(buylist.asked).toEqual([
+      { set: 'fdn', collectorNumber: '35', finish: 'nonfoil', scryfallId: 'angel-fdn' },
+    ])
+    expect(detail.buylist?.cardkingdom?.quotes['fdn:35:nonfoil']).toMatchObject({ priceBuy: 4 })
+  })
+
+  test('a deck quotes the cheapest printing too, since the Lowest Price toggle displays it', async () => {
+    const buylist = stubBuylist({ 'm10:146:nonfoil': makeQuote({ name: 'Lightning Bolt' }) })
+    const { ctx } = makeContext({
+      cardData: {
+        cards: { 'Lightning Bolt': bolt },
+        printings: { 'Lightning Bolt': [bolt, boltCheap] },
+        cheapest: { usd: { 'Lightning Bolt': boltCheap } },
+      },
+      currencies: ['usd'],
+      buylist: buylist.ctx,
+    })
+    const deck: LoadedDeck = {
+      data: {
+        name: 'Burn Deck',
+        sections: [{ name: 'Mainboard', cards: [{ name: 'Lightning Bolt', quantity: 4 }] }],
+      },
+      changelog: [],
+      warnings: [],
+    }
+
+    const { detail } = await buildDeckArtifacts(deck, ctx)
+
+    // Both the representative and the cheapest printing are quoted: a baked-only
+    // client cannot fetch the quote the toggle would need.
+    expect(buylist.asked.map((printing) => printing.collectorNumber).sort()).toEqual(['146', '161'])
+    expect(detail.buylist?.cardkingdom?.quotes['m10:146:nonfoil']).toMatchObject({ priceBuy: 4 })
+  })
+
+  test('a wanted list bakes its entries, deduplicating a printing two entries share', async () => {
+    const buylist = stubBuylist({ 'fdn:35:nonfoil': makeQuote({ name: 'Serra Angel' }) })
+    const { ctx } = makeContext({
+      printingsByName: { 'Serra Angel': [angel] },
+      buylist: buylist.ctx,
+    })
+    const loaded: LoadedWanted = {
+      displayName: 'Wants',
+      entries: [
+        {
+          name: 'Serra Angel',
+          quantity: 1,
+          set: 'fdn',
+          collectorNumber: '35',
+          section: 'Main',
+          cardId: 1,
+        },
+        {
+          name: 'Serra Angel',
+          quantity: 2,
+          set: 'fdn',
+          collectorNumber: '35',
+          section: 'Main',
+          cardId: 2,
+        },
+      ],
+      sectionOrder: ['Main'],
+      warnings: [],
+      changelog: [],
+    }
+
+    const { detail } = await buildWantedArtifacts(loaded, ctx)
+
+    // One ask for the printing both entries display — the map is keyed by
+    // printing, so a second lookup would buy nothing.
+    expect(buylist.asked).toHaveLength(1)
+    expect(detail.buylist?.cardkingdom?.quotes['fdn:35:nonfoil']).toMatchObject({ priceBuy: 4 })
   })
 })

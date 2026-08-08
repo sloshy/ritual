@@ -17,6 +17,7 @@ export {
 export {
   SELL_MATCH_VIAS,
   quoteKey,
+  type BuylistFeedProvenance,
   type BuylistFeedStamp,
   type BuylistQuote,
   type BuylistQuoteRequest,
@@ -24,6 +25,8 @@ export {
   type BuylistStatusResponse,
   type SellMatchVia,
 } from './types'
+export { buylistRequestFor, isQuotableCard } from './request'
+export { BUYLIST_FEED_MAX_AGE_MS, buylistFeedIsStale } from './freshness'
 export { BUYLIST_CURRENCY, roundCents } from './money'
 export {
   CK_CSV_MAX_CARDS,

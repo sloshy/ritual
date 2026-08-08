@@ -1,6 +1,7 @@
 import {
   DEFAULT_ADMIN_CONFIG,
   getRitualConfigPath,
+  getSessionOverrides,
   isConfigParseError,
   loadRitualConfig,
   parseAdminConfig,
@@ -17,6 +18,7 @@ import {
   saveRitualConfig,
   type ConfigParseError,
   type RitualConfig,
+  type SessionOverrides,
 } from '../../ritual-config'
 import { parseExportPresets } from '../../export/presets'
 import { shouldAutoCommit, commitFiles } from '../git'
@@ -32,6 +34,16 @@ import { getBaseDir } from '../../base-dir'
 export interface ConfigResponse {
   success: true
   config: RitualConfig
+  /**
+   * What this *running server* is operating with in place of the stored
+   * `config`, when a session flag such as `--sell-mode` displaced something.
+   * Present on `GET` only when at least one override is in force — a client
+   * that never sees the key is talking to an instance that follows the config.
+   *
+   * Never on `PUT`: a write echoes back what it persisted, and an override is
+   * not persisted (nor changed) by one.
+   */
+  overrides?: SessionOverrides
 }
 
 /** Marks every RitualConfig key; `satisfies` keeps the allowlist exhaustive. */
@@ -103,7 +115,14 @@ export function handleGetConfig(): Promise<Response> {
   // runs answers with its actionable parse message, not a contentless 500.
   return apiHandler(async () => {
     const config = await loadRitualConfig()
-    const resp: ConfigResponse = { success: true, config }
+    // `config` stays the stored configuration; the overrides ride beside it so a
+    // client can tell what this instance is actually running with without the
+    // two answers ever being conflated.
+    const overrides = getSessionOverrides()
+    const resp: ConfigResponse =
+      Object.keys(overrides).length > 0
+        ? { success: true, config, overrides }
+        : { success: true, config }
     return Response.json(resp)
   })
 }

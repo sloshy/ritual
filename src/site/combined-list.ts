@@ -1,3 +1,4 @@
+import { BUYERS } from '../buylist'
 import { buylistFieldsFor } from './buylist-quotes'
 import type { ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
@@ -15,6 +16,7 @@ import { fetchJson } from './useFetchJson'
 import { detailUrl, reportDataFetchError } from './api-base'
 import { isAbortError } from './utils'
 import type {
+  BakedBuylist,
   DeckDetail,
   CollectionDetail,
   WantedListDetail,
@@ -257,7 +259,10 @@ function buildDeckCards(
         artTags: card?.artTags ?? [],
         labels: [],
         finish: entry.finish,
-        ...buylistFieldsFor(card, entry.finish),
+        // From the ENTRY, not the resolved card: under the default `en` cache no
+        // `@lang` object is baked, so the card object cannot say (see CardData).
+        language: entryLanguage(entry.language),
+        ...buylistFieldsFor(card, entry.finish, entry.language),
         card,
         sourceName: name,
         sourceKind: 'deck',
@@ -325,7 +330,8 @@ function buildCollectionCards(
       artTags: card?.artTags ?? [],
       labels,
       finish: entry.finish,
-      ...buylistFieldsFor(card, entry.finish),
+      language: entryLanguage(entry.language),
+      ...buylistFieldsFor(card, entry.finish, entry.language),
       card,
       sourceName: name,
       sourceKind: 'collection',
@@ -391,7 +397,8 @@ function buildWantedCards(
       artTags: card?.artTags ?? [],
       labels: [],
       finish: entry.finish,
-      ...buylistFieldsFor(card, entry.finish),
+      language: entryLanguage(entry.language),
+      ...buylistFieldsFor(card, entry.finish, entry.language),
       card,
       sourceName: name,
       sourceKind: 'wanted',
@@ -442,6 +449,48 @@ export function mergeCardMaps(loaded: LoadedListDetail[]): Record<string, Scryfa
     }
   }
   return merged
+}
+
+/**
+ * Merge every loaded list's baked buylist quotes into one payload for the
+ * combined view, or `undefined` when not one of them carries any.
+ *
+ * Per buyer, the quote maps union (keys are printings, so the lists agree
+ * wherever they overlap) and the stamps come from the most recently downloaded
+ * feed — a combined view built from details generated at different times should
+ * report the freshest one it is actually showing, not an arbitrary list's.
+ *
+ * `undefined` rather than an empty payload is deliberate: it is what makes
+ * "none of these lists was quoted" reach the user as an explanation instead of
+ * a silently priceless sell mode.
+ */
+export function mergeBakedBuylists(loaded: LoadedListDetail[]): BakedBuylist | undefined {
+  const merged: BakedBuylist = {}
+  let found = false
+  for (const list of loaded) {
+    const baked = list.detail.buylist
+    if (!baked) continue
+    found = true
+    // Over the buyer vocabulary rather than the payload's own keys, so the
+    // merged values stay typed as quotes instead of `quotes | undefined`.
+    for (const buyer of BUYERS) {
+      const quotes = baked[buyer]
+      if (!quotes) continue
+      const existing = merged[buyer]
+      if (!existing) {
+        // Reuse the payload as-is where it is the only one: the seed store
+        // compares quote objects by identity, so preserving them keeps a
+        // re-render of this memo from looking like new data.
+        merged[buyer] = quotes
+        continue
+      }
+      merged[buyer] =
+        quotes.feedRetrievedAt > existing.feedRetrievedAt
+          ? { ...quotes, quotes: { ...existing.quotes, ...quotes.quotes } }
+          : { ...existing, quotes: { ...quotes.quotes, ...existing.quotes } }
+    }
+  }
+  return found ? merged : undefined
 }
 
 /** Merge every loaded list's `printings` map, for seeding the shared session cache. */

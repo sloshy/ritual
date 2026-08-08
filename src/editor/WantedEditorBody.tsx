@@ -1,12 +1,13 @@
 import type { JSX } from 'solid-js'
 import type { WantedListCardEntry } from '../site/data-types'
+import type { SellModeProps } from '../site/sell-mode'
 import type { PriceCurrency } from '../price-currency'
 import { WantedListPage } from '../site/WantedListPage'
 import type { UseEditorDefaultsResult } from './useEditorDefaults'
 import type { SearchProvider } from './search-provider'
 import { type FlatListController, FlatListEditorShell } from './flat-list-controller'
 
-type WantedEditorBodyProps = {
+type WantedEditorBodyProps = SellModeProps & {
   ctrl: FlatListController<WantedListCardEntry>
   defaults: UseEditorDefaultsResult
   search: SearchProvider
@@ -23,12 +24,6 @@ type WantedEditorBodyProps = {
   enablePriceRefresh?: boolean
   /** Forwarded to the page: offer "Add to Trade" in the multi-select menu (public site only). */
   enableTrade?: boolean
-  /**
-   * Offer sell mode inside the editor's list view. Always true on admin (the
-   * operator's own tools are not gated by `site.sellMode`); the public editor
-   * inherits the site's capability.
-   */
-  enableSellMode?: boolean
 }
 
 /**
@@ -69,6 +64,7 @@ export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
         enablePriceRefresh={props.enablePriceRefresh}
         enableTrade={props.enableTrade}
         enableSellMode={props.enableSellMode}
+        bakedBuylist={props.bakedBuylist}
         onCardIncrement={ctrl.handleIncrement}
         onCardDecrement={ctrl.handleDecrement}
         onCardContextMenu={ctrl.handleContextMenu}

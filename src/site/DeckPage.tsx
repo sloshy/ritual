@@ -1,8 +1,8 @@
 import { buylistFieldsFor } from './buylist-quotes'
-import { useSellMode } from './useSellMode'
+import { useSellMode, type QuoteSource } from './useSellMode'
 import { sellableFromCardData, selectionToCartCsv } from './sell-value'
 import { buyerName } from '../buylist'
-import { cartBuyer } from './sell-mode'
+import { cartBuyer, type SellModeProps } from './sell-mode'
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
@@ -128,7 +128,7 @@ const isExtraSection = (s: string): boolean => {
   return low.includes('maybeboard') || low.includes('token')
 }
 
-export interface DeckPageProps {
+export interface DeckPageProps extends SellModeProps {
   deck: DeckData
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
@@ -171,12 +171,6 @@ export interface DeckPageProps {
   pricesDate?: string
   /** Show the public "Update Prices" toolbar button + staleness notice (public site only). */
   enablePriceRefresh?: boolean
-  /**
-   * Offer sell mode (buylist prices, the buylist filter/grouping/sorting, and
-   * the sell-cart export). True only on a server-backed public site with
-   * `site.sellMode` enabled, or on the admin site.
-   */
-  enableSellMode?: boolean
   /** Offer "Add to Trade" in the multi-select menu (public site only; the trade page is unreachable on admin). */
   enableTrade?: boolean
   /** When provided (edit mode), enables bulk edit actions in the multi-select menu. */
@@ -230,9 +224,17 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     supportsSellMode: Boolean(props.enableSellMode),
   })
 
+  // Declared once, at setup: a page handed a baked payload never calls the quote
+  // API (the public site and the public editor), and one without it quotes live
+  // against a credentialed API (the admin editors). Making the choice explicit
+  // keeps a call site from silently landing on the path it did not mean.
+  const quoteSource: QuoteSource = props.bakedBuylist
+    ? { kind: 'baked', quotes: props.bakedBuylist }
+    : { kind: 'live' }
   const sell = useSellMode({
     toolbar,
     supported: () => Boolean(props.enableSellMode),
+    quotes: quoteSource,
     // Deferred: `allCards` is declared below this call.
     cards: () => allCards(),
     selected: selection.selected,
@@ -437,7 +439,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           labels: [],
           finish: entry.finish,
           language: storedLanguage(entry.language),
-          ...buylistFieldsFor(card, entry.finish),
+          ...buylistFieldsFor(card, entry.finish, entry.language),
           card,
         })
       }

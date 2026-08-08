@@ -15,6 +15,7 @@ import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, moveTargetsExcluding } from '../move-targets'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
+import { sellModeEnabled } from '../sell-enabled'
 
 type WantedListListResponse = { wantedLists?: { slug: string; name: string }[] }
 
@@ -110,7 +111,7 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
 
   return (
     <WantedEditorBody
-      enableSellMode
+      enableSellMode={sellModeEnabled()}
       ctrl={ctrl}
       defaults={defaults}
       search={adminSearch}

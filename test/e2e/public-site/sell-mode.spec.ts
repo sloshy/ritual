@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from '@playwright/test'
-import { holdBuylistQuotes, mockPublicSiteCollectionForSell } from '../helpers/mock-public-site'
+import { mockPublicSiteCollectionForSell, type BuylistApiWatch } from '../helpers/mock-public-site'
 import { openFilterMenu } from '../helpers/filter-menu'
 import { gotoList, selectCard } from '../helpers/list-ui'
 
@@ -8,8 +8,15 @@ import { gotoList, selectCard } from '../helpers/list-ui'
  * filters, grouping and sorting; the selection totals (one of which is
  * deliberately *not* gated on sell mode); and the URL round-trip.
  *
+ * The mocked site is a plain static build — no `apiBaseUrl`, no quote API —
+ * whose collection carries the offers baked in by `build-site --sell-mode`.
+ * Every buylist route is intercepted and failed, so any test here also proves
+ * the page never asks for a quote.
+ *
  * Quote matching itself is pinned at the engine layer
- * (test/unit/buylist-quote.test.ts) and the value math in
+ * (test/unit/buylist-quote.test.ts), the baking in
+ * test/unit/site/details.test.ts, the store seeding in
+ * test/unit/site/buylist-seed.test.ts, and the value math in
  * test/unit/sell-value.test.ts — this spec covers only what the UI does with
  * them. The mocked collection holds one actively-bought card, one the buyer has
  * paused, and one they do not stock.
@@ -78,17 +85,17 @@ function buylistChip(panel: Locator, name: string): Locator {
 const CARD_INDEX = { 'Bought Card': 0, 'Paused Card': 1, 'Unlisted Card': 2 } as const
 
 test.describe('Sell mode', () => {
+  let buylistApi: BuylistApiWatch
+
   test.beforeEach(async ({ page }) => {
-    await mockPublicSiteCollectionForSell(page)
+    buylistApi = await mockPublicSiteCollectionForSell(page)
   })
 
-  test('the toggle reveals buylist prices, and only for actively-bought cards', async ({
-    page,
-  }) => {
+  test('the toggle reveals baked buylist prices, without asking any API', async ({ page }) => {
     await gotoSellBinder(page)
     await switchToListView(page)
 
-    // Off: no buylist figure anywhere, even though quotes exist for two cards.
+    // Off: no buylist figure anywhere, even though quotes are baked for two cards.
     await expect(page.locator('.list-buylist-price')).toHaveCount(0)
 
     await enableSellMode(page)
@@ -97,29 +104,9 @@ test.describe('Sell mode', () => {
     // buylist but worth nothing today, so it renders like an ordinary card.
     await expect(page.locator('.list-buylist-price')).toHaveCount(1)
     await expect(page.locator('.list-buylist-price')).toHaveText('Buy $4.00')
-  })
-
-  test('leaving sell mode mid-request stops the toggle reporting busy', async ({ page }) => {
-    let release!: () => void
-    const held = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    await holdBuylistQuotes(page, held)
-    await gotoSellBinder(page)
-
-    const toggle = page.locator(SELL_TOGGLE)
-    await toggle.click()
-    await expect(toggle).toHaveAttribute('aria-busy', 'true')
-
-    // The request keeps running, but its result will not be displayed, so the
-    // control must stop claiming to be working on the user's behalf.
-    await toggle.click()
-    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
-    await expect(toggle).toHaveAttribute('aria-busy', 'false')
-    await expect(toggle.locator('.toolbar-busy-spinner')).toHaveCount(0)
-
-    // Let the held handler finish so it is not torn down mid-fulfill.
-    release()
+    // The prices came out of the list payload: a static host has nothing to
+    // answer `POST /api/buylist/quotes` with.
+    expect(buylistApi.requests).toEqual([])
   })
 
   test('binder tiles carry the same buylist label as the list view', async ({ page }) => {
@@ -147,36 +134,6 @@ test.describe('Sell mode', () => {
 
     await buylistChip(panel, 'On buylist').click()
     await expectVisibleCards(page, ['Unlisted Card'])
-  })
-
-  test('the toggle reports it is working while quotes are in flight', async ({ page }) => {
-    // A released latch rather than a delay: a retrying assertion would be
-    // satisfied by a busy flag that only appeared *after* the response landed,
-    // which is the opposite of what this test claims.
-    let release!: () => void
-    const held = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    await holdBuylistQuotes(page, held)
-    await gotoSellBinder(page)
-    await switchToListView(page)
-
-    const toggle = page.locator(SELL_TOGGLE)
-    await expect(toggle).toHaveAttribute('aria-busy', 'false')
-
-    // Not `enableSellMode`: its awaited assertion would let the busy window
-    // close before this test could observe it.
-    await toggle.click()
-    await expect(toggle).toHaveAttribute('aria-busy', 'true')
-    await expect(toggle).toHaveAttribute('title', /fetching/i)
-    await expect(toggle.locator('.toolbar-busy-spinner')).toBeVisible()
-    // Busy genuinely means "not answered yet" — the response is still held here.
-    await expect(page.locator('.list-buylist-price')).toHaveCount(0)
-
-    release()
-    await expect(page.locator('.list-buylist-price')).toHaveText('Buy $4.00')
-    await expect(toggle).toHaveAttribute('aria-busy', 'false')
-    await expect(toggle.locator('.toolbar-busy-spinner')).toHaveCount(0)
   })
 
   test('the toggle reports the click before the mode itself turns on', async ({ page }) => {
@@ -364,6 +321,28 @@ test.describe('Sell mode', () => {
     await expect(
       page.locator('.selection-menu-item', { hasText: 'Card Kingdom cart (.csv)' }),
     ).toBeVisible()
+  })
+
+  test('a list built without a buylist explains itself instead of showing no prices', async ({
+    page,
+  }) => {
+    // Sell mode on with no buyer feed to quote against: the build still stamps
+    // `sellMode: true`, so the toggle is offered — and every card would read as
+    // "not on the buylist", indistinguishable from a genuine decline, without
+    // the notice.
+    // Re-registered, so the later route wins and the watch this test asserts on
+    // is the live one.
+    buylistApi = await mockPublicSiteCollectionForSell(page, { baked: false })
+    await gotoSellBinder(page)
+    await switchToListView(page)
+    await enableSellMode(page)
+
+    await expect(page.locator('.page-stats-warning')).toContainText(
+      'this list was built without buylist data',
+    )
+    await expect(page.locator('.list-buylist-price')).toHaveCount(0)
+    // Still no round trip: a static host has nothing to answer with either way.
+    expect(buylistApi.requests).toEqual([])
   })
 
   test('sell-mode state survives a reload through the URL', async ({ page }) => {

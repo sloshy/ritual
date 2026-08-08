@@ -2,27 +2,42 @@
  * Sell mode's page-level wiring, shared by every list page.
  *
  * One hook owns the whole feature per page: whether it is offered at all, the
- * toolbar control, keeping quotes loaded for the page's cards, and the
- * selection's sell value. A page adds sell mode by calling this and forwarding
- * three values — the Toolbar's `sell` prop, `sellMode()`, and the summary.
+ * toolbar control, keeping the quote store loaded, and the selection's sell
+ * value. A page adds sell mode by calling this and forwarding three values —
+ * the Toolbar's `sell` prop, `sellMode()`, and the summary.
+ *
+ * Where the quotes come from is the page's choice, declared as
+ * {@link UseSellModeInput.quotes}: the public site hands over the quotes baked
+ * into its list detail, the admin editors let the store fetch them.
  */
 
 import { createEffect, createMemo, on, type Accessor } from 'solid-js'
 import { quoteKey, type BuyerId, type BuylistQuoteRequest } from '../buylist'
-import { buylistRequestFor, requestBuylistQuotes } from './buylist-quotes'
+import {
+  buylistRequestFor,
+  reportBuylistUnavailable,
+  requestBuylistQuotes,
+  seedBuylistQuotes,
+} from './buylist-quotes'
+import type { BakedBuylist } from './data-types'
+import { useT } from '../ui/i18n'
 import type { CardData, SortBy, SortLayer } from './card-sorting'
 import { SELL_GROUP_BY_OPTIONS, SELL_SORT_BYS } from './card-sorting'
 import type { CardFilters } from './card-filters'
 import type { CardFiltersControl } from './useCardFilters'
-import type { ListViewDefaults } from './list-view-url'
 import { summarizeSellValue, type SellValueSummary } from './sell-value'
 import type { SellModeControl } from './sell-mode'
 import type { SelectedCard } from './useCardSelection'
 import type { UseToolbarStateResult } from './useToolbarState'
 
-/** The toolbar slice this hook drives; kept narrow so pages can pass their whole toolbar. */
-type SellToolbarState = Pick<
-  UseToolbarStateResult<string>,
+/**
+ * The toolbar slice this hook drives; kept narrow so pages can pass their whole
+ * toolbar. Generic over the page's own grouping union rather than widened to
+ * `string`, so the grouping this hook restores on exit is one the page's
+ * dropdown can actually show.
+ */
+type SellToolbarState<G extends string> = Pick<
+  UseToolbarStateResult<G>,
   | 'sellMode'
   | 'setSellMode'
   | 'sellModeEngaging'
@@ -31,28 +46,67 @@ type SellToolbarState = Pick<
   | 'setBuyer'
   | 'sortLayers'
   | 'setSortLayers'
-> & {
-  groupBy: Accessor<string>
-  setGroupBy: (value: () => string) => void
+  | 'groupBy'
+  | 'setGroupBy'
+>
+
+/** What grouping and sorting revert to when a buylist choice is abandoned. */
+type SellModeDefaults<G extends string> = {
+  groupBy: G
+  sortBy: SortBy
 }
 
-export type UseSellModeInput = {
-  toolbar: SellToolbarState
+/**
+ * The quotes baked into a page's list detail — the public site's source.
+ *
+ * The quote API is never called on this path, and an accessor that resolves to
+ * `undefined` (a list built or served without a buyer feed) reports through
+ * `buylistError` rather than falling back to a request.
+ *
+ * A card *added* during a public edit session is a known consequence of that:
+ * the build never quoted its printing, so it has no baked key and reads as
+ * "not on the buylist" — indistinguishable from a printing the buyer genuinely
+ * declines. There is no fallback request by design; the public site must work
+ * with no backend at all.
+ */
+export type BakedQuoteSource = {
+  kind: 'baked'
+  quotes: Accessor<BakedBuylist | undefined>
+}
+
+/** Quote on demand against the server's API — the admin editors' path. */
+export type LiveQuoteSource = {
+  kind: 'live'
+}
+
+/**
+ * Where a page's quotes come from. A declared choice rather than one inferred
+ * from whether an optional prop happened to be passed: the two paths behave
+ * completely differently, and a call site that meant one and got the other
+ * fails silently.
+ */
+export type QuoteSource = BakedQuoteSource | LiveQuoteSource
+
+export type UseSellModeInput<G extends string> = {
+  toolbar: SellToolbarState<G>
   /**
-   * Whether this page can offer sell mode: the site was built with it enabled
-   * and a live API is answering. Reactive, since it resolves from `index.json`
-   * after the page mounts.
+   * Whether this page can offer sell mode: the site was built with it enabled.
+   * Reactive, since it resolves from `index.json` after the page mounts.
    */
   supported: Accessor<boolean>
+  /** Baked (public site) or live (admin) quotes; see {@link QuoteSource}. */
+  quotes: QuoteSource
   /** The page's resolved cards — every one is quoted, not just the visible ones,
-   * because filtering, grouping and sorting all read the quotes. */
+   * because filtering, grouping and sorting all read the quotes. The baked path
+   * arrives pre-quoted and only reads the count, to tell an unpriced page from
+   * an empty one. */
   cards: Accessor<CardData[]>
   /** The page's own selection scope (never the cross-list one). */
   selected: Accessor<SelectedCard[]>
   /** The page's filter store, so leaving sell mode can clear the buylist chips. */
   filters: CardFiltersControl
   /** What grouping and sorting revert to when a buylist choice is abandoned. */
-  defaults: ListViewDefaults
+  defaults: SellModeDefaults<G>
 }
 
 export type UseSellModeResult = {
@@ -67,31 +121,56 @@ export type UseSellModeResult = {
 /** The quote requests for a page's cards, deduplicated by printing. */
 function quoteRequests(cards: CardData[]): BuylistQuoteRequest[] {
   // Both helpers are the canonical ones: rolling the key format by hand here
-  // would let the request side drift from the store's lookups.
+  // would let the request side drift from the store's lookups. The entry's own
+  // language token goes through too — a `[ja]` copy resolving to the English
+  // card object must not be quoted at the English price.
   const requests = new Map<string, BuylistQuoteRequest>()
   for (const card of cards) {
-    const request = buylistRequestFor(card.card, card.finish)
+    const request = buylistRequestFor(card.card, card.finish, card.language)
     if (!request) continue
     requests.set(quoteKey(request.set, request.collectorNumber, request.finish), request)
   }
   return [...requests.values()]
 }
 
-export function useSellMode(input: UseSellModeInput): UseSellModeResult {
+export function useSellMode<G extends string>(input: UseSellModeInput<G>): UseSellModeResult {
+  const t = useT()
   // Sell mode can be left on in the toolbar (or arrive via a shared URL) on a
   // page that turns out not to support it; gating the read here means no
   // consumer has to remember to check both.
   const active = createMemo(() => input.supported() && input.toolbar.sellMode())
 
   /**
-   * Ensure the page's cards are quoted. Reads `cards` on the caller's behalf,
-   * so calling this from the effect below keeps that dependency tracked.
+   * Ensure the store holds this page's quotes.
+   *
+   * The buyer and the baked payload are passed in rather than read here, so the
+   * caller decides whether those reads are tracked: the effect below takes them
+   * before its early return (making them dependencies), while the click handler
+   * takes them once, untracked. `cards` is read here instead, per branch: the
+   * live path must re-request when the card set changes, while the baked path
+   * looks at it only to tell an unpriced page from an empty one.
    */
-  const requestQuotes = (buyer = input.toolbar.buyer()): void => {
+  const loadQuotes = (buyer: BuyerId, baked: BakedBuylist | undefined): void => {
+    if (input.quotes.kind === 'baked') {
+      // `seedBuylistQuotes` reports whether the payload carried anything for
+      // this buyer, so a detail quoted against a *different* buyer explains
+      // itself instead of showing a silently priceless page.
+      if (baked && seedBuylistQuotes(baked, buyer)) return
+      // Nothing baked. Say so only once there is something to price: a combined
+      // view whose details are still in flight has no cards yet, and announcing
+      // missing prices for a page with nothing on it is noise, not an
+      // explanation.
+      if (input.cards().length > 0) reportBuylistUnavailable(t('site.sell.notBaked'))
+      return
+    }
     const requests = quoteRequests(input.cards())
     if (requests.length === 0) return
     void requestBuylistQuotes(requests, buyer)
   }
+
+  /** This page's baked payload, or undefined on the live path. */
+  const bakedQuotes = (): BakedBuylist | undefined =>
+    input.quotes.kind === 'baked' ? input.quotes.quotes() : undefined
 
   // Turning sell mode on is the expensive direction, so the click does the two
   // things that must not wait on the rebuild: it starts the fetch, and it hands
@@ -109,11 +188,14 @@ export function useSellMode(input: UseSellModeInput): UseSellModeResult {
     // permanently unreachable; both run in this same task either way, so the
     // paint the deferral waits for is unaffected by the order.
     input.toolbar.engageSellMode()
-    // Issued before the flip rather than from the effect below, which only runs
+    // Loaded before the flip rather than from the effect below, which only runs
     // once the whole page has rebuilt — that is the slowest possible moment to
     // start a network request the rebuilt page is waiting on. Requesting here
-    // also raises `buylistLoading` in time for the toggle's first paint.
-    requestQuotes()
+    // also raises `buylistLoading` in time for the toggle's first paint. On the
+    // baked path this is free: `buylistFieldsFor` short-circuits while the mode
+    // is off, so nothing on the page depends on the quote map yet and seeding
+    // it now costs one rebuild instead of two.
+    loadQuotes(input.toolbar.buyer(), bakedQuotes())
   }
 
   const control = createMemo((): SellModeControl | undefined =>
@@ -128,17 +210,20 @@ export function useSellMode(input: UseSellModeInput): UseSellModeResult {
       : undefined,
   )
 
-  // Quotes load when sell mode turns on and whenever the card set or buyer
-  // changes. `requestBuylistQuotes` skips printings it has already answered
-  // for, so re-runs cost nothing once the page is warm — including the re-run
-  // that follows the flip `toggle` already requested for.
+  // Quotes load when sell mode turns on and whenever the buyer, the card set,
+  // or the baked payload changes. Both loaders skip what they have already
+  // settled, so re-runs cost nothing once the page is warm — including the
+  // re-run that follows the flip `toggle` already loaded for.
   createEffect(() => {
     // Read the buyer first: after an early return it would be an untracked
     // dependency, so switching buyers on a page with nothing to quote would
     // neither reset the store nor re-run this.
     const buyer = input.toolbar.buyer()
+    // Likewise for the baked payload, so a detail that arrives (or is refetched
+    // from a live backend) while sell mode is already on re-seeds the store.
+    const baked = bakedQuotes()
     if (!active()) return
-    requestQuotes(buyer)
+    loadQuotes(buyer, baked)
   })
 
   const summary = createMemo(() => summarizeSellValue(input.selected()))

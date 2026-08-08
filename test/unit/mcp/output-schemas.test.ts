@@ -3,12 +3,14 @@ import type { Client } from '@modelcontextprotocol/client'
 import { fromJsonSchema, type JsonSchemaType } from '@modelcontextprotocol/server'
 import {
   BUILD_SITE_OUTPUT,
+  CONFIG_OUTPUT,
   CREATE_LIST_OUTPUT,
   DELETE_LIST_OUTPUT,
   EXPORT_CARDS_OUTPUT,
   FIND_CARDS_OUTPUT,
   GET_CACHE_STATUS_OUTPUT,
   GET_CARD_PRINTINGS_OUTPUT,
+  GET_CONFIG_OUTPUT,
   GET_LIST_OUTPUT,
   GET_PRICE_REPORT_OUTPUT,
   IMPORT_CSV_OUTPUT,
@@ -246,6 +248,21 @@ describe('MCP output schemas, as authored', () => {
     for (const field of ['finish', 'lowestFinish']) {
       expect(pricedEntry.properties?.[field]?.enum).toEqual([...VALID_FINISHES])
     }
+
+    // The config pair: only `get_config` reports what a session flag (`--sell-mode`)
+    // displaced, and `overrides` must stay *optional* — its absence is what says
+    // "this server runs the stored config", so requiring it would make every
+    // ordinary read fail Ajv. `update_config` echoes what it persisted and
+    // therefore never carries the key at all.
+    const getConfig = GET_CONFIG_OUTPUT as unknown as SchemaNode
+    expect(Object.keys(getConfig.properties ?? {})).toEqual(['config', 'overrides'])
+    expect(getConfig.required).toEqual(['config'])
+    expect(Object.keys(getConfig.properties?.overrides?.properties ?? {})).toEqual([
+      'site.sellMode',
+    ])
+    expect(Object.keys((CONFIG_OUTPUT as unknown as SchemaNode).properties ?? {})).toEqual([
+      'config',
+    ])
 
     // find_cards: `lists` rides on an opt-in flag, so it must stay optional.
     const findCards = FIND_CARDS_OUTPUT as unknown as SchemaNode

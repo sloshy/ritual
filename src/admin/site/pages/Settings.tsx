@@ -12,6 +12,7 @@ import {
   type SiteSelectionConfig,
 } from '../../../site/list-selection'
 import { fetchRitualConfig } from '../config-api'
+import { refreshSellModeEnabled } from '../sell-enabled'
 import { applyDefaultLanguage } from '../hooks/useDefaultLanguage'
 import { adoptConfiguredLocale, availableLocales } from '../hooks/useAdminLocale'
 import { localeEndonym } from '../../../site/LanguageSwitcher'
@@ -35,6 +36,13 @@ function parseList(value: string): string[] {
     .filter((s) => s.length > 0)
 }
 
+/**
+ * The `site` keys this page stores by presence: absent means the built-in
+ * default, so the control's "off"/blank position deletes the key rather than
+ * writing the default back as an explicit value.
+ */
+type OptionalSiteKey = 'apiBaseUrl' | 'sellMode'
+
 /** Render a stored `set:collector` printing key with the set code uppercased for display. */
 function displayBannedPrinting(key: string): string {
   const colon = key.indexOf(':')
@@ -46,6 +54,8 @@ export function Settings(): JSX.Element {
   const tSegments = useTSegments()
   const [config, setConfig] = createSignal<RitualConfig | null>(null)
   const { status, error, loading, run, setStatus, setError } = useApiAction()
+  /** True from Save click until every post-save push (incl. the status re-read) lands. */
+  const [syncing, setSyncing] = createSignal(false)
 
   /**
    * Render a hint's segments with every parameter wrapped in `<code>`. The
@@ -71,25 +81,43 @@ export function Settings(): JSX.Element {
   const handleSave = async () => {
     const saved = config()
     if (!saved) return
-    const ok = await run(
-      '/api/config',
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(saved),
-      },
-      apiMessage('admin.settings.saveFailed'),
-    )
-    if (ok) {
-      setStatus(apiMessage('admin.settings.saved'))
-      // The default-language holders are primed once at boot (no per-page
-      // re-fetch), so a saved change must be pushed for an already-mounted
-      // editor page to stamp the new language without a reload.
-      applyDefaultLanguage(saved.defaultLanguage)
-      // Same reasoning for the interface language: the admin resolves it once at
-      // boot, so a saved change has to be pushed for the running app to adopt it
-      // (it is the weakest tier, so an explicit choice still wins).
-      adoptConfiguredLocale(saved.uiLocale)
+    // `run` clears its own loading flag before the post-save pushes below
+    // finish, so this flag is what keeps the Save button disabled until the
+    // status re-read lands — a second click mid-flip would interleave two
+    // `GET /api/status` reads and let the older answer win.
+    setSyncing(true)
+    try {
+      const ok = await run(
+        '/api/config',
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(saved),
+        },
+        apiMessage('admin.settings.saveFailed'),
+      )
+      if (ok) {
+        // The default-language holders are primed once at boot (no per-page
+        // re-fetch), so a saved change must be pushed for an already-mounted
+        // editor page to stamp the new language without a reload.
+        applyDefaultLanguage(saved.defaultLanguage)
+        // Same reasoning for the interface language: the admin resolves it once at
+        // boot, so a saved change has to be pushed for the running app to adopt it
+        // (it is the weakest tier, so an explicit choice still wins).
+        adoptConfiguredLocale(saved.uiLocale)
+        // Sell mode is the one of these the client cannot compute for itself: a
+        // server started with `--sell-mode` stays on whatever was just stored, so
+        // the effective value is re-read from `GET /api/status`.
+        await refreshSellModeEnabled()
+        // Last, so the "Settings saved" alert really is the point at which every
+        // pushed change has landed: the editors' sell toggle, the Move Cards sell
+        // controls and the Cache page's buylist card have appeared (or gone) by
+        // the time it shows. Anything waiting on the save — a person, or the e2e
+        // helper — can synchronize on the alert alone.
+        setStatus(apiMessage('admin.settings.saved'))
+      }
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -126,20 +154,23 @@ export function Settings(): JSX.Element {
     })
   }
 
-  // The live-backend base URL for split deployments (static site + separately
-  // hosted `serve --api`). A blank input means "fully static" and removes the
-  // key; the same-origin empty-string variant (a reverse proxy) is a
-  // `config set` niche this input doesn't express.
-  const updateApiBaseUrl = (value: string) => {
+  /**
+   * Write one optional `site` key, or delete it when the value is `undefined`.
+   *
+   * The delete-means-unset contract is load-bearing and worth stating exactly
+   * once: it only round-trips to a genuinely absent key because `PUT
+   * /api/config` replaces `site` wholesale, and it is what keeps `config get
+   * site.sellMode` exiting 3 (not_found) after an untick rather than reporting
+   * an explicit `false` that reads like a standing decision the default already
+   * makes. Seeding from `defaultSiteSelection()` keeps the untouched selection
+   * textareas showing `*` when no `site` object exists yet (init-site not run).
+   */
+  const updateSiteKey = <K extends OptionalSiteKey>(key: K, value: SiteConfig[K] | undefined) => {
     setConfig((prev) => {
       if (!prev) return null
       const site: SiteConfig = { ...(prev.site ?? defaultSiteSelection()) }
-      const trimmed = value.trim()
-      if (trimmed === '') {
-        delete site.apiBaseUrl
-      } else {
-        site.apiBaseUrl = trimmed
-      }
+      if (value === undefined) delete site[key]
+      else site[key] = value
       return { ...prev, site }
     })
   }
@@ -566,6 +597,11 @@ export function Settings(): JSX.Element {
               }),
             )}
           </p>
+          {/* The live-backend base URL for split deployments (static site +
+              separately hosted `serve --api`). A blank input means "fully
+              static" and removes the key; the same-origin empty-string variant
+              (a reverse proxy) is a `config set` niche this input doesn't
+              express. */}
           <div>
             <label class="form-label">{t('admin.settings.apiBaseUrl')}</label>
             <input
@@ -573,10 +609,34 @@ export function Settings(): JSX.Element {
               class="form-input"
               name="apiBaseUrl"
               value={config()?.site?.apiBaseUrl ?? ''}
-              onInput={(e) => updateApiBaseUrl(e.currentTarget.value)}
+              onInput={(e) =>
+                updateSiteKey('apiBaseUrl', e.currentTarget.value.trim() || undefined)
+              }
               placeholder={t('admin.settings.apiBaseUrlPlaceholder')}
             />
           </div>
+
+          {/* Sell mode. Saving this takes effect immediately on both sides: the
+              server gates its sell routes on a per-request config read, and the
+              save handler re-reads the effective value so this admin's own sell
+              surfaces appear or disappear without a reload. Unticking deletes
+              the key rather than storing `false` — see `updateSiteKey`. */}
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              name="sellMode"
+              checked={config()!.site?.sellMode === true}
+              onChange={(e) => updateSiteKey('sellMode', e.currentTarget.checked || undefined)}
+            />
+            {t('admin.settings.sellMode')}
+          </label>
+          <p class="form-hint">
+            {withCode(
+              tSegments('admin.settings.sellModeHint', {
+                flag: t('admin.settings.sellModeFlag'),
+              }),
+            )}
+          </p>
 
           {/* Banned default printings */}
           <h3 class="section-subheading">{t('admin.settings.printingsHeading')}</h3>
@@ -601,8 +661,12 @@ export function Settings(): JSX.Element {
           </div>
 
           {/* Save */}
-          <button class="btn btn-primary" onClick={() => void handleSave()} disabled={loading()}>
-            {loading() ? t('admin.settings.saving') : t('admin.settings.save')}
+          <button
+            class="btn btn-primary"
+            onClick={() => void handleSave()}
+            disabled={loading() || syncing()}
+          >
+            {loading() || syncing() ? t('admin.settings.saving') : t('admin.settings.save')}
           </button>
         </div>
       </div>

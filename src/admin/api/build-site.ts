@@ -19,6 +19,7 @@ import { apiHandler } from '../utils'
 import { apiMessage, type ApiMessage } from './result'
 import { apiError } from './save-helpers'
 import { getBaseDir } from '../../base-dir'
+import { getSiteSellMode } from '../../ritual-config'
 import { defaultDistDir, ritualArgv } from '../../site/dist-dir'
 import {
   createBuildScratchDir,
@@ -46,8 +47,21 @@ export type BuildSiteArgv = (outDir: string) => string[]
 // The base dir is passed explicitly: the child inherits this process's
 // environment, so without the flag an exported RITUAL_BASE_DIR would outrank
 // the spawn's `cwd` and silently build a different workspace than the server's.
-const DEFAULT_ARGV: BuildSiteArgv = (outDir) =>
-  ritualArgv(['--base-dir', getBaseDir(), 'build-site', '--out-dir', outDir])
+//
+// `--sell-mode` is forwarded whenever sell mode is effectively on, because a
+// `ritual admin --sell-mode` run sets a *process-global* override that cannot
+// cross a spawn boundary — without this the server would advertise sell mode
+// and then publish a site with it off. Passing it when the config would have
+// enabled it anyway is harmless: the flag is enable-only.
+export const defaultBuildArgv: BuildSiteArgv = (outDir) =>
+  ritualArgv([
+    '--base-dir',
+    getBaseDir(),
+    'build-site',
+    '--out-dir',
+    outDir,
+    ...(getSiteSellMode() ? ['--sell-mode'] : []),
+  ])
 
 /**
  * One build at a time. A second concurrent build would race the swap and fight
@@ -91,7 +105,7 @@ const BUILD_STEPS = 3
 export function handleBuildSite(
   onProgress?: RouteProgressSink,
   signal?: AbortSignal,
-  buildArgv: BuildSiteArgv = DEFAULT_ARGV,
+  buildArgv: BuildSiteArgv = defaultBuildArgv,
 ): Promise<Response> {
   return apiHandler(async () => {
     if (buildInFlight) {

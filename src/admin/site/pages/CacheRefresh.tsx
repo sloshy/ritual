@@ -3,6 +3,7 @@ import { useT, useTKey } from '../../../ui/i18n'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { PageHeading } from '../components/PageHeading'
 import { BuylistRefreshCard } from '../components/BuylistRefreshCard'
+import { sellModeEnabled } from '../sell-enabled'
 import type { CacheRefreshEvent } from '../../../scryfall/progress'
 import type { ParameterlessKey } from '../../../i18n/t'
 
@@ -216,7 +217,11 @@ export function CacheRefresh(): JSX.Element {
         {isRunning() ? t('admin.cache.refreshing') : t('admin.cache.refresh')}
       </button>
 
-      <BuylistRefreshCard />
+      {/* Only when this server offers sell mode: with it off the buylist
+          routes 404, so the card could only ever report a failure. */}
+      <Show when={sellModeEnabled()}>
+        <BuylistRefreshCard />
+      </Show>
     </div>
   )
 }

@@ -46,11 +46,19 @@ export function isNonEnglishSellable(card: SellableCard): boolean {
   return displayLanguage(card.language) !== 'en' || isNonEnglishCard(card.scryfallCard)
 }
 
-/** Adapt a list tile to the sellable shape (`CardData` spells the card `card`). */
+/**
+ * Adapt a list tile to the sellable shape (`CardData` spells the card `card`).
+ *
+ * `language` is carried across deliberately: the cart-export path runs every
+ * filtered tile through here, and without the entry's own token a `[ja]` copy
+ * resolving to the English card object would land in the buyer's cart at the
+ * English price — while the selection path, which keeps the token, excludes it.
+ */
 export function sellableFromCardData(card: CardData): SellableCard {
   return {
     quantity: card.quantity,
     finish: card.finish,
+    language: card.language,
     scryfallCard: card.card,
   }
 }

@@ -30,7 +30,7 @@ type DeckEditViewProps = {
   detail: DeckDetail
   slug: string
   currency: PriceCurrency
-  /** Offer sell mode; true only on a server-backed site with `site.sellMode` on. */
+  /** Offer sell mode; true only on a site built with `site.sellMode` on. */
   enableSellMode?: boolean
   /** Leave edit mode, returning to the published deck view. */
   onExit: () => void
@@ -137,6 +137,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
           enablePriceRefresh={true}
           enableTrade={true}
           enableSellMode={props.enableSellMode}
+          bakedBuylist={() => props.detail.buylist}
         />
       }
       original={
@@ -154,6 +155,12 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
           onCloseModal={() => setOriginalModalCard(null)}
           currency={props.currency}
           slug={props.slug}
+          // Forwarded so the "Original" view's toolbar carries the sell control
+          // that matches the buylist badges its tiles render: `buylistFieldsFor`
+          // is gated on the global mode, not on this page's own support flag, so
+          // without these the view would show prices with nothing to turn off.
+          enableSellMode={props.enableSellMode}
+          bakedBuylist={() => props.detail.buylist}
         />
       }
     />

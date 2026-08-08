@@ -76,4 +76,5 @@ export const siteMessages = {
     one: '{count} non-English card — not quotable',
     other: '{count} non-English cards — not quotable',
   },
+  'site.sell.notBaked': 'this list was built without buylist data',
 } as const satisfies MessageCatalogShape

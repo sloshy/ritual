@@ -16,6 +16,11 @@ import {
   loadRitualConfig,
   type RitualConfig,
 } from '../ritual-config'
+import {
+  detailBuylistContext,
+  getCardKingdomFeed,
+  type LoadedCardKingdomFeed,
+} from '../cardkingdom'
 import { compareData } from '../i18n/collate'
 import { isLocaleTagError, parseLocaleTag } from '../i18n/locale-tag'
 import { DEFAULT_LOCALE } from '../i18n/runtime'
@@ -151,6 +156,8 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
   let generation = 0
   let lastCacheFileMtimeMs = -1
   let pricesDate = new Date(0).toISOString()
+  /** The feed the current pass bakes quotes from; null when sell mode is off or none is cached. */
+  let buylistFeed: LoadedCardKingdomFeed | null = null
 
   function getSymbolMap(): Promise<Record<string, string>> {
     // Fetched once per server lifetime (disk-cached in cache/symbology.json);
@@ -193,7 +200,21 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
     pricesDate = new Date(lastRefreshed ?? (mtimeMs > 0 ? mtimeMs : Date.now())).toISOString()
   }
 
-  function configStampFor(config: RitualConfig): string {
+  /**
+   * Point {@link buylistFeed} at the cached buyer feed for this pass and report
+   * its identity for the memo stamp. Reads the process memo, which re-parses
+   * only when the cache file's mtime/size moved — so an out-of-band
+   * `ritual sell --refresh` (or `POST /api/sell/refresh`) is picked up here, and
+   * the changed stamp rebuilds every list's baked quotes.
+   *
+   * @returns When the feed in use was downloaded, or null when there is none.
+   */
+  async function refreshBuylistFeed(config: RitualConfig): Promise<number | null> {
+    buylistFeed = getSiteSellMode(config) ? await getCardKingdomFeed() : null
+    return buylistFeed?.file.retrievedAt ?? null
+  }
+
+  function configStampFor(config: RitualConfig, buylistRetrievedAt: number | null): string {
     return JSON.stringify({
       defaultCurrency: getDefaultCurrency(config),
       bannedPrintings: [...getBannedPrintings(config)].sort(),
@@ -205,6 +226,11 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
       uiLocale: getUiLocale(config),
       selection: getSiteSelectionConfig(config.site),
       sellMode: getSiteSellMode(config),
+      // Not config, but it lands in the same payloads: details carry baked
+      // buylist quotes, so a refreshed buyer feed has to invalidate them too.
+      // `null` (no feed, or sell mode off) serializes as distinctly as any
+      // download time does.
+      buylist: buylistRetrievedAt,
     })
   }
 
@@ -228,6 +254,10 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
       defaultCurrency: configuredCurrency,
       availableCurrencies: LIVE_CURRENCIES,
       pricesDate,
+      // Quotes are baked into the detail here exactly as `build-site` bakes
+      // them, so the site's sell mode reads one shape in both modes and never
+      // calls the quotes API. Absent feed (or sell mode off) = no baked field.
+      ...(buylistFeed ? { buylist: detailBuylistContext(buylistFeed) } : {}),
       // Surface data-quality warnings (e.g. an unresolvable printing) in the
       // server log, matching what build-site prints for the same condition.
       warn: (message) => console.warn(message),
@@ -302,7 +332,7 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
   async function getIndex(): Promise<LiveJson> {
     const config = await loadRitualConfig()
     await refreshGeneration()
-    const configStamp = configStampFor(config)
+    const configStamp = configStampFor(config, await refreshBuylistFeed(config))
 
     slugMap.clear()
     const decks: DeckSummary[] = []

@@ -83,6 +83,31 @@ describe('serve command (Integration)', () => {
     })
   })
 
+  test('--sell-mode is exempt from the build-only guard under --api', async () => {
+    await withWorkspace(async (dir) => {
+      // The live server reads sell mode per request, so the session override the
+      // flag sets has a reader without --build. The empty workspace then fails
+      // the build --api runs itself, which is proof the flag was accepted.
+      const result = await runCli(['serve', '--api', '--sell-mode', '--refresh', 'never'], dir)
+
+      expect(result.exitCode).toBe(1)
+      expect(result.stderr).not.toContain('only appl')
+      expect(result.stderr).toContain('Nothing to build')
+    })
+  })
+
+  test('--sell-mode without --build or --api is a usage error', async () => {
+    await withWorkspace(async (dir) => {
+      // A plain `serve` hands out pre-built files: nothing in that process ever
+      // consults sell mode, so the flag would be a silent no-op.
+      const result = await runCli(['serve', '--sell-mode'], dir)
+
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('--sell-mode')
+      expect(result.stderr).toContain('--build')
+    })
+  })
+
   test('other build-only flags are still rejected with --api but without --build', async () => {
     await withWorkspace(async (dir) => {
       const result = await runCli(['serve', '--api', '--verbose'], dir)

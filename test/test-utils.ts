@@ -13,6 +13,8 @@ import {
 } from '../src/interfaces'
 import { cardCache, streamFromBatchResults } from '../src/cache'
 import { MemoryLogger, resetLogger, setLogger } from '../src/logger'
+import { quoteKey, type BuylistQuote } from '../src/buylist'
+import { setBuylistFetcher } from '../src/site/buylist-quotes'
 import type { CardKingdomCacheFile, CardKingdomProduct } from '../src/cardkingdom'
 import type { ScryfallCard } from '../src/types'
 import type { CardData } from '../src/site/card-sorting'
@@ -540,6 +542,121 @@ export function makeCardKingdomProduct(
     priceBuy: 0.5,
     qtyBuying: 10,
     ...overrides,
+  }
+}
+
+/**
+ * One buyer quote as a detail bakes it and the store seeds it, with neutral
+ * defaults.
+ *
+ * `BuylistQuote` is the wire type the bake and the client store both key their
+ * behavior on, so it gets one fixture. (test/e2e/helpers/mock-public-site.ts
+ * writes its own literals — a Playwright helper cannot import this module,
+ * which pulls in `bun:test` — and must be updated alongside this shape.)
+ */
+export function makeBuylistQuote(overrides: Partial<BuylistQuote> = {}): BuylistQuote {
+  return {
+    priceBuy: 4,
+    qtyBuying: 2,
+    buying: true,
+    finish: 'nonfoil',
+    matchVia: 'scryfall-id',
+    productId: 1,
+    name: 'Test Card',
+    edition: 'Test Set',
+    ...overrides,
+  }
+}
+
+/** The generation stamp {@link stubBuylistFetcher}'s answers carry. */
+export const STUB_BUYLIST_FEED_CREATED_AT = '2026-08-04 06:06:09'
+
+/** Handles on the transport {@link stubBuylistFetcher} installed. */
+export type StubBuylistFetcher = {
+  /** How many times the transport was called. */
+  calls: () => number
+  /** Fail every later call, as an unreachable server would. */
+  breakIt: () => void
+}
+
+/**
+ * Install a quote transport into the client store that answers every requested
+ * printing with `priceBuy`.
+ *
+ * Keys its answers through `quoteKey` rather than restating the format: that
+ * key's own doc calls it "the one key where a near-miss yields a wrong *price*
+ * rather than a blank cell", and a suite asserting that a settled key is never
+ * re-asked has to key its answers the way the store looks them up.
+ *
+ * The install is module-global, so a suite that calls this must
+ * `resetBuylistFetcher()` in its `afterEach` — `bun test` shares the module
+ * registry across files, and a stub left behind silently answers a later file's
+ * requests.
+ */
+export function stubBuylistFetcher(priceBuy: number): StubBuylistFetcher {
+  let calls = 0
+  let broken = false
+  setBuylistFetcher(async (buyer, printings) => {
+    calls++
+    if (broken) throw new Error('Buylist quotes failed: HTTP 503')
+    const quotes: Record<string, BuylistQuote> = {}
+    for (const printing of printings) {
+      quotes[quoteKey(printing.set, printing.collectorNumber, printing.finish)] = makeBuylistQuote({
+        name: 'Sol Ring',
+        edition: 'Commander 2021',
+        priceBuy,
+      })
+    }
+    return {
+      success: true,
+      buyer,
+      quotes,
+      feedCreatedAt: STUB_BUYLIST_FEED_CREATED_AT,
+      feedRetrievedAt: Date.now(),
+      stale: false,
+      productCount: Object.keys(quotes).length,
+    }
+  })
+  return {
+    calls: () => calls,
+    breakIt: () => {
+      broken = true
+    },
+  }
+}
+
+/**
+ * A raw pricelist payload as Card Kingdom serves it — string-encoded bools and
+ * prices — built from the parsed products the fixtures already speak in. For
+ * suites that stub the download rather than the cache file.
+ *
+ * `is_foil` is derived from the product's finish, so an `etched` fixture also
+ * needs an "Etched" `variation` for the parser to read it back as etched.
+ *
+ * `createdAt` is the buyer's own generation stamp: a suite that has to tell a
+ * downloaded feed from the cached one passes a different one than
+ * {@link makeCardKingdomCacheFile}'s.
+ */
+export function cardKingdomFeedBody(
+  products: CardKingdomProduct[] = [makeCardKingdomProduct()],
+  createdAt = '2026-08-04 06:06:09',
+): Record<string, unknown> {
+  return {
+    meta: { created_at: createdAt, base_url: 'https://www.cardkingdom.com/' },
+    data: products.map((product) => ({
+      id: product.id,
+      sku: product.sku,
+      scryfall_id: product.scryfallId,
+      url: product.url,
+      name: product.name,
+      variation: product.variation,
+      edition: product.edition,
+      is_foil: product.finish === 'nonfoil' ? 'false' : 'true',
+      price_retail: product.priceRetail.toFixed(2),
+      qty_retail: 3,
+      price_buy: product.priceBuy.toFixed(2),
+      qty_buying: product.qtyBuying,
+    })),
   }
 }
 

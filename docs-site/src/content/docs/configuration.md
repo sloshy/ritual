@@ -266,7 +266,7 @@ The `site` key holds public-site settings. It has two parts:
     "excludeDecks": ["Untuned Brew"],
     "excludeCollections": [],
     "excludeWantedLists": [],
-    "sellMode": true
+    "sellMode": false
   }
 }
 ```
@@ -286,7 +286,7 @@ The `site` key holds public-site settings. It has two parts:
 | `excludeWantedLists` | `[]`    | Wanted lists to drop even when `includeWantedLists` selects them.                                |
 | `bannedPrintings`    | `[]`    | Printings barred from default-printing selection (see [`config`](/commands/config/#properties)). |
 | `apiBaseUrl`         | —       | Base URL of a live backend for a split deployment (see below).                                   |
-| `sellMode`           | `true`  | Whether the published site offers [sell mode](/public-site/sell/) (see below).                   |
+| `sellMode`           | `false` | Whether the sites offer [sell mode](/public-site/sell/) (see below).                             |
 
 ### Pointing a static build at a live backend (`apiBaseUrl`)
 
@@ -294,22 +294,50 @@ The `site` key holds public-site settings. It has two parts:
 
 ### Offering sell mode (`sellMode`)
 
-`site.sellMode` decides whether the published site offers [sell mode](/public-site/sell/): Card
-Kingdom buylist prices beside each card, the buylist filters, buylist grouping and sorting, and the
-sell-cart export. It defaults to **enabled**; set it to `false` on a public deployment that would
-rather not advertise what its collection is worth to a buyer.
+`site.sellMode` decides whether the sites offer [sell mode](/public-site/sell/): Card Kingdom
+buylist prices beside each card, the buylist filters, buylist grouping and sorting, and the
+sell-cart export. It defaults to **disabled**, because enabling it makes builds and cache refreshes
+download and index Card Kingdom's ~70 MB pricelist. Opt in with:
 
 ```bash
-ritual config set site.sellMode false
+ritual config set site.sellMode true
 ```
 
-Sell mode also requires a live backend — quotes are fetched, never baked — so a fully static build
-never shows it however this is set. The key does not affect the admin site, which always offers
-sell mode.
+or tick **Offer sell mode** on the admin's [Settings](/commands/admin/#settings) page, which writes
+the same key (and removes it, rather than storing `false`, when you untick it).
 
-The key has one server-side effect too: [`serve --api`](/commands/serve/#live-api-mode---api) reads
-it at startup to decide whether to refresh a day-old buylist, so turning it on for an already-running
-server leaves that process's feed unwarmed until it restarts.
+The key governs **every** surface, the admin site included — it is not a "what a published site
+discloses" setting:
+
+- [`build-site`](/commands/build-site/#sell-mode---sell-mode) refreshes the buylist under the run's
+  `--refresh` policy and bakes each list's buy prices into its JSON, so a fully static site offers
+  sell mode with no backend at all.
+- [`serve`](/commands/serve/) bakes the same quotes into the live payloads, and `serve --api` reads
+  the key at startup to decide whether to refresh a day-old buylist — turning it on for an
+  already-running server leaves that process's feed unwarmed until it restarts.
+- [`admin`](/commands/admin/) refreshes the buylist at startup, offers the editors' sell toggle and
+  the **Refresh buylist** card, and answers its `/api/sell/*` and `/api/buylist/*` routes. With the
+  key off those routes answer `404` and the UI hides the surfaces that call them. Both the routes
+  and the UI follow a change to this key immediately — the routes re-read it per request, and a
+  Settings save re-reads the effective value — so nothing here needs a restart or a page reload.
+- [`cache preload-all`](/commands/cache/#preload-all) refreshes the buylist alongside the card cache.
+
+[`ritual sell`](/commands/sell/) is the deliberate exception: running it _is_ the request for Card
+Kingdom prices, so it works whatever this key says.
+
+A single run can opt in without a config write: `--sell-mode` on `build-site`, `serve`, `admin`, or
+[`mcp`](/commands/mcp/#sell-tools-need-sell-mode) (see
+[Sell mode](/commands/build-site/#sell-mode---sell-mode)). The flag is enable-only and is a session
+setting, so `config get site.sellMode` keeps reporting the stored value — and an `admin --sell-mode`
+server keeps offering sell mode even after its Settings checkbox is unticked and saved.
+
+A **running** server is the one place that difference is visible: its
+[`GET /api/config`](/commands/admin/#get-apiconfig) (and the MCP
+[`get_config`](/commands/mcp/#stored-config-vs-what-this-server-runs-with) tool) answers with the
+stored config as `config` plus `overrides: {"site.sellMode": true}` when the process was started
+with the flag, so a client can tell that this instance answers its sell routes despite the key
+being unset on disk. The CLI never reports overrides — each command is a fresh process that has
+none.
 
 ### Choosing which lists to publish
 

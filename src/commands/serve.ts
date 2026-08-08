@@ -11,6 +11,7 @@ import {
   runBuildSite,
   type BuildSiteOptions,
 } from './build-site'
+import { applySellModeOverride, SELL_MODE_OPTION_NAME } from './sell-mode-flag'
 import { ExitCode, parsePort } from './scripting'
 import { serveStaticSite, serveUrl } from './serve-helpers'
 import { t } from '../i18n/t'
@@ -56,13 +57,27 @@ export function registerServeCommand(program: Command): void {
   const buildOnlyOptions: readonly Option[] = command.options.slice(serveOptionCount)
 
   command.action(async (options: ServeCliOptions) => {
+    // Set before anything reads sell mode — the build below, the startup buylist
+    // warm, and every live request's `getSiteSellMode` read all follow it.
+    applySellModeOverride(options)
+
     if (options.build !== true) {
       const givenBuildFlags = buildOnlyOptions
         .filter((option) => command.getOptionValueSource(option.attributeName()) === 'cli')
         // --refresh doubles as the cache-warming policy under --api, so it is
-        // valid without --build there; --out-dir names the directory to serve,
-        // which is meaningful with or without a build.
-        .filter((option) => !(options.api === true && option.attributeName() === 'refresh'))
+        // valid without --build there; --sell-mode likewise, since only the live
+        // server reads sell mode per request — a plain `serve` hands out
+        // pre-built files and nothing in it would ever consult the override, so
+        // the flag there is an inert no-op and stays a usage error. --out-dir
+        // names the directory to serve, meaningful with or without a build.
+        .filter(
+          (option) =>
+            !(
+              options.api === true &&
+              (option.attributeName() === 'refresh' ||
+                option.attributeName() === SELL_MODE_OPTION_NAME)
+            ),
+        )
         .filter((option) => option.attributeName() !== 'outDir')
         .map((option) => option.long ?? option.name())
       if (givenBuildFlags.length > 0) {

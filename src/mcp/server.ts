@@ -39,7 +39,14 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   on the Card Kingdom buylist (its feed is English-only).
 - Network vs local, by name: search_scryfall queries Scryfall; find_cards and autocomplete_card
   read your lists and your local cache. get_sell_report reads the locally cached Card Kingdom
-  buylist; refresh_buylist is what downloads it.`
+  buylist; refresh_buylist is what downloads it.
+- Sell mode is opt-in and off by default. get_sell_report, get_sell_cart, get_buylist_quotes and
+  refresh_buylist error "Not found" unless the workspace set the site.sellMode config key or the
+  server was started with --sell-mode; that is a configuration decision, not a missing feed, so
+  refresh_buylist will not fix it — say so instead of retrying. The same key decides whether
+  build_site bakes buy prices into the published site. get_config is how you tell which of the two
+  turned it on: "config" is the stored configuration, and "overrides" (present only under a session
+  flag) is what this running server is actually operating with, e.g. {"site.sellMode": true}.`
 
 /** How a transport wants the server built. */
 export interface McpServerOptions {

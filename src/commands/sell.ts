@@ -193,6 +193,15 @@ export function renderSellReportText(view: SellReportView, options: SellTextOpti
   return `${lines.join('\n')}\n`
 }
 
+/**
+ * Register `ritual sell`.
+ *
+ * Deliberately **not** gated on sell mode: `site.sellMode` (and the
+ * `--sell-mode` override) decide whether the *sites* offer buylist prices, and
+ * running this command is itself the explicit request for them. It refreshes
+ * and quotes from the Card Kingdom feed under its own `--refresh` policy
+ * whatever the config says.
+ */
 export function registerSellCommand(program: Command): void {
   addRefreshOption(
     addQuietOption(

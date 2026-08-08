@@ -24,7 +24,7 @@ type WantedEditViewProps = {
   detail: WantedListDetail
   slug: string
   currency: PriceCurrency
-  /** Offer sell mode; true only on a server-backed site with `site.sellMode` on. */
+  /** Offer sell mode; true only on a site built with `site.sellMode` on. */
   enableSellMode?: boolean
   onExit: () => void
   /** Other lists a card can be moved into (excludes this wanted list). */
@@ -133,6 +133,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
           enablePriceRefresh={true}
           enableTrade={true}
           enableSellMode={props.enableSellMode}
+          bakedBuylist={() => props.detail.buylist}
         />
       }
       original={
@@ -149,6 +150,12 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
           onOpenModal={setOriginalModalCard}
           onCloseModal={() => setOriginalModalCard(null)}
           currency={props.currency}
+          // Forwarded so the "Original" view's toolbar carries the sell control
+          // that matches the buylist badges its tiles render: `buylistFieldsFor`
+          // is gated on the global mode, not on this page's own support flag, so
+          // without these the view would show prices with nothing to turn off.
+          enableSellMode={props.enableSellMode}
+          bakedBuylist={() => props.detail.buylist}
         />
       }
     />

@@ -606,6 +606,30 @@ Price a single list and return its summary plus every priced card entry (in file
 
 ## Sell Report
 
+:::note[The five sell routes are gated on sell mode]
+`GET /api/sell/report`, `GET /api/sell/cart`, `POST /api/sell/refresh`, `GET /api/buylist/status`,
+and `POST /api/buylist/quotes` answer **`404`** unless [sell mode](/public-site/sell/) is on —
+[`site.sellMode`](/configuration/#offering-sell-mode-sellmode) (off by default), or a server started
+with [`ritual admin --sell-mode`](/commands/admin/#sell-mode). The check reads the config per
+request, so a `config set` — or a [`PUT /api/config`](/commands/admin/#put-apiconfig) from the
+Settings page's **Offer sell mode** checkbox — takes effect on the very next request, without a
+restart, and
+[`GET /api/status`](/commands/admin/#get-apistatus) reports the effective value so a client can hide
+its sell surfaces instead of offering controls that only ever 404. The public site server
+(`serve --api`) gates its two buylist routes the same way.
+
+A server running under `--sell-mode` opens these routes without anything on disk saying so.
+[`GET /api/config`](/commands/admin/#get-apiconfig) is where that shows up: alongside the stored
+`config` it reports `overrides: {"site.sellMode": true}`, which is the only way to tell an instance
+running with the flag from one whose config simply has the key unset.
+
+The refusal body is the standard [error envelope](#error-responses) — `{"success": false, "message":
+"Not found"}` — with no `messageKey`: it is a machine-facing refusal, so the text stays English.
+
+This applies to the MCP tools that reuse these handlers — `get_sell_report`, `get_sell_cart`,
+`get_buylist_quotes`, and `refresh_buylist` — see [`mcp`](/commands/mcp/#sell-tools-need-sell-mode).
+:::
+
 ```
 GET /api/sell/report
 ```
@@ -789,10 +813,12 @@ buying (`qtyBuying: 0`) — that is not money you can get today, so treat it as 
 `variation` is CK's variant note for the matched product, present only when they publish one; a
 client rendering a [cart CSV](#sell-cart) row builds CK's listed title from `name (variation)`.
 
-This route is also mounted by the public site server (`ritual serve --api`), unauthenticated, where
-it powers [sell mode](/public-site/sell/) and answers `404` when `site.sellMode` is `false`. The
-public server deliberately has no refresh route: an unauthenticated endpoint must never be able to
-trigger a ~70 MB download.
+This route is also mounted by the public site server (`ritual serve --api`), unauthenticated, and
+answers `404` there too unless [sell mode](/public-site/sell/) is on. The public **site** no longer
+calls it — [sell mode](/public-site/sell/) reads buy prices baked into each list's data — so it is
+there for other clients; the admin editors are the one client that still quotes live, since they
+price cards as they are added. The public server deliberately has no refresh route: an
+unauthenticated endpoint must never be able to trigger a ~70 MB download.
 
 ## Buylist Status
 

@@ -1,4 +1,10 @@
 import type { ScryfallCard } from '../../types'
+import type {
+  BuyerId,
+  BuylistFeedProvenance,
+  BuylistQuote,
+  BuylistQuoteRequest,
+} from '../../buylist'
 import type { PriceCurrency } from '../../price-currency'
 
 /**
@@ -15,6 +21,22 @@ export type SiteCardData = {
   cheapest: Partial<Record<PriceCurrency, Record<string, ScryfallCard | null>>>
   /** Names with no price per currency, in fetch order. */
   missing: Partial<Record<PriceCurrency, readonly string[]>>
+}
+
+/**
+ * What a detail builder needs to bake buylist offers into a list: which buyer is
+ * being quoted, a cache-backed single-printing lookup, and the feed's own
+ * freshness stamps.
+ *
+ * A seam rather than a feed handle so `src/site/` never reaches into a buyer's
+ * matching engine: `detailBuylistContext` in `src/cardkingdom/bake.ts` is the
+ * only producer, and both `build-site` and the live server use it — so the two
+ * can never quote the same printing differently.
+ */
+export type DetailBuylistContext = BuylistFeedProvenance & {
+  buyer: BuyerId
+  /** Cache-backed single-printing lookup; null = buyer has no product for it. */
+  quote: (printing: BuylistQuoteRequest) => BuylistQuote | null
 }
 
 /**
@@ -40,6 +62,12 @@ export type SiteDetailContext = {
   defaultCurrency: PriceCurrency
   availableCurrencies: PriceCurrency[]
   pricesDate: string
+  /**
+   * Buylist quoting for this build/request. Present only when sell mode is on
+   * *and* a buyer feed is loaded; absent means the detail ships no `buylist`
+   * field at all.
+   */
+  buylist?: DetailBuylistContext
   /** Build-time side effects for a card shipped in a detail (symbol + image downloads). */
   onCardShipped?: (card: ScryfallCard) => Promise<void>
   /** Sink for data-quality warnings (e.g. a printing that can't be found). */

@@ -1,5 +1,6 @@
 import { batch, createSignal, type Accessor } from 'solid-js'
 import { DEFAULT_BUYER, supportsCartCsv, type BuyerId } from '../buylist'
+import type { BakedBuylist } from './data-types'
 
 /**
  * Sell mode's on/off state and selected buyer, global like the selection store
@@ -22,7 +23,7 @@ const [engaging, setEngaging] = createSignal(false)
 
 /**
  * Sell mode's toolbar controls. Passed only by pages that offer sell mode
- * (a server-backed site with `site.sellMode` on); absent means the toggle and
+ * (one built or served with `site.sellMode` on); absent means the toggle and
  * the buyer selector are not rendered at all.
  */
 export type SellModeControl = {
@@ -37,6 +38,36 @@ export type SellModeControl = {
   onToggle: () => void
   buyer: BuyerId
   onBuyerChange: (buyer: BuyerId) => void
+}
+
+/**
+ * The two props every sell-mode-capable list view takes, declared once.
+ *
+ * Seven components forward this pair straight through to a page, so the
+ * contract has to read identically in all of them — declaring it here is what
+ * makes that structural instead of seven copies of the same JSDoc.
+ */
+export type SellModeProps = {
+  /**
+   * Offer sell mode (buylist prices, the buylist filter/grouping/sorting, and
+   * the sell-cart export). True on a public site built with `site.sellMode`
+   * enabled — static or served, since the quotes are baked into the list data —
+   * and on the admin site when its server has sell mode on.
+   */
+  enableSellMode?: boolean
+  /**
+   * This list's baked buylist quotes, as an accessor. Passing it puts sell mode
+   * on the *baked* path — the public site, whose detail JSON carries the quotes
+   * — so the quote API is never called and an accessor that resolves to
+   * `undefined` explains itself through `buylistError`. The admin editors omit
+   * it and keep quoting live against their credentialed API.
+   *
+   * A card added during a public edit session has no baked quote (the build
+   * never saw its printing) and therefore reads as "not on the buylist"; there
+   * is deliberately no fallback request, since the public site must work with
+   * no backend at all.
+   */
+  bakedBuylist?: Accessor<BakedBuylist | undefined>
 }
 
 /**

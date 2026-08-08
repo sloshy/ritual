@@ -23,8 +23,11 @@ import {
   parseCollectionSyncConfig,
   parseDefaultCurrency,
   parseDefaultLanguage,
+  getSessionOverrides,
   getSiteApiBaseUrl,
   getSiteSellMode,
+  clearSiteSellModeOverride,
+  setSiteSellModeOverride,
   parseSearchDebounceMs,
   parseSiteApiBaseUrl,
   parseSiteConfig,
@@ -726,21 +729,82 @@ describe('parseSiteConfig', () => {
 })
 
 describe('getSiteSellMode', () => {
-  test('is enabled by default, and by an absent site object', () => {
-    expect(getSiteSellMode(getDefaultRitualConfig())).toBe(true)
+  // The override is process-global; a leaked `true` would make every later
+  // suite in this file (and the rest of the run) think sell mode is on.
+  afterEach(() => {
+    clearSiteSellModeOverride()
+  })
+
+  test('is disabled by default, and by an absent site object', () => {
+    // Through the resolver, not by echoing DEFAULT_SITE_SELL_MODE back: the
+    // resolver is what can regress (a `!== false` reading of the key), and the
+    // constant can only change on purpose.
+    expect(getSiteSellMode(getDefaultRitualConfig())).toBe(false)
     expect(getSiteSellMode({ ...getDefaultRitualConfig(), site: defaultSiteSelection() })).toBe(
-      true,
+      false,
     )
   })
 
-  test('only an explicit false disables it', () => {
+  test('only an explicit true enables it', () => {
     const config = getDefaultRitualConfig()
-    expect(
-      getSiteSellMode({ ...config, site: { ...defaultSiteSelection(), sellMode: false } }),
-    ).toBe(false)
     expect(
       getSiteSellMode({ ...config, site: { ...defaultSiteSelection(), sellMode: true } }),
     ).toBe(true)
+    expect(
+      getSiteSellMode({ ...config, site: { ...defaultSiteSelection(), sellMode: false } }),
+    ).toBe(false)
+  })
+
+  test('the session override wins over the config, in both directions', () => {
+    const config = getDefaultRitualConfig()
+    const off: RitualConfig = { ...config, site: { ...defaultSiteSelection(), sellMode: false } }
+    const on: RitualConfig = { ...config, site: { ...defaultSiteSelection(), sellMode: true } }
+
+    // `--sell-mode` on a workspace that never asked for it: the whole point of
+    // the flag.
+    setSiteSellModeOverride(true)
+    expect(getSiteSellMode(off)).toBe(true)
+    // Enable-only is a CLI-surface rule, not a config-resolution one — the
+    // override answers whatever it was set to, so nothing else has to guess.
+    setSiteSellModeOverride(false)
+    expect(getSiteSellMode(on)).toBe(false)
+  })
+
+  test('clearing the override hands the answer back to the config', () => {
+    const on: RitualConfig = {
+      ...getDefaultRitualConfig(),
+      site: { ...defaultSiteSelection(), sellMode: true },
+    }
+
+    setSiteSellModeOverride(false)
+    clearSiteSellModeOverride()
+
+    expect(getSiteSellMode(on)).toBe(true)
+    expect(getSiteSellMode(getDefaultRitualConfig())).toBe(false)
+  })
+})
+
+describe('getSessionOverrides', () => {
+  afterEach(() => {
+    clearSiteSellModeOverride()
+  })
+
+  test('is empty when nothing is overridden — absence is the wire contract', () => {
+    expect(getSessionOverrides()).toEqual({})
+  })
+
+  test('reports the override under its config path, in both directions', () => {
+    setSiteSellModeOverride(true)
+    expect(getSessionOverrides()).toEqual({ 'site.sellMode': true })
+
+    setSiteSellModeOverride(false)
+    expect(getSessionOverrides()).toEqual({ 'site.sellMode': false })
+  })
+
+  test('clearing the override takes the key back off entirely', () => {
+    setSiteSellModeOverride(true)
+    clearSiteSellModeOverride()
+    expect(getSessionOverrides()).toEqual({})
   })
 })
 

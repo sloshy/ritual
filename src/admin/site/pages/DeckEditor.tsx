@@ -20,6 +20,7 @@ import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, moveTargetsExcluding } from '../move-targets'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
+import { sellModeEnabled } from '../sell-enabled'
 
 type DeckListResponse = { decks?: { slug: string; name: string }[] }
 
@@ -114,7 +115,7 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
 
   return (
     <DeckEditorBody
-      enableSellMode
+      enableSellMode={sellModeEnabled()}
       ctrl={ctrl}
       defaults={defaults}
       search={adminSearch}

@@ -108,8 +108,10 @@ describe('config CLI (Integration)', () => {
       const result = await runCli(['config', 'list', '--output', 'json'], dir)
       expect(result.exitCode).toBe(0)
 
-      // Matches the payload of the admin server's GET /api/config: the full
-      // effective config with defaults materialized.
+      // Matches the `config` field of the admin server's GET /api/config: the
+      // full effective config with defaults materialized. (Only a *running*
+      // server can also report `overrides` — a CLI process has no session
+      // override to report.)
       const config = JSON.parse(result.stdout) as {
         decksDir: string
         defaultCurrency: string

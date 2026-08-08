@@ -74,11 +74,12 @@ export type SiteConfig = SiteSelectionConfig & {
    */
   apiBaseUrl?: string
   /**
-   * Whether the published site offers sell mode: the buylist filter, per-card
-   * buyer quotes, buylist grouping/sorting, and the sell-cart export. Enabled
-   * unless explicitly set to `false` — see {@link getSiteSellMode}. Only ever
-   * reachable on a server-backed site; a fully static build has no quote API to
-   * ask, so the toggle never appears there regardless of this setting.
+   * Whether the site offers sell mode: the buylist filter, per-card buyer
+   * quotes, buylist grouping/sorting, and the sell-cart export. **Disabled
+   * unless explicitly set to `true`** — see {@link getSiteSellMode} — because
+   * enabling it makes every build and cache refresh download and index Card
+   * Kingdom's ~70 MB buylist. A single run can opt in without changing the
+   * config through `--sell-mode` ({@link setSiteSellModeOverride}).
    */
   sellMode?: boolean
 }
@@ -1066,13 +1067,76 @@ export function getSiteApiBaseUrl(config: RitualConfig = getRitualConfig()): str
 }
 
 /**
- * Whether the published site offers sell mode. Enabled unless `site.sellMode`
- * is explicitly `false` — the feature only ever appears on a server-backed
- * site, so the interesting decision is turning it off for a public deployment
- * that would rather not advertise buylist values.
+ * Whether sell mode is offered when `site.sellMode` is unset: off. Sell mode
+ * costs a ~70 MB buylist download on every build and cache refresh, so it is
+ * opt-in rather than something a workspace pays for by default.
+ */
+export const DEFAULT_SITE_SELL_MODE = false
+
+/**
+ * The session-scoped `--sell-mode` override, or null when the run follows the
+ * config. Enable-only in practice: the flag has no negative form, so the value
+ * here is only ever `true` outside tests.
+ */
+let siteSellModeOverride: boolean | null = null
+
+/**
+ * Turn sell mode on (or off) for this process, whatever `site.sellMode` says.
+ *
+ * Backs the `--sell-mode` flag on `build-site`, `serve` and `admin`: a run that
+ * asks for buylist prices gets them without a config write, and everything that
+ * consults {@link getSiteSellMode} — the CK feed refresh, the baked quotes, the
+ * served `index.json`, the buylist routes — agrees for the whole run.
+ */
+export function setSiteSellModeOverride(enabled: boolean): void {
+  siteSellModeOverride = enabled
+}
+
+/** Drop the `--sell-mode` override, so sell mode follows the config again. */
+export function clearSiteSellModeOverride(): void {
+  siteSellModeOverride = null
+}
+
+/**
+ * Whether sell mode is offered: the buylist filter, per-card buyer quotes,
+ * buylist grouping/sorting and the sell-cart export.
+ *
+ * Off unless `site.sellMode` is explicitly `true` or this run passed
+ * `--sell-mode` ({@link setSiteSellModeOverride}), which wins over the config.
+ * `ritual sell` is deliberately *not* gated on this — running it is itself the
+ * request for Card Kingdom prices.
  */
 export function getSiteSellMode(config: RitualConfig = getRitualConfig()): boolean {
-  return config.site?.sellMode !== false
+  if (siteSellModeOverride !== null) return siteSellModeOverride
+  return config.site?.sellMode ?? DEFAULT_SITE_SELL_MODE
+}
+
+/**
+ * What this process is operating with in place of the stored config, keyed by
+ * the dotted config path each override displaces.
+ *
+ * Room for more keys is deliberate: an override reported here needs no wire
+ * change to join the existing ones.
+ */
+export type SessionOverrides = {
+  /** Set by `--sell-mode` ({@link setSiteSellModeOverride}); see {@link getSiteSellMode}. */
+  'site.sellMode'?: boolean
+}
+
+/**
+ * The session overrides in force, or `{}` when this process follows the stored
+ * config in every respect.
+ *
+ * Overrides are process-local, so this only says something in the API of a
+ * *running* server: `GET /api/config` and the MCP `get_config` tool report it
+ * beside the stored config, which is the only way a client can tell that (say)
+ * an `admin --sell-mode` instance answers its sell routes despite
+ * `site.sellMode` being unset. A fresh CLI process never has any, which is why
+ * `ritual config get` is unaffected.
+ */
+export function getSessionOverrides(): SessionOverrides {
+  if (siteSellModeOverride === null) return {}
+  return { 'site.sellMode': siteSellModeOverride }
 }
 
 /** The saved `ritual export` presets, keyed by preset name (empty when none saved). */

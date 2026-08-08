@@ -12,11 +12,13 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
+  defaultBuildArgv,
   handleBuildSite,
   STALE_BUILD_DIR_MAX_AGE_MS,
   type BuildSiteResponse,
 } from '../../src/admin/api/build-site'
 import type { RouteProgress } from '../../src/progress'
+import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../src/ritual-config'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
 let ws: BoundWorkspace
@@ -161,6 +163,40 @@ describe('handleBuildSite (Integration)', () => {
     const next = await handleBuildSite(undefined, undefined, succeedingBuild)
     expect(next.status).toBe(200)
     expect(await fs.readFile(path.join(dist, 'index.html'), 'utf-8')).toBe('new')
+  })
+
+  /**
+   * The child inherits this process's environment but not its in-memory state,
+   * so anything the server holds only in memory has to be spelled onto the
+   * command line or it is silently lost across the spawn.
+   */
+  describe('the default child command line', () => {
+    afterEach(() => {
+      clearSiteSellModeOverride()
+    })
+
+    test('names the server’s own base dir and output directory', () => {
+      const argv = defaultBuildArgv(path.join(ws.dir, 'dist'))
+
+      // An exported RITUAL_BASE_DIR would otherwise outrank the spawn's cwd and
+      // build a different workspace than the server's.
+      expect(argv).toContain('--base-dir')
+      expect(argv).toContain(ws.dir)
+      expect(argv).toContain('build-site')
+      expect(argv).toContain(path.join(ws.dir, 'dist'))
+    })
+
+    test('omits --sell-mode when the server has sell mode off', () => {
+      expect(defaultBuildArgv(path.join(ws.dir, 'dist'))).not.toContain('--sell-mode')
+    })
+
+    test('forwards --sell-mode under a session override, which no spawn can inherit', () => {
+      // `ritual admin --sell-mode` sets a process-global override. Without this
+      // the server advertises sell mode and then publishes a site with it off.
+      setSiteSellModeOverride(true)
+
+      expect(defaultBuildArgv(path.join(ws.dir, 'dist'))).toContain('--sell-mode')
+    })
   })
 
   test('sweeps only leftovers old enough to be abandoned', async () => {

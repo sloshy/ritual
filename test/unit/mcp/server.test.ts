@@ -13,6 +13,7 @@ import { NEVER_CACHE, STATIC_CATALOG_CACHE } from '../../../src/mcp/cache-hints'
 import { DECK_ONLY_FORMAT_MESSAGE } from '../../../src/mcp/schemas'
 import { buildMcpServer } from '../../../src/mcp/server'
 import { MCP_TOOL_NAMES } from '../../../src/mcp/tools/names'
+import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../../src/ritual-config'
 import {
   expectSchemaRejection,
   expectStructuredOnly,
@@ -95,6 +96,13 @@ type JsonSchemaNode = {
 
 type ConfigView = {
   defaultCurrency?: string
+  site?: { sellMode?: boolean }
+}
+
+/** The `get_config` result, whose second half only a session override fills in. */
+type ConfigResultView = {
+  config: ConfigView
+  overrides?: Record<string, unknown>
 }
 
 type LoadedDeck = {
@@ -1729,11 +1737,45 @@ describe('Ritual MCP server (in-memory transport)', () => {
     })
     expect(updated.isError).toBeFalsy()
 
-    const got = toolData<{ config: ConfigView }>(await callTool(client, 'get_config', {}))
+    const got = toolData<ConfigResultView>(await callTool(client, 'get_config', {}))
     expect(got.config.defaultCurrency).toBe('eur')
 
     const rejected = await callTool(client, 'update_config', { config: { bogusKey: true } })
     expect(rejected.isError).toBe(true)
+  })
+
+  test('get_config surfaces the session overrides this server runs with', async () => {
+    // Wiring only — the handler's two states are pinned in
+    // test/integration/admin-config.test.ts. What this adds is that the field
+    // survives the tool's result projection: the output schemas are
+    // deliberately open (extra keys pass validation), so the thing that can
+    // regress here is the pass-through itself, not the schema.
+    const before = toolData<ConfigResultView>(await callTool(client, 'get_config', {}))
+    expect(before).not.toHaveProperty('overrides')
+
+    setSiteSellModeOverride(true)
+    try {
+      const during = toolData<ConfigResultView>(await callTool(client, 'get_config', {}))
+      expect(during.overrides).toEqual({ 'site.sellMode': true })
+      // `config` keeps reporting the stored value, which is what makes the pair
+      // worth reading: an agent can see the instance is answering its sell tools
+      // even though nothing on disk says so.
+      expect(during.config.site?.sellMode).toBeUndefined()
+    } finally {
+      clearSiteSellModeOverride()
+    }
+
+    // update_config echoes only what it persisted, so no override ever rides on
+    // a write — the two tools' output schemas differ for exactly this reason.
+    setSiteSellModeOverride(true)
+    try {
+      const written = toolData<ConfigResultView>(
+        await callTool(client, 'update_config', { config: { defaultCurrency: 'usd' } }),
+      )
+      expect(written).not.toHaveProperty('overrides')
+    } finally {
+      clearSiteSellModeOverride()
+    }
   })
 })
 

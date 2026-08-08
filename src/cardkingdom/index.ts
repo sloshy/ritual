@@ -12,8 +12,6 @@ export {
   type ParsedCardKingdomFeed,
 } from './feed'
 export {
-  CARDKINGDOM_FEED_MAX_AGE_MS,
-  cardKingdomFeedIsStale,
   getCardKingdomCachePath,
   loadCardKingdomCache,
   parseCardKingdomCacheFile,
@@ -22,6 +20,7 @@ export {
   type ParsedCardKingdomCacheFile,
 } from './cache'
 export { CARDKINGDOM_PRICELIST_URL, fetchCardKingdomFeed } from './client'
+export { detailBuylistContext } from './bake'
 export {
   NO_FEED_LEAD,
   ensureCardKingdomFeed,
@@ -50,6 +49,8 @@ export {
   feedStamp,
   getCardKingdomFeed,
   invalidateCardKingdomIndex,
+  loadEnsuredFeed,
+  peekCardKingdomFeed,
   type CardKingdomFeedStamp,
   type LoadedCardKingdomFeed,
 } from './memo'

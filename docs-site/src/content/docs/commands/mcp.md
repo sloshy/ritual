@@ -20,13 +20,14 @@ ritual mcp [options]
 
 ## Options
 
-| Option                    | Description                                                            | Default     |
-| ------------------------- | ---------------------------------------------------------------------- | ----------- |
-| `--transport <type>`      | Transport to use: `stdio` or `http`                                    | `stdio`     |
-| `-p, --port <number>`     | Port for the HTTP transport                                            | `8765`      |
-| `--host <address>`        | Host to bind for the HTTP transport                                    | `127.0.0.1` |
-| `--token <secret>`        | Require this bearer token on the HTTP transport                        |             |
-| `--allow-unauthenticated` | Serve the HTTP transport without a bearer token on a non-loopback host |             |
+| Option                    | Description                                                                                   | Default     |
+| ------------------------- | --------------------------------------------------------------------------------------------- | ----------- |
+| `--transport <type>`      | Transport to use: `stdio` or `http`                                                           | `stdio`     |
+| `-p, --port <number>`     | Port for the HTTP transport                                                                   | `8765`      |
+| `--host <address>`        | Host to bind for the HTTP transport                                                           | `127.0.0.1` |
+| `--token <secret>`        | Require this bearer token on the HTTP transport                                               |             |
+| `--allow-unauthenticated` | Serve the HTTP transport without a bearer token on a non-loopback host                        |             |
+| `--sell-mode`             | Answer the sell/buylist tools for this run even when `site.sellMode` is off (both transports) |             |
 
 `--token` may also be supplied via the `RITUAL_MCP_TOKEN` environment variable (the flag takes
 precedence); this keeps the secret out of the process list. The global `--base-dir <path>` option
@@ -236,11 +237,11 @@ Every tool that addresses a list takes the same two fields: `listType` (`deck` |
 | `get_card_details`                     | Everything the local cache knows about one card: oracle text, type line, colors, keywords, legalities, Scryfall Tagger tags, faces, printing count.                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `get_card_printings`, `get_card_price` | A card's printings and per-currency prices (an unknown card name is an error).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `get_price_report`                     | [Price](/commands/price/) one list (`listType` + `slug`), one list type (`listType` alone), or every list (no arguments). The result is discriminated by `mode`: `"list"` carries `list` + `cards`, `"summary"` carries `lists` + `typeTotals` + `totals`.                                                                                                                                                                                                                                                                                                                                                             |
-| `get_sell_report`                      | Match cards against the locally cached [Card Kingdom buylist](/commands/sell/): what CK is buying, the cash quote per Near Mint copy, and their quantity caps. Scope with `listType` (default: collections) or `lists`; filter with `sets` / `minPrice`. Errors when the card cache is empty (`refresh_cache`) or no feed has been downloaded (`refresh_buylist`).                                                                                                                                                                                                                                                     |
-| `get_sell_cart`                        | The cards CK is buying, rendered as their sell-cart CSV import format (no header row; CK's own listing titles, variant note included; quantities capped at their buy limits) over the same scope and filters as `get_sell_report`. `warnings` flags their 500-title/5,000-card upload caps and etched foils the format cannot express.                                                                                                                                                                                                                                                                                 |
-| `get_buylist_quotes`                   | The buyer's current offer for specific printings, keyed by `set:collectorNumber:finish`. Prices an arbitrary set of cards (a trade, a selection) without building a whole sell report; printings with no product are absent from the result. Cache-backed — run `refresh_buylist` first.                                                                                                                                                                                                                                                                                                                               |
+| `get_sell_report`                      | Match cards against the locally cached [Card Kingdom buylist](/commands/sell/): what CK is buying, the cash quote per Near Mint copy, and their quantity caps. Scope with `listType` (default: collections) or `lists`; filter with `sets` / `minPrice`. Errors when the card cache is empty (`refresh_cache`), no feed has been downloaded (`refresh_buylist`), or [sell mode is off](#sell-tools-need-sell-mode).                                                                                                                                                                                                    |
+| `get_sell_cart`                        | The cards CK is buying, rendered as their sell-cart CSV import format (no header row; CK's own listing titles, variant note included; quantities capped at their buy limits) over the same scope and filters as `get_sell_report`. `warnings` flags their 500-title/5,000-card upload caps and etched foils the format cannot express. Needs [sell mode](#sell-tools-need-sell-mode).                                                                                                                                                                                                                                  |
+| `get_buylist_quotes`                   | The buyer's current offer for specific printings, keyed by `set:collectorNumber:finish`. Prices an arbitrary set of cards (a trade, a selection) without building a whole sell report; printings with no product are absent from the result. Cache-backed — run `refresh_buylist` first. Needs [sell mode](#sell-tools-need-sell-mode).                                                                                                                                                                                                                                                                                |
 | `get_history`                          | A list's change history. A set followed by preserved hand-written text carries it in a `trailing` array — echo it back on `rewrite_history` or that text is deleted.                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `get_config`, `get_cache_status`       | Configuration (including `defaultLanguage`, the card language, and `uiLocale`, the [interface language](/configuration/#interface-language) — two different settings), and the state of the local Scryfall card cache.                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `get_config`, `get_cache_status`       | Configuration (including `defaultLanguage`, the card language, and `uiLocale`, the [interface language](/configuration/#interface-language) — two different settings), and the state of the local Scryfall card cache. `get_config` reports the stored config as `config` and, when this server was started with a session flag such as `--sell-mode`, what it is actually running with as [`overrides`](#stored-config-vs-what-this-server-runs-with).                                                                                                                                                                |
 | `diff_lists`                           | Compare two lists by card name or exact printing — the [`diff`](/commands/diff/) command as a tool.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `export_cards`                         | Render a CSV, JSON, plain-text, or Markdown [export](/commands/export/) of lists and/or card picks, with filters (and, for `csv`/`json`, column selection, a value `dialect`, and saved or built-in `preset`s). `write: true` writes a file instead.                                                                                                                                                                                                                                                                                                                                                                   |
 
@@ -334,6 +335,28 @@ server-named file under `exports/` in the base dir and returns
 `{ mode: "file", format, entryCount, warnings, path, bytes }`; an existing file is never
 overwritten. Because of that write mode it carries no `readOnlyHint` (it is not flagged destructive
 either — the writer never replaces a file), even though it is registered with the read tools.
+
+#### Stored config vs what this server runs with
+
+`get_config` answers two questions, because they can disagree. `config` is the stored configuration
+— `ritual.config.json` merged over the built-in defaults, the same payload
+[`config list --output json`](/commands/config/#config-list) prints. `overrides` is what **this running
+server** is operating with in place of it, keyed by the config path each override displaces:
+
+```json
+{
+  "config": { "site": {} },
+  "overrides": { "site.sellMode": true }
+}
+```
+
+That is a server started with [`--sell-mode`](#sell-tools-need-sell-mode): the flag is a session
+setting that writes nothing, so `config.site.sellMode` stays as stored (usually unset) while the
+sell tools answer anyway. Without it, the key is **absent entirely** — no `overrides` means the two
+answers agree, and reading `config` alone is enough.
+
+`update_config` never carries the field: it echoes back what it persisted, and an override is
+neither persisted nor changed by a write.
 
 ### Write
 
@@ -485,8 +508,8 @@ These are flagged with the MCP `destructiveHint` so clients can gate or confirm 
 | `build_site`      | Rebuild the public static site. Runs asynchronously in a child process and publishes atomically, so an interrupted build never leaves a broken site. Reports progress and honours cancellation. Returns `{ message, outDir, durationMs }` — where it published and how long the build took.                                                                                                         |
 | `sync_decks`      | [Sync decks](/commands/deck-sync/) with Archidekt in either direction.                                                                                                                                                                                                                                                                                                                              |
 | `sync_collection` | [Sync collection lists](/commands/collection-sync/) with Archidekt in either direction.                                                                                                                                                                                                                                                                                                             |
-| `refresh_cache`   | Refresh the Scryfall card cache (bulk download + oracle/art tags). A failed download or ingest is now reported as a tool error rather than a silent success.                                                                                                                                                                                                                                        |
-| `refresh_buylist` | Download the [Card Kingdom pricelist feed](/commands/sell/) (~70 MB) when the cached copy is stale (older than a day) or missing; `force: true` redownloads regardless. The sell tools read strictly from this cache. A failed download with a stale cache degrades: `refreshed: false` plus the failure in `warnings`.                                                                             |
+| `refresh_cache`   | Refresh the Scryfall card cache (bulk download + oracle/art tags). A failed download or ingest is now reported as a tool error rather than a silent success. Does **not** touch the buylist — that is `refresh_buylist`.                                                                                                                                                                            |
+| `refresh_buylist` | Download the [Card Kingdom pricelist feed](/commands/sell/) (~70 MB) when the cached copy is stale (older than a day) or missing; `force: true` redownloads regardless. The sell tools read strictly from this cache. A failed download with a stale cache degrades: `refreshed: false` plus the failure in `warnings`. Needs [sell mode](#sell-tools-need-sell-mode).                              |
 
 `sync_decks` takes a `direction` (`pull` | `push`), an optional `decks` array (slugs or names; omit
 to sync every Archidekt-linked deck), an optional
@@ -602,7 +625,27 @@ writes and `get_price_report` fail, so it is worth checking first.
 The same applies to the [Card Kingdom buylist](/commands/sell/): `admin` and `serve --api` redownload
 a day-old feed when they start, and the MCP server deliberately does not — `get_sell_report`,
 `get_sell_cart`, and `get_buylist_quotes` read whatever feed is cached, and `refresh_buylist` is the
-only thing in an MCP session that downloads one. `get_buylist_status` reports its age.
+only thing in an MCP session that downloads one (its result reports the feed's age and product
+count). Note that `refresh_cache` does **not** include the buylist, even though the CLI's
+[`cache preload-all`](/commands/cache/#the-buylist-rides-along-under-sell-mode) does.
+
+### Sell tools need sell mode
+
+The four buylist tools — `get_sell_report`, `get_sell_cart`, `get_buylist_quotes`, and
+`refresh_buylist` — reuse the admin's sell routes, which are gated on
+[sell mode](/public-site/sell/). It is **off by default**, and with it off all four fail with a
+`Not found` tool error. That is a configuration decision rather than a missing feed, so
+`refresh_buylist` will not fix it. Enable it with
+[`ritual config set site.sellMode true`](/configuration/#offering-sell-mode-sellmode), by ticking
+**Offer sell mode** on the admin's [Settings](/commands/admin/#settings) page (it writes the same
+key), or by starting the server with `--sell-mode`:
+
+```bash
+ritual mcp --sell-mode
+```
+
+`ritual admin --mcp --sell-mode` does the same for the [embedded endpoint](#embedding-in-a-running-admin-server).
+The rest of the tool surface is unaffected — only these four are gated.
 
 ## Client configuration
 

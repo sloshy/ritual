@@ -10,12 +10,7 @@ import type {
   WantedListSummary,
 } from '../../../src/site/data-types'
 import type { ScryfallCard } from '../../../src/types'
-import type {
-  BuylistQuote,
-  BuylistQuoteRequest,
-  BuylistQuotesResponse,
-  BuylistStatusResponse,
-} from '../../../src/buylist'
+import type { BuylistQuote } from '../../../src/buylist'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
 import { DEFAULT_LOCALE } from '../../../src/i18n/runtime'
 import { fulfillJson } from './fulfill'
@@ -610,33 +605,14 @@ function makeSellEntry(
 }
 
 /**
- * Three cards covering every buylist outcome the UI must render: an active
- * offer, an offer the buyer has paused (on the buylist, worth nothing today),
- * and a card the buyer does not stock at all.
- */
-const MOCK_SELL_BINDER_DETAIL = {
-  name: 'Sell Binder',
-  entries: [
-    makeSellEntry('Bought Card', '1', 0, 10),
-    makeSellEntry('Paused Card', '2', 1, 20),
-    makeSellEntry('Unlisted Card', '3', 2, 30),
-  ],
-  cards: {
-    'tst:1': makeSellCard('Bought Card', '1', '10.00'),
-    'tst:2': makeSellCard('Paused Card', '2', '20.00'),
-    'tst:3': makeSellCard('Unlisted Card', '3', '30.00'),
-  },
-  printings: {},
-  symbolMap: {},
-  useScryfallImgUrls: false,
-  totalPrice: 60.0,
-  defaultCurrency: 'usd',
-} satisfies CollectionDetail
-
-/**
- * Every quote the stub buyer knows, keyed exactly as the server keys them.
+ * Every quote the stub buyer knows, keyed exactly as a build bakes them.
  * `tst:3` is deliberately absent — a printing the buyer has no product for is
  * omitted, not zero-priced.
+ *
+ * Written out by hand rather than through `makeBuylistQuote` in
+ * test/test-utils.ts: that module imports `bun:test`, which a Playwright helper
+ * cannot. Keep these literals in step with that fixture when `BuylistQuote`
+ * gains a field.
  */
 const MOCK_BUYLIST_CATALOG: Record<string, BuylistQuote> = {
   'tst:1:nonfoil': {
@@ -661,33 +637,47 @@ const MOCK_BUYLIST_CATALOG: Record<string, BuylistQuote> = {
   },
 }
 
-const MOCK_FEED_STAMP = {
+/**
+ * The feed the build quoted against; staleness is derived from it in the
+ * browser. `feedRetrievedAt` is relative so the fixture stays *fresh* — a
+ * wall-clock literal would make every sell-mode run observe the stale state
+ * only, and the gap would widen with time.
+ */
+const MOCK_BAKED_FEED = {
   feedCreatedAt: '2026-08-04 06:06:09',
-  feedRetrievedAt: 1785850800000,
-  stale: false,
-  productCount: 2,
+  feedRetrievedAt: Date.now() - 60_000,
 } as const
 
 /**
- * Answer only for the printings the page actually asked for. A fixed response
- * would be correct whatever the client posted, leaving the request builder —
- * set-code lowercasing, the scryfall-id join key, printing dedupe — unpinned.
+ * Three cards covering every buylist outcome the UI must render: an active
+ * offer, an offer the buyer has paused (on the buylist, worth nothing today),
+ * and a card the buyer does not stock at all.
  */
-function quoteResponseFor(route: Route): BuylistQuotesResponse {
-  const body = route.request().postDataJSON() as { printings?: BuylistQuoteRequest[] }
-  const quotes: Record<string, BuylistQuote> = {}
-  for (const printing of body.printings ?? []) {
-    const key = `${printing.set}:${printing.collectorNumber}:${printing.finish}`
-    const quote = MOCK_BUYLIST_CATALOG[key]
-    if (quote) quotes[key] = quote
-  }
-  return { success: true, buyer: 'cardkingdom', quotes, ...MOCK_FEED_STAMP }
-}
+const MOCK_SELL_BINDER_DETAIL = {
+  name: 'Sell Binder',
+  entries: [
+    makeSellEntry('Bought Card', '1', 0, 10),
+    makeSellEntry('Paused Card', '2', 1, 20),
+    makeSellEntry('Unlisted Card', '3', 2, 30),
+  ],
+  cards: {
+    'tst:1': makeSellCard('Bought Card', '1', '10.00'),
+    'tst:2': makeSellCard('Paused Card', '2', '20.00'),
+    'tst:3': makeSellCard('Unlisted Card', '3', '30.00'),
+  },
+  printings: {},
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  totalPrice: 60.0,
+  defaultCurrency: 'usd',
+  // The offers a `--sell-mode` build bakes into the list itself. This is the
+  // whole fixture: the site below has no backend to ask.
+  buylist: { cardkingdom: { quotes: MOCK_BUYLIST_CATALOG, ...MOCK_BAKED_FEED } },
+} satisfies CollectionDetail
 
-// `apiBaseUrl: ''` marks the site live (sell mode needs a backend to quote
-// against) and `sellMode: true` is the baked capability flag.
+// No `apiBaseUrl`: a plain static build, which is exactly where baked quotes
+// have to work. `sellMode: true` is the capability flag the build stamps.
 const MOCK_SITE_INDEX_FOR_SELL = makeSiteIndex({
-  apiBaseUrl: '',
   sellMode: true,
   collections: [
     makeCollectionSummary({
@@ -699,40 +689,54 @@ const MOCK_SITE_INDEX_FOR_SELL = makeSiteIndex({
   ],
 })
 
-/**
- * Mock a live, sell-mode-enabled site with one collection and a stubbed quote
- * API. The index advertises a same-origin backend, so the app runs its live
- * paths — hence the extra stubs for the card endpoints it may reach for.
- */
-export async function mockPublicSiteCollectionForSell(page: Page): Promise<void> {
-  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_FOR_SELL)
-  await fulfillJson(page, '**/collections/sell-binder.json', MOCK_SELL_BINDER_DETAIL)
-  await fulfillJson(page, '**/api/buylist/quotes', quoteResponseFor)
-  await fulfillJson(page, '**/api/buylist/status', {
-    success: true,
-    buyer: 'cardkingdom',
-    buyers: ['cardkingdom'],
-    ...MOCK_FEED_STAMP,
-  } satisfies BuylistStatusResponse)
-  await fulfillJson(page, '**/api/card-prices', { success: true, cards: [] })
+/** Quote-API requests a run made. The public site must make none of them. */
+export type BuylistApiWatch = {
+  /** URLs of every intercepted request, in order. */
+  requests: string[]
+}
+
+/** Options for {@link mockPublicSiteCollectionForSell}. */
+export type SellMockOptions = {
+  /**
+   * Whether the collection detail carries a `buylist` field at all. `false`
+   * models a site built with sell mode on but no buyer feed available: the
+   * toggle is still offered (that is `index.json`'s call), and the page must
+   * explain the gap rather than read every card as declined.
+   */
+  baked?: boolean
 }
 
 /**
- * Hold the quote response open until `until` resolves, so a test can assert the
- * in-flight state against a request that provably has not answered yet — rather
- * than against a wall-clock delay, which a retrying assertion could satisfy
- * after the response landed.
+ * Mock a static, sell-mode-enabled site whose one collection carries baked
+ * quotes.
  *
- * Register after {@link mockPublicSiteCollectionForSell}: Playwright matches
- * route handlers in reverse registration order, so this one wins. It layers on
- * top of the body-aware responder rather than replacing it, keeping the request
- * builder pinned.
+ * Every buylist route is intercepted and failed rather than answered: the
+ * public site reads its offers from the detail payload, so a request reaching
+ * here at all is the regression this fixture exists to catch — the returned
+ * watch is what a test asserts on, and the 500 makes the page visibly wrong if
+ * one is ever issued.
  */
-export async function holdBuylistQuotes(page: Page, until: Promise<void>): Promise<void> {
-  await fulfillJson(page, '**/api/buylist/quotes', async (route) => {
-    await until
-    return quoteResponseFor(route)
-  })
+export async function mockPublicSiteCollectionForSell(
+  page: Page,
+  options: SellMockOptions = {},
+): Promise<BuylistApiWatch> {
+  const watch: BuylistApiWatch = { requests: [] }
+  const detail: CollectionDetail = { ...MOCK_SELL_BINDER_DETAIL }
+  // Absent, not empty: an empty `quotes` map means the buyer declined every
+  // card, which is a different thing to say.
+  if (options.baked === false) delete detail.buylist
+  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_FOR_SELL)
+  await fulfillJson(page, '**/collections/sell-binder.json', detail)
+  await fulfillJson(
+    page,
+    '**/api/buylist/**',
+    (route) => {
+      watch.requests.push(route.request().url())
+      return { error: 'the public site must not call the quote API' }
+    },
+    { status: 500 },
+  )
+  return watch
 }
 
 /** Mock a collection with duplicate entries, for the duplicate-grouping selection tests. */

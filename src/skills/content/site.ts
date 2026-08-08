@@ -131,6 +131,8 @@ ritual build-site --locale-file de-AT.json         # load dictionary JSON files,
 ritual build-site --refresh never                  # build from cached data as-is
 ritual build-site --refresh auto                   # refresh stale cache (bulk download allowed)
 ritual build-site --out-dir ./preview               # publish into another directory instead of dist/
+ritual build-site --sell-mode                      # offer sell mode for this run: refresh the CK
+                                                   #   buylist and bake its buy prices into the site
 \`\`\`
 
 \`--cache-images\` downloads card images locally instead of hot-linking Scryfall;
@@ -253,9 +255,12 @@ The startup line prints the address actually bound — \`localhost\` for a wildc
 or loopback bind, the \`--host\` value otherwise.
 
 Build flags (\`--theme\`, \`--currencies\`, ...) only apply together with \`--build\`;
-passing one without it is a usage error. \`--refresh\` and \`--out-dir\` are the
-exceptions: \`--refresh\` also controls \`--api\` startup cache warming, and
-\`--out-dir\` names the directory to serve.
+passing one without it is a usage error. \`--refresh\`, \`--out-dir\` and
+\`--sell-mode\` are the exceptions: \`--out-dir\` names the directory to serve
+whether or not a build runs, while \`--refresh\` (\`--api\` startup cache warming)
+and \`--sell-mode\` (a session setting the live server reads per request) are
+exempt **only under \`--api\`** — a plain \`serve --sell-mode\` has no reader and
+stays a usage error.
 
 ### Hosted mode (\`--api\`)
 
@@ -290,22 +295,41 @@ ritual config set site.apiBaseUrl "https://ritual-api.example.com"
 ritual build-site
 \`\`\`
 
-A server-backed site also offers **sell mode**: Card Kingdom buylist prices beside each
+A site can also offer **sell mode**: Card Kingdom buylist prices beside each
 card, on-buylist chips plus a buylist-price threshold filter, buylist grouping, sorting by
 buylist price or by buylist-minus-retail ascending (\`Buylist vs Price\`, where a missing offer or
-retail price counts as $0), and a CK sell-cart export. Quotes
-are fetched live (never baked), so a fully static build never shows it. It is on by
-default; disable it for a published site with:
+retail price counts as $0), and a CK sell-cart export. The quotes are **baked into each list's
+JSON at build time**, so a fully static build shows sell mode without any backend. It is
+**off by default**; enable it for a published site with:
 
 \`\`\`bash
-ritual config set site.sellMode false
+ritual config set site.sellMode true
 \`\`\`
 
+or by ticking **Offer sell mode** on the admin's Settings page, which writes the same key
+(unticking removes it rather than storing \`false\`); or for one run with the \`--sell-mode\`
+flag on \`build-site\`, \`serve\`, \`admin\`, or \`mcp\`.
+With sell mode on, \`build-site\` refreshes the buylist feed under the run's \`--refresh\` policy
+and bakes the quotes; a build that cannot get a feed warns and ships the site without them
+(never a build failure), and the pages say why no prices are shown. A static site's offers are
+as fresh as its last build; \`serve --api\` re-bakes per request instead, so refreshing its feed
+updates it without a rebuild.
+
+The key gates every server surface too: with it off, \`admin\` and \`serve --api\` skip the
+startup buylist refresh, their \`/api/sell/*\` and \`/api/buylist/*\` routes answer 404, the admin
+UI hides its sell toggle and *Refresh buylist* card, and the four MCP buylist tools error
+\`Not found\`. \`ritual sell\` on the CLI is the one exception — running it is itself the
+request, so it is never gated. The gate re-reads the config on every request and the admin UI
+re-reads the effective value after a Settings save, so flipping the key takes effect without a
+restart or a page reload — but a server started with \`--sell-mode\` keeps sell mode on for that
+whole run, whatever the stored key is later set to.
+
 The *first* buylist download is always deliberate — \`ritual sell --refresh auto\`, the admin
-**Refresh Cache** page's *Refresh buylist* button, or the \`refresh_buylist\` tool. After that
-\`serve --api\` and \`admin\` each redownload a day-old feed at startup (Card Kingdom regenerates
-it daily), under the same \`--refresh\` policy — \`no-bulk\`/\`never\` skip it. No page load ever
-triggers the ~70 MB fetch.
+**Refresh Cache** page's *Refresh buylist* button, the \`refresh_buylist\` tool,
+\`ritual cache preload-all\` with sell mode on, or a
+\`build-site --refresh auto\` run with sell mode on. After that \`serve --api\` and \`admin\` each
+redownload a day-old feed at startup (Card Kingdom regenerates it daily), under the same
+\`--refresh\` policy — \`no-bulk\`/\`never\` skip it. No page load ever triggers the ~70 MB fetch.
 
 ## Web admin
 
@@ -316,10 +340,13 @@ ritual admin                       # http://0.0.0.0:8080
 ritual admin -p 9000
 ritual admin --theme izzet         # initial theme baked into the admin UI
 ritual admin --refresh never       # skip the startup cache check, use cached data as-is
+ritual admin --sell-mode           # offer sell mode this run even with site.sellMode off
 \`\`\`
 
 The admin's **Settings** page edits the same config keys the CLI does, including
-\`uiLocale\` — the admin serves every locale the binary carries and reads its own
+\`uiLocale\` and \`site.sellMode\` (an **Offer sell mode** checkbox; saving it shows or
+hides this admin's sell surfaces at once, with no reload) — the admin serves every
+locale the binary carries and reads its own
 language from \`GET /api/config\`, so switching it rebuilds nothing. There is no
 \`--locale\` build flag here: \`ritual admin\` regenerates its bundle (and its
 dictionaries) on every start, and \`--locale\`/\`RITUAL_LOCALE\` still set the
@@ -396,7 +423,20 @@ operations as tools — an alternative to driving the CLI for MCP-native clients
 \`\`\`bash
 ritual mcp                                         # stdio transport (default)
 ritual mcp --transport http --port 8765 --token "$RITUAL_MCP_TOKEN"
+ritual mcp --sell-mode                             # answer the sell/buylist tools for this run
 \`\`\`
+
+The four buylist tools — \`get_sell_report\`, \`get_sell_cart\`, \`get_buylist_quotes\`
+and \`refresh_buylist\` — reuse the admin's sell routes, which are gated on sell
+mode (off by default): without \`--sell-mode\` or \`site.sellMode\` they fail with a
+\`Not found\` tool error, which \`refresh_buylist\` cannot fix. Every other tool is
+unaffected.
+
+\`--sell-mode\` writes nothing, so \`config get site.sellMode\` still reports the
+stored value. The running server is where the difference shows: \`get_config\`
+(and \`GET /api/config\`) answers with the stored config as \`config\` plus
+\`overrides: {"site.sellMode": true}\` when the process was started with the flag.
+No \`overrides\` key means the instance follows the stored config.
 
 **MCP prose is English by contract.** Tool names, titles, descriptions, parameter
 docs, the server instructions, and the \`message\` field of every tool result stay

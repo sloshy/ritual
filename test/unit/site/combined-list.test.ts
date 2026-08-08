@@ -4,13 +4,20 @@ import {
   parseCombinedQuery,
   buildCombinedCards,
   mergeSymbolMaps,
+  mergeBakedBuylists,
   mergeCardMaps,
   mergePrintingMaps,
   type LoadedListDetail,
 } from '../../../src/site/combined-list'
 import { groupAndSortCards } from '../../../src/site/card-sorting'
-import type { DeckDetail, CollectionDetail, WantedListDetail } from '../../../src/site/data-types'
-import { makeScryfallCard } from '../../test-utils'
+import type {
+  BakedBuylist,
+  BakedBuylistQuotes,
+  DeckDetail,
+  CollectionDetail,
+  WantedListDetail,
+} from '../../../src/site/data-types'
+import { makeBuylistQuote, makeScryfallCard } from '../../test-utils'
 
 const solRing = makeScryfallCard({
   id: 'sol',
@@ -261,6 +268,70 @@ describe('merge helpers', () => {
     const merged = mergePrintingMaps(loaded)
     expect(merged['Sol Ring']).toEqual([solRing])
     expect(merged['Lightning Bolt']).toEqual([bolt])
+  })
+})
+
+/**
+ * The combined view's one source of quotes: every loaded list's baked payload
+ * folded into the single store `seedBuylistQuotes` reads.
+ */
+describe('mergeBakedBuylists', () => {
+  const older: BakedBuylistQuotes = {
+    quotes: {
+      'a:1:nonfoil': makeBuylistQuote({ name: 'A' }),
+      'c:3:nonfoil': makeBuylistQuote({ name: 'C (older feed)', priceBuy: 1 }),
+    },
+    feedCreatedAt: '2026-08-03 06:06:09',
+    feedRetrievedAt: 100,
+  }
+  const newer: BakedBuylistQuotes = {
+    quotes: {
+      'b:2:nonfoil': makeBuylistQuote({ name: 'B' }),
+      'c:3:nonfoil': makeBuylistQuote({ name: 'C (newer feed)', priceBuy: 2 }),
+    },
+    feedCreatedAt: '2026-08-04 06:06:09',
+    feedRetrievedAt: 200,
+  }
+
+  /** A loaded list carrying `baked` — or nothing, the way an unquoted build ships. */
+  function listWith(baked?: BakedBuylistQuotes): LoadedListDetail {
+    const list = collectionDetail()
+    const detail = list.detail as unknown as { buylist?: BakedBuylist }
+    if (baked) detail.buylist = { cardkingdom: baked }
+    else delete detail.buylist
+    return list
+  }
+
+  test.each([
+    ['older first', [older, newer]],
+    ['newer first', [newer, older]],
+  ] as const)('unions the quotes and keeps the freshest stamp (%s)', (_label, order) => {
+    const merged = mergeBakedBuylists(order.map((baked) => listWith(baked)))!
+
+    // Both branches of the stamp comparison, since the merge is order-sensitive
+    // in exactly one place: which payload is `existing`.
+    expect(merged.cardkingdom?.feedRetrievedAt).toBe(200)
+    expect(merged.cardkingdom?.feedCreatedAt).toBe('2026-08-04 06:06:09')
+    expect(Object.keys(merged.cardkingdom?.quotes ?? {}).sort()).toEqual([
+      'a:1:nonfoil',
+      'b:2:nonfoil',
+      'c:3:nonfoil',
+    ])
+    // The newer feed's offer wins the overlap: a combined view must not show a
+    // price the freshest list it is displaying has already moved past.
+    expect(merged.cardkingdom?.quotes['c:3:nonfoil']).toBe(newer.quotes['c:3:nonfoil'])
+  })
+
+  test('a lone payload is reused by identity, because the seed store compares objects', () => {
+    const merged = mergeBakedBuylists([listWith(older), listWith()])
+
+    expect(merged?.cardkingdom).toBe(older)
+  })
+
+  test('no list quoted at all yields undefined, not an empty payload', () => {
+    // What makes "none of these lists was quoted" reach the user as an
+    // explanation rather than as a silently priceless sell mode.
+    expect(mergeBakedBuylists([listWith(), listWith()])).toBeUndefined()
   })
 })
 

@@ -1,7 +1,17 @@
 import type { RitualConfig } from '../../ritual-config'
+import type { ApiErrorResponse } from '../api/save-helpers'
+import type { ConfigResponse } from '../api/config'
 
-/** Shape of the admin `GET /api/config` response. */
-export type ConfigResponse = { success: boolean; config?: RitualConfig }
+/**
+ * The handler's own response type, re-exported so mocks and callers type
+ * against the one true shape instead of a looser client-side mirror (which is
+ * how a drift between the two went unnoticed). The SPA deliberately ignores its
+ * `overrides` field: the admin learns the effective sell mode from
+ * `GET /api/status`, which already folds the session override in; `overrides`
+ * exists for clients that need the stored-vs-running distinction — the MCP
+ * `get_config` tool above all.
+ */
+export type { ConfigResponse } from '../api/config'
 
 /** The request currently on the wire, shared by concurrent callers. */
 let inflight: Promise<RitualConfig | null> | null = null
@@ -22,8 +32,8 @@ export function fetchRitualConfig(): Promise<RitualConfig | null> {
   inflight = (async () => {
     try {
       const resp = await fetch('/api/config', { credentials: 'same-origin' })
-      const data = (await resp.json()) as ConfigResponse
-      return data.success && data.config ? data.config : null
+      const data = (await resp.json()) as ConfigResponse | ApiErrorResponse
+      return data.success === true ? data.config : null
     } catch {
       return null
     } finally {

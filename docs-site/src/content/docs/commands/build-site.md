@@ -30,6 +30,7 @@ By default, deck card images use Scryfall URLs from card data. This can be overr
 | `--locale-file <path...>`       | Load one or more locale dictionary JSON files, each named for its tag (`de-AT.json`); their locales become selectable alongside the built-in ones. The locale analogue of `--theme-file`.                                                                                                                                                                                                                             |
 | `--moxfield-user-agent <agent>` | Moxfield-approved unique User-Agent string (required for Moxfield deck URLs unless `MOXFIELD_USER_AGENT` is set)                                                                                                                                                                                                                                                                                                      |
 | `--out-dir <path>`              | Publish into this directory instead of `dist/`. A relative path resolves against the Ritual directory. **The directory is replaced by the build**, so it is refused when it is the Ritual directory itself or any ancestor of it (`.`, `..`, `/`) — see [Output](#output). Useful for building a preview alongside the published site, which [`serve --out-dir`](/commands/serve/) can then serve without rebuilding. |
+| `--sell-mode`                   | Offer [sell mode](/public-site/sell/) for this run even when [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is off: update the Card Kingdom buylist (~70 MB) and bake its buy prices into the site. Enable-only — omitting it follows the config. See [Sell mode](#sell-mode---sell-mode).                                                                                                            |
 
 ## Examples
 
@@ -226,12 +227,12 @@ Generates a single-page application in the `dist/` directory (or the `--out-dir`
 
 - `index.html` — SPA shell that loads the application
 - `app.js` — Bundled SPA with client-side routing
-- `index.json` — Deck and collection listing used by the index page (also carries the baked config, including [`site.apiBaseUrl`](/configuration/#pointing-a-static-build-at-a-live-backend-apibaseurl) when a [live backend](/public-site/hosted/) is configured, plus `uiLocale` and `availableLocales` from [the locale flags](#localized-builds))
+- `index.json` — Deck and collection listing used by the index page (also carries the baked config, including [`site.apiBaseUrl`](/configuration/#pointing-a-static-build-at-a-live-backend-apibaseurl) when a [live backend](/public-site/hosted/) is configured, whether [sell mode](#sell-mode---sell-mode) is offered, plus `uiLocale` and `availableLocales` from [the locale flags](#localized-builds))
 - `boot.js` — Tiny same-origin bootstrap that applies the stored theme and stamps `<html lang>`/`dir` before first paint
 - `locales/{tag}.json` — One message dictionary per published locale, fetched on demand when the visitor switches language
 - `decks/{slug}.json` — Full deck data loaded on demand
 - `collections/{slug}.json` — Full collection data with pricing loaded on demand
-- `wanted/{slug}.json` — Full wanted list data with pricing loaded on demand
+- `wanted/{slug}.json` — Full wanted list data with pricing loaded on demand — each of these three also carries that list's baked Card Kingdom buy prices when [sell mode](#sell-mode---sell-mode) is on
 - `styles.css` — Bundled CSS
 - Responsive design for desktop and mobile
 - Dark mode support
@@ -525,6 +526,53 @@ The shared `--refresh <mode>` option answers the prompts non-interactively and c
 > **Note:** `--refresh no-bulk` and `--refresh never` also suppress the _automatic_ bulk download (step 1). On an empty or very stale cache this forces every card to be fetched individually, which is slow and can hit Scryfall rate limits — use them when you already have a populated cache.
 
 An explicit `--refresh` mode is also what `bun run dev serve` requires — see [Development → Dev Workflow](/development/#dev-workflow).
+
+## Sell mode (`--sell-mode`)
+
+[Sell mode](/public-site/sell/) — Card Kingdom buylist prices beside each card, the buylist filters,
+buylist grouping and sorting, and the sell-cart export — is **off by default**. Turn it on for a
+workspace with [`ritual config set site.sellMode true`](/configuration/#offering-sell-mode-sellmode),
+or for a single build with `--sell-mode`:
+
+```bash
+./ritual build-site --sell-mode
+```
+
+The flag is enable-only (there is no `--no-sell-mode`); omit it and the build follows the config.
+
+When sell mode is on for the run, `build-site` does two extra things after the card data is
+assembled and before the per-list JSON is written:
+
+1. **Refreshes the Card Kingdom buylist**, under this run's `--refresh` mode — the same policy the
+   card cache answered to. A cached feed less than a day old is used as-is; a day-old one is
+   redownloaded under `ask`/`auto` and left alone under `no-bulk`/`never`; a **missing** feed is
+   downloaded under `auto` and prompted for under `ask` (default yes, ~70 MB). See
+   [`sell` → Feed freshness](/commands/sell/#feed-freshness).
+2. **Bakes the buy prices into each list's JSON.** Every printing a list displays is quoted from the
+   feed and written into that list's detail file, so the published site shows sell mode with **no
+   backend at all** — a static host on a CDN offers it exactly as a [live one](/public-site/hosted/)
+   does. Non-English copies are never quoted (Card Kingdom's feed is English-only).
+
+It reports what it baked:
+
+```
+Card Kingdom buylist ready (61948 items).
+```
+
+**A buylist problem never fails the build.** A refused prompt, a `--refresh never` run with no
+cached feed, or a failed download warns and the site is built without buy prices:
+
+```
+⚠️  Sell mode is on but the Card Kingdom buylist is unavailable, so the site is built without buy
+prices. No Card Kingdom buylist has been downloaded yet. Re-run with --refresh auto to download it (~70 MB).
+```
+
+Such a site still advertises sell mode (`index.json` carries the flag), and turning the toggle on
+shows the "buylist prices are unavailable" notice rather than empty prices. Rebuild once a feed
+exists to fill them in.
+
+With sell mode **off**, no Card Kingdom work happens at all: no download, no quoting, and the
+detail files carry no buylist field.
 
 ## Quick Switch
 

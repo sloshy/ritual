@@ -2,19 +2,42 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { adminUserExists, isTotpEnabled } from '../auth'
 import { parseDeckFrontMatter } from '../../deck-file'
-import { getDecksDir } from '../../ritual-config'
+import { getDecksDir, getSiteSellMode, loadRitualConfig } from '../../ritual-config'
 import { isListMarkdownFile } from '../../list-file-name'
 
-interface StatusResponse {
+/**
+ * `GET /api/status` — what a client needs before it has a session: whether this
+ * server still needs its first account, which second factor to ask for, and
+ * which optional capabilities it offers.
+ */
+export interface StatusResponse {
   ok: boolean
   setupRequired: boolean
   totpEnabled: boolean
+  /**
+   * Whether this server answers the sell/buylist routes at all. The *effective*
+   * value, so a `ritual admin --sell-mode` run reports enabled even with no
+   * `site.sellMode` in the config file. Clients hide their sell surfaces when
+   * this is false — those routes 404 (see `withSellModeGate`), and a toggle
+   * that only ever produces a 404 is worse than no toggle.
+   */
+  sellMode: boolean
 }
 
 export async function handleStatus(): Promise<Response> {
   const setupRequired = !(await adminUserExists())
   const totpEnabled = setupRequired ? false : await isTotpEnabled()
-  const body: StatusResponse = { ok: true, setupRequired, totpEnabled }
+  // Read from disk per request, exactly like `withSellModeGate` — not from the
+  // process-wide config cache. The two must never disagree: a client that keeps
+  // its sell surfaces because this said yes, against routes that 404 because
+  // the gate re-read the file, is worse than either answer on its own.
+  const config = await loadRitualConfig()
+  const body: StatusResponse = {
+    ok: true,
+    setupRequired,
+    totpEnabled,
+    sellMode: getSiteSellMode(config),
+  }
   return Response.json(body)
 }
 

@@ -199,10 +199,10 @@ describe('warmSiteCache (Integration)', () => {
 })
 
 /**
- * The buylist half of the same startup: `serve --api` reads `site.sellMode`
- * from the config rather than being told, which is the one branch the unit
- * tests cannot reach (they all inject `sellMode`). `admin` deliberately does
- * not — it forces sell mode on, since the key governs a published site.
+ * The buylist half of the same startup: `serve --api` and `admin` both read
+ * `site.sellMode` (or the `--sell-mode` session override) from the config
+ * rather than being told, which is the one branch the unit tests cannot reach
+ * — they all inject `sellMode`.
  */
 describe('warmCardKingdomFeed config gate (Integration)', () => {
   let workspace: BoundWorkspace
@@ -218,8 +218,11 @@ describe('warmCardKingdomFeed config gate (Integration)', () => {
   /** No deps at all reach the network in this describe; make that structural. */
   const noNet = { http: new DenyHttpClient() }
 
-  test('sell mode disabled in config warms nothing', async () => {
-    await writeConfig(workspace.dir, { site: { sellMode: false } })
+  test.each([
+    ['a workspace that never asked for sell mode', undefined],
+    ['sell mode disabled in config', false],
+  ])('%s warms nothing', async (_label, sellMode) => {
+    if (sellMode !== undefined) await writeConfig(workspace.dir, { site: { sellMode } })
 
     // No `sellMode` argument: the config is the only thing that can say no,
     // and saying no is what keeps a ~70 MB download off an unrelated server.
@@ -233,17 +236,19 @@ describe('warmCardKingdomFeed config gate (Integration)', () => {
     expect(warmth).toStrictEqual({ enabled: false, ready: false, refreshed: false })
   })
 
-  test('an explicit sellMode beats the config, which is how admin runs', async () => {
+  test('an explicit sellMode beats the config', async () => {
     await writeConfig(workspace.dir, { site: { sellMode: false } })
 
-    // `admin` always offers sell mode — `site.sellMode` governs what a
-    // *published* site discloses, not what your own tools can see.
+    // The injection seam a caller with its own policy uses. The commands
+    // themselves reach the same outcome through the session override that
+    // `--sell-mode` sets, which this call bypasses entirely.
     const warmth = await warmCardKingdomFeed('never', { ...noNet, sellMode: true })
 
     expect(warmth).toStrictEqual({ enabled: true, ready: false, refreshed: false })
   })
 
   test('a buylist that exists but cannot be read is left alone, not redownloaded', async () => {
+    await writeConfig(workspace.dir, { site: { sellMode: true } })
     await fs.mkdir(path.join(workspace.dir, 'cache'), { recursive: true })
     await fs.writeFile(path.join(workspace.dir, 'cache', 'cardkingdom.json'), '{ not json')
 
@@ -255,11 +260,15 @@ describe('warmCardKingdomFeed config gate (Integration)', () => {
     expect(warmth).toStrictEqual({ enabled: true, ready: false, refreshed: false })
   })
 
-  test('sell mode on by default, with no buylist to update', async () => {
-    const warmth = await warmCardKingdomFeed('never', noNet)
+  test('a config-enabled workspace with no buylist refuses the first download, even under auto', async () => {
+    await writeConfig(workspace.dir, { site: { sellMode: true } })
 
-    // The workspace has no cardkingdom.json, so there is nothing to keep
-    // current — and nothing is downloaded to create one.
+    // `auto` is the mode that *would* download a missing feed on the CLI. A
+    // server start must not spend ~70 MB, so the refusal here is a decision
+    // rather than a structural impossibility — the `DenyHttpClient` is what
+    // makes a regression fail loudly instead of quietly downloading.
+    const warmth = await warmCardKingdomFeed('auto', noNet)
+
     expect(warmth).toStrictEqual({ enabled: true, ready: false, refreshed: false })
   })
 })

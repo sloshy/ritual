@@ -130,6 +130,10 @@ export const helpInfraMeta = {
     description: '`build-site --moxfield-user-agent`. MOXFIELD_USER_AGENT is an env var name.',
   },
   'help.buildSite.outDir': { description: '`build-site --out-dir`.' },
+  'help.buildSite.sellMode': {
+    description:
+      '`--sell-mode`, shared by `build-site` and `serve`. site.sellMode is a config key name; Card Kingdom is a company name.',
+  },
 
   // ── init-site ─────────────────────────────────────────────────────────
   'help.initSite.description': { description: 'Summary of the `init-site` command.' },
@@ -164,6 +168,10 @@ export const helpInfraMeta = {
   'help.admin.mcpToken': {
     description: '`admin --mcp-token`. RITUAL_MCP_TOKEN is an environment variable name.',
   },
+  'help.admin.sellMode': {
+    description:
+      '`admin --sell-mode`. site.sellMode is a config key name; Card Kingdom is a company name.',
+  },
   'help.admin.setup': { description: 'Summary of `admin setup`.' },
   'help.admin.setupUsername': { description: '`admin setup --username`.' },
   'help.admin.setupPasswordStdin': { description: '`admin setup --password-stdin`.' },
@@ -181,6 +189,10 @@ export const helpInfraMeta = {
     description: '`mcp --token`. RITUAL_MCP_TOKEN is an environment variable name.',
   },
   'help.mcp.allowUnauthenticated': { description: '`mcp --allow-unauthenticated`.' },
+  'help.mcp.sellMode': {
+    description:
+      '`mcp --sell-mode`. site.sellMode is a config key name; Card Kingdom is a company name. "sell and buylist tools" refers to the get_sell_report, get_sell_cart, get_buylist_quotes and refresh_buylist MCP tools.',
+  },
 
   // ── skills ────────────────────────────────────────────────────────────
   'help.skills.description': { description: 'Summary of the `skills` command group.' },

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { handleGetConfig, handleUpdateConfig } from '../../src/admin/api/config'
+import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../src/ritual-config'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
 /**
@@ -7,7 +8,7 @@ import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
  * partial — the handler returns the whole `RitualConfig`.
  */
 type ConfigView = {
-  site?: { bannedPrintings?: string[] }
+  site?: { bannedPrintings?: string[]; sellMode?: boolean }
   defaultCurrency?: string
   defaultLanguage?: string
   cacheLockTimeoutSeconds?: number
@@ -44,9 +45,15 @@ function putConfig(config: Record<string, unknown>): Promise<Response> {
   )
 }
 
+/** The `GET /api/config` body, as much of it as these tests read. */
+type ConfigBody = { config: ConfigView; overrides?: Record<string, unknown> }
+
+function getConfig(): Promise<ConfigBody> {
+  return handleGetConfig().then((response) => response.json() as Promise<ConfigBody>)
+}
+
 async function readConfig(): Promise<ConfigView> {
-  const data = (await (await handleGetConfig()).json()) as { config: ConfigView }
-  return data.config
+  return (await getConfig()).config
 }
 
 describe('PUT /api/config', () => {
@@ -184,10 +191,66 @@ describe('PUT /api/config', () => {
     expect(config.admin?.rateLimitMaxAttempts).toBe(9)
   })
 
+  test('unsets site.sellMode when the site object omits it', async () => {
+    // The Settings page's **Offer sell mode** checkbox writes `true` when ticked
+    // and drops the key when unticked, rather than storing `false`. That only
+    // unsets it because `site` replaces wholesale — a deep merge would keep the
+    // stored `true` and the checkbox would appear to do nothing.
+    expect((await putConfig({ site: { sellMode: true } })).ok).toBe(true)
+    expect((await readConfig()).site?.sellMode).toBe(true)
+
+    expect((await putConfig({ site: {} })).ok).toBe(true)
+
+    // Absent, not `false`: `config get site.sellMode` reports it unset again
+    // (exit 3), exactly as before the box was ever ticked.
+    expect((await readConfig()).site).not.toHaveProperty('sellMode')
+  })
+
   test('clears an existing cacheFeedUrl with an empty string', async () => {
     expect((await putConfig({ cacheFeedUrl: 'https://feed.example/feed.json' })).ok).toBe(true)
     expect((await putConfig({ cacheFeedUrl: '' })).ok).toBe(true)
 
     expect((await readConfig()).cacheFeedUrl).toBeUndefined()
+  })
+})
+
+/**
+ * The stored config and what the *running server* is operating with are two
+ * different answers, and `--sell-mode` is what makes them differ. A client (an
+ * MCP agent above all) has no other way to tell that this instance answers its
+ * sell routes while `site.sellMode` is unset on disk.
+ */
+describe('GET /api/config session overrides', () => {
+  let workspace: BoundWorkspace
+
+  beforeEach(async () => {
+    workspace = await bindWorkspace({ init: true })
+  })
+  afterEach(async () => {
+    clearSiteSellModeOverride()
+    await workspace.dispose()
+  })
+
+  test('omits the key entirely when the process follows the stored config', async () => {
+    // Absence is the contract, not an empty object: a client reads "no key" as
+    // "stored config is what this server runs with".
+    expect(await getConfig()).not.toHaveProperty('overrides')
+  })
+
+  test('reports a --sell-mode session without disturbing the stored config', async () => {
+    setSiteSellModeOverride(true)
+
+    const body = await getConfig()
+
+    expect(body.overrides).toEqual({ 'site.sellMode': true })
+    // The stored half stays honest: the flag wrote nothing, so `site.sellMode`
+    // is still unset — which is exactly the disagreement `overrides` exists to
+    // report.
+    expect(body.config.site?.sellMode).toBeUndefined()
+
+    // And dropping the override takes the key back off the wire, so a client
+    // polling this route sees the instance return to the stored config.
+    clearSiteSellModeOverride()
+    expect(await getConfig()).not.toHaveProperty('overrides')
   })
 })

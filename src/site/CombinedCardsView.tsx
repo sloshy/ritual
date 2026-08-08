@@ -17,7 +17,8 @@ import {
 } from './card-sorting'
 import { CardModal } from './CardModal'
 import { FilteredPriceStat, SelectedPriceStat, SellModeNotice, SellValueStat } from './PageStats'
-import { useSellMode } from './useSellMode'
+import { useSellMode, type QuoteSource } from './useSellMode'
+import type { SellModeProps } from './sell-mode'
 import { finishName, rarityName } from './printing-display'
 import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
@@ -65,7 +66,7 @@ const COMBINED_SORT_BYS: readonly SortBy[] = [
   'file-order',
 ]
 
-interface CombinedCardsViewProps {
+interface CombinedCardsViewProps extends SellModeProps {
   /** The already-built combined cards to display (flattened across source lists). */
   cards: CombinedCardData[]
   /** Merged mana-symbol lookup for the displayed cards. */
@@ -88,12 +89,6 @@ interface CombinedCardsViewProps {
   emptyMessage?: string
   /** Mirror the toolbar/filter state into the URL query so the view is shareable (combined-list view only). */
   enableUrlState?: boolean
-  /**
-   * Offer sell mode (buylist prices, the buylist filter/grouping/sorting, and
-   * the sell-cart export). True only on a server-backed public site with
-   * `site.sellMode` enabled, or on the admin site.
-   */
-  enableSellMode?: boolean
 }
 
 /**
@@ -186,9 +181,17 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
 
   const selection = useCombinedSelection(() => props.selectionLists)
 
+  // Declared once, at setup: a page handed a baked payload never calls the quote
+  // API (the public site and the public editor), and one without it quotes live
+  // against a credentialed API (the admin editors). Making the choice explicit
+  // keeps a call site from silently landing on the path it did not mean.
+  const quoteSource: QuoteSource = props.bakedBuylist
+    ? { kind: 'baked', quotes: props.bakedBuylist }
+    : { kind: 'live' }
   const sell = useSellMode({
     toolbar,
     supported: () => Boolean(props.enableSellMode),
+    quotes: quoteSource,
     cards: () => props.cards,
     selected: selection.selected,
     filters: cardFilters,

@@ -1,4 +1,5 @@
 import { type Accessor, type JSX, Show, batch, createSignal } from 'solid-js'
+import type { SellModeProps } from '../site/sell-mode'
 import type { DeckData, Card, Finish } from '../types'
 import type { CardLanguage } from '../card-language'
 import { DeckPage } from '../site/DeckPage'
@@ -329,7 +330,7 @@ export function useDeckEditController(
   }
 }
 
-type DeckEditorBodyProps = {
+type DeckEditorBodyProps = SellModeProps & {
   ctrl: DeckEditController
   defaults: UseEditorDefaultsResult
   search: SearchProvider
@@ -347,12 +348,6 @@ type DeckEditorBodyProps = {
   enablePriceRefresh?: boolean
   /** Forwarded to the page: offer "Add to Trade" in the multi-select menu (public site only). */
   enableTrade?: boolean
-  /**
-   * Offer sell mode inside the editor's deck view. Always true on admin (the
-   * operator's own tools are not gated by `site.sellMode`); the public editor
-   * inherits the site's capability.
-   */
-  enableSellMode?: boolean
 }
 
 /**
@@ -450,6 +445,7 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
         enablePriceRefresh={props.enablePriceRefresh}
         enableTrade={props.enableTrade}
         enableSellMode={props.enableSellMode}
+        bakedBuylist={props.bakedBuylist}
         onCardIncrement={ctrl.handleIncrement}
         onCardDecrement={ctrl.handleDecrement}
         onCardContextMenu={ctrl.handleContextMenu}

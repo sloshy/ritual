@@ -1,5 +1,6 @@
 import type { JSX } from 'solid-js'
 import type { CollectionCardEntry } from '../site/data-types'
+import type { SellModeProps } from '../site/sell-mode'
 import type { PriceCurrency } from '../price-currency'
 import type { CardLabel } from '../card-labels'
 import { CollectionPage } from '../site/CollectionPage'
@@ -13,7 +14,7 @@ import {
   FlatListEditorShell,
 } from './flat-list-controller'
 
-type CollectionEditorBodyProps = {
+type CollectionEditorBodyProps = SellModeProps & {
   ctrl: FlatListController<CollectionCardEntry>
   defaults: UseEditorDefaultsResult
   search: SearchProvider
@@ -32,12 +33,6 @@ type CollectionEditorBodyProps = {
   enablePriceRefresh?: boolean
   /** Forwarded to the page: offer "Add to Trade" in the multi-select menu (public site only). */
   enableTrade?: boolean
-  /**
-   * Offer sell mode inside the editor's list view. Always true on admin (the
-   * operator's own tools are not gated by `site.sellMode`); the public editor
-   * inherits the site's capability.
-   */
-  enableSellMode?: boolean
   /** Open the list-default label editor (admin editor only — needs the authed metadata route). */
   onEditLabels?: () => void
 }
@@ -104,6 +99,7 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
         enablePriceRefresh={props.enablePriceRefresh}
         enableTrade={props.enableTrade}
         enableSellMode={props.enableSellMode}
+        bakedBuylist={props.bakedBuylist}
         onCardIncrement={ctrl.handleIncrement}
         onCardDecrement={ctrl.handleDecrement}
         onCardContextMenu={ctrl.handleContextMenu}

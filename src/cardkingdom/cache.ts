@@ -14,9 +14,6 @@ import type { CardKingdomFeed, CardKingdomProduct } from './feed'
  * cadence, and `cache.json` is rewritten whole on every save.
  */
 
-/** CK regenerates the feed daily, so anything younger than a day is fresh. */
-export const CARDKINGDOM_FEED_MAX_AGE_MS = 24 * 60 * 60 * 1000
-
 /** `cache/cardkingdom.json` under the current base dir. */
 export function getCardKingdomCachePath(): string {
   return path.join(getCacheDir(), 'cardkingdom.json')
@@ -161,9 +158,4 @@ export async function saveCardKingdomCache(
 ): Promise<void> {
   await fs.mkdir(getCacheDir(), { recursive: true })
   await writeFileAtomic(fs, getCardKingdomCachePath(), JSON.stringify(file))
-}
-
-/** Whether a cached feed is older than {@link CARDKINGDOM_FEED_MAX_AGE_MS}. */
-export function cardKingdomFeedIsStale(retrievedAt: number, now: number): boolean {
-  return now - retrievedAt > CARDKINGDOM_FEED_MAX_AGE_MS
 }

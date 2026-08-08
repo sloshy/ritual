@@ -35,11 +35,20 @@ export type { SaveEffect, SaveEffectAction, SaveEffectPrinting } from '../editor
 export type OmitSuccess<T> = T extends unknown ? Omit<T, 'success'> : never
 
 /**
- * `get_config` and `update_config` return the same thing, and they live in
- * different tool modules — so the alias lives here rather than being declared
- * once in each, which is how the two copies came to exist.
+ * `get_config`'s result: the stored config, plus `overrides` when this running
+ * server operates with a session flag displacing a stored key. Declared here
+ * rather than in the tool module so the write-side alias below can derive from
+ * it — the two used to share one alias, which let `update_config`'s declared
+ * type advertise an `overrides` its handler never sends.
  */
-export type ConfigResult = OmitSuccess<ConfigResponse>
+export type GetConfigResult = OmitSuccess<ConfigResponse>
+
+/**
+ * `update_config`'s result: a write echoes back only what it persisted — an
+ * override is neither persisted nor changed by one, so the field is absent by
+ * contract (`CONFIG_OUTPUT` vs `GET_CONFIG_OUTPUT` pins the same split).
+ */
+export type UpdateConfigResult = Omit<GetConfigResult, 'overrides'>
 
 /**
  * `get_cache_status` result.

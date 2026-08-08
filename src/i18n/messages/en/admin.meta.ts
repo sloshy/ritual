@@ -1354,6 +1354,18 @@ export const adminMeta = {
   },
   'admin.settings.apiBaseUrl': { description: 'Field label: the address of the live backend.' },
   'admin.settings.apiBaseUrlPlaceholder': { description: 'Example backend address.' },
+  'admin.settings.sellMode': {
+    description:
+      'Checkbox label: whether the sites offer sell mode (Card Kingdom buy prices and the buylist controls).',
+  },
+  'admin.settings.sellModeHint': {
+    description:
+      'Explains what the sell mode checkbox governs, why it is off by default, and that it applies without a restart. {flag} is a CLI flag rendered as code — never translate it.',
+  },
+  'admin.settings.sellModeFlag': {
+    description:
+      'The CLI flag named by admin.settings.sellModeHint. A literal flag — never translate.',
+  },
   'admin.settings.printingsHeading': {
     description: 'Section heading for printings that may never be chosen as a card’s default.',
   },

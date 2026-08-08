@@ -64,6 +64,14 @@ describe('skill catalog invariants', () => {
     ['ritual-site', '--locale-file <path...>'],
     // The other half of the contract: what the locale never moves.
     ['ritual-site', 'English by contract'],
+    // Sell mode's admin control, and the one thing about it an agent will
+    // otherwise guess wrong: unticking *removes* `site.sellMode` rather than
+    // storing `false`, so `config get site.sellMode` exits 3 afterwards.
+    ['ritual-site', 'Offer sell mode'],
+    ['ritual-site', 'unticking removes it rather than storing'],
+    // The other half of that: `--sell-mode` writes nothing, so the *running*
+    // server's `get_config` is the only place an agent can see it in force.
+    ['ritual-site', 'overrides: {"site.sellMode": true}'],
   ])('the %s skill documents %p', (skillName, phrase) => {
     const skill = SKILLS.find((s) => s.name === skillName)
     expect(skill).toBeDefined()

@@ -3,8 +3,9 @@ import { searchAllPages, refreshTags } from '../scryfall'
 import { refreshCardCache } from '../cache/refresh-source'
 import { collectCacheStatus, type CacheStatusResult } from '../cache/status'
 import { addFeedUrlOption, feedUrlSourceConflict, parseCacheSourceFlag } from '../cache/cadence'
+import { ensureCardKingdomFeed } from '../cardkingdom'
 import { getErrorMessage } from '../errors'
-import { type CacheSource as ConfiguredCacheSource } from '../ritual-config'
+import { getSiteSellMode, type CacheSource as ConfiguredCacheSource } from '../ritual-config'
 import { registerCacheFeedSubcommand } from './cache-feed'
 import { registerCacheServerSubcommand } from './cache-server'
 import {
@@ -152,6 +153,27 @@ export function registerCacheCommand(program: Command): void {
       } catch (e) {
         console.error(t('cli.cache.preloadAllFailed', { reason: getErrorMessage(e) }))
         process.exitCode = ExitCode.RuntimeError
+        return
+      }
+
+      // Updating the caches updates *every* cache the workspace uses, and under
+      // sell mode the Card Kingdom buylist is one of them — a site built from a
+      // day-old feed bakes yesterday's offers. `auto` because reaching this line
+      // is already consent to bulk downloads, and `--force` carries through so
+      // it redownloads a feed that is merely fresh.
+      //
+      // Config-only, with no `--sell-mode` flag of its own: this is cache
+      // maintenance, not a surface that offers sell mode. A failure is a
+      // warning, never the command's exit code — the card cache did refresh.
+      if (getSiteSellMode()) {
+        try {
+          const feed = await ensureCardKingdomFeed('auto', { force: options.force })
+          if (typeof feed === 'string') {
+            console.warn(t('cli.cache.preloadAllBuylistFailed', { reason: feed }))
+          }
+        } catch (e) {
+          console.warn(t('cli.cache.preloadAllBuylistFailed', { reason: getErrorMessage(e) }))
+        }
       }
     })
 

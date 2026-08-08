@@ -1,10 +1,32 @@
 import type { Condition, DeckData, Finish, ScryfallCard } from '../types'
+import type { BuyerId, BuylistFeedProvenance, BuylistQuote } from '../buylist'
 import type { CardLabel } from '../card-labels'
 import type { CardLanguage } from '../card-language'
 import type { PriceCurrency } from '../price-currency'
 import type { ChangelogPage } from '../changelog-parser'
 import type { DeckFormatKey } from '../deck-format'
 import type { LocaleTag } from '../i18n/types'
+
+/**
+ * One buyer's offers for the printings a list displays, baked at build time (or
+ * per request by the live server) so sell mode needs no quote round trip.
+ */
+export type BakedBuylistQuotes = BuylistFeedProvenance & {
+  /**
+   * Sparse, keyed by `quoteKey(set, collectorNumber, finish)`: only printings
+   * the buyer has a product for appear. An empty map means the list was quoted
+   * and nothing on it is on the buylist — distinct from an absent
+   * {@link BakedBuylist}, which means nothing was quoted at all.
+   */
+  quotes: Record<string, BuylistQuote>
+}
+
+/**
+ * Per-buyer baked buylist offers for the cards of one list. Absent from a detail
+ * entirely when the build (or the live server) had no feed to quote against, or
+ * when sell mode is off.
+ */
+export type BakedBuylist = Partial<Record<BuyerId, BakedBuylistQuotes>>
 
 export interface DeckSummary {
   slug: string
@@ -48,6 +70,8 @@ export interface DeckDetail {
   missingCards?: Partial<Record<PriceCurrency, string[]>>
   pricesDate?: string
   changelog?: ChangelogPage[]
+  /** Baked buylist offers for this deck's printings; absent when nothing was quoted. */
+  buylist?: BakedBuylist
 }
 
 export interface CollectionCardEntry {
@@ -125,6 +149,8 @@ export interface CollectionDetail {
   defaultCurrency: PriceCurrency
   pricesDate?: string
   changelog?: ChangelogPage[]
+  /** Baked buylist offers for this collection's printings; absent when nothing was quoted. */
+  buylist?: BakedBuylist
 }
 
 export type WantedListEntryState = 'name-only' | 'printing' | 'fully-specified'
@@ -177,6 +203,8 @@ export interface WantedListDetail {
   defaultCurrency: PriceCurrency
   pricesDate?: string
   changelog?: ChangelogPage[]
+  /** Baked buylist offers for this wanted list's printings; absent when nothing was quoted. */
+  buylist?: BakedBuylist
 }
 
 export interface SiteIndex {
@@ -212,11 +240,11 @@ export interface SiteIndex {
    */
   apiBaseUrl?: string
   /**
-   * Whether this site offers sell mode (buylist quotes, filters, and the
-   * sell-cart export), baked from `site.sellMode`. Sell mode also needs a live
-   * API to quote against, so the toggle appears only when this is true *and*
-   * {@link SiteIndex.apiBaseUrl} is present. Absent on sites built before the
-   * feature existed, which reads as off.
+   * Whether this site offers sell mode (buylist prices, filters, and the
+   * sell-cart export), baked from `site.sellMode`. The quotes themselves ride
+   * along in each list's detail as {@link BakedBuylist}, so this alone decides
+   * whether the toggle appears — a static site offers sell mode too. Absent on
+   * sites built before the feature existed, which reads as off.
    */
   sellMode?: boolean
 }

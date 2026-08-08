@@ -2,9 +2,11 @@
  * Buylist quote endpoints, server-agnostic so both the admin server and the
  * public `serve --api` server can mount them.
  *
- * Quotes are never baked into the built site: a buyer's feed is fresh for about
- * a day, so a static artifact would be stale roughly half the time it is read.
- * The site fetches them here instead, keyed by printing.
+ * Not the public site's source of quotes: a build (and the live server) bakes
+ * each list's offers into its detail payload, so sell mode works with no live
+ * backend at all. These routes remain the on-demand path for clients that quote
+ * printings a baked list does not carry — the admin editors, which quote cards
+ * as they are added, and any future API consumer.
  *
  * Strictly cache-backed — nothing here reaches the network. Downloading the
  * feed is `POST /api/sell/refresh`'s job (admin-only and explicitly triggered),
@@ -45,7 +47,7 @@ export const MAX_BUYLIST_PRINTINGS = 500
 const MAX_QUOTE_BODY_BYTES = MAX_BUYLIST_PRINTINGS * 240
 
 /** A route handler, named because the gate takes and returns one. */
-type BuylistRouteHandler = (req: Request) => Promise<Response>
+export type BuylistRouteHandler = (req: Request) => Promise<Response>
 
 /** A validated quote request body. */
 export type BuylistQuoteBody = {
@@ -167,20 +169,33 @@ export async function handleBuylistStatus(_req: Request): Promise<Response> {
 }
 
 /**
- * Wrap a buylist handler so the public site server refuses it entirely when
- * `site.sellMode` is off — a 404, so a disabled deployment does not even
- * advertise the capability.
+ * Wrap a buylist or sell handler so a server refuses it entirely when sell mode
+ * is off — a 404, so a deployment without sell mode does not even advertise the
+ * capability.
+ *
+ * Both servers use it. The admin's sell routes used to be deliberately ungated
+ * ("the operator's own tools are not what `site.sellMode` governs"), but sell
+ * mode is now opt-in everywhere: a workspace that never asked for buylist
+ * prices has no feed to quote from, so the honest answer is that the capability
+ * is not there. `ritual admin --sell-mode` turns it on for a session.
  *
  * The config is read per request rather than at route-table construction: the
  * route table is built once at startup, and a `config set site.sellMode false`
  * must take effect without a restart (the same reason the served `index.json`
- * carries `sellMode` in its config stamp).
+ * carries `sellMode` in its config stamp). {@link getSiteSellMode} consults the
+ * session override first, so a `--sell-mode` run stays enabled either way.
+ *
+ * The refusal uses the standard `apiError` envelope rather than a bare literal:
+ * every admin client branches on `success === false`, and the MCP dispatcher
+ * reads `message` — a body without it degrades a gated tool's error to the
+ * meaningless "Admin request failed (HTTP 404)". The text stays English by
+ * contract, like every other machine-facing refusal on these routes.
  */
-export function withPublicSellModeGate(handler: BuylistRouteHandler): BuylistRouteHandler {
+export function withSellModeGate(handler: BuylistRouteHandler): BuylistRouteHandler {
   return async (req: Request): Promise<Response> => {
     const config = await loadRitualConfig()
     if (!getSiteSellMode(config)) {
-      return Response.json({ error: 'Not found' }, { status: 404 })
+      return apiError('Not found', 404)
     }
     return handler(req)
   }

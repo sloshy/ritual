@@ -29,8 +29,9 @@ export type UseSiteDataResult = {
   availableCurrencies: Accessor<PriceCurrency[]>
   pricesDate: Accessor<string | null>
   /**
-   * Whether sell mode is offered: the site was built with `site.sellMode` on
-   * *and* a live API is answering, since quotes are never baked.
+   * Whether sell mode is offered: the site was built with `site.sellMode` on.
+   * A live API is not a prerequisite — quotes ride along in each list's detail
+   * JSON, so a static host offers sell mode exactly as a served one does.
    */
   sellMode: Accessor<boolean>
   /**
@@ -241,9 +242,9 @@ export function useSiteData(): UseSiteDataResult {
     setCurrency,
     availableCurrencies,
     pricesDate,
-    // Quotes are only ever fetched, never baked, so a static site cannot offer
-    // sell mode however it was configured.
-    sellMode: () => sellModeConfigured() && apiActive(),
+    // The configured flag alone: each list's detail carries its own baked
+    // quotes, so sell mode needs no backend to answer for them.
+    sellMode: sellModeConfigured,
     uiLocale,
     availableLocales,
     switchLocale,

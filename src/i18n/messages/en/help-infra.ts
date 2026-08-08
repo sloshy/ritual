@@ -134,6 +134,8 @@ export const helpInfraMessages = {
     'Moxfield-approved unique User-Agent string (required for Moxfield deck URLs unless MOXFIELD_USER_AGENT is set)',
   'help.buildSite.outDir':
     'Publish into this directory instead of dist/ (relative paths resolve against the Ritual directory); `serve` without --build serves it instead',
+  'help.buildSite.sellMode':
+    'Offer sell mode for this run even when the site.sellMode config is off: update the Card Kingdom buylist (~70 MB) and include its buy prices',
 
   // ── init-site ─────────────────────────────────────────────────────────
   'help.initSite.description': 'Initialize the current directory for publishing a Ritual site',
@@ -164,6 +166,8 @@ export const helpInfraMessages = {
   'help.admin.mcpPort': 'Port for the embedded MCP server (with --mcp)',
   'help.admin.mcpToken':
     'Bearer token required on the embedded MCP endpoint (with --mcp; or set RITUAL_MCP_TOKEN)',
+  'help.admin.sellMode':
+    'Offer sell mode for this run even when the site.sellMode config is off: update the Card Kingdom buylist (~70 MB) and serve its buy prices',
   'help.admin.setup': 'Create the admin account without starting the server',
   'help.admin.setupUsername': 'Username for the new admin account',
   'help.admin.setupPasswordStdin': 'Read the password from stdin (for scripting)',
@@ -185,6 +189,8 @@ export const helpInfraMessages = {
   'help.mcp.token': 'Require this bearer token on the HTTP transport (or set RITUAL_MCP_TOKEN)',
   'help.mcp.allowUnauthenticated':
     'Serve the HTTP transport without a bearer token on a non-loopback host',
+  'help.mcp.sellMode':
+    'Answer the sell and buylist tools for this run even when the site.sellMode config is off (they use the locally cached Card Kingdom buylist)',
 
   // ── skills ────────────────────────────────────────────────────────────
   //

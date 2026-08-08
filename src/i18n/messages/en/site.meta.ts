@@ -51,4 +51,8 @@ export const siteMeta = {
     description:
       "Part of the parenthetical after a sell value: non-English copies, which the buyer's English-only feed can never quote.",
   },
+  'site.sell.notBaked': {
+    description:
+      'Reason phrase substituted into site.stats.buylistUnavailable ("Buylist prices are unavailable: {reason}"). Shown when sell mode is on but this list carries no buylist prices, because the site was built (or is being served) without a downloaded buyer feed. Lowercase, no final period — it continues the sentence.',
+  },
 } as const satisfies MetaFor<typeof siteMessages>

@@ -1,7 +1,7 @@
 import {
+  DEFAULT_SITE_SELL_MODE,
   getDefaultRitualConfig,
   getSiteSelectionConfig,
-  getSiteSellMode,
   isConfigParseError,
   parseBannedPrinting,
   parseCacheFeedUrl,
@@ -457,11 +457,15 @@ export function applyConfigSet(
  * happens to be on disk, since `saveRitualConfig` materializes defaults
  * into the file. The `site` keys are special-cased: the default config carries
  * no `site` object at all, but the selection lists (`['*']` for include lists,
- * `[]` for exclude lists) and `sellMode` (enabled) have documented effective
+ * `[]` for exclude lists) and `sellMode` (disabled) have documented effective
  * defaults their getters apply.
+ *
+ * `site.sellMode` reads the constant rather than calling `getSiteSellMode`,
+ * which a `--sell-mode` run would answer for the *session* rather than for the
+ * built-in default this function promises.
  */
 export function defaultConfigValueAtPath(property: string): unknown {
-  if (property === 'site.sellMode') return getSiteSellMode(getDefaultRitualConfig())
+  if (property === 'site.sellMode') return DEFAULT_SITE_SELL_MODE
   if (property.startsWith('site.')) {
     const selection = getSiteSelectionConfig(undefined) as unknown as Record<string, unknown>
     return selection[property.slice('site.'.length)]

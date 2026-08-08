@@ -206,7 +206,23 @@ describe('site server (Integration)', () => {
     })
     const emberwild = { set: 'tst', collectorNumber: '1', finish: 'nonfoil' }
 
+    /** Rewrite the workspace config with sell mode set to `enabled`. */
+    async function setSellMode(enabled: boolean): Promise<void> {
+      const raw = JSON.parse(await fs.readFile(getRitualConfigPath(), 'utf-8')) as Record<
+        string,
+        unknown
+      >
+      const site = (raw['site'] ?? {}) as Record<string, unknown>
+      await fs.writeFile(
+        getRitualConfigPath(),
+        JSON.stringify({ ...raw, site: { ...site, sellMode: enabled } }),
+      )
+    }
+
     beforeAll(async () => {
+      // Sell mode is off unless a workspace asks for it, so these routes only
+      // exist because this config says so.
+      await setSellMode(true)
       await saveCardKingdomCache(
         makeCardKingdomCacheFile([
           makeCardKingdomProduct({
@@ -268,12 +284,12 @@ describe('site server (Integration)', () => {
     test('404s both routes when site.sellMode is off, without a restart', async () => {
       // The route table is built once at startup, so the gate must read config
       // per request — a `config set` has to take effect on a running server.
-      await fs.writeFile(getRitualConfigPath(), JSON.stringify({ site: { sellMode: false } }))
+      await setSellMode(false)
       try {
         expect((await fetch(`${base}/api/buylist/status`)).status).toBe(404)
         expect((await fetch(`${base}/api/buylist/quotes`, quoteBody([emberwild]))).status).toBe(404)
       } finally {
-        await fs.rm(getRitualConfigPath(), { force: true })
+        await setSellMode(true)
       }
       expect((await fetch(`${base}/api/buylist/status`)).status).toBe(200)
     })

@@ -10,24 +10,61 @@ for these cards today" without leaving the list you are looking at.
 It is the browser-side companion to the [`sell`](/commands/sell/) command, and both quote the
 same cards the same way — the site and the CLI share one matcher.
 
-## Requirements
+## Turning it on
 
-Sell mode needs a **live backend**, because buylist quotes are never baked into the built site:
-Card Kingdom regenerates their pricelist daily, so a frozen copy in `dist/` would be stale about
-half the time you looked at it. The toggle therefore appears only when:
+Sell mode is **off by default**, on every surface — the public site, the admin site, and the
+servers' sell routes. Enabling it means every build and cache refresh downloads and indexes Card
+Kingdom's ~70 MB pricelist, so it is opt-in:
 
-1. the site is served by [`ritual serve --api`](/public-site/hosted/) (or a static build pointed
-   at one via `site.apiBaseUrl`), **and**
-2. `site.sellMode` is not set to `false` (see [Disabling it](#disabling-it-on-a-public-site)).
+```bash
+ritual config set site.sellMode true
+```
 
-A fully static site never shows sell mode, whatever the config says.
+The admin's [Settings](/commands/admin/#settings) page has the same switch — an **Offer sell mode**
+checkbox writing the same key — and both the admin's own sell surfaces and its sell routes follow a
+save immediately, with no reload or restart. One exception: on a server started with `--sell-mode`
+the flag wins for that session, so unticking the checkbox stores the change without turning
+anything off until that process restarts.
 
-Quotes additionally need a downloaded buylist — see
-[Downloading the buylist](#downloading-the-buylist). Without one the controls still appear, and
-the page says why no prices are shown.
+A single run can opt in without a config write, with `--sell-mode` on
+[`build-site`](/commands/build-site/#sell-mode---sell-mode),
+[`serve`](/commands/serve/), [`admin`](/commands/admin/), or
+[`mcp`](/commands/mcp/#sell-tools-need-sell-mode):
 
-The **admin site** always offers sell mode — `site.sellMode` governs what a _published_ site
-discloses, not what your own tools can see.
+```bash
+ritual build-site --sell-mode
+```
+
+The flag is enable-only — there is no `--no-sell-mode`; omit it to follow the config.
+
+### No backend required
+
+Quotes are **baked into each list's JSON** by the build (and computed the same way by
+[`serve`](/commands/serve/#live-api-mode---api) for its live payloads), so a fully static site on a
+CDN offers sell mode exactly as a [hosted](/public-site/hosted/) one does. The site never calls the
+quotes API; that API still exists for other clients, such as the admin editors.
+
+Because the prices are baked, they are as fresh as the build that produced them. Card Kingdom
+regenerates the pricelist daily, so a static site's offers age with the site: rebuild to refresh
+them. A [live server](/public-site/hosted/) instead re-bakes on request, so refreshing its feed
+(from the admin site or a CLI run) updates its lists without a rebuild.
+
+A build that could not get a buylist still ships the site — it warns, and the pages say why no
+prices are shown. See [Downloading the buylist](#downloading-the-buylist).
+
+### The admin site
+
+The **admin site** follows the same key: with sell mode off its editors show no sell toggle, the
+**Refresh buylist** card is hidden, and its `/api/sell/*` and `/api/buylist/*` routes answer `404`.
+Run `ritual admin --sell-mode`, set the config key, or tick **Offer sell mode** on the admin's
+[Settings](/commands/admin/#settings) page to use it there — the checkbox takes effect as soon as it
+is saved, without a reload. Unlike the public site, the admin editors quote **live** against their
+own server, so a card added mid-edit is priced immediately, and a
+[**Refresh buylist**](/commands/admin/#refresh-cache) that brings down a new feed drops the quotes
+already resolved in the browser so the next editor prices against the new one.
+
+[`ritual sell`](/commands/sell/) on the CLI is never gated: running it is itself the request for
+Card Kingdom prices.
 
 ## Downloading the buylist
 
@@ -36,17 +73,27 @@ first one is always deliberate, with any of:
 
 - the **Refresh buylist** button on the admin **Refresh Cache** page,
 - `ritual sell --refresh auto` on the CLI,
+- [`ritual cache preload-all`](/commands/cache/#the-buylist-rides-along-under-sell-mode) with sell
+  mode on — it refreshes under `auto`, so a **missing** feed is downloaded with no prompt at all,
 - the `refresh_buylist` MCP tool,
 - `POST /api/sell/refresh` on the admin API.
 
-Until then, sell mode's controls appear but no card carries a quote, and the page shows the
-reason beneath its totals.
+A [`build-site`](/commands/build-site/#sell-mode---sell-mode) run with sell mode on counts too: its
+buylist refresh follows the run's `--refresh` policy, so `--refresh auto` downloads a first feed
+without asking and the default `ask` prompts for it.
 
-Once a buylist exists, keeping it current is automatic: [`sell`](/commands/sell/) redownloads a
-day-old feed as it runs, and [`admin`](/commands/admin/) and
-[`serve --api`](/commands/serve/#live-api-mode---api) each do the same at startup — so quotes go
-stale only while a server keeps running past a day, which a restart fixes. `--refresh no-bulk` and
-`--refresh never` opt out of all of it.
+Until then, sell mode's controls appear but no card carries a quote, and the page shows the reason
+beneath its totals — for a site built without a feed, "buylist prices are unavailable: this list was
+built without buylist data".
+
+Once a buylist exists, keeping it current is automatic wherever sell mode is enabled:
+[`sell`](/commands/sell/) redownloads a day-old feed as it runs (gated on nothing),
+[`cache preload-all`](/commands/cache/#the-buylist-rides-along-under-sell-mode) refreshes it
+alongside the card cache, `build-site` refreshes it before baking, and [`admin`](/commands/admin/)
+and [`serve --api`](/commands/serve/#live-api-mode---api) each do the same at startup — so a served
+site's quotes go stale only while its process keeps running past a day, which a restart fixes, and a
+static site's are as old as its last build. `--refresh no-bulk` and `--refresh never` opt out of all
+of it.
 
 ## Using it
 
@@ -149,14 +196,21 @@ Sell mode's state rides in the URL hash like every other toolbar and filter valu
 Opening such a link on a site that does not offer sell mode simply ignores these parameters — you
 never land on a list narrowed by a filter the toolbar cannot show or clear.
 
-## Disabling it on a public site
+## Turning it off again
 
-Set `site.sellMode` to `false` to remove the feature from a published site entirely:
+Sell mode is off unless something turned it on, so "disabling" it means clearing what did:
 
 ```bash
-ritual config set site.sellMode false
+ritual config set site.sellMode false   # or: config unset site.sellMode
 ```
 
-The toggle disappears and the quote endpoints answer `404`, so a disabled deployment does not
-even advertise the capability. It defaults to enabled; see
-[Site config](/configuration/#site-config-site-key).
+Unticking **Offer sell mode** on the admin's [Settings](/commands/admin/#settings) page is the
+`config unset` form of this. A server started with `--sell-mode` is the exception: the flag is a
+session override, so that process keeps offering sell mode until it is restarted without it.
+
+Then rebuild. The toggle disappears, the next build bakes no buy prices and does no Card Kingdom
+work at all, and a server's sell and buylist endpoints answer `404` — read per request, so a running
+server picks the change up without a restart. A site built _earlier_ with sell mode on keeps the
+prices baked into its JSON until it is rebuilt.
+
+See [Site config](/configuration/#offering-sell-mode-sellmode).

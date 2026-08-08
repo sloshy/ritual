@@ -26,8 +26,53 @@ Run bare, `ritual admin` starts the web admin server. The `setup`, `reset-passwo
 | `--mcp`                | Also serve an [MCP](/commands/mcp/) endpoint in this same process (requires `--mcp-token`)                                                                                                     |           |
 | `--mcp-port <number>`  | Port for the embedded MCP server (only with `--mcp`)                                                                                                                                           | `8765`    |
 | `--mcp-token <secret>` | Bearer token required on the embedded MCP endpoint (with `--mcp`)                                                                                                                              |           |
+| `--sell-mode`          | Offer [sell mode](/public-site/sell/) for this run even when `site.sellMode` is off (enable-only). See [Sell mode](#sell-mode).                                                                |           |
 
-On startup, `admin` runs the standard [card-ID backfill](/#the-card-id-backfill), persisting any missing `&N` card IDs into the list files (the editors rely on them). It then checks whether the Scryfall card cache is missing or stale and prompts to refresh it, and redownloads the [Card Kingdom buylist](/commands/sell/) backing [sell mode](/public-site/sell/) if it is more than a day old (Card Kingdom regenerates it daily, and the quote routes themselves never download). Startup only _updates_ a buylist — a workspace that has never downloaded one is left alone, with no prompt — and `--refresh no-bulk`/`never` skip it entirely; a failed download leaves the older feed in place with a warning rather than failing startup. Pass `--refresh auto` (or `no-bulk` / `never`) to answer that prompt non-interactively — an explicit mode is required when running under `bun run dev admin` (see [Development → Dev Workflow](/development/#dev-workflow)). Under the default `--refresh ask`, a run where prompts are unavailable (stdin is not a TTY, or the global `--no-input` flag is in force) skips the refresh instead of prompting.
+On startup, `admin` runs the standard [card-ID backfill](/#the-card-id-backfill), persisting any missing `&N` card IDs into the list files (the editors rely on them). It then checks whether the Scryfall card cache is missing or stale and prompts to refresh it, and — **when [sell mode](#sell-mode) is on** — redownloads the [Card Kingdom buylist](/commands/sell/) if it is more than a day old (Card Kingdom regenerates it daily, and the quote routes themselves never download). Startup only _updates_ a buylist — a workspace that has never downloaded one is left alone, with no prompt — and `--refresh no-bulk`/`never` skip it entirely; a failed download leaves the older feed in place with a warning rather than failing startup. Pass `--refresh auto` (or `no-bulk` / `never`) to answer that prompt non-interactively — an explicit mode is required when running under `bun run dev admin` (see [Development → Dev Workflow](/development/#dev-workflow)). Under the default `--refresh ask`, a run where prompts are unavailable (stdin is not a TTY, or the global `--no-input` flag is in force) skips the refresh instead of prompting.
+
+## Sell mode
+
+[Sell mode](/public-site/sell/) — Card Kingdom buy prices in the editors, the buylist filters and
+groupings, and the sell-cart export — is **off unless you ask for it**, on the admin site exactly as
+on a published one. Turn it on for the workspace with
+[`ritual config set site.sellMode true`](/configuration/#offering-sell-mode-sellmode), or for one
+run:
+
+```bash
+ritual admin --sell-mode
+```
+
+With sell mode **off**, the admin server:
+
+- skips the startup buylist refresh entirely (no ~70 MB download for a capability this workspace has
+  not asked for);
+- answers `404` on `/api/sell/report`, `/api/sell/cart`, `/api/sell/refresh`, `/api/buylist/status`,
+  and `/api/buylist/quotes` — read per request, so a `config set` takes effect without a restart;
+- hides the surfaces that call them: the editors' **Sell mode** toggle and buyer selector (see
+  [Editors](/admin/editors/)), the **Refresh buylist** card on the [Refresh Cache](#refresh-cache)
+  page, and the sell controls on all three panes of [Move Cards](/admin/move-cards/).
+
+The admin UI learns this from [`GET /api/status`](#get-apistatus), which reports the **effective**
+value — so `--sell-mode` shows the surfaces even with nothing in the config file.
+
+The [Settings](#settings) page carries an **Offer sell mode** checkbox for `site.sellMode`, so the
+key can be set from the browser as well as from the CLI. Checking it stores `site.sellMode: true`;
+unchecking removes the key entirely (so `config get site.sellMode` reports it unset again, rather
+than an explicit `false` that means the same as the default). Both sides pick the change up
+**immediately, without a reload or a restart**: the routes re-read the config per request, and the
+save re-reads `GET /api/status`, so the editors' sell toggle, the [Move Cards](/admin/move-cards/)
+sell controls and the [Refresh Cache](#refresh-cache) page's buylist card appear or disappear on
+the spot. If that status read fails — the server went away between the save and the re-read — the
+surfaces keep their previous state rather than guessing; the save itself still landed, so reload to
+resynchronize. A server started with `--sell-mode` keeps offering sell mode whatever the checkbox says —
+the flag is a session override that wins over the stored key — so unchecking it there stores the
+change without hiding anything until the next run.
+
+Do bear in mind what the checkbox commits to: every later site build and cache refresh downloads
+and indexes Card Kingdom's ~70 MB buylist.
+
+[`ritual sell`](/commands/sell/) is unaffected: running it is itself the request for Card Kingdom
+prices, so it works whatever sell mode says.
 
 ## Embedded MCP Server
 
@@ -184,7 +229,7 @@ Trigger a full static site build from the browser. This runs the same build as `
 
 ### Refresh Cache
 
-Download and cache all Scryfall card data. Equivalent to `ritual cache preload-all`.
+Download and cache all Scryfall card data — the Scryfall half of `ritual cache preload-all`. (Unlike the CLI command, it never touches the [Card Kingdom buylist](/commands/sell/): this page has its own button for that, below.)
 
 The Refresh Cache page shows real-time progress during the operation:
 
@@ -193,14 +238,20 @@ The Refresh Cache page shows real-time progress during the operation:
   (cards are parsed and processed as the stream downloads, so they are one phase)
 - Falls back gracefully if streaming is unavailable
 
-The page also carries a **Card Kingdom buylist** card, backing [sell mode](/public-site/sell/) and
-the [`sell`](/commands/sell/) command. It shows when the feed was last downloaded, Card Kingdom's
+When [sell mode](#sell-mode) is on, the page also carries a **Card Kingdom buylist** card, backing
+sell mode and the [`sell`](/commands/sell/) command (with sell mode off the card is not shown at
+all — its routes answer `404`). It shows when the feed was last downloaded, Card Kingdom's
 own generation stamp, and the product count, with a **Refresh buylist** button. Once the server is
 up, that ~70 MB download only ever happens on an explicit click — no page load triggers it — and the
 button forces a redownload even when the cached copy is still fresh. (Server _startup_ refreshes a
 day-old feed on its own, as described above, so the button is for forcing one mid-session.) A workspace that has never downloaded it
 shows an empty state offering the button rather than an error; if a download fails but a stale copy
 exists, the card reports "The buylist was not updated." instead of claiming success.
+
+When the refresh actually brings down a new feed, the admin also discards the quotes it has already
+resolved in this browser session, so an editor opened afterwards prices every card against the feed
+you just downloaded. (A refresh that changed nothing — a copy that was still fresh, or a failed
+download that fell back to the stale one — leaves them alone: they already quote that feed.)
 
 ### Archidekt Login
 
@@ -238,6 +289,7 @@ Configure admin settings including:
 - **Cache Source**: where cache refreshes download from — Scryfall directly or a peer-to-peer cache feed (default: `scryfall`; see [Configuration](/configuration/#cache-source))
 - **Cache Feed URL**: the feed URL used when the cache source is the feed (empty = the built-in default)
 - **Card Search Debounce**: milliseconds the editors' add-card search waits after a keystroke before querying autocomplete; `0` disables the debounce (default: `500`; see [Configuration](/configuration/#search-debounce))
+- **Offer sell mode**: whether the sites — the published one and this admin — offer [sell mode](#sell-mode) (default: off; `site.sellMode`). Unchecking removes the key rather than storing `false`. Saving applies at once, with no reload: the sell surfaces appear or disappear as soon as the save returns. See [Sell mode](#sell-mode) for what it costs and how `--sell-mode` overrides it
 - **Git Integration**: enable/disable git auto-commit
 - **Two-Factor Authentication (TOTP)**: set up or disable TOTP 2FA
 - **Rate Limiting**: configure failed login attempt limits and lockout duration
@@ -373,7 +425,7 @@ Every login attempt (successful or failed) is logged to `.logins/admin-audit.log
 
 **Auth required:** No
 
-Returns server health and whether first-time setup is needed.
+Returns server health, whether first-time setup is needed, and which optional capabilities this server offers.
 
 **Response:**
 
@@ -381,9 +433,12 @@ Returns server health and whether first-time setup is needed.
 {
   "ok": true,
   "setupRequired": false,
-  "totpEnabled": true
+  "totpEnabled": true,
+  "sellMode": false
 }
 ```
+
+`sellMode` is the **effective** value — `site.sellMode`, or `true` when the server was started with [`--sell-mode`](#sell-mode). It is false whenever the `/api/sell/*` and `/api/buylist/*` routes answer `404`, which is what lets a client hide sell surfaces instead of offering controls that only ever fail.
 
 ### `POST /api/setup`
 
@@ -653,7 +708,7 @@ The build runs as a child process and is awaited asynchronously, so it does not 
 
 **Auth required:** Yes
 
-Download and cache all Scryfall card data. Equivalent to `ritual cache preload-all`. Returns a JSON response when complete. A refresh that fails answers a non-2xx with the failure's message rather than reporting success.
+Download and cache all Scryfall card data — the Scryfall half of `ritual cache preload-all`, without the [buylist](/commands/sell/) refresh that command also runs under sell mode (that is [`POST /api/sell/refresh`](/admin/api/#sell-refresh)). Returns a JSON response when complete. A refresh that fails answers a non-2xx with the failure's message rather than reporting success.
 
 **Request body:** None
 
@@ -860,6 +915,25 @@ Returns the current application configuration.
   }
 }
 ```
+
+`config` is the **stored** configuration. When this server was started with a session flag that
+displaces one of those values — today that means [`--sell-mode`](#sell-mode) — the response also
+carries an `overrides` object saying what the running process is actually operating with, keyed by
+the config path each override displaces:
+
+```json
+{
+  "success": true,
+  "config": { "site": {} },
+  "overrides": { "site.sellMode": true }
+}
+```
+
+The flag writes nothing, so `config.site.sellMode` keeps reporting the stored value (usually unset)
+while the server's sell routes answer anyway. The key is **absent entirely** when no override is in
+force — no `overrides` means the stored config is what this server runs with. It is a
+process-local fact, which is why `ritual config get` has no equivalent, and why `PUT /api/config`
+never returns it: a write echoes back what it persisted.
 
 ### `PUT /api/config`
 

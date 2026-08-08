@@ -35,6 +35,8 @@ import { MoveCards } from './pages/MoveCards'
 import { History } from './pages/History'
 import { setBuylistFetcher } from '../../site/buylist-quotes'
 import { adminBuylistFetcher } from './editor-backend'
+import { setSellModeEnabled } from './sell-enabled'
+import { fetchStatus } from './status-api'
 import { createI18nStore, I18nProvider, useI18n } from '../../ui/i18n'
 import { registerAdminMessages } from '../../i18n/register/admin'
 import { bootAdminLocale, useAdminLocale } from './hooks/useAdminLocale'
@@ -48,8 +50,6 @@ registerAdminMessages()
 // on admin that transport must carry the session cookie. Installed once, at
 // module load, before any page mounts.
 setBuylistFetcher(adminBuylistFetcher)
-
-type StatusResponse = { setupRequired: boolean; totpEnabled?: boolean }
 
 /** The component each page renders. Typed by {@link Page}, so a new page cannot be forgotten. */
 const PAGE_COMPONENTS: Record<Page, Component> = {
@@ -91,22 +91,29 @@ function App() {
   // in the URL, which must not disturb the page or the nav's active states.
   const page = createMemo(() => routing.route().page)
 
-  const checkStatus = async () => {
-    try {
-      const resp = await fetch('/api/status')
-      const data = (await resp.json()) as StatusResponse
-      setSetupRequired(data.setupRequired)
-      setTotpEnabled(data.totpEnabled === true)
-
-      // Check if we have an active session by probing an authenticated endpoint
-      if (!data.setupRequired) {
-        const probe = await fetch('/api/decks', { credentials: 'same-origin' })
-        if (probe.ok) {
-          setLoggedIn(true)
-        }
-      }
-    } catch {
+  const checkStatus = async (): Promise<void> => {
+    // Shared with `refreshSellModeEnabled`, which re-asks the same endpoint
+    // after a Settings save; a server that gives no well-formed status answers
+    // null, and every field below is validated by the time we get here.
+    const data = await fetchStatus()
+    if (!data) {
       setSetupRequired(true)
+      return
+    }
+    setSetupRequired(data.setupRequired)
+    setTotpEnabled(data.totpEnabled)
+    // Whether this server offers sell mode at all; its sell/buylist routes
+    // 404 otherwise, so every sell surface in the UI hides itself on this.
+    setSellModeEnabled(data.sellMode)
+
+    // Check if we have an active session by probing an authenticated endpoint.
+    // A probe that cannot reach the server means "no session", not "no account":
+    // the status above already answered whether setup is required.
+    if (!data.setupRequired) {
+      const probe = await fetch('/api/decks', { credentials: 'same-origin' }).catch(() => null)
+      if (probe?.ok) {
+        setLoggedIn(true)
+      }
     }
   }
 

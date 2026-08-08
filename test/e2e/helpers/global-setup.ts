@@ -89,6 +89,9 @@ async function globalSetup(): Promise<void> {
 
   // Start the admin command. The fresh workspace has no .logins, so the user
   // store starts empty and auth-setup.spec.ts can exercise the setup flow.
+  // `--sell-mode` because the synthetic config does not enable it and sell mode
+  // is off by default: without the flag the sell routes 404 and the editors'
+  // sell surfaces (and the Refresh Cache page's buylist card) never render.
   console.log('[global-setup] Starting admin server on :8456...')
   const adminProc = spawn(
     'bun',
@@ -102,6 +105,7 @@ async function globalSetup(): Promise<void> {
       '8456',
       '--refresh',
       'never',
+      '--sell-mode',
     ],
     {
       cwd: repoRoot,

@@ -19,7 +19,7 @@ import {
   bulkMetaBody,
   gzipJsonLinesResponse,
 } from '../../test-utils'
-import { stubFetch, type StubbedFetch } from './stub-fetch'
+import { stubFetch, type StubRoute, type StubbedFetch } from './stub-fetch'
 
 export type ScryfallBulkStubOptions = {
   /** Cards in the `default_cards` file. Defaults to {@link bulkCards}. */
@@ -35,6 +35,12 @@ export type ScryfallBulkStubOptions = {
    * `fetch`; see `stub-fetch.ts`'s header.
    */
   passthrough?: boolean
+  /**
+   * Further routes served by the same stub, merged over the bulk table — for a
+   * run that refreshes more than the card cache (the buyer feed
+   * `cache preload-all` pulls under sell mode).
+   */
+  routes?: Record<string, StubRoute>
 }
 
 /** Install the bulk-data stub; call `.restore()` to put the real `fetch` back. */
@@ -46,6 +52,7 @@ export function stubScryfallBulk(options: ScryfallBulkStubOptions = {}): Stubbed
       [DEFAULT_CARDS_URI]: () => cardBulk(),
       [ORACLE_TAGS_URI]: () => gzipJsonLinesResponse([]),
       [ART_TAGS_URI]: () => gzipJsonLinesResponse([]),
+      ...options.routes,
     },
     { passthrough: options.passthrough },
   )

@@ -15,6 +15,8 @@ import type {
 import { CSV_UPLOAD_THRESHOLD } from '../../../src/collection-sync/csv'
 import type { AmbiguousRemoval } from '../../../src/collection-sync/describe'
 import type { CardIndexResponse } from '../../../src/admin/api/card-index'
+import type { StatusResponse } from '../../../src/admin/api/status'
+import type { SellRefreshResponse } from '../../../src/admin/api/sell'
 import { apiMessage } from '../../../src/admin/api/result'
 import { renderSyncSummaryEnglish, type SyncSummary } from '../../../src/admin/api/sync-summary'
 import {
@@ -248,6 +250,22 @@ export async function mockTotpApi(page: Page): Promise<void> {
 }
 
 /**
+ * Answer `GET /api/status` with a fixed logged-in payload. Specs that mock the
+ * config routes want this too: a Settings save re-reads the effective sell mode
+ * from this endpoint, and unmocked it would reach the real e2e server (which
+ * runs with `--sell-mode`) and answer for the wrong server. For a status whose
+ * `sellMode` must track mock state per request, write the `fulfillJson` closure
+ * locally instead (see sell-mode-gate.spec.ts).
+ */
+export async function mockStatusApi(page: Page, sellMode = false): Promise<void> {
+  await fulfillJson(
+    page,
+    '**/api/status',
+    (): StatusResponse => ({ ok: true, setupRequired: false, totpEnabled: false, sellMode }),
+  )
+}
+
+/**
  * The browser `window` as the SSE mocks see it: `EventSource` is replaceable,
  * and the installed mock instance is stashed for later dispatch.
  */
@@ -350,10 +368,17 @@ export async function mockCacheRefreshApi(page: Page): Promise<void> {
  * Mock the buylist status/refresh routes behind the Refresh Cache page's Card
  * Kingdom card. `status` chooses the initial state: 'missing' is the 503 a
  * fresh workspace answers with (an empty state, not an error).
+ *
+ * `refresh` overrides fields of the `POST /api/sell/refresh` answer, whose
+ * default is the clean "downloaded a new feed" outcome. The three outcomes are
+ * behaviorally distinct on the client — only `refreshed: true` drops the
+ * session's quotes, and a non-empty `warnings` reports "not updated" — so a
+ * test has to be able to ask for each.
  */
 export async function mockBuylistApi(
   page: Page,
   status: 'present' | 'missing' = 'present',
+  refresh: Partial<SellRefreshResponse> = {},
 ): Promise<void> {
   await fulfillJson(
     page,
@@ -374,14 +399,15 @@ export async function mockBuylistApi(
   await fulfillJson(
     page,
     '**/api/sell/refresh*',
-    {
+    (): SellRefreshResponse => ({
       success: true,
       refreshed: true,
       feedRetrievedAt: 1785850800000,
       feedCreatedAt: '2026-08-04 06:06:09',
       productCount: 149978,
       warnings: [],
-    },
+      ...refresh,
+    }),
     { method: 'POST' },
   )
 }

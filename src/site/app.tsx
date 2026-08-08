@@ -619,146 +619,173 @@ function App() {
               </Show>
             </Match>
             <Match when={route().page === 'wanted'}>
-              <Show
-                when={!wantedListError()}
-                fallback={<ErrorMessage message={wantedListError()!} />}
-              >
+              {/* Gated on the index having loaded, not just this list's detail:
+                  `sellModeAvailable` resolves from index.json, and
+                  `useListViewUrlSync` reads the page's sell support once at
+                  construction. Mounting before the index landed would drop a
+                  shared `?sell=1` link's parameters and then strip them from
+                  the URL for the life of the page. */}
+              <Show when={deckList()} fallback={<LoadingSpinner />}>
                 <Show
-                  when={!wantedListLoading() && wantedListDetail()}
-                  fallback={<LoadingSpinner />}
+                  when={!wantedListError()}
+                  fallback={<ErrorMessage message={wantedListError()!} />}
                 >
                   <Show
-                    when={editMode()}
-                    fallback={
-                      <WantedListPage
-                        name={wantedListDetail()!.name}
-                        slug={wantedListSlug() ?? undefined}
-                        entries={wantedListDetail()!.entries}
-                        sectionOrder={wantedListDetail()!.sectionOrder}
-                        cards={wantedListDetail()!.cards}
-                        printings={wantedListDetail()!.printings ?? {}}
-                        symbolMap={wantedListDetail()!.symbolMap}
-                        useScryfallImgUrls={wantedListDetail()!.useScryfallImgUrls}
-                        totalPrice={wantedListDetail()!.totalPrice}
-                        enableExport={true}
-                        pricesDate={wantedListDetail()!.pricesDate}
-                        modalCardKey={modalCard()}
-                        onOpenModal={openModal}
-                        onCloseModal={closeModal}
-                        currency={currency()}
-                        changelog={wantedListDetail()!.changelog}
-                        enablePriceRefresh={true}
-                        enableTrade={true}
-                        enableUrlState={true}
-                        enableSellMode={sellModeAvailable()}
-                        onCombine={openCombine}
-                      />
-                    }
+                    when={!wantedListLoading() && wantedListDetail()}
+                    fallback={<LoadingSpinner />}
                   >
-                    <WantedEditView
-                      enableSellMode={sellModeAvailable()}
-                      detail={wantedListDetail()!}
-                      slug={wantedListSlug() ?? ''}
-                      currency={currency()}
-                      onExit={exitEditMode}
-                      moveTargets={moveTargetsFor('wanted', wantedListSlug)}
-                    />
+                    <Show
+                      when={editMode()}
+                      fallback={
+                        <WantedListPage
+                          name={wantedListDetail()!.name}
+                          slug={wantedListSlug() ?? undefined}
+                          entries={wantedListDetail()!.entries}
+                          sectionOrder={wantedListDetail()!.sectionOrder}
+                          cards={wantedListDetail()!.cards}
+                          printings={wantedListDetail()!.printings ?? {}}
+                          symbolMap={wantedListDetail()!.symbolMap}
+                          useScryfallImgUrls={wantedListDetail()!.useScryfallImgUrls}
+                          totalPrice={wantedListDetail()!.totalPrice}
+                          enableExport={true}
+                          pricesDate={wantedListDetail()!.pricesDate}
+                          modalCardKey={modalCard()}
+                          onOpenModal={openModal}
+                          onCloseModal={closeModal}
+                          currency={currency()}
+                          changelog={wantedListDetail()!.changelog}
+                          enablePriceRefresh={true}
+                          enableTrade={true}
+                          enableUrlState={true}
+                          enableSellMode={sellModeAvailable()}
+                          bakedBuylist={() => wantedListDetail()?.buylist}
+                          onCombine={openCombine}
+                        />
+                      }
+                    >
+                      <WantedEditView
+                        enableSellMode={sellModeAvailable()}
+                        detail={wantedListDetail()!}
+                        slug={wantedListSlug() ?? ''}
+                        currency={currency()}
+                        onExit={exitEditMode}
+                        moveTargets={moveTargetsFor('wanted', wantedListSlug)}
+                      />
+                    </Show>
                   </Show>
                 </Show>
               </Show>
             </Match>
             <Match when={route().page === 'collection'}>
-              <Show
-                when={!collectionError()}
-                fallback={<ErrorMessage message={collectionError()!} />}
-              >
+              {/* Gated on the index having loaded, not just this list's detail:
+                  `sellModeAvailable` resolves from index.json, and
+                  `useListViewUrlSync` reads the page's sell support once at
+                  construction. Mounting before the index landed would drop a
+                  shared `?sell=1` link's parameters and then strip them from
+                  the URL for the life of the page. */}
+              <Show when={deckList()} fallback={<LoadingSpinner />}>
                 <Show
-                  when={!collectionLoading() && collectionDetail()}
-                  fallback={<LoadingSpinner />}
+                  when={!collectionError()}
+                  fallback={<ErrorMessage message={collectionError()!} />}
                 >
                   <Show
-                    when={editMode()}
-                    fallback={
-                      <CollectionPage
-                        name={collectionDetail()!.name}
-                        slug={collectionSlug() ?? undefined}
-                        entries={collectionDetail()!.entries}
-                        sectionOrder={collectionDetail()!.sectionOrder}
-                        listLabels={collectionDetail()!.labels}
-                        cards={collectionDetail()!.cards}
-                        printings={collectionDetail()!.printings ?? {}}
-                        symbolMap={collectionDetail()!.symbolMap}
-                        useScryfallImgUrls={collectionDetail()!.useScryfallImgUrls}
-                        totalPrice={collectionDetail()!.totalPrice}
-                        enableExport={true}
-                        pricesDate={collectionDetail()!.pricesDate}
-                        modalCardKey={modalCard()}
-                        onOpenModal={openModal}
-                        onCloseModal={closeModal}
-                        currency={currency()}
-                        changelog={collectionDetail()!.changelog}
-                        enablePriceRefresh={true}
-                        enableTrade={true}
-                        enableUrlState={true}
-                        enableSellMode={sellModeAvailable()}
-                        onCombine={openCombine}
-                      />
-                    }
+                    when={!collectionLoading() && collectionDetail()}
+                    fallback={<LoadingSpinner />}
                   >
-                    <CollectionEditView
-                      enableSellMode={sellModeAvailable()}
-                      detail={collectionDetail()!}
-                      slug={collectionSlug() ?? ''}
-                      currency={currency()}
-                      onExit={exitEditMode}
-                      moveTargets={moveTargetsFor('collection', collectionSlug)}
-                    />
+                    <Show
+                      when={editMode()}
+                      fallback={
+                        <CollectionPage
+                          name={collectionDetail()!.name}
+                          slug={collectionSlug() ?? undefined}
+                          entries={collectionDetail()!.entries}
+                          sectionOrder={collectionDetail()!.sectionOrder}
+                          listLabels={collectionDetail()!.labels}
+                          cards={collectionDetail()!.cards}
+                          printings={collectionDetail()!.printings ?? {}}
+                          symbolMap={collectionDetail()!.symbolMap}
+                          useScryfallImgUrls={collectionDetail()!.useScryfallImgUrls}
+                          totalPrice={collectionDetail()!.totalPrice}
+                          enableExport={true}
+                          pricesDate={collectionDetail()!.pricesDate}
+                          modalCardKey={modalCard()}
+                          onOpenModal={openModal}
+                          onCloseModal={closeModal}
+                          currency={currency()}
+                          changelog={collectionDetail()!.changelog}
+                          enablePriceRefresh={true}
+                          enableTrade={true}
+                          enableUrlState={true}
+                          enableSellMode={sellModeAvailable()}
+                          bakedBuylist={() => collectionDetail()?.buylist}
+                          onCombine={openCombine}
+                        />
+                      }
+                    >
+                      <CollectionEditView
+                        enableSellMode={sellModeAvailable()}
+                        detail={collectionDetail()!}
+                        slug={collectionSlug() ?? ''}
+                        currency={currency()}
+                        onExit={exitEditMode}
+                        moveTargets={moveTargetsFor('collection', collectionSlug)}
+                      />
+                    </Show>
                   </Show>
                 </Show>
               </Show>
             </Match>
             <Match when={route().page === 'deck'}>
-              <Show when={!deckError()} fallback={<ErrorMessage message={deckError()!} />}>
-                <Show when={!deckLoading() && deckDetail()} fallback={<LoadingSpinner />}>
-                  <Show
-                    when={editMode()}
-                    fallback={
-                      <DeckPage
-                        deck={deckDetail()!.deck}
-                        cards={deckDetail()!.cards}
-                        printings={deckDetail()!.printings ?? {}}
-                        lowestPriceCards={deckDetail()!.lowestPriceCards}
-                        lowestPriceCardsEur={deckDetail()!.lowestPriceCardsEur}
-                        lowestPriceCardsTix={deckDetail()!.lowestPriceCardsTix}
-                        symbolMap={deckDetail()!.symbolMap}
-                        enableExport={true}
-                        useScryfallImgUrls={deckDetail()!.useScryfallImgUrls}
-                        modalCardName={modalCard()}
-                        onOpenModal={openModal}
-                        onCloseModal={closeModal}
-                        currency={currency()}
-                        missingCards={deckDetail()!.missingCards}
-                        pricesDate={deckDetail()!.pricesDate}
-                        slug={deckSlug() ?? ''}
-                        primerOpen={deckPrimerOpen()}
-                        sectionId={deckSectionId()}
-                        changelog={deckDetail()!.changelog}
-                        enablePriceRefresh={true}
-                        enableTrade={true}
-                        enableUrlState={true}
+              {/* Gated on the index having loaded, not just this list's detail:
+                  `sellModeAvailable` resolves from index.json, and
+                  `useListViewUrlSync` reads the page's sell support once at
+                  construction. Mounting before the index landed would drop a
+                  shared `?sell=1` link's parameters and then strip them from
+                  the URL for the life of the page. */}
+              <Show when={deckList()} fallback={<LoadingSpinner />}>
+                <Show when={!deckError()} fallback={<ErrorMessage message={deckError()!} />}>
+                  <Show when={!deckLoading() && deckDetail()} fallback={<LoadingSpinner />}>
+                    <Show
+                      when={editMode()}
+                      fallback={
+                        <DeckPage
+                          deck={deckDetail()!.deck}
+                          cards={deckDetail()!.cards}
+                          printings={deckDetail()!.printings ?? {}}
+                          lowestPriceCards={deckDetail()!.lowestPriceCards}
+                          lowestPriceCardsEur={deckDetail()!.lowestPriceCardsEur}
+                          lowestPriceCardsTix={deckDetail()!.lowestPriceCardsTix}
+                          symbolMap={deckDetail()!.symbolMap}
+                          enableExport={true}
+                          useScryfallImgUrls={deckDetail()!.useScryfallImgUrls}
+                          modalCardName={modalCard()}
+                          onOpenModal={openModal}
+                          onCloseModal={closeModal}
+                          currency={currency()}
+                          missingCards={deckDetail()!.missingCards}
+                          pricesDate={deckDetail()!.pricesDate}
+                          slug={deckSlug() ?? ''}
+                          primerOpen={deckPrimerOpen()}
+                          sectionId={deckSectionId()}
+                          changelog={deckDetail()!.changelog}
+                          enablePriceRefresh={true}
+                          enableTrade={true}
+                          enableUrlState={true}
+                          enableSellMode={sellModeAvailable()}
+                          bakedBuylist={() => deckDetail()?.buylist}
+                          onCombine={openCombine}
+                        />
+                      }
+                    >
+                      <DeckEditView
                         enableSellMode={sellModeAvailable()}
-                        onCombine={openCombine}
+                        detail={deckDetail()!}
+                        slug={deckSlug() ?? ''}
+                        currency={currency()}
+                        onExit={exitEditMode}
+                        moveTargets={moveTargetsFor('deck', deckSlug)}
                       />
-                    }
-                  >
-                    <DeckEditView
-                      enableSellMode={sellModeAvailable()}
-                      detail={deckDetail()!}
-                      slug={deckSlug() ?? ''}
-                      currency={currency()}
-                      onExit={exitEditMode}
-                      moveTargets={moveTargetsFor('deck', deckSlug)}
-                    />
+                    </Show>
                   </Show>
                 </Show>
               </Show>

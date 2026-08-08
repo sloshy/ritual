@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { handleAutocomplete } from '../api/autocomplete'
-import { handleBuylistQuotes, handleBuylistStatus, withPublicSellModeGate } from '../api/buylist'
+import { handleBuylistQuotes, handleBuylistStatus, withSellModeGate } from '../api/buylist'
 import { handleCards } from '../api/cards'
 import { handleCardPrintings } from '../api/card-printings'
 import { handleCardPrice } from '../api/card-price'
@@ -88,10 +88,13 @@ function localeHandler(distDir: string): SiteRouteHandler {
  * `/api/autocomplete`'s term-separation semantics — and `/api/cards`, the
  * by-Scryfall-ID lookup a shared trade link needs to restore its rows.
  *
- * The two buylist routes are the site's sell mode. They read only the cached
- * buyer feed — there is deliberately no public refresh route, since an
- * unauthenticated wildcard-CORS endpoint must never trigger a ~70 MB download —
- * and 404 when `site.sellMode` is off.
+ * The two buylist routes are *not* how this server's sell mode works: each list
+ * detail carries its own baked quotes (see `src/api/buylist.ts`), so the public
+ * site never calls them. They remain the on-demand path for clients quoting
+ * printings a baked list does not carry. They read only the cached buyer feed —
+ * there is deliberately no public refresh route, since an unauthenticated
+ * wildcard-CORS endpoint must never trigger a ~70 MB download — and 404 when
+ * `site.sellMode` is off.
  */
 export function buildSiteRoutes(live: LiveSiteData, distDir: string): SiteRoute[] {
   return [
@@ -112,12 +115,12 @@ export function buildSiteRoutes(live: LiveSiteData, distDir: string): SiteRoute[
     {
       method: 'GET',
       path: '/api/buylist/status',
-      handler: withPublicSellModeGate(handleBuylistStatus),
+      handler: withSellModeGate(handleBuylistStatus),
     },
     {
       method: 'POST',
       path: '/api/buylist/quotes',
-      handler: withPublicSellModeGate(handleBuylistQuotes),
+      handler: withSellModeGate(handleBuylistQuotes),
     },
   ]
 }

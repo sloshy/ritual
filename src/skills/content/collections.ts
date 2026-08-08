@@ -421,10 +421,20 @@ To price an arbitrary set of printings rather than whole lists, use the MCP tool
 \`set:collectorNumber:finish\`. Both are cache-backed like \`sell\`: run
 \`ritual sell --refresh auto\` (or the \`refresh_buylist\` tool) first.
 
-The same quotes drive **sell mode** on the admin site and on a server-backed public site
-(\`ritual serve --api\`): buylist prices beside each card, buylist filters (on-buylist chips and a
-price threshold), buylist grouping/sorting, and a CK cart export. Turn it off for a published site with
-\`ritual config set site.sellMode false\`. Both servers answer quotes strictly from the cache and
-never download per request; each refreshes a day-old feed once, at startup (never the first one).
+Unlike the \`sell\` command, every *server* buylist surface is gated on sell mode (below):
+\`get_sell_report\`, \`get_sell_cart\`, \`get_buylist_quotes\` and \`refresh_buylist\`, plus the
+\`/api/sell/*\` and \`/api/buylist/*\` routes they reuse, answer \`Not found\` / 404 when it is
+off. That is a config decision, not a missing feed — \`refresh_buylist\` will not fix it.
+
+The same quotes drive **sell mode** on the admin site and on the public site: buylist prices
+beside each card, buylist filters (on-buylist chips and a price threshold), buylist
+grouping/sorting, and a CK cart export. It is **off by default** — turn it on with
+\`ritual config set site.sellMode true\`, with the **Offer sell mode** checkbox on the admin's
+Settings page (same key; unticking unsets it), or per run with \`--sell-mode\` on \`build-site\`,
+\`serve\`, \`admin\`, or \`mcp\`. The public site reads quotes baked into its list JSON (no
+backend needed); the admin site quotes live against its own API. Both servers answer quotes
+strictly from the cache and never download per request; with sell mode on, each refreshes a
+day-old feed once at startup (never the first one), and \`cache preload-all\` refreshes it
+alongside the card cache.
 `,
 }

@@ -71,6 +71,17 @@ function syncStateToUrl(state: ListViewState, defaults: ListViewDefaults): void 
  * On construction it applies any parameters present in the URL; thereafter it mirrors
  * state changes back into the URL via `history.replaceState` (no new history entries,
  * no route change), so the current view is always shareable by link.
+ *
+ * `groupByValues`, `sortByValues` and `supportsSellMode` are read **once, at
+ * setup** — the pages pass them as plain values, not accessors, so a vocabulary
+ * that changes while the page is mounted is not picked up. That is sound only
+ * because one page is mounted at a time and every page re-runs this on mount:
+ * `sellModeEnabled` in particular is now runtime-mutable (the admin's Settings
+ * checkbox flips it mid-session), and it stays correct because the Settings page
+ * and a list page are never mounted together. A sell-mode control added anywhere
+ * that *can* coexist with a list page — a header switch, a dashboard card — has
+ * to turn these three into accessors first, or the URL sync will keep validating
+ * against the old sell-mode vocabulary.
  */
 export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSyncConfig<G>): void {
   if (config.enabled === false || typeof window === 'undefined') return

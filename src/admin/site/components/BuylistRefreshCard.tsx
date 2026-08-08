@@ -2,6 +2,7 @@ import { type JSX, createSignal, onMount, For, Match, Show, Switch } from 'solid
 import type { BuylistStatusResponse } from '../../../buylist'
 import type { ApiErrorResponse } from '../../api/save-helpers'
 import type { SellRefreshResponse } from '../../api/sell'
+import { resetBuylistQuotes } from '../../../site/buylist-quotes'
 import { formatDateTime, formatNumber } from '../../../ui/format'
 import { useT, useTSegments } from '../../../ui/i18n'
 
@@ -90,9 +91,21 @@ export function BuylistRefreshCard(): JSX.Element {
         setMessage(data.success === false ? data.message : t('admin.buylist.refreshFailed'))
         return
       }
-      // A failed download that fell back to the stale cached feed answers 200
-      // with `refreshed: false` and a warning — reading only `refreshed` would
-      // report that as "already fresh".
+      // A new feed is on disk, so every quote the admin's client-side store
+      // already resolved is now against the *old* one — and that store marks an
+      // answered printing resolved forever, so an editor opened next would keep
+      // showing yesterday's offers for anything it had asked about before.
+      // Dropping the store is the whole point of a refresh; pages request on
+      // mount, so nothing else has to be told.
+      //
+      // Only on `refreshed: true`. The other two outcomes changed no feed: a
+      // still-fresh copy (`refreshed: false`, no warnings) and a failed download
+      // that fell back to the stale cached one (`refreshed: false` + a warning)
+      // both leave the store quoting exactly the feed it already quoted, so
+      // clearing it would only buy a pointless round of re-requests.
+      if (data.refreshed) resetBuylistQuotes()
+      // That fallback answers 200 with `refreshed: false` and a warning —
+      // reading only `refreshed` would report it as "already fresh".
       setWarnings(data.warnings)
       setMessage(
         data.warnings.length > 0

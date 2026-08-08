@@ -47,6 +47,8 @@ export const cliInfraMessages = {
     "Set '{set}' matched {counted}, none of which are real printings (token and Art Series sets are not cached).",
   'cli.cache.preloadSetDone': "Successfully cached {count} cards for set '{set}'",
   'cli.cache.preloadAllFailed': 'Failed to preload card cache: {reason}',
+  'cli.cache.preloadAllBuylistFailed':
+    'The card cache was updated, but the Card Kingdom buylist was not: {reason}',
   'cli.cache.refreshTagsFailed': 'Failed to refresh tags: {reason}',
 
   // ── cache feed ────────────────────────────────────────────────────────
@@ -211,6 +213,9 @@ export const cliInfraMessages = {
   'cli.buildSite.noCardsToPrice':
     'No cards to price: every selected list is empty, so there is nothing to build.',
   'cli.buildSite.noPriceData': 'No price data found in the card cache.',
+  'cli.buildSite.buylistReady': 'Card Kingdom buylist ready ({counted}).',
+  'cli.buildSite.buylistUnavailable':
+    '⚠️  Sell mode is on but the Card Kingdom buylist is unavailable, so the site is built without buy prices. {reason}',
   'cli.buildSite.generatingData': 'Generating data files...',
   'cli.buildSite.writingApp': 'Writing Web App...',
   'cli.buildSite.writingLocales': 'Writing {counted} of UI text (locale: {locale})...',

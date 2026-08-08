@@ -246,7 +246,8 @@ ritual metadata set <list> <prop> <value...>  # list front matter, same shape as
                                   #   deck description/tags/format/sourceId/sourceUrl, collection labels
 ritual metadata get|list|unset <list> [prop]  # read or clear it (get exits 3 when unset)
 ritual cache status               # report cache size/freshness/source without refreshing
-ritual cache preload-all          # warm the Scryfall card cache + tags (bulk download)
+ritual cache preload-all          # warm the Scryfall card cache + tags (bulk download); also
+                                  #   refreshes the Card Kingdom buylist when site.sellMode is on
 ritual cache preload-set khm      # cache all cards of one set (exit 3 = unknown set code, 1 = search failed)
 ritual cache refresh-tags         # refresh only the oracle/art tags on cached cards (exit 1 when the download fails)
 ritual cache server               # host a shared cache server (default 127.0.0.1:4000)

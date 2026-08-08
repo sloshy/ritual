@@ -14,6 +14,7 @@ import {
   buildCombinedCards,
   listHref,
   loadCombinedDetails,
+  mergeBakedBuylists,
   mergeSymbolMaps,
   mergeCardMaps,
   mergePrintingMaps,
@@ -30,7 +31,7 @@ interface CombinedListPageProps {
   useScryfallImgUrls: boolean
   /** Offer "Add to Trade" in the multi-select menu (public site only). */
   enableTrade?: boolean
-  /** Offer sell mode; true only on a server-backed site with `site.sellMode` on. */
+  /** Offer sell mode; true only on a site built with `site.sellMode` on. */
   enableSellMode?: boolean
 }
 
@@ -95,6 +96,11 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
 
   const symbolMap = createMemo(() => mergeSymbolMaps(loaded() ?? []))
 
+  // The baked quotes of every list in the view, merged. Undefined while the
+  // details are still loading as well as when none of them carries quotes —
+  // both are "nothing to seed yet", and the seeding effect re-runs on arrival.
+  const bakedBuylist = createMemo(() => mergeBakedBuylists(loaded() ?? []))
+
   const combinedCards = createMemo((): CombinedCardData[] => {
     sessionCacheVersion() // re-price after an in-session "Update Prices"
     const l = loaded()
@@ -115,6 +121,7 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
       useScryfallImgUrls={props.useScryfallImgUrls}
       enableTrade={props.enableTrade}
       enableSellMode={props.enableSellMode}
+      bakedBuylist={bakedBuylist}
       enableUrlState
       title={pageTitle()}
       loading={loaded() === null}

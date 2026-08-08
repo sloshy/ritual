@@ -67,12 +67,22 @@ export type BuylistQuote = {
   url?: string
 }
 
-/** How fresh the quotes in a response are. */
-export type BuylistFeedStamp = {
+/**
+ * Which buyer feed an offer came from. Declared once and composed into every
+ * shape that carries it — the response stamp, the baked payload, the detail
+ * builders' context — because the three have to line up field-for-field: the
+ * client turns a baked payload straight into a feed stamp, and a drift there
+ * would misreport how fresh the prices on screen are.
+ */
+export type BuylistFeedProvenance = {
   /** The buyer's own feed generation stamp, verbatim. */
   feedCreatedAt: string
   /** When Ritual downloaded that feed (epoch ms). */
   feedRetrievedAt: number
+}
+
+/** How fresh the quotes in a response are. */
+export type BuylistFeedStamp = BuylistFeedProvenance & {
   /** Whether the cached feed is past its refresh cadence. */
   stale: boolean
   /** Products in the cached feed. */

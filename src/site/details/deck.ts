@@ -4,13 +4,15 @@ import { extractChangelogCardNames } from '../../changelog-parser'
 import type { ChangelogPage } from '../../changelog-parser'
 import { extractPrimerCardNames } from '../../primer-parser'
 import { resolveDeckFormat, getMainDeckSize } from '../../deck-format'
+import { findPrinting, hasSpecificPrinting } from '../../card-printing'
 import { resolveCardImageSources } from '../image-sources'
 import { getCardPrice } from '../../price-currency'
 import type { PriceCurrency } from '../../price-currency'
 import { getErrorMessage } from '../../errors'
 import type { DeckData, ScryfallCard } from '../../types'
 import type { DeckDetail, DeckSummary } from '../data-types'
-import { loadListSidecars, slugifyListName } from './shared'
+import { bakeBuylistQuotes, loadListSidecars, slugifyListName } from './shared'
+import type { BuylistBakeSource } from './shared'
 import type { SiteDetailContext } from './types'
 
 export type LoadedDeck = {
@@ -159,6 +161,31 @@ export async function buildDeckArtifacts(
     }
   }
 
+  // Every printing a deck tile can display: the entry's own printing when it is
+  // pinned (what `resolveEntryCard` shows), the by-name representative
+  // otherwise, and the cheapest-printing objects the "Lowest Price" toggle
+  // swaps in. That toggle changes the displayed printing, and a client reading
+  // baked quotes cannot fetch the one it would then need.
+  const buylistSources: BuylistBakeSource[] = []
+  if (ctx.buylist) {
+    for (const section of deckData.sections) {
+      for (const entry of section.cards) {
+        const candidates: (ScryfallCard | null | undefined)[] = [
+          hasSpecificPrinting(entry)
+            ? findPrinting(deckPrintingsMap[entry.name], entry.set, entry.collectorNumber)
+            : undefined,
+          deckCardMap[entry.name],
+          deckLowestPriceCardMap[entry.name],
+          deckLowestPriceCardMapEur[entry.name],
+          deckLowestPriceCardMapTix[entry.name],
+        ]
+        for (const card of candidates) {
+          if (card) buylistSources.push({ card, finish: entry.finish, language: entry.language })
+        }
+      }
+    }
+  }
+
   // cardId is shipped on each public-site card so the trade page can
   // encode deck cards into shareable URLs.
   const detail: DeckDetail = {
@@ -175,6 +202,7 @@ export async function buildDeckArtifacts(
     missingCards: deckMissingCards,
     pricesDate: ctx.pricesDate,
     changelog: changelog.length > 0 ? changelog : undefined,
+    buylist: bakeBuylistQuotes(ctx, buylistSources),
   }
 
   // Build summary for index. Card count is the total quantity of cards in

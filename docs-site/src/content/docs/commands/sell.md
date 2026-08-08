@@ -4,7 +4,11 @@ title: 'sell'
 
 Check what [Card Kingdom's buylist](https://www.cardkingdom.com/purchasing/mtg_singles) ("Sell us your cards") is currently paying for cards in your lists.
 
-The report is built from Card Kingdom's public pricelist feed — one ~70 MB download covering their entire singles catalog, cached locally under `cache/cardkingdom.json` and considered fresh for a day (matching their daily regeneration). Every check after that is a purely local join: no scraping, no per-card requests. The same engine backs the [MCP](/commands/mcp/) `get_sell_report`, `get_sell_cart`, `get_buylist_quotes`, and `refresh_buylist` tools, the [admin sell endpoints](/admin/api/#sell-report), and [sell mode](/public-site/sell/) on the admin and server-backed public sites — so a quote is the same wherever you read it.
+The report is built from Card Kingdom's public pricelist feed — one ~70 MB download covering their entire singles catalog, cached locally under `cache/cardkingdom.json` and considered fresh for a day (matching their daily regeneration). Every check after that is a purely local join: no scraping, no per-card requests. The same engine backs the [MCP](/commands/mcp/) `get_sell_report`, `get_sell_cart`, `get_buylist_quotes`, and `refresh_buylist` tools, the [admin sell endpoints](/admin/api/#sell-report), and [sell mode](/public-site/sell/) on the admin site and on published sites — so a quote is the same wherever you read it.
+
+:::note[Not gated on `site.sellMode`]
+Every _other_ buylist surface — sell mode on the sites, the admin's sell routes and its startup buylist refresh, the buylist half of [`cache preload-all`](/commands/cache/#the-buylist-rides-along-under-sell-mode) — is off unless [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is on. `ritual sell` is the exception: running it is itself the explicit request for Card Kingdom prices, so it downloads, refreshes, and quotes whatever that key says. Downloading a feed this way is also what a later `--sell-mode` build has to bake from.
+:::
 
 ## Usage
 

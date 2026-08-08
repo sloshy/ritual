@@ -3,6 +3,7 @@ import { isLoopbackHost } from '../mcp/host'
 import { runHttpServer, runStdioServer } from '../mcp/run'
 import { resolveMcpToken } from '../mcp/token'
 import { t } from '../i18n/t'
+import { addSellModeOption, applySellModeOverride } from './sell-mode-flag'
 import { ExitCode, parsePort } from './scripting'
 
 type McpTransport = 'stdio' | 'http'
@@ -13,6 +14,13 @@ type McpCommandOptions = {
   host: string
   token?: string
   allowUnauthenticated?: boolean
+  /**
+   * Answer the sell/buylist tools for this run whatever `site.sellMode` says
+   * (enable-only; absent follows the config). Those four tools reuse the admin
+   * route handlers, which 404 when sell mode is off — this is the session
+   * opt-in for an agent that wants Card Kingdom prices without a config write.
+   */
+  sellMode?: boolean
 }
 
 type HttpOnlyOption = { name: string; flag: string }
@@ -26,7 +34,7 @@ const HTTP_ONLY_OPTIONS: readonly HttpOnlyOption[] = [
 ]
 
 export function registerMcpCommand(program: Command): void {
-  program
+  const mcp = program
     .command('mcp')
     .description(t('help.mcp.description'))
     .addOption(
@@ -39,6 +47,11 @@ export function registerMcpCommand(program: Command): void {
     .option('--token <secret>', t('help.mcp.token'))
     .option('--allow-unauthenticated', t('help.mcp.allowUnauthenticated'))
     .action(async (options: McpCommandOptions, command: Command) => {
+      // Set before either transport starts serving, so the gated sell routes
+      // the tools call agree with the flag for the whole session. Applies to
+      // both transports, so it is not one of the HTTP-only flags below.
+      applySellModeOverride(options)
+
       if (options.transport === 'http') {
         const token = resolveMcpToken(options.token)
         if (!token) {
@@ -80,4 +93,9 @@ export function registerMcpCommand(program: Command): void {
       }
       runStdioServer()
     })
+  // The shared `--sell-mode` flag; registered through the same helper as
+  // `build-site`, `serve` and `admin` so the four can never describe the same
+  // switch differently. Commander collects options at parse time, so this sits
+  // beside the built command rather than mid-chain.
+  addSellModeOption(mcp, t('help.mcp.sellMode'))
 }

@@ -1,7 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  CARDKINGDOM_FEED_MAX_AGE_MS,
-  cardKingdomFeedIsStale,
   ensureCardKingdomFeed,
   parseCardKingdomCacheFile,
   sellModeWarning,
@@ -11,34 +9,23 @@ import {
   type EnsureCardKingdomFeedDeps,
   type WarmCardKingdomFeedDeps,
 } from '../../src/cardkingdom'
+import { BUYLIST_FEED_MAX_AGE_MS } from '../../src/buylist'
 import type { RefreshMode } from '../../src/refresh'
 import type { HttpClient } from '../../src/interfaces'
 import { MemoryLogger, resetLogger, setLogger } from '../../src/logger'
-import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../test-utils'
+import {
+  cardKingdomFeedBody,
+  makeCardKingdomCacheFile,
+  makeCardKingdomProduct,
+} from '../test-utils'
 
 const NOW = 1_785_850_800_000
 
-const FEED_JSON = {
-  // Deliberately a different generation stamp than `makeCardKingdomCacheFile`'s
-  // (2026-08-04): it is what tells a downloaded feed from the cached one.
-  meta: { created_at: '2026-08-05 06:06:09', base_url: 'https://www.cardkingdom.com/' },
-  data: [
-    {
-      id: 1,
-      sku: 'TST-0001',
-      scryfall_id: 'sf-1',
-      url: 'mtg/test/one',
-      name: 'Test Card',
-      variation: '',
-      edition: 'Test Set',
-      is_foil: 'false',
-      price_retail: '1.00',
-      qty_retail: 3,
-      price_buy: '0.50',
-      qty_buying: 10,
-    },
-  ],
-}
+/**
+ * Deliberately a different generation stamp than `makeCardKingdomCacheFile`'s
+ * (2026-08-04): it is what tells a downloaded feed from the cached one.
+ */
+const FEED_JSON = cardKingdomFeedBody(undefined, '2026-08-05 06:06:09')
 
 function cachedFile(retrievedAt: number): CardKingdomCacheFile {
   return makeCardKingdomCacheFile([makeCardKingdomProduct()], retrievedAt)
@@ -90,12 +77,9 @@ function withQuietLogger<T>(run: () => Promise<T>): Promise<T> {
   return run().finally(resetLogger)
 }
 
-describe('cardKingdomFeedIsStale', () => {
-  test('flips exactly past the max age', () => {
-    expect(cardKingdomFeedIsStale(NOW - CARDKINGDOM_FEED_MAX_AGE_MS, NOW)).toBe(false)
-    expect(cardKingdomFeedIsStale(NOW - CARDKINGDOM_FEED_MAX_AGE_MS - 1, NOW)).toBe(true)
-  })
-})
+// `buylistFeedIsStale` moved to src/buylist/freshness.ts; its max-age boundary
+// is pinned once, beside the module that owns it, in
+// test/unit/site/buylist-seed.test.ts.
 
 describe('ensureCardKingdomFeed', () => {
   test('a fresh cache is used without downloading or prompting', async () => {
@@ -109,7 +93,7 @@ describe('ensureCardKingdomFeed', () => {
   })
 
   test('a stale cache redownloads under auto and saves the result', async () => {
-    const { deps: d, recorded } = deps(cachedFile(NOW - 2 * CARDKINGDOM_FEED_MAX_AGE_MS))
+    const { deps: d, recorded } = deps(cachedFile(NOW - 2 * BUYLIST_FEED_MAX_AGE_MS))
     const result = await withQuietLogger(() => ensureCardKingdomFeed('auto', d))
     if (typeof result === 'string') throw new Error(result)
     expect(result.refreshed).toBe(true)
@@ -119,7 +103,7 @@ describe('ensureCardKingdomFeed', () => {
   })
 
   test('a stale cache is redownloaded under ask without prompting', async () => {
-    const { deps: d, recorded } = deps(cachedFile(NOW - 2 * CARDKINGDOM_FEED_MAX_AGE_MS), {}, false)
+    const { deps: d, recorded } = deps(cachedFile(NOW - 2 * BUYLIST_FEED_MAX_AGE_MS), {}, false)
     const result = await withQuietLogger(() => ensureCardKingdomFeed('ask', d))
     if (typeof result === 'string') throw new Error(result)
     // Card Kingdom regenerates daily, so a stale feed quotes yesterday's
@@ -132,7 +116,7 @@ describe('ensureCardKingdomFeed', () => {
 
   test('never/no-bulk use a stale cache silently', async () => {
     for (const mode of ['never', 'no-bulk'] as const) {
-      const { deps: d, recorded } = deps(cachedFile(NOW - 2 * CARDKINGDOM_FEED_MAX_AGE_MS))
+      const { deps: d, recorded } = deps(cachedFile(NOW - 2 * BUYLIST_FEED_MAX_AGE_MS))
       const result = await withQuietLogger(() => ensureCardKingdomFeed(mode, d))
       if (typeof result === 'string') throw new Error(result)
       expect(result.refreshed).toBe(false)
@@ -160,7 +144,7 @@ describe('ensureCardKingdomFeed', () => {
   })
 
   test('a failed download falls back to the stale cache, reporting the failure', async () => {
-    const stale = cachedFile(NOW - 2 * CARDKINGDOM_FEED_MAX_AGE_MS)
+    const stale = cachedFile(NOW - 2 * BUYLIST_FEED_MAX_AGE_MS)
     const { deps: d } = deps(stale, { http: failHttp })
     const result = await withQuietLogger(() => ensureCardKingdomFeed('auto', d))
     if (typeof result === 'string') throw new Error(result)
@@ -243,7 +227,7 @@ describe('warmCardKingdomFeed', () => {
   }
 
   test('refreshes a stale feed and indexes what it downloaded', async () => {
-    const fixture = deps(cachedFile(NOW - 2 * CARDKINGDOM_FEED_MAX_AGE_MS))
+    const fixture = deps(cachedFile(NOW - 2 * BUYLIST_FEED_MAX_AGE_MS))
     const adopted: number[] = []
 
     const warmth = await warm('ask', fixture, {
@@ -270,7 +254,7 @@ describe('warmCardKingdomFeed', () => {
   test.each(['no-bulk', 'never'] as const)(
     '--refresh %s keeps the stale feed without downloading',
     async (mode) => {
-      const fixture = deps(cachedFile(NOW - 2 * CARDKINGDOM_FEED_MAX_AGE_MS), { http: noNetHttp })
+      const fixture = deps(cachedFile(NOW - 2 * BUYLIST_FEED_MAX_AGE_MS), { http: noNetHttp })
 
       const warmth = await warm(mode, fixture)
 
@@ -314,7 +298,7 @@ describe('warmCardKingdomFeed', () => {
   })
 
   test('a failed refresh keeps the stale feed and carries the reason', async () => {
-    const fixture = deps(cachedFile(NOW - 2 * CARDKINGDOM_FEED_MAX_AGE_MS), { http: failHttp })
+    const fixture = deps(cachedFile(NOW - 2 * BUYLIST_FEED_MAX_AGE_MS), { http: failHttp })
 
     const warmth = await warm('auto', fixture)
 

@@ -1,3 +1,4 @@
+import { buylistFeedIsStale } from '../buylist'
 import { defaultHttpClient } from '../http'
 import type { HttpClient } from '../interfaces'
 import { getLogger } from '../logger'
@@ -9,14 +10,9 @@ import {
 } from '../refresh'
 import { getSiteSellMode, loadRitualConfig } from '../ritual-config'
 import { formatDuration } from '../utils'
-import {
-  cardKingdomFeedIsStale,
-  loadCardKingdomCache,
-  saveCardKingdomCache,
-  type CardKingdomCacheFile,
-} from './cache'
+import { loadCardKingdomCache, saveCardKingdomCache, type CardKingdomCacheFile } from './cache'
 import { fetchCardKingdomFeed } from './client'
-import { adoptCardKingdomFeed } from './memo'
+import { loadEnsuredFeed } from './memo'
 
 /** The lead sentence every "no buylist yet" message opens with. */
 export const NO_FEED_LEAD = 'No Card Kingdom buylist has been downloaded yet.'
@@ -98,7 +94,7 @@ export async function ensureCardKingdomFeed(
     return { ...file, refreshed: true }
   }
 
-  if (cached && deps.force !== true && !cardKingdomFeedIsStale(cached.retrievedAt, now())) {
+  if (cached && deps.force !== true && !buylistFeedIsStale(cached.retrievedAt, now())) {
     return { ...cached, refreshed: false }
   }
 
@@ -162,13 +158,17 @@ export type BuylistWarmth = {
 /** Injectable dependencies for {@link warmCardKingdomFeed}. */
 export type WarmCardKingdomFeedDeps = EnsureCardKingdomFeedDeps & {
   /**
-   * Force sell mode on or off instead of reading `site.sellMode` — a policy
-   * override, not a test seam: `admin` passes `true` because it always offers
-   * sell mode, whatever a *published* site is configured to disclose.
+   * Force sell mode on or off instead of consulting {@link getSiteSellMode}.
+   *
+   * No command passes it any more — `admin` used to, to force sell mode on
+   * regardless of config, and now follows the same gate as `serve` and
+   * `build-site` (`site.sellMode`, or a run's `--sell-mode`). Kept as the seam
+   * that lets a caller decide the policy itself, and lets tests exercise the
+   * warm without a config on disk.
    */
   sellMode?: boolean
-  /** Index the downloaded feed into the process memo. */
-  adopt?: (file: CardKingdomCacheFile) => Promise<unknown>
+  /** Index the ensured feed into the process memo. */
+  adopt?: (result: CardKingdomFeedResult) => Promise<unknown>
 }
 
 /**
@@ -217,10 +217,11 @@ export async function warmCardKingdomFeed(
   }
   if (result.refreshed) {
     // Index the feed we just wrote so the first quote request does not pay to
-    // parse it. Only the cache file's own fields: `refreshed`/`staleFallback`
-    // are this call's control flow, and the memo holds a CardKingdomCacheFile.
-    const { retrievedAt, feed } = result
-    await (adopt ?? adoptCardKingdomFeed)({ retrievedAt, feed })
+    // parse it. `loadEnsuredFeed` owns that rule, shared with `build-site`: it
+    // never re-reads the file already in hand. A feed that was *not* refreshed
+    // is deliberately left un-indexed — the warm's job is to update a buylist,
+    // not to spend a startup building an index the process may never use.
+    await (adopt ?? loadEnsuredFeed)(result)
   }
   return {
     enabled: true,

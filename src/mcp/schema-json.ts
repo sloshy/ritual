@@ -10,6 +10,7 @@ import { VALID_CURRENCIES } from '../price-currency'
 import { DIFF_BY_MODES } from '../list-diff'
 import { BUYERS, SELL_MATCH_VIAS } from '../buylist'
 import { SELL_ENTRY_STATUSES, SELL_NO_MATCH_REASONS } from '../sell-report'
+import type { SessionOverrides } from '../ritual-config'
 
 /**
  * Hand-authored JSON Schema for every tool's `outputSchema`.
@@ -954,12 +955,38 @@ export const GET_HISTORY_OUTPUT: JsonSchemaType = withDefs(
   'ChangeSet',
 )
 
-export const CONFIG_OUTPUT: JsonSchemaType = obj(
+/** The stored configuration, which both config tools report identically. */
+const EFFECTIVE_CONFIG: JsonSchemaType = openObject(
+  'The effective Ritual configuration: ritual.config.json merged over the ' +
+    'built-in defaults (the file is optional and may not exist yet).',
+)
+
+/** `update_config`: what was persisted, which is the stored config and nothing else. */
+export const CONFIG_OUTPUT: JsonSchemaType = obj({ config: EFFECTIVE_CONFIG }, ['config'])
+
+/**
+ * `get_config`: the stored config plus what this *running* server has displaced
+ * with a session flag. `update_config` deliberately does not carry the second
+ * half — a write echoes back what it persisted, and an override is neither.
+ */
+export const GET_CONFIG_OUTPUT: JsonSchemaType = obj(
   {
-    config: openObject(
-      'The effective Ritual configuration: ritual.config.json merged over the ' +
-        'built-in defaults (the file is optional and may not exist yet).',
-    ),
+    config: EFFECTIVE_CONFIG,
+    overrides: {
+      type: 'object',
+      description:
+        'What this running server operates with in place of the stored config, keyed by the ' +
+        'config path each override displaces. Absent when the server follows the stored ' +
+        'config in every respect.',
+      // Tied to the engine's own override map, so a new session override key
+      // is a compile error here rather than a silently undocumented field.
+      properties: {
+        'site.sellMode': bool(
+          'Sell mode as this server actually answers it, because it was started with ' +
+            '--sell-mode. config.site.sellMode still reports the stored value.',
+        ),
+      } satisfies Record<keyof SessionOverrides, JsonSchemaType>,
+    },
   },
   ['config'],
 )
@@ -1385,7 +1412,7 @@ export const TOOL_OUTPUT_SCHEMAS: Readonly<Record<McpToolName, JsonSchemaType>> 
   get_sell_cart: GET_SELL_CART_OUTPUT,
   get_buylist_quotes: GET_BUYLIST_QUOTES_OUTPUT,
   get_history: GET_HISTORY_OUTPUT,
-  get_config: CONFIG_OUTPUT,
+  get_config: GET_CONFIG_OUTPUT,
   get_cache_status: GET_CACHE_STATUS_OUTPUT,
   diff_lists: DIFF_LISTS_OUTPUT,
   export_cards: EXPORT_CARDS_OUTPUT,

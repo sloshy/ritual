@@ -68,6 +68,10 @@ export const cliInfraMeta = {
   },
   'cli.cache.preloadSetDone': { description: '`cache preload-set` succeeded.' },
   'cli.cache.preloadAllFailed': { description: '`cache preload-all` failed.' },
+  'cli.cache.preloadAllBuylistFailed': {
+    description:
+      'Warning, not a failure: `cache preload-all` refreshed the card cache but could not update the Card Kingdom buylist sell mode quotes from. Card Kingdom is a company name. {reason} is an underlying error or advice sentence.',
+  },
   'cli.cache.refreshTagsFailed': { description: '`cache refresh-tags` failed.' },
 
   // ── cache feed ────────────────────────────────────────────────────────
@@ -309,6 +313,14 @@ export const cliInfraMeta = {
   'cli.buildSite.noPriceData': {
     description:
       'The cache holds cards but no prices. Passed to the shared "run cache preload-all" advice, which appends its own sentence.',
+  },
+  'cli.buildSite.buylistReady': {
+    description:
+      'Progress line under sell mode: the buyer feed whose prices get baked into the site is loaded. Card Kingdom is a company name; {counted} is a pre-rendered "N items" fragment counting buylist products.',
+  },
+  'cli.buildSite.buylistUnavailable': {
+    description:
+      'Warning: sell mode is on but no buylist could be loaded, so the built site carries no buy prices. Card Kingdom is a company name; {reason} is an advice sentence explaining how to get one.',
   },
   'cli.buildSite.generatingData': { description: 'Progress line: JSON data file phase.' },
   'cli.buildSite.writingApp': { description: 'Progress line: SPA bundle phase.' },

@@ -27,7 +27,7 @@ import {
   SYNC_DECKS_OUTPUT,
 } from '../schema-json'
 import { listTypeSchema, slugField } from '../schemas'
-import type { ConfigResult, OmitSuccess } from '../types'
+import type { OmitSuccess, UpdateConfigResult } from '../types'
 import { CSV_UPLOAD_THRESHOLD } from '../../collection-sync/csv'
 import { SYNC_CHANGE_FILTERS, SYNC_DIRECTIONS } from '../../sync-common'
 
@@ -218,15 +218,18 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'download cost; do not reach for defaultLanguage when the user asks to change the ' +
         'interface language — or site.bannedPrintings — "SET:COLLECTOR" printings barred from auto-selection as a ' +
         'card\'s default printing). Nested "admin" fields merge; other top-level keys replace. ' +
-        'Unknown keys — top-level or nested in "admin" — are rejected.',
+        'Unknown keys — top-level or nested in "admin" — are rejected. Writing a key a session ' +
+        'flag overrides (get_config reports these under overrides) persists the value but does ' +
+        'not change what this running server operates with — e.g. under --sell-mode, sell mode ' +
+        'stays on whatever site.sellMode you store.',
       inputSchema: z.object({
         config: z.record(z.string(), z.unknown()).describe('Partial RitualConfig object to merge.'),
       }),
-      outputSchema: fromJsonSchema<ConfigResult>(CONFIG_OUTPUT),
+      outputSchema: fromJsonSchema<UpdateConfigResult>(CONFIG_OUTPUT),
       annotations: { destructiveHint: true },
     },
     async ({ config }) =>
-      runTool(async (): Promise<ConfigResult> => {
+      runTool(async (): Promise<UpdateConfigResult> => {
         const data = (await callApi('PUT', '/api/config', config)) as ConfigResponse
         return { config: data.config }
       }),
@@ -462,7 +465,10 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
       description:
         'Download the Card Kingdom pricelist feed (~70 MB) when the cached copy is stale ' +
         '(older than a day) or missing; force redownloads regardless. get_sell_report reads ' +
-        'strictly from this cache, so run this first when it errors or looks out of date.',
+        'strictly from this cache, so run this first when it errors or looks out of date. ' +
+        'Requires sell mode: with the site.sellMode config off and no --sell-mode flag on ' +
+        'this server, this tool errors "Not found". refresh_cache never refreshes the ' +
+        'buylist — only this tool and `ritual cache preload-all` do.',
       inputSchema: z.object({
         force: z
           .boolean()

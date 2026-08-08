@@ -5,9 +5,11 @@ import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { getBaseDir, setBaseDir } from '../../../src/base-dir'
 import { cardCache } from '../../../src/cache'
+import { invalidateCardKingdomIndex, saveCardKingdomCache } from '../../../src/cardkingdom'
 import { createLiveSiteData } from '../../../src/serve/live-data'
 import { createSyntheticWorkspace } from '../../e2e/helpers/synthetic-workspace'
-import type { DeckDetail, SiteIndex } from '../../../src/site/data-types'
+import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../../test-utils'
+import type { CollectionDetail, DeckDetail, SiteIndex } from '../../../src/site/data-types'
 
 describe('createLiveSiteData', () => {
   let dir: string
@@ -32,8 +34,18 @@ describe('createLiveSiteData', () => {
     globalThis.fetch = originalFetch
     setBaseDir(originalBase)
     cardCache.invalidate()
+    // The buyer-feed memo is process-global and keyed on a path this workspace
+    // is about to take with it.
+    invalidateCardKingdomIndex()
     await fs.rm(dir, { recursive: true, force: true })
   })
+
+  /** Merge `patch` into the workspace's config file, which the live layer re-reads. */
+  async function patchConfig(patch: Record<string, unknown>): Promise<void> {
+    const configPath = path.join(dir, 'ritual.config.json')
+    const config = JSON.parse(await fs.readFile(configPath, 'utf-8')) as Record<string, unknown>
+    await fs.writeFile(configPath, JSON.stringify({ ...config, ...patch }, null, 2))
+  }
 
   test('serves a live index with the same-origin marker and all seeded lists', async () => {
     const live = createLiveSiteData()
@@ -118,6 +130,67 @@ describe('createLiveSiteData', () => {
 
     const after = JSON.parse((await live.getIndex()).body) as SiteIndex
     expect(after.defaultLanguage).toBe('ja')
+  })
+
+  /**
+   * The live server's half of baked sell mode: the same quotes `build-site`
+   * writes into a static detail, served per request — and the feed's identity
+   * folded into the detail memo's stamp, so an out-of-band `ritual sell
+   * --refresh` is picked up instead of serving yesterday's offers forever.
+   */
+  describe('baked buylist quotes', () => {
+    const QUOTE_KEY = 'fdn:35:nonfoil'
+    /** The synthetic binder's Serra Angel (FDN:35), which the stub buyer stocks. */
+    const angelProduct = (priceBuy: number) =>
+      makeCardKingdomProduct({
+        id: 1,
+        sku: 'FDN-0035',
+        scryfallId: 'e2e00000-0000-4000-8000-000000000007',
+        name: 'Serra Angel',
+        edition: 'Foundations',
+        priceBuy,
+      })
+
+    async function seedFeed(priceBuy: number, retrievedAt: number): Promise<void> {
+      await saveCardKingdomCache(makeCardKingdomCacheFile([angelProduct(priceBuy)], retrievedAt))
+      invalidateCardKingdomIndex()
+    }
+
+    function binderQuotes(body: string): CollectionDetail['buylist'] {
+      return (JSON.parse(body) as CollectionDetail).buylist
+    }
+
+    test('bakes the offers into the detail, and rebuilds when the feed is refreshed', async () => {
+      await patchConfig({ site: { sellMode: true } })
+      await seedFeed(3, Date.now() - 60_000)
+
+      const live = createLiveSiteData()
+      const first = await live.getDetail('collection', 'test-binder')
+      const baked = binderQuotes(first!.body)?.cardkingdom
+      expect(baked?.quotes[QUOTE_KEY]).toMatchObject({ priceBuy: 3, buying: true })
+      expect(baked?.feedCreatedAt).toBe('2026-08-04 06:06:09')
+
+      // A newer feed under the same lists: without the feed's identity in the
+      // memo stamp the detail would be served from cache at the old price.
+      await Bun.sleep(5)
+      await seedFeed(99, Date.now())
+
+      const second = await live.getDetail('collection', 'test-binder')
+      expect(second!.etag).not.toBe(first!.etag)
+      expect(binderQuotes(second!.body)?.cardkingdom?.quotes[QUOTE_KEY]?.priceBuy).toBe(99)
+    })
+
+    test('sell mode off ships no buylist field at all, feed on disk or not', async () => {
+      await seedFeed(3, Date.now())
+
+      const live = createLiveSiteData()
+      const detail = await live.getDetail('collection', 'test-binder')
+
+      // Absent, not empty: the client reads an empty map as "the buyer declined
+      // every card" and an absent field as "this list was never quoted".
+      expect(JSON.parse(detail!.body)).not.toHaveProperty('buylist')
+      expect((JSON.parse((await live.getIndex()).body) as SiteIndex).sellMode).toBe(false)
+    })
   })
 
   test('honors selection config changes without a restart', async () => {

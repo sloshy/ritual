@@ -14,11 +14,13 @@ import { resolveCardImageSources } from '../image-sources'
 import type { ScryfallCard } from '../../types'
 import type { CollectionCardEntry, CollectionDetail, CollectionSummary } from '../data-types'
 import {
+  bakeBuylistQuotes,
   includeChangelogCards,
   listReadErrorMessage,
   loadListSidecars,
   slugifyListName,
 } from './shared'
+import type { BuylistBakeSource } from './shared'
 import type { SiteDetailContext } from './types'
 import { printingKey, printingLanguageKey } from '../../printing-key'
 
@@ -88,6 +90,8 @@ export async function buildCollectionArtifacts(
   let missingPriceCountTix = 0
   let featured: ScryfallCard | null = null
   let featuredPrice = -1
+  /** Every entry's displayed printing, for the buylist bake (empty when not baking). */
+  const buylistSources: BuylistBakeSource[] = []
 
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i]!
@@ -143,6 +147,7 @@ export async function buildCollectionArtifacts(
     }
 
     const card = cardMap[cardKey] ?? null
+    if (ctx.buylist) buylistSources.push({ card, finish: entry.finish, language: entry.language })
     const finish = displayFinish(card, entry.finish)
     const price = card ? getCardPriceForFinish(card, finish, 'usd') : 0
     const priceEur = card ? getCardPriceForFinish(card, finish, 'eur') : 0
@@ -193,6 +198,7 @@ export async function buildCollectionArtifacts(
     defaultCurrency: ctx.defaultCurrency,
     pricesDate: ctx.pricesDate,
     changelog: changelog.length > 0 ? changelog : undefined,
+    buylist: bakeBuylistQuotes(ctx, buylistSources),
   }
 
   const featuredImage = featured

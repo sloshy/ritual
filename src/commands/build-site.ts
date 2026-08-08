@@ -28,6 +28,7 @@ import { cardCache, ensureCacheForCards } from '../cache'
 import { isRunningFromSource } from '../runtime'
 import type { ScryfallCard } from '../types'
 import { resolveOutDir } from '../site/dist-dir'
+import { addSellModeOption, applySellModeOverride } from './sell-mode-flag'
 import { buildAndPublish } from '../site/publish'
 import {
   getBannedPrintings,
@@ -45,6 +46,12 @@ import {
   isConfigParseError,
   parseUiLocale,
 } from '../ritual-config'
+import {
+  detailBuylistContext,
+  ensureCardKingdomFeed,
+  loadEnsuredFeed,
+  type LoadedCardKingdomFeed,
+} from '../cardkingdom'
 import type {
   DeckSummary,
   CollectionSummary,
@@ -105,6 +112,13 @@ export interface BuildSiteOptions {
    * into a scratch directory it then swaps into place atomically.
    */
   outDir?: string
+  /**
+   * Offer sell mode for this run whatever `site.sellMode` says (enable-only;
+   * absent follows the config). Set as a session override so the buylist
+   * refresh, the baked quotes and `index.json` all agree — see
+   * {@link applySellModeOverride}.
+   */
+  sellMode?: boolean
 }
 
 export type SiteSpaAssets = {
@@ -447,6 +461,9 @@ function reportSkippedSources(skipped: SkippedSource[], published: boolean): voi
 }
 
 export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
+  // Before anything reads sell mode; see `applySellModeOverride` for the rule.
+  applySellModeOverride(options)
+
   let availableCurrencies: PriceCurrency[]
   try {
     availableCurrencies = parseCurrenciesFlag(options.currencies)
@@ -1086,6 +1103,29 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     for (const cur of availableCurrencies) {
       cardData.missing[cur] = Array.from(globalMissingCards[cur] ?? [])
     }
+
+    // Sell mode's buy prices are baked into each list's data, so a build that
+    // offers sell mode needs a current buyer feed — under this run's --refresh
+    // policy, the same one the card cache answered to. Never fatal: a build that
+    // cannot get a buylist is a site without buy prices, not a failed build.
+    let bakedFeed: LoadedCardKingdomFeed | undefined
+    if (getSiteSellMode()) {
+      const feed = await ensureCardKingdomFeed(mode)
+      if (typeof feed === 'string') {
+        console.warn(t('cli.buildSite.buylistUnavailable', { reason: feed }))
+      } else {
+        // Adopting what this run holds, never re-reading the file it was just
+        // handed — see `loadEnsuredFeed`, which both this and the servers' warm
+        // share so the memo rule lives in one place.
+        bakedFeed = await loadEnsuredFeed(feed)
+        console.log(
+          t('cli.buildSite.buylistReady', {
+            counted: t('domain.count.items', { count: bakedFeed.file.feed.products.length }),
+          }),
+        )
+      }
+    }
+
     const detailCtx: SiteDetailContext = {
       cardData,
       resolveCardName: (name) => cardCache.resolveCardName(name),
@@ -1096,6 +1136,9 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       defaultCurrency,
       availableCurrencies,
       pricesDate,
+      // Absent when sell mode is off or no feed could be had: every detail then
+      // ships without a `buylist` field, which the site reads as "not baked".
+      ...(bakedFeed ? { buylist: detailBuylistContext(bakedFeed) } : {}),
       onCardShipped: async (card) => {
         await ensureSymbols(card.mana_cost)
         await ensureSymbols(card.oracle_text)
@@ -1205,9 +1248,9 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       // hosted `ritual serve --api`); `serve --api` itself serves index.json
       // dynamically and shadows this value with a same-origin marker.
       apiBaseUrl: getSiteApiBaseUrl(),
-      // Baked even for a static build: in a split deployment index.json comes
-      // from here while the quote API lives on a separate `serve --api` host.
-      // The site still requires an API base before showing sell mode.
+      // The flag alone decides whether the site offers the sell toggle: each
+      // list's detail carries its own baked quotes, so a fully static build
+      // offers sell mode too, with no API base and no quote round trip.
       sellMode: getSiteSellMode(),
     }
     await Bun.write(path.join(buildDir, 'index.json'), JSON.stringify(siteIndex))
@@ -1282,30 +1325,32 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
  * Shared by `build-site` and `serve --build` so the two stay in sync.
  */
 export function applyBuildSiteOptions(command: Command): Command {
-  return (
-    addRefreshOption(command, t('help.buildSite.refresh'))
-      .option('-v, --verbose', t('help.buildSite.verbose'))
-      .option('--cache-images', t('help.buildSite.cacheImages'))
-      .option('--decks [names...]', t('help.buildSite.decks'))
-      .option('--collections [names...]', t('help.buildSite.collections'))
-      .option('--wanted-lists [names...]', t('help.buildSite.wantedLists'))
-      .option('--currencies <list>', t('help.buildSite.currencies'))
-      .option(
-        '--theme <name>',
-        t('help.buildSite.theme', { themes: themeNames.join(', ') }),
-        'default',
-      )
-      .option('--theme-file <path...>', t('help.buildSite.themeFile'))
-      // Declared here so `build-site --help` documents the flag on the command it
-      // belongs to — but see `resolveBuildLocale`: the root program declares
-      // `--locale` too, and commander gives the root the value from either
-      // position, so this declaration never receives one.
-      .option('--locale <tag>', t('help.buildSite.locale'))
-      .option('--locales <tags...>', t('help.buildSite.locales'))
-      .option('--locale-file <path...>', t('help.buildSite.localeFile'))
-      .option('--moxfield-user-agent <agent>', t('help.buildSite.moxfieldUserAgent'))
-      .option('--out-dir <path>', t('help.buildSite.outDir'))
-  )
+  const withBuildFlags = addRefreshOption(command, t('help.buildSite.refresh'))
+    .option('-v, --verbose', t('help.buildSite.verbose'))
+    .option('--cache-images', t('help.buildSite.cacheImages'))
+    .option('--decks [names...]', t('help.buildSite.decks'))
+    .option('--collections [names...]', t('help.buildSite.collections'))
+    .option('--wanted-lists [names...]', t('help.buildSite.wantedLists'))
+    .option('--currencies <list>', t('help.buildSite.currencies'))
+    .option(
+      '--theme <name>',
+      t('help.buildSite.theme', { themes: themeNames.join(', ') }),
+      'default',
+    )
+    .option('--theme-file <path...>', t('help.buildSite.themeFile'))
+    // Declared here so `build-site --help` documents the flag on the command it
+    // belongs to — but see `resolveBuildLocale`: the root program declares
+    // `--locale` too, and commander gives the root the value from either
+    // position, so this declaration never receives one.
+    .option('--locale <tag>', t('help.buildSite.locale'))
+    .option('--locales <tags...>', t('help.buildSite.locales'))
+    .option('--locale-file <path...>', t('help.buildSite.localeFile'))
+    .option('--moxfield-user-agent <agent>', t('help.buildSite.moxfieldUserAgent'))
+    .option('--out-dir <path>', t('help.buildSite.outDir'))
+  // Registered here so `serve` inherits it too, but it is *not* build-only:
+  // `serve --api` reads sell mode per request, which is why serve's
+  // build-only-flags guard exempts it there alongside --refresh.
+  return addSellModeOption(withBuildFlags, t('help.buildSite.sellMode'))
 }
 
 /** What {@link resolveBuildLocale} reads off the command tree. */
