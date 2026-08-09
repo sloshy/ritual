@@ -81,6 +81,16 @@ function buylistChip(panel: Locator, name: string): Locator {
     .getByRole('button', { name, exact: true })
 }
 
+/**
+ * One stat in the header's price line, matched by its label. Scoped rather than
+ * asserted against the whole line: several stats there carry the same
+ * `(N cards not on buylist)` note, so a line-wide `toContainText` cannot say
+ * which one produced it.
+ */
+function pageStat(page: Page, label: string): Locator {
+  return page.locator('.page-stats').locator('.page-stats-label', { hasText: label })
+}
+
 /** The index of a card in the mocked collection, in file order. */
 const CARD_INDEX = { 'Bought Card': 0, 'Paused Card': 1, 'Unlisted Card': 2 } as const
 
@@ -245,6 +255,9 @@ test.describe('Sell mode', () => {
     const panel = await openFilterMenu(page)
     await panel.locator('#filter-buylist-price').fill('99')
     await expectVisibleCards(page, [])
+    // A page filtered down to nothing drops the buylist total rather than
+    // reporting $0.00 for a list that is not showing anything.
+    await expect(pageStat(page, 'Buylist total')).toHaveCount(0)
 
     // Both controls vanish with the mode, so neither may keep acting — but the
     // sort survives as its ordinary equivalent rather than being thrown away.
@@ -290,9 +303,32 @@ test.describe('Sell mode', () => {
     await expect(stats).not.toContainText('Sell value')
 
     await enableSellMode(page)
-    // Two copies wanted, one selected: the whole selection is sellable.
-    await expect(stats).toContainText('Sell value: $4.00')
-    await expect(stats).not.toContainText('not on buylist')
+    // Two copies wanted, one selected: the whole selection is sellable, so this
+    // stat carries no shortfall note — while the buylist total beside it does,
+    // for the rest of the page. That divergence is what pins the sell value to
+    // the selection rather than to the page.
+    await expect(pageStat(page, 'Sell value')).toHaveText('· Sell value: $4.00')
+    await expect(pageStat(page, 'Buylist total')).toContainText('(2 cards not on buylist)')
+  })
+
+  test('the buylist total prices the whole list, and follows the filter', async ({ page }) => {
+    await gotoSellBinder(page)
+    await switchToListView(page)
+
+    const stats = page.locator('.page-stats')
+    await expect(stats).not.toContainText('Buylist total')
+
+    await enableSellMode(page)
+    // Nothing selected: unlike the sell value, this figure is about the page.
+    // One $4 offer among three cards, so the shortfall note covers the rest.
+    await expect(stats).toContainText('Buylist total: $4.00 (2 cards not on buylist)')
+
+    // The stat prices what the filter leaves on screen — the same cards the
+    // header's cart export ships — not the whole list behind it.
+    const panel = await openFilterMenu(page)
+    await buylistChip(panel, 'Not on buylist').click()
+    await expectVisibleCards(page, ['Unlisted Card'])
+    await expect(stats).toContainText('Buylist total: $0.00 (1 card not on buylist)')
   })
 
   test('the sell value names the copies the buyer will not take', async ({ page }) => {
@@ -302,10 +338,12 @@ test.describe('Sell mode', () => {
     await selectCard(page, CARD_INDEX['Paused Card'])
     await selectCard(page, CARD_INDEX['Unlisted Card'])
 
-    const stats = page.locator('.page-stats')
-    await expect(stats).toContainText('Sell value: $4.00')
-    // The paused card and the unstocked one both produce nothing.
-    await expect(stats).toContainText('(2 cards not on buylist)')
+    // The paused card and the unstocked one both produce nothing. Scoped to the
+    // stat: the buylist total on the same line carries an identical note here,
+    // so a line-wide match would survive this stat losing its own.
+    await expect(pageStat(page, 'Sell value')).toHaveText(
+      '· Sell value: $4.00 (2 cards not on buylist)',
+    )
   })
 
   test('the cart export is offered only in sell mode', async ({ page }) => {

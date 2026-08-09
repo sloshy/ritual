@@ -1,6 +1,6 @@
 import { buylistFieldsFor } from './buylist-quotes'
-import { useSellMode, type QuoteSource } from './useSellMode'
-import { sellableFromCardData, selectionToCartCsv } from './sell-value'
+import { createSellSummary, useSellMode, type QuoteSource } from './useSellMode'
+import { sellableFromCardData, selectionToCartCsv, type SellableCard } from './sell-value'
 import { buyerName } from '../buylist'
 import { cartBuyer, type SellModeProps } from './sell-mode'
 import type { Component } from 'solid-js'
@@ -15,7 +15,7 @@ import { storedLanguage } from '../card-language'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
-import { FilteredPriceStat, SelectedPriceStat, SellModeNotice, SellValueStat } from './PageStats'
+import { ListPageStats, SellModeNotice } from './PageStats'
 import type { ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { WantedListCardEntry } from './data-types'
@@ -395,6 +395,17 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
 
   const filteredTotalPrice = createMemo(() => groupTotalPrice(filteredCards()))
 
+  /**
+   * The filtered view as sellable cards. A plain function, not a memo: the
+   * buylist summary below skips it entirely while sell mode is off, and a hot
+   * memo would map the whole list on every filter change regardless. Both the
+   * header's buylist total and the cart export read it, so the figure the header
+   * promises always covers exactly the cards the export ships.
+   */
+  const filteredSellables = (): SellableCard[] => filteredCards().map(sellableFromCardData)
+
+  const filteredSellSummary = createSellSummary(sell.active, filteredSellables)
+
   // The buyer's cart for the *visible* list: the filter is part of what the user
   // is looking at, so a filtered view exports the filtered cards.
   const cartExportFormats = createMemo((): ExtraExportFormat[] => {
@@ -406,7 +417,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         extension: 'csv',
         mime: 'text/csv',
         serialize: () => {
-          const cart = selectionToCartCsv(filteredCards().map(sellableFromCardData))
+          const cart = selectionToCartCsv(filteredSellables())
           return { content: cart.csv, warnings: cart.warnings }
         },
       },
@@ -622,20 +633,15 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
               count: props.entries.length,
               amount: formatPrice(computedTotalPrice(), props.currency),
             })}
-            <FilteredPriceStat
+            <ListPageStats
               filters={cardFilters}
-              amount={filteredTotalPrice()}
               currency={props.currency}
-            />
-            <SelectedPriceStat
-              count={selection.count()}
-              amount={selection.value(props.currency)}
-              currency={props.currency}
-            />
-            <SellValueStat
+              filteredAmount={filteredTotalPrice()}
+              selectedCount={selection.count()}
+              selectedAmount={selection.value(props.currency)}
               sellMode={sell.active()}
-              count={selection.count()}
-              summary={sell.summary()}
+              buylistSummary={filteredSellSummary()}
+              selectionSummary={sell.summary()}
             />
           </p>
           <SellModeNotice sellMode={sell.active()} />

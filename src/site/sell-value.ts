@@ -130,6 +130,22 @@ export type SellValueSummary = {
   nonEnglishCount: number
 }
 
+/**
+ * Whether a summary covers no copies at all. The stats read their own gate off
+ * this rather than taking a card count beside the summary: two same-typed
+ * numbers next to each other are two arguments that can be swapped, and a
+ * summary already knows how many copies went into it.
+ */
+export function isEmptySellSummary(summary: SellValueSummary): boolean {
+  return (
+    summary.sellableCount +
+      summary.notOnBuylistCount +
+      summary.overLimitCount +
+      summary.nonEnglishCount ===
+    0
+  )
+}
+
 /** Summarize {@link allocateSellQuantities} into the header/dialog figures. */
 export function summarizeSellValue(cards: readonly SellableCard[]): SellValueSummary {
   const summary: SellValueSummary = {

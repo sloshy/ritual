@@ -197,6 +197,7 @@ export const siteChromeMessages = {
   'site.stats.filtered': 'Filtered',
   'site.stats.selected': 'Selected',
   'site.stats.sellValue': 'Sell value',
+  'site.stats.buylistTotal': 'Buylist total',
   'site.stats.buylistUnavailable': 'Buylist prices are unavailable: {reason}',
 
   // ── Price refresh ─────────────────────────────────────────────────────

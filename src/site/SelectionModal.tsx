@@ -15,7 +15,8 @@ import type { MessageKey } from '../i18n/messages/en'
 import { buyerName } from '../buylist'
 import { cartBuyer } from './sell-mode'
 import { BUYLIST_CURRENCY } from './card-sorting'
-import { sellShortfallNote, summarizeSellValue } from './sell-value'
+import { sellShortfallNote } from './sell-value'
+import { createSellSummary } from './useSellMode'
 import { DEFAULT_CURRENCY, formatPrice, type PriceCurrency } from '../price-currency'
 
 // Module-level open state so the modal can live at the app root (a proper
@@ -80,7 +81,13 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
   const t = useT()
   const [groupMode, setGroupMode] = createSignal<GroupMode>('order')
   const copy = useSelectionCopy(() => props.selection.selected())
-  const sellSummary = createMemo(() => summarizeSellValue(props.selection.selected()))
+  // Gated on exactly what renders it below, so the walk-and-budget over the whole
+  // cross-list selection does not run on every selection change while the figure
+  // is hidden — a memo stays hot whether or not anything reads it.
+  const sellSummary = createSellSummary(
+    () => cartBuyer() !== undefined,
+    () => props.selection.selected(),
+  )
   // Memoized so <For> gets a stable array; only recomputes when the selection changes.
   const groupedBySource = createMemo(() => groupSelectionsBySource(props.selection.selected()))
 

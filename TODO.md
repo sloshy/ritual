@@ -11,21 +11,21 @@
 - Card price tracking
 
 - Confirm whether "don't care" is a valid option for a printing (default should be near-mint I think)
-- Show prices when editing a card to be a different printing or edition
 - Add ability to refresh cache while in edit mode so you don't lose progress
 
 - Finish MCP Task migration (groundwork started, see research docs)
 
+- Fix colors of prices on web printings change dialog
+- Add ability to manually reorder lists and the index of lists for web UI
+
 - Add support for tags to cards
 - Add ability to move cards on edit cli
-- Support alternate language printings
+- Add alternate collector number mode where you search by set code and then collector number
 
 ## Misc
 
-- Multi-language support
-- Fix colors of index price text
+- Multi-language CLI/UI support
 - Add "last updated" timestamp to collection and deck files, and display this in the UI
-- Add "created at" timestamp to collection and deck files
-- When removing a card from a deck, if it's not from the mainboard, then the change log should state what section it was removed from
+- Add "created at" timestamp to collection and deck files, and display this in the UI
 - When moving a card between sections, change events should say which sections it was moved between
 - `--dev` mode for cache server

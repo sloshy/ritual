@@ -16,8 +16,9 @@ import {
   sortByValuesFor,
 } from './card-sorting'
 import { CardModal } from './CardModal'
-import { FilteredPriceStat, SelectedPriceStat, SellModeNotice, SellValueStat } from './PageStats'
-import { useSellMode, type QuoteSource } from './useSellMode'
+import { ListPageStats, SellModeNotice } from './PageStats'
+import { createSellSummary, useSellMode, type QuoteSource } from './useSellMode'
+import { sellableFromCardData } from './sell-value'
 import type { SellModeProps } from './sell-mode'
 import { finishName, rarityName } from './printing-display'
 import { useTooltip } from './useTooltip'
@@ -221,6 +222,9 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
 
   const totalPrice = createMemo(() => groupTotalPrice(props.cards))
   const filteredTotalPrice = createMemo(() => groupTotalPrice(filteredCards()))
+  const filteredSellSummary = createSellSummary(sell.active, () =>
+    filteredCards().map(sellableFromCardData),
+  )
   const cardCount = createMemo(() => props.cards.reduce((sum, c) => sum + c.quantity, 0))
 
   const modalMeta = createMemo((): MetaEntry[] | undefined => {
@@ -287,20 +291,15 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
               count: cardCount(),
               amount: formatPrice(totalPrice(), props.currency),
             })}
-            <FilteredPriceStat
+            <ListPageStats
               filters={cardFilters}
-              amount={filteredTotalPrice()}
               currency={props.currency}
-            />
-            <SelectedPriceStat
-              count={selection.count()}
-              amount={selection.value(props.currency)}
-              currency={props.currency}
-            />
-            <SellValueStat
+              filteredAmount={filteredTotalPrice()}
+              selectedCount={selection.count()}
+              selectedAmount={selection.value(props.currency)}
               sellMode={sell.active()}
-              count={selection.count()}
-              summary={sell.summary()}
+              buylistSummary={filteredSellSummary()}
+              selectionSummary={sell.summary()}
             />
           </p>
           <SellModeNotice sellMode={sell.active()} />

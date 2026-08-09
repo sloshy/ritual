@@ -144,22 +144,35 @@ store-credit bonuses are not modeled.
 A quote is shown only when Card Kingdom is _actively_ buying — they publish token prices on
 products they have paused, and those read as "no offer".
 
-## Selection totals
+## Page and selection totals
+
+With sell mode on, the header's price line gains a **Buylist total**: what the buyer would pay for
+the cards the current view is showing. It follows the filter — narrow the list to a set, a color or
+the on-buylist chip and the figure narrows with it — so wherever the header offers a cart export,
+the figure prices exactly the cards that export would ship. A deck page scopes it the same way its **Total** is scoped: the
+deck proper (commander, mainboard, sideboard), with the maybeboard and tokens left out, and the
+commander counted whether or not the filter would hide it.
+
+```
+120 cards · Total: $840.00 · Buylist total: $214.60 (18 cards not on buylist)
+```
 
 Selecting cards adds a **Selected** total to the page header and to the "All Selected" dialog.
 This is not gated on sell mode: knowing what a handful of picked cards is worth is useful whether
 or not you are selling them.
 
-With sell mode on, a fourth figure appears — **Sell value** (abbreviated to `sell` in the
-dialog): what the buyer would pay for the selection. It is capped at what they will actually take, so it matches `ritual sell` and what a
-cart upload can ship. When some copies would not be bought, a note says so:
+With sell mode on, the selection gets its own buylist figure too — **Sell value** (abbreviated to
+`sell` in the dialog): what the buyer would pay for the selected cards:
 
 ```
-120 cards · Total: $840.00 · Selected: $95.00 · Sell value: $31.40 (3 cards not on buylist)
+120 cards · Total: $840.00 · Buylist total: $214.60 · Selected: $95.00 · Sell value: $31.40 (3 cards not on buylist)
 ```
 
-Copies the buyer _does_ want but is already full on are reported separately
-(`2 over the buyer's limit`), since that is a different problem from not being wanted at all.
+Both buylist figures are capped at what the buyer will actually take, so they match `ritual sell`
+and what a cart upload can ship, and both note the copies that would not be bought. Copies the
+buyer _does_ want but is already full on are reported separately (`2 over the buyer's limit`),
+since that is a different problem from not being wanted at all, and non-English copies get a note
+of their own (`2 non-English cards — not quotable`), since the buyer's feed is English-only.
 
 ## Exporting a cart
 

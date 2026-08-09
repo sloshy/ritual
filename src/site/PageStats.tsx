@@ -2,9 +2,9 @@ import type { Component, JSX } from 'solid-js'
 import { Show } from 'solid-js'
 import type { PriceCurrency } from '../price-currency'
 import { formatPrice } from '../price-currency'
+import { BUYLIST_CURRENCY } from '../buylist'
 import { buylistError } from './buylist-quotes'
-import { BUYLIST_CURRENCY } from './card-sorting'
-import { sellShortfallNote, type SellValueSummary } from './sell-value'
+import { isEmptySellSummary, sellShortfallNote, type SellValueSummary } from './sell-value'
 import type { CardFiltersControl } from './useCardFilters'
 import { useT } from '../ui/i18n'
 
@@ -38,7 +38,7 @@ type FilteredPriceStatProps = {
 }
 
 /** The "· Filtered: $X" stat shown next to a list's Total, while a filter narrows it. */
-export const FilteredPriceStat: Component<FilteredPriceStatProps> = (props) => {
+const FilteredPriceStat: Component<FilteredPriceStatProps> = (props) => {
   const t = useT()
   return (
     <PageStat when={props.filters.narrowingCount() > 0} label={t('site.stats.filtered')}>
@@ -58,7 +58,7 @@ type SelectedPriceStatProps = {
  * The "· Selected: $X" stat. Independent of sell mode — knowing what a handful
  * of picked cards is worth is useful whether or not you are selling them.
  */
-export const SelectedPriceStat: Component<SelectedPriceStatProps> = (props) => {
+const SelectedPriceStat: Component<SelectedPriceStatProps> = (props) => {
   const t = useT()
   return (
     <PageStat when={props.count > 0} label={t('site.stats.selected')}>
@@ -67,25 +67,28 @@ export const SelectedPriceStat: Component<SelectedPriceStatProps> = (props) => {
   )
 }
 
-type SellValueStatProps = {
+type SellSummaryStatProps = {
   /** Whether sell mode is on; the stat is hidden entirely otherwise. */
   sellMode: boolean
-  /** Selected copies on this page; the stat hides itself when nothing is selected. */
-  count: number
+  /** Which of the two buylist stats this is. */
+  label: 'site.stats.buylistTotal' | 'site.stats.sellValue'
   summary: SellValueSummary
 }
 
 /**
- * The "· Sell value: $X (2 cards not on buylist)" stat: what the selected cards
- * are worth to the chosen buyer, capped at what they will actually take.
+ * A `Label: $X (2 cards not on buylist)` money stat read off a
+ * {@link SellValueSummary} — the page's "Buylist total" or the selection's
+ * "Sell value", which differ only in their label and in the cards summarized.
+ *
  * Always the buyer's own currency (USD cash), never the page's display
  * currency, so it is formatted with {@link BUYLIST_CURRENCY} rather than the
- * currency beside it.
+ * currency beside it. It hides itself on a summary covering nothing, rather
+ * than taking a card count beside the summary it would have to agree with.
  */
-export const SellValueStat: Component<SellValueStatProps> = (props) => {
+export const SellSummaryStat: Component<SellSummaryStatProps> = (props) => {
   const t = useT()
   return (
-    <PageStat when={props.sellMode && props.count > 0} label={t('site.stats.sellValue')}>
+    <PageStat when={props.sellMode && !isEmptySellSummary(props.summary)} label={t(props.label)}>
       {formatPrice(props.summary.value, BUYLIST_CURRENCY)}
       <Show when={sellShortfallNote(props.summary)}>
         {(note) => <span class="page-stats-note"> {note()}</span>}
@@ -93,6 +96,53 @@ export const SellValueStat: Component<SellValueStatProps> = (props) => {
     </PageStat>
   )
 }
+
+type ListPageStatsProps = {
+  /** Owns the "Filtered" stat's visibility gate. */
+  filters: CardFiltersControl
+  /** The page's display currency; the buylist stats do not use it. */
+  currency: PriceCurrency
+  filteredAmount: number
+  selectedCount: number
+  selectedAmount: number
+  /** Whether sell mode is on; both buylist stats are hidden otherwise. */
+  sellMode: boolean
+  /** What the buyer would pay for the cards the page is showing. */
+  buylistSummary: SellValueSummary
+  /** What the buyer would pay for the selection — a set that is *not* nested in
+   * the page's, since a selection survives the filter that hides it. */
+  selectionSummary: SellValueSummary
+}
+
+/**
+ * Every stat a list page's header carries after its own always-present total,
+ * in one place: their order is an invariant of the line, and four pages each
+ * holding a copy of it is where the next stat drifts.
+ */
+export const ListPageStats: Component<ListPageStatsProps> = (props) => (
+  <>
+    <FilteredPriceStat
+      filters={props.filters}
+      amount={props.filteredAmount}
+      currency={props.currency}
+    />
+    <SellSummaryStat
+      sellMode={props.sellMode}
+      label="site.stats.buylistTotal"
+      summary={props.buylistSummary}
+    />
+    <SelectedPriceStat
+      count={props.selectedCount}
+      amount={props.selectedAmount}
+      currency={props.currency}
+    />
+    <SellSummaryStat
+      sellMode={props.sellMode}
+      label="site.stats.sellValue"
+      summary={props.selectionSummary}
+    />
+  </>
+)
 
 type SellModeNoticeProps = {
   /** Whether sell mode is on; the notice is hidden entirely otherwise. */

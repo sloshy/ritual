@@ -4,6 +4,7 @@ import {
   buylistError,
   buylistFieldsFor,
   requestBuylistQuotes,
+  resetBuylistFetcher,
   resetBuylistQuotes,
   setBuylistFetcher,
 } from '../../src/site/buylist-quotes'
@@ -11,6 +12,7 @@ import { resetSellMode, setSellModeActive } from '../../src/site/sell-mode'
 import { makeScryfallCard } from '../test-utils'
 import {
   allocateSellQuantities,
+  isEmptySellSummary,
   sellShortfallNote,
   selectionToCartCsv,
   summarizeSellValue,
@@ -76,6 +78,9 @@ const card = (collectorNumber: string, quantity: number): SellableCard => ({
 afterEach(() => {
   resetBuylistQuotes()
   resetSellMode()
+  // The fetcher install is module-global and `bun test` shares the module across
+  // files, so leaving one behind would hand the next suite this file's quotes.
+  resetBuylistFetcher()
 })
 
 describe('allocateSellQuantities', () => {
@@ -149,6 +154,16 @@ describe('summarizeSellValue', () => {
       overLimitCount: 0,
       nonEnglishCount: 2,
     })
+  })
+})
+
+describe('isEmptySellSummary', () => {
+  test('is true only when no copies at all went into the summary', () => {
+    // The header stats read their visibility off this, so a summary whose copies
+    // are all *unsellable* must still count as non-empty: "$0.00 (3 cards not on
+    // buylist)" is the answer for a page the buyer wants nothing from.
+    expect(isEmptySellSummary(summarizeSellValue([]))).toBe(true)
+    expect(isEmptySellSummary(summarizeSellValue([card('1', 3)]))).toBe(false)
   })
 })
 

@@ -1,6 +1,6 @@
 import { buylistFieldsFor } from './buylist-quotes'
-import { useSellMode, type QuoteSource } from './useSellMode'
-import { sellableFromCardData, selectionToCartCsv } from './sell-value'
+import { createSellSummary, useSellMode, type QuoteSource } from './useSellMode'
+import { sellableFromCardData, selectionToCartCsv, type SellableCard } from './sell-value'
 import { buyerName } from '../buylist'
 import { cartBuyer, type SellModeProps } from './sell-mode'
 import type { Component } from 'solid-js'
@@ -13,7 +13,7 @@ import type { MessageKey } from '../i18n/messages/en'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
-import { FilteredPriceStat, SelectedPriceStat, SellModeNotice, SellValueStat } from './PageStats'
+import { ListPageStats, SellModeNotice } from './PageStats'
 import type { Card, DeckData, ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { ChangelogPage } from '../changelog-parser'
@@ -547,6 +547,20 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
 
   const filteredTotalPrice = createMemo(() => groupTotalPrice(filteredMainAndSideboardCards()))
 
+  /**
+   * The deck proper as sellable cards — the same commander/mainboard/sideboard
+   * scope as the deck total, with the maybeboard and token extras left out. A
+   * plain function, not a memo: the buylist summary below skips it entirely
+   * while sell mode is off, and a hot memo would map the deck on every filter
+   * change regardless. Both the header's buylist total and the cart export read
+   * it, so the figure the header promises always covers exactly the cards the
+   * export ships.
+   */
+  const filteredSellables = (): SellableCard[] =>
+    filteredMainAndSideboardCards().map(sellableFromCardData)
+
+  const filteredSellSummary = createSellSummary(sell.active, filteredSellables)
+
   // The buyer's cart for the *visible* list: the filter is part of what the user
   // is looking at, so a filtered view exports the filtered cards.
   const cartExportFormats = createMemo((): ExtraExportFormat[] => {
@@ -558,7 +572,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         extension: 'csv',
         mime: 'text/csv',
         serialize: () => {
-          const cart = selectionToCartCsv(filteredMainAndSideboardCards().map(sellableFromCardData))
+          const cart = selectionToCartCsv(filteredSellables())
           return { content: cart.csv, warnings: cart.warnings }
         },
       },
@@ -703,20 +717,15 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
                 })}
               </span>
             </Show>
-            <FilteredPriceStat
+            <ListPageStats
               filters={cardFilters}
-              amount={filteredTotalPrice()}
               currency={props.currency}
-            />
-            <SelectedPriceStat
-              count={selection.count()}
-              amount={selection.value(props.currency)}
-              currency={props.currency}
-            />
-            <SellValueStat
+              filteredAmount={filteredTotalPrice()}
+              selectedCount={selection.count()}
+              selectedAmount={selection.value(props.currency)}
               sellMode={sell.active()}
-              count={selection.count()}
-              summary={sell.summary()}
+              buylistSummary={filteredSellSummary()}
+              selectionSummary={sell.summary()}
             />
           </p>
           <SellModeNotice sellMode={sell.active()} />

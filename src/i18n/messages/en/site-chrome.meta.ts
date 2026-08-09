@@ -502,6 +502,10 @@ export const siteChromeMeta = {
     description:
       'Label of the stat showing what a shop would pay for the selected cards, capped at the quantity it is actually buying. Sell mode only.',
   },
+  'site.stats.buylistTotal': {
+    description:
+      'Label of the stat showing what a shop would pay for every card in the currently visible (filtered) list, capped at the quantities it is actually buying. Sell mode only.',
+  },
   'site.stats.buylistUnavailable': {
     description:
       'Warning shown when sell mode can quote nothing at all. {reason} is a separate, already-rendered explanation and ends without punctuation.',

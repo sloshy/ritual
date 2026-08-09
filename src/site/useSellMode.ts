@@ -25,7 +25,7 @@ import type { CardData, SortBy, SortLayer } from './card-sorting'
 import { SELL_GROUP_BY_OPTIONS, SELL_SORT_BYS } from './card-sorting'
 import type { CardFilters } from './card-filters'
 import type { CardFiltersControl } from './useCardFilters'
-import { summarizeSellValue, type SellValueSummary } from './sell-value'
+import { summarizeSellValue, type SellableCard, type SellValueSummary } from './sell-value'
 import type { SellModeControl } from './sell-mode'
 import type { SelectedCard } from './useCardSelection'
 import type { UseToolbarStateResult } from './useToolbarState'
@@ -226,7 +226,7 @@ export function useSellMode<G extends string>(input: UseSellModeInput<G>): UseSe
     loadQuotes(buyer, baked)
   })
 
-  const summary = createMemo(() => summarizeSellValue(input.selected()))
+  const summary = createSellSummary(active, input.selected)
 
   // Leaving sell mode must not strand the state its controls set. The buylist
   // chips, the buylist groupings and the buylist sort all disappear with the
@@ -256,6 +256,30 @@ export function useSellMode<G extends string>(input: UseSellModeInput<G>): UseSe
   )
 
   return { active, control, summary }
+}
+
+/**
+ * What a set of cards is worth to the buyer, recomputed as they change: the
+ * selection behind the header's "Sell value", or a page's filtered cards behind
+ * its "Buylist total".
+ *
+ * Off the mode it summarizes nothing, and does not even read `cards`: memos stay
+ * hot whether or not anything observes them, so without the guard a page showing
+ * no buylist at all would re-walk and re-budget every tile on each filter
+ * keystroke. Every consumer is gated on sell mode too, so the empty summary is
+ * never rendered.
+ *
+ * The filtered variant is created by the page rather than inside
+ * {@link useSellMode}, because the filtered set is derived from state declared
+ * well below the hook call: this memo evaluates eagerly, and a URL-restored
+ * `sell=1` makes `active()` true on that very first run, so even a deferred
+ * arrow would reach the accessor before it exists.
+ */
+export function createSellSummary(
+  active: Accessor<boolean>,
+  cards: Accessor<readonly SellableCard[]>,
+): Accessor<SellValueSummary> {
+  return createMemo(() => summarizeSellValue(active() ? cards() : []))
 }
 
 /** Whether a grouping is one sell mode contributes (and therefore hides on exit). */
