@@ -39,17 +39,15 @@ export type BuylistQuoteRequest = {
 }
 
 /**
- * A buyer's offer for one printing. Absent from a response entirely when the
- * buyer has no product for it — "not on the buylist" is the absence of a quote,
- * never a quote with a zero price.
+ * Everything a quote carries except whether the buyer will act on it. Split out
+ * so {@link BuylistQuote}'s two arms cannot drift field-for-field, and so a
+ * producer can build the common half once and pick an arm at the end.
  */
-export type BuylistQuote = {
+export type BuylistQuoteBase = {
   /** The buyer's cash offer per copy (USD, Near Mint). */
   priceBuy: number
   /** Copies the buyer is currently taking; 0 means paused despite a price. */
   qtyBuying: number
-  /** Whether the buyer is actively buying (`qtyBuying > 0` and a nonzero price). */
-  buying: boolean
   /** The quoted product's finish, which can differ from the request's on a name match. */
   finish: Finish
   matchVia: SellMatchVia
@@ -65,6 +63,45 @@ export type BuylistQuote = {
   variation?: string
   /** The buyer's product page, when their feed carries one. */
   url?: string
+}
+
+/**
+ * An offer the buyer will honor today: `qtyBuying > 0` *and* a nonzero
+ * `priceBuy`. Only this arm may be drawn against — `qtyBuying` is a real budget
+ * here, and `priceBuy` is money.
+ */
+export type ActiveBuylistQuote = BuylistQuoteBase & { buying: true }
+
+/**
+ * A published price the buyer is not acting on. Roughly half of Card Kingdom's
+ * feed at any time, so this is the common case, not an edge one.
+ *
+ * Deliberately does *not* narrow `qtyBuying` to 0: a product is paused when
+ * `qtyBuying` is 0 **or** `priceBuy` is, so a nonzero quantity at a zero price
+ * is a paused quote too.
+ */
+export type PausedBuylistQuote = BuylistQuoteBase & { buying: false }
+
+/**
+ * A buyer's offer for one printing, discriminated on whether they are actually
+ * buying. Absent from a response entirely when the buyer has no product for the
+ * printing at all — which is a different fact from a paused offer, and the
+ * reason presence and {@link isActiveOffer} are two separate questions.
+ *
+ * Narrow with {@link isActiveOffer} rather than reading `.buying` directly, so
+ * "will they take a copy" has one spelling across the site bundle and the
+ * server. The server-side report draws the same line with `isBuyingEntry`.
+ */
+export type BuylistQuote = ActiveBuylistQuote | PausedBuylistQuote
+
+/**
+ * Whether a quote is an offer the buyer will act on. Takes the *absent* quote
+ * too, because every caller asks the same compound question — "is there an
+ * offer, and is it live" — and answering it in one place is what keeps a
+ * missing product and a paused one behaving identically everywhere.
+ */
+export function isActiveOffer(quote: BuylistQuote | undefined | null): quote is ActiveBuylistQuote {
+  return quote?.buying === true
 }
 
 /**

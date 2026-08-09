@@ -282,12 +282,12 @@ export const siteChromeMeta = {
   },
   'site.filter.buylistMode': { description: "Accessible name of the buylist filter's chip group." },
   'site.filter.buylistOn': {
-    description: 'Buylist filter chip selecting cards the shop has a listing for.',
+    description: 'Buylist filter chip selecting cards the shop is currently buying.',
     maxLen: MODE_MAX_LEN + 4,
   },
   'site.filter.buylistOnTitle': { description: 'Tooltip on the "on buylist" chip.' },
   'site.filter.buylistOff': {
-    description: 'Buylist filter chip selecting cards the shop has no listing for.',
+    description: 'Buylist filter chip selecting cards the shop is not currently buying.',
     maxLen: MODE_MAX_LEN + 6,
   },
   'site.filter.buylistOffTitle': { description: 'Tooltip on the "not on buylist" chip.' },

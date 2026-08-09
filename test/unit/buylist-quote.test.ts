@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { buildCardKingdomIndex, quoteForPrinting } from '../../src/cardkingdom'
 import type { CardKingdomFeed } from '../../src/cardkingdom'
-import { makeCardKingdomProduct } from '../test-utils'
+import { isActiveOffer } from '../../src/buylist'
+import type { ActiveBuylistQuote, BuylistQuote } from '../../src/buylist'
+import { makeBuylistQuote, makeCardKingdomProduct } from '../test-utils'
 
 const FEED: Pick<CardKingdomFeed, 'baseUrl'> = { baseUrl: 'https://www.cardkingdom.com/' }
 
@@ -153,5 +155,30 @@ describe('quoteForPrinting', () => {
     })
 
     expect(quote).toMatchObject({ productId: 7, priceBuy: 0.02, ambiguous: true })
+  })
+})
+
+describe('isActiveOffer', () => {
+  /** The rule every consumer used to spell for itself, now in one place. */
+  const active = makeBuylistQuote({ priceBuy: 4, qtyBuying: 2, buying: true })
+  const paused = makeBuylistQuote({ priceBuy: 9, qtyBuying: 0, buying: false })
+
+  test('an absent quote and a paused one answer alike', () => {
+    // The compound question every caller asks: the buyer having no product and
+    // the buyer having paused one are the same fact to a seller, and every
+    // surface must treat them identically or the filter, the tile badge and the
+    // shortfall note start disagreeing about the same card.
+    expect(isActiveOffer(undefined)).toBe(false)
+    expect(isActiveOffer(paused)).toBe(false)
+    expect(isActiveOffer(active)).toBe(true)
+  })
+
+  test('narrows to the arm that may be drawn against', () => {
+    // The point of the union: `qtyBuying` is a real budget and `priceBuy` is
+    // money only on the active arm, and only the predicate opens it.
+    const quote: BuylistQuote | undefined = active
+    if (!isActiveOffer(quote)) throw new Error('expected an active offer')
+    const drawn: ActiveBuylistQuote = quote
+    expect(drawn.priceBuy * drawn.qtyBuying).toBe(8)
   })
 })

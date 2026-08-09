@@ -16,13 +16,17 @@ export {
 } from './buyers'
 export {
   SELL_MATCH_VIAS,
+  isActiveOffer,
   quoteKey,
+  type ActiveBuylistQuote,
   type BuylistFeedProvenance,
   type BuylistFeedStamp,
   type BuylistQuote,
+  type BuylistQuoteBase,
   type BuylistQuoteRequest,
   type BuylistQuotesResponse,
   type BuylistStatusResponse,
+  type PausedBuylistQuote,
   type SellMatchVia,
 } from './types'
 export { buylistRequestFor, isQuotableCard } from './request'

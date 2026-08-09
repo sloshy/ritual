@@ -609,6 +609,43 @@ describe('buylist baking', () => {
     expect(buylist.asked).toHaveLength(1)
   })
 
+  test('a paused product is baked, since the map records catalog membership', async () => {
+    // The bake keeps what the client's `onBuylist` deliberately does not ask:
+    // whether the buyer stocks the printing at all. Dropping paused keys as
+    // "payload weight" would erase the difference between "they don't deal in
+    // this card" and "they're full on it right now", and would make the baked
+    // map disagree with the live `/api/buylist/quotes` response for one key.
+    const buylist = stubBuylist({
+      'fdn:35:nonfoil': makeQuote({
+        name: 'Serra Angel',
+        priceBuy: 9,
+        qtyBuying: 0,
+        buying: false,
+      }),
+    })
+    const { ctx } = makeContext({
+      printingsByName: { 'Serra Angel': [angel] },
+      buylist: buylist.ctx,
+    })
+    const loaded = binder([
+      {
+        name: 'Serra Angel',
+        quantity: 1,
+        set: 'fdn',
+        collectorNumber: '35',
+        section: 'Main',
+        cardId: 1,
+      },
+    ])
+
+    const { detail } = await buildCollectionArtifacts(loaded, ctx)
+
+    expect(detail.buylist?.cardkingdom?.quotes['fdn:35:nonfoil']).toMatchObject({
+      priceBuy: 9,
+      buying: false,
+    })
+  })
+
   test('a non-English copy is never quoted, and never suppresses its English twin', async () => {
     const angelJa = makeScryfallCard({
       id: 'angel-fdn-ja',

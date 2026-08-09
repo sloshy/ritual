@@ -21,6 +21,7 @@ import {
   DEFAULT_BUYER,
   buylistFeedIsStale,
   buylistRequestFor as buildBuylistRequest,
+  isActiveOffer,
   isQuotableCard,
   quoteKey,
   type BuyerId,
@@ -230,11 +231,22 @@ export function buylistFieldsFor(
   // Both sides fall back to 0 when missing, so the spread is always a number: a
   // card with no offer is simply the worst possible deal on its retail price,
   // and one with no USD retail is measured against the offer alone.
-  const buylistPrice = quote?.buying ? quote.priceBuy : 0
+  const buylistPrice = isActiveOffer(quote) ? quote.priceBuy : 0
   return {
     buylistPrice,
     buylistSpread: roundCents(buylistPrice - retail),
-    onBuylist: quote !== undefined,
+    // "On the buylist" means the buyer will take the card *today*, not merely
+    // that their catalog lists the printing. Card Kingdom's feed carries every
+    // product they have ever sold — nearly half of it with `qtyBuying: 0` — so
+    // keying this on the quote's mere existence made the filter and the grouping
+    // pass almost every English printing, while the tile beside them showed no
+    // offer at all.
+    //
+    // Derived from the price rather than re-read from `quote.buying`, so the
+    // "true exactly when `buylistPrice > 0`" the tile badge, the buylist-price
+    // filter and `CardData.onBuylist`'s doc all rely on is a property of this
+    // line — not a claim about what a buyer's adapter happens to publish.
+    onBuylist: buylistPrice > 0,
   }
 }
 

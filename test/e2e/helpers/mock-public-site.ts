@@ -650,8 +650,10 @@ const MOCK_BAKED_FEED = {
 
 /**
  * Three cards covering every buylist outcome the UI must render: an active
- * offer, an offer the buyer has paused (on the buylist, worth nothing today),
- * and a card the buyer does not stock at all.
+ * offer, an offer the buyer has paused (a published price they are not taking
+ * today, which reads as "not on the buylist"), and a card the buyer does not
+ * stock at all. The paused one is what separates "on the buylist" meaning
+ * *actively buying* from the retired "their catalog lists it".
  */
 const MOCK_SELL_BINDER_DETAIL = {
   name: 'Sell Binder',

@@ -9,7 +9,13 @@
  * upload could actually ship.
  */
 
-import { buildCkCartCsv, roundCents, type CkCartItem, type SellCartCsv } from '../buylist'
+import {
+  buildCkCartCsv,
+  isActiveOffer,
+  roundCents,
+  type CkCartItem,
+  type SellCartCsv,
+} from '../buylist'
 import type { BuylistQuote } from '../buylist'
 import type { Finish, ScryfallCard } from '../types'
 import { isNonEnglishCard, quoteFor } from './buylist-quotes'
@@ -103,7 +109,7 @@ export function allocateSellQuantities(cards: readonly SellableCard[]): SellAllo
   const budgets = new Map<number, number>()
   return cards.map((card): SellAllocation => {
     const quote = quoteForSelection(card)
-    if (!quote || !quote.buying) return { card, quote, sellableQuantity: 0, value: 0 }
+    if (!isActiveOffer(quote)) return { card, quote, sellableQuantity: 0, value: 0 }
     const remaining = budgets.get(quote.productId) ?? quote.qtyBuying
     const sellableQuantity = Math.min(card.quantity, remaining)
     budgets.set(quote.productId, remaining - sellableQuantity)
@@ -160,7 +166,7 @@ export function summarizeSellValue(cards: readonly SellableCard[]): SellValueSum
     summary.sellableCount += allocation.sellableQuantity
     const leftover = allocation.card.quantity - allocation.sellableQuantity
     if (leftover === 0) continue
-    if (allocation.quote && allocation.quote.buying) summary.overLimitCount += leftover
+    if (isActiveOffer(allocation.quote)) summary.overLimitCount += leftover
     else if (isNonEnglishSellable(allocation.card)) summary.nonEnglishCount += leftover
     else summary.notOnBuylistCount += leftover
   }
@@ -194,19 +200,22 @@ export function sellShortfallNote(summary: SellValueSummary): string | null {
  * `ritual sell --output csv` writes for the same cards.
  */
 export function selectionToCartCsv(cards: readonly SellableCard[]): SellCartCsv {
-  const items = allocateSellQuantities(cards).flatMap(
-    ({ quote, sellableQuantity }): CkCartItem[] =>
-      quote && sellableQuantity > 0
-        ? [
-            {
-              name: quote.name,
-              edition: quote.edition,
-              variation: quote.variation,
-              finish: quote.finish,
-              quantity: sellableQuantity,
-            },
-          ]
-        : [],
+  const items = allocateSellQuantities(cards).flatMap(({ quote, sellableQuantity }): CkCartItem[] =>
+    // `isActiveOffer` rather than a truthiness check: a cart row is a promise
+    // to sell, so it must come from an offer the buyer will honor — today
+    // that is implied by `sellableQuantity > 0`, but only because the
+    // allocator zeroes paused quotes, which is not visible from here.
+    isActiveOffer(quote) && sellableQuantity > 0
+      ? [
+          {
+            name: quote.name,
+            edition: quote.edition,
+            variation: quote.variation,
+            finish: quote.finish,
+            quantity: sellableQuantity,
+          },
+        ]
+      : [],
   )
   return buildCkCartCsv(items)
 }

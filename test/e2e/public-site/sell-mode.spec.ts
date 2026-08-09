@@ -110,8 +110,8 @@ test.describe('Sell mode', () => {
 
     await enableSellMode(page)
 
-    // Only the actively-bought card gets a figure. The paused one is on the
-    // buylist but worth nothing today, so it renders like an ordinary card.
+    // Only the actively-bought card gets a figure. The paused one has a
+    // published price but no active offer, so it renders like an ordinary card.
     await expect(page.locator('.list-buylist-price')).toHaveCount(1)
     await expect(page.locator('.list-buylist-price')).toHaveText('Buy $4.00')
     // The prices came out of the list payload: a static host has nothing to
@@ -128,22 +128,23 @@ test.describe('Sell mode', () => {
     await expect(page.locator('.card-label-buylist')).toHaveText('Buy $4.00')
   })
 
-  test('the buylist filter narrows to what the buyer stocks', async ({ page }) => {
+  test('the buylist filter narrows to what the buyer will take today', async ({ page }) => {
     await gotoSellBinder(page)
     await switchToListView(page)
     await enableSellMode(page)
 
     const panel = await openFilterMenu(page)
     await buylistChip(panel, 'On buylist').click()
-    // "On buylist" includes the paused card — the buyer has the printing.
-    await expectVisibleCards(page, ['Bought Card', 'Paused Card'])
+    // "On buylist" is what the buyer will take *today*: the paused card is in
+    // their catalog but shows no offer, so it belongs with the unlisted one.
+    await expectVisibleCards(page, ['Bought Card'])
 
     await buylistChip(panel, 'Not on buylist').click()
     // Both chips selected is an OR covering every card.
     await expectVisibleCards(page, ['Bought Card', 'Paused Card', 'Unlisted Card'])
 
     await buylistChip(panel, 'On buylist').click()
-    await expectVisibleCards(page, ['Unlisted Card'])
+    await expectVisibleCards(page, ['Paused Card', 'Unlisted Card'])
   })
 
   test('the toggle reports the click before the mode itself turns on', async ({ page }) => {
@@ -327,8 +328,8 @@ test.describe('Sell mode', () => {
     // header's cart export ships — not the whole list behind it.
     const panel = await openFilterMenu(page)
     await buylistChip(panel, 'Not on buylist').click()
-    await expectVisibleCards(page, ['Unlisted Card'])
-    await expect(stats).toContainText('Buylist total: $0.00 (1 card not on buylist)')
+    await expectVisibleCards(page, ['Paused Card', 'Unlisted Card'])
+    await expect(stats).toContainText('Buylist total: $0.00 (2 cards not on buylist)')
   })
 
   test('the sell value names the copies the buyer will not take', async ({ page }) => {
@@ -404,6 +405,6 @@ test.describe('Sell mode', () => {
     await page.waitForSelector('.card-item', { timeout: 15_000 })
     await expect(page.locator(SELL_TOGGLE)).toHaveAttribute('aria-pressed', 'true')
     await switchToListView(page)
-    await expectVisibleCards(page, ['Bought Card', 'Paused Card'])
+    await expectVisibleCards(page, ['Bought Card'])
   })
 })

@@ -156,9 +156,9 @@ export interface CardData {
    */
   buylistSpread: number
   /**
-   * Whether the buyer's catalog has this printing at all — true even for a
-   * paused offer, whose `buylistPrice` is 0. Drives the on-buylist filter and
-   * grouping. Always false while sell mode is off.
+   * Whether the buyer is actively buying this printing — false for a paused
+   * offer, so this is true exactly when `buylistPrice > 0`. Drives the
+   * on-buylist filter and grouping. Always false while sell mode is off.
    */
   onBuylist: boolean
   type: string
@@ -430,8 +430,8 @@ const PRINTING_SPECIFIC_KEY = 'Specific Printing'
 const PRINTING_ANY_KEY = 'Any Printing'
 const PRINTING_ORDER = [PRINTING_SPECIFIC_KEY, PRINTING_ANY_KEY]
 
-// Group keys for the 'on-buylist' grouping. "On" means the buyer's catalog has
-// the printing, whether or not they are currently buying it.
+// Group keys for the 'on-buylist' grouping. "On" means the buyer is currently
+// buying the printing; a paused offer groups under "Not on Buylist".
 const BUYLIST_ON_KEY = 'On Buylist'
 const BUYLIST_OFF_KEY = 'Not on Buylist'
 const BUYLIST_ORDER = [BUYLIST_ON_KEY, BUYLIST_OFF_KEY]

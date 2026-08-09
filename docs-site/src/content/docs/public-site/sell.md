@@ -106,7 +106,8 @@ Turn on **Sell mode** in the list toolbar. It adds:
   `[ja]`-style [language token](/commands/edit/#card-language)) never carry a quote — the feed is
   English-only, and quoting the English price for a foreign copy would overstate it.
 - **A Buylist filter** in the filter menu: `On buylist` / `Not on buylist`. The two chips combine
-  (selecting both, or neither, matches everything).
+  (selecting both, or neither, matches everything). "On buylist" means the buyer is _actively_
+  buying the printing — a paused offer counts as "not on buylist", matching what the card shows.
 - **A Buylist ($) threshold** in the filter menu, working like the Price filter but against the
   buyer's per-copy offer. It is always in dollars whatever currency the page displays, so unlike
   the Price filter it survives a currency switch. A card with no active offer never matches it,

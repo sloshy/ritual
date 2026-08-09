@@ -936,13 +936,6 @@ describe('buylist filter', () => {
     expect(filterCards(all, makeFilters({ onBuylist: ['on', 'off'] }))).toEqual(all)
   })
 
-  test('a paused offer still counts as on the buylist', () => {
-    // `onBuylist` means the buyer has the printing at all; `buylistPrice` is 0
-    // when they are not currently buying it.
-    const paused = makeCard({ name: 'Paused', onBuylist: true, buylistPrice: 0 })
-    expect(filterCards([paused], makeFilters({ onBuylist: ['on'] }))).toEqual([paused])
-  })
-
   test('counts as one active filter', () => {
     expect(countActiveFilters(makeFilters({ onBuylist: ['on'] }))).toBe(1)
   })
@@ -974,7 +967,9 @@ describe('parseBuylistParam', () => {
 describe('buylist price filter', () => {
   const cheap = makeCard({ name: 'Cheap', buylistPrice: 0.5, onBuylist: true })
   const dear = makeCard({ name: 'Dear', buylistPrice: 8, onBuylist: true })
-  const noOffer = makeCard({ name: 'No Offer', buylistPrice: 0, onBuylist: true })
+  // `onBuylist` is true exactly when `buylistPrice > 0`, so a card with no
+  // active offer is off the buylist by construction.
+  const noOffer = makeCard({ name: 'No Offer', buylistPrice: 0, onBuylist: false })
   const all = [cheap, dear, noOffer]
 
   test('inactive when null', () => {

@@ -261,7 +261,7 @@ describe('buylistFieldsFor', () => {
     })
   })
 
-  test('a paused offer is on the buylist but worth nothing', async () => {
+  test('a paused offer does not count as being on the buylist', async () => {
     await seedQuotes([{ key: 'dsk:5:nonfoil', productId: 10, priceBuy: 9, qtyBuying: 0 }])
     setSellModeActive(true)
     const paused = makeScryfallCard({
@@ -273,7 +273,11 @@ describe('buylistFieldsFor', () => {
 
     expect(buylistFieldsFor(paused, 'nonfoil')).toMatchObject({
       buylistPrice: 0,
-      onBuylist: true,
+      // Card Kingdom's feed carries every product they have ever sold, ~45% of
+      // it paused. Counting a mere catalog entry as "on the buylist" made the
+      // filter and the grouping pass nearly every English printing while the
+      // tile beside them showed no offer at all.
+      onBuylist: false,
       // A paused offer is not money you can get today, so it counts as 0 on the
       // buylist side of the spread — leaving the card's retail price as a loss.
       buylistSpread: -3,

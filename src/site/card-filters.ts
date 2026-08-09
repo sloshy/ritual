@@ -38,7 +38,8 @@ function isExclusiveLabelOption(option: LabelFilterOption): boolean {
 /**
  * One selectable chip in the buylist filter. Symmetric on purpose: "not on
  * buylist" answers "what will the buyer *not* take", which is as useful when
- * deciding what to sell as knowing what they will.
+ * deciding what to sell as knowing what they will. A paused offer counts as
+ * "not on buylist" — see `CardData.onBuylist`.
  */
 export type BuylistFilterOption = 'on' | 'off'
 
@@ -169,7 +170,7 @@ export interface CardFilters {
   labels: LabelFilterOption[]
   /**
    * Selected buylist chips, matched with OR semantics against whether the buyer
-   * has a product for the card. Empty = no buylist filtering. Only reachable in
+   * is currently buying the card. Empty = no buylist filtering. Only reachable in
    * sell mode; `useListViewUrlSync` drops the URL param on pages that do not
    * support it, so a shared link cannot leave a list filtered by a control the
    * page never shows.

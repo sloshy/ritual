@@ -7,7 +7,7 @@
  * the same card.
  */
 
-import type { BuylistQuote, BuylistQuoteRequest } from '../buylist'
+import type { BuylistQuote, BuylistQuoteBase, BuylistQuoteRequest } from '../buylist'
 import { displayLanguage } from '../card-language'
 import {
   lookupSkuPrinting,
@@ -74,10 +74,9 @@ export function toBuylistQuote(
   feed: Pick<CardKingdomFeed, 'baseUrl'>,
 ): BuylistQuote {
   const { product } = match
-  return {
+  const base: BuylistQuoteBase = {
     priceBuy: product.priceBuy,
     qtyBuying: product.qtyBuying,
-    buying: productIsBuying(product),
     finish: product.finish,
     matchVia,
     ambiguous: match.ambiguous ? true : undefined,
@@ -87,6 +86,10 @@ export function toBuylistQuote(
     variation: product.variation === '' ? undefined : product.variation,
     url: productUrl(feed, product),
   }
+  // Branching rather than `buying: productIsBuying(product)`: the discriminant
+  // has to be a literal for the union to narrow, and this is the one place the
+  // feed's rule becomes the wire's.
+  return productIsBuying(product) ? { ...base, buying: true } : { ...base, buying: false }
 }
 
 /** A chosen product together with the join key that located it. */

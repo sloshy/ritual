@@ -24,6 +24,9 @@ export function detailBuylistContext(
 ): DetailBuylistContext {
   return {
     buyer,
+    // Paused products are quoted like any other: presence in the baked map is
+    // catalog membership, which is a different question from `CardData.onBuylist`
+    // ("will they take a copy today"). See `BakedBuylistQuotes.quotes`.
     quote: (printing) => quoteForPrinting(loaded.index, loaded.file.feed, printing),
     feedCreatedAt: loaded.file.feed.createdAt,
     feedRetrievedAt: loaded.file.retrievedAt,

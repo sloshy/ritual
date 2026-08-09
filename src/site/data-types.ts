@@ -15,8 +15,18 @@ export type BakedBuylistQuotes = BuylistFeedProvenance & {
   /**
    * Sparse, keyed by `quoteKey(set, collectorNumber, finish)`: only printings
    * the buyer has a product for appear. An empty map means the list was quoted
-   * and nothing on it is on the buylist — distinct from an absent
+   * and the buyer's catalog carries none of it — distinct from an absent
    * {@link BakedBuylist}, which means nothing was quoted at all.
+   *
+   * Presence here is *catalog membership*, deliberately not the same question as
+   * `CardData.onBuylist`, which asks whether the buyer will take a copy today
+   * (`buying`, i.e. at least one slot at a nonzero price). Paused entries are
+   * baked on purpose: roughly half of Card Kingdom's feed is paused at any time,
+   * and dropping those keys would throw away the only record that the buyer
+   * stocks the printing at all — the difference between "they don't deal in
+   * this card" and "they're full on it right now". It also keeps the map's
+   * meaning identical to the live `/api/buylist/quotes` response, so the baked
+   * and quoted paths cannot answer the same key differently.
    */
   quotes: Record<string, BuylistQuote>
 }

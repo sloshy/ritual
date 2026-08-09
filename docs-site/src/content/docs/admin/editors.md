@@ -41,7 +41,7 @@ The list toolbar (shared with the public site pages) groups all card filters und
 - **Labels** — collection pages only; chips for **For Sale** / **For Trade** / **To Keep** / **Unlabeled**, matched against each card's effective [labels](#card-labels) (see the public-site [filtering](/public-site/filtering/#available-filters) page for the selection rules)
 - **Mana Value** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against a non-negative value (0 is valid)
 - **Buylist ($)** — sell mode only; a comparison against the buyer's per-copy offer, always in dollars
-- **Buylist** — sell mode only; chips for **On buylist** / **Not on buylist**, matched against whether the selected buyer stocks the card's printing (see [sell mode](/public-site/sell/))
+- **Buylist** — sell mode only; chips for **On buylist** / **Not on buylist**, matched against whether the selected buyer is currently buying the card's printing — a paused offer counts as **Not on buylist** (see [sell mode](/public-site/sell/))
 
 Filters combine, and the **Clear** action at the top of the panel resets everything. On deck pages the commander section is never filtered.
 

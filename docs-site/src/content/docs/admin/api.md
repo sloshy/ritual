@@ -807,9 +807,11 @@ request.
 }
 ```
 
-`quotes` is **sparse**: a requested printing the buyer has no product for is simply absent, which
-means "not on the buylist". `buying` is false when Card Kingdom publishes a price but has paused
-buying (`qtyBuying: 0`) — that is not money you can get today, so treat it as no offer.
+`quotes` is **sparse**: a requested printing the buyer has no product for is simply absent.
+`buying` is false when Card Kingdom publishes a price but has paused buying (`qtyBuying: 0`) —
+that is not money you can get today, so treat it as no offer. Both cases read as "not on the
+buylist", which is the rule the sites' **On buylist** chip and grouping use: roughly half of CK's
+catalog is paused at any time, so a present quote is not by itself an offer.
 `variation` is CK's variant note for the matched product, present only when they publish one; a
 client rendering a [cart CSV](#sell-cart) row builds CK's listed title from `name (variation)`.
 

@@ -530,13 +530,12 @@ describe('groupTotalPrice', () => {
 
 describe('buylist grouping and sorting', () => {
   const listed = makeCard({ name: 'Listed', buylistPrice: 7.5, onBuylist: true })
-  const paused = makeCard({ name: 'Paused', buylistPrice: 0, onBuylist: true })
   const unlisted = makeCard({ name: 'Unlisted', buylistPrice: 0, onBuylist: false })
 
-  test('on-buylist grouping puts listed cards first, paused ones with them', () => {
-    const groups = groupAndSortCards([unlisted, listed, paused], 'on-buylist', sl('name'), [])
+  test('on-buylist grouping puts the cards the buyer will take first', () => {
+    const groups = groupAndSortCards([unlisted, listed], 'on-buylist', sl('name'), [])
     expect(groups.map((g) => [g.key, g.cards.map((c) => c.name)])).toEqual([
-      ['On Buylist', ['Listed', 'Paused']],
+      ['On Buylist', ['Listed']],
       ['Not on Buylist', ['Unlisted']],
     ])
   })
@@ -566,9 +565,21 @@ describe('buylist grouping and sorting', () => {
 
 describe('buylist spread sorting', () => {
   // Spread is the buyer's offer minus USD retail: 0 means they pay retail.
-  const overRetail = makeCard({ name: 'Over', buylistSpread: 1.5, onBuylist: true })
-  const nearRetail = makeCard({ name: 'Near', buylistSpread: -0.25, onBuylist: true })
-  const wellUnder = makeCard({ name: 'Under', buylistSpread: -9, onBuylist: true })
+  // A nonzero spread implies an offer, so each carries the price that produced
+  // it: `onBuylist` is true exactly when `buylistPrice > 0`.
+  const overRetail = makeCard({
+    name: 'Over',
+    buylistPrice: 11.5,
+    buylistSpread: 1.5,
+    onBuylist: true,
+  })
+  const nearRetail = makeCard({
+    name: 'Near',
+    buylistPrice: 9.75,
+    buylistSpread: -0.25,
+    onBuylist: true,
+  })
+  const wellUnder = makeCard({ name: 'Under', buylistPrice: 1, buylistSpread: -9, onBuylist: true })
   const atRetail = makeCard({ name: 'Even', buylistSpread: 0 })
 
   test('sorts ascending, with a zero spread landing where its arithmetic puts it', () => {
