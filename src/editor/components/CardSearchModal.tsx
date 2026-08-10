@@ -138,6 +138,9 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   const tSegments = useTSegments()
   const [step, setStep] = createSignal<Step>('search')
 
+  /** Whether this opening of the dialog is a change-printing flow. See {@link isAddFlow}. */
+  const [changePrintingMode, setChangePrintingMode] = createSignal(false)
+
   // Step 1: Search
   const [query, setQuery] = createSignal('')
   const [results, setResults] = createSignal<string[]>([])
@@ -327,6 +330,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
         resetToSearch()
         // "Change printing" mode: jump straight to the printing step for the
         // already-known card instead of showing the search step.
+        setChangePrintingMode(Boolean(props.initialCardName))
         if (props.initialCardName) {
           void selectCardName(props.initialCardName)
         }
@@ -630,10 +634,16 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   /**
    * True in the normal add flow, false in change-printing mode (which reuses this
    * dialog to re-target an existing card). Both extras of the finish/condition
-   * step hang off it: there is no "another" card to add when editing one, and the
-   * copy count was already answered by the quantity prompt that opened the flow.
+   * step hang off it, along with the commit button's wording: there is no
+   * "another" card to add when editing one, and the copy count was already
+   * answered by the quantity prompt that opened the flow.
+   *
+   * Latched when the dialog opens rather than read live off `initialCardName`:
+   * the parent clears that prop as part of closing, and the dialog stays mounted
+   * through its exit animation — reading it live would visibly flip the closing
+   * dialog back to add-card chrome mid-fade.
    */
-  const isAddFlow = () => !props.initialCardName
+  const isAddFlow = () => !changePrintingMode()
   const canAddAnother = isAddFlow
   const usesQuantity = isAddFlow
 
@@ -858,7 +868,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       size="lg"
       placement="top"
       panelClass="search-modal"
-      aria-label={t('ui.addCard.title')}
+      aria-label={t(isAddFlow() ? 'ui.addCard.title' : 'ui.editor.changePrintingTitle')}
       panelRef={(el) => (modalRef = el)}
       overlay={
         <Show when={previewCard() && step() === 'search'}>
@@ -1144,7 +1154,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
 
                 <div class="add-card-actions">
                   <button onClick={() => handleAddWithOptions()} class="btn-add-card">
-                    {t('ui.addCard.add')}
+                    {t(isAddFlow() ? 'ui.addCard.add' : 'ui.addCard.update')}
                     {quantityBadge()}
                     <span class="btn-key-hint" aria-hidden="true">
                       <KeyChips keys={['Enter']} />

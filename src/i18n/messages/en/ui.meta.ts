@@ -420,6 +420,11 @@ export const uiMeta = {
     description: 'Button committing the card and closing the dialog.',
     maxLen: 20,
   },
+  'ui.addCard.update': {
+    description:
+      'Button committing the change and closing the dialog, in the change-printing flow where the card already exists in the list and only its printing is being re-targeted.',
+    maxLen: 20,
+  },
   'ui.addCard.addAnother': {
     description: 'Button committing the card and restarting the dialog for the next one.',
     maxLen: 24,

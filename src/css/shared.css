@@ -99,7 +99,7 @@
   align-items: center;
   gap: 4px;
 
-  &:hover {
+  &:hover:not(:disabled, [aria-disabled='true']) {
     background: var(--btn-hover);
     color: var(--text-primary);
   }
@@ -108,6 +108,14 @@
     background: var(--bg-active);
     color: var(--text-primary);
     border-color: var(--border-hover);
+  }
+
+  /* Toggles that are locked rather than removed. `aria-disabled` keeps them
+     hoverable and focusable so the `title` explaining the lock is reachable. */
+  &:disabled,
+  &[aria-disabled='true'] {
+    opacity: 0.35;
+    cursor: default;
   }
 }
 

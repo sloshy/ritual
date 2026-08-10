@@ -241,7 +241,15 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     filters: cardFilters,
     defaults: { groupBy: 'type', sortBy: 'name' },
   })
-  const [lowestPrice, setLowestPrice] = createSignal(false)
+  const [lowestPriceRequested, setLowestPriceRequested] = createSignal(false)
+  /**
+   * "Lowest Price" re-targets every entry at the cheapest printing of its card,
+   * which is the opposite of what editing does — the edit surface acts on the
+   * printing each entry actually names (change-printing, per-printing quantity).
+   * Editing therefore forces the view back to the real printings and locks the
+   * toggle out rather than silently letting the two fight.
+   */
+  const lowestPrice = (): boolean => !props.editMode && lowestPriceRequested()
   const [missingCardsExpanded, setMissingCardsExpanded] = createSignal(false)
   const [showChangelog, setShowChangelog] = createSignal(false)
 
@@ -810,7 +818,10 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
                 {
                   label: t('site.deck.lowestPrice'),
                   checked: lowestPrice(),
-                  onChange: () => setLowestPrice((prev) => !prev),
+                  onChange: () => setLowestPriceRequested((prev) => !prev),
+                  locked: props.editMode
+                    ? { reason: t('site.deck.lowestPriceEditDisabled') }
+                    : undefined,
                 },
               ]
             : undefined

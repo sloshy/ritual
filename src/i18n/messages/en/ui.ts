@@ -238,6 +238,7 @@ export const uiMessages = {
   'ui.addCard.finishConditionHeading': 'Set finish & condition for {name} ({set}:{number})',
   'ui.addCard.quantityToAdd': 'Quantity to add',
   'ui.addCard.add': 'Add Card',
+  'ui.addCard.update': 'Update Card',
   'ui.addCard.addAnother': 'Add Another Card',
   'ui.addCard.sourceNote': 'Search uses the {link} — results may differ from the admin editor.',
   'ui.addCard.scryfallApi': 'Scryfall API',

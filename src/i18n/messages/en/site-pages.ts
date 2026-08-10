@@ -69,6 +69,8 @@ export const sitePagesMessages = {
   'site.deck.importedFrom': 'Imported from {source} ↗',
   'site.deck.sourceGeneric': 'Source',
   'site.deck.lowestPrice': 'Lowest Price',
+  'site.deck.lowestPriceEditDisabled':
+    'Unavailable while editing — the deck shows its own printings.',
   'site.deck.hasPrimer': 'This deck has a primer.',
   'site.deck.readMore': 'Read more',
   'site.deck.showLess': 'Show less',

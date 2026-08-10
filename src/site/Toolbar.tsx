@@ -21,10 +21,18 @@ import { BUYERS, buyerName, parseBuyerId, type BuyerId } from '../buylist'
 import type { MessageKey } from '../i18n/messages/en'
 import { useI18n } from '../ui/i18n'
 
+/** Present on an {@link ExtraToggle} ⇒ it is inert, for the reason it carries. */
+type ExtraToggleLock = {
+  /** Shown as the toggle's `title`, explaining why it cannot be used. */
+  reason: string
+}
+
 type ExtraToggle = {
   label: string
   checked: boolean
   onChange: () => void
+  /** Set to lock the toggle: the state it controls is unavailable right now. */
+  locked?: ExtraToggleLock
 }
 
 /** One row of the sell-mode buyer dropdown, with its name already rendered. */
@@ -426,22 +434,32 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
     </Show>
   )
 
+  // Index, not For: the array is rebuilt on every toggle, so a keyed For would
+  // destroy and recreate the button on each click — dropping focus and
+  // re-announcing the control instead of changing its state.
   const extraToggleButtons = () => (
     <Show when={props.extraToggles}>
       {(toggles) => (
-        <For each={toggles()}>
-          {(t) => (
+        <Index each={toggles()}>
+          {(toggle) => (
             <button
               type="button"
               class="toolbar-toggle"
-              classList={{ active: t.checked }}
-              aria-pressed={t.checked}
-              onClick={t.onChange}
+              classList={{ active: toggle().checked }}
+              aria-pressed={toggle().checked}
+              // aria-disabled, not the native attribute: a `disabled` button takes
+              // no pointer or focus events, so its `title` never surfaces and the
+              // reason it is locked becomes undiscoverable.
+              aria-disabled={Boolean(toggle().locked)}
+              title={toggle().locked?.reason}
+              onClick={() => {
+                if (!toggle().locked) toggle().onChange()
+              }}
             >
-              {t.label}
+              {toggle().label}
             </button>
           )}
-        </For>
+        </Index>
       )}
     </Show>
   )

@@ -234,6 +234,24 @@ const MOCK_SCRYFALL_CREATURE_FOIL_ONLY = makeMockScryfallCard({
   edhrec_rank: 1000,
 })
 
+/**
+ * A third, markedly cheaper printing of Test Creature. The deck pins the $1.00
+ * TST printing, so this is what the "Lowest Price" toggle substitutes in — the
+ * price gap is how a test tells the toggle actually did something.
+ */
+const MOCK_SCRYFALL_CREATURE_CHEAP = makeMockScryfallCard({
+  id: 'creature-cheap-id',
+  name: 'Test Creature',
+  cmc: 2,
+  type_line: 'Creature — Human',
+  mana_cost: '{1}{W}',
+  prices: { usd: '0.10' },
+  set: 'chp',
+  collector_number: '9',
+  color_identity: ['W'],
+  edhrec_rank: 1000,
+})
+
 const MOCK_SCRYFALL_CREATURE_B = makeMockScryfallCard({
   id: 'creature-b-id',
   name: 'Alpha Creature',
@@ -292,10 +310,23 @@ const MOCK_MULTI_SECTION_DECK = {
     'Test Artifact': MOCK_SCRYFALL_ARTIFACT,
   },
   printings: {
-    'Test Creature': [MOCK_SCRYFALL_CREATURE, MOCK_SCRYFALL_CREATURE_FOIL_ONLY],
+    'Test Creature': [
+      MOCK_SCRYFALL_CREATURE,
+      MOCK_SCRYFALL_CREATURE_FOIL_ONLY,
+      MOCK_SCRYFALL_CREATURE_CHEAP,
+    ],
     'Alpha Creature': [MOCK_SCRYFALL_CREATURE_B],
     'Test Instant': [MOCK_SCRYFALL_INSTANT],
     'Test Artifact': [MOCK_SCRYFALL_ARTIFACT],
+  },
+  // Present so the "Lowest Price" toolbar toggle renders at all. Only Test
+  // Creature has a cheaper printing than the one the deck pins, so it is the
+  // one entry whose tile visibly changes when the toggle is on.
+  lowestPriceCards: {
+    'Test Creature': MOCK_SCRYFALL_CREATURE_CHEAP,
+    'Alpha Creature': MOCK_SCRYFALL_CREATURE_B,
+    'Test Instant': MOCK_SCRYFALL_INSTANT,
+    'Test Artifact': MOCK_SCRYFALL_ARTIFACT,
   },
   symbolMap: {},
   useScryfallImgUrls: false,

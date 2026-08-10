@@ -43,6 +43,43 @@ test.describe('Public deck editor', () => {
     await expect(editBtn).toContainText('Edit')
   })
 
+  test('the Lowest Price toggle substitutes printings, and is locked while editing', async ({
+    page,
+  }) => {
+    const toggle = page.locator('.toolbar button.toolbar-toggle', { hasText: 'Lowest Price' })
+    const creature = page.locator('.card-item').filter({ hasText: 'Test Creature' }).first()
+
+    // Read-only view: the deck's pinned TST printing, then the cheaper CHP one.
+    await expect(creature).toContainText('1.00')
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    await expect(creature).toContainText('0.10')
+
+    // Editing acts on the printing each entry actually names, so entering edit
+    // mode drops the substitution and locks the toggle out.
+    await enterEditMode(page)
+    await expect(toggle).toHaveAttribute('aria-disabled', 'true')
+    await expect(toggle).toHaveAttribute('title', /Unavailable while editing/)
+    await expect(page.locator('.card-item').filter({ hasText: 'Test Creature' })).toContainText(
+      '1.00',
+    )
+
+    // Forcing a click past the aria-disabled actionability check must still not
+    // turn the substitution back on — the handler itself refuses.
+    await toggle.click({ force: true })
+    await expect(page.locator('.card-item').filter({ hasText: 'Test Creature' })).toContainText(
+      '1.00',
+    )
+
+    // Leaving edit mode unlocks it again.
+    await page.locator('.btn-edit', { hasText: 'Done' }).click()
+    await expect(toggle).toHaveAttribute('aria-disabled', 'false')
+    await toggle.click()
+    await expect(page.locator('.card-item').filter({ hasText: 'Test Creature' })).toContainText(
+      '0.10',
+    )
+  })
+
   test('add-card search discloses its Scryfall backend', async ({ page }) => {
     // The public editor searches Scryfall directly (contiguous-string matching)
     // rather than the admin's local-cache term matching, so its search step

@@ -179,6 +179,10 @@ export const sitePagesMeta = {
       'Toolbar toggle that swaps each card for its cheapest printing rather than the one the deck pins.',
     maxLen: 20,
   },
+  'site.deck.lowestPriceEditDisabled': {
+    description:
+      'Hover tooltip on the disabled "Lowest Price" toolbar toggle, explaining that edit mode pins the view to the printings the deck actually names.',
+  },
   'site.deck.hasPrimer': {
     description:
       'Teaser shown when a deck has a long-form primer that is currently collapsed. A "primer" is a written deck guide.',

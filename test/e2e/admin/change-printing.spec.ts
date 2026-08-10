@@ -1,35 +1,60 @@
 import { test, expect } from '@playwright/test'
-import type { ScryfallCard } from '../../../src/types'
+import type { Finish, ScryfallCard } from '../../../src/types'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
 import { disableSearchDebounce } from '../helpers/search-modal'
 
+type BoltPrintingSpec = {
+  set: string
+  setName: string
+  collectorNumber: string
+  usd: string
+  /** Defaults to nonfoil-only, which auto-resolves the finish step away. */
+  finishes?: Finish[]
+}
+
 /** Build a synthetic Scryfall printing for Lightning Bolt with a given USD price. */
-function boltPrinting(
-  set: string,
-  setName: string,
-  collectorNumber: string,
-  usd: string,
-): ScryfallCard {
+function boltPrinting(spec: BoltPrintingSpec): ScryfallCard {
   return makeMockScryfallCard({
-    id: `bolt-${set}`,
+    id: `bolt-${spec.set}`,
     name: 'Lightning Bolt',
     cmc: 1,
     type_line: 'Instant',
     oracle_text: 'Lightning Bolt deals 3 damage to any target.',
-    prices: { usd, eur: '0.80' },
-    set,
-    set_name: setName,
-    collector_number: collectorNumber,
+    prices: { usd: spec.usd, eur: '0.80' },
+    set: spec.set,
+    set_name: spec.setName,
+    collector_number: spec.collectorNumber,
     color_identity: ['R'],
+    finishes: spec.finishes ?? ['nonfoil'],
   })
 }
 
 // Distinct prices so we can assert the rendered card reflects the chosen printing.
-const LEA_BOLT = boltPrinting('lea', 'Limited Edition Alpha', '161', '1.00')
-const M10_BOLT = boltPrinting('m10', 'Magic 2010', '146', '2.50')
+const LEA_BOLT = boltPrinting({
+  set: 'lea',
+  setName: 'Limited Edition Alpha',
+  collectorNumber: '161',
+  usd: '1.00',
+})
+const M10_BOLT = boltPrinting({
+  set: 'm10',
+  setName: 'Magic 2010',
+  collectorNumber: '146',
+  usd: '2.50',
+})
+// Offers both finishes, so picking it cannot auto-resolve and the flow stops on
+// the finish/condition step — the only step with a commit button to inspect.
+// (The identifier leads with a letter; the set code itself is `2xm`.)
+const XM2_BOLT = boltPrinting({
+  set: '2xm',
+  setName: 'Double Masters',
+  collectorNumber: '129',
+  usd: '3.75',
+  finishes: ['nonfoil', 'foil'],
+})
 
 test.describe('Deck Editor — change printing', () => {
   test.beforeEach(async ({ page }) => {
@@ -65,7 +90,7 @@ test.describe('Deck Editor — change printing', () => {
         ],
       },
       cards: { 'Lightning Bolt': LEA_BOLT },
-      printings: { 'Lightning Bolt': [LEA_BOLT, M10_BOLT] },
+      printings: { 'Lightning Bolt': [LEA_BOLT, M10_BOLT, XM2_BOLT] },
       lowestPriceCards: { 'Lightning Bolt': LEA_BOLT },
       lowestPriceCardsEur: { 'Lightning Bolt': LEA_BOLT },
       lowestPriceCardsTix: {},
@@ -75,7 +100,7 @@ test.describe('Deck Editor — change printing', () => {
 
     await fulfillJson(page, '**/api/card-printings*', {
       success: true,
-      printings: [LEA_BOLT, M10_BOLT],
+      printings: [LEA_BOLT, M10_BOLT, XM2_BOLT],
     })
 
     await openListEditor(page, 'deck')
@@ -157,6 +182,35 @@ test.describe('Deck Editor — change printing', () => {
     const changes = page.locator('.changes-modal .changes-dialog')
     await expect(changes).toContainText('Remove Lightning Bolt')
     await expect(changes).toContainText('Add Lightning Bolt (M10:146)')
+  })
+
+  test('the finish step commits with "Update Card", not the add-flow buttons', async ({ page }) => {
+    await openChangePrinting(page)
+
+    await page.locator('#change-printing-qty').waitFor({ state: 'visible' })
+    await page.locator('.modal-panel button', { hasText: 'Continue' }).click()
+
+    // The dialog names itself for the flow it is actually running.
+    await expect(page.getByRole('dialog', { name: 'Change printing' })).toBeVisible()
+
+    // 2XM offers both finishes, so the flow stops on the finish/condition step.
+    await page.locator('.printing-select-card', { hasText: '2XM' }).click()
+    const actions = page.locator('.add-card-actions')
+    await expect(actions).toBeVisible()
+
+    // The card already exists — this re-targets its printing rather than adding,
+    // so there is no "Add Another Card" and no copy count to answer (the quantity
+    // prompt that opened the flow already did that).
+    await expect(actions.locator('button')).toHaveCount(1)
+    await expect(actions.locator('button')).toHaveText(/Update Card/)
+    await expect(page.locator('#add-card-qty')).toHaveCount(0)
+
+    await actions.locator('button').click()
+    await expect(page.locator('.changes-badge')).toHaveText('1')
+    await page.locator('.btn-changes').click()
+    await expect(page.locator('.changes-modal .changes-dialog')).toContainText(
+      'Set Lightning Bolt printing to 2XM:129',
+    )
   })
 
   test('cancelling the quantity prompt aborts without opening the printing picker', async ({
