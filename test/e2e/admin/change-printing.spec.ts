@@ -4,6 +4,7 @@ import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
+import { selectCard } from '../helpers/list-ui'
 import { disableSearchDebounce } from '../helpers/search-modal'
 
 type BoltPrintingSpec = {
@@ -230,5 +231,122 @@ test.describe('Deck Editor — change printing', () => {
     await expect(qtyInput).toBeHidden()
     await expect(page.locator('.modal-heading-flex')).toHaveCount(0)
     await expect(page.locator('.changes-badge')).toHaveCount(0)
+  })
+})
+
+/** One card of the bulk deck: a pinned TST printing and a PLN one to switch to. */
+function bulkPrintings(name: string, collectorNumber: string): ScryfallCard[] {
+  const base = { name, cmc: 1, type_line: 'Instant', color_identity: ['R'] }
+  return [
+    makeMockScryfallCard({
+      ...base,
+      id: `${collectorNumber}-tst`,
+      prices: { usd: '1.00' },
+      set: 'tst',
+      set_name: 'Test Set',
+      collector_number: collectorNumber,
+    }),
+    makeMockScryfallCard({
+      ...base,
+      id: `${collectorNumber}-pln`,
+      prices: { usd: '9.00' },
+      set: 'pln',
+      set_name: 'Plane Set',
+      collector_number: collectorNumber,
+    }),
+  ]
+}
+
+const BULK_CARDS = ['Bulk Bolt', 'Bulk Shock', 'Bulk Growth']
+const BULK_PRINTINGS: Record<string, ScryfallCard[]> = Object.fromEntries(
+  BULK_CARDS.map((name, i) => [name, bulkPrintings(name, String(i + 1))]),
+)
+
+test.describe('Deck Editor — bulk change printing', () => {
+  test.beforeEach(async ({ page }) => {
+    await disableSearchDebounce(page)
+    await gotoAdminDashboard(page)
+
+    await fulfillJson(
+      page,
+      '**/api/decks',
+      { decks: [{ slug: 'test-bulk-printing', name: 'Bulk Printing Deck' }] },
+      { method: 'GET' },
+    )
+
+    await fulfillJson(page, '**/api/deck/test-bulk-printing', {
+      success: true,
+      slug: 'test-bulk-printing',
+      contentHash: 'hash-1',
+      deck: {
+        name: 'Bulk Printing Deck',
+        sections: [
+          {
+            name: 'Main',
+            // One copy each, so no card stops the run on the quantity prompt.
+            cards: BULK_CARDS.map((name, i) => ({
+              quantity: 1,
+              name,
+              set: 'tst',
+              collectorNumber: String(i + 1),
+              cardId: i + 1,
+            })),
+          },
+        ],
+      },
+      cards: Object.fromEntries(BULK_CARDS.map((name) => [name, BULK_PRINTINGS[name]![0]])),
+      printings: BULK_PRINTINGS,
+      lowestPriceCards: {},
+      lowestPriceCardsEur: {},
+      lowestPriceCardsTix: {},
+      symbolMap: {},
+      frontMatter: {},
+    })
+
+    await fulfillJson(page, '**/api/card-printings*', (route) => ({
+      success: true,
+      printings:
+        BULK_PRINTINGS[new URL(route.request().url()).searchParams.get('name') ?? ''] ?? [],
+    }))
+
+    await openListEditor(page, 'deck')
+    await page.waitForFunction(() => (document.querySelector('select')?.options.length ?? 0) > 1, {
+      timeout: 10_000,
+    })
+    await page.locator('select').first().selectOption('test-bulk-printing')
+    await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+  })
+
+  test('a bulk run prompts for every selected card, skipping none', async ({ page }) => {
+    for (let i = 0; i < BULK_CARDS.length; i++) await selectCard(page, i)
+    await expect(page.locator('.selection-menu-btn')).toHaveText(/Selected \(3\)/)
+
+    await page.locator('.selection-menu-btn').click()
+    await page
+      .locator('.selection-menu-panel .selection-menu-item', { hasText: 'Change Printing' })
+      .click()
+
+    // Each committed card must hand the run to the *next* one — a queue that
+    // advances twice per commit would silently drop every other card. The run
+    // follows the deck's display order, so collect the names rather than
+    // assuming one.
+    const heading = page.locator('.modal-heading-flex')
+    const prompted: string[] = []
+    for (let i = 0; i < BULK_CARDS.length; i++) {
+      await expect(heading).toContainText('Select a printing for')
+      prompted.push((await heading.textContent())!.replace('Select a printing for ', '').trim())
+      await page.locator('.printing-select-card', { hasText: 'PLN' }).click()
+    }
+    expect(prompted.toSorted()).toEqual([...BULK_CARDS].toSorted())
+
+    // The picker closes on its own after the last card, and all three landed.
+    await expect(page.locator('.modal-heading-flex')).toHaveCount(0)
+    await expect(page.locator('.changes-badge')).toHaveText('3')
+
+    await page.locator('.btn-changes').click()
+    const changes = page.locator('.changes-modal .changes-dialog')
+    for (const [i, name] of BULK_CARDS.entries()) {
+      await expect(changes).toContainText(`Set ${name} printing to PLN:${i + 1}`)
+    }
   })
 })

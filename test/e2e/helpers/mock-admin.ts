@@ -762,6 +762,26 @@ const MOVE_BOLT_CARD = makeMockScryfallCard({
   released_at: '1993-08-05',
 })
 
+/**
+ * A deck card held with no printing, in two copies. Moving it into a collection
+ * has to ask for a printing (collections require one) and then for a copy count
+ * — the one flow where both prompts run back to back.
+ */
+const MOVE_GROWTH_PRINTINGS = ['tst', 'pln'].map((set) =>
+  makeMockScryfallCard({
+    id: `move-growth-${set}`,
+    name: 'Giant Growth',
+    cmc: 1,
+    type_line: 'Instant',
+    mana_cost: '{G}',
+    prices: { usd: '0.25' },
+    set,
+    set_name: set === 'tst' ? 'Test Set' : 'Plane Set',
+    collector_number: '7',
+    color_identity: ['G'],
+  }),
+)
+
 const MOVE_LISTS: ListInfo[] = [
   { type: 'deck', slug: 'move-deck', name: 'Move Deck' },
   { type: 'collection', slug: 'move-binder', name: 'Move Binder' },
@@ -784,6 +804,15 @@ const MOVE_DATA = {
       cardId: 1,
       copyIndex: 0,
     },
+    // Both physical copies of the deck's one printing-less Giant Growth entry.
+    ...[0, 1].map((copyIndex) => ({
+      key: `deck:move-deck:5:${copyIndex}`,
+      listType: 'deck' as const,
+      listSlug: 'move-deck',
+      name: 'Giant Growth',
+      cardId: 5,
+      copyIndex,
+    })),
   ],
   warnings: [],
 } satisfies CardIndexResponse
@@ -837,9 +866,12 @@ export async function mockMoveCardsApi(
   const deck: DeckFullLoadResult = {
     success: true,
     view: 'full',
-    deck: { name: 'Move Deck', sections: [{ name: 'Main', cards: [] }] },
-    cards: {},
-    printings: {},
+    deck: {
+      name: 'Move Deck',
+      sections: [{ name: 'Main', cards: [{ quantity: 2, name: 'Giant Growth', cardId: 5 }] }],
+    },
+    cards: { 'Giant Growth': MOVE_GROWTH_PRINTINGS[0]! },
+    printings: { 'Giant Growth': MOVE_GROWTH_PRINTINGS },
     lowestPriceCards: {},
     lowestPriceCardsEur: {},
     lowestPriceCardsTix: {},
@@ -867,11 +899,14 @@ export async function mockMoveCardsApi(
   }
   await fulfillJson(page, '**/api/wanted/move-wishlist', wishlist)
 
-  await fulfillJson(page, '**/api/card-printings*', {
+  await fulfillJson(page, '**/api/card-printings*', (route: Route) => ({
     success: true,
-    printings: [MOVE_BOLT_CARD],
+    printings:
+      new URL(route.request().url()).searchParams.get('name') === 'Giant Growth'
+        ? MOVE_GROWTH_PRINTINGS
+        : [MOVE_BOLT_CARD],
     complete: true,
-  })
+  }))
 }
 
 // ===== Change history mock data =====

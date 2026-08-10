@@ -44,9 +44,12 @@ test.describe('Move Cards page', () => {
     await expect(page.locator('.move-pending-row')).toContainText('Move Deck')
     await page.locator('.move-pending-dialog button:has-text("Done")').click()
 
-    // The moved card shows up in the destination list (overlaid from the queued move).
+    // The moved card shows up in the destination list (overlaid from the queued
+    // move), alongside the deck's own card.
     await page.locator('#move-list-select').selectOption('deck:move-deck')
-    await expect(page.locator('.edit-btn-move')).toHaveCount(1)
+    await expect(
+      page.locator('.card-item', { hasText: 'Lightning Bolt' }).locator('.edit-btn-move'),
+    ).toHaveCount(1)
 
     // Saving posts the queued move to the commit endpoint.
     await page.locator('.btn-save').click()
@@ -86,6 +89,44 @@ test.describe('Move Cards page', () => {
     await page.locator('.admin-nav-item:has-text("Dashboard")').click()
     await page.locator('.modal-shell[open] .btn-danger').click()
     await expect(page.locator('.section-heading')).toContainText('Dashboard')
+  })
+
+  test('a printing-less card moving into a collection asks for a printing, then a count', async ({
+    page,
+  }) => {
+    let committed: CommitBody | null = null
+    await mockMoveCardsApi(page, (body) => {
+      committed = body as CommitBody
+    })
+
+    await page.locator('.admin-nav-item:has-text("Move Cards")').click()
+    await page.locator('#move-list-select').selectOption('deck:move-deck')
+
+    // A two-copy entry with no printing; a collection destination needs one.
+    await page.locator('.edit-btn-move').first().click()
+    await page
+      .locator('.move-destination-menu .card-context-menu-item', { hasText: 'Move Binder' })
+      .click()
+
+    await expect(page.locator('.modal-heading-flex')).toContainText(
+      'Select a printing for Giant Growth',
+    )
+    await page.locator('.printing-select-card', { hasText: 'PLN' }).click()
+    // Collections track condition and none is defaulted, so the flow stops here.
+    await page.locator('.add-card-actions button').first().click()
+
+    // Committing the printing must hand off to the copy-count prompt, not
+    // dismiss the flow — the move used to be dropped silently right here.
+    const qty = page.locator('#move-qty')
+    await expect(qty).toBeVisible()
+    await expect(qty).toHaveValue('2')
+    await page.locator('dialog:has(#move-qty) button', { hasText: 'Move' }).click()
+
+    await expect(page.locator('.changes-badge')).toHaveText('2')
+    await page.locator('.btn-save').click()
+    await expect.poll(() => committed).not.toBeNull()
+    expect(committed!.moves).toHaveLength(2)
+    expect(committed!.moves[0]!.toSlug).toBe('move-binder')
   })
 
   test('search finds a card across lists and opens its destination menu', async ({ page }) => {

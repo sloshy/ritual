@@ -450,7 +450,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       const deduped = dedupePrintingsByKey(allPrintings)
       const cheapest = deduped.length > 0 ? getCheapestPrinting(deduped) : undefined
       props.onAddCard(selectedCardName(), undefined, cheapest, allPrintings)
-      props.onClose()
+      closeAfterCommit()
       return
     }
 
@@ -475,6 +475,20 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     commitPrinting(printing, language, allPrintings)
   }
 
+  /**
+   * Dismiss the dialog after a successful commit — but only in the add flow.
+   *
+   * In change-printing mode the parent owns what happens next: it may advance a
+   * bulk run to the next selected card, move on to a quantity prompt, or close.
+   * It expresses all three by driving this dialog's `open` prop, so the commit
+   * has already closed (or re-aimed) the dialog by the time this runs. Calling
+   * `onClose` on top of that would run the parent's *dismissal* path over its own
+   * just-committed state — which is how a bulk run used to skip every other card.
+   */
+  const closeAfterCommit = () => {
+    if (isAddFlow()) props.onClose()
+  }
+
   /** Proceed with a picked printing whose entry language has been resolved. */
   const commitPrinting = (
     printing: ScryfallCard,
@@ -497,7 +511,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
         auto.printing,
         allPrintings,
       )
-      props.onClose()
+      closeAfterCommit()
       return
     }
 
@@ -677,7 +691,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     if (addAnother) {
       resetToSearch()
     } else {
-      props.onClose()
+      closeAfterCommit()
     }
   }
 
