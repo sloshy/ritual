@@ -45,6 +45,19 @@ describe('set-language change events', () => {
   })
 })
 
+describe('isSamePrinting case fold', () => {
+  test('collector numbers compare case-insensitively, like set codes', () => {
+    // A printing is identified case-insensitively project-wide (printingKey):
+    // (MKM:507A) and (mkm:507a) are the same printing.
+    expect(
+      isSamePrinting(
+        { set: 'MKM', collectorNumber: '507A' },
+        { set: 'mkm', collectorNumber: '507a' },
+      ),
+    ).toBe(true)
+  })
+})
+
 describe('isSamePrinting language fold', () => {
   test('a missing language means en on both sides', () => {
     expect(

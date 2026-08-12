@@ -48,6 +48,10 @@ export const helpSyncMeta = {
   'help.deckSync.force': {
     description: '`deck-sync push --force`. `deck-sync status` is a command name.',
   },
+  'help.deckSync.syncPrintings': {
+    description:
+      '`deck-sync pull/push --sync-printings`. "Printing" is a specific edition of a card; "finish" is its foil/etched treatment.',
+  },
   'help.deckSync.link': { description: 'Summary of `deck-sync link`.' },
   'help.deckSync.linkDeck': { description: 'The `<deck>` argument of `deck-sync link`.' },
   'help.deckSync.linkUrl': {

@@ -27,6 +27,7 @@ import { StatusAlerts } from '../components/StatusAlerts'
 import {
   ChangeFilterPicker,
   ChoicePicker,
+  SyncToggle,
   changeFilterParam,
   type ChangeFilterChoice,
   type SyncChoice,
@@ -78,6 +79,7 @@ export function DeckSync(): JSX.Element {
   const [direction, setDirection] = createSignal<SyncDirection>('pull')
   const [changeFilter, setChangeFilter] = createSignal<ChangeFilterChoice>('all')
   const [dryRun, setDryRun] = createSignal(false)
+  const [syncPrintings, setSyncPrintings] = createSignal(false)
   const [selected, setSelected] = createSignal<string[]>([])
 
   const [phase, setPhase] = createSignal<SyncRunPhase>('idle')
@@ -223,27 +225,35 @@ export function DeckSync(): JSX.Element {
     if (needsLogin) void loadStatus()
   }
 
+  /**
+   * The request a run issues, snapshotted once in {@link handleSync} and handed
+   * to both transports — so the streamed run and the JSON fallback that fires
+   * when the stream never connects cannot read the controls at two different
+   * moments and issue two different runs. Typed against the endpoint's own
+   * contract, so a renamed field is a compile error here rather than a 400 at
+   * runtime.
+   */
+  const buildRequest = (ignoreUnreadableLines: boolean): DeckSyncRequest => ({
+    direction: direction(),
+    decks: allSelected() ? [] : selected(),
+    dryRun: dryRun(),
+    ignoreUnreadableLines,
+    only: changeFilterParam(changeFilter()),
+    // No override here yet: a push whose remote deck changed since the last
+    // sync fails with that reason, and pulling first is the remedy this
+    // page can already perform.
+    force: false,
+    syncPrintings: syncPrintings(),
+  })
+
   /** Sync without progress streaming, used when `EventSource` cannot connect. */
-  const runWithoutStream = async (ignoreUnreadableLines: boolean): Promise<void> => {
+  const runWithoutStream = async (request: DeckSyncRequest): Promise<void> => {
     try {
-      // Typed against the endpoint's own contract, so a renamed field is a
-      // compile error here rather than a 400 at runtime.
-      const body: DeckSyncRequest = {
-        direction: direction(),
-        decks: allSelected() ? [] : selected(),
-        dryRun: dryRun(),
-        ignoreUnreadableLines,
-        only: changeFilterParam(changeFilter()),
-        // No override here yet: a push whose remote deck changed since the last
-        // sync fails with that reason, and pulling first is the remedy this
-        // page can already perform.
-        force: false,
-      }
       const resp = await fetch('/api/deck-sync', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(request),
       })
       const data = (await resp.json()) as DeckSyncRunResponse
       if (!data.success) {
@@ -263,7 +273,7 @@ export function DeckSync(): JSX.Element {
         }
         // The report carries the unreadable decks too, so this path offers the
         // same confirmation the streamed one does.
-        if (!ignoreUnreadableLines) setUnreadable(data.report.unreadable)
+        if (!request.ignoreUnreadableLines) setUnreadable(data.report.unreadable)
       })
       finishRun(data.message)
     } catch {
@@ -271,17 +281,15 @@ export function DeckSync(): JSX.Element {
     }
   }
 
-  const streamUrl = (ignoreUnreadableLines: boolean): string => {
-    const params = new URLSearchParams({ direction: direction() })
+  const streamUrl = (request: DeckSyncRequest): string => {
+    const params = new URLSearchParams({ direction: request.direction })
     // An empty deck list means "every Archidekt-linked deck" server-side, which
     // also covers decks added since this page loaded.
-    if (!allSelected()) {
-      for (const slug of selected()) params.append('deck', slug)
-    }
-    const only = changeFilterParam(changeFilter())
-    if (only) params.set('only', only)
-    if (dryRun()) params.set('dryRun', 'true')
-    if (ignoreUnreadableLines) params.set('ignoreUnreadableLines', 'true')
+    for (const slug of request.decks) params.append('deck', slug)
+    if (request.only) params.set('only', request.only)
+    if (request.dryRun) params.set('dryRun', 'true')
+    if (request.syncPrintings) params.set('syncPrintings', 'true')
+    if (request.ignoreUnreadableLines) params.set('ignoreUnreadableLines', 'true')
     return `/api/deck-sync/stream?${params.toString()}`
   }
 
@@ -301,8 +309,11 @@ export function DeckSync(): JSX.Element {
       setUnreadable([])
     })
 
+    // Snapshotted before the stream opens, so the JSON fallback re-issues the
+    // same run even if the controls change while the stream is failing.
+    const request = buildRequest(ignoreUnreadableLines)
     stream = openSyncStream<DeckSyncEvent, DeckSyncDoneEvent, DeckSyncErrorEvent>(
-      streamUrl(ignoreUnreadableLines),
+      streamUrl(request),
       {
         progress: (event) => handleSyncEvent(event, ignoreUnreadableLines),
         done: (event) => finishRun(event?.message ?? t('admin.sync.complete')),
@@ -319,12 +330,12 @@ export function DeckSync(): JSX.Element {
           }
           // Never connected: retry once over plain JSON so a proxy that buffers
           // server-sent events doesn't make the page unusable.
-          void runWithoutStream(ignoreUnreadableLines)
+          void runWithoutStream(request)
         },
       },
     )
     // `EventSource` could not even be constructed — the same fallback applies.
-    if (!stream) void runWithoutStream(ignoreUnreadableLines)
+    if (!stream) void runWithoutStream(request)
   }
 
   return (
@@ -418,15 +429,22 @@ export function DeckSync(): JSX.Element {
             </For>
           </ul>
 
-          <label class="sync-dry-run">
-            <input
-              type="checkbox"
-              checked={dryRun()}
+          <div class="sync-options">
+            <SyncToggle
+              class="sync-printings"
+              labelKey="admin.deckSync.syncPrintings"
+              value={syncPrintings()}
+              onChange={setSyncPrintings}
               disabled={running()}
-              onChange={(e) => setDryRun(e.currentTarget.checked)}
             />
-            {t('admin.deckSync.dryRun')}
-          </label>
+            <SyncToggle
+              class="sync-dry-run"
+              labelKey="admin.deckSync.dryRun"
+              value={dryRun()}
+              onChange={setDryRun}
+              disabled={running()}
+            />
+          </div>
 
           {/* Held apart from the Archidekt session banner above, which is also an alert. */}
           <div class="sync-run-status">

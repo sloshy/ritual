@@ -21,12 +21,13 @@ If the token stops working mid-run, the run reports the failure and the login fo
 
 ## Choosing what to sync
 
-| Control          | Effect                                                                                                                                                                                                   |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Direction**    | `Pull` (Archidekt → local) or `Push` (local → Archidekt). The description below the control spells out what the selected direction writes.                                                               |
-| **Changes**      | `All changes`, `Additions only`, or `Removals only` — the page's form of the CLI's [`--only`](/commands/deck-sync/#change-filter). Skipped changes are still reported per deck.                          |
-| **Decks**        | One row per Archidekt-linked deck, all selected by default. **All decks** toggles every row at once and syncs any deck linked after the page loaded. With nothing selected, the sync button is disabled. |
-| **Preview only** | Runs as a dry run: both directions still fetch the remote deck to compute the diff, but nothing is written locally and nothing is sent to Archidekt.                                                     |
+| Control            | Effect                                                                                                                                                                                                                              |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Direction**      | `Pull` (Archidekt → local) or `Push` (local → Archidekt). The description below the control spells out what the selected direction writes.                                                                                          |
+| **Changes**        | `All changes`, `Additions only`, or `Removals only` — the page's form of the CLI's [`--only`](/commands/deck-sync/#change-filter). Skipped changes are still reported per deck.                                                     |
+| **Decks**          | One row per Archidekt-linked deck, all selected by default. **All decks** toggles every row at once and syncs any deck linked after the page loaded. With nothing selected, the sync button is disabled.                            |
+| **Preview only**   | Runs as a dry run: both directions still fetch the remote deck to compute the diff, but nothing is written locally and nothing is sent to Archidekt.                                                                                |
+| **Sync printings** | Also sync each card's set, collector number, and foil/etched finish — the page's form of the CLI's [`--sync-printings`](/commands/deck-sync/#printing-sync---sync-printings). Off by default; unaffected by the **Changes** filter. |
 
 Only decks whose front matter carries an Archidekt `sourceUrl` **and** a `sourceId` are listed —
 those are the decks that can be synced. A deck with a `sourceUrl` but no `sourceId` is reported as
@@ -48,7 +49,8 @@ The run streams over server-sent events, so each deck updates as it is processed
 
 Under each deck are the same lines the CLI prints: the change summary — a pull reports
 `Changes: +2 added, -1 removed, ~0 quantity changed`, a push
-`Changes: +2 to add, -1 to remove, ~0 quantity changes` — what the change filter left out
+`Changes: +2 to add, -1 to remove, ~0 quantity changes`, each gaining a
+`, 3 printings changed` / `, 3 printings to change` clause when printing sync is on — what the change filter left out
 (`Skipped 3 removals (applying additions only).`), any format change, and the final `Saved.` /
 `Pushed N card changes to Archidekt.` A closing alert summarizes the run, e.g.
 `Pulled 3 decks, 1 skipped.`, or `Previewed 3 decks, 1 skipped.` for a preview run.
@@ -80,6 +82,10 @@ Identical to the CLI, since it is the same engine:
   `lastSynced`.
 - A **push** sends local card changes to Archidekt (ignoring board placement) and stamps
   `lastSynced` — **only for decks that pushed cleanly**.
+- With **Sync printings** ticked, a pull also rewrites local printings and finishes to what
+  Archidekt records (as `set-printing` changelog entries), and a push moves the remote entries to
+  the local file's printing and finish — see
+  [Printing Sync](/commands/deck-sync/#printing-sync---sync-printings).
 
 See [What Is Compared](/commands/deck-sync/#what-is-compared) for the full rules.
 

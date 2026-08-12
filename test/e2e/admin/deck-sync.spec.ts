@@ -108,6 +108,8 @@ test.describe('Sync Decks Page', () => {
 
     const url = await runAndReadStreamUrl(page)
     expect(url).toContain('only=additions')
+    // Off by default: an untouched printing-sync box must not reach the URL.
+    expect(url).not.toContain('syncPrintings')
   })
 
   test('deselecting every deck disables syncing', async ({ page }) => {
@@ -134,10 +136,12 @@ test.describe('Sync Decks Page', () => {
 
     await page.locator('.sync-dry-run input[type="checkbox"]').check()
     await expect(syncButton(page)).toHaveText('Preview all decks')
+    await page.locator('.sync-printings input[type="checkbox"]').check()
 
     const url = await runAndReadStreamUrl(page)
     expect(url).toContain('direction=push')
     expect(url).toContain('dryRun=true')
+    expect(url).toContain('syncPrintings=true')
   })
 
   test('a stream that never connects falls back to a plain request', async ({ page }) => {
@@ -157,6 +161,7 @@ test.describe('Sync Decks Page', () => {
           decks: [WINOTA!.slug],
           dryRun: false,
           force: false,
+          syncPrintings: false,
           ignoreUnreadableLines: false,
         },
       ])

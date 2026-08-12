@@ -39,6 +39,37 @@ type ChoicePickerProps<T extends string> = {
   class: string
 }
 
+type SyncToggleProps = {
+  /** The label beside the box, as a key so a locale switch re-renders it. */
+  labelKey: ParameterlessKey
+  value: boolean
+  onChange: (next: boolean) => void
+  /** Set while a run is in flight, when changing the answer would be a lie. */
+  disabled: boolean
+  /** Distinguishes this toggle from the page's others, for styling and tests. */
+  class: string
+}
+
+/**
+ * One boolean option row of a sync page — dry run, printing sync. The shared
+ * `.sync-toggle` class carries the layout; the per-instance class is the
+ * page's handle on this particular row.
+ */
+export function SyncToggle(props: SyncToggleProps): JSX.Element {
+  const tKey = useTKey()
+  return (
+    <label class={`sync-toggle ${props.class}`}>
+      <input
+        type="checkbox"
+        checked={props.value}
+        disabled={props.disabled}
+        onChange={(e) => props.onChange(e.currentTarget.checked)}
+      />
+      {tKey(props.labelKey)}
+    </label>
+  )
+}
+
 /**
  * A segmented choice with the selected option's explanation under it. The whole
  * control is wrapped so a page can address one of them (`.sync-change-filter

@@ -204,6 +204,7 @@ ritual deck-sync pull --yes                  # accept dropping lines the parser 
 ritual deck-sync pull --only additions       # add cards locally, never remove any
 ritual deck-sync push --only removals        # push removals only, add nothing remotely
 ritual deck-sync push "Winota Stax" --force  # overwrite remote edits made since the last sync
+ritual deck-sync push --sync-printings       # also sync each card's exact printing + finish
 ritual deck-sync status --output json        # what is linked, and when each last synced
 ritual deck-sync link "Alpha Deck" https://archidekt.com/decks/123456  # link an existing remote deck
 \`\`\`
@@ -275,9 +276,25 @@ Such decks are listed with their exact lines and confirmed before syncing;
 A pull also adopts the deck's Archidekt format (mapped onto Ritual's format
 keys). A push does not push the local format back.
 
+### Printing sync
+
+By default the diff compares card **names and quantities only** — printings
+(\`SET:CN\`) and finishes (\`[foil]\`/\`[etched]\`) on either side are ignored.
+\`--sync-printings\` (on \`pull\` and \`push\`) also syncs each card's exact
+printing: a pull rewrites local lines to the printing Archidekt records
+(changelogged as \`set-printing\` events), and a push moves the remote entries to
+the local file's printing and finish. A local line that names no printing is
+left alone on a push (it expresses no preference); a card with several distinct
+printings of one name on either side is skipped with a warning rather than
+guessed at. A finish the local line states must exist for that printing on
+Archidekt or the deck is reported failed; \`--only\` does not filter printing
+updates (they neither add nor remove cards). Condition and language tokens are
+never synced — Archidekt deck entries carry neither.
+
 The same sync runs from the admin site's **Sync Decks** page (deck toggles,
-direction, change filter, live per-deck progress, and each deck's last-synced
-time) and from the MCP \`sync_decks\` tool (same \`only\` field).
+direction, change filter, printing sync, live per-deck progress, and each
+deck's last-synced time) and from the MCP \`sync_decks\` tool (same \`only\` and
+\`syncPrintings\` fields).
 
 ## Primer
 

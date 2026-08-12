@@ -29,6 +29,7 @@ import { StatusAlerts } from '../components/StatusAlerts'
 import {
   ChangeFilterPicker,
   ChoicePicker,
+  SyncToggle,
   changeFilterParam,
   type ChangeFilterChoice,
   type SyncChoice,
@@ -680,15 +681,13 @@ export function CollectionSync(): JSX.Element {
           />
         </Show>
 
-        <label class="sync-dry-run">
-          <input
-            type="checkbox"
-            checked={dryRun()}
-            disabled={running()}
-            onChange={(e) => setDryRun(e.currentTarget.checked)}
-          />
-          {t('admin.collectionSync.dryRun')}
-        </label>
+        <SyncToggle
+          class="sync-dry-run"
+          labelKey="admin.collectionSync.dryRun"
+          value={dryRun()}
+          onChange={setDryRun}
+          disabled={running()}
+        />
 
         {/* Held apart from the Archidekt session banner above, which is also an alert. */}
         <div class="sync-run-status">

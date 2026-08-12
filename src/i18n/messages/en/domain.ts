@@ -79,6 +79,11 @@ export const domainMessages = {
     one: '{count} unreadable line',
     other: '{count} unreadable lines',
   },
+  'domain.count.printings': {
+    $plural: 'count',
+    one: '{count} printing',
+    other: '{count} printings',
+  },
   'domain.count.refusedRows': {
     $plural: 'count',
     one: '{count} refused row',

@@ -291,11 +291,26 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
               'deck fails; a pull of that deck records the new baseline — even when it finds no ' +
               'card changes — after which the push succeeds. Ignored on a pull.',
           ),
+        syncPrintings: z
+          .boolean()
+          .optional()
+          .describe(
+            'Also sync each card’s exact printing — set, collector number, and foil/etched ' +
+              'finish (the CLI’s --sync-printings). Off by default, the diff compares names and ' +
+              'quantities only. A local line naming no printing pushes nothing; a card with ' +
+              'several distinct printings of one name on either side is skipped with a warning; ' +
+              'a stated finish the printing does not offer on Archidekt fails that deck. The ' +
+              '"only" filter does not apply to printing updates. Each deck’s report entry then ' +
+              'carries printingsChanged and printingsSkipped.',
+          ),
       }),
       outputSchema: fromJsonSchema<DeckSyncResult>(SYNC_DECKS_OUTPUT),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
-    async ({ direction, decks, dryRun, ignoreUnreadableLines, only, force }, ctx) => {
+    async (
+      { direction, decks, dryRun, ignoreUnreadableLines, only, force, syncPrintings },
+      ctx,
+    ) => {
       // Typed against the endpoint's own contract, so a field renamed on either
       // side is a compile error here rather than an option silently dropped on
       // the way to the handler (which ignores keys it does not know) — the same
@@ -307,6 +322,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         ignoreUnreadableLines,
         only,
         force,
+        syncPrintings,
       }
       return runTool(async (): Promise<DeckSyncResult> => {
         const data = await callApiData<SyncRunSuccess<DeckSyncRunResponse>>(

@@ -10,8 +10,8 @@ The same sync runs from the admin site's [Sync Decks](/admin/sync-decks/) page a
 ## Usage
 
 ```bash
-./ritual deck-sync pull [decks...]
-./ritual deck-sync push [decks...] [--force]
+./ritual deck-sync pull [decks...] [--sync-printings]
+./ritual deck-sync push [decks...] [--force] [--sync-printings]
 ./ritual deck-sync link <deck> <url>
 ./ritual deck-sync status
 ```
@@ -37,14 +37,15 @@ Each name is matched case- and accent-insensitively with a unique-substring fall
 
 ## Options
 
-| Option              | Description                                                               | Default     |
-| ------------------- | ------------------------------------------------------------------------- | ----------- |
-| `-n, --dry-run`     | Report what would sync without writing files or pushing changes           | `false`     |
-| `-y, --yes`         | Sync decks with unreadable lines without asking (those lines are removed) | `false`     |
-| `--only <changes>`  | Apply only `additions` or `removals` (relative to the sync destination)   | all changes |
-| `--force`           | **push only** — overwrite a remote deck that changed since its last sync  | `false`     |
-| `--output <format>` | Output format: `text`, `json`, or `ndjson`                                | `text`      |
-| `--quiet`           | Suppress non-essential output                                             | `false`     |
+| Option              | Description                                                                      | Default     |
+| ------------------- | -------------------------------------------------------------------------------- | ----------- |
+| `-n, --dry-run`     | Report what would sync without writing files or pushing changes                  | `false`     |
+| `-y, --yes`         | Sync decks with unreadable lines without asking (those lines are removed)        | `false`     |
+| `--only <changes>`  | Apply only `additions` or `removals` (relative to the sync destination)          | all changes |
+| `--force`           | **push only** — overwrite a remote deck that changed since its last sync         | `false`     |
+| `--sync-printings`  | Also sync each card's exact printing (set, collector number, foil/etched finish) | `false`     |
+| `--output <format>` | Output format: `text`, `json`, or `ndjson`                                       | `text`      |
+| `--quiet`           | Suppress non-essential output                                                    | `false`     |
 
 A pull never writes to Archidekt, so it has no remote changes to overwrite and registers no
 `--force` at all (passing it there is a usage error).
@@ -107,7 +108,11 @@ report is emitted on stdout:
 [Unreadable Lines](#unreadable-lines).
 
 Each deck's `status` is `synced`, `failed`, or `skipped`; `reason` explains
-anything other than a clean sync. Decks that could not be resolved or are not
+anything other than a clean sync. Under
+[`--sync-printings`](#printing-sync---sync-printings) each deck also carries
+`printingsChanged` (printing differences found — applied, or previewed on a dry
+run) and `printingsSkipped` (cards whose printings could not be reconciled), so
+a scripted run sees the printing pass without parsing log lines. Decks that could not be resolved or are not
 sourced from Archidekt appear as `failed` entries. A deck with an Archidekt
 `sourceUrl` but no `sourceId` is `skipped` when it is swept up by an all-decks
 run, and `failed` when you name it explicitly. Top-level failures (for example,
@@ -347,12 +352,12 @@ the right section locally.
 Pulls also adopt the deck's format from Archidekt. Pushes do not send the local
 format back.
 
-The following are intentionally ignored at this time:
+The following are intentionally ignored by default:
 
-- Specific printings (set code, collector number)
-- Card finish (foil, etched)
+- Specific printings (set code, collector number) — synced with [`--sync-printings`](#printing-sync---sync-printings)
+- Card finish (foil, etched) — synced with [`--sync-printings`](#printing-sync---sync-printings)
 - Labels and categories (beyond mapping to a board)
-- Card condition
+- Card condition and language
 
 > **Note on pushes:** pushes ignore board placement. The Archidekt batch API path
 > used here cannot yet target a specific remote board/category, so moving a card
@@ -381,6 +386,56 @@ value the [divergence guard](#divergence-guard-push) compares. Neither is hand-a
 
 `format` is written on every save, whether it came from Archidekt or was inferred
 from the deck's sections. See [new](/commands/new/#deck-format).
+
+## Printing Sync (`--sync-printings`)
+
+By default the diff ignores which printing a card line names. `--sync-printings`
+(valid on `pull` and `push`) also syncs each card's **set code, collector
+number, and finish**:
+
+- **Pull** — a local card whose printing differs from the one Archidekt records
+  is rewritten to the remote printing (e.g. `1 Sol Ring (C21:263) &5` becomes
+  `1 Sol Ring (LTC:284) [foil] &5`), keeping its `&N` id, condition, language,
+  and note untouched. Each rewrite is recorded in the changelog as a
+  `Set "<card>" printing to SET:CN …` entry. Newly added cards also carry their
+  remote printing instead of arriving as bare names.
+- **Push** — a remote entry whose printing differs from the local line is moved
+  to the local printing: the target edition is resolved through Archidekt's
+  printing search (pinned by set and collector number), and the entry's finish
+  modifier is set from the local `[foil]`/`[etched]` token. Newly added cards
+  are pinned to their exact printing rather than resolved by name and set alone.
+
+Printing changes get their own clause on each deck's summary line —
+`Changes: +0 added, -0 removed, ~0 quantity changed, 3 printings changed` on a
+pull, `…, 3 printings to change` on a push — and a deck whose only difference
+is a printing still syncs.
+
+The rules that keep this predictable:
+
+- **A line that names no printing pushes nothing.** A bare `1 Sol Ring` states
+  no preference, so a push leaves the remote edition alone (a pull, by
+  contrast, stamps the remote printing onto it — Archidekt entries always name
+  an edition).
+- **Ambiguity is skipped, not guessed.** When one side holds several distinct
+  printings of the same card name (say, two foil and two nonfoil Lightning
+  Bolts), there is no single answer to copy across; that card is skipped —
+  `Printing not synced for "Lightning Bolt": the card has several distinct
+printings in the local file.` (or `… on Archidekt`) — and everything else still
+  syncs. A _newly added_ card whose remote entries disagree the same way simply
+  arrives without a printing.
+- **A stated finish must exist.** Pushing `[etched]` for a printing Archidekt
+  offers no etched finish of that card is reported as a failure for that deck
+  rather than silently substituted — the rest of the deck's changes still push,
+  but its `lastSynced` is withheld. An _unstated_ finish falls back to the
+  printing's default, so a bare line on a foil-only printing does not fail.
+- **`--only` does not filter printing updates** — rewriting a printing neither
+  adds nor removes cards.
+- **Condition and language are never synced**; Archidekt deck entries carry
+  neither.
+
+The admin [Sync Decks](/admin/sync-decks/) page offers the same behavior as a
+checkbox ("Also sync each card's exact printing…"), and the MCP `sync_decks`
+tool takes it as a `syncPrintings` field.
 
 ## Exit Codes
 
@@ -452,4 +507,10 @@ Overwrite remote edits made since your last sync:
 
 ```bash
 ./ritual deck-sync push "Winota Stax" --force
+```
+
+Push the exact printings and finishes you picked locally to Archidekt:
+
+```bash
+./ritual deck-sync push "Winota Stax" --sync-printings
 ```

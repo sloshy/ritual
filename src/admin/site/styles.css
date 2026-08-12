@@ -441,7 +441,7 @@
   text-decoration: underline;
 }
 
-.sync-dry-run {
+.sync-toggle {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -449,6 +449,23 @@
   font-size: 0.8125rem;
   color: var(--text-secondary);
   cursor: pointer;
+}
+
+/* A long label wraps; the box must not be squeezed or drift off the first line. */
+.sync-toggle input {
+  flex-shrink: 0;
+}
+
+/* A group of option rows shares one block margin, whatever its row order. */
+.sync-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.sync-options .sync-toggle {
+  margin: 0;
 }
 
 .sync-run-btn {

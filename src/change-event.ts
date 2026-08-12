@@ -308,12 +308,14 @@ export type PrintingTuple = {
 /**
  * Whether two printings are equivalent, normalizing absent values to their
  * defaults (no set/CN, `nonfoil` finish, `NM` condition, `en` language). Set
- * codes compare case-insensitively.
+ * codes and collector numbers compare case-insensitively — a printing is
+ * identified case-insensitively project-wide (`printingKey`), and `507A` and
+ * `507a` are the same printing.
  */
 export function isSamePrinting(a: PrintingTuple, b: PrintingTuple): boolean {
   return (
     (a.set?.toLowerCase() ?? '') === (b.set?.toLowerCase() ?? '') &&
-    (a.collectorNumber ?? '') === (b.collectorNumber ?? '') &&
+    (a.collectorNumber?.toLowerCase() ?? '') === (b.collectorNumber?.toLowerCase() ?? '') &&
     (a.finish ?? 'nonfoil') === (b.finish ?? 'nonfoil') &&
     (a.condition ?? 'NM') === (b.condition ?? 'NM') &&
     displayLanguage(a.language) === displayLanguage(b.language)

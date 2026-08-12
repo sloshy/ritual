@@ -5,6 +5,7 @@ import { Command } from 'commander'
 import { registerDeckSyncCommand } from '../../src/commands/deck-sync'
 import { MemoryLogger, resetLogger, setLogger } from '../../src/logger'
 import {
+  SEARCH_URL,
   signIn,
   stubArchidekt,
   TEST_ACCOUNT,
@@ -12,6 +13,8 @@ import {
   type StubRoute,
 } from './helpers/archidekt'
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
+import type { Card } from '../../src/types'
+import type { ArchidektCardModifier } from '../../src/importers/archidekt-types'
 
 /**
  * End-to-end coverage for the `deck-sync` behaviors only the command and engine
@@ -71,44 +74,81 @@ function logged(): string {
   return logger.entries.map((entry) => entry.args.map((arg) => String(arg)).join(' ')).join('\n')
 }
 
-/** The raw deck payload a push reads, holding one Sol Ring. */
-function remoteDeck(updatedAt: string): unknown {
+/** The modifyCards bodies a run sent, flattened to their card entries. */
+function pushedEntries(): unknown[] {
+  return sent
+    .filter((request) => request.url.startsWith(MODIFY_URL))
+    .flatMap((request) => (request.body as { cards: unknown[] }).cards)
+}
+
+/** Whether the run sent any modifyCards request at all. */
+function pushedToArchidekt(): boolean {
+  return sent.some((request) => request.url.startsWith(MODIFY_URL))
+}
+
+/** What the remote Sol Ring entry may vary in, for the printing-sync tests. */
+type RemoteSolRing = {
+  modifier?: ArchidektCardModifier
+  options?: ArchidektCardModifier[]
+}
+
+/** One raw deck-card entry of the stubbed remote deck. */
+function remoteEntry(
+  relationId: number,
+  name: string,
+  quantity: number,
+  printing: { set: string; collectorNumber: string; cardId: number },
+  solRing: RemoteSolRing = {},
+): unknown {
+  return {
+    id: relationId,
+    quantity,
+    modifier: solRing.modifier ?? 'Normal',
+    categories: ['Artifact'],
+    companion: false,
+    flippedDefault: false,
+    label: ',#656565',
+    customCmc: null,
+    card: {
+      id: printing.cardId,
+      uid: `uid-${relationId}`,
+      collectorNumber: printing.collectorNumber,
+      options: solRing.options ?? ['Normal'],
+      oracleCard: { id: relationId * 100, name, defaultCategory: 'Artifact' },
+      edition: { editioncode: printing.set },
+    },
+  }
+}
+
+const SOL_RING_PRINTING = { set: 'c21', collectorNumber: '240', cardId: 501 }
+
+/** The raw deck payload a push reads, holding one Sol Ring (C21:240) plus `extraCards`. */
+function remoteDeck(
+  updatedAt: string,
+  solRing: RemoteSolRing = {},
+  extraCards: unknown[] = [],
+): unknown {
   return {
     id: Number(DECK_ID),
     name: 'Winota Stax',
     owner: { id: TEST_ACCOUNT.id, username: TEST_ACCOUNT.username },
     categories: [],
     updatedAt,
-    cards: [
-      {
-        id: 11,
-        quantity: 1,
-        modifier: 'Normal',
-        categories: ['Artifact'],
-        companion: false,
-        flippedDefault: false,
-        label: ',#656565',
-        customCmc: null,
-        card: {
-          id: 501,
-          uid: 'uid-sol-ring',
-          collectorNumber: '240',
-          options: ['Normal'],
-          oracleCard: { id: 900, name: 'Sol Ring', defaultCategory: 'Artifact' },
-          edition: { editioncode: 'c21' },
-        },
-      },
-    ],
+    cards: [remoteEntry(11, 'Sol Ring', 1, SOL_RING_PRINTING, solRing), ...extraCards],
   }
 }
 
 /** Routes for a push against a remote deck last updated at `updatedAt`. */
-function pushRoutes(updatedAt: string): Record<string, StubRoute> {
+function pushRoutes(
+  updatedAt: string,
+  solRing: RemoteSolRing = {},
+  extraCards: unknown[] = [],
+): Record<string, StubRoute> {
   return {
     [OWN_DECKS_URL]: () =>
       Response.json({ results: [{ id: Number(DECK_ID), name: 'Winota Stax' }], next: null }),
     [MODIFY_URL]: () => Response.json({ success: true }),
-    [DECK_URL]: () => Response.json(remoteDeck(updatedAt)),
+    [DECK_URL]: () => Response.json(remoteDeck(updatedAt, solRing, extraCards)),
   }
 }
 
@@ -120,7 +160,7 @@ function pushRoutes(updatedAt: string): Record<string, StubRoute> {
  * the divergence guard compares). Omitted, the deck has never synced.
  */
 async function writeLinkedDeck(
-  cards: { quantity: number; name: string }[],
+  cards: Card[],
   synced?: { lastSynced?: string; sourceUpdatedAt?: string },
 ): Promise<string> {
   return writeDeckFile(dir, 'winota-stax', {
@@ -398,7 +438,7 @@ describe('deck-sync push divergence (Integration)', () => {
 
     expect(logged()).toContain('Remote deck changed since last sync')
     expect(logged()).toContain('--force')
-    expect(sent.some((request) => request.url.startsWith(MODIFY_URL))).toBe(false)
+    expect(pushedToArchidekt()).toBe(false)
     // A failed deck keeps its old baseline and says nothing about updating it.
     expect(await readDeck()).toContain('2026-08-01T00:00:00.000Z')
     expect(logged()).not.toContain('Updated lastSynced.')
@@ -418,7 +458,7 @@ describe('deck-sync push divergence (Integration)', () => {
 
     expect(await runDeckSync(['push', '--force'])).toBe(0)
 
-    expect(sent.some((request) => request.url.startsWith(MODIFY_URL))).toBe(true)
+    expect(pushedToArchidekt()).toBe(true)
     expect(logged()).toContain('Updated lastSynced.')
     // The baseline moves to the remote's own post-push timestamp, so the next
     // push is not refused over the change this one made.
@@ -430,7 +470,7 @@ describe('deck-sync push divergence (Integration)', () => {
     stubFetch(pushRoutes('2026-08-02T00:00:00.000Z'))
 
     expect(await runDeckSync(['push'])).toBe(0)
-    expect(sent.some((request) => request.url.startsWith(MODIFY_URL))).toBe(true)
+    expect(pushedToArchidekt()).toBe(true)
   })
 
   test('an unusable remote timestamp pushes anyway, but says the guard did not run', async () => {
@@ -441,7 +481,7 @@ describe('deck-sync push divergence (Integration)', () => {
 
     expect(await runDeckSync(['push'])).toBe(0)
     expect(logged()).toContain('pushing without the divergence check')
-    expect(sent.some((request) => request.url.startsWith(MODIFY_URL))).toBe(true)
+    expect(pushedToArchidekt()).toBe(true)
   })
 
   test('the local clock cannot manufacture a divergence', async () => {
@@ -479,7 +519,7 @@ describe('deck-sync push divergence (Integration)', () => {
       (await readDeck()).replace('1 Sol Ring', '2 Sol Ring'),
     )
     expect(await runDeckSync(['push'])).toBe(0)
-    expect(sent.some((request) => request.url.startsWith(MODIFY_URL))).toBe(true)
+    expect(pushedToArchidekt()).toBe(true)
   })
 
   test('a no-op pull leaves the deck body alone', async () => {
@@ -525,7 +565,7 @@ describe('deck-sync push lastSynced (Integration)', () => {
     )
     stubFetch({
       ...pushRoutes('2026-07-01T00:00:00.000Z'),
-      'https://archidekt.com/api/cards/v2/': () => Response.json({ results: [], next: null }),
+      [SEARCH_URL]: () => Response.json({ results: [], next: null }),
     })
 
     expect(await runDeckSync(['push'])).toBe(1)
@@ -546,5 +586,254 @@ describe('deck-sync push lastSynced (Integration)', () => {
     expect(logged()).toContain('Updated lastSynced.')
     expect(logged()).toContain('Synced 1 deck (1 with changes).')
     expect(await readDeck()).not.toContain('2026-07-01T00:00:00.000Z')
+  })
+})
+
+describe('deck-sync --sync-printings (Integration)', () => {
+  const UPDATED_AT = '2026-08-01T00:00:00.000Z'
+  const synced = { sourceUpdatedAt: UPDATED_AT }
+
+  test('a pull without the flag ignores printing differences', async () => {
+    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring' }], synced)
+    stubFetch(pushRoutes(UPDATED_AT))
+
+    expect(await runDeckSync(['pull'])).toBe(0)
+    expect(logged()).toContain('No changes detected.')
+    expect(await readDeck()).not.toContain('C21:240')
+  })
+
+  test('a pull with the flag stamps the remote printing and finish onto the line', async () => {
+    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring', cardId: 1 }], synced)
+    stubFetch(pushRoutes(UPDATED_AT, { modifier: 'Foil', options: ['Normal', 'Foil'] }))
+
+    expect(await runDeckSync(['pull', '--sync-printings'])).toBe(0)
+
+    expect(logged()).toContain(
+      'Changes: +0 added, -0 removed, ~0 quantity changed, 1 printing changed',
+    )
+    // The line keeps its &N and gains the printing; the changelog records it.
+    expect(await readDeck()).toContain('1 Sol Ring (C21:240) [foil] &1')
+    const changelog = await fs.readFile(path.join(dir, 'decks', 'winota-stax.changes.md'), 'utf-8')
+    expect(changelog).toContain('Set "Sol Ring" printing to C21:240 [foil] &1')
+  })
+
+  test('a push without the flag reports nothing to upload', async () => {
+    await writeLinkedDeck(
+      [{ quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', finish: 'foil' }],
+      synced,
+    )
+    stubFetch(pushRoutes(UPDATED_AT))
+
+    expect(await runDeckSync(['push'])).toBe(0)
+    expect(logged()).toContain('No changes to upload.')
+    expect(pushedEntries()).toEqual([])
+  })
+
+  test('a push with the flag moves the remote entry to the local printing and finish', async () => {
+    await writeLinkedDeck(
+      [{ quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', finish: 'foil' }],
+      synced,
+    )
+    stubFetch({
+      ...pushRoutes(UPDATED_AT),
+      [SEARCH_URL]: () =>
+        Response.json({
+          results: [
+            {
+              id: 777,
+              collectorNumber: '284',
+              options: ['Normal', 'Foil'],
+              oracleCard: { name: 'Sol Ring', defaultCategory: 'Artifact' },
+            },
+          ],
+          next: null,
+        }),
+    })
+
+    expect(await runDeckSync(['push', '--sync-printings'])).toBe(0)
+
+    // The target edition is resolved through the printing search, pinned by
+    // set and collector number.
+    const search = sent.find((request) => request.url.startsWith(SEARCH_URL))
+    expect(search?.url).toContain('editionSearch=ltc')
+    expect(search?.url).toContain('collectorNumber=284')
+    expect(logged()).toContain('1 printing to change')
+    expect(pushedEntries()).toEqual([
+      {
+        action: 'modify',
+        cardid: 777,
+        customCardId: null,
+        categories: ['Artifact'],
+        patchId: 'ritual-1',
+        modifications: {
+          quantity: 1,
+          modifier: 'Foil',
+          customCmc: null,
+          companion: false,
+          flippedDefault: false,
+          label: ',#656565',
+        },
+        deckRelationId: 11,
+      },
+    ])
+    expect(logged()).toContain('Updated lastSynced.')
+  })
+
+  test('a push changing only the finish reuses the remote edition without searching', async () => {
+    await writeLinkedDeck(
+      [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', finish: 'foil' }],
+      synced,
+    )
+    stubFetch(pushRoutes(UPDATED_AT, { options: ['Normal', 'Foil'] }))
+
+    expect(await runDeckSync(['push', '--sync-printings'])).toBe(0)
+
+    // Same edition, so no printing search happens — only the modifier moves.
+    expect(sent.some((request) => request.url.startsWith(SEARCH_URL))).toBe(false)
+    const [entry] = pushedEntries() as { cardid: number; modifications: { modifier: string } }[]
+    expect(entry!.cardid).toBe(501)
+    expect(entry!.modifications.modifier).toBe('Foil')
+  })
+
+  test('a stated finish the printing does not offer fails the deck', async () => {
+    await writeLinkedDeck(
+      [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', finish: 'etched' }],
+      synced,
+    )
+    stubFetch(pushRoutes(UPDATED_AT, { options: ['Normal', 'Foil'] }))
+
+    expect(await runDeckSync(['push', '--sync-printings'])).toBe(1)
+    expect(logged()).toContain('Finish "etched" is not offered for Sol Ring (C21:240)')
+    expect(pushedEntries()).toEqual([])
+    expect(logged()).not.toContain('Updated lastSynced.')
+  })
+
+  test('an unstated finish on a foil-only printing pushes nothing', async () => {
+    // The bare line "wants" nonfoil, but the printing only exists in foil — the
+    // fallback resolves to what the remote already records, so nothing is sent
+    // and the run does not churn on every sync.
+    await writeLinkedDeck(
+      [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240' }],
+      synced,
+    )
+    stubFetch(pushRoutes(UPDATED_AT, { modifier: 'Foil', options: ['Foil'] }))
+
+    expect(await runDeckSync(['push', '--sync-printings'])).toBe(0)
+    expect(pushedEntries()).toEqual([])
+  })
+
+  test('a card with several local printings is skipped with a warning, not guessed at', async () => {
+    await writeLinkedDeck(
+      [
+        { quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284' },
+        { quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '270' },
+      ],
+      synced,
+    )
+    stubFetch(pushRoutes(UPDATED_AT))
+
+    // --only removals neutralizes the quantity increase (local 2 vs remote 1),
+    // so the printing skip is the only thing left for the run to say.
+    expect(await runDeckSync(['push', '--sync-printings', '--only', 'removals'])).toBe(0)
+    expect(logged()).toContain(
+      'Printing not synced for "Sol Ring": the card has several distinct printings in the local file.',
+    )
+    expect(pushedEntries()).toEqual([])
+  })
+
+  test('a quantity and printing change on one card folds into a single modify entry', async () => {
+    // Two entries naming the same deckRelationId would race each other, so the
+    // printing target rides the quantity change's entry.
+    await writeLinkedDeck(
+      [{ quantity: 2, name: 'Sol Ring', set: 'ltc', collectorNumber: '284' }],
+      synced,
+    )
+    stubFetch({
+      ...pushRoutes(UPDATED_AT, { options: ['Normal', 'Foil'] }),
+      [SEARCH_URL]: () =>
+        Response.json({
+          results: [
+            {
+              id: 777,
+              collectorNumber: '284',
+              options: ['Normal', 'Foil'],
+              oracleCard: { name: 'Sol Ring', defaultCategory: 'Artifact' },
+            },
+          ],
+          next: null,
+        }),
+    })
+
+    expect(await runDeckSync(['push', '--sync-printings'])).toBe(0)
+
+    const entries = pushedEntries() as {
+      action: string
+      cardid: number
+      deckRelationId?: number
+      modifications: { quantity: number }
+    }[]
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.action).toBe('modify')
+    expect(entries[0]!.cardid).toBe(777)
+    expect(entries[0]!.deckRelationId).toBe(11)
+    expect(entries[0]!.modifications.quantity).toBe(2)
+  })
+
+  test('a printing change moves every remote relation of the card', async () => {
+    // The remote splits Sol Ring across two deck relations (1 + 2 copies) of
+    // the same printing; the local file holds all three at a different one.
+    // Both relations must move, each keeping its own quantity.
+    const second = remoteEntry(12, 'Sol Ring', 2, SOL_RING_PRINTING)
+    await writeLinkedDeck(
+      [{ quantity: 3, name: 'Sol Ring', set: 'ltc', collectorNumber: '284' }],
+      synced,
+    )
+    stubFetch({
+      ...pushRoutes(UPDATED_AT, {}, [second]),
+      [SEARCH_URL]: () =>
+        Response.json({
+          results: [
+            {
+              id: 777,
+              collectorNumber: '284',
+              options: ['Normal'],
+              oracleCard: { name: 'Sol Ring', defaultCategory: 'Artifact' },
+            },
+          ],
+          next: null,
+        }),
+    })
+
+    expect(await runDeckSync(['push', '--sync-printings'])).toBe(0)
+
+    const entries = pushedEntries() as {
+      cardid: number
+      deckRelationId?: number
+      modifications: { quantity: number }
+    }[]
+    expect(entries.map((entry) => entry.deckRelationId)).toEqual([11, 12])
+    expect(entries.every((entry) => entry.cardid === 777)).toBe(true)
+    expect(entries.map((entry) => entry.modifications.quantity)).toEqual([1, 2])
+  })
+
+  test('a pull adds a new card with its remote printing and finish', async () => {
+    const foilBolt = remoteEntry(
+      22,
+      'Lightning Bolt',
+      1,
+      { set: '2xm', collectorNumber: '117', cardId: 601 },
+      { modifier: 'Foil', options: ['Normal', 'Foil'] },
+    )
+    await writeLinkedDeck(
+      [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 }],
+      synced,
+    )
+    stubFetch(pushRoutes(UPDATED_AT, {}, [foilBolt]))
+
+    expect(await runDeckSync(['pull', '--sync-printings'])).toBe(0)
+
+    expect(await readDeck()).toContain('1 Lightning Bolt (2XM:117) [foil] &2')
+    const changelog = await fs.readFile(path.join(dir, 'decks', 'winota-stax.changes.md'), 'utf-8')
+    expect(changelog).toContain('Added "Lightning Bolt" (2XM:117) [foil] &2')
   })
 })

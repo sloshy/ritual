@@ -54,19 +54,16 @@ describe('buildRawCardIndex', () => {
 
     expect(index.size).toBe(2)
     expect(index.get('sol ring')?.totalQty).toBe(1)
-    expect(index.get('sol ring')?.entry.id).toBe(11)
+    expect(index.get('sol ring')?.entries[0].id).toBe(11)
     expect(index.get('lightning bolt')?.totalQty).toBe(4)
-    expect(index.get('lightning bolt')?.entry.id).toBe(22)
+    expect(index.get('lightning bolt')?.entries[0].id).toBe(22)
   })
 
   test('different casings of the same name are deduplicated and summed', () => {
-    // Locks in the intersection of the case-insensitivity and dedup invariants:
-    // "Forest" and "forest" must collapse to one entry, with quantities summed
-    // and the first entry preserved. Without case-folding on the index key,
-    // each variant would become its own row and uploads would target the wrong one.
-    // The "keep first" invariant matters for uploads: the kept entry's deckRelationId
-    // and modifier are passed back to Archidekt's modifyCards API. If the test breaks
-    // because someone switched to "keep last", uploads could target the wrong row.
+    // Locks in the intersection of the case-insensitivity and first-seen-first
+    // invariants: "Forest" and "forest" must collapse to one entry, quantities
+    // summed, with the first relation staying `entries[0]` — the row whose
+    // deckRelationId and modifier uploads write quantity changes to.
     const index = buildRawCardIndex(
       makeRawDeck([
         { name: 'Forest', quantity: 3, relationId: 1 },
@@ -77,8 +74,10 @@ describe('buildRawCardIndex', () => {
     expect(index.size).toBe(1)
     const forest = index.get('forest')
     expect(forest?.totalQty).toBe(5)
-    expect(forest?.entry.id).toBe(1)
-    expect(forest?.entry.card.oracleCard.name).toBe('Forest')
+    expect(forest?.entries[0].card.oracleCard.name).toBe('Forest')
+    // Every relation is retained, in response order, so a printing change can
+    // move all of them — not just the primary the quantity is written to.
+    expect(forest?.entries.map((entry) => entry.id)).toEqual([1, 2])
     // Keys are lowercased: the original casing is not a valid lookup key.
     expect(index.get('Forest')).toBeUndefined()
   })

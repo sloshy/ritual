@@ -1008,6 +1008,10 @@ export const adminMeta = {
     description: 'Label of the tick box that selects every deck at once.',
   },
   'admin.deckSync.selectedCount': { description: 'How many decks are ticked. {count} of {total}.' },
+  'admin.deckSync.syncPrintings': {
+    description:
+      'Tick box making the run also sync each card\'s exact printing. "Printing" is a specific edition of a card; "finish" is its foil/etched treatment.',
+  },
   'admin.deckSync.dryRun': {
     description: 'Tick box making the run report what it would do without changing anything.',
   },

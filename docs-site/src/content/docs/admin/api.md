@@ -1699,6 +1699,7 @@ response is `401` with `loginRequired: true`.
 | `ignoreUnreadableLines` | Sync decks whose files hold content a rewrite cannot reproduce — unreadable lines or a fenced code block — deleting it (default `false`).                                                                                     | No       |
 | `only`                  | `additions` or `removals` — apply just one side of each deck's diff, relative to the sync destination (see [Change Filter](/commands/deck-sync/#change-filter)). Omitted applies every change; any other value returns `400`. | No       |
 | `force`                 | Push a deck whose remote copy changed since its recorded sync, overwriting those remote changes (default `false`). Must be a boolean or `400`. A pull ignores it.                                                             | No       |
+| `syncPrintings`         | Also sync each card's exact printing — set, collector number, and foil/etched finish (default `false`). Must be a boolean or `400`. See [Printing Sync](/commands/deck-sync/#printing-sync---sync-printings).                 | No       |
 
 A `push` refuses any deck whose Archidekt `updatedAt` is newer than the `sourceUpdatedAt` its last
 sync recorded — pushing would silently revert the remote edits. Such a deck is reported `failed`
@@ -1761,7 +1762,8 @@ supplies the terminator. `message` stays byte for byte what it always was.
 
 `success` reports whether the run could be performed, **not** whether every deck synced — a run with
 per-deck failures still returns `200` with `success: true` and a non-zero `report.failedCount`, so
-callers can read each deck's `status` and `reason`. `report.unreadable` lists any deck whose file
+callers can read each deck's `status` and `reason` (plus, when the request set `syncPrintings`,
+its `printingsChanged` count and `printingsSkipped` card names). `report.unreadable` lists any deck whose file
 holds lines the parser could not read (`{ name, file, warnings }`), so a caller that never sees the
 stream can still show what a retry with `ignoreUnreadableLines` would delete. When git auto-commit is
 enabled, deck files written by the run are committed (`Sync decks with Archidekt (<direction>)`).
@@ -1775,8 +1777,9 @@ GET /api/deck-sync/stream?direction=pull&deck=<slug>&deck=<slug>&only=additions&
 The same sync as `POST /api/deck-sync`, streamed as server-sent events. `EventSource` can only issue
 a bodyless `GET`, so the request arrives as query parameters: `direction` is required, `deck` repeats
 once per deck (omit entirely to sync all), `only` takes `additions` or `removals` (omit it to apply
-every change), and `dryRun` / `ignoreUnreadableLines` / `force` take `true` or `false` (any other
-value is rejected, so a flag that decides whether files are written can never be misread as "no").
+every change), and `dryRun` / `ignoreUnreadableLines` / `force` / `syncPrintings` take `true` or
+`false` (any other value is rejected, so a flag that decides whether files are written can never be
+misread as "no").
 
 Three event types are emitted:
 

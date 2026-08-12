@@ -138,6 +138,9 @@ export const domainMeta = {
   'domain.count.unreadableLines': {
     description: `${COUNT_CONTEXT} Lines of a list file the parser could not understand.`,
   },
+  'domain.count.printings': {
+    description: `${COUNT_CONTEXT} Card printings (a specific set/collector-number/finish of a card), e.g. in a deck sync's "2 printings changed".`,
+  },
   'domain.count.refusedRows': {
     description: `${COUNT_CONTEXT} Rows Archidekt rejected from an uploaded CSV.`,
   },

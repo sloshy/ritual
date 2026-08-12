@@ -23,8 +23,9 @@ import {
 import { getDeckFormatLabel } from '../deck-format'
 import { formatResolveListError, isResolveListError, resolveList } from '../resolve-list'
 import { appendChangelog } from '../changelog-writer'
-import type { Card, DeckData, DeckSection } from '../types'
+import type { Card, DeckData, DeckSection, Finish } from '../types'
 import type {
+  ArchidektCardModifier,
   ArchidektRawDeckResponse,
   ArchidektRawCardEntry,
   ModifyCardEntry,
@@ -32,14 +33,26 @@ import type {
 } from '../importers/archidekt-types'
 import {
   diffByCardName,
+  diffPrintings,
   diffToChangeEvents,
   buildCardIdResolver,
+  buildCardIdsResolver,
   filterNameDiff,
   isDiffEmpty,
   applyDownloadDiff,
+  applyPrintingUpdates,
+  printingRefOf,
+  printingUpdatesToChangeEvents,
   syncDeckFormat,
+  type DeckPrintingRef,
   type NameDiff,
+  type PrintingDiff,
+  type PrintingSkip,
+  type PrintingUpdate,
 } from './diff'
+import { printingSuffix } from '../card-line'
+import { hasSpecificPrinting } from '../card-printing'
+import { archidektModifier } from '../importers/archidekt-collection'
 import {
   describeSkippedChanges,
   type ConfirmUnreadable,
@@ -58,7 +71,24 @@ import { getDecksDir } from '../ritual-config'
 
 /** What happened to one deck during a sync run. */
 export type DeckSyncStatus = SyncItemStatus
-export type DeckSyncDeckResult = { name: string; status: DeckSyncStatus; reason?: string }
+export type DeckSyncDeckResult = {
+  name: string
+  status: DeckSyncStatus
+  reason?: string
+  /**
+   * Printing differences the run found for this deck (applied on a real run,
+   * previewed on a dry run). Present only when the run synced printings, so
+   * structured consumers — `--output json`, the MCP report, the admin page's
+   * non-streaming fallback — see them without reading the log.
+   */
+  printingsChanged?: number
+  /**
+   * Cards whose printings could not be reconciled — several distinct printings
+   * of one name on one side. Present only when the run synced printings; the
+   * log's warning carries which side was ambiguous.
+   */
+  printingsSkipped?: string[]
+}
 
 /** The report a run produces: per-deck results plus the failure count. */
 export type DeckSyncReport = {
@@ -126,6 +156,17 @@ export type DeckSyncOptions = {
    * Archidekt.
    */
   force?: boolean
+  /**
+   * Also sync each card's exact printing — set, collector number, and finish
+   * (the CLI's `--sync-printings`). Off by default, matching the historical
+   * name-and-quantity-only diff: a pull rewrites local printings to the
+   * remote's, and a push moves remote entries to the local file's printings,
+   * so it is opt-in per run. Cards whose lines disagree on a printing (several
+   * distinct printings of one name on either side) are skipped with a warning
+   * rather than guessed at, and the `only` filter does not apply — a printing
+   * update neither adds nor removes cards.
+   */
+  syncPrintings?: boolean
   onEvent?: DeckSyncEventHandler
   /**
    * Confirm syncing decks whose files carry unreadable lines. Omitted, such
@@ -161,12 +202,22 @@ export type SyncableDeck = {
 
 // ── Archidekt raw response helpers ────────────────────────────────────
 
-export type RawCardIndexEntry = { entry: ArchidektRawCardEntry; totalQty: number }
+export type RawCardIndexEntry = {
+  totalQty: number
+  /**
+   * Every deck-card relation sharing the name, in response order. Typed
+   * non-empty because an index entry exists only for a name the response
+   * held: `entries[0]` is the primary relation quantity changes are written
+   * to, and the type spares every reader the impossible-miss check.
+   */
+  entries: [ArchidektRawCardEntry, ...ArchidektRawCardEntry[]]
+}
 export type RawCardIndex = Map<string, RawCardIndexEntry>
 
 /**
  * Build an index from an Archidekt raw deck response, keyed by card name (lowercase).
- * When multiple entries share a name, the first entry is kept and quantities are summed.
+ * When multiple entries share a name, quantities are summed and every relation
+ * is retained in `entries`, first-seen first.
  */
 export function buildRawCardIndex(rawDeck: ArchidektRawDeckResponse): RawCardIndex {
   const index: RawCardIndex = new Map()
@@ -175,8 +226,9 @@ export function buildRawCardIndex(rawDeck: ArchidektRawDeckResponse): RawCardInd
     const existing = index.get(name)
     if (existing) {
       existing.totalQty += entry.quantity
+      existing.entries.push(entry)
     } else {
-      index.set(name, { entry, totalQty: entry.quantity })
+      index.set(name, { totalQty: entry.quantity, entries: [entry] })
     }
   }
   return index
@@ -210,10 +262,131 @@ function modificationsFromRaw(
   }
 }
 
+/** The modifier a printing sync sends, or the reason it cannot. */
+type ResolvedModifier = { ok: true; modifier: ArchidektCardModifier } | { ok: false; error: string }
+
+/**
+ * The modifier for a local finish against the printing's valid options. A
+ * finish the line *states* must be offered by the printing — pushing a foil
+ * that does not exist would silently mean something else — while an unstated
+ * finish falls back to the printing's first option, the same default
+ * Archidekt's own editor applies (and the one that keeps a bare local line on
+ * a foil-only printing from failing every push).
+ */
+function resolveModifier(
+  finish: Finish | undefined,
+  options: ArchidektCardModifier[],
+  cardLabel: string,
+): ResolvedModifier {
+  const desired = archidektModifier(finish ?? 'nonfoil')
+  if (options.includes(desired)) return { ok: true, modifier: desired }
+  if (finish !== undefined) {
+    return {
+      ok: false,
+      error: `Finish "${finish}" is not offered for ${cardLabel} on Archidekt (valid: ${options.join(', ')})`,
+    }
+  }
+  return { ok: true, modifier: options[0] ?? 'Normal' }
+}
+
+/** `Sol Ring (MKM:123)` when the printing names a set, for upload-plan messages. */
+function printingLabel(name: string, ref: DeckPrintingRef): string {
+  return `${name}${printingSuffix(ref.set, ref.collectorNumber)}`
+}
+
+/** The edition/modifier a printing update pushes onto a card's deck relations. */
+type ResolvedPrintingTarget = { cardid: number; modifier: ArchidektCardModifier }
+
+/** What resolving printing updates produced: the sendable targets, and why the rest are not. */
+type ResolvedPrintingTargets = {
+  /** Keyed by card name (lowercase). */
+  targets: Map<string, ResolvedPrintingTarget>
+  errors: string[]
+}
+
+/**
+ * Resolve printing updates into the edition id and modifier each card's
+ * relations should carry, keyed by card name (lowercase). An update whose
+ * target edition differs from the remote's is resolved through the printing
+ * search; one that only changes the finish reuses the remote edition. Updates
+ * that resolve to exactly what the remote already records are dropped — a
+ * bare local line on a foil-only printing "wants" nonfoil but falls back to
+ * the printing's own finish, which is not a change worth sending.
+ */
+async function resolvePrintingTargets(
+  updates: readonly PrintingUpdate[],
+  rawIndex: RawCardIndex,
+  client: ArchidektClient,
+  token: string,
+): Promise<ResolvedPrintingTargets> {
+  const targets = new Map<string, ResolvedPrintingTarget>()
+  const errors: string[] = []
+  for (const update of updates) {
+    const indexed = rawIndex.get(update.name.toLowerCase())
+    // The diff only emits updates for cards present on both sides, so a miss
+    // here means the raw payload and the parsed deck disagree — report it.
+    if (!indexed) {
+      errors.push(`Cannot update printing for card not found in Archidekt deck: ${update.name}`)
+      continue
+    }
+
+    const remoteCard = indexed.entries[0].card
+    let cardid = remoteCard.id
+    let options = remoteCard.options
+    if (hasSpecificPrinting(update.to)) {
+      const sameEdition =
+        remoteCard.edition.editioncode.toLowerCase() === update.to.set.toLowerCase() &&
+        remoteCard.collectorNumber.toLowerCase() === update.to.collectorNumber.toLowerCase()
+      if (!sameEdition) {
+        const result = await client.searchCards(
+          update.name,
+          update.to.set,
+          token,
+          update.to.collectorNumber,
+        )
+        if (typeof result === 'string') {
+          errors.push(result)
+          continue
+        }
+        cardid = result.id
+        options = result.options
+      }
+    }
+
+    const resolved = resolveModifier(
+      update.to.finish,
+      options,
+      printingLabel(update.name, update.to),
+    )
+    if (!resolved.ok) {
+      errors.push(resolved.error)
+      continue
+    }
+
+    // Nothing left to change once the finish fallback is applied.
+    if (cardid === remoteCard.id && resolved.modifier === indexed.entries[0].modifier) continue
+
+    targets.set(update.name.toLowerCase(), { cardid, modifier: resolved.modifier })
+  }
+  return { targets, errors }
+}
+
+/** What a push needs to know beyond the name diff. */
+type UploadPlanOptions = {
+  /** Printing updates to fold into the plan; empty when the flag is off. */
+  printingUpdates: readonly PrintingUpdate[]
+  /** Pin new cards to their exact printing and finish (`--sync-printings`). */
+  syncPrintings: boolean
+}
+
 /**
  * Build modifyCards/v2/ entries from a name diff (local = new, archidekt = old).
  * For new adds, resolves Archidekt card IDs via search.
  * For removals and quantity changes, uses IDs from the raw deck index.
+ *
+ * Printing updates are folded in rather than appended: a card whose quantity
+ * and printing both changed gets **one** modify entry per deck relation, since
+ * two entries naming the same `deckRelationId` would race each other.
  */
 async function buildUploadPlan(
   diff: NameDiff,
@@ -221,10 +394,38 @@ async function buildUploadPlan(
   rawIndex: RawCardIndex,
   client: ArchidektClient,
   token: string,
+  options: UploadPlanOptions,
 ): Promise<UploadPlan> {
   const entries: ModifyCardEntry[] = []
   const errors: string[] = []
   const nextPatchId = createPatchIdGenerator()
+
+  const resolvedTargets = await resolvePrintingTargets(
+    options.printingUpdates,
+    rawIndex,
+    client,
+    token,
+  )
+  errors.push(...resolvedTargets.errors)
+  const printingTargets = resolvedTargets.targets
+
+  /** One modify entry for a relation, carrying its printing target when one is set. */
+  const modifyEntry = (
+    raw: ArchidektRawCardEntry,
+    quantity: number,
+    target: ResolvedPrintingTarget | undefined,
+  ): ModifyCardEntry => ({
+    action: 'modify',
+    cardid: target?.cardid ?? raw.card.id,
+    customCardId: null,
+    categories: raw.categories,
+    patchId: nextPatchId(),
+    modifications: {
+      ...modificationsFromRaw(raw, quantity),
+      modifier: target?.modifier ?? raw.modifier,
+    },
+    deckRelationId: raw.id,
+  })
 
   // Remove cards: set quantity to 0
   for (const card of diff.removed) {
@@ -233,43 +434,76 @@ async function buildUploadPlan(
       errors.push(`Cannot remove card not found in Archidekt deck: ${card.name}`)
       continue
     }
+    const primary = indexed.entries[0]
     entries.push({
       action: 'remove',
-      cardid: indexed.entry.card.id,
+      cardid: primary.card.id,
       customCardId: null,
-      categories: indexed.entry.categories,
+      categories: primary.categories,
       patchId: nextPatchId(),
-      modifications: modificationsFromRaw(indexed.entry, 0),
-      deckRelationId: indexed.entry.id,
+      modifications: modificationsFromRaw(primary, 0),
+      deckRelationId: primary.id,
     })
   }
 
-  // Quantity changes: set new absolute quantity
+  // Quantity changes: set new absolute quantity (on the primary relation; any
+  // other relations of the name keep their own quantities but still take a
+  // pending printing change).
   for (const entry of diff.quantityChanged) {
-    const indexed = rawIndex.get(entry.name.toLowerCase())
+    const nameKey = entry.name.toLowerCase()
+    const indexed = rawIndex.get(nameKey)
     if (!indexed) {
       errors.push(`Cannot update quantity for card not found in Archidekt deck: ${entry.name}`)
       continue
     }
-    entries.push({
-      action: 'modify',
-      cardid: indexed.entry.card.id,
-      customCardId: null,
-      categories: indexed.entry.categories,
-      patchId: nextPatchId(),
-      modifications: modificationsFromRaw(indexed.entry, entry.newQty),
-      deckRelationId: indexed.entry.id,
-    })
+    const target = printingTargets.get(nameKey)
+    printingTargets.delete(nameKey)
+    entries.push(modifyEntry(indexed.entries[0], entry.newQty, target))
+    if (target) {
+      for (const raw of indexed.entries.slice(1)) {
+        entries.push(modifyEntry(raw, raw.quantity, target))
+      }
+    }
   }
 
-  // Add new cards: resolve Archidekt card edition ID via search
+  // Printing-only changes: every relation of the name moves to the new
+  // edition/finish, each keeping its own quantity.
+  for (const [nameKey, target] of printingTargets) {
+    const indexed = rawIndex.get(nameKey)
+    if (!indexed) continue // already reported by resolvePrintingTargets
+    for (const raw of indexed.entries) {
+      entries.push(modifyEntry(raw, raw.quantity, target))
+    }
+  }
+
+  // Add new cards: resolve Archidekt card edition ID via search. Under
+  // syncPrintings the pin comes from the diff's own printing summary — set
+  // only when the card's local lines agree on one printing — so an ambiguous
+  // card is added unpinned (Archidekt picks its default edition) rather than
+  // pinned to whichever line happened to come first. Without the flag, the
+  // historical behavior: the first matching line's set as a search hint.
   for (const card of diff.added) {
-    // Find the local card to get set info if available
-    const localCard = findLocalCard(localSections, card.name)
-    const result = await client.searchCards(card.name, localCard?.set, token)
+    const printing = options.syncPrintings ? card.printing : undefined
+    const searchSet = options.syncPrintings
+      ? printing?.set
+      : findLocalCard(localSections, card.name)?.set
+    const result = await client.searchCards(card.name, searchSet, token, printing?.collectorNumber)
     if (typeof result === 'string') {
       errors.push(result)
       continue
+    }
+    let modifier = result.options[0] ?? 'Normal'
+    if (options.syncPrintings) {
+      const resolved = resolveModifier(
+        printing?.finish,
+        result.options,
+        printingLabel(card.name, printing ?? printingRefOf(undefined)),
+      )
+      if (!resolved.ok) {
+        errors.push(resolved.error)
+        continue
+      }
+      modifier = resolved.modifier
     }
     entries.push({
       action: 'add',
@@ -279,7 +513,7 @@ async function buildUploadPlan(
       patchId: nextPatchId(),
       modifications: {
         quantity: card.totalQuantity,
-        modifier: result.options[0] ?? 'Normal',
+        modifier,
         customCmc: null,
         companion: false,
         flippedDefault: false,
@@ -682,10 +916,13 @@ type SyncOutcome = { decks: DeckSyncDeckResult[]; writtenFiles: string[] }
 type SyncFlow = {
   client: ArchidektClient
   token: string
+  direction: SyncDirection
   dryRun: boolean
   only: SyncChangeFilter | undefined
   /** Overwrite a remote deck that changed since the last sync (push only). */
   force: boolean
+  /** Also sync each card's exact printing and finish. */
+  syncPrintings: boolean
   emit: DeckSyncEventHandler
 }
 
@@ -720,9 +957,11 @@ export async function runDeckSync(options: DeckSyncOptions): Promise<DeckSyncRun
   const flow: SyncFlow = {
     client,
     token,
+    direction,
     dryRun,
     only: options.only,
     force: options.force ?? false,
+    syncPrintings: options.syncPrintings ?? false,
     emit,
   }
   const outcome: SyncOutcome =
@@ -784,6 +1023,48 @@ async function readRemoteUpdatedAt(
   }
 }
 
+/** A no-change printing diff, for runs without `syncPrintings`. */
+const EMPTY_PRINTING_DIFF: PrintingDiff = { updates: [], skipped: [] }
+
+/**
+ * The warning for a card whose printings could not be reconciled. The diff's
+ * old side is always the sync destination, so which side is the local file
+ * depends on the direction: a pull diffs local → remote, a push remote → local.
+ */
+function describePrintingSkip(skip: PrintingSkip, direction: SyncDirection): string {
+  const skippedLocal = (skip.side === 'old') === (direction === 'pull')
+  const where = skippedLocal ? 'in the local file' : 'on Archidekt'
+  return `Printing not synced for "${skip.name}": the card has several distinct printings ${where}.`
+}
+
+/** The report fields a printing pass adds to a deck's results. */
+type PrintingResultFields = Pick<DeckSyncDeckResult, 'printingsChanged' | 'printingsSkipped'>
+
+/**
+ * What this deck's results say about the printing pass — empty when the run
+ * is not syncing printings, so the fields stay absent rather than reading as
+ * "zero printings were considered".
+ */
+function printingResultFields(flow: SyncFlow, printingDiff: PrintingDiff): PrintingResultFields {
+  if (!flow.syncPrintings) return {}
+  return {
+    printingsChanged: printingDiff.updates.length,
+    printingsSkipped: printingDiff.skipped.map((skip) => skip.name),
+  }
+}
+
+/** Emit one warning per card the printing diff had to skip. */
+function emitPrintingSkips(flow: SyncFlow, deck: string, skipped: readonly PrintingSkip[]): void {
+  for (const skip of skipped) {
+    flow.emit({
+      kind: 'log',
+      level: 'warn',
+      deck,
+      message: describePrintingSkip(skip, flow.direction),
+    })
+  }
+}
+
 // ── Download flow ─────────────────────────────────────────────────────
 
 async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<SyncOutcome> {
@@ -811,16 +1092,27 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     // The filter narrows the diff before anything acts on it, so "no changes"
     // means "nothing left to apply" — with the skipped side reported either way.
     const { diff, skipped } = filterNameDiff(
-      diffByCardName(target.deck.sections, remoteDeck.sections),
+      diffByCardName(target.deck.sections, remoteDeck.sections, {
+        withPrintings: flow.syncPrintings,
+      }),
       only,
     )
     const skippedMessage = describeSkippedChanges(only, skipped)
     if (skippedMessage) {
       emit({ kind: 'log', level: 'info', deck: name, message: skippedMessage })
     }
+    // Printing updates sit outside the `only` filter: they neither add nor
+    // remove cards, so neither side of that vocabulary covers them.
+    const printingDiff = flow.syncPrintings
+      ? diffPrintings(target.deck.sections, remoteDeck.sections)
+      : EMPTY_PRINTING_DIFF
+    emitPrintingSkips(flow, name, printingDiff.skipped)
+    // Spread into every result this deck produces, so structured consumers see
+    // what the printing pass did without reading the log. Empty off the flag.
+    const printingReport = printingResultFields(flow, printingDiff)
     const formatSync = syncDeckFormat(target.deck, target.frontMatter.format, remoteDeck)
 
-    if (isDiffEmpty(diff) && !formatSync.changed) {
+    if (isDiffEmpty(diff) && !formatSync.changed && printingDiff.updates.length === 0) {
       emit({ kind: 'log', level: 'info', deck: name, message: 'No changes detected.' })
       // The sync still happened, so its stamp is still recorded. Skipping this
       // is what used to lock a deck out of `push`: a remote edit that touches no
@@ -830,12 +1122,16 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
       if (!dryRun && target.frontMatter.sourceUpdatedAt !== remoteUpdatedAt) {
         writtenFiles.push(...(await stampSyncedFrontMatter(target, remoteUpdatedAt)))
       }
-      finish(results, emit, { name, status: 'synced', reason: 'no changes' })
+      finish(results, emit, { name, status: 'synced', reason: 'no changes', ...printingReport })
       continue
     }
 
-    const changeSummary = `+${diff.added.length} added, -${diff.removed.length} removed, ~${diff.quantityChanged.length} quantity changed`
-    if (!isDiffEmpty(diff)) {
+    const printingClause =
+      printingDiff.updates.length > 0
+        ? `, ${t('domain.count.printings', { count: printingDiff.updates.length })} changed`
+        : ''
+    const changeSummary = `+${diff.added.length} added, -${diff.removed.length} removed, ~${diff.quantityChanged.length} quantity changed${printingClause}`
+    if (!isDiffEmpty(diff) || printingDiff.updates.length > 0) {
       emit({ kind: 'log', level: 'info', deck: name, message: `Changes: ${changeSummary}` })
     }
     if (formatSync.changed && formatSync.format) {
@@ -850,13 +1146,21 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
 
     if (dryRun) {
       emit({ kind: 'log', level: 'info', deck: name, message: '[dry-run] Not saved.' })
-      finish(results, emit, { name, status: 'synced', reason: `dry-run: ${changeSummary}` })
+      finish(results, emit, {
+        name,
+        status: 'synced',
+        reason: `dry-run: ${changeSummary}`,
+        ...printingReport,
+      })
       continue
     }
 
     // Apply changes to local sections, assigning IDs to any newly added cards so
     // they are persisted with a stable `&N` rather than being backfilled later.
-    const updatedSections = applyDownloadDiff(target.deck.sections, diff)
+    const updatedSections = applyPrintingUpdates(
+      applyDownloadDiff(target.deck.sections, diff),
+      printingDiff.updates,
+    )
     const updatedDeck: DeckData = assignMissingDeckCardIds({
       ...target.deck,
       format: formatSync.format ?? undefined,
@@ -874,14 +1178,21 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
 
     // Changes are stamped with their card ID. Added and quantity-changed cards
     // resolve against the post-sync deck; removed cards (no longer present)
-    // resolve against the pre-sync deck.
+    // resolve against the pre-sync deck. Printing updates rewrite every line
+    // of a card, so they resolve to one event per rewritten line.
     const resolveCardId = buildCardIdResolver(updatedDeck.sections, target.deck.sections)
-    const changes = diffToChangeEvents(diff, resolveCardId)
+    const changes = [
+      ...diffToChangeEvents(diff, resolveCardId),
+      ...printingUpdatesToChangeEvents(
+        printingDiff.updates,
+        buildCardIdsResolver(updatedDeck.sections),
+      ),
+    ]
     if (changes.length > 0) {
       writtenFiles.push(await appendChangelog(target.filePath, target.deck.name, changes))
     }
     emit({ kind: 'log', level: 'info', deck: name, message: 'Saved.' })
-    finish(results, emit, { name, status: 'synced' })
+    finish(results, emit, { name, status: 'synced', ...printingReport })
   }
 
   return { decks: results, writtenFiles }
@@ -967,31 +1278,50 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
 
     // Uploads diff by name only: the modifyCards API path cannot yet target a
     // specific remote board/category, so board placement must be ignored here to
-    // avoid spuriously moving cards on Archidekt.
+    // avoid spuriously moving cards on Archidekt. `withPrintings` rides the
+    // flag so a new card's printing pin comes from the summary — set only when
+    // the card's local lines agree on one printing.
     const { diff, skipped } = filterNameDiff(
-      diffByCardName(remoteDeck.sections, target.deck.sections, { byBoard: false }),
+      diffByCardName(remoteDeck.sections, target.deck.sections, {
+        byBoard: false,
+        withPrintings: flow.syncPrintings,
+      }),
       only,
     )
     const skippedMessage = describeSkippedChanges(only, skipped)
     if (skippedMessage) {
       emit({ kind: 'log', level: 'info', deck: name, message: skippedMessage })
     }
+    // Printing updates sit outside the `only` filter: they neither add nor
+    // remove cards, so neither side of that vocabulary covers them.
+    const printingDiff = flow.syncPrintings
+      ? diffPrintings(remoteDeck.sections, target.deck.sections, { byBoard: false })
+      : EMPTY_PRINTING_DIFF
+    emitPrintingSkips(flow, name, printingDiff.skipped)
+    const printingReport = printingResultFields(flow, printingDiff)
 
-    if (isDiffEmpty(diff)) {
+    if (isDiffEmpty(diff) && printingDiff.updates.length === 0) {
       emit({ kind: 'log', level: 'info', deck: name, message: 'No changes to upload.' })
-      finish(results, emit, { name, status: 'synced', reason: 'no changes' })
+      finish(results, emit, { name, status: 'synced', reason: 'no changes', ...printingReport })
       continue
     }
 
+    const printingClause =
+      printingDiff.updates.length > 0
+        ? `, ${t('domain.count.printings', { count: printingDiff.updates.length })} to change`
+        : ''
     emit({
       kind: 'log',
       level: 'info',
       deck: name,
-      message: `Changes: +${diff.added.length} to add, -${diff.removed.length} to remove, ~${diff.quantityChanged.length} quantity changes`,
+      message: `Changes: +${diff.added.length} to add, -${diff.removed.length} to remove, ~${diff.quantityChanged.length} quantity changes${printingClause}`,
     })
 
     const rawIndex = buildRawCardIndex(rawDeck)
-    const plan = await buildUploadPlan(diff, target.deck.sections, rawIndex, client, token)
+    const plan = await buildUploadPlan(diff, target.deck.sections, rawIndex, client, token, {
+      printingUpdates: printingDiff.updates,
+      syncPrintings: flow.syncPrintings,
+    })
 
     // Plan errors are partial failures: some cards could not be turned into
     // upload entries, so the deck did not fully sync even if the rest pushes.
@@ -1011,11 +1341,12 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
         results,
         emit,
         deckFailed
-          ? { name, status: 'failed', reason: plan.errors.join('; ') }
+          ? { name, status: 'failed', reason: plan.errors.join('; '), ...printingReport }
           : {
               name,
               status: 'synced',
               reason: `dry-run: would push ${plan.entries.length} card changes`,
+              ...printingReport,
             },
       )
       continue
@@ -1041,7 +1372,12 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
     // would have the front matter (and every status surface reading it) claim a
     // sync the deck never completed.
     if (deckFailed) {
-      finish(results, emit, { name, status: 'failed', reason: plan.errors.join('; ') })
+      finish(results, emit, {
+        name,
+        status: 'failed',
+        reason: plan.errors.join('; '),
+        ...printingReport,
+      })
       continue
     }
 
@@ -1060,7 +1396,7 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
     writtenFiles.push(...(await saveDeckWithSyncTimestamp(target, target.deck, pushedUpdatedAt)))
     emit({ kind: 'log', level: 'info', deck: name, message: 'Updated lastSynced.' })
 
-    finish(results, emit, { name, status: 'synced' })
+    finish(results, emit, { name, status: 'synced', ...printingReport })
   }
 
   return { decks: results, writtenFiles }

@@ -365,6 +365,7 @@ preview before applying — the same operation as \`ritual import-changes\` (see
 The admin's **Sync Decks** page runs \`deck-sync\` in the browser: pick a
 direction, narrow the run to additions or removals only (the \`--only\` flag's
 three-way control), toggle which Archidekt-linked decks to sync (all by default),
+opt into printing sync (the \`--sync-printings\` flag's checkbox),
 and watch per-deck progress stream in as it runs. Each deck shows when it last
 synced, and the page signs in to Archidekt inline when the stored token has
 expired. A deck whose file holds lines the parser cannot read is refused (a sync

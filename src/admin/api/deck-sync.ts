@@ -69,6 +69,11 @@ export type DeckSyncRequest = SyncRequestCore & {
    * spells this `--force`.
    */
   force: boolean
+  /**
+   * Also sync each card's exact printing — set, collector number, and finish.
+   * Off by default; the CLI spells this `--sync-printings`.
+   */
+  syncPrintings: boolean
 }
 
 /**
@@ -100,8 +105,16 @@ export function parseDeckSyncBody(value: unknown): DeckSyncRequest | string {
   if (value.force !== undefined && typeof value.force !== 'boolean') {
     return 'force must be a boolean'
   }
+  if (value.syncPrintings !== undefined && typeof value.syncPrintings !== 'boolean') {
+    return 'syncPrintings must be a boolean'
+  }
 
-  return { ...core, decks, force: value.force === true }
+  return {
+    ...core,
+    decks,
+    force: value.force === true,
+    syncPrintings: value.syncPrintings === true,
+  }
 }
 
 /**
@@ -112,6 +125,7 @@ const BOOLEAN_FLAGS = {
   dryRun: true,
   ignoreUnreadableLines: true,
   force: true,
+  syncPrintings: true,
 } as const satisfies Record<BooleanFieldsOf<DeckSyncRequest>, true>
 
 /**
@@ -216,6 +230,7 @@ async function performSync(
     dryRun: request.dryRun,
     only: request.only,
     force: request.force,
+    syncPrintings: request.syncPrintings,
     onEvent,
     // Nobody to prompt over HTTP: the request either carries the caller's "yes"
     // up front, or decks with unreadable lines fail and the caller retries.

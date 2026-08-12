@@ -230,6 +230,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       'force',
       'ignoreUnreadableLines',
       'only',
+      'syncPrintings',
     ])
     expect(schemaOf('sync_decks').required).toEqual(['direction'])
 
@@ -1252,24 +1253,22 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(firstText(noLogin)).toContain('Not signed into Archidekt')
   })
 
-  test('sync_decks passes ignoreUnreadableLines and only through to the handler', async () => {
-    // A renamed field on either side of callApi would be rejected by the
-    // handler's validation rather than reaching the login check.
+  test('sync_decks accepts ignoreUnreadableLines, only, and syncPrintings', async () => {
+    // The handler ignores keys it does not know, so this cannot prove the
+    // fields survive the trip — the `Partial<DeckSyncRequest>` typing on the
+    // tool's body is that guard. What this pins is that well-typed flags pass
+    // the tool's schema and the call reaches the handler's login check.
     const result = await callTool(client, 'sync_decks', {
       direction: 'pull',
       ignoreUnreadableLines: true,
       only: 'additions',
+      syncPrintings: true,
     })
     expect(result.isError).toBe(true)
     expect(firstText(result)).toContain('Not signed into Archidekt')
 
     const badFilter = await callTool(client, 'sync_decks', { direction: 'pull', only: 'adds' })
     expectSchemaRejection(badFilter, /\bonly\b/)
-
-    const { tools } = await client.listTools()
-    const schema = tools.find((tool) => tool.name === 'sync_decks')?.inputSchema
-    expect(Object.keys(schema?.properties ?? {})).toContain('ignoreUnreadableLines')
-    expect(Object.keys(schema?.properties ?? {})).toContain('only')
   })
 
   test('sync_collection rejects invalid input before it reaches the handler', async () => {

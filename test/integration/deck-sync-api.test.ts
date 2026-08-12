@@ -298,6 +298,45 @@ describe('deck-sync API', () => {
     expect(changelog).toContain('Added "Lightning Bolt"')
   })
 
+  test('syncPrintings reaches the engine: a pull rewrites the local printing', async () => {
+    // Pins the handler → engine pass-through: dropping `syncPrintings` from
+    // `performSync` would compile (the engine option is optional) and every
+    // other test would still pass.
+    await signIn()
+    const remote: ArchidektDeckResponse = {
+      name: 'Linked Deck',
+      deckFormat: 3,
+      categories: [{ id: 1, name: 'Main' }],
+      cards: [
+        {
+          quantity: 1,
+          modifier: 'Foil',
+          card: {
+            name: 'Sol Ring',
+            oracleCard: { name: 'Sol Ring' },
+            collectorNumber: '240',
+            edition: { editioncode: 'c21' },
+          },
+          categories: [1],
+        },
+      ],
+    }
+    stubFetch({ [`https://archidekt.com/api/decks/${SOURCE_ID}/`]: () => Response.json(remote) })
+
+    // Without the flag the printing difference is invisible.
+    const unflagged = await runReport({ direction: 'pull', decks: ['linked'] })
+    expect(unflagged.decks[0]).toMatchObject({ status: 'synced', reason: 'no changes' })
+
+    const report = await runReport({ direction: 'pull', decks: ['linked'], syncPrintings: true })
+    expect(report.decks[0]).toMatchObject({
+      status: 'synced',
+      printingsChanged: 1,
+      printingsSkipped: [],
+    })
+    const deck = await fs.readFile(path.join(tmpDir, 'decks', 'linked.md'), 'utf-8')
+    expect(deck).toContain('1 Sol Ring (C21:240) [foil] &1')
+  })
+
   test('reports progress to an in-process caller, ending on the terminal report', async () => {
     // The MCP adapter's channel: `handleDeckSyncRun`'s sink, not the SSE stream.
     await signIn()

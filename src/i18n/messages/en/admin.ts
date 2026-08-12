@@ -649,6 +649,8 @@ export const adminMessages = {
   'admin.deckSync.decksHeading': 'Decks',
   'admin.deckSync.allDecks': 'All decks',
   'admin.deckSync.selectedCount': '{count} of {total} selected',
+  'admin.deckSync.syncPrintings':
+    "Also sync each card's exact printing (set, collector number, and foil/etched finish)",
   'admin.deckSync.dryRun':
     'Preview only — report what would change without writing files or pushing',
   'admin.deckSync.signInPrompt': 'Sign in to Archidekt above to sync.',
