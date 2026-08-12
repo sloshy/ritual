@@ -52,6 +52,39 @@ export function formatDuration(ms: number): string {
   )
 }
 
+/**
+ * Render how long something just took, at the granularity a progress line needs:
+ * seconds to one decimal under a minute ("4.2 seconds"), whole minutes and
+ * seconds above it ("2 minutes, 5 seconds").
+ *
+ * Separate from {@link formatDuration}, whose floor is a minute — right for "the
+ * cache is 3 days old", useless for "the local index took 6 seconds", which is
+ * exactly the figure that tells a user which phase of a run is the slow one.
+ */
+export function formatElapsed(ms: number): string {
+  const locale = currentLocale()
+  // Rounded to the precision the sub-minute branch prints *before* the branch is
+  // chosen, so 59.96 seconds reads "1 minute" rather than "60 seconds".
+  const seconds = Math.round(Math.max(0, ms) / 100) / 10
+  const unit = (value: number, name: 'minute' | 'second', fractionDigits = 0): string =>
+    numberFormat(locale, {
+      style: 'unit',
+      unit: name,
+      unitDisplay: 'long',
+      maximumFractionDigits: fractionDigits,
+    }).format(value)
+
+  if (seconds < 60) return unit(seconds, 'second', 1)
+  // Rounded before the split, so 119.6s reads "2 minutes" rather than
+  // "1 minute, 60 seconds".
+  const whole = Math.round(seconds)
+  const minutes = Math.floor(whole / 60)
+  const rest = whole % 60
+  const parts = [unit(minutes, 'minute')]
+  if (rest > 0) parts.push(unit(rest, 'second'))
+  return listFormat(locale, { type: 'unit' }).format(parts)
+}
+
 export function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }

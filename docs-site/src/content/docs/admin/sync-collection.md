@@ -51,13 +51,16 @@ The run streams over server-sent events, so each list updates as it is processed
 A finished list shows its tally (`+2 added, -1 removed`) beside its name, counting **copies** rather
 than cards: a collection line is one physical copy, so that is the unit both directions move. Under
 each list are the lines the CLI prints — the change summary, what the change filter left out, and
-the final `Saved.` Lines that belong to the run rather than to one list sit above the list rows:
-the size of the fetched collection, and any removal too ambiguous to place (see below). A closing
-alert summarizes the run, e.g. `Pulled +4 added, -1 removed into "Inbox".`
+the final `Saved.` Lines that belong to the run rather than to one list sit above the list rows: the
+phase progress a run opens with — reading the list files, matching them against the card cache, one
+line per page of the fetched collection, each with how long it took — the size of the fetched
+collection, and any removal too ambiguous to place (see below). A closing alert summarizes the run,
+e.g. `Pulled +4 added, -1 removed into "Inbox".`
 
 If the browser cannot hold the event stream open (some reverse proxies buffer server-sent events),
 the page falls back to a single non-streaming request and fills in every list's result — including
-the ambiguous removals and run-level errors — when it returns.
+the ambiguous removals and run-level errors — when it returns. That fallback carries no progress
+lines at all: it has only the finished report to show.
 
 ## Removals it will not guess at
 

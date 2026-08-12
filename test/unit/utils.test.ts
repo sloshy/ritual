@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { formatDuration, getAtPath } from '../../src/utils'
+import { formatDuration, formatElapsed, getAtPath } from '../../src/utils'
 
 describe('formatDuration', () => {
   test('formats sub-minute, minutes, hours, and day durations', () => {
@@ -16,6 +16,30 @@ describe('formatDuration', () => {
   test('uses singular unit names for one minute and one hour', () => {
     expect(formatDuration(60_000)).toBe('1 minute')
     expect(formatDuration(60 * 60_000 + 60_000)).toBe('1 hour, 1 minute')
+  })
+})
+
+describe('formatElapsed', () => {
+  test('keeps sub-minute phases in seconds, to one decimal', () => {
+    expect(formatElapsed(420)).toBe('0.4 seconds')
+    expect(formatElapsed(1_000)).toBe('1 second')
+    expect(formatElapsed(12_340)).toBe('12.3 seconds')
+  })
+
+  test('splits longer phases into minutes and seconds', () => {
+    expect(formatElapsed(60_000)).toBe('1 minute')
+    expect(formatElapsed(125_000)).toBe('2 minutes, 5 seconds')
+  })
+
+  test('rounds before the split, so no component reads as 60 seconds', () => {
+    expect(formatElapsed(119_600)).toBe('2 minutes')
+    // Rounds *up* to a minute rather than taking the seconds branch and
+    // printing "60 seconds".
+    expect(formatElapsed(59_990)).toBe('1 minute')
+  })
+
+  test('clamps a negative delta rather than rendering it', () => {
+    expect(formatElapsed(-5)).toBe('0 seconds')
   })
 })
 

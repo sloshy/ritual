@@ -601,6 +601,36 @@ stdout:
 
 Top-level failures (for example, not being signed in) are emitted as a structured error on stderr.
 
+## Progress Output
+
+Most of a run's wall clock is spent before the first list is touched, so each of the slow phases
+announces itself and reports what it cost:
+
+```text
+Reading collection lists...
+Read 3 collection lists holding 1204 card entries in 0.3 seconds.
+Matching 1204 card entries against the local card cache (loading the cache the first time, which can take a while)...
+Indexed 1180 printings across the local lists in 6.4 seconds.
+Fetching the Archidekt collection (paced to stay under the rate limit)...
+Fetched page 1 of 4 — 100 collection records so far.
+Fetched page 2 of 4 — 200 collection records so far.
+Fetched page 3 of 4 — 300 collection records so far.
+Fetched page 4 of 4 — 382 collection records so far.
+Archidekt collection: 382 collection records covering 377 printings, fetched in 6 seconds.
+Comparing the collection against the local lists...
+```
+
+The two long pauses are the ones now named: the first card-cache lookup loads the whole Scryfall
+cache off disk, and the collection fetch is one [paced](#rate-limiting) request per page. Everything
+after that already logged per list and per card.
+
+The read tally counts what actually made it into the comparison, so it is short by any list
+[held back for unreadable lines](#unreadable-lines) or that could not be read at all — and its
+elapsed time covers the reading, never the time you spend answering that confirmation.
+
+These are ordinary progress lines, so the admin site's Sync Collection page shows them over its
+event stream, while `--quiet` and `--output json`/`ndjson` drop them.
+
 ## Failure Behavior
 
 Per-list failures — a list that did not resolve, a file that could not be read or saved, a printing

@@ -2252,6 +2252,120 @@ describe('runCollectionSync (pulled card names)', () => {
   })
 })
 
+// ── Progress ──────────────────────────────────────────────────────────
+
+/**
+ * The phases between "the command started" and "the first list is synced" —
+ * reading the files, loading the card cache to key them by, paging in the remote
+ * collection — take most of a run's wall clock, so each one has to say that it
+ * is happening. Durations are part of those lines, hence the prefix matching.
+ */
+describe('runCollectionSync (progress)', () => {
+  /**
+   * The lines carrying an elapsed time can only be matched by their head, so
+   * this pins the whole line up to the duration and asserts it was said exactly
+   * once — `some` cannot see a phase reported twice. The tail is matched too:
+   * an `{elapsed}` dropped from the interpolation would otherwise pass.
+   */
+  const timedPhase = (logs: string[], prefix: string): string[] =>
+    logs.filter((line) => line.startsWith(prefix) && /\b[\d.]+ seconds?\.$/.test(line))
+
+  test('announces each phase, one line per fetched collection page', async () => {
+    const store = fakeStore([
+      {
+        name: 'blue-binder',
+        entries: [
+          entry('Sol Ring', 'ltc', '284', { cardId: 1 }),
+          entry('Sol Ring', 'ltc', '284', { cardId: 2 }),
+        ],
+      },
+      { name: 'long-box', entries: [entry('Black Lotus', 'lea', '232', { cardId: 1 })] },
+    ])
+    // Deliberately mismatched counts — 2 lists, 3 entries, 2 local printings, 3
+    // records over 2 remote printings — so no two interpolated figures are
+    // interchangeable.
+    const { client } = mockArchidekt({
+      pages: [
+        [
+          record({ id: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', quantity: 2 }),
+          record({ id: 2, name: 'Black Lotus', set: 'lea', collectorNumber: '232' }),
+        ],
+        [record({ id: 3, name: 'Black Lotus', set: 'lea', collectorNumber: '232' })],
+      ],
+    })
+
+    const { logs } = await sync({ direction: 'pull', client, store, state: fakeState() })
+
+    expect(logs).toContain('Reading collection lists...')
+    expect(timedPhase(logs, 'Read 2 collection lists holding 3 card entries in ')).toHaveLength(1)
+    expect(logs).toContain(
+      'Matching 3 card entries against the local card cache (loading the cache the first time, which can take a while)...',
+    )
+    expect(timedPhase(logs, 'Indexed 2 printings across the local lists in ')).toHaveLength(1)
+    expect(logs).toContain(
+      'Fetching the Archidekt collection (paced to stay under the rate limit)...',
+    )
+    // The running total, not the page's own count: page 2 holds one record.
+    expect(logs).toContain('Fetched page 1 of 2 — 2 collection records so far.')
+    expect(logs).toContain('Fetched page 2 of 2 — 3 collection records so far.')
+    expect(logs.filter((line) => line.startsWith('Fetched page '))).toHaveLength(2)
+    expect(
+      timedPhase(
+        logs,
+        'Archidekt collection: 3 collection records covering 2 printings, fetched in ',
+      ),
+    ).toHaveLength(1)
+    expect(logs).toContain('Comparing the collection against the local lists...')
+    // Each phase is announced before it runs, not summarized after the fact.
+    expect(logs.indexOf('Reading collection lists...')).toBeLessThan(
+      logs.findIndex((line) => line.startsWith('Read 2 collection lists')),
+    )
+  })
+
+  test('the read tally counts only the lists that made it into the comparison', async () => {
+    const store = fakeStore([
+      { name: 'blue-binder', entries: [entry('Sol Ring', 'ltc', '284', { cardId: 1 })] },
+      {
+        name: 'long-box',
+        entries: [entry('Black Lotus', 'lea', '232', { cardId: 1 })],
+        warnings: ['Skipped malformed line: - ???'],
+      },
+    ])
+    const { client } = mockArchidekt({ pages: [[]] })
+
+    const { logs } = await sync({ direction: 'pull', client, store, state: fakeState() })
+
+    // long-box was held back for its unreadable line, so the run is not reading
+    // its entry — and must not claim to have.
+    expect(timedPhase(logs, 'Read 1 collection list holding 1 card entry in ')).toHaveLength(1)
+  })
+
+  test('says nothing about the card cache when there is no local line to key', async () => {
+    const store = fakeStore([{ name: 'blue-binder' }])
+    const { client } = mockArchidekt({ pages: [[]] })
+
+    const { logs } = await sync({ direction: 'pull', client, store, state: fakeState() })
+
+    expect(logs.some((line) => line.startsWith('Matching '))).toBe(false)
+    expect(logs.some((line) => line.startsWith('Indexed '))).toBe(false)
+    // The phases that did happen still report.
+    expect(timedPhase(logs, 'Read 1 collection list holding 0 card entries in ')).toHaveLength(1)
+  })
+
+  test('reports the phases of a run whose remote fetch fails, up to the failure', async () => {
+    const store = fakeStore([{ name: 'blue-binder' }])
+    const { client } = mockArchidekt({ fetchFails: true })
+
+    const { logs } = await sync({ direction: 'pull', client, store, state: fakeState() })
+
+    expect(logs.some((line) => line.startsWith('Fetching the Archidekt collection'))).toBe(true)
+    expect(logs.some((line) => line.startsWith('Fetched page '))).toBe(false)
+    expect(logs.some((line) => line.startsWith('Archidekt collection:'))).toBe(false)
+    expect(logs.some((line) => line.startsWith('Comparing the collection'))).toBe(false)
+    expect(logs.some((line) => line.includes('Failed to fetch collection page 1'))).toBe(true)
+  })
+})
+
 // ── Run-level failures ────────────────────────────────────────────────
 
 describe('runCollectionSync (run-level failures)', () => {

@@ -139,10 +139,11 @@ test.describe('Sync Collection Page', () => {
       kind: 'log',
       level: 'info',
       list: null,
-      message: 'Archidekt collection: 12 records, 9 distinct printings.',
+      message:
+        'Archidekt collection: 12 collection records covering 9 printings, fetched in 6 seconds.',
     })
     await expect(page.locator('.sync-run-note')).toHaveText(
-      'Archidekt collection: 12 records, 9 distinct printings.',
+      'Archidekt collection: 12 collection records covering 9 printings, fetched in 6 seconds.',
     )
 
     await emitStreamEvent(page, 'progress', {

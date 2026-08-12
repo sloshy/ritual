@@ -141,6 +141,12 @@ export const domainMeta = {
   'domain.count.printings': {
     description: `${COUNT_CONTEXT} Card printings (a specific set/collector-number/finish of a card), e.g. in a deck sync's "2 printings changed".`,
   },
+  'domain.count.collectionLists': {
+    description: `${COUNT_CONTEXT} Markdown files holding part of the user's card collection.`,
+  },
+  'domain.count.collectionRecords': {
+    description: `${COUNT_CONTEXT} Entries in the user's collection on Archidekt, the remote service Ritual syncs with.`,
+  },
   'domain.count.refusedRows': {
     description: `${COUNT_CONTEXT} Rows Archidekt rejected from an uploaded CSV.`,
   },
@@ -179,6 +185,38 @@ export const domainMeta = {
   'domain.sync.rateLimitWait': {
     description:
       'Warns that Archidekt answered 429 and the sync is pausing before retrying the same request. {seconds} is a number that may carry one decimal place (e.g. 2 or 2.5), {retry} is the 1-based attempt about to be made, {maxRetries} the total budget.',
+  },
+  'domain.sync.readingLists': {
+    description:
+      'The first progress line of a collection sync, printed before the list files are read.',
+  },
+  'domain.sync.listsRead': {
+    description:
+      'Reports the end of that phase. {lists} is a pre-rendered count of collection lists, {entries} a pre-rendered count of card entries, {elapsed} a pre-rendered duration like "4.2 seconds" — none of the three is a bare number.',
+  },
+  'domain.sync.indexingLocal': {
+    description:
+      'Announces the phase that looks every local card up in the on-disk Scryfall card cache; the parenthetical explains why the first run of it pauses for several seconds. {entries} is a pre-rendered count of card entries.',
+  },
+  'domain.sync.localIndexed': {
+    description:
+      'Reports the end of that phase. {printings} is a pre-rendered count of printings (a card in one specific set), {elapsed} a pre-rendered duration.',
+  },
+  'domain.sync.fetchingCollection': {
+    description:
+      'Announces the phase that downloads the whole Archidekt collection; the parenthetical explains why it is slow — Ritual deliberately spaces the requests out.',
+  },
+  'domain.sync.fetchedPage': {
+    description:
+      'One line per downloaded page of the remote collection, so a long fetch visibly advances. {page} and {totalPages} are bare numbers; {records} is a pre-rendered count of collection records fetched so far.',
+  },
+  'domain.sync.collectionFetched': {
+    description:
+      'Summarizes the downloaded collection. {records} is a pre-rendered count of collection records, {printings} a pre-rendered count of the distinct printings among them (fewer, since several records can share a printing), {elapsed} a pre-rendered duration.',
+  },
+  'domain.sync.comparing': {
+    description:
+      'Announces the phase that diffs the downloaded collection against the local lists, after both sides have been read.',
   },
   'domain.nav.decks': { description: `${NAV_CONTEXT} The deck index.`, maxLen: 12 },
   'domain.nav.collections': { description: `${NAV_CONTEXT} The collection index.`, maxLen: 12 },

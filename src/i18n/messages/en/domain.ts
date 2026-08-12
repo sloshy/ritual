@@ -84,6 +84,16 @@ export const domainMessages = {
     one: '{count} printing',
     other: '{count} printings',
   },
+  'domain.count.collectionLists': {
+    $plural: 'count',
+    one: '{count} collection list',
+    other: '{count} collection lists',
+  },
+  'domain.count.collectionRecords': {
+    $plural: 'count',
+    one: '{count} collection record',
+    other: '{count} collection records',
+  },
   'domain.count.refusedRows': {
     $plural: 'count',
     one: '{count} refused row',
@@ -142,6 +152,24 @@ export const domainMessages = {
   },
   'domain.sync.rateLimitWait':
     'Rate limited by Archidekt — waiting {seconds}s before retry {retry} of {maxRetries}.',
+
+  // ── Collection-sync progress ──────────────────────────────────────────
+  //
+  // A collection sync spends most of its wall clock in three phases that used
+  // to say nothing at all — reading the list files, loading the Scryfall cache
+  // to key them by, and paging in the remote collection — so each one announces
+  // itself before it starts and reports what it cost when it ends.
+  'domain.sync.readingLists': 'Reading collection lists...',
+  'domain.sync.listsRead': 'Read {lists} holding {entries} in {elapsed}.',
+  'domain.sync.indexingLocal':
+    'Matching {entries} against the local card cache (loading the cache the first time, which can take a while)...',
+  'domain.sync.localIndexed': 'Indexed {printings} across the local lists in {elapsed}.',
+  'domain.sync.fetchingCollection':
+    'Fetching the Archidekt collection (paced to stay under the rate limit)...',
+  'domain.sync.fetchedPage': 'Fetched page {page} of {totalPages} — {records} so far.',
+  'domain.sync.collectionFetched':
+    'Archidekt collection: {records} covering {printings}, fetched in {elapsed}.',
+  'domain.sync.comparing': 'Comparing the collection against the local lists...',
 
   // ── Site navigation ───────────────────────────────────────────────────
   //

@@ -45,6 +45,7 @@ import {
 } from '../sync-common'
 import type { ScryfallCard } from '../types'
 import type { CardPrintingsLookup } from '../card-printing'
+import { formatElapsed } from '../utils'
 import {
   describeAmbiguousRemoval,
   describeCollectionKey,
@@ -652,11 +653,33 @@ export async function runCollectionSync(
     aborted: errors.length > 0,
   })
 
+  /**
+   * A run-level progress line. Every phase below announces itself before it
+   * starts and says what it cost when it ends: reading the lists, loading the
+   * card cache to key them by, and paging in the remote collection each take
+   * long enough that silence reads as a hang.
+   */
+  const progress = (message: string): void => {
+    emit({ kind: 'log', level: 'info', list: null, message })
+  }
+
   // 1. Scope: the named lists, or every collection list.
+  progress(t('domain.sync.readingLists'))
   const scoped = await resolveScope(options.lists ?? [], store, emit, results)
 
   // 2. Load them, holding back any whose lines the parser could not read.
   const loaded = await loadLists(scoped, store, emit, results, options.confirmUnreadable, dryRun)
+  // The tally covers the lists that made it into the comparison, so it is short
+  // by any list held back or unreadable — which is exactly what the run goes on
+  // to treat as the local truth.
+  const entryCount = loaded.lists.reduce((total, list) => total + list.entries.length, 0)
+  progress(
+    t('domain.sync.listsRead', {
+      lists: t('domain.count.collectionLists', { count: loaded.lists.length }),
+      entries: t('domain.count.cardEntries', { count: entryCount }),
+      elapsed: formatElapsed(loaded.readElapsedMs),
+    }),
+  )
 
   if (loaded.lists.length === 0) {
     // A push with nothing readable locally would read as "the collection is
@@ -671,8 +694,27 @@ export async function runCollectionSync(
     emit({ kind: 'log', level: 'info', list: null, message: 'No collection lists to sync from.' })
   }
 
-  // 3. Index both sides.
+  // 3. Index both sides. The first printings lookup loads the whole card cache
+  //    off disk, which is the longest unexplained pause a run used to have —
+  //    but only when there is a line to look up, so an empty local side does not
+  //    narrate work it never does.
+  if (entryCount > 0) {
+    progress(
+      t('domain.sync.indexingLocal', {
+        entries: t('domain.count.cardEntries', { count: entryCount }),
+      }),
+    )
+  }
+  const indexingStartedAt = Date.now()
   const local = await buildLocalIndex(loaded.lists, lookupPrintings)
+  if (entryCount > 0) {
+    progress(
+      t('domain.sync.localIndexed', {
+        printings: t('domain.count.printings', { count: local.index.size }),
+        elapsed: formatElapsed(Date.now() - indexingStartedAt),
+      }),
+    )
+  }
   for (const warning of local.warnings) {
     emit({ kind: 'log', level: 'warn', list: warning.list, message: warning.message })
   }
@@ -689,7 +731,17 @@ export async function runCollectionSync(
     }
   }
 
-  const fetched = await fetchCollection(client, userId, token)
+  progress(t('domain.sync.fetchingCollection'))
+  const fetchStartedAt = Date.now()
+  const fetched = await fetchCollection(client, userId, token, (fetchedPage) => {
+    progress(
+      t('domain.sync.fetchedPage', {
+        page: fetchedPage.page,
+        totalPages: fetchedPage.totalPages,
+        records: t('domain.count.collectionRecords', { count: fetchedPage.recordsSoFar }),
+      }),
+    )
+  })
   if (typeof fetched === 'string') {
     emit({ kind: 'log', level: 'error', list: null, message: fetched })
     // Nothing can be compared without the remote side; every in-scope list is
@@ -702,12 +754,14 @@ export async function runCollectionSync(
   for (const warning of remote.warnings) {
     emit({ kind: 'log', level: 'warn', list: null, message: warning })
   }
-  emit({
-    kind: 'log',
-    level: 'info',
-    list: null,
-    message: `Archidekt collection: ${fetched.records.length} records, ${remote.index.size} distinct printings.`,
-  })
+  progress(
+    t('domain.sync.collectionFetched', {
+      records: t('domain.count.collectionRecords', { count: fetched.records.length }),
+      printings: t('domain.count.printings', { count: remote.index.size }),
+      elapsed: formatElapsed(Date.now() - fetchStartedAt),
+    }),
+  )
+  progress(t('domain.sync.comparing'))
 
   // 4. Plan and apply.
   const flow: SyncFlow = {
@@ -811,6 +865,12 @@ type LoadedLists = {
    * {@link runCollectionSync} keys its safety check off.
    */
   complete: boolean
+  /**
+   * How long reading the files took. Measured around the reads alone, so the
+   * unreadable-lines confirmation — a human deciding, for as long as they like —
+   * never lands in a figure the user reads as "this phase was slow".
+   */
+  readElapsedMs: number
 }
 
 /**
@@ -831,6 +891,7 @@ async function loadLists(
   const lists: LoadedCollectionList[] = []
   const held: LoadedCollectionList[] = []
   let complete = scope.complete
+  const startedAt = Date.now()
 
   for (const name of scope.names) {
     const loaded = await store.load(name)
@@ -852,7 +913,10 @@ async function loadLists(
     else lists.push(loaded)
   }
 
-  if (held.length === 0) return { lists, unreadable: [], complete }
+  // Stopped before the confirmation gate below, which waits on a person.
+  const readElapsedMs = Date.now() - startedAt
+
+  if (held.length === 0) return { lists, unreadable: [], complete, readElapsedMs }
 
   const unreadable: UnreadableList[] = held.map((list) => ({
     name: list.name,
@@ -901,7 +965,7 @@ async function loadLists(
     })
   }
 
-  return { lists, unreadable, complete }
+  return { lists, unreadable, complete, readElapsedMs }
 }
 
 // ── Remote fetch ──────────────────────────────────────────────────────
@@ -912,8 +976,21 @@ type FetchedCollection = {
   username: string
 }
 
+/** One page of the collection, as it lands — the fetch's only sign of life. */
+type CollectionPageProgress = {
+  /** The page just fetched, 1-based. */
+  page: number
+  /** How many pages the account's collection has, as the response reports it. */
+  totalPages: number
+  /** The running total across every page so far, this one included. */
+  recordsSoFar: number
+}
+
 /**
- * Page through the account's collection, following `next` until it runs out.
+ * Page through the account's collection, following `next` until it runs out,
+ * reporting each page through `onPage`: the requests are paced seconds apart, so
+ * a large collection spends minutes here and has to be seen to be advancing.
+ *
  * `totalPages` is a backstop: a response that keeps advertising a next page can
  * not spin the run forever. Returns the message explaining a failed fetch
  * rather than throwing — the run reports it against every in-scope list.
@@ -922,6 +999,7 @@ async function fetchCollection(
   client: ArchidektClient,
   userId: number,
   token: string,
+  onPage: (progress: CollectionPageProgress) => void,
 ): Promise<FetchedCollection | string> {
   const records: ArchidektCollectionRecord[] = []
   // Every page names the owner; the loop always reads at least one before
@@ -934,6 +1012,7 @@ async function fetchCollection(
       const response = await client.fetchCollectionPage(userId, page, token)
       records.push(...response.results)
       username = response.owner.username
+      onPage({ page, totalPages: response.totalPages, recordsSoFar: records.length })
       if (!response.next) break
       page++
       if (page > response.totalPages) break
