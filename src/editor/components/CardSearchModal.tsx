@@ -3,12 +3,7 @@ import { createSignal, createEffect, createMemo, on, onCleanup, Show, For } from
 import { Modal } from '../../ui/Modal'
 import type { Finish, Condition, ScryfallCard } from '../../types'
 import { getCardImageUrl } from '../../card-image'
-import {
-  defaultPrintingFinish,
-  isFinish,
-  printingFinishes,
-  VALID_CONDITIONS,
-} from '../../finish-condition'
+import { defaultPrintingFinish, printingFinishes, VALID_CONDITIONS } from '../../finish-condition'
 import type { EditorDefaults } from '../useEditorDefaults'
 import type { AddCardFromSearch } from '../useEditor'
 import type { SearchProvider } from '../search-provider'
@@ -38,6 +33,12 @@ import {
 import { defaultLanguage } from '../default-language'
 import { dedupePrintingsByKey, printingLanguages } from '../../card-printing'
 import { resolvePrintingLanguage } from '../../printing-language'
+import {
+  formatPrice as formatAmount,
+  formatPriceOrNA,
+  getCardPriceForFinish,
+  type PriceCurrency,
+} from '../../price-currency'
 
 type CardSearchModalProps = {
   open: boolean
@@ -116,17 +117,40 @@ function getCheapestPrinting(printings: ScryfallCard[]): ScryfallCard | undefine
 }
 
 /**
- * The grid tile's price line. Only the wrapper is localized: the amount itself
- * is still a bare `$` + Scryfall's USD string, which the currency sweep
- * (plan §6.4 / Phase 3) replaces with an `Intl.NumberFormat` rendering.
+ * The currency this dialog quotes in. Every price it renders — the grid tiles and
+ * the finish radios alike — goes through this, so the two can never disagree on
+ * how a number is written. The currency sweep (plan §6.4 / Phase 3) is what gives
+ * the picker a currency of its own.
  */
-function formatPrice(t: TranslateFn, card: ScryfallCard): string {
-  if (card.prices.usd !== null) return `$${card.prices.usd}`
+const PICKER_CURRENCY: PriceCurrency = 'usd'
+
+/**
+ * What the picked printing costs in one of its finishes, shown beside that
+ * finish's radio so the choice is priced before it is made.
+ */
+function finishPrice(printing: ScryfallCard, finish: Finish): string {
+  return formatPriceOrNA(getCardPriceForFinish(printing, finish, PICKER_CURRENCY), PICKER_CURRENCY)
+}
+
+/**
+ * The grid tile's price line: the printing's own quote, annotated when the only
+ * price it publishes belongs to a premium finish. Deliberately not
+ * {@link finishPrice} of {@link defaultPrintingFinish} — that reads `N/A` for a
+ * printing offered in nonfoil that has only ever been quoted in foil, where this
+ * would rather show the foil price and say so.
+ *
+ * Named apart from `price-currency`'s exported `formatPrice`, which it calls for
+ * the amount itself: two functions of that name in one file is how the two
+ * renderings drifted apart in the first place.
+ */
+function formatTilePrice(t: TranslateFn, card: ScryfallCard): string {
+  const amount = (raw: string): string => formatAmount(parseFloat(raw), PICKER_CURRENCY)
+  if (card.prices.usd !== null) return amount(card.prices.usd)
   if (card.prices.usd_foil !== null) {
-    return t('ui.addCard.priceFoil', { price: `$${card.prices.usd_foil}` })
+    return t('ui.addCard.priceFoil', { price: amount(card.prices.usd_foil) })
   }
   if (card.prices.usd_etched !== null) {
-    return t('ui.addCard.priceEtched', { price: `$${card.prices.usd_etched}` })
+    return t('ui.addCard.priceEtched', { price: amount(card.prices.usd_etched) })
   }
   return t('ui.addCard.priceUnknown')
 }
@@ -238,7 +262,9 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
    *   required" path supplies the NM default for decks.
    */
   const resolveAutoOptions = (printing: ScryfallCard): AddOptionsInput | null => {
-    const availableFinishes = printing.finishes.filter(isFinish)
+    // The same list the finish step would offer, so "can this step be skipped?"
+    // and "what does it show?" can never disagree.
+    const availableFinishes = printingFinishes(printing)
 
     let finish: Finish | undefined
     if (props.defaults?.finish && availableFinishes.includes(props.defaults.finish)) {
@@ -485,7 +511,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
    * `onClose` on top of that would run the parent's *dismissal* path over its own
    * just-committed state — which is how a bulk run used to skip every other card.
    */
-  const closeAfterCommit = () => {
+  const closeAfterCommit = (): void => {
     if (isAddFlow()) props.onClose()
   }
 
@@ -785,8 +811,10 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       // no ticker to show what would be committed.
       setQuantity(1)
     } else if (step() === 'printing') {
-      // In change-printing mode there is no search step to return to.
-      if (props.initialCardName) {
+      // In change-printing mode there is no search step to return to. Read from
+      // the latch, not the prop, so this agrees with the rest of the component
+      // even once the parent has cleared `initialCardName` to close the dialog.
+      if (!isAddFlow()) {
         props.onClose()
         return
       }
@@ -848,7 +876,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
         { keys: ['↑', '↓', 'Tab'], label: 'ui.hint.nextGroup' },
       ]
       if (usesQuantity()) hints.push({ keys: ['+', '-'], label: 'ui.hint.quantity' })
-      hints.push({ keys: ['Enter'], label: 'ui.hint.addCard' })
+      hints.push({ keys: ['Enter'], label: isAddFlow() ? 'ui.hint.addCard' : 'ui.hint.updateCard' })
       if (canAddAnother()) hints.push({ keys: ['Ctrl', 'Enter'], label: 'ui.hint.addAnother' })
       hints.push({ keys: ['Esc'], label: 'ui.hint.close' })
       return hints
@@ -999,9 +1027,11 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                           {(badge) => <span class="printing-lang-badge">{badge()}</span>}
                         </Show>
                         <div class="printing-label">
-                          {printing.set.toUpperCase()} #{printing.collector_number}
+                          <span class="printing-label-set">
+                            {printing.set.toUpperCase()} #{printing.collector_number}
+                          </span>
                           {' · '}
-                          {formatPrice(t, printing)}
+                          <span class="printing-label-price">{formatTilePrice(t, printing)}</span>
                         </div>
                       </button>
                     )
@@ -1100,14 +1130,17 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
               <div class="finish-condition-grid" ref={finishConditionRef}>
                 <Show
                   when={
-                    printing().finishes.length > 1 ||
-                    printing().finishes.some((f) => f === 'foil' || f === 'etched')
+                    printingFinishes(printing()).length > 1 ||
+                    printingFinishes(printing()).some((f) => f === 'foil' || f === 'etched')
                   }
                 >
                   <div class="finish-condition-section">
                     <h4>{t('ui.field.finish')}</h4>
                     <div class="radio-group">
-                      <For each={printing().finishes}>
+                      {/* `printingFinishes`, not the raw Scryfall list: a finish
+                          the domain does not model would otherwise render a radio
+                          that cannot be selected and carries no price. */}
+                      <For each={printingFinishes(printing())}>
                         {(finish) => (
                           <label
                             class={`radio-option${selectedFinish() === finish ? ' radio-option--selected' : ''}`}
@@ -1117,11 +1150,12 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                               name="finish"
                               value={finish}
                               checked={selectedFinish() === finish}
-                              onChange={() => {
-                                if (isFinish(finish)) setSelectedFinish(finish)
-                              }}
+                              onChange={() => setSelectedFinish(finish)}
                             />
                             {finish}
+                            <span class="radio-option-price">
+                              {finishPrice(printing(), finish)}
+                            </span>
                           </label>
                         )}
                       </For>

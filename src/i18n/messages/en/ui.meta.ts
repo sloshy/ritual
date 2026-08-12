@@ -483,6 +483,11 @@ export const uiMeta = {
     maxLen: 12,
   },
   'ui.hint.addCard': { description: 'Footer key hint: Enter adds the card.', maxLen: 14 },
+  'ui.hint.updateCard': {
+    description:
+      'Footer key hint: Enter commits the change, in the change-printing flow where the card already exists and only its printing is being re-targeted.',
+    maxLen: 14,
+  },
   'ui.hint.addAnother': {
     description: 'Footer key hint: Ctrl+Enter adds the card and starts another.',
     maxLen: 16,

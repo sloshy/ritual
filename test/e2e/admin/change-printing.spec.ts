@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import type { Finish, ScryfallCard } from '../../../src/types'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
-import { openListEditor } from '../helpers/editor-nav'
+import { openDeckWithCards } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
 import { selectCard } from '../helpers/list-ui'
@@ -12,6 +12,8 @@ type BoltPrintingSpec = {
   setName: string
   collectorNumber: string
   usd: string
+  /** Foil quote, for a printing offered in both finishes. */
+  usdFoil?: string
   /** Defaults to nonfoil-only, which auto-resolves the finish step away. */
   finishes?: Finish[]
 }
@@ -24,7 +26,7 @@ function boltPrinting(spec: BoltPrintingSpec): ScryfallCard {
     cmc: 1,
     type_line: 'Instant',
     oracle_text: 'Lightning Bolt deals 3 damage to any target.',
-    prices: { usd: spec.usd, eur: '0.80' },
+    prices: { usd: spec.usd, usd_foil: spec.usdFoil ?? null, eur: '0.80' },
     set: spec.set,
     set_name: spec.setName,
     collector_number: spec.collectorNumber,
@@ -54,6 +56,7 @@ const XM2_BOLT = boltPrinting({
   setName: 'Double Masters',
   collectorNumber: '129',
   usd: '3.75',
+  usdFoil: '11.20',
   finishes: ['nonfoil', 'foil'],
 })
 
@@ -104,14 +107,7 @@ test.describe('Deck Editor — change printing', () => {
       printings: [LEA_BOLT, M10_BOLT, XM2_BOLT],
     })
 
-    await openListEditor(page, 'deck')
-
-    const select = page.locator('select').first()
-    await page.waitForFunction(() => (document.querySelector('select')?.options.length ?? 0) > 1, {
-      timeout: 10_000,
-    })
-    await select.selectOption('test-change-printing')
-    await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+    await openDeckWithCards(page, 'test-change-printing')
   })
 
   const openChangePrinting = async (page: import('@playwright/test').Page) => {
@@ -193,11 +189,18 @@ test.describe('Deck Editor — change printing', () => {
 
     // The dialog names itself for the flow it is actually running.
     await expect(page.getByRole('dialog', { name: 'Change printing' })).toBeVisible()
-
     // 2XM offers both finishes, so the flow stops on the finish/condition step.
     await page.locator('.printing-select-card', { hasText: '2XM' }).click()
     const actions = page.locator('.add-card-actions')
     await expect(actions).toBeVisible()
+
+    // Each finish is priced in place, so the cost of foil vs nonfoil is visible
+    // at the moment of choosing rather than after committing.
+    // Scoped by the radio's value, not its text — "nonfoil" contains "foil".
+    const finishOption = (finish: Finish) =>
+      page.locator(`.radio-option:has(input[value="${finish}"]) .radio-option-price`)
+    await expect(finishOption('nonfoil')).toHaveText('$3.75')
+    await expect(finishOption('foil')).toHaveText('$11.20')
 
     // The card already exists — this re-targets its printing rather than adding,
     // so there is no "Add Another Card" and no copy count to answer (the quantity
@@ -205,6 +208,8 @@ test.describe('Deck Editor — change printing', () => {
     await expect(actions.locator('button')).toHaveCount(1)
     await expect(actions.locator('button')).toHaveText(/Update Card/)
     await expect(page.locator('#add-card-qty')).toHaveCount(0)
+    // The footer key hint names the same verb as the button it describes.
+    await expect(page.locator('.search-modal-footer')).toContainText('update card')
 
     await actions.locator('button').click()
     await expect(page.locator('.changes-badge')).toHaveText('1')
@@ -309,12 +314,7 @@ test.describe('Deck Editor — bulk change printing', () => {
         BULK_PRINTINGS[new URL(route.request().url()).searchParams.get('name') ?? ''] ?? [],
     }))
 
-    await openListEditor(page, 'deck')
-    await page.waitForFunction(() => (document.querySelector('select')?.options.length ?? 0) > 1, {
-      timeout: 10_000,
-    })
-    await page.locator('select').first().selectOption('test-bulk-printing')
-    await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+    await openDeckWithCards(page, 'test-bulk-printing')
   })
 
   test('a bulk run prompts for every selected card, skipping none', async ({ page }) => {
@@ -327,22 +327,25 @@ test.describe('Deck Editor — bulk change printing', () => {
       .click()
 
     // Each committed card must hand the run to the *next* one — a queue that
-    // advances twice per commit would silently drop every other card. The run
-    // follows the deck's display order, so collect the names rather than
-    // assuming one.
+    // advances twice per commit would silently drop every other card. One click
+    // per card, in whatever order the deck displays them.
     const heading = page.locator('.modal-heading-flex')
-    const prompted: string[] = []
     for (let i = 0; i < BULK_CARDS.length; i++) {
       await expect(heading).toContainText('Select a printing for')
-      prompted.push((await heading.textContent())!.replace('Select a printing for ', '').trim())
       await page.locator('.printing-select-card', { hasText: 'PLN' }).click()
     }
-    expect(prompted.toSorted()).toEqual([...BULK_CARDS].toSorted())
 
     // The picker closes on its own after the last card, and all three landed.
-    await expect(page.locator('.modal-heading-flex')).toHaveCount(0)
+    await expect(heading).toHaveCount(0)
     await expect(page.locator('.changes-badge')).toHaveText('3')
 
+    // Every tile re-renders against its new printing (PLN is the $9.00 one), so
+    // the run reached the view and not just the changelog.
+    await expect(page.locator('.card-item', { hasText: '9.00' })).toHaveCount(BULK_CARDS.length)
+
+    // Each card's printings carry only its own collector number, so the target
+    // in each entry is what pins that this card — not a repeat of another — was
+    // the one prompted for. A skipped card is missing from this list entirely.
     await page.locator('.btn-changes').click()
     const changes = page.locator('.changes-modal .changes-dialog')
     for (const [i, name] of BULK_CARDS.entries()) {

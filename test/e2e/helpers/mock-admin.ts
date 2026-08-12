@@ -829,12 +829,16 @@ export async function mockMoveCardsApi(
   await fulfillJson(page, '**/api/card-index', MOVE_DATA)
 
   await fulfillJson(page, '**/api/move/commit', (route: Route) => {
-    onCommit?.(route.request().postDataJSON())
+    const body = route.request().postDataJSON()
+    onCommit?.(body)
+    // Echo the requested count rather than a hardcoded 1: a multi-copy commit
+    // would otherwise get a response that contradicts what it sent.
+    const moved = Array.isArray(body?.moves) ? body.moves.length : 0
     return {
       success: true,
-      moved: 1,
+      moved,
       skipped: 0,
-      ...apiMessage('admin.api.move.moved', { count: 1 }),
+      ...apiMessage('admin.api.move.moved', { count: moved }),
     }
   })
 
@@ -879,7 +883,7 @@ export async function mockMoveCardsApi(
     frontMatter: { name: 'Move Deck' },
     slug: 'move-deck',
     contentHash: 'move-deck-hash',
-    totalCount: 0,
+    totalCount: 2,
     warnings: [],
   }
   await fulfillJson(page, '**/api/deck/move-deck', deck)

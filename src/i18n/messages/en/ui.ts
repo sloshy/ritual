@@ -260,6 +260,7 @@ export const uiMessages = {
   'ui.hint.nextGroup': 'next group',
   'ui.hint.quantity': 'quantity',
   'ui.hint.addCard': 'add card',
+  'ui.hint.updateCard': 'update card',
   'ui.hint.addAnother': 'add + another',
 
   // ── Keyboard shortcuts reference ──────────────────────────────────────

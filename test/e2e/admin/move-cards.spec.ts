@@ -1,8 +1,10 @@
 import { test, expect, type Page } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { mockMoveCardsApi } from '../helpers/mock-admin'
+import type { MoveCommitRequest } from '../../../src/admin/api/move'
 
-type CommitBody = { moves: { cardKey: string; toType: string; toSlug: string }[] }
+// The handler's own request type, so a mock can't drift from what it accepts.
+type CommitBody = MoveCommitRequest
 
 const BINDER_CARD_KEY = 'collection:move-binder:1:0'
 
@@ -103,7 +105,7 @@ test.describe('Move Cards page', () => {
     await page.locator('#move-list-select').selectOption('deck:move-deck')
 
     // A two-copy entry with no printing; a collection destination needs one.
-    await page.locator('.edit-btn-move').first().click()
+    await page.locator('.card-item', { hasText: 'Giant Growth' }).locator('.edit-btn-move').click()
     await page
       .locator('.move-destination-menu .card-context-menu-item', { hasText: 'Move Binder' })
       .click()
@@ -125,8 +127,22 @@ test.describe('Move Cards page', () => {
     await expect(page.locator('.changes-badge')).toHaveText('2')
     await page.locator('.btn-save').click()
     await expect.poll(() => committed).not.toBeNull()
+    // Both copies route to the binder, each carrying the printing that was
+    // picked — resolving it is the entire reason the prompt exists, so a move
+    // that arrived without the override would defeat the flow just as silently.
     expect(committed!.moves).toHaveLength(2)
-    expect(committed!.moves[0]!.toSlug).toBe('move-binder')
+    expect(committed!.moves.map((m) => m.cardKey)).toEqual([
+      'deck:move-deck:5:0',
+      'deck:move-deck:5:1',
+    ])
+    for (const move of committed!.moves) {
+      expect(move).toMatchObject({
+        toType: 'collection',
+        toSlug: 'move-binder',
+        set: 'pln',
+        collectorNumber: '7',
+      })
+    }
   })
 
   test('search finds a card across lists and opens its destination menu', async ({ page }) => {

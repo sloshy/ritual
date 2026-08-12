@@ -408,15 +408,21 @@
   display: block;
 }
 
+/* The label sits on card art, so it takes the same always-dark overlay treatment
+   (and the same themable colors) as the card-tile label everywhere else. */
 .printing-select-card .printing-label {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  background: linear-gradient(transparent, var(--overlay-heavy));
   padding: 4px 8px;
   font-size: 0.75rem;
-  color: white;
+  color: var(--card-label-text);
+}
+
+.printing-select-card .printing-label-price {
+  color: var(--card-label-price);
 }
 
 /* Language code worn by grid printings whose default object is non-English
@@ -555,6 +561,19 @@
 
 .radio-option input[type='radio'] {
   accent-color: var(--accent);
+}
+
+/* The finish's price, riding along in its radio so the cost of foil vs nonfoil
+   is visible at the moment of choosing. Deliberately quiet: it informs the
+   choice, it is not the label. */
+.radio-option-price {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.radio-option--selected .radio-option-price {
+  color: var(--success-text);
 }
 
 /* Keyboard focus within a radio group reads as a highlight on the whole option,
