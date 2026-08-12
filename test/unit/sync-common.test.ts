@@ -49,17 +49,27 @@ describe('unreadableConsequence', () => {
 })
 
 describe('describeRateLimitWait', () => {
-  test('rounds the wait up to whole seconds', () => {
-    expect(describeRateLimitWait({ waitMs: 2000, retry: 1, maxRetries: 5 })).toBe(
-      'Rate limited by Archidekt — waiting 2s before retry 1 of 5.',
-    )
-    expect(describeRateLimitWait({ waitMs: 2400, retry: 3, maxRetries: 5 })).toBe(
-      'Rate limited by Archidekt — waiting 3s before retry 3 of 5.',
+  test('renders the full sentence', () => {
+    expect(describeRateLimitWait({ waitMs: 250, retry: 1, maxRetries: 5 })).toBe(
+      'Rate limited by Archidekt — waiting 0.3s before retry 1 of 5.',
     )
   })
 
-  test('a sub-second wait never reads as zero seconds', () => {
-    expect(describeRateLimitWait({ waitMs: 200, retry: 5, maxRetries: 5 })).toContain('waiting 1s')
-    expect(describeRateLimitWait({ waitMs: 0, retry: 1, maxRetries: 5 })).toContain('waiting 1s')
-  })
+  const waitCases: [waitMs: number, seconds: string][] = [
+    [2000, '2'], // a whole second never renders as 2.0
+    [2440, '2.5'], // round UP, not to nearest
+    [250, '0.3'],
+    [101, '0.2'], // the tenth boundary rounds up…
+    [100, '0.1'], // …and an exact tenth stays put
+    [0, '0.1'], // the floor: a wait never reads as zero seconds
+    [60_000, '60'], // the Retry-After cap still reads sanely
+  ]
+
+  for (const [waitMs, seconds] of waitCases) {
+    test(`${waitMs}ms reads as ${seconds}s`, () => {
+      expect(describeRateLimitWait({ waitMs, retry: 1, maxRetries: 5 })).toContain(
+        `waiting ${seconds}s `,
+      )
+    })
+  }
 })

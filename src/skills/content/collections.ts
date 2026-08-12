@@ -223,8 +223,8 @@ ${wrapProse(
 )}
 
 ${wrapProse(
-  '**A push with many new cards:** creating a printing costs a search plus a create, each paced 500 ms ' +
-    'apart, so above **25 new printings** a push sends its additions through ' +
+  '**A push with many new cards:** creating a printing costs a search plus a create, each rate-limit ' +
+    'paced, so above **25 new printings** a push sends its additions through ' +
     "Archidekt's CSV importer instead — one upload, no searches, rows built " +
     'entirely from the local Scryfall cache (the same file ' +
     '`ritual export --preset archidekt` writes, in Archidekt’s spellings: ' +

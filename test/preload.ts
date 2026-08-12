@@ -1,7 +1,8 @@
 /**
  * Loaded by `bun test` (bunfig.toml `[test].preload`) before any suite runs.
  *
- * The Archidekt client paces requests 500ms apart by default, and that default
+ * The Archidekt client paces requests `DEFAULT_MIN_REQUEST_INTERVAL_MS` apart
+ * by default, and that default
  * also applies when a suite stubs `globalThis.fetch` or injects a transport —
  * where the pacing would only slow tests down. Force it off unconditionally
  * (even over a value inherited from the shell — a paced test suite is never

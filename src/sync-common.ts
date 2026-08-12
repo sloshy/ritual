@@ -79,14 +79,25 @@ export type RateLimitWait = {
 }
 
 /**
+ * The smallest wait the line will report. Unreachable from real waits (the
+ * client's minimum backoff is well above it) — it guards a future producer
+ * from emitting a line that claims a zero-second wait.
+ */
+const MIN_REPORTED_SECONDS = 0.1
+
+/**
  * The log line for a 429 backoff wait, shared by both sync engines so the CLI,
  * the admin progress panels, and the MCP report all describe it identically.
- * Waits round up to a whole second — never less than one, so the line cannot
- * claim a zero-second wait.
+ * Waits round up to a tenth of a second — never under-reported, and a
+ * sub-second wait (a short server-sent Retry-After, a pacing top-up) still
+ * reads accurately instead of inflating to a whole second.
  */
 export function describeRateLimitWait(wait: RateLimitWait): string {
-  const seconds = Math.max(1, Math.ceil(wait.waitMs / 1000))
-  return `Rate limited by Archidekt — waiting ${seconds}s before retry ${wait.retry} of ${wait.maxRetries}.`
+  return t('domain.sync.rateLimitWait', {
+    seconds: Math.max(MIN_REPORTED_SECONDS, Math.ceil(wait.waitMs / 100) / 10),
+    retry: wait.retry,
+    maxRetries: wait.maxRetries,
+  })
 }
 
 // ── Run reporting ─────────────────────────────────────────────────────

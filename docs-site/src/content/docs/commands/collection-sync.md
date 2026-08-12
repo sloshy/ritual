@@ -277,9 +277,9 @@ editing your collection on Archidekt as well.
 ### CSV import for new cards
 
 Adding a printing costs two Archidekt requests — a search to find it, then a create — and every
-request is [paced 500 ms apart](#rate-limiting), so a first push of a real collection would take
-hundreds of them. Above **25 new printings** a push sends its additions through Archidekt's own
-collection importer instead: one CSV, one upload, no searches.
+request is [paced](#rate-limiting), so a first push of a real collection would take hundreds of
+them. Above **25 new printings** a push sends its additions through Archidekt's own collection
+importer instead: one CSV, one upload, no searches.
 
 The rows come entirely from your **local Scryfall cache**, so building the file costs nothing:
 
@@ -615,13 +615,18 @@ closing line reads `Not synced: …` rather than `Synced: …`.
 
 ## Rate Limiting
 
-Requests to Archidekt are spaced at least 500 ms apart, so a large first push proceeds at roughly
-two requests per second. When Archidekt answers `429 Too Many Requests`, the request is retried up
-to 5 times — waiting out the server's `Retry-After` when it names one, otherwise backing off
-exponentially (1s, 2s, 4s, … capped at 30s) — with each wait reported as a warning like
-`Rate limited by Archidekt — waiting 4s before retry 2 of 5.` A 429 that outlives the
-retry budget fails that card's operation like any other HTTP error; re-running the sync later is
-safe and cheap, because only the remaining differences are pushed.
+Archidekt's rate limit is about 80 requests per minute per IP. Requests are spaced at least 1.5 s
+apart (40 per minute), staying comfortably under it while leaving headroom for anything else
+sharing the same IP. The budget is shared process-wide, so two syncs running in the same server
+pace against each other rather than each claiming the full rate. When Archidekt answers
+`429 Too Many Requests`, the request is retried up to 5
+times — waiting out the server's `Retry-After` (capped at 60s) when it names one, otherwise backing
+off exponentially (2s, 4s, 8s, 16s, 32s) — with each wait reported as a warning like
+`Rate limited by Archidekt — waiting 4s before retry 2 of 5.` The curve is sized to the limit's
+per-minute window: a 429 means the window is saturated, so the retries together span a full minute
+rather than burning the budget on waits too short to matter. A 429 that outlives the retry budget
+fails that card's operation like any other HTTP error; re-running the sync later is safe and cheap,
+because only the remaining differences are pushed.
 
 The spacing can be tuned with the `RITUAL_ARCHIDEKT_MIN_INTERVAL_MS` environment variable
 (`0` disables it); the 429 handling is always on.

@@ -140,6 +140,8 @@ export const domainMessages = {
     other:
       '{count} additions cannot ride the CSV (the printing is not in the Scryfall cache); they are added one at a time instead.',
   },
+  'domain.sync.rateLimitWait':
+    'Rate limited by Archidekt — waiting {seconds}s before retry {retry} of {maxRetries}.',
 
   // ── Site navigation ───────────────────────────────────────────────────
   //

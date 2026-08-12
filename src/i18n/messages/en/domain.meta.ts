@@ -176,6 +176,10 @@ export const domainMeta = {
     description:
       'Some cards cannot be uploaded in the bulk CSV because Ritual has no cached printing for them, so they are pushed individually instead. Note the pronoun agreement between the singular and plural forms.',
   },
+  'domain.sync.rateLimitWait': {
+    description:
+      'Warns that Archidekt answered 429 and the sync is pausing before retrying the same request. {seconds} is a number that may carry one decimal place (e.g. 2 or 2.5), {retry} is the 1-based attempt about to be made, {maxRetries} the total budget.',
+  },
   'domain.nav.decks': { description: `${NAV_CONTEXT} The deck index.`, maxLen: 12 },
   'domain.nav.collections': { description: `${NAV_CONTEXT} The collection index.`, maxLen: 12 },
   'domain.nav.wanted': { description: `${NAV_CONTEXT} The wanted-list index.`, maxLen: 12 },

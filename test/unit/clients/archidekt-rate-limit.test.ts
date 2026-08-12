@@ -1,8 +1,11 @@
 import { describe, test, expect, afterEach } from 'bun:test'
 import {
   ArchidektClient,
+  createArchidektPacer,
   createPacedArchidektClient,
   parseRetryAfterMs,
+  ARCHIDEKT_RATE_LIMIT_PER_MIN,
+  BACKOFF_CAP_MS,
   DEFAULT_MIN_REQUEST_INTERVAL_MS,
   RATE_LIMIT_MAX_RETRIES,
   type ArchidektClientOptions,
@@ -78,8 +81,8 @@ type HarnessSetup = {
 /**
  * A client wired entirely to fakes. The `now`/`sleep` seams are not optional
  * here on purpose: omitting them in a test would silently switch it to real
- * timers (a wall-clock 500ms per paced request, and up to 31s in the budget
- * tests).
+ * timers (a wall-clock pacing wait per request, and over a minute of backoff in
+ * the budget tests).
  */
 function harness({ responses, options, latencyMs = 0 }: HarnessSetup): Harness {
   const timeline = fakeTimeline()
@@ -102,6 +105,9 @@ function harness({ responses, options, latencyMs = 0 }: HarnessSetup): Harness {
     },
     {
       ...options,
+      // A fresh pacer per harness: the default is process-wide, and tests must
+      // not pace against each other's clocks.
+      pacer: createArchidektPacer(),
       now: timeline.now,
       sleep: timeline.sleep,
       onRateLimitWait: (wait) => waits.push(wait),
@@ -155,6 +161,15 @@ describe('parseRetryAfterMs', () => {
 })
 
 describe('request pacing', () => {
+  test('the default interval targets half the observed limit, rounded toward slower', () => {
+    expect(DEFAULT_MIN_REQUEST_INTERVAL_MS).toBe(1500)
+    // The headroom rule as an inequality, so it survives a future retune of
+    // the measured limit: one pacer never claims more than half of it.
+    expect(60_000 / DEFAULT_MIN_REQUEST_INTERVAL_MS).toBeLessThanOrEqual(
+      ARCHIDEKT_RATE_LIMIT_PER_MIN / 2,
+    )
+  })
+
   test('spaces request STARTS by the interval, first request free', async () => {
     // 120ms of transport latency eats into the interval: the next wait is only
     // the remainder, proving lastRequestAt is stamped before the fetch.
@@ -234,6 +249,32 @@ describe('request pacing', () => {
     )
   })
 
+  test('two clients sharing one pacer pace against each other', async () => {
+    const timeline = fakeTimeline()
+    const pacer = createArchidektPacer()
+    const starts: number[] = []
+    const makeClient = (): ArchidektClient =>
+      new ArchidektClient(
+        {
+          fetch: (): Promise<Response> => {
+            starts.push(timeline.now() - EPOCH)
+            return Promise.resolve(ok())
+          },
+        },
+        { minRequestIntervalMs: 500, pacer, now: timeline.now, sleep: timeline.sleep },
+      )
+    const a = makeClient()
+    const b = makeClient()
+
+    await a.fetchPublicDecks('user1')
+    await b.fetchPublicDecks('user1')
+    await a.fetchPublicDecks('user1')
+
+    // Were pacing per-instance, each client's first request would go out
+    // immediately; the shared pacer spaces the combined traffic instead.
+    expect(starts).toEqual([0, 500, 1000])
+  })
+
   test('bulk deletes pace between batches too', async () => {
     const h = harness({ responses: [okDelete], options: { minRequestIntervalMs: 500 } })
 
@@ -270,6 +311,11 @@ describe('request pacing', () => {
 })
 
 describe('429 handling', () => {
+  test('the cap sits above the whole curve, so it only guards a bigger retry budget', () => {
+    const curve = Array.from({ length: RATE_LIMIT_MAX_RETRIES }, (_, i) => 2000 * 2 ** i)
+    expect(Math.max(...curve)).toBeLessThanOrEqual(BACKOFF_CAP_MS)
+  })
+
   test('retries with exponential backoff and reports each wait', async () => {
     const h = harness({
       responses: [tooMany, tooMany, ok],
@@ -280,10 +326,10 @@ describe('429 handling', () => {
 
     expect(decks).toEqual([])
     expect(h.requests).toHaveLength(3)
-    expect(h.timeline.sleeps).toEqual([1000, 2000])
+    expect(h.timeline.sleeps).toEqual([2000, 4000])
     expect(h.waits).toEqual([
-      { waitMs: 1000, retry: 1, maxRetries: RATE_LIMIT_MAX_RETRIES },
-      { waitMs: 2000, retry: 2, maxRetries: RATE_LIMIT_MAX_RETRIES },
+      { waitMs: 2000, retry: 1, maxRetries: RATE_LIMIT_MAX_RETRIES },
+      { waitMs: 4000, retry: 2, maxRetries: RATE_LIMIT_MAX_RETRIES },
     ])
   })
 
@@ -309,7 +355,7 @@ describe('429 handling', () => {
 
     await h.client.fetchPublicDecks('user1')
 
-    expect(h.timeline.sleeps).toEqual([1000])
+    expect(h.timeline.sleeps).toEqual([2000])
   })
 
   test('a 429 outliving the retry budget fails with the full backoff curve behind it', async () => {
@@ -318,7 +364,7 @@ describe('429 handling', () => {
     // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
     await expect(h.client.fetchPublicDecks('user1')).rejects.toThrow(/429/)
     expect(h.requests).toHaveLength(RATE_LIMIT_MAX_RETRIES + 1)
-    expect(h.timeline.sleeps).toEqual([1000, 2000, 4000, 8000, 16_000])
+    expect(h.timeline.sleeps).toEqual([2000, 4000, 8000, 16_000, 32_000])
     expect(h.waits).toHaveLength(RATE_LIMIT_MAX_RETRIES)
   })
 
@@ -342,23 +388,34 @@ describe('429 handling', () => {
   })
 
   test('pacing tops up a backoff shorter than the interval', async () => {
-    const h = harness({ responses: [tooMany, ok], options: { minRequestIntervalMs: 3000 } })
+    const h = harness({ responses: [tooMany, ok], options: { minRequestIntervalMs: 5000 } })
 
     await h.client.fetchPublicDecks('user1')
 
-    // The 1s backoff runs first; the retry then waits out the interval's
-    // remaining 2s, so request starts stay a full interval apart.
-    expect(h.timeline.sleeps).toEqual([1000, 2000])
-    expect(requestTimes(h)).toEqual([0, 3000])
+    // The 2s backoff runs first; the retry then waits out the interval's
+    // remaining 3s, so request starts stay a full interval apart.
+    expect(h.timeline.sleeps).toEqual([2000, 3000])
+    expect(requestTimes(h)).toEqual([0, 5000])
   })
 
   test('a backoff longer than the interval subsumes the pacing wait', async () => {
-    const h = harness({ responses: [tooMany, ok], options: { minRequestIntervalMs: 500 } })
+    const h = harness({ responses: [tooMany, ok], options: { minRequestIntervalMs: 100 } })
 
     await h.client.fetchPublicDecks('user1')
 
-    expect(h.timeline.sleeps).toEqual([1000])
-    expect(requestTimes(h)).toEqual([0, 1000])
+    expect(h.timeline.sleeps).toEqual([2000])
+    expect(requestTimes(h)).toEqual([0, 2000])
+  })
+
+  test('a backoff exactly the interval leaves no pacing remainder to sleep', async () => {
+    // The wait > 0 edge in pace(): a computed remainder of exactly zero must
+    // not record a zero-length sleep.
+    const h = harness({ responses: [tooMany, ok], options: { minRequestIntervalMs: 2000 } })
+
+    await h.client.fetchPublicDecks('user1')
+
+    expect(h.timeline.sleeps).toEqual([2000])
+    expect(requestTimes(h)).toEqual([0, 2000])
   })
 
   test('a rate-limited write retries the SAME request, then continues the batches', async () => {
@@ -404,6 +461,6 @@ describe('createPacedArchidektClient', () => {
       globalThis.fetch = priorFetch
     }
 
-    expect(messages).toEqual(['Rate limited by Archidekt — waiting 1s before retry 1 of 5.'])
+    expect(messages).toEqual(['Rate limited by Archidekt — waiting 2s before retry 1 of 5.'])
   })
 })

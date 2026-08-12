@@ -711,7 +711,7 @@ export const adminMessages = {
   // ── CSV upload toggle and outcome (Sync Collection) ───────────────────
   'admin.csvToggle.heading': 'New cards',
   'admin.csvToggle.desc':
-    'A printing your Archidekt collection does not have yet costs a search plus a create, paced half a second apart, so a first push of a real collection would take hundreds of requests. Uploaded as one CSV import it takes one, with every row built from your local Scryfall cache. Quantity changes and removals never ride it.',
+    'A printing your Archidekt collection does not have yet costs a search plus a create, each rate-limit paced, so a first push of a real collection would take hundreds of requests. Uploaded as one CSV import it takes one, with every row built from your local Scryfall cache. Quantity changes and removals never ride it.',
   'admin.csvToggle.label': 'Upload new cards as one CSV import',
   'admin.csvToggle.thresholdFew': 'a few',
   'admin.csvToggle.offRun':

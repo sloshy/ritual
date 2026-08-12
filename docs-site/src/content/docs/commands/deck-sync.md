@@ -277,11 +277,19 @@ command exits with code 1; it exits 0 only when every deck synced cleanly.
 
 ## Rate Limiting
 
-Requests to Archidekt are spaced at least 500 ms apart. When Archidekt answers
-`429 Too Many Requests`, the request is retried up to 5 times — waiting out the
-server's `Retry-After` when it names one, otherwise backing off exponentially
-(1s, 2s, 4s, … capped at 30s) — with each wait reported as a warning. A 429 that
-outlives the retry budget fails that deck's operation like any other HTTP error.
+Archidekt's rate limit is about 80 requests per minute per IP, and requests are
+spaced at least 1.5 s apart (40 per minute) to stay comfortably under it. The
+budget is shared process-wide, so two syncs running in the same server pace
+against each other rather than each claiming the full rate. When
+Archidekt answers `429 Too Many Requests`, the request is retried up to 5
+times — waiting out the server's `Retry-After` (capped at 60s) when it names
+one, otherwise backing off exponentially (2s, 4s, 8s, 16s, 32s) — with each
+wait reported as a warning. The curve is sized to the limit's per-minute
+window: a 429 means the window is saturated, so the retries together span a
+full minute rather than burning the budget on waits too short to matter. A 429
+that outlives the retry budget fails that deck's operation like any other HTTP
+error.
+
 The spacing can be tuned with the `RITUAL_ARCHIDEKT_MIN_INTERVAL_MS` environment
 variable (`0` disables it); the 429 handling is always on.
 

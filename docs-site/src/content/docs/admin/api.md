@@ -1875,7 +1875,7 @@ told rather than watching its additions be uploaded instead.
 ### CSV import for new cards
 
 Creating a record for a printing Archidekt does not have costs a search plus a create, both
-[paced 500 ms apart](/commands/collection-sync/#rate-limiting), so a first push of a real collection
+[paced](/commands/collection-sync/#rate-limiting), so a first push of a real collection
 would take hundreds of requests. `csv: true` sends those additions through Archidekt's own collection
 importer instead — one upload, with every row built from the local Scryfall cache — exactly as the
 CLI's [`--csv`](/commands/collection-sync/#csv-import-for-new-cards) does, however few there are.

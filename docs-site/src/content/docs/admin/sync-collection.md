@@ -97,7 +97,7 @@ resolve the copies one at a time in a terminal — the one thing this page canno
 
 A printing your Archidekt collection does not have yet costs two requests to add — a search to find
 it, then a create — and every request is
-[paced 500 ms apart](/commands/collection-sync/#rate-limiting), so a first push of a real collection
+[paced](/commands/collection-sync/#rate-limiting), so a first push of a real collection
 would take hundreds of them. Archidekt's own collection importer takes one CSV instead, and the rows
 are built entirely from your local Scryfall cache, so the whole batch costs a single upload.
 

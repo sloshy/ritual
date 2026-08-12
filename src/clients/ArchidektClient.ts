@@ -139,18 +139,42 @@ export function nextPageUrl(next: string | null | undefined, baseUrl?: string): 
   return url.toString()
 }
 
-/** Milliseconds enforced between consecutive requests of one client instance. */
-export const DEFAULT_MIN_REQUEST_INTERVAL_MS = 500
+/**
+ * Archidekt's observed rate limit: ~80 requests per minute per IP (measured
+ * 2026-08-11). Pacing and backoff below are both derived from it.
+ */
+export const ARCHIDEKT_RATE_LIMIT_PER_MIN = 80
+
+/**
+ * The fraction of {@link ARCHIDEKT_RATE_LIMIT_PER_MIN} the default pacing aims
+ * to use — the rest is headroom for anything else sharing the IP (another
+ * Ritual process, a browser tab, a NAT neighbor).
+ */
+const RATE_LIMIT_HEADROOM_DIVISOR = 2
+
+/**
+ * Milliseconds enforced between consecutive requests. Targets half the
+ * observed limit (40 req/min); pacing state is shared process-wide by default
+ * (see {@link processPacer}), so however many clients a process constructs,
+ * they respect this one budget together.
+ */
+export const DEFAULT_MIN_REQUEST_INTERVAL_MS = Math.ceil(
+  60_000 / (ARCHIDEKT_RATE_LIMIT_PER_MIN / RATE_LIMIT_HEADROOM_DIVISOR),
+)
 
 /** How many 429 responses a single request rides out before failing for real. */
 export const RATE_LIMIT_MAX_RETRIES = 5
 
+/** The first backoff after a 429; each further retry doubles it. */
+const BACKOFF_BASE_MS = 2000
+
 /**
- * The longest a computed exponential backoff will sleep. Unreachable at the
- * current retry budget (the fifth backoff is 16s) — it guards a future budget
- * increase from producing minutes-long sleeps.
+ * The longest a computed exponential backoff will sleep. The limit window is
+ * per-minute, so the full retry budget (62s of backoff) must be able to
+ * outlive one window — the cap only guards a future retry-budget increase
+ * from producing minutes-long sleeps (the fifth backoff is 32s).
  */
-const BACKOFF_CAP_MS = 30_000
+export const BACKOFF_CAP_MS = 60_000
 
 /** The longest a server-sent Retry-After is honored for — beyond this, wait the cap. */
 const RETRY_AFTER_CAP_MS = 60_000
@@ -158,10 +182,32 @@ const RETRY_AFTER_CAP_MS = 60_000
 /** Observes each 429 backoff wait, so callers can tell the user why a run pauses. */
 export type RateLimitWaitObserver = (wait: RateLimitWait) => void
 
+/**
+ * Mutable pacing state: when the last request went out. Shared by every client
+ * that holds the same instance, so their combined traffic respects one
+ * interval.
+ */
+export type ArchidektPacer = {
+  /** Epoch milliseconds of the previous request; the next one waits out the interval. */
+  lastRequestAt: number
+}
+
+/** A pacer that has never sent a request — the first one through it is free. */
+export function createArchidektPacer(): ArchidektPacer {
+  return { lastRequestAt: Number.NEGATIVE_INFINITY }
+}
+
+/**
+ * The default pacer, shared process-wide: the rate limit is per-IP, so two
+ * clients in one process (a sync engine next to a URL import, two admin SSE
+ * runs) must pace against each other, not just themselves.
+ */
+const processPacer: ArchidektPacer = createArchidektPacer()
+
 export type ArchidektClientOptions = {
   /**
    * Minimum milliseconds between consecutive Archidekt requests made through
-   * this instance (pacing is per-instance, not process-wide); 0 disables it.
+   * this instance's pacer (process-wide by default); 0 disables it.
    * Defaults, in order: this option, the `RITUAL_ARCHIDEKT_MIN_INTERVAL_MS`
    * environment variable, then {@link DEFAULT_MIN_REQUEST_INTERVAL_MS}. An
    * invalid option throws; an invalid environment value is ignored (pacing is a
@@ -169,6 +215,12 @@ export type ArchidektClientOptions = {
    */
   minRequestIntervalMs?: number
   onRateLimitWait?: RateLimitWaitObserver
+  /**
+   * Pacing state to share; the process-wide default keeps every client in the
+   * process under one budget. Tests inject a fresh {@link createArchidektPacer}
+   * so suites do not pace against each other.
+   */
+  pacer?: ArchidektPacer
   /**
    * Clock seam for tests; `Date.now` by default. Must return epoch
    * milliseconds — the Retry-After HTTP-date branch subtracts it from a parsed
@@ -246,9 +298,16 @@ export type ArchidektDeckFetch = {
   raw: ArchidektRawDeckResponse
 }
 
-/** The exponential backoff for a retry: 1s, 2s, 4s, … capped at {@link BACKOFF_CAP_MS}. */
+/**
+ * The exponential backoff for a retry: {@link BACKOFF_BASE_MS} doubled per
+ * retry (2s, 4s, 8s, 16s, 32s), capped at {@link BACKOFF_CAP_MS}. The curve is
+ * sized to Archidekt's per-minute window ({@link ARCHIDEKT_RATE_LIMIT_PER_MIN}):
+ * a 429 means the window is saturated and may not clear for tens of seconds,
+ * so the retries together span a full window rather than burning the budget on
+ * waits too short to matter.
+ */
 function backoffMs(retry: number): number {
-  return Math.min(1000 * 2 ** (retry - 1), BACKOFF_CAP_MS)
+  return Math.min(BACKOFF_BASE_MS * 2 ** (retry - 1), BACKOFF_CAP_MS)
 }
 
 /**
@@ -278,13 +337,14 @@ export class ArchidektClient {
   private readonly onRateLimitWait: RateLimitWaitObserver | undefined
   private readonly now: NonNullable<ArchidektClientOptions['now']>
   private readonly sleep: NonNullable<ArchidektClientOptions['sleep']>
-  /** When the previous request went out; the next one waits out the interval. */
-  private lastRequestAt = Number.NEGATIVE_INFINITY
+  /** Shared pacing state; the process-wide default unless the options inject one. */
+  private readonly pacer: ArchidektPacer
 
   constructor(httpClient?: HttpClient, options?: ArchidektClientOptions) {
     this.httpClient = httpClient ?? defaultHttpClient
     this.minRequestIntervalMs = resolveMinInterval(options?.minRequestIntervalMs)
     this.onRateLimitWait = options?.onRateLimitWait
+    this.pacer = options?.pacer ?? processPacer
     this.now = options?.now ?? Date.now
     this.sleep = options?.sleep ?? realSleep
   }
@@ -292,9 +352,9 @@ export class ArchidektClient {
   /** Hold the next request until the pacing interval since the last one has passed. */
   private async pace(): Promise<void> {
     if (this.minRequestIntervalMs <= 0) return
-    const wait = this.lastRequestAt + this.minRequestIntervalMs - this.now()
+    const wait = this.pacer.lastRequestAt + this.minRequestIntervalMs - this.now()
     if (wait > 0) await this.sleep(wait)
-    this.lastRequestAt = this.now()
+    this.pacer.lastRequestAt = this.now()
   }
 
   /**
