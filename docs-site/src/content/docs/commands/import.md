@@ -54,22 +54,56 @@ engine.
 | `-o, --overwrite`               | all        | Overwrite existing lists without prompting                                                                                                                                                                                                                              |
 | `-y, --yes`                     | all        | Automatically answer yes to the overwrite confirmation when an import conflicts with an existing list                                                                                                                                                                   |
 | `-n, --dry-run`                 | all        | Preview actions without writing files                                                                                                                                                                                                                                   |
+| `--sync-printings`              | URLs       | Keep the exact printings (set, collector number, finish) the source lists, without asking — see [Printings from a URL import](#printings-from-a-url-import)                                                                                                             |
+| `--no-sync-printings`           | URLs       | Import bare card names, dropping the printings the source lists, without asking                                                                                                                                                                                         |
 | `--moxfield-user-agent <agent>` | URLs       | Moxfield-approved unique User-Agent string (required for Moxfield imports unless env is set)                                                                                                                                                                            |
 | `--output <format>`             | all        | Output format: `text` (default), `json`, or `ndjson`                                                                                                                                                                                                                    |
 | `--quiet`                       | all        | Suppress progress and confirmation lines on every source kind (URL, text, CSV). Never suppressed: the structured payload, errors, the conflict messages and prompt, the `Overwriting <file>...` notice, advisories, the header-row warning, and the skipped-line report |
 
 Flags are validated against the resolved source: a CSV-only flag on a URL or text-file
-import, or `--moxfield-user-agent` on a CSV **or text-file** import, fails with a usage
-error (exit code `2`) naming the offending flag. `--moxfield-user-agent` only applies to
-URL imports.
+import, or `--moxfield-user-agent` / `--sync-printings` / `--no-sync-printings` on a CSV
+**or text-file** import, fails with a usage error (exit code `2`) naming the offending
+flag. Those three only apply to URL imports — a local file's printings are the file's
+own data.
+
+## Printings from a URL import
+
+Archidekt and Moxfield state each card's exact printing — set code, collector number,
+and foil/etched finish — and keeping that is a choice, the same one
+[`deck-sync --sync-printings`](/commands/deck-sync/#printing-sync---sync-printings)
+makes explicit:
+
+- **Neither flag** — the import asks
+  (`Import the exact printings (set, collector number, and finish) the source lists?`,
+  default yes). Declining writes bare card names (`1 Sol Ring` instead of
+  `1 Sol Ring (LTC:284) [foil]`); sections and everything else are unaffected, and
+  cards that differed only by printing collapse into one line with their quantities
+  summed. A deck whose entries state no printing at all (MTGGoldfish) has nothing
+  to decide and never asks. `--output json`/`ndjson` cannot host the prompt, so with
+  neither flag such a run is refused; the emitted payload records the decision as
+  `syncPrintings` on URL imports.
+- **`--sync-printings`** — keep them, without asking.
+- **`--no-sync-printings`** — drop them, without asking. Good for scripted runs and
+  agent tooling that must not block on a prompt.
+- **`--no-input`** (with neither flag) — keeps the printings, the command's historical
+  behavior, and says so:
+  `Keeping the exact printings the source lists (pass --no-sync-printings to import bare card names).`
+  Without a terminal and without `--no-input`, the unanswerable prompt is a usage error
+  naming both flags.
+
+[`import-account`](/commands/import-account/) takes the same pair of flags, asked once
+for the whole run. The admin site's Import Deck page has the same choice as a checkbox
+(ticked by default), and the MCP `import_deck` tool requires a `syncPrintings` boolean
+on every URL import.
 
 `-y, --yes` answers the overwrite confirmation on conflicts — for that purpose it is
 equivalent to `--overwrite`. Neither flag disables prompting; use the global `--no-input`
 for headless runs.
 
 Cancelling any interactive prompt — the conflict prompt's **Cancel**, the list-type
-prompt, or any step of the CSV wizard — aborts the import with `Cancelled.` on stderr
-and exit code `2`; in JSON modes nothing is written to stdout.
+prompt, the [printings prompt](#printings-from-a-url-import), or any step of the CSV
+wizard — aborts the import with `Cancelled.` on stderr and exit code `2`; in JSON modes
+nothing is written to stdout.
 
 ## Dry Runs
 
@@ -144,7 +178,9 @@ With `--output json` (or `ndjson`), a URL or text-file import emits a summary on
 a non-empty array means content was lost and the command exits `1` (see
 [Partial Failures](#partial-failures)). `advisories` lists lines that **were** imported but
 looked off — a card name still carrying a printing token, or a skipped Arena `About` line;
-advisories print on stderr (even under `--quiet`) and never change the exit code.
+advisories print on stderr (even under `--quiet`) and never change the exit code. A URL
+import's payload additionally carries `syncPrintings` — whether the written deck kept the
+[exact printings the source listed](#printings-from-a-url-import).
 
 A CSV import emits a structured result instead:
 
@@ -178,12 +214,12 @@ though the payload was emitted (see [Partial Failures](#partial-failures)).
 
 ### Printings from URL Imports
 
-Archidekt and Moxfield state which printing each card in the deck is, so an import from
-either keeps it: the line is written as `1 Sol Ring (C19:221)`, with `[foil]` or `[etched]`
-when the source says so. The printing is carried through exactly as the source states it —
-nothing is verified against Scryfall, the same trust level as a CSV import. Cards of the
-same printing in one section merge into a single line; different printings of the same card
-stay separate lines.
+Archidekt and Moxfield state which printing each card in the deck is, and keeping that
+is a choice — see [Printings from a URL import](#printings-from-a-url-import). When kept,
+the line is written as `1 Sol Ring (C19:221)`, with `[foil]` or `[etched]` when the source
+says so, carried through exactly as the source states it — nothing is verified against
+Scryfall, the same trust level as a CSV import. Cards of the same printing in one section
+merge into a single line; different printings of the same card stay separate lines.
 
 MTGGoldfish deck pages carry no printing data, so those imports remain name-only.
 

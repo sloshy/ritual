@@ -1,5 +1,5 @@
 import { IMPORT_TEXT_PARSE_OPTIONS, parseDeckText } from '../../importers/text-file'
-import { fetchDeckFromUrl } from '../../importers/url-dispatch'
+import { fetchDeckFromUrl, stripDeckPrintings } from '../../importers/url-dispatch'
 import { saveDeck } from '../../commands/import'
 import { listFilePath } from '../../resolve-list'
 import { autoCommitAndPush, badRequest, readJsonObjectBody } from './save-helpers'
@@ -12,10 +12,23 @@ import { MAX_LIST_BODY_SIZE } from '../validation'
 /**
  * Import request from the admin site. Either fetch a deck from a supported URL,
  * or parse decklist text supplied directly (pasted into the UI or read from a
- * file the browser uploaded).
+ * file the browser uploaded). Exported so the Import Deck page builds its body
+ * against this contract — `syncPrintings` must be present in exactly one mode,
+ * and the discriminated union makes getting that wrong a compile error there.
  */
-type ImportDeckRequest =
-  | { mode: 'url'; url: string; overwrite?: boolean }
+export type ImportDeckRequest =
+  | {
+      mode: 'url'
+      url: string
+      overwrite?: boolean
+      /**
+       * Keep the exact printings — set, collector number, finish — the source
+       * lists (`true`), or import bare card names (`false`). Required: the CLI
+       * asks interactively when neither `--sync-printings` flag is given, and
+       * there is nobody to ask over HTTP, so the caller must decide.
+       */
+      syncPrintings: boolean
+    }
   | { mode: 'text'; content: string; name?: string; overwrite?: boolean }
 
 /** `POST /api/import-deck` — the deck that was written. */
@@ -36,40 +49,75 @@ export interface ImportDeckResponse extends ApiMessage {
    * imports.
    */
   advisories: string[]
+  /**
+   * Whether the written deck kept the exact printings the source listed.
+   * `true` for a text import, whose printings are the pasted lines' own —
+   * only a URL import can decline them.
+   */
+  syncPrintings: boolean
 }
 
-function isImportDeckRequest(value: unknown): value is ImportDeckRequest {
-  if (typeof value !== 'object' || value === null) return false
-  const record = value as Record<string, unknown>
-  if (record.mode === 'url') return typeof record.url === 'string'
-  if (record.mode === 'text') return typeof record.content === 'string'
-  return false
+const MODE_REQUIRED = 'Invalid request: expected mode "url" (with url) or "text" (with content)'
+
+/**
+ * Parse a request body into an {@link ImportDeckRequest}, or return why it is
+ * not one. A parser rather than a validator-plus-cast: every field the
+ * handler reads is checked here, so the shape and the checks cannot drift.
+ */
+function parseImportDeckRequest(record: Record<string, unknown>): ImportDeckRequest | string {
+  const overwrite = record.overwrite
+  if (overwrite !== undefined && typeof overwrite !== 'boolean') {
+    return 'overwrite must be a boolean'
+  }
+  if (record.mode === 'url') {
+    if (typeof record.url !== 'string') return 'url is required for mode "url"'
+    if (typeof record.syncPrintings !== 'boolean') {
+      // The CLI's stand-in for this field is an interactive prompt; over HTTP
+      // the caller must decide, so an absent or mistyped value is refused
+      // rather than silently defaulted.
+      return (
+        'syncPrintings is required for a URL import and must be a boolean: true keeps the ' +
+        'exact printings (set, collector number, finish) the source lists, false imports ' +
+        'bare card names'
+      )
+    }
+    return { mode: 'url', url: record.url, overwrite, syncPrintings: record.syncPrintings }
+  }
+  if (record.mode === 'text') {
+    if (typeof record.content !== 'string') return 'content is required for mode "text"'
+    if (record.syncPrintings !== undefined) {
+      return 'syncPrintings only applies to URL imports; pasted text states its own printings'
+    }
+    if (record.name !== undefined && typeof record.name !== 'string') {
+      return 'name must be a string'
+    }
+    return { mode: 'text', content: record.content, name: record.name, overwrite }
+  }
+  return MODE_REQUIRED
 }
 
 export function handleImportDeck(req: Request): Promise<Response> {
   return apiHandler(async () => {
     const parsedBody = await readJsonObjectBody(req, MAX_LIST_BODY_SIZE)
     if (!parsedBody.ok) return parsedBody.response
-    const body: unknown = parsedBody.body
-    if (!isImportDeckRequest(body)) {
-      return badRequest('Invalid request: expected mode "url" (with url) or "text" (with content)')
-    }
-    const overwrite = body.overwrite ?? false
+    const request = parseImportDeckRequest(parsedBody.body)
+    if (typeof request === 'string') return badRequest(request)
+    const overwrite = request.overwrite ?? false
 
     let deckData: DeckData
     let warnings: string[] = []
     let advisories: string[] = []
 
-    if (body.mode === 'url') {
-      const url = body.url.trim()
+    if (request.mode === 'url') {
+      const url = request.url.trim()
       if (!url) return badRequest('url is required')
       const result = await fetchDeckFromUrl(url)
       if (typeof result === 'string') return badRequest(result)
-      deckData = result
+      deckData = request.syncPrintings ? result : stripDeckPrintings(result)
     } else {
-      const content = body.content.trim()
+      const content = request.content.trim()
       if (!content) return badRequest('content is required')
-      const fallbackName = body.name?.trim() || 'Imported Deck'
+      const fallbackName = request.name?.trim() || 'Imported Deck'
       // Pasted text is an import surface, so it reads exactly what the CLI's
       // text path reads: the Arena/MTGO dialect (`4 Lightning Bolt (M10) 146`
       // becomes a printing, not a card name) and the inside of a ``` fence,
@@ -117,6 +165,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
       deckName: deckData.name,
       warnings,
       advisories,
+      syncPrintings: request.mode === 'url' ? request.syncPrintings : true,
     }
     return Response.json(resp)
   })

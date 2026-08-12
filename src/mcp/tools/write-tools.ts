@@ -105,7 +105,10 @@ export type RemoveSelectedResult = OmitSuccess<RemoveCommitResponse>
  * `POST /api/import-deck` body as the MCP tool builds it. Looser than the
  * handler's `ImportDeckRequest` union on purpose: the tool schema leaves
  * `url`/`content` optional so a missing one surfaces as the handler's own
- * 400 rather than a schema rejection with less context.
+ * 400 rather than a schema rejection with less context. `syncPrintings` is
+ * forwarded on the text branch too, deliberately: a text-mode call that
+ * carries it gets the handler's explanation of why it does not apply,
+ * instead of the tool silently dropping the field.
  */
 type ImportDeckBody = {
   mode: 'url' | 'text'
@@ -113,6 +116,7 @@ type ImportDeckBody = {
   content?: string
   name?: string
   overwrite?: boolean
+  syncPrintings?: boolean
 }
 
 /**
@@ -350,21 +354,34 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         "Import a deck from a supported URL or from pasted decklist text (Ritual's own " +
         'format and MTG Arena/MTGO exports). Text lines the parser cannot read are skipped and ' +
         'reported in `warnings` — check it, because a non-empty array means part of the pasted ' +
-        'text was not imported; `advisories` reports lines that imported but looked off.',
+        'text was not imported; `advisories` reports lines that imported but looked off. ' +
+        'A URL import must state `syncPrintings` — the CLI asks the user interactively, and ' +
+        'this call is that decision, so ask the user when their intent is unclear.',
       inputSchema: z.object({
         mode: z.enum(['url', 'text']).describe('Import source.'),
         url: z.string().optional().describe('Deck URL (mode "url").'),
         content: z.string().optional().describe('Decklist text (mode "text").'),
         name: z.string().optional().describe('Name for the imported deck (mode "text").'),
         overwrite: z.boolean().optional().describe('Overwrite an existing deck of the same name.'),
+        syncPrintings: z
+          .boolean()
+          .optional()
+          .describe(
+            'Required for mode "url" (the handler refuses a URL import without it): true keeps ' +
+              'the exact printings — set, collector number, foil/etched finish — the source ' +
+              'lists; false imports bare card names. Not accepted for mode "text", whose ' +
+              'printings come from the pasted lines themselves.',
+          ),
       }),
       outputSchema: fromJsonSchema<ImportDeckResult>(IMPORT_DECK_OUTPUT),
       annotations: { destructiveHint: true },
     },
-    async ({ mode, url, content, name, overwrite }) =>
+    async ({ mode, url, content, name, overwrite, syncPrintings }) =>
       runTool(async (): Promise<ImportDeckResult> => {
         const body: ImportDeckBody =
-          mode === 'url' ? { mode, url, overwrite } : { mode, content, name, overwrite }
+          mode === 'url'
+            ? { mode, url, overwrite, syncPrintings }
+            : { mode, content, name, overwrite, syncPrintings }
         const data = await callApiData<ImportDeckResponse>('POST', '/api/import-deck', body)
         // An import can create a list, so the roster may have changed.
         notifier.notifyListsChanged()

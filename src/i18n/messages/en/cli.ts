@@ -21,6 +21,8 @@ export const cliMessages = {
   'cli.prompt.subject.pass': 'pass {what}',
   'cli.prompt.subject.interactiveInput': 'interactive input',
   'cli.prompt.subject.listType': 'the kind of list to import into',
+  'cli.prompt.subject.syncPrintings':
+    'whether to import the exact printings (pass --sync-printings or --no-sync-printings)',
   'cli.prompt.subject.filterValue': 'a filter value',
   'cli.prompt.subject.exitChoice': 'a choice of what to do with the unsaved changes',
 

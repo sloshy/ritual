@@ -4,7 +4,12 @@ import * as fs from 'node:fs/promises'
 import { promptUser } from '../utils'
 import { listFileName, unusableFileNameMessage } from '../list-file-name'
 import { IMPORT_TEXT_PARSE_OPTIONS, listDeckFiles, loadDeckFile } from '../importers/text-file'
-import { fetchDeckFromUrl, resolveImportSourceUrl } from '../importers/url-dispatch'
+import {
+  deckStatesPrintings,
+  fetchDeckFromUrl,
+  resolveImportSourceUrl,
+  stripDeckPrintings,
+} from '../importers/url-dispatch'
 import {
   applyCsvImport,
   type CsvImportMode,
@@ -57,7 +62,12 @@ import { isPathWithinDir } from '../path-validation'
 import { getDecksDir } from '../ritual-config'
 import { listFilePath, normalizeListName } from '../resolve-list'
 import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list-type'
-import { ask, promptListType } from './prompts-helpers'
+import { ask, promptListType, resolveImportPrintings } from './prompts-helpers'
+import {
+  addSyncPrintingsOptions,
+  readSyncPrintingsFlag,
+  type SyncPrintingsOptions,
+} from './sync-printings-flag'
 import { isNoInput, promptsUnavailable } from '../no-input'
 import {
   CardCommandError,
@@ -110,7 +120,7 @@ type ImportCommandOptions = {
   moxfieldUserAgent?: string
   output: OutputFormat
   quiet: boolean
-}
+} & SyncPrintingsOptions
 
 /** How an `import <source>` argument will be read. */
 type ImportSourceKind = 'url' | 'csv' | 'text'
@@ -144,6 +154,12 @@ type ImportJsonResult = {
    * not affect the exit code.
    */
   advisories: string[]
+  /**
+   * Whether the written deck kept the exact printings the source listed. Only
+   * a URL import can decline them (via prompt or flag), so the field appears
+   * on URL imports alone — a text file's printings are its own lines.
+   */
+  syncPrintings?: boolean
 }
 
 /** One failed CSV row in the `--output json`/`ndjson` result. */
@@ -539,6 +555,7 @@ function firstCsvOnlyFlag(options: ImportCommandOptions): string | undefined {
 function rejectedFlagForSource(
   kind: ImportSourceKind,
   options: ImportCommandOptions,
+  syncPrintingsFlag: boolean | undefined,
 ): string | undefined {
   if (kind === 'url' || kind === 'text') {
     const flag = firstCsvOnlyFlag(options)
@@ -550,6 +567,11 @@ function rejectedFlagForSource(
   }
   if (kind !== 'url' && options.moxfieldUserAgent !== undefined) {
     return t('cli.import.moxfieldAgentSourceOnly', { kind })
+  }
+  // A local file's printings are the file's own data, so the URL-import
+  // question makes no sense there in either direction.
+  if (kind !== 'url' && syncPrintingsFlag !== undefined) {
+    return t('cli.import.syncPrintingsUrlOnly', { kind })
   }
   return undefined
 }
@@ -585,6 +607,8 @@ function emitImportSummary(
   dryRun: boolean,
   scripting: ScriptingOptions,
   diagnostics: ImportSummaryDiagnostics = { warnings: [], advisories: [] },
+  /** URL imports only: whether the deck kept the source's exact printings. */
+  syncPrintings?: boolean,
 ): void {
   const { warnings, advisories } = diagnostics
   if (outcome.status === 'cancelled') {
@@ -602,6 +626,7 @@ function emitImportSummary(
     warnings,
     advisories,
   }
+  if (syncPrintings !== undefined) payload.syncPrintings = syncPrintings
   emitOutput(payload, scripting)
 }
 
@@ -1153,26 +1178,28 @@ async function runCsvImport(
 export function registerImportCommand(program: Command): void {
   addScriptingOptions(
     addDryRunOption(
-      program
-        .command('import')
-        .description(t('help.import.description'))
-        .argument('<source>', t('help.import.source'))
-        .option('-t, --type <type>', t('help.import.type', { types: LIST_TYPES.join(', ') }))
-        .option('--name <name>', t('help.import.name'))
-        .option('--deck-format <format>', t('help.import.deckFormat'))
-        .option(
-          '-c, --columns <mapping>',
-          t('help.import.columns', { fields: CSV_FIELDS.join(', ') }),
-        )
-        .option('--no-header', t('help.import.noHeader'))
-        .option('--append', t('help.import.append'))
-        .option('--csv', t('help.import.csv'))
-        .option('-o, --overwrite', t('help.import.overwrite'))
-        .option('-y, --yes', t('help.import.yes'))
-        .option('--moxfield-user-agent <agent>', t('help.import.moxfieldUserAgent')),
+      addSyncPrintingsOptions(
+        program
+          .command('import')
+          .description(t('help.import.description'))
+          .argument('<source>', t('help.import.source'))
+          .option('-t, --type <type>', t('help.import.type', { types: LIST_TYPES.join(', ') }))
+          .option('--name <name>', t('help.import.name'))
+          .option('--deck-format <format>', t('help.import.deckFormat'))
+          .option(
+            '-c, --columns <mapping>',
+            t('help.import.columns', { fields: CSV_FIELDS.join(', ') }),
+          )
+          .option('--no-header', t('help.import.noHeader'))
+          .option('--append', t('help.import.append'))
+          .option('--csv', t('help.import.csv'))
+          .option('-o, --overwrite', t('help.import.overwrite'))
+          .option('-y, --yes', t('help.import.yes'))
+          .option('--moxfield-user-agent <agent>', t('help.import.moxfieldUserAgent')),
+      ),
       t('help.import.dryRun'),
     ),
-  ).action(async (source: string, options: ImportCommandOptions) => {
+  ).action(async (source: string, options: ImportCommandOptions, command: Command) => {
     const scripting = normalizeScriptingOptions(options)
     // The importer and the data layer log through getLogger(): JSON modes keep
     // stdout for the payload, and `--quiet` drops info chatter entirely, so
@@ -1205,7 +1232,9 @@ export function registerImportCommand(program: Command): void {
     const kind: ImportSourceKind =
       sourceUrl !== undefined ? 'url' : options.csv === true || isCsvPath(source) ? 'csv' : 'text'
 
-    const rejection = rejectedFlagForSource(kind, options)
+    const syncPrintingsFlag = readSyncPrintingsFlag(command, options)
+
+    const rejection = rejectedFlagForSource(kind, options, syncPrintingsFlag)
     if (rejection !== undefined) {
       emitError('usage_error', rejection, scripting)
       process.exitCode = ExitCode.UsageError
@@ -1249,8 +1278,29 @@ export function registerImportCommand(program: Command): void {
           process.exitCode = ExitCode.UsageError
           return
         }
-        const outcome = await saveDeck(result, getDecksDir(), saveOptions)
-        emitImportSummary(source, 'deck', outcome, saveOptions.dryRun === true, scripting)
+        // The exact printings the source lists are opt-in, mirroring
+        // deck-sync's --sync-printings: an explicit flag decides, otherwise
+        // the user is asked (and --no-input keeps them, saying so).
+        const keepPrintings = await resolveImportPrintings({
+          flag: syncPrintingsFlag,
+          deckStatesPrintings: deckStatesPrintings(result),
+          scripting,
+        })
+        if (keepPrintings === undefined) {
+          emitCancelled(scripting)
+          return
+        }
+        const deckToSave = keepPrintings ? result : stripDeckPrintings(result)
+        const outcome = await saveDeck(deckToSave, getDecksDir(), saveOptions)
+        emitImportSummary(
+          source,
+          'deck',
+          outcome,
+          saveOptions.dryRun === true,
+          scripting,
+          undefined,
+          keepPrintings,
+        )
         return
       }
 

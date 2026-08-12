@@ -667,6 +667,10 @@ export const adminMeta = {
   'admin.importDeck.nameHint': {
     description: 'Hint saying the typed name is a fallback: a name inside the text wins.',
   },
+  'admin.importDeck.syncPrintings': {
+    description:
+      'Checkbox on a URL import: keep the exact printings (specific editions and foil/etched finishes) the deck site states, or import bare card names. Ticked by default.',
+  },
   'admin.importDeck.overwrite': {
     description: 'Checkbox allowing the import to replace a deck of the same name.',
   },

@@ -187,7 +187,7 @@ Import a deck three ways, selected with a segmented control:
 - **Upload File** — choose a decklist or exported deck file (markdown or plain text); it is read in the browser and parsed server-side.
 - **Paste Text** — paste a decklist directly (`QTY Name` per line, `## Heading` lines start new sections). MTG Arena/MTGO exports are understood too, printings included.
 
-For upload and paste, an optional **Deck Name** is used unless the text defines its own `name:` in frontmatter. Optionally overwrite an existing deck on conflict.
+For upload and paste, an optional **Deck Name** is used unless the text defines its own `name:` in frontmatter. Optionally overwrite an existing deck on conflict. URL imports also carry an **Import the exact printings…** checkbox (ticked by default, URL mode only) — unticking it imports bare card names; see [Printings from a URL import](/commands/import/#printings-from-a-url-import).
 
 ### Import CSV
 
@@ -632,7 +632,8 @@ Import a deck from a supported URL, or from decklist text supplied directly (pas
 {
   "mode": "url",
   "url": "https://archidekt.com/decks/123456",
-  "overwrite": false
+  "overwrite": false,
+  "syncPrintings": true
 }
 ```
 
@@ -647,13 +648,14 @@ Import a deck from a supported URL, or from decklist text supplied directly (pas
 }
 ```
 
-| Field       | Type    | Required         | Default | Description                                                            |
-| ----------- | ------- | ---------------- | ------- | ---------------------------------------------------------------------- |
-| `mode`      | string  | Yes              | —       | `"url"` or `"text"`                                                    |
-| `url`       | string  | When `url` mode  | —       | Archidekt, Moxfield, or MTGGoldfish URL                                |
-| `content`   | string  | When `text` mode | —       | Decklist text (`QTY Name` per line; `## Heading` lines start sections) |
-| `name`      | string  | No               | —       | Deck name for `text` mode; ignored if the text defines its own `name:` |
-| `overwrite` | boolean | No               | `false` | Overwrite existing deck on conflict                                    |
+| Field           | Type    | Required         | Default | Description                                                                                                                                                                                                                                                                                                                                |
+| --------------- | ------- | ---------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mode`          | string  | Yes              | —       | `"url"` or `"text"`                                                                                                                                                                                                                                                                                                                        |
+| `url`           | string  | When `url` mode  | —       | Archidekt, Moxfield, or MTGGoldfish URL                                                                                                                                                                                                                                                                                                    |
+| `content`       | string  | When `text` mode | —       | Decklist text (`QTY Name` per line; `## Heading` lines start sections)                                                                                                                                                                                                                                                                     |
+| `name`          | string  | No               | —       | Deck name for `text` mode; ignored if the text defines its own `name:`                                                                                                                                                                                                                                                                     |
+| `overwrite`     | boolean | No               | `false` | Overwrite existing deck on conflict                                                                                                                                                                                                                                                                                                        |
+| `syncPrintings` | boolean | When `url` mode  | —       | `true` keeps the exact printings (set, collector number, finish) the source lists; `false` imports bare card names. Required — the CLI asks interactively, and over HTTP the caller must decide. Rejected in `text` mode, whose printings come from the pasted lines. See [Printing choice](/commands/import/#printings-from-a-url-import) |
 
 **Response:**
 
@@ -662,6 +664,7 @@ Import a deck from a supported URL, or from decklist text supplied directly (pas
   "success": true,
   "message": "Successfully imported 'My Deck'",
   "deckName": "My Deck",
+  "syncPrintings": true,
   "warnings": [],
   "advisories": []
 }

@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { Command } from 'commander'
 import { registerDeckSyncCommand } from '../../src/commands/deck-sync'
 import { MemoryLogger, resetLogger, setLogger } from '../../src/logger'
 import {
@@ -13,6 +12,8 @@ import {
   type StubRoute,
 } from './helpers/archidekt'
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
+import { captureStream } from './helpers/capture'
+import { runInProcess } from './helpers/cli'
 import type { Card } from '../../src/types'
 import type { ArchidektCardModifier } from '../../src/importers/archidekt-types'
 
@@ -44,30 +45,7 @@ function stubFetch(routes: Record<string, StubRoute>): void {
 
 /** Run the command in-process and return the exit code it set. */
 async function runDeckSync(args: string[]): Promise<number> {
-  const program = new Command()
-  program.exitOverride()
-  registerDeckSyncCommand(program)
-  process.exitCode = 0
-  await program.parseAsync(['deck-sync', ...args], { from: 'user' })
-  const exitCode = process.exitCode ?? 0
-  process.exitCode = 0
-  return exitCode
-}
-
-/** Run `action` with stdout captured; returns everything it wrote. */
-async function captureStdout(action: () => Promise<void>): Promise<string> {
-  const chunks: string[] = []
-  const write = process.stdout.write.bind(process.stdout)
-  process.stdout.write = (chunk: string): boolean => {
-    chunks.push(String(chunk))
-    return true
-  }
-  try {
-    await action()
-  } finally {
-    process.stdout.write = write
-  }
-  return chunks.join('')
+  return runInProcess(registerDeckSyncCommand, ['deck-sync', ...args])
 }
 
 function logged(): string {
@@ -219,7 +197,7 @@ describe('deck-sync link (Integration)', () => {
     await fs.writeFile(filePath, original)
 
     let exitCode = 1
-    const stdout = await captureStdout(async () => {
+    const stdout = await captureStream('stdout', async () => {
       exitCode = await runDeckSync(['link', 'Alpha Deck', 'https://archidekt.com/decks/777/x'])
     })
 
@@ -242,7 +220,7 @@ describe('deck-sync link (Integration)', () => {
     const before = await fs.readFile(filePath, 'utf-8')
 
     let exitCode = 1
-    const stdout = await captureStdout(async () => {
+    const stdout = await captureStream('stdout', async () => {
       exitCode = await runDeckSync([
         'link',
         'Alpha Deck',
@@ -294,7 +272,7 @@ describe('deck-sync link (Integration)', () => {
       cards: [{ quantity: 1, name: 'Sol Ring' }],
     })
 
-    const stdout = await captureStdout(async () => {
+    const stdout = await captureStream('stdout', async () => {
       expect(await runDeckSync(['link', 'Alpha Deck', 'https://archidekt.com/decks/222'])).toBe(0)
     })
 
@@ -310,7 +288,7 @@ describe('deck-sync link (Integration)', () => {
       cards: [{ quantity: 1, name: 'Sol Ring' }],
     })
 
-    const json = await captureStdout(async () => {
+    const json = await captureStream('stdout', async () => {
       expect(
         await runDeckSync([
           'link',
@@ -329,7 +307,7 @@ describe('deck-sync link (Integration)', () => {
       dryRun: false,
     })
 
-    const quiet = await captureStdout(async () => {
+    const quiet = await captureStream('stdout', async () => {
       expect(
         await runDeckSync(['link', 'Alpha Deck', 'https://archidekt.com/decks/444', '--quiet']),
       ).toBe(0)
@@ -361,7 +339,7 @@ describe('deck-sync status (Integration)', () => {
     })
 
     let exitCode = 1
-    const stdout = await captureStdout(async () => {
+    const stdout = await captureStream('stdout', async () => {
       exitCode = await runDeckSync(['status', '--output', 'json'])
     })
     expect(exitCode).toBe(0)
@@ -390,7 +368,7 @@ describe('deck-sync status (Integration)', () => {
     )
 
     let exitCode = 1
-    const stdout = await captureStdout(async () => {
+    const stdout = await captureStream('stdout', async () => {
       exitCode = await runDeckSync(['status', '--output', 'ndjson'])
     })
     expect(exitCode).toBe(0)
@@ -421,7 +399,7 @@ describe('deck-sync status (Integration)', () => {
     await fs.mkdir(path.join(dir, '.logins'), { recursive: true })
     await fs.writeFile(path.join(dir, '.logins', 'collection-sync.json'), '{ truncated')
 
-    const stdout = await captureStdout(async () => {
+    const stdout = await captureStream('stdout', async () => {
       expect(await runDeckSync(['status'])).toBe(0)
     })
     expect(stdout).toContain('Collection: sync state unreadable')

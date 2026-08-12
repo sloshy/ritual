@@ -129,6 +129,8 @@ ritual import https://archidekt.com/decks/123456
 ritual import ./my-decklist.txt --type deck
 ritual import <url> --overwrite          # replace an existing deck of the same name
 ritual import <url> --dry-run            # preview without writing files
+ritual import <url> --sync-printings     # keep the source's exact printings, without asking
+ritual import <url> --no-sync-printings  # import bare card names, without asking
 ritual import <url> --no-input           # never prompt (fail if input is required)
 \`\`\`
 
@@ -136,9 +138,15 @@ URLs always import decks. A text file import prompts for the list type (deck,
 collection, or wanted list) unless \`--type\` is passed; under the global
 \`--no-input\` flag a run without \`--type\` defaults to a deck.
 
-Archidekt and Moxfield imports keep each card's printing (set, collector number,
-and foil/etched finish) exactly as the source states it; MTGGoldfish carries no
-printing data, so those stay name-only.
+Whether a URL import keeps each card's exact printing (set, collector number,
+and foil/etched finish) as the source states it is a **prompt** (default yes)
+unless \`--sync-printings\` or \`--no-sync-printings\` answers it up front — as an
+agent, pass one explicitly (ask the user which they want if unclear).
+Declining writes bare card names. Under \`--no-input\` with neither flag the
+printings are kept, with a line saying so. MTGGoldfish carries no printing
+data, so those imports never ask. Both flags are URL-only — on a CSV or
+text-file source they are a usage error (exit 2), since a file's printings are
+its own data.
 
 Text imports read Ritual's own format and the MTG Arena/MTGO export dialect —
 \`4 Lightning Bolt (M10) 146\` lines plus bare \`Deck\`/\`Sideboard\`/\`Commander\`/
@@ -185,6 +193,8 @@ ritual import-account someuser --all --output json --quiet   # structured result
 
 Deck selection is a prompt, so \`--all\` is mandatory for an agent: without a
 terminal (or under \`--no-input\`) the run exits 2 before fetching anything.
+The printing question above applies here too, asked **once for the whole run**
+— \`--sync-printings\` / \`--no-sync-printings\` answer it up front.
 Existing decks conflict unless \`--overwrite\`/\`--yes\` says what to do. The whole
 account is fetched (every page), and \`--output json\` reports
 \`found\`/\`selected\`/\`imported\`/\`failed\`/\`skipped\` plus a per-deck array.

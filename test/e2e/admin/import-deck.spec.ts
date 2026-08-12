@@ -3,7 +3,13 @@ import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { fulfillJson } from '../helpers/fulfill'
 import { mockImportDeckApi } from '../helpers/mock-admin'
 
-type ImportPayload = { mode?: string; url?: string; content?: string; name?: string }
+type ImportPayload = {
+  mode?: string
+  url?: string
+  content?: string
+  name?: string
+  syncPrintings?: boolean
+}
 
 test.describe('Import Deck Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -25,6 +31,22 @@ test.describe('Import Deck Page', () => {
     expect(captured).toBeDefined()
     expect(captured?.mode).toBe('url')
     expect(captured?.url).toBe('https://archidekt.com/decks/12345')
+    // The printing checkbox defaults to keeping the source's exact printings.
+    expect(captured?.syncPrintings).toBe(true)
+  })
+
+  test('unticking the printing checkbox sends syncPrintings: false', async ({ page }) => {
+    let captured: ImportPayload | undefined
+    await mockImportDeckApi(page, (b) => (captured = b as ImportPayload))
+    const main = page.locator('main')
+    await main.locator('input.form-input').fill('https://archidekt.com/decks/12345')
+    await main.locator('.import-sync-printings input[type="checkbox"]').uncheck()
+    await main.locator('button:has-text("Import Deck")').click()
+    await expect(main.locator('.alert-success')).toBeVisible({ timeout: 5000 })
+    expect(captured?.syncPrintings).toBe(false)
+    // Text mode never carries the field — the checkbox is URL-only.
+    await main.locator('.segmented-option:has-text("Paste Text")').click()
+    await expect(main.locator('.import-sync-printings')).toHaveCount(0)
   })
 
   test('switching to Paste Text sends a text payload with the entered name', async ({ page }) => {
@@ -45,6 +67,8 @@ test.describe('Import Deck Page', () => {
     expect(captured?.mode).toBe('text')
     expect(captured?.content).toContain('4 Lightning Bolt')
     expect(captured?.name).toBe('My Pasted Deck')
+    // Text mode must not send the field at all — the handler refuses it.
+    expect(captured).not.toHaveProperty('syncPrintings')
     // Inputs reset after a successful import.
     await expect(main.locator('textarea.form-textarea')).toHaveValue('')
   })

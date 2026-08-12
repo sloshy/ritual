@@ -156,6 +156,52 @@ describe('import-account past its flag validation (Integration)', () => {
     expect(await Bun.file(path.join(workspace.dir, 'decks', 'Burn.md')).exists()).toBeTrue()
   })
 
+  test('--no-sync-printings strips the printings Archidekt states', async () => {
+    const foilDeck: DeckData = {
+      name: 'Foil Deck',
+      sections: [
+        {
+          name: 'Main',
+          cards: [
+            { quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', finish: 'foil' },
+          ],
+        },
+      ],
+    }
+    await run(fakeClient({ decks: [listedDeck(1, 'Foil Deck')], decksById: { '1': foilDeck } }), [
+      'someuser',
+      '--all',
+      '--no-sync-printings',
+    ])
+    const onDisk = await fs.readFile(path.join(workspace.dir, 'decks', 'Foil Deck.md'), 'utf-8')
+    expect(onDisk).toContain('1 Sol Ring &1')
+    expect(onDisk).not.toContain('LTC')
+    expect(onDisk).not.toContain('[foil]')
+  })
+
+  test('under --no-input with neither flag, the printings are kept and it says so', async () => {
+    const foilDeck: DeckData = {
+      name: 'Foil Deck',
+      sections: [
+        {
+          name: 'Main',
+          cards: [
+            { quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', finish: 'foil' },
+          ],
+        },
+      ],
+    }
+    const { stderr } = await run(
+      fakeClient({ decks: [listedDeck(1, 'Foil Deck')], decksById: { '1': foilDeck } }),
+      ['someuser', '--all'],
+    )
+    // The whole suite runs under setNoInputOverride(true), so this is the
+    // defaulted path; the run must say the choice was defaulted, not chosen.
+    expect(stderr).toContain('')
+    const onDisk = await fs.readFile(path.join(workspace.dir, 'decks', 'Foil Deck.md'), 'utf-8')
+    expect(onDisk).toContain('1 Sol Ring (LTC:284) [foil] &1')
+  })
+
   test('a dry run reports `planned` and writes nothing', async () => {
     const client = fakeClient({
       decks: [listedDeck(1, 'Burn')],

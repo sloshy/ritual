@@ -1,10 +1,86 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import {
+  deckStatesPrintings,
   matchDeckUrl,
   resolveImportSourceUrl,
   resolveMoxfieldUserAgent,
+  stripDeckPrintings,
   withMoxfieldUserAgent,
 } from '../../../src/importers/url-dispatch'
+import type { DeckData } from '../../../src/types'
+
+describe('deckStatesPrintings / stripDeckPrintings', () => {
+  const deck: DeckData = {
+    name: 'Imported',
+    format: 'commander',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', finish: 'foil' },
+          { quantity: 4, name: 'Lightning Bolt' },
+        ],
+      },
+      { name: 'Sideboard', cards: [{ quantity: 1, name: 'Pyroblast', finish: 'etched' }] },
+    ],
+  }
+
+  test('a deck with any printing or finish states printings; a bare one does not', () => {
+    expect(deckStatesPrintings(deck)).toBe(true)
+    // The finish half of the OR on its own: the Sideboard card states no set,
+    // so this cannot pass by short-circuiting on the first card's printing.
+    expect(deckStatesPrintings({ ...deck, sections: [deck.sections[1]!] })).toBe(true)
+    expect(deckStatesPrintings(stripDeckPrintings(deck))).toBe(false)
+  })
+
+  test('cards distinguished only by printing collapse into one line, quantities summed', () => {
+    // Two printings of one card would otherwise strip to two byte-identical
+    // lines — the same re-merge the CSV path's buildDeckMarkdown performs.
+    const twoPrintings: DeckData = {
+      name: 'Imported',
+      sections: [
+        {
+          name: 'Main',
+          cards: [
+            { quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', finish: 'foil' },
+            { quantity: 2, name: 'Sol Ring', set: 'c21', collectorNumber: '240' },
+            // A differing condition still separates lines: stripping only
+            // removes the printing, not the rest of the line's identity.
+            { quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '270', condition: 'LP' },
+          ],
+        },
+      ],
+    }
+    expect(stripDeckPrintings(twoPrintings).sections[0]!.cards).toEqual([
+      { quantity: 3, name: 'Sol Ring' },
+      { quantity: 1, name: 'Sol Ring', condition: 'LP' },
+    ])
+  })
+
+  test('an explicit nonfoil finish alone is nothing to decide about', () => {
+    // serializeCardLine never writes [nonfoil], so a deck stating only that
+    // must not trigger the printing prompt.
+    const explicitNonfoil: DeckData = {
+      name: 'Imported',
+      sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', finish: 'nonfoil' }] }],
+    }
+    expect(deckStatesPrintings(explicitNonfoil)).toBe(false)
+  })
+
+  test('stripping removes set, collector number, and finish and keeps everything else', () => {
+    const stripped = stripDeckPrintings(deck)
+    expect(stripped.name).toBe('Imported')
+    expect(stripped.format).toBe('commander')
+    expect(stripped.sections.map((section) => section.name)).toEqual(['Main', 'Sideboard'])
+    expect(stripped.sections[0]!.cards).toEqual([
+      { quantity: 1, name: 'Sol Ring' },
+      { quantity: 4, name: 'Lightning Bolt' },
+    ])
+    expect(stripped.sections[1]!.cards).toEqual([{ quantity: 1, name: 'Pyroblast' }])
+    // The input deck is copied, not mutated.
+    expect(deck.sections[0]!.cards[0]!.set).toBe('ltc')
+  })
+})
 
 describe('resolveMoxfieldUserAgent', () => {
   test('prefers CLI option over env var', () => {

@@ -1,7 +1,62 @@
 import { ArchidektClient } from '../clients/ArchidektClient'
 import { fetchMtgGoldfishDeck } from './mtggoldfish'
 import { fetchMoxfieldDeck } from './moxfield-lib'
-import { type DeckData } from '../types'
+import { aggregateQuantities } from '../card-line'
+import { displayLanguage } from '../card-language'
+import { type Card, type DeckData, type DeckSection } from '../types'
+
+/**
+ * Whether any card in the deck states a printing or finish — what a URL import
+ * has to ask about before keeping. Tests exactly the fields
+ * {@link stripDeckPrintings} removes, the way `serializeCardLine` tests them:
+ * an explicit `nonfoil` is never written to a line, so it is nothing to decide
+ * about, and a deck of bare names (MTGGoldfish, or a service entry with no
+ * edition data) has nothing to decide at all.
+ */
+export function deckStatesPrintings(deck: DeckData): boolean {
+  return deck.sections.some((section) =>
+    section.cards.some(
+      (card) =>
+        card.set !== undefined ||
+        card.collectorNumber !== undefined ||
+        (card.finish !== undefined && card.finish !== 'nonfoil'),
+    ),
+  )
+}
+
+/**
+ * Identity of a printing-less card line: everything the stripped line still
+ * carries besides its quantity. Language folds a missing value to `en`, the
+ * same as {@link variantKey}.
+ */
+function strippedKey(card: Card): string {
+  return `${card.name.toLowerCase()}|${card.condition ?? ''}|${displayLanguage(card.language)}|${card.note ?? ''}`
+}
+
+/**
+ * A copy of the deck with every card's printing and finish removed — what a
+ * URL import writes when the exact printings were declined. Names, quantities,
+ * condition, language, and notes survive. Cards distinguished only by their
+ * printing collapse into one line with their quantities summed — a foil
+ * `(LTC:284)` and a nonfoil `(C21:240)` Sol Ring would otherwise become two
+ * byte-identical lines, which is the same re-merge `buildDeckMarkdown` does on
+ * the CSV path.
+ */
+export function stripDeckPrintings(deck: DeckData): DeckData {
+  const stripCard = (card: Card): Card => {
+    const { set: _set, collectorNumber: _collectorNumber, finish: _finish, ...rest } = card
+    return rest
+  }
+  const stripSection = (section: DeckSection): DeckSection => ({
+    ...section,
+    cards: aggregateQuantities(
+      section.cards.map(stripCard),
+      strippedKey,
+      (card) => card.quantity,
+    ).map(({ entry, quantity }): Card => ({ ...entry, quantity })),
+  })
+  return { ...deck, sections: deck.sections.map(stripSection) }
+}
 
 /**
  * Identify which supported deck service a URL points to and extract the bits

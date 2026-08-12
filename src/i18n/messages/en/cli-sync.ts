@@ -62,6 +62,10 @@ export const cliSyncMessages = {
   // ── `import` — source and flag validation ─────────────────────────────
   'cli.import.defaultedToDeck':
     'No --type given; importing as a deck (pass --type to import a collection or wanted list).',
+  'cli.import.promptSyncPrintings':
+    'Import the exact printings (set, collector number, and finish) the source lists?',
+  'cli.import.defaultedToPrintings':
+    'Keeping the exact printings the source lists (pass --no-sync-printings to import bare card names).',
   'cli.import.flagNotForUrl': '{flag} does not apply to URL imports.',
   'cli.import.flagNeedsCsv':
     '{flag} requires a CSV source (a .csv file, or --csv to force CSV parsing).',
@@ -69,6 +73,11 @@ export const cliSyncMessages = {
     $select: 'kind',
     csv: '--moxfield-user-agent only applies to URL imports; it does not apply to CSV imports.',
     text: '--moxfield-user-agent only applies to URL imports; it does not apply to text-file imports.',
+  },
+  'cli.import.syncPrintingsUrlOnly': {
+    $select: 'kind',
+    csv: '--sync-printings/--no-sync-printings only apply to URL imports; a CSV import states its own printings through the column mapping.',
+    text: '--sync-printings/--no-sync-printings only apply to URL imports; a text-file import states its own printings on its card lines.',
   },
   'cli.import.invalidListType': "Invalid list type '{value}'. Use: {choices}",
   'cli.import.urlDeckOnly':

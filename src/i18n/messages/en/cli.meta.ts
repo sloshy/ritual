@@ -120,6 +120,10 @@ export const cliMeta = {
     description:
       'Noun phrase for the import prompt asking whether the file is a deck, collection, or wanted list.',
   },
+  'cli.prompt.subject.syncPrintings': {
+    description:
+      'Noun phrase for the URL-import prompt asking whether to keep the exact printings. The two flag names stay as-is.',
+  },
   'cli.prompt.subject.filterValue': {
     description:
       'Noun phrase for the shared free-text filter prompt (the price browser and the export wizard).',

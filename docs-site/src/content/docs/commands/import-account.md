@@ -18,18 +18,27 @@ Import all public decks from an Archidekt user account.
 
 ## Options
 
-| Option              | Description                                                                                           |
-| ------------------- | ----------------------------------------------------------------------------------------------------- |
-| `-a, --all`         | Import all decks without interactive selection                                                        |
-| `-o, --overwrite`   | Overwrite existing decks without prompting                                                            |
-| `-y, --yes`         | Automatically answer yes to the overwrite confirmation when an import conflicts with an existing deck |
-| `-n, --dry-run`     | Preview imports without writing deck files                                                            |
-| `--output <format>` | Output format: `text` (default), `json`, or `ndjson`                                                  |
-| `--quiet`           | Suppress progress lines; never the structured payload, errors, or essential warnings                  |
+| Option                | Description                                                                                           |
+| --------------------- | ----------------------------------------------------------------------------------------------------- |
+| `-a, --all`           | Import all decks without interactive selection                                                        |
+| `-o, --overwrite`     | Overwrite existing decks without prompting                                                            |
+| `-y, --yes`           | Automatically answer yes to the overwrite confirmation when an import conflicts with an existing deck |
+| `--sync-printings`    | Keep the exact printings (set, collector number, finish) Archidekt states, without asking             |
+| `--no-sync-printings` | Import bare card names, dropping the printings Archidekt states, without asking                       |
+| `-n, --dry-run`       | Preview imports without writing deck files                                                            |
+| `--output <format>`   | Output format: `text` (default), `json`, or `ndjson`                                                  |
+| `--quiet`             | Suppress progress lines; never the structured payload, errors, or essential warnings                  |
 
 The account's deck list is fetched **in full**: the Archidekt endpoint paginates, and every
 page is followed (through the same paced, rate-limit-aware client the sync commands use), so
 `Found N decks.` and `--all` cover the whole account rather than its first page.
+
+Whether the imported decks keep the exact printings Archidekt states is the same choice
+[`import`](/commands/import/#printings-from-a-url-import) makes, asked **once for the
+whole run** — before anything is fetched, like the `--all` gate, so an unanswerable run
+fails without wasted requests (default yes). `--sync-printings` / `--no-sync-printings`
+answer it up front; under `--no-input` with neither flag the printings are kept, with a
+line saying so.
 
 ## Scripting Without Prompts
 
@@ -93,11 +102,11 @@ That warning goes to stderr and survives `--quiet`. The run still exits `0` — 
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                                |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `0`  | Success — the selected decks were imported, or fully previewed under `--dry-run` (including a run that found no decks)                                                                                 |
-| `1`  | Runtime failure — a fetch or save error on at least one deck                                                                                                                                           |
-| `2`  | Usage error — no username and not logged in, `--all` omitted when prompts are unavailable, a per-deck conflict needing `--overwrite`/`--yes`, or a cancelled selection prompt (`Cancelled.` on stderr) |
+| Code | Meaning                                                                                                                                                                                                                                                                                                |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`  | Success — the selected decks were imported, or fully previewed under `--dry-run` (including a run that found no decks)                                                                                                                                                                                 |
+| `1`  | Runtime failure — a fetch or save error on at least one deck                                                                                                                                                                                                                                           |
+| `2`  | Usage error — no username and not logged in, `--all` omitted when prompts are unavailable, an unanswerable [printings prompt](/commands/import/#printings-from-a-url-import), a per-deck conflict needing `--overwrite`/`--yes`, or a cancelled selection or printings prompt (`Cancelled.` on stderr) |
 
 ## Examples
 
@@ -134,4 +143,5 @@ Import every deck and consume the result in a script:
   [import](/commands/import/) and [import-changes](/commands/import-changes/), so a script can
   tell a cancelled run from a successful one
 - Deck lines keep the printing (set, collector number, and foil/etched finish) Archidekt
-  states for each card
+  states for each card unless the run declined them — see
+  [Printings from a URL import](/commands/import/#printings-from-a-url-import)

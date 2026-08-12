@@ -541,6 +541,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       deckName: string
       warnings: string[]
       advisories: string[]
+      syncPrintings: boolean
     }>(
       await callTool(client, 'import_deck', {
         mode: 'text',
@@ -555,6 +556,9 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(data.warnings).toEqual(['Skipped malformed line: not a card line'])
     expect(data.advisories).toEqual([])
     expect(data.message).toContain('1 line(s) could not be parsed')
+    // A text import's printings are the pasted lines' own, so the payload
+    // reports them as kept.
+    expect(data.syncPrintings).toBe(true)
     const onDisk = await fs.readFile(path.join(env.dir, 'decks', 'Imported Deck.md'), 'utf-8')
     expect(onDisk).toContain('Sol Ring')
     expect(onDisk).toContain('4 Lightning Bolt (M10:146)')
@@ -575,6 +579,18 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(data.advisories).toHaveLength(1)
     expect(data.advisories[0]).toContain('still contains a printing token')
     expect(data.message).toContain('1 line(s) may not have been understood')
+  })
+
+  test('import_deck refuses a URL import that does not state syncPrintings', async () => {
+    // Pins that the handler's 400 reaches the agent with the field's name —
+    // the refusal fires before anything is forwarded, so field *forwarding*
+    // is guarded by ImportDeckBody's typing, not by this test.
+    const result = await callTool(client, 'import_deck', {
+      mode: 'url',
+      url: 'https://archidekt.com/decks/123456',
+    })
+    expect(result.isError).toBe(true)
+    expect(firstText(result)).toContain('syncPrintings is required')
   })
 
   test('import_deck reads a decklist wrapped in a fenced block', async () => {

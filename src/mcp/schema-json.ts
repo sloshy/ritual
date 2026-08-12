@@ -1123,8 +1123,11 @@ export const IMPORT_DECK_OUTPUT: JsonSchemaType = obj(
       str(),
       'Non-fatal notices about text that WAS imported (e.g. a card name still carrying a printing token). Empty for URL imports.',
     ),
+    syncPrintings: bool(
+      'Whether the written deck kept the exact printings the source listed. Always true for a text import, whose printings are the pasted lines’ own.',
+    ),
   },
-  ['message', 'deckName', 'warnings', 'advisories'],
+  ['message', 'deckName', 'warnings', 'advisories', 'syncPrintings'],
 )
 
 export const IMPORT_CSV_OUTPUT: JsonSchemaType = withDefs(

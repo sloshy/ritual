@@ -94,6 +94,14 @@ export const helpSyncMeta = {
   'help.import.csv': { description: '`import --csv`.' },
   'help.import.overwrite': { description: '`import --overwrite`.' },
   'help.import.yes': { description: '`import --yes`.' },
+  'help.import.syncPrintings': {
+    description:
+      '`import --sync-printings` / `import-account --sync-printings`: keep the exact printings a deck site states instead of being asked.',
+  },
+  'help.import.noSyncPrintings': {
+    description:
+      '`import --no-sync-printings` / `import-account --no-sync-printings`: drop the printings instead of being asked.',
+  },
   'help.import.moxfieldUserAgent': {
     description:
       '`import --moxfield-user-agent`. User-Agent is an HTTP header and MOXFIELD_USER_AGENT an environment variable — both stay as-is.',

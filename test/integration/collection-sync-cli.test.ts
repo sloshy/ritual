@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { Command } from 'commander'
 import { cardCache } from '../../src/cache'
 import { scryfallIdIndex } from '../../src/cache/scryfall-id-index'
 import { registerCollectionSyncCommand } from '../../src/commands/collection-sync'
@@ -26,7 +25,7 @@ import {
   type StubRoute,
   seededScryfallId,
 } from './helpers/archidekt'
-import { runCli } from './helpers/cli'
+import { runCli, runInProcess } from './helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'
 import {
   bindWorkspace,
@@ -69,14 +68,7 @@ function stubFetch(routes: Record<string, StubRoute>): void {
  * exit code clean.
  */
 async function runSync(args: string[]): Promise<number> {
-  const program = new Command()
-  program.exitOverride()
-  registerCollectionSyncCommand(program)
-  process.exitCode = 0
-  await program.parseAsync(['collection-sync', ...args], { from: 'user' })
-  const exitCode = process.exitCode ?? 0
-  process.exitCode = 0
-  return exitCode
+  return runInProcess(registerCollectionSyncCommand, ['collection-sync', ...args])
 }
 
 /** Everything the run logged, as one string. */

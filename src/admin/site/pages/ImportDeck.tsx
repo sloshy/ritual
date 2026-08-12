@@ -1,6 +1,7 @@
 import { type JSX, For, Match, Show, Switch, createMemo, createSignal } from 'solid-js'
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
 import { apiMessage } from '../../api/result'
+import type { ImportDeckRequest } from '../../api/import-deck'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { PageHeading } from '../components/PageHeading'
@@ -32,6 +33,9 @@ export function ImportDeck(): JSX.Element {
   const [fileName, setFileName] = createSignal('')
   const [fileContent, setFileContent] = createSignal('')
   const [overwrite, setOverwrite] = createSignal(false)
+  // Default on: an import is a faithful copy unless the user opts out — the
+  // page's standing form of the CLI's interactive printing prompt.
+  const [syncPrintings, setSyncPrintings] = createSignal(true)
   const { status, error, loading, run } = useApiAction()
 
   const canSubmit = createMemo((): boolean => {
@@ -53,18 +57,23 @@ export function ImportDeck(): JSX.Element {
     setName(file.name.replace(/\.[^.]+$/, ''))
   }
 
-  const requestBody = (): string => {
-    if (method() === 'url') {
-      return JSON.stringify({ mode: 'url', url: url().trim(), overwrite: overwrite() })
-    }
-    const content = method() === 'upload' ? fileContent() : text()
-    return JSON.stringify({
-      mode: 'text',
-      content,
-      name: name().trim() || undefined,
-      overwrite: overwrite(),
-    })
-  }
+  // Typed against the endpoint's own contract: `syncPrintings` is required in
+  // url mode and refused in text mode, and the discriminated union makes
+  // getting that wrong a compile error rather than a 400 at runtime.
+  const importRequest = (): ImportDeckRequest =>
+    method() === 'url'
+      ? {
+          mode: 'url',
+          url: url().trim(),
+          overwrite: overwrite(),
+          syncPrintings: syncPrintings(),
+        }
+      : {
+          mode: 'text',
+          content: method() === 'upload' ? fileContent() : text(),
+          name: name().trim() || undefined,
+          overwrite: overwrite(),
+        }
 
   const handleImport = async (e: SubmitEvent) => {
     e.preventDefault()
@@ -74,7 +83,7 @@ export function ImportDeck(): JSX.Element {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: requestBody(),
+        body: JSON.stringify(importRequest()),
       },
       apiMessage('admin.importDeck.failed'),
     )
@@ -183,6 +192,18 @@ export function ImportDeck(): JSX.Element {
             />
             <p class="form-hint form-hint-top">{t('admin.importDeck.nameHint')}</p>
           </div>
+        </Show>
+
+        {/* URL imports only: pasted text and uploaded files state their own printings. */}
+        <Show when={method() === 'url'}>
+          <label class="checkbox-label import-sync-printings">
+            <input
+              type="checkbox"
+              checked={syncPrintings()}
+              onChange={(e) => setSyncPrintings(e.currentTarget.checked)}
+            />
+            {t('admin.importDeck.syncPrintings')}
+          </label>
         </Show>
 
         <label class="checkbox-label">

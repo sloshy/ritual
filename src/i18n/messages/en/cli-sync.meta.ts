@@ -157,6 +157,14 @@ export const cliSyncMeta = {
     description:
       'Under --no-input the import cannot ask which kind of list to create, so it keeps the historical deck behaviour and says so.',
   },
+  'cli.import.promptSyncPrintings': {
+    description:
+      'Yes/no prompt on a URL import: keep the exact printings (specific editions and foil/etched finishes) the deck site states, or import bare card names.',
+  },
+  'cli.import.defaultedToPrintings': {
+    description:
+      'Under --no-input the import cannot ask about keeping printings, so it keeps them (the historical behaviour) and says so. --no-sync-printings is a flag name.',
+  },
   'cli.import.flagNotForUrl': {
     description: 'Usage error: {flag} is a CSV-only flag and the source is a URL.',
   },
@@ -166,6 +174,10 @@ export const cliSyncMeta = {
   'cli.import.moxfieldAgentSourceOnly': {
     description:
       'Usage error: --moxfield-user-agent was given for a local file. Branch on the source kind that was resolved: "csv" or "text".',
+  },
+  'cli.import.syncPrintingsUrlOnly': {
+    description:
+      'Usage error: --sync-printings or --no-sync-printings was given for a local file, whose printings come from the file itself. Branch on the resolved source kind: "csv" or "text". The flag names stay as-is.',
   },
   'cli.import.invalidListType': {
     description:

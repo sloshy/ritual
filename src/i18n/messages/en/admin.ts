@@ -269,6 +269,8 @@ export const adminMessages = {
   'admin.importDeck.nameLabel': 'Deck Name',
   'admin.importDeck.namePlaceholder': 'Imported Deck',
   'admin.importDeck.nameHint': 'Used unless the text defines its own name.',
+  'admin.importDeck.syncPrintings':
+    'Import the exact printings (set, collector number, and foil/etched finish) the source lists',
   'admin.importDeck.overwrite': 'Overwrite existing deck if it exists',
   'admin.importDeck.import': 'Import Deck',
   'admin.importDeck.failed': 'Failed to import deck',

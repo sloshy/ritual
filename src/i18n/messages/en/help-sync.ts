@@ -86,6 +86,9 @@ export const helpSyncMessages = {
   'help.import.csv': 'Treat the source file as CSV regardless of its extension',
   'help.import.overwrite': 'Overwrite existing lists without prompting',
   'help.import.yes': 'Automatically answer yes to the overwrite confirmation on import conflicts',
+  'help.import.syncPrintings':
+    'Keep the exact printings (set, collector number, finish) the source lists, without asking',
+  'help.import.noSyncPrintings': 'Import bare card names, dropping the printings the source lists',
   'help.import.moxfieldUserAgent':
     'Moxfield-approved unique User-Agent string (required for Moxfield imports unless MOXFIELD_USER_AGENT is set)',
   'help.import.dryRun': 'Preview actions without writing files',

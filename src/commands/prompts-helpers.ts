@@ -1,8 +1,10 @@
 import prompts, { type Choice } from 'prompts'
 import type { AskQuestion, PromptLibraryStrings, PromptState } from './prompts-types'
 import { LIST_TYPES, type ListType } from '../list-type'
-import { inputRequiredError, promptsUnavailable } from '../no-input'
+import { inputRequiredError, isNoInput, promptsUnavailable } from '../no-input'
 import { t } from '../i18n/t'
+import { getLogger } from '../logger'
+import { canPromptWithOutput, type ScriptingOptions } from './scripting'
 import { matchesChoiceTitleTerms } from './menu-search'
 
 type PromptAnswer = { value?: unknown }
@@ -97,6 +99,63 @@ export async function promptListType(): Promise<ListType | undefined> {
     // answer is what gets written, and showing the slug is what makes the two
     // obviously the same thing.
     choices: LIST_TYPES.map((type) => ({ title: type, value: type })),
+  })
+}
+
+/**
+ * What {@link resolveImportPrintings} decides from. An options object rather
+ * than positional booleans: the flag and the deck's own answer have opposite
+ * consequences, and the scripting envelope has to ride along for the
+ * prompt-vs-JSON-output guard.
+ */
+export type ImportPrintingsQuestion = {
+  /**
+   * `--sync-printings` (true) / `--no-sync-printings` (false), or undefined
+   * when neither was given.
+   */
+  flag: boolean | undefined
+  /**
+   * Whether there is anything to keep or strip; `import-account` passes true,
+   * since Archidekt decks always state editions.
+   */
+  deckStatesPrintings: boolean
+  /** The run's output envelope — a JSON payload cannot share stdout with a prompt. */
+  scripting: ScriptingOptions
+}
+
+/**
+ * Whether a URL import keeps the exact printings — set, collector number, and
+ * finish — the source service states, shared by `import` and `import-account`
+ * so the question and its non-interactive behavior never drift.
+ *
+ * An explicit flag answers outright. Otherwise, a deck stating no printing has
+ * nothing to decide (kept vacuously); under `--no-input` the import keeps the
+ * command's historical behavior — the printings are kept — but says so, the
+ * same softening `import` applies to its list-type prompt; and interactively
+ * the user is asked (default yes). Without a terminal, or when JSON/NDJSON
+ * output owns stdout, the unanswerable question is refused with the flags to
+ * pass. Returns `undefined` when the prompt is cancelled.
+ */
+export async function resolveImportPrintings(
+  question: ImportPrintingsQuestion,
+): Promise<boolean | undefined> {
+  if (question.flag !== undefined) return question.flag
+  if (!question.deckStatesPrintings) return true
+  if (isNoInput()) {
+    getLogger().info(t('cli.import.defaultedToPrintings'))
+    return true
+  }
+  // ask() itself refuses when prompts are unavailable; this adds the other
+  // half of the shared rule — a machine-readable stream owns stdout, so a
+  // prompt must not be drawn over it even on a TTY.
+  if (!canPromptWithOutput(question.scripting)) {
+    throw inputRequiredError('cli.prompt.subject.syncPrintings')
+  }
+  return ask<boolean>({
+    type: 'confirm',
+    message: t('cli.import.promptSyncPrintings'),
+    subjectKey: 'cli.prompt.subject.syncPrintings',
+    initial: true,
   })
 }
 

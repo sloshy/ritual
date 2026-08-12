@@ -1,9 +1,32 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
+import { Command } from 'commander'
 
 export const repoRoot = path.resolve(import.meta.dir, '../../..')
 export const binaryPath = path.join(repoRoot, 'ritual')
+
+/** Registers one command tree onto a program, e.g. `registerImportCommand`. */
+export type CommandRegistrar = (program: Command) => void
+
+/**
+ * Run one CLI command in-process and return the exit code it set — the driver
+ * for suites whose network is a stubbed `fetch` the built binary could never
+ * see. Encodes the rules every hand-rolled copy had to repeat: `exitOverride`
+ * so a usage error throws instead of exiting the test process, `from: 'user'`
+ * argv parsing, and resetting `process.exitCode` on both sides so one run's
+ * failure cannot leak into the next assertion (or the suite's own exit code).
+ */
+export async function runInProcess(register: CommandRegistrar, args: string[]): Promise<number> {
+  const program = new Command()
+  program.exitOverride()
+  register(program)
+  process.exitCode = 0
+  await program.parseAsync(args, { from: 'user' })
+  const exitCode = process.exitCode ?? 0
+  process.exitCode = 0
+  return exitCode
+}
 
 export type CliResult = {
   exitCode: number
