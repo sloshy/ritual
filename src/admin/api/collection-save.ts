@@ -30,6 +30,7 @@ import {
 } from './save-helpers'
 import { resolveFlatListFile, resolveListFileOrRefuse } from './list-file'
 import { parseSlugFromUrl } from './target'
+import { MAX_LIST_BODY_SIZE } from '../validation'
 
 interface CollectionSaveRequest {
   changes: ChangeEvent[]
@@ -48,7 +49,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     if (!parsedSlug.ok) return apiError(parsedSlug.message, 400)
     const { slug } = parsedSlug
 
-    const parsedBody = await readJsonObjectBody(req)
+    const parsedBody = await readJsonObjectBody(req, MAX_LIST_BODY_SIZE)
     if (!parsedBody.ok) return parsedBody.response
     const body = parsedBody.body as unknown as CollectionSaveRequest
     const { changes, contentHash, sectionOrder, continueSession } = body

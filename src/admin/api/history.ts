@@ -20,6 +20,7 @@ import { listSlug } from '../../list-info'
 import { apiMessage, type ApiMessage } from './result'
 import { autoCommitAndPush, apiError, badRequest, readJsonObjectBody } from './save-helpers'
 import { parseListTarget } from './target'
+import { MAX_LIST_BODY_SIZE } from '../validation'
 
 export type HistoryLoadResponse = {
   success: true
@@ -136,7 +137,7 @@ export async function handleHistorySave(req: Request): Promise<Response> {
     const target = parseListTarget(req)
     if (typeof target === 'string') return apiError(target, 400)
 
-    const parsedBody = await readJsonObjectBody(req)
+    const parsedBody = await readJsonObjectBody(req, MAX_LIST_BODY_SIZE)
     if (!parsedBody.ok) return parsedBody.response
     const raw = parsedBody.body as unknown as RawSaveBody
     const sets = parseSets(raw)

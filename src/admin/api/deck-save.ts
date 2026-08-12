@@ -22,6 +22,7 @@ import {
 } from './save-helpers'
 import { resolveDeckFile, resolveListFileOrRefuse } from './list-file'
 import { parseSlugFromUrl } from './target'
+import { MAX_LIST_BODY_SIZE } from '../validation'
 
 interface DeckSaveRequest {
   changes: ChangeEvent[]
@@ -44,7 +45,7 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     if (!parsedSlug.ok) return apiError(parsedSlug.message, 400)
     const { slug } = parsedSlug
 
-    const parsedBody = await readJsonObjectBody(req)
+    const parsedBody = await readJsonObjectBody(req, MAX_LIST_BODY_SIZE)
     if (!parsedBody.ok) return parsedBody.response
     const body = parsedBody.body as unknown as DeckSaveRequest
     const { changes, deck, frontMatter, contentHash, continueSession } = body

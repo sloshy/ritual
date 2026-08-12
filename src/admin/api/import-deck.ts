@@ -7,6 +7,7 @@ import { apiHandler } from '../utils'
 import type { ApiMessage } from './result'
 import type { DeckData } from '../../types'
 import { getDecksDir } from '../../ritual-config'
+import { MAX_LIST_BODY_SIZE } from '../validation'
 
 /**
  * Import request from the admin site. Either fetch a deck from a supported URL,
@@ -47,7 +48,7 @@ function isImportDeckRequest(value: unknown): value is ImportDeckRequest {
 
 export function handleImportDeck(req: Request): Promise<Response> {
   return apiHandler(async () => {
-    const parsedBody = await readJsonObjectBody(req)
+    const parsedBody = await readJsonObjectBody(req, MAX_LIST_BODY_SIZE)
     if (!parsedBody.ok) return parsedBody.response
     const body: unknown = parsedBody.body
     if (!isImportDeckRequest(body)) {

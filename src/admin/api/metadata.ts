@@ -17,6 +17,7 @@ import {
   readJsonObjectBody,
   validateContentHash,
 } from './save-helpers'
+import { MAX_LIST_BODY_SIZE } from '../validation'
 
 /**
  * `PUT /api/metadata/:type/:slug` — write a list's front matter.
@@ -256,7 +257,7 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
       )
     }
 
-    const read = await readJsonObjectBody(req)
+    const read = await readJsonObjectBody(req, MAX_LIST_BODY_SIZE)
     if (!read.ok) return read.response
 
     if (target.type === 'collection') {

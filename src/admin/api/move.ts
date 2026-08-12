@@ -23,6 +23,7 @@ import { apiMessage, type ApiMessage } from './result'
 import { DEFAULT_LOCALE } from '../../i18n/runtime'
 import { tIn } from '../../i18n/t'
 import { autoCommitAndPush, apiError, badRequest, readJsonObjectBody } from './save-helpers'
+import { MAX_LIST_BODY_SIZE } from '../validation'
 
 // The index vocabulary lives in `src/card-index-types.ts` — the index is the
 // general shape and this move flow is one of its consumers. Re-exported so the
@@ -137,7 +138,7 @@ type RawCommitBody = { moves?: unknown }
  */
 export async function handleMoveCommit(req: Request): Promise<Response> {
   try {
-    const parsedBody = await readJsonObjectBody(req)
+    const parsedBody = await readJsonObjectBody(req, MAX_LIST_BODY_SIZE)
     if (!parsedBody.ok) return parsedBody.response
     const raw = parsedBody.body as unknown as RawCommitBody
     if (!Array.isArray(raw.moves)) {
@@ -270,7 +271,7 @@ type RawRemoveBody = { removes?: unknown; validateCardNames?: unknown }
  */
 export async function handleRemoveCommit(req: Request): Promise<Response> {
   try {
-    const parsedBody = await readJsonObjectBody(req)
+    const parsedBody = await readJsonObjectBody(req, MAX_LIST_BODY_SIZE)
     if (!parsedBody.ok) return parsedBody.response
     const raw = parsedBody.body as unknown as RawRemoveBody
     if (!Array.isArray(raw.removes)) {
@@ -385,7 +386,7 @@ type RawSelectedMoveBody = { moves?: unknown; validateCardNames?: unknown }
  */
 export async function handleSelectedMove(req: Request): Promise<Response> {
   try {
-    const parsedBody = await readJsonObjectBody(req)
+    const parsedBody = await readJsonObjectBody(req, MAX_LIST_BODY_SIZE)
     if (!parsedBody.ok) return parsedBody.response
     const raw = parsedBody.body as unknown as RawSelectedMoveBody
     if (!Array.isArray(raw.moves)) {

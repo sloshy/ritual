@@ -160,15 +160,27 @@ export type HashValidationConflict = {
 export type HashValidationResult = HashValidationSuccess | HashValidationConflict
 
 /**
- * Return a 413 Response if the request body exceeds the cap, or null if OK.
- * `maxBytes` defaults to {@link MAX_BODY_SIZE}, the mutation-route budget; a
- * bulk *query* route (which sends many small records and writes nothing) passes
- * its own, derived from its own per-request item cap.
+ * Return a 413 Response if the request *declares* more bytes than the cap, or
+ * null if it may proceed. `maxBytes` defaults to {@link MAX_BODY_SIZE}; a route
+ * whose body has no small bound in its shape passes `MAX_LIST_BODY_SIZE`,
+ * and a bulk query route derives one from its own per-request item cap.
+ *
+ * This trusts `Content-Length` rather than measuring, which is deliberate but
+ * narrow: a request that sends no such header — a chunked upload, or any of the
+ * in-process callers that build a `Request` directly (the MCP dispatcher via
+ * `buildSyntheticRequest`, `import-changes` re-dispatching into the save
+ * handlers, every integration test) — is not capped at all. So this is a
+ * comprehensible refusal for a well-behaved client, not a defense against a
+ * hostile one; bounding memory would mean measuring the stream as it is read.
  */
 export function validateBodySize(req: Request, maxBytes: number = MAX_BODY_SIZE): Response | null {
-  const contentLength = Number(req.headers.get('Content-Length') ?? '0')
-  if (contentLength > maxBytes) {
-    return apiError('Request body too large', 413)
+  const declared = req.headers.get('Content-Length')
+  // A header that is present but unparseable is refused rather than waved
+  // through: `Number('abc') > maxBytes` is false, so NaN would read as "fits".
+  if (declared === null) return null
+  const contentLength = Number(declared)
+  if (!Number.isFinite(contentLength) || contentLength > maxBytes) {
+    return apiError(`Request body too large (limit ${maxBytes} bytes)`, 413)
   }
   return null
 }

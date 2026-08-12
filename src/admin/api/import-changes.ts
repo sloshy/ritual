@@ -38,6 +38,7 @@ import { handleCollectionLoad } from './collection-load'
 import { handleCollectionSave } from './collection-save'
 import { handleWantedListLoad } from './wanted-load'
 import { handleWantedListSave } from './wanted-save'
+import { MAX_LIST_BODY_SIZE } from '../validation'
 
 /** Origin for synthetic in-process request URLs; nothing leaves the process. */
 const SYNTHETIC_ORIGIN = 'http://ritual-import'
@@ -389,7 +390,7 @@ export function handleImportChanges(req: Request): Promise<Response> {
   // which `parseChangeBundle` parses and validates itself. The size cap it also
   // performs is therefore applied on its own.
   return apiHandler(async () => {
-    const sizeError = validateBodySize(req)
+    const sizeError = validateBodySize(req, MAX_LIST_BODY_SIZE)
     if (sizeError) return sizeError
 
     const bundle = parseChangeBundle(await req.text())
