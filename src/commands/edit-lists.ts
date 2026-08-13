@@ -2,16 +2,21 @@ import path from 'node:path'
 import type { DeckFormatKey } from '../deck-format'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
-import { LIST_TYPE_DISPLAY, type ListType } from '../list-type'
+import type { ListType } from '../list-type'
 import { dirForType, normalizeListName } from '../resolve-list'
 import type { DeckData } from '../types'
 import {
   createCardSessionContext,
   listMarkdownNames,
+  resetCardSessionTracking,
+  saveCardSession,
   type CardSessionContext,
   type CardSessionStrategy,
   type SessionChangeItem,
 } from './card-session'
+import { mirrorMoveTo, sameListRef, type ListRef, type MoveFromChange } from '../change-event'
+import { applyOutgoingMoves } from '../admin/api/move-save'
+import type { MoveTargetsProvider } from './edit-move'
 import { createCollectionStrategy } from './collection-strategy'
 import { createDeckStrategy } from './deck-strategy'
 import { listExistingDecks, loadDeck, type DeckSessionConfig } from './deck-helpers'
@@ -71,11 +76,6 @@ export function pendingListCollision(
   return undefined
 }
 
-/** A list's icon and name, as shown wherever lists are mixed together. */
-export function listRefLabel(ref: UnifiedListRef): string {
-  return `${LIST_TYPE_DISPLAY[ref.type].icon} ${ref.name}`
-}
-
 /**
  * The create-new menu items, shared by the selection menu and the add-target
  * prompt. Message keys rather than rendered rows — this table is evaluated once
@@ -121,6 +121,7 @@ export async function openListSession(
   ref: UnifiedListRef,
   sessionConfig: DeckSessionConfig,
   excludeDigitalOnly: boolean,
+  moveTargets?: MoveTargetsProvider,
 ): Promise<OpenList> {
   const ctx = createCardSessionContext()
   if (ref.type === 'deck') {
@@ -136,6 +137,7 @@ export async function openListSession(
         frontMatter: loaded.frontMatter,
         sessionConfig,
         excludeDigitalOnly,
+        moveTargets,
       }),
     }
   }
@@ -145,7 +147,13 @@ export async function openListSession(
       ref,
       ctx,
       isNew: () => false,
-      strategy: createCollectionStrategy(session, sessionConfig, ref.name, excludeDigitalOnly),
+      strategy: createCollectionStrategy(
+        session,
+        sessionConfig,
+        ref.name,
+        excludeDigitalOnly,
+        moveTargets,
+      ),
     }
   }
   const session = await loadWantedSession(ref.file)
@@ -153,7 +161,13 @@ export async function openListSession(
     ref,
     ctx,
     isNew: () => false,
-    strategy: createWantedStrategy(session, sessionConfig, ref.name, excludeDigitalOnly),
+    strategy: createWantedStrategy(
+      session,
+      sessionConfig,
+      ref.name,
+      excludeDigitalOnly,
+      moveTargets,
+    ),
   }
 }
 
@@ -166,12 +180,16 @@ export type TrackedCreation = { strategy: CardSessionStrategy; isNew: () => bool
  * the whole list back out of the session (`onDiscard`); saving commits it, and
  * the entry disappears. The creation cannot be discarded while the list still
  * has card changes of its own — those must be discarded first, so the entry can
- * never strand changes that no longer have a list to belong to.
+ * never strand changes that no longer have a list to belong to. It is likewise
+ * blocked while another open list holds a pending move *into* this one
+ * (`inboundMoves`): dropping the list would leave that move with nowhere to
+ * deliver, failing the source list's save later.
  */
 export function trackListCreation(
   inner: CardSessionStrategy,
   ref: UnifiedListRef,
   onDiscard: () => void,
+  inboundMoves: () => number = () => 0,
 ): TrackedCreation {
   let isNew = true
   let discarded = false
@@ -189,18 +207,22 @@ export function trackListCreation(
       if (discarded) return []
       const changes = inner.listSessionChanges()
       if (!isNew) return changes
+      const inbound = inboundMoves()
       const blocked =
         changes.length > 0
           ? t('cli.edit.discardCardChangesFirst', { type: ref.type, count: changes.length })
-          : undefined
+          : inbound > 0
+            ? t('cli.edit.discardInboundMovesFirst', { type: ref.type, count: inbound })
+            : undefined
       return [{ label: creationLabel, blocked }, ...changes]
     },
     discardSessionChange: async (ctx: CardSessionContext, index: number): Promise<void> => {
       if (!isNew) return inner.discardSessionChange(ctx, index)
       if (index > 0) return inner.discardSessionChange(ctx, index - 1)
       // The engine blocks this in the picker; enforce it here too, so the list
-      // can never be dropped out from under card changes that belong to it.
-      if (inner.listSessionChanges().length > 0) return
+      // can never be dropped out from under card changes that belong to it —
+      // or out from under another list's pending move into it.
+      if (inner.listSessionChanges().length > 0 || inboundMoves() > 0) return
       discarded = true
       onDiscard()
       console.log(t('cli.edit.discardedList', { type: ref.type, name: ref.name }))
@@ -221,9 +243,11 @@ export function newListSession(
   sessionConfig: DeckSessionConfig,
   excludeDigitalOnly: boolean,
   onDiscard: () => void,
+  moveTargets?: MoveTargetsProvider,
+  inboundMoves?: () => number,
 ): OpenList {
-  const inner = newListStrategy(ref, format, sessionConfig, excludeDigitalOnly)
-  const { strategy, isNew } = trackListCreation(inner, ref, onDiscard)
+  const inner = newListStrategy(ref, format, sessionConfig, excludeDigitalOnly, moveTargets)
+  const { strategy, isNew } = trackListCreation(inner, ref, onDiscard, inboundMoves)
   return { ref, ctx: createCardSessionContext(), strategy, isNew }
 }
 
@@ -233,6 +257,7 @@ function newListStrategy(
   format: DeckFormatKey | null,
   sessionConfig: DeckSessionConfig,
   excludeDigitalOnly: boolean,
+  moveTargets?: MoveTargetsProvider,
 ): CardSessionStrategy {
   if (ref.type === 'deck') {
     // `format` is always given for a deck (the caller prompts for it), but fall
@@ -251,17 +276,142 @@ function newListStrategy(
       sessionConfig,
       excludeDigitalOnly,
       initiallyDirty: true,
+      moveTargets,
     })
   }
   if (ref.type === 'collection') {
     const session = newCollectionSession(ref.file, ref.name)
-    return createCollectionStrategy(session, sessionConfig, ref.name, excludeDigitalOnly)
+    return createCollectionStrategy(
+      session,
+      sessionConfig,
+      ref.name,
+      excludeDigitalOnly,
+      moveTargets,
+    )
   }
   const session = newWantedSession(ref.file, ref.name)
-  return createWantedStrategy(session, sessionConfig, ref.name, excludeDigitalOnly)
+  return createWantedStrategy(session, sessionConfig, ref.name, excludeDigitalOnly, moveTargets)
 }
 
 /** Whether an open list has anything unsaved (pending events or a dirty model). */
 export function hasUnsavedChanges(open: OpenList): boolean {
   return open.ctx.sessionChanges.length > 0 || open.strategy.hasUnsavedChanges()
+}
+
+/** One list's pending moves, split by whether their destination is open in the editor. */
+type PendingMoveCommit = {
+  source: OpenList
+  sourceRef: ListRef
+  /** Moves whose destination is not open — written straight to disk. */
+  offline: MoveFromChange[]
+  /** Moves whose destination is an open session, delivered in memory. */
+  openDest: OpenDestMove[]
+}
+
+/** A pending move headed for a list that is open in the editor. */
+type OpenDestMove = { dest: OpenList; move: MoveFromChange }
+
+/** Split a list's pending move-from events by destination. Mutates nothing. */
+function planMoveCommit(source: OpenList, everyOpen: OpenList[]): PendingMoveCommit {
+  const plan: PendingMoveCommit = {
+    source,
+    sourceRef: { type: source.ref.type, name: source.ref.name },
+    offline: [],
+    openDest: [],
+  }
+  for (const change of source.ctx.sessionChanges) {
+    if (change.action !== 'move-from') continue
+    const dest = everyOpen.find((other) => other !== source && sameListRef(other.ref, change.to))
+    if (dest) plan.openDest.push({ dest, move: change })
+    else plan.offline.push(change)
+  }
+  return plan
+}
+
+/**
+ * Save one open list, committing the destination side of its pending
+ * cross-list moves in the same step — a saved `move-from` must never be
+ * missing its `move-to` half:
+ *
+ * - A destination that is *not* open in the editor is written straight to
+ *   disk through {@link applyOutgoingMoves}, exactly as an admin-editor save
+ *   does.
+ * - A destination that *is* open receives the card on its in-memory model
+ *   (through its own strategy, which allocates it a fresh id) and is saved
+ *   in the same pass — including any unrelated pending changes it carried,
+ *   since its file must land in one consistent write. A receiving list's
+ *   *own* pending moves commit too, so a chain (A→B while B→C) or a swap
+ *   resolves fully; the closure is planned up front, before anything mutates,
+ *   which is also what lets every delivery be validated first.
+ *
+ * Returns false — with the source left unsaved and every session intact —
+ * when a destination cannot be committed (deleted file, a printing-less card
+ * headed into a collection). Disk writes for *other* sources in the closure
+ * may already have landed by then; each is individually complete.
+ */
+export async function saveOpenList(
+  open: OpenList,
+  allOpen: () => Iterable<OpenList>,
+): Promise<boolean> {
+  const everyOpen = [...allOpen()]
+
+  // Plan the transitive closure without mutating anything. receiveMove only
+  // ever adds move-to events — never new move-froms — so the closure is
+  // already complete before any delivery is applied.
+  const queue: OpenList[] = [open]
+  const plans: PendingMoveCommit[] = []
+  for (let i = 0; i < queue.length; i++) {
+    const plan = planMoveCommit(queue[i]!, everyOpen)
+    plans.push(plan)
+    for (const { dest } of plan.openDest) {
+      if (!queue.includes(dest)) queue.push(dest)
+    }
+  }
+
+  const fail = (sourceName: string, error: string): false => {
+    console.error(t('cli.edit.moveCommitFailed', { name: sourceName, error }))
+    return false
+  }
+
+  // Validate every in-memory delivery up front, so a card that cannot land —
+  // the open-session counterpart of applyAddToStaged's collection check —
+  // aborts before any file is written.
+  for (const plan of plans) {
+    for (const { dest, move } of plan.openDest) {
+      if (dest.ref.type === 'collection' && (!move.set || !move.collectorNumber)) {
+        return fail(
+          plan.source.ref.name,
+          t('cli.move.collectionNeedsPrinting', { name: move.cardName }),
+        )
+      }
+    }
+  }
+
+  // Closed destinations go to disk; applyOutgoingMoves validates each batch
+  // before writing it.
+  for (const plan of plans) {
+    if (plan.offline.length === 0) continue
+    try {
+      await applyOutgoingMoves(plan.sourceRef, plan.offline)
+    } catch (error) {
+      return fail(plan.source.ref.name, error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  // Deliver to the open destinations (each allocates its own line id; the
+  // pushed move-to keeps the source id for its changelog), then save every
+  // involved list.
+  for (const plan of plans) {
+    for (const { dest, move } of plan.openDest) {
+      const moveTo = mirrorMoveTo(move, plan.sourceRef)
+      dest.strategy.receiveMove(moveTo)
+      dest.ctx.sessionChanges.push(moveTo)
+    }
+  }
+  for (const list of queue) {
+    if (list !== open) console.log(t('cli.edit.savingMoveDest', { name: list.ref.name }))
+    await saveCardSession(list.strategy, list.ctx)
+    resetCardSessionTracking(list.strategy, list.ctx)
+  }
+  return true
 }

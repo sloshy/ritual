@@ -18,6 +18,7 @@ import {
   writeDeck,
 } from './deck-helpers'
 import type { MessageKey } from '../i18n/messages/en'
+import type { MoveTargetsProvider } from './edit-move'
 import { DEFAULT_LOCALE } from '../i18n/runtime'
 import { t, tIn, type TranslateArgs } from '../i18n/t'
 import { getDeckFormatLabel, resolveDeckFormat, type DeckFormatKey } from '../deck-format'
@@ -84,6 +85,8 @@ export type DeckStrategyArgs = {
    * so its creation survives as a pending change until the session is saved.
    */
   initiallyDirty?: boolean
+  /** Present when the session can move cards to other lists (the unified editor). */
+  moveTargets?: MoveTargetsProvider
 }
 
 /** Build the deck half of a card session. Shared with the unified `edit` command. */
@@ -97,6 +100,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     deck: args.initialDeck,
     sessionAdds: [],
     sessionLineIds: [],
+    pendingMoveIds: [],
     editUndo: [],
     originals: new Map(),
     dirty: args.initiallyDirty ?? false,
@@ -234,6 +238,11 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     updateConfig: (excludeDigital: boolean) =>
       promptDeckConfigUpdate(state.deck, sessionConfig, excludeDigital),
     applyChange: (change: ChangeEvent) => applyDeckChange(state, change),
+    receiveMove: (change): void => {
+      // The event's cardId is the source list's (kept for its changelog); the
+      // arriving line gets a deck id of its own via assignMissingDeckCardIds.
+      applyDeckChange(state, { ...change, cardId: undefined })
+    },
     persist: async (): Promise<void> => {
       await writeDeck(deckFile, state.deck, frontMatter)
       state.dirty = false
@@ -242,6 +251,8 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     sessionSaved: (): void => {
       state.sessionAdds = []
       state.sessionLineIds = []
+      // The save committed the pending moves, so their id reservations end.
+      state.pendingMoveIds = []
       state.editUndo = []
       state.originals.clear()
       lastSection = null
@@ -394,6 +405,17 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     lastEditUndoLabel: () => lastDeckEditLabel(state),
     undoLastEdit: async (ctx: CardSessionContext) => undoDeckEdit(state, ctx),
     editEntry: (ctx: CardSessionContext, cardId: number) =>
-      editDeckCard(state, ctx, cardId, { sessionConfig, excludeDigitalOnly }),
+      editDeckCard(state, ctx, cardId, {
+        sessionConfig,
+        excludeDigitalOnly,
+        move: args.moveTargets
+          ? {
+              targets: args.moveTargets,
+              selfFile: deckFile,
+              sessionConfig,
+              excludeDigitalOnly,
+            }
+          : undefined,
+      }),
   }
 }

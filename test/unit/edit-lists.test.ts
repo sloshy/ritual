@@ -27,6 +27,7 @@ function innerStrategy(changes: string[]): Inner {
   inner.strategy = {
     managerLabel: 'wanted list manager',
     saveTarget: { filePath: ref.file, listName: ref.name },
+    receiveMove: () => {},
     sessionConfig: {
       entryMode: 'name',
       collectorSets: [],
@@ -56,10 +57,15 @@ function innerStrategy(changes: string[]): Inner {
 
 type Tracked = TrackedCreation & { inner: Inner; dropped: string[] }
 
-function tracked(changes: string[] = []): Tracked {
+function tracked(changes: string[] = [], inboundMoves?: () => number): Tracked {
   const inner = innerStrategy(changes)
   const dropped: string[] = []
-  const { strategy, isNew } = trackListCreation(inner.strategy, ref, () => dropped.push(ref.file))
+  const { strategy, isNew } = trackListCreation(
+    inner.strategy,
+    ref,
+    () => dropped.push(ref.file),
+    inboundMoves,
+  )
   return { strategy, isNew, inner, dropped }
 }
 
@@ -92,6 +98,23 @@ describe('a pending list creation in the session changes', () => {
     await strategy.discardSessionChange(createCardSessionContext(), 0)
     expect(dropped).toEqual([])
     expect(strategy.discarded?.()).toBe(false)
+  })
+
+  test('cannot be discarded while another open list holds a pending move into it', async () => {
+    let inbound = 2
+    const { strategy, dropped } = tracked([], () => inbound)
+    // Dropping the list would leave the inbound moves with nowhere to deliver.
+    expect(strategy.listSessionChanges()[0]?.blocked).toBe(
+      'discard the 2 pending move(s) into this wanted list first',
+    )
+    await strategy.discardSessionChange(createCardSessionContext(), 0)
+    expect(dropped).toEqual([])
+
+    // Once the inbound moves are gone, the creation is discardable again.
+    inbound = 0
+    expect(strategy.listSessionChanges()[0]?.blocked).toBeUndefined()
+    await strategy.discardSessionChange(createCardSessionContext(), 0)
+    expect(dropped).toEqual([ref.file])
   })
 
   test('offsets the indices of the card changes behind it', async () => {

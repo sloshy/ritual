@@ -15,13 +15,8 @@ import {
   type SessionChangeItem,
   type SessionConfig,
 } from './card-session'
-import {
-  hasUnsavedChanges,
-  listRefLabel,
-  newListTitle,
-  type OpenList,
-  type UnifiedListRef,
-} from './edit-lists'
+import { hasUnsavedChanges, newListTitle, type OpenList, type UnifiedListRef } from './edit-lists'
+import { listRefTitle } from './edit-move'
 import { ask, suggestByTitleTerms } from './prompts-helpers'
 
 /**
@@ -109,7 +104,7 @@ export type ScopedSessionArgs = {
   createList: (type: ListType) => Promise<OpenList | undefined>
   sessionConfig: SessionConfig
   /** Persist every open list, exactly as the Save item does. */
-  saveAll: () => Promise<void>
+  saveAll: () => Promise<boolean>
   state: ScopedSessionState
 }
 
@@ -131,8 +126,8 @@ export function buildAddTargetChoices(lists: OpenList[], scope: ListScope): Choi
     ...lists.map(
       (open): Choice => ({
         title: open.isNew()
-          ? t('cli.edit.new', { label: listRefLabel(open.ref) })
-          : listRefLabel(open.ref),
+          ? t('cli.edit.new', { label: listRefTitle(open.ref) })
+          : listRefTitle(open.ref),
         value: { kind: 'list', open } satisfies AddTarget,
       }),
     ),
@@ -191,6 +186,9 @@ export function createScopedSession(args: ScopedSessionArgs): ScopedSession {
     // The engine applies a note to the last added card itself, so both of these
     // belong to whichever list that card was added to.
     applyChange: (change: ChangeEvent) => activeList()?.strategy.applyChange(change),
+    // Never a move destination: moves target concrete lists, and the save path
+    // resolves them against the open per-list sessions, not this aggregate.
+    receiveMove: (): void => {},
     noteAdded: (note: string) => activeList()?.strategy.noteAdded?.(note),
 
     // Per-list session actions (target section, format, tags, default labels)
@@ -209,7 +207,9 @@ export function createScopedSession(args: ScopedSessionArgs): ScopedSession {
       await open?.strategy.handleSentinel?.(open.ctx, value)
     },
 
-    persist: saveAll,
+    persist: async (): Promise<void> => {
+      await saveAll()
+    },
     hasUnsavedChanges: () => lists().some(hasUnsavedChanges),
     sessionSaved: () => {
       for (const open of lists()) open.strategy.sessionSaved()
@@ -256,7 +256,7 @@ export function createScopedSession(args: ScopedSessionArgs): ScopedSession {
       for (const open of lists()) {
         open.strategy.listSessionChanges().forEach((item, index) => {
           changeTargets.push({ open, index })
-          items.push({ ...item, label: `${listRefLabel(open.ref)}: ${item.label}` })
+          items.push({ ...item, label: `${listRefTitle(open.ref)}: ${item.label}` })
         })
       }
       return items
@@ -277,7 +277,7 @@ export function createScopedSession(args: ScopedSessionArgs): ScopedSession {
           // key that resolves back to the owning list.
           const key = nextEntryKey++
           entryTargets.set(key, { open, cardId: entry.cardId })
-          items.push({ label: `${listRefLabel(open.ref)}: ${entry.label}`, cardId: key })
+          items.push({ label: `${listRefTitle(open.ref)}: ${entry.label}`, cardId: key })
         }
       }
       return items
@@ -294,7 +294,7 @@ export function createScopedSession(args: ScopedSessionArgs): ScopedSession {
       const open = lastEditList()
       if (!open) return null
       const label = open.strategy.lastEditUndoLabel()
-      return label === null ? null : `${listRefLabel(open.ref)}: ${label}`
+      return label === null ? null : `${listRefTitle(open.ref)}: ${label}`
     },
 
     async undoLastEdit(_ctx: CardSessionContext): Promise<void> {

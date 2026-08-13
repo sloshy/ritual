@@ -106,6 +106,12 @@ export const cliEditMessages = {
     collection: "discard this collection's {count} card change(s) first",
     wanted: "discard this wanted list's {count} card change(s) first",
   },
+  'cli.edit.discardInboundMovesFirst': {
+    $select: 'type',
+    deck: 'discard the {count} pending move(s) into this deck first',
+    collection: 'discard the {count} pending move(s) into this collection first',
+    wanted: 'discard the {count} pending move(s) into this wanted list first',
+  },
   'cli.edit.discardedList': {
     $select: 'type',
     deck: 'Discarded deck "{name}".',
@@ -146,6 +152,7 @@ export const cliEditMessages = {
   'cli.editLabel.section': 'section of {name}',
   'cli.editLabel.removeCopy': 'removing a copy of {name}',
   'cli.editLabel.removal': 'removal of {name}',
+  'cli.editLabel.moveToList': 'move of {name} to {list}',
 
   // ── The edit-mode action menu ─────────────────────────────────────────
   'cli.editAction.changePrinting': 'Change Printing',
@@ -154,6 +161,7 @@ export const cliEditMessages = {
   'cli.editAction.changeLanguage': 'Change Language',
   'cli.editAction.changeLabel': 'Change Label',
   'cli.editAction.moveToSection': 'Move to Section',
+  'cli.editAction.moveToList': 'Move to Another List',
   'cli.editAction.editNote': 'Edit Note',
   'cli.editAction.addCopy': 'Add a Copy',
   'cli.editAction.removeCopy': 'Remove a Copy',
@@ -178,6 +186,18 @@ export const cliEditMessages = {
   'cli.edit.noPrintings': 'No printings found.',
   'cli.edit.noPrintingsNameOnly': 'No printings found. Adding name only.',
   'cli.edit.fileWarning': '{file}: {warning}',
+
+  // ── Moving a card to another list ─────────────────────────────────────
+  'cli.edit.promptMoveTarget': 'Move {name} to which list?',
+  'cli.edit.noMoveTargets': 'There is no other list to move this card to.',
+  'cli.edit.moveNeedsPrinting':
+    'Cannot move {name} into a collection: no printings found to pin it to.',
+  'cli.edit.movedToList': 'Moved: {line} → {list} (delivered on save)',
+  'cli.edit.moveNoteDropped':
+    'The note on {name} will not follow it — notes do not move across lists.',
+  'cli.edit.savingMoveDest': 'Saving {name} (received moved cards)…',
+  'cli.edit.moveCommitFailed':
+    'Could not deliver moved cards out of {name}, so the list was left unsaved: {error}',
 
   // ── Deck sessions ─────────────────────────────────────────────────────
   'cli.deck.promptFormat': 'Deck format:',

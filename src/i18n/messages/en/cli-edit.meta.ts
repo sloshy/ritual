@@ -172,6 +172,10 @@ export const cliEditMeta = {
   'cli.editLabel.removal': {
     description: 'Names the removal of a whole line, for the undo menu.',
   },
+  'cli.editLabel.moveToList': {
+    description:
+      'Names a cross-list move for the undo menu. {list} is the destination list rendered as icon + name.',
+  },
 
   'cli.editAction.changePrinting': {
     description: 'Edit-mode menu row: pick a different printing for this card.',
@@ -195,6 +199,10 @@ export const cliEditMeta = {
   },
   'cli.editAction.moveToSection': {
     description: 'Edit-mode menu row: move this deck card to another section.',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.editAction.moveToList': {
+    description: 'Edit-mode menu row: move this card to another list (deck, collection, wanted).',
     maxLen: MENU_MAX_LEN,
   },
   'cli.editAction.editNote': {
@@ -261,6 +269,38 @@ export const cliEditMeta = {
   'cli.edit.fileWarning': {
     description:
       'Frames a parser warning with the file it came from. {file} is a base file name and {warning} an already-rendered sentence; both arrive untranslated.',
+  },
+
+  'cli.edit.discardInboundMovesFirst': {
+    description:
+      "Why a session-created list's creation cannot be discarded yet: other open lists hold pending moves into it, which would lose their destination. Spliced as the reason into cli.edit.cannotDiscardYet-style rows.",
+  },
+  'cli.edit.promptMoveTarget': {
+    description: 'Prompt heading for the destination picker of a cross-list card move.',
+  },
+  'cli.edit.noMoveTargets': {
+    description:
+      'The Move to Another List action found nothing to offer: the list being edited is the only one.',
+  },
+  'cli.edit.moveNeedsPrinting': {
+    description:
+      'A name-only card cannot enter a collection (every collection line pins a printing) and the printing picker found none to pin, so the move is abandoned.',
+  },
+  'cli.edit.movedToList': {
+    description:
+      'Confirms a card was moved out of the edited list. {line} is an already-rendered canonical card line and {list} the destination rendered as icon + name; the parenthetical reminds that the destination receives the card when the list is saved.',
+  },
+  'cli.edit.moveNoteDropped': {
+    description:
+      'Warns, at move time, that the note attached to the moving card stays behind — the destination line arrives without it.',
+  },
+  'cli.edit.savingMoveDest': {
+    description:
+      'Progress line while a save also writes an open destination list that just received moved cards.',
+  },
+  'cli.edit.moveCommitFailed': {
+    description:
+      'A save could not write the destination side of a pending cross-list move (e.g. the destination file was deleted). {error} is an already-rendered message spliced after the colon; the source list stays unsaved so nothing is lost.',
   },
 
   'cli.deck.promptFormat': { description: 'Prompt heading for the deck-format picker.' },

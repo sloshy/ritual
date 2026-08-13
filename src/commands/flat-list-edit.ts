@@ -2,8 +2,10 @@ import prompts from 'prompts'
 import {
   consolidateSetNote,
   createAddChange,
+  createMoveFromChange,
   createRemoveChange,
   createSetNoteChange,
+  printingOptionsFrom,
   type ChangeEvent,
   type ConsolidateResult,
   type PrintingTuple,
@@ -21,6 +23,7 @@ import {
 } from './card-session'
 import {
   changelogDelta,
+  foldOutCardChanges,
   listSessionChangeItems,
   retargetUndoCardId,
   swapUndoChangelog,
@@ -33,6 +36,13 @@ import {
   type FlatListEntry,
   type FlatListStrategyContext,
 } from './flat-list-session'
+import {
+  listRefTitle,
+  moveFromOptionsFor,
+  resolveMoveDestination,
+  type MoveDeps,
+  type MoveDestination,
+} from './edit-move'
 
 /**
  * Edit-mode operations shared by the collection and wanted sessions: targeting
@@ -228,34 +238,40 @@ export function performFlatListRemoval<E extends EditableFlatListEntry>(
   }
 
   const removed = { ...entry }
-  const removeEvent = createRemoveChange(entry.name, {
-    set: entry.set,
-    collectorNumber: entry.collectorNumber,
-    finish: entry.finish,
-    condition: entry.condition,
-    language: entry.language,
-    cardId,
-  })
+  const removeEvent = createRemoveChange(entry.name, { ...printingOptionsFrom(entry), cardId })
   applyFlatListChange(list.session, removeEvent)
   releaseId(list.session.pool, cardId)
 
   // The removed entry's earlier edit events are moot, so they fold out of the
   // changelog (and come back if the removal is undone).
-  const displaced = ctx.sessionChanges.filter((c) => 'cardId' in c && c.cardId === cardId)
-  ctx.sessionChanges = [
-    ...ctx.sessionChanges.filter((c) => !('cardId' in c) || c.cardId !== cardId),
-    removeEvent,
-  ]
+  const { kept, displaced } = foldOutCardChanges(ctx.sessionChanges, cardId, { keepAdds: false })
+  ctx.sessionChanges = [...kept, removeEvent]
 
+  list.editUndo.push({
+    cardId,
+    kind: 'removal',
+    label: t('cli.editLabel.removal', { name: removed.name }),
+    inverse: restoreEntryInverse(removed, cardId),
+    addedToChangelog: [removeEvent],
+    removedFromChangelog: displaced,
+    reclaimId: cardId,
+  })
+  resetStaleLastAdded(list, ctx, cardId)
+  console.log(t('cli.edit.removedLine', { line: list.renderEntry(removed) }))
+}
+
+/**
+ * The inverse changes that bring a removed or moved entry back: an add of the
+ * full line — the language and label override ride the add itself, so undoing
+ * restores them — plus its note, when it carried one.
+ */
+function restoreEntryInverse<E extends EditableFlatListEntry>(
+  removed: E,
+  cardId: number,
+): ChangeEvent[] {
   const inverse: ChangeEvent[] = [
     createAddChange(removed.name, {
-      set: removed.set,
-      collectorNumber: removed.collectorNumber,
-      finish: removed.finish,
-      condition: removed.condition,
-      // The language and label override ride the add itself, so undoing a
-      // removal restores them.
-      language: removed.language,
+      ...printingOptionsFrom(removed),
       labels: removed.labels,
       cardId,
       section: removed.section,
@@ -264,17 +280,94 @@ export function performFlatListRemoval<E extends EditableFlatListEntry>(
   if (removed.note) {
     inverse.push(createSetNoteChange(removed.name, { note: removed.note, cardId }))
   }
+  return inverse
+}
+
+/**
+ * The interactive Move to Another List flow for a flat-list entry: pick the
+ * destination (resolving a printing when a name-only card heads into a
+ * collection), then record the move.
+ */
+export async function moveFlatListEntry<E extends EditableFlatListEntry>(
+  list: FlatListStrategyContext<E>,
+  ctx: CardSessionContext,
+  entry: E,
+  cardId: number,
+  deps: MoveDeps,
+): Promise<void> {
+  const dest = await resolveMoveDestination({
+    deps,
+    cardName: entry.name,
+    hasPrinting: Boolean(entry.set && entry.collectorNumber),
+  })
+  if (!dest) return
+  performFlatListMove(list, ctx, entry, cardId, dest)
+}
+
+/**
+ * Move an existing entry to another list. The source side is recorded now — a
+ * `move-from` change in the session changelog and a removal from the in-memory
+ * model — and the destination side is derived from it when the list is saved
+ * (`saveOpenList` in `edit-lists.ts`), exactly as an admin-editor save does.
+ * Undoing the move before then restores the entry and no move ever happens.
+ *
+ * Like a removal, the entry's earlier field edits fold out of the changelog
+ * (the move-from event carries the entry's final printing). Its add event, if
+ * the card was added this session, deliberately stays: the changelog must
+ * still balance (add + move out), and the destination really does receive a
+ * card the session added. Such an entry just stops being individually
+ * discardable as an add — the move's undo entry owns the line now.
+ */
+export function performFlatListMove<E extends EditableFlatListEntry>(
+  list: FlatListStrategyContext<E>,
+  ctx: CardSessionContext,
+  entry: E,
+  cardId: number,
+  dest: MoveDestination,
+): void {
+  const removed = { ...entry }
+  const moveEvent = createMoveFromChange(
+    removed.name,
+    moveFromOptionsFor({ ...printingOptionsFrom(removed), cardId }, dest),
+  )
+
+  // The model removal targets the entry's own fields, not the move-from's —
+  // a printing resolved for the destination must not stop the source line
+  // (which never carried it) from matching.
+  applyFlatListChange(
+    list.session,
+    createRemoveChange(removed.name, { ...printingOptionsFrom(removed), cardId }),
+  )
+  // The id is NOT released: the pending move-from still references it, and a
+  // new add reusing it would tangle the two cards in every id-keyed session
+  // filter (discards, re-packs). The pool forgets the reservation on the next
+  // load; undo restores the entry under the still-reserved id.
+  const sessionIdx = list.sessionAdds.indexOf(cardId)
+  if (sessionIdx !== -1) list.sessionAdds.splice(sessionIdx, 1)
+
+  const { kept, displaced } = foldOutCardChanges(ctx.sessionChanges, cardId, { keepAdds: true })
+  ctx.sessionChanges = [...kept, moveEvent]
+
   list.editUndo.push({
     cardId,
-    kind: 'removal',
-    label: t('cli.editLabel.removal', { name: removed.name }),
-    inverse,
-    addedToChangelog: [removeEvent],
+    kind: 'move',
+    label: t('cli.editLabel.moveToList', {
+      name: removed.name,
+      list: listRefTitle(dest.target),
+    }),
+    inverse: restoreEntryInverse(removed, cardId),
+    addedToChangelog: [moveEvent],
     removedFromChangelog: displaced,
     reclaimId: cardId,
   })
   resetStaleLastAdded(list, ctx, cardId)
-  console.log(t('cli.edit.removedLine', { line: list.renderEntry(removed) }))
+  if (removed.note) console.log(t('cli.edit.moveNoteDropped', { name: removed.name }))
+  console.log(
+    t('cli.edit.movedToList', {
+      line: list.renderEntry(removed),
+      list: listRefTitle(dest.target),
+    }),
+  )
 }
 
 /** Label of the operation Undo Last Edit would revert, or null when the stack is empty. */
@@ -319,11 +412,15 @@ export function undoFlatListEditAt<E extends EditableFlatListEntry>(
   list.editUndo.splice(index, 1)
 
   if (undo.reclaimId !== undefined) {
-    if (!list.session.pool.usedIds.has(undo.reclaimId)) {
-      claimId(list.session.pool, undo.reclaimId)
-    } else {
+    if (findFlatListEntry(list, undo.reclaimId) !== undefined) {
+      // Another entry owns the id now (a removal's released id was reused), so
+      // the restored entry takes a fresh one and its deeper history follows.
       retargetUndoCardId([undo, ...list.editUndo], undo.reclaimId, allocateId(list.session.pool))
+    } else if (!list.session.pool.usedIds.has(undo.reclaimId)) {
+      claimId(list.session.pool, undo.reclaimId)
     }
+    // Otherwise the id is merely still reserved — a pending move keeps its id
+    // in the pool — and the inverse add below restores the entry under it.
   }
 
   for (const change of undo.inverse) {

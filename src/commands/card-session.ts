@@ -9,7 +9,7 @@ import type { Condition, Finish, ScryfallCard } from '../types'
 import { conditionLabel, isCondition, isFinish, VALID_CONDITIONS } from '../finish-condition'
 import type { PromptState } from './prompts-types'
 import { appendChangelog } from '../changelog-writer'
-import { createSetNoteChange, type ChangeEvent } from '../change-event'
+import { createSetNoteChange, type ChangeEvent, type MoveToChange } from '../change-event'
 import { writeFileWithHash } from '../content-hash'
 import { formatSetCodesForDisplay, parseSetCodesInput } from '../set-codes'
 import { rankNameMatches } from '../term-match'
@@ -314,6 +314,14 @@ export type CardSessionStrategy = {
   updateConfig: (excludeDigitalOnly: boolean) => Promise<string[]>
   /** Apply a change to the in-memory list model (not written to disk until {@link persist}). */
   applyChange: (change: ChangeEvent) => void
+  /**
+   * Receive the destination side of a cross-list move: add the moved card to
+   * the in-memory model with a card id of this list's own (the event's cardId
+   * is the *source* list's, kept for the changelog only). Called by the save
+   * path when a saved list's `move-from` targets a list that is open in the
+   * editor.
+   */
+  receiveMove: (change: MoveToChange) => void
   /** Write the in-memory list model to the list file. */
   persist: () => Promise<void>
   /** Whether the in-memory model differs from what was last written to disk. */
@@ -1014,8 +1022,19 @@ export type MultiListSessionControls = {
   listsWithChanges: () => number
   /** Whether any open list has unsaved changes. */
   hasAnyUnsaved: () => boolean
-  /** Persist every open list's pending changes and reset their session tracking. */
-  saveAll: () => Promise<void>
+  /**
+   * Persist every open list's pending changes and reset their session
+   * tracking. False when any list could not be saved (a pending cross-list
+   * move whose destination cannot be committed) — the exit gate then keeps
+   * the editor open instead of discarding the unsaved session.
+   */
+  saveAll: () => Promise<boolean>
+  /**
+   * Persist the current list only (the Save Current item). Routed through the
+   * editor rather than {@link saveCardSession} directly so a save always
+   * commits the destination side of the list's pending cross-list moves.
+   */
+  saveCurrent: () => Promise<boolean>
 }
 
 /**
@@ -1028,8 +1047,12 @@ export async function confirmMultiListExit(multiList: MultiListSessionControls):
   if (multiList.hasAnyUnsaved()) {
     const choice = await promptExitMenu(multiList.totalChangeCount())
     if (choice === 'cancel') return false
-    if (choice === 'save') await multiList.saveAll()
-    else console.log(t('cli.session.discardedAll'))
+    if (choice === 'save') {
+      // A failed save (a cross-list move whose destination could not be
+      // committed) must not fall through to exiting — the unsaved session
+      // would be silently thrown away right after the error.
+      if (!(await multiList.saveAll())) return false
+    } else console.log(t('cli.session.discardedAll'))
   }
   console.log(t('cli.session.exitingEditor'))
   return true
@@ -1273,8 +1296,14 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
       continue
     }
 
-    // Save the current list: the single-list Save, or Save Current in a
-    // multi-list session.
+    // Save Current in a multi-list session goes through the editor's save
+    // path, which also commits the destination side of pending cross-list moves.
+    if (menuAction === '__SAVE_CURRENT__' && multiList) {
+      await multiList.saveCurrent()
+      continue
+    }
+
+    // The single-list Save (no multi-list controls present).
     if (menuAction === '__SAVE__' || menuAction === '__SAVE_CURRENT__') {
       await saveCardSession(strategy, ctx)
       // Everything up to here is committed: the undo/discard menus reset so a

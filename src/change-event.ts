@@ -478,6 +478,23 @@ export function createMoveToChange(cardName: string, options: MoveToOptions): Mo
   }
 }
 
+/**
+ * The destination-side `move-to` a saved `move-from` implies. The one place
+ * that decides what rides across a cross-list move — every commit path (the
+ * editor saves' disk path, the unified editor's open-session path) must derive
+ * the mirror event here, so the two halves can never drift apart. The event
+ * keeps the *source* list's cardId: the destination allocates its own line id
+ * and the changelog id documents which source line left.
+ */
+export function mirrorMoveTo(move: MoveFromChange, from: ListRef): MoveToChange {
+  return createMoveToChange(move.cardName, { ...printingOptionsFrom(move), from })
+}
+
+/** Whether two list refs name the same list (same type and name). */
+export function sameListRef(a: ListRef, b: ListRef): boolean {
+  return a.type === b.type && a.name === b.name
+}
+
 function makeSectionMetaBase(): SectionMetaBase {
   return { id: createChangeId(), timestamp: Date.now() }
 }

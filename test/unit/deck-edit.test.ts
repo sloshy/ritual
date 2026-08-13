@@ -10,11 +10,13 @@ import {
   listDeckEntries,
   listDeckSessionChanges,
   performDeckCopyRemoval,
+  performDeckLineMove,
   performDeckLineRemoval,
   renderDeckCardLine,
   undoDeckEdit,
   type DeckSessionState,
 } from '../../src/commands/deck-edit'
+import type { MoveDestination } from '../../src/commands/edit-move'
 import { findCardById } from '../../src/commands/deck-helpers'
 import type { CardSessionContext } from '../../src/commands/card-session'
 import type { Card, DeckData } from '../../src/types'
@@ -34,6 +36,7 @@ function stateOf(deck: DeckData): DeckSessionState {
     deck,
     sessionAdds: [],
     sessionLineIds: [],
+    pendingMoveIds: [],
     editUndo: [],
     originals: new Map(),
     dirty: false,
@@ -352,5 +355,129 @@ describe('deck edit-mode — Change Language', () => {
     expect(findCardById(state.deck, 1)!.card.language).toBe('ja')
     expect(ctx.sessionChanges).toHaveLength(0)
     expect(lastDeckEditLabel(state)).toBeNull()
+  })
+})
+
+describe('performDeckLineMove', () => {
+  const dest: MoveDestination = {
+    target: { type: 'collection', name: 'Binder', file: '/collections/binder.md' },
+    printing: null,
+  }
+
+  test('removes the whole line and records one move-from per copy', () => {
+    const state = stateOf(
+      deckOf([
+        { quantity: 3, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 },
+        { quantity: 1, name: 'Mana Crypt', set: '2xm', collectorNumber: '270', cardId: 2 },
+      ]),
+    )
+    const ctx = contextOf()
+    performDeckLineMove(state, ctx, 1, dest)
+
+    expect(findCardById(state.deck, 1)).toBeNull()
+    // The sibling line is untouched.
+    expect(findCardById(state.deck, 2)!.card).toMatchObject({ name: 'Mana Crypt', quantity: 1 })
+    expect(ctx.sessionChanges).toMatchObject([
+      { action: 'move-from', cardName: 'Sol Ring', to: { type: 'collection', name: 'Binder' } },
+      { action: 'move-from', cardName: 'Sol Ring' },
+      { action: 'move-from', cardName: 'Sol Ring' },
+    ])
+    expect(lastDeckEditLabel(state)).toBe('move of Sol Ring to 📦 Binder')
+  })
+
+  test('copies added this session keep their add events but leave the discard menus', () => {
+    const state = stateOf(
+      deckOf([
+        { quantity: 2, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 },
+        { quantity: 1, name: 'Brainstorm', set: 'ice', collectorNumber: '61', cardId: 2 },
+      ]),
+    )
+    const ctx = contextOf()
+    // One Sol Ring copy and the Brainstorm line were added this session.
+    ctx.sessionChanges.push(createAddChange('Sol Ring', { set: 'c19', cardId: 1 }))
+    state.sessionAdds.push({
+      cardId: 1,
+      name: 'Sol Ring',
+      printing: { set: 'c19', collectorNumber: '221' },
+      section: 'Main',
+    })
+    state.sessionAdds.push({
+      cardId: 2,
+      name: 'Brainstorm',
+      printing: { set: 'ice', collectorNumber: '61' },
+      section: 'Main',
+    })
+    state.sessionLineIds.push(1, 2)
+
+    performDeckLineMove(state, ctx, 1, dest)
+    expect(ctx.sessionChanges).toMatchObject([
+      { action: 'add' },
+      { action: 'move-from' },
+      { action: 'move-from' },
+    ])
+    // Only the moved line's tracking leaves; the other session add survives.
+    expect(state.sessionAdds.map((record) => record.cardId)).toEqual([2])
+    expect(state.sessionLineIds).toEqual([2])
+    // The moved line's id is reserved while the move is pending.
+    expect(state.pendingMoveIds).toEqual([1])
+  })
+
+  test('a printing resolved for the destination rides the events of a name-only line', () => {
+    const state = stateOf(deckOf([{ quantity: 1, name: 'Sol Ring', cardId: 1 }]))
+    const ctx = contextOf()
+    performDeckLineMove(state, ctx, 1, {
+      ...dest,
+      printing: { set: '2xm', collectorNumber: '270' },
+    })
+
+    expect(findCardById(state.deck, 1)).toBeNull()
+    expect(ctx.sessionChanges).toMatchObject([
+      { action: 'move-from', set: '2xm', collectorNumber: '270' },
+    ])
+  })
+
+  test('undo restores the line with all copies and its note, into its own section', () => {
+    const state = stateOf({
+      name: 'Test',
+      sections: [
+        { name: 'Main', cards: [] },
+        {
+          name: 'Sideboard',
+          cards: [
+            {
+              quantity: 2,
+              name: 'Sol Ring',
+              set: 'c19',
+              collectorNumber: '221',
+              note: 'borrowed',
+              cardId: 1,
+            },
+          ],
+        },
+      ],
+    })
+    const ctx = contextOf()
+    performDeckLineMove(state, ctx, 1, dest)
+    expect(findCardById(state.deck, 1)).toBeNull()
+
+    undoDeckEdit(state, ctx)
+    const restored = findCardById(state.deck, 1)!
+    expect(restored.card).toMatchObject({ quantity: 2, name: 'Sol Ring', note: 'borrowed' })
+    expect(restored.section.name).toBe('Sideboard')
+    expect(ctx.sessionChanges).toHaveLength(0)
+    // Undoing the move lifts the id reservation.
+    expect(state.pendingMoveIds).toEqual([])
+  })
+
+  test('a line added after a move cannot reuse the reserved id', () => {
+    const state = stateOf(
+      deckOf([{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }]),
+    )
+    const ctx = contextOf()
+    performDeckLineMove(state, ctx, 1, dest)
+
+    applyDeckChange(state, createAddChange('Brainstorm', { set: 'ice', section: 'Main' }))
+    const added = state.deck.sections[0]!.cards.find((card) => card.name === 'Brainstorm')!
+    expect(added.cardId).not.toBe(1)
   })
 })

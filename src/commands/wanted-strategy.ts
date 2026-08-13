@@ -29,6 +29,7 @@ import {
   discardFlatListAdd,
   listFlatListSessionAdds,
   persistFlatListSession,
+  receiveFlatListMove,
   resetFlatListSessionTracking,
   type FlatListStrategyContext,
   type LastAddState,
@@ -41,11 +42,13 @@ import {
   findFlatListEntry,
   lastFlatListEditLabel,
   listFlatListEntries,
+  moveFlatListEntry,
   removeFlatListEntry,
   discardFlatListSessionChange,
   listFlatListSessionChanges,
   undoFlatListEdit,
 } from './flat-list-edit'
+import type { MoveTargetsProvider } from './edit-move'
 import type { WantedListCardEntry } from '../site/data-types'
 import type { Finish, ScryfallCard } from '../types'
 import {
@@ -117,6 +120,7 @@ export function createWantedStrategy(
   sessionConfig: WantedListSessionConfig,
   listName: string,
   excludeDigitalOnly: boolean,
+  moveTargets?: MoveTargetsProvider,
 ): CardSessionStrategy {
   const state: LastAddState = { snapshot: null }
   const list: FlatListStrategyContext<WantedListCardEntry> = {
@@ -168,6 +172,7 @@ export function createWantedStrategy(
     updateConfig: (excludeDigital: boolean) =>
       promptSessionConfigUpdate(sessionConfig, false, excludeDigital),
     applyChange: (change: ChangeEvent) => applyFlatListChange(session, change),
+    receiveMove: (change) => receiveFlatListMove(session, change),
     persist: () => persistFlatListSession(session),
     hasUnsavedChanges: () => session.dirty,
     sessionSaved: () => resetFlatListSessionTracking(list),
@@ -260,6 +265,9 @@ export function createWantedStrategy(
           ? [{ title: `✨ ${t('cli.editAction.changeFinish')}`, value: 'finish' }]
           : []),
         { title: `🌐 ${t('cli.editAction.changeLanguage')}`, value: 'language' },
+        ...(moveTargets
+          ? [{ title: `📤 ${t('cli.editAction.moveToList')}`, value: 'move-list' }]
+          : []),
         { title: `📝 ${t('cli.editAction.editNote')}`, value: 'note' },
         { title: `🗑️  ${t('cli.editAction.remove')}`, value: 'remove' },
       ])
@@ -335,6 +343,16 @@ export function createWantedStrategy(
             consolidateSetLanguage(changes, entry.name, language, original.language, cardId),
         })
         logUpdated(cardId, entry.name)
+        return
+      }
+
+      if (action === 'move-list' && moveTargets) {
+        await moveFlatListEntry(list, ctx, entry, cardId, {
+          targets: moveTargets,
+          selfFile: session.filePath,
+          sessionConfig,
+          excludeDigitalOnly,
+        })
         return
       }
 

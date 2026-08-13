@@ -7,6 +7,7 @@ import {
   createSetPrintingChange,
   type AddRemoveOptions,
   type ChangeEvent,
+  type MoveToChange,
 } from '../change-event'
 import type { CollectionCardEntry, WantedListCardEntry } from '../site/data-types'
 import { DEFAULT_SECTION, type ScryfallCard } from '../types'
@@ -291,6 +292,32 @@ export function applyFlatListChange<E extends FlatListEntry>(
 ): void {
   session.entries = session.apply(session.entries, change)
   session.dirty = true
+}
+
+/**
+ * Receive the destination side of a cross-list move on an open flat-list
+ * session: the moved card arrives as a fresh entry with an id from this
+ * list's own pool (the event's cardId is the source list's, kept for its
+ * changelog only) in the session's target section — the same placement a
+ * regular add gets. Shared by the collection and wanted strategies so the
+ * "how a moved card lands" rule exists once.
+ */
+export function receiveFlatListMove<E extends FlatListEntry>(
+  session: FlatListSession<E>,
+  change: MoveToChange,
+): void {
+  applyFlatListChange(
+    session,
+    createAddChange(change.cardName, {
+      set: change.set,
+      collectorNumber: change.collectorNumber,
+      finish: change.finish,
+      condition: change.condition,
+      language: change.language,
+      cardId: allocateId(session.pool),
+      section: flatListTargetSection(session),
+    }),
+  )
 }
 
 /**

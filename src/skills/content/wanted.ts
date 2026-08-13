@@ -92,7 +92,7 @@ ${sessionSemantics({
   fileNoun: 'file',
   editScope: "the list's existing entries",
   editFields:
-    "change a card's printing (or make it name-only), finish, language, or note, or remove it",
+    "change a card's printing (or make it name-only), finish, language, or note, move it to another list, or remove it",
   editModeNote:
     'The `✨ Change Finish` item is hidden for name-only entries — a finish only annotates a specific printing.',
   undoAddVerb: 'removes',

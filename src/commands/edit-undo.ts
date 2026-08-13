@@ -14,8 +14,8 @@ import type { CardSessionContext, SessionAddItem, SessionChangeItem } from './ca
 export type EditUndoEntry = {
   /** The card id the operation targeted. */
   cardId: number
-  /** Whether the operation changed fields or removed copies/lines (picks the list icon). */
-  kind: 'edit' | 'removal'
+  /** What the operation did — picks the icon in the session-changes list. */
+  kind: 'edit' | 'removal' | 'move'
   /** Short description for the Undo Last Edit menu item, e.g. `printing on Sol Ring`. */
   label: string
   /** Inverse changes that restore the pre-operation state, applied in order. */
@@ -85,11 +85,47 @@ export function listSessionChangeItems(
     ),
     ...editUndo.map((entry, index): SessionChangeItem => {
       // Two spaces after the icon: variation-selector emoji render double-wide.
-      const label = `${entry.kind === 'removal' ? '🗑️' : '✏️'}  ${entry.label}`
+      const icon = entry.kind === 'removal' ? '🗑️' : entry.kind === 'move' ? '📤' : '✏️'
+      const label = `${icon}  ${entry.label}`
       const blocked = targetedUndoBlocker(editUndo, index)
       return blocked === null ? { label } : { label, blocked }
     }),
   ]
+}
+
+/** {@link foldOutCardChanges}' split of a session changelog. */
+export type ChangelogFold = { kept: ChangeEvent[]; displaced: ChangeEvent[] }
+
+/** Options for {@link foldOutCardChanges}. */
+export type FoldOptions = {
+  /**
+   * Keep the card's `add` events. A move keeps them so the changelog balances
+   * (add + move out); a removal folds them along with everything else.
+   */
+  keepAdds: boolean
+}
+
+/**
+ * Split the session changelog around a line-level operation on `cardId`: the
+ * card's earlier events are moot once the line is removed or moved, so they
+ * fold out (`displaced`, restored again if the operation is undone) and the
+ * rest stay (`kept`). The single home of this predicate — the removal and
+ * move flows in both list modules consume it rather than hand-writing the
+ * filter and its negation.
+ */
+export function foldOutCardChanges(
+  changes: ChangeEvent[],
+  cardId: number,
+  options: FoldOptions,
+): ChangelogFold {
+  const kept: ChangeEvent[] = []
+  const displaced: ChangeEvent[] = []
+  for (const change of changes) {
+    const targetsCard = 'cardId' in change && change.cardId === cardId
+    if (targetsCard && !(options.keepAdds && change.action === 'add')) displaced.push(change)
+    else kept.push(change)
+  }
+  return { kept, displaced }
 }
 
 /**

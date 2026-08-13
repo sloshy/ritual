@@ -7,10 +7,12 @@ import {
   lastFlatListEditLabel,
   listFlatListEntries,
   listFlatListSessionChanges,
+  performFlatListMove,
   performFlatListRemoval,
   undoFlatListEdit,
   type FlatListFieldEdit,
 } from '../../src/commands/flat-list-edit'
+import type { MoveDestination } from '../../src/commands/edit-move'
 import {
   discardFlatListAdd,
   listFlatListSessionAdds,
@@ -459,5 +461,100 @@ describe('resetFlatListSessionTracking', () => {
     expect(list.originals.size).toBe(0)
     expect(list.state.snapshot).toBeNull()
     expect(lastFlatListEditLabel(list)).toBeNull()
+  })
+})
+
+describe('performFlatListMove', () => {
+  const dest: MoveDestination = {
+    target: { type: 'wanted', name: 'To Buy', file: '/wanted/to-buy.md' },
+    printing: null,
+  }
+
+  test('removes the entry, reserves its id, and records a move-from naming the destination', () => {
+    const h = harness([entry('Sol Ring', 1), entry('Mana Crypt', 2)])
+    performFlatListMove(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1, dest)
+
+    expect(h.session.entries.map((e) => e.name)).toEqual(['Mana Crypt'])
+    expect(h.ctx.sessionChanges).toMatchObject([
+      {
+        action: 'move-from',
+        cardName: 'Sol Ring',
+        set: 'lea',
+        to: { type: 'wanted', name: 'To Buy' },
+      },
+    ])
+    expect(h.session.dirty).toBe(true)
+    // The id stays reserved while the move is pending — a new add must not
+    // take over an id the move-from event still references.
+    expect(allocateId(h.session.pool)).toBe(3)
+  })
+
+  test("folds the entry's earlier edits out; the move-from carries the final printing", () => {
+    const h = harness([entry('Sol Ring', 1)])
+    editPrinting(h, 1, LTC)
+    performFlatListMove(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1, dest)
+
+    expect(h.ctx.sessionChanges).toMatchObject([{ action: 'move-from', set: 'ltc' }])
+    // The displaced printing edit comes back if the move is undone.
+    const undo = h.list.editUndo[h.list.editUndo.length - 1]!
+    expect(undo.removedFromChangelog).toMatchObject([{ action: 'set-printing', set: 'ltc' }])
+  })
+
+  test('a session-added entry keeps its add event but stops being discardable as an add', () => {
+    const h = harness([])
+    const movedId = simulateAdd(h, 'Sol Ring')
+    const keptId = simulateAdd(h, 'Mana Crypt')
+    performFlatListMove(h.list, h.ctx, findFlatListEntry(h.list, movedId)!, movedId, dest)
+
+    expect(h.ctx.sessionChanges).toMatchObject([
+      { action: 'add', cardName: 'Sol Ring' },
+      { action: 'add', cardName: 'Mana Crypt' },
+      { action: 'move-from', cardName: 'Sol Ring' },
+    ])
+    // Only the moved add leaves the discard menu; the other one survives.
+    expect(h.list.sessionAdds).toEqual([keptId])
+  })
+
+  test('a printing resolved for the destination rides the event, not the model removal', () => {
+    const h = harness([entry('Sol Ring', 1)])
+    performFlatListMove(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1, {
+      ...dest,
+      printing: { set: '2xm', collectorNumber: '270' },
+    })
+
+    expect(h.session.entries).toHaveLength(0)
+    expect(h.ctx.sessionChanges).toMatchObject([
+      { action: 'move-from', set: '2xm', collectorNumber: '270' },
+    ])
+
+    // The undo inverse was built from the entry's own fields, not the
+    // destination-resolved printing — the source line never carried 2XM.
+    undoFlatListEdit(h.list, h.ctx)
+    expect(findFlatListEntry(h.list, 1)).toMatchObject({ set: 'lea', collectorNumber: '161' })
+  })
+
+  test('undo restores the entry with its note and swaps the move-from back out', () => {
+    const h = harness([entry('Sol Ring', 1, { note: 'from Dad', labels: ['keep'] })])
+    performFlatListMove(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1, dest)
+    expect(lastFlatListEditLabel(h.list)).toBe('move of Sol Ring to 🎯 To Buy')
+
+    undoFlatListEdit(h.list, h.ctx)
+    const restored = findFlatListEntry(h.list, 1)!
+    expect(restored).toMatchObject({ name: 'Sol Ring', note: 'from Dad', labels: ['keep'] })
+    expect(h.ctx.sessionChanges).toHaveLength(0)
+    expect(h.session.pool.usedIds.has(1)).toBe(true)
+  })
+
+  test('an add after a move cannot reuse the reserved id, so discarding it leaves the move intact', () => {
+    const h = harness([entry('Sol Ring', 1)])
+    performFlatListMove(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1, dest)
+
+    const newId = simulateAdd(h, 'Brainstorm')
+    expect(newId).not.toBe(1)
+
+    // Discarding the new add filters the session changelog by its id — which
+    // must never catch the pending move-from of the card that left.
+    discardFlatListAdd(h.list, h.ctx, 0)
+    expect(h.ctx.sessionChanges).toMatchObject([{ action: 'move-from', cardName: 'Sol Ring' }])
   })
 })

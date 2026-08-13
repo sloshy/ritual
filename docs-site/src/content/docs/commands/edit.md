@@ -226,28 +226,28 @@ order they appear. The card you just added comes first, so its shortcuts are alw
 to reach; the session-wide settings follow, and `🚪 Exit` sits at the very bottom where you cannot
 land on it by overshooting.
 
-| Option                                   | Description                                                                           |
-| ---------------------------------------- | ------------------------------------------------------------------------------------- |
-| `➕ Add Exact Copy`                      | Add another copy of the last added card, identical options                            |
-| `➕ Add Similar Copy`                    | Add a copy of the last added card, re-prompting its options                           |
-| `📝 Add Note`                            | Attach a note to the last added card                                                  |
-| `✏️ Edit Previous Card`                  | Re-enter the last added card with forced prompts                                      |
-| `↩️ Undo Last Add`                       | Take back the most recently added card                                                |
-| `↩️ Undo Last Edit`                      | Revert the most recent [edit-mode](#edit-mode) operation                              |
-| `🗂️ Set Target Section`                  | Pin a deck section, create a new one, or prompt for each card (decks)                 |
-| `🏷️ Change Format`                       | Change the deck's [format](#deck-format) (decks)                                      |
-| `🔖 Edit Tags`                           | Edit the deck's front-matter tags, comma-separated; empty clears them (decks)         |
-| `🏷️ Edit List Labels`                    | Change the collection's [default card labels](#collection-front-matter) (collections) |
-| `⚙️ Configure Session Filters`           | Adjust default sets, finish, condition, and (decks) target section (name mode)        |
-| `🔢 Switch to Collector Number Mode`     | Switch to collector number entry mode (name mode)                                     |
-| `📦 Manage Set Codes`                    | Add, remove, or switch active sets (collector mode)                                   |
-| `🔤 Switch to Name Mode`                 | Switch back to name entry mode (collector mode)                                       |
-| `🛠️ Switch to Edit Mode`                 | Browse and edit the list's existing entries (see [Edit Mode](#edit-mode))             |
-| `📋 View Session Changes (N)`            | Review every change this session and optionally discard individual ones               |
-| `💾 Save all changes (N across M lists)` | Write every open list's file and changelog, keep editing                              |
-| `💾 Save current list changes (N)`       | Write only the list you are editing, keep the rest in memory                          |
-| `🔀 Switch List`                         | Back to the list selection menu, keeping unsaved changes in memory                    |
-| `🚪 Exit`                                | Leave the editor (asks to save all, discard all, or cancel when unsaved)              |
+| Option                                   | Description                                                                                                                          |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `➕ Add Exact Copy`                      | Add another copy of the last added card, identical options                                                                           |
+| `➕ Add Similar Copy`                    | Add a copy of the last added card, re-prompting its options                                                                          |
+| `📝 Add Note`                            | Attach a note to the last added card                                                                                                 |
+| `✏️ Edit Previous Card`                  | Re-enter the last added card with forced prompts                                                                                     |
+| `↩️ Undo Last Add`                       | Take back the most recently added card                                                                                               |
+| `↩️ Undo Last Edit`                      | Revert the most recent [edit-mode](#edit-mode) operation                                                                             |
+| `🗂️ Set Target Section`                  | Pin a deck section, create a new one, or prompt for each card (decks)                                                                |
+| `🏷️ Change Format`                       | Change the deck's [format](#deck-format) (decks)                                                                                     |
+| `🔖 Edit Tags`                           | Edit the deck's front-matter tags, comma-separated; empty clears them (decks)                                                        |
+| `🏷️ Edit List Labels`                    | Change the collection's [default card labels](#collection-front-matter) (collections)                                                |
+| `⚙️ Configure Session Filters`           | Adjust default sets, finish, condition, and (decks) target section (name mode)                                                       |
+| `🔢 Switch to Collector Number Mode`     | Switch to collector number entry mode (name mode)                                                                                    |
+| `📦 Manage Set Codes`                    | Add, remove, or switch active sets (collector mode)                                                                                  |
+| `🔤 Switch to Name Mode`                 | Switch back to name entry mode (collector mode)                                                                                      |
+| `🛠️ Switch to Edit Mode`                 | Browse and edit the list's existing entries (see [Edit Mode](#edit-mode))                                                            |
+| `📋 View Session Changes (N)`            | Review every change this session and optionally discard individual ones                                                              |
+| `💾 Save all changes (N across M lists)` | Write every open list's file and changelog, keep editing                                                                             |
+| `💾 Save current list changes (N)`       | Write the list you are editing (plus any list receiving its pending [moves](#moving-cards-to-another-list)), keep the rest in memory |
+| `🔀 Switch List`                         | Back to the list selection menu, keeping unsaved changes in memory                                                                   |
+| `🚪 Exit`                                | Leave the editor (asks to save all, discard all, or cancel when unsaved)                                                             |
 
 The `↩️ Undo Last Add` option appears only after you have added at least one card this session, and
 `📋 View Session Changes` once the session has any change to show (see
@@ -274,7 +274,9 @@ The save actions cover all open lists:
   session changelog while you keep working. Everything saved this way is committed — the undo and
   discard menus reset.
 - `💾 Save current list changes (N)` writes only the list you are editing, keeping the other
-  lists' changes in memory.
+  lists' changes in memory — except that any list receiving cards from its pending
+  [moves](#moving-cards-to-another-list) is saved in the same step (unrelated pending changes
+  included).
 
 The save-current item appears only when the list you are editing has anything unsaved **and** at
 least one other open list does too. When just one list has anything unsaved, saving all and saving
@@ -391,38 +393,41 @@ an entry opens an action menu that depends on the list type.
 
 For a **deck** line:
 
-| Action                     | Description                                                                       |
-| -------------------------- | --------------------------------------------------------------------------------- |
-| `🖼️ Change Printing`       | Pick a new printing, finish, and condition for the line                           |
-| `🌐 Change Language`       | Pick the line's [language](#card-language) (`en` removes the token)               |
-| `➕ Add a Copy`            | Increment the line's quantity                                                     |
-| `➖ Remove a Copy`         | Decrement the line's quantity (multi-copy lines only); keeps the `&N` id          |
-| `🗂️ Move to Section`       | Move the line to another section (or a new one)                                   |
-| `📝 Edit Note`             | Edit or clear the line's note                                                     |
-| `🗑️ Remove Card`           | Delete a single-copy line (asks for confirmation); releases its `&N` id           |
-| `🗑️ Remove All Copies (N)` | Delete all N copies of a multi-copy line (asks for confirmation); releases the id |
+| Action                     | Description                                                                                         |
+| -------------------------- | --------------------------------------------------------------------------------------------------- |
+| `🖼️ Change Printing`       | Pick a new printing, finish, and condition for the line                                             |
+| `🌐 Change Language`       | Pick the line's [language](#card-language) (`en` removes the token)                                 |
+| `➕ Add a Copy`            | Increment the line's quantity                                                                       |
+| `➖ Remove a Copy`         | Decrement the line's quantity (multi-copy lines only); keeps the `&N` id                            |
+| `🗂️ Move to Section`       | Move the line to another section (or a new one)                                                     |
+| `📤 Move to Another List`  | Move every copy of the line to a different list (see [Moving Cards](#moving-cards-to-another-list)) |
+| `📝 Edit Note`             | Edit or clear the line's note                                                                       |
+| `🗑️ Remove Card`           | Delete a single-copy line (asks for confirmation); releases its `&N` id                             |
+| `🗑️ Remove All Copies (N)` | Delete all N copies of a multi-copy line (asks for confirmation); releases the id                   |
 
 For a **collection** entry:
 
-| Action                | Description                                                                             |
-| --------------------- | --------------------------------------------------------------------------------------- |
-| `🖼️ Change Printing`  | Pick a new printing, finish, and condition for the entry                                |
-| `✨ Change Finish`    | Switch between `nonfoil`, `foil`, and `etched`                                          |
-| `📋 Change Condition` | Switch between `NM`, `LP`, `MP`, `HP`, and `DMG`                                        |
-| `🌐 Change Language`  | Pick the entry's [language](#card-language) (`en` removes the token)                    |
-| `🏷️ Change Label`     | Set the label override (For sale / For trade / both / To keep) or revert to the default |
-| `📝 Edit Note`        | Edit or clear the entry's note                                                          |
-| `🗑️ Remove`           | Delete the entry (asks for confirmation); releases its `&N` id                          |
+| Action                    | Description                                                                             |
+| ------------------------- | --------------------------------------------------------------------------------------- |
+| `🖼️ Change Printing`      | Pick a new printing, finish, and condition for the entry                                |
+| `✨ Change Finish`        | Switch between `nonfoil`, `foil`, and `etched`                                          |
+| `📋 Change Condition`     | Switch between `NM`, `LP`, `MP`, `HP`, and `DMG`                                        |
+| `🌐 Change Language`      | Pick the entry's [language](#card-language) (`en` removes the token)                    |
+| `🏷️ Change Label`         | Set the label override (For sale / For trade / both / To keep) or revert to the default |
+| `📤 Move to Another List` | Move the entry to a different list (see [Moving Cards](#moving-cards-to-another-list))  |
+| `📝 Edit Note`            | Edit or clear the entry's note                                                          |
+| `🗑️ Remove`               | Delete the entry (asks for confirmation); releases its `&N` id                          |
 
 For a **wanted list** entry:
 
-| Action               | Description                                                                         |
-| -------------------- | ----------------------------------------------------------------------------------- |
-| `🖼️ Change Printing` | Re-pick the specificity: name-only, or a specific printing with optional finish     |
-| `✨ Change Finish`   | Switch between `nonfoil`, `foil`, `etched`, or no preference (printed entries only) |
-| `🌐 Change Language` | Pick the entry's [language](#card-language) (`en` removes the token)                |
-| `📝 Edit Note`       | Edit or clear the entry's note                                                      |
-| `🗑️ Remove`          | Delete the entry (asks for confirmation); releases its `&N` id                      |
+| Action                    | Description                                                                            |
+| ------------------------- | -------------------------------------------------------------------------------------- |
+| `🖼️ Change Printing`      | Re-pick the specificity: name-only, or a specific printing with optional finish        |
+| `✨ Change Finish`        | Switch between `nonfoil`, `foil`, `etched`, or no preference (printed entries only)    |
+| `🌐 Change Language`      | Pick the entry's [language](#card-language) (`en` removes the token)                   |
+| `📤 Move to Another List` | Move the entry to a different list (see [Moving Cards](#moving-cards-to-another-list)) |
+| `📝 Edit Note`            | Edit or clear the entry's note                                                         |
+| `🗑️ Remove`               | Delete the entry (asks for confirmation); releases its `&N` id                         |
 
 Every edit is undoable with `↩️ Undo Last Edit` (a linear stack, newest first); undoing a removal
 restores the entry with its original `&N` id when the id has not been reused. Edits are folded into
@@ -430,6 +435,38 @@ the session changelog with "latest wins" semantics — changing a card and then 
 leaves no changelog entry. Removing a card that was added this session simply cancels the add.
 `➕ Switch to Add Mode` returns to the regular add flow; you can toggle between the two modes
 freely within one session.
+
+## Moving Cards to Another List
+
+`📤 Move to Another List` sends a card from the list being edited to any other list — deck,
+collection, or wanted list, including a list created earlier in the same session. A deck line
+moves with **all of its copies**; each copy arrives as one physical card at the destination
+(deck destinations merge copies onto an existing matching line). A **name-only** card headed
+into a collection first runs the printing picker, since every collection line pins a printing;
+cancelling the picker cancels the move.
+
+Like every session edit, the move is **deferred until you save**: the card leaves the in-memory
+list immediately (recorded as a `Moved … to …` changelog entry), and the destination receives it
+when the source list is saved — so `↩️ Undo Last Edit` or discarding the change from
+`📋 View Session Changes` takes the whole move back, and exiting without saving moves nothing.
+On save, a destination that is open in the editor receives the card in memory and is saved in the
+same step (along with any other pending changes it had — and its _own_ pending moves commit too,
+so a chain of moves resolves in one save); any other destination's file is written directly,
+exactly like [`ritual move`](/commands/move/) writes it, with a matching `Moved … from …` entry in
+its changelog. The destination line gets a fresh `&N` id of its own, and the source id is released.
+
+A new line at a deck destination lands in that deck's default section (the first non-Commander,
+non-Sideboard section, creating `Main` if there is none) — the move never prompts for a section.
+The action refuses up front when the edited list is the only list, or when a name-only card is
+headed into a collection and the printing picker finds nothing to pin it to.
+
+If a destination cannot be written at save time — its file was deleted, a deck destination has
+unreadable lines, or a printing-less card cannot enter a collection — the save is refused and the
+source list is left unsaved with its session intact; saving from the exit menu then keeps the
+editor open rather than discarding the unsaved changes.
+
+Two things do not follow a moved card: its **note** (notes never move across lists — the CLI
+warns when one is left behind) and, for a collection entry, its **label override**.
 
 ## Card Language
 
@@ -459,7 +496,8 @@ Scryfall lookup when the cache cannot vouch for the printing.
 ## Reviewing Session Changes
 
 `📋 View Session Changes` opens a picker listing every change made this session — `➕` adds,
-`✏️` field edits, and `🗑️` removals. Selecting an entry asks whether to discard that change,
+`✏️` field edits, `🗑️` removals, and `📤` [moves](#moving-cards-to-another-list). Selecting an
+entry asks whether to discard that change,
 reverting just it while keeping the rest of the session intact:
 
 - **Discarding an add** removes the card and frees its `&N` id; the remaining cards added this
@@ -567,8 +605,9 @@ own token when present, else the collection's front-matter default (below); the 
 the default, it never merges with it. Set an override with `set-card --label` or the editors'
 `🏷 Change Label` / `Set Label…` actions; `--label none` (or "Use list default") clears it. A
 [`ritual move`](/commands/move/) to another collection carries the override; moving to a deck or
-wanted list drops it (those formats have no labels), and the _editors'_ **Move to list…** flow
-drops it in every case (like notes, the editor move events don't carry it).
+wanted list drops it (those formats have no labels), and the editors' **Move to list…** /
+`📤 Move to Another List` flow drops it in every case (like notes, the editor move events don't
+carry it).
 
 ### Collection Front Matter
 

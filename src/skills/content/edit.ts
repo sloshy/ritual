@@ -194,13 +194,16 @@ Interactively, \`ritual move\` (requires a terminal) opens a TUI session across 
 lists; \`--from <list>\` alone starts it with only that list enabled as a source
 (widen it under Session Filters).
 
-You can also move a card **while editing a list** (in the admin or public in-browser
-editor) instead of using the dedicated batch tool: a **Move to list…** item appears in
+You can also move a card **while editing a list** instead of using the dedicated batch
+tool. In the admin or public in-browser editor, a **Move to list…** item appears in
 the per-card menu, the per-list **Selected** menu, and the cross-list **All Selected**
-navbar menu, opening a picker of destination lists. The card leaves the list you're
+navbar menu, opening a picker of destination lists. In the \`ritual edit\` TUI, the
+same operation is the \`📤 Move to Another List\` action in every type's edit mode
+(a deck line moves with all its copies). Either way the card leaves the list you're
 editing, and on save **both** lists are
 written — removed from the source, added to the destination, with a changelog entry on
-each. Moving a printing-less card into a collection prompts for a specific printing first.
+each. Moving a printing-less card into a collection prompts for a specific printing
+first, and notes never follow a card across lists.
 
 ## Interactive editor
 

@@ -33,6 +33,7 @@ import {
   discardFlatListAdd,
   listFlatListSessionAdds,
   persistFlatListSession,
+  receiveFlatListMove,
   resetFlatListSessionTracking,
   type CollectionSession,
   type FlatListStrategyContext,
@@ -45,11 +46,13 @@ import {
   findFlatListEntry,
   lastFlatListEditLabel,
   listFlatListEntries,
+  moveFlatListEntry,
   removeFlatListEntry,
   discardFlatListSessionChange,
   listFlatListSessionChanges,
   undoFlatListEdit,
 } from './flat-list-edit'
+import type { MoveTargetsProvider } from './edit-move'
 import type { CollectionCardEntry } from '../site/data-types'
 import type { Condition, Finish, ScryfallCard } from '../types'
 import {
@@ -162,6 +165,7 @@ export function createCollectionStrategy(
   sessionConfig: SessionConfig,
   listName: string,
   excludeDigitalOnly: boolean,
+  moveTargets?: MoveTargetsProvider,
 ): CardSessionStrategy {
   const state: LastAddState = { snapshot: null }
   const list: FlatListStrategyContext<CollectionCardEntry> = {
@@ -277,6 +281,7 @@ export function createCollectionStrategy(
     updateConfig: (excludeDigital: boolean) =>
       promptSessionConfigUpdate(sessionConfig, true, excludeDigital),
     applyChange: (change: ChangeEvent) => applyFlatListChange(session, change),
+    receiveMove: (change) => receiveFlatListMove(session, change),
     persist: () => persistFlatListSession(session),
     hasUnsavedChanges: () => session.dirty,
     sessionSaved: () => resetFlatListSessionTracking(list),
@@ -348,6 +353,9 @@ export function createCollectionStrategy(
         { title: `📋 ${t('cli.editAction.changeCondition')}`, value: 'condition' },
         { title: `🌐 ${t('cli.editAction.changeLanguage')}`, value: 'language' },
         { title: `🏷️  ${t('cli.editAction.changeLabel')}`, value: 'label' },
+        ...(moveTargets
+          ? [{ title: `📤 ${t('cli.editAction.moveToList')}`, value: 'move-list' }]
+          : []),
         { title: `📝 ${t('cli.editAction.editNote')}`, value: 'note' },
         { title: `🗑️  ${t('cli.editAction.remove')}`, value: 'remove' },
       ])
@@ -449,6 +457,16 @@ export function createCollectionStrategy(
             consolidateSetLabel(changes, entry.name, labels, original.labels, cardId),
         })
         logUpdated(cardId, entry.name)
+        return
+      }
+
+      if (action === 'move-list' && moveTargets) {
+        await moveFlatListEntry(list, ctx, entry, cardId, {
+          targets: moveTargets,
+          selfFile: session.filePath,
+          sessionConfig,
+          excludeDigitalOnly,
+        })
         return
       }
 

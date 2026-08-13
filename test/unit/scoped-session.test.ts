@@ -105,6 +105,7 @@ function fakeList(ref: UnifiedListRef, entries: EditableEntryItem[], changes: st
     sessionConfig,
     updateConfig: async () => [],
     applyChange: (change) => calls.applied.push(change),
+    receiveMove: () => {},
     persist: async () => {},
     hasUnsavedChanges: () => dirty,
     sessionSaved: () => {
@@ -160,7 +161,7 @@ const wantedRef: UnifiedListRef = { type: 'wanted', name: 'To Buy', file: '/want
 type SessionOverrides = {
   scope?: ListScope
   state?: ScopedSessionState
-  saveAll?: () => Promise<void>
+  saveAll?: () => Promise<boolean>
   createList?: (type: ListType) => Promise<OpenList | undefined>
 }
 
@@ -171,7 +172,7 @@ function scoped(lists: OpenList[], overrides: SessionOverrides = {}): ScopedSess
     lists: () => lists,
     createList: overrides.createList ?? (async () => undefined),
     sessionConfig,
-    saveAll: overrides.saveAll ?? (async () => {}),
+    saveAll: overrides.saveAll ?? (async () => true),
     state: overrides.state ?? createScopedSessionState(),
   })
 }
@@ -533,6 +534,7 @@ describe('scoped session saving', () => {
     const session = scoped([deck.open, binder.open], {
       saveAll: async () => {
         savedAll++
+        return true
       },
     })
     await session.strategy.persist()

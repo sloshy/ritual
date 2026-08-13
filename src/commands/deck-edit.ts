@@ -7,6 +7,7 @@ import {
   consolidateSetPrinting,
   consolidateSetSection,
   createAddChange,
+  createMoveFromChange,
   createRemoveChange,
   createSetLanguageChange,
   createSetNoteChange,
@@ -17,6 +18,13 @@ import {
   type ConsolidateResult,
   type PrintingTuple,
 } from '../change-event'
+import {
+  listRefTitle,
+  moveFromOptionsFor,
+  resolveMoveDestination,
+  type MoveDeps,
+  type MoveDestination,
+} from './edit-move'
 import { displayLanguage, type CardLanguage } from '../card-language'
 import { t } from '../i18n/t'
 import { allocateId, assignMissingDeckCardIds, collectDeckCardIds, createIdPool } from '../card-id'
@@ -47,6 +55,7 @@ import {
 } from './collection-helpers'
 import {
   changelogDelta,
+  foldOutCardChanges,
   listSessionChangeItems,
   retargetUndoCardId,
   swapUndoChangelog,
@@ -80,6 +89,12 @@ export type DeckSessionState = {
   sessionAdds: DeckCopyRecord[]
   /** Distinct line ids first created this session, for re-pack on full removal. */
   sessionLineIds: number[]
+  /**
+   * Ids of lines with a pending (unsaved) move to another list. Reserved so a
+   * new line cannot take an id the pending move-from events still reference;
+   * cleared when the move is undone or the session's tracking resets.
+   */
+  pendingMoveIds: number[]
   /** Linear undo stack for edit-mode operations, oldest first. */
   editUndo: EditUndoEntry[]
   /** Session-start snapshots of cards touched in edit mode, keyed by card id. */
@@ -93,7 +108,7 @@ export type DeckSessionState = {
  * too (not just on serialize) so subsequent edits resolve cards by ID.
  */
 export function applyDeckChange(state: DeckSessionState, change: ChangeEvent): void {
-  state.deck = assignMissingDeckCardIds(applyChangeToDeck(state.deck, change))
+  state.deck = assignMissingDeckCardIds(applyChangeToDeck(state.deck, change), state.pendingMoveIds)
   state.dirty = true
 }
 
@@ -279,6 +294,8 @@ async function promptMoveSection(deck: DeckData, current: string): Promise<strin
 export type DeckEditDeps = {
   sessionConfig: PrintingFilterConfig & FinishConditionConfig
   excludeDigitalOnly: boolean
+  /** Present when the session can move cards to other lists (the unified editor). */
+  move?: MoveDeps
 }
 
 /** Run the edit action menu and the chosen flow for the deck line with `cardId`. */
@@ -301,6 +318,7 @@ export async function editDeckCard(
       : []),
     { title: `🌐 ${t('cli.editAction.changeLanguage')}`, value: 'language' },
     { title: `🗂️  ${t('cli.editAction.moveToSection')}`, value: 'move' },
+    ...(deps.move ? [{ title: `📤 ${t('cli.editAction.moveToList')}`, value: 'move-list' }] : []),
     { title: `📝 ${t('cli.editAction.editNote')}`, value: 'note' },
     {
       title:
@@ -405,6 +423,11 @@ export async function editDeckCard(
     return
   }
 
+  if (action === 'move-list' && deps.move) {
+    await moveDeckLine(state, ctx, cardId, deps.move)
+    return
+  }
+
   if (action === 'note') {
     await editDeckNote(state, ctx, card, sectionName, cardId)
     return
@@ -413,6 +436,112 @@ export async function editDeckCard(
   if (action === 'remove-line') {
     await removeDeckLine(state, ctx, cardId)
   }
+}
+
+/**
+ * The interactive Move to Another List flow for a deck line: pick the
+ * destination (resolving a printing when a name-only line heads into a
+ * collection), then record the move for every copy.
+ */
+export async function moveDeckLine(
+  state: DeckSessionState,
+  ctx: CardSessionContext,
+  cardId: number,
+  move: MoveDeps,
+): Promise<void> {
+  const located = findCardById(state.deck, cardId)
+  if (!located) return
+  const dest = await resolveMoveDestination({
+    deps: move,
+    cardName: located.card.name,
+    hasPrinting: Boolean(located.card.set && located.card.collectorNumber),
+  })
+  if (!dest) return
+  performDeckLineMove(state, ctx, cardId, dest)
+}
+
+/**
+ * Move every copy of a deck line to another list, as one `move-from` change
+ * per copy (each copy is one physical card at the destination). The source
+ * side is recorded now; the destination side is derived when the deck is
+ * saved (`saveOpenList` in `edit-lists.ts`), exactly as an admin-editor save
+ * does. Undoing the move before then restores the line and no move happens.
+ *
+ * Changelog folding follows {@link performFlatListMove}: earlier field edits
+ * fold out (the move-from events carry the final printing), while add events
+ * of copies added this session stay so the changelog balances — those copies
+ * just stop being individually discardable as adds.
+ */
+export function performDeckLineMove(
+  state: DeckSessionState,
+  ctx: CardSessionContext,
+  cardId: number,
+  dest: MoveDestination,
+): void {
+  const located = findCardById(state.deck, cardId)
+  if (!located) return
+  const snapshot: Card = { ...located.card }
+  const sectionName = located.section.name
+  const printing = cardPrinting(snapshot)
+
+  // Copies added this session keep their add events but leave the discard
+  // menus — the move's undo entry owns the whole line now. The line's id is
+  // reserved while the move is pending, so a new line cannot take over an id
+  // the move-from events still reference.
+  state.sessionAdds = state.sessionAdds.filter((record) => record.cardId !== cardId)
+  state.sessionLineIds = state.sessionLineIds.filter((id) => id !== cardId)
+  state.pendingMoveIds = [...state.pendingMoveIds, cardId]
+
+  const moveEvents: ChangeEvent[] = []
+  const inverse: ChangeEvent[] = []
+  for (let i = 0; i < snapshot.quantity; i++) {
+    applyDeckChange(
+      state,
+      createRemoveChange(snapshot.name, {
+        ...printing,
+        cardId,
+        board: normalizeBoard(sectionName),
+      }),
+    )
+    moveEvents.push(
+      createMoveFromChange(snapshot.name, moveFromOptionsFor({ ...printing, cardId }, dest)),
+    )
+    inverse.push(
+      createAddChange(snapshot.name, {
+        ...printing,
+        cardId,
+        section: sectionName,
+        board: normalizeBoard(sectionName),
+      }),
+    )
+  }
+  if (snapshot.note) {
+    inverse.push(createSetNoteChange(snapshot.name, { note: snapshot.note, cardId }))
+  }
+
+  const { kept, displaced } = foldOutCardChanges(ctx.sessionChanges, cardId, { keepAdds: true })
+  ctx.sessionChanges = [...kept, ...moveEvents]
+
+  state.editUndo.push({
+    cardId,
+    kind: 'move',
+    label: t('cli.editLabel.moveToList', {
+      name: snapshot.name,
+      list: listRefTitle(dest.target),
+    }),
+    inverse,
+    addedToChangelog: moveEvents,
+    removedFromChangelog: displaced,
+    reclaimId: cardId,
+  })
+  resetStaleLastAdded(ctx, cardId)
+  if (snapshot.note) console.log(t('cli.edit.moveNoteDropped', { name: snapshot.name }))
+  console.log(
+    t('cli.edit.movedToList', {
+      line: renderDeckCardLine(snapshot, sectionName),
+      list: listRefTitle(dest.target),
+    }),
+  )
 }
 
 /** Prompt for and apply a note edit on an existing deck line (empty input clears the note). */
@@ -562,11 +691,8 @@ export function performDeckLineRemoval(
 
   // The removed line's earlier edit events are moot, so they fold out of the
   // changelog (and come back if the removal is undone).
-  const displaced = ctx.sessionChanges.filter((c) => 'cardId' in c && c.cardId === cardId)
-  ctx.sessionChanges = [
-    ...ctx.sessionChanges.filter((c) => !('cardId' in c) || c.cardId !== cardId),
-    ...removeEvents,
-  ]
+  const { kept, displaced } = foldOutCardChanges(ctx.sessionChanges, cardId, { keepAdds: false })
+  ctx.sessionChanges = [...kept, ...removeEvents]
 
   state.editUndo.push({
     cardId,
@@ -616,6 +742,12 @@ export function undoDeckEditAt(
     return
   }
   state.editUndo.splice(index, 1)
+
+  // Undoing a move lifts its id reservation — the inverse adds below put the
+  // line (and with it the id) back into the deck.
+  if (undo.kind === 'move') {
+    state.pendingMoveIds = state.pendingMoveIds.filter((id) => id !== undo.cardId)
+  }
 
   // Decks have no explicit pool: an id is free exactly when no line carries it,
   // and a free id needs no claim step — applying the inverse adds below restores

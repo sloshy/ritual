@@ -1,9 +1,8 @@
 import { hashPath } from '../../content-hash'
 import { appendChangelog } from '../../changelog-writer'
 import {
-  createMoveToChange,
   listRefLabel,
-  printingOptionsFrom,
+  mirrorMoveTo,
   type ChangeEvent,
   type ListRef,
   type MoveFromChange,
@@ -130,9 +129,7 @@ export async function applyOutgoingMoves(
     written.push(filePath, hashPath(filePath))
   }
   for (const { listEntry, moves } of byDest.values()) {
-    const events = moves.map((mv) =>
-      createMoveToChange(mv.cardName, { ...printingOptionsFrom(mv), from: sourceRef }),
-    )
+    const events = moves.map((mv) => mirrorMoveTo(mv, sourceRef))
     written.push(await appendChangelog(listEntry.filePath, listEntry.ref.name, events))
   }
 

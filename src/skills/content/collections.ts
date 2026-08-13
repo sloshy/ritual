@@ -100,7 +100,8 @@ ${REFRESH_SESSION}
 ${sessionSemantics({
   fileNoun: 'file',
   editScope: "the collection's existing entries",
-  editFields: "change a card's printing, finish, condition, language, label, or note, or remove it",
+  editFields:
+    "change a card's printing, finish, condition, language, label, or note, move it to another list, or remove it",
   undoAddVerb: 'removes',
   changeKinds: 'adds, edits, and removals',
   discardTarget: 'same-card changes',

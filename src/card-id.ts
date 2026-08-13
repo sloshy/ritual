@@ -276,8 +276,11 @@ export function createIdAssigner(existingIds: number[]): CardIdAssigner {
  * written to disk without a stable, unique ID. The result reuses card objects
  * that already have a usable ID and only allocates new objects for the rest.
  */
-export function assignMissingDeckCardIds(deck: DeckData): DeckData {
-  return assignDeckCardIds(deck).deck
+export function assignMissingDeckCardIds(
+  deck: DeckData,
+  reservedIds?: readonly number[],
+): DeckData {
+  return assignDeckCardIds(deck, reservedIds).deck
 }
 
 /** One card line's id after assignment, and the id it carried before (if any). */
@@ -300,9 +303,17 @@ export interface DeckIdAssignmentResult {
  * with. Callers that must tell the world which `&N` a save allocated — the deck
  * save route, so its response can carry the new entry's id — need the mapping,
  * not just the healed deck.
+ *
+ * `reservedIds` are treated as taken even though no line carries them: an
+ * editing session passes the ids of lines with a pending (unsaved) cross-list
+ * move out, so a new line cannot take over an id the pending move-from events
+ * still reference.
  */
-export function assignDeckCardIds(deck: DeckData): DeckIdAssignmentResult {
-  const assign = createIdAssigner(collectDeckCardIds(deck))
+export function assignDeckCardIds(
+  deck: DeckData,
+  reservedIds?: readonly number[],
+): DeckIdAssignmentResult {
+  const assign = createIdAssigner([...collectDeckCardIds(deck), ...(reservedIds ?? [])])
   const assignments: DeckCardIdAssignment[] = []
   const sections = deck.sections.map((section, sectionIndex) => ({
     ...section,

@@ -1,15 +1,13 @@
 import { Command } from 'commander'
 import type { Choice } from 'prompts'
 import { t } from '../i18n/t'
-import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from '../list-type'
+import { LIST_TYPES, type ListType } from '../list-type'
 import { parseSetCodesInput } from '../set-codes'
 import {
   buildInitialSessionConfig,
   confirmMultiListExit,
   prepareCardSessionCache,
-  resetCardSessionTracking,
   runCardSession,
-  saveCardSession,
   type MultiListSessionControls,
 } from './card-session'
 import { addRefreshOption, type RefreshMode } from '../refresh'
@@ -22,6 +20,7 @@ import {
   newListTitle,
   openListSession,
   pendingListCollision,
+  saveOpenList,
   type OpenList,
   type UnifiedListRef,
 } from './edit-lists'
@@ -38,6 +37,8 @@ import {
 } from '../resolve-list'
 import { resolveListTypeFlag } from './card-target'
 import { inputRequiredError, promptsUnavailable } from '../no-input'
+import { sameListRef, type ListRef } from '../change-event'
+import { listRefTitle } from './edit-move'
 import { readDeckName } from '../importers/text-file'
 import { emitError, emitResolveListError, ExitCode, type ScriptingOptions } from './scripting'
 import {
@@ -122,7 +123,7 @@ export function buildListSelectionChoices(
       .filter((ref) => ref.type === type)
       .map(
         (ref): Choice => ({
-          title: `${LIST_TYPE_DISPLAY[type].icon} ${ref.name}${pendingBadge(pending.get(ref.file))}`,
+          title: `${listRefTitle(ref)}${pendingBadge(pending.get(ref.file))}`,
           value: { kind: 'open', list: ref } satisfies UnifiedSelection,
         }),
       ),
@@ -265,10 +266,29 @@ export function registerEditCommand(program: Command): void {
     const openLists = new Map<string, OpenList>()
     const unsavedLists = (): OpenList[] => [...openLists.values()].filter(hasUnsavedChanges)
 
+    // Where the edit-mode Move to Another List action may send a card: every
+    // list on disk plus the ones created this session (no file yet). Each
+    // strategy filters its own list out.
+    const moveTargets = async (): Promise<UnifiedListRef[]> => {
+      const created = [...openLists.values()].filter((open) => open.isNew())
+      return [...(await collectListRefs()), ...created.map((open) => open.ref)]
+    }
+
+    // How many pending (unsaved) moves across all open sessions target `ref`.
+    const pendingInboundMoves = (ref: UnifiedListRef): number =>
+      [...openLists.values()].reduce(
+        (count, open) =>
+          count +
+          open.ctx.sessionChanges.filter(
+            (change) => change.action === 'move-from' && sameListRef(change.to, ref),
+          ).length,
+        0,
+      )
+
     const openList = async (ref: UnifiedListRef): Promise<OpenList> => {
       const existing = openLists.get(ref.file)
       if (existing) return existing
-      const opened = await openListSession(ref, sessionConfig, excludeDigitalOnly)
+      const opened = await openListSession(ref, sessionConfig, excludeDigitalOnly, moveTargets)
       openLists.set(ref.file, opened)
       return opened
     }
@@ -307,37 +327,55 @@ export function registerEditCommand(program: Command): void {
       const format = type === 'deck' ? await promptDeckFormat({ current: 'commander' }) : null
       if (type === 'deck' && !format) return undefined
       // Taking the creation back out of the session changes drops the whole list.
+      const ref: UnifiedListRef = { type, name, file }
       const created = newListSession(
-        { type, name, file },
+        ref,
         format,
         sessionConfig,
         excludeDigitalOnly,
         () => openLists.delete(file),
+        moveTargets,
+        // Discarding the creation is blocked while another open list holds a
+        // pending move into it — the move would have nowhere to deliver.
+        () => pendingInboundMoves(ref),
       )
       openLists.set(file, created)
       console.log(t('cli.edit.createdList', { type, name }))
       return created
     }
 
-    const saveAll = async (): Promise<void> => {
-      for (const open of unsavedLists()) {
-        const params = { type: open.ref.type, name: open.ref.name }
-        console.log(
-          open.isNew() ? t('cli.edit.creatingList', params) : t('cli.edit.savingList', params),
-        )
-        await saveCardSession(open.strategy, open.ctx)
-        // Also clears the list's pending-creation change, now that it is on disk.
-        resetCardSessionTracking(open.strategy, open.ctx)
-      }
+    // Saving a list also commits the destination side of its pending
+    // cross-list moves (writing closed destinations to disk, and saving open
+    // ones in the same pass) — see saveOpenList. False when that commit
+    // failed and the list was left unsaved.
+    const saveList = async (open: OpenList): Promise<boolean> => {
+      const params: ListRef = { type: open.ref.type, name: open.ref.name }
+      console.log(
+        open.isNew() ? t('cli.edit.creatingList', params) : t('cli.edit.savingList', params),
+      )
+      // Also clears the list's pending-creation change, now that it is on disk.
+      return saveOpenList(open, () => openLists.values())
     }
 
-    const multiList: MultiListSessionControls = {
+    const saveAll = async (): Promise<boolean> => {
+      let allSaved = true
+      for (const open of unsavedLists()) {
+        // A list may already have been saved as an earlier list's move destination.
+        if (!hasUnsavedChanges(open)) continue
+        // Keep saving the rest — a failure only holds back its own list.
+        if (!(await saveList(open))) allSaved = false
+      }
+      return allSaved
+    }
+
+    const controls = (saveCurrent: () => Promise<boolean>): MultiListSessionControls => ({
       totalChangeCount: () =>
         [...openLists.values()].reduce((sum, open) => sum + open.ctx.sessionChanges.length, 0),
       listsWithChanges: () => unsavedLists().length,
       hasAnyUnsaved: () => unsavedLists().length > 0,
       saveAll,
-    }
+      saveCurrent,
+    })
 
     // Which list a multi-list mode adds to / last edited, kept across re-entry.
     const scopeState = createScopedSessionState()
@@ -352,7 +390,7 @@ export function registerEditCommand(program: Command): void {
         cardNames,
         excludeDigitalOnly,
         ctx: () => open.ctx,
-        multiList,
+        multiList: controls(() => saveList(open)),
       })
       cardNames = result.cardNames
       if (result.reason === 'exit') return
@@ -372,7 +410,7 @@ export function registerEditCommand(program: Command): void {
       const selection = await promptListToEdit(buildListSelectionChoices(refs, pending))
 
       if (!selection || selection.kind === 'exit') {
-        if (!(await confirmMultiListExit(multiList))) continue
+        if (!(await confirmMultiListExit(controls(saveAll)))) continue
         return
       }
 
@@ -404,7 +442,8 @@ export function registerEditCommand(program: Command): void {
           cardNames,
           excludeDigitalOnly,
           ctx: session.ctx,
-          multiList,
+          // Save Current is suppressed in a scoped session; save-all stands in.
+          multiList: controls(saveAll),
           scoped: true,
         })
         cardNames = result.cardNames
@@ -426,7 +465,7 @@ export function registerEditCommand(program: Command): void {
         cardNames,
         excludeDigitalOnly,
         ctx: () => open.ctx,
-        multiList,
+        multiList: controls(() => saveList(open)),
       })
       cardNames = result.cardNames
       // The engine already ran the exit menu (save-all / discard / cancel).
