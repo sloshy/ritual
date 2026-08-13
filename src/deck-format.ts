@@ -192,6 +192,24 @@ export function isExtraSection(name: string): boolean {
 }
 
 /**
+ * True for a section a whole-file rewrite drops instead of writing as a bare
+ * `## Header`: an extras section (maybeboard, tokens) with no cards left in it.
+ *
+ * Extras count toward no total and toward no format check, so an empty one holds
+ * nothing a rewrite could destroy — it is a leftover, most often from a sync that
+ * removed the last card the remote held there. The parser
+ * (`parseDeckText`, which reports it as an *advisory* rather than a
+ * rewrite-blocking warning) and the serializer (`serializeDeckToMarkdown`, which
+ * omits it) must agree on this exactly: a section one drops and the other keeps
+ * is either a header that can never be cleaned up or a deletion nobody was
+ * warned about. An empty *non*-extras section is kept — `## Main` with no cards
+ * is what a freshly created deck is made of.
+ */
+export function isDroppedEmptySection(section: DeckSection): boolean {
+  return section.cards.length === 0 && isExtraSection(section.name)
+}
+
+/**
  * True for sections that count toward the main deck size (commander +
  * mainboard, including oathbreaker/signature spell). Sideboard, maybeboard,
  * and token sections are excluded.

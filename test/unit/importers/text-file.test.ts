@@ -10,6 +10,7 @@ import {
   matchArenaSuffix,
   parseDeckText,
 } from '../../../src/importers/text-file'
+import { unreadableLines } from '../../../src/markdown-fence'
 
 const tempFiles: string[] = []
 
@@ -82,6 +83,21 @@ describe('parseDeckText', () => {
     expect(deck.sections.map((s) => s.name)).toEqual(['Main', 'Sideboard'])
     expect(deck.sections[1]?.cards[0]?.name).toBe('Pyroblast')
   })
+
+  test.each(['Maybeboard', 'Tokens'])(
+    'an empty %s section is an advisory, not a rewrite-blocking warning',
+    (extras) => {
+      // A leftover extras header holds nothing a re-serialize could destroy, so
+      // it must not trip the whole-file save gates — which read `warnings` via
+      // `unreadableLines`. The empty Sideboard in the same parse is the control:
+      // the reclassification must be about extras, not about emptiness.
+      const parsed = parseDeckText(`## Main\n1 Sol Ring &1\n\n## ${extras}\n\n## Sideboard\n`, 'X')
+      expect(parsed.deck.sections.map((s) => s.name)).toEqual(['Main'])
+      expect(parsed.advisories).toEqual([`Dropped empty section: ${extras}`])
+      expect(parsed.warnings).toEqual(['Skipped empty section: Sideboard'])
+      expect(unreadableLines(parsed)).toEqual(['Skipped empty section: Sideboard'])
+    },
+  )
 
   test('renames the default Main section when a header precedes any cards', () => {
     const { deck } = parseDeckText('# Commander\n1 Atraxa, Praetors Voice\n1 Sol Ring', 'X')

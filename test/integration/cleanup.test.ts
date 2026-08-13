@@ -79,6 +79,26 @@ describe('cleanup (Integration)', () => {
     expect(await fs.readFile(filePath, 'utf-8')).toContain('- 1 Sol Ring (LTC:284) &1')
   })
 
+  test("clears a deck's empty extras section and says so", async () => {
+    // The one advisory that names content the canonical re-emit *removes*. It
+    // must not block the rewrite (an empty `## Maybeboard` holds nothing to
+    // lose) and must not be silent either — cleanup is where a deck's advisories
+    // reach the user.
+    const filePath = path.join(dir(), 'decks', 'Winota Stax.md')
+    await writeDeckFile(dir(), 'Winota Stax', {
+      frontMatter: { name: 'Winota Stax', format: 'commander' },
+      cards: [{ quantity: 1, name: 'Winota, Joiner of Forces', cardId: 1 }],
+    })
+    await fs.writeFile(filePath, `${await fs.readFile(filePath, 'utf-8')}\n## Maybeboard\n`)
+
+    const result = resultFor(await cleanupAllLists(), 'Winota Stax.md')
+
+    expect(result.rewriteBlocked).toBeUndefined()
+    expect(result.rewritten).toBeTrue()
+    expect(result.warnings).toContain('Dropped empty section: Maybeboard')
+    expect(await fs.readFile(filePath, 'utf-8')).not.toContain('Maybeboard')
+  })
+
   test('renames a deck file to its front-matter name, moving sidecars', async () => {
     const oldPath = await writeDeckFile(dir(), 'winota-stax', {
       frontMatter: { name: 'Winota Stax', format: 'commander' },

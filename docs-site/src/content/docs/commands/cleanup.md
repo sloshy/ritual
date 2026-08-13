@@ -28,7 +28,10 @@ A file cleanup cannot read at all — broken YAML front matter, bad permissions 
 
 Its per-file JSON result carries `"unreadable": true`.
 
-A third case is reported _without_ holding anything back: a collection or wanted-list line whose card name starts with a quantity (`- 1 Sol Ring (C21:240)`) parses as a card literally named `1 Sol Ring`. That line survives the rewrite verbatim, so cleanup canonicalizes the file and names the line anyway — see [Deck-Style Quantity Prefixes](/commands/collection-sync/#deck-style-quantity-prefixes).
+Two further cases are reported _without_ holding anything back:
+
+- A collection or wanted-list line whose card name starts with a quantity (`- 1 Sol Ring (C21:240)`) parses as a card literally named `1 Sol Ring`. That line survives the rewrite verbatim, so cleanup canonicalizes the file and names the line anyway — see [Deck-Style Quantity Prefixes](/commands/collection-sync/#deck-style-quantity-prefixes).
+- A deck's **empty extras section** — a `## Maybeboard` or `## Tokens` header with no cards under it, usually left behind by a sync or a `remove-card` that took its last card. Extras count toward no total, so the header holds nothing to lose: the rewrite drops it and cleanup reports `Dropped empty section: Maybeboard`. This is the one advisory that names something the rewrite _removes_. An empty `## Main` or `## Sideboard` header is content, and still blocks the rewrite like any other unreproducible line.
 
 ## Usage
 

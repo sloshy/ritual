@@ -8,7 +8,7 @@ import {
   LANGUAGE_TOKEN_PATTERN,
   malformedLanguageTokenHint,
 } from '../card-language'
-import { parseDeckFormat } from '../deck-format'
+import { isDroppedEmptySection, parseDeckFormat } from '../deck-format'
 import { createFenceTracker } from '../markdown-fence'
 import { isListMarkdownFile } from '../list-file-name'
 
@@ -387,7 +387,7 @@ export function parseDeckText(
   // reported, so it joins the malformed-line warnings — the save routes refuse a
   // baseline that carries any.
   //
-  // Two shapes are emptiness rather than loss, and neither warns:
+  // Three shapes are emptiness rather than loss, and none of them warns:
   //
   // - **The leading bucket**, when nothing adopted it (every canonically-written
   //   Ritual deck opens with a header) or when an `#` H1 adopted it — `# My Deck`
@@ -397,11 +397,19 @@ export function parseDeckText(
   // - **A deck with no cards at all**, which is exactly what `ritual` writes for a
   //   freshly created list (`## Main` and nothing else). There is no content to
   //   lose, and warning would refuse the very first save into a new deck.
+  // - **An empty extras section** (`## Maybeboard`, `## Tokens`) — see
+  //   {@link isDroppedEmptySection}. It is reported as an advisory so the
+  //   whole-file gates let the rewrite through and the serializer, which drops
+  //   the same sections, can clear the header.
   const validSections = sections.filter((s) => s.cards.length > 0)
   if (validSections.length > 0) {
     for (const section of sections) {
       if (section.cards.length > 0) continue
       if (section === syntheticMain && (syntheticMainLevel === null || syntheticMainLevel === 1)) {
+        continue
+      }
+      if (isDroppedEmptySection(section)) {
+        advisories.push(`Dropped empty section: ${section.name}`)
         continue
       }
       warnings.push(`Skipped empty section: ${section.name}`)

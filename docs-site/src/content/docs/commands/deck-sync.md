@@ -322,6 +322,9 @@ locally, create it on archidekt.com and then [`deck-sync link`](#linking-a-deck-
    - Quantity changes are applied in-place within the matching board
    - A card that moved between boards on Archidekt is removed from its old board and
      added to the new one
+   - An extras section (`## Maybeboard`, `## Tokens`) left with no cards is removed
+     along with them, rather than leaving a bare header behind. Empty `## Main` and
+     `## Sideboard` headers are kept
 4. Records all changes in the deck's `.changes.md` changelog. Card names are written
    quoted, and changes that target a non-main board are annotated with the
    destination, e.g. `Added "Cavern-Hoard Dragon" to Maybeboard` or

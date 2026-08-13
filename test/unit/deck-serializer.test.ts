@@ -33,6 +33,57 @@ describe('serializeDeckToMarkdown', () => {
   })
 })
 
+describe('serializeDeckToMarkdown: empty sections', () => {
+  const withEmptyExtras = (extras: string): DeckData => ({
+    name: 'Test Deck',
+    sections: [
+      { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
+      { name: extras, cards: [] },
+    ],
+  })
+
+  // A sync that removes the last card the remote held in the maybeboard would
+  // otherwise leave a bare `## Maybeboard` behind — which the parser then reads
+  // as content a rewrite would delete, blocking every later whole-file save.
+  test.each(['Maybeboard', 'Tokens'])('drops an empty %s section', (name) => {
+    const result = serializeDeckToMarkdown(withEmptyExtras(name), { name: 'Test Deck' })
+    expect(result).not.toContain(`## ${name}`)
+    expect(result).toContain('## Main')
+  })
+
+  test('keeps an extras section that still holds cards', () => {
+    const deck = withEmptyExtras('Maybeboard')
+    deck.sections[1]!.cards.push({ quantity: 1, name: 'Cavern-Hoard Dragon' })
+    expect(serializeDeckToMarkdown(deck, { name: 'Test Deck' })).toContain('## Maybeboard')
+  })
+
+  test('a deck of nothing but empty extras serializes to a body with no sections', () => {
+    // Newly reachable shape: with the only section dropped there is no header
+    // left to write, which must be a well-formed file rather than a stray run of
+    // blank lines or a throw.
+    const result = serializeDeckToMarkdown(
+      { name: 'Test Deck', sections: [{ name: 'Maybeboard', cards: [] }] },
+      { name: 'Test Deck' },
+    )
+    expect(result).not.toContain('##')
+    expect(parseDeckText(result, 'Fallback').deck.sections).toEqual([])
+  })
+
+  test('keeps an empty non-extras section', () => {
+    // `## Main` and nothing else is exactly what a freshly created deck is.
+    const deck: DeckData = {
+      name: 'Test Deck',
+      sections: [
+        { name: 'Main', cards: [] },
+        { name: 'Sideboard', cards: [] },
+      ],
+    }
+    const result = serializeDeckToMarkdown(deck, { name: 'Test Deck' })
+    expect(result).toContain('## Main')
+    expect(result).toContain('## Sideboard')
+  })
+})
+
 describe('serializeDeckToMarkdown: canonical format', () => {
   const commanderDeck: DeckData = {
     name: 'Test Deck',

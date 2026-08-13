@@ -14,7 +14,7 @@ import {
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
 import { captureStream } from './helpers/capture'
 import { runInProcess } from './helpers/cli'
-import type { Card } from '../../src/types'
+import type { Card, DeckSection } from '../../src/types'
 import type { ArchidektCardModifier } from '../../src/importers/archidekt-types'
 
 /**
@@ -130,17 +130,22 @@ function pushRoutes(
   }
 }
 
+/** The two stamps a deck's sync state is written with; see {@link writeLinkedDeck}. */
+type SyncedStamps = { lastSynced?: string; sourceUpdatedAt?: string }
+
 /**
- * A deck file linked to Archidekt, holding the given cards.
+ * A deck file linked to Archidekt, holding the given cards — either a lone
+ * `## Main` (an array) or explicit sections.
  *
  * `synced` stamps both sync keys: `lastSynced` (the local clock, for display)
  * and `sourceUpdatedAt` (the remote's own `updatedAt`, which is the only thing
  * the divergence guard compares). Omitted, the deck has never synced.
  */
 async function writeLinkedDeck(
-  cards: Card[],
-  synced?: { lastSynced?: string; sourceUpdatedAt?: string },
+  body: Card[] | DeckSection[],
+  synced?: SyncedStamps,
 ): Promise<string> {
+  const sectioned = body.length > 0 && 'cards' in body[0]!
   return writeDeckFile(dir, 'winota-stax', {
     frontMatter: {
       name: 'Winota Stax',
@@ -149,7 +154,9 @@ async function writeLinkedDeck(
       ...(synced?.lastSynced === undefined ? {} : { lastSynced: synced.lastSynced }),
       ...(synced?.sourceUpdatedAt === undefined ? {} : { sourceUpdatedAt: synced.sourceUpdatedAt }),
     },
-    cards: cards.map((card) => ({ ...card })),
+    ...(sectioned
+      ? { sections: body as DeckSection[] }
+      : { cards: (body as Card[]).map((card) => ({ ...card })) }),
   })
 }
 
@@ -528,6 +535,58 @@ describe('deck-sync push divergence (Integration)', () => {
   // `--force` is push-only: pinned through the built binary (exit code and
   // stderr) in `deck-sync-cli.test.ts`, where commander's parse failure is
   // observable rather than thrown into the test process.
+})
+
+describe('deck-sync empty extras sections (Integration)', () => {
+  const SYNCED = { sourceUpdatedAt: '2026-08-01T00:00:00.000Z' }
+
+  test('a pull that empties the maybeboard leaves no bare header behind', async () => {
+    // The remote holds only Sol Ring, so the pull removes the local maybeboard's
+    // last card. `applyDownloadDiff` filters cards, never sections, so the
+    // emptied section reaches the serializer — which is what must drop it.
+    await writeLinkedDeck(
+      [
+        { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] },
+        { name: 'Maybeboard', cards: [{ quantity: 1, name: 'Cavern-Hoard Dragon', cardId: 2 }] },
+      ],
+      SYNCED,
+    )
+    stubFetch(pushRoutes('2026-08-02T00:00:00.000Z'))
+
+    expect(await runDeckSync(['pull'])).toBe(0)
+
+    const after = await readDeck()
+    expect(after).not.toContain('Maybeboard')
+    expect(after).toContain('1 Sol Ring &1')
+    // The card's removal is still recorded — only the empty header is silent.
+    const changelog = await fs.readFile(path.join(dir, 'decks', 'winota-stax.changes.md'), 'utf-8')
+    expect(changelog).toContain('Removed "Cavern-Hoard Dragon" from Maybeboard &2')
+  })
+
+  test('a leftover empty maybeboard does not block a pull', async () => {
+    // Files written by an older sync (or by a line-preserving `remove-card`)
+    // still carry one, and it used to read as content a rewrite would delete —
+    // which failed the whole deck. The exit code is what pins the
+    // reclassification; the parser then drops the section on read, so the
+    // rewrite simply never re-emits the header.
+    await writeLinkedDeck([{ quantity: 2, name: 'Sol Ring', cardId: 1 }], SYNCED)
+    // Written by hand rather than through the fixture builder on purpose: that
+    // builder serializes through `serializeDeckToMarkdown`, which now drops an
+    // empty extras section, so it cannot produce the file this test needs.
+    await fs.writeFile(
+      path.join(dir, 'decks', 'winota-stax.md'),
+      `${await readDeck()}\n## Maybeboard\n`,
+    )
+    stubFetch(pushRoutes('2026-08-02T00:00:00.000Z'))
+
+    expect(await runDeckSync(['pull'])).toBe(0)
+    expect(logged()).not.toContain('would be dropped by a sync')
+
+    const after = await readDeck()
+    expect(after).not.toContain('Maybeboard')
+    // The remote's single copy landed, so the deck really was rewritten.
+    expect(after).toContain('1 Sol Ring &1')
+  })
 })
 
 describe('deck-sync push lastSynced (Integration)', () => {

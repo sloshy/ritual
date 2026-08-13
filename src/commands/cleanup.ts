@@ -122,9 +122,10 @@ type ListDocument = {
   /** Parse warnings; a file that produced any is not rewritten (see below). */
   parseWarnings: string[]
   /**
-   * Notices about lines that parsed but likely do not mean what they say (a card
-   * name starting with a quantity). Reported alongside the warnings but never
-   * blocking: the canonical re-emit preserves these lines exactly.
+   * Notices about content that parsed but is worth saying out loud: a card name
+   * starting with a quantity (which the re-emit preserves exactly), or a deck's
+   * empty extras section (which the re-emit drops — the one advisory that names
+   * something cleanup removes). Reported alongside the warnings, never blocking.
    */
   advisories: string[]
   /** Format stamped onto a deck that had none. */
@@ -146,6 +147,7 @@ type ParsedDeckDocument = {
   deck: DeckData
   frontMatter: DeckFrontMatter
   parseWarnings: string[]
+  advisories: string[]
 }
 
 async function readDeckDocument(location: ListLocation): Promise<ParsedDeckDocument> {
@@ -153,14 +155,14 @@ async function readDeckDocument(location: ListLocation): Promise<ParsedDeckDocum
   // Parsed directly (not via `loadDeck`) for the skipped-line warnings, which
   // gate the rewrite below — a re-emit would drop what the parser skipped.
   const parsedDeck = parseDeckText(original, location.name)
-  const { deck } = parsedDeck
+  const { deck, advisories } = parsedDeck
   // Fenced code blocks join the parse warnings: the canonical re-emit would
   // delete them, exactly like a line the parser could not read.
   const warnings = unreadableLines(parsedDeck)
   // Copy before mutating: gray-matter caches parses by content string, so the
   // parsed front matter object is shared between byte-identical files.
   const frontMatter = { ...(await parseDeckFrontMatter(location.filePath)) }
-  return { original, deck, frontMatter, parseWarnings: warnings }
+  return { original, deck, frontMatter, parseWarnings: warnings, advisories }
 }
 
 /**
@@ -198,9 +200,7 @@ async function resolveDeckDocument(
         original,
         canonical: original,
         parseWarnings: warnings,
-        // Decks carry per-line quantities, so the quantity-prefix advisory the
-        // flat lists raise has no deck equivalent.
-        advisories: [],
+        advisories: parsed.advisories,
         missingFormat,
       }
     }
@@ -210,7 +210,7 @@ async function resolveDeckDocument(
     original,
     canonical: serializeDeckToMarkdown(deck, frontMatter),
     parseWarnings: warnings,
-    advisories: [],
+    advisories: parsed.advisories,
     formatSet,
     missingFormat,
   }
@@ -321,11 +321,11 @@ export async function cleanupList(
     }
   }
 
-  // Reported, never blocking: these lines parsed and survive the re-emit
-  // verbatim, so cleanup canonicalizes the file and names them anyway — this is
-  // the surface that reads every list file, and so the one place a
-  // quantity-prefixed line in a collection or wanted list reliably gets said out
-  // loud.
+  // Reported, never blocking: this is the surface that reads every list file,
+  // and so the one place a quantity-prefixed line in a collection or wanted list
+  // reliably gets said out loud. Most of these lines survive the re-emit
+  // verbatim; a deck's empty extras section is the exception the re-emit drops,
+  // which is precisely why cleanup has to name it.
   result.warnings.push(...document.advisories)
 
   // A file whose parse skipped lines would lose them if re-emitted; leave its

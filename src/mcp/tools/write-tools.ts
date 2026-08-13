@@ -354,7 +354,8 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         "Import a deck from a supported URL or from pasted decklist text (Ritual's own " +
         'format and MTG Arena/MTGO exports). Text lines the parser cannot read are skipped and ' +
         'reported in `warnings` — check it, because a non-empty array means part of the pasted ' +
-        'text was not imported; `advisories` reports lines that imported but looked off. ' +
+        'text was not imported; `advisories` reports content that was read but is worth a ' +
+        'word (a line that looked off, or an empty Maybeboard/Tokens section the write drops). ' +
         'A URL import must state `syncPrintings` — the CLI asks the user interactively, and ' +
         'this call is that decision, so ask the user when their intent is unclear.',
       inputSchema: z.object({

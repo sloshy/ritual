@@ -14,6 +14,9 @@ import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/wor
  * an unknown code on the unvalidated wire is refused before anything is
  * written. Apply/serialize semantics are pinned by the unit layers; this covers
  * the handler boundary (`normalizeRequestLanguages`).
+ *
+ * Plus the route's other baseline judgement call: which leftover content in the
+ * file on disk refuses the save, and which the save is allowed to clear.
  */
 
 let ws: BoundWorkspace
@@ -122,5 +125,37 @@ describe('POST /api/deck/:slug/save — languages', () => {
     expect(body.message).toContain('"xx"')
     expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
     expect(await fs.exists(path.join(ws.dir, 'decks', 'burn.changes.md'))).toBe(false)
+  })
+})
+
+describe('POST /api/deck/:slug/save — empty extras sections', () => {
+  /** Append `header` to the deck on disk and re-hash, as a hand edit would leave it. */
+  async function appendHeader(header: string): Promise<void> {
+    await fs.writeFile(filePath, `${await fs.readFile(filePath, 'utf-8')}\n${header}\n`)
+    contentHash = computeHash(await fs.readFile(filePath, 'utf-8'))
+  }
+
+  test('a baseline carrying a bare ## Maybeboard saves, and the write clears it', async () => {
+    // The whole-file save refuses a baseline whose content it cannot re-emit.
+    // An empty extras header is not such content — it holds nothing — so the
+    // save goes through and the header is gone afterwards.
+    await appendHeader('## Maybeboard')
+
+    const resp = await save([], deckWithLanguage())
+
+    expect(resp.status).toBe(200)
+    expect(await fs.readFile(filePath, 'utf-8')).not.toContain('Maybeboard')
+  })
+
+  test('a baseline carrying a bare ## Sideboard is still refused', async () => {
+    // The control: emptiness alone does not make a header droppable, and a
+    // sideboard the user typed ahead of filling it must not vanish on save.
+    await appendHeader('## Sideboard')
+    const before = await fs.readFile(filePath, 'utf-8')
+
+    const resp = await save([], deckWithLanguage())
+
+    expect(resp.status).toBe(400)
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
   })
 })

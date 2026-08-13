@@ -165,6 +165,8 @@ Click the **Sections** button in the bottom [action bar](#editor-action-bar) to 
 - **Rename a section** — click **Rename** on a row; all cards in that section move with it. A rename that would collide with another section (case-insensitive) is rejected.
 - **Delete a section** — click **Delete** on a row. Only **empty** sections can be deleted; the button is disabled while a section still holds cards.
 
+One deck section does not survive a save while empty: an **extras** section (a name containing `maybeboard` or `token`) is dropped when it holds no cards, whether you just created it or just removed its last card. Extras count toward no total, so a header with nothing under it is a leftover rather than content — add a card to it in the same save if you want it to stick.
+
 Cards with no explicit section belong to an implicit **Main** section, which is written out explicitly the next time the list is saved. On the public site, a list with two or more sections defaults to grouping by section, and **Section** becomes a selectable grouping option in the toolbar.
 
 On disk, sections are `## Section Name` (H2) headers beneath the list's `# Title`, with card lines grouped under each header. See the [collection](/commands/edit/#collection-files) and [wanted list](/commands/edit/#wanted-list-files) file formats.

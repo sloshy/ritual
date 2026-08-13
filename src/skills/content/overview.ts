@@ -133,6 +133,12 @@ rewrite paths cannot re-emit a fenced block: admin editor saves, \`import --appe
 the syncs hold it back behind the unreadable-lines gate. A \`ritual edit\` session warns on
 load but still drops the block on save.
 
+One shape the whole-file paths **do** delete, on purpose and without refusing: a deck's
+empty **extras** section (a \`## Maybeboard\`/\`## Tokens\` header with no cards under it).
+Extras count toward no total, so the header holds nothing to lose — every whole-file write
+clears it, and \`cleanup\` names it (\`Dropped empty section: Maybeboard\`) while still
+rewriting. An empty \`## Main\`/\`## Sideboard\` header is content and still blocks a rewrite.
+
 A deck's YAML front matter carries its \`format:\` (a fixed set of keys — see the
 **ritual-decks** skill). A deck with no \`format:\` is treated as Commander when it
 has a \`## Commander\` section, and the tools write that down on the next save.

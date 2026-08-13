@@ -38,15 +38,16 @@ export interface ImportDeckResponse extends ApiMessage {
   deckName: string
   /**
    * Parse warnings from a text import — one per skipped line or dropped empty
-   * section, meaning content from the pasted text was NOT imported. Always
+   * section, meaning content from the pasted text was NOT imported. An empty
+   * *extras* section is an advisory instead: dropping it loses nothing. Always
    * present; URL imports have nothing to parse and carry an empty array.
    */
   warnings: string[]
   /**
-   * Non-fatal notices about text that WAS imported — a card name that still
-   * carries a parenthesized printing token (an export dialect the parser does
-   * not know), or a skipped Arena `About` line. Always present; empty for URL
-   * imports.
+   * Non-fatal notices about text that WAS read — a card name that still carries
+   * a parenthesized printing token (an export dialect the parser does not
+   * know), a skipped Arena `About` line, or an empty extras section the write
+   * drops. Always present; empty for URL imports.
    */
   advisories: string[]
   /**

@@ -143,15 +143,17 @@ type ImportJsonResult = {
   dryRun: boolean
   /**
    * Parse warnings from a text-file source — one per skipped line or dropped
-   * empty section. Always present; URL imports have nothing to parse and carry
-   * an empty array. Any entry means content was lost, and the command exits 1.
+   * empty section (an empty *extras* section is an advisory instead; nothing is
+   * lost by dropping it). Always present; URL imports have nothing to parse and
+   * carry an empty array. Any entry means content was lost, and the command
+   * exits 1.
    */
   warnings: string[]
   /**
-   * Non-fatal notices about lines that WERE imported — a card name that still
+   * Non-fatal notices about content that WAS read — a card name that still
    * carries a parenthesized printing token (an export dialect the parser does
-   * not know), or a skipped Arena `About` line. Nothing was lost, so these do
-   * not affect the exit code.
+   * not know), a skipped Arena `About` line, or an empty extras section the
+   * write drops. Nothing was lost, so these do not affect the exit code.
    */
   advisories: string[]
   /**

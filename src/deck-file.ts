@@ -2,7 +2,12 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import matter from 'gray-matter'
 import { DEFAULT_SECTION, type DeckData } from './types'
-import { parseDeckFormat, resolveDeckFormat, type DeckFormatKey } from './deck-format'
+import {
+  isDroppedEmptySection,
+  parseDeckFormat,
+  resolveDeckFormat,
+  type DeckFormatKey,
+} from './deck-format'
 import { listDeckFiles } from './importers/text-file'
 import { isResolveListError, matchList, type ListLocation } from './resolve-list'
 import { isPathWithinDir } from './path-validation'
@@ -77,17 +82,25 @@ export type DeckFrontMatter = {
   sourceUpdatedAt?: string
 } & Record<string, unknown>
 
-/** Serialize a full deck back to markdown with YAML front matter */
+/**
+ * Serialize a full deck back to markdown with YAML front matter.
+ *
+ * An empty extras section is dropped rather than written as a bare header — see
+ * {@link isDroppedEmptySection}, which `parseDeckText` reads from the other side
+ * so the two cannot disagree.
+ */
 export function serializeDeckToMarkdown(deck: DeckData, frontMatter: DeckFrontMatter): string {
   // Invariant: a deck is never written to disk with an ID-less card line. Cards
   // that arrive without an ID (e.g. freshly synced from Archidekt) are assigned
   // one here, seeded from the deck's existing IDs, before serialization.
   const idedDeck = assignMissingDeckCardIds(deck)
-  const sectionBlocks = idedDeck.sections.map((section) => {
-    const header = `## ${section.name}`
-    const cardLines = section.cards.map(serializeCardLine)
-    return [header, ...cardLines].join('\n')
-  })
+  const sectionBlocks = idedDeck.sections
+    .filter((section) => !isDroppedEmptySection(section))
+    .map((section) => {
+      const header = `## ${section.name}`
+      const cardLines = section.cards.map(serializeCardLine)
+      return [header, ...cardLines].join('\n')
+    })
 
   const content = '\n' + sectionBlocks.join('\n\n') + '\n'
   return matter.stringify(content, canonicalFrontMatter(deck, frontMatter))

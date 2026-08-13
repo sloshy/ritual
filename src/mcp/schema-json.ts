@@ -1121,7 +1121,7 @@ export const IMPORT_DECK_OUTPUT: JsonSchemaType = obj(
     ),
     advisories: arr(
       str(),
-      'Non-fatal notices about text that WAS imported (e.g. a card name still carrying a printing token). Empty for URL imports.',
+      'Non-fatal notices about text that WAS read (e.g. a card name still carrying a printing token, or an empty Maybeboard/Tokens section the write drops). Empty for URL imports.',
     ),
     syncPrintings: bool(
       'Whether the written deck kept the exact printings the source listed. Always true for a text import, whose printings are the pasted lines’ own.',

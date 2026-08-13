@@ -176,9 +176,11 @@ With `--output json` (or `ndjson`), a URL or text-file import emits a summary on
 `action` is `created`, `overwritten`, or `renamed` (the interactive rename resolution).
 `warnings` lists any text-file lines the parser skipped (always empty for URL imports);
 a non-empty array means content was lost and the command exits `1` (see
-[Partial Failures](#partial-failures)). `advisories` lists lines that **were** imported but
-looked off — a card name still carrying a printing token, or a skipped Arena `About` line;
-advisories print on stderr (even under `--quiet`) and never change the exit code. A URL
+[Partial Failures](#partial-failures)). `advisories` lists content that **was** read but is
+worth a word — a card name still carrying a printing token, a skipped Arena `About` line, or
+an empty extras section (`## Maybeboard`, `## Tokens`) the write drops because it holds
+nothing; advisories print on stderr (even under `--quiet`) and never change the exit code, so
+a file whose only oddity is a bare `## Maybeboard` imports cleanly and exits `0`. A URL
 import's payload additionally carries `syncPrintings` — whether the written deck kept the
 [exact printings the source listed](#printings-from-a-url-import).
 

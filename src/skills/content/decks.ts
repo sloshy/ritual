@@ -156,9 +156,10 @@ in one, so on the import path — and only there — the fence is packaging, not
 prose). A \`(SET)\` with no collector number is **not** read as a printing: half a
 printing cannot be written to a card line, and \`Very Cryptic Command (Untap)\` is
 a real card name, so the name is kept verbatim and an advisory is printed.
-Lines the parser cannot read are skipped and reported (exit 1); lines that import
-but look wrong (a name still holding a printing token) print an advisory on
-stderr and appear in the JSON \`advisories\` array without changing the exit code.
+Lines the parser cannot read are skipped and reported (exit 1); content that
+imports but is worth a word — a name still holding a printing token, or an empty
+\`## Maybeboard\`/\`## Tokens\` header the write drops — prints an advisory on
+stderr and appears in the JSON \`advisories\` array without changing the exit code.
 
 \`--moxfield-user-agent\` applies to URL imports only — passing it with a CSV or
 text-file source is a usage error (exit 2).
@@ -285,6 +286,11 @@ Such decks are listed with their exact lines and confirmed before syncing;
 
 A pull also adopts the deck's Archidekt format (mapped onto Ritual's format
 keys). A push does not push the local format back.
+
+An extras section (\`## Maybeboard\`, \`## Tokens\`) that a pull empties is removed
+with its last card rather than left as a bare header — as is one that was already
+empty in the file. Empty \`## Main\`/\`## Sideboard\` headers are kept, and an empty
+extras header never counts as unreadable content, so it cannot block a sync.
 
 ### Printing sync
 

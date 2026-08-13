@@ -670,7 +670,7 @@ Import a deck from a supported URL, or from decklist text supplied directly (pas
 }
 ```
 
-`warnings` lists any text lines the parser skipped — content that was **not** imported (always empty for URL imports). `advisories` lists lines that **were** imported but looked off — a card name still carrying a printing token, or a skipped MTG Arena `About` line. When either array is non-empty, `message` notes the count, so the admin UI's status alert shows it.
+`warnings` lists any text lines the parser skipped — content that was **not** imported (always empty for URL imports). `advisories` lists content that **was** read but is worth a word — a card name still carrying a printing token, a skipped MTG Arena `About` line, or an empty `## Maybeboard`/`## Tokens` header the write drops. When either array is non-empty, `message` notes the count, so the admin UI's status alert shows it.
 
 Pasted/uploaded text is read with the same dialects as [`ritual import`](/commands/import/#mtg-arena--mtgo-exports): Ritual's own format plus MTG Arena/MTGO exports (`4 Lightning Bolt (M10) 146`, bare `Deck`/`Sideboard` markers).
 
