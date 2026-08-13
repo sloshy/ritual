@@ -96,12 +96,14 @@ describe('import-account past its flag validation (Integration)', () => {
     // The global `--no-input` flag lives on the root program, not the
     // subcommand; set the value it would resolve to directly.
     setNoInputOverride(true)
-    process.exitCode = undefined
+    // Bun ignores `process.exitCode = undefined`, so a concrete 0 is the only
+    // way to clear a code a neighbouring test (or this suite) set.
+    process.exitCode = 0
   })
 
   afterEach(async () => {
     setNoInputOverride(undefined)
-    process.exitCode = undefined
+    process.exitCode = 0
     await workspace.dispose()
   })
 
@@ -224,7 +226,7 @@ describe('import-account past its flag validation (Integration)', () => {
       decksById: { '1': deckData('Burn') },
     })
     await run(client, ['someuser', '--all', '--output', 'json'])
-    process.exitCode = undefined
+    process.exitCode = 0
 
     const { stdout } = await run(client, ['someuser', '--all', '--output', 'json'])
 

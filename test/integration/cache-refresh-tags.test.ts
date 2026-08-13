@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 // scryfall must load before src/cache: cache/index transitively imports
 // scryfall/index, which reads `cardCache` at module top level.
 import '../../src/scryfall'
-import { Command } from 'commander'
 import { registerCacheCommand } from '../../src/commands/cache'
 import { ExitCode } from '../../src/commands/scripting'
+import { runInProcess } from './helpers/cli'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
 /**
@@ -30,22 +30,17 @@ describe('cache refresh-tags (Integration)', () => {
   })
 
   test('a failed tag download exits 1 and says so', async () => {
-    const originalExitCode = process.exitCode
-    process.exitCode = 0
-    const program = new Command()
-    registerCacheCommand(program)
     const errors: string[] = []
     const originalError = console.error
     console.error = (...args: unknown[]) => void errors.push(args.join(' '))
 
+    let code: number
     try {
-      await program.parseAsync(['cache', 'refresh-tags'], { from: 'user' })
+      code = await runInProcess(registerCacheCommand, ['cache', 'refresh-tags'])
     } finally {
       console.error = originalError
     }
 
-    const code = process.exitCode
-    process.exitCode = originalExitCode
     expect(code).toBe(ExitCode.RuntimeError)
     // Ties the exit code to the intended path: a workspace or cache-lock failure
     // inside the action would otherwise produce an identical RuntimeError.

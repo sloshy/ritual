@@ -4,11 +4,10 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import '../../src/scryfall'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { Command } from 'commander'
 import { registerCacheCommand } from '../../src/commands/cache'
 import { CARDKINGDOM_PRICELIST_URL, loadCardKingdomCache } from '../../src/cardkingdom'
 import { cardCache } from '../../src/cache'
-import { runCli, withTempDir } from './helpers/cli'
+import { runCli, runInProcess, withTempDir } from './helpers/cli'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 import { stubScryfallBulk } from './helpers/scryfall-bulk'
 import type { StubbedFetch } from './helpers/stub-fetch'
@@ -47,18 +46,11 @@ describe('cache preload-all buylist step (Integration)', () => {
   let warnings: string[]
   const originalWarn = console.warn
 
-  /** Run the subcommand, returning the exit code it set and restoring the process's. */
+  /** Run the subcommand, returning the exit code it set. */
   async function runPreloadAll(): Promise<number> {
-    const originalExitCode = process.exitCode
-    process.exitCode = 0
-    const program = new Command()
-    registerCacheCommand(program)
     // `console.warn` stays captured until the afterEach restores it, so a test
     // that runs this twice records both runs rather than only the first.
-    await program.parseAsync(['cache', 'preload-all'], { from: 'user' })
-    const code = process.exitCode
-    process.exitCode = originalExitCode
-    return typeof code === 'number' ? code : 0
+    return runInProcess(registerCacheCommand, ['cache', 'preload-all'])
   }
 
   /** Whether the run asked Card Kingdom for its pricelist. */

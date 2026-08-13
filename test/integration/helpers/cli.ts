@@ -21,11 +21,24 @@ export async function runInProcess(register: CommandRegistrar, args: string[]): 
   const program = new Command()
   program.exitOverride()
   register(program)
+  return captureExitCode(() => program.parseAsync(args, { from: 'user' }))
+}
+
+/**
+ * Run `body` with a cleared exit code and report the one it set, leaving a
+ * concrete 0 behind — even when `body` (or a caller's assertion between runs)
+ * throws. Bun ignores `process.exitCode = undefined`, so restoring a saved
+ * `undefined` does nothing and an in-process run's failure code would become
+ * the whole suite's exit code on a green run.
+ */
+export async function captureExitCode(body: () => Promise<unknown>): Promise<number> {
   process.exitCode = 0
-  await program.parseAsync(args, { from: 'user' })
-  const exitCode = process.exitCode ?? 0
-  process.exitCode = 0
-  return exitCode
+  try {
+    await body()
+    return typeof process.exitCode === 'number' ? process.exitCode : 0
+  } finally {
+    process.exitCode = 0
+  }
 }
 
 export type CliResult = {

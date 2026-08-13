@@ -3,9 +3,9 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 // scryfall/index, which reads `cardCache` at module top level — importing the
 // cache first leaves that binding in its temporal dead zone.
 import '../../src/scryfall'
-import { Command } from 'commander'
 import { registerCacheCommand } from '../../src/commands/cache'
 import { cardCache } from '../../src/cache'
+import { runInProcess } from './helpers/cli'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 import { makeScryfallCard } from '../test-utils'
 import { ExitCode } from '../../src/commands/scripting'
@@ -60,35 +60,20 @@ describe('cache preload-set (Integration)', () => {
   })
 
   test('walks every result page, so a whole set lands in the cache', async () => {
-    // process.exitCode is process-global; capture it so neither a neighbour's
-    // value nor this run's leaks into the suite's own exit code.
-    const originalExitCode = process.exitCode
     requestedUrls = []
-    const program = new Command()
-    registerCacheCommand(program)
-    await program.parseAsync(['cache', 'preload-set', 'KHM'], { from: 'user' })
+    const code = await runPreloadSet('KHM')
 
-    // A clean commander run never sets a failure code (it leaves the value unset,
-    // or whatever success value the runner already had).
-    expect(process.exitCode).toBeFalsy()
+    expect(code).toBe(0)
     // The set code is lowercased before it reaches Scryfall.
     expect(requestedUrls[0]).toContain(encodeURIComponent('set:khm'))
     expect(requestedUrls).toHaveLength(2)
     expect((await cardCache.get('First Page Card'))?.[0]?.name).toBe('First Page Card')
     expect((await cardCache.get('Second Page Card'))?.[0]?.name).toBe('Second Page Card')
-    process.exitCode = originalExitCode
   })
 
-  /** Run the subcommand and report the exit code it set, restoring the process's. */
+  /** Run the subcommand and report the exit code it set. */
   async function runPreloadSet(setCode: string): Promise<number> {
-    const originalExitCode = process.exitCode
-    process.exitCode = 0
-    const program = new Command()
-    registerCacheCommand(program)
-    await program.parseAsync(['cache', 'preload-set', setCode], { from: 'user' })
-    const code = process.exitCode
-    process.exitCode = originalExitCode
-    return typeof code === 'number' ? code : 0
+    return runInProcess(registerCacheCommand, ['cache', 'preload-set', setCode])
   }
 
   /** Run `preload-set`, capturing what it wrote to stderr alongside its exit code. */

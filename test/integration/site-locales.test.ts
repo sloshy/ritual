@@ -16,7 +16,7 @@ import type { StaticSiteServer } from '../../src/commands/serve-helpers'
 import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
 import type { SiteIndex } from '../../src/site/data-types'
 import { localeTag } from '../../src/i18n/locale-tag'
-import { runCli } from './helpers/cli'
+import { captureExitCode, runCli } from './helpers/cli'
 
 /**
  * Locale plumbing through the site pipeline: which dictionaries a build
@@ -32,7 +32,6 @@ import { runCli } from './helpers/cli'
 describe('site locales (Integration)', () => {
   let dir: string
   let originalBase: string
-  let originalExitCode: typeof process.exitCode
   /** A synthetic dictionary, named for its tag the way the loader expects. */
   let localeFile: string
 
@@ -44,7 +43,6 @@ describe('site locales (Integration)', () => {
 
   beforeEach(async () => {
     originalBase = getBaseDir()
-    originalExitCode = process.exitCode
     dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-site-locales-'))
     createSyntheticWorkspace(dir)
     setBaseDir(dir)
@@ -56,7 +54,6 @@ describe('site locales (Integration)', () => {
   })
 
   afterEach(async () => {
-    process.exitCode = originalExitCode
     setBaseDir(originalBase)
     resetRitualConfigCache()
     await refreshRitualConfig()
@@ -66,11 +63,7 @@ describe('site locales (Integration)', () => {
 
   /** Run a build offline and report the exit code it set (0 when it set none). */
   async function build(options: BuildSiteOptions = {}): Promise<number> {
-    process.exitCode = 0
-    await runBuildSite({ refresh: 'never', ...options })
-    const code = process.exitCode
-    process.exitCode = 0
-    return typeof code === 'number' ? code : 0
+    return captureExitCode(() => runBuildSite({ refresh: 'never', ...options }))
   }
 
   const distDir = (): string => path.join(dir, 'dist')
