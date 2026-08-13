@@ -324,6 +324,7 @@ export const cliCardsMessages = {
   'cli.move.listUnreadable':
     '{file}: could not be read or parsed; its cards are missing from the index.',
   'cli.move.listWarning': '{file}: {warning}',
+  'cli.move.destinationNotFound': 'Cannot move "{name}": destination {list} not found',
   'cli.move.abortDestinationMissing': 'Destination file not found, aborting move: {file}',
   'cli.move.abortSourceUnreadable': 'Source file not readable, aborting move: {file}',
   'cli.move.abortMove': 'Aborting move: {reason}',

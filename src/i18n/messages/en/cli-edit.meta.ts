@@ -300,7 +300,11 @@ export const cliEditMeta = {
   },
   'cli.edit.moveCommitFailed': {
     description:
-      'A save could not write the destination side of a pending cross-list move (e.g. the destination file was deleted). {error} is an already-rendered message spliced after the colon; the source list stays unsaved so nothing is lost.',
+      'A save could not validate the destination side of a pending cross-list move (e.g. the destination file was deleted, or a printing-less card was headed into a collection). {name} is the list whose save was requested; {error} is an already-rendered message spliced after the colon. The save is aborted before any file is written, so nothing is lost.',
+  },
+  'cli.edit.moveWriteFailed': {
+    description:
+      'An I/O error interrupted the write phase of a save that delivers cross-list moves: unlike moveCommitFailed, some destination files may already have been written when it struck. {name} is the list whose save was requested (left unsaved); {error} is an already-rendered message spliced after the colon.',
   },
 
   'cli.deck.promptFormat': { description: 'Prompt heading for the deck-format picker.' },

@@ -1,7 +1,12 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { createAddChange, createMoveFromChange, createRemoveChange } from '../../src/change-event'
+import {
+  createAddChange,
+  createMoveFromChange,
+  createRemoveChange,
+  type ListRef,
+} from '../../src/change-event'
 import type { ListType } from '../../src/list-type'
 import { openListSession, saveOpenList, type OpenList } from '../../src/commands/edit-lists'
 import { buildInitialSessionConfig } from '../../src/commands/card-session'
@@ -63,18 +68,42 @@ const openWishlist = (): Promise<OpenList> =>
   openFixtureList('wanted', 'Wishlist', 'wanted/wishlist.md')
 const openDeck = (): Promise<OpenList> => openFixtureList('deck', 'My Deck', 'decks/my-deck.md')
 
-/** Record a pending move of a list's only fixture card, as edit mode does. */
-function recordMove(
-  source: OpenList,
-  card: { name: string; set?: string; collectorNumber?: string },
-  to: { type: ListType; name: string },
-): void {
-  source.strategy.applyChange(createRemoveChange(card.name, { ...card, cardId: 1 }))
-  source.ctx.sessionChanges.push(createMoveFromChange(card.name, { ...card, cardId: 1, to }))
+/** A fixture card as {@link recordMove} consumes it. The id defaults to the list's first entry. */
+type MoveFixtureCard = { name: string; set?: string; collectorNumber?: string; cardId?: number }
+
+/** Record a pending move of a fixture card, as edit mode does. */
+function recordMove(source: OpenList, card: MoveFixtureCard, to: ListRef): void {
+  const cardId = card.cardId ?? 1
+  source.strategy.applyChange(createRemoveChange(card.name, { ...card, cardId }))
+  source.ctx.sessionChanges.push(createMoveFromChange(card.name, { ...card, cardId, to }))
 }
 
-const BOLT = { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' }
-const BRAINSTORM = { name: 'Brainstorm', set: 'ice', collectorNumber: '61' }
+const BOLT: MoveFixtureCard = { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' }
+const BRAINSTORM: MoveFixtureCard = { name: 'Brainstorm', set: 'ice', collectorNumber: '61' }
+/** No set/collector number: a card that cannot legally enter a collection. */
+const BRAINSTORM_NAME_ONLY: MoveFixtureCard = { name: 'Brainstorm' }
+const GROWTH: MoveFixtureCard = { name: 'Giant Growth', set: 'lea', collectorNumber: '169' }
+const COUNTERSPELL: MoveFixtureCard = {
+  name: 'Counterspell',
+  set: 'lea',
+  collectorNumber: '54',
+  cardId: 2,
+}
+
+/**
+ * A second collection with two cards, for closures that need one source moving
+ * into an open list (pulling it into the save) *and* a closed list at once.
+ */
+async function openTrades(): Promise<OpenList> {
+  await writeCollectionFile(tmpDir, 'trades', {
+    title: 'Trades',
+    entries: [
+      { name: 'Giant Growth', set: 'lea', collectorNumber: '169', cardId: 1 },
+      { name: 'Counterspell', set: 'lea', collectorNumber: '54', cardId: 2 },
+    ],
+  })
+  return openFixtureList('collection', 'Trades', 'collections/trades.md')
+}
 
 describe('saveOpenList', () => {
   test('a move to a list that is not open is written to disk with a move-to changelog', async () => {
@@ -173,11 +202,7 @@ describe('saveOpenList', () => {
   test('a printing-less card cannot enter an open collection; the save aborts before writing', async () => {
     const wishlist = await openWishlist()
     const binder = await openBinder()
-    // A name-only move-from (no set/collector number) targeting a collection.
-    wishlist.strategy.applyChange(createRemoveChange('Brainstorm', { cardId: 1 }))
-    wishlist.ctx.sessionChanges.push(
-      createMoveFromChange('Brainstorm', { cardId: 1, to: { type: 'collection', name: 'Binder' } }),
-    )
+    recordMove(wishlist, BRAINSTORM_NAME_ONLY, { type: 'collection', name: 'Binder' })
 
     expect(await saveOpenList(wishlist, () => [wishlist, binder])).toBe(false)
 
@@ -187,6 +212,49 @@ describe('saveOpenList', () => {
     expect(binder.strategy.hasUnsavedChanges()).toBe(false)
     expect(wishlist.ctx.sessionChanges).toHaveLength(1)
     expect(wishlist.strategy.hasUnsavedChanges()).toBe(true)
+  })
+
+  test('a failing batch aborts before any other batch is written, so a retry cannot duplicate cards', async () => {
+    const trades = await openTrades()
+    const wishlist = await openWishlist()
+    // Trades → My Deck (closed, valid) and Trades → Wishlist (open), pulling
+    // Wishlist into the closure — whose own pending move cannot validate: a
+    // name-only card headed into a closed collection. Two conditions make
+    // this pin the regression: the VALID batch belongs to the list being
+    // saved (plans[0], so the old sequential writer had committed it before
+    // the pulled-in list's batch threw), and Binder is NOT open (which is
+    // what routes the bad move past the open-destination pre-check into the
+    // staged offline path — the sibling test above exercises the other branch).
+    recordMove(trades, GROWTH, { type: 'deck', name: 'My Deck' })
+    recordMove(trades, COUNTERSPELL, { type: 'wanted', name: 'Wishlist' })
+    recordMove(wishlist, BRAINSTORM_NAME_ONLY, { type: 'collection', name: 'Binder' })
+
+    expect(await saveOpenList(trades, () => [trades, wishlist])).toBe(false)
+
+    // The *valid* batch must not have landed either: were it written now, a
+    // retry after fixing the bad move would deliver Giant Growth again.
+    const deckFile = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.md'), 'utf-8')
+    expect(deckFile).not.toContain('Giant Growth')
+    const source = await fs.readFile(path.join(tmpDir, 'collections', 'trades.md'), 'utf-8')
+    expect(source).toContain('Giant Growth')
+    expect(trades.ctx.sessionChanges).toHaveLength(2)
+    expect(trades.strategy.hasUnsavedChanges()).toBe(true)
+    expect(wishlist.ctx.sessionChanges).toHaveLength(1)
+
+    // Discard the bad move and retry. The move was recorded by hand, so it is
+    // undone by hand too: the editor's discard (undoFlatListEditAt) restores
+    // the removed entry as well as dropping the pending event.
+    wishlist.ctx.sessionChanges = []
+    wishlist.strategy.applyChange(
+      createAddChange('Brainstorm', { set: 'ice', collectorNumber: '61', cardId: 1 }),
+    )
+    expect(await saveOpenList(trades, () => [trades, wishlist])).toBe(true)
+
+    // Exactly one copy arrives, and the bystander destination kept its card.
+    const deckAfter = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.md'), 'utf-8')
+    expect(deckAfter.match(/Giant Growth/g)).toHaveLength(1)
+    const wishlistAfter = await fs.readFile(path.join(tmpDir, 'wanted', 'wishlist.md'), 'utf-8')
+    expect(wishlistAfter).toContain('Brainstorm')
   })
 
   test('a destination that cannot be resolved aborts the save and keeps the session intact', async () => {

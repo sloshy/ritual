@@ -561,6 +561,10 @@ export const cliCardsMeta = {
   'cli.move.listWarning': {
     description: 'Prefixes a parser warning with the list file it came from.',
   },
+  'cli.move.destinationNotFound': {
+    description:
+      "A cross-list move aborted before writing: the destination list does not exist (deleted or renamed since the move was queued). {name} is the card name; {list} is a pre-rendered English list label (e.g. Deck 'Burn') matching the changelog vocabulary — leave its shape alone.",
+  },
   'cli.move.abortDestinationMissing': {
     description: 'The move aborted before writing: a destination file is gone.',
   },

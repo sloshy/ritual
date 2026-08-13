@@ -196,8 +196,9 @@ export const cliEditMessages = {
   'cli.edit.moveNoteDropped':
     'The note on {name} will not follow it — notes do not move across lists.',
   'cli.edit.savingMoveDest': 'Saving {name} (received moved cards)…',
-  'cli.edit.moveCommitFailed':
-    'Could not deliver moved cards out of {name}, so the list was left unsaved: {error}',
+  'cli.edit.moveCommitFailed': 'Could not deliver moved cards, so {name} was left unsaved: {error}',
+  'cli.edit.moveWriteFailed':
+    'A write failed while saving moved cards — some destinations may already hold them; {name} was left unsaved: {error}',
 
   // ── Deck sessions ─────────────────────────────────────────────────────
   'cli.deck.promptFormat': 'Deck format:',

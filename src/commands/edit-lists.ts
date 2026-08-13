@@ -15,7 +15,12 @@ import {
   type SessionChangeItem,
 } from './card-session'
 import { mirrorMoveTo, sameListRef, type ListRef, type MoveFromChange } from '../change-event'
-import { applyOutgoingMoves } from '../admin/api/move-save'
+import {
+  prepareOutgoingMoves,
+  type OutgoingMoveBatch,
+  type PreparedOutgoingMoves,
+} from '../admin/api/move-save'
+import { getErrorMessage } from '../errors'
 import type { MoveTargetsProvider } from './edit-move'
 import { createCollectionStrategy } from './collection-strategy'
 import { createDeckStrategy } from './deck-strategy'
@@ -333,9 +338,10 @@ function planMoveCommit(source: OpenList, everyOpen: OpenList[]): PendingMoveCom
  * cross-list moves in the same step — a saved `move-from` must never be
  * missing its `move-to` half:
  *
- * - A destination that is *not* open in the editor is written straight to
- *   disk through {@link applyOutgoingMoves}, exactly as an admin-editor save
- *   does.
+ * - A destination that is *not* open in the editor is written to disk
+ *   through {@link prepareOutgoingMoves}, exactly as an admin-editor save
+ *   does — except staged across the whole closure first, so nothing lands
+ *   until every batch has validated.
  * - A destination that *is* open receives the card on its in-memory model
  *   (through its own strategy, which allocates it a fresh id) and is saved
  *   in the same pass — including any unrelated pending changes it carried,
@@ -344,10 +350,13 @@ function planMoveCommit(source: OpenList, everyOpen: OpenList[]): PendingMoveCom
  *   resolves fully; the closure is planned up front, before anything mutates,
  *   which is also what lets every delivery be validated first.
  *
- * Returns false — with the source left unsaved and every session intact —
- * when a destination cannot be committed (deleted file, a printing-less card
- * headed into a collection). Disk writes for *other* sources in the closure
- * may already have landed by then; each is individually complete.
+ * Returns false — with every session intact and nothing written — when a
+ * destination cannot be committed (deleted file, a printing-less card headed
+ * into a collection): every delivery, on-disk and in-memory alike, is staged
+ * and validated before the first file is written, so a failed save can be
+ * retried without re-applying moves that already landed. Only an I/O error
+ * during the final writes can still leave a destination written ahead of its
+ * source.
  */
 export async function saveOpenList(
   open: OpenList,
@@ -368,8 +377,8 @@ export async function saveOpenList(
     }
   }
 
-  const fail = (sourceName: string, error: string): false => {
-    console.error(t('cli.edit.moveCommitFailed', { name: sourceName, error }))
+  const fail = (error: string): false => {
+    console.error(t('cli.edit.moveCommitFailed', { name: open.ref.name, error }))
     return false
   }
 
@@ -377,41 +386,61 @@ export async function saveOpenList(
   // the open-session counterpart of applyAddToStaged's collection check —
   // aborts before any file is written.
   for (const plan of plans) {
-    for (const { dest, move } of plan.openDest) {
-      if (dest.ref.type === 'collection' && (!move.set || !move.collectorNumber)) {
-        return fail(
-          plan.source.ref.name,
-          t('cli.move.collectionNeedsPrinting', { name: move.cardName }),
-        )
+    for (const { move } of plan.openDest) {
+      if (move.to.type === 'collection' && (!move.set || !move.collectorNumber)) {
+        return fail(t('cli.move.collectionNeedsPrinting', { name: move.cardName }))
       }
     }
   }
 
-  // Closed destinations go to disk; applyOutgoingMoves validates each batch
-  // before writing it.
-  for (const plan of plans) {
-    if (plan.offline.length === 0) continue
-    try {
-      await applyOutgoingMoves(plan.sourceRef, plan.offline)
-    } catch (error) {
-      return fail(plan.source.ref.name, error instanceof Error ? error.message : String(error))
-    }
+  // Stage every closed-destination batch in memory before anything is
+  // written, in one shared staging across the closure: a batch that cannot
+  // validate (deleted file, a printing-less card headed into a collection)
+  // aborts the save with no file touched — a later retry must never re-apply
+  // a batch that already landed — and two sources moving into the same
+  // closed list stack on one loaded copy of its file instead of the second
+  // write clobbering the first.
+  let offline: PreparedOutgoingMoves
+  try {
+    offline = await prepareOutgoingMoves(
+      plans.map(
+        (plan): OutgoingMoveBatch => ({ sourceRef: plan.sourceRef, changes: plan.offline }),
+      ),
+    )
+  } catch (error) {
+    return fail(getErrorMessage(error))
   }
 
-  // Deliver to the open destinations (each allocates its own line id; the
-  // pushed move-to keeps the source id for its changelog), then save every
-  // involved list.
-  for (const plan of plans) {
-    for (const { dest, move } of plan.openDest) {
-      const moveTo = mirrorMoveTo(move, plan.sourceRef)
-      dest.strategy.receiveMove(moveTo)
-      dest.ctx.sessionChanges.push(moveTo)
+  // WRITE: everything validated. Closed destinations first, then the open
+  // deliveries, then every involved list — destinations before their sources
+  // (the queue reversed, since it leads with `open`), so an I/O failure
+  // partway can only leave a card present in both lists (self-healing: saving
+  // the source removes its copy), never removed from its source without
+  // having landed anywhere.
+  try {
+    await offline.commit()
+    // Deliver to the open destinations (each allocates its own line id; the
+    // pushed move-to keeps the source id for its changelog).
+    for (const plan of plans) {
+      for (const { dest, move } of plan.openDest) {
+        const moveTo = mirrorMoveTo(move, plan.sourceRef)
+        dest.strategy.receiveMove(moveTo)
+        dest.ctx.sessionChanges.push(moveTo)
+      }
     }
-  }
-  for (const list of queue) {
-    if (list !== open) console.log(t('cli.edit.savingMoveDest', { name: list.ref.name }))
-    await saveCardSession(list.strategy, list.ctx)
-    resetCardSessionTracking(list.strategy, list.ctx)
+    for (const list of [...queue].reverse()) {
+      if (list !== open) console.log(t('cli.edit.savingMoveDest', { name: list.ref.name }))
+      await saveCardSession(list.strategy, list.ctx)
+      resetCardSessionTracking(list.strategy, list.ctx)
+    }
+  } catch (error) {
+    // Unlike a staging failure, a failure here may leave some destinations
+    // already written — report it (with its own message saying so) rather
+    // than letting the throw escape the editor with the session half-saved.
+    console.error(
+      t('cli.edit.moveWriteFailed', { name: open.ref.name, error: getErrorMessage(error) }),
+    )
+    return false
   }
   return true
 }

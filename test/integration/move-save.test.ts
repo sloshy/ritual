@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { createMoveFromChange } from '../../src/change-event'
-import { applyOutgoingMoves } from '../../src/admin/api/move-save'
+import { applyOutgoingMoves, prepareOutgoingMoves } from '../../src/admin/api/move-save'
 import { handleSelectedMove } from '../../src/admin/api/move'
 import { handleLists } from '../../src/admin/api/lists'
 import {
@@ -344,6 +344,51 @@ describe('POST /api/move/selected', () => {
     const resp = await handleSelectedMove(req)
     expect(resp.status).toBe(400)
     expect(((await resp.json()) as { success: boolean }).success).toBe(false)
+  })
+})
+
+describe('prepareOutgoingMoves', () => {
+  test('stages without writing; commit lands both sources on one shared destination', async () => {
+    const boltMove = createMoveFromChange('Lightning Bolt', {
+      set: 'lea',
+      collectorNumber: '161',
+      cardId: 1,
+      to: { type: 'deck', name: 'My Deck' },
+    })
+    const brainstormMove = createMoveFromChange('Brainstorm', {
+      cardId: 1,
+      to: { type: 'deck', name: 'My Deck' },
+    })
+    const deckPath = path.join(tmpDir, 'decks', 'my-deck.md')
+    const before = await fs.readFile(deckPath, 'utf-8')
+
+    const prepared = await prepareOutgoingMoves([
+      { sourceRef: { type: 'collection', name: 'Binder' }, changes: [boltMove] },
+      { sourceRef: { type: 'wanted', name: 'Wishlist' }, changes: [brainstormMove] },
+    ])
+    // Staging writes nothing: the split exists so a multi-source save can
+    // validate every batch before the first byte lands.
+    expect(await fs.readFile(deckPath, 'utf-8')).toBe(before)
+
+    const result = await prepared.commit()
+
+    // Both sources' cards stacked on one staged copy of the shared
+    // destination, each drawing a fresh id after the fixture's Sol Ring &1 —
+    // per-batch staging would have loaded two copies and let the second
+    // write clobber the first.
+    const deckContent = await fs.readFile(deckPath, 'utf-8')
+    expect(deckContent).toMatch(/1 Lightning Bolt \(LEA:161\) &2/)
+    expect(deckContent).toMatch(/1 Brainstorm &3/)
+    expect(result.writtenFiles).toContain(deckPath)
+
+    // One changelog entry for the destination; each line names its own source.
+    const changelog = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.changes.md'), 'utf-8')
+    expect(changelog).toMatch(/Moved "Lightning Bolt".*from Collection 'Binder'/)
+    expect(changelog).toMatch(/Moved "Brainstorm".*from Wanted list 'Wishlist'/)
+
+    // appendChangelog is not idempotent, so a staging can only be committed once.
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+    await expect(prepared.commit()).rejects.toThrow('single-use')
   })
 })
 
