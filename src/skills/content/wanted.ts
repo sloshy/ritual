@@ -80,7 +80,7 @@ ritual edit
 ritual edit "wanted:To Buy"          # open one list directly (matches the file basename)
 ritual edit --sets "FDN,SPG"         # restrict to these set codes
 ritual edit --finish foil
-ritual edit --collector              # enter cards by collector number
+ritual edit --collector              # start in SET:CN printing search mode
 ritual edit --allow-digital-only-cards
 ritual edit --refresh never          # use the existing cache as-is, no prompt
 ritual edit --refresh auto           # redownload the cache when prices are >1 day old

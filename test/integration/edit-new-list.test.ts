@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { createAddChange } from '../../src/change-event'
-import { resetCardSessionTracking, saveCardSession } from '../../src/commands/card-session'
+import {
+  buildInitialSessionConfig,
+  resetCardSessionTracking,
+  saveCardSession,
+} from '../../src/commands/card-session'
 import { newListSession, pendingListCollision, type OpenList } from '../../src/commands/edit-lists'
 import { listFilePath } from '../../src/resolve-list'
 import type { DeckSessionConfig } from '../../src/commands/deck-helpers'
@@ -19,10 +23,7 @@ let ws: BoundWorkspace
 let dir: string
 
 const sessionConfig: DeckSessionConfig = {
-  entryMode: 'name',
-  collectorSets: [],
-  activeSetIndex: 0,
-  setCardMaps: new Map(),
+  ...buildInitialSessionConfig({}, undefined),
   targetSection: null,
 }
 

@@ -2,17 +2,12 @@ import { describe, expect, test } from 'bun:test'
 import prompts from 'prompts'
 import { createWantedStrategy } from '../../src/commands/wanted-strategy'
 import { newWantedSession, type WantedSession } from '../../src/commands/flat-list-session'
-import type { CardSessionContext } from '../../src/commands/card-session'
+import { buildInitialSessionConfig, type CardSessionContext } from '../../src/commands/card-session'
 import type { WantedListSessionConfig } from '../../src/commands/wanted-helpers'
 import type { CardLanguage } from '../../src/card-language'
 
 function makeSessionConfig(): WantedListSessionConfig {
-  return {
-    entryMode: 'name',
-    collectorSets: [],
-    activeSetIndex: 0,
-    setCardMaps: new Map(),
-  }
+  return buildInitialSessionConfig({}, undefined)
 }
 
 function makeCtx(): CardSessionContext {

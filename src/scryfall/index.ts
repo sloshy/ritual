@@ -7,6 +7,7 @@ export {
   getCardGames,
   getFrontFaceName,
   mapScryfallCard,
+  compareCollectorNumbers,
   comparePrintings,
 } from './card-utils'
 
@@ -198,6 +199,11 @@ export function fetchRepresentativePrints(
   return scryfallClient.fetchRepresentativePrints(name, currencies)
 }
 
-export function getCardsBySet(setCode: string): Promise<Map<string, ScryfallCard>> {
-  return scryfallClient.getCardsBySet(setCode)
+/**
+ * Every printing the local cache holds, one card per `set:collectorNumber`
+ * pair. Backs the session editor's collector-number mode, whose search spans
+ * the whole cache rather than a preloaded set.
+ */
+export function getAllPrintings(filter?: CardNameFilter): Promise<ScryfallCard[]> {
+  return scryfallClient.getAllPrintings(filter)
 }

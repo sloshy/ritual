@@ -257,7 +257,7 @@ export function registerEditCommand(program: Command): void {
     // strategy's config type omits `condition`, but sharing the full shape is
     // fine — the wanted flow never reads it (same as the `wanted-list` command).
     const sessionConfig: DeckSessionConfig = {
-      ...(await buildInitialSessionConfig(options, parsedSets)),
+      ...buildInitialSessionConfig(options, parsedSets),
       targetSection: options.section ?? null,
     }
 

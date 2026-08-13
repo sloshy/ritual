@@ -212,16 +212,11 @@ export const cliMeta = {
   },
   'cli.menu.collectorMode': {
     description:
-      'Session menu row switching card entry from names to collector numbers within a chosen set.',
+      'Session menu row switching card entry from names to a set-code and collector-number search over every printing in the card cache.',
     maxLen: MENU_MAX_LEN,
   },
   'cli.menu.nameMode': {
     description: 'Session menu row switching card entry back from collector numbers to names.',
-    maxLen: MENU_MAX_LEN,
-  },
-  'cli.menu.manageSets': {
-    description:
-      'Session menu row (collector mode) opening the set-code manager. {set} is the active set code in uppercase, or the `cli.menu.noSetCode` placeholder.',
     maxLen: MENU_MAX_LEN,
   },
   'cli.menu.editMode': {
@@ -267,24 +262,6 @@ export const cliMeta = {
     description: 'The previous row with no change count, for a list dirty in some uncounted way.',
     maxLen: MENU_MAX_LEN,
   },
-  'cli.menu.addSetCode': {
-    description: 'Set-code manager row that asks for another set code to load.',
-    maxLen: MENU_SHORT,
-  },
-  'cli.menu.removeSetCode': {
-    description: 'Set-code manager row that drops one of the loaded set codes.',
-    maxLen: MENU_SHORT,
-  },
-  'cli.menu.setCodeActive': {
-    description:
-      'Set-code manager row for the set currently being entered against. {code} is the set code in uppercase and is never translated.',
-    maxLen: MENU_SHORT,
-  },
-  'cli.menu.noSetCode': {
-    description:
-      'Placeholder shown in place of a set code when collector mode has none loaded yet.',
-    maxLen: MENU_SHORT,
-  },
 
   'cli.session.loadingCards': {
     description: 'Progress line before the card database is read for autocomplete.',
@@ -306,15 +283,12 @@ export const cliMeta = {
   'cli.session.usingFile': {
     description: 'The previous line when the file already existed.',
   },
-  'cli.session.loadingSetData': {
-    description: 'Progress line before collector-mode set data is read.',
-  },
-  'cli.session.loadingSet': {
-    description: 'Progress line naming one set being read. {set} is an uppercase set code.',
-  },
-  'cli.session.setCardsLoaded': {
+  'cli.session.loadingPrintings': {
     description:
-      'How many cards a set contributed, indented under the previous line. Keep the two leading spaces.',
+      "Progress line before collector number mode's printing pool is read out of the card cache.",
+  },
+  'cli.session.loadedPrintings': {
+    description: 'How many printings that pool holds, once it has been read.',
   },
   'cli.session.filtersUpdated': {
     description: 'Confirmation that the session-wide filters were re-applied.',
@@ -355,24 +329,11 @@ export const cliMeta = {
   'cli.session.switchedToAdd': { description: 'Confirmation of the switch back to add mode.' },
   'cli.session.switchedToCollector': {
     description:
-      'Confirmation of the switch to collector-number entry. {set} is the active set code in uppercase.',
+      'Confirmation of the switch to collector-number entry, with a hint at what can be typed there.',
   },
   'cli.session.switchedToName': { description: 'Confirmation of the switch back to name entry.' },
   'cli.session.editingCard': {
     description: 'Announces that the last added card is being re-opened. {name} is the card name.',
-  },
-  'cli.session.activeSetChanged': {
-    description:
-      'Confirmation that collector entry now targets another set. {set} is a set code in uppercase.',
-  },
-  'cli.session.setAlreadyAdded': {
-    description: 'The set code the user typed was already loaded. {set} is that code in uppercase.',
-  },
-  'cli.session.noSetsToRemove': {
-    description: "Refusal of the set-code manager's remove action when nothing is loaded.",
-  },
-  'cli.session.setRemoved': {
-    description: 'Confirmation that a set code was dropped. {set} is that code in uppercase.',
   },
   'cli.session.noChanges': {
     description: 'The session-changes screen was opened with nothing to show.',
@@ -380,6 +341,10 @@ export const cliMeta = {
   'cli.session.discardBlocked': {
     description:
       'A session change cannot be taken back yet because a later change depends on it. {reason} is a pre-rendered clause naming the blocker.',
+  },
+  'cli.session.collectorChoice': {
+    description:
+      'One row of the collector-number autocomplete. {printing} is a pre-rendered `SET:NUMBER` printing label (never translated — it is the grammar the user types to search), {name} the card name.',
   },
   'cli.session.forceOptions': {
     description:
@@ -397,13 +362,9 @@ export const cliMeta = {
     description:
       'Card prompt while adding by name. {streak} is the possibly-empty `cli.session.streakHint`, which carries its own leading space.',
   },
-  'cli.session.promptCollectorNumber': {
+  'cli.session.promptCollectorSearch': {
     description:
-      'Card prompt while adding by collector number. {set} is the active set code in uppercase (or the SET placeholder); {streak} carries its own leading space.',
-  },
-  'cli.session.promptSetPlaceholder': {
-    description:
-      'Stands in for the set code in the previous prompt before any set is loaded. Uppercase, like the codes it replaces.',
+      'Card prompt while adding by set code and collector number. The MKM:123 example is the search grammar itself (a set code, a colon, a collector number) and must keep that shape; {streak} carries its own leading space.',
   },
   'cli.session.promptNote': { description: 'Prompt for a note on the card just added.' },
   'cli.session.promptNoteEdit': {
@@ -412,17 +373,6 @@ export const cliMeta = {
   'cli.session.promptEditEntry': {
     description:
       'Heading of the per-entry action menu. {entry} is the rendered card line and is never translated.',
-  },
-  'cli.session.promptManageSets': {
-    description: 'Heading of the collector-mode set-code manager.',
-  },
-  'cli.session.promptAddSetCode': { description: 'Prompt for another set code to load.' },
-  'cli.session.promptSelectSetToRemove': {
-    description: 'Prompt for which loaded set code to drop.',
-  },
-  'cli.session.promptCollectorSets': {
-    description:
-      'Prompt for the initial set codes when collector mode is entered with none loaded. The example codes are real Magic sets and may stay as they are.',
   },
   'cli.session.promptSetFilter': {
     description:
@@ -440,12 +390,6 @@ export const cliMeta = {
   },
   'cli.session.promptPickChangeToDiscard': {
     description: 'Heading of the session-changes screen. {count} is how many changes it lists.',
-  },
-  'cli.session.validateSetCodeEmpty': {
-    description: 'Inline validation shown when the set-code prompt is submitted empty.',
-  },
-  'cli.session.validateSetCodeRequired': {
-    description: 'Inline validation shown when the collector-mode set list is submitted empty.',
   },
   'cli.session.finishAlwaysPrompt': {
     description:

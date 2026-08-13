@@ -29,7 +29,7 @@ export const helpEditMessages = {
   'help.edit.finish': 'Default finish (nonfoil, foil, etched)',
   'help.edit.condition': 'Default condition (NM, LP, MP, HP, DMG)',
   'help.edit.section': 'Add deck cards to this section (otherwise prompts per card)',
-  'help.edit.collector': 'Start in collector number mode',
+  'help.edit.collector': 'Start in collector number mode (search printings by SET:CN)',
   'help.edit.allowDigitalOnly': 'Include digital-only sets (e.g., Alchemy)',
 
   // ── history ───────────────────────────────────────────────────────────

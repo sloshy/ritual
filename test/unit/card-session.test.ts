@@ -8,16 +8,22 @@ import { displayWidth } from '../../src/i18n/width'
 import type { ScryfallCard } from '../../src/types'
 import { localeTag } from '../../src/i18n/locale-tag'
 import {
+  applySessionConfigAnswers,
   buildCollectorChoices,
+  buildInitialSessionConfig,
   buildMenuChoices,
+  ensureCollectorChoices,
   isMenuChoice,
+  parseCollectorQuery,
   SESSION_MENU_LIMIT,
   similarCopyInput,
   suggestCollectorMode,
   suggestEditMode,
   suggestNameMode,
   type MenuBuildInput,
+  type SessionConfig,
 } from '../../src/commands/card-session'
+import { makeScryfallCard } from '../test-utils'
 
 describe('isMenuChoice', () => {
   test('recognizes menu sentinel values', () => {
@@ -42,7 +48,7 @@ describe('isMenuChoice', () => {
   })
 
   test('rejects collector-mode object choices', () => {
-    const choice: Choice = { title: '1 - Sol Ring', value: { type: 'card', num: '1' } }
+    const choice: Choice = { title: 'MKM:1 — Sol Ring', value: { type: 'card' } }
     expect(isMenuChoice(choice)).toBe(false)
   })
 })
@@ -70,6 +76,37 @@ describe('suggestNameMode', () => {
     expect(result.map((c) => c.value)).toEqual(['Bolt of Lightning', 'Lightning Bolt'])
   })
 
+  // Menu rows are reachable by typing a word or two of their label, so past a
+  // few characters the input is a card search and the rows drop out entirely
+  // rather than sitting above the matches.
+  test('menu items survive an input of three characters', () => {
+    const result = suggestNameMode('exi', nameModeChoices())
+    expect(result.map((c) => c.value)).toEqual(['__EXIT__'])
+  })
+
+  test('menu items disappear once the input passes three characters', () => {
+    const choices: Choice[] = [
+      { title: '🚪 Exit', value: '__EXIT__' },
+      { title: 'Exit Through the Gift Shop', value: 'Exit Through the Gift Shop' },
+    ]
+    expect(suggestNameMode('exit', choices).map((c) => c.value)).toEqual([
+      'Exit Through the Gift Shop',
+    ])
+  })
+
+  test('a colon hides the menu items whatever the length', () => {
+    const choices: Choice[] = [
+      { title: '🚪 Exit', value: '__EXIT__' },
+      { title: 'Ex: The Card', value: 'Ex: The Card' },
+    ]
+    expect(suggestNameMode('e:', choices).map((c) => c.value)).toEqual(['Ex: The Card'])
+  })
+
+  test('the force marker is stripped before the menu-hiding length is measured', () => {
+    // `exi!` is a four-character input but a three-character search.
+    expect(suggestNameMode('exi!', nameModeChoices()).map((c) => c.value)).toEqual(['__EXIT__'])
+  })
+
   test('trailing ! marks card matches to force prompts', () => {
     const result = suggestNameMode('sol ring!', nameModeChoices())
     expect(result).toHaveLength(1)
@@ -78,10 +115,10 @@ describe('suggestNameMode', () => {
   })
 
   test('trailing ! does not rewrite menu items', () => {
-    // Typing e.g. `exit!` should still surface the plain Exit sentinel, never
-    // a bogus `__EXIT____FORCE__` value.
-    const result = suggestNameMode('exit!', nameModeChoices())
-    expect(result.map((c) => c.value)).toEqual(['__EXIT__'])
+    // Typing e.g. `sav!` should still surface the plain Save sentinel, never
+    // a bogus `__SAVE____FORCE__` value.
+    const result = suggestNameMode('sav!', nameModeChoices())
+    expect(result.map((c) => c.value)).toEqual(['__SAVE__'])
   })
 
   test('trailing ! rewrites all card matches, not just the first', () => {
@@ -125,11 +162,11 @@ describe('suggestNameMode', () => {
     const choices: Choice[] = [
       { title: '🚪 Exit', value: '__EXIT__' },
       { title: 'Exit Through the Gift Shop', value: 'Exit Through the Gift Shop' },
-      { title: 'Exit', value: 'Exit' },
+      { title: 'Exi', value: 'Exi' },
     ]
-    expect(suggestNameMode('exit', choices).map((c) => c.value)).toEqual([
+    expect(suggestNameMode('exi', choices).map((c) => c.value)).toEqual([
       '__EXIT__',
-      'Exit',
+      'Exi',
       'Exit Through the Gift Shop',
     ])
   })
@@ -140,31 +177,150 @@ describe('suggestNameMode', () => {
   })
 })
 
+/** A cached printing, for the collector-mode pool. */
+function printing(set: string, collectorNumber: string, name: string): ScryfallCard {
+  return makeScryfallCard({ set, collector_number: collectorNumber, name })
+}
+
+/**
+ * The `SET:CN` of every printing row a search returned, in order. Read off the
+ * choice's card rather than its title, so a reworded row label breaks only the
+ * one test that pins the label.
+ */
+function printings(results: Choice[]): string[] {
+  return results
+    .filter((c) => !isMenuChoice(c))
+    .map((c) => {
+      const { card } = c.value as { card: ScryfallCard }
+      return `${card.set.toUpperCase()}:${card.collector_number}`
+    })
+}
+
+describe('parseCollectorQuery', () => {
+  test('a colon splits the input into its set and number halves', () => {
+    expect(parseCollectorQuery('MKM:123')).toEqual({
+      kind: 'split',
+      setTerm: 'mkm',
+      numberTerm: '123',
+    })
+  })
+
+  test('either half of a colon query may be empty', () => {
+    expect(parseCollectorQuery('mkm:')).toEqual({ kind: 'split', setTerm: 'mkm', numberTerm: '' })
+    expect(parseCollectorQuery(':123')).toEqual({ kind: 'split', setTerm: '', numberTerm: '123' })
+  })
+
+  test('whitespace splits the input the same way a colon does', () => {
+    expect(parseCollectorQuery('se 456')).toEqual({
+      kind: 'split',
+      setTerm: 'se',
+      numberTerm: '456',
+    })
+  })
+
+  test('a trailing space settles the set half with no number typed yet', () => {
+    expect(parseCollectorQuery('mkm ')).toEqual({ kind: 'split', setTerm: 'mkm', numberTerm: '' })
+  })
+
+  test('tokens past the second are ignored — nothing else matches them', () => {
+    expect(parseCollectorQuery('mkm 123 456')).toEqual({
+      kind: 'split',
+      setTerm: 'mkm',
+      numberTerm: '123',
+    })
+  })
+
+  test('a lone token stays ambiguous, to be matched against either half', () => {
+    expect(parseCollectorQuery('12')).toEqual({ kind: 'single', term: '12' })
+    expect(parseCollectorQuery('')).toEqual({ kind: 'single', term: '' })
+  })
+
+  test('only a trailing space settles the set half — a leading one says nothing', () => {
+    // A pasted or fat-fingered leading space must not turn a collector-number
+    // search into a set-code one that matches nothing.
+    expect(parseCollectorQuery(' 123')).toEqual({ kind: 'single', term: '123' })
+    expect(parseCollectorQuery('  ')).toEqual({ kind: 'single', term: '' })
+  })
+})
+
 describe('suggestCollectorMode', () => {
+  const pool = buildCollectorChoices([
+    printing('mkm', '123', 'Sol Ring'),
+    printing('mkm', '12', 'Arcane Signet'),
+    printing('sld', '123', 'Mana Crypt'),
+    printing('sec', '4', 'Lightning Bolt'),
+    // A set code carrying `ls` in the middle rather than at the front, so a
+    // substring match is distinguishable from a prefix match.
+    printing('plst', '5', 'The List Card'),
+  ])
   const choices: Choice[] = [
+    { title: '💾 Save all changes', value: '__SAVE__' },
     { title: '🚪 Exit', value: '__EXIT__' },
-    { title: '1 - Sol Ring', value: { type: 'card', num: '1' } },
-    { title: '12 - Arcane Signet', value: { type: 'card', num: '12' } },
-    { title: '2 - Mana Crypt', value: { type: 'card', num: '2' } },
+    ...pool,
   ]
 
   test('empty input shows only menu items', () => {
-    expect(suggestCollectorMode('', choices).map((c) => c.value)).toEqual(['__EXIT__'])
+    expect(suggestCollectorMode('', choices).map((c) => c.value)).toEqual(['__SAVE__', '__EXIT__'])
   })
 
-  test('filters by collector-number prefix, keeping menu items', () => {
-    const result = suggestCollectorMode('1', choices)
-    expect(result.map((c) => c.value)).toEqual([
-      '__EXIT__',
-      { type: 'card', num: '1' },
-      { type: 'card', num: '12' },
-    ])
+  test('SET:CN matches the set by substring and the number by prefix', () => {
+    expect(printings(suggestCollectorMode('mkm:12', choices))).toEqual(['MKM:12', 'MKM:123'])
   })
 
-  test('matches collector-number prefixes only, not substrings', () => {
-    // '12 - Arcane Signet' contains a 2 but does not start with one.
-    const result = suggestCollectorMode('2', choices)
-    expect(result.map((c) => c.value)).toEqual(['__EXIT__', { type: 'card', num: '2' }])
+  test('a space separates the halves just as a colon does', () => {
+    expect(printings(suggestCollectorMode('sld 123', choices))).toEqual(['SLD:123'])
+  })
+
+  test('a truncated set term matches every set code containing it', () => {
+    // "se 4" is not a set code, but SEC contains it — the user is still typing.
+    expect(printings(suggestCollectorMode('se 4', choices))).toEqual(['SEC:4'])
+  })
+
+  test('a set term matches anywhere in the code, not only at its start', () => {
+    // `ls` is in the middle of PLST, so a prefix match would find nothing.
+    expect(printings(suggestCollectorMode('ls:', choices))).toEqual(['PLST:5'])
+  })
+
+  test('a collector number matches by prefix, never mid-number', () => {
+    // `23` is inside 123 but does not start it, so nothing matches.
+    expect(printings(suggestCollectorMode(':23', choices))).toEqual([])
+  })
+
+  test('an empty half matches everything on its side', () => {
+    expect(printings(suggestCollectorMode('mkm:', choices))).toEqual(['MKM:12', 'MKM:123'])
+    expect(printings(suggestCollectorMode(':123', choices))).toEqual(['MKM:123', 'SLD:123'])
+  })
+
+  test('a lone token matches a set substring or a collector-number prefix', () => {
+    // '12' is a number prefix for two printings and matches no set code.
+    expect(printings(suggestCollectorMode('12', choices))).toEqual(['MKM:12', 'MKM:123', 'SLD:123'])
+    // 'sl' is a set substring, matching every printing in SLD.
+    expect(printings(suggestCollectorMode('sl', choices))).toEqual(['SLD:123'])
+  })
+
+  test('card names are never matched', () => {
+    expect(printings(suggestCollectorMode('sol', choices))).toEqual([])
+  })
+
+  test('a short input still narrows the menu rows by what was typed', () => {
+    // `mkm` is a set code, not a menu label. Offering the whole menu here would
+    // fill the prompt window with rows above the printings the user asked for.
+    const result = suggestCollectorMode('mkm', choices)
+    expect(result.some(isMenuChoice)).toBe(false)
+    expect(printings(result)).toEqual(['MKM:12', 'MKM:123'])
+  })
+
+  test('a short input naming a menu row keeps that row', () => {
+    expect(suggestCollectorMode('sav', choices).map((c) => c.value)).toEqual(['__SAVE__'])
+  })
+
+  test('menu items drop out past three characters, even for a matching label', () => {
+    expect(suggestCollectorMode('save', choices).some(isMenuChoice)).toBe(false)
+    expect(suggestCollectorMode('mkm1', choices).some(isMenuChoice)).toBe(false)
+  })
+
+  test('a colon hides the menu items whatever the length', () => {
+    expect(suggestCollectorMode('m:', choices).some(isMenuChoice)).toBe(false)
   })
 })
 
@@ -174,7 +330,6 @@ describe('buildMenuChoices', () => {
     mode: 'name' as const,
     lastAdded: null,
     changeCount: 0,
-    activeSet: '',
     extraItems: [],
     sessionAdds: [],
     editUndoLabel: null,
@@ -382,16 +537,23 @@ describe('buildMenuChoices', () => {
     test('the English terms still select a translated row', () => {
       const menu = buildMenuChoices(tallestMenuInput())
       expect(menu.find((choice) => choice.value === '__EXIT__')?.title).toBe('🚪 終了')
-      expect(suggestNameMode('exit', menu).map((choice) => choice.value)).toEqual(['__EXIT__'])
-      expect(suggestNameMode('save all', menu).map((choice) => choice.value)).toEqual(['__SAVE__'])
+      // (`exi` also answers the English "edit existing cards" row, so this
+      // asserts membership rather than an exact list.)
+      expect(suggestNameMode('exi', menu).map((choice) => choice.value)).toContain('__EXIT__')
+      // Longer than the menu-hiding threshold, so name mode drops the row —
+      // edit mode, which keeps its menu at any length, is where a whole English
+      // label can still be typed.
+      expect(suggestEditMode('save all', menu).map((choice) => choice.value)).toEqual(['__SAVE__'])
     })
 
     test('the translated text selects the row too, typed without spaces', () => {
       // Japanese is not whitespace-delimited, so `リストを 切り替える` is not how
       // anyone types it. Segmentation finds the boundaries the spaces would have
       // marked; without it only a contiguous substring of the label would match.
+      // Asserted through edit mode: the phrase is far past the length at which
+      // the card-adding modes stop offering menu rows at all.
       const menu = buildMenuChoices(tallestMenuInput())
-      expect(suggestNameMode('リスト切り替える', menu).map((choice) => choice.value)).toEqual([
+      expect(suggestEditMode('リスト切り替える', menu).map((choice) => choice.value)).toEqual([
         '__SWITCH_LIST__',
       ])
     })
@@ -434,15 +596,13 @@ describe('buildMenuChoices', () => {
     expect(undoEdit?.title).toContain('Undo Last Edit (printing on Sol Ring)')
   })
 
-  test('collector mode swaps config/mode items and shows the active set', () => {
-    const choices = buildMenuChoices({ ...base, mode: 'collector', activeSet: 'fdn' })
-    const values = choices.map((c) => c.value)
-    expect(values).toContain('__MANAGE_SETS__')
+  test('collector mode keeps the session filters and swaps in the name-mode item', () => {
+    // The session set filter is what narrows the collector pool, so its row
+    // stays in both modes — there is no separate set-code manager any more.
+    const values = buildMenuChoices({ ...base, mode: 'collector' }).map((c) => c.value)
+    expect(values).toContain('__CONFIG__')
     expect(values).toContain('__NAME_MODE__')
-    expect(values).not.toContain('__CONFIG__')
     expect(values).not.toContain('__COLLECTOR_MODE__')
-    const manage = choices.find((c) => c.value === '__MANAGE_SETS__')
-    expect(manage?.title).toContain('FDN')
   })
 
   test('extra items are inserted before the mode items', () => {
@@ -618,15 +778,132 @@ describe('suggestEditMode', () => {
 })
 
 describe('buildCollectorChoices', () => {
-  test('sorts numerically, then lexically for suffixed collector numbers', () => {
-    const card = (name: string): ScryfallCard => ({ name }) as ScryfallCard
-    const map = new Map([
-      ['10', card('Ten')],
-      ['2', card('Two')],
-      ['2a', card('Two-A')],
-      ['1', card('One')],
+  test('groups by set code, then sorts numerically with a lexical tiebreak', () => {
+    const titles = buildCollectorChoices([
+      printing('sld', '10', 'Ten'),
+      printing('mkm', '2', 'Two'),
+      printing('sld', '2a', 'Two-A'),
+      printing('sld', '2', 'Two'),
+      printing('sld', '1', 'One'),
+    ]).map((c) => c.title)
+    expect(titles).toEqual([
+      'MKM:2 — Two',
+      'SLD:1 — One',
+      'SLD:2 — Two',
+      'SLD:2a — Two-A',
+      'SLD:10 — Ten',
     ])
-    const titles = buildCollectorChoices(map).map((c) => c.title)
-    expect(titles).toEqual(['1 - One', '2 - Two', '2a - Two-A', '10 - Ten'])
+  })
+
+  test('letter-prefixed collector numbers keep their natural order', () => {
+    // The shared `compareCollectorNumbers` rule: A-10 sorts after A-2, not
+    // between A-1 and A-2 as a lexical compare would put it.
+    const titles = buildCollectorChoices([
+      printing('spg', 'A-10', 'Ten'),
+      printing('spg', 'A-2', 'Two'),
+      printing('spg', 'A-1', 'One'),
+    ]).map((c) => c.title)
+    expect(titles).toEqual(['SPG:A-1 — One', 'SPG:A-2 — Two', 'SPG:A-10 — Ten'])
+  })
+
+  test('the match terms are lowercased however the cache spells the printing', () => {
+    // The row still renders `MKM:2A`, but a user types lowercase.
+    const rows = buildCollectorChoices([printing('MKM', '2A', 'Sol Ring')])
+    expect(printings(suggestCollectorMode('mkm:2a', rows))).toEqual(['MKM:2A'])
+  })
+})
+
+describe('buildInitialSessionConfig', () => {
+  test('defaults to name mode with no collector pool built', () => {
+    expect(buildInitialSessionConfig({}, undefined)).toEqual({
+      sets: undefined,
+      finish: undefined,
+      condition: undefined,
+      entryMode: 'name',
+      collectorChoices: null,
+    })
+  })
+
+  test('--collector only picks the entry mode — nothing is preloaded', () => {
+    const config = buildInitialSessionConfig({ collector: true }, ['mkm'])
+    expect(config.entryMode).toBe('collector')
+    expect(config.collectorChoices).toBeNull()
+    expect(config.sets).toEqual(['mkm'])
+  })
+
+  test('an unrecognized finish is dropped rather than stamped on every card', () => {
+    expect(buildInitialSessionConfig({ finish: 'shiny' }, undefined).finish).toBeUndefined()
+  })
+
+  test('a condition is normalized to its canonical uppercase spelling', () => {
+    expect(buildInitialSessionConfig({ condition: 'nm' }, undefined).condition).toBe('NM')
+  })
+})
+
+describe('applySessionConfigAnswers', () => {
+  /** A config whose collector pool has already been built for `sets`. */
+  function configWithPool(sets: string[] | undefined): SessionConfig {
+    const config = buildInitialSessionConfig({ collector: true }, sets)
+    config.collectorChoices = buildCollectorChoices([printing('mkm', '1', 'One')])
+    return config
+  }
+
+  test('a re-ordered set filter is the same filter and keeps the pool', () => {
+    // Re-confirming the filter unchanged must not throw away a whole-cache pool.
+    const config = configWithPool(['mkm', 'sld'])
+    applySessionConfigAnswers(config, { sets: ['sld', 'mkm'] })
+    expect(config.collectorChoices).not.toBeNull()
+    expect(config.sets).toEqual(['sld', 'mkm'])
+  })
+
+  test('a different set filter throws the pool away', () => {
+    const config = configWithPool(['mkm'])
+    applySessionConfigAnswers(config, { sets: ['sld'] })
+    expect(config.collectorChoices).toBeNull()
+  })
+
+  test('clearing the set filter throws the pool away', () => {
+    const config = configWithPool(['mkm'])
+    applySessionConfigAnswers(config, { sets: [] })
+    expect(config.collectorChoices).toBeNull()
+    expect(config.sets).toBeUndefined()
+  })
+
+  test('filtering a previously unfiltered session throws the pool away', () => {
+    const config = configWithPool(undefined)
+    applySessionConfigAnswers(config, { sets: ['mkm'] })
+    expect(config.collectorChoices).toBeNull()
+  })
+
+  test('a finish-only answer leaves the pool alone', () => {
+    const config = configWithPool(['mkm'])
+    applySessionConfigAnswers(config, { finish: 'foil' })
+    expect(config.collectorChoices).not.toBeNull()
+    expect(config.finish).toBe('foil')
+  })
+
+  test('an unrecognized finish or condition clears the default back to always-prompt', () => {
+    const config = configWithPool(['mkm'])
+    config.finish = 'foil'
+    config.condition = 'NM'
+    applySessionConfigAnswers(config, { finish: '', condition: 'shiny' })
+    expect(config.finish).toBeUndefined()
+    expect(config.condition).toBeUndefined()
+  })
+
+  test('NONE is a real condition answer, not an unrecognized one', () => {
+    const config = configWithPool(['mkm'])
+    applySessionConfigAnswers(config, { condition: 'NONE' })
+    expect(config.condition).toBe('NONE')
+  })
+})
+
+describe('ensureCollectorChoices', () => {
+  test('a built pool is reused rather than rebuilt', async () => {
+    // The miss path reads the whole card cache; the hit path must not touch it.
+    const config = buildInitialSessionConfig({ collector: true }, undefined)
+    const built = buildCollectorChoices([printing('mkm', '1', 'One')])
+    config.collectorChoices = built
+    expect(await ensureCollectorChoices(config, false)).toBe(built)
   })
 })

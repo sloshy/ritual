@@ -2,7 +2,8 @@ import prompts, { type Choice } from 'prompts'
 import { compareData } from '../i18n/collate'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { getAllCardNames, getCardsBySet } from '../scryfall'
+import { compareCollectorNumbers, getAllCardNames, getAllPrintings } from '../scryfall'
+import { formatPrintingLabel } from '../printing-key'
 import { emptyCacheAdvice, refreshCardCacheForSession } from '../cache/freshness'
 import type { RefreshMode } from '../refresh'
 import type { Condition, Finish, ScryfallCard } from '../types'
@@ -24,8 +25,8 @@ import { isListMarkdownFile } from '../list-file-name'
 /**
  * Shared engine for the unified `edit` command's interactive card-entry
  * sessions. Owns everything the three list types have in common — the
- * autocomplete loop, menu construction, entry modes, collector-set management,
- * session filters, and save/exit/changelog plumbing — and delegates the
+ * autocomplete loop, menu construction, entry modes, the collector-mode
+ * printing pool, session filters, and save/exit/changelog plumbing — and delegates the
  * list-type-specific flows (printing/finish/condition prompts, change
  * application, copy semantics) to a {@link CardSessionStrategy}.
  */
@@ -45,19 +46,16 @@ export type SessionConfig = {
   finish?: Finish
   condition?: Condition | 'NONE'
   entryMode: EntryMode
-  collectorSets: string[]
-  activeSetIndex: number
-  setCardMaps: Map<string, Map<string, ScryfallCard>>
+  /**
+   * The built collector-mode autocomplete rows — every printing the cache holds
+   * under the session's set filter — or null before the first collector-mode
+   * prompt. Cached here rather than rebuilt per loop iteration because the pool
+   * spans the whole card cache, and shared across every list a unified session
+   * has open. {@link applySessionConfigAnswers} clears it when the set filter
+   * moves, since the filter is what decides which printings belong to it.
+   */
+  collectorChoices: CollectorChoice[] | null
 }
-
-/** The slice of {@link SessionConfig} used by collector-set management. */
-type CollectorSessionConfig = Pick<
-  SessionConfig,
-  'collectorSets' | 'activeSetIndex' | 'setCardMaps'
->
-
-/** Shape of a free-form text prompt asking for set codes. */
-export type SetsPromptResponse = { sets?: string }
 
 // ── Menu sentinels ──────────────────────────────────────────────────
 
@@ -76,7 +74,6 @@ const MENU_SENTINEL_VALUES = [
   '__LIST_LABELS__',
   '__CONFIG__',
   '__COLLECTOR_MODE__',
-  '__MANAGE_SETS__',
   '__NAME_MODE__',
   '__EDIT_MODE__',
   '__ADD_MODE__',
@@ -163,8 +160,23 @@ const FORCE_SUFFIX = '__FORCE__'
 
 // ── Choice values & prompt responses ────────────────────────────────
 
-/** A collector-mode autocomplete choice value: a specific printing keyed by collector number. */
-type CollectorChoiceValue = { type: 'card'; num: string; card: ScryfallCard }
+/** A collector-mode autocomplete choice value: one specific printing. */
+type CollectorChoiceValue = { type: 'card'; card: ScryfallCard }
+/**
+ * A collector-mode row with its match fields precomputed. The pool spans every
+ * printing in the cache and `suggest` runs on every keystroke, so lowercasing
+ * the set code and collector number is done once, at build time, rather than
+ * over the whole pool per character typed. `prompts` hands the very choice
+ * objects it was given to `suggest`, so the extra fields survive the round trip.
+ */
+export type CollectorChoice = {
+  title: string
+  value: CollectorChoiceValue
+  /** Lowercased set code, matched as a substring. */
+  setTerm: string
+  /** Lowercased collector number, matched as a prefix. */
+  numTerm: string
+}
 /** An edit-mode autocomplete choice value: an existing entry, targeted by card ID. */
 type EntryChoiceValue = { type: 'entry'; cardId: number }
 /** The card-entry prompt resolves to a menu sentinel/card-name string, a collector choice, or an entry. */
@@ -174,14 +186,6 @@ type NotePromptResponse = { note?: string }
 type ConfirmPromptResponse = { confirm?: boolean }
 /** The session-changes picker resolves to an item index, null (Back), or undefined (escaped). */
 type ChangeIndexPromptResponse = { index?: number | null }
-type CodePromptResponse = { code?: string }
-/** An action picked in the Manage Set Codes menu. */
-type SetAction =
-  | { type: 'toggle'; index: number }
-  | { type: 'add' }
-  | { type: 'remove' }
-  | { type: 'back' }
-type SetActionPromptResponse = { action?: SetAction }
 
 // ── Session context & strategy ──────────────────────────────────────
 
@@ -430,43 +434,22 @@ export type SessionConfigFlags = {
 
 /**
  * Build the initial session config from the shared CLI flags, validating the
- * finish/condition strings through the domain guards and preloading
- * collector-set data when starting in collector mode with set filters.
+ * finish/condition strings through the domain guards. `--collector` only picks
+ * the entry mode: the collector pool is built lazily, the first time a prompt
+ * is actually shown in that mode.
  */
-export async function buildInitialSessionConfig(
+export function buildInitialSessionConfig(
   options: SessionConfigFlags,
   parsedSets: string[] | undefined,
-): Promise<SessionConfig> {
+): SessionConfig {
   const upperCondition = options.condition?.toUpperCase()
-  const config: SessionConfig = {
+  return {
     sets: parsedSets,
     finish: isFinish(options.finish) ? options.finish : undefined,
     condition: isCondition(upperCondition) ? upperCondition : undefined,
     entryMode: options.collector ? 'collector' : 'name',
-    collectorSets: [],
-    activeSetIndex: 0,
-    setCardMaps: new Map(),
+    collectorChoices: null,
   }
-  if (options.collector && parsedSets && parsedSets.length > 0) {
-    await loadCollectorSets(config, parsedSets)
-  }
-  return config
-}
-
-/** Load card maps for `setCodes` and make them the session's collector sets. */
-export async function loadCollectorSets(
-  config: CollectorSessionConfig,
-  setCodes: string[],
-): Promise<void> {
-  console.log(t('cli.session.loadingSetData'))
-  for (const setCode of setCodes) {
-    console.log(t('cli.session.loadingSet', { set: setCode.toUpperCase() }))
-    const cardMap = await getCardsBySet(setCode)
-    config.setCardMaps.set(setCode.toLowerCase(), cardMap)
-    console.log(t('cli.session.setCardsLoaded', { count: cardMap.size }))
-  }
-  config.collectorSets = setCodes
-  config.activeSetIndex = 0
 }
 
 // ── Session filter configuration ────────────────────────────────────
@@ -526,16 +509,35 @@ export function buildSessionConfigQuestions(
 }
 
 /**
+ * Whether two session set filters select the same printings. Order is
+ * irrelevant — the filter is a set — so a re-ordered answer must not throw the
+ * collector pool away.
+ */
+function sameSetFilter(before: string[] | undefined, after: string[] | undefined): boolean {
+  if (before === undefined || after === undefined) return before === after
+  if (before.length !== after.length) return false
+  const sortedBefore = [...before].sort(compareData)
+  const sortedAfter = [...after].sort(compareData)
+  return sortedBefore.every((code, index) => code === sortedAfter[index])
+}
+
+/**
  * Write the shared session-filter answers back onto the config. The raw prompt
  * strings are validated through the domain guards; an empty string (or any
  * unexpected value) clears the default back to "always prompt".
+ *
+ * This is the one place the session's set filter moves, so it is also where the
+ * collector-mode pool is invalidated — the filter decides which printings are
+ * in it.
  */
 export function applySessionConfigAnswers(
   config: SessionConfig,
   answers: SessionConfigAnswers,
 ): void {
   if (answers.sets !== undefined) {
-    config.sets = answers.sets.length > 0 ? answers.sets : undefined
+    const sets = answers.sets.length > 0 ? answers.sets : undefined
+    if (!sameSetFilter(config.sets, sets)) config.collectorChoices = null
+    config.sets = sets
   }
   if (answers.finish !== undefined) {
     config.finish = isFinish(answers.finish) ? answers.finish : undefined
@@ -578,100 +580,6 @@ export async function promptSessionConfigUpdate(
   const cardNames = await reloadCardNames(config, excludeDigitalOnly)
   console.log(t('cli.session.filtersUpdated'))
   return cardNames
-}
-
-// ── Collector-set management ────────────────────────────────────────
-
-/** Interactive add/remove/switch of the collector-mode set codes. */
-export async function manageSetCodes(config: CollectorSessionConfig): Promise<void> {
-  while (true) {
-    const setChoices: Choice[] = config.collectorSets.map((code, idx) => {
-      const active = idx === config.activeSetIndex
-      const label = active
-        ? t('cli.menu.setCodeActive', { code: code.toUpperCase() })
-        : code.toUpperCase()
-      return { title: `${active ? '→ ' : '  '}${label}`, value: { type: 'toggle', index: idx } }
-    })
-
-    setChoices.push(
-      { title: `+ ${t('cli.menu.addSetCode')}`, value: { type: 'add' } },
-      { title: `- ${t('cli.menu.removeSetCode')}`, value: { type: 'remove' } },
-      { title: `← ${t('cli.menu.back')}`, value: { type: 'back' } },
-    )
-
-    const response = (await prompts({
-      type: 'select',
-      name: 'action',
-      message: t('cli.session.promptManageSets'),
-      choices: setChoices,
-    })) as SetActionPromptResponse
-
-    if (!response.action || response.action.type === 'back') {
-      break
-    }
-
-    if (response.action.type === 'toggle') {
-      config.activeSetIndex = response.action.index
-      console.log(
-        t('cli.session.activeSetChanged', {
-          set: config.collectorSets[config.activeSetIndex]?.toUpperCase() ?? '',
-        }),
-      )
-      break
-    }
-
-    if (response.action.type === 'add') {
-      const addResponse = (await prompts({
-        type: 'text',
-        name: 'code',
-        message: t('cli.session.promptAddSetCode'),
-        validate: (val: string) =>
-          val.trim().length > 0 ? true : t('cli.session.validateSetCodeEmpty'),
-      })) as CodePromptResponse
-
-      if (addResponse.code) {
-        const newCode = addResponse.code.trim().toLowerCase()
-        if (!config.collectorSets.includes(newCode)) {
-          console.log(t('cli.session.loadingSet', { set: newCode.toUpperCase() }))
-          const cardMap = await getCardsBySet(newCode)
-          config.setCardMaps.set(newCode, cardMap)
-          config.collectorSets.push(newCode)
-          console.log(t('cli.session.setCardsLoaded', { count: cardMap.size }))
-        } else {
-          console.log(t('cli.session.setAlreadyAdded', { set: newCode.toUpperCase() }))
-        }
-      }
-    }
-
-    if (response.action.type === 'remove') {
-      if (config.collectorSets.length === 0) {
-        console.log(t('cli.session.noSetsToRemove'))
-        continue
-      }
-
-      const removeResponse = (await prompts({
-        type: 'select',
-        name: 'code',
-        message: t('cli.session.promptSelectSetToRemove'),
-        choices: config.collectorSets.map((code) => ({
-          title: code.toUpperCase(),
-          value: code,
-        })),
-      })) as CodePromptResponse
-
-      if (removeResponse.code) {
-        const idx = config.collectorSets.indexOf(removeResponse.code)
-        if (idx !== -1) {
-          config.collectorSets.splice(idx, 1)
-          config.setCardMaps.delete(removeResponse.code)
-          if (config.activeSetIndex >= config.collectorSets.length) {
-            config.activeSetIndex = Math.max(0, config.collectorSets.length - 1)
-          }
-          console.log(t('cli.session.setRemoved', { set: removeResponse.code.toUpperCase() }))
-        }
-      }
-    }
-  }
 }
 
 // ── Edit-mode action menu ───────────────────────────────────────────
@@ -750,8 +658,6 @@ export type MenuBuildInput = {
   mode: EntryMode
   lastAdded: LastAdded | null
   changeCount: number
-  /** Active collector set code (collector mode only). */
-  activeSet: string
   /** Strategy-specific entries inserted after the note shortcut. */
   extraItems: Choice[]
   /** Cards added this session, in add order (drives the Undo Last Add item). */
@@ -834,7 +740,6 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
     sessionMode,
     mode,
     lastAdded,
-    activeSet,
     extraItems,
     sessionAdds,
     editUndoLabel,
@@ -844,18 +749,14 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
   // Emoji whose glyph renders double-width carry a second space, so the labels
   // beside them still line up. That padding is layout, not text, which is why
   // the icons live here rather than in the catalog.
-  const modeItems: Choice[] =
+  // Both modes lead with the session filters: in collector mode the set filter
+  // is what narrows the printing pool, so it is the set-code control too.
+  const modeItems: Choice[] = [
+    menuRow('⚙️ ', '__CONFIG__', 'cli.menu.configureFilters'),
     mode === 'name'
-      ? [
-          menuRow('⚙️ ', '__CONFIG__', 'cli.menu.configureFilters'),
-          menuRow('🔢', '__COLLECTOR_MODE__', 'cli.menu.collectorMode'),
-        ]
-      : [
-          menuRow('📦', '__MANAGE_SETS__', 'cli.menu.manageSets', {
-            set: activeSet.toUpperCase() || t('cli.menu.noSetCode'),
-          }),
-          menuRow('🔤', '__NAME_MODE__', 'cli.menu.nameMode'),
-        ]
+      ? menuRow('🔢', '__COLLECTOR_MODE__', 'cli.menu.collectorMode')
+      : menuRow('🔤', '__NAME_MODE__', 'cli.menu.nameMode'),
+  ]
 
   const undoItems: Choice[] = [
     ...(sessionAdds.length > 0
@@ -905,22 +806,49 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
   ]
 }
 
-/** A collector-mode choice with its value still concretely typed (before widening to Choice). */
-type CollectorChoice = { title: string; value: CollectorChoiceValue }
-
-/** Build the collector-mode card choices for a set, sorted numerically by collector number. */
-export function buildCollectorChoices(setCardMap: Map<string, ScryfallCard>): Choice[] {
-  const collectorChoices: CollectorChoice[] = []
-  for (const [num, card] of setCardMap) {
-    collectorChoices.push({ title: `${num} - ${card.name}`, value: { type: 'card', num, card } })
-  }
+/**
+ * Build the collector-mode rows from a pool of printings: one row per printing,
+ * titled `SET:CN — Card Name` (set codes uppercase in display), ordered by set
+ * code and then by {@link compareCollectorNumbers} — the same natural ordering
+ * the printing pickers use, so `2a` sorts right after the `2` it extends and a
+ * letter-prefixed number (`A-12`) still orders by its digits.
+ */
+export function buildCollectorChoices(printings: ScryfallCard[]): CollectorChoice[] {
+  const collectorChoices: CollectorChoice[] = printings.map((card) => ({
+    title: t('cli.session.collectorChoice', {
+      printing: formatPrintingLabel(card.set, card.collector_number),
+      name: card.name,
+    }),
+    value: { type: 'card', card },
+    setTerm: card.set.toLowerCase(),
+    numTerm: card.collector_number.toLowerCase(),
+  }))
   collectorChoices.sort((a, b) => {
-    const numA = parseInt(a.value.num, 10) || 0
-    const numB = parseInt(b.value.num, 10) || 0
-    if (numA !== numB) return numA - numB
-    return compareData(a.value.num, b.value.num)
+    if (a.setTerm !== b.setTerm) return compareData(a.setTerm, b.setTerm)
+    return compareCollectorNumbers(a.value.card.collector_number, b.value.card.collector_number)
   })
   return collectorChoices
+}
+
+/**
+ * Load the session's collector-mode rows, building them once and keeping them
+ * on the config. The pool is every printing in the cache under the session's
+ * set filter — far too large to rebuild per prompt — and a unified session
+ * shares one config across all its open lists, so this runs once per session
+ * until the set filter moves.
+ */
+export async function ensureCollectorChoices(
+  config: SessionConfig,
+  excludeDigitalOnly: boolean,
+): Promise<CollectorChoice[]> {
+  const cached = config.collectorChoices
+  if (cached) return cached
+  console.log(t('cli.session.loadingPrintings'))
+  const printings = await getAllPrintings({ sets: config.sets, excludeDigitalOnly })
+  const choices = buildCollectorChoices(printings)
+  console.log(t('cli.session.loadedPrintings', { count: choices.length }))
+  config.collectorChoices = choices
+  return choices
 }
 
 /**
@@ -945,11 +873,41 @@ function rankMatchedNames(input: string, matches: Choice[]): Choice[] {
 }
 
 /**
+ * How long an input may be before the menu rows drop out of the suggestions.
+ * The menu is reached by typing a word or two of a label, so a longer query is
+ * a card search — and in collector mode a `:` says so outright, whatever its
+ * length.
+ */
+const MENU_SUGGEST_MAX_LENGTH = 3
+
+/**
+ * Whether the menu rows are still offered alongside the card matches. Past a
+ * few characters (or once the input carries a `SET:CN` colon) the user is
+ * searching for a card, and menu rows sitting at the top of the list would only
+ * push the matches down.
+ *
+ * The budget is counted in code points, not UTF-16 units, so an astral
+ * character (or a CJK label) spends one of the three rather than two; and the
+ * input is trimmed first, so the two add modes agree on the count whether or
+ * not their caller already stripped a marker or a trailing space.
+ */
+function menuItemsVisible(input: string): boolean {
+  const trimmed = input.trim()
+  return [...trimmed].length <= MENU_SUGGEST_MAX_LENGTH && !trimmed.includes(':')
+}
+
+/** Drop the menu rows from `choices` unless `input` is still short enough to want them. */
+function withMenuVisibility(input: string, choices: Choice[]): Choice[] {
+  return menuItemsVisible(input) ? choices : choices.filter((choice) => !isMenuChoice(choice))
+}
+
+/**
  * Name-mode suggestion filter: empty input shows the menu shortcuts; otherwise
  * all space-separated terms must appear in a title, and the cards whose name the
  * terms answer most directly come first (see {@link rankNameMatches}). A trailing
  * `!` marks the selection to force the finish/condition prompts past any session
- * defaults.
+ * defaults. Past {@link MENU_SUGGEST_MAX_LENGTH} characters (or with a `:` typed)
+ * the menu rows drop out — see {@link menuItemsVisible}.
  */
 export function suggestNameMode(input: string, choices: Choice[]): Choice[] {
   const isForce = input.endsWith('!')
@@ -957,7 +915,8 @@ export function suggestNameMode(input: string, choices: Choice[]): Choice[] {
 
   if (!cleanInput) return choices.filter(isMenuChoice)
 
-  const matches = rankMatchedNames(cleanInput, filterByTerms(cleanInput, choices))
+  const pool = withMenuVisibility(cleanInput, choices)
+  const matches = rankMatchedNames(cleanInput, filterByTerms(cleanInput, pool))
 
   if (isForce) {
     return matches.map((m) =>
@@ -996,15 +955,95 @@ function isEntryChoiceValue(value: unknown): value is EntryChoiceValue {
 }
 
 /**
- * Collector-mode suggestion filter: empty input shows the menu shortcuts;
- * otherwise filters printings by collector-number prefix (menu items stay).
+ * A parsed collector-mode query.
+ *
+ * - `split` — the set and collector number were given separately (`mkm:123`,
+ *   `mkm 123`); either half may be empty, and an empty half matches everything.
+ * - `single` — one bare token, which could be either half, so it matches a set
+ *   code containing it *or* a collector number starting with it.
+ */
+export type CollectorQuery =
+  | { kind: 'split'; setTerm: string; numberTerm: string }
+  | { kind: 'single'; term: string }
+
+/**
+ * Parse a collector-mode search. Card names are deliberately not part of the
+ * grammar — this mode searches printings by set code and collector number only,
+ * and name mode is one menu row away.
+ *
+ * A `:` splits the input at its first occurrence; failing that, whitespace
+ * splits it into set and number (further tokens are ignored — there is nothing
+ * else to match them against). Anything else is a single ambiguous token.
+ */
+export function parseCollectorQuery(input: string): CollectorQuery {
+  const query = input.toLowerCase()
+  const colon = query.indexOf(':')
+  if (colon !== -1) {
+    return {
+      kind: 'split',
+      setTerm: query.slice(0, colon).trim(),
+      numberTerm: query.slice(colon + 1).trim(),
+    }
+  }
+  const tokens = query.trim().split(/\s+/).filter(Boolean)
+  if (tokens.length > 1) {
+    return { kind: 'split', setTerm: tokens[0]!, numberTerm: tokens[1]! }
+  }
+  // A *trailing* space (`mkm `) already means "now the number", so the set half
+  // is settled even though only one token was typed. Leading or interior
+  // whitespace says nothing of the sort — ` 123` is still one ambiguous token.
+  if (/\s$/.test(query) && tokens.length === 1) {
+    return { kind: 'split', setTerm: tokens[0]!, numberTerm: '' }
+  }
+  return { kind: 'single', term: tokens[0] ?? '' }
+}
+
+/**
+ * Whether a printing row answers a parsed query. Set codes match on substring
+ * (a truncated `se` finds every set containing it), collector numbers on
+ * prefix (`12` finds 12 and 120, but not 512).
+ */
+function matchesCollectorQuery(query: CollectorQuery, choice: CollectorChoice): boolean {
+  if (query.kind === 'single') {
+    return choice.setTerm.includes(query.term) || choice.numTerm.startsWith(query.term)
+  }
+  const setMatches = query.setTerm === '' || choice.setTerm.includes(query.setTerm)
+  const numberMatches = query.numberTerm === '' || choice.numTerm.startsWith(query.numberTerm)
+  return setMatches && numberMatches
+}
+
+/**
+ * Whether a choice is one of the collector-mode printing rows
+ * {@link buildCollectorChoices} built. The precomputed match terms are checked
+ * rather than assumed: `prompts` hands `suggest` the whole choice list, menu
+ * rows included, and {@link matchesCollectorQuery} dereferences both terms.
+ */
+function isCollectorChoice(choice: Choice): choice is CollectorChoice {
+  const candidate = choice as Partial<CollectorChoice>
+  return (
+    isCollectorChoiceValue(choice.value) &&
+    typeof candidate.setTerm === 'string' &&
+    typeof candidate.numTerm === 'string'
+  )
+}
+
+/**
+ * Collector-mode suggestion filter over every printing in the session's pool:
+ * empty input shows the menu shortcuts, and anything else is a set-code and/or
+ * collector-number search (see {@link parseCollectorQuery}). Card names are
+ * never matched here. The menu rows drop out once the input outgrows
+ * {@link menuItemsVisible}, and while they are still offered they are narrowed
+ * by the same term match name mode uses — otherwise a three-letter set code
+ * would fill the whole prompt window with menu rows and show no printings.
  */
 export function suggestCollectorMode(input: string, choices: Choice[]): Choice[] {
   if (!input) return choices.filter(isMenuChoice)
-  return choices.filter((choice) => {
-    if (!isCollectorChoiceValue(choice.value)) return true
-    return choice.value.num.startsWith(input)
-  })
+  const query = parseCollectorQuery(input)
+  return withMenuVisibility(input, choices).filter((choice) =>
+    isCollectorChoice(choice)
+      ? matchesCollectorQuery(query, choice)
+      : matchesChoiceTerms(choice, input),
+  )
 }
 
 // ── The session loop ────────────────────────────────────────────────
@@ -1194,7 +1233,6 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
     let forcePrompts = false
     let intent: CardChoiceIntent = 'add'
 
-    const activeSet = sessionConfig.collectorSets[sessionConfig.activeSetIndex] || ''
     const cardChoices: Choice[] =
       sessionMode === 'edit'
         ? strategy.listEntries().map(
@@ -1205,10 +1243,9 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
           )
         : sessionConfig.entryMode === 'name'
           ? cardNames.map((name) => ({ title: name, value: name }))
-          : buildCollectorChoices(
-              sessionConfig.setCardMaps.get(activeSet.toLowerCase()) ??
-                new Map<string, ScryfallCard>(),
-            )
+          : // Built once and cached on the shared config, so the whole-cache
+            // printing pool is not rebuilt on every loop iteration.
+            await ensureCollectorChoices(sessionConfig, excludeDigitalOnly)
 
     const sessionAdds = strategy.listSessionAdds?.() ?? []
 
@@ -1217,7 +1254,6 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
       mode: sessionConfig.entryMode,
       lastAdded: ctx.lastAdded,
       changeCount: ctx.sessionChanges.length,
-      activeSet,
       extraItems: strategy.extraMenuItems?.() ?? [],
       sessionAdds,
       editUndoLabel: strategy.lastEditUndoLabel(),
@@ -1242,10 +1278,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
         ? t('cli.session.promptSearchToEdit')
         : sessionConfig.entryMode === 'name'
           ? t('cli.session.promptCardName', { streak })
-          : t('cli.session.promptCollectorNumber', {
-              set: activeSet.toUpperCase() || t('cli.session.promptSetPlaceholder'),
-              streak,
-            })
+          : t('cli.session.promptCollectorSearch', { streak })
 
     const response = (await prompts({
       type: 'autocomplete',
@@ -1374,34 +1407,17 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
     }
 
     if (menuAction === '__COLLECTOR_MODE__') {
-      if (sessionConfig.collectorSets.length === 0) {
-        const setsResponse = (await prompts({
-          type: 'text',
-          name: 'sets',
-          message: t('cli.session.promptCollectorSets'),
-          validate: (val: string) =>
-            val.trim().length > 0 ? true : t('cli.session.validateSetCodeRequired'),
-        })) as SetsPromptResponse
-        if (!setsResponse.sets) continue
-        await loadCollectorSets(sessionConfig, parseSetCodesInput(setsResponse.sets))
-      }
+      // No set codes to pick first: the pool spans every printing the cache
+      // holds (narrowed only by the session's own set filter), and the next
+      // loop iteration builds it.
       sessionConfig.entryMode = 'collector'
-      console.log(
-        t('cli.session.switchedToCollector', {
-          set: sessionConfig.collectorSets[sessionConfig.activeSetIndex]?.toUpperCase() ?? '',
-        }),
-      )
+      console.log(t('cli.session.switchedToCollector'))
       continue
     }
 
     if (menuAction === '__NAME_MODE__') {
       sessionConfig.entryMode = 'name'
       console.log(t('cli.session.switchedToName'))
-      continue
-    }
-
-    if (menuAction === '__MANAGE_SETS__') {
-      await manageSetCodes(sessionConfig)
       continue
     }
 

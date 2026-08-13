@@ -1,19 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import prompts from 'prompts'
 import { createDeckStrategy } from '../../src/commands/deck-strategy'
+import { buildInitialSessionConfig } from '../../src/commands/card-session'
 import { deckFormatChoices, type DeckSessionConfig } from '../../src/commands/deck-helpers'
 import { DECK_FORMAT_KEYS } from '../../src/deck-format'
 import type { DeckFrontMatter } from '../../src/deck-file'
 import type { DeckData } from '../../src/types'
 
 function makeSessionConfig(): DeckSessionConfig {
-  return {
-    entryMode: 'name',
-    collectorSets: [],
-    activeSetIndex: 0,
-    setCardMaps: new Map(),
-    targetSection: null,
-  }
+  return { ...buildInitialSessionConfig({}, undefined), targetSection: null }
 }
 
 function makeDeck(sections: DeckData['sections'] = []): DeckData {

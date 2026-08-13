@@ -7,11 +7,11 @@ import {
   type FileSystemClient,
   createDefaultFileSystemClient,
 } from '../interfaces'
-import type { CardPrintingsResult } from '../card-printing'
+import { dedupePrintingsByKey, type CardPrintingsResult } from '../card-printing'
 import type { PriceCurrency } from '../price-currency'
 import { getPriceField } from '../price-currency'
 import { getBannedPrintings, getDefaultLanguage } from '../ritual-config'
-import { displayLanguage, scryfallCardLanguage, type CardLanguage } from '../card-language'
+import { displayLanguage, type CardLanguage } from '../card-language'
 import { promptsUnavailable } from '../no-input'
 import { getLogger } from '../logger'
 import { getErrorMessage, throwHttpError } from '../errors'
@@ -26,6 +26,7 @@ import {
   type PrintingExclusion,
   getFrontFaceName,
   mapScryfallCard,
+  normalizeSetFilter,
 } from './card-utils'
 import {
   type ScryfallTag,
@@ -481,10 +482,10 @@ export class ScryfallClient implements PricingBackend {
     const allCardsArrays = await this.cardCache.values()
 
     let filteredArrays = allCardsArrays
-    if (filter?.sets && filter.sets.length > 0) {
-      const setSet = new Set(filter.sets.map((s) => s.toLowerCase()))
+    const setFilter = normalizeSetFilter(filter)
+    if (setFilter) {
       filteredArrays = allCardsArrays.filter((cards) =>
-        cards.some((c) => setSet.has(c.set.toLowerCase())),
+        cards.some((c) => setFilter.has(c.set.toLowerCase())),
       )
     }
 
@@ -614,36 +615,32 @@ export class ScryfallClient implements PricingBackend {
   }
 
   /**
-   * Get all cards from a specific set, keyed by collector number.
-   * Returns a Map for fast O(1) lookups by collector number.
+   * Every printing in the local card cache, one card per `set:collectorNumber`
+   * pair, honouring the same `sets` / `excludeDigitalOnly` filters as
+   * {@link getAllCardNames} — except per *printing* rather than per card, since
+   * a printing is exactly what the caller is picking.
    *
-   * One card per collector number: with an `all_cards`-backed cache several
-   * language objects share a collector number, and the default-language (`en`)
-   * object wins the slot — never whichever language the cache happened to list
-   * last.
+   * One card per printing key, collapsed by {@link dedupePrintingsByKey} — the
+   * same rule the printing pickers read through, so the two never disagree
+   * about which language object represents a printing.
    */
-  async getCardsBySet(setCode: string): Promise<Map<string, ScryfallCard>> {
+  async getAllPrintings(filter?: CardNameFilter): Promise<ScryfallCard[]> {
     await this.checkAndPromptPreload()
-    const normalizedSet = setCode.toLowerCase()
     const allCardsArrays = await this.cardCache.values()
+    const setFilter = normalizeSetFilter(filter)
 
-    const result = new Map<string, ScryfallCard>()
-
+    const matching: ScryfallCard[] = []
     for (const cards of allCardsArrays) {
       for (const card of cards) {
         if (!card.color_identity) card.color_identity = []
-        if (card.set.toLowerCase() === normalizedSet) {
-          const existing = result.get(card.collector_number)
-          const existingIsDefault =
-            existing !== undefined && scryfallCardLanguage(existing) === 'en'
-          if (!existing || (!existingIsDefault && scryfallCardLanguage(card) === 'en')) {
-            result.set(card.collector_number, card)
-          }
-        }
+        const set = card.set.toLowerCase()
+        if (setFilter && !setFilter.has(set)) continue
+        if (filter?.excludeDigitalOnly && isDigitalOnlySet(set)) continue
+        matching.push(card)
       }
     }
 
-    return result
+    return dedupePrintingsByKey(matching)
   }
 
   async fetchCardData(name: string, options?: FetchCardDataOptions): Promise<ScryfallCard | null> {

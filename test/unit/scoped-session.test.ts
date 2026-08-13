@@ -12,6 +12,7 @@ import {
 import type { ListType } from '../../src/list-type'
 import {
   createCardSessionContext,
+  buildInitialSessionConfig,
   saveCardSession,
   similarCopyInput,
   type CardChoiceInput,
@@ -36,12 +37,7 @@ import { stubTty } from '../test-utils'
 // prompts.inject, so pretend stdin is a TTY.
 stubTty({ stdin: true })
 
-const sessionConfig: SessionConfig = {
-  entryMode: 'name',
-  collectorSets: [],
-  activeSetIndex: 0,
-  setCardMaps: new Map(),
-}
+const sessionConfig: SessionConfig = buildInitialSessionConfig({}, undefined)
 
 /** Everything a fake list's strategy recorded, so tests can assert on the routing. */
 type Calls = {

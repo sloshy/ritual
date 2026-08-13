@@ -3,6 +3,7 @@ import {
   ScryfallClient,
   type ScryfallSymbol,
   classifyFetchCard,
+  compareCollectorNumbers,
   comparePrintings,
   computeRepresentativePrints,
   mapScryfallCard,
@@ -11,6 +12,7 @@ import {
   isArtSeries,
   isToken,
 } from '../../src/scryfall'
+import { normalizeSetFilter } from '../../src/scryfall/card-utils'
 import type { FileSystemClient } from '../../src/interfaces'
 import {
   MockHttpClient,
@@ -264,17 +266,56 @@ describe('ScryfallClient', () => {
     })
   })
 
-  describe('getCardsBySet', () => {
-    test('prefers the en object when several languages share a collector number', async () => {
+  describe('getAllPrintings', () => {
+    // The en-preference itself is `dedupePrintingsByKey`'s rule, pinned in
+    // card-printing's own tests; this asserts the collapse happens at all.
+    test('collapses a printing to one row, the en object winning', async () => {
       const en = makeScryfallCard({ id: 'p1-en', name: 'Shock', set: 'p1', collector_number: '7' })
       const ja: ScryfallCard = { ...en, id: 'p1-ja', lang: 'ja' }
       // The ja object listed first — cache order must not decide the winner.
       await mockCache.set('Shock', [ja, en])
 
-      const bySet = await client.getCardsBySet('P1')
+      const printings = await client.getAllPrintings()
 
-      expect(bySet.get('7')?.id).toBe('p1-en')
-      expect(bySet.size).toBe(1)
+      expect(printings.map((c) => c.id)).toEqual(['p1-en'])
+    })
+
+    test('spans every set in the cache, one card per set and collector number', async () => {
+      await mockCache.set('Shock', [
+        makeScryfallCard({ id: 'p1-7', name: 'Shock', set: 'p1', collector_number: '7' }),
+        makeScryfallCard({ id: 'm10-7', name: 'Shock', set: 'm10', collector_number: '7' }),
+      ])
+      await mockCache.set('Sol Ring', [
+        makeScryfallCard({ id: 'p1-9', name: 'Sol Ring', set: 'p1', collector_number: '9' }),
+      ])
+
+      const printings = await client.getAllPrintings()
+
+      expect(printings.map((c) => c.id).sort()).toEqual(['m10-7', 'p1-7', 'p1-9'])
+    })
+
+    test('honors the set filter per printing, not per card', async () => {
+      await mockCache.set('Shock', [
+        makeScryfallCard({ id: 'p1-7', name: 'Shock', set: 'p1', collector_number: '7' }),
+        makeScryfallCard({ id: 'm10-7', name: 'Shock', set: 'm10', collector_number: '7' }),
+      ])
+
+      // A card printed in both sets contributes only the in-filter printing —
+      // the whole point of picking a printing rather than a name.
+      const printings = await client.getAllPrintings({ sets: ['M10'] })
+
+      expect(printings.map((c) => c.id)).toEqual(['m10-7'])
+    })
+
+    test('drops digital-only sets when asked to', async () => {
+      await mockCache.set('Shock', [
+        makeScryfallCard({ id: 'ainv-7', name: 'Shock', set: 'ainv', collector_number: '7' }),
+        makeScryfallCard({ id: 'm10-7', name: 'Shock', set: 'm10', collector_number: '7' }),
+      ])
+
+      const printings = await client.getAllPrintings({ excludeDigitalOnly: true })
+
+      expect(printings.map((c) => c.id)).toEqual(['m10-7'])
     })
   })
 
@@ -789,6 +830,37 @@ describe('comparePrintings', () => {
     const ja: ScryfallCard = { ...makePrinting('FDN', '2', '2024-01-01'), lang: 'ja' }
     const en = makePrinting('FDN', '294', '2024-01-01')
     expect(comparePrintings(ja, en)).toBeLessThan(0)
+  })
+})
+
+// Shared with the session editor's collector-mode row list, so the two prompts
+// never disagree about where a collector number belongs.
+describe('compareCollectorNumbers', () => {
+  test('orders by the numeric part before the suffix', () => {
+    expect([...['10', '2a', '2', '1']].sort(compareCollectorNumbers)).toEqual([
+      '1',
+      '2',
+      '2a',
+      '10',
+    ])
+  })
+
+  test('a letter-prefixed number still orders by its digits, not lexically', () => {
+    // A lexical compare would put A-10 between A-1 and A-2.
+    expect([...['A-10', 'A-2', 'A-1']].sort(compareCollectorNumbers)).toEqual([
+      'A-1',
+      'A-2',
+      'A-10',
+    ])
+  })
+})
+
+describe('normalizeSetFilter', () => {
+  test('lowercases the codes and answers null for a filter that names none', () => {
+    expect(normalizeSetFilter({ sets: ['MKM', 'sLd'] })).toEqual(new Set(['mkm', 'sld']))
+    expect(normalizeSetFilter({ sets: [] })).toBeNull()
+    expect(normalizeSetFilter({ excludeDigitalOnly: true })).toBeNull()
+    expect(normalizeSetFilter()).toBeNull()
   })
 })
 

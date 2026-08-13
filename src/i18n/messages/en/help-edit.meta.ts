@@ -27,7 +27,7 @@ export const helpEditMeta = {
   },
   'help.edit.collector': {
     description:
-      '`edit --collector`. Collector number mode adds cards by set and collector number instead of by name.',
+      '`edit --collector`. Collector number mode adds cards by searching every cached printing on set code and collector number instead of by name; `SET:CN` is that search grammar and stays as it is.',
   },
   'help.edit.allowDigitalOnly': {
     description: '`edit --allow-digital-only-cards`. Alchemy is a digital-only product name.',

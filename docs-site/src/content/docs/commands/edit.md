@@ -38,14 +38,15 @@ commands ([`add-card`](/commands/add-card/), [`remove-card`](/commands/remove-ca
 | `-f, --finish <finish>`       | Default finish: `nonfoil`, `foil`, or `etched`                                                                        |
 | `-c, --condition <condition>` | Default condition: `NM`, `LP`, `MP`, `HP`, or `DMG`                                                                   |
 | `--section <name>`            | Add deck cards to this section (otherwise you are prompted)                                                           |
-| `--collector`                 | Start in collector number mode                                                                                        |
+| `--collector`                 | Start in collector number mode (search printings by `SET:CN`)                                                         |
 | `--allow-digital-only-cards`  | Include digital-only sets (e.g., Alchemy) in results                                                                  |
 | `--refresh <mode>`            | Card cache refresh policy: `ask` (default — prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never` |
 
 Digital-only sets (Alchemy sets, plus `OM1`) are filtered out by default since they have no paper
-printings. Options can be combined; when `--collector` is used with `--sets`, the set card data is
-pre-loaded automatically. The type flags only matter together with `[listName]`; without it they
-are ignored, since the selection menu already covers every type.
+printings. Options can be combined; `--collector` needs no sets of its own, since
+[collector number mode](#collector-number-mode) searches every printing in the card cache — pass
+`--sets` alongside it only to narrow that pool. The type flags only matter together with
+`[listName]`; without it they are ignored, since the selection menu already covers every type.
 
 ## Opening a List Directly
 
@@ -238,9 +239,8 @@ land on it by overshooting.
 | `🏷️ Change Format`                       | Change the deck's [format](#deck-format) (decks)                                                                                     |
 | `🔖 Edit Tags`                           | Edit the deck's front-matter tags, comma-separated; empty clears them (decks)                                                        |
 | `🏷️ Edit List Labels`                    | Change the collection's [default card labels](#collection-front-matter) (collections)                                                |
-| `⚙️ Configure Session Filters`           | Adjust default sets, finish, condition, and (decks) target section (name mode)                                                       |
+| `⚙️ Configure Session Filters`           | Adjust default sets, finish, condition, and (decks) target section (both entry modes)                                                |
 | `🔢 Switch to Collector Number Mode`     | Switch to collector number entry mode (name mode)                                                                                    |
-| `📦 Manage Set Codes`                    | Add, remove, or switch active sets (collector mode)                                                                                  |
 | `🔤 Switch to Name Mode`                 | Switch back to name entry mode (collector mode)                                                                                      |
 | `🛠️ Switch to Edit Mode`                 | Browse and edit the list's existing entries (see [Edit Mode](#edit-mode))                                                            |
 | `📋 View Session Changes (N)`            | Review every change this session and optionally discard individual ones                                                              |
@@ -253,8 +253,15 @@ The `↩️ Undo Last Add` option appears only after you have added at least one
 `📋 View Session Changes` once the session has any change to show (see
 [Reviewing Session Changes](#reviewing-session-changes)).
 
+While you are **adding** cards — in either [name](#name-mode-default) or
+[collector number](#collector-number-mode) mode — typing narrows the menu along with the cards, but
+only briefly: once your input passes three characters, or contains a `:`, the menu rows step out of
+the suggestions entirely and leave the list to the card matches.
+
 [Edit mode](#edit-mode) pares this down: the undo shortcuts lead, followed by `➕ Switch to Add Mode`,
-then the review, save, and exit items.
+then the review, save, and exit items. Its menu rows are narrowed by what you type but never step
+aside — the entry lines it searches are full card lines with colons in them, so no input length means
+"stop offering the menu" there.
 
 ## Saving
 
@@ -322,6 +329,12 @@ letters somewhere.
 - **Session Filters** — Configure default set codes, finish, condition, and (for decks) the target
   section via `⚙️ Configure Session Filters`. When set, these defaults are applied automatically
   to each card without prompting.
+- **Menu Rows Step Aside** — The menu shortcuts lead the suggestions while you have typed at most
+  three characters (or nothing at all); past that — or as soon as the input contains a `:` — they
+  drop out and the list is card matches only. Menu rows are still reachable by their first few
+  letters (`sav`, `exi`), though two rows sharing a three-letter prefix (both `💾 Save…` items) can
+  only be told apart with the arrow keys. The same rule applies in
+  [collector number mode](#collector-number-mode).
 - **Force Prompts** — Append `!` to a card name to override the finish/condition session filters
   for that entry, forcing the prompts to appear regardless of filter settings.
 - **Edit Previous Card** — Re-enter the most recently added card with forced prompts, useful for
@@ -332,11 +345,38 @@ entry rather than dropping the card; collections skip it (a collection entry req
 
 ### Collector Number Mode
 
-Look up cards by collector number within one or more loaded sets.
+Look up printings by **set code and collector number**, across every printing in your local card
+cache. `🔢 Switch to Collector Number Mode` switches straight into it — there are no set codes to
+choose first — and `--collector` starts a session there. Rows read `MKM:123 — Card Name`, ordered by
+set code and then by collector number.
 
-- **Set Management** — Add, remove, and switch between multiple active set codes via the
-  `📦 Manage Set Codes` menu.
-- **Autocomplete** — Type a collector number prefix to filter the card list for the active set.
+The search only ever matches the set code and the collector number; **card names are not matched in
+this mode** (`🔤 Switch to Name Mode` is one row away when you want them). Type either half, or both:
+
+| You type  | Matches                                                                      |
+| --------- | ---------------------------------------------------------------------------- |
+| `mkm:123` | set codes containing `mkm`, collector numbers starting with `123`            |
+| `mkm 123` | the same — a space splits the halves just as a colon does                    |
+| `mkm:`    | every printing in a set code containing `mkm`                                |
+| `:123`    | collector number `123` (and `1230`…) in every set                            |
+| `se 456`  | `456`… in **every** set code containing `se` — a half-typed code still works |
+| `123`     | one bare token: set codes containing it, or numbers starting with it         |
+
+Set codes match on **substring** (so a half-typed code still finds its sets) and collector numbers on
+**prefix**. A third token is ignored — there is nothing left to match it against.
+
+- **Narrowing the pool** — The ordinary `⚙️ Configure Session Filters` set filter is what restricts
+  collector mode to particular sets; changing it rebuilds the printing pool.
+- **Building the pool** — The first collector-mode prompt of a session pauses to build the row list
+  (`Loading printings for collector number search...`, then `Loaded N printings.`). With no set
+  filter that is every printing in the cache, so expect a moment's wait the first time. The pool is
+  then reused for the rest of the session across every open list, and only a change to the set
+  filter rebuilds it — a printing that enters the cache mid-session will not appear until then.
+- **Printings** — A collector-number row already identifies one printing, so the add flow skips the
+  printing picker entirely. That also skips the picker's language-availability check: under a
+  non-English [`defaultLanguage`](/configuration/#default-language) the entry is stamped with that
+  language whether or not the printing exists in it. Add through [Name Mode](#name-mode-default)
+  when you want the fallback-to-English confirmation.
 
 ### Printing and Finish Prices
 
@@ -789,7 +829,8 @@ Build a deck's sideboard without per-card section prompts:
 ./ritual edit --section Sideboard
 ```
 
-Collector-number entry with sets pre-loaded:
+Collector-number entry, narrowed to two sets (the `--sets` filter is optional — without it the
+search covers every printing in the cache):
 
 ```bash
 ./ritual edit --collector --sets "FDN, SPG"

@@ -98,7 +98,7 @@ ${interactiveEditIntro({
 ritual edit                                   # pick a deck, prompt for a section per card
 ritual edit "Winota Stax"                     # open one deck directly (matches the file basename)
 ritual edit --section Sideboard               # add every deck card to one section
-ritual edit --collector --sets "FDN, SPG"     # collector-number entry, sets preloaded
+ritual edit --collector --sets "FDN, SPG"     # SET:CN search, narrowed to two sets
 ritual edit --refresh never                   # use the existing cache as-is, no prompt
 ritual edit --refresh auto                    # redownload the cache when prices are >1 day old
 \`\`\`

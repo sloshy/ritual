@@ -7,6 +7,17 @@ export type CardNameFilter = {
   excludeDigitalOnly?: boolean
 }
 
+/**
+ * A filter's set codes as a lowercase membership set, or null when the filter
+ * names no sets and therefore selects all of them. One place applies the
+ * lowercase-internally rule, rather than every consumer of {@link CardNameFilter}
+ * spelling it out.
+ */
+export function normalizeSetFilter(filter?: CardNameFilter): ReadonlySet<string> | null {
+  if (!filter?.sets || filter.sets.length === 0) return null
+  return new Set(filter.sets.map((s) => s.toLowerCase()))
+}
+
 export function isDigitalOnlySet(setCode: string): boolean {
   const lower = setCode.toLowerCase()
   return (lower.length === 4 && lower.startsWith('a')) || lower === 'om1'
@@ -119,8 +130,13 @@ export function mapScryfallCard(item: ScryfallCard): ScryfallCard {
   }
 }
 
-/** Compare collector numbers naturally: numeric part first, then suffix */
-function compareCollectorNumbers(a: string, b: string): number {
+/**
+ * Compare collector numbers naturally: numeric part first, then suffix. The one
+ * ordering rule for collector numbers — {@link comparePrintings} sorts every
+ * printing picker by it, and the session editor's collector-mode rows share it,
+ * so the two never disagree about where `2a` or `A-12` belongs.
+ */
+export function compareCollectorNumbers(a: string, b: string): number {
   const numA = parseInt(a, 10)
   const numB = parseInt(b, 10)
   if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numA - numB

@@ -2,16 +2,15 @@ import { describe, expect, test } from 'bun:test'
 import prompts from 'prompts'
 import { createCollectionStrategy } from '../../src/commands/collection-strategy'
 import { newCollectionSession, type CollectionSession } from '../../src/commands/flat-list-session'
-import type { CardSessionContext, SessionConfig } from '../../src/commands/card-session'
+import {
+  buildInitialSessionConfig,
+  type CardSessionContext,
+  type SessionConfig,
+} from '../../src/commands/card-session'
 import type { CardLanguage } from '../../src/card-language'
 
 function makeSessionConfig(): SessionConfig {
-  return {
-    entryMode: 'name',
-    collectorSets: [],
-    activeSetIndex: 0,
-    setCardMaps: new Map(),
-  }
+  return buildInitialSessionConfig({}, undefined)
 }
 
 /** A quiet session with a known front-matter state and a clean dirty flag. */

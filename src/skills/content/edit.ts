@@ -210,12 +210,17 @@ first, and notes never follow a card across lists.
 \`ritual edit\` is **the** interactive TUI (requires a terminal) for editing decks,
 collections, and wanted lists: a selection menu covers all lists (plus create-new
 items). Sessions support name/collector entry modes, per-type edit modes over
-existing entries, and undo. Every type's edit mode includes a **Change Language**
+existing entries, and undo. Collector mode is a \`SET:CN\` search over **every
+printing in the local Scryfall cache** (\`mkm:123\`, \`mkm 123\`, or a bare token
+matched against set codes and collector numbers) — nothing is preloaded, and
+\`--sets\` is only an optional filter narrowing that pool. A collector-mode row
+already names one printing, so it skips the printing picker and that picker's
+language-availability check. Every type's edit mode includes a **Change Language**
 action (Scryfall codes; picking \`en\` removes the line's token). Adding a card never
 prompts for a language — the configured \`defaultLanguage\` is stamped — and under a
 non-English default the printing picker notes when a printing does not exist in that
-language, falling back to English. Creating a deck prompts for its format, and deck sessions
-have \`🏷️ Change Format\` and \`🔖 Edit Tags\` menu actions that rewrite the front
+language, falling back to English. Creating a deck prompts for its format, and deck
+sessions have \`🏷️ Change Format\` and \`🔖 Edit Tags\` menu actions that rewrite the front
 matter on the next save; collection sessions likewise offer \`🏷️ Edit List Labels\`
 for the default card labels (scripted equivalent: \`ritual metadata\`). A deck with no
 \`format:\` is read as Commander when it has a \`## Commander\`
@@ -229,7 +234,8 @@ ritual edit "Winota Stax"                   # open one list directly, skipping t
 ritual edit "wanted:To Buy"                 # deck:/collection:/wanted: prefixes and type flags work
 ritual edit --sets "FDN,SPG" --finish foil --condition NM   # session filter defaults
 ritual edit --section Sideboard             # pin the deck target section
-ritual edit --collector --sets "FDN, SPG"   # collector-number entry, sets preloaded
+ritual edit --collector                     # start in SET:CN search mode (whole cache)
+ritual edit --collector --sets "FDN, SPG"   # ...narrowed to two sets
 ritual edit --allow-digital-only-cards      # include digital-only sets (e.g. Alchemy)
 ritual edit --refresh never                 # use the existing cache as-is, no prompt
 ritual edit --refresh auto                  # redownload cache when prices are >1 day old

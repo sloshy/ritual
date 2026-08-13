@@ -4,6 +4,7 @@ import * as path from 'node:path'
 import { createAddChange, createMoveFromChange, createRemoveChange } from '../../src/change-event'
 import type { ListType } from '../../src/list-type'
 import { openListSession, saveOpenList, type OpenList } from '../../src/commands/edit-lists'
+import { buildInitialSessionConfig } from '../../src/commands/card-session'
 import type { DeckSessionConfig } from '../../src/commands/deck-helpers'
 import {
   bindWorkspace,
@@ -25,18 +26,12 @@ import {
 let ws: BoundWorkspace
 let tmpDir: string
 
-// Fresh per test: sessions hold onto it, so sharing one across tests could
-// leak collector-set state between cases.
+// Fresh per test: sessions hold onto it and mutate it (filters, the cached
+// collector-mode pool), so sharing one would leak state between cases.
 let sessionConfig: DeckSessionConfig
 
 beforeEach(async () => {
-  sessionConfig = {
-    entryMode: 'name',
-    collectorSets: [],
-    activeSetIndex: 0,
-    setCardMaps: new Map(),
-    targetSection: null,
-  }
+  sessionConfig = { ...buildInitialSessionConfig({}, undefined), targetSection: null }
   ws = await bindWorkspace({ config: false })
   tmpDir = ws.dir
   await writeCollectionFile(tmpDir, 'binder', {

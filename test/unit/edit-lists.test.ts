@@ -5,6 +5,7 @@ import {
   type UnifiedListRef,
 } from '../../src/commands/edit-lists'
 import {
+  buildInitialSessionConfig,
   createCardSessionContext,
   type CardSessionContext,
   type CardSessionStrategy,
@@ -28,12 +29,7 @@ function innerStrategy(changes: string[]): Inner {
     managerLabel: 'wanted list manager',
     saveTarget: { filePath: ref.file, listName: ref.name },
     receiveMove: () => {},
-    sessionConfig: {
-      entryMode: 'name',
-      collectorSets: [],
-      activeSetIndex: 0,
-      setCardMaps: new Map(),
-    },
+    sessionConfig: buildInitialSessionConfig({}, undefined),
     updateConfig: async () => [],
     applyChange: () => {},
     persist: async () => {},
