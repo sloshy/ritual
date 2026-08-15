@@ -15,6 +15,8 @@ import { pickedPrintingLanguage } from './printing-prompt'
 import { finishChipName } from './printing-display'
 import { useT } from '../ui/i18n'
 import { useTooltip } from './useTooltip'
+import { PrintingFilter } from '../ui/PrintingFilter'
+import { filterPrintingsByQuery } from '../collector-query'
 
 export interface TradePrintingPickerProps {
   cardName: string
@@ -151,11 +153,10 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
   const isDesired = (printing: ScryfallCard): boolean =>
     desired().has(printingKey(printing.set, printing.collector_number))
 
-  const filteredPrintings = createMemo(() => {
-    const filter = filterText().toLowerCase().trim()
-    if (!filter) return props.printings
-    return props.printings.filter((p) => p.set.toLowerCase().includes(filter))
-  })
+  // The collector query grammar shared with the CLI and the add-card grid:
+  // set code by substring, collector number by prefix, `ds 12` / `mkm:123`
+  // splitting into both halves.
+  const filteredPrintings = createMemo(() => filterPrintingsByQuery(filterText(), props.printings))
 
   // Wanted printings lead so they're on the first page rather than buried
   // several pages into a heavily reprinted card; the rest keep their order.
@@ -250,23 +251,20 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
           ×
         </button>
       </div>
-      <div class="trade-picker-filter-row">
-        <input
-          type="text"
-          class="trade-picker-filter"
-          placeholder={t('site.tradePicker.filterPlaceholder')}
-          value={filterText()}
-          onInput={(e) => setFilterText(e.target.value)}
-          autocomplete="off"
-        />
-      </div>
+      {/* Typing anywhere in the dialog feeds the box, but not while the
+          language notice is up — its Continue/Back must own the keyboard. */}
+      <PrintingFilter
+        value={filterText()}
+        onChange={setFilterText}
+        active={!props.loading && languageNotice() === null}
+      />
       <Show when={props.loading}>
         <div class="trade-picker-loading">{t('site.tradePicker.loading')}</div>
       </Show>
       <Show when={!props.loading}>
         <div class="trade-picker-list">
           <Show when={orderedPrintings().length === 0 && props.printings.length > 0}>
-            <div class="trade-picker-loading">{t('site.tradePicker.noMatches')}</div>
+            <div class="empty-state">{t('ui.printingFilter.noMatches')}</div>
           </Show>
           <For each={pagedPrintings()}>
             {(printing) => (

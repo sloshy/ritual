@@ -55,6 +55,7 @@ export const EDITOR_SHORTCUTS: readonly ShortcutGroup[] = [
     hints: [
       { keys: ['←', '→'], label: 'ui.shortcuts.prevNextPrinting' },
       { keys: ['↑', '↓'], label: 'ui.shortcuts.prevNextRow' },
+      { keys: ['A–Z', '0–9'], label: 'ui.shortcuts.filterPrintings' },
       { keys: ['Enter'], label: 'ui.shortcuts.choosePrinting' },
     ],
   },

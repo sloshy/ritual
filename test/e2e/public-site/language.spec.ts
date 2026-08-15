@@ -5,6 +5,7 @@ import { enterEditMode, gotoList, openSelectionMenu, selectCard } from '../helpe
 import {
   MOCK_LANG_CARD_EN,
   MOCK_LANG_CARD_JA,
+  mockPickerPrintings,
   mockPublicSiteCollectionWithLanguages,
 } from '../helpers/mock-public-site'
 import { disableSearchDebounce, setDefaultLanguage } from '../helpers/search-modal'
@@ -133,12 +134,7 @@ test.describe('Default language seam on the public site', () => {
       total_values: 1,
       data: ['Language Card'],
     })
-    await fulfillJson(page, '**/api.scryfall.com/cards/search**', {
-      object: 'list',
-      total_cards: 2,
-      has_more: false,
-      data: [MOCK_LANG_CARD_EN, MOCK_LANG_CARD_JA],
-    })
+    await mockPickerPrintings(page, [MOCK_LANG_CARD_EN, MOCK_LANG_CARD_JA])
 
     await page.locator('.btn-add').click()
     const searchInput = page.locator('.search-modal input[type="text"]')

@@ -1042,6 +1042,19 @@ export const PICKER_BASE_PRINTING = makeMockScryfallCard({
   released_at: '2020-08-07',
 })
 
+/**
+ * Override the printing picker's Scryfall search with a fixed printing list,
+ * wrapping it in the search endpoint's list envelope.
+ */
+export async function mockPickerPrintings(page: Page, printings: ScryfallCard[]): Promise<void> {
+  await fulfillJson(page, '**/api.scryfall.com/cards/search**', {
+    object: 'list',
+    total_cards: printings.length,
+    has_more: false,
+    data: printings,
+  })
+}
+
 export const MOCK_TRADE_COLLECTION_CARD_BOLT = makeMockScryfallCard({
   id: 'trade-bolt-id',
   name: 'Lightning Bolt',

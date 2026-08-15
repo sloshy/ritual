@@ -402,14 +402,7 @@ export const siteCardsMeta = {
       'Badge on a printing that some wanted list asks for specifically, so it is floated to the top.',
     maxLen: 12,
   },
-  'site.tradePicker.filterPlaceholder': {
-    description:
-      'Placeholder of the box filtering the printings by set code. The examples are set codes and must stay as they are.',
-  },
   'site.tradePicker.loading': { description: 'Status while the printings are being fetched.' },
-  'site.tradePicker.noMatches': {
-    description: 'Shown when the typed set code matches none of this card’s printings.',
-  },
   'site.tradePicker.pageInfo': {
     description:
       'Position within the paged printing list plus the total. {page} is the current page, {total} how many pages there are, {count} how many printings matched.',

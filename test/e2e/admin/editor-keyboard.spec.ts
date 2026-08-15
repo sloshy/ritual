@@ -270,6 +270,63 @@ test.describe('Admin Editor — keyboard navigation', () => {
     await expect(highlighted).toHaveCount(1)
   })
 
+  test('typing on the printing step filters the grid without focusing the box', async ({
+    page,
+  }) => {
+    await page.keyboard.press('Control+Enter')
+    await gotoPrintingStep(page, 'Lightning Bolt')
+
+    const filter = page.locator('.printing-filter')
+    const tiles = page.locator('.printing-select-grid > *')
+    // "No specific printing" plus the eight mocked printings.
+    await expect(tiles).toHaveCount(BOLT_PRINTINGS.length + 1)
+
+    // Start with keyboard navigation, then just type: the collector query
+    // builds in the filter box even though it never takes focus.
+    await page.keyboard.press('ArrowRight')
+    await page.keyboard.type('165')
+    await expect(filter).toHaveValue('165')
+    await expect(filter).not.toBeFocused()
+
+    // A live query narrows the grid and hides the "No specific printing" tile,
+    // and the highlight resets onto the first (only) match.
+    await expect(tiles).toHaveCount(1)
+    await expect(page.locator('.printing-no-printing')).toHaveCount(0)
+    await expect(tiles.first()).toContainText('LEA #165')
+    await expect(tiles.first()).toHaveClass(/--highlighted/)
+
+    // Backspace erases from anywhere; typing into the box itself feeds the
+    // same filter (161…168 all share the "16" prefix).
+    await page.keyboard.press('Backspace')
+    await expect(filter).toHaveValue('16')
+    await expect(tiles).toHaveCount(BOLT_PRINTINGS.length)
+    await filter.fill('161')
+    await expect(tiles).toHaveCount(1)
+
+    // Escape clears the query — even while the box is focused from fill() —
+    // and keeps the dialog on the printing step.
+    await page.keyboard.press('Escape')
+    await expect(filter).toHaveValue('')
+    await expect(tiles).toHaveCount(BOLT_PRINTINGS.length + 1)
+    await expect(page.locator('.modal-heading-flex')).toContainText('Select a printing')
+
+    // Arrows still drive the grid between unfocused keystrokes (drop the box's
+    // focus first, so typing exercises the document capture, not the input),
+    // and Enter commits the highlighted printing of the narrowed list.
+    await page.locator('.modal-heading-flex').click()
+    await page.keyboard.type('16')
+    await expect(tiles).toHaveCount(BOLT_PRINTINGS.length)
+    await page.keyboard.press('ArrowRight')
+    await expect(tiles.nth(1)).toHaveClass(/--highlighted/)
+    await page.keyboard.type('5')
+    await expect(filter).toHaveValue('165')
+    await expect(tiles).toHaveCount(1)
+    await expect(tiles.first()).toHaveClass(/--highlighted/)
+    await page.keyboard.press('Enter')
+    await expect(page.locator('.modal-heading-flex')).toHaveCount(0, { timeout: 5_000 })
+    await expect(page.locator('.changes-badge')).toHaveText('1')
+  })
+
   test('Enter on the finish/condition step adds the card', async ({ page }) => {
     // Both finishes are available, so the flow stops for confirmation.
     await page.keyboard.press('Control+Enter')

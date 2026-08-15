@@ -21,6 +21,9 @@ export type KeyLabel =
   | 'B'
   | '+'
   | '-'
+  // The type-to-filter affordance: any printable key, rendered as two chips.
+  | 'A–Z'
+  | '0–9'
 
 /**
  * A keyboard affordance: the keys to press, and what pressing them does.

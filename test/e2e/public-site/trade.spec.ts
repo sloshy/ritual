@@ -3,6 +3,7 @@ import { fulfillJson } from '../helpers/fulfill'
 import {
   MOCK_TRADE_COLLECTION_CARD_BOLT,
   PICKER_BASE_PRINTING,
+  mockPickerPrintings,
   mockPublicSiteForTrade,
 } from '../helpers/mock-public-site'
 import { addToLeft } from '../helpers/trade-page'
@@ -141,15 +142,10 @@ test.describe('Trade Page', () => {
     page,
   }) => {
     // The wanted list asks for 2XM:270; the picker also offers an older printing.
-    await fulfillJson(page, '**/api.scryfall.com/cards/search**', {
-      object: 'list',
-      total_cards: 2,
-      has_more: false,
-      data: [
-        { ...PICKER_BASE_PRINTING, id: 'crypt-vma', set: 'vma', collector_number: '225' },
-        { ...PICKER_BASE_PRINTING, id: 'crypt-2xm', set: '2xm', collector_number: '270' },
-      ],
-    })
+    await mockPickerPrintings(page, [
+      { ...PICKER_BASE_PRINTING, id: 'crypt-vma', set: 'vma', collector_number: '225' },
+      { ...PICKER_BASE_PRINTING, id: 'crypt-2xm', set: '2xm', collector_number: '270' },
+    ])
 
     await page.goto('#/trade')
     const right = page.locator('.trade-col[data-side="right"]')
@@ -362,33 +358,75 @@ test.describe('Trade Page', () => {
     await expect(rightColumn.locator('.trade-row .qty-val')).toContainText('2')
   })
 
-  test('printing picker: filter by set code narrows the list', async ({ page }) => {
-    const printings = [
-      { ...PICKER_BASE_PRINTING, id: 'a', set: '2xm' },
-      { ...PICKER_BASE_PRINTING, id: 'b', set: 'mkm' },
-      { ...PICKER_BASE_PRINTING, id: 'c', set: 'lea' },
-    ]
-    await fulfillJson(page, '**/api.scryfall.com/cards/search**', {
-      object: 'list',
-      total_cards: 3,
-      has_more: false,
-      data: printings,
-    })
+  test('printing picker: filter box narrows by the collector query grammar', async ({ page }) => {
+    // The grammar itself is pinned in test/unit/collector-query.test.ts; this
+    // asserts the wiring only — the box narrows the list, renders the match
+    // uppercase, and an unmatched query shows the empty state.
+    await mockPickerPrintings(page, [
+      { ...PICKER_BASE_PRINTING, id: 'a', set: '2xm', collector_number: '270' },
+      { ...PICKER_BASE_PRINTING, id: 'b', set: 'mkm', collector_number: '12' },
+      { ...PICKER_BASE_PRINTING, id: 'c', set: 'mkm', collector_number: '123' },
+      { ...PICKER_BASE_PRINTING, id: 'd', set: 'lea', collector_number: '161' },
+    ])
 
     await page.goto('#/trade')
     await scryfallAddToRight(page, 'Mana')
 
     const modal = page.locator('.trade-picker-modal')
     await expect(modal).toBeVisible()
-    await expect(modal.locator('.trade-picker-item')).toHaveCount(3)
+    await expect(modal.locator('.trade-picker-item')).toHaveCount(4)
 
-    await modal.locator('.trade-picker-filter').fill('mkm')
+    await modal.locator('.printing-filter').fill('mkm:123')
     await expect(modal.locator('.trade-picker-item')).toHaveCount(1)
-    await expect(modal.locator('.trade-picker-set').first()).toContainText('MKM')
+    await expect(modal.locator('.trade-picker-set').first()).toContainText('MKM:123')
 
-    await modal.locator('.trade-picker-filter').fill('xx')
+    await modal.locator('.printing-filter').fill('xx')
     await expect(modal.locator('.trade-picker-item')).toHaveCount(0)
     await expect(modal).toContainText('No printings match')
+  })
+
+  test('printing picker: typing anywhere feeds the filter without focusing it', async ({
+    page,
+  }) => {
+    await mockPickerPrintings(page, [
+      { ...PICKER_BASE_PRINTING, id: 'a', set: '2xm', collector_number: '270' },
+      { ...PICKER_BASE_PRINTING, id: 'b', set: 'mkm', collector_number: '123' },
+      { ...PICKER_BASE_PRINTING, id: 'c', set: 'lea', collector_number: '161' },
+    ])
+
+    await page.goto('#/trade')
+    await scryfallAddToRight(page, 'Mana')
+
+    const modal = page.locator('.trade-picker-modal')
+    const filter = modal.locator('.printing-filter')
+    await expect(modal).toBeVisible()
+    await expect(modal.locator('.trade-picker-item')).toHaveCount(3)
+
+    // No click on the box: keys pressed anywhere in the dialog land in it.
+    await page.keyboard.type('lea')
+    await expect(filter).toHaveValue('lea')
+    await expect(filter).not.toBeFocused()
+    await expect(modal.locator('.trade-picker-item')).toHaveCount(1)
+
+    // Backspace erases the query from anywhere too, and mid-query Space is the
+    // grammar's separator — not an activation of whatever button holds focus
+    // (at open that is the picker's close button).
+    await page.keyboard.press('Backspace')
+    await expect(filter).toHaveValue('le')
+    await page.keyboard.type('a 161')
+    await expect(filter).toHaveValue('lea 161')
+    await expect(modal).toBeVisible()
+    await expect(modal.locator('.trade-picker-item')).toHaveCount(1)
+
+    // Escape clears the query but keeps the picker open…
+    await page.keyboard.press('Escape')
+    await expect(filter).toHaveValue('')
+    await expect(modal).toBeVisible()
+    await expect(modal.locator('.trade-picker-item')).toHaveCount(3)
+
+    // …and with nothing to clear, Escape dismisses the picker as before.
+    await page.keyboard.press('Escape')
+    await expect(modal).not.toBeVisible()
   })
 
   test('navigating to a trade URL restores left and right cards', async ({ page }) => {
@@ -601,12 +639,7 @@ test.describe('Trade Page', () => {
       id: `crypt-${i}`,
       collector_number: `${i + 1}`,
     }))
-    await fulfillJson(page, '**/api.scryfall.com/cards/search**', {
-      object: 'list',
-      total_cards: 10,
-      has_more: false,
-      data: tenPrintings,
-    })
+    await mockPickerPrintings(page, tenPrintings)
 
     await page.goto('#/trade')
     await scryfallAddToRight(page, 'Mana')
@@ -619,5 +652,11 @@ test.describe('Trade Page', () => {
     await modal.locator('button', { hasText: 'Next →' }).click()
     await expect(modal.locator('.trade-picker-item')).toHaveCount(2)
     await expect(modal.locator('.trade-picker-pagination-info')).toContainText('Page 2 of 2')
+
+    // A filter typed on page 2 snaps back to page 1 of the narrowed list —
+    // one match here, so the pagination controls disappear entirely.
+    await page.keyboard.type(':3')
+    await expect(modal.locator('.trade-picker-item')).toHaveCount(1)
+    await expect(modal.locator('.trade-picker-pagination-info')).toHaveCount(0)
   })
 })

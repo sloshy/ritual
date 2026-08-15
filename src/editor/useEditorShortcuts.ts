@@ -1,4 +1,4 @@
-import { useDocumentKeydown } from '../ui/useDocumentKeydown'
+import { isTypingTarget, useDocumentKeydown } from '../ui/useDocumentKeydown'
 
 export type EditorShortcutHandlers = {
   /** Opens the add-card dialog. Bound to Ctrl/Cmd+Enter. */
@@ -7,16 +7,6 @@ export type EditorShortcutHandlers = {
   onFocusActionBar: () => void
   /** Opens the shortcuts reference. Bound to `?`. */
   onShowShortcuts: () => void
-}
-
-/** Whether the event landed in a field where the keystroke is text, not a command. */
-function isTypingTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement ||
-    (target instanceof HTMLElement && target.isContentEditable)
-  )
 }
 
 /**

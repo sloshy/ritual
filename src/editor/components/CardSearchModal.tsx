@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { createSignal, createEffect, createMemo, on, onCleanup, Show, For } from 'solid-js'
+import { batch, createSignal, createEffect, createMemo, on, onCleanup, Show, For } from 'solid-js'
 import { Modal } from '../../ui/Modal'
 import type { Finish, Condition, ScryfallCard } from '../../types'
 import { getCardImageUrl } from '../../card-image'
@@ -8,6 +8,8 @@ import type { EditorDefaults } from '../useEditorDefaults'
 import type { AddCardFromSearch } from '../useEditor'
 import type { SearchProvider } from '../search-provider'
 import { useDocumentKeydown } from '../../ui/useDocumentKeydown'
+import { PrintingFilter } from '../../ui/PrintingFilter'
+import { filterPrintingsByQuery } from '../../collector-query'
 import { type KeyHint, KeyChips } from '../../ui/KeyHints'
 import { QuantityStepper } from '../../ui/QuantityStepper'
 import {
@@ -181,6 +183,10 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   const [printingHighlightIndex, setPrintingHighlightIndex] = createSignal(0)
   const [printingsPage, setPrintingsPage] = createSignal(0)
   const [loadingPrintings, setLoadingPrintings] = createSignal(false)
+  // Collector query narrowing the grid (`ds 12`, `mkm:123`) — the sites' twin
+  // of the CLI's collector mode. Typed from anywhere in the step; the visible
+  // input is never auto-focused so the arrow keys keep driving the grid.
+  const [printingFilter, setPrintingFilter] = createSignal('')
 
   // Step 2b: language notice — the picked printing does not exist in the
   // configured default language, so the user confirms the stamped language.
@@ -207,18 +213,40 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     return d.condition
   }
 
+  /** The grid's rows: the fetched printings narrowed by the collector query. */
+  const visiblePrintings = createMemo(() => filterPrintingsByQuery(printingFilter(), printings()))
+
   /**
    * Cells the "No specific printing" tile takes from the first page. It also
    * shifts every printing one place along in the keyboard highlight index, which
-   * runs over grid cells rather than printings.
+   * runs over grid cells rather than printings. A live collector query hides
+   * the tile — filtering by set or number means a specific printing is wanted,
+   * and the tile has no set or number for the query to match.
    */
-  const cellOffset = (): PrintingCellOffset => (props.requirePrinting ? 0 : 1)
+  const cellOffset = (): PrintingCellOffset =>
+    props.requirePrinting || printingFilter().trim() !== '' ? 0 : 1
 
-  const totalPrintingsPages = createMemo(() => totalPrintingPages(printings().length, cellOffset()))
-  /** Index into `printings()` of the first printing on the current page. */
+  const totalPrintingsPages = createMemo(() =>
+    totalPrintingPages(visiblePrintings().length, cellOffset()),
+  )
+  /** Index into `visiblePrintings()` of the first printing on the current page. */
   const pageStart = createMemo(() => printingsPageStart(printingsPage(), cellOffset()))
   const paginatedPrintings = createMemo(() =>
-    printings().slice(pageStart(), printingsPageStart(printingsPage() + 1, cellOffset())),
+    visiblePrintings().slice(pageStart(), printingsPageStart(printingsPage() + 1, cellOffset())),
+  )
+
+  // A query edit reshapes the whole grid, so the highlight and page restart at
+  // the first remaining cell. Deferred: the initial empty filter must not clobber
+  // the page state `selectCardName` just set.
+  createEffect(
+    on(
+      printingFilter,
+      () => {
+        setPrintingsPage(0)
+        setPrintingHighlightIndex(0)
+      },
+      { defer: true },
+    ),
   )
 
   /**
@@ -227,8 +255,10 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
    * on page 0 only) while Enter still committed that tile's choice.
    */
   const goToPage = (page: number): void => {
-    setPrintingsPage(page)
-    setPrintingHighlightIndex(firstCellOfPage(page))
+    batch(() => {
+      setPrintingsPage(page)
+      setPrintingHighlightIndex(firstCellOfPage(page))
+    })
   }
 
   /**
@@ -333,6 +363,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     setLanguageNotice(null)
     setPrintingHighlightIndex(0)
     setPrintingsPage(0)
+    setPrintingFilter('')
     setLoadingPrintings(false)
     setSelectedPrinting(null)
     setSelectedFinish(props.defaults?.finish ?? 'nonfoil')
@@ -437,6 +468,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     setLoadingPrintings(true)
     setPrintingHighlightIndex(0)
     setPrintingsPage(0)
+    setPrintingFilter('')
     try {
       const allPrintings = await props.search.printings(cardName)
       setAllLanguagePrintings(allPrintings)
@@ -629,47 +661,50 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     return Math.max(1, columns)
   }
 
+  /** Whether the dialog is showing step `s` — the document-keydown gates. */
+  const onStep = (s: Step) => () => props.open && step() === s
+
   // Keyboard navigation for printing grid
-  useDocumentKeydown(
-    (e) => {
-      // The "No specific printing" tile, when offered, occupies highlight index 0
-      // and shifts every printing one place along.
-      const offset = cellOffset()
-      const currentPrintings = printings()
-      const totalItems = currentPrintings.length + offset
-      // ←/→ step one card; ↑/↓ step one grid row. Both clamp to the ends of the
-      // full printing list and pull the containing page into view.
-      const moveHighlight = (delta: number) => {
-        const newIdx = Math.min(Math.max(printingHighlightIndex() + delta, 0), totalItems - 1)
+  useDocumentKeydown((e) => {
+    // The "No specific printing" tile, when offered, occupies highlight index 0
+    // and shifts every printing one place along.
+    const offset = cellOffset()
+    const currentPrintings = visiblePrintings()
+    const totalItems = currentPrintings.length + offset
+    if (totalItems === 0) return
+    // ←/→ step one card; ↑/↓ step one grid row. Both clamp to the ends of the
+    // full printing list and pull the containing page into view.
+    const moveHighlight = (delta: number) => {
+      const newIdx = Math.min(Math.max(printingHighlightIndex() + delta, 0), totalItems - 1)
+      const printingIdx = newIdx - offset
+      batch(() => {
         setPrintingHighlightIndex(newIdx)
-        const printingIdx = newIdx - offset
         setPrintingsPage(printingIdx >= 0 ? pageOfPrinting(printingIdx, offset) : 0)
+      })
+    }
+    if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      moveHighlight(1)
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      moveHighlight(-1)
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      moveHighlight(printingGridColumns())
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      moveHighlight(-printingGridColumns())
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const idx = printingHighlightIndex()
+      if (offset > 0 && idx === 0) {
+        selectPrinting(null)
+      } else {
+        const printing = currentPrintings[idx - offset]
+        if (printing) selectPrinting(printing)
       }
-      if (e.key === 'ArrowRight') {
-        e.preventDefault()
-        moveHighlight(1)
-      } else if (e.key === 'ArrowLeft') {
-        e.preventDefault()
-        moveHighlight(-1)
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault()
-        moveHighlight(printingGridColumns())
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        moveHighlight(-printingGridColumns())
-      } else if (e.key === 'Enter') {
-        e.preventDefault()
-        const idx = printingHighlightIndex()
-        if (offset > 0 && idx === 0) {
-          selectPrinting(null)
-        } else {
-          const printing = currentPrintings[idx - offset]
-          if (printing) selectPrinting(printing)
-        }
-      }
-    },
-    () => props.open && step() === 'printing',
-  )
+    }
+  }, onStep('printing'))
 
   /**
    * True in the normal add flow, false in change-printing mode (which reuses this
@@ -772,31 +807,28 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   // - ↑/↓ move between groups (finish, condition, quantity); ←/→ stay inside the
   //   focused group, handled natively by the radios and by the ticker itself.
   // - +/- adjust the quantity from anywhere in the step, without focusing it.
-  useDocumentKeydown(
-    (e) => {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault()
-        moveFinishConditionGroup(e.key === 'ArrowDown' ? 1 : -1)
-        return
-      }
-      if (usesQuantity() && (e.key === '+' || e.key === '-')) {
-        e.preventDefault()
-        adjustQuantity(e.key === '+' ? 1 : -1)
-        return
-      }
-      if (e.key !== 'Enter') return
-      if (e.ctrlKey || e.metaKey) {
-        if (!canAddAnother()) return
-        e.preventDefault()
-        handleAddWithOptions(true)
-        return
-      }
-      if (e.target instanceof HTMLButtonElement) return
+  useDocumentKeydown((e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
-      handleAddWithOptions()
-    },
-    () => props.open && step() === 'finish-condition',
-  )
+      moveFinishConditionGroup(e.key === 'ArrowDown' ? 1 : -1)
+      return
+    }
+    if (usesQuantity() && (e.key === '+' || e.key === '-')) {
+      e.preventDefault()
+      adjustQuantity(e.key === '+' ? 1 : -1)
+      return
+    }
+    if (e.key !== 'Enter') return
+    if (e.ctrlKey || e.metaKey) {
+      if (!canAddAnother()) return
+      e.preventDefault()
+      handleAddWithOptions(true)
+      return
+    }
+    if (e.target instanceof HTMLButtonElement) return
+    e.preventDefault()
+    handleAddWithOptions()
+  }, onStep('finish-condition'))
 
   const goBack = () => {
     if (step() === 'language-notice') {
@@ -842,15 +874,12 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
 
   // Language-notice step keys: Enter continues (buttons exempt, so a focused
   // "← Back" still activates itself through its default action).
-  useDocumentKeydown(
-    (e) => {
-      if (e.key !== 'Enter') return
-      if (e.target instanceof HTMLButtonElement) return
-      e.preventDefault()
-      confirmLanguageNotice()
-    },
-    () => props.open && step() === 'language-notice',
-  )
+  useDocumentKeydown((e) => {
+    if (e.key !== 'Enter') return
+    if (e.target instanceof HTMLButtonElement) return
+    e.preventDefault()
+    confirmLanguageNotice()
+  }, onStep('language-notice'))
 
   // Keyboard hints shown in the footer, mirroring the public site's quick-switch
   // dialog. Each step advertises its own navigation: a flat result list, a card
@@ -866,6 +895,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       return [
         { keys: ['←', '→'], label: 'ui.hint.printing' },
         { keys: ['↑', '↓'], label: 'ui.hint.row' },
+        { keys: ['A–Z', '0–9'], label: 'ui.hint.filterPrintings' },
         { keys: ['Enter'], label: 'ui.hint.select' },
         { keys: ['Esc'], label: 'ui.hint.close' },
       ]
@@ -988,6 +1018,11 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
               {t('ui.addCard.selectPrinting', { name: selectedCardName() })}
             </h3>
           </div>
+          <PrintingFilter
+            value={printingFilter()}
+            onChange={setPrintingFilter}
+            active={props.open && step() === 'printing'}
+          />
           <div class="search-modal-body">
             <Show
               when={!loadingPrintings()}
@@ -1000,8 +1035,11 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                   })}
                 </div>
               </Show>
+              <Show when={visiblePrintings().length === 0 && printings().length > 0}>
+                <div class="empty-state">{t('ui.printingFilter.noMatches')}</div>
+              </Show>
               <div class="printing-select-grid" ref={printingGridRef}>
-                <Show when={!props.requirePrinting && printingsPage() === 0}>
+                <Show when={cellOffset() === 1 && printingsPage() === 0}>
                   <button
                     class={`printing-no-printing${printingHighlightIndex() === 0 ? ' printing-no-printing--highlighted' : ''}`}
                     onClick={() => selectPrinting(null)}

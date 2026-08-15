@@ -4,6 +4,11 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { compareCollectorNumbers, getAllCardNames, getAllPrintings } from '../scryfall'
 import { formatPrintingLabel } from '../printing-key'
+import {
+  matchesCollectorQuery,
+  parseCollectorQuery,
+  type PrintingSearchTerms,
+} from '../collector-query'
 import { emptyCacheAdvice, refreshCardCacheForSession } from '../cache/freshness'
 import type { RefreshMode } from '../refresh'
 import type { Condition, Finish, ScryfallCard } from '../types'
@@ -169,13 +174,9 @@ type CollectorChoiceValue = { type: 'card'; card: ScryfallCard }
  * over the whole pool per character typed. `prompts` hands the very choice
  * objects it was given to `suggest`, so the extra fields survive the round trip.
  */
-export type CollectorChoice = {
+export type CollectorChoice = PrintingSearchTerms & {
   title: string
   value: CollectorChoiceValue
-  /** Lowercased set code, matched as a substring. */
-  setTerm: string
-  /** Lowercased collector number, matched as a prefix. */
-  numTerm: string
 }
 /** An edit-mode autocomplete choice value: an existing entry, targeted by card ID. */
 type EntryChoiceValue = { type: 'entry'; cardId: number }
@@ -955,75 +956,18 @@ function isEntryChoiceValue(value: unknown): value is EntryChoiceValue {
 }
 
 /**
- * A parsed collector-mode query.
- *
- * - `split` — the set and collector number were given separately (`mkm:123`,
- *   `mkm 123`); either half may be empty, and an empty half matches everything.
- * - `single` — one bare token, which could be either half, so it matches a set
- *   code containing it *or* a collector number starting with it.
- */
-export type CollectorQuery =
-  | { kind: 'split'; setTerm: string; numberTerm: string }
-  | { kind: 'single'; term: string }
-
-/**
- * Parse a collector-mode search. Card names are deliberately not part of the
- * grammar — this mode searches printings by set code and collector number only,
- * and name mode is one menu row away.
- *
- * A `:` splits the input at its first occurrence; failing that, whitespace
- * splits it into set and number (further tokens are ignored — there is nothing
- * else to match them against). Anything else is a single ambiguous token.
- */
-export function parseCollectorQuery(input: string): CollectorQuery {
-  const query = input.toLowerCase()
-  const colon = query.indexOf(':')
-  if (colon !== -1) {
-    return {
-      kind: 'split',
-      setTerm: query.slice(0, colon).trim(),
-      numberTerm: query.slice(colon + 1).trim(),
-    }
-  }
-  const tokens = query.trim().split(/\s+/).filter(Boolean)
-  if (tokens.length > 1) {
-    return { kind: 'split', setTerm: tokens[0]!, numberTerm: tokens[1]! }
-  }
-  // A *trailing* space (`mkm `) already means "now the number", so the set half
-  // is settled even though only one token was typed. Leading or interior
-  // whitespace says nothing of the sort — ` 123` is still one ambiguous token.
-  if (/\s$/.test(query) && tokens.length === 1) {
-    return { kind: 'split', setTerm: tokens[0]!, numberTerm: '' }
-  }
-  return { kind: 'single', term: tokens[0] ?? '' }
-}
-
-/**
- * Whether a printing row answers a parsed query. Set codes match on substring
- * (a truncated `se` finds every set containing it), collector numbers on
- * prefix (`12` finds 12 and 120, but not 512).
- */
-function matchesCollectorQuery(query: CollectorQuery, choice: CollectorChoice): boolean {
-  if (query.kind === 'single') {
-    return choice.setTerm.includes(query.term) || choice.numTerm.startsWith(query.term)
-  }
-  const setMatches = query.setTerm === '' || choice.setTerm.includes(query.setTerm)
-  const numberMatches = query.numberTerm === '' || choice.numTerm.startsWith(query.numberTerm)
-  return setMatches && numberMatches
-}
-
-/**
  * Whether a choice is one of the collector-mode printing rows
  * {@link buildCollectorChoices} built. The precomputed match terms are checked
  * rather than assumed: `prompts` hands `suggest` the whole choice list, menu
  * rows included, and {@link matchesCollectorQuery} dereferences both terms.
  */
 function isCollectorChoice(choice: Choice): choice is CollectorChoice {
-  const candidate = choice as Partial<CollectorChoice>
   return (
     isCollectorChoiceValue(choice.value) &&
-    typeof candidate.setTerm === 'string' &&
-    typeof candidate.numTerm === 'string'
+    'setTerm' in choice &&
+    typeof choice.setTerm === 'string' &&
+    'numTerm' in choice &&
+    typeof choice.numTerm === 'string'
   )
 }
 

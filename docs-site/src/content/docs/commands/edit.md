@@ -363,7 +363,10 @@ this mode** (`🔤 Switch to Name Mode` is one row away when you want them). Typ
 | `123`     | one bare token: set codes containing it, or numbers starting with it         |
 
 Set codes match on **substring** (so a half-typed code still finds its sets) and collector numbers on
-**prefix**. A third token is ignored — there is nothing left to match it against.
+**prefix**. A third token is ignored — there is nothing left to match it against. The same query
+grammar filters the sites' printing pickers: the
+[add-card grid](/admin/editors/#step-2-select-printing) in both editors and the
+[Trade Planner picker](/commands/build-site/#trade-planner).
 
 - **Narrowing the pool** — The ordinary `⚙️ Configure Session Filters` set filter is what restricts
   collector mode to particular sets; changing it rebuilds the printing pool.

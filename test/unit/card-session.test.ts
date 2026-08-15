@@ -14,7 +14,6 @@ import {
   buildMenuChoices,
   ensureCollectorChoices,
   isMenuChoice,
-  parseCollectorQuery,
   SESSION_MENU_LIMIT,
   similarCopyInput,
   suggestCollectorMode,
@@ -196,53 +195,6 @@ function printings(results: Choice[]): string[] {
     })
 }
 
-describe('parseCollectorQuery', () => {
-  test('a colon splits the input into its set and number halves', () => {
-    expect(parseCollectorQuery('MKM:123')).toEqual({
-      kind: 'split',
-      setTerm: 'mkm',
-      numberTerm: '123',
-    })
-  })
-
-  test('either half of a colon query may be empty', () => {
-    expect(parseCollectorQuery('mkm:')).toEqual({ kind: 'split', setTerm: 'mkm', numberTerm: '' })
-    expect(parseCollectorQuery(':123')).toEqual({ kind: 'split', setTerm: '', numberTerm: '123' })
-  })
-
-  test('whitespace splits the input the same way a colon does', () => {
-    expect(parseCollectorQuery('se 456')).toEqual({
-      kind: 'split',
-      setTerm: 'se',
-      numberTerm: '456',
-    })
-  })
-
-  test('a trailing space settles the set half with no number typed yet', () => {
-    expect(parseCollectorQuery('mkm ')).toEqual({ kind: 'split', setTerm: 'mkm', numberTerm: '' })
-  })
-
-  test('tokens past the second are ignored — nothing else matches them', () => {
-    expect(parseCollectorQuery('mkm 123 456')).toEqual({
-      kind: 'split',
-      setTerm: 'mkm',
-      numberTerm: '123',
-    })
-  })
-
-  test('a lone token stays ambiguous, to be matched against either half', () => {
-    expect(parseCollectorQuery('12')).toEqual({ kind: 'single', term: '12' })
-    expect(parseCollectorQuery('')).toEqual({ kind: 'single', term: '' })
-  })
-
-  test('only a trailing space settles the set half — a leading one says nothing', () => {
-    // A pasted or fat-fingered leading space must not turn a collector-number
-    // search into a set-code one that matches nothing.
-    expect(parseCollectorQuery(' 123')).toEqual({ kind: 'single', term: '123' })
-    expect(parseCollectorQuery('  ')).toEqual({ kind: 'single', term: '' })
-  })
-})
-
 describe('suggestCollectorMode', () => {
   const pool = buildCollectorChoices([
     printing('mkm', '123', 'Sol Ring'),
@@ -263,39 +215,11 @@ describe('suggestCollectorMode', () => {
     expect(suggestCollectorMode('', choices).map((c) => c.value)).toEqual(['__SAVE__', '__EXIT__'])
   })
 
+  // One grammar smoke only: the query semantics themselves are pinned at the
+  // engine layer in collector-query.test.ts — this proves the suggest wrapper
+  // routes printing rows through parseCollectorQuery/matchesCollectorQuery.
   test('SET:CN matches the set by substring and the number by prefix', () => {
     expect(printings(suggestCollectorMode('mkm:12', choices))).toEqual(['MKM:12', 'MKM:123'])
-  })
-
-  test('a space separates the halves just as a colon does', () => {
-    expect(printings(suggestCollectorMode('sld 123', choices))).toEqual(['SLD:123'])
-  })
-
-  test('a truncated set term matches every set code containing it', () => {
-    // "se 4" is not a set code, but SEC contains it — the user is still typing.
-    expect(printings(suggestCollectorMode('se 4', choices))).toEqual(['SEC:4'])
-  })
-
-  test('a set term matches anywhere in the code, not only at its start', () => {
-    // `ls` is in the middle of PLST, so a prefix match would find nothing.
-    expect(printings(suggestCollectorMode('ls:', choices))).toEqual(['PLST:5'])
-  })
-
-  test('a collector number matches by prefix, never mid-number', () => {
-    // `23` is inside 123 but does not start it, so nothing matches.
-    expect(printings(suggestCollectorMode(':23', choices))).toEqual([])
-  })
-
-  test('an empty half matches everything on its side', () => {
-    expect(printings(suggestCollectorMode('mkm:', choices))).toEqual(['MKM:12', 'MKM:123'])
-    expect(printings(suggestCollectorMode(':123', choices))).toEqual(['MKM:123', 'SLD:123'])
-  })
-
-  test('a lone token matches a set substring or a collector-number prefix', () => {
-    // '12' is a number prefix for two printings and matches no set code.
-    expect(printings(suggestCollectorMode('12', choices))).toEqual(['MKM:12', 'MKM:123', 'SLD:123'])
-    // 'sl' is a set substring, matching every printing in SLD.
-    expect(printings(suggestCollectorMode('sl', choices))).toEqual(['SLD:123'])
   })
 
   test('card names are never matched', () => {

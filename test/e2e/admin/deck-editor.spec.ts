@@ -183,9 +183,10 @@ test.describe('Deck Editor Page', () => {
     test('resets to search step when reopened after navigating to printing step', async ({
       page,
     }) => {
-      // Open the add card modal
+      // Open the add card modal. The header input is the search step's alone —
+      // the printing step keeps its own filter box in a row below the header.
       await page.locator('.btn-add').click()
-      const searchInput = page.locator('.search-modal input[type="text"]')
+      const searchInput = page.locator('.search-modal .search-modal-header input[type="text"]')
       await expect(searchInput).toBeVisible({ timeout: 5_000 })
 
       // Type to trigger autocomplete (debounced 1s)

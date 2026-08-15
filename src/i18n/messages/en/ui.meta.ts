@@ -376,6 +376,13 @@ export const uiMeta = {
   'ui.addCard.loadingPrintings': {
     description: "Placeholder while the card's printings are being fetched.",
   },
+  'ui.printingFilter.placeholder': {
+    description:
+      'Placeholder of the box narrowing a printing picker by set code and/or collector number — typing anywhere in the dialog also feeds it. Shared by the add-card grid and the trade picker. The example query must stay as it is.',
+  },
+  'ui.printingFilter.noMatches': {
+    description: 'Shown when the typed set/collector-number query matches none of the printings.',
+  },
   'ui.addCard.setFilterFellBack': {
     description:
       'Notice that the set-code default matched nothing so every printing is offered instead. {sets} is a comma-separated list of uppercase set codes and is never translated.',
@@ -470,6 +477,11 @@ export const uiMeta = {
     description: 'Footer key hint: ↑/↓ step a whole row of the printing grid.',
     maxLen: 12,
   },
+  'ui.hint.filterPrintings': {
+    description:
+      'Footer key hint: typing letters or digits filters the printing grid by set code / collector number.',
+    maxLen: 12,
+  },
   'ui.hint.choose': {
     description: 'Footer key hint: ←/→ pick a value inside the focused radio group.',
     maxLen: 12,
@@ -533,6 +545,10 @@ export const uiMeta = {
   'ui.shortcuts.chooseCard': { description: 'What Enter does on a highlighted search result.' },
   'ui.shortcuts.prevNextPrinting': { description: 'What ←/→ do in the printing grid.' },
   'ui.shortcuts.prevNextRow': { description: 'What ↑/↓ do in the printing grid.' },
+  'ui.shortcuts.filterPrintings': {
+    description:
+      'Shortcuts reference: typing letters or digits anywhere in the printing step filters the grid by set code / collector number.',
+  },
   'ui.shortcuts.choosePrinting': { description: 'What Enter does on a highlighted printing.' },
   'ui.shortcuts.changeGroupValue': {
     description: 'What ←/→ do inside a finish/condition radio group.',

@@ -335,6 +335,31 @@
   padding: 4px 8px;
 }
 
+/* ===== Printing filter =====
+   The collector-query box rendered by src/ui/PrintingFilter.tsx, shared by the
+   add-card printing grid and the trade printing picker. Mono, because the
+   queries are set codes and collector numbers. */
+.printing-filter-row {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.printing-filter {
+  width: 100%;
+  background: var(--bg-body);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  color: var(--text-body);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8125rem;
+  outline: none;
+}
+
+.printing-filter:focus {
+  border-color: var(--accent);
+}
+
 /* ===== Qty Stepper =====
    The inline `- N +` ticker rendered by src/ui/QuantityStepper.tsx, used by the
    trade builder's rows and the add-card dialog's finish/condition step. */

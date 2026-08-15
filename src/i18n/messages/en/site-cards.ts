@@ -172,9 +172,7 @@ export const siteCardsMessages = {
   'site.tradePicker.aria': 'Select printing for {name}',
   'site.tradePicker.title': 'Select Printing: {name}',
   'site.tradePicker.wantedTag': 'Wanted',
-  'site.tradePicker.filterPlaceholder': 'Filter by set code (e.g. mkm, lea)…',
   'site.tradePicker.loading': 'Loading printings…',
-  'site.tradePicker.noMatches': 'No printings match that set code.',
   'site.tradePicker.pageInfo': {
     $plural: 'count',
     one: 'Page {page} of {total} · {count} printing',

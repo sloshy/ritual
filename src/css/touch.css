@@ -251,6 +251,13 @@
     font-size: 0.75rem;
   }
 
+  /* 16px inputs stop mobile browsers from zooming the page on focus; roomier
+     padding makes the printing-filter box a comfortable tap target. */
+  .printing-filter {
+    font-size: 1rem;
+    padding: 0.5rem 0.625rem;
+  }
+
   /* ----- Touch-target sizing: trade rows and the add-card quantity ticker ----- */
 
   .qty-stepper button {
