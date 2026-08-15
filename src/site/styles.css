@@ -1958,6 +1958,11 @@ body {
   align-items: baseline;
 }
 
+.quick-switch-row-qty {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .quick-switch-row-count-suffix {
   color: var(--text-dim);
   font-size: 0.65rem;

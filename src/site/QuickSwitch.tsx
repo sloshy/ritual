@@ -1,18 +1,12 @@
 import type { Component, Accessor } from 'solid-js'
 import { createSignal, createMemo, createEffect, on, onMount, onCleanup, For, Show } from 'solid-js'
-import type {
-  DeckSummary,
-  CollectionSummary,
-  WantedListSummary,
-  DeckDetail,
-  CollectionDetail,
-  WantedListDetail,
-} from './data-types'
-import type { ScryfallCard } from '../types'
+import type { DeckSummary, CollectionSummary, WantedListSummary, ListDetail } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { formatPriceWithMissing } from '../price-currency'
 import { resolveCardThumbnailUrl } from './image-sources'
 import { scoreMatch } from './quick-switch-search'
+import type { CardCandidate } from './quick-switch-candidates'
+import { buildCandidates, cardNameKey, totalQuantityByName } from './quick-switch-candidates'
 import { fetchJson } from './useFetchJson'
 import { detailUrl } from './api-base'
 import { getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
@@ -21,24 +15,7 @@ import { listHref } from './combined-list'
 import type { MessageKey } from '../i18n/messages/en'
 import { useI18n } from '../ui/i18n'
 import type { TranslateFn } from '../i18n/t'
-import {
-  cardPrintingKey,
-  formatPrintingLabel,
-  lookupPrintingCard,
-  printingKey,
-} from '../printing-key'
-import { hasSpecificPrinting } from '../card-printing'
-import type { CardLanguage } from '../card-language'
-
-/**
- * Re-case a stored `printingKey` for display. Uppercasing the whole key would
- * also uppercase the collector number, which no other surface does.
- */
-function formatPrintingKeyLabel(key: string): string {
-  const colon = key.indexOf(':')
-  if (colon < 0) return key.toUpperCase()
-  return formatPrintingLabel(key.slice(0, colon), key.slice(colon + 1))
-}
+import { formatPrintingLabel } from '../printing-key'
 
 type ListKind = 'deck' | 'collection' | 'wanted'
 
@@ -70,6 +47,8 @@ type CardEntry = {
   cardName: string
   parentKind: ListKind
   parentName: string
+  /** Total copies of this card in the parent list, across all its printings. */
+  quantity: number
 }
 
 type PrintingEntry = {
@@ -80,100 +59,21 @@ type PrintingEntry = {
   cardName?: string
   parentKind: ListKind
   parentName: string
+  /** Copies of this exact printing in the parent list. */
+  quantity: number
 }
 
 type QuickSwitchEntry = ListEntry | CommanderEntry | CardEntry | PrintingEntry
 
 type Scored<T> = { entry: T; score: number }
 
-type DetailPayload = DeckDetail | CollectionDetail | WantedListDetail
-
-// A single owned/wanted/deck card line, normalized across list kinds.
-type ListCardRef = {
-  name: string
-  set?: string
-  collectorNumber?: string
-  /** The line's language token, when present, so a `[ja]` line resolves its `@ja` card object. */
-  language?: CardLanguage
-}
-
-type CardCandidate = {
-  cardName: string
-  setCollectorKey: string | null
-  card: ScryfallCard | null
-}
-
 type LoadedDetail = {
   kind: ListKind
   slug: string
   listName: string
-  candidates: CardCandidate[]
-}
-
-function collectCardRefs(data: DetailPayload): ListCardRef[] {
-  if ('deck' in data) {
-    const refs: ListCardRef[] = []
-    for (const section of data.deck.sections) {
-      for (const c of section.cards) {
-        refs.push({
-          name: c.name,
-          set: c.set,
-          collectorNumber: c.collectorNumber,
-          language: c.language,
-        })
-      }
-    }
-    return refs
-  }
-  return data.entries.map((e) => ({
-    name: e.name,
-    set: e.set,
-    collectorNumber: e.collectorNumber,
-    language: e.language,
-  }))
-}
-
-// The set:collector key a card line declares, if any — the key the `cards` map
-// is built under, so it must be `printingKey` exactly.
-function refPrintingKey(ref: ListCardRef): string | null {
-  return hasSpecificPrinting(ref) ? printingKey(ref.set, ref.collectorNumber) : null
-}
-
-// Build search candidates from the list's actual card lines (owned/wanted/deck
-// cards), NOT the raw `cards` lookup map. That map also holds changelog-only
-// entries — keyed by the name of a card that was added then later removed — and
-// those must never surface in search. Each distinct printing yields one
-// candidate; duplicate lines of the same printing collapse by resolved card id
-// (or by printing/name key when the card is unresolved).
-function buildCandidates(data: DetailPayload): CardCandidate[] {
-  const cards = data.cards
-  const seen = new Set<string>()
-  const out: CardCandidate[] = []
-  for (const ref of collectCardRefs(data)) {
-    // Collections/wanted lists key their card map by set:collector; decks key by
-    // name. `lookupPrintingCard` owns the rule, including the explicit-null case.
-    const declaredKey = refPrintingKey(ref)
-    const card = lookupPrintingCard(cards, ref)
-    // Label the printing by the resolved card so the shown set:collector always
-    // matches the shown art; fall back to the declared key when unresolved so an
-    // owned printing without card data is still searchable by its code. One
-    // canonical key for both uses: `scoreMatch` normalizes case itself, and the
-    // display path re-cases only the set half (`formatPrintingLabel`).
-    const setCollectorKey = card ? cardPrintingKey(card) : declaredKey
-    const dedupKey = card
-      ? `id:${card.id}`
-      : declaredKey
-        ? `p:${declaredKey}`
-        : `n:${ref.name.toLowerCase()}`
-    if (seen.has(dedupKey)) continue
-    seen.add(dedupKey)
-    out.push({
-      cardName: card?.name ?? ref.name,
-      setCollectorKey,
-      card,
-    })
-  }
-  return out
+  candidates: readonly CardCandidate[]
+  /** Total copies per `cardNameKey` — fixed once the detail loads, so the keystroke path never rebuilds it. */
+  totalsByName: ReadonlyMap<string, number>
 }
 
 function topScored<T>(items: Scored<T>[], limit: number): T[] {
@@ -256,8 +156,9 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
     listName: string,
   ): Promise<LoadedDetail | null> => {
     try {
-      const data = await fetchJson<DetailPayload>(detailUrl(kind, slug))
-      return { kind, slug, listName, candidates: buildCandidates(data) }
+      const data = await fetchJson<ListDetail>(detailUrl(kind, slug))
+      const candidates = buildCandidates(data)
+      return { kind, slug, listName, candidates, totalsByName: totalQuantityByName(candidates) }
     } catch (e) {
       console.error(`QuickSwitch: failed to load ${kind}/${slug}:`, e)
       return null
@@ -351,11 +252,11 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
     for (const detail of details()) {
       // A card belongs in the "Card" results once per list, regardless of how
       // many printings of it the list's card map holds. Distinct printings are
-      // surfaced separately by findPrintingMatches.
+      // surfaced separately by findPrintingMatches; the row's count sums them.
       const seenNames = new Set<string>()
       for (const cand of detail.candidates) {
         if (!cand.cardName) continue
-        const nameKey = cand.cardName.toLowerCase()
+        const nameKey = cardNameKey(cand.cardName)
         if (seenNames.has(nameKey)) continue
         seenNames.add(nameKey)
         const score = scoreMatch(cand.cardName, q)
@@ -369,6 +270,9 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
             cardName: cand.cardName,
             parentKind: detail.kind,
             parentName: detail.listName,
+            // Always present: the map is built from these same candidates under
+            // the same `cardNameKey`; `?? 0` just states that invariant honestly.
+            quantity: detail.totalsByName.get(nameKey) ?? 0,
           },
           score,
         })
@@ -382,7 +286,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
     const useScryfall = props.useScryfallImgUrls()
     for (const detail of details()) {
       for (const cand of detail.candidates) {
-        if (!cand.setCollectorKey) continue
+        if (!cand.setCollectorKey || !cand.printing) continue
         const score = scoreMatch(cand.setCollectorKey, q)
         if (score < 0) continue
         const image = resolveCardThumbnailUrl(cand.card, useScryfall) ?? ''
@@ -391,10 +295,15 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
             kind: 'printing',
             href: listHref(detail.kind, detail.slug),
             image,
-            setCollectorDisplay: formatPrintingKeyLabel(cand.setCollectorKey),
+            // Display re-cases only the set half; the folded key is for matching.
+            setCollectorDisplay: formatPrintingLabel(
+              cand.printing.set,
+              cand.printing.collectorNumber,
+            ),
             cardName: cand.cardName || undefined,
             parentKind: detail.kind,
             parentName: detail.listName,
+            quantity: cand.quantity,
           },
           score,
         })
@@ -523,7 +432,6 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
             >
               <For each={filtered()}>
                 {(entry, i) => {
-                  const subtitle = entrySubtitle(entry, t)
                   return (
                     <button
                       type="button"
@@ -548,8 +456,11 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
                             <span class="quick-switch-row-name-aux">{entry.cardName}</span>
                           ) : null}
                         </div>
-                        <Show when={subtitle}>
-                          <div class="quick-switch-row-subtitle">{subtitle}</div>
+                        {/* Called inside JSX (not hoisted to a const) so the locale
+                            read inside stays inside a render effect and the row
+                            relabels on a language switch. */}
+                        <Show when={entrySubtitle(entry, t)}>
+                          {(subtitle) => <div class="quick-switch-row-subtitle">{subtitle()}</div>}
                         </Show>
                       </div>
                       {entry.kind === 'list' ? (
@@ -562,6 +473,13 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
                           </span>
                           <span class="quick-switch-row-price">
                             {formatPriceWithMissing(entry.total, props.currency(), entry.missing)}
+                          </span>
+                        </div>
+                      ) : null}
+                      {entry.kind === 'card' || entry.kind === 'printing' ? (
+                        <div class="quick-switch-row-meta">
+                          <span class="quick-switch-row-qty">
+                            {t('site.quickSwitch.quantity', { count: entry.quantity })}
                           </span>
                         </div>
                       ) : null}

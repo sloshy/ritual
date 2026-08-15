@@ -74,12 +74,21 @@ test.describe('Quick Switch', () => {
     await page.locator('.quick-switch-trigger').click()
     await page.locator('.quick-switch-input').fill('lightning')
     const rows = page.locator('.quick-switch-row')
-    const cardRows = rows.filter({ hasText: 'Card' })
+    // Filter on the kind badge exactly — a bare hasText: 'Card' would also
+    // match list rows via their "N cards" count label.
+    const cardRows = rows.filter({
+      has: page.locator('.quick-switch-row-kind', { hasText: /^Card$/ }),
+    })
     await expect.poll(() => cardRows.count()).toBe(2)
     const monoRedCardRow = cardRows.filter({ hasText: 'Mono Red Aggro' })
     const binderCardRow = cardRows.filter({ hasText: 'Main Binder' })
     await expect(monoRedCardRow).toContainText('Lightning Bolt')
     await expect(binderCardRow).toContainText('Lightning Bolt')
+    // Each card row shows how many copies its list holds: the deck line's
+    // quantity, and one per collection entry line — the binder's two duplicate
+    // Lightning Bolt lines collapse into this one ×2 row.
+    await expect(monoRedCardRow.locator('.quick-switch-row-qty')).toHaveText('×4')
+    await expect(binderCardRow.locator('.quick-switch-row-qty')).toHaveText('×2')
     await monoRedCardRow.click()
     await expect.poll(() => page.url()).toContain('#/deck/mono-red-aggro')
   })
@@ -93,7 +102,9 @@ test.describe('Quick Switch', () => {
     // card, one ECL:386 printing, and never ECL:110.
     await page.locator('.quick-switch-trigger').click()
     await page.locator('.quick-switch-input').fill('moonshadow')
-    const moonshadowCardRows = page.locator('.quick-switch-row').filter({ hasText: 'Card' })
+    const moonshadowCardRows = page.locator('.quick-switch-row').filter({
+      has: page.locator('.quick-switch-row-kind', { hasText: /^Card$/ }),
+    })
     await expect.poll(() => moonshadowCardRows.count()).toBe(1)
     await expect(moonshadowCardRows.first()).toContainText('Moonshadow')
     await expect(moonshadowCardRows.first()).toContainText('Main Binder')
@@ -122,14 +133,25 @@ test.describe('Quick Switch', () => {
     // shows it once; the "Printing" tier keeps both.
     await page.locator('.quick-switch-trigger').click()
     await page.locator('.quick-switch-input').fill('sol ring')
-    const solCardRows = page.locator('.quick-switch-row').filter({ hasText: 'Card' })
+    const solCardRows = page.locator('.quick-switch-row').filter({
+      has: page.locator('.quick-switch-row-kind', { hasText: /^Card$/ }),
+    })
     await expect.poll(() => solCardRows.count()).toBe(1)
     await expect(solCardRows.first()).toContainText('Sol Ring')
+    // The single card row counts copies across BOTH printings...
+    await expect(solCardRows.first().locator('.quick-switch-row-qty')).toHaveText('×2')
 
     await page.locator('.quick-switch-input').fill('c16:234')
     await expect
       .poll(() => page.locator('.quick-switch-row').filter({ hasText: 'C16:234' }).count())
       .toBe(1)
+    // ...while each printing row counts only its own copies.
+    await expect(
+      page
+        .locator('.quick-switch-row')
+        .filter({ hasText: 'C16:234' })
+        .locator('.quick-switch-row-qty'),
+    ).toHaveText('×1')
     await page.locator('.quick-switch-input').fill('lgn:303')
     await expect
       .poll(() => page.locator('.quick-switch-row').filter({ hasText: 'LGN:303' }).count())

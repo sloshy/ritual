@@ -217,6 +217,9 @@ export interface WantedListDetail {
   buylist?: BakedBuylist
 }
 
+/** The JSON a list detail endpoint returns, across all three list kinds. */
+export type ListDetail = DeckDetail | CollectionDetail | WantedListDetail
+
 export interface SiteIndex {
   decks: DeckSummary[]
   collections: CollectionSummary[]

@@ -220,6 +220,7 @@ export const siteChromeMessages = {
   'site.quickSwitch.inDeck': 'in deck "{name}"',
   'site.quickSwitch.inCollection': 'in collection "{name}"',
   'site.quickSwitch.inWanted': 'in wanted list "{name}"',
+  'site.quickSwitch.quantity': '×{count}',
 
   // ── Theme picker and editor ───────────────────────────────────────────
   'site.theme.pickerTitle': 'Choose theme',

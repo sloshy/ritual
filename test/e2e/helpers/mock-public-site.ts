@@ -1519,6 +1519,9 @@ const MOCK_QUICK_SWITCH_COLLECTION_MAIN_BINDER = {
     binderEntry('Moonshadow', 'ecl', '386', 2),
     binderEntry('Sol Ring', 'c16', '234', 3),
     binderEntry('Sol Ring', 'lgn', '303', 4),
+    // A second copy of the same printing: the quick switch must collapse the
+    // duplicate lines into one row whose count reads ×2.
+    binderEntry('Lightning Bolt', 'm10', '146', 5),
   ],
   cards: {
     'm10:146': null,

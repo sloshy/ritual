@@ -545,6 +545,10 @@ export const siteChromeMeta = {
   'site.quickSwitch.inDeck': { description: QUICK_SWITCH_PARENT_CONTEXT },
   'site.quickSwitch.inCollection': { description: QUICK_SWITCH_PARENT_CONTEXT },
   'site.quickSwitch.inWanted': { description: QUICK_SWITCH_PARENT_CONTEXT },
+  'site.quickSwitch.quantity': {
+    description:
+      'Copy-count badge on a Quick Switch card or printing result row; {count} is how many copies the list holds. The English "×" is the multiplication sign used as a count marker.',
+  },
 
   // ── Theme picker and editor ───────────────────────────────────────────
   'site.theme.pickerTitle': {
