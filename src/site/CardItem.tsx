@@ -225,6 +225,10 @@ const EmptyCardFace: Component<EmptyCardFaceProps> = (props) => (
 
 export const CardItem: Component<CardItemProps> = (props) => {
   const t = useT()
+  // Memoized because each view mode reads it twice (the `disabled` binding and
+  // the tooltip's ternary) and the callers compute it by scanning the trade
+  // board — without this every board mutation runs that scan twice per tile.
+  const tradeDisabled = createMemo(() => props.addToTradeDisabled)
   const [flipped, setFlipped] = createSignal(false)
   const toggleFlip = () => setFlipped((f) => !f)
   // Reset to the front face whenever this tile is reused for a different card
@@ -489,11 +493,9 @@ export const CardItem: Component<CardItemProps> = (props) => {
                   <button
                     class="card-trade-btn"
                     onClick={stopPropAnd(props.onAddToTrade)}
-                    disabled={props.addToTradeDisabled}
+                    disabled={tradeDisabled()}
                     title={
-                      props.addToTradeDisabled
-                        ? t('site.card.atMaxQuantity')
-                        : t('site.card.addToTrade')
+                      tradeDisabled() ? t('site.card.atMaxQuantity') : t('site.card.addToTrade')
                     }
                     aria-label={t('site.card.addToTrade')}
                   >
@@ -589,11 +591,9 @@ export const CardItem: Component<CardItemProps> = (props) => {
                   <button
                     class="list-trade-btn"
                     onClick={stopPropAnd(props.onAddToTrade)}
-                    disabled={props.addToTradeDisabled}
+                    disabled={tradeDisabled()}
                     title={
-                      props.addToTradeDisabled
-                        ? t('site.card.atMaxQuantity')
-                        : t('site.card.addToTrade')
+                      tradeDisabled() ? t('site.card.atMaxQuantity') : t('site.card.addToTrade')
                     }
                   >
                     {t('site.card.tradeButton')}
@@ -679,11 +679,9 @@ export const CardItem: Component<CardItemProps> = (props) => {
                   <button
                     class="card-trade-btn"
                     onClick={stopPropAnd(props.onAddToTrade)}
-                    disabled={props.addToTradeDisabled}
+                    disabled={tradeDisabled()}
                     title={
-                      props.addToTradeDisabled
-                        ? t('site.card.atMaxQuantity')
-                        : t('site.card.addToTrade')
+                      tradeDisabled() ? t('site.card.atMaxQuantity') : t('site.card.addToTrade')
                     }
                     aria-label={t('site.card.addToTrade')}
                   >

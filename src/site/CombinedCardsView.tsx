@@ -41,6 +41,7 @@ import {
   type SelectionSourceKind,
 } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
+import { addSelectedCardToTrade, canAddSelectedCardToTrade } from './useSelectionTrade'
 import type { MetaEntry } from './meta-entry'
 import type { CombinedCardData } from './combined-list'
 import {
@@ -106,7 +107,7 @@ interface CombinedCardsViewProps extends SellModeProps {
   selectionLists: SelectionListId[]
   currency: PriceCurrency
   useScryfallImgUrls: boolean
-  /** Offer "Add to Trade" in the multi-select menu (public site only). */
+  /** Offer "Add to Trade" on each tile and in the multi-select menu (public site only). */
   enableTrade?: boolean
   /** Page heading. */
   title: string
@@ -288,6 +289,32 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
     return parts
   })
 
+  /**
+   * Per-tile "Add to Trade" — one copy, off the tile's own selection payload, so
+   * the keep-guard and the name-only printing prompt behave exactly as they do
+   * from the multi-select menu. Independent of the current selection: clicking
+   * "+" on a tile neither requires nor disturbs one.
+   */
+  const addTileToTrade = (c: CombinedCardData): Promise<number> =>
+    addSelectedCardToTrade(c.selectedTile, {
+      currency: props.currency,
+      useScryfallImgUrls: props.useScryfallImgUrls,
+    })
+
+  /** The modal's "Add to Trade" action, or undefined where the modal offers none. */
+  type ModalTradeAction = { add: () => void; disabled: boolean }
+
+  // One memo rather than a pair: the handler and its disabled flag answer the
+  // same question about the same card, and split memos could disagree.
+  const modalTrade = createMemo((): ModalTradeAction | undefined => {
+    const card = modalTile()
+    if (!card || !props.enableTrade) return undefined
+    return {
+      add: () => void addTileToTrade(card),
+      disabled: !canAddSelectedCardToTrade(card.selectedTile),
+    }
+  })
+
   const renderTile = (c: CombinedCardData) => (
     <CardItem
       name={c.name}
@@ -317,6 +344,10 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
       selectable
       selectState={selection.state(c.selectKey)}
       onToggleSelect={() => selection.toggle(c.selectedTile)}
+      onAddToTrade={props.enableTrade ? () => void addTileToTrade(c) : undefined}
+      // Unconditional: CardItem reads this only inside the `onAddToTrade`
+      // guard, so it is never evaluated while the button is hidden.
+      addToTradeDisabled={!canAddSelectedCardToTrade(c.selectedTile)}
     />
   )
 
@@ -410,7 +441,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
               label={group.key}
               cards={group.cards}
               currency={props.currency}
-              renderCard={(c) => renderTile(c)}
+              renderCard={renderTile}
             />
           )}
         </For>
@@ -440,6 +471,8 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
         printings={modalTile()?.printings ?? []}
         onClose={() => setModalTile(null)}
         meta={modalMeta()}
+        onAddToTrade={modalTrade()?.add}
+        addToTradeDisabled={modalTrade()?.disabled}
         note={modalTile()?.selectedTile.note}
       />
     </div>

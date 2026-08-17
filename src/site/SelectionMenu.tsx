@@ -251,7 +251,10 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
     // selection afterward doesn't race the in-flight prompts.
     const cards = props.selection.selected()
     props.onClose()
-    await addSelectionToTrade(cards, props.currency, props.useScryfallImgUrls ?? false)
+    await addSelectionToTrade(cards, {
+      currency: props.currency,
+      useScryfallImgUrls: props.useScryfallImgUrls ?? false,
+    })
     props.selection.clear()
   }
 

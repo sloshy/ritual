@@ -1,10 +1,16 @@
 import type { ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
-import type { SelectedCard } from './useCardSelection'
+import type { SelectedCard, SelectionSourceKind } from './useCardSelection'
 import type { TradeSearchEntry } from './useTradeData'
 import { normalizeCardName } from '../term-match'
 import { t } from '../i18n/t'
-import { addEntryToLeft, addEntryToRight, showTradeToast } from './useTradeState'
+import {
+  addEntryToLeft,
+  addEntryToRight,
+  canAddMoreToLeft,
+  canAddMoreToRight,
+  showTradeToast,
+} from './useTradeState'
 import { resolveCardThumbnailUrl } from './image-sources'
 import { pickedPrintingLanguage, promptForPrinting } from './printing-prompt'
 import { confirmKeepAdd } from './keep-trade-prompt'
@@ -17,12 +23,33 @@ import { confirmKeepAdd } from './keep-trade-prompt'
  * like the single-card flow.
  */
 
-const sideAdder = (kind: SelectedCard['sourceKind']) =>
-  kind === 'wanted' ? addEntryToRight : addEntryToLeft
+/** The board column a source kind trades on: how to add to it, and whether one more fits. */
+type TradeSide = {
+  add: (entry: TradeSearchEntry, currency: PriceCurrency) => boolean
+  canAdd: (entry: TradeSearchEntry) => boolean
+}
+
+/**
+ * Which side of the board each source kind lands on: a wanted card is being
+ * *received*, everything else is being offered. A table rather than a
+ * `=== 'wanted'` ternary so the add path and the availability check cannot
+ * disagree, and so a fourth source kind is a compile error here instead of
+ * silently defaulting to the offering column.
+ */
+const TRADE_SIDES = {
+  collection: { add: addEntryToLeft, canAdd: canAddMoreToLeft },
+  deck: { add: addEntryToLeft, canAdd: canAddMoreToLeft },
+  wanted: { add: addEntryToRight, canAdd: canAddMoreToRight },
+} as const satisfies Record<SelectionSourceKind, TradeSide>
 
 const cardHasPrinting = (card: SelectedCard): boolean => Boolean(card.set && card.collectorNumber)
 
-function baseEntry(card: SelectedCard): TradeSearchEntry {
+/**
+ * The trade row a selected tile becomes. Exported so a caller holding a
+ * {@link SelectedCard} — the combined/search views' per-tile "+" button — can ask
+ * whether another copy still fits before offering the action.
+ */
+export function tradeEntryFor(card: SelectedCard): TradeSearchEntry {
   return {
     name: card.name,
     nameKey: normalizeCardName(card.name),
@@ -49,7 +76,7 @@ function baseEntry(card: SelectedCard): TradeSearchEntry {
 
 /** Add up to `qty` copies of `entry` to its trade side, stopping when capped. Returns the count added. */
 function addCopies(entry: TradeSearchEntry, qty: number, currency: PriceCurrency): number {
-  const add = sideAdder(entry.sourceKind)
+  const { add } = TRADE_SIDES[entry.sourceKind]
   let added = 0
   for (let i = 0; i < qty; i++) {
     if (!add(entry, currency)) break
@@ -58,15 +85,23 @@ function addCopies(entry: TradeSearchEntry, qty: number, currency: PriceCurrency
   return added
 }
 
+/** Everything an add needs beyond the cards themselves. */
+export type TradeAddOptions = {
+  currency: PriceCurrency
+  useScryfallImgUrls: boolean
+  /** Toast this name instead of the copy count — the single-card add. */
+  toastName?: string
+}
+
 /**
  * Add a selection to the active trade, prompting for a printing on each name-only
  * card in sequence. Returns the number of copies actually added. Shows a single
- * summary toast.
+ * summary toast — or, when `toastName` is given (the single-card add), that name
+ * instead of the count.
  */
 export async function addSelectionToTrade(
   cards: SelectedCard[],
-  currency: PriceCurrency,
-  useScryfallImgUrls: boolean,
+  { currency, useScryfallImgUrls, toastName }: TradeAddOptions,
 ): Promise<number> {
   let added = 0
   let firstAddedCard: ScryfallCard | null = null
@@ -83,13 +118,13 @@ export async function addSelectionToTrade(
     // Wanted cards go to the *receiving* side and never carry labels.
     if (card.sourceKind !== 'wanted' && !(await confirmKeepAdd(card.name, card.labels))) continue
     if (cardHasPrinting(card)) {
-      noteAdd(addCopies(baseEntry(card), card.quantity, currency), card.scryfallCard)
+      noteAdd(addCopies(tradeEntryFor(card), card.quantity, currency), card.scryfallCard)
       continue
     }
     const picked = await promptForPrinting(card.name, card.printings ?? [])
     if (!picked) continue
     const entry: TradeSearchEntry = {
-      ...baseEntry(card),
+      ...tradeEntryFor(card),
       set: picked.printing.set.toLowerCase(),
       collectorNumber: picked.printing.collector_number,
       finish: picked.finish,
@@ -102,9 +137,34 @@ export async function addSelectionToTrade(
 
   if (added > 0) {
     showTradeToast(
-      t('site.trade.added', { count: added }),
+      toastName ?? t('site.trade.added', { count: added }),
       resolveCardThumbnailUrl(firstAddedCard, useScryfallImgUrls),
     )
   }
   return added
+}
+
+/**
+ * Whether another copy of a selected tile still fits on its trade side. Asks
+ * about the very entry {@link addSelectedCardToTrade} would add, through the
+ * same {@link TRADE_SIDES} row, so the disabled state and the add outcome
+ * cannot disagree.
+ */
+export function canAddSelectedCardToTrade(card: SelectedCard): boolean {
+  const entry = tradeEntryFor(card)
+  return TRADE_SIDES[entry.sourceKind].canAdd(entry)
+}
+
+/**
+ * Add a single copy of one selected tile to the trade — the per-tile "+" button
+ * on the combined and search-results views, where the tile is a
+ * {@link SelectedCard} rather than a list-specific entry. Reuses the selection
+ * path so the keep-guard and the name-only printing prompt behave identically,
+ * and toasts the card name like the single-list pages do.
+ */
+export function addSelectedCardToTrade(
+  card: SelectedCard,
+  options: Omit<TradeAddOptions, 'toastName'>,
+): Promise<number> {
+  return addSelectionToTrade([{ ...card, quantity: 1 }], { ...options, toastName: card.name })
 }

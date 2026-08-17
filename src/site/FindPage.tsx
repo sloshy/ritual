@@ -221,7 +221,10 @@ export const FindPage: Component<FindPageProps> = (props) => {
   const addSelectedToTrade = async (): Promise<void> => {
     const tiles = selectedCards().map((c) => c.selectedTile)
     setSelectedKeys(new Set<string>())
-    await addSelectionToTrade(tiles, props.currency, props.useScryfallImgUrls)
+    await addSelectionToTrade(tiles, {
+      currency: props.currency,
+      useScryfallImgUrls: props.useScryfallImgUrls,
+    })
   }
 
   const viewSelectedAsList = (): void => {

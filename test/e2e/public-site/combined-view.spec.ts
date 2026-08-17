@@ -1,13 +1,27 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { mockPublicSiteCombinedLists } from '../helpers/mock-public-site'
 
 /**
  * The combined list view: from a single list, "Combine with list" opens a modal of
  * the other lists; picking some and pressing View opens a synthetic "Combined List"
  * that merges their cards under lowest-common-denominator rules (no card merging,
- * sections preserved, source-list grouping). Also covers the "All" switch and that
- * multi-select still works across the combined tiles.
+ * sections preserved, source-list grouping). Also covers the "All" switch, that
+ * multi-select still works across the combined tiles, and the per-tile "Add to
+ * Trade" hand-off to the trade board.
  */
+
+/**
+ * Navigate within the SPA by assigning the hash rather than `page.goto`, which
+ * would reload the bundle and drop the module-level trade/selection signals this
+ * file's tests depend on. Local to this spec for that reason — `helpers/list-ui.ts`
+ * navigates with `page.goto`.
+ */
+async function gotoCombined(page: Page, query = 'lists=deck:cv-deck,collection:cv-box') {
+  await page.evaluate((q) => {
+    window.location.hash = `#/combined?${q}`
+  }, query)
+  await page.waitForSelector('.card-item', { timeout: 15_000 })
+}
 test.describe('Combined list view', () => {
   test.beforeEach(async ({ page }) => {
     await mockPublicSiteCombinedLists(page)
@@ -98,10 +112,7 @@ test.describe('Combined list view', () => {
   })
 
   test('the source-list names link back to each individual list', async ({ page }) => {
-    await page.evaluate(() => {
-      window.location.hash = '#/combined?lists=deck:cv-deck,collection:cv-box'
-    })
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
+    await gotoCombined(page)
 
     const sources = page.locator('.combined-source-name')
     await expect(sources).toHaveCount(2)
@@ -136,10 +147,7 @@ test.describe('Combined list view', () => {
   })
 
   test('cards in the combined view are multi-selectable', async ({ page }) => {
-    await page.evaluate(() => {
-      window.location.hash = '#/combined?lists=deck:cv-deck,collection:cv-box'
-    })
-    await page.waitForSelector('.card-item', { timeout: 15_000 })
+    await gotoCombined(page)
 
     await page
       .locator('.card-item')
@@ -149,5 +157,42 @@ test.describe('Combined list view', () => {
 
     await expect(page.locator('.toolbar .selection-menu-btn')).toHaveText(/Selected \(1\)/)
     await expect(page.locator('.selection-menu-btn--navbar')).toHaveText(/All Selected \(1\)/)
+  })
+
+  test('the per-tile "+" adds a combined-view card to the trade', async ({ page }) => {
+    await gotoCombined(page)
+
+    // Grouped by source: the CV Box section is last and holds the collection's
+    // single Sol Ring. The deck holds the *same* printing, so every later
+    // assertion names the source rather than the card.
+    const ring = page.locator('.card-item').last()
+    await expect(ring).toContainText('Sol Ring')
+    // The corner bookmark only takes pointer events while the tile is hovered.
+    await ring.locator('.card-binder').hover()
+    await ring.locator('.card-trade-btn').click()
+
+    // The single-card add toasts the card's name, not a copy count.
+    await expect(page.locator('.trade-add-toast')).toContainText('Sol Ring')
+    // The "+" disables once the collection's single copy is committed...
+    await expect(ring.locator('.card-trade-btn')).toBeDisabled()
+    // ...while the deck's two copies of the same card stay addable.
+    const deckRing = page.locator('.card-item').nth(1)
+    await expect(deckRing).toContainText('Sol Ring')
+    await expect(deckRing.locator('.card-trade-btn')).toBeEnabled()
+
+    // Adding from a tile neither requires nor creates a selection, and does not
+    // open the card modal behind the button.
+    await expect(page.locator('.selection-menu-btn')).toHaveCount(0)
+    await expect(page.locator('.card-modal')).toBeHidden()
+
+    await page.evaluate(() => {
+      window.location.hash = '#/trade'
+    })
+    const row = page.locator('.trade-col[data-side="left"] .trade-row')
+    await expect(row).toHaveCount(1)
+    await expect(row.locator('.trade-row-name-text')).toContainText('Sol Ring')
+    // The collection's copy, not the deck's — and the printing renders uppercase.
+    await expect(row.locator('.src-tag').first()).toHaveText('Collection')
+    await expect(row.locator('.trade-row-name-meta')).toContainText('C19:221')
   })
 })

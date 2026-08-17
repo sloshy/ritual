@@ -25,6 +25,7 @@ import type {
   WantedListCardEntry,
 } from './data-types'
 import { lookupPrintingCard } from '../printing-key'
+import { collectionTradeMaxQty, collectionTradeQtyMap } from './trade-qty'
 import { storedLanguage, type CardLanguage } from '../card-language'
 
 /**
@@ -307,6 +308,9 @@ function buildCollectionCards(
   baseOrder: number,
 ): CombinedCardData[] {
   const { detail, ref, name } = loaded
+  // Tiles stay unmerged here (one per line, the combined view's rule), but the
+  // trade cap is still the duplicate group's size — see `trade-qty.ts`.
+  const qtyMap = collectionTradeQtyMap(detail.entries)
   return detail.entries.map((entry: CollectionCardEntry, index): CombinedCardData => {
     // Language-resolved: a `[ja]` entry displays its baked `@ja` object when
     // present, falling through to the printing's default object.
@@ -347,7 +351,7 @@ function buildCollectionCards(
       sourceName: name,
       sourceSlug: ref.slug,
       sourceKind: 'collection',
-      maxQty: 1,
+      maxQty: collectionTradeMaxQty(entry, qtyMap),
       cardIds: entry.cardId !== undefined ? [entry.cardId] : [],
     }
     return {

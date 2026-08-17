@@ -44,6 +44,7 @@ import {
   sortByValuesFor,
   type SelectOption,
 } from './card-sorting'
+import { collectionTradeMaxQty, collectionTradeQtyMap } from './trade-qty'
 import { CardModal } from './CardModal'
 import { ChangelogModal } from './ChangelogModal'
 import { useCardNavScroll } from './card-nav'
@@ -288,17 +289,9 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   const entryCard = (entry: CollectionCardEntry): ScryfallCard | null =>
     overlayCard(lookupPrintingCard(props.cards, entry))
 
-  // Aggregate copy counts per card variant for correct trade maxQty.
-  // Mirrors the groupKey logic in useTradeData to ensure consistent deduplication.
-  const collectionQtyMap = createMemo(() => {
-    const map = new Map<string, number>()
-    for (const entry of props.entries) {
-      if (entry.note) continue
-      const key = `${entry.name}|${entry.set.toLowerCase()}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${displayLanguage(entry.language)}`
-      map.set(key, (map.get(key) ?? 0) + 1)
-    }
-    return map
-  })
+  // Aggregate copy counts per card variant for correct trade maxQty. Shared with
+  // the combined view, which caps its unmerged tiles from the same groups.
+  const collectionQtyMap = createMemo(() => collectionTradeQtyMap(props.entries))
 
   /** An entry's effective labels: its own override, else the list default. */
   const entryLabels = (entry: CollectionCardEntry): CardLabel[] =>
@@ -337,8 +330,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     entry: CollectionCardEntry,
     scryfallCard: ScryfallCard | null,
   ): TradeSearchEntry => {
-    const groupKey = `${entry.name}|${entry.set.toLowerCase()}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${displayLanguage(entry.language)}`
-    const maxQty = entry.note ? 1 : (collectionQtyMap().get(groupKey) ?? 1)
+    const maxQty = collectionTradeMaxQty(entry, collectionQtyMap())
     const labels = entryLabels(entry)
     return {
       name: entry.name,
