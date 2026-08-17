@@ -163,10 +163,18 @@ export interface ModifyCardEntry {
   deckRelationId?: number // Required for "modify" and "remove" actions
 }
 
-/** The oracle block a card-search hit carries; `defaultCategory` is always present here. */
+/**
+ * The oracle block a card-search hit carries.
+ *
+ * `defaultCategory` is **not** always present: Archidekt sends `null` for cards
+ * it files under no default category (basic lands among them), and a `null` in a
+ * `categories` array is rejected by `modifyCards/v2/` with
+ * `"This field may not be null."` — so it must be treated as absent, never
+ * forwarded.
+ */
 export interface ArchidektSearchOracleCard {
   name: string
-  defaultCategory: string
+  defaultCategory?: string | null
 }
 
 export interface ArchidektCardSearchResult {
@@ -180,10 +188,47 @@ export interface ArchidektCardSearchResult {
  * Map an Archidekt entry modifier onto Ritual's finish. `Normal` (and a missing
  * modifier) is the default finish, which serializes as a bare line.
  */
-function archidektFinish(modifier: ArchidektCardModifier | undefined): Finish | undefined {
+export function archidektFinish(modifier: ArchidektCardModifier | undefined): Finish | undefined {
   if (modifier === 'Foil') return 'foil'
   if (modifier === 'Etched') return 'etched'
   return undefined
+}
+
+/** The set, collector number, and finish an Archidekt deck entry states. */
+export type ArchidektEntryPrinting = {
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+}
+
+/** The card half of a deck entry, in both the parsed and the raw payload. */
+type ArchidektEntryCard = {
+  collectorNumber?: string
+  edition?: { editioncode?: string }
+}
+
+/**
+ * The printing an Archidekt deck entry names, normalized the way Ritual's
+ * lookups need it.
+ *
+ * Both the deck parser and the upload planner read printings off Archidekt
+ * entries, and a deck sync **joins their answers by printing key** — the parsed
+ * deck supplies the diff's remote side while the raw payload supplies the
+ * relations the plan patches. Two derivations that drifted apart would not fail
+ * loudly; every card would simply stop matching. Hence one function.
+ */
+export function archidektEntryPrinting(
+  card: ArchidektEntryCard | undefined,
+  modifier: ArchidektCardModifier | undefined,
+): ArchidektEntryPrinting {
+  // Both halves of the printing or neither: a card line cannot express a set
+  // without a collector number, so lifting one alone would be a silent loss.
+  const printing = resolvePrinting(card?.edition?.editioncode, card?.collectorNumber)
+  return {
+    set: printing?.set,
+    collectorNumber: printing?.collectorNumber,
+    finish: archidektFinish(modifier),
+  }
 }
 
 /**
@@ -251,15 +296,7 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
         }
       }
 
-      // Both halves of the printing or neither: a card line cannot express a set
-      // without a collector number, so lifting one alone would be a silent loss.
-      const printing = resolvePrinting(
-        entry.card?.edition?.editioncode,
-        entry.card?.collectorNumber,
-      )
-      const set = printing?.set
-      const collectorNumber = printing?.collectorNumber
-      const finish = archidektFinish(entry.modifier)
+      const { set, collectorNumber, finish } = archidektEntryPrinting(entry.card, entry.modifier)
 
       if (!sectionsMap.has(sectionName)) {
         sectionsMap.set(sectionName, new Map())

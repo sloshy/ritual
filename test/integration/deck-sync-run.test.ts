@@ -638,6 +638,10 @@ describe('deck-sync --sync-printings (Integration)', () => {
     expect(await runDeckSync(['pull'])).toBe(0)
     expect(logged()).toContain('No changes detected.')
     expect(await readDeck()).not.toContain('C21:240')
+    // A bare local line states no printing, so it cannot disagree with the
+    // remote's. Warning here would mean one warning per card on every pull of
+    // any deck imported without printings.
+    expect(logged()).not.toContain('Printings not synced')
   })
 
   test('a pull with the flag stamps the remote printing and finish onto the line', async () => {
@@ -760,7 +764,194 @@ describe('deck-sync --sync-printings (Integration)', () => {
     expect(pushedEntries()).toEqual([])
   })
 
-  test('a card with several local printings is skipped with a warning, not guessed at', async () => {
+  test('a card split across printings re-pins one remote entry and adds the other', async () => {
+    // The case a name-keyed plan cannot express: two local copies at different
+    // printings against a single remote entry. The remote entry moves to the
+    // first printing and the second becomes a new entry, so both the printings
+    // and the total end up right.
+    await writeLinkedDeck(
+      [
+        { quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284' },
+        { quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '270' },
+      ],
+      synced,
+    )
+    stubFetch({
+      ...pushRoutes(UPDATED_AT),
+      [SEARCH_URL]: (request) =>
+        Response.json({
+          results: [
+            request.url.includes('editionSearch=lea')
+              ? {
+                  id: 888,
+                  collectorNumber: '270',
+                  options: ['Normal'],
+                  oracleCard: { name: 'Sol Ring', defaultCategory: 'Artifact' },
+                }
+              : {
+                  id: 777,
+                  collectorNumber: '284',
+                  options: ['Normal'],
+                  oracleCard: { name: 'Sol Ring', defaultCategory: 'Artifact' },
+                },
+          ],
+          next: null,
+        }),
+    })
+
+    expect(await runDeckSync(['push', '--sync-printings'])).toBe(0)
+
+    expect(pushedEntries()).toEqual([
+      {
+        // The existing relation is re-used rather than dropped, so it keeps its
+        // Archidekt categories and relation id.
+        action: 'modify',
+        cardid: 777,
+        customCardId: null,
+        categories: ['Artifact'],
+        patchId: 'ritual-1',
+        modifications: {
+          quantity: 1,
+          modifier: 'Normal',
+          customCmc: null,
+          companion: false,
+          flippedDefault: false,
+          label: ',#656565',
+        },
+        deckRelationId: 11,
+      },
+      {
+        action: 'add',
+        cardid: 888,
+        customCardId: null,
+        categories: ['Artifact'],
+        patchId: 'ritual-2',
+        modifications: {
+          quantity: 1,
+          modifier: 'Normal',
+          customCmc: null,
+          companion: false,
+          flippedDefault: false,
+          label: ',#656565',
+        },
+      },
+    ])
+  })
+
+  test('a split add lands in the categories the card’s existing entries use', async () => {
+    // Splitting copies across printings must leave the new entry wherever the
+    // existing ones are — not in Archidekt's default category for the card.
+    await writeLinkedDeck(
+      [
+        { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240' },
+        { quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284' },
+      ],
+      synced,
+    )
+    stubFetch({
+      ...pushRoutes(UPDATED_AT),
+      [SEARCH_URL]: () =>
+        Response.json({
+          results: [
+            {
+              id: 777,
+              collectorNumber: '284',
+              options: ['Normal'],
+              // Archidekt would file a fresh copy under "Ramp"; the deck already
+              // holds this card in "Artifact", which has to win.
+              oracleCard: { name: 'Sol Ring', defaultCategory: 'Ramp' },
+            },
+          ],
+          next: null,
+        }),
+    })
+
+    expect(await runDeckSync(['push', '--sync-printings'])).toBe(0)
+
+    const add = (pushedEntries() as { action: string; categories: string[] }[]).find(
+      (entry) => entry.action === 'add',
+    )
+    expect(add?.categories).toEqual(['Artifact'])
+  })
+
+  test('a card Archidekt files under no default category is added with none', async () => {
+    // Basic lands come back with `defaultCategory: null`, and a null inside
+    // `categories` makes modifyCards reject the whole batch ("This field may not
+    // be null."). The card is new to the deck, so there are no siblings to
+    // inherit from either.
+    await writeLinkedDeck(
+      [
+        { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240' },
+        { quantity: 2, name: 'Mountain', set: 'fdn', collectorNumber: '279' },
+      ],
+      synced,
+    )
+    stubFetch({
+      ...pushRoutes(UPDATED_AT),
+      [SEARCH_URL]: () =>
+        Response.json({
+          results: [
+            {
+              id: 888,
+              collectorNumber: '279',
+              options: ['Normal'],
+              oracleCard: { name: 'Mountain', defaultCategory: null },
+            },
+          ],
+          next: null,
+        }),
+    })
+
+    expect(await runDeckSync(['push', '--sync-printings'])).toBe(0)
+
+    const add = (pushedEntries() as { action: string; categories: unknown[] }[]).find(
+      (entry) => entry.action === 'add',
+    )
+    expect(add?.categories).toEqual([])
+  })
+
+  test('dropping one of two printings zeroes exactly that remote entry', async () => {
+    // The local file keeps only the C21 copies, so the LTC relation must go —
+    // and the C21 one must be left entirely alone.
+    await writeLinkedDeck(
+      [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240' }],
+      synced,
+    )
+    stubFetch(
+      pushRoutes(UPDATED_AT, {}, [
+        remoteEntry(12, 'Sol Ring', 1, { set: 'ltc', collectorNumber: '284', cardId: 777 }),
+      ]),
+    )
+
+    expect(await runDeckSync(['push', '--sync-printings'])).toBe(0)
+
+    const entries = pushedEntries() as {
+      action: string
+      deckRelationId: number
+      modifications: { quantity: number }
+    }[]
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.deckRelationId).toBe(12)
+    expect(entries[0]!.action).toBe('remove')
+    expect(entries[0]!.modifications.quantity).toBe(0)
+  })
+
+  test('a re-pin whose printing Archidekt cannot find fails the deck', async () => {
+    await writeLinkedDeck(
+      [{ quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284' }],
+      synced,
+    )
+    stubFetch({
+      ...pushRoutes(UPDATED_AT),
+      [SEARCH_URL]: () => Response.json({ results: [], next: null }),
+    })
+
+    expect(await runDeckSync(['push', '--sync-printings'])).toBe(1)
+    expect(pushedEntries()).toEqual([])
+    expect(logged()).not.toContain('Updated lastSynced.')
+  })
+
+  test('without the flag, mismatched printings are reported and only the quantity moves', async () => {
     await writeLinkedDeck(
       [
         { quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284' },
@@ -770,13 +961,18 @@ describe('deck-sync --sync-printings (Integration)', () => {
     )
     stubFetch(pushRoutes(UPDATED_AT))
 
-    // --only removals neutralizes the quantity increase (local 2 vs remote 1),
-    // so the printing skip is the only thing left for the run to say.
-    expect(await runDeckSync(['push', '--sync-printings', '--only', 'removals'])).toBe(0)
+    expect(await runDeckSync(['push'])).toBe(0)
+
     expect(logged()).toContain(
-      'Printing not synced for "Sol Ring": the card has several distinct printings in the local file.',
+      'Printings not synced for "Sol Ring": the local file and Archidekt hold different printings of it. Re-run with --sync-printings to reconcile them.',
     )
-    expect(pushedEntries()).toEqual([])
+    // The remote entry's edition is untouched; only its quantity catches up.
+    const [entry] = pushedEntries() as {
+      cardid: number
+      modifications: { quantity: number }
+    }[]
+    expect(entry!.cardid).toBe(501)
+    expect(entry!.modifications.quantity).toBe(2)
   })
 
   test('a quantity and printing change on one card folds into a single modify entry', async () => {

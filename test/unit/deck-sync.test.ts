@@ -1,14 +1,13 @@
 import { describe, test, expect } from 'bun:test'
 import {
-  summarizeCards,
-  diffByCardName,
+  diffDeckCards,
   diffToChangeEvents,
   buildCardIdResolver,
   applyDownloadDiff,
-  filterNameDiff,
+  filterDeckDiff,
   normalizeBoard,
   syncDeckFormat,
-  type NameDiff,
+  type DeckDiff,
   type CardIdResolver,
   type CardSummary,
   type QuantityChange,
@@ -17,6 +16,23 @@ import { assignMissingDeckCardIds } from '../../src/card-id'
 import { serializeDeckToMarkdown } from '../../src/deck-file'
 import type { AddChange, RemoveChange } from '../../src/change-event'
 import type { Card, DeckData, DeckSection } from '../../src/types'
+
+/**
+ * A name-keyed diff (the shape a sync without `--sync-printings` produces),
+ * carrying only the entries a test cares about. The printing-keyed half is
+ * covered in `deck-sync-printings.test.ts`.
+ */
+function deckDiff(partial: Partial<DeckDiff> = {}): DeckDiff {
+  return {
+    byPrinting: false,
+    added: [],
+    removed: [],
+    quantityChanged: [],
+    printingUpdates: [],
+    unaligned: [],
+    ...partial,
+  }
+}
 
 // ── normalizeBoard ────────────────────────────────────────────────────
 
@@ -44,44 +60,9 @@ describe('normalizeBoard', () => {
   })
 })
 
-// ── summarizeCards ────────────────────────────────────────────────────
+// ── diffDeckCards ───────────────────────────────────────────────────
 
-describe('summarizeCards', () => {
-  test('keeps the same card in different boards separate', () => {
-    const sections: DeckSection[] = [
-      { name: 'Main', cards: [{ quantity: 2, name: 'Sol Ring' }] },
-      { name: 'Sideboard', cards: [{ quantity: 1, name: 'Sol Ring' }] },
-    ]
-    const summary = summarizeCards(sections)
-    expect(summary.get('Main sol ring')?.totalQuantity).toBe(2)
-    expect(summary.get('Main sol ring')?.board).toBe('Main')
-    expect(summary.get('Sideboard sol ring')?.totalQuantity).toBe(1)
-    expect(summary.get('Sideboard sol ring')?.board).toBe('Sideboard')
-  })
-
-  test('sums quantities across sections that share a board', () => {
-    const sections: DeckSection[] = [
-      { name: 'Ramp', cards: [{ quantity: 2, name: 'Sol Ring' }] },
-      { name: 'Artifacts', cards: [{ quantity: 1, name: 'Sol Ring' }] },
-    ]
-    const summary = summarizeCards(sections)
-    // Both custom headers normalize to Main and merge.
-    expect(summary.get('Main sol ring')?.totalQuantity).toBe(3)
-  })
-
-  test('with byBoard: false, merges all sections by name only', () => {
-    const sections: DeckSection[] = [
-      { name: 'Main', cards: [{ quantity: 2, name: 'Sol Ring' }] },
-      { name: 'Sideboard', cards: [{ quantity: 1, name: 'Sol Ring' }] },
-    ]
-    const summary = summarizeCards(sections, { byBoard: false })
-    expect(summary.get('sol ring')?.totalQuantity).toBe(3)
-  })
-})
-
-// ── diffByCardName ───────────────────────────────────────────────────
-
-describe('diffByCardName', () => {
+describe('diffDeckCards', () => {
   test('detects added cards', () => {
     const oldSections: DeckSection[] = [
       { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
@@ -95,7 +76,7 @@ describe('diffByCardName', () => {
         ],
       },
     ]
-    const diff = diffByCardName(oldSections, newSections)
+    const diff = diffDeckCards(oldSections, newSections)
     expect(diff.added).toHaveLength(1)
     expect(diff.added[0]!.name).toBe('Lightning Bolt')
     expect(diff.added[0]!.board).toBe('Main')
@@ -116,7 +97,7 @@ describe('diffByCardName', () => {
     const newSections: DeckSection[] = [
       { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
     ]
-    const diff = diffByCardName(oldSections, newSections)
+    const diff = diffDeckCards(oldSections, newSections)
     expect(diff.removed).toHaveLength(1)
     expect(diff.removed[0]!.name).toBe('Lightning Bolt')
     expect(diff.added).toHaveLength(0)
@@ -125,7 +106,7 @@ describe('diffByCardName', () => {
   test('detects quantity changes', () => {
     const oldSections: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 2, name: 'Island' }] }]
     const newSections: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 4, name: 'Island' }] }]
-    const diff = diffByCardName(oldSections, newSections)
+    const diff = diffDeckCards(oldSections, newSections)
     expect(diff.quantityChanged).toHaveLength(1)
     expect(diff.quantityChanged[0]!.oldQty).toBe(2)
     expect(diff.quantityChanged[0]!.newQty).toBe(4)
@@ -138,7 +119,7 @@ describe('diffByCardName', () => {
       { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
       { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa' }] },
     ]
-    const diff = diffByCardName(sections, sections)
+    const diff = diffDeckCards(sections, sections)
     expect(diff.added).toHaveLength(0)
     expect(diff.removed).toHaveLength(0)
     expect(diff.quantityChanged).toHaveLength(0)
@@ -151,7 +132,7 @@ describe('diffByCardName', () => {
     const newSections: DeckSection[] = [
       { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
     ]
-    const diff = diffByCardName(oldSections, newSections)
+    const diff = diffDeckCards(oldSections, newSections)
     expect(diff.added).toHaveLength(0)
     expect(diff.removed).toHaveLength(0)
     expect(diff.quantityChanged).toHaveLength(0)
@@ -176,7 +157,7 @@ describe('diffByCardName', () => {
         ],
       },
     ]
-    const diff = diffByCardName(oldSections, newSections)
+    const diff = diffDeckCards(oldSections, newSections)
     expect(diff.added).toHaveLength(1)
     expect(diff.added[0]!.name).toBe('Forest')
     expect(diff.removed).toHaveLength(1)
@@ -187,7 +168,7 @@ describe('diffByCardName', () => {
     expect(diff.quantityChanged[0]!.newQty).toBe(1)
   })
 
-  test('ignores set and printing differences', () => {
+  test('leaves a card whose printings differ alone, reporting the mismatch instead', () => {
     const oldSections: DeckSection[] = [
       {
         name: 'Main',
@@ -200,9 +181,35 @@ describe('diffByCardName', () => {
         cards: [{ quantity: 1, name: 'Sol Ring', set: 'mrd', collectorNumber: '217' }],
       },
     ]
-    const diff = diffByCardName(oldSections, newSections)
+    const diff = diffDeckCards(oldSections, newSections)
     expect(diff.added).toHaveLength(0)
     expect(diff.removed).toHaveLength(0)
+    expect(diff.quantityChanged).toHaveLength(0)
+    // One holding each side: re-pinning is `--sync-printings`' business, and
+    // nothing has to be added or removed, so this is not a mismatch either.
+    expect(diff.unaligned).toEqual([])
+  })
+
+  test('reports a card the two sides hold at printings that cannot be squared up', () => {
+    const oldSections: DeckSection[] = [
+      {
+        name: 'Main',
+        cards: [{ quantity: 2, name: 'Sol Ring', set: 'c21', collectorNumber: '167' }],
+      },
+    ]
+    const newSections: DeckSection[] = [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '167' },
+          { quantity: 1, name: 'Sol Ring', set: 'mrd', collectorNumber: '217' },
+        ],
+      },
+    ]
+    const diff = diffDeckCards(oldSections, newSections)
+    expect(diff.unaligned).toEqual([{ name: 'Sol Ring', board: 'Main' }])
+    // Reported, not acted on: reconciling it would mean adding a copy.
+    expect(diff.added).toHaveLength(0)
     expect(diff.quantityChanged).toHaveLength(0)
   })
 
@@ -215,7 +222,7 @@ describe('diffByCardName', () => {
       { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
       { name: 'Maybeboard', cards: [{ quantity: 1, name: 'Cavern-Hoard Dragon' }] },
     ]
-    const diff = diffByCardName(localSections, remoteSections)
+    const diff = diffDeckCards(localSections, remoteSections)
     expect(diff.added).toHaveLength(1)
     expect(diff.added[0]!.name).toBe('Cavern-Hoard Dragon')
     expect(diff.added[0]!.board).toBe('Maybeboard')
@@ -229,7 +236,7 @@ describe('diffByCardName', () => {
     const remoteSections: DeckSection[] = [
       { name: 'Maybeboard', cards: [{ quantity: 1, name: 'Cavern-Hoard Dragon' }] },
     ]
-    const diff = diffByCardName(localSections, remoteSections)
+    const diff = diffDeckCards(localSections, remoteSections)
     expect(diff.added).toHaveLength(1)
     expect(diff.added[0]!.board).toBe('Maybeboard')
     expect(diff.removed).toHaveLength(1)
@@ -242,7 +249,7 @@ describe('diffByCardName', () => {
       { name: 'Sideboard', cards: [{ quantity: 1, name: 'Island' }] },
     ]
     const newSections: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 3, name: 'Island' }] }]
-    const diff = diffByCardName(oldSections, newSections, { byBoard: false })
+    const diff = diffDeckCards(oldSections, newSections, { byBoard: false })
     // 3 total old vs 3 total new — no change
     expect(diff.quantityChanged).toHaveLength(0)
     expect(diff.added).toHaveLength(0)
@@ -254,7 +261,10 @@ describe('diffByCardName', () => {
 
 describe('diffToChangeEvents', () => {
   test('creates add events for added cards', () => {
-    const diff: NameDiff = {
+    const diff: DeckDiff = {
+      byPrinting: false,
+      printingUpdates: [],
+      unaligned: [],
       added: [{ name: 'Sol Ring', totalQuantity: 2, board: 'Main' }],
       removed: [],
       quantityChanged: [],
@@ -267,7 +277,10 @@ describe('diffToChangeEvents', () => {
   })
 
   test('creates remove events for removed cards', () => {
-    const diff: NameDiff = {
+    const diff: DeckDiff = {
+      byPrinting: false,
+      printingUpdates: [],
+      unaligned: [],
       added: [],
       removed: [{ name: 'Lightning Bolt', totalQuantity: 1, board: 'Main' }],
       quantityChanged: [],
@@ -279,7 +292,10 @@ describe('diffToChangeEvents', () => {
   })
 
   test('creates add events for quantity increases', () => {
-    const diff: NameDiff = {
+    const diff: DeckDiff = {
+      byPrinting: false,
+      printingUpdates: [],
+      unaligned: [],
       added: [],
       removed: [],
       quantityChanged: [{ name: 'Island', oldQty: 2, newQty: 4, board: 'Main' }],
@@ -290,7 +306,10 @@ describe('diffToChangeEvents', () => {
   })
 
   test('creates remove events for quantity decreases', () => {
-    const diff: NameDiff = {
+    const diff: DeckDiff = {
+      byPrinting: false,
+      printingUpdates: [],
+      unaligned: [],
       added: [],
       removed: [],
       quantityChanged: [{ name: 'Island', oldQty: 4, newQty: 2, board: 'Main' }],
@@ -301,7 +320,10 @@ describe('diffToChangeEvents', () => {
   })
 
   test('propagates the board onto change events', () => {
-    const diff: NameDiff = {
+    const diff: DeckDiff = {
+      byPrinting: false,
+      printingUpdates: [],
+      unaligned: [],
       added: [{ name: 'Cavern-Hoard Dragon', totalQuantity: 1, board: 'Maybeboard' }],
       removed: [{ name: 'Lightning Bolt', totalQuantity: 1, board: 'Sideboard' }],
       quantityChanged: [],
@@ -314,7 +336,10 @@ describe('diffToChangeEvents', () => {
   })
 
   test('propagates the board onto quantity-change events', () => {
-    const diff: NameDiff = {
+    const diff: DeckDiff = {
+      byPrinting: false,
+      printingUpdates: [],
+      unaligned: [],
       added: [],
       removed: [],
       quantityChanged: [
@@ -332,12 +357,15 @@ describe('diffToChangeEvents', () => {
   })
 
   test('returns empty for no changes', () => {
-    const events = diffToChangeEvents({ added: [], removed: [], quantityChanged: [] })
+    const events = diffToChangeEvents(deckDiff())
     expect(events).toHaveLength(0)
   })
 
   test('leaves cardId undefined when no resolver is supplied', () => {
-    const diff: NameDiff = {
+    const diff: DeckDiff = {
+      byPrinting: false,
+      printingUpdates: [],
+      unaligned: [],
       added: [{ name: 'Sol Ring', totalQuantity: 1, board: 'Main' }],
       removed: [],
       quantityChanged: [],
@@ -346,7 +374,10 @@ describe('diffToChangeEvents', () => {
   })
 
   test('stamps each event with the resolved card ID', () => {
-    const diff: NameDiff = {
+    const diff: DeckDiff = {
+      byPrinting: false,
+      printingUpdates: [],
+      unaligned: [],
       added: [{ name: 'Sol Ring', totalQuantity: 1, board: 'Main' }],
       removed: [{ name: 'Lightning Bolt', totalQuantity: 1, board: 'Sideboard' }],
       quantityChanged: [{ name: 'Island', oldQty: 1, newQty: 2, board: 'Main' }],
@@ -435,7 +466,7 @@ describe('download sync assigns IDs to new cards', () => {
       },
     ]
 
-    const diff = diffByCardName(local.sections, remote)
+    const diff = diffDeckCards(local.sections, remote)
     const updatedSections = applyDownloadDiff(local.sections, diff)
     const updatedDeck = assignMissingDeckCardIds({ ...local, sections: updatedSections })
 
@@ -463,7 +494,7 @@ describe('download sync assigns IDs to new cards', () => {
       { name: 'Maybeboard', cards: [{ quantity: 1, name: 'Cavern-Hoard Dragon' }] },
     ]
 
-    const diff = diffByCardName(local.sections, remote)
+    const diff = diffDeckCards(local.sections, remote)
     const updatedSections = applyDownloadDiff(local.sections, diff)
     const updatedDeck = assignMissingDeckCardIds({ ...local, sections: updatedSections })
     const resolve = buildCardIdResolver(updatedDeck.sections, local.sections)
@@ -482,23 +513,11 @@ describe('download sync assigns IDs to new cards', () => {
 // ── applyDownloadDiff ────────────────────────────────────────────────
 
 describe('applyDownloadDiff', () => {
-  // Most applyDownloadDiff tests build a NameDiff with a single populated field;
+  // Most applyDownloadDiff tests build a DeckDiff with a single populated field;
   // these factories isolate that field so each test reads as just its inputs.
-  const addDiff = (items: CardSummary[]): NameDiff => ({
-    added: items,
-    removed: [],
-    quantityChanged: [],
-  })
-  const removeDiff = (items: CardSummary[]): NameDiff => ({
-    added: [],
-    removed: items,
-    quantityChanged: [],
-  })
-  const qtyDiff = (items: QuantityChange[]): NameDiff => ({
-    added: [],
-    removed: [],
-    quantityChanged: items,
-  })
+  const addDiff = (items: CardSummary[]): DeckDiff => deckDiff({ added: items })
+  const removeDiff = (items: CardSummary[]): DeckDiff => deckDiff({ removed: items })
+  const qtyDiff = (items: QuantityChange[]): DeckDiff => deckDiff({ quantityChanged: items })
   const mainSections = (cards: Card[]): DeckSection[] => [{ name: 'Main', cards }]
 
   test('removes cards from their board', () => {
@@ -647,11 +666,14 @@ describe('applyDownloadDiff', () => {
     expect(sections[0]!.cards[0]!.quantity).toBe(2)
   })
 
-  test('decreases quantity without going below 1', () => {
+  test('a quantity change down to zero empties the line rather than clamping it', () => {
+    // Not reachable from a real diff — a card the source no longer holds is a
+    // removal, not a quantity change — but the applier must not leave a line
+    // claiming a copy the source says is gone.
     const sections = mainSections([{ quantity: 3, name: 'Island' }])
     const diff = qtyDiff([{ name: 'Island', oldQty: 3, newQty: 0, board: 'Main' }])
     const result = applyDownloadDiff(sections, diff)
-    expect(result[0]!.cards[0]!.quantity).toBe(1)
+    expect(result[0]!.cards).toEqual([])
   })
 
   test('sets the board total to the remote quantity when a card spans multiple sections', () => {
@@ -741,73 +763,84 @@ describe('syncDeckFormat', () => {
   })
 })
 
-// ── filterNameDiff ────────────────────────────────────────────────────
+// ── filterDeckDiff ────────────────────────────────────────────────────
 
 /** A diff with one of each change kind, so a filter's every branch is exercised. */
-function filterableDiff(): NameDiff {
-  return {
+function filterableDiff(): DeckDiff {
+  return deckDiff({
+    printingUpdates: [
+      {
+        name: 'Sol Ring',
+        board: 'Main',
+        from: { set: 'c21', collectorNumber: '240' },
+        to: { set: 'ltc', collectorNumber: '284' },
+      },
+    ],
     added: [{ name: 'Sol Ring', totalQuantity: 1, board: 'Main' }],
     removed: [{ name: 'Lightning Bolt', totalQuantity: 2, board: 'Sideboard' }],
     quantityChanged: [
       { name: 'Brainstorm', oldQty: 1, newQty: 3, board: 'Main' },
       { name: 'Ponder', oldQty: 4, newQty: 2, board: 'Main' },
     ],
-  }
+  })
 }
 
-describe('filterNameDiff', () => {
+describe('filterDeckDiff', () => {
   test('passes the diff through untouched when no filter is given', () => {
     const original = filterableDiff()
-    const filtered = filterNameDiff(original, undefined)
+    const filtered = filterDeckDiff(original, undefined)
     expect(filtered.diff).toBe(original)
     expect(filtered.skipped).toBe(0)
   })
 
   test('additions keeps added cards and quantity increases', () => {
-    const { diff: kept, skipped } = filterNameDiff(filterableDiff(), 'additions')
+    const { diff: kept, skipped } = filterDeckDiff(filterableDiff(), 'additions')
     expect(kept.added.map((card) => card.name)).toEqual(['Sol Ring'])
     expect(kept.removed).toEqual([])
     expect(kept.quantityChanged.map((entry) => entry.name)).toEqual(['Brainstorm'])
+    // Printing updates neither add nor remove copies, so the filter has nothing
+    // to say about them: they pass through and are not counted as skipped.
+    expect(kept.printingUpdates).toHaveLength(1)
     // One removal plus one decrease were left out.
     expect(skipped).toBe(2)
   })
 
   test('removals keeps removed cards and quantity decreases', () => {
-    const { diff: kept, skipped } = filterNameDiff(filterableDiff(), 'removals')
+    const { diff: kept, skipped } = filterDeckDiff(filterableDiff(), 'removals')
     expect(kept.added).toEqual([])
     expect(kept.removed.map((card) => card.name)).toEqual(['Lightning Bolt'])
     expect(kept.quantityChanged.map((entry) => entry.name)).toEqual(['Ponder'])
+    expect(kept.printingUpdates).toHaveLength(1)
     expect(skipped).toBe(2)
   })
 
   test('leaves the input diff alone', () => {
     const original = filterableDiff()
-    filterNameDiff(original, 'additions')
+    filterDeckDiff(original, 'additions')
     expect(original.removed).toHaveLength(1)
     expect(original.quantityChanged).toHaveLength(2)
   })
 
   test('reports nothing skipped when the whole diff is on the kept side', () => {
-    const additionsOnly: NameDiff = {
+    const additionsOnly: DeckDiff = {
+      byPrinting: false,
+      printingUpdates: [],
+      unaligned: [],
       added: [{ name: 'Sol Ring', totalQuantity: 1, board: 'Main' }],
       removed: [],
       quantityChanged: [{ name: 'Brainstorm', oldQty: 1, newQty: 2, board: 'Main' }],
     }
-    const { diff: kept, skipped } = filterNameDiff(additionsOnly, 'additions')
+    const { diff: kept, skipped } = filterDeckDiff(additionsOnly, 'additions')
     expect(kept).toEqual(additionsOnly)
     expect(skipped).toBe(0)
   })
 
   test('can empty the diff entirely, which the engine reads as "no changes"', () => {
-    const { diff: kept, skipped } = filterNameDiff(
-      {
-        added: [],
-        removed: [{ name: 'Lightning Bolt', totalQuantity: 1, board: 'Main' }],
-        quantityChanged: [],
-      },
+    const { diff: kept, skipped } = filterDeckDiff(
+      deckDiff({ removed: [{ name: 'Lightning Bolt', totalQuantity: 1, board: 'Main' }] }),
       'additions',
     )
-    expect(kept).toEqual({ added: [], removed: [], quantityChanged: [] })
+    expect(kept).toEqual(deckDiff())
     expect(skipped).toBe(1)
   })
 })

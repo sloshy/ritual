@@ -332,18 +332,35 @@ extras header never counts as unreadable content, so it cannot block a sync.
 
 ### Printing sync
 
-By default the diff compares card **names and quantities only** — printings
-(\`SET:CN\`) and finishes (\`[foil]\`/\`[etched]\`) on either side are ignored.
+By default the diff **syncs names and quantities only** — printings
+(\`SET:CN\`) and finishes (\`[foil]\`/\`[etched]\`) are compared but never written.
 \`--sync-printings\` (on \`pull\` and \`push\`) also syncs each card's exact
 printing: a pull rewrites local lines to the printing Archidekt records
 (changelogged as \`set-printing\` events), and a push moves the remote entries to
-the local file's printing and finish. A local line that names no printing is
-left alone on a push (it expresses no preference); a card with several distinct
-printings of one name on either side is skipped with a warning rather than
-guessed at. A finish the local line states must exist for that printing on
-Archidekt or the deck is reported failed; \`--only\` does not filter printing
-updates (they neither add nor remove cards). Condition and language tokens are
-never synced — Archidekt deck entries carry neither.
+the local file's printing and finish.
+
+A card can be held at several printings at once — two local lines, or several
+Archidekt entries of the same card. With \`--sync-printings\` those are
+reconciled **printing by printing**: copies at a shared printing are
+re-quantified, a printing only the source holds is added as a new line/entry,
+one only the destination holds is removed, and any leftovers are re-pinned in
+place (so a local line keeps its \`&N\` and an Archidekt entry keeps its
+categories). Pushing local \`2 Bolt (LEA:161)\` + \`1 Bolt (2XM:157)\` against a
+remote \`3 Bolt (LEA:161)\` sets the existing entry to 2 and adds a 2XM entry.
+
+Without the flag nothing is ever added or removed to fix a printing. A card's
+new total is spread over the lines/entries it already occupies rather than
+collapsed onto one, and a card holding a printing the other side has no
+counterpart for at all is reported (\`Printings not synced for "…" … Re-run with
+--sync-printings to reconcile them.\`, \`printingsUnaligned\` in the structured
+report) and left alone. A plain difference of printing is not reported — that is
+what the flag re-pins.
+
+A local line that names no printing is left alone on a push (it expresses no
+preference) and never counts as a mismatch in either direction. A finish the local line states must
+exist for that printing on Archidekt or the deck is reported failed; \`--only\`
+does not filter printing updates (they neither add nor remove cards). Condition
+and language tokens are never synced — Archidekt deck entries carry neither.
 
 The same sync runs from the admin site's **Sync Decks** page (deck toggles,
 direction, change filter, printing sync, live per-deck progress, and each

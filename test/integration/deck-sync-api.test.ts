@@ -323,18 +323,64 @@ describe('deck-sync API', () => {
     }
     stubFetch({ [`https://archidekt.com/api/decks/${SOURCE_ID}/`]: () => Response.json(remote) })
 
-    // Without the flag the printing difference is invisible.
+    // Without the flag the printing difference is invisible — and, since the two
+    // sides hold one printing each, not even reported: nothing would have to be
+    // added or removed to square them up.
     const unflagged = await runReport({ direction: 'pull', decks: ['linked'] })
-    expect(unflagged.decks[0]).toMatchObject({ status: 'synced', reason: 'no changes' })
+    expect(unflagged.decks[0]).toEqual({
+      name: 'Linked Deck',
+      status: 'synced',
+      reason: 'no changes',
+    })
 
     const report = await runReport({ direction: 'pull', decks: ['linked'], syncPrintings: true })
-    expect(report.decks[0]).toMatchObject({
-      status: 'synced',
-      printingsChanged: 1,
-      printingsSkipped: [],
-    })
+    expect(report.decks[0]).toMatchObject({ status: 'synced', printingsChanged: 1 })
     const deck = await fs.readFile(path.join(tmpDir, 'decks', 'linked.md'), 'utf-8')
     expect(deck).toContain('1 Sol Ring (C21:240) [foil] &1')
+  })
+
+  test('printings the run cannot square up are reported as printingsUnaligned', async () => {
+    // The structured half of the advisory — what MCP and scripted callers read,
+    // where the CLI reads the log line. The remote splits its two copies across
+    // two printings; the local file holds both at one, so reconciling would mean
+    // adding a copy, which a run without syncPrintings must not do.
+    await signIn()
+    const remote: ArchidektDeckResponse = {
+      name: 'Linked Deck',
+      deckFormat: 3,
+      categories: [{ id: 1, name: 'Main' }],
+      cards: [
+        {
+          quantity: 1,
+          card: {
+            name: 'Sol Ring',
+            oracleCard: { name: 'Sol Ring' },
+            collectorNumber: '240',
+            edition: { editioncode: 'c21' },
+          },
+          categories: [1],
+        },
+        {
+          quantity: 1,
+          card: {
+            name: 'Sol Ring',
+            oracleCard: { name: 'Sol Ring' },
+            collectorNumber: '284',
+            edition: { editioncode: 'ltc' },
+          },
+          categories: [1],
+        },
+      ],
+    }
+    stubFetch({ [`https://archidekt.com/api/decks/${SOURCE_ID}/`]: () => Response.json(remote) })
+
+    const report = await runReport({ direction: 'pull', decks: ['linked'] })
+    expect(report.decks[0]).toMatchObject({
+      status: 'synced',
+      printingsUnaligned: ['Sol Ring'],
+    })
+    // Reported, not acted on: the flag is what reconciles it.
+    expect(report.decks[0]).not.toHaveProperty('printingsChanged')
   })
 
   test('reports progress to an in-process caller, ending on the terminal report', async () => {

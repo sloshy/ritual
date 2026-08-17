@@ -111,8 +111,9 @@ Each deck's `status` is `synced`, `failed`, or `skipped`; `reason` explains
 anything other than a clean sync. Under
 [`--sync-printings`](#printing-sync---sync-printings) each deck also carries
 `printingsChanged` (printing differences found — applied, or previewed on a dry
-run) and `printingsSkipped` (cards whose printings could not be reconciled), so
-a scripted run sees the printing pass without parsing log lines. Decks that could not be resolved or are not
+run); without the flag, a deck whose printings disagree between the two sides
+carries `printingsUnaligned` (those card names). Either way a scripted run sees
+the printing pass without parsing log lines. Decks that could not be resolved or are not
 sourced from Archidekt appear as `failed` entries. A deck with an Archidekt
 `sourceUrl` but no `sourceId` is `skipped` when it is swept up by an all-decks
 run, and `failed` when you name it explicitly. Top-level failures (for example,
@@ -363,12 +364,16 @@ the right section locally.
 Pulls also adopt the deck's format from Archidekt. Pushes do not send the local
 format back.
 
-The following are intentionally ignored by default:
+The following are intentionally not written by default:
 
 - Specific printings (set code, collector number) — synced with [`--sync-printings`](#printing-sync---sync-printings)
 - Card finish (foil, etched) — synced with [`--sync-printings`](#printing-sync---sync-printings)
 - Labels and categories (beyond mapping to a board)
 - Card condition and language
+
+Printings are still _read_ without the flag — enough to land a quantity change
+on the line that holds that printing, and to report a difference the run will
+not act on. See [Without the flag](#without-the-flag).
 
 > **Note on pushes:** pushes ignore board placement. The Archidekt batch API path
 > used here cannot yet target a specific remote board/category, so moving a card
@@ -400,7 +405,9 @@ from the deck's sections. See [new](/commands/new/#deck-format).
 
 ## Printing Sync (`--sync-printings`)
 
-By default the diff ignores which printing a card line names. `--sync-printings`
+By default the diff does not _sync_ which printing a card line names — it compares printings only
+to place a quantity change on the right line and to report a disagreement it will not act on (see
+[Without the flag](#without-the-flag)). `--sync-printings`
 (valid on `pull` and `push`) also syncs each card's **set code, collector
 number, and finish**:
 
@@ -421,19 +428,33 @@ Printing changes get their own clause on each deck's summary line —
 pull, `…, 3 printings to change` on a push — and a deck whose only difference
 is a printing still syncs.
 
+### Cards held at several printings
+
+A card name can be held at more than one printing at once — `2 Lightning Bolt
+(LEA:161)` beside `1 Lightning Bolt (2XM:157)` locally, and on Archidekt as
+several deck entries of the same card, one per edition and finish. With
+`--sync-printings` these are reconciled **printing by printing** rather than by
+name, adding and removing copies as needed so the two sides end up holding the
+same printings in the same quantities:
+
+- Copies at a printing both sides hold have their **quantity** adjusted.
+- A printing only the source holds is **added** as a new line (or a new
+  Archidekt entry).
+- A printing only the destination holds is **removed**.
+- When a printing on each side is left over, the destination's copies are
+  **re-pinned** to the source's printing in place — the local line keeps its
+  `&N`, and the Archidekt entry keeps its categories and relation.
+
+So a local deck holding `2 Lightning Bolt (LEA:161)` and `1 Lightning Bolt
+(2XM:157)` pushed against a remote holding `3 Lightning Bolt (LEA:161)` sets the
+existing entry to 2 and adds a new 2XM entry for the third copy.
+
 The rules that keep this predictable:
 
 - **A line that names no printing pushes nothing.** A bare `1 Sol Ring` states
   no preference, so a push leaves the remote edition alone (a pull, by
   contrast, stamps the remote printing onto it — Archidekt entries always name
   an edition).
-- **Ambiguity is skipped, not guessed.** When one side holds several distinct
-  printings of the same card name (say, two foil and two nonfoil Lightning
-  Bolts), there is no single answer to copy across; that card is skipped —
-  `Printing not synced for "Lightning Bolt": the card has several distinct
-printings in the local file.` (or `… on Archidekt`) — and everything else still
-  syncs. A _newly added_ card whose remote entries disagree the same way simply
-  arrives without a printing.
 - **A stated finish must exist.** Pushing `[etched]` for a printing Archidekt
   offers no etched finish of that card is reported as a failure for that deck
   rather than silently substituted — the rest of the deck's changes still push,
@@ -443,6 +464,27 @@ printings in the local file.` (or `… on Archidekt`) — and everything else st
   adds nor removes cards.
 - **Condition and language are never synced**; Archidekt deck entries carry
   neither.
+
+### Without the flag
+
+A sync that is _not_ syncing printings never adds or removes a card to
+reconcile a printing. A card's new total is spread over the
+lines (or Archidekt entries) it already occupies rather than collapsed onto one
+of them — a surplus lands on the first, a shortfall drains from the last
+backwards — so a card split across printings keeps its split. When the two sides hold
+genuinely different printings of a card, it says so and moves on:
+
+```
+Printings not synced for "Lightning Bolt": the local file and Archidekt hold
+different printings of it. Re-run with --sync-printings to reconcile them.
+```
+
+Those card names are reported as `printingsUnaligned` in the structured report
+(omitted when there are none). Only a printing with _no counterpart at all_ on
+the other side counts: squaring that up would mean adding or removing copies. A
+card the two sides merely hold at different printings is not reported — that is
+a plain re-pin, which is what the flag is for — and a line that names no
+printing at all never counts either, since it states no preference.
 
 The admin [Sync Decks](/admin/sync-decks/) page offers the same behavior as a
 checkbox ("Also sync each card's exact printing…"), and the MCP `sync_decks`

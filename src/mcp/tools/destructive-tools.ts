@@ -297,11 +297,14 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
           .describe(
             'Also sync each card’s exact printing — set, collector number, and foil/etched ' +
               'finish (the CLI’s --sync-printings). Off by default, the diff compares names and ' +
-              'quantities only. A local line naming no printing pushes nothing; a card with ' +
-              'several distinct printings of one name on either side is skipped with a warning; ' +
-              'a stated finish the printing does not offer on Archidekt fails that deck. The ' +
-              '"only" filter does not apply to printing updates. Each deck’s report entry then ' +
-              'carries printingsChanged and printingsSkipped.',
+              'quantities only. With it, a card held at several printings at once is reconciled ' +
+              'printing by printing: copies are added, removed, or re-pinned so both sides hold ' +
+              'the same printings in the same quantities. A local line naming no printing pushes ' +
+              'nothing; a stated finish the printing does not offer on Archidekt fails that ' +
+              'deck. The "only" filter does not apply to printing updates. Each deck’s report ' +
+              'entry then carries printingsChanged; without the flag, a deck whose printings ' +
+              'disagree between the two sides carries printingsUnaligned instead and its ' +
+              'printings are left alone.',
           ),
       }),
       outputSchema: fromJsonSchema<DeckSyncResult>(SYNC_DECKS_OUTPUT),

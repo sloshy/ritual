@@ -1,59 +1,32 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  applyDownloadDiff,
   applyPrintingUpdates,
+  buildCardIdResolver,
   buildCardIdsResolver,
-  diffByCardName,
-  diffPrintings,
+  diffDeckCards,
   diffToChangeEvents,
-  printingSatisfies,
   printingUpdatesToChangeEvents,
-  summarizeCards,
   type PrintingUpdate,
 } from '../../src/deck-sync/diff'
 import type { Card, DeckSection } from '../../src/types'
 
 /**
- * The printing-aware half of the deck-sync diff (`--sync-printings`): which
- * cards get a printing update, how updates rewrite local lines on a pull, and
- * the `set-printing` changelog events they produce. The name/quantity diff
- * these sit beside is pinned in `deck-sync.test.ts`.
+ * The printing-aware half of the deck-sync diff (`--sync-printings`): how a
+ * card's copies are matched printing by printing, what that produces when the
+ * two sides split a card across different printings, how the result rewrites
+ * local lines on a pull, and the changelog events it produces. The
+ * name-and-quantity diff these sit beside is pinned in `deck-sync.test.ts`, and
+ * the pairing rules themselves in `deck-sync-reconcile.test.ts`.
  */
 
 const main = (cards: Card[]): DeckSection[] => [{ name: 'Main', cards }]
 
-describe('printingSatisfies', () => {
-  test('compares only the dimensions the source states', () => {
-    // A source with no set speaks only to the finish.
-    expect(printingSatisfies({ set: 'lea', collectorNumber: '161' }, { finish: 'foil' })).toBe(
-      false,
-    )
-    expect(
-      printingSatisfies({ set: 'lea', collectorNumber: '161', finish: 'foil' }, { finish: 'foil' }),
-    ).toBe(true)
-  })
+/** Diff two sets of sections the way a printing-syncing pull does. */
+const diffPrintings = (oldSections: DeckSection[], newSections: DeckSection[]) =>
+  diffDeckCards(oldSections, newSections, { withPrintings: true })
 
-  test('folds an absent finish to nonfoil', () => {
-    expect(
-      printingSatisfies(
-        { set: 'lea', collectorNumber: '161' },
-        { set: 'lea', collectorNumber: '161', finish: 'nonfoil' },
-      ),
-    ).toBe(true)
-  })
-
-  test('compares collector numbers case-insensitively', () => {
-    // Sets are lowercased at the parse boundary, but collector numbers keep
-    // their case (`507A`) — the comparison must fold it, per printingKey's rule.
-    expect(
-      printingSatisfies(
-        { set: 'lea', collectorNumber: '161A' },
-        { set: 'lea', collectorNumber: '161a' },
-      ),
-    ).toBe(true)
-  })
-})
-
-describe('diffPrintings', () => {
+describe('diffDeckCards withPrintings', () => {
   test('reports a card whose printing differs, and nothing for one that matches', () => {
     const local = main([
       { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240' },
@@ -64,9 +37,11 @@ describe('diffPrintings', () => {
       { quantity: 1, name: 'Arcane Signet', set: 'ltc', collectorNumber: '285' },
     ])
 
-    const { updates, skipped } = diffPrintings(local, remote)
-    expect(skipped).toEqual([])
-    expect(updates).toEqual([
+    const diff = diffPrintings(local, remote)
+    expect(diff.added).toEqual([])
+    expect(diff.removed).toEqual([])
+    expect(diff.quantityChanged).toEqual([])
+    expect(diff.printingUpdates).toEqual([
       {
         name: 'Sol Ring',
         board: 'Main',
@@ -81,22 +56,24 @@ describe('diffPrintings', () => {
     const remote = main([
       { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', finish: 'foil' },
     ])
-    const { updates } = diffPrintings(local, remote)
-    expect(updates).toHaveLength(1)
-    expect(updates[0]!.to.finish).toBe('foil')
+    const { printingUpdates } = diffPrintings(local, remote)
+    expect(printingUpdates).toHaveLength(1)
+    expect(printingUpdates[0]!.to.finish).toBe('foil')
   })
 
   test('a source line stating no printing leaves the destination alone', () => {
     const local = main([{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240' }])
     const remote = main([{ quantity: 1, name: 'Sol Ring' }])
-    expect(diffPrintings(local, remote)).toEqual({ updates: [], skipped: [] })
+    const diff = diffPrintings(local, remote)
+    expect(diff.printingUpdates).toEqual([])
+    expect(diff.added).toEqual([])
+    expect(diff.removed).toEqual([])
   })
 
   test('a bare destination adopts the source printing', () => {
     const local = main([{ quantity: 1, name: 'Sol Ring' }])
     const remote = main([{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240' }])
-    const { updates } = diffPrintings(local, remote)
-    expect(updates).toEqual([
+    expect(diffPrintings(local, remote).printingUpdates).toEqual([
       {
         name: 'Sol Ring',
         board: 'Main',
@@ -106,42 +83,37 @@ describe('diffPrintings', () => {
     ])
   })
 
-  test('skips a card with several distinct printings, naming the ambiguous side', () => {
-    const twoPrintings: Card[] = [
-      { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
-      { quantity: 1, name: 'Lightning Bolt', set: '2xm', collectorNumber: '157' },
-    ]
-    const onePrinting: Card[] = [
-      { quantity: 2, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
-    ]
-
-    const oldAmbiguous = diffPrintings(main(twoPrintings), main(onePrinting))
-    expect(oldAmbiguous.updates).toEqual([])
-    expect(oldAmbiguous.skipped).toEqual([{ name: 'Lightning Bolt', board: 'Main', side: 'old' }])
-
-    const newAmbiguous = diffPrintings(main(onePrinting), main(twoPrintings))
-    expect(newAmbiguous.skipped).toEqual([{ name: 'Lightning Bolt', board: 'Main', side: 'new' }])
-  })
-
-  test('same-name lines that agree on one printing are not ambiguous', () => {
-    const local = main([
-      { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
-      { quantity: 2, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
-    ])
-    const remote = main([
-      { quantity: 3, name: 'Lightning Bolt', set: '2xm', collectorNumber: '157' },
-    ])
-    const { updates, skipped } = diffPrintings(local, remote)
-    expect(skipped).toEqual([])
-    expect(updates).toHaveLength(1)
-  })
-
-  test('cards on only one side are the name diff’s business, not this one’s', () => {
+  test('cards on only one side are reported per printing', () => {
     const local = main([{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240' }])
     const remote = main([
-      { quantity: 1, name: 'Arcane Signet', set: 'ltc', collectorNumber: '285' },
+      { quantity: 2, name: 'Arcane Signet', set: 'ltc', collectorNumber: '285' },
+      { quantity: 1, name: 'Arcane Signet', set: 'eld', collectorNumber: '331', finish: 'foil' },
     ])
-    expect(diffPrintings(local, remote)).toEqual({ updates: [], skipped: [] })
+    const diff = diffPrintings(local, remote)
+    expect(diff.removed).toEqual([
+      {
+        name: 'Sol Ring',
+        board: 'Main',
+        totalQuantity: 1,
+        printing: { set: 'c21', collectorNumber: '240', finish: undefined },
+      },
+    ])
+    // A card new to the destination arrives as one entry per printing, so each
+    // one's copies are pinned to the printing the source actually holds.
+    expect(diff.added).toEqual([
+      {
+        name: 'Arcane Signet',
+        board: 'Main',
+        totalQuantity: 2,
+        printing: { set: 'ltc', collectorNumber: '285', finish: undefined },
+      },
+      {
+        name: 'Arcane Signet',
+        board: 'Main',
+        totalQuantity: 1,
+        printing: { set: 'eld', collectorNumber: '331', finish: 'foil' },
+      },
+    ])
   })
 
   test('by board: the same card is compared per board, and carries its board', () => {
@@ -165,8 +137,7 @@ describe('diffPrintings', () => {
         cards: [{ quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284' }],
       },
     ]
-    const { updates } = diffPrintings(local, remote)
-    expect(updates).toEqual([
+    expect(diffPrintings(local, remote).printingUpdates).toEqual([
       {
         name: 'Sol Ring',
         board: 'Sideboard',
@@ -192,10 +163,215 @@ describe('diffPrintings', () => {
         cards: [{ quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284' }],
       },
     ]
-    expect(diffPrintings(remote, local).updates).toEqual([])
-    const { updates } = diffPrintings(remote, local, { byBoard: false })
-    expect(updates).toHaveLength(1)
-    expect(updates[0]!.to.set).toBe('ltc')
+    expect(diffPrintings(remote, local).printingUpdates).toEqual([])
+    const { printingUpdates } = diffDeckCards(remote, local, {
+      withPrintings: true,
+      byBoard: false,
+    })
+    expect(printingUpdates).toHaveLength(1)
+    expect(printingUpdates[0]!.to.set).toBe('ltc')
+  })
+})
+
+// ── Cards held at several printings at once ──────────────────────────
+
+/**
+ * The case the printing sync exists for: Archidekt (and a local file) can hold
+ * the same card several times over at different printings, so reconciling one
+ * means adding, removing, and re-quantifying *within* a name — not picking a
+ * single printing for all of its copies.
+ */
+describe('diffDeckCards withPrintings across several printings of one card', () => {
+  const bolt = (quantity: number, set: string, collectorNumber: string): Card => ({
+    quantity,
+    name: 'Lightning Bolt',
+    set,
+    collectorNumber,
+  })
+
+  test('splitting copies across printings adds the new one and re-quantifies the old', () => {
+    // The destination holds 3 of one printing; the source splits them 2/1.
+    const diff = diffPrintings(
+      main([bolt(3, 'lea', '161')]),
+      main([bolt(2, 'lea', '161'), bolt(1, '2xm', '157')]),
+    )
+
+    expect(diff.printingUpdates).toEqual([])
+    expect(diff.quantityChanged).toEqual([
+      {
+        name: 'Lightning Bolt',
+        board: 'Main',
+        oldQty: 3,
+        newQty: 2,
+        printing: { set: 'lea', collectorNumber: '161', finish: undefined },
+      },
+    ])
+    expect(diff.added).toEqual([
+      {
+        name: 'Lightning Bolt',
+        board: 'Main',
+        totalQuantity: 1,
+        printing: { set: '2xm', collectorNumber: '157', finish: undefined },
+      },
+    ])
+  })
+
+  test('collapsing copies onto one printing removes the printing that was dropped', () => {
+    const diff = diffPrintings(
+      main([bolt(2, 'lea', '161'), bolt(1, '2xm', '157')]),
+      main([bolt(3, 'lea', '161')]),
+    )
+
+    expect(diff.printingUpdates).toEqual([])
+    expect(diff.quantityChanged.map((entry) => [entry.oldQty, entry.newQty])).toEqual([[2, 3]])
+    expect(diff.removed).toEqual([
+      {
+        name: 'Lightning Bolt',
+        board: 'Main',
+        totalQuantity: 1,
+        printing: { set: '2xm', collectorNumber: '157', finish: undefined },
+      },
+    ])
+  })
+
+  test('printings shared by both sides pair up regardless of the order they appear in', () => {
+    const diff = diffPrintings(
+      main([bolt(1, '2xm', '157'), bolt(3, 'lea', '161')]),
+      main([bolt(3, 'lea', '161'), bolt(1, '2xm', '157')]),
+    )
+    expect(diff).toMatchObject({ added: [], removed: [], quantityChanged: [], printingUpdates: [] })
+  })
+
+  test('one printing can move while another only changes quantity', () => {
+    const diff = diffPrintings(
+      main([bolt(2, 'lea', '161'), bolt(1, '2xm', '157')]),
+      main([bolt(4, 'lea', '161'), bolt(1, 'clb', '187')]),
+    )
+    // LEA matched exactly and only re-quantified; 2XM had no counterpart and so
+    // was re-pinned to CLB rather than being removed and re-added.
+    expect(diff.printingUpdates).toEqual([
+      {
+        name: 'Lightning Bolt',
+        board: 'Main',
+        from: { set: '2xm', collectorNumber: '157', finish: undefined },
+        to: { set: 'clb', collectorNumber: '187', finish: undefined },
+      },
+    ])
+    expect(diff.quantityChanged.map((entry) => [entry.oldQty, entry.newQty])).toEqual([[2, 4]])
+    expect(diff.added).toEqual([])
+    expect(diff.removed).toEqual([])
+  })
+
+  test('a re-pin that also changes quantity keys the quantity by the new printing', () => {
+    // The applier rewrites the printing first, so a quantity change for the same
+    // copies has to name the printing they end up on or it would find no lines.
+    const diff = diffPrintings(main([bolt(1, 'lea', '161')]), main([bolt(3, '2xm', '157')]))
+    expect(diff.printingUpdates).toHaveLength(1)
+    expect(diff.quantityChanged).toEqual([
+      {
+        name: 'Lightning Bolt',
+        board: 'Main',
+        oldQty: 1,
+        newQty: 3,
+        printing: { set: '2xm', collectorNumber: '157', finish: undefined },
+      },
+    ])
+  })
+
+  test('the same printing in two finishes is two holdings, not one', () => {
+    const diff = diffPrintings(
+      main([{ quantity: 2, name: 'Sol Ring', set: 'c21', collectorNumber: '240' }]),
+      main([
+        { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240' },
+        { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', finish: 'foil' },
+      ]),
+    )
+    expect(diff.quantityChanged.map((entry) => [entry.oldQty, entry.newQty])).toEqual([[2, 1]])
+    expect(diff.added.map((card) => card.printing?.finish)).toEqual(['foil'])
+  })
+
+  test('applying the split to local sections leaves one line per printing', () => {
+    // The pull's own composition: printings move first, then quantities.
+    const local = main([
+      { quantity: 3, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 4 },
+    ])
+    const remote = main([bolt(2, 'lea', '161'), bolt(1, '2xm', '157')])
+    const diff = diffPrintings(local, remote)
+    const result = applyDownloadDiff(applyPrintingUpdates(local, diff.printingUpdates), diff)
+
+    expect(result[0]!.cards).toEqual([
+      { quantity: 2, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 4 },
+      {
+        quantity: 1,
+        name: 'Lightning Bolt',
+        set: '2xm',
+        collectorNumber: '157',
+        finish: undefined,
+      },
+    ])
+  })
+
+  test('applying a re-pin keeps the line’s own id and drops the printing that went away', () => {
+    const local = main([
+      { quantity: 2, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
+      { quantity: 1, name: 'Lightning Bolt', set: '2xm', collectorNumber: '157', cardId: 2 },
+    ])
+    const remote = main([bolt(2, 'lea', '161'), bolt(1, 'clb', '187')])
+    const diff = diffPrintings(local, remote)
+    const result = applyDownloadDiff(applyPrintingUpdates(local, diff.printingUpdates), diff)
+
+    // The re-pinned line kept `&2` rather than being dropped and re-added.
+    expect(result[0]!.cards.map((card) => [card.set, card.quantity, card.cardId])).toEqual([
+      ['lea', 2, 1],
+      ['clb', 1, 2],
+    ])
+  })
+})
+
+// ── Runs that are not syncing printings ──────────────────────────────
+
+describe('diffDeckCards without printings', () => {
+  test('reports cards the two sides hold at different printings without changing them', () => {
+    const local = main([
+      { quantity: 3, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
+    ])
+    const remote = main([
+      { quantity: 2, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
+      { quantity: 1, name: 'Lightning Bolt', set: '2xm', collectorNumber: '157' },
+    ])
+    const diff = diffDeckCards(local, remote)
+    expect(diff.unaligned).toEqual([{ name: 'Lightning Bolt', board: 'Main' }])
+    // Totals match, so nothing at all is applied — the printings are simply
+    // reported, and `--sync-printings` is what reconciles them.
+    expect(diff).toMatchObject({ added: [], removed: [], quantityChanged: [], printingUpdates: [] })
+  })
+
+  test('a source stating no printing never counts as a mismatch', () => {
+    const local = main([{ quantity: 2, name: 'Sol Ring', set: 'c21', collectorNumber: '240' }])
+    const remote = main([{ quantity: 3, name: 'Sol Ring' }])
+    const diff = diffDeckCards(local, remote)
+    expect(diff.unaligned).toEqual([])
+    expect(diff.quantityChanged.map((entry) => entry.newQty)).toEqual([3])
+  })
+
+  test('a quantity change spreads over the lines the card already occupies', () => {
+    // The card is split across printings on both sides and the totals differ.
+    // Nothing may be re-pinned, but the total still has to land — and without
+    // collapsing the two lines into one.
+    const local = main([
+      { quantity: 2, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
+      { quantity: 2, name: 'Lightning Bolt', set: '2xm', collectorNumber: '157' },
+    ])
+    const remote = main([
+      { quantity: 3, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
+    ])
+    const diff = diffDeckCards(local, remote)
+    const result = applyDownloadDiff(local, diff)
+    expect(result[0]!.cards.map((card) => [card.set, card.quantity])).toEqual([
+      ['lea', 2],
+      ['2xm', 1],
+    ])
+    expect(diff.unaligned).toEqual([{ name: 'Lightning Bolt', board: 'Main' }])
   })
 })
 
@@ -271,57 +447,75 @@ describe('applyPrintingUpdates', () => {
     expect(result[0]!.cards[0]!.set).toBe('ltc')
     expect(result[1]!.cards[0]!.set).toBe('c21')
   })
-})
 
-describe('summarizeCards withPrintings', () => {
-  test('carries the printing when every line agrees on one', () => {
-    const summary = summarizeCards(
-      main([
-        { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', finish: 'foil' },
-        { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', finish: 'foil' },
-      ]),
-      { withPrintings: true },
-    )
-    expect(summary.get('Main sol ring')?.printing).toEqual({
-      set: 'c21',
-      collectorNumber: '240',
-      finish: 'foil',
-    })
+  test('clears a finish the source no longer states', () => {
+    // The source wins on every dimension it speaks to, and a re-pin to a
+    // nonfoil printing speaks to the finish by stating none.
+    const sections = main([
+      { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', finish: 'foil' },
+    ])
+    const result = applyPrintingUpdates(sections, [
+      {
+        name: 'Sol Ring',
+        board: 'Main',
+        from: { set: 'c21', collectorNumber: '240', finish: 'foil' },
+        to: { set: 'ltc', collectorNumber: '284', finish: undefined },
+      },
+    ])
+    expect(result[0]!.cards[0]!.finish).toBeUndefined()
   })
 
-  test('carries no printing for mixed printings or bare lines', () => {
-    const summary = summarizeCards(
-      main([
-        { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
-        { quantity: 1, name: 'Lightning Bolt', set: '2xm', collectorNumber: '157' },
-        { quantity: 1, name: 'Sol Ring' },
-      ]),
-      { withPrintings: true },
-    )
-    const bolt = summary.get('Main lightning bolt')
-    // The quantity pins the lookup key, so a missing entry cannot pass as
-    // "no printing".
-    expect(bolt?.totalQuantity).toBe(2)
-    expect(bolt?.printing).toBeUndefined()
-    const solRing = summary.get('Main sol ring')
-    expect(solRing?.totalQuantity).toBe(1)
-    expect(solRing?.printing).toBeUndefined()
+  test('resolves every update’s lines before rewriting any of them', () => {
+    // A finish-only update leaves the edition alone, so the printing it lands
+    // on can be one another update moves *from*. Selecting as we go would let
+    // the second update pick up the first's output and rewrite it twice.
+    const sections = main([
+      { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 },
+      {
+        quantity: 1,
+        name: 'Sol Ring',
+        set: 'c21',
+        collectorNumber: '240',
+        finish: 'foil',
+        cardId: 2,
+      },
+    ])
+    const result = applyPrintingUpdates(sections, [
+      {
+        name: 'Sol Ring',
+        board: 'Main',
+        // Lands on C21:240 [foil] — which the second update moves away from.
+        from: { set: 'c21', collectorNumber: '240', finish: undefined },
+        to: { set: undefined, collectorNumber: undefined, finish: 'foil' },
+      },
+      {
+        name: 'Sol Ring',
+        board: 'Main',
+        from: { set: 'c21', collectorNumber: '240', finish: 'foil' },
+        to: { set: 'ltc', collectorNumber: '284', finish: 'foil' },
+      },
+    ])
+    expect(result[0]!.cards.map((card) => [card.cardId, card.set, card.finish])).toEqual([
+      [1, 'c21', 'foil'],
+      [2, 'ltc', 'foil'],
+    ])
   })
 
-  test('is absent entirely without the option', () => {
-    const summary = summarizeCards(
-      main([{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240' }]),
-    )
-    expect(summary.get('Main sol ring')?.printing).toBeUndefined()
+  test('only touches the lines holding the printing it moves from', () => {
+    const sections = main([
+      { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240' },
+      { quantity: 1, name: 'Sol Ring', set: 'mrd', collectorNumber: '217' },
+    ])
+    const result = applyPrintingUpdates(sections, [update])
+    expect(result[0]!.cards.map((card) => card.set)).toEqual(['ltc', 'mrd'])
   })
 })
 
 describe('printing-aware change events', () => {
-  test('adds from a withPrintings diff carry the printing onto the add event', () => {
-    const diff = diffByCardName(
+  test('adds from a printing-keyed diff carry the printing onto the add event', () => {
+    const diff = diffPrintings(
       main([]),
       main([{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', finish: 'foil' }]),
-      { withPrintings: true },
     )
     const [change] = diffToChangeEvents(diff)
     expect(change?.action).toBe('add')
@@ -332,16 +526,36 @@ describe('printing-aware change events', () => {
   })
 
   test('quantity-change events carry the printing the same way adds do', () => {
-    const diff = diffByCardName(
+    const diff = diffPrintings(
       main([{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240' }]),
       main([{ quantity: 2, name: 'Sol Ring', set: 'c21', collectorNumber: '240' }]),
-      { withPrintings: true },
     )
     const [change] = diffToChangeEvents(diff)
     expect(change?.action).toBe('add')
     if (change?.action !== 'add') throw new Error('expected an add change')
     expect(change.set).toBe('c21')
     expect(change.collectorNumber).toBe('240')
+  })
+
+  test('events for a card split across printings are stamped with each line’s own id', () => {
+    // The saved deck holds both printings; each change must name the line it
+    // actually touched, or a replay applies it to the wrong copies.
+    const diff = diffPrintings(
+      main([{ quantity: 2, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' }]),
+      main([
+        { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
+        { quantity: 1, name: 'Lightning Bolt', set: '2xm', collectorNumber: '157' },
+      ]),
+    )
+    const saved = main([
+      { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
+      { quantity: 1, name: 'Lightning Bolt', set: '2xm', collectorNumber: '157', cardId: 2 },
+    ])
+    const events = diffToChangeEvents(diff, buildCardIdResolver(saved))
+    expect(events.map((event) => [event.action, event.cardId])).toEqual([
+      ['add', 2],
+      ['remove', 1],
+    ])
   })
 
   test('printing updates become set-printing events stamped with the card id', () => {
@@ -353,8 +567,8 @@ describe('printing-aware change events', () => {
         to: { set: 'ltc', collectorNumber: '284', finish: 'foil' },
       },
     ]
-    const [change] = printingUpdatesToChangeEvents(updates, (board, name) =>
-      board === 'Main' && name === 'Sol Ring' ? [7] : [],
+    const [change] = printingUpdatesToChangeEvents(updates, (board, name, printing) =>
+      board === 'Main' && name === 'Sol Ring' && printing.set === 'ltc' ? [7] : [],
     )
     expect(change?.action).toBe('set-printing')
     if (change?.action !== 'set-printing') throw new Error('expected a set-printing change')
@@ -365,9 +579,9 @@ describe('printing-aware change events', () => {
   })
 
   test('a card spanning several lines gets one event per line, each with its id', () => {
-    // The apply rewrites every line of the card in the board, and a changelog
-    // replay applies each event to exactly one card — so the event count must
-    // match the line count or a replay reproduces only part of the rewrite.
+    // The apply rewrites every line holding the printing, and a changelog replay
+    // applies each event to exactly one card — so the event count must match the
+    // line count or a replay reproduces only part of the rewrite.
     const updates: PrintingUpdate[] = [
       {
         name: 'Sol Ring',
@@ -376,11 +590,12 @@ describe('printing-aware change events', () => {
         to: { set: 'ltc', collectorNumber: '284', finish: undefined },
       },
     ]
-    const sections = main([
-      { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 3 },
-      { quantity: 2, name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 8 },
+    // The resolver reads the *saved* deck, where the lines already moved.
+    const saved = main([
+      { quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', cardId: 3 },
+      { quantity: 2, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', cardId: 8 },
     ])
-    const changes = printingUpdatesToChangeEvents(updates, buildCardIdsResolver(sections))
+    const changes = printingUpdatesToChangeEvents(updates, buildCardIdsResolver(saved))
     expect(changes.map((change) => change.cardId)).toEqual([3, 8])
     expect(changes.every((change) => change.action === 'set-printing')).toBe(true)
   })

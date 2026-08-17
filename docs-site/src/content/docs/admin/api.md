@@ -1849,7 +1849,8 @@ supplies the terminator. `message` stays byte for byte what it always was.
 `success` reports whether the run could be performed, **not** whether every deck synced — a run with
 per-deck failures still returns `200` with `success: true` and a non-zero `report.failedCount`, so
 callers can read each deck's `status` and `reason` (plus, when the request set `syncPrintings`,
-its `printingsChanged` count and `printingsSkipped` card names). `report.unreadable` lists any deck whose file
+its `printingsChanged` count — or, when it did not, the `printingsUnaligned` card names whose
+printings the two sides disagree about). `report.unreadable` lists any deck whose file
 holds lines the parser could not read (`{ name, file, warnings }`), so a caller that never sees the
 stream can still show what a retry with `ignoreUnreadableLines` would delete. When git auto-commit is
 enabled, deck files written by the run are committed (`Sync decks with Archidekt (<direction>)`).
