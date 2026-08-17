@@ -80,3 +80,5 @@ test/e2e/.auth/
 
 # Dev files
 *.js.map
+
+TODO.md
