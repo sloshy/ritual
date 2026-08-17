@@ -5,6 +5,7 @@ import {
   interactiveEditIntro,
   moxfieldUserAgentNote,
   PRICE_CURRENCY_COMMENT,
+  PRICE_SOURCE_COMMENT,
   priceIntro,
   REFRESH_SESSION,
   sessionSemantics,
@@ -383,6 +384,7 @@ ritual price --deck --summary                       # every deck's totals
 ritual price "Winota Stax" --no-input               # one deck's cards + totals
 ritual price "Winota Stax" --output json --quiet
 ritual price "Winota Stax" --prices eur             ${PRICE_CURRENCY_COMMENT}
+ritual price "Winota Stax" --source cardkingdom     ${PRICE_SOURCE_COMMENT}
 \`\`\`
 
 Deck totals cover every section except extras (maybeboard/token). Each deck also

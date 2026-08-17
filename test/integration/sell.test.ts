@@ -5,13 +5,12 @@ import path from 'node:path'
 // scryfall/index, which reads `cardCache` at module top level — importing the
 // cache first leaves that binding in its temporal dead zone.
 import '../../src/scryfall'
-import { cardCache } from '../../src/cache'
-import { getBaseDir, setBaseDir } from '../../src/base-dir'
 import { sellDisclaimer } from '../../src/commands/sell'
 import type { SellReportPayload } from '../../src/sell-report'
 import type { ScryfallCard } from '../../src/types'
-import { makeCardKingdomCacheFile, makeCardKingdomProduct, makeScryfallCard } from '../test-utils'
+import { makeCardKingdomProduct, makeScryfallCard } from '../test-utils'
 import { runCli } from './helpers/cli'
+import { seedCardCache, seedCardKingdomFeed } from './helpers/seed'
 import { OFFLINE_ENV } from './helpers/offline-env'
 import { createWorkspace, removeWorkspace, writeCollectionFile } from './helpers/workspace'
 
@@ -43,20 +42,8 @@ const SEED_CARDS: Record<string, ScryfallCard[]> = {
   ],
 }
 
-/** Seed the card cache through the real writer, so its on-disk format is never hand-built. */
-async function writeCardCache(dir: string): Promise<void> {
-  const originalBase = getBaseDir()
-  setBaseDir(dir)
-  try {
-    await cardCache.bulkSet(SEED_CARDS)
-  } finally {
-    cardCache.invalidate?.()
-    setBaseDir(originalBase)
-  }
-}
-
 async function writeFeedCache(dir: string): Promise<void> {
-  const file = makeCardKingdomCacheFile([
+  await seedCardKingdomFeed(dir, [
     makeCardKingdomProduct({
       id: 10,
       sku: 'C21-263',
@@ -86,15 +73,13 @@ async function writeFeedCache(dir: string): Promise<void> {
       qtyBuying: 0,
     }),
   ])
-  await fs.mkdir(path.join(dir, 'cache'), { recursive: true })
-  await fs.writeFile(path.join(dir, 'cache', 'cardkingdom.json'), JSON.stringify(file))
 }
 
 let dir: string
 
 beforeEach(async () => {
   dir = await createWorkspace()
-  await writeCardCache(dir)
+  await seedCardCache(dir, SEED_CARDS)
   await writeFeedCache(dir)
   await writeCollectionFile(dir, 'binder', {
     entries: [

@@ -6,7 +6,8 @@ import { languageBadge } from '../card-language'
 import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost } from './symbols'
 import type { PriceCurrency } from '../price-currency'
-import { DEFAULT_CURRENCY, getCardPrice, formatPrice, formatPriceOrNA } from '../price-currency'
+import { DEFAULT_CURRENCY, formatPrice, formatPriceOrNA } from '../price-currency'
+import { pricesEnabled, sitePrice } from './price-view'
 import { BUYLIST_CURRENCY, type ViewMode } from './card-sorting'
 import type { SelectionState } from './useCardSelection'
 import { selectionModeActive } from './selection-mode'
@@ -304,7 +305,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
         // A flippable face exists only for double-faced cards with a resolvable back image.
         const canFlip = () => isDFC() && Boolean(images().backImage)
 
-        const price = () => getCardPrice(card(), currency())
+        const price = () => sitePrice(card(), currency())
 
         const dataAttrs = (): CardDataAttrs => ({
           'data-name': props.name.toLowerCase(),
@@ -366,7 +367,8 @@ export const CardItem: Component<CardItemProps> = (props) => {
         // it is worth nothing, and "$0.00" would read as a price rather than as
         // the refusal to quote one.
         const pricelessMarker = () => pricelessMarkerText(t, props.priceless)
-        const showPrice = () => pricelessMarker() !== undefined || displayPrice() > 0
+        const showPrice = () =>
+          pricesEnabled() && (pricelessMarker() !== undefined || displayPrice() > 0)
         const buylistPrice = () => props.buylistPrice ?? 0
         const showBuylist = () => buylistPrice() > 0
         // One source for both view modes: the label had to be corrected twice
@@ -599,9 +601,11 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     {t('site.card.tradeButton')}
                   </button>
                 </Show>
-                <span class="list-price">
-                  {pricelessMarker() ?? formatPriceOrNA(displayPrice(), currency())}
-                </span>
+                <Show when={pricesEnabled()}>
+                  <span class="list-price">
+                    {pricelessMarker() ?? formatPriceOrNA(displayPrice(), currency())}
+                  </span>
+                </Show>
                 <Show when={showBuylist()}>
                   <span class="list-buylist-price" title={t('site.card.buylistTitle')}>
                     {buylistLabel()}

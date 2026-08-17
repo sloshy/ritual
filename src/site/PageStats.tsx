@@ -4,6 +4,7 @@ import type { PriceCurrency } from '../price-currency'
 import { formatPrice } from '../price-currency'
 import { BUYLIST_CURRENCY } from '../buylist'
 import { buylistError } from './buylist-quotes'
+import { activeUsdSource, pricesEnabled } from './price-view'
 import { isEmptySellSummary, sellShortfallNote, type SellValueSummary } from './sell-value'
 import type { CardFiltersControl } from './useCardFilters'
 import { useT } from '../ui/i18n'
@@ -41,7 +42,10 @@ type FilteredPriceStatProps = {
 const FilteredPriceStat: Component<FilteredPriceStatProps> = (props) => {
   const t = useT()
   return (
-    <PageStat when={props.filters.narrowingCount() > 0} label={t('site.stats.filtered')}>
+    <PageStat
+      when={pricesEnabled() && props.filters.narrowingCount() > 0}
+      label={t('site.stats.filtered')}
+    >
       {formatPrice(props.amount, props.currency)}
     </PageStat>
   )
@@ -61,7 +65,7 @@ type SelectedPriceStatProps = {
 const SelectedPriceStat: Component<SelectedPriceStatProps> = (props) => {
   const t = useT()
   return (
-    <PageStat when={props.count > 0} label={t('site.stats.selected')}>
+    <PageStat when={pricesEnabled() && props.count > 0} label={t('site.stats.selected')}>
       {formatPrice(props.amount, props.currency)}
     </PageStat>
   )
@@ -144,6 +148,34 @@ export const ListPageStats: Component<ListPageStatsProps> = (props) => (
   </>
 )
 
+type PageCountAndTotalProps = {
+  /** Card entries the page holds (the always-present lead stat). */
+  count: number
+  /** The page's total in its display currency. */
+  total: number
+  currency: PriceCurrency
+}
+
+/**
+ * The always-present lead of a list page's `.page-stats` line: "N cards ·
+ * Total: $X", degrading to the bare count when the site displays no prices.
+ * One component rather than three page-local ternaries, so the fourth list
+ * page cannot forget the prices-off branch.
+ */
+export const PageCountAndTotal: Component<PageCountAndTotalProps> = (props) => {
+  const t = useT()
+  return (
+    <>
+      {pricesEnabled()
+        ? t('site.stats.cardsAndTotal', {
+            count: props.count,
+            amount: formatPrice(props.total, props.currency),
+          })
+        : t('domain.count.cards', { count: props.count })}
+    </>
+  )
+}
+
 type SellModeNoticeProps = {
   /** Whether sell mode is on; the notice is hidden entirely otherwise. */
   sellMode: boolean
@@ -153,11 +185,13 @@ type SellModeNoticeProps = {
  * Why sell mode is showing no prices. Without this a site whose buylist has
  * never been downloaded gives the user a toggle that appears to do nothing —
  * the single most likely first-run state, and the one with a clear remedy.
+ * The Card Kingdom price view reads the same quotes, so it surfaces the same
+ * explanation even with sell mode off — an all-N/A page needs a reason too.
  */
 export const SellModeNotice: Component<SellModeNoticeProps> = (props) => {
   const t = useT()
   return (
-    <Show when={props.sellMode ? buylistError() : null}>
+    <Show when={props.sellMode || activeUsdSource() === 'cardkingdom' ? buylistError() : null}>
       {(reason) => (
         <p class="page-stats-warning" role="status">
           {t('site.stats.buylistUnavailable', { reason: reason() })}

@@ -456,6 +456,9 @@ const RITUAL_CONFIG = {
     failedAuthDelayMs: 0,
   },
   collectionSync: { pullTarget: 'Inbox' },
+  // Cardmarket rides along so the EUR currency stays offered — the currency
+  // selector only lists currencies an enabled store can answer for.
+  priceSources: ['tcgplayer', 'cardmarket'],
 } satisfies RitualConfig
 
 /** Create the complete synthetic workspace inside `dir` (which must exist). */

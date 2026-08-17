@@ -13,7 +13,7 @@ import type { MessageKey } from '../i18n/messages/en'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
-import { ListPageStats, SellModeNotice } from './PageStats'
+import { ListPageStats, PageCountAndTotal, SellModeNotice } from './PageStats'
 import type { ScryfallCard } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { CollectionCardEntry } from './data-types'
@@ -30,7 +30,7 @@ import {
 import { cardPriceText, cardPricelessReason, pricelessFacts } from './priceless'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
-import { getCardPriceForFinish, formatPrice } from '../price-currency'
+import { pricesEnabled, sitePriceForFinish } from './price-view'
 import {
   type CardData,
   type CardGroup,
@@ -384,7 +384,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       const price =
         entryPricelessReason(entry) !== undefined
           ? 0
-          : getCardPriceForFinish(card, entry.finish, props.currency)
+          : sitePriceForFinish(card, entry.finish, props.currency)
       return { ...entry, price }
     })
   })
@@ -654,7 +654,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     const entry = modalEntry()!
     const card = modalCard()!
     const parts: MetaEntry[] = []
-    parts.push({ label: 'price', value: entryPriceText(entry) })
+    if (pricesEnabled()) parts.push({ label: 'price', value: entryPriceText(entry) })
     parts.push({
       label: 'set',
       value: `${entry.set.toUpperCase()}:${entry.collectorNumber}`,
@@ -721,10 +721,11 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         <div>
           <h1 class="page-title">{props.name}</h1>
           <p class="page-stats">
-            {t('site.stats.cardsAndTotal', {
-              count: props.entries.length,
-              amount: formatPrice(computedTotalPrice(), props.currency),
-            })}
+            <PageCountAndTotal
+              count={props.entries.length}
+              total={computedTotalPrice()}
+              currency={props.currency}
+            />
             <ListPageStats
               filters={cardFilters}
               currency={props.currency}

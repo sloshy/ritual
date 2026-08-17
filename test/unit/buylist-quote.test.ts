@@ -8,6 +8,20 @@ import { makeBuylistQuote, makeCardKingdomProduct } from '../test-utils'
 const FEED: Pick<CardKingdomFeed, 'baseUrl'> = { baseUrl: 'https://www.cardkingdom.com/' }
 
 describe('quoteForPrinting', () => {
+  test('carries the product retail price and stock onto the wire quote', () => {
+    const index = buildCardKingdomIndex([
+      makeCardKingdomProduct({ scryfallId: 'abc', priceRetail: 12.99, qtyRetail: 0 }),
+    ])
+    const quote = quoteForPrinting(index, FEED, {
+      set: 'dsk',
+      collectorNumber: '136',
+      finish: 'nonfoil',
+      scryfallId: 'abc',
+    })
+    // Out of stock keeps its listed price: qtyRetail 0 with priceRetail intact.
+    expect(quote).toMatchObject({ priceRetail: 12.99, qtyRetail: 0 })
+  })
+
   test('matches by scryfall id, filtered to the requested finish', () => {
     const index = buildCardKingdomIndex([
       makeCardKingdomProduct({

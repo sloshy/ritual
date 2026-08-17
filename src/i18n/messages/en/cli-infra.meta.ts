@@ -566,6 +566,17 @@ export const cliInfraMeta = {
   'cli.price.fieldSort': {
     description: 'The noun naming the --sort value inside an "Invalid <field> …" error.',
   },
+  'cli.price.fieldSource': {
+    description: 'The noun naming the --source value inside an "Invalid <field> …" error.',
+  },
+  'cli.price.sourceCurrencyConflict': {
+    description:
+      'Usage error when --source and --prices disagree. {source} is the store token (e.g. cardkingdom), {currency} the currency code the store prices in (e.g. USD).',
+  },
+  'cli.price.currencyCardKingdom': {
+    description:
+      "Replaces the plain currency code in the price report header when prices come from Card Kingdom's retail feed rather than Scryfall.",
+  },
   'cli.price.pricingList': {
     description:
       'Announces which single list is being priced. {suffix} is an ellipsis for the non-interactive run and empty otherwise.',

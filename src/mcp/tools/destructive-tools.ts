@@ -216,8 +216,11 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'non-"en" values switch cache downloads to the much larger all-cards bulk — ' +
         'uiLocale — the unrelated interface language, a BCP-47 tag such as "de-AT" with no ' +
         'download cost; do not reach for defaultLanguage when the user asks to change the ' +
-        'interface language — or site.bannedPrintings — "SET:COLLECTOR" printings barred from auto-selection as a ' +
-        'card\'s default printing). Nested "admin" fields merge; other top-level keys replace. ' +
+        'interface language — site.bannedPrintings — "SET:COLLECTOR" printings barred from auto-selection as a ' +
+        "card's default printing — or priceSources — which stores the sites offer prices from " +
+        '(any of "tcgplayer", "cardmarket", "cardkingdom"; [] hides all site prices; enabling ' +
+        'cardkingdom makes builds/servers download the Card Kingdom feed like sell mode does). ' +
+        'Nested "admin" fields merge; other top-level keys replace. ' +
         'Unknown keys — top-level or nested in "admin" — are rejected. Writing a key a session ' +
         'flag overrides (get_config reports these under overrides) persists the value but does ' +
         'not change what this running server operates with — e.g. under --sell-mode, sell mode ' +

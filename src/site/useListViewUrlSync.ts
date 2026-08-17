@@ -1,8 +1,9 @@
-import { createEffect } from 'solid-js'
+import { createEffect, on } from 'solid-js'
 import type { CardLabelSelection } from '../card-labels'
 import type { GroupBy, SortBy } from './card-sorting'
-import { SELL_MODE_FILTER_KEYS } from './card-filters'
+import { SELL_MODE_FILTER_KEYS, type CardFilters } from './card-filters'
 import type { CardFiltersControl } from './useCardFilters'
+import { activeUsdSource, pricesEnabled, selectUsdSource, usdSourceIsExplicit } from './price-view'
 import type { UseToolbarStateResult } from './useToolbarState'
 import {
   type ListViewDefaults,
@@ -135,6 +136,10 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
       if (o.sellMode) toolbar.setSellMode(true)
       if (o.buyer) toolbar.setBuyer(o.buyer)
     }
+    // A URL's source is an explicit choice — it wins over sell mode's courtesy
+    // default. `activeUsdSource` falls back to TCGplayer on deployments where
+    // the named store is not enabled, so applying it blind is safe.
+    if (o.priceSource) selectUsdSource(o.priceSource)
     if (o.filters) {
       if (o.filters.labels) {
         const kept = offeredLabels(o.filters.labels, config.availableLabels)
@@ -147,6 +152,29 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
       filters.update(o.filters)
     }
   }
+
+  // `priceSources: []` resolves from index.json *after* the URL overrides
+  // above applied, so a shared link's price state must be unwound once the
+  // deployment turns out to display no prices — the price filter, the
+  // hide-unpriced toggle, and the price grouping/sort would otherwise keep
+  // acting behind controls the toolbar no longer shows (with every price 0,
+  // the filter empties the whole list). Mirrors useSellMode's exit cleanup.
+  createEffect(
+    on(pricesEnabled, (enabled) => {
+      if (enabled) return
+      const cleared: Partial<CardFilters> = {}
+      if (filters.filters.price !== null) cleared.price = null
+      if (filters.filters.hideUnpriced) cleared.hideUnpriced = false
+      if (Object.keys(cleared).length > 0) filters.update(cleared)
+      if (toolbar.groupBy() === 'price') toolbar.setGroupBy(() => defaults.groupBy as G)
+      const layers = toolbar.sortLayers().filter((l) => l.sortBy !== 'price')
+      if (layers.length !== toolbar.sortLayers().length) {
+        toolbar.setSortLayers(
+          layers.length > 0 ? layers : [{ sortBy: defaults.sortBy, reverse: false }],
+        )
+      }
+    }),
+  )
 
   // Mirror subsequent state changes back into the URL.
   createEffect(() => {
@@ -164,6 +192,12 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
       // URL never gains a `sell=` key it cannot honor.
       sellMode: config.supportsSellMode === true && toolbar.sellMode(),
       buyer: toolbar.buyer(),
+      // Only an explicit choice is shareable: sell mode's courtesy default is
+      // reproduced on the recipient's side by `sell=1` itself, and writing it
+      // here would promote it to an explicit pick when the link is opened.
+      // The flag is a signal, so the first pick re-runs this effect even when
+      // the source value itself did not change.
+      ...(usdSourceIsExplicit() ? { priceSource: activeUsdSource() } : {}),
       filters: { ...filters.filters },
     }
     syncStateToUrl(state, defaults)

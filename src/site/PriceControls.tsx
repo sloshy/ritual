@@ -1,6 +1,7 @@
-import { type JSX, createMemo, type Accessor } from 'solid-js'
+import { type JSX, Show, createMemo, type Accessor } from 'solid-js'
 import type { CardData } from './card-sorting'
 import { usePriceRefresh, type PriceRefresh, type PriceCardRef } from './usePriceRefresh'
+import { pricesEnabled } from './price-view'
 import { useT } from '../ui/i18n'
 
 type PublicPriceControlsInput = {
@@ -30,19 +31,24 @@ type UpdatePricesButtonProps = {
   prices: PriceRefresh
 }
 
-/** The header "Update Prices" button shared by the public list pages. */
+/**
+ * The header "Update Prices" button shared by the public list pages. Hides
+ * itself with the rest of the price UI when `priceSources` is empty.
+ */
 export function UpdatePricesButton(props: UpdatePricesButtonProps): JSX.Element {
   const t = useT()
   return (
-    <button
-      type="button"
-      onClick={props.prices.refresh}
-      disabled={props.prices.refreshing()}
-      class="btn btn-primary btn-update-prices"
-      aria-label={t('site.prices.update')}
-      title={t('site.prices.update')}
-    >
-      {props.prices.refreshing() ? t('site.prices.updating') : t('site.prices.update')}
-    </button>
+    <Show when={pricesEnabled()}>
+      <button
+        type="button"
+        onClick={props.prices.refresh}
+        disabled={props.prices.refreshing()}
+        class="btn btn-primary btn-update-prices"
+        aria-label={t('site.prices.update')}
+        title={t('site.prices.update')}
+      >
+        {props.prices.refreshing() ? t('site.prices.updating') : t('site.prices.update')}
+      </button>
+    </Show>
   )
 }

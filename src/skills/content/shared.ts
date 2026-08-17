@@ -213,7 +213,12 @@ export type PriceIntroOptions = {
 export function priceIntro(options: PriceIntroOptions): string {
   return wrapProse(
     `The unified \`price\` command covers all list types; scope it with ` +
-      `\`${options.scopeFlag}\` or a name. An interactive browser opens on a TTY — ` +
+      `\`${options.scopeFlag}\` or a name. \`--source\` picks the store — ` +
+      `\`tcgplayer\` (Scryfall USD, the default), \`cardmarket\` (Scryfall EUR), or ` +
+      `\`cardkingdom\` (NM retail from the cached Card Kingdom feed; errors when no ` +
+      `feed is downloaded — a bulk-allowing \`--refresh\` downloads it). A source ` +
+      `implies its currency, so don't pass a conflicting \`--prices\`. An ` +
+      `interactive browser opens on a TTY — ` +
       `for agents, always pass \`--summary\`, \`--output json\`, or the global ` +
       `\`--no-input\` flag:`,
   )
@@ -221,6 +226,10 @@ export function priceIntro(options: PriceIntroOptions): string {
 
 /** The `--prices` example comment shared by every price example block. */
 export const PRICE_CURRENCY_COMMENT = '# usd | eur | tix (defaults to config defaultCurrency)'
+
+/** The `--source` example comment shared by every price example block. */
+export const PRICE_SOURCE_COMMENT =
+  '# tcgplayer (Scryfall USD) | cardmarket (Scryfall EUR) | cardkingdom (CK NM retail; needs the CK feed)'
 
 /**
  * The `--only <additions|removals>` change filter, described once for both sync

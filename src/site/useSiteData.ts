@@ -5,6 +5,7 @@ import type { PriceCurrency } from '../price-currency'
 import { setSearchDebounceMs } from '../editor/search-debounce'
 import { setDefaultLanguage } from '../editor/default-language'
 import { apiActive, apiBase, dataUrl, reportDataFetchError, setApiBase } from './api-base'
+import { setEnabledPriceSources } from './price-view'
 import { isAbortError } from './utils'
 import {
   currentLocale,
@@ -120,6 +121,9 @@ export function useSiteData(): UseSiteDataResult {
       }
       // Absent on sites built before sell mode existed, which reads as off.
       setSellModeConfigured(data.sellMode === true)
+      // Absent on sites built before price sources existed, which reads as the
+      // default (TCGplayer only). An explicit empty array hides all price UI.
+      setEnabledPriceSources(data.priceSources)
     })
   }
 

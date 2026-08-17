@@ -77,6 +77,8 @@ export function toBuylistQuote(
   const base: BuylistQuoteBase = {
     priceBuy: product.priceBuy,
     qtyBuying: product.qtyBuying,
+    priceRetail: product.priceRetail,
+    qtyRetail: product.qtyRetail,
     finish: product.finish,
     matchVia,
     ambiguous: match.ambiguous ? true : undefined,
@@ -128,6 +130,14 @@ export function matchPrinting(
 
   return null
 }
+
+/**
+ * A cache-backed single-printing quote lookup: null when the buyer has no
+ * product for it. The one function type behind both quoting seams —
+ * `DetailBuylistContext.quote` (the site bake) and `CardKingdomPricing.quote`
+ * (the price report) — so the two can never drift.
+ */
+export type PrintingQuoteFn = (printing: QuotePrinting) => BuylistQuote | null
 
 /** {@link matchPrinting} rendered straight to a wire quote; null when unmatched. */
 export function quoteForPrinting(

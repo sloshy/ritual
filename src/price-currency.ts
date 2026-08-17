@@ -134,16 +134,17 @@ type PriceField = keyof ScryfallCard['prices']
 
 /**
  * The price field each currency publishes for each finish, or `null` where it
- * publishes none. Scryfall has `usd`, `usd_foil`, `usd_etched`, `eur`, `eur_foil`
- * and `tix` — so EUR has no etched counterpart, and MTGO quotes one `tix` price
- * for a printing regardless of finish. Reading `eur` for an etched card would
- * quote the nonfoil price under an etched label, off by a lot on exactly the
- * cards (etched showcases) where the finish is the reason for the price; the
- * `null` is what makes that unrepresentable rather than merely discouraged.
+ * publishes none. Scryfall has `usd`, `usd_foil`, `usd_etched`, `eur`,
+ * `eur_foil`, `eur_etched` and `tix` — MTGO quotes one `tix` price for a
+ * printing regardless of finish. `eur_etched` is absent on most cards (Scryfall
+ * publishes it only for the etched printings Cardmarket actually quotes), which
+ * simply reads as no data. A currency that genuinely published no field for a
+ * finish would use `null` here, making a wrong-field read unrepresentable
+ * rather than merely discouraged.
  */
 const PRICE_FIELDS = {
   usd: { nonfoil: 'usd', foil: 'usd_foil', etched: 'usd_etched' },
-  eur: { nonfoil: 'eur', foil: 'eur_foil', etched: null },
+  eur: { nonfoil: 'eur', foil: 'eur_foil', etched: 'eur_etched' },
   tix: { nonfoil: 'tix', foil: 'tix', etched: 'tix' },
 } as const satisfies Record<PriceCurrency, Record<Finish, PriceField | null>>
 
@@ -166,7 +167,9 @@ export function getCardPriceForFinish(
   const field = PRICE_FIELDS[currency][finish]
   if (field === null) return 0
   const raw = card.prices[field]
-  if (raw !== null) {
+  // `!= null` also covers `eur_etched`, which is optional on the type and
+  // absent from cards cached before it existed.
+  if (raw != null) {
     const parsed = parseFloat(raw)
     if (Number.isFinite(parsed)) return parsed
   }
@@ -201,8 +204,7 @@ export function pricesFinishesSeparately(currency: PriceCurrency): boolean {
  * The finishes a printing picker gives a price column to: every finish both the
  * currency prices and at least one of the listed printings is offered in. A list
  * with no foil or etched printings therefore keeps its single price column, as
- * does a currency that prices every finish alike. An EUR etched column is
- * excluded for the same reason: it could only ever read `N/A` on every row.
+ * does a currency that prices every finish alike.
  */
 export function printingFinishColumns(
   printings: readonly ScryfallCard[],

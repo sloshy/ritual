@@ -10,7 +10,7 @@ import { VALID_CURRENCIES } from '../price-currency'
 import { DIFF_BY_MODES } from '../list-diff'
 import { BUYERS, SELL_MATCH_VIAS } from '../buylist'
 import { SELL_ENTRY_STATUSES, SELL_NO_MATCH_REASONS } from '../sell-report'
-import { UNPRICED_REASONS } from '../price-report'
+import { REPORT_PRICE_SOURCES, UNPRICED_REASONS } from '../price-report'
 import type { SessionOverrides } from '../ritual-config'
 
 /**
@@ -807,6 +807,10 @@ export const GET_CARD_PRICE_OUTPUT: JsonSchemaType = withDefs(
  */
 const PRICE_REPORT_COMMON_PROPS = {
   currency: enumOf(VALID_CURRENCIES),
+  source: enumOf(
+    REPORT_PRICE_SOURCES,
+    'Present when prices are Card Kingdom NM retail (source=cardkingdom) rather than Scryfall.',
+  ),
   lastRefreshedAt: nullable(int(), 'Epoch ms of the last cache refresh.'),
   warnings: arr(str()),
 } as const satisfies Properties
@@ -952,6 +956,12 @@ const BUYLIST_QUOTE_SCHEMA: JsonSchemaType = obj(
   {
     priceBuy: num('The buyer’s cash offer per copy (USD, Near Mint).'),
     qtyBuying: int('Copies the buyer is currently taking; 0 means paused despite a price.'),
+    priceRetail: num(
+      'The buyer’s own retail (sell-to-you) price per copy (USD, NM); 0 when unpublished.',
+    ),
+    qtyRetail: int(
+      'Copies the buyer has in stock to sell; 0 means out of stock (the price stands).',
+    ),
     buying: bool('Whether the buyer is actively buying (nonzero quantity and price).'),
     finish: enumOf(
       VALID_FINISHES,
@@ -965,7 +975,18 @@ const BUYLIST_QUOTE_SCHEMA: JsonSchemaType = obj(
     variation: str('The buyer’s variant note, when they publish one.'),
     url: str('The buyer’s product page.'),
   },
-  ['priceBuy', 'qtyBuying', 'buying', 'finish', 'matchVia', 'productId', 'name', 'edition'],
+  [
+    'priceBuy',
+    'qtyBuying',
+    'priceRetail',
+    'qtyRetail',
+    'buying',
+    'finish',
+    'matchVia',
+    'productId',
+    'name',
+    'edition',
+  ],
 )
 
 export const GET_BUYLIST_QUOTES_OUTPUT: JsonSchemaType = obj(

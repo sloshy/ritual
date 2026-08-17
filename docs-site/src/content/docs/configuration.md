@@ -50,6 +50,7 @@ These are the values Ritual uses when there is no config file, and what a first 
   "wantedDir": "./wanted",
   "artDir": "./art",
   "defaultCurrency": "usd",
+  "priceSources": ["tcgplayer"],
   "defaultLanguage": "en",
   "uiLocale": "en",
   "cacheLockTimeoutSeconds": 300,
@@ -96,6 +97,35 @@ You can use absolute paths (`"/srv/mtg/decks"`) or paths that step outside the b
 | Field             | Default | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ----------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `defaultCurrency` | `usd`   | The currency price-touching surfaces default to: `usd`, `eur`, or `tix`. Used by the [price](/commands/price/) command, the [printing and finish picker price columns](/commands/edit/#printing-and-finish-prices) and the price lines shown when adding or editing cards in the CLI editor, the [admin site](/commands/admin/)'s editor and move-cards price displays, and as the public site's initial currency (when that currency is built). [init-site](/commands/init-site/) prompts for it; change it later with `config set defaultCurrency eur`. |
+
+## Price stores (`priceSources`)
+
+| Field          | Default         | Description                                                      |
+| -------------- | --------------- | ---------------------------------------------------------------- |
+| `priceSources` | `["tcgplayer"]` | The stores the published and admin sites offer card prices from. |
+
+Any combination of three store names:
+
+- **`tcgplayer`** — Scryfall's USD market price (TCGplayer). The default, and what every
+  price display used before this key existed.
+- **`cardmarket`** — Scryfall's EUR trend price (Cardmarket). Already part of the card
+  cache, so enabling it costs nothing extra.
+- **`cardkingdom`** — Card Kingdom's Near Mint **retail** price, read from the same daily
+  pricelist feed [sell mode](/public-site/sell/) uses. Enabling it makes builds and servers
+  download and refresh that ~70&nbsp;MB feed exactly as `site.sellMode` does, and opens the
+  same buylist API routes.
+
+With both USD stores enabled, list pages grow a **Prices** source selector — see
+[Price stores on the site](/public-site/price-sources/). An **empty array** (`config set
+priceSources --remove tcgplayer`) hides every price surface on the sites: per-card prices,
+totals, the price sort/filter/grouping, and the currency selector. The CLI
+[`price`](/commands/price/) command (which has its own `--source` flag) and sell mode are
+unaffected by an empty list.
+
+```bash
+ritual config set priceSources tcgplayer cardkingdom
+ritual config set priceSources --add cardmarket
+```
 
 ## Default language
 
@@ -302,6 +332,8 @@ The `site` key holds public-site settings. It has two parts:
 buylist prices beside each card, the buylist filters, buylist grouping and sorting, and the
 sell-cart export. It defaults to **disabled**, because enabling it makes builds and cache refreshes
 download and index Card Kingdom's ~70 MB pricelist. Opt in with:
+
+Every feed-touching behavior this key drives — the build's buylist download and quote bake, the servers' startup refresh, the buylist API routes, and `cache preload-all`'s buylist half — is equally triggered by the `cardkingdom` entry of [`priceSources`](#price-stores-pricesources), whose retail prices ride on the same feed. Sell mode itself (the toggle, filters, and cart export) stays governed by this key alone.
 
 ```bash
 ritual config set site.sellMode true

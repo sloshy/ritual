@@ -191,6 +191,26 @@ export const siteChromeMeta = {
       "Label beside the dropdown choosing which shop's buylist prices are quoted, including its trailing colon.",
     maxLen: CHIP_MAX_LEN,
   },
+  'site.toolbar.priceSourceLabel': {
+    description:
+      "Label beside the dropdown choosing which store's prices the page displays (TCGplayer or Card Kingdom), including its trailing colon.",
+    maxLen: CHIP_MAX_LEN,
+  },
+  'site.priceSource.tcgplayer': {
+    description:
+      'Store name in the price-source dropdown: TCGplayer, whose USD market price is the default. A brand name — usually left untranslated.',
+    maxLen: CHIP_MAX_LEN,
+  },
+  'site.priceSource.cardkingdom': {
+    description:
+      "Store name in the price-source dropdown: Card Kingdom's USD retail price. A brand name — usually left untranslated.",
+    maxLen: CHIP_MAX_LEN,
+  },
+  'site.priceSource.cardmarket': {
+    description:
+      'Store name for Cardmarket, the source of EUR prices. A brand name — usually left untranslated.',
+    maxLen: CHIP_MAX_LEN,
+  },
   'site.toolbar.sortAscending': {
     description:
       "Tooltip on a sort layer's direction toggle, stating the direction currently in force (A→Z, cheapest first, and so on).",

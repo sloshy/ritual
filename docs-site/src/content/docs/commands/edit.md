@@ -402,9 +402,9 @@ prices are named after the amount (`$14.93 foil`) so a foil or etched quote neve
 one, and a printing that doesn't come in a column's finish leaves that cell blank. `N/A` (or
 `N/A foil`) means the card cache carries no price for that printing and finish in that currency.
 
-Which columns can appear depends on the currency: `eur` has no etched column at all (Scryfall
-publishes no etched euro price), and `tix` collapses to one untagged column, since MTGO prices a
-printing the same in every finish (see
+Which columns can appear depends on the currency: `tix` collapses to one untagged column, since
+MTGO prices a printing the same in every finish, and an `eur` etched column frequently reads `N/A` —
+Scryfall publishes `eur_etched` only for the few etched printings Cardmarket actually quotes (see
 [How Cards Are Priced](/commands/price/#how-cards-are-priced)).
 
 Typing filters the list by set code, set name, collector number, and rarity — never by price, so a
@@ -422,7 +422,8 @@ picking it — `Select Finish:` when adding a card, and `✨ Change Finish` in [
 
 A wanted list's `No preference (any finish)` choice covers every finish, so it shows no price; an
 entry whose pinned printing is missing from the card cache shows no price column at all. An `Etched`
-row is always `N/A` when your currency is `eur` — Scryfall publishes no etched euro price (see
+row is frequently `N/A` when your currency is `eur` — Scryfall publishes an etched euro price only
+for the few printings Cardmarket quotes (see
 [How Cards Are Priced](/commands/price/#how-cards-are-priced)).
 
 Prices come from the local card cache, so they are as fresh as your last

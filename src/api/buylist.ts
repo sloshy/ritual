@@ -29,7 +29,7 @@ import { feedStamp, quoteForPrinting } from '../cardkingdom'
 import { getErrorMessage } from '../errors'
 import { invalidLanguageMessage, isCardLanguage } from '../card-language'
 import { isFinish } from '../finish-condition'
-import { getSiteSellMode, loadRitualConfig } from '../ritual-config'
+import { loadRitualConfig, wantsCardKingdomFeed } from '../ritual-config'
 
 /**
  * Upper bound on printings per request. A list page asks for every card at
@@ -169,21 +169,24 @@ export async function handleBuylistStatus(_req: Request): Promise<Response> {
 }
 
 /**
- * Wrap a buylist or sell handler so a server refuses it entirely when sell mode
- * is off — a 404, so a deployment without sell mode does not even advertise the
+ * Wrap a buylist or sell handler so a server refuses it entirely when nothing
+ * wants the buyer feed — neither sell mode nor the `cardkingdom` price source —
+ * with a 404, so a deployment without either does not even advertise the
  * capability.
  *
  * Both servers use it. The admin's sell routes used to be deliberately ungated
- * ("the operator's own tools are not what `site.sellMode` governs"), but sell
- * mode is now opt-in everywhere: a workspace that never asked for buylist
- * prices has no feed to quote from, so the honest answer is that the capability
- * is not there. `ritual admin --sell-mode` turns it on for a session.
+ * ("the operator's own tools are not what `site.sellMode` governs"), but the
+ * feed is now opt-in everywhere: a workspace that never asked for buylist or
+ * Card Kingdom prices has no feed to quote from, so the honest answer is that
+ * the capability is not there. `ritual admin --sell-mode` turns it on for a
+ * session.
  *
  * The config is read per request rather than at route-table construction: the
  * route table is built once at startup, and a `config set site.sellMode false`
  * must take effect without a restart (the same reason the served `index.json`
- * carries `sellMode` in its config stamp). {@link getSiteSellMode} consults the
- * session override first, so a `--sell-mode` run stays enabled either way.
+ * carries `sellMode` in its config stamp). {@link wantsCardKingdomFeed} reads
+ * the sell-mode session override first, so a `--sell-mode` run stays enabled
+ * either way.
  *
  * The refusal uses the standard `apiError` envelope rather than a bare literal:
  * every admin client branches on `success === false`, and the MCP dispatcher
@@ -191,10 +194,12 @@ export async function handleBuylistStatus(_req: Request): Promise<Response> {
  * meaningless "Admin request failed (HTTP 404)". The text stays English by
  * contract, like every other machine-facing refusal on these routes.
  */
-export function withSellModeGate(handler: BuylistRouteHandler): BuylistRouteHandler {
+export function withBuylistFeedGate(handler: BuylistRouteHandler): BuylistRouteHandler {
   return async (req: Request): Promise<Response> => {
     const config = await loadRitualConfig()
-    if (!getSiteSellMode(config)) {
+    // The `cardkingdom` price source opens these routes too: the admin editors
+    // quote live to display CK retail prices, whether or not sell mode is on.
+    if (!wantsCardKingdomFeed(config)) {
       return apiError('Not found', 404)
     }
     return handler(req)

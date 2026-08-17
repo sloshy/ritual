@@ -212,6 +212,10 @@ export const helpInfraMeta = {
   'help.price.prices': {
     description: '`price --prices`. defaultCurrency is a config key; usd/eur/tix are codes.',
   },
+  'help.price.source': {
+    description:
+      'Help text for the --source flag choosing which store prices come from. The store tokens (tcgplayer, cardmarket, cardkingdom) are literal values and must not be translated.',
+  },
   'help.price.name': { description: '`price --name`.' },
   'help.price.set': { description: '`price --set`.' },
   'help.price.collector': { description: '`price --collector`.' },

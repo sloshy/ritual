@@ -108,6 +108,12 @@ export interface ScryfallCard {
     usd_etched: string | null
     eur: string | null
     eur_foil: string | null
+    /**
+     * Optional: Scryfall publishes it only for the few etched printings
+     * Cardmarket quotes, and cards cached before the field existed lack it
+     * entirely. Absent reads exactly like null (no price).
+     */
+    eur_etched?: string | null
     tix: string | null
   }
   finishes: string[]

@@ -2,6 +2,7 @@ import type { Component, Accessor } from 'solid-js'
 import { createSignal, createMemo, createEffect, on, onMount, onCleanup, For, Show } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary, ListDetail } from './data-types'
 import type { PriceCurrency } from '../price-currency'
+import { pricesEnabled } from './price-view'
 import { formatPriceWithMissing } from '../price-currency'
 import { resolveCardThumbnailUrl } from './image-sources'
 import { scoreMatch } from './quick-switch-search'
@@ -471,9 +472,11 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
                               <span class="quick-switch-row-count-suffix">{entry.labelSuffix}</span>
                             </Show>
                           </span>
-                          <span class="quick-switch-row-price">
-                            {formatPriceWithMissing(entry.total, props.currency(), entry.missing)}
-                          </span>
+                          <Show when={pricesEnabled()}>
+                            <span class="quick-switch-row-price">
+                              {formatPriceWithMissing(entry.total, props.currency(), entry.missing)}
+                            </span>
+                          </Show>
                         </div>
                       ) : null}
                       {entry.kind === 'card' || entry.kind === 'printing' ? (

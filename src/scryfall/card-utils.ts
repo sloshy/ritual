@@ -111,6 +111,11 @@ export function mapScryfallCard(item: ScryfallCard): ScryfallCard {
       usd_etched: item.prices.usd_etched ?? null,
       eur: item.prices.eur ?? null,
       eur_foil: item.prices.eur_foil ?? null,
+      // Dropped when absent rather than stored as null, like `lang` above:
+      // Scryfall publishes it only for the few etched printings Cardmarket
+      // quotes, and omitting it keeps the other ~100k cached rows byte-
+      // identical to what they were before the field existed.
+      ...(item.prices.eur_etched != null ? { eur_etched: item.prices.eur_etched } : {}),
       tix: item.prices.tix ?? null,
     },
     finishes: item.finishes,

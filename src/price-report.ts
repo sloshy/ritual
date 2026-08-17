@@ -32,7 +32,7 @@ import { effectiveLabels, pricelessReason, PRICELESS_REASONS, type CardLabel } f
 import { findPrinting, hasSpecificPrinting, type CardPrintingsLookup } from './card-printing'
 import { parseCollectionFile } from './collection-file'
 import { parseDeckFrontMatter } from './deck-file'
-import { displayFinish } from './finish-condition'
+import { displayFinish, printingFinishes } from './finish-condition'
 import { isExtraSection } from './deck-format'
 import { loadDeckFile } from './importers/text-file'
 import { LIST_TYPES, type ListType } from './list-type'
@@ -42,8 +42,12 @@ import {
   getCardPriceForFinish,
   isCurrencyAvailableForCard,
   isFinishPricelessInCurrency,
+  type CheapestPrintingResult,
   type PriceCurrency,
 } from './price-currency'
+import { displayLanguage } from './card-language'
+import type { PrintingQuoteFn } from './cardkingdom/quote'
+import type { PriceSource } from './price-source'
 import { listLocations, type ListLocation } from './resolve-list'
 import { comparePrintings, computeRepresentativePrints, getCardGames } from './scryfall'
 import { parseWantedListFile } from './commands/wanted-helpers'
@@ -220,8 +224,20 @@ export type PriceReportTotals = PriceTotals & {
   listCount: number
 }
 
+/**
+ * The non-Scryfall stores a report can be priced from. One const so the report
+ * type, its three payload shapes, and the MCP output schema all widen together
+ * when a second store arrives; an absent `source` means Scryfall (the currency
+ * alone says which store that is). A `cardkingdom` report is always in `usd`.
+ */
+export const REPORT_PRICE_SOURCES = ['cardkingdom'] as const satisfies readonly PriceSource[]
+
+export type ReportPriceSource = (typeof REPORT_PRICE_SOURCES)[number]
+
 export type PriceReport = {
   currency: PriceCurrency
+  /** Present when prices came from Card Kingdom's NM retail feed instead of Scryfall. */
+  source?: ReportPriceSource
   lists: ListPriceSummary[]
   entries: PricedEntry[]
   /** Totals per list type, in canonical type order; types with no lists are omitted. */
@@ -234,6 +250,61 @@ export type BuildPriceReportOptions = {
   lookup: CardPrintingsLookup
   /** `set:collectorNumber` keys excluded from representative-printing selection. */
   bannedPrintings?: ReadonlySet<string>
+  /**
+   * Price from Card Kingdom's NM retail feed instead of Scryfall. USD only —
+   * the caller enforces `currency: 'usd'` before building. A printing CK has
+   * no product for (or a non-English entry, which their English-only feed can
+   * never quote) is honestly unpriced; there is no Scryfall fallback.
+   */
+  cardKingdom?: CardKingdomPricing
+}
+
+/**
+ * The Card Kingdom retail lookup the report prices against: the same
+ * cache-backed single-printing seam the site bake uses
+ * (`DetailBuylistContext.quote`), so the CLI and the sites can never quote the
+ * same printing differently.
+ */
+export type CardKingdomPricing = {
+  quote: PrintingQuoteFn
+}
+
+/** CK NM retail for one printing+finish; 0 when CK has no product (or no price) for it. */
+function cardKingdomRetail(
+  ck: CardKingdomPricing,
+  card: ScryfallCard,
+  finish: Finish,
+  language: CardLanguage | undefined,
+): number {
+  const quote = ck.quote({
+    set: card.set,
+    collectorNumber: card.collector_number,
+    finish,
+    scryfallId: card.id,
+    ...(displayLanguage(language) !== 'en' ? { language } : {}),
+  })
+  return quote && quote.priceRetail > 0 ? quote.priceRetail : 0
+}
+
+/**
+ * The cheapest CK-retail printing+finish across a card's printings — the CK
+ * counterpart of `findCheapestPrinting`, quoting each offered finish through
+ * the shared matcher.
+ */
+function findCheapestCardKingdomPrinting(
+  ck: CardKingdomPricing,
+  printings: ScryfallCard[],
+): CheapestPrintingResult | null {
+  let best: CheapestPrintingResult | null = null
+  for (const card of printings) {
+    for (const finish of printingFinishes(card)) {
+      const price = cardKingdomRetail(ck, card, finish, undefined)
+      if (price > 0 && (best === null || price < best.price)) {
+        best = { price, card, finish }
+      }
+    }
+  }
+  return best
 }
 
 /** A built report plus the printings fetched to build it (for detail views). */
@@ -248,6 +319,8 @@ export type BuiltPriceReport = {
  */
 export type PriceSummaryPayload = {
   currency: PriceCurrency
+  /** Present when prices are Card Kingdom NM retail rather than Scryfall. */
+  source?: ReportPriceSource
   lastRefreshedAt: number | null
   lists: ListPriceSummary[]
   typeTotals: ListTypeTotals[]
@@ -262,6 +335,8 @@ export type PriceSummaryPayload = {
  */
 export type PriceListDetailPayload = {
   currency: PriceCurrency
+  /** Present when prices are Card Kingdom NM retail rather than Scryfall. */
+  source?: ReportPriceSource
   list: ListPriceSummary | undefined
   cards: PricedEntry[]
   /** List parse warnings (prefixed with the list name) — lines pricing could not read. */
@@ -271,6 +346,8 @@ export type PriceListDetailPayload = {
 /** The JSON contract of the CLI's card-search view (`--output json`). */
 export type PriceCardSearchPayload = {
   currency: PriceCurrency
+  /** Present when prices are Card Kingdom NM retail rather than Scryfall. */
+  source?: ReportPriceSource
   filters: PriceEntryFilters
   cards: PricedEntry[]
   totals: PriceTotals
@@ -443,7 +520,11 @@ async function resolveNamePricing(
     printings,
     games: getCardGames(printings),
     representative: repPrints[options.currency]?.representative ?? null,
-    cheapest: findCheapestPrinting(printings, options.currency),
+    // Under CK pricing the cheapest acceptable copy is the cheapest printing
+    // CK actually sells, quoted through the same matcher as everything else.
+    cheapest: options.cardKingdom
+      ? findCheapestCardKingdomPrinting(options.cardKingdom, printings)
+      : findCheapestPrinting(printings, options.currency),
   }
   cache.set(name, pricing)
   return pricing
@@ -455,6 +536,7 @@ function priceEntry(
   fileOrder: number,
   pricing: NamePricing,
   currency: PriceCurrency,
+  ck?: CardKingdomPricing,
 ): PricedEntry {
   const pinned = hasSpecificPrinting(entry)
   // Deliberately language-neutral: no language is passed, so `findPrinting`
@@ -506,9 +588,18 @@ function priceEntry(
   let finish: Finish | undefined
   if (exactPrinting) {
     finish = displayFinish(exactPrinting, entry.finish)
-    price = getCardPriceForFinish(exactPrinting, finish, currency)
+    price = ck
+      ? cardKingdomRetail(ck, exactPrinting, finish, entry.language)
+      : getCardPriceForFinish(exactPrinting, finish, currency)
   } else if (pricing.representative) {
-    price = getCardPrice(pricing.representative, currency)
+    price = ck
+      ? cardKingdomRetail(
+          ck,
+          pricing.representative,
+          displayFinish(pricing.representative, undefined),
+          entry.language,
+        )
+      : getCardPrice(pricing.representative, currency)
   }
 
   // The cheapest acceptable copy depends on how specific the entry is: a
@@ -521,7 +612,11 @@ function priceEntry(
     lowest = price
     cheapestPick = null
   } else if (input.type === 'wanted' && pinned && exactPrinting) {
-    lowest = findCheapestPrinting([exactPrinting], currency)?.price ?? 0
+    // "This printing, any finish" — priced from the same store as everything
+    // else, or `lowest` would mix a Scryfall figure into a Card Kingdom total.
+    lowest = ck
+      ? (findCheapestCardKingdomPrinting(ck, [exactPrinting])?.price ?? 0)
+      : (findCheapestPrinting([exactPrinting], currency)?.price ?? 0)
     cheapestPick = null
   } else {
     lowest = cheapestPick?.price ?? 0
@@ -542,7 +637,7 @@ function priceEntry(
     unpricedReason:
       price > 0
         ? undefined
-        : finish && isFinishPricelessInCurrency(finish, currency)
+        : !ck && finish && isFinishPricelessInCurrency(finish, currency)
           ? 'finish-unpriced-in-currency'
           : 'no-price-data',
   }
@@ -584,7 +679,9 @@ export async function buildPriceReport(
     const listEntries: PricedEntry[] = []
     for (const [fileOrder, entry] of input.entries.entries()) {
       const pricing = await resolveNamePricing(entry.name, options, pricingByName)
-      listEntries.push(priceEntry(input, entry, fileOrder, pricing, options.currency))
+      listEntries.push(
+        priceEntry(input, entry, fileOrder, pricing, options.currency, options.cardKingdom),
+      )
     }
     entries.push(...listEntries)
     lists.push({ type: input.type, name: input.name, ...sumPricedEntries(listEntries) })
@@ -603,6 +700,7 @@ export async function buildPriceReport(
 
   const report: PriceReport = {
     currency: options.currency,
+    ...(options.cardKingdom ? { source: 'cardkingdom' as const } : {}),
     lists,
     entries,
     typeTotals,

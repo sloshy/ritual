@@ -8,7 +8,7 @@ import {
   type BulkRefreshPrompt,
   type RefreshMode,
 } from '../refresh'
-import { getSiteSellMode, loadRitualConfig } from '../ritual-config'
+import { loadRitualConfig, wantsCardKingdomFeed } from '../ritual-config'
 import { formatDuration } from '../utils'
 import { loadCardKingdomCache, saveCardKingdomCache, type CardKingdomCacheFile } from './cache'
 import { fetchCardKingdomFeed } from './client'
@@ -145,7 +145,10 @@ export async function ensureCardKingdomFeed(
  * card's empty state, the routes' 503, `sell`'s advice).
  */
 export type BuylistWarmth = {
-  /** Whether sell mode is on at all; when false, nothing was checked. */
+  /**
+   * Whether anything wants the feed at all — sell mode or the `cardkingdom`
+   * price source. When false, nothing was checked.
+   */
   enabled: boolean
   /** Whether a usable feed is cached now. */
   ready: boolean
@@ -158,13 +161,13 @@ export type BuylistWarmth = {
 /** Injectable dependencies for {@link warmCardKingdomFeed}. */
 export type WarmCardKingdomFeedDeps = EnsureCardKingdomFeedDeps & {
   /**
-   * Force sell mode on or off instead of consulting {@link getSiteSellMode}.
+   * Force the feed-wanted gate on or off instead of consulting
+   * {@link wantsCardKingdomFeed} (sell mode or the `cardkingdom` price source).
    *
    * No command passes it any more — `admin` used to, to force sell mode on
    * regardless of config, and now follows the same gate as `serve` and
-   * `build-site` (`site.sellMode`, or a run's `--sell-mode`). Kept as the seam
-   * that lets a caller decide the policy itself, and lets tests exercise the
-   * warm without a config on disk.
+   * `build-site`. Kept as the seam that lets a caller decide the policy
+   * itself, and lets tests exercise the warm without a config on disk.
    */
   sellMode?: boolean
   /** Index the ensured feed into the process memo. */
@@ -203,7 +206,7 @@ export async function warmCardKingdomFeed(
   deps: WarmCardKingdomFeedDeps = {},
 ): Promise<BuylistWarmth> {
   const { sellMode, adopt, ...ensureDeps } = deps
-  const enabled = sellMode ?? getSiteSellMode(await loadRitualConfig())
+  const enabled = sellMode ?? wantsCardKingdomFeed(await loadRitualConfig())
   if (!enabled) return { enabled: false, ready: false, refreshed: false }
 
   const cached = await (ensureDeps.load ?? loadCardKingdomCache)()

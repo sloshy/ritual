@@ -21,6 +21,7 @@ import {
   type SessionOverrides,
 } from '../../ritual-config'
 import { parseExportPresets } from '../../export/presets'
+import { parsePriceSources } from '../../price-source'
 import { shouldAutoCommit, commitFiles } from '../git'
 import { apiHandler } from '../utils'
 import { badRequest, readJsonObjectBody } from './save-helpers'
@@ -57,6 +58,7 @@ const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set(
     wantedDir: true,
     artDir: true,
     defaultCurrency: true,
+    priceSources: true,
     defaultLanguage: true,
     uiLocale: true,
     cacheLockTimeoutSeconds: true,
@@ -154,6 +156,17 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     // Validate each present constrained scalar, rejecting on the first
     // malformed value. `??` chains to the next key only while no error has
     // been produced, so a bad update never half-applies.
+    // `priceSources` is a constrained array (store names, lowercased, deduped);
+    // reject unknown stores here rather than persisting a value the loader
+    // would silently reset to the default.
+    if (raw.priceSources !== undefined) {
+      const parsed = parsePriceSources(raw.priceSources)
+      if (isConfigParseError(parsed)) {
+        return badRequest(parsed.error)
+      }
+      updates.priceSources = parsed
+    }
+
     const scalarError =
       applyScalarUpdate(raw, updates, 'defaultCurrency', parseDefaultCurrency) ??
       applyScalarUpdate(raw, updates, 'defaultLanguage', parseDefaultLanguage) ??

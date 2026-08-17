@@ -107,7 +107,9 @@ answering success unconditionally.
 
 #### The buylist rides along under sell mode
 
-When [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is enabled, `preload-all`
+When [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is enabled — or
+[`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`, which
+wants the same feed — `preload-all`
 updates **every** cache the workspace uses, and the [Card Kingdom buylist](/commands/sell/) is one
 of them — a site built from a day-old feed bakes yesterday's offers. After the card cache refresh
 succeeds it runs the equivalent of `ritual sell --refresh auto` on the feed: a cached copy less than

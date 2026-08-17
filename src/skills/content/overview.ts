@@ -290,6 +290,11 @@ ritual login status               # stored login + whether its session still aut
 ritual login logout               # remove the stored Archidekt session
 ritual config set <prop> <value>  # set a config value (dot notation for nested keys)
 ritual config set defaultCurrency eur  # currency price commands/displays default to (usd | eur | tix)
+ritual config set priceSources tcgplayer cardkingdom  # stores the sites offer prices from
+                                  #   (tcgplayer = Scryfall USD, cardmarket = Scryfall EUR,
+                                  #   cardkingdom = CK NM retail). Default tcgplayer; remove every
+                                  #   entry (--remove) to hide all site prices. cardkingdom makes
+                                  #   builds/servers download the ~70 MB CK feed like sell mode
 ritual config set defaultLanguage ja   # language stamped on newly added cards (Scryfall codes;
                                   #   aliases like jp/Japanese normalize). Non-en switches cache
                                   #   downloads to Scryfall's much larger all-cards bulk
@@ -314,6 +319,7 @@ ritual metadata get|list|unset <list> [prop]  # read or clear it (get exits 3 wh
 ritual cache status               # report cache size/freshness/source without refreshing
 ritual cache preload-all          # warm the Scryfall card cache + tags (bulk download); also
                                   #   refreshes the Card Kingdom buylist when site.sellMode is on
+                                  #   or priceSources includes cardkingdom
 ritual cache preload-set khm      # cache all cards of one set (exit 3 = unknown set code, 1 = search failed)
 ritual cache refresh-tags         # refresh only the oracle/art tags on cached cards (exit 1 when the download fails)
 ritual cache server               # host a shared cache server (default 127.0.0.1:4000)

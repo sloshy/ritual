@@ -2,7 +2,6 @@ import type { Component, JSX } from 'solid-js'
 import { createSignal, createMemo, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import type { PriceCurrency } from '../price-currency'
-import { formatPrice } from '../price-currency'
 import { cardPriceText, cardPricelessReason } from './priceless'
 import {
   type GroupBy,
@@ -17,7 +16,7 @@ import {
   sortByValuesFor,
 } from './card-sorting'
 import { CardModal } from './CardModal'
-import { ListPageStats, SellModeNotice } from './PageStats'
+import { ListPageStats, PageCountAndTotal, SellModeNotice } from './PageStats'
 import { createSellSummary, useSellMode, type QuoteSource } from './useSellMode'
 import { sellableFromCardData } from './sell-value'
 import type { SellModeProps } from './sell-mode'
@@ -358,10 +357,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
         <div>
           <h1 class="page-title">{props.title}</h1>
           <p class="page-stats">
-            {t('site.stats.cardsAndTotal', {
-              count: cardCount(),
-              amount: formatPrice(totalPrice(), props.currency),
-            })}
+            <PageCountAndTotal count={cardCount()} total={totalPrice()} currency={props.currency} />
             <ListPageStats
               filters={cardFilters}
               currency={props.currency}

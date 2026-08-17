@@ -58,6 +58,7 @@ describe('parseCardKingdomFeed', () => {
         edition: 'Test Set',
         finish: 'nonfoil',
         priceRetail: 1,
+        qtyRetail: 3,
         priceBuy: 0.5,
         qtyBuying: 10,
       },

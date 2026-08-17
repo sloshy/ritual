@@ -1,5 +1,6 @@
 import { createSignal, type Accessor } from 'solid-js'
 import { DEFAULT_CURRENCY, type PriceCurrency } from '../../../price-currency'
+import { setEnabledPriceSources } from '../../../site/price-view'
 import { fetchRitualConfig } from '../config-api'
 
 // Module-level so every admin page shares one value and a fetch kicked off by
@@ -11,10 +12,18 @@ const [defaultCurrency, setDefaultCurrency] = createSignal<PriceCurrency>(DEFAUL
  * (each page mount) re-fetches `/api/config`, so a change made on the Settings
  * page is picked up when navigating to a price-displaying page. Falls back to
  * USD while loading or when the fetch fails.
+ *
+ * The same fetch seeds the shared price-view store's enabled sources — the
+ * admin counterpart of the public site reading `priceSources` off
+ * `index.json` — so the editors' toolbar source selector and price reads
+ * follow the config without a second request.
  */
 export function useDefaultCurrency(): Accessor<PriceCurrency> {
   void fetchRitualConfig().then((config) => {
-    if (config) setDefaultCurrency(config.defaultCurrency)
+    if (config) {
+      setDefaultCurrency(config.defaultCurrency)
+      setEnabledPriceSources(config.priceSources)
+    }
   })
   return defaultCurrency
 }

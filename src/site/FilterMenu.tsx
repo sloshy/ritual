@@ -20,6 +20,7 @@ import {
 } from './card-filters'
 import { CARD_LABEL_DISPLAY_NAMES, type CardLabelSelection } from '../card-labels'
 import { type PriceCurrency, getCurrencySymbol } from '../price-currency'
+import { pricesEnabled } from './price-view'
 import type { MessageKey } from '../i18n/messages/en'
 import { useT } from '../ui/i18n'
 import type { ParamsOf, TranslateFn } from '../i18n/t'
@@ -642,17 +643,19 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         >
           {t('site.filter.hideLands')}
         </button>
-        <button
-          type="button"
-          class="toolbar-toggle"
-          classList={{ active: props.filters.filters.hideUnpriced }}
-          aria-pressed={props.filters.filters.hideUnpriced}
-          onClick={() =>
-            props.filters.update({ hideUnpriced: !props.filters.filters.hideUnpriced })
-          }
-        >
-          {t('site.filter.hideUnpriced')}
-        </button>
+        <Show when={pricesEnabled()}>
+          <button
+            type="button"
+            class="toolbar-toggle"
+            classList={{ active: props.filters.filters.hideUnpriced }}
+            aria-pressed={props.filters.filters.hideUnpriced}
+            onClick={() =>
+              props.filters.update({ hideUnpriced: !props.filters.filters.hideUnpriced })
+            }
+          >
+            {t('site.filter.hideUnpriced')}
+          </button>
+        </Show>
         <Show when={props.showHideExtras}>
           <button
             type="button"
@@ -871,20 +874,22 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         step="1"
         inputMode="numeric"
       />
-      <NumericFilterRow
-        label={priceLabel()}
-        inputId="filter-price"
-        ariaLabel={t('site.filter.priceCompare')}
-        op={props.filters.filters.priceOp}
-        onOp={(priceOp) => props.filters.update({ priceOp })}
-        value={priceInput.draft()}
-        valuePlaceholder={t('site.filter.numericPlaceholder')}
-        onValueInput={priceInput.onInput}
-        onValueBlur={priceInput.flush}
-        error={priceInput.error()}
-        step="0.01"
-        inputMode="decimal"
-      />
+      <Show when={pricesEnabled()}>
+        <NumericFilterRow
+          label={priceLabel()}
+          inputId="filter-price"
+          ariaLabel={t('site.filter.priceCompare')}
+          op={props.filters.filters.priceOp}
+          onOp={(priceOp) => props.filters.update({ priceOp })}
+          value={priceInput.draft()}
+          valuePlaceholder={t('site.filter.numericPlaceholder')}
+          onValueInput={priceInput.onInput}
+          onValueBlur={priceInput.flush}
+          error={priceInput.error()}
+          step="0.01"
+          inputMode="decimal"
+        />
+      </Show>
       <Show when={props.showBuylistFilter}>
         <NumericFilterRow
           // Always "$": a buyer's offer is USD whatever the page displays, so

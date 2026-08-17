@@ -19,7 +19,7 @@ import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../../src
  * remedy. Matching semantics are pinned in test/unit/sell-report.test.ts
  * against the engine; handler parameter validation in test/unit/admin/sell.test.ts.
  *
- * Every tool here reuses an admin route that `withSellModeGate` 404s while sell
+ * Every tool here reuses an admin route that `withBuylistFeedGate` 404s while sell
  * mode is off, so the suite turns it on the way `ritual mcp --sell-mode` does —
  * the temp workspace has no config file, and sell mode is off by default.
  */

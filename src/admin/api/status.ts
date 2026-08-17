@@ -18,7 +18,7 @@ export interface StatusResponse {
    * Whether this server answers the sell/buylist routes at all. The *effective*
    * value, so a `ritual admin --sell-mode` run reports enabled even with no
    * `site.sellMode` in the config file. Clients hide their sell surfaces when
-   * this is false — those routes 404 (see `withSellModeGate`), and a toggle
+   * this is false — those routes 404 (see `withBuylistFeedGate`), and a toggle
    * that only ever produces a 404 is worse than no toggle.
    */
   sellMode: boolean
@@ -27,7 +27,7 @@ export interface StatusResponse {
 export async function handleStatus(): Promise<Response> {
   const setupRequired = !(await adminUserExists())
   const totpEnabled = setupRequired ? false : await isTotpEnabled()
-  // Read from disk per request, exactly like `withSellModeGate` — not from the
+  // Read from disk per request, exactly like `withBuylistFeedGate` — not from the
   // process-wide config cache. The two must never disagree: a client that keeps
   // its sell surfaces because this said yes, against routes that 404 because
   // the gate re-read the file, is worse than either answer on its own.

@@ -10,6 +10,7 @@ import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 type ConfigView = {
   site?: { bannedPrintings?: string[]; sellMode?: boolean }
   defaultCurrency?: string
+  priceSources?: string[]
   defaultLanguage?: string
   cacheLockTimeoutSeconds?: number
   cacheSource?: string
@@ -133,6 +134,12 @@ describe('PUT /api/config', () => {
     }
   })
 
+  test('priceSources is validated and normalized like config set', async () => {
+    const response = await putConfig({ priceSources: ['CardKingdom', 'cardkingdom', 'tcgplayer'] })
+    expect(response.ok).toBe(true)
+    expect((await readConfig()).priceSources).toEqual(['cardkingdom', 'tcgplayer'])
+  })
+
   test('rejects invalid values with a 400 and persists none of them', async () => {
     const cases: RejectedConfigUpdate[] = [
       { label: 'negative searchDebounceMs', update: { searchDebounceMs: -1 } },
@@ -142,6 +149,8 @@ describe('PUT /api/config', () => {
         update: { site: { bannedPrintings: ['not-a-printing'] } },
       },
       { label: 'invalid defaultCurrency', update: { defaultCurrency: 'gbp' } },
+      { label: 'unknown price store', update: { priceSources: ['ebay'] } },
+      { label: 'non-array priceSources', update: { priceSources: 'tcgplayer' } },
       // Aliases like "jp" are a `config set` convenience; the API takes only
       // canonical Scryfall codes.
       { label: 'invalid defaultLanguage', update: { defaultLanguage: 'jp' } },

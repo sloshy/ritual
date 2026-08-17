@@ -1288,6 +1288,14 @@ export const adminMeta = {
   'admin.settings.currencyEur': {
     description: 'Currency option: euros, priced from Cardmarket (a marketplace name).',
   },
+  'admin.settings.priceSources': {
+    description:
+      'Label above the checkbox group choosing which stores the sites offer card prices from.',
+  },
+  'admin.settings.priceSourcesHint': {
+    description:
+      'Hint under the price-stores checkboxes explaining the USD/EUR store split, that unchecking all hides prices entirely, and the Card Kingdom feed download cost. Store and mode names (TCGplayer, Card Kingdom, Cardmarket, sell mode) refer to the labeled controls.',
+  },
   'admin.settings.currencyTix': {
     description: 'Currency option: Magic Online event tickets, the currency of MTGO.',
   },

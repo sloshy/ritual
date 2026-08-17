@@ -11,6 +11,7 @@ import {
   Show,
   Switch,
   Match,
+  untrack,
   type JSX,
 } from 'solid-js'
 import type { DeckDetail, CollectionDetail, WantedListDetail } from './data-types'
@@ -45,6 +46,7 @@ import { useRouting } from './useRouting'
 import { useSiteData } from './useSiteData'
 import { apiActive, apiDegraded, detailUrl } from './api-base'
 import { notifyCurrencyChanged } from './currency-epoch'
+import { offeredCurrencies } from './price-view'
 import { useFetchJson } from './useFetchJson'
 import { tradeToast } from './useTradeState'
 import { SelectionMenu } from './SelectionMenu'
@@ -120,6 +122,21 @@ function App() {
       notifyCurrencyChanged()
     })
   }
+
+  // A configured currency with no enabled source behind it (e.g. defaultCurrency
+  // usd with priceSources: ['cardmarket']) settles onto the first currency a
+  // source can answer for. Keyed to the *offer set* (untracking the choice), so
+  // a user currency switch never re-runs it; and no epoch bump — this is a
+  // boot-time correction, not a user switching prices out from under filters.
+  createEffect(
+    on(
+      () => offeredCurrencies(availableCurrencies()),
+      (offered) => {
+        const first = offered[0]
+        if (first !== undefined && !offered.includes(untrack(currency))) setCurrency(first)
+      },
+    ),
+  )
 
   // Switching the UI language loads the target dictionary before it takes
   // effect, so the switch is fire-and-forget from the control's point of view:

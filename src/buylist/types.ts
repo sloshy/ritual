@@ -48,6 +48,20 @@ export type BuylistQuoteBase = {
   priceBuy: number
   /** Copies the buyer is currently taking; 0 means paused despite a price. */
   qtyBuying: number
+  /**
+   * The buyer's own retail (sell-to-you) price per copy (USD, Near Mint); 0
+   * when they publish none. This is what the `cardkingdom` price source
+   * displays, and what the spread compares the offer against when that source
+   * is active. Carried on every quote — retail is a fact about the product,
+   * not about whether the buyer is buying.
+   */
+  priceRetail: number
+  /**
+   * Copies the buyer has in stock to sell; 0 means out of stock. A 0-qty
+   * product keeps its listed `priceRetail` — the price stands, the shelf is
+   * empty — so display surfaces show the price either way.
+   */
+  qtyRetail: number
   /** The quoted product's finish, which can differ from the request's on a name match. */
   finish: Finish
   matchVia: SellMatchVia

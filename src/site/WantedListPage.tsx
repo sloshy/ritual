@@ -15,13 +15,13 @@ import { storedLanguage } from '../card-language'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
-import { ListPageStats, SellModeNotice } from './PageStats'
+import { ListPageStats, PageCountAndTotal, SellModeNotice } from './PageStats'
 import type { ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { WantedListCardEntry } from './data-types'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
-import { getCardPriceForFinish, formatPrice } from '../price-currency'
+import { pricesEnabled, sitePriceForFinish } from './price-view'
 import {
   type CardData,
   type CardGroup,
@@ -344,7 +344,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
       // not flatly as nonfoil: a foil-only printing has no nonfoil price to quote.
       const price = isPricelessCard(pricelessFacts(entry))
         ? 0
-        : getCardPriceForFinish(card, displayFinish(card, entry.finish), props.currency)
+        : sitePriceForFinish(card, displayFinish(card, entry.finish), props.currency)
       return { ...entry, price }
     })
   })
@@ -597,10 +597,12 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     const entry = modalEntry()!
     const card = modalCard()!
     const parts: MetaEntry[] = []
-    parts.push({
-      label: 'price',
-      value: cardPriceText(t, entry, entry.price, props.currency),
-    })
+    if (pricesEnabled()) {
+      parts.push({
+        label: 'price',
+        value: cardPriceText(t, entry, entry.price, props.currency),
+      })
+    }
     if (hasSpecificPrinting(entry)) {
       parts.push({
         label: 'set',
@@ -652,10 +654,11 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         <div>
           <h1 class="page-title">{props.name}</h1>
           <p class="page-stats">
-            {t('site.stats.cardsAndTotal', {
-              count: props.entries.length,
-              amount: formatPrice(computedTotalPrice(), props.currency),
-            })}
+            <PageCountAndTotal
+              count={props.entries.length}
+              total={computedTotalPrice()}
+              currency={props.currency}
+            />
             <ListPageStats
               filters={cardFilters}
               currency={props.currency}

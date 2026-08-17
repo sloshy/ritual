@@ -3,6 +3,7 @@ import { createMemo, createSignal, For, Match, Show, Switch } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { formatPriceWithMissing } from '../price-currency'
+import { pricesEnabled } from './price-view'
 import { getDeckCountLabel } from '../deck-format'
 import { getSummaryLowestPrice, getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
 import { CoverCard } from './CoverCard'
@@ -178,9 +179,13 @@ const DeckCoverLink: Component<DeckCoverLinkProps> = (props) => {
         }
         label={countLabel().primary}
         labelSuffix={countLabel().suffix}
-        priceLabel={formatPriceWithMissing(total(), props.currency, missing())}
+        priceLabel={
+          pricesEnabled() ? formatPriceWithMissing(total(), props.currency, missing()) : undefined
+        }
         secondaryPriceLabel={
-          lowest() > 0 ? formatPriceWithMissing(lowest(), props.currency, missing()) : undefined
+          pricesEnabled() && lowest() > 0
+            ? formatPriceWithMissing(lowest(), props.currency, missing())
+            : undefined
         }
       />
     </a>
@@ -203,7 +208,9 @@ const ListCoverLink: Component<ListCoverLinkProps> = (props) => {
         name={props.item.name}
         image={props.item.featuredCardImage || null}
         label={t('domain.count.cards', { count: props.item.cardCount })}
-        priceLabel={formatPriceWithMissing(total(), props.currency, missing())}
+        priceLabel={
+          pricesEnabled() ? formatPriceWithMissing(total(), props.currency, missing()) : undefined
+        }
       />
     </a>
   )

@@ -63,6 +63,8 @@ export function makeScryfallCard(overrides: ScryfallCardOverrides = {}): Scryfal
       usd_etched: null,
       eur: null,
       eur_foil: null,
+      // No `eur_etched` default: the ingest mapper omits the field when
+      // Scryfall does (which is almost always), so fixtures mirror that.
       tix: null,
       ...prices,
     },
@@ -560,6 +562,7 @@ export function makeCardKingdomProduct(
     edition: 'Test Set',
     finish: 'nonfoil',
     priceRetail: 1,
+    qtyRetail: 5,
     priceBuy: 0.5,
     qtyBuying: 10,
     ...overrides,
@@ -579,6 +582,8 @@ export function makeBuylistQuote(overrides: Partial<BuylistQuote> = {}): Buylist
   return {
     priceBuy: 4,
     qtyBuying: 2,
+    priceRetail: 8,
+    qtyRetail: 3,
     buying: true,
     finish: 'nonfoil',
     matchVia: 'scryfall-id',

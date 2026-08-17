@@ -18,6 +18,15 @@ import { BottomSheet } from '../ui/BottomSheet'
 import { selectionModeActive, toggleSelectionMode } from './selection-mode'
 import type { SellModeControl } from './sell-mode'
 import { buylistLoading } from './buylist-quotes'
+import { notifyCurrencyChanged } from './currency-epoch'
+import {
+  activeUsdSource,
+  offersUsdSourceChoice,
+  PRICE_SOURCE_LABELS,
+  pricesEnabled,
+  selectUsdSource,
+  usdSourceChoices,
+} from './price-view'
 import { BUYERS, buyerName, parseBuyerId, type BuyerId } from '../buylist'
 import type { MessageKey } from '../i18n/messages/en'
 import { useI18n } from '../ui/i18n'
@@ -328,10 +337,54 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
     </Show>
   )
 
+  // The price-source selector: which store the page's USD prices come from.
+  // Rendered only when there is a real choice (USD view, more than one USD
+  // store enabled). Module-store-backed like sell mode, so the choice survives
+  // navigation; switching bumps the currency epoch, clearing price filters
+  // exactly as a currency switch does — every price on the page just changed.
+  const sourceControls = (
+    <Show when={offersUsdSourceChoice(props.currency)}>
+      <div class="toolbar-group">
+        <label class="toolbar-label" for="price-source">
+          {t('site.toolbar.priceSourceLabel')}
+        </label>
+        <select
+          id="price-source"
+          class="toolbar-select"
+          value={activeUsdSource()}
+          onChange={(e) => {
+            const raw = e.currentTarget.value
+            const choice = usdSourceChoices().find((source) => source === raw)
+            if (!choice || choice === activeUsdSource()) return
+            selectUsdSource(choice)
+            notifyCurrencyChanged()
+          }}
+        >
+          <For each={usdSourceChoices()}>
+            {(source) => (
+              <option value={source} selected={source === activeUsdSource()}>
+                {t(PRICE_SOURCE_LABELS[source])}
+              </option>
+            )}
+          </For>
+        </select>
+      </div>
+    </Show>
+  )
+
+  // With prices hidden (`priceSources: []`), the price grouping and sort make
+  // no sense — every value would be 0 — so their options disappear with the
+  // rest of the price UI. The buylist (sell mode) options are money the buyer
+  // pays and deliberately stay.
+  const groupByOptions = () =>
+    pricesEnabled() ? props.groupByOptions : props.groupByOptions.filter((o) => o.value !== 'price')
+  const sortByOptions = () =>
+    pricesEnabled() ? props.sortByOptions : props.sortByOptions.filter((o) => o.value !== 'price')
+
   const groupSelect = () => (
     <ToolbarSelect
       value={props.groupBy}
-      options={props.groupByOptions}
+      options={groupByOptions()}
       onChange={props.onGroupByChange}
     />
   )
@@ -355,8 +408,8 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
   // field is somehow taken.
   const firstUnusedSort = (): SortBy => {
     const used = new Set(props.sortLayers.map((l) => l.sortBy))
-    const opt = props.sortByOptions.find((o) => !used.has(o.value))
-    return opt?.value ?? props.sortByOptions[0]?.value ?? 'name'
+    const opt = sortByOptions().find((o) => !used.has(o.value))
+    return opt?.value ?? sortByOptions()[0]?.value ?? 'name'
   }
   const setLayerField = (index: number, sortBy: SortBy) =>
     props.onSortLayersChange(props.sortLayers.map((l, i) => (i === index ? { ...l, sortBy } : l)))
@@ -368,7 +421,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
     props.onSortLayersChange([...props.sortLayers, { sortBy: firstUnusedSort(), reverse: false }])
   const removeLayer = (index: number) =>
     props.onSortLayersChange(props.sortLayers.filter((_, i) => i !== index))
-  const canAddLayer = () => props.sortLayers.length < props.sortByOptions.length
+  const canAddLayer = () => props.sortLayers.length < sortByOptions().length
 
   const sortControls = () => (
     <div class="toolbar-sort-layers">
@@ -380,7 +433,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
           <div class="toolbar-sort-layer">
             <ToolbarSelect
               value={layer().sortBy}
-              options={props.sortByOptions}
+              options={sortByOptions()}
               onChange={(sortBy) => setLayerField(index, sortBy)}
             />
             <button
@@ -487,6 +540,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
                 {t('site.toolbar.sortSheet')} <span aria-hidden="true">▾</span>
               </button>
               {selectModeToggle()}
+              {sourceControls}
               {sellControls}
               {filterMenu}
               {props.selectionMenu}
@@ -552,6 +606,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
           {reverseGroupsToggle()}
           {extraToggleButtons()}
           {selectModeToggle()}
+          {sourceControls}
           {sellControls}
           {filterMenu}
           {props.selectionMenu}

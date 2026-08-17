@@ -528,6 +528,30 @@ describe('withLabelsParam', () => {
   })
 })
 
+describe('price source parameter', () => {
+  test('an absent (non-explicit) source stays out of the URL', () => {
+    expect(encode(defaultState()).has('prices')).toBe(false)
+  })
+
+  test('an explicit source is written verbatim and parsed back', () => {
+    const params = encode(defaultState({ priceSource: 'cardkingdom' }))
+    expect(params.get('prices')).toBe('cardkingdom')
+    expect(parseListViewParams(params).priceSource).toBe('cardkingdom')
+    // An explicit TCGplayer pick is shareable too: inside a sell=1 link it is
+    // what pins "compare vs market" against the courtesy Card Kingdom default.
+    expect(encode(defaultState({ priceSource: 'tcgplayer' })).get('prices')).toBe('tcgplayer')
+  })
+
+  test('a non-USD store is ignored: only the USD axis is shareable', () => {
+    // Cardmarket is a real store, just not a USD choice — EUR is always
+    // Cardmarket, so there is nothing for the param to say.
+    expect(
+      parseListViewParams(new URLSearchParams('prices=cardmarket')).priceSource,
+    ).toBeUndefined()
+    expect(parseListViewParams(new URLSearchParams('prices=ebay')).priceSource).toBeUndefined()
+  })
+})
+
 describe('sell mode parameters', () => {
   test('writes sell and buyer only while sell mode is on', () => {
     expect(encode(defaultState()).has('sell')).toBe(false)

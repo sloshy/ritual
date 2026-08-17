@@ -51,6 +51,7 @@ const PRODUCT_FIELD_CHECKS: ProductFieldChecks = {
   edition: isString,
   finish: (value) => typeof value === 'string' && isFinish(value),
   priceRetail: isNumber,
+  qtyRetail: isNumber,
   priceBuy: isNumber,
   qtyBuying: isNumber,
 }

@@ -6,6 +6,8 @@ import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../../../cache/constants'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../editor/search-debounce'
 import { CARD_LANGUAGES, isCardLanguage, languageDisplayName } from '../../../card-language'
 import type { PriceCurrency } from '../../../price-currency'
+import { VALID_PRICE_SOURCES } from '../../../price-source'
+import { PRICE_SOURCE_LABELS, setEnabledPriceSources } from '../../../site/price-view'
 import {
   INCLUDE_ALL,
   defaultSiteSelection,
@@ -101,6 +103,10 @@ export function Settings(): JSX.Element {
         // re-fetch), so a saved change must be pushed for an already-mounted
         // editor page to stamp the new language without a reload.
         applyDefaultLanguage(saved.defaultLanguage)
+        // Same again for the price stores: the shared price-view store is
+        // seeded at page mount, so a save must push the new list for already-
+        // mounted editors to update their source selector and price reads.
+        setEnabledPriceSources(saved.priceSources)
         // Same reasoning for the interface language: the admin resolves it once at
         // boot, so a saved change has to be pushed for the running app to adopt it
         // (it is the weakest tier, so an explicit choice still wins).
@@ -262,6 +268,33 @@ export function Settings(): JSX.Element {
               <option value="eur">{t('admin.settings.currencyEur')}</option>
               <option value="tix">{t('admin.settings.currencyTix')}</option>
             </select>
+          </div>
+          <div>
+            <label class="form-label">{t('admin.settings.priceSources')}</label>
+            <For each={VALID_PRICE_SOURCES}>
+              {(source) => (
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    name={`priceSource-${source}`}
+                    checked={config()!.priceSources.includes(source)}
+                    onChange={(e) => {
+                      // Keep canonical order rather than click order, so the
+                      // persisted array is stable however the boxes are toggled.
+                      const current = new Set(config()!.priceSources)
+                      if (e.currentTarget.checked) current.add(source)
+                      else current.delete(source)
+                      updateField(
+                        'priceSources',
+                        VALID_PRICE_SOURCES.filter((s) => current.has(s)),
+                      )
+                    }}
+                  />
+                  {t(PRICE_SOURCE_LABELS[source])}
+                </label>
+              )}
+            </For>
+            <p class="form-hint form-hint-top">{t('admin.settings.priceSourcesHint')}</p>
           </div>
           <div>
             <label class="form-label">{t('admin.settings.defaultLanguage')}</label>

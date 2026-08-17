@@ -286,8 +286,12 @@ describe('printingFinishColumns', () => {
     ])
   })
 
-  test('drops the etched column in EUR, which has no etched price to show', () => {
-    expect(printingFinishColumns([etchedOnly, nonfoilFoil], 'eur')).toEqual(['nonfoil', 'foil'])
+  test('keeps the etched column in EUR, which quotes eur_etched where Cardmarket publishes it', () => {
+    expect(printingFinishColumns([etchedOnly, nonfoilFoil], 'eur')).toEqual([
+      'nonfoil',
+      'foil',
+      'etched',
+    ])
   })
 
   test('collapses to one column in tix, which prices every finish alike', () => {
@@ -422,8 +426,8 @@ describe('findCheapestPrinting', () => {
 })
 
 describe('isFinishPricelessInCurrency', () => {
-  test('only etched in EUR has no price field to read', () => {
-    expect(isFinishPricelessInCurrency('etched', 'eur')).toBe(true)
+  test('no currency×finish pair is priceless by construction any more', () => {
+    expect(isFinishPricelessInCurrency('etched', 'eur')).toBe(false)
     expect(isFinishPricelessInCurrency('etched', 'usd')).toBe(false)
     expect(isFinishPricelessInCurrency('etched', 'tix')).toBe(false)
     expect(isFinishPricelessInCurrency('nonfoil', 'eur')).toBe(false)

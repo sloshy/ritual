@@ -9,6 +9,7 @@
 
 import { type Component, Show, createEffect, createSignal, onCleanup } from 'solid-js'
 import { type PriceCurrency, isPriceCurrency } from '../price-currency'
+import { offeredCurrencies } from './price-view'
 import { useT } from '../ui/i18n'
 import { ThemePicker } from './ThemePicker'
 import { useTheme } from './useTheme'
@@ -21,30 +22,47 @@ export type CurrencySelectorProps = {
 
 export const CurrencySelector: Component<CurrencySelectorProps> = (props) => {
   const t = useT()
+  // The site's baked currencies narrowed to the ones the enabled price sources
+  // can answer for (USD needs TCGplayer or Card Kingdom, EUR needs Cardmarket,
+  // tix just needs prices to be on at all). With `priceSources: []` nothing
+  // survives and the control hides itself with the rest of the price UI.
+  const offered = () => offeredCurrencies(props.available)
   return (
-    <div class="currency-selector">
-      <label class="currency-label">{t('site.header.pricesLabel')}</label>
-      <select
-        class="currency-select"
-        value={props.currency}
-        onChange={(e) => {
-          // The options below are the only values this can produce, but go through
-          // the guard rather than asserting the union onto an arbitrary string.
-          const next = e.target.value
-          if (isPriceCurrency(next)) props.onChange(next)
-        }}
-      >
-        <Show when={props.available.includes('usd')}>
-          <option value="usd">{t('site.header.currencyUsd')}</option>
-        </Show>
-        <Show when={props.available.includes('eur')}>
-          <option value="eur">{t('site.header.currencyEur')}</option>
-        </Show>
-        <Show when={props.available.includes('tix')}>
-          <option value="tix">{t('site.header.currencyTix')}</option>
-        </Show>
-      </select>
-    </div>
+    <Show when={offered().length > 0}>
+      <div class="currency-selector">
+        <label class="currency-label">{t('site.header.pricesLabel')}</label>
+        <select
+          class="currency-select"
+          value={props.currency}
+          onChange={(e) => {
+            // The options below are the only values this can produce, but go through
+            // the guard rather than asserting the union onto an arbitrary string.
+            const next = e.target.value
+            if (isPriceCurrency(next)) props.onChange(next)
+          }}
+        >
+          {/* `selected` markers, not just the select's `value` binding: the
+              offered set changes when the async config seed lands, and a value
+              bound before its option existed would strand the control on the
+              browser's first-option fallback. */}
+          <Show when={offered().includes('usd')}>
+            <option value="usd" selected={props.currency === 'usd'}>
+              {t('site.header.currencyUsd')}
+            </option>
+          </Show>
+          <Show when={offered().includes('eur')}>
+            <option value="eur" selected={props.currency === 'eur'}>
+              {t('site.header.currencyEur')}
+            </option>
+          </Show>
+          <Show when={offered().includes('tix')}>
+            <option value="tix" selected={props.currency === 'tix'}>
+              {t('site.header.currencyTix')}
+            </option>
+          </Show>
+        </select>
+      </div>
+    </Show>
   )
 }
 

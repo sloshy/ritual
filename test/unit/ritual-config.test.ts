@@ -24,8 +24,11 @@ import {
   parseCollectionSyncConfig,
   parseDefaultCurrency,
   parseDefaultLanguage,
+  cardKingdomPricesEnabled,
+  getPriceSources,
   getSessionOverrides,
   getSiteApiBaseUrl,
+  wantsCardKingdomFeed,
   getSiteSellMode,
   clearSiteSellModeOverride,
   setSiteSellModeOverride,
@@ -41,6 +44,7 @@ import {
 import { defaultSiteSelection } from '../../src/site/list-selection'
 import { setBaseDir } from '../../src/base-dir'
 import { localeTag } from '../../src/i18n/locale-tag'
+import type { PriceSource } from '../../src/price-source'
 
 const testDir = path.join(import.meta.dir, '../.test-ritual-config')
 const configPath = path.join(testDir, 'ritual.config.json')
@@ -131,6 +135,7 @@ describe('ritual config', () => {
       wantedDir: './my-wanted',
       artDir: './my-art',
       defaultCurrency: 'eur',
+      priceSources: ['tcgplayer', 'cardkingdom'],
       defaultLanguage: 'ja',
       uiLocale: localeTag('de-AT'),
       cacheLockTimeoutSeconds: 120,
@@ -730,6 +735,52 @@ describe('parseSiteConfig', () => {
 
   test('returns error when sellMode is not a boolean', () => {
     expectParseError(parseSiteConfig({ sellMode: 'false' }), 'sellMode')
+  })
+})
+
+describe('priceSources', () => {
+  beforeEach(async () => {
+    await fs.mkdir(testDir, { recursive: true })
+    setBaseDir(testDir)
+    resetRitualConfigCache()
+  })
+
+  afterEach(async () => {
+    clearSiteSellModeOverride()
+    await fs.rm(testDir, { recursive: true, force: true })
+  })
+
+  test('defaults to tcgplayer only, and an empty array survives a load', async () => {
+    expect(getPriceSources(getDefaultRitualConfig())).toEqual(['tcgplayer'])
+    await fs.writeFile(configPath, JSON.stringify({ priceSources: [] }))
+    expect(getPriceSources(await loadRitualConfig())).toEqual([])
+  })
+
+  test('an invalid value falls back to the default on load', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ priceSources: ['ebay'] }))
+    expect(getPriceSources(await loadRitualConfig())).toEqual(['tcgplayer'])
+  })
+
+  test('values are lowercased and deduped on load', async () => {
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({ priceSources: ['CardKingdom', 'cardkingdom', 'cardmarket'] }),
+    )
+    expect(getPriceSources(await loadRitualConfig())).toEqual(['cardkingdom', 'cardmarket'])
+  })
+
+  test('wantsCardKingdomFeed: cardkingdom source, sell mode, or the --sell-mode override', () => {
+    const config = getDefaultRitualConfig()
+    expect(wantsCardKingdomFeed(config)).toBe(false)
+    expect(cardKingdomPricesEnabled(config)).toBe(false)
+    const withCk = { ...config, priceSources: ['tcgplayer', 'cardkingdom'] as PriceSource[] }
+    expect(cardKingdomPricesEnabled(withCk)).toBe(true)
+    expect(wantsCardKingdomFeed(withCk)).toBe(true)
+    expect(
+      wantsCardKingdomFeed({ ...config, site: { ...defaultSiteSelection(), sellMode: true } }),
+    ).toBe(true)
+    setSiteSellModeOverride(true)
+    expect(wantsCardKingdomFeed(config)).toBe(true)
   })
 })
 

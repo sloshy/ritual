@@ -6,7 +6,8 @@ import type { ScryfallCard } from '../types'
 import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost, OracleText } from './symbols'
 import type { PriceCurrency } from '../price-currency'
-import { getCardPrice, getCardPriceForFinish, formatPrice } from '../price-currency'
+import { formatPrice, getCardPrice, getCardPriceForFinish } from '../price-currency'
+import { pricesEnabled, sitePrice } from './price-view'
 import { defaultPrintingFinish } from '../finish-condition'
 import { languageBadge, scryfallCardLanguage } from '../card-language'
 import { rarityName } from './printing-display'
@@ -108,9 +109,13 @@ export const CardModal: Component<CardModalProps> = (props) => {
         customArt: props.customArt,
         hasCustomArt: props.hasCustomArt,
       })
-      const price = getCardPrice(props.card, props.currency)
-      if (marker !== undefined) parts.push({ label: 'price', value: marker })
-      else if (price > 0) parts.push({ label: 'price', value: formatPrice(price, props.currency) })
+      if (pricesEnabled()) {
+        const price = sitePrice(props.card, props.currency)
+        if (marker !== undefined) parts.push({ label: 'price', value: marker })
+        else if (price > 0) {
+          parts.push({ label: 'price', value: formatPrice(price, props.currency) })
+        }
+      }
       parts.push({
         label: 'set',
         value: `${props.card.set_name} (#${props.card.collector_number})`,
@@ -143,6 +148,8 @@ export const CardModal: Component<CardModalProps> = (props) => {
           return dir * (na - nb)
         }
         case 'price': {
+          // Scryfall on purpose: this grid spans printings no list displays,
+          // so the Card Kingdom view has no quotes to sort them by.
           const pa = getCardPrice(a, props.currency)
           const pb = getCardPrice(b, props.currency)
           return dir * (pb - pa)
@@ -215,8 +222,10 @@ export const CardModal: Component<CardModalProps> = (props) => {
             // two tiles sharing a set:cn are tellable apart. Absent lang = en.
             const pLang = languageBadge(scryfallCardLanguage(p))
             // Quote the printing at the finish it's actually read at, which also
-            // covers a printing offered only in foil *and* etched.
-            const pPrice = getCardPriceForFinish(p, defaultPrintingFinish(p), props.currency)
+            // covers a printing offered only in foil *and* etched. Scryfall on
+            // purpose (see the sort above) — and an accessor, so a currency
+            // switch re-prices the mounted rows.
+            const pPrice = () => getCardPriceForFinish(p, defaultPrintingFinish(p), props.currency)
             return (
               <a
                 href={pUrl}
@@ -233,9 +242,11 @@ export const CardModal: Component<CardModalProps> = (props) => {
                     {p.set.toUpperCase()}:{p.collector_number}
                     <Show when={pLang}> · {pLang}</Show>
                   </span>
-                  <Show when={pPrice > 0}>
+                  <Show when={pricesEnabled() && pPrice() > 0}>
                     {' '}
-                    <span class="printing-label-price">{formatPrice(pPrice, props.currency)}</span>
+                    <span class="printing-label-price">
+                      {formatPrice(pPrice(), props.currency)}
+                    </span>
                   </Show>
                 </div>
               </a>

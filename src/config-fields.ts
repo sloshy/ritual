@@ -18,6 +18,7 @@ import {
   type SiteSelectionConfig,
 } from './ritual-config'
 import { invalidLanguageMessage, normalizeLanguageValue } from './card-language'
+import { parsePriceSources } from './price-source'
 import { getAtPath } from './utils'
 
 type ConfigFieldType = 'string' | 'boolean' | 'number' | 'string[]'
@@ -122,6 +123,7 @@ export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
   wantedDir: 'string',
   artDir: 'string',
   defaultCurrency: 'string',
+  priceSources: 'string[]',
   defaultLanguage: 'string',
   uiLocale: 'string',
   cacheLockTimeoutSeconds: 'number',
@@ -312,6 +314,14 @@ export function applyConfigSet(
     // normalize the inputs (lowercasing set codes) before any set operation —
     // this also lets `--remove SLD:123` match a stored `sld:123` entry.
     let inputValues = values
+    // Price sources go through the loader's own parser (lowercase, dedupe,
+    // reject unknown stores), so the write path can never persist a value the
+    // load path would silently reset to the default.
+    if (property === 'priceSources') {
+      const parsed = parsePriceSources(values)
+      if (isConfigParseError(parsed)) return parsed
+      inputValues = parsed
+    }
     if (property === SITE_BANNED_PRINTINGS) {
       const normalized: string[] = []
       for (const value of values) {

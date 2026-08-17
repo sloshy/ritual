@@ -8,6 +8,7 @@ import {
   VALID_CURRENCIES,
   type PriceCurrency,
 } from './price-currency'
+import { DEFAULT_PRICE_SOURCES, parsePriceSources, type PriceSource } from './price-source'
 import { isValidSemver } from './semver'
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from './cache/constants'
 import { INCLUDE_ALL, defaultSiteSelection, type SiteSelectionConfig } from './site/list-selection'
@@ -136,6 +137,16 @@ export interface RitualConfig {
    */
   defaultCurrency: PriceCurrency
   /**
+   * The stores whose prices the sites offer: `tcgplayer` (Scryfall USD, the
+   * default), `cardmarket` (Scryfall EUR), and `cardkingdom` (Card Kingdom NM
+   * retail from the buylist pricelist feed). Always present, defaulting to
+   * `['tcgplayer']`. An explicit empty array means the sites display no prices
+   * at all; the CLI `price` command and sell mode are unaffected by it.
+   * Enabling `cardkingdom` makes builds and servers download/refresh the Card
+   * Kingdom feed exactly as `site.sellMode` does.
+   */
+  priceSources: PriceSource[]
+  /**
    * The language stamped on newly added cards, and the selector for which
    * Scryfall bulk backs the card cache (`en` → `default_cards`, anything else →
    * `all_cards`). A bare card line always means `en` regardless of this setting —
@@ -224,6 +235,7 @@ const DEFAULT_CONFIG = {
   wantedDir: './wanted',
   artDir: './art',
   defaultCurrency: DEFAULT_CURRENCY,
+  priceSources: [...DEFAULT_PRICE_SOURCES],
   defaultLanguage: DEFAULT_CARD_LANGUAGE,
   uiLocale: DEFAULT_LOCALE,
   cacheLockTimeoutSeconds: DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
@@ -498,12 +510,14 @@ export function getSiteDeployConfig(site: SiteConfig | undefined): SiteDeployCon
  */
 type ParsedConfig = Omit<
   Partial<RitualConfig>,
-  'admin' | 'collectionSync' | 'site' | 'exportPresets'
+  'admin' | 'collectionSync' | 'site' | 'exportPresets' | 'priceSources'
 > & {
   admin?: unknown
   collectionSync?: unknown
   site?: unknown
   exportPresets?: unknown
+  /** Untrusted until {@link parsePriceSources} has run. */
+  priceSources?: unknown
 }
 
 /** Validate a boolean admin field, defaulting when absent or erroring when malformed. */
@@ -842,6 +856,9 @@ function applyDefaults(parsed: ParsedConfig): RitualConfig {
       'defaultCurrency',
       DEFAULT_CURRENCY,
     ),
+    priceSources: parseOrWarn(parsePriceSources(parsed.priceSources), 'priceSources', [
+      ...DEFAULT_PRICE_SOURCES,
+    ]),
     defaultLanguage: parseOrWarn(
       parseDefaultLanguage(parsed.defaultLanguage),
       'defaultLanguage',
@@ -1019,6 +1036,33 @@ export function getArtDir(config: RitualConfig = getRitualConfig()): string {
 /** The configured default price currency (`usd` unless overridden). */
 export function getDefaultCurrency(config: RitualConfig = getRitualConfig()): PriceCurrency {
   return config.defaultCurrency
+}
+
+/**
+ * The stores whose prices the sites offer (`['tcgplayer']` unless overridden).
+ * An empty array is meaningful: the sites display no prices at all.
+ */
+export function getPriceSources(config: RitualConfig = getRitualConfig()): readonly PriceSource[] {
+  return config.priceSources
+}
+
+/**
+ * Whether Card Kingdom retail prices are enabled as a site price source. One of
+ * the two reasons a build or server wants the Card Kingdom feed — see
+ * {@link wantsCardKingdomFeed}.
+ */
+export function cardKingdomPricesEnabled(config: RitualConfig = getRitualConfig()): boolean {
+  return config.priceSources.includes('cardkingdom')
+}
+
+/**
+ * Whether this build/server needs the Card Kingdom pricelist feed at all:
+ * sell mode (buylist quotes) or the `cardkingdom` price source. Every feed
+ * warm/ensure/bake gate reads this one answer, so the two consumers can never
+ * disagree about whether the ~70 MB download is warranted.
+ */
+export function wantsCardKingdomFeed(config: RitualConfig = getRitualConfig()): boolean {
+  return getSiteSellMode(config) || cardKingdomPricesEnabled(config)
 }
 
 /**

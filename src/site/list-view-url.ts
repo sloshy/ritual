@@ -19,6 +19,7 @@ import {
   parsePriceAmount,
 } from './card-filters'
 import { BUYERS, type BuyerId } from '../buylist'
+import { USD_PRICE_SOURCES, type UsdPriceSource } from '../price-source'
 import { COLOR_MATCH_MODES, FILTER_MATCH_MODES, SET_CODE_FILTER_MODES } from './filter-mode'
 import {
   SORT_BYS,
@@ -49,6 +50,12 @@ export type ListViewState = {
   sellMode: boolean
   /** Which buyer sell mode quotes against; only written while sell mode is on. */
   buyer: BuyerId
+  /**
+   * Which store USD prices are read from, when that is an *explicit* choice.
+   * Absent means "nothing shareable" (the default view, or sell mode's
+   * courtesy default, which `sell=1` reproduces by itself) and writes nothing.
+   */
+  priceSource?: UsdPriceSource
   filters: CardFilters
 }
 
@@ -62,6 +69,7 @@ export type ListViewOverrides = {
   priceGroupStrategy?: PriceGroupStrategy
   sellMode?: boolean
   buyer?: BuyerId
+  priceSource?: UsdPriceSource
   filters?: Partial<CardFilters>
 }
 
@@ -117,6 +125,7 @@ const KEYS = {
   buylistPriceOp: 'buyPriceOp',
   sellMode: 'sell',
   buyer: 'buyer',
+  priceSource: 'prices',
 } as const
 
 function setOrDelete(params: URLSearchParams, key: string, value: string | null): void {
@@ -244,6 +253,9 @@ export function writeListViewParams(
   setOrDelete(params, KEYS.sellMode, state.sellMode ? '1' : null)
   setOrDelete(params, KEYS.buyer, state.sellMode ? state.buyer : null)
 
+  // Absence is the "nothing shareable" arm; the writer never invents a value.
+  setOrDelete(params, KEYS.priceSource, state.priceSource ?? null)
+
   const hasCopies = f.copies !== null
   setOrDelete(params, KEYS.copies, hasCopies ? String(f.copies) : null)
   setOrDelete(params, KEYS.copiesOp, hasCopies && f.copiesOp !== d.copiesOp ? f.copiesOp : null)
@@ -348,6 +360,8 @@ export function parseListViewParams(params: URLSearchParams): ListViewOverrides 
   if (get(KEYS.sellMode) === '1') overrides.sellMode = true
   const buyer = oneOf(get(KEYS.buyer), BUYERS)
   if (buyer) overrides.buyer = buyer
+  const priceSource = oneOf(get(KEYS.priceSource), USD_PRICE_SOURCES)
+  if (priceSource) overrides.priceSource = priceSource
 
   const filters: Partial<CardFilters> = {}
   if (get(KEYS.hideLands) === '1') filters.hideLands = true

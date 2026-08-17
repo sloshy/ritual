@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { handleArtFile } from '../api/art'
 import { handleAutocomplete } from '../api/autocomplete'
-import { handleBuylistQuotes, handleBuylistStatus, withSellModeGate } from '../api/buylist'
+import { handleBuylistQuotes, handleBuylistStatus, withBuylistFeedGate } from '../api/buylist'
 import { handleCards } from '../api/cards'
 import { handleCardPrintings } from '../api/card-printings'
 import { handleCardPrice } from '../api/card-price'
@@ -121,12 +121,12 @@ export function buildSiteRoutes(live: LiveSiteData, distDir: string): SiteRoute[
     {
       method: 'GET',
       path: '/api/buylist/status',
-      handler: withSellModeGate(handleBuylistStatus),
+      handler: withBuylistFeedGate(handleBuylistStatus),
     },
     {
       method: 'POST',
       path: '/api/buylist/quotes',
-      handler: withSellModeGate(handleBuylistQuotes),
+      handler: withBuylistFeedGate(handleBuylistQuotes),
     },
   ]
 }

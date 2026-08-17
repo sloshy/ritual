@@ -215,6 +215,8 @@ export const helpInfraMessages = {
   'help.price.collection': 'Only collections (also disambiguates listName)',
   'help.price.wanted': 'Only wanted lists (also disambiguates listName)',
   'help.price.prices': 'Price currency: usd, eur, or tix (default: the configured defaultCurrency)',
+  'help.price.source':
+    'Price store: tcgplayer (Scryfall USD), cardmarket (Scryfall EUR), or cardkingdom (NM retail from the Card Kingdom feed)',
   'help.price.name': 'Print cards whose name contains every term',
   'help.price.set': 'Print cards from this set code',
   'help.price.collector': 'Print cards with this collector number',

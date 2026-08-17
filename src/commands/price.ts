@@ -1,5 +1,7 @@
 import { Command } from 'commander'
 import { cardCache } from '../cache'
+import { detailBuylistContext, ensureCardKingdomFeed, loadEnsuredFeed } from '../cardkingdom'
+import { VALID_PRICE_SOURCES, resolveSourceCurrency, type PriceSource } from '../price-source'
 import { t } from '../i18n/t'
 import { emptyCacheAdvice, ensureFreshPriceData } from '../cache/freshness'
 import { parseCurrencyFlagOrError, type PriceCurrency } from '../price-currency'
@@ -18,6 +20,7 @@ import {
   type PriceSummaryPayload,
 } from '../price-report'
 import { loadAndBuildPriceReport, type LoadedPriceReport } from '../price-runtime'
+import type { CardKingdomPricing } from '../price-report'
 import {
   isResolveListError,
   listTypeFromFlags,
@@ -55,6 +58,7 @@ type PriceCommandOptions = Partial<ScriptingOptions> & {
   collection?: boolean
   wanted?: boolean
   prices?: string
+  source?: PriceSource
   name?: string
   set?: string
   collector?: string
@@ -66,6 +70,10 @@ type PriceCommandOptions = Partial<ScriptingOptions> & {
 
 function parseSortFlag(value: string): PriceSortField {
   return parseEnumFlag(value, PRICE_SORT_FIELDS, t('cli.price.fieldSort'))
+}
+
+function parseSourceFlag(value: string): PriceSource {
+  return parseEnumFlag(value.toLowerCase(), VALID_PRICE_SOURCES, t('cli.price.fieldSource'))
 }
 
 /** The terminal facts the interactive-browser gate depends on. */
@@ -113,6 +121,7 @@ function emitSummary(
   if (scriptingOptions.output === 'json') {
     const payload: PriceSummaryPayload = {
       currency: report.currency,
+      ...(report.source ? { source: report.source } : {}),
       lastRefreshedAt,
       lists: report.lists,
       typeTotals: report.typeTotals,
@@ -157,7 +166,13 @@ function emitListDetail(
   )
 
   if (scriptingOptions.output === 'json') {
-    const payload: PriceListDetailPayload = { currency, list: summary, cards: entries, warnings }
+    const payload: PriceListDetailPayload = {
+      currency,
+      ...(built.report.source ? { source: built.report.source } : {}),
+      list: summary,
+      cards: entries,
+      warnings,
+    }
     emitOutput(payload, scriptingOptions)
     return
   }
@@ -203,7 +218,14 @@ function emitCardSearch(
   const totals = sumPricedEntries(matches)
 
   if (scriptingOptions.output === 'json') {
-    const payload: PriceCardSearchPayload = { currency, filters, cards: matches, totals, warnings }
+    const payload: PriceCardSearchPayload = {
+      currency,
+      ...(built.report.source ? { source: built.report.source } : {}),
+      filters,
+      cards: matches,
+      totals,
+      warnings,
+    }
     emitOutput(payload, scriptingOptions)
     return
   }
@@ -236,6 +258,7 @@ export function registerPriceCommand(program: Command): void {
         .option('--collection', t('help.price.collection'))
         .option('--wanted', t('help.price.wanted'))
         .option('--prices <currency>', t('help.price.prices'))
+        .option('--source <store>', t('help.price.source'), parseSourceFlag)
         .option('--name <terms>', t('help.price.name'))
         .option('--set <code>', t('help.price.set'))
         .option('--collector <number>', t('help.price.collector'))
@@ -255,7 +278,7 @@ export function registerPriceCommand(program: Command): void {
     // so `--output json` stays parseable, and drop them under `--quiet`.
     installScriptingLogger(scriptingOptions)
 
-    const currency = parseCurrencyFlagOrError(
+    let currency = parseCurrencyFlagOrError(
       options.prices,
       emitError,
       scriptingOptions,
@@ -263,6 +286,30 @@ export function registerPriceCommand(program: Command): void {
       getDefaultCurrency(),
     )
     if (!currency) return
+
+    // A source names its own currency (tcgplayer/cardkingdom → usd, cardmarket
+    // → eur). An explicit --prices that disagrees is a usage error rather than
+    // a silent override; an omitted one simply follows the source.
+    const source = options.source
+    if (source) {
+      const resolved = resolveSourceCurrency(
+        source,
+        options.prices !== undefined ? currency : undefined,
+      )
+      if (!resolved.ok) {
+        emitError(
+          'usage_error',
+          t('cli.price.sourceCurrencyConflict', {
+            source,
+            currency: resolved.implied.toUpperCase(),
+          }),
+          scriptingOptions,
+        )
+        process.exitCode = ExitCode.UsageError
+        return
+      }
+      currency = resolved.currency
+    }
 
     const type = listTypeFromFlags(options)
     if (type === 'conflict') {
@@ -322,6 +369,22 @@ export function registerPriceCommand(program: Command): void {
       return
     }
 
+    // Card Kingdom retail prices come from the buylist pricelist feed, under
+    // this run's --refresh policy exactly like the card cache above. No feed,
+    // no report: falling back to Scryfall would silently answer with a
+    // different store's prices.
+    let cardKingdom: CardKingdomPricing | undefined
+    if (source === 'cardkingdom') {
+      const feed = await ensureCardKingdomFeed(refreshMode)
+      if (typeof feed === 'string') {
+        emitError('runtime_error', feed, scriptingOptions)
+        process.exitCode = ExitCode.RuntimeError
+        return
+      }
+      const loaded = await loadEnsuredFeed(feed)
+      cardKingdom = { quote: detailBuylistContext(loaded).quote }
+    }
+
     try {
       const buildScoped = async (
         reportCurrency: PriceCurrency,
@@ -329,6 +392,10 @@ export function registerPriceCommand(program: Command): void {
       ): Promise<LoadedPriceReport> => {
         const result = await loadAndBuildPriceReport(type, locations, reportCurrency, {
           refresh: refreshMode,
+          // The interactive browser's currency switcher passes other
+          // currencies through here; the CK feed only quotes USD, so any other
+          // currency reads Scryfall and switching back to USD reads CK again.
+          ...(cardKingdom && reportCurrency === 'usd' ? { cardKingdom } : {}),
         })
         // A skipped card line means the totals exclude cards. That is data
         // loss, so it always reaches stderr — in every output mode and under

@@ -510,12 +510,21 @@ Price every deck, collection, and wanted list from the local card cache and retu
 
 **Query Parameters:**
 
-| Parameter  | Description                                                        | Required |
-| ---------- | ------------------------------------------------------------------ | -------- |
-| `type`     | Only price `deck`, `collection`, or `wanted` lists                 | No       |
-| `currency` | `usd`, `eur`, or `tix` (default: the configured `defaultCurrency`) | No       |
+| Parameter  | Description                                                                                                             | Required |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------- | -------- |
+| `type`     | Only price `deck`, `collection`, or `wanted` lists                                                                      | No       |
+| `currency` | `usd`, `eur`, or `tix` (default: the configured `defaultCurrency`)                                                      | No       |
+| `source`   | `tcgplayer` (Scryfall USD), `cardmarket` (Scryfall EUR), or `cardkingdom` (Card Kingdom NM retail from the cached feed) | No       |
 
-An unknown `type` or `currency` returns `400`.
+An unknown `type`, `currency`, or `source` returns `400`. A `source` implies its currency
+(`tcgplayer`/`cardkingdom` → `usd`, `cardmarket` → `eur`), so a conflicting explicit `currency` is a
+`400` too. `source=cardkingdom` reads the cached [buylist feed](/commands/sell/) — strictly
+cache-backed like everything else here, so with no feed downloaded it returns `503` with the refresh
+advice rather than falling back to Scryfall — and the response then carries `"source":
+"cardkingdom"` beside `"currency": "usd"`, with printings Card Kingdom does not sell reported
+unpriced. The parameter is an explicit request and is deliberately **not** gated on the
+[`priceSources`](/configuration/#price-stores-pricesources) config key (the same way `ritual sell`
+is never gated): it needs only a cached feed.
 
 `mode` discriminates the two price bodies — `"summary"` here, `"list"` on
 [Price List](#price-list) — so a client that can receive either reads one field to know which it got.
@@ -571,7 +580,7 @@ a deck of deliberate proxies would be reporting a problem that does not exist.
 GET /api/price/:type/:slug
 ```
 
-Price a single list and return its summary plus every priced card entry (in file order) — the same payload as the CLI's single-list `price <name> --output json` view. `:type` is `deck`, `collection`, or `wanted`; `:slug` is the list's file basename, matching the load endpoints. Takes the same `currency` query parameter as the summary endpoint, with the same `503` when the card cache is empty. An unknown slug returns `404`.
+Price a single list and return its summary plus every priced card entry (in file order) — the same payload as the CLI's single-list `price <name> --output json` view. `:type` is `deck`, `collection`, or `wanted`; `:slug` is the list's file basename, matching the load endpoints. Takes the same `currency` and `source` query parameters as the summary endpoint, with the same `503` when the card cache is empty (or when `source=cardkingdom` finds no cached feed). An unknown slug returns `404`.
 
 **Response:**
 
@@ -624,14 +633,16 @@ art replaced the picture, not the card.
 
 ## Sell Report
 
-:::note[The five sell routes are gated on sell mode]
+:::note[The five sell routes are gated on the buyer feed being wanted]
 `GET /api/sell/report`, `GET /api/sell/cart`, `POST /api/sell/refresh`, `GET /api/buylist/status`,
-and `POST /api/buylist/quotes` answer **`404`** unless [sell mode](/public-site/sell/) is on —
-[`site.sellMode`](/configuration/#offering-sell-mode-sellmode) (off by default), or a server started
-with [`ritual admin --sell-mode`](/commands/admin/#sell-mode). The check reads the config per
+and `POST /api/buylist/quotes` answer **`404`** unless something wants the buyer feed:
+[sell mode](/public-site/sell/) — [`site.sellMode`](/configuration/#offering-sell-mode-sellmode)
+(off by default) or a server started with [`ritual admin --sell-mode`](/commands/admin/#sell-mode) —
+**or** the `cardkingdom` entry of [`priceSources`](/configuration/#price-stores-pricesources), whose
+retail prices ride on the same feed. The check reads the config per
 request, so a `config set` — or a [`PUT /api/config`](/commands/admin/#put-apiconfig) from the
-Settings page's **Offer sell mode** checkbox — takes effect on the very next request, without a
-restart, and
+Settings page's **Offer sell mode** checkbox or **Price Stores** checkboxes — takes effect on the
+very next request, without a restart, and
 [`GET /api/status`](/commands/admin/#get-apistatus) reports the effective value so a client can hide
 its sell surfaces instead of offering controls that only ever 404. The public site server
 (`serve --api`) gates its two buylist routes the same way.
@@ -810,6 +821,8 @@ request.
     "dsk:136:nonfoil": {
       "priceBuy": 2.5,
       "qtyBuying": 8,
+      "priceRetail": 5.99,
+      "qtyRetail": 12,
       "buying": true,
       "finish": "nonfoil",
       "matchVia": "scryfall-id",
@@ -834,9 +847,13 @@ buylist", which is the rule the sites' **On buylist** chip and grouping use: rou
 catalog is paused at any time, so a present quote is not by itself an offer.
 `variation` is CK's variant note for the matched product, present only when they publish one; a
 client rendering a [cart CSV](#sell-cart) row builds CK's listed title from `name (variation)`.
+`priceRetail`/`qtyRetail` are the buyer's own NM retail price and stock — what the sites'
+[Card Kingdom price view](/public-site/price-sources/) displays; a `qtyRetail` of `0` means out of
+stock with the listed price standing, and a `priceRetail` of `0` means no published retail price.
 
 This route is also mounted by the public site server (`ritual serve --api`), unauthenticated, and
-answers `404` there too unless [sell mode](/public-site/sell/) is on. The public **site** no longer
+answers `404` there too unless [sell mode](/public-site/sell/) is on or
+[`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`. The public **site** no longer
 calls it — [sell mode](/public-site/sell/) reads buy prices baked into each list's data — so it is
 there for other clients; the admin editors are the one client that still quotes live, since they
 price cards as they are added. The public server deliberately has no refresh route: an

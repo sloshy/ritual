@@ -37,6 +37,10 @@ export function makeSiteIndex(overrides: Partial<SiteIndex> = {}): SiteIndex {
     defaultLanguage: 'en',
     uiLocale: DEFAULT_LOCALE,
     availableLocales: [DEFAULT_LOCALE],
+    // Cardmarket rides along by default so fixtures that offer EUR keep the
+    // currency selectable — a currency is only offered when an enabled store
+    // quotes it. Tests about the store list itself pass their own value.
+    priceSources: ['tcgplayer', 'cardmarket'],
     ...overrides,
   }
 }
@@ -823,6 +827,8 @@ const MOCK_BUYLIST_CATALOG: Record<string, BuylistQuote> = {
   'tst:1:nonfoil': {
     priceBuy: 4,
     qtyBuying: 2,
+    priceRetail: 8,
+    qtyRetail: 3,
     buying: true,
     finish: 'nonfoil',
     matchVia: 'scryfall-id',
@@ -833,6 +839,8 @@ const MOCK_BUYLIST_CATALOG: Record<string, BuylistQuote> = {
   'tst:2:nonfoil': {
     priceBuy: 9,
     qtyBuying: 0,
+    priceRetail: 18,
+    qtyRetail: 0,
     buying: false,
     finish: 'nonfoil',
     matchVia: 'scryfall-id',
@@ -883,18 +891,60 @@ const MOCK_SELL_BINDER_DETAIL = {
 } satisfies CollectionDetail
 
 // No `apiBaseUrl`: a plain static build, which is exactly where baked quotes
-// have to work. `sellMode: true` is the capability flag the build stamps.
-const MOCK_SITE_INDEX_FOR_SELL = makeSiteIndex({
-  sellMode: true,
-  collections: [
-    makeCollectionSummary({
-      slug: 'sell-binder',
-      name: 'Sell Binder',
-      cardCount: 3,
-      totalPrice: 60.0,
-    }),
-  ],
-})
+// have to work. One factory for every sell-binder fixture, so its index
+// summary cannot drift between the sell-mode and price-source helpers.
+function makeSellBinderIndex(overrides: Partial<SiteIndex> = {}): SiteIndex {
+  return makeSiteIndex({
+    collections: [
+      makeCollectionSummary({
+        slug: 'sell-binder',
+        name: 'Sell Binder',
+        cardCount: 3,
+        totalPrice: 60.0,
+      }),
+    ],
+    ...overrides,
+  })
+}
+
+/**
+ * Fail every buylist route: both sell-binder fixtures are static builds whose
+ * quotes are baked, so a request reaching the API at all is the regression.
+ */
+async function stubBuylistApiUnreachable(page: Page, watch?: BuylistApiWatch): Promise<void> {
+  await fulfillJson(
+    page,
+    '**/api/buylist/**',
+    (route) => {
+      watch?.requests.push(route.request().url())
+      return { error: 'the public site must not call the quote API' }
+    },
+    { status: 500 },
+  )
+}
+
+// `sellMode: true` is the capability flag the build stamps.
+const MOCK_SITE_INDEX_FOR_SELL = makeSellBinderIndex({ sellMode: true })
+
+/**
+ * Mock a static site whose config enables **both USD price stores** but not
+ * sell mode: the price-source selector must appear on its own, quotes must
+ * seed for the Card Kingdom view without the sell toggle, and the buylist
+ * routes must stay uncalled. Reuses the sell binder detail — its baked quotes
+ * carry `priceRetail` (8 for the bought card, 18 for the paused one; the
+ * unlisted card has no quote at all).
+ */
+export async function mockPublicSiteCollectionForPriceSources(
+  page: Page,
+  options: { priceSources?: SiteIndex['priceSources'] } = {},
+): Promise<void> {
+  const index = makeSellBinderIndex({
+    priceSources: options.priceSources ?? ['tcgplayer', 'cardkingdom'],
+  })
+  await fulfillJson(page, '**/index.json', index)
+  await fulfillJson(page, '**/collections/sell-binder.json', MOCK_SELL_BINDER_DETAIL)
+  await stubBuylistApiUnreachable(page)
+}
 
 /** Quote-API requests a run made. The public site must make none of them. */
 export type BuylistApiWatch = {
@@ -934,15 +984,7 @@ export async function mockPublicSiteCollectionForSell(
   if (options.baked === false) delete detail.buylist
   await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_FOR_SELL)
   await fulfillJson(page, '**/collections/sell-binder.json', detail)
-  await fulfillJson(
-    page,
-    '**/api/buylist/**',
-    (route) => {
-      watch.requests.push(route.request().url())
-      return { error: 'the public site must not call the quote API' }
-    },
-    { status: 500 },
-  )
+  await stubBuylistApiUnreachable(page, watch)
   return watch
 }
 

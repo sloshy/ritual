@@ -125,6 +125,7 @@ export default defineConfig({
           items: [
             'public-site/hosted',
             'public-site/filtering',
+            'public-site/price-sources',
             'public-site/sell',
             'public-site/combined-view',
             'public-site/find',

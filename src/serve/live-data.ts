@@ -10,11 +10,13 @@ import {
   getBannedPrintings,
   getDefaultCurrency,
   getDefaultLanguage,
+  getPriceSources,
   getSearchDebounceMs,
   getSiteSelectionConfig,
   getSiteSellMode,
   getUiLocale,
   loadRitualConfig,
+  wantsCardKingdomFeed,
   type RitualConfig,
 } from '../ritual-config'
 import {
@@ -160,7 +162,7 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
   let generation = 0
   let lastCacheFileMtimeMs = -1
   let pricesDate = new Date(0).toISOString()
-  /** The feed the current pass bakes quotes from; null when sell mode is off or none is cached. */
+  /** The feed the current pass bakes quotes from; null when nothing wants it (no sell mode, no cardkingdom price source) or none is cached. */
   let buylistFeed: LoadedCardKingdomFeed | null = null
 
   function getSymbolMap(): Promise<Record<string, string>> {
@@ -214,7 +216,7 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
    * @returns When the feed in use was downloaded, or null when there is none.
    */
   async function refreshBuylistFeed(config: RitualConfig): Promise<number | null> {
-    buylistFeed = getSiteSellMode(config) ? await getCardKingdomFeed() : null
+    buylistFeed = wantsCardKingdomFeed(config) ? await getCardKingdomFeed() : null
     return buylistFeed?.file.retrievedAt ?? null
   }
 
@@ -230,6 +232,7 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
       uiLocale: getUiLocale(config),
       selection: getSiteSelectionConfig(config.site),
       sellMode: getSiteSellMode(config),
+      priceSources: getPriceSources(config),
       // Not config, but it lands in the same payloads: details carry baked
       // buylist quotes, so a refreshed buyer feed has to invalidate them too.
       // `null` (no feed, or sell mode off) serializes as distinctly as any
@@ -386,6 +389,7 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
       // Same-origin marker: this payload is only ever served by `serve --api`.
       apiBaseUrl: '',
       sellMode: getSiteSellMode(config),
+      priceSources: getPriceSources(config),
     }
     const body = JSON.stringify(index)
     // Every file the payloads are built from, art sidecars included — the index

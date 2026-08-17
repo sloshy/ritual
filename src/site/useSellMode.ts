@@ -20,6 +20,7 @@ import {
   seedBuylistQuotes,
 } from './buylist-quotes'
 import type { BakedBuylist } from './data-types'
+import { activeUsdSource, maybeDefaultSellSource, maybeRestoreDefaultSource } from './price-view'
 import { useT } from '../ui/i18n'
 import { isPricelessCard } from './priceless'
 import type { CardData, SortBy, SortLayer } from './card-sorting'
@@ -219,6 +220,11 @@ export function useSellMode<G extends string>(input: UseSellModeInput<G>): UseSe
   // or the baked payload changes. Both loaders skip what they have already
   // settled, so re-runs cost nothing once the page is warm — including the
   // re-run that follows the flip `toggle` already loaded for.
+  //
+  // The Card Kingdom price *view* needs the same quotes (retail prices ride on
+  // them), whether or not sell mode is on — so the effect also fires while
+  // that source is selected. Deliberately not gated on `supported`: a site can
+  // enable the `cardkingdom` price source with sell mode off.
   createEffect(() => {
     // Read the buyer first: after an early return it would be an untracked
     // dependency, so switching buyers on a page with nothing to quote would
@@ -227,9 +233,23 @@ export function useSellMode<G extends string>(input: UseSellModeInput<G>): UseSe
     // Likewise for the baked payload, so a detail that arrives (or is refetched
     // from a live backend) while sell mode is already on re-seeds the store.
     const baked = bakedQuotes()
-    if (!active()) return
+    if (!active() && activeUsdSource() !== 'cardkingdom') return
     loadQuotes(buyer, baked)
   })
+
+  // Entering sell mode defaults the USD price view to Card Kingdom retail
+  // (when that source is enabled), so the offer sits beside what CK charges;
+  // leaving restores the default. Both yield to an explicit source choice —
+  // see `maybeDefaultSellSource` — so switching the view to TCGplayer to
+  // compare against the market price sticks. Deliberately no currency-epoch
+  // bump here: a shared `sell=1&price=…` link authored under the courtesy
+  // default must restore its price filter, not have this very effect clear it.
+  createEffect(
+    on(active, (isActive, wasActive) => {
+      if (isActive && wasActive !== true) maybeDefaultSellSource()
+      else if (!isActive && wasActive === true) maybeRestoreDefaultSource()
+    }),
+  )
 
   const summary = createSellSummary(active, input.selected)
 

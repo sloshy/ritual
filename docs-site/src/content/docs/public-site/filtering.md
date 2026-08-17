@@ -46,7 +46,7 @@ All tag inputs (Sets, Card Type, Oracle Tags, and Art Tags) share the same autoc
 - **Card Type** — a tag input of card types and subtypes (see below).
 - **Oracle Tags** / **Art Tags** — tag inputs backed by [Scryfall Tagger](https://tagger.scryfall.com/) data (see below).
 - **Mana Value** — pick a comparison operator (`=`, `<`, `≤`, `>`, `≥`) from the toggle buttons and type a value to compare against the card's mana value.
-- **Price** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against the card's price in the currency chosen by the header **Prices** selector. Pick the operator from the toggle buttons and type an amount (up to two decimals); the filter's label shows which currency the threshold is in — **Price ($)**, **Price (€)**, and so on. Cards with no price in that currency never match. Because the threshold is currency-specific, switching the currency selector clears the field automatically.
+- **Price** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against the card's price in the currency chosen by the header **Prices** selector. Pick the operator from the toggle buttons and type an amount (up to two decimals); the filter's label shows which currency the threshold is in — **Price ($)**, **Price (€)**, and so on. Cards with no price in that currency never match. Because the threshold is currency-specific, switching the currency selector — or the [price store](/public-site/price-sources/) — clears the field automatically.
 - **Copies** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against how many total copies of the card you have in the list, added up across every entry that counts as the same card. For example, searching **Copies = 1** finds cards you have exactly one of, while **Copies ≥ 2** finds everything you have duplicates of. A **Name / Number / Exact** toggle decides what "the same card" means (see below).
 
 ### What counts as a copy
@@ -88,7 +88,8 @@ How you've set up a list view is captured in the page URL, so you can copy the l
 
 - the **grouping** (and the price-bracket size when grouping by price),
 - the **sorting** — every layer of it. You can stack multiple sort layers with the **+** button beside the sort dropdown: the first layer is the primary sort and each layer below it breaks ties within the one above (e.g. sort by name, then by price within cards of the same name). Each layer has its own **↑↓** reverse button joined to its dropdown, and a **−** button removes it once there is more than one. The **Reverse Sections** toggle (group order) is captured too,
-- the **view layout** (binder, overlap, stack, or list) and **card size**, and
+- the **view layout** (binder, overlap, stack, or list) and **card size**,
+- the chosen [**price store**](/public-site/price-sources/) when it differs from the default, and
 - every active **filter** from the Filters menu.
 
 Only settings that differ from the page's defaults are added to the URL, so a link stays as short as the changes you've made — an untouched view has a clean URL. As you adjust the toolbar the link updates in place (it doesn't add browser-history steps), and opening a link that omits a setting simply uses that page's default for it. Editing a list does not write these parameters; sharing applies to the normal read view.

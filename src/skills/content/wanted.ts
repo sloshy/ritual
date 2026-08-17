@@ -4,6 +4,7 @@ import {
   DIFF_BY_MODES,
   interactiveEditIntro,
   PRICE_CURRENCY_COMMENT,
+  PRICE_SOURCE_COMMENT,
   priceIntro,
   REFRESH_SESSION,
   sessionSemantics,
@@ -133,6 +134,7 @@ ritual price to-buy --no-input                 # one list's cards + totals
 ritual price to-buy --output json --quiet
 ritual price to-buy --sort price --descending --no-input
 ritual price to-buy --prices eur               ${PRICE_CURRENCY_COMMENT}
+ritual price to-buy --source cardkingdom       ${PRICE_SOURCE_COMMENT}
 \`\`\`
 
 Each wanted list also reports a "lowest" total: name-only entries use the cheapest

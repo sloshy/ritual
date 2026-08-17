@@ -37,7 +37,8 @@ import { findPrinting, hasSpecificPrinting } from '../card-printing'
 import { storedLanguage } from '../card-language'
 import { SymbolText } from './symbols'
 import type { PriceCurrency } from '../price-currency'
-import { getCardPrice, formatPrice } from '../price-currency'
+import { formatPrice } from '../price-currency'
+import { pricesEnabled, sitePrice } from './price-view'
 import {
   type GroupBy,
   type SortBy,
@@ -483,7 +484,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           // currency — the same rule the bake and the price report apply.
           price:
             card && !isPricelessCard(pricelessFacts(entry, labels))
-              ? getCardPrice(card, props.currency)
+              ? sitePrice(card, props.currency)
               : 0,
           type: card?.type_line ?? '',
           section: section.name,
@@ -657,10 +658,14 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     if (!card || !entry) return undefined
     const labels = entryLabels(entry)
     const marker = pricelessMarkerText(t, cardPricelessReason(pricelessFacts(entry, labels)))
-    const price = marker === undefined ? getCardPrice(card, props.currency) : 0
+    const price = marker === undefined ? sitePrice(card, props.currency) : 0
     const parts: MetaEntry[] = []
-    if (marker !== undefined) parts.push({ label: 'price', value: marker })
-    else if (price > 0) parts.push({ label: 'price', value: formatPrice(price, props.currency) })
+    if (pricesEnabled()) {
+      if (marker !== undefined) parts.push({ label: 'price', value: marker })
+      else if (price > 0) {
+        parts.push({ label: 'price', value: formatPrice(price, props.currency) })
+      }
+    }
     parts.push({ label: 'set', value: `${card.set_name} (#${card.collector_number})` })
     if (labels.length > 0) {
       parts.push({ label: 'labels', value: labels.map(cardLabelName).join(' · ') })
@@ -802,8 +807,16 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         <div>
           <h1 class="page-title">{props.deck.name}</h1>
           <p class="page-stats">
-            {t('site.stats.total', { amount: formatPrice(totalPrice(), props.currency) })}
-            <Show when={!cardFilters.filters.hideExtras && partitioned().extraCards.length > 0}>
+            <Show when={pricesEnabled()}>
+              {t('site.stats.total', { amount: formatPrice(totalPrice(), props.currency) })}
+            </Show>
+            <Show
+              when={
+                pricesEnabled() &&
+                !cardFilters.filters.hideExtras &&
+                partitioned().extraCards.length > 0
+              }
+            >
               <span class="page-stats-label">
                 {' '}
                 {t('site.deck.allCardsPrice', {

@@ -62,7 +62,7 @@ import { handleDiff } from './api/diff'
 import { handleHistoryLoad, handleHistorySave } from './api/history'
 import { handlePriceSummary, handlePriceList } from './api/price'
 import { handleSellReport, handleSellCart, handleSellRefresh } from './api/sell'
-import { handleBuylistQuotes, handleBuylistStatus, withSellModeGate } from '../api/buylist'
+import { handleBuylistQuotes, handleBuylistStatus, withBuylistFeedGate } from '../api/buylist'
 import {
   handleListCreate,
   handleListRename,
@@ -357,31 +357,31 @@ export const routes: Route[] = [
   {
     method: 'GET',
     path: '/api/sell/report',
-    handler: withSellModeGate(handleSellReport),
+    handler: withBuylistFeedGate(handleSellReport),
     requiresAuth: true,
   },
   {
     method: 'GET',
     path: '/api/sell/cart',
-    handler: withSellModeGate(handleSellCart),
+    handler: withBuylistFeedGate(handleSellCart),
     requiresAuth: true,
   },
   {
     method: 'POST',
     path: '/api/sell/refresh',
-    handler: withSellModeGate(handleSellRefresh),
+    handler: withBuylistFeedGate(handleSellRefresh),
     requiresAuth: true,
   },
   {
     method: 'GET',
     path: '/api/buylist/status',
-    handler: withSellModeGate(handleBuylistStatus),
+    handler: withBuylistFeedGate(handleBuylistStatus),
     requiresAuth: true,
   },
   {
     method: 'POST',
     path: '/api/buylist/quotes',
-    handler: withSellModeGate(handleBuylistQuotes),
+    handler: withBuylistFeedGate(handleBuylistQuotes),
     requiresAuth: true,
   },
 ]

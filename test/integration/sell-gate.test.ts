@@ -93,6 +93,12 @@ describe('admin sell-mode gate (Integration)', () => {
     expect(await status?.json()).toMatchObject({ buyer: 'cardkingdom', productCount: 1 })
   })
 
+  test('the cardkingdom price source opens them too — its retail rides the same feed', async () => {
+    await writeConfig(workspace.dir, { priceSources: ['tcgplayer', 'cardkingdom'] })
+    const status = await dispatch({ method: 'GET', path: '/api/buylist/status' })
+    expect(status?.status).toBe(200)
+  })
+
   test('the session override opens them too, which is how --sell-mode runs', async () => {
     setSiteSellModeOverride(true)
 

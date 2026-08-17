@@ -175,7 +175,13 @@ export function formatReportHeaderLines(
           age: formatDuration(now - lastRefreshedAt),
         })
   const lines: string[] = [
-    t('cli.price.headerUpdated', { updated, currency: report.currency.toUpperCase() }),
+    t('cli.price.headerUpdated', {
+      updated,
+      currency:
+        report.source === 'cardkingdom'
+          ? t('cli.price.currencyCardKingdom')
+          : report.currency.toUpperCase(),
+    }),
     '',
   ]
   for (const typeTotal of report.typeTotals) {

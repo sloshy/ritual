@@ -4,6 +4,7 @@ import type { CardData } from './card-sorting'
 import type { PriceCurrency } from '../price-currency'
 import { formatPrice } from '../price-currency'
 import { groupTotalPrice } from './card-sorting'
+import { pricesEnabled } from './price-view'
 
 interface CardSectionProps<T extends CardData = CardData> {
   label: string
@@ -37,7 +38,9 @@ export function CardSection<T extends CardData = CardData>(
             </a>
           </h2>
           <span class="section-count">{props.cards.reduce((sum, c) => sum + c.quantity, 0)}</span>
-          <span class="section-price">{formatPrice(sectionTotal(), props.currency)}</span>
+          <Show when={pricesEnabled()}>
+            <span class="section-price">{formatPrice(sectionTotal(), props.currency)}</span>
+          </Show>
         </div>
         <div class="binder-grid">
           <For each={props.cards}>{(card, i) => props.renderCard(card, i())}</For>

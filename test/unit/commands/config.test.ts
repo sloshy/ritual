@@ -482,6 +482,36 @@ describe('applyConfigSet — defaultCurrency', () => {
   })
 })
 
+describe('applyConfigSet — priceSources', () => {
+  test('sets store names, normalized to lowercase', () => {
+    const result = applyConfigSet(base, 'priceSources', ['TCGplayer', 'cardkingdom'], 'replace')
+    if ('error' in result) throw new Error(result.error)
+    expect(result.newValue).toEqual(['tcgplayer', 'cardkingdom'])
+    expect(result.updatedConfig.priceSources).toEqual(['tcgplayer', 'cardkingdom'])
+  })
+
+  test('rejects an unknown store, naming the vocabulary', () => {
+    const result = applyConfigSet(base, 'priceSources', ['ebay'], 'replace')
+    expect('error' in result).toBeTrue()
+    if ('error' in result) {
+      expect(result.error).toContain('tcgplayer, cardmarket, cardkingdom')
+    }
+  })
+
+  test('--remove can empty the list, which means "no prices on the sites"', () => {
+    const result = applyConfigSet(base, 'priceSources', ['tcgplayer'], 'remove')
+    if ('error' in result) throw new Error(result.error)
+    expect(result.newValue).toEqual([])
+    expect(result.updatedConfig.priceSources).toEqual([])
+  })
+
+  test('--add merges without duplicating', () => {
+    const result = applyConfigSet(base, 'priceSources', ['cardmarket', 'tcgplayer'], 'add')
+    if ('error' in result) throw new Error(result.error)
+    expect(result.newValue).toEqual(['tcgplayer', 'cardmarket'])
+  })
+})
+
 describe('applyConfigSet — defaultLanguage', () => {
   test('sets a valid language code', () => {
     const result = applyConfigSet(base, 'defaultLanguage', ['ja'], 'replace')

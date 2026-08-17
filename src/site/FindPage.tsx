@@ -1,7 +1,10 @@
 import type { Component, Accessor, JSX } from 'solid-js'
-import { createSignal, createMemo, onCleanup, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, onCleanup, For, Show } from 'solid-js'
 import type { PriceCurrency } from '../price-currency'
 import { formatPrice } from '../price-currency'
+import { activeUsdSource, pricesEnabled } from './price-view'
+import { seedBuylistQuotes } from './buylist-quotes'
+import { sellModeActive } from './sell-mode'
 import { cardPriceText, cardPricelessReason } from './priceless'
 import { useT } from '../ui/i18n'
 import { LIST_TYPES, LIST_TYPE_DISPLAY, listTypeTitle, type ListType } from '../list-type'
@@ -24,6 +27,7 @@ import {
   listHref,
   listRefKey,
   loadCombinedDetails,
+  mergeBakedBuylists,
   mergeCardMaps,
   mergePrintingMaps,
   mergeSymbolMaps,
@@ -81,6 +85,17 @@ export const FindPage: Component<FindPageProps> = (props) => {
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
 
   const enabledRefs = createMemo<NamedListRef[]>(() => enabledScopeRefs(excluded(), props.lists()))
+
+  // The Card Kingdom price view (and sell mode, should it arrive here via the
+  // global toggle) reads the quote store, which this page must fill itself —
+  // it loads its list details directly rather than through a list page's
+  // sell-mode hook. Idempotent: `seedBuylistQuotes` skips what the store holds.
+  createEffect(() => {
+    if (activeUsdSource() !== 'cardkingdom' && !sellModeActive()) return
+    const baked = mergeBakedBuylists(loaded())
+    // seedBuylistQuotes untracks its own writes.
+    if (baked) seedBuylistQuotes(baked)
+  })
 
   const symbolMap = createMemo(() => mergeSymbolMaps(loaded()))
 
@@ -247,7 +262,9 @@ export const FindPage: Component<FindPageProps> = (props) => {
     if (!card) return undefined
     const tile = card.selectedTile
     const parts: MetaEntry[] = [
-      { label: 'price', value: cardPriceText(t, card, card.price, props.currency) },
+      ...(pricesEnabled()
+        ? [{ label: 'price', value: cardPriceText(t, card, card.price, props.currency) }]
+        : []),
       { label: 'list', value: card.sourceName },
     ]
     if (card.hasPrinting && tile.set) {
@@ -501,9 +518,11 @@ export const FindPage: Component<FindPageProps> = (props) => {
                       <span class="section-count">
                         {group.cards.reduce((sum, c) => sum + c.quantity, 0)}
                       </span>
-                      <span class="section-price">
-                        {formatPrice(groupTotalPrice(group.cards), props.currency)}
-                      </span>
+                      <Show when={pricesEnabled()}>
+                        <span class="section-price">
+                          {formatPrice(groupTotalPrice(group.cards), props.currency)}
+                        </span>
+                      </Show>
                     </div>
                     <div class="binder-grid">
                       <For each={group.cards}>{(c) => renderRow(c)}</For>

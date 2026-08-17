@@ -12,7 +12,11 @@ import {
   type PriceSummaryResponse,
 } from '../../../src/admin/api/price'
 import type { ApiErrorResponse } from '../../../src/admin/api/save-helpers'
-import { makeScryfallCard } from '../../test-utils'
+import {
+  makeCardKingdomCacheFile,
+  makeCardKingdomProduct,
+  makeScryfallCard,
+} from '../../test-utils'
 
 /**
  * Handler tests for the admin price endpoints. Prices are served strictly from
@@ -66,6 +70,73 @@ function summaryRequest(query = ''): Request {
 function listRequest(type: string, slug: string, query = ''): Request {
   return new Request(`http://localhost/api/price/${type}/${slug}${query}`)
 }
+
+/** A CK feed cache whose one product matches TST:1 by Scryfall id at $6.25 NM retail. */
+async function seedFeedCache(): Promise<void> {
+  const file = makeCardKingdomCacheFile([
+    makeCardKingdomProduct({ scryfallId: 'test-id', priceRetail: 6.25, qtyRetail: 2 }),
+  ])
+  await fs.mkdir(path.join(dir, 'cache'), { recursive: true })
+  await fs.writeFile(path.join(dir, 'cache', 'cardkingdom.json'), JSON.stringify(file))
+}
+
+describe('GET /api/price/summary — ?source=', () => {
+  test('source=cardkingdom prices from the cached feed and stamps the payload', async () => {
+    await writeLists()
+    await seedCache()
+    await seedFeedCache()
+    const resp = await handlePriceSummary(summaryRequest('?source=cardkingdom'))
+    expect(resp.status).toBe(200)
+    const body = (await resp.json()) as PriceSummaryResponse
+    expect(body.currency).toBe('usd')
+    expect(body.source).toBe('cardkingdom')
+    // Binder: 1 copy at CK retail; the deck's unpinned copies quote CK too.
+    const binder = body.lists.find((l) => l.name === 'binder')
+    expect(binder?.total).toBeCloseTo(6.25)
+  })
+
+  test('source=cardmarket is Scryfall EUR with no source stamp', async () => {
+    await writeLists()
+    await seedCache()
+    const resp = await handlePriceSummary(summaryRequest('?source=cardmarket'))
+    expect(resp.status).toBe(200)
+    const body = (await resp.json()) as PriceSummaryResponse
+    expect(body.currency).toBe('eur')
+    expect(body.source).toBeUndefined()
+  })
+
+  test('an unknown source is a 400, and so is a conflicting currency', async () => {
+    await writeLists()
+    const unknown = await handlePriceSummary(summaryRequest('?source=ebay'))
+    expect(unknown.status).toBe(400)
+    const conflict = await handlePriceSummary(summaryRequest('?source=cardkingdom&currency=eur'))
+    expect(conflict.status).toBe(400)
+    const conflictBody = (await conflict.json()) as ApiErrorResponse
+    expect(conflictBody.message).toContain('usd')
+  })
+
+  test('source=cardkingdom with no cached feed is a 503 with the refresh remedy', async () => {
+    await writeLists()
+    await seedCache()
+    const resp = await handlePriceSummary(summaryRequest('?source=cardkingdom'))
+    expect(resp.status).toBe(503)
+    const body = (await resp.json()) as ApiErrorResponse
+    expect(body.message).toContain('No Card Kingdom buylist')
+  })
+})
+
+describe('GET /api/price/:type/:slug — ?source=', () => {
+  test('the single-list view takes the same source parameter', async () => {
+    await writeLists()
+    await seedCache()
+    await seedFeedCache()
+    const resp = await handlePriceList(listRequest('collection', 'binder', '?source=cardkingdom'))
+    expect(resp.status).toBe(200)
+    const body = (await resp.json()) as PriceListDetailResponse
+    expect(body.source).toBe('cardkingdom')
+    expect(body.cards[0]?.price).toBeCloseTo(6.25)
+  })
+})
 
 describe('GET /api/price/summary', () => {
   test('returns 503 when the card cache is empty', async () => {

@@ -4,6 +4,7 @@ import { Modal } from '../ui/Modal'
 import { compareDisplay } from '../i18n/collate'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
 import type { PriceCurrency } from '../price-currency'
+import { pricesEnabled } from './price-view'
 import { formatPriceWithMissing } from '../price-currency'
 import { getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
 import { LIST_TYPE_DISPLAY, listTypeTitle, type ListType } from '../list-type'
@@ -222,9 +223,11 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
                 <span class="combine-modal-row-count">
                   {t('domain.count.cards', { count: choice.cardCount })}
                 </span>
-                <span class="combine-modal-row-price">
-                  {formatPriceWithMissing(choice.total, props.currency, choice.missing)}
-                </span>
+                <Show when={pricesEnabled()}>
+                  <span class="combine-modal-row-price">
+                    {formatPriceWithMissing(choice.total, props.currency, choice.missing)}
+                  </span>
+                </Show>
               </label>
             )}
           </For>

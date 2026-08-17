@@ -7,6 +7,7 @@ import { mockConfigApi, mockStatusApi, mockTotpApi, MOCK_CONFIG } from '../helpe
 
 type ConfigPutBody = {
   defaultLanguage?: string
+  priceSources?: string[]
   cacheSource?: string
   cacheFeedUrl?: string
   searchDebounceMs?: number
@@ -163,6 +164,23 @@ test.describe('Settings Page', () => {
     const request = await requestPromise
     const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
     expect(body.admin?.gitEnabled).toBe(true)
+  })
+
+  test('toggling the Price Stores checkboxes persists priceSources in canonical order', async ({
+    page,
+  }) => {
+    const main = page.locator('main')
+    // The fixture stores ['tcgplayer']; enabling Card Kingdom must persist
+    // both, in canonical order regardless of click order.
+    await main.locator('input[name="priceSource-cardkingdom"]').check()
+
+    const requestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const request = await requestPromise
+    const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
+    expect(body.priceSources).toEqual(['tcgplayer', 'cardkingdom'])
   })
 
   test('editing public-site include and exclude lists persists to the config and shows success', async ({

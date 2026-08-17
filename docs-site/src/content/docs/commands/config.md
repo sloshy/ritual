@@ -20,23 +20,26 @@ All subcommands accept the standard scripting options:
 
 ## Properties
 
-| Property                  | Type     | Default         |
-| ------------------------- | -------- | --------------- |
-| `decksDir`                | `string` | `./decks`       |
-| `collectionsDir`          | `string` | `./collections` |
-| `wantedDir`               | `string` | `./wanted`      |
-| `artDir`                  | `string` | `./art`         |
-| `defaultCurrency`         | `string` | `usd`           |
-| `defaultLanguage`         | `string` | `en`            |
-| `uiLocale`                | `string` | `en`            |
-| `cacheLockTimeoutSeconds` | `number` | `300`           |
-| `cacheSource`             | `string` | `scryfall`      |
-| `cacheFeedUrl`            | `string` | —               |
-| `searchDebounceMs`        | `number` | `500`           |
+| Property                  | Type       | Default         |
+| ------------------------- | ---------- | --------------- |
+| `decksDir`                | `string`   | `./decks`       |
+| `collectionsDir`          | `string`   | `./collections` |
+| `wantedDir`               | `string`   | `./wanted`      |
+| `artDir`                  | `string`   | `./art`         |
+| `defaultCurrency`         | `string`   | `usd`           |
+| `priceSources`            | `string[]` | `["tcgplayer"]` |
+| `defaultLanguage`         | `string`   | `en`            |
+| `uiLocale`                | `string`   | `en`            |
+| `cacheLockTimeoutSeconds` | `number`   | `300`           |
+| `cacheSource`             | `string`   | `scryfall`      |
+| `cacheFeedUrl`            | `string`   | —               |
+| `searchDebounceMs`        | `number`   | `500`           |
 
 `artDir` is where [custom card art](/custom-art/) images live — the directory a card's `file` reference is relative to. It is never created; a missing directory just means the workspace has no local art.
 
 `defaultCurrency` must be one of `usd`, `eur`, or `tix`; it sets the currency every price-touching command defaults to.
+
+`priceSources` lists the stores the sites offer prices from — any of `tcgplayer` (Scryfall USD), `cardmarket` (Scryfall EUR), and `cardkingdom` (Card Kingdom NM retail); values are lowercased and deduped, and unknown store names are rejected. Being an array, it works with `--add`/`--remove`; removing every entry hides all price UI on the sites. Enabling `cardkingdom` makes builds and servers download the Card Kingdom feed like [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) does. See [Configuration → Price stores](/configuration/#price-stores-pricesources).
 
 `defaultLanguage` is the Scryfall language code stamped on newly added cards (`en es fr de it pt ja ko ru zhs zht he la grc ar sa ph` — Scryfall's codes, not ISO: Chinese is `zhs`/`zht`). `config set` accepts aliases (`jp`, `Japanese`, ...) and persists the canonical code; an unknown value is rejected listing all 17 codes. **A non-English value switches card-cache downloads — including the cache feed — to Scryfall's much larger `all_cards` bulk.** See [Configuration → Default language](/configuration/#default-language).
 

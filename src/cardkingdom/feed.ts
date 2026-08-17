@@ -23,8 +23,10 @@ export interface CardKingdomProduct {
   /** CK's edition display name, e.g. `Foundations Variants`. */
   edition: string
   finish: Finish
-  /** CK's retail (sell-to-you) price in USD, for reference. */
+  /** CK's retail (sell-to-you) price in USD for a Near Mint copy. */
   priceRetail: number
+  /** Copies CK currently has in stock to sell; 0 means out of stock, the listed retail price stands. */
+  qtyRetail: number
   /** CK's buylist cash quote in USD for a Near Mint copy. */
   priceBuy: number
   /** Copies CK is currently buying; 0 means not buying regardless of price. */
@@ -95,6 +97,8 @@ function parseFeedProduct(entry: unknown): CardKingdomProduct | string {
   if (isFoil === null) return `unreadable is_foil '${String(raw['is_foil'])}'`
   const priceRetail = parseFeedNumber(raw['price_retail'])
   if (priceRetail === null) return `unreadable price_retail '${String(raw['price_retail'])}'`
+  const qtyRetail = parseFeedNumber(raw['qty_retail'])
+  if (qtyRetail === null) return `unreadable qty_retail '${String(raw['qty_retail'])}'`
   const priceBuy = parseFeedNumber(raw['price_buy'])
   if (priceBuy === null) return `unreadable price_buy '${String(raw['price_buy'])}'`
   const qtyBuying = parseFeedNumber(raw['qty_buying'])
@@ -111,6 +115,7 @@ function parseFeedProduct(entry: unknown): CardKingdomProduct | string {
     edition: raw['edition'],
     finish: productFinish(isFoil, variation),
     priceRetail,
+    qtyRetail,
     priceBuy,
     qtyBuying,
   }

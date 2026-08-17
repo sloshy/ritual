@@ -2,6 +2,7 @@ import { fromJsonSchema, type McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { callApi, callApiData } from '../dispatch'
 import { loadProjectedList, type ListProjection } from '../projection'
+import { VALID_PRICE_SOURCES, resolveSourceCurrency } from '../../price-source'
 import { runTool } from '../result'
 import {
   AUTOCOMPLETE_CARD_OUTPUT,
@@ -613,7 +614,10 @@ export function registerReadTools(server: McpServer): void {
         'Price lists from the local card cache. With listType + slug, one list’s summary plus ' +
         'its priced card entries; with listType alone, per-list totals across every list of ' +
         'that type; with neither, per-list totals across every list. Errors when the card ' +
-        'cache is empty (run refresh_cache first).',
+        'cache is empty (run refresh_cache first). source picks the store: tcgplayer ' +
+        '(Scryfall USD, default), cardmarket (Scryfall EUR), or cardkingdom (NM retail from ' +
+        'the cached Card Kingdom feed — errors when no feed is downloaded; run ' +
+        'refresh_buylist). A source implies its currency, so pass at most one of the two.',
       inputSchema: z
         .object({
           listType: listTypeSchema
@@ -623,6 +627,12 @@ export function registerReadTools(server: McpServer): void {
           currency: currencySchema
             .optional()
             .describe('Pricing currency; defaults to the configured defaultCurrency.'),
+          source: z
+            .enum(VALID_PRICE_SOURCES)
+            .optional()
+            .describe(
+              'Price store; implies its currency (tcgplayer/cardkingdom: usd, cardmarket: eur).',
+            ),
         })
         .superRefine((val, ctx) => {
           if (val.slug !== undefined && val.listType === undefined) {
@@ -631,14 +641,26 @@ export function registerReadTools(server: McpServer): void {
               message: 'slug requires listType (omit both for the all-lists summary).',
             })
           }
+          if (val.source !== undefined) {
+            const resolved = resolveSourceCurrency(val.source, val.currency)
+            if (!resolved.ok) {
+              ctx.addIssue({
+                code: 'custom',
+                message: `source '${resolved.source}' prices in ${resolved.implied}; omit currency or make it match.`,
+              })
+            }
+          }
         }),
       outputSchema: fromJsonSchema<PriceReportResult>(GET_PRICE_REPORT_OUTPUT),
       annotations: { readOnlyHint: true },
     },
-    async ({ listType, slug, currency }) =>
+    async ({ listType, slug, currency, source }) =>
       runTool(async (): Promise<PriceReportResult> => {
         if (listType !== undefined && slug !== undefined) {
-          const query = currency === undefined ? '' : `?currency=${currency}`
+          const params = new URLSearchParams()
+          if (currency !== undefined) params.set('currency', currency)
+          if (source !== undefined) params.set('source', source)
+          const query = params.size > 0 ? `?${params}` : ''
           const detail = await callApiData<PriceListDetailResponse>(
             'GET',
             `/api/price/${listType}/${encodeURIComponent(slug)}${query}`,
@@ -648,6 +670,7 @@ export function registerReadTools(server: McpServer): void {
         const params = new URLSearchParams()
         if (listType !== undefined) params.set('type', listType)
         if (currency !== undefined) params.set('currency', currency)
+        if (source !== undefined) params.set('source', source)
         const query = params.size > 0 ? `?${params}` : ''
         const summary = await callApiData<PriceSummaryResponse>('GET', `/api/price/summary${query}`)
         return summary

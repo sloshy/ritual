@@ -227,12 +227,12 @@ Generates a single-page application in the `dist/` directory (or the `--out-dir`
 
 - `index.html` — SPA shell that loads the application
 - `app.js` — Bundled SPA with client-side routing
-- `index.json` — Deck and collection listing used by the index page (also carries the baked config, including [`site.apiBaseUrl`](/configuration/#pointing-a-static-build-at-a-live-backend-apibaseurl) when a [live backend](/public-site/hosted/) is configured, whether [sell mode](#sell-mode---sell-mode) is offered, plus `uiLocale` and `availableLocales` from [the locale flags](#localized-builds))
+- `index.json` — Deck and collection listing used by the index page (also carries the baked config, including [`site.apiBaseUrl`](/configuration/#pointing-a-static-build-at-a-live-backend-apibaseurl) when a [live backend](/public-site/hosted/) is configured, whether [sell mode](#sell-mode---sell-mode) is offered, the [`priceSources`](/configuration/#price-stores-pricesources) store list, plus `uiLocale` and `availableLocales` from [the locale flags](#localized-builds))
 - `boot.js` — Tiny same-origin bootstrap that applies the stored theme and stamps `<html lang>`/`dir` before first paint
 - `locales/{tag}.json` — One message dictionary per published locale, fetched on demand when the visitor switches language
 - `decks/{slug}.json` — Full deck data loaded on demand
 - `collections/{slug}.json` — Full collection data with pricing loaded on demand
-- `wanted/{slug}.json` — Full wanted list data with pricing loaded on demand — each of these three also carries that list's baked Card Kingdom buy prices when [sell mode](#sell-mode---sell-mode) is on
+- `wanted/{slug}.json` — Full wanted list data with pricing loaded on demand — each of these three also carries that list's baked Card Kingdom quotes (buy **and** NM retail prices) when [sell mode](#sell-mode---sell-mode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`
 - `art/{path}` — [Custom card art](/custom-art/) files referenced by any published list, copied out of the configured art directory under their art-dir-relative path (once per unique path, so lists sharing an image share the file). A referenced file that is not on disk is a build warning and is left out of the baked data, so the card falls back to its normal art
 - `styles.css` — Bundled CSS
 - Responsive design for desktop and mobile
@@ -463,7 +463,7 @@ The **Collections** and **Wanted Lists** tabs have no format dimension to group 
 
 ## Price Currency Switching
 
-The generated site includes a **Prices** dropdown in the header for switching between USD (TCGPlayer), EUR (Cardmarket), and TIX (MTGO) at runtime. The dropdown only shows currencies selected by the `--currencies` flag. When switching currencies:
+The generated site includes a **Prices** dropdown in the header for switching between USD (TCGPlayer or Card Kingdom retail), EUR (Cardmarket), and TIX (MTGO) at runtime. The dropdown only shows currencies selected by the `--currencies` flag **that an enabled [price store](/configuration/#price-stores-pricesources) can answer for** (USD needs `tcgplayer` or `cardkingdom`, EUR needs `cardmarket`), and hides itself entirely when [`priceSources`](/configuration/#price-stores-pricesources) is empty. When switching currencies:
 
 - All displayed prices update to the selected currency
 - Deck totals and section totals recalculate
@@ -471,7 +471,7 @@ The generated site includes a **Prices** dropdown in the header for switching be
 - The "Lowest Price" toggle finds the cheapest printing per the active currency — images update accordingly
 - Price bracket grouping labels adapt to the active currency symbol
 
-The `--currencies` flag controls which currencies are available on the site. The site opens in the configured [`defaultCurrency`](/configuration/#default-currency) when it is among the built currencies, otherwise the first currency listed. Users can switch between available currencies at any time using the dropdown.
+The `--currencies` flag controls which currencies are available on the site. The site opens in the configured [`defaultCurrency`](/configuration/#default-currency) when it is among the built currencies and has an enabled store behind it, otherwise the first offered currency. Users can switch between offered currencies at any time using the dropdown.
 
 ## Price Disclaimer
 
@@ -541,8 +541,9 @@ or for a single build with `--sell-mode`:
 
 The flag is enable-only (there is no `--no-sell-mode`); omit it and the build follows the config.
 
-When sell mode is on for the run, `build-site` does two extra things after the card data is
-assembled and before the per-list JSON is written:
+When sell mode is on for the run — or [`priceSources`](/configuration/#price-stores-pricesources)
+includes `cardkingdom`, whose retail prices ride on the same feed — `build-site` does two extra
+things after the card data is assembled and before the per-list JSON is written:
 
 1. **Refreshes the Card Kingdom buylist**, under this run's `--refresh` mode — the same policy the
    card cache answered to. A cached feed less than a day old is used as-is; a day-old one is

@@ -2,7 +2,7 @@ import { BUYERS } from '../buylist'
 import { buylistFieldsFor } from './buylist-quotes'
 import type { ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
-import { getCardPrice, getCardPriceForFinish } from '../price-currency'
+import { sitePrice, sitePriceForFinish } from './price-view'
 import { displayFinish } from '../finish-condition'
 import { type ListType, isListType } from '../list-type'
 import { hasSpecificPrinting, findPrinting } from '../card-printing'
@@ -238,7 +238,7 @@ function buildDeckCards(
       // build could not deploy shows the real printing and still prices at 0.
       const facts = pricelessFacts(entry, labels)
       const priceless = isPricelessCard(facts)
-      const price = priceless ? 0 : card ? getCardPrice(card, currency) : 0
+      const price = priceless ? 0 : card ? sitePrice(card, currency) : 0
       const localKey = localOrder++
       const key = selectKeyFor('deck', name, localKey)
       const preview = resolveCardPreview(card, useScryfallImgUrls, entry.customArt)
@@ -326,7 +326,7 @@ function buildCollectionCards(
     const price = isPricelessCard(facts)
       ? 0
       : card
-        ? getCardPriceForFinish(card, entry.finish, currency)
+        ? sitePriceForFinish(card, entry.finish, currency)
         : entry.price
     const key = selectKeyFor('collection', name, index)
     const preview = resolveCardPreview(card, useScryfallImgUrls, entry.customArt)
@@ -404,7 +404,7 @@ function buildWantedCards(
     const price = isPricelessCard(facts)
       ? 0
       : card
-        ? getCardPriceForFinish(card, displayFinish(card, entry.finish), currency)
+        ? sitePriceForFinish(card, displayFinish(card, entry.finish), currency)
         : entry.price
     const key = selectKeyFor('wanted', name, index)
     const preview = resolveCardPreview(card, useScryfallImgUrls, entry.customArt)

@@ -39,9 +39,11 @@ import {
   getDefaultCurrency,
   getDefaultLanguage,
   getRitualConfig,
+  getPriceSources,
   getSearchDebounceMs,
   getSiteApiBaseUrl,
   getSiteSellMode,
+  wantsCardKingdomFeed,
   getSiteSelectionConfig,
   getUiLocale,
   getWantedDir,
@@ -1147,7 +1149,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     // policy, the same one the card cache answered to. Never fatal: a build that
     // cannot get a buylist is a site without buy prices, not a failed build.
     let bakedFeed: LoadedCardKingdomFeed | undefined
-    if (getSiteSellMode()) {
+    if (wantsCardKingdomFeed()) {
       const feed = await ensureCardKingdomFeed(mode)
       if (typeof feed === 'string') {
         console.warn(t('cli.buildSite.buylistUnavailable', { reason: feed }))
@@ -1294,6 +1296,10 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       // list's detail carries its own baked quotes, so a fully static build
       // offers sell mode too, with no API base and no quote round trip.
       sellMode: getSiteSellMode(),
+      // Which stores the site offers prices from. Empty means the site shows
+      // no prices at all; `cardkingdom` reads its retail prices off the same
+      // baked buylist quotes sell mode uses.
+      priceSources: getPriceSources(),
     }
     await Bun.write(path.join(buildDir, 'index.json'), JSON.stringify(siteIndex))
 

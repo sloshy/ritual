@@ -1,9 +1,16 @@
 import { cardCache } from '../../cache'
+import { detailBuylistContext, getCardKingdomFeed, missingFeedApiAdvice } from '../../cardkingdom'
 import { getErrorMessage } from '../../errors'
 import { isListType, type ListType } from '../../list-type'
 import { parseEnumField } from '../../parse-enum'
 import { VALID_CURRENCIES, type PriceCurrency } from '../../price-currency'
-import type { PriceListDetailPayload, PriceSummaryPayload } from '../../price-report'
+import type {
+  CardKingdomPricing,
+  PriceListDetailPayload,
+  PriceSummaryPayload,
+  ReportPriceSource,
+} from '../../price-report'
+import { VALID_PRICE_SOURCES, resolveSourceCurrency } from '../../price-source'
 import { loadAndBuildPriceReport } from '../../price-runtime'
 import { getDefaultCurrency } from '../../ritual-config'
 import { listLocationForSlug } from './list-info'
@@ -40,6 +47,46 @@ function parseCurrencyParam(url: URL): PriceCurrency | Response {
   return parsed.value
 }
 
+/** The resolved price view of one request: currency plus the optional CK retail lookup. */
+type PriceView = {
+  currency: PriceCurrency
+  /** Set when `?source=cardkingdom`: echoed in the payload and passed to the engine. */
+  source?: ReportPriceSource
+  cardKingdom?: CardKingdomPricing
+}
+
+/**
+ * Resolve `?currency=` and `?source=` together, mirroring the CLI's rules: a
+ * source names its own currency (tcgplayer/cardkingdom → usd, cardmarket →
+ * eur), an explicit conflicting currency is a 400, and `cardkingdom` prices
+ * from the cached buyer feed — strictly cache-backed, like every other server
+ * read; a missing feed is refused with the refresh advice rather than
+ * silently answered with Scryfall prices.
+ */
+async function parsePriceViewParams(url: URL): Promise<PriceView | Response> {
+  const currency = parseCurrencyParam(url)
+  if (currency instanceof Response) return currency
+  const rawSource = url.searchParams.get('source')
+  if (!rawSource) return { currency }
+  const parsed = parseEnumField(rawSource, VALID_PRICE_SOURCES, 'source')
+  if (!parsed.ok) return badRequest(parsed.message)
+  const resolved = resolveSourceCurrency(
+    parsed.value,
+    url.searchParams.get('currency') ? currency : undefined,
+  )
+  if (!resolved.ok) {
+    return badRequest(`source '${resolved.source}' prices in ${resolved.implied}, not ${currency}`)
+  }
+  if (parsed.value !== 'cardkingdom') return { currency: resolved.currency }
+  const feed = await getCardKingdomFeed()
+  if (!feed) return apiError(missingFeedApiAdvice(), 503)
+  return {
+    currency: resolved.currency,
+    source: 'cardkingdom',
+    cardKingdom: { quote: detailBuylistContext(feed).quote },
+  }
+}
+
 /**
  * GET /api/price/summary — per-list price totals across every list, optionally
  * restricted with `?type=` and priced in `?currency=` (default: the configured
@@ -54,8 +101,8 @@ export async function handlePriceSummary(req: Request): Promise<Response> {
       if (!isListType(rawType)) return apiError(`Invalid list type '${rawType}'`, 400)
       type = rawType
     }
-    const currency = parseCurrencyParam(url)
-    if (currency instanceof Response) return currency
+    const view = await parsePriceViewParams(url)
+    if (view instanceof Response) return view
 
     const unavailable = await requireCardCache('prices are unavailable')
     if (unavailable) return unavailable
@@ -65,13 +112,15 @@ export async function handlePriceSummary(req: Request): Promise<Response> {
     // "prices come strictly from the local cache" contract: a server handler
     // must not fire (and wait on) a per-card Scryfall fetch for every name the
     // cache happens not to hold.
-    const { built, warnings } = await loadAndBuildPriceReport(type, undefined, currency, {
+    const { built, warnings } = await loadAndBuildPriceReport(type, undefined, view.currency, {
       refresh: 'never',
+      ...(view.cardKingdom ? { cardKingdom: view.cardKingdom } : {}),
     })
     const body: PriceSummaryResponse = {
       success: true,
       mode: 'summary',
-      currency,
+      currency: view.currency,
+      ...(view.source ? { source: view.source } : {}),
       lastRefreshedAt,
       lists: built.report.lists,
       typeTotals: built.report.typeTotals,
@@ -93,8 +142,8 @@ export async function handlePriceList(req: Request): Promise<Response> {
   try {
     const target = parseListTarget(req)
     if (typeof target === 'string') return apiError(target, 400)
-    const currency = parseCurrencyParam(new URL(req.url))
-    if (currency instanceof Response) return currency
+    const view = await parsePriceViewParams(new URL(req.url))
+    if (view instanceof Response) return view
 
     const location = await listLocationForSlug(target.type, target.slug)
     if (!location) return apiError(`List '${target.slug}' not found`, 404)
@@ -103,13 +152,20 @@ export async function handlePriceList(req: Request): Promise<Response> {
     if (unavailable) return unavailable
 
     const lastRefreshedAt = await cardCache.getLastRefreshedAt()
-    const { built, warnings } = await loadAndBuildPriceReport(target.type, [location], currency, {
-      refresh: 'never',
-    })
+    const { built, warnings } = await loadAndBuildPriceReport(
+      target.type,
+      [location],
+      view.currency,
+      {
+        refresh: 'never',
+        ...(view.cardKingdom ? { cardKingdom: view.cardKingdom } : {}),
+      },
+    )
     const body: PriceListDetailResponse = {
       success: true,
       mode: 'list',
-      currency,
+      currency: view.currency,
+      ...(view.source ? { source: view.source } : {}),
       lastRefreshedAt,
       list: built.report.lists[0],
       cards: built.report.entries,

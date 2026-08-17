@@ -3,6 +3,7 @@ import type { BuyerId, BuylistFeedProvenance, BuylistQuote } from '../buylist'
 import type { CardLabel } from '../card-labels'
 import type { CardLanguage } from '../card-language'
 import type { PriceCurrency } from '../price-currency'
+import type { PriceSource } from '../price-source'
 import type { ChangelogPage } from '../changelog-parser'
 import type { DeckFormatKey } from '../deck-format'
 import type { LocaleTag } from '../i18n/types'
@@ -34,7 +35,7 @@ export type BakedBuylistQuotes = BuylistFeedProvenance & {
 /**
  * Per-buyer baked buylist offers for the cards of one list. Absent from a detail
  * entirely when the build (or the live server) had no feed to quote against, or
- * when sell mode is off.
+ * when nothing wants one (neither sell mode nor the `cardkingdom` price source).
  */
 export type BakedBuylist = Partial<Record<BuyerId, BakedBuylistQuotes>>
 
@@ -315,6 +316,14 @@ export interface SiteIndex {
    * sites built before the feature existed, which reads as off.
    */
   sellMode?: boolean
+  /**
+   * The stores this site offers prices from, baked from the `priceSources`
+   * config key. An empty array means the site displays no prices at all
+   * (per-card prices, totals, price sort/filter/grouping, and the currency
+   * selector are all hidden). Absent on sites built before the feature
+   * existed, which reads as the default `['tcgplayer']`.
+   */
+  priceSources?: readonly PriceSource[]
 }
 
 export type TradeCardSource = 'collection' | 'deck' | 'wanted' | 'scryfall'

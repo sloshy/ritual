@@ -37,7 +37,7 @@ import { apiUrl } from './api-base'
 import { displayFinish } from '../finish-condition'
 import { isPricelessCard, type PricelessCard } from './priceless'
 import { scryfallCardLanguage, type CardLanguage } from '../card-language'
-import { getCardPriceForFinish } from '../price-currency'
+import { sitePriceForFinish } from './price-view'
 import { sellModeActive } from './sell-mode'
 import type { Finish, ScryfallCard } from '../types'
 
@@ -237,8 +237,11 @@ export function buylistFieldsFor(
   const resolvedFinish = displayFinish(card, finish)
   const quote = quoteFor(card.set, card.collector_number, resolvedFinish)
   // Retail read in the buyer's currency, not the page's: subtracting a EUR
-  // price from a USD offer would produce a number that means nothing.
-  const retail = getCardPriceForFinish(card, resolvedFinish, BUYLIST_CURRENCY)
+  // price from a USD offer would produce a number that means nothing. Source-
+  // aware: under the Card Kingdom price view the spread is CK-buy vs CK-retail
+  // (apples to apples for selling to CK), and switching the view to TCGplayer
+  // compares the offer against the market price instead.
+  const retail = sitePriceForFinish(card, resolvedFinish, BUYLIST_CURRENCY)
   // Both sides fall back to 0 when missing, so the spread is always a number: a
   // card with no offer is simply the worst possible deal on its retail price,
   // and one with no USD retail is measured against the offer alone.

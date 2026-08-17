@@ -10,7 +10,7 @@ interface CoverCardProps {
   label: string
   /** Optional smaller parenthetical, e.g. "(62 cards)" when unusual for the format. */
   labelSuffix?: string
-  priceLabel: string
+  priceLabel?: string
   secondaryPriceLabel?: string
 }
 

@@ -42,7 +42,7 @@ run:
 ritual admin --sell-mode
 ```
 
-With sell mode **off**, the admin server:
+With sell mode **off** — and [`priceSources`](/configuration/#price-stores-pricesources) not naming `cardkingdom`, which wants the same feed — the admin server:
 
 - skips the startup buylist refresh entirely (no ~70 MB download for a capability this workspace has
   not asked for);
@@ -55,7 +55,7 @@ With sell mode **off**, the admin server:
 The admin UI learns this from [`GET /api/status`](#get-apistatus), which reports the **effective**
 value — so `--sell-mode` shows the surfaces even with nothing in the config file.
 
-The [Settings](#settings) page carries an **Offer sell mode** checkbox for `site.sellMode`, so the
+The [Settings](#settings) page carries an **Offer sell mode** checkbox for `site.sellMode` and **Price Stores** checkboxes for [`priceSources`](/configuration/#price-stores-pricesources), so the
 key can be set from the browser as well as from the CLI. Checking it stores `site.sellMode: true`;
 unchecking removes the key entirely (so `config get site.sellMode` reports it unset again, rather
 than an explicit `false` that means the same as the default). Both sides pick the change up
@@ -239,7 +239,7 @@ The Refresh Cache page shows real-time progress during the operation:
 - Falls back gracefully if streaming is unavailable
 
 When [sell mode](#sell-mode) is on, the page also carries a **Card Kingdom buylist** card, backing
-sell mode and the [`sell`](/commands/sell/) command (with sell mode off the card is not shown at
+sell mode and the [`sell`](/commands/sell/) command (with sell mode off and no `cardkingdom` price source the card is not shown at
 all — its routes answer `404`). It shows when the feed was last downloaded, Card Kingdom's
 own generation stamp, and the product count, with a **Refresh buylist** button. Once the server is
 up, that ~70 MB download only ever happens on an explicit click — no page load triggers it — and the
@@ -312,6 +312,7 @@ Settings are stored in `ritual.config.json` in the base directory. The file is s
   "collectionsDir": "./collections",
   "wantedDir": "./wanted",
   "defaultCurrency": "usd",
+  "priceSources": ["tcgplayer"],
   "defaultLanguage": "en",
   "uiLocale": "en",
   "cacheLockTimeoutSeconds": 300,
@@ -440,7 +441,7 @@ Returns server health, whether first-time setup is needed, and which optional ca
 }
 ```
 
-`sellMode` is the **effective** value — `site.sellMode`, or `true` when the server was started with [`--sell-mode`](#sell-mode). It is false whenever the `/api/sell/*` and `/api/buylist/*` routes answer `404`, which is what lets a client hide sell surfaces instead of offering controls that only ever fail.
+`sellMode` is the **effective** value — `site.sellMode`, or `true` when the server was started with [`--sell-mode`](#sell-mode). With it false a client hides its sell surfaces — though the `/api/sell/*` and `/api/buylist/*` routes themselves stay open when the `cardkingdom` [price store](/configuration/#price-stores-pricesources) is enabled, since Card Kingdom retail prices ride the same feed.
 
 ### `POST /api/setup`
 
@@ -894,6 +895,7 @@ Returns the current application configuration.
     "collectionsDir": "./collections",
     "wantedDir": "./wanted",
     "defaultCurrency": "usd",
+    "priceSources": ["tcgplayer"],
     "defaultLanguage": "en",
     "uiLocale": "en",
     "cacheLockTimeoutSeconds": 300,
@@ -954,7 +956,7 @@ Every key in the request body is validated **before** the merge is persisted —
 
 `collectionSync` replaces wholesale like `site` rather than merging like `admin`: its fields are validated (`pullTarget` must be a non-empty list name) and any absent field takes its default, so a partial object round-trips to a complete one and a malformed value rejects the whole update with a `400`.
 
-`defaultCurrency`, `defaultLanguage` (canonical Scryfall codes only — no aliases on the API), `uiLocale` (a BCP-47 tag naming the interface language — not the card language; see [Localization](/localization/)), `cacheLockTimeoutSeconds`, `cacheSource`, `cacheFeedUrl`, and `searchDebounceMs` are validated the same way as [`config set`](/commands/config/) and rejected with a `400` when malformed. `cacheFeedUrl` has one extra rule: sending it as an **empty string** explicitly clears a previously-set override (falling back to the built-in default) — omitting the field entirely, by contrast, leaves the current value untouched.
+`defaultCurrency`, `priceSources` (store names only — lowercased and deduped, unknown stores rejected), `defaultLanguage` (canonical Scryfall codes only — no aliases on the API), `uiLocale` (a BCP-47 tag naming the interface language — not the card language; see [Localization](/localization/)), `cacheLockTimeoutSeconds`, `cacheSource`, `cacheFeedUrl`, and `searchDebounceMs` are validated the same way as [`config set`](/commands/config/) and rejected with a `400` when malformed. `cacheFeedUrl` has one extra rule: sending it as an **empty string** explicitly clears a previously-set override (falling back to the built-in default) — omitting the field entirely, by contrast, leaves the current value untouched.
 
 **Request body:**
 
@@ -977,6 +979,7 @@ Every key in the request body is validated **before** the merge is persisted —
     "collectionsDir": "./collections",
     "wantedDir": "./wanted",
     "defaultCurrency": "usd",
+    "priceSources": ["tcgplayer"],
     "defaultLanguage": "en",
     "uiLocale": "en",
     "cacheLockTimeoutSeconds": 300,

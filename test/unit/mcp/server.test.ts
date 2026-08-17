@@ -1213,6 +1213,28 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expectSchemaRejection(result, /slug requires listType/)
   })
 
+  test('get_price_report forwards source, which implies its currency', async () => {
+    await cardCache.bulkSet({
+      'Sol Ring': [makeScryfallCard({ name: 'Sol Ring', prices: { usd: '2.50', eur: '4.00' } })],
+    })
+    // cardmarket → the handler prices in EUR without an explicit currency. The
+    // cardkingdom path needs a cached feed and is pinned at the handler layer
+    // (test/unit/admin/price.test.ts); this asserts only the wiring.
+    const summary = toolData<{ currency: string; source?: string }>(
+      await callTool(client, 'get_price_report', { source: 'cardmarket' }),
+    )
+    expect(summary.currency).toBe('eur')
+    expect(summary.source).toBeUndefined()
+  })
+
+  test('get_price_report rejects a currency that conflicts with the source', async () => {
+    const result = await callTool(client, 'get_price_report', {
+      source: 'cardkingdom',
+      currency: 'eur',
+    })
+    expectSchemaRejection(result, /prices in usd/)
+  })
+
   test('get_history returns the change sets for a list', async () => {
     await callTool(client, 'add_card', {
       listType: 'deck',

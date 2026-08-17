@@ -26,21 +26,22 @@ The name is matched case- and accent-insensitively across all three list types, 
 
 ## Options
 
-| Option                 | Description                                                                                                            |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `--deck`               | Only decks (also disambiguates `listName`)                                                                             |
-| `--collection`         | Only collections (also disambiguates `listName`)                                                                       |
-| `--wanted`             | Only wanted lists (also disambiguates `listName`)                                                                      |
-| `--prices <currency>`  | Price currency: `usd`, `eur`, or `tix` (default: the configured [`defaultCurrency`](/configuration/#default-currency)) |
-| `--name <terms>`       | Print cards whose name contains every space-separated term                                                             |
-| `--set <code>`         | Print cards from this set code                                                                                         |
-| `--collector <number>` | Print cards with this collector number                                                                                 |
-| `--sort <field>`       | Sort cards by `name`, `price`, `lowest`, `set`, `cmc`, `edhrec`, or `quantity`                                         |
-| `--descending`         | Reverse the sort direction                                                                                             |
-| `--summary`            | Print the price summary instead of opening the browser                                                                 |
-| `--refresh <mode>`     | Card cache refresh policy: `ask` (default — prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`  |
-| `--output <format>`    | Output format (`text`, `json`, or `ndjson`)                                                                            |
-| `--quiet`              | Suppress progress lines and the price disclaimer; never the payload or the parser warnings                             |
+| Option                 | Description                                                                                                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--deck`               | Only decks (also disambiguates `listName`)                                                                                                                                            |
+| `--collection`         | Only collections (also disambiguates `listName`)                                                                                                                                      |
+| `--wanted`             | Only wanted lists (also disambiguates `listName`)                                                                                                                                     |
+| `--prices <currency>`  | Price currency: `usd`, `eur`, or `tix` (default: the configured [`defaultCurrency`](/configuration/#default-currency))                                                                |
+| `--source <store>`     | Price store: `tcgplayer` (Scryfall USD, the default behavior), `cardmarket` (Scryfall EUR), or `cardkingdom` (Card Kingdom NM retail from the cached [buylist feed](/commands/sell/)) |
+| `--name <terms>`       | Print cards whose name contains every space-separated term                                                                                                                            |
+| `--set <code>`         | Print cards from this set code                                                                                                                                                        |
+| `--collector <number>` | Print cards with this collector number                                                                                                                                                |
+| `--sort <field>`       | Sort cards by `name`, `price`, `lowest`, `set`, `cmc`, `edhrec`, or `quantity`                                                                                                        |
+| `--descending`         | Reverse the sort direction                                                                                                                                                            |
+| `--summary`            | Print the price summary instead of opening the browser                                                                                                                                |
+| `--refresh <mode>`     | Card cache refresh policy: `ask` (default — prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`                                                                 |
+| `--output <format>`    | Output format (`text`, `json`, or `ndjson`)                                                                                                                                           |
+| `--quiet`              | Suppress progress lines and the price disclaimer; never the payload or the parser warnings                                                                                            |
 
 ## The Interactive Browser
 
@@ -52,7 +53,13 @@ The main screen shows, at a glance:
 
 Selecting a list opens a card browser over that list; **🔎 Search all cards** opens the same browser over every list at once, with each card labelled by its source list. In a card browser, typing filters rows live by name, set code, or collector number, and menu items adjust the sort field/direction and set persistent set-code, collector-number, and (in the global search) list-type filters. Selecting a card shows a detail view — its printing, unit and line price, the cheapest printing, mana value, and EDHREC rank — and can list every printing with per-finish prices.
 
-**🔄 Refresh prices** redownloads the card database (prices ride along inside it) and rebuilds the report; **💱 Change currency** re-prices everything in `usd`, `eur`, or `tix`.
+**🔄 Refresh prices** redownloads the card database (prices ride along inside it) and rebuilds the report; **💱 Change currency** re-prices everything in `usd`, `eur`, or `tix`. A browser launched with `--source cardkingdom` keeps that source for its USD views — switching to `eur` or `tix` reads Scryfall, and switching back to `usd` reads Card Kingdom retail again (the header labels it `USD (Card Kingdom retail)`).
+
+## Price stores (`--source`)
+
+A source names the store prices come from, and therefore its currency — `tcgplayer` and `cardkingdom` price in USD, `cardmarket` in EUR — so `--source cardmarket` is `--prices eur` by another name, and passing a `--prices` that disagrees with the source is a usage error.
+
+`--source cardkingdom` prices every entry at Card Kingdom's **Near Mint retail** price from the cached [pricelist feed](/commands/sell/), matched by Scryfall ID (with the same SKU fallback the sell report uses). The feed follows this run's `--refresh` policy like the card cache; with no feed cached and bulk downloads disallowed, the command errors rather than silently falling back to Scryfall. Honesty over completeness: a printing Card Kingdom does not sell — and any non-English entry, which their English-only feed can never quote — is reported **unpriced**, and the "lowest" figure becomes the cheapest printing+finish CK actually sells. Structured payloads carry `"source": "cardkingdom"` beside `"currency": "usd"`.
 
 ## Price Freshness
 
@@ -71,7 +78,7 @@ Prompts never fire when they can't be answered: under `--no-input` / `RITUAL_NO_
 - A card with no price in the active currency counts as **unpriced**; unpriced counts are quantity-weighted.
 - **A [proxy](/commands/edit/#card-labels) or a [custom-art](/custom-art/) card is priced at zero, by rule.** Two things make a card priceless without any lookup failing: its effective labels include `proxy` (its own `[proxy]` token, or the list's front-matter default), or the list's `.art.json` sidecar gives it custom art. Either short-circuits before any price lookup — its price and lowest price are `0`, its unpriced reason is `proxy` or `custom-art`, and it counts toward the card count but **not** toward the unpriced count. A fully proxied deck therefore totals nothing and reports zero missing prices, rather than looking like a deck full of lookup failures. In the interactive browser and the text views the price cell reads **PROXY** or **CUSTOM** instead of `N/A`, and the card detail explains it (`this copy is a proxy, so it carries no price` / `this copy has custom art, so it carries no price`). A card that is both reads **CUSTOM**: custom art wins.
 - **Only `nonfoil`, `foil` and `etched` participate in pricing.** Those are the finishes Ritual records and the only ones Scryfall publishes a price field for, so a printing offered in some other finish is never quoted under that finish's name — neither in the cheapest-printing pick nor in the all-printings listing. A printing offered in _no_ recorded finish is still priced, at its base price, reported as `nonfoil`.
-- **Etched cards have no euro price.** Scryfall publishes `usd`, `usd_foil`, `usd_etched`, `eur`, `eur_foil` and `tix` — there is no etched field for EUR. An etched entry priced in `eur` is therefore reported as unpriced (`this finish has no price in this currency`) rather than being quoted at the printing's nonfoil euro price, which would understate exactly the cards whose finish is the reason for their value. Price those lists in `usd` for a complete total.
+- **Etched euro prices are sparse.** Scryfall publishes `eur_etched` only for the few etched printings Cardmarket actually quotes, so an etched entry priced in `eur` frequently reports as unpriced rather than being quoted at the printing's nonfoil euro price — which would understate exactly the cards whose finish is the reason for their value. Price those lists in `usd` for a complete total.
 
 ## Non-Interactive Output
 
@@ -96,4 +103,4 @@ Each view supports `--output json` (one structured document) and `--output ndjso
 ./ritual price --wanted --set otc --output ndjson
 ```
 
-Prices are fetched from Scryfall and reflect NM (Near Mint) market values.
+Prices reflect NM (Near Mint) values — Scryfall market prices, or Card Kingdom's NM retail under `--source cardkingdom`.

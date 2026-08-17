@@ -307,6 +307,29 @@ ritual config set site.apiBaseUrl "https://ritual-api.example.com"
 ritual build-site
 \`\`\`
 
+The **stores the site prices cards from** come from the \`priceSources\` config key
+(default \`["tcgplayer"]\`): \`tcgplayer\` is Scryfall's USD market price, \`cardmarket\`
+Scryfall's EUR trend price, and \`cardkingdom\` Card Kingdom's NM retail price, read off the
+same baked buylist quotes sell mode uses. With more than one USD store enabled, list pages
+grow a **Prices** selector (USD views only; EUR is always Cardmarket) whose choice is
+shareable in the view URL (\`prices=cardkingdom\`); switching it clears price filters like a
+currency switch. Under the Card Kingdom view a printing CK does not sell shows no price —
+there is deliberately no TCGplayer fallback — and the sell-mode spread compares CK's offer
+against the *selected* store's price (entering sell mode defaults the view to Card Kingdom
+retail unless the user picked a source). An **empty** \`priceSources\` array hides every
+price surface on the sites — per-card prices, totals, price sort/filter/grouping, and the
+currency selector — while \`ritual price\` and sell mode are unaffected:
+
+\`\`\`bash
+ritual config set priceSources tcgplayer cardkingdom   # offer both USD stores
+ritual config set priceSources --remove tcgplayer      # empty = no prices on the sites
+\`\`\`
+
+Enabling \`cardkingdom\` makes builds and servers want the Card Kingdom feed exactly as
+\`site.sellMode\` does (the same gates, downloads, and 404s below read "sell mode on **or**
+cardkingdom enabled"), and the admin Settings page edits the key as **Price Stores**
+checkboxes.
+
 A site can also offer **sell mode**: Card Kingdom buylist prices beside each
 card, on-buylist chips plus a buylist-price threshold filter, buylist grouping, sorting by
 buylist price or by buylist-minus-retail ascending (\`Buylist vs Price\`, where a missing offer or

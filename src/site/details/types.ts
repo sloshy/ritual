@@ -1,10 +1,6 @@
 import type { ScryfallCard } from '../../types'
-import type {
-  BuyerId,
-  BuylistFeedProvenance,
-  BuylistQuote,
-  BuylistQuoteRequest,
-} from '../../buylist'
+import type { BuyerId, BuylistFeedProvenance } from '../../buylist'
+import type { PrintingQuoteFn } from '../../cardkingdom/quote'
 import type { PriceCurrency } from '../../price-currency'
 
 /**
@@ -36,7 +32,7 @@ export type SiteCardData = {
 export type DetailBuylistContext = BuylistFeedProvenance & {
   buyer: BuyerId
   /** Cache-backed single-printing lookup; null = buyer has no product for it. */
-  quote: (printing: BuylistQuoteRequest) => BuylistQuote | null
+  quote: PrintingQuoteFn
 }
 
 /**

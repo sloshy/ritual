@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import { resetPriceView, selectUsdSource, setEnabledPriceSources } from '../../src/site/price-view'
 import type { BuylistQuoteRequest, BuylistQuotesResponse } from '../../src/buylist'
 import {
   buylistError,
@@ -25,6 +26,7 @@ type QuoteSpec = {
   productId: number
   priceBuy: number
   qtyBuying: number
+  priceRetail?: number
   name?: string
   edition?: string
   variation?: string
@@ -42,6 +44,8 @@ async function seedQuotes(specs: QuoteSpec[]): Promise<void> {
           {
             priceBuy: spec.priceBuy,
             qtyBuying: spec.qtyBuying,
+            priceRetail: spec.priceRetail ?? 0,
+            qtyRetail: spec.priceRetail !== undefined ? 1 : 0,
             buying: spec.qtyBuying > 0 && spec.priceBuy > 0,
             finish: 'nonfoil' as const,
             matchVia: 'scryfall-id' as const,
@@ -81,6 +85,7 @@ afterEach(() => {
   // The fetcher install is module-global and `bun test` shares the module across
   // files, so leaving one behind would hand the next suite this file's quotes.
   resetBuylistFetcher()
+  resetPriceView()
 })
 
 describe('allocateSellQuantities', () => {
@@ -283,6 +288,20 @@ describe('buylistFieldsFor', () => {
       buylistSpread: -4,
       onBuylist: true,
     })
+  })
+
+  test('the spread compares against the selected price store, not always Scryfall', async () => {
+    await seedQuotes([
+      { key: 'dsk:1:nonfoil', productId: 10, priceBuy: 2, qtyBuying: 3, priceRetail: 8 },
+    ])
+    setSellModeActive(true)
+    setEnabledPriceSources(['tcgplayer', 'cardkingdom'])
+
+    // TCGplayer view: offer vs Scryfall's $6.00.
+    expect(buylistFieldsFor(printing, 'nonfoil', undefined, {}).buylistSpread).toBe(-4)
+    // Card Kingdom view: offer vs CK's own $8.00 retail — apples to apples.
+    selectUsdSource('cardkingdom')
+    expect(buylistFieldsFor(printing, 'nonfoil', undefined, {}).buylistSpread).toBe(-6)
   })
 
   test('a paused offer does not count as being on the buylist', async () => {

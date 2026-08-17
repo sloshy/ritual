@@ -349,6 +349,10 @@ export const cliInfraMessages = {
   'cli.price.disclaimer':
     '⚠️  Prices are from Scryfall and reflect NM (Near Mint) market values. Card condition can significantly decrease actual value.',
   'cli.price.fieldSort': 'sort field',
+  'cli.price.fieldSource': 'price source',
+  'cli.price.sourceCurrencyConflict':
+    '--source {source} prices in {currency}; drop the conflicting --prices flag or change it to match.',
+  'cli.price.currencyCardKingdom': 'USD (Card Kingdom retail)',
   'cli.price.pricingList': {
     $select: 'type',
     deck: 'Pricing deck "{name}"{suffix}',
