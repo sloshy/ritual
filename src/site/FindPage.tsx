@@ -1,11 +1,10 @@
-import type { Component, Accessor } from 'solid-js'
+import type { Component, Accessor, JSX } from 'solid-js'
 import { createSignal, createMemo, onCleanup, For, Show } from 'solid-js'
-import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { formatPrice } from '../price-currency'
 import { cardPriceText, cardPricelessReason } from './priceless'
 import { useT } from '../ui/i18n'
-import { LIST_TYPE_DISPLAY, listTypeTitle, type ListType } from '../list-type'
+import { LIST_TYPES, LIST_TYPE_DISPLAY, listTypeTitle, type ListType } from '../list-type'
 import { CardItem } from './CardItem'
 import { CardModal } from './CardModal'
 import { finishName, rarityName } from './printing-display'
@@ -18,25 +17,35 @@ import type { SelectionState } from './useCardSelection'
 import type { MetaEntry } from './meta-entry'
 import {
   type CombinedCardData,
+  type ListRefKey,
   type LoadedListDetail,
   type NamedListRef,
   buildCombinedCards,
   listHref,
+  listRefKey,
   loadCombinedDetails,
   mergeCardMaps,
   mergePrintingMaps,
   mergeSymbolMaps,
 } from './combined-list'
 import { cardMatchKey, findMatchKey, parseSearchLines, partitionSearch } from './find-search'
+import {
+  enabledScopeRefs,
+  refsOfType,
+  toggleListExclusion,
+  toggleTypeExclusion,
+  typeScopeState,
+} from './find-scope'
+import { indeterminateRef } from '../ui/indeterminate'
 import { setSearchResultsData } from './search-results-state'
+import { isAbortError } from './utils'
 
 /** Whether a search replaces the current results or merges into them. */
 type SearchMode = 'replace' | 'add'
 
 interface FindPageProps {
-  decks: Accessor<DeckSummary[] | null>
-  collections: Accessor<CollectionSummary[] | null>
-  wantedLists: Accessor<WantedListSummary[] | null>
+  /** Every list known to the site index, in canonical deck → collection → wanted order. */
+  lists: Accessor<NamedListRef[]>
   currency: PriceCurrency
   useScryfallImgUrls: boolean
 }
@@ -52,7 +61,7 @@ interface FindResultGroup {
 export const FindPage: Component<FindPageProps> = (props) => {
   const t = useT()
   const [text, setText] = createSignal('')
-  const [loaded, setLoaded] = createSignal<LoadedListDetail[] | null>(null)
+  const [loaded, setLoaded] = createSignal<LoadedListDetail[]>([])
   const [searching, setSearching] = createSignal(false)
   const [searched, setSearched] = createSignal(false)
   const [matchedKeys, setMatchedKeys] = createSignal<Set<string>>(new Set<string>())
@@ -63,27 +72,24 @@ export const FindPage: Component<FindPageProps> = (props) => {
   // the global selection store — picks here are scoped to this page only.
   const [selectedKeys, setSelectedKeys] = createSignal<Set<string>>(new Set<string>())
 
+  // Search scope, stored as an exclusion set of `type:slug` keys so every list
+  // is searched by default. Applied at search time — results from an earlier
+  // search stay visible if their list is excluded afterwards.
+  const [excluded, setExcluded] = createSignal<Set<ListRefKey>>(new Set<ListRefKey>())
+  const [expandedTypes, setExpandedTypes] = createSignal<Set<ListType>>(new Set<ListType>())
+
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
 
-  const allRefs = createMemo<NamedListRef[]>(() => {
-    const out: NamedListRef[] = []
-    for (const d of props.decks() ?? []) out.push({ type: 'deck', slug: d.slug, name: d.name })
-    for (const c of props.collections() ?? [])
-      out.push({ type: 'collection', slug: c.slug, name: c.name })
-    for (const w of props.wantedLists() ?? [])
-      out.push({ type: 'wanted', slug: w.slug, name: w.name })
-    return out
-  })
+  const enabledRefs = createMemo<NamedListRef[]>(() => enabledScopeRefs(excluded(), props.lists()))
 
-  const symbolMap = createMemo(() => mergeSymbolMaps(loaded() ?? []))
+  const symbolMap = createMemo(() => mergeSymbolMaps(loaded()))
 
   // Every card across every loaded list, rebuilt reactively so prices follow the
-  // currency selector and in-session "Update Prices".
+  // currency selector and in-session "Update Prices". Deliberately unfiltered by
+  // the scope: earlier results must survive a list being excluded afterwards.
   const allCards = createMemo<CombinedCardData[]>(() => {
     sessionCacheVersion()
-    const l = loaded()
-    if (!l) return []
-    return buildCombinedCards(l, props.currency, props.useScryfallImgUrls)
+    return buildCombinedCards(loaded(), props.currency, props.useScryfallImgUrls)
   })
 
   const matchedCards = createMemo<CombinedCardData[]>(() => {
@@ -96,7 +102,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
     const index = new Map<string, FindResultGroup>()
     const out: FindResultGroup[] = []
     for (const c of matchedCards()) {
-      const key = `${c.sourceKind}:${c.sourceSlug}`
+      const key = listRefKey({ type: c.sourceKind, slug: c.sourceSlug })
       let group = index.get(key)
       if (!group) {
         group = { kind: c.sourceKind, slug: c.sourceSlug, name: c.sourceName, cards: [] }
@@ -108,29 +114,44 @@ export const FindPage: Component<FindPageProps> = (props) => {
     return out
   })
 
-  // Lazily load every list's detail once, on the first search. The controller is
-  // hoisted so an in-flight load is aborted if the page unmounts mid-fetch.
+  // Lazily load list details on search — only the lists in scope, so a search
+  // restricted to one collection never downloads every deck. Already-loaded
+  // lists are kept and skipped; a widened scope loads just what's missing. The
+  // controller is hoisted so an in-flight load is aborted if the page unmounts
+  // mid-fetch.
   let loadController: AbortController | null = null
   onCleanup(() => loadController?.abort())
 
-  const ensureLoaded = async (): Promise<void> => {
-    if (loaded()) return
+  const ensureLoaded = async (refs: NamedListRef[]): Promise<void> => {
+    const have = new Set(loaded().map((l) => listRefKey(l.ref)))
+    const missing = refs.filter((r) => !have.has(listRefKey(r)))
+    if (missing.length === 0) return
     loadController = new AbortController()
-    const result = await loadCombinedDetails(allRefs(), loadController.signal)
-    loadController = null
-    seedCards(mergeCardMaps(result))
-    seedPrintings(mergePrintingMaps(result))
-    setLoaded(result)
+    try {
+      const result = await loadCombinedDetails(missing, loadController.signal)
+      seedCards(mergeCardMaps(result))
+      seedPrintings(mergePrintingMaps(result))
+      setLoaded((prev) => [...prev, ...result])
+    } finally {
+      loadController = null
+    }
   }
 
   const runSearch = async (mode: SearchMode): Promise<void> => {
     const lines = parseSearchLines(text())
+    // One scope snapshot for the whole run: a checkbox flipped while the lists
+    // download must not widen the search past what was actually loaded.
+    const refs = enabledRefs()
     setSearching(true)
     try {
-      await ensureLoaded()
+      await ensureLoaded(refs)
       // Read the reactive build (rebuilt by `allCards` once `loaded` is set) rather
       // than rebuilding here — keeps prices following the currency selector.
-      const cards = allCards()
+      // Only cards from lists in the snapshotted scope are searchable.
+      const scope = new Set(refs.map(listRefKey))
+      const cards = allCards().filter((c) =>
+        scope.has(listRefKey({ type: c.sourceKind, slug: c.sourceSlug })),
+      )
       const querySet = new Set(lines.map(findMatchKey).filter((k) => k.length > 0))
       const matched = cards.filter((c) => querySet.has(cardMatchKey(c)))
       const presentKeys = new Set(matched.map(cardMatchKey))
@@ -146,7 +167,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
       setNotFoundCount(notFound.length)
       setSearched(true)
     } catch (e) {
-      if ((e as Error).name !== 'AbortError') throw e
+      if (!isAbortError(e)) throw e
     } finally {
       setSearching(false)
     }
@@ -205,13 +226,17 @@ export const FindPage: Component<FindPageProps> = (props) => {
 
   const viewSelectedAsList = (): void => {
     const keys = selectedKeys()
-    const usedLists = new Set(selectedCards().map((c) => `${c.sourceKind}:${c.sourceSlug}`))
-    const subset = (loaded() ?? []).filter((l) => usedLists.has(`${l.kind}:${l.ref.slug}`))
+    const usedLists = new Set(
+      selectedCards().map((c) => listRefKey({ type: c.sourceKind, slug: c.sourceSlug })),
+    )
+    const subset = loaded().filter((l) => usedLists.has(listRefKey(l.ref)))
     setSearchResultsData({ loaded: subset, matchedKeys: new Set(keys) })
     window.location.hash = '#/search-results'
   }
 
-  const canSearch = createMemo(() => parseSearchLines(text()).length > 0 && !searching())
+  const canSearch = createMemo(
+    () => parseSearchLines(text()).length > 0 && enabledRefs().length > 0 && !searching(),
+  )
   const matchedCount = createMemo(() => matchedCards().reduce((sum, c) => sum + c.quantity, 0))
 
   const modalMeta = createMemo((): MetaEntry[] | undefined => {
@@ -231,7 +256,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
     return parts
   })
 
-  const renderRow = (c: CombinedCardData) => (
+  const renderRow = (c: CombinedCardData): JSX.Element => (
     <CardItem
       name={c.name}
       quantity={c.quantity}
@@ -280,6 +305,82 @@ export const FindPage: Component<FindPageProps> = (props) => {
         autocapitalize="off"
         spellcheck={false}
       />
+
+      <div class="find-scope">
+        <span class="find-scope-label">{t('site.find.scopeLabel')}</span>
+        <For each={LIST_TYPES}>
+          {(type) => {
+            const ofType = createMemo<NamedListRef[]>(() => refsOfType(props.lists(), type))
+            const state = createMemo<SelectionState>(() =>
+              typeScopeState(excluded(), props.lists(), type),
+            )
+            const enabledCount = createMemo<number>(
+              () => enabledScopeRefs(excluded(), ofType()).length,
+            )
+            const isOpen = (): boolean => expandedTypes().has(type)
+            const toggleOpen = (): void => {
+              setExpandedTypes((prev) => {
+                const next = new Set(prev)
+                if (next.has(type)) next.delete(type)
+                else next.add(type)
+                return next
+              })
+            }
+            return (
+              <Show when={ofType().length > 0}>
+                <div class="find-scope-group">
+                  <div class="find-scope-head">
+                    <label class="find-scope-type">
+                      <input
+                        type="checkbox"
+                        checked={state() === 'all'}
+                        ref={indeterminateRef(() => state() === 'partial')}
+                        onChange={() => {
+                          const refs = props.lists()
+                          setExcluded((prev) => toggleTypeExclusion(prev, refs, type))
+                        }}
+                      />
+                      <span aria-hidden="true">{LIST_TYPE_DISPLAY[type].icon}</span>
+                      <span>{listTypeTitle(type)}</span>
+                      <span class="find-scope-count">
+                        {t('site.find.scopeCount', {
+                          enabled: enabledCount(),
+                          total: ofType().length,
+                        })}
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      class="find-scope-expand"
+                      aria-expanded={isOpen()}
+                      aria-label={t('site.find.scopeExpandAria', { type: listTypeTitle(type) })}
+                      onClick={toggleOpen}
+                    >
+                      {isOpen() ? '▾' : '▸'}
+                    </button>
+                  </div>
+                  <Show when={isOpen()}>
+                    <div class="find-scope-lists">
+                      <For each={ofType()}>
+                        {(ref) => (
+                          <label class="find-scope-list">
+                            <input
+                              type="checkbox"
+                              checked={!excluded().has(listRefKey(ref))}
+                              onChange={() => setExcluded((prev) => toggleListExclusion(prev, ref))}
+                            />
+                            <span>{ref.name}</span>
+                          </label>
+                        )}
+                      </For>
+                    </div>
+                  </Show>
+                </div>
+              </Show>
+            )
+          }}
+        </For>
+      </div>
 
       <div class="find-controls">
         <button
@@ -364,7 +465,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
           >
             <For each={resultGroups()}>
               {(group) => {
-                const state = (): SelectionState => groupState(group)
+                const state = createMemo<SelectionState>(() => groupState(group))
                 return (
                   <div data-section={group.name}>
                     <div class="section-divider find-result-divider">

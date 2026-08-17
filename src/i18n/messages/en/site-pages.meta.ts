@@ -292,6 +292,18 @@ export const sitePagesMeta = {
     description:
       "Screen-reader label for the checkbox that selects every match from one source list. {name} is that list's name.",
   },
+  'site.find.scopeLabel': {
+    description:
+      'Label ahead of the Find page search-scope controls, which choose the list types and lists a search covers.',
+  },
+  'site.find.scopeCount': {
+    description:
+      'Compact "enabled out of total" list tally beside a list-type name in the Find page search scope, e.g. "3/5".',
+  },
+  'site.find.scopeExpandAria': {
+    description:
+      'Screen-reader label for the button expanding one list type in the Find page search scope to its per-list checkboxes. {type} is the plural list-type name, e.g. "Decks".',
+  },
 
   // ── Trade page ────────────────────────────────────────────────────────
   'site.trade.title': {

@@ -1,14 +1,4 @@
-import {
-  type JSX,
-  batch,
-  createEffect,
-  createMemo,
-  createSignal,
-  For,
-  onCleanup,
-  onMount,
-  Show,
-} from 'solid-js'
+import { type JSX, batch, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
 import type { ArchidektLoginStatus } from '../../../auth/interfaces'
 import type {
   DeckSyncDoneEvent,
@@ -20,6 +10,7 @@ import type {
 import type { DeckSyncEvent, SyncableDeck, UnreadableDeck } from '../../../deck-sync/engine'
 import { unreadableConsequence, type SyncDirection } from '../../../sync-common'
 import { useT } from '../../../ui/i18n'
+import { indeterminateRef } from '../../../ui/indeterminate'
 import type { TranslateFn } from '../../../i18n/t'
 import { formatDateTime } from '../../../ui/format'
 import { ArchidektLoginForm, ArchidektSessionAlert } from '../components/ArchidektSession'
@@ -142,19 +133,6 @@ export function DeckSync(): JSX.Element {
 
   const toggleAll = (): void => {
     setSelected(allSelected() ? [] : decks().map((deck) => deck.slug))
-  }
-
-  /**
-   * `indeterminate` has no JSX attribute form, so the partial-selection state is
-   * written to the master checkbox as a DOM property. The effect is created in
-   * the `ref` callback so it is bound to the element's own lifetime — created at
-   * component scope it would run once before the checkbox exists, read no
-   * signals, and never run again.
-   */
-  const trackIndeterminate = (el: HTMLInputElement): void => {
-    createEffect(() => {
-      el.indeterminate = selected().length > 0 && !allSelected()
-    })
   }
 
   /** The most recent sync across all decks, for the page-level summary line. */
@@ -391,7 +369,7 @@ export function DeckSync(): JSX.Element {
             <li class="sync-select-row sync-select-row--all">
               <label class="sync-select-label">
                 <input
-                  ref={trackIndeterminate}
+                  ref={indeterminateRef(() => selected().length > 0 && !allSelected())}
                   type="checkbox"
                   checked={allSelected()}
                   disabled={running()}

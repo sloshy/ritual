@@ -42,6 +42,14 @@ export interface NamedListRef extends CombinedListRef {
   name: string
 }
 
+/** A list's stable identity key, `type:slug` — also the URL token in combined hashes. */
+export type ListRefKey = `${ListType}:${string}`
+
+/** The single spelling of a list ref's `type:slug` identity key. */
+export function listRefKey(ref: CombinedListRef): ListRefKey {
+  return `${ref.type}:${ref.slug}`
+}
+
 /** The combined-view selection: either every list, or an explicit set of list refs. */
 export interface CombinedSelection {
   all: boolean
@@ -115,7 +123,7 @@ export function combinedAllHref(allType?: ListType): string {
 export function encodeCombinedHash(selection: CombinedSelection): string {
   if (selection.all)
     return selection.allType ? `/combined?all=${selection.allType}` : '/combined?all'
-  const csv = selection.refs.map((r) => `${r.type}:${r.slug}`).join(',')
+  const csv = selection.refs.map(listRefKey).join(',')
   return `/combined?lists=${csv}`
 }
 
@@ -141,7 +149,7 @@ export function parseCombinedQuery(query: string): CombinedSelection {
     const type = token.slice(0, sep)
     const slug = token.slice(sep + 1)
     if (!isListType(type) || !slug) continue
-    const key = `${type}:${slug}`
+    const key = listRefKey({ type, slug })
     if (seen.has(key)) continue
     seen.add(key)
     refs.push({ type, slug })

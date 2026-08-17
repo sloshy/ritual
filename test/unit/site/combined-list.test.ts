@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   encodeCombinedHash,
+  listRefKey,
   parseCombinedQuery,
   buildCombinedCards,
   mergeSymbolMaps,
@@ -103,6 +104,12 @@ function wantedDetail(): Extract<LoadedListDetail, { kind: 'wanted' }> {
   } as unknown as WantedListDetail
   return { ref: { type: 'wanted', slug: 'my-wants' }, name: 'My Wants', kind: 'wanted', detail }
 }
+
+describe('listRefKey', () => {
+  test('is the type and slug joined by a colon', () => {
+    expect(listRefKey({ type: 'deck', slug: 'burn' })).toBe('deck:burn')
+  })
+})
 
 describe('parseCombinedQuery / encodeCombinedHash', () => {
   test('round-trips an explicit list of refs', () => {

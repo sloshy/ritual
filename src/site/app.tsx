@@ -816,9 +816,7 @@ function App() {
             <Match when={route().page === 'find'}>
               <Show when={deckList()} fallback={<LoadingSpinner />}>
                 <FindPage
-                  decks={deckList}
-                  collections={collectionList}
-                  wantedLists={wantedListList}
+                  lists={allNamedLists}
                   currency={currency()}
                   useScryfallImgUrls={useScryfallImgUrls()}
                 />

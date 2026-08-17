@@ -9,7 +9,12 @@ import { getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
 import { LIST_TYPE_DISPLAY, listTypeTitle, type ListType } from '../list-type'
 import type { MessageKey } from '../i18n/messages/en'
 import { useI18n } from '../ui/i18n'
-import type { CombinedSelection, CombinedListRef, NamedListRef } from './combined-list'
+import {
+  listRefKey,
+  type CombinedSelection,
+  type CombinedListRef,
+  type NamedListRef,
+} from './combined-list'
 
 /** A single selectable list in the modal, flattened from the per-type summaries. */
 interface ListChoice {
@@ -35,8 +40,6 @@ const SORT_OPTIONS = [
 ] as const satisfies readonly SortOption[]
 
 const TYPE_ORDER: Record<ListType, number> = { deck: 0, collection: 1, wanted: 2 }
-
-const refKey = (ref: CombinedListRef): string => `${ref.type}:${ref.slug}`
 
 interface CombineListModalProps {
   open: boolean
@@ -108,13 +111,13 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
     return list
   })
 
-  const isChecked = (ref: CombinedListRef): boolean => all() || selected().has(refKey(ref))
+  const isChecked = (ref: CombinedListRef): boolean => all() || selected().has(listRefKey(ref))
 
   const toggle = (ref: CombinedListRef): void => {
     if (all()) return
     setSelected((prev) => {
       const next = new Set(prev)
-      const key = refKey(ref)
+      const key = listRefKey(ref)
       if (next.has(key)) next.delete(key)
       else next.add(key)
       return next
@@ -131,7 +134,7 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
       return
     }
     const others: CombinedListRef[] = sortedChoices()
-      .filter((c) => selected().has(refKey(c.ref)))
+      .filter((c) => selected().has(listRefKey(c.ref)))
       .map((c) => ({ type: c.ref.type, slug: c.ref.slug }))
     const refs: CombinedListRef[] = props.current
       ? [{ type: props.current.type, slug: props.current.slug }, ...others]

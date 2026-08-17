@@ -2395,8 +2395,43 @@ const FIND_WANTED = {
   defaultCurrency: 'usd',
 } satisfies WantedListDetail
 
+// A second deck whose only card matches none of the names the Find specs search,
+// so it never changes result counts — it exists to make the scope controls'
+// partial (indeterminate) type state reachable (two decks, one excluded).
+const FIND_ISLAND = makeMockScryfallCard({
+  id: 'find-island',
+  name: 'Island',
+  cmc: 0,
+  type_line: 'Basic Land — Island',
+  prices: { usd: '0.10' },
+  set: 'lea',
+  collector_number: '288',
+})
+
+const FIND_ATTIC = {
+  deck: {
+    name: 'Find Attic',
+    sections: [
+      {
+        name: 'Main',
+        cards: [{ quantity: 1, name: 'Island', set: 'lea', collectorNumber: '288', cardId: 1 }],
+      },
+    ],
+  },
+  cards: { Island: FIND_ISLAND },
+  printings: { Island: [FIND_ISLAND] },
+  symbolMap: {},
+  useScryfallImgUrls: true,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+} satisfies DeckDetail
+
 const FIND_INDEX = makeSiteIndex({
-  decks: [makeDeckSummary({ slug: 'find-deck', name: 'Find Deck', cardCount: 3, totalPrice: 10 })],
+  decks: [
+    makeDeckSummary({ slug: 'find-deck', name: 'Find Deck', cardCount: 3, totalPrice: 10 }),
+    makeDeckSummary({ slug: 'find-attic', name: 'Find Attic', cardCount: 1, totalPrice: 1 }),
+  ],
   collections: [
     makeCollectionSummary({ slug: 'find-box', name: 'Find Box', cardCount: 2, totalPrice: 8 }),
   ],
@@ -2404,10 +2439,11 @@ const FIND_INDEX = makeSiteIndex({
   useScryfallImgUrls: true,
 })
 
-/** Serve a deck + collection + wanted list for the Find page tests. */
+/** Serve two decks + a collection + a wanted list for the Find page tests. */
 export async function mockPublicSiteForFind(page: Page): Promise<void> {
   await fulfillJson(page, '**/index.json', FIND_INDEX)
   await fulfillJson(page, '**/decks/find-deck.json', FIND_DECK)
+  await fulfillJson(page, '**/decks/find-attic.json', FIND_ATTIC)
   await fulfillJson(page, '**/collections/find-box.json', FIND_COLLECTION)
   await fulfillJson(page, '**/wanted/find-wanted.json', FIND_WANTED)
 }

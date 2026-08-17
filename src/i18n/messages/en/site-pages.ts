@@ -126,6 +126,9 @@ export const sitePagesMessages = {
   'site.find.viewSelectedAsList': 'View Selected as List',
   'site.find.clearSelection': 'Clear Selection',
   'site.find.selectGroupAria': 'Select all cards from {name}',
+  'site.find.scopeLabel': 'Search in:',
+  'site.find.scopeCount': '{enabled}/{total}',
+  'site.find.scopeExpandAria': 'Choose which {type} to search',
 
   // ── Trade page ────────────────────────────────────────────────────────
   'site.trade.title': 'Trade Editor',

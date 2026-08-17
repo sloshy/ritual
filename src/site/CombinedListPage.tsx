@@ -13,6 +13,7 @@ import {
   type NamedListRef,
   buildCombinedCards,
   listHref,
+  listRefKey,
   loadCombinedDetails,
   mergeBakedBuylists,
   mergeSymbolMaps,
@@ -44,7 +45,7 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
   // string keeps the effect from re-firing when the array identity changes but the
   // contents don't. The API base is tracked too, so resolving or degrading the
   // live backend reloads from the right source.
-  const listsKey = createMemo(() => props.lists.map((l) => `${l.type}:${l.slug}`).join(','))
+  const listsKey = createMemo(() => props.lists.map(listRefKey).join(','))
   createEffect(
     on([listsKey, apiBase], () => {
       const refs = props.lists

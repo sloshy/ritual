@@ -2719,6 +2719,79 @@ body.theme-editor-active {
   }
 }
 
+/* Search-scope controls: one group per list type, expandable to per-list rows. */
+.find-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.find-scope-label {
+  align-self: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.find-scope-group {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.find-scope-head {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.3rem 0.3rem 0.6rem;
+}
+
+.find-scope-type {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.find-scope-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.find-scope-expand {
+  padding: 0 0.35rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+
+.find-scope-lists {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.3rem 0.6rem 0.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.find-scope-list {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
 .find-controls {
   display: flex;
   flex-wrap: wrap;

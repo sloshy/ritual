@@ -8,12 +8,21 @@ There is no CLI or admin-site equivalent; Find is a public-site browsing feature
 
 ## Searching by name
 
-Open the **Find** link in the navbar (next to **Trade**). Paste or type card names into the box — **one card per line** — and press **Search**. Find loads every deck, collection, and wanted list and shows, grouped by source list, which of your names appear in each. Results are rendered as a card **list view**: hovering a row previews the card art, foils shimmer, and clicking a row opens the full card detail. Each row also shows its printing and price.
+Open the **Find** link in the navbar (next to **Trade**). Paste or type card names into the box — **one card per line** — and press **Search**. Find loads every list in the [search scope](#choosing-where-to-search) — by default every deck, collection, and wanted list — and shows, grouped by source list, which of your names appear in each. Results are rendered as a card **list view**: hovering a row previews the card art, foils shimmer, and clicking a row opens the full card detail. Each row also shows its printing and price.
 
 Matching is by **card name**, case- and accent-insensitive:
 
 - **Front faces only.** For a double-faced card written as `Front // Back`, only the front side is searched — everything from the `//` onward is ignored. Searching `Bruce Banner` matches `Bruce Banner // The Incredible Hulk`; searching `The Incredible Hulk` does not.
 - **Double-art printings are included.** Some cards are printed with two identical faces, e.g. `Steam Vents // Steam Vents`. A search for `Steam Vents` returns both the normal printings and those double-faced printings.
+
+## Choosing where to search
+
+By default a search covers **every** deck, collection, and wanted list on the site. The **Search in** controls between the text box and the **Search** button narrow that down:
+
+- Each list type — **Decks**, **Collections**, **Wanted Lists** — has a checkbox that includes or excludes every list of that type at once. Untick **Decks**, say, to search only collections and wanted lists. The tally next to the name shows how many of the type's lists are in scope (e.g. `3/5`).
+- The arrow next to a type expands it to a checkbox **per list**, so you can search just one binder or a handful of decks. When only some of a type's lists are ticked, the type's own checkbox shows a mixed (indeterminate) state; clicking it then re-includes the whole type.
+
+The scope applies when you press **Search** (or **Add Cards to Search**): results already on screen stay put if you exclude their list afterwards, until your next search replaces them. Find also only downloads the lists it actually searches, so narrowing the scope makes the first search on a large site faster. With every list excluded there is nothing to search and the **Search** button is disabled.
 
 ## Cards that aren't found
 
