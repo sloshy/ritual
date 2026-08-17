@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
+import { artSidecarPath, loadCardArt, saveCardArt } from '../../src/card-art'
 import {
   createWorkspace,
   removeWorkspace,
@@ -236,5 +237,52 @@ describe('remove-card CLI (Integration)', () => {
     expect(result.exitCode).toBe(3)
     const err = JSON.parse(result.stderr) as ErrorJson
     expect(err.error.code).toBe('not_found')
+  })
+
+  /**
+   * Custom art is filed under the card line's `&N`, and a deleted line releases
+   * that id to the reuse pool — so art the removal leaves behind would come back
+   * on whichever card is added next.
+   */
+  describe('custom art', () => {
+    test('a deleted line takes its custom art with it', async () => {
+      const listPath = path.join(dir, 'collections', 'main.md')
+      await saveCardArt(listPath, new Map([[2, { file: 'proxies/crypt.png' }]]))
+
+      const result = await runCli(
+        ['remove-card', '--collection', 'main', 'Mana', 'Crypt', '--output', 'json'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      // The only entry went with the line, so the sidecar is gone entirely.
+      expect(await fs.exists(artSidecarPath(listPath))).toBe(false)
+    })
+
+    test('a deck decrement keeps the line, its id and its art', async () => {
+      const listPath = path.join(dir, 'decks', 'test.md')
+      await saveCardArt(listPath, new Map([[1, { file: 'proxies/ring.png' }]]))
+
+      const result = await runCli(
+        ['remove-card', '--deck', 'test', 'Sol', 'Ring', '--output', 'json'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      expect(await fs.readFile(listPath, 'utf-8')).toContain('1 Sol Ring &1')
+      const loaded = await loadCardArt(listPath)
+      expect(loaded.ok && loaded.art.get(1)).toEqual({ file: 'proxies/ring.png' })
+    })
+
+    test('a --dry-run removal leaves the sidecar untouched', async () => {
+      const listPath = path.join(dir, 'collections', 'main.md')
+      await saveCardArt(listPath, new Map([[2, { file: 'proxies/crypt.png' }]]))
+
+      const result = await runCli(
+        ['remove-card', '--collection', 'main', 'Mana', 'Crypt', '-n', '--output', 'json'],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      const loaded = await loadCardArt(listPath)
+      expect(loaded.ok && loaded.art.get(2)).toEqual({ file: 'proxies/crypt.png' })
+    })
   })
 })

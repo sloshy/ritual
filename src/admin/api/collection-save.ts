@@ -17,10 +17,12 @@ import { changeCardNames, refuseUnknownCardNames } from './card-name-check'
 import { applyOutgoingMoves } from './move-save'
 import {
   apiError,
+  entryLineQuantities,
   PARTIAL_LOAD_HINT,
   readJsonObjectBody,
   validateContentHash,
   finishListSave,
+  listSaveOutcome,
   listSaveResponse,
   normalizeRequestLabels,
   normalizeRequestLanguages,
@@ -61,7 +63,7 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
     const noteError = normalizeRequestNotes(changes, [])
     if (noteError) return noteError
 
-    const labelError = normalizeRequestLabels(changes)
+    const labelError = normalizeRequestLabels(changes, 'collection')
     if (labelError) return labelError
 
     // Collection entries are rebuilt server-side from the baseline file, so only
@@ -120,7 +122,11 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
 
     // Apply the destination side of any cross-list moves first; a bad destination
     // aborts before the source is rewritten.
-    const outgoing = await applyOutgoingMoves({ type: 'collection', name: title }, changes)
+    const outgoing = await applyOutgoingMoves(
+      { type: 'collection', name: title },
+      filePath,
+      changes,
+    )
 
     const order = sectionOrder ?? parsed.sectionOrder
     // Ids are assigned here rather than only inside `collectionToMarkdown`
@@ -134,18 +140,16 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
       content: newContent,
       changelogName: slug,
       changes,
+      // Computed before the write: the tail re-files the list's custom art
+      // against the ids these effects report as freed or renumbered.
+      effects: computeEntrySaveEffects({ before: cardEntries, after: idedEntries, assignments }),
+      previousLineQuantities: entryLineQuantities(cardEntries),
       continueSession,
       extraFiles: outgoing.writtenFiles,
     }
-    const { contentHash: newContentHash } = await finishListSave(tail)
+    const saved = await finishListSave(tail)
 
-    return Response.json(
-      listSaveResponse(tail, {
-        contentHash: newContentHash,
-        droppedNotes: outgoing.droppedNotes,
-        effects: computeEntrySaveEffects({ before: cardEntries, after: idedEntries, assignments }),
-      }),
-    )
+    return Response.json(listSaveResponse(tail, listSaveOutcome(saved, outgoing)))
   } catch (error) {
     return apiError(getErrorMessage(error), 500)
   }

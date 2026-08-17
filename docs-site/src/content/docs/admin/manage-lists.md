@@ -22,7 +22,7 @@ A live preview of the resulting file name is shown below the input on both the C
 
 ## Decks
 
-A deck is a Markdown file in the configured `decksDir` (defaults to `decks/`) with YAML frontmatter (`name`, `format`, `created`, `tags`).
+A deck is a Markdown file in the configured `decksDir` (defaults to `decks/`) with YAML frontmatter (`name`, `format`, `created`, `description`, `tags`, `labels`, `sourceId`, `sourceUrl`). `labels` holds the deck's [default card labels](/commands/edit/#card-labels) — `proxy` alone, on a deck.
 
 ### Creating a deck
 
@@ -37,7 +37,7 @@ Click **Rename** next to any deck. Renaming a deck:
 
 - Updates the `name` field in the deck's YAML frontmatter
 - Renames the file to match the new name (e.g. `Old Name.md` → `New Name.md`)
-- Also renames the changelog file (`*.changes.md`) and the primer file (`*.primer.md`) if either exists
+- Also renames every sidecar the deck has: the changelog (`*.changes.md`), the primer (`*.primer.md`), and the [custom-art](/custom-art/) sidecar (`*.art.json`)
 
 ### Deleting a deck
 
@@ -53,6 +53,7 @@ You must type the **exact deck name** before the Delete button becomes active. D
 - The content-hash sidecar (`<name>.md.sha256`) if it exists
 - The changelog file (`<name>.changes.md`) if it exists
 - The primer file (`<name>.primer.md`) if it exists
+- The [custom-art](/custom-art/) sidecar (`<name>.art.json`) if it exists
 
 ## Collections
 
@@ -71,17 +72,17 @@ Click **Rename** next to any collection. Renaming a collection:
 
 - Updates the first `# <Title>` H1 in the file
 - Renames the file (e.g. `Old.md` → `New.md`)
-- Also renames the changelog file (`*.changes.md`) if it exists
+- Also renames every sidecar the collection has: the changelog (`*.changes.md`) and the [custom-art](/custom-art/) sidecar (`*.art.json`)
 
 ### Deleting a collection
 
-Click **Delete** next to any collection. As with decks, you must type the exact collection name to confirm. Deletion removes the `<name>.md` file and its `<name>.md.sha256` and `<name>.changes.md` sidecars if present.
+Click **Delete** next to any collection. As with decks, you must type the exact collection name to confirm. Deletion removes the `<name>.md` file and its `<name>.md.sha256`, `<name>.changes.md`, and `<name>.art.json` sidecars if present.
 
 ## Wanted Lists
 
 A wanted list is a Markdown file in the configured `wantedDir` (defaults to `wanted/`). It uses the same simple format as a collection — a `# Title` heading followed by card lines (without condition fields), optionally organized under `## Section Name` (H2) headers (see the [wanted format](/commands/edit/#sections)).
 
-The Create / Rename / Delete flow is identical to **Collections**, including the changelog sidecar handling.
+The Create / Rename / Delete flow is identical to **Collections**, including the changelog and custom-art sidecar handling.
 
 ## Publishing visibility
 

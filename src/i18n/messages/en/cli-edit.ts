@@ -148,6 +148,7 @@ export const cliEditMessages = {
   'cli.editLabel.condition': 'condition on {name}',
   'cli.editLabel.language': 'language on {name}',
   'cli.editLabel.labels': 'labels on {name}',
+  'cli.editLabel.art': 'custom art on {name}',
   'cli.editLabel.note': 'note on {name}',
   'cli.editLabel.section': 'section of {name}',
   'cli.editLabel.removeCopy': 'removing a copy of {name}',
@@ -160,6 +161,7 @@ export const cliEditMessages = {
   'cli.editAction.changeCondition': 'Change Condition',
   'cli.editAction.changeLanguage': 'Change Language',
   'cli.editAction.changeLabel': 'Change Label',
+  'cli.editAction.setArt': 'Set Custom Art',
   'cli.editAction.moveToSection': 'Move to Section',
   'cli.editAction.moveToList': 'Move to Another List',
   'cli.editAction.editNote': 'Edit Note',
@@ -228,13 +230,38 @@ export const cliEditMessages = {
   'cli.deck.noSectionSelected': 'No section selected. Skipping.',
   'cli.deck.editedPrinting': 'Edited {name} → {printing}',
 
+  // ── Card labels (deck and collection sessions) ────────────────────────
+  'cli.labels.promptOverride': 'Label:',
+  'cli.labels.promptDefault': 'Default labels:',
+  'cli.labels.menuListLabels': 'Edit List Labels (default: {labels})',
+  'cli.labels.none': 'none',
+  'cli.labels.defaultSet': 'Default labels set to [{labels}].',
+  'cli.labels.defaultCleared': 'Default labels cleared.',
+
+  // ── Custom art (the Set Custom Art edit action) ───────────────────────
+  //
+  // `{art}` is always a file path or a URL — a reference the user typed or
+  // picked, echoed back verbatim and never translated.
+  'cli.art.promptAction': 'Custom art ({art}):',
+  'cli.art.none': 'none set',
+  'cli.art.actionUrl': 'Enter an Image URL',
+  'cli.art.actionFile': 'Pick a Local File',
+  'cli.art.actionClear': 'Clear Custom Art',
+  'cli.art.promptUrl': 'Image URL:',
+  'cli.art.promptPickFile': 'Pick an image in {dir}:',
+  'cli.art.rowUp': '.. (up one level)',
+  'cli.art.dirMissing':
+    "No art directory at {dir}. Put your images there (or point somewhere else with 'ritual config set artDir <dir>') and try again.",
+  'cli.art.dirGone': 'No directory at {dir} any more — it went away while you were browsing.',
+  'cli.art.dirUnreadable': 'Could not read {dir}: {reason}',
+  'cli.art.dirEmpty': 'No images in {dir}. Custom art files must be one of: {extensions}.',
+  'cli.art.invalid': 'Custom art unchanged — {reason}.',
+  'cli.art.sidecarUnreadable':
+    "The list's custom art cannot be edited — it could not be read: {reason}",
+  'cli.art.set': 'Custom art on {name} → {art} (written when you save).',
+  'cli.art.cleared': 'Custom art cleared on {name} (written when you save).',
+
   // ── Collection sessions ───────────────────────────────────────────────
-  'cli.collection.promptLabel': 'Label:',
-  'cli.collection.promptDefaultLabels': 'Default labels:',
-  'cli.collection.menuListLabels': 'Edit List Labels (default: {labels})',
-  'cli.collection.labelsNone': 'none',
-  'cli.collection.defaultLabelsSet': 'Default labels set to [{labels}].',
-  'cli.collection.defaultLabelsCleared': 'Default labels cleared.',
   'cli.collection.frontMatterUnreadable':
     "The file's front matter could not be read as YAML, so editing the default labels would overwrite it. Fix the block by hand first.",
   'cli.collection.noPrintingsSkip': 'No printings found. Skipping.',

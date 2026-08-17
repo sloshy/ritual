@@ -1,7 +1,7 @@
 import type { Component } from 'solid-js'
-import { createEffect, createSignal, For, on, Show } from 'solid-js'
+import { createEffect, createMemo, createSignal, For, on, Show } from 'solid-js'
 import type { ScryfallCard } from '../types'
-import type { CardLabel } from '../card-labels'
+import type { CardLabel, PricelessReason } from '../card-labels'
 import { languageBadge } from '../card-language'
 import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost } from './symbols'
@@ -11,6 +11,7 @@ import { BUYLIST_CURRENCY, type ViewMode } from './card-sorting'
 import type { SelectionState } from './useCardSelection'
 import { selectionModeActive } from './selection-mode'
 import { finishName } from './printing-display'
+import { pricelessMarkerText } from './priceless'
 import { useT } from '../ui/i18n'
 
 type ButtonMouseEvent = MouseEvent & { currentTarget: HTMLButtonElement }
@@ -46,6 +47,12 @@ export interface CardItemProps {
   name: string
   quantity: number
   card: ScryfallCard | null
+  /**
+   * The entry's custom art (`art/<relpath>` or a URL), replacing the card's own
+   * front image everywhere this tile shows it — grid, binder, stacks, and the
+   * list view's hover tooltip. A double-faced card keeps its real back.
+   */
+  customArt?: string
   symbolMap: Record<string, string>
   viewMode: ViewMode
   hideCount?: boolean
@@ -74,6 +81,13 @@ export interface CardItemProps {
    * combined views pass effective labels, since there is no ambient default.
    */
   labelBadges?: CardLabel[]
+  /**
+   * Why this copy carries no price, when it carries none: a marker (`PROXY` /
+   * `CUSTOM`) then replaces the price text in every view. Passed rather than
+   * derived, because the tile sees only the *override* labels while the rule
+   * runs on the effective ones — see `cardPricelessReason`.
+   */
+  priceless?: PricelessReason
   currency?: PriceCurrency
   /** The entry's persistent card ID, exposed as `data-card-id` for cross-list navigation. */
   cardId?: number
@@ -192,6 +206,23 @@ const FlipButton: Component<FlipButtonProps> = (props) => {
   )
 }
 
+/**
+ * The art shown for a tile whose card never resolved: its custom art when it
+ * has some, else the card's name on the empty placeholder. Custom art is the
+ * entry's own image rather than the printing's, so it renders even with no
+ * Scryfall object behind it — the case a proxy of an unknown card is exactly.
+ */
+type EmptyCardFaceProps = {
+  name: string
+  customArt?: string
+}
+
+const EmptyCardFace: Component<EmptyCardFaceProps> = (props) => (
+  <Show when={props.customArt} fallback={<span class="card-empty-label">{props.name}</span>}>
+    {(art) => <img src={art()} alt={props.name} loading="lazy" />}
+  </Show>
+)
+
 export const CardItem: Component<CardItemProps> = (props) => {
   const t = useT()
   const [flipped, setFlipped] = createSignal(false)
@@ -211,12 +242,18 @@ export const CardItem: Component<CardItemProps> = (props) => {
       fallback={
         <div class="card-item" data-name={props.name.toLowerCase()} data-card-id={props.cardId}>
           <Show when={props.viewMode === 'binder'}>
-            <div class="card-binder card-binder--empty">
-              <span class="card-empty-label">{props.name}</span>
+            <div class="card-binder" classList={{ 'card-binder--empty': !props.customArt }}>
+              <EmptyCardFace name={props.name} customArt={props.customArt} />
             </div>
           </Show>
           <Show when={props.viewMode === 'list'}>
-            <div class="card-list card-list--empty">
+            <div
+              class="card-list card-list--empty"
+              onMouseEnter={() => {
+                if (props.customArt) props.onTooltipEnter?.(props.customArt, false)
+              }}
+              onMouseLeave={() => props.onTooltipLeave?.()}
+            >
               <Show when={!props.hideCount}>
                 <span class="list-qty">{props.quantity}</span>
               </Show>
@@ -224,8 +261,8 @@ export const CardItem: Component<CardItemProps> = (props) => {
             </div>
           </Show>
           <Show when={props.viewMode === 'overlap' || props.viewMode === 'stack'}>
-            <div class="card-overlap card-overlap--empty">
-              <span class="card-empty-label">{props.name}</span>
+            <div class="card-overlap" classList={{ 'card-overlap--empty': !props.customArt }}>
+              <EmptyCardFace name={props.name} customArt={props.customArt} />
             </div>
           </Show>
         </div>
@@ -254,7 +291,12 @@ export const CardItem: Component<CardItemProps> = (props) => {
           }
           props.onCardClick?.()
         }
-        const images = () => resolveCardImageSources(card(), Boolean(props.useScryfallImgUrls))
+        // A memo, not a plain accessor: every view mode reads it two or three
+        // times per render (front, back, flip test), and each read would
+        // otherwise rebuild the pair.
+        const images = createMemo(() =>
+          resolveCardImageSources(card(), Boolean(props.useScryfallImgUrls), props.customArt),
+        )
         // A flippable face exists only for double-faced cards with a resolvable back image.
         const canFlip = () => isDFC() && Boolean(images().backImage)
 
@@ -316,7 +358,11 @@ export const CardItem: Component<CardItemProps> = (props) => {
         const overlapClass = () => `card-overlap${isFoil() ? ' foil-card' : ''}`
         const displayPrice = () =>
           props.collectionPrice !== undefined ? props.collectionPrice : price()
-        const showPrice = () => displayPrice() > 0
+        // A proxy or custom-art copy shows its marker where the price would be —
+        // it is worth nothing, and "$0.00" would read as a price rather than as
+        // the refusal to quote one.
+        const pricelessMarker = () => pricelessMarkerText(t, props.priceless)
+        const showPrice = () => pricelessMarker() !== undefined || displayPrice() > 0
         const buylistPrice = () => props.buylistPrice ?? 0
         const showBuylist = () => buylistPrice() > 0
         // One source for both view modes: the label had to be corrected twice
@@ -332,7 +378,9 @@ export const CardItem: Component<CardItemProps> = (props) => {
           <Show when={showPrice() || showBuylist()}>
             <span class="card-label-prices">
               <Show when={showPrice()}>
-                <span class="card-label-price">{formatPrice(displayPrice(), currency())}</span>
+                <span class="card-label-price">
+                  {pricelessMarker() ?? formatPrice(displayPrice(), currency())}
+                </span>
               </Show>
               <Show when={showBuylist()}>
                 <span class="card-label-buylist" title={t('site.card.buylistTitle')}>
@@ -551,7 +599,9 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     {t('site.card.tradeButton')}
                   </button>
                 </Show>
-                <span class="list-price">{formatPriceOrNA(displayPrice(), currency())}</span>
+                <span class="list-price">
+                  {pricelessMarker() ?? formatPriceOrNA(displayPrice(), currency())}
+                </span>
                 <Show when={showBuylist()}>
                   <span class="list-buylist-price" title={t('site.card.buylistTitle')}>
                     {buylistLabel()}

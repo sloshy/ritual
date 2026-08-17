@@ -23,7 +23,7 @@ function patchOf(body: Record<string, unknown>): DeckMetadataPatch {
 describe('parseDeckMetadataBody', () => {
   test('an unknown field names the fields that are accepted', () => {
     expect(parseDeckMetadataBody({ colour: 'blue' })).toBe(
-      "Unknown metadata field 'colour'. Accepted fields: description, tags, format, sourceId, sourceUrl.",
+      "Unknown metadata field 'colour'. Accepted fields: description, tags, format, labels, sourceId, sourceUrl.",
     )
   })
 
@@ -52,6 +52,18 @@ describe('parseDeckMetadataBody', () => {
   test('a body without a contentHash omits the key entirely', () => {
     const parsed = parseDeckMetadataBody({ description: 'Hi' }) as ParsedDeckMetadataBody
     expect('contentHash' in parsed).toBeFalse()
+  })
+
+  test('labels accept the deck vocabulary; null or an empty set clears them', () => {
+    expect(patchOf({ labels: ['proxy'] }).labels).toEqual(['proxy'])
+    expect(patchOf({ labels: null }).labels).toBeNull()
+    expect(patchOf({ labels: [] }).labels).toBeNull()
+  })
+
+  test('a label a deck cannot carry is refused, naming what it can', () => {
+    const message = parseDeckMetadataBody({ labels: ['sale'] })
+    expect(message).toContain('labels [sale] are not supported on a deck')
+    expect(message).toContain('supported: proxy')
   })
 
   test('description is trimmed', () => {

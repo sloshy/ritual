@@ -35,6 +35,7 @@ import {
 import type { BakedBuylist } from './data-types'
 import { apiUrl } from './api-base'
 import { displayFinish } from '../finish-condition'
+import { isPricelessCard, type PricelessCard } from './priceless'
 import { scryfallCardLanguage, type CardLanguage } from '../card-language'
 import { getCardPriceForFinish } from '../price-currency'
 import { sellModeActive } from './sell-mode'
@@ -206,18 +207,28 @@ const NO_BUYLIST_FIELDS: Readonly<BuylistCardFields> = Object.freeze({
  * decks and wanted lists) is what keeps the buylist figure about the same copy
  * as the retail price shown beside it.
  *
+ * `priceless` is required — build it with `pricelessFacts`. It carries the
+ * entry's *effective* labels and its custom-art facts: a
+ * proxy is not a real card and a custom-art copy is not the printing a quote
+ * would be for, so no buyer is offering anything for either — the same rule the
+ * price engine and the bakers apply. It is one object rather than loose
+ * arguments so a caller cannot pass the display URL and forget the
+ * `hasCustomArt` fact beside it (an undeployed file has only the latter).
+ *
  * Reads the quote store, so calling this inside a memo makes that memo re-run
  * when quotes arrive.
  */
 export function buylistFieldsFor(
   card: ScryfallCard | null,
   finish: Finish | undefined,
-  language?: CardLanguage,
+  language: CardLanguage | undefined,
+  priceless: PricelessCard,
 ): Readonly<BuylistCardFields> {
   // Gated on the mode, not just on the store: quotes outlive a toggle-off (they
   // are only cleared by a buyer switch), so without this a card would keep its
   // buylist price — and its on-buylist grouping — after sell mode was turned off.
   if (!sellModeActive()) return NO_BUYLIST_FIELDS
+  if (isPricelessCard(priceless)) return NO_BUYLIST_FIELDS
   // The entry's own language token as well as the resolved object's: under the
   // default `en` cache a `[ja]` line resolves to the English card, whose key an
   // English sibling in the same list may have baked. `isQuotableCard` is the one

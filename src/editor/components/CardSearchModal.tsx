@@ -5,7 +5,9 @@ import type { Finish, Condition, ScryfallCard } from '../../types'
 import { getCardImageUrl } from '../../card-image'
 import { defaultPrintingFinish, printingFinishes, VALID_CONDITIONS } from '../../finish-condition'
 import type { EditorDefaults } from '../useEditorDefaults'
-import type { AddCardFromSearch } from '../useEditor'
+import type { AddCardExtras, AddCardFromSearch } from '../useEditor'
+import type { CardLabel } from '../../card-labels'
+import { AddCardOptions, readAddCardArt, type AddCardOptionsConfig } from './AddCardOptions'
 import type { SearchProvider } from '../search-provider'
 import { useDocumentKeydown } from '../../ui/useDocumentKeydown'
 import { PrintingFilter } from '../../ui/PrintingFilter'
@@ -63,6 +65,12 @@ type CardSearchModalProps = {
    * return to).
    */
   initialCardName?: string
+  /**
+   * Offer the per-card add options (label override, custom art) alongside the
+   * printing. Omitted in change-printing mode and wherever the dialog is reused
+   * to pick a card rather than to add one — neither commits an `add`.
+   */
+  addOptions?: AddCardOptionsConfig
 }
 
 type AddOptionsInput = {
@@ -337,6 +345,28 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   )
   const [quantity, setQuantity] = createSignal(1)
 
+  // The per-card add options (see AddCardOptions). Held at dialog level, not per
+  // step: the printing grid and the finish/condition step show the same row, and
+  // a value typed on one must survive the walk to the other.
+  const [addLabels, setAddLabels] = createSignal<CardLabel[]>([])
+  const [addArt, setAddArt] = createSignal('')
+
+  /** The typed art, parsed. `invalid` blocks every commit path in the add flow. */
+  const addArtInput = createMemo(() => readAddCardArt(addArt()))
+  const addOptionsBlocked = (): boolean =>
+    props.addOptions !== undefined && addArtInput().state === 'invalid'
+
+  /** What the add options contribute to a commit, or undefined when they say nothing. */
+  const addExtras = (): AddCardExtras | undefined => {
+    if (props.addOptions === undefined) return undefined
+    const parsed = addArtInput()
+    const labels = addLabels()
+    const extras: AddCardExtras = {}
+    if (labels.length > 0) extras.labels = [...labels]
+    if (parsed.state === 'valid') extras.art = parsed.art
+    return extras.labels === undefined && extras.art === undefined ? undefined : extras
+  }
+
   let inputRef: HTMLInputElement | undefined
   let modalRef: HTMLDivElement | undefined
   let printingGridRef: HTMLDivElement | undefined
@@ -370,6 +400,11 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     setSelectedCondition(defaultCondition() ?? 'NM')
     setSelectedAddLanguage(undefined)
     setQuantity(1)
+    // Cleared for "Add Another Card" as well as for a fresh open: a label or an
+    // image belongs to the card it was typed for, and carrying either onto the
+    // next card silently would be a worse default than re-picking it.
+    setAddLabels([])
+    setAddArt('')
     setSetFilterFellBack(false)
     typedQuery = ''
   }
@@ -499,6 +534,9 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   // consumer, used when the grid was narrowed by the set-code default (or
   // deduped by language) but the parent still wants the full set.
   const selectPrinting = (printing: ScryfallCard | null, unfilteredPrintings?: ScryfallCard[]) => {
+    // An unreadable art reference stops the commit where it was typed — the row
+    // is showing why — rather than adding the card without the image asked for.
+    if (addOptionsBlocked()) return
     const allPrintings = unfilteredPrintings ?? allLanguagePrintings()
     if (!printing) {
       // No language is ever stamped here: without a set:cn there is no printing
@@ -507,7 +545,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       // their own and must not shadow the priced English object.
       const deduped = dedupePrintingsByKey(allPrintings)
       const cheapest = deduped.length > 0 ? getCheapestPrinting(deduped) : undefined
-      props.onAddCard(selectedCardName(), undefined, cheapest, allPrintings)
+      props.onAddCard(selectedCardName(), undefined, cheapest, allPrintings, 1, addExtras())
       closeAfterCommit()
       return
     }
@@ -568,6 +606,8 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
         },
         auto.printing,
         allPrintings,
+        1,
+        addExtras(),
       )
       closeAfterCommit()
       return
@@ -735,7 +775,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   // returns to a fresh search step instead of closing.
   const handleAddWithOptions = (addAnother = false) => {
     const printing = selectedPrinting()
-    if (!printing) return
+    if (!printing || addOptionsBlocked()) return
     props.onAddCard(
       selectedCardName(),
       {
@@ -748,6 +788,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       printing,
       allLanguagePrintings(),
       usesQuantity() ? quantity() : 1,
+      addExtras(),
     )
     if (addAnother) {
       resetToSearch()
@@ -1042,6 +1083,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                 <Show when={cellOffset() === 1 && printingsPage() === 0}>
                   <button
                     class={`printing-no-printing${printingHighlightIndex() === 0 ? ' printing-no-printing--highlighted' : ''}`}
+                    disabled={addOptionsBlocked()}
                     onClick={() => selectPrinting(null)}
                   >
                     {t('ui.addCard.noSpecificPrinting')}
@@ -1054,6 +1096,9 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                     return (
                       <button
                         class={`printing-select-card btn-unstyled${cellIdx() === printingHighlightIndex() ? ' printing-select-card--highlighted' : ''}`}
+                        // A tile is a commit, so it goes dead with the rest of
+                        // the add flow while the options row refuses the art.
+                        disabled={addOptionsBlocked()}
                         onClick={() => selectPrinting(printing)}
                       >
                         <Show when={imageUrl}>
@@ -1099,6 +1144,18 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                 {t('ui.addCard.nextPage')}
               </button>
             </div>
+          </Show>
+          <Show when={props.addOptions}>
+            {(config) => (
+              <AddCardOptions
+                config={config()}
+                labels={addLabels()}
+                setLabels={setAddLabels}
+                art={addArt()}
+                setArt={setAddArt}
+                artInput={addArtInput()}
+              />
+            )}
           </Show>
         </>
       </Show>
@@ -1238,8 +1295,28 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                   </div>
                 </Show>
 
+                <Show when={props.addOptions}>
+                  {(config) => (
+                    <AddCardOptions
+                      config={config()}
+                      labels={addLabels()}
+                      setLabels={setAddLabels}
+                      art={addArt()}
+                      setArt={setAddArt}
+                      artInput={addArtInput()}
+                    />
+                  )}
+                </Show>
+
+                {/* Both commit buttons go dead while the options row refuses
+                    the typed art: the click would be a silent no-op otherwise,
+                    with the reason often scrolled out of sight above. */}
                 <div class="add-card-actions">
-                  <button onClick={() => handleAddWithOptions()} class="btn-add-card">
+                  <button
+                    onClick={() => handleAddWithOptions()}
+                    class="btn-add-card"
+                    disabled={addOptionsBlocked()}
+                  >
                     {t(isAddFlow() ? 'ui.addCard.add' : 'ui.addCard.update')}
                     {quantityBadge()}
                     <span class="btn-key-hint" aria-hidden="true">
@@ -1247,7 +1324,11 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                     </span>
                   </button>
                   <Show when={canAddAnother()}>
-                    <button onClick={() => handleAddWithOptions(true)} class="btn-add-card">
+                    <button
+                      onClick={() => handleAddWithOptions(true)}
+                      class="btn-add-card"
+                      disabled={addOptionsBlocked()}
+                    >
                       {t('ui.addCard.addAnother')}
                       {quantityBadge()}
                       <span class="btn-key-hint" aria-hidden="true">

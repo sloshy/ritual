@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
   getBannedPrintings,
+  getArtDir,
   getDecksDir,
   getCollectionsDir,
   getWantedDir,
@@ -85,6 +86,7 @@ describe('ritual config', () => {
     expect(config.decksDir).toBe('./decks')
     expect(config.collectionsDir).toBe('./collections')
     expect(config.wantedDir).toBe('./wanted')
+    expect(config.artDir).toBe('./art')
     expect(config.defaultCurrency).toBe('usd')
     expect(config.admin.gitEnabled).toBe(false)
     expect(config.admin.gitAutoCommit).toBe(false)
@@ -127,6 +129,7 @@ describe('ritual config', () => {
       decksDir: './my-decks',
       collectionsDir: './my-collections',
       wantedDir: './my-wanted',
+      artDir: './my-art',
       defaultCurrency: 'eur',
       defaultLanguage: 'ja',
       uiLocale: localeTag('de-AT'),
@@ -366,12 +369,14 @@ describe('ritual config', () => {
         decksDir: './my-decks',
         collectionsDir: 'collections',
         wantedDir: '../shared-wanted',
+        artDir: 'proxy-art',
       }),
     )
     await refreshRitualConfig()
     expect(getDecksDir()).toBe(path.join(testDir, 'my-decks'))
     expect(getCollectionsDir()).toBe(path.join(testDir, 'collections'))
     expect(getWantedDir()).toBe(path.resolve(testDir, '../shared-wanted'))
+    expect(getArtDir()).toBe(path.join(testDir, 'proxy-art'))
   })
 
   test('config without site key loads with site undefined', async () => {

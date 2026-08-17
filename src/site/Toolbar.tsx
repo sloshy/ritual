@@ -9,6 +9,7 @@ import type {
   PriceGroupStrategy,
 } from './card-sorting'
 import type { PriceCurrency } from '../price-currency'
+import type { CardLabelSelection } from '../card-labels'
 import { useStuck } from './useStuck'
 import { FilterMenu } from './FilterMenu'
 import type { CardFiltersControl } from './useCardFilters'
@@ -72,8 +73,10 @@ interface ToolbarProps {
   artTagOptions: string[]
   /** Show the "Hide Extras" filter toggle (deck pages only). */
   showHideExtras?: boolean
-  /** Show the Labels filter chips (collection-bearing views only). */
+  /** Show the Labels filter chips (label-bearing views only). */
   showLabelsFilter?: boolean
+  /** Which label chips the row offers; omitted means the whole vocabulary. */
+  availableLabels?: readonly CardLabelSelection[]
   /** Sell-mode toggle and buyer selector; omitted on pages that do not offer sell mode. */
   sell?: SellModeControl
   extraToggles?: ExtraToggle[]
@@ -251,6 +254,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
       artTagOptions={props.artTagOptions}
       showHideExtras={props.showHideExtras}
       showLabelsFilter={props.showLabelsFilter}
+      availableLabels={props.availableLabels}
       showBuylistFilter={Boolean(props.sell?.active)}
     />
   )

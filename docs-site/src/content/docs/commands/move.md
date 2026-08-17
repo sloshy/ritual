@@ -128,7 +128,7 @@ Key behaviors:
 
 - **Deck moves**: Moving a card from a deck decrements its quantity by 1. The line is removed when quantity reaches 0.
 - **Note preservation**: Notes (`{note}`) on deck, collection, and wanted list entries are carried over to the destination list. The one exception is a quantity-merge onto an existing deck line that already carries a different note — the existing note wins and the dropped note is reported after saving.
-- **Label preservation**: A collection entry's `[labels]` override travels with a collection→collection move; moves to a deck or wanted list drop it, since those formats carry no labels token. (The list _default_ never travels — the destination collection's own front matter applies.)
+- **Label preservation**: A card's `[labels]` override travels with the move, filtered on arrival to what the destination type [carries](/commands/edit/#card-labels): another collection keeps all of it, a deck keeps `proxy` and drops the rest, and a wanted list keeps none. A move never invents a label, and never writes one the destination grammar cannot express. (The list _default_ never travels — the destination's own front matter applies.)
 - **Language preservation**: A card's language token (`[ja]`) travels with the move to any list type — a bare line stays bare, since a bare line always means English. When a printing is resolved for a collection destination, its availability in the card's language is checked like the printing itself, and the JSON record's `card` includes `language` for non-English copies.
 - **Name-only wanted entries**: If a card has no set/collector number (i.e., it is a name-only wanted list entry) and the destination requires a printing (e.g., a collection), you will be prompted to resolve a printing before the move is queued. The picker lists each printing's price in your configured `defaultCurrency` — see [Printing and Finish Prices](/commands/edit/#printing-and-finish-prices).
 - **Single destination**: If only one valid destination is configured, the destination prompt is skipped and the card is queued immediately.
@@ -206,6 +206,10 @@ Destination list changelog:
 ```
 - Moved "Lightning Bolt" (LEA:161) [foil] &5 from Deck 'Ghyrson Starn Spellslinger'
 ```
+
+## Custom Art
+
+A moved card takes its [custom art](/custom-art/#art-follows-the-card) with it: the entry leaves the source list's `.art.json` and is re-filed under the `&N` the destination's new line was given. Two exceptions leave the destination's own art alone — a copy that merges onto a line the destination already had, and a deck line in the source that still has copies left (which keeps its id, and its art). Art sidecars carry no changelog entry, but they are included in the files an auto-commit stages.
 
 ## Fenced Code Blocks
 

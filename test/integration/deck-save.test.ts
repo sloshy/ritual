@@ -128,6 +128,47 @@ describe('POST /api/deck/:slug/save — languages', () => {
   })
 })
 
+describe('POST /api/deck/:slug/save — labels', () => {
+  /** The deck as the client sends it with a label override on &1 (wire = unvalidated). */
+  function deckWithLabels(labels: string[]): WireDeck {
+    const deck = deckWithLanguage()
+    return {
+      ...deck,
+      sections: [{ name: 'Main', cards: [{ ...deck.sections[0]!.cards[0]!, labels }] }],
+    } as WireDeck
+  }
+
+  test('a set-label change writes the [proxy] token and its changelog line', async () => {
+    const resp = await save(
+      [
+        {
+          id: 'l1',
+          timestamp: 0,
+          action: 'set-label',
+          cardName: 'Lightning Bolt',
+          cardId: 1,
+          labels: ['proxy'],
+        },
+      ],
+      deckWithLabels(['proxy']),
+    )
+    expect(resp.status).toBe(200)
+    expect(await fs.readFile(filePath, 'utf-8')).toContain('2 Lightning Bolt (LEA:161) [proxy] &1')
+
+    const changelog = await fs.readFile(path.join(ws.dir, 'decks', 'burn.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Set labels on "Lightning Bolt" &1 to [proxy]')
+  })
+
+  test('a label a deck cannot carry is a 400 that writes nothing', async () => {
+    const before = await fs.readFile(filePath, 'utf-8')
+    const resp = await save([], deckWithLabels(['sale']))
+    expect(resp.status).toBe(400)
+    const body = (await resp.json()) as { success: boolean; message: string }
+    expect(body.message).toContain('labels [sale] are not supported on a deck')
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+  })
+})
+
 describe('POST /api/deck/:slug/save — empty extras sections', () => {
   /** Append `header` to the deck on disk and re-hash, as a hand edit would leave it. */
   async function appendHeader(header: string): Promise<void> {

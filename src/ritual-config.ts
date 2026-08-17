@@ -123,6 +123,13 @@ export interface RitualConfig {
   collectionsDir: string
   wantedDir: string
   /**
+   * Where custom card art lives: the directory a card's `.art.json` `file`
+   * reference is relative to. Always present, defaulting to `./art`. Nothing
+   * creates it — a missing directory simply means the workspace has no local
+   * art, and only a reference to a file that is not there is an error.
+   */
+  artDir: string
+  /**
    * The currency every price-touching surface defaults to (the `price` command,
    * editor price displays, and the public site's initial currency). Always
    * present, defaulting to `usd`.
@@ -215,6 +222,7 @@ const DEFAULT_CONFIG = {
   decksDir: './decks',
   collectionsDir: './collections',
   wantedDir: './wanted',
+  artDir: './art',
   defaultCurrency: DEFAULT_CURRENCY,
   defaultLanguage: DEFAULT_CARD_LANGUAGE,
   uiLocale: DEFAULT_LOCALE,
@@ -828,6 +836,7 @@ function applyDefaults(parsed: ParsedConfig): RitualConfig {
     decksDir: parsed.decksDir ?? DEFAULT_CONFIG.decksDir,
     collectionsDir: parsed.collectionsDir ?? DEFAULT_CONFIG.collectionsDir,
     wantedDir: parsed.wantedDir ?? DEFAULT_CONFIG.wantedDir,
+    artDir: parsed.artDir ?? DEFAULT_CONFIG.artDir,
     defaultCurrency: parseOrWarn(
       parseDefaultCurrency(parsed.defaultCurrency),
       'defaultCurrency',
@@ -997,6 +1006,14 @@ export function getCollectionsDir(config: RitualConfig = getRitualConfig()): str
 
 export function getWantedDir(config: RitualConfig = getRitualConfig()): string {
   return resolveDir(config.wantedDir)
+}
+
+/**
+ * Where custom card art lives (`./art` unless overridden). The directory is
+ * never created: absence means the workspace has no local art.
+ */
+export function getArtDir(config: RitualConfig = getRitualConfig()): string {
+  return resolveDir(config.artDir)
 }
 
 /** The configured default price currency (`usd` unless overridden). */

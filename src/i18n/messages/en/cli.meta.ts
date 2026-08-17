@@ -132,6 +132,16 @@ export const cliMeta = {
     description:
       'Noun phrase for the unsaved-changes exit menu, which cannot be answered without a terminal.',
   },
+  'cli.prompt.subject.artChoice': {
+    description:
+      "Noun phrase for the editor's Set Custom Art menu (enter a URL, pick a file, or clear).",
+  },
+  'cli.prompt.subject.artUrl': {
+    description: 'Noun phrase for the prompt asking for a custom-art image URL.',
+  },
+  'cli.prompt.subject.artFile': {
+    description: 'Noun phrase for the custom-art file browser over the configured art directory.',
+  },
   'cli.prompt.noMatches': {
     description:
       "Override for the `prompts` library's autocomplete empty state. Shown in place of a choice row, so keep it short and lowercase like the library's own default.",
@@ -294,6 +304,10 @@ export const cliMeta = {
     description: 'Confirmation that the session-wide filters were re-applied.',
   },
   'cli.session.changesSaved': { description: 'Confirmation that the list file was written.' },
+  'cli.session.artSidecarUnreadable': {
+    description:
+      "Warning after a session save that could not re-file a <list>.art.json custom-art sidecar — either the saved list's own (the ids its removals freed stay filed under the old numbers) or, when the save delivered cards moved to another list, that destination's (the moved cards' art did not follow them). Says \"A list's\" rather than \"The list's\" because it is not always the list being saved; {reason} is untranslated engine prose naming the file and the parse failure. Warns rather than fails: the card lines were written correctly.",
+  },
   'cli.session.changelogSaved': {
     description: "Confirmation that the session's changelog block was appended.",
   },

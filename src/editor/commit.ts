@@ -1,5 +1,6 @@
 import type { ChangeEvent } from '../change-event'
 import type { EditorStatusActions } from './useEditorStatus'
+import type { SaveEffect } from './save-effects'
 import { saveEditorChanges } from './saveEditorChanges'
 
 /** Everything a {@link CommitSink} needs to persist (or export) a set of edits. */
@@ -22,8 +23,14 @@ export type CommitContext<TData> = {
   discardAll: () => void
 }
 
-/** Outcome of a commit. A new `contentHash` (when returned) refreshes the editor's conflict baseline. */
-export type CommitResult = { contentHash?: string } | undefined
+/**
+ * Outcome of a commit. A new `contentHash` (when returned) refreshes the
+ * editor's conflict baseline; the `effects` are what the save reported it did to
+ * individual card lines, which is how a client learns the `&N` its optimistic
+ * ids became. A sink with no server behind it (the public editor's export)
+ * returns neither.
+ */
+export type CommitResult = { contentHash?: string; effects?: readonly SaveEffect[] } | undefined
 
 /** The editor state a {@link createApiCommit} `buildSaveBody` turns into a POST body. */
 export type SaveBodyParams<TData> = {
@@ -67,6 +74,8 @@ export function createApiCommit<TData>(
       ctx.statusActions,
       ctx.discardAll,
     )
-    return result?.contentHash ? { contentHash: result.contentHash } : undefined
+    return result?.contentHash
+      ? { contentHash: result.contentHash, effects: result.effects }
+      : undefined
   }
 }

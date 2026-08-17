@@ -106,13 +106,59 @@ describe('card labels over MCP', () => {
     expect(data.frontMatter).toEqual({ labels: ['keep'] })
   })
 
+  test('proxy is accepted on a deck: metadata default and a set-label change', async () => {
+    const metadata = await client.callTool({
+      name: 'set_list_metadata',
+      arguments: { listType: 'deck', slug: 'test-deck', labels: ['proxy'] },
+    })
+    const data = toolData<{ frontMatter: Record<string, unknown> }>(metadata)
+    expect(data.frontMatter.labels).toEqual(['proxy'])
+
+    const applied = await client.callTool({
+      name: 'apply_changes',
+      arguments: {
+        listType: 'deck',
+        slug: 'test-deck',
+        changes: [{ action: 'set-label', cardName: 'Sol Ring', labels: ['proxy'] }],
+      },
+    })
+    expect(toolData<{ applied: number }>(applied).applied).toBe(1)
+    const content = await fs.readFile(path.join(session.env.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(content).toContain('Sol Ring')
+    expect(content).toContain('[proxy]')
+
+    // Both halves come back out of the projection: the deck's front-matter
+    // default beside the deck, the override on the card line itself.
+    const deck = toolData<{
+      labels?: string[]
+      deck: { sections: { cards: { name: string; labels?: string[] }[] }[] }
+    }>(
+      await client.callTool({
+        name: 'get_list',
+        arguments: { listType: 'deck', slug: 'test-deck', view: 'cards' },
+      }),
+    )
+    expect(deck.labels).toEqual(['proxy'])
+    const solRing = deck.deck.sections
+      .flatMap((section) => section.cards)
+      .find((card) => card.name === 'Sol Ring')
+    expect(solRing?.labels).toEqual(['proxy'])
+  })
+
   test('the schemas reject labels off-vocabulary or on the wrong list type', async () => {
     expectSchemaRejection(
       await client.callTool({
         name: 'set_list_metadata',
         arguments: { listType: 'deck', slug: 'test-deck', labels: ['sale'] },
       }),
-      'labels apply to collections only',
+      'labels [sale] are not supported on a deck',
+    )
+    expectSchemaRejection(
+      await client.callTool({
+        name: 'set_list_metadata',
+        arguments: { listType: 'wanted', slug: 'wishlist', labels: ['proxy'] },
+      }),
+      'labels do not apply to a wanted',
     )
     expectSchemaRejection(
       await client.callTool({
@@ -137,7 +183,18 @@ describe('card labels over MCP', () => {
           changes: [{ action: 'add', cardName: 'Sol Ring', labels: ['sale'] }],
         },
       }),
-      'add labels apply to collections only',
+      'labels [sale] are not supported on a deck',
+    )
+    expectSchemaRejection(
+      await client.callTool({
+        name: 'apply_changes',
+        arguments: {
+          listType: 'deck',
+          slug: 'test-deck',
+          changes: [{ action: 'set-label', cardName: 'Sol Ring', labels: ['keep'] }],
+        },
+      }),
+      'labels [keep] are not supported on a deck',
     )
   })
 

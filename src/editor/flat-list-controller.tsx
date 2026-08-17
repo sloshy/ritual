@@ -33,6 +33,8 @@ export type FlatEntry = {
   condition?: Condition
   /** The line's language token, when present. Absent means `en`. */
   language?: CardLanguage
+  /** The line's label override, where the list type carries labels. */
+  labels?: CardLabel[]
   note?: string
 }
 
@@ -144,16 +146,33 @@ export function useFlatListEditController<E extends FlatEntry>(
   const handleIncrement = (entry: E) => {
     const cardId = editor.pool.allocate()
     const p = params.printingOf(entry)
-    editor.changes.addCard(entry.name, { ...p, cardId })
+    // The new copy inherits the line's override — a copy of a `[proxy]` card is
+    // a proxy — which is also what keeps increment and decrement opposites.
+    const labels = entry.labels
+    editor.changes.addCard(entry.name, { ...p, cardId, labels })
     editor.setData((prev) =>
-      prev ? params.applyChange(prev, { action: 'add', cardName: entry.name, ...p, cardId }) : prev,
+      prev
+        ? params.applyChange(prev, {
+            action: 'add',
+            cardName: entry.name,
+            ...p,
+            labels,
+            cardId,
+          })
+        : prev,
     )
   }
 
   const handleDecrement = (entry: E) => {
     if (entry.cardId !== undefined) editor.pool.release(entry.cardId)
     const p = params.printingOf(entry)
-    editor.changes.removeCard(entry.name, { ...p, cardId: entry.cardId }, { ...entry })
+    // The line's override rides the removal: a re-add under a different one is
+    // not this removal undone, and must not cancel it out.
+    editor.changes.removeCard(
+      entry.name,
+      { ...p, cardId: entry.cardId, labels: entry.labels },
+      { ...entry },
+    )
     editor.setData((prev) =>
       prev
         ? params.applyChange(prev, {
@@ -332,6 +351,8 @@ type FlatListContextMenuProps<E extends FlatEntry> = {
   ctrl: FlatListController<E>
   /** Open the label picker for the targeted card. Collection editors only. */
   onSetLabel?: (target: CardContextInfo) => void
+  /** Open the custom-art dialog for the targeted card. Admin editors only. */
+  onSetCustomArt?: (target: CardContextInfo) => void
 }
 
 /** The flat-list context menu (foil, change printing, section moves) — no commander. */
@@ -352,6 +373,21 @@ export function FlatListContextMenu<E extends FlatEntry>(
             props.onSetLabel
               ? () => {
                   const apply = props.onSetLabel
+                  if (!apply) return
+                  const target = menu()
+                  props.ctrl.closeContextMenu()
+                  apply(target)
+                }
+              : undefined
+          }
+          // Offered for a card added this session too: its art is held with
+          // the pending changes and written by the save that gives the line its
+          // `&N` (see `pending-art.ts`). Only a tile with no id at all —
+          // nothing to key art by — hides the item.
+          onSetCustomArt={
+            props.onSetCustomArt && menu().cardIds[0] !== undefined
+              ? () => {
+                  const apply = props.onSetCustomArt
                   if (!apply) return
                   const target = menu()
                   props.ctrl.closeContextMenu()
@@ -420,6 +456,8 @@ type FlatListEditorShellProps<E extends FlatEntry> = {
   importKind?: ListType
   /** Open the label picker for a context-menu card. Collection editors only. */
   onSetLabel?: (target: CardContextInfo) => void
+  /** Open the custom-art dialog for a context-menu card. Admin editors only. */
+  onSetCustomArt?: (target: CardContextInfo) => void
   /** Open the list-default label editor (admin collection editor only). */
   onEditLabels?: () => void
   children: JSX.Element
@@ -443,7 +481,16 @@ export function FlatListEditorShell<E extends FlatEntry>(
       enableImport={props.enableImport}
       importKind={props.importKind}
       onEditLabels={props.onEditLabels}
-      contextMenu={<FlatListContextMenu ctrl={props.ctrl} onSetLabel={props.onSetLabel} />}
+      // Art is offered at add time exactly where a card's art can be written:
+      // the same authed route behind the context menu's "Set Custom Art…".
+      enableAddArt={props.onSetCustomArt !== undefined}
+      contextMenu={
+        <FlatListContextMenu
+          ctrl={props.ctrl}
+          onSetLabel={props.onSetLabel}
+          onSetCustomArt={props.onSetCustomArt}
+        />
+      }
     >
       {props.children}
     </EditorShell>

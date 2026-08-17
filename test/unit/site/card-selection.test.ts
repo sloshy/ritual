@@ -7,6 +7,7 @@ import {
   type SelectedCard,
   type SelectionListId,
 } from '../../../src/site/useCardSelection'
+import { makeScryfallCard } from '../../test-utils'
 
 const DECK: SelectionListId = { kind: 'deck', name: 'My Deck' }
 const COLLECTION: SelectionListId = { kind: 'collection', name: 'My Cards' }
@@ -121,6 +122,50 @@ describe('cross-list selection', () => {
     expect(all.count()).toBe(3)
     all.clear()
     expect(all.count()).toBe(0)
+  })
+})
+
+describe('selection value', () => {
+  const priced = makeScryfallCard({ name: 'Sol Ring', prices: { usd: '3.00', eur: '2.00' } })
+
+  test('quantity-weights the resolved card’s price in the asked-for currency', () => {
+    const sel = useCardSelection(DECK)
+    sel.toggle(card(DECK, 'sol', { quantity: 2, groupSize: 2, scryfallCard: priced }))
+    expect(sel.value('usd')).toBe(6)
+    expect(sel.value('eur')).toBe(4)
+  })
+
+  test('a proxy copy is worth nothing, whatever its printing sells for', () => {
+    const sel = useCardSelection(DECK)
+    sel.toggle(
+      card(DECK, 'sol', { quantity: 2, groupSize: 2, scryfallCard: priced, labels: ['proxy'] }),
+    )
+    expect(sel.value('usd')).toBe(0)
+  })
+
+  test('a non-proxy label still prices normally', () => {
+    const sel = useCardSelection(COLLECTION)
+    sel.toggle(card(COLLECTION, 'sol', { scryfallCard: priced, labels: ['keep'] }))
+    expect(sel.value('usd')).toBe(3)
+  })
+
+  test('a copy wearing custom art is worth nothing either', () => {
+    const sel = useCardSelection(COLLECTION)
+    sel.toggle(
+      card(COLLECTION, 'sol', {
+        quantity: 2,
+        groupSize: 2,
+        scryfallCard: priced,
+        customArt: 'art/sol-ring.jpg',
+      }),
+    )
+    expect(sel.value('usd')).toBe(0)
+  })
+
+  test('a proxy tile whose card never resolved ignores its captured price too', () => {
+    const sel = useCardSelection(DECK)
+    sel.toggle(card(DECK, 'sol', { price: 3, labels: ['proxy'] }))
+    expect(sel.value('usd')).toBe(0)
   })
 })
 

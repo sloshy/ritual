@@ -10,6 +10,7 @@ import { VALID_CURRENCIES } from '../price-currency'
 import { DIFF_BY_MODES } from '../list-diff'
 import { BUYERS, SELL_MATCH_VIAS } from '../buylist'
 import { SELL_ENTRY_STATUSES, SELL_NO_MATCH_REASONS } from '../sell-report'
+import { UNPRICED_REASONS } from '../price-report'
 import type { SessionOverrides } from '../ritual-config'
 
 /**
@@ -175,6 +176,30 @@ const LANGUAGE = enumOf(
 )
 
 /**
+ * One card's custom art: exactly one of an art-directory-relative file path or
+ * an image URL — the raw reference, not a display URL, since it is also what
+ * `set_card_art` takes back.
+ */
+const CARD_ART_REF: JsonSchemaType = {
+  anyOf: [
+    obj({ file: str('Image path relative to the configured art directory.') }, ['file']),
+    obj({ url: str('Image URL, referenced verbatim.') }, ['url']),
+  ],
+}
+
+/**
+ * A list's custom art, keyed by the `&N` id of the card it belongs to (a decimal
+ * string, since JSON object keys are strings). Open by construction: the key set
+ * is whichever cards have art.
+ */
+const CUSTOM_ART_MAP: JsonSchemaType = {
+  type: 'object',
+  description:
+    'Custom art by card &N id; present only when some card in this body has any. Set it with set_card_art.',
+  additionalProperties: CARD_ART_REF,
+}
+
+/**
  * Scryfall's price key set is theirs, not ours, so this stays an open record of
  * nullable strings rather than an enumeration that would go stale (Tier B).
  */
@@ -220,7 +245,9 @@ const PRICE_TOTALS_PROPS = {
   cardCount: int('Sum of quantities.'),
   total: num('Sum of unit price × quantity.'),
   lowestTotal: num('Sum of lowest unit price × quantity.'),
-  unpricedCount: int('Quantity-weighted count of unpriced entries.'),
+  unpricedCount: int(
+    'Quantity-weighted count of unpriced entries; proxies and custom-art cards are not counted.',
+  ),
 } as const satisfies Properties
 const PRICE_TOTALS_REQUIRED = ['cardCount', 'total', 'lowestTotal', 'unpricedCount'] as const
 
@@ -277,10 +304,19 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
     'name',
   ]),
 
-  DeckCard: obj({ quantity: int(), name: str(), ...ENTRY_PRINTING_PROPS, ...ENTRY_META_PROPS }, [
-    'quantity',
-    'name',
-  ]),
+  DeckCard: obj(
+    {
+      quantity: int(),
+      name: str(),
+      ...ENTRY_PRINTING_PROPS,
+      labels: arr(
+        CARD_LABEL,
+        'Per-card label override ("proxy"); effective labels are this, else the deck default.',
+      ),
+      ...ENTRY_META_PROPS,
+    },
+    ['quantity', 'name'],
+  ),
   DeckSection: obj({ name: str(), cards: arr(ref('DeckCard')) }, ['name', 'cards']),
   DeckData: obj(
     {
@@ -433,13 +469,10 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
       lowestSet: str('Lowercase set code of the printing behind `lowest`.'),
       lowestCollectorNumber: str('Collector number of the printing behind `lowest`.'),
       lowestFinish: enumOf(VALID_FINISHES, 'Finish of the printing behind `lowest`.'),
-      unpricedReason: enumOf([
-        'no-printings',
-        'printing-not-found',
-        'currency-unavailable',
-        'finish-unpriced-in-currency',
-        'no-price-data',
-      ]),
+      unpricedReason: enumOf(
+        UNPRICED_REASONS,
+        'Why the entry has no price. "proxy" and "custom-art" state the card is priceless by rule rather than for want of data, and are the two that do not count as unpriced.',
+      ),
       cmc: num(),
       edhrecRank: int(),
       typeLine: str(),
@@ -605,6 +638,11 @@ const GET_LIST_COMMON_REQUIRED = ['view', 'listType', 'slug', 'warnings'] as con
 /** What the two `cards` arms carry beyond that; the summary arm reports counts instead. */
 const GET_LIST_CARDS_PROPS = {
   totalCount: int('Lines that matched before limit/offset applied.'),
+  artWarnings: arr(
+    str(),
+    'Problems with the list’s custom-art sidecar (unreadable, or art for cards that are gone). ' +
+      'Separate from warnings: these never block a mutation. Absent when the sidecar is clean.',
+  ),
 } as const satisfies Properties
 
 export const GET_LIST_OUTPUT: JsonSchemaType = withDefs(
@@ -619,6 +657,11 @@ export const GET_LIST_OUTPUT: JsonSchemaType = withDefs(
           ...GET_LIST_COMMON_PROPS,
           deck: ref('DeckData'),
           frontMatter: openObject('The deck’s YAML front matter, verbatim.'),
+          labels: arr(
+            CARD_LABEL,
+            'The deck’s default card labels from front matter ("proxy" alone); a card’s own labels override them.',
+          ),
+          customArt: CUSTOM_ART_MAP,
           ...GET_LIST_CARDS_PROPS,
         },
         [...GET_LIST_COMMON_REQUIRED, 'deck', 'frontMatter', 'totalCount'],
@@ -632,8 +675,9 @@ export const GET_LIST_OUTPUT: JsonSchemaType = withDefs(
           sectionOrder: arr(str(), 'Section names in file order.'),
           labels: arr(
             CARD_LABEL,
-            'The collection’s default card labels from front matter (collections only).',
+            'The list’s default card labels from front matter (never on a wanted list).',
           ),
+          customArt: CUSTOM_ART_MAP,
           ...GET_LIST_CARDS_PROPS,
         },
         [...GET_LIST_COMMON_REQUIRED, 'entries', 'totalCount'],
@@ -1180,11 +1224,26 @@ export const SET_LIST_METADATA_OUTPUT: JsonSchemaType = obj(
         sourceId: str('The deck’s id on the source service.'),
         sourceUrl: str('The deck’s URL on the source service.'),
         lastSynced: str('ISO-8601 time of the last successful source sync.'),
-        labels: arr(CARD_LABEL, 'The collection’s default card labels (collections only).'),
+        labels: arr(CARD_LABEL, 'The list’s default card labels (decks carry "proxy" alone).'),
       },
     },
   },
   ['slug', 'frontMatter'],
+)
+
+export const SET_CARD_ART_OUTPUT: JsonSchemaType = obj(
+  {
+    ...MESSAGE_PROPS,
+    slug: str(),
+    cardId: int('The card line’s &N id the art was filed under.'),
+    // Required, and `null` is a value rather than an absence: the write echoes
+    // back what the card now carries, and a cleared card carries nothing.
+    art: nullable(
+      CARD_ART_REF,
+      'The reference now stored for the card, or null when it was cleared.',
+    ),
+  },
+  ['message', 'slug', 'cardId', 'art'],
 )
 
 export const MUTATION_OUTPUT: JsonSchemaType = withDefs(
@@ -1199,6 +1258,12 @@ export const MUTATION_OUTPUT: JsonSchemaType = withDefs(
         'What the save did to individual entries, with the &N ids it allocated.',
       ),
       unmatched: arr(str(), 'Always empty on a returning call; a miss fails the whole batch.'),
+      artWarnings: arr(
+        str(),
+        'Custom-art sidecars this save could not re-file — its own, or a move destination’s. ' +
+          'The card lines were written; only the art re-filing did not happen. ' +
+          'Absent when every reconcile was clean.',
+      ),
     },
     ['applied', 'message', 'listType', 'slug', 'effects', 'unmatched'],
   ),
@@ -1427,6 +1492,7 @@ export const TOOL_OUTPUT_SCHEMAS: Readonly<Record<McpToolName, JsonSchemaType>> 
   add_card: MUTATION_OUTPUT,
   remove_card: MUTATION_OUTPUT,
   set_card_printing: MUTATION_OUTPUT,
+  set_card_art: SET_CARD_ART_OUTPUT,
   apply_changes: MUTATION_OUTPUT,
   move_selected_cards: MOVE_SELECTED_CARDS_OUTPUT,
   remove_selected_cards: REMOVE_SELECTED_CARDS_OUTPUT,

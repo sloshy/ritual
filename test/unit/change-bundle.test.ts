@@ -134,8 +134,10 @@ describe('parseChangeBundle validation', () => {
 
   it('validates labels on set-label and add changes, normalizing the order', () => {
     const bundle = buildBundle()
+    // Against the bundle's *collection* list: which labels are legal depends on
+    // the list type the changes land in.
     const withChanges = (changes: unknown[]): string =>
-      JSON.stringify({ ...bundle, lists: [{ ...bundle.lists[0], changes }] })
+      JSON.stringify({ ...bundle, lists: [{ ...bundle.lists[1], changes }] })
 
     const parsed = parseChangeBundle(
       withChanges([
@@ -176,6 +178,29 @@ describe('parseChangeBundle validation', () => {
         ]),
       ),
     ).toContain('Change #1')
+  })
+
+  it('refuses labels the target list type does not carry', () => {
+    const bundle = buildBundle()
+    const deckChanges = (changes: unknown[]): string =>
+      JSON.stringify({ ...bundle, lists: [{ ...bundle.lists[0], changes }] })
+
+    expect(
+      parseChangeBundle(
+        deckChanges([
+          { id: 'l1', timestamp: 1, action: 'set-label', cardName: 'Sol Ring', labels: ['sale'] },
+        ]),
+      ),
+    ).toContain('labels [sale] are not supported on a deck')
+
+    // `proxy` is exactly what a deck does carry, so it parses.
+    const parsed = parseChangeBundle(
+      deckChanges([
+        { id: 'l1', timestamp: 1, action: 'set-label', cardName: 'Sol Ring', labels: ['proxy'] },
+      ]),
+    )
+    if (typeof parsed === 'string') throw new Error(parsed)
+    expect(parsed.lists[0]?.changes[0]).toMatchObject({ labels: ['proxy'] })
   })
 
   it('validates languages: normalizes case, rejects unknown codes, requires one on set-language', () => {

@@ -3,7 +3,8 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { parseCollectionFile } from '../../collection-file'
 import type { CollectionEntry } from '../../collection-file'
-import type { CardLabel } from '../../card-labels'
+import { effectiveLabels, isPriceless, type CardLabel } from '../../card-labels'
+import type { CardArtMap } from '../../card-art'
 import { parseTitleFromContent } from '../../section-format'
 import type { ChangelogPage } from '../../changelog-parser'
 import { findPrinting } from '../../card-printing'
@@ -15,6 +16,8 @@ import type { ScryfallCard } from '../../types'
 import type { CollectionCardEntry, CollectionDetail, CollectionSummary } from '../data-types'
 import {
   bakeBuylistQuotes,
+  cardIdsOf,
+  customArtLookup,
   includeChangelogCards,
   listReadErrorMessage,
   loadListSidecars,
@@ -31,6 +34,8 @@ export type LoadedCollection = {
   sectionOrder: string[]
   /** The list's default card labels from its front matter, when declared. */
   labels?: CardLabel[]
+  /** Custom art from the `.art.json` sidecar, keyed by card id. */
+  art?: CardArtMap
   warnings: string[]
   changelog: ChangelogPage[]
   fileMtime?: string
@@ -60,9 +65,23 @@ export async function loadCollectionSource(
   const displayName = parseTitleFromContent(content) ?? name
 
   const baseName = name.endsWith('.md') ? name.slice(0, -3) : name
-  const { changelog, fileMtime } = await loadListSidecars(collectionsDir, baseName, filePath)
+  const { changelog, fileMtime, art, artWarnings } = await loadListSidecars(
+    collectionsDir,
+    baseName,
+    filePath,
+    { knownCardIds: cardIdsOf(entries) },
+  )
 
-  return { displayName, entries, sectionOrder, labels, warnings, changelog, fileMtime }
+  return {
+    displayName,
+    entries,
+    sectionOrder,
+    labels,
+    art,
+    warnings: [...warnings, ...artWarnings],
+    changelog,
+    fileMtime,
+  }
 }
 
 export type CollectionArtifacts = {
@@ -92,6 +111,7 @@ export async function buildCollectionArtifacts(
   let featuredPrice = -1
   /** Every entry's displayed printing, for the buylist bake (empty when not baking). */
   const buylistSources: BuylistBakeSource[] = []
+  const customArtFor = customArtLookup(loaded.art, ctx)
 
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i]!
@@ -147,17 +167,32 @@ export async function buildCollectionArtifacts(
     }
 
     const card = cardMap[cardKey] ?? null
-    if (ctx.buylist) buylistSources.push({ card, finish: entry.finish, language: entry.language })
+    // A proxy is not a real card, and a copy wearing custom art is no longer the
+    // printing a price would be for: either way it is worth nothing in every
+    // currency, is not a card whose price is *missing*, and no buyer is offered
+    // it. Judged by the sidecar *reference*, not by the display URL beside it:
+    // a reference whose file the build could not deploy shows the card's real
+    // art and must still price at nothing, exactly as `ritual price` reads it.
+    const art = customArtFor(entry.cardId)
+    const priceless = isPriceless(
+      effectiveLabels(entry.labels, loaded.labels),
+      art.hasCustomArt === true,
+    )
+    if (ctx.buylist && !priceless) {
+      buylistSources.push({ card, finish: entry.finish, language: entry.language })
+    }
     const finish = displayFinish(card, entry.finish)
-    const price = card ? getCardPriceForFinish(card, finish, 'usd') : 0
-    const priceEur = card ? getCardPriceForFinish(card, finish, 'eur') : 0
-    const priceTix = card ? getCardPriceForFinish(card, finish, 'tix') : 0
+    const price = card && !priceless ? getCardPriceForFinish(card, finish, 'usd') : 0
+    const priceEur = card && !priceless ? getCardPriceForFinish(card, finish, 'eur') : 0
+    const priceTix = card && !priceless ? getCardPriceForFinish(card, finish, 'tix') : 0
     totalPrice += price
     totalPriceEur += priceEur
     totalPriceTix += priceTix
-    if (price === 0) missingPriceCount++
-    if (priceEur === 0) missingPriceCountEur++
-    if (priceTix === 0) missingPriceCountTix++
+    if (!priceless) {
+      if (price === 0) missingPriceCount++
+      if (priceEur === 0) missingPriceCountEur++
+      if (priceTix === 0) missingPriceCountTix++
+    }
 
     if (card && price > featuredPrice) {
       featuredPrice = price
@@ -172,6 +207,7 @@ export async function buildCollectionArtifacts(
       condition: entry.condition ?? 'NM',
       language: entry.language,
       labels: entry.labels,
+      ...art,
       price,
       fileOrder: i,
       section: entry.section,

@@ -21,13 +21,14 @@ afterEach(async () => {
   await fs.rm(testDir, { recursive: true, force: true })
 })
 
-/** A list file with all three sidecars beside it. */
+/** A list file with every sidecar beside it. */
 async function seedList(base: string): Promise<string> {
   const mdPath = path.join(testDir, `${base}.md`)
   await fs.writeFile(mdPath, `# ${base}\n`)
   await fs.writeFile(`${mdPath}.sha256`, 'deadbeef\n')
   await fs.writeFile(path.join(testDir, `${base}.changes.md`), '# Changelog\n')
   await fs.writeFile(path.join(testDir, `${base}.primer.md`), '# Primer\n')
+  await fs.writeFile(path.join(testDir, `${base}.art.json`), '{\n  "1": { "file": "a.jpg" }\n}\n')
   return mdPath
 }
 
@@ -56,10 +57,11 @@ describe('moveListFileAndSidecars', () => {
     await fs.rm(path.join(testDir, 'burn.primer.md'))
     const to = path.join(testDir, 'Legacy Burn.md')
 
-    expect(await moveListFileAndSidecars(from, to)).toEqual(['hash', 'changelog'])
+    expect(await moveListFileAndSidecars(from, to)).toEqual(['hash', 'changelog', 'art'])
     expect(await exists(to)).toBe(true)
     expect(await exists(`${to}.sha256`)).toBe(true)
     expect(await exists(path.join(testDir, 'Legacy Burn.changes.md'))).toBe(true)
+    expect(await exists(path.join(testDir, 'Legacy Burn.art.json'))).toBe(true)
     expect(await exists(from)).toBe(false)
   })
 })
@@ -72,6 +74,7 @@ describe('renameListThroughTemp', () => {
     const moves = await renameListThroughTemp(from, to)
 
     expect(moves.map((m: KindedSidecarMove) => m.kind).sort()).toEqual([
+      'art',
       'changelog',
       'hash',
       'primer',
@@ -83,6 +86,7 @@ describe('renameListThroughTemp', () => {
     }
     expect(await exists(to)).toBe(true)
     expect(await exists(path.join(testDir, 'Burn Redux.changes.md'))).toBe(true)
+    expect(await exists(path.join(testDir, 'Burn Redux.art.json'))).toBe(true)
     expect((await fs.readdir(testDir)).filter((f) => f.startsWith('.ritual-rename'))).toEqual([])
   })
 
@@ -108,6 +112,7 @@ describe('renameListThroughTemp', () => {
     expect(await exists(`${from}.sha256`)).toBe(true)
     expect(await exists(path.join(testDir, 'burn.changes.md'))).toBe(true)
     expect(await exists(path.join(testDir, 'burn.primer.md'))).toBe(true)
+    expect(await exists(path.join(testDir, 'burn.art.json'))).toBe(true)
     expect((await fs.readdir(testDir)).filter((f) => f.startsWith('.ritual-rename'))).toEqual([])
   })
 })

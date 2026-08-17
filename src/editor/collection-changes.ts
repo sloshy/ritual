@@ -1,7 +1,7 @@
 import type { ChangeInput } from '../change-event'
 import type { CollectionCardEntry } from '../site/data-types'
 import { DEFAULT_SECTION } from '../types'
-import { normalizeCardLabels } from '../card-labels'
+import { normalizedOverride } from '../card-labels'
 import { noteOrUndefined } from '../note-helpers'
 import { applyConditionUpdate } from '../finish-condition'
 import { findTargetEntryIndex } from './entry-targeting.js'
@@ -108,10 +108,7 @@ export function applyChangeToCollection(
         finish: change.finish ?? 'nonfoil',
         condition: change.condition ?? 'NM',
         language: change.language ?? 'en',
-        labels:
-          change.labels && change.labels.length > 0
-            ? normalizeCardLabels(change.labels)
-            : undefined,
+        labels: normalizedOverride(change.labels),
         price: 0,
         fileOrder: entries.length,
         section: change.section ?? DEFAULT_SECTION,
@@ -189,7 +186,7 @@ export function applyChangeToCollection(
       }
       // An empty set clears the override — the entry falls back to its list's
       // front-matter default. Normalized so the file's token is always canonical.
-      const labels = change.labels.length > 0 ? normalizeCardLabels(change.labels) : undefined
+      const labels = normalizedOverride(change.labels)
       return entries.map((e, i) => (i === idx ? { ...e, labels } : e))
     }
 

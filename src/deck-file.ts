@@ -12,6 +12,7 @@ import { listDeckFiles } from './importers/text-file'
 import { isResolveListError, matchList, type ListLocation } from './resolve-list'
 import { isPathWithinDir } from './path-validation'
 import { assignMissingDeckCardIds } from './card-id'
+import { readListDefaultLabels, type CardLabel } from './card-labels'
 import { writeListFrontMatter, type ListFrontMatterWrite } from './front-matter-write'
 import { serializeCardLine } from './deck-text'
 
@@ -65,6 +66,12 @@ export type DeckFrontMatter = {
   format?: DeckFormatKey
   created?: string
   tags?: string[]
+  /**
+   * The deck's default card labels, applied to every line that carries no
+   * `[proxy]` override of its own. Decks accept `proxy` alone — a value naming
+   * any other label is dropped by {@link validateDeckFrontMatter}.
+   */
+  labels?: CardLabel[]
   description?: string
   sourceId?: string
   sourceUrl?: string
@@ -183,6 +190,18 @@ export function validateDeckFrontMatter(raw: Record<string, unknown>): DeckFront
   const format = parseDeckFormat(frontMatter.format)
   if (format) frontMatter.format = format
   else delete frontMatter.format
+
+  // A label the deck grammar cannot carry is dropped whole rather than filtered
+  // down: `labels: [sale, proxy]` is a statement about the deck the user meant,
+  // and silently keeping half of it is a different statement. An empty set says
+  // "no default", exactly as it does on a collection, so the key is dropped
+  // rather than persisted as `labels: []`. The drop is what `parseDeckText`
+  // warns about — the same value, judged by the same helper, on the read side.
+  if ('labels' in frontMatter) {
+    const read = readListDefaultLabels('deck', frontMatter.labels)
+    if (read.labels) frontMatter.labels = read.labels
+    else delete frontMatter.labels
+  }
 
   return frontMatter
 }

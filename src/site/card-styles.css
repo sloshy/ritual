@@ -292,7 +292,7 @@ h3 {
   text-align: right;
 }
 
-/* ===== Card label badges (sale / trade / keep) =====
+/* ===== Card label badges (sale / trade / keep / proxy) =====
    Compact uppercase micro-tags rendered beside the printing label in every
    view mode. Tones are theme variables (see theme-base.css / the Labels group
    in the theme editor); the badge inherits its tone via --label-tone. */
@@ -322,6 +322,10 @@ h3 {
 
 .card-label-badge.label-keep {
   --label-tone: var(--label-keep);
+}
+
+.card-label-badge.label-proxy {
+  --label-tone: var(--label-proxy);
 }
 
 .card-binder:hover .card-label,

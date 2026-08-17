@@ -15,6 +15,9 @@ import type {
 import type { BuylistQuote, BuylistQuoteRequest } from '../../../src/buylist'
 import { quoteKey } from '../../../src/buylist'
 import type { ScryfallCard } from '../../../src/types'
+import type { CardArtMap, CardArtRef } from '../../../src/card-art'
+import type { CollectionEntry } from '../../../src/collection-file'
+import { cardPricelessReason } from '../../../src/site/priceless'
 import type { ChangelogPage } from '../../../src/changelog-parser'
 
 type StubContextOptions = {
@@ -24,6 +27,8 @@ type StubContextOptions = {
   currencies?: SiteDetailContext['availableCurrencies']
   /** Attach a buylist seam; absent means the builder must bake no `buylist` field. */
   buylist?: DetailBuylistContext
+  /** Art files the build could not deploy; those references must not be baked. */
+  missingArtFiles?: ReadonlySet<string>
 }
 
 type StubContext = {
@@ -39,6 +44,7 @@ function makeContext(options: StubContextOptions = {}): StubContext {
   const canonicalNames = options.canonicalNames ?? {}
   const ctx: SiteDetailContext = {
     ...(options.buylist ? { buylist: options.buylist } : {}),
+    ...(options.missingArtFiles ? { missingArtFiles: options.missingArtFiles } : {}),
     cardData: {
       cards: {},
       printings: {},
@@ -756,5 +762,474 @@ describe('buylist baking', () => {
     // printing, so a second lookup would buy nothing.
     expect(buylist.asked).toHaveLength(1)
     expect(detail.buylist?.cardkingdom?.quotes['fdn:35:nonfoil']).toMatchObject({ priceBuy: 4 })
+  })
+})
+
+/** A buylist seam recording every printing a builder offered a buyer. */
+function recordingBuylist(): { ctx: DetailBuylistContext; asked: BuylistQuoteRequest[] } {
+  const asked: BuylistQuoteRequest[] = []
+  return {
+    asked,
+    ctx: {
+      buyer: 'cardkingdom',
+      quote: (printing) => {
+        asked.push(printing)
+        return makeBuylistQuote({ name: 'Anything' })
+      },
+      feedCreatedAt: '2026-08-04 06:06:09',
+      feedRetrievedAt: 1785850800000,
+    },
+  }
+}
+
+describe('by-rule priceless baking', () => {
+  /**
+   * A binder holding the $100 Bolt and a 50¢ Angel, with the Bolt made
+   * priceless by whichever rule the case names. Every observable below is the
+   * same for both rules — that sameness *is* the rule — so they share one table
+   * rather than two blocks that drift apart.
+   */
+  function pricelessBinder(
+    boltOverride: Partial<CollectionEntry>,
+    art?: CardArtMap,
+  ): LoadedCollection {
+    return {
+      displayName: 'Priceless Binder',
+      entries: [
+        {
+          name: 'Lightning Bolt',
+          quantity: 1,
+          set: 'lea',
+          collectorNumber: '161',
+          section: 'Main',
+          cardId: 1,
+          ...boltOverride,
+        },
+        {
+          name: 'Serra Angel',
+          quantity: 1,
+          set: 'fdn',
+          collectorNumber: '35',
+          section: 'Main',
+          cardId: 2,
+        },
+      ],
+      sectionOrder: ['Main'],
+      art,
+      warnings: [],
+      changelog: [],
+    }
+  }
+
+  const proxyBinder = pricelessBinder({ labels: ['proxy'] })
+  const artBinder = pricelessBinder({}, new Map([[1, { url: 'https://example.com/art/bolt.png' }]]))
+
+  const printingsByName = { 'Lightning Bolt': [bolt, boltCheap], 'Serra Angel': [angel] }
+
+  const PRICELESS_BINDERS: [string, LoadedCollection][] = [
+    ['a proxy', proxyBinder],
+    ['a custom-art copy', artBinder],
+  ]
+
+  test.each(PRICELESS_BINDERS)(
+    '%s bakes at zero, leaves the totals and missing counts alone, and is never quoted',
+    async (_label, binder) => {
+      const buylist = recordingBuylist()
+      const { ctx } = makeContext({ printingsByName, buylist: buylist.ctx })
+
+      const { detail, summary } = await buildCollectionArtifacts(binder, ctx)
+
+      // The $100 Bolt is worth nothing here — and it is not a card whose price
+      // is *missing* either, so no count moves.
+      expect(detail.entries[0]).toMatchObject({ name: 'Lightning Bolt', price: 0 })
+      expect(summary.totalPrice).toBeCloseTo(0.5)
+      expect(summary.totalPriceEur).toBeCloseTo(0.4)
+      expect(summary.totalPriceTix).toBeCloseTo(0.02)
+      expect(summary.missingPriceCount).toBe(0)
+      expect(summary.missingPriceCountEur).toBe(0)
+      expect(summary.missingPriceCountTix).toBe(0)
+      // No buyer is asked about it, so no quote can be baked for its printing.
+      expect(buylist.asked.map((printing) => printing.set)).toEqual(['fdn'])
+      expect(detail.buylist?.cardkingdom?.quotes).not.toHaveProperty('lea:161:nonfoil')
+    },
+  )
+
+  test('a list-default proxy label makes an entry with no override a proxy', async () => {
+    const { ctx } = makeContext({ printingsByName })
+    const inherited: LoadedCollection = {
+      ...proxyBinder,
+      labels: ['proxy'],
+      entries: proxyBinder.entries.map((entry) => ({ ...entry, labels: undefined })),
+    }
+
+    const { summary } = await buildCollectionArtifacts(inherited, ctx)
+
+    expect(summary.totalPrice).toBe(0)
+    expect(summary.missingPriceCount).toBe(0)
+  })
+
+  const proxyDeck: LoadedDeck = {
+    data: {
+      name: 'Proxy Deck',
+      sections: [
+        {
+          name: 'Mainboard',
+          cards: [
+            { name: 'Lightning Bolt', quantity: 4, labels: ['proxy'] },
+            { name: 'Serra Angel', quantity: 1 },
+          ],
+        },
+      ],
+    },
+    changelog: [],
+    warnings: [],
+  }
+
+  const deckCardData: Partial<SiteCardData> = {
+    cards: { 'Lightning Bolt': bolt, 'Serra Angel': angel },
+    printings: { 'Lightning Bolt': [bolt, boltCheap], 'Serra Angel': [angel] },
+    cheapest: { usd: { 'Lightning Bolt': boltCheap, 'Serra Angel': angel } },
+  }
+
+  test('deck totals skip proxies in every currency', async () => {
+    const { ctx } = makeContext({ cardData: deckCardData, currencies: ['usd'] })
+
+    const { detail, summary } = await buildDeckArtifacts(proxyDeck, ctx)
+
+    // Only the Angel is real: 4x $100 of proxied Bolt counts for nothing.
+    expect(summary.totalPrice).toBeCloseTo(0.5)
+    expect(summary.lowestPrice).toBeCloseTo(0.5)
+    // The card lines still ship their labels, so the client can badge them.
+    expect(detail.deck.sections[0]?.cards[0]?.labels).toEqual(['proxy'])
+  })
+
+  test('an unpriced deck proxy is not counted as a missing price', async () => {
+    const { ctx } = makeContext({
+      cardData: { ...deckCardData, cards: { 'Serra Angel': angel } },
+      currencies: ['usd'],
+    })
+
+    const { summary } = await buildDeckArtifacts(proxyDeck, ctx)
+
+    expect(summary.missingPriceCount).toBe(0)
+  })
+
+  test('a deck proxy is never offered to a buyer, and the deck default applies', async () => {
+    const buylist = recordingBuylist()
+    const { ctx } = makeContext({
+      cardData: deckCardData,
+      currencies: ['usd'],
+      buylist: buylist.ctx,
+    })
+    // No per-line override anywhere: the deck's front-matter default proxies
+    // every card in it.
+    const allProxy: LoadedDeck = {
+      ...proxyDeck,
+      labels: ['proxy'],
+      data: {
+        ...proxyDeck.data,
+        sections: [
+          {
+            name: 'Mainboard',
+            cards: proxyDeck.data.sections[0]!.cards.map((card) => ({
+              ...card,
+              labels: undefined,
+            })),
+          },
+        ],
+      },
+    }
+
+    const { detail, summary } = await buildDeckArtifacts(allProxy, ctx)
+
+    expect(buylist.asked).toHaveLength(0)
+    expect(summary.totalPrice).toBe(0)
+    // The default is baked so the client resolves the same effective labels.
+    expect(detail.labels).toEqual(['proxy'])
+  })
+})
+
+describe('custom art baking', () => {
+  const artMap = (entries: Record<number, CardArtRef>): CardArtMap =>
+    new Map(Object.entries(entries).map(([id, ref]) => [Number(id), ref]))
+
+  test('a collection bakes file refs as site paths and URLs verbatim', async () => {
+    const { ctx } = makeContext({ printingsByName: { 'Serra Angel': [angel] } })
+    const loaded: LoadedCollection = {
+      displayName: 'Art Binder',
+      entries: [
+        {
+          name: 'Serra Angel',
+          quantity: 1,
+          set: 'fdn',
+          collectorNumber: '35',
+          section: 'Main',
+          cardId: 1,
+        },
+        {
+          name: 'Serra Angel',
+          quantity: 1,
+          set: 'fdn',
+          collectorNumber: '35',
+          section: 'Main',
+          cardId: 2,
+        },
+        {
+          name: 'Serra Angel',
+          quantity: 1,
+          set: 'fdn',
+          collectorNumber: '35',
+          section: 'Main',
+          cardId: 3,
+        },
+      ],
+      sectionOrder: ['Main'],
+      art: artMap({
+        1: { file: 'proxies/sol ring.jpg' },
+        2: { url: 'https://example.com/art/bolt.png' },
+      }),
+      warnings: [],
+      changelog: [],
+    }
+
+    const { detail } = await buildCollectionArtifacts(loaded, ctx)
+
+    // Each segment is encoded on its own, so the space survives as one segment.
+    expect(detail.entries[0]?.customArt).toBe('art/proxies/sol%20ring.jpg')
+    expect(detail.entries[1]?.customArt).toBe('https://example.com/art/bolt.png')
+    // A card the sidecar says nothing about keeps its real art.
+    expect(detail.entries[2]?.customArt).toBeUndefined()
+  })
+
+  test('a file the build could not deploy is left out entirely', async () => {
+    const { ctx } = makeContext({
+      printingsByName: { 'Serra Angel': [angel] },
+      missingArtFiles: new Set(['gone.jpg']),
+    })
+    const loaded: LoadedWanted = {
+      displayName: 'Wants',
+      entries: [
+        {
+          name: 'Serra Angel',
+          quantity: 1,
+          set: 'fdn',
+          collectorNumber: '35',
+          section: 'Main',
+          cardId: 7,
+        },
+      ],
+      sectionOrder: ['Main'],
+      art: artMap({ 7: { file: 'gone.jpg' } }),
+      warnings: [],
+      changelog: [],
+    }
+
+    const { detail } = await buildWantedArtifacts(loaded, ctx)
+
+    // Absent, not an `art/gone.jpg` that would render as a broken image.
+    expect(detail.entries[0]?.customArt).toBeUndefined()
+    expect(JSON.parse(JSON.stringify(detail)).entries[0]).not.toHaveProperty('customArt')
+  })
+
+  test('a deck bakes custom art onto the card line, leaving the others untouched', async () => {
+    const { ctx } = makeContext({
+      cardData: {
+        cards: { 'Lightning Bolt': bolt, 'Serra Angel': angel },
+        printings: { 'Lightning Bolt': [bolt] },
+      },
+      currencies: ['usd'],
+    })
+    const loaded: LoadedDeck = {
+      data: {
+        name: 'Art Deck',
+        sections: [
+          {
+            name: 'Mainboard',
+            cards: [
+              { name: 'Lightning Bolt', quantity: 4, cardId: 1 },
+              { name: 'Serra Angel', quantity: 1, cardId: 2 },
+            ],
+          },
+        ],
+      },
+      art: artMap({ 1: { file: 'bolt.png' } }),
+      changelog: [],
+      warnings: [],
+    }
+
+    const { detail } = await buildDeckArtifacts(loaded, ctx)
+
+    expect(detail.deck.sections[0]?.cards[0]?.customArt).toBe('art/bolt.png')
+    expect(detail.deck.sections[0]?.cards[1]?.customArt).toBeUndefined()
+  })
+
+  // A collection entry's zero price and missing quote are pinned alongside the
+  // proxy label's in the `by-rule priceless baking` table above — same binder,
+  // same observables, one rule.
+
+  test('a wanted entry with custom art bakes at zero and is never quoted', async () => {
+    const buylist = recordingBuylist()
+    const { ctx } = makeContext({
+      cardData: { cards: { 'Lightning Bolt': bolt, 'Serra Angel': angel } },
+      printingsByName: { 'Lightning Bolt': [bolt], 'Serra Angel': [angel] },
+      buylist: buylist.ctx,
+    })
+    const loaded: LoadedWanted = {
+      displayName: 'Wants',
+      entries: [
+        {
+          name: 'Lightning Bolt',
+          quantity: 1,
+          set: 'lea',
+          collectorNumber: '161',
+          finish: 'nonfoil',
+          section: 'Main',
+          cardId: 1,
+        },
+        {
+          name: 'Serra Angel',
+          quantity: 1,
+          set: 'fdn',
+          collectorNumber: '35',
+          finish: 'nonfoil',
+          section: 'Main',
+          cardId: 2,
+        },
+      ],
+      sectionOrder: ['Main'],
+      art: artMap({ 1: { file: 'bolt.png' } }),
+      warnings: [],
+      changelog: [],
+    }
+
+    const { detail, summary } = await buildWantedArtifacts(loaded, ctx)
+
+    expect(detail.entries[0]).toMatchObject({ name: 'Lightning Bolt', price: 0 })
+    expect(summary.totalPrice).toBeCloseTo(0.5)
+    expect(summary.missingPriceCount).toBe(0)
+    expect(buylist.asked.map((printing) => printing.set)).toEqual(['fdn'])
+  })
+
+  test('an art file the build could not deploy still prices at nothing', async () => {
+    // The sidecar reference is the fact, not the file that came out of the
+    // build: `ritual price` and `ritual sell` read the reference, so a bake that
+    // priced this card would have the site quoting retail (and a buylist offer)
+    // for a copy the CLI reports as CUSTOM.
+    const buylist = recordingBuylist()
+    const { ctx } = makeContext({
+      cardData: { cards: { 'Lightning Bolt': bolt } },
+      printingsByName: { 'Lightning Bolt': [bolt] },
+      missingArtFiles: new Set(['gone.jpg']),
+      buylist: buylist.ctx,
+    })
+    const loaded: LoadedWanted = {
+      displayName: 'Wants',
+      entries: [
+        {
+          name: 'Lightning Bolt',
+          quantity: 1,
+          set: 'lea',
+          collectorNumber: '161',
+          finish: 'nonfoil',
+          section: 'Main',
+          cardId: 1,
+        },
+      ],
+      sectionOrder: ['Main'],
+      art: artMap({ 1: { file: 'gone.jpg' } }),
+      warnings: [],
+      changelog: [],
+    }
+
+    const { detail, summary } = await buildWantedArtifacts(loaded, ctx)
+
+    // No image to show — the card falls back to its real art — but the copy
+    // still wears custom art, which is what the client's marker reads.
+    expect(detail.entries[0]?.customArt).toBeUndefined()
+    expect(detail.entries[0]?.hasCustomArt).toBe(true)
+    expect(cardPricelessReason(detail.entries[0]!)).toBe('custom-art')
+    expect(detail.entries[0]?.price).toBe(0)
+    expect(summary.totalPrice).toBe(0)
+    expect(summary.missingPriceCount).toBe(0)
+    expect(buylist.asked).toEqual([])
+  })
+
+  test('a deck card whose art file was not deployed is priceless too', async () => {
+    const buylist = recordingBuylist()
+    const { ctx } = makeContext({
+      cardData: {
+        cards: { 'Lightning Bolt': bolt, 'Serra Angel': angel },
+        printings: { 'Lightning Bolt': [bolt], 'Serra Angel': [angel] },
+        cheapest: { usd: { 'Lightning Bolt': bolt, 'Serra Angel': angel } },
+      },
+      currencies: ['usd'],
+      missingArtFiles: new Set(['gone.jpg']),
+      buylist: buylist.ctx,
+    })
+    const loaded: LoadedDeck = {
+      data: {
+        name: 'Art Deck',
+        sections: [
+          {
+            name: 'Mainboard',
+            cards: [
+              { name: 'Lightning Bolt', quantity: 4, cardId: 1 },
+              { name: 'Serra Angel', quantity: 1, cardId: 2 },
+            ],
+          },
+        ],
+      },
+      art: artMap({ 1: { file: 'gone.jpg' } }),
+      changelog: [],
+      warnings: [],
+    }
+
+    const { detail, summary } = await buildDeckArtifacts(loaded, ctx)
+
+    const boltLine = detail.deck.sections[0]?.cards[0]
+    expect(boltLine?.customArt).toBeUndefined()
+    expect(boltLine?.hasCustomArt).toBe(true)
+    expect(cardPricelessReason(boltLine!)).toBe('custom-art')
+    // Only the Angel is left in the totals, the missing counts, and the quotes.
+    expect(summary.totalPrice).toBeCloseTo(0.5)
+    expect(summary.missingPriceCount).toBe(0)
+    expect(buylist.asked.map((printing) => printing.set)).toEqual(['fdn'])
+  })
+
+  test('deck totals and quotes skip a card with custom art', async () => {
+    const buylist = recordingBuylist()
+    const { ctx } = makeContext({
+      cardData: {
+        cards: { 'Lightning Bolt': bolt, 'Serra Angel': angel },
+        printings: { 'Lightning Bolt': [bolt], 'Serra Angel': [angel] },
+        cheapest: { usd: { 'Lightning Bolt': bolt, 'Serra Angel': angel } },
+      },
+      currencies: ['usd'],
+      buylist: buylist.ctx,
+    })
+    const loaded: LoadedDeck = {
+      data: {
+        name: 'Art Deck',
+        sections: [
+          {
+            name: 'Mainboard',
+            cards: [
+              { name: 'Lightning Bolt', quantity: 4, cardId: 1 },
+              { name: 'Serra Angel', quantity: 1, cardId: 2 },
+            ],
+          },
+        ],
+      },
+      art: artMap({ 1: { file: 'bolt.png' } }),
+      changelog: [],
+      warnings: [],
+    }
+
+    const { summary } = await buildDeckArtifacts(loaded, ctx)
+
+    expect(summary.totalPrice).toBeCloseTo(0.5)
+    expect(summary.lowestPrice).toBeCloseTo(0.5)
+    expect(summary.missingPriceCount).toBe(0)
+    expect(buylist.asked.map((printing) => printing.set)).toEqual(['fdn'])
   })
 })

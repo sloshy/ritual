@@ -34,6 +34,7 @@ export default defineConfig({
         { label: 'Getting Started', link: '/' },
         { slug: 'configuration' },
         { slug: 'localization' },
+        { slug: 'custom-art' },
         { slug: 'docker' },
         {
           label: 'Commands',

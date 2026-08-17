@@ -172,6 +172,10 @@ export const cliEditMeta = {
   'cli.editLabel.removal': {
     description: 'Names the removal of a whole line, for the undo menu.',
   },
+  'cli.editLabel.art': {
+    description:
+      "Names a custom-art edit for the undo menu, as the object of 'Undo …'. Reads like the sibling labels above it.",
+  },
   'cli.editLabel.moveToList': {
     description:
       'Names a cross-list move for the undo menu. {list} is the destination list rendered as icon + name.',
@@ -195,6 +199,11 @@ export const cliEditMeta = {
   },
   'cli.editAction.changeLabel': {
     description: "Edit-mode menu row: set or clear this card's label override.",
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.editAction.setArt': {
+    description:
+      "Edit-mode menu row: set or clear this card's custom art — the image shown in place of the printing's own scan.",
     maxLen: MENU_MAX_LEN,
   },
   'cli.editAction.moveToSection': {
@@ -395,27 +404,88 @@ export const cliEditMeta = {
       'Confirms the just-added deck card was re-pointed at another printing. {printing} is a SET:number pair and never translates; the arrow is layout.',
   },
 
-  'cli.collection.promptLabel': {
+  'cli.labels.promptOverride': {
     description: "Prompt heading for a single card's label override.",
   },
-  'cli.collection.promptDefaultLabels': {
+  'cli.labels.promptDefault': {
     description: "Prompt heading for the whole list's default labels.",
   },
-  'cli.collection.menuListLabels': {
+  'cli.labels.menuListLabels': {
     description:
-      "Session menu row showing (and editing) the collection's default labels. {labels} is a comma-joined list of label tokens, which are file-format vocabulary and never translate.",
+      "Session menu row showing (and editing) the list's default labels (decks and collections). {labels} is a comma-joined list of label tokens, which are file-format vocabulary and never translate.",
     maxLen: MENU_MAX_LEN,
   },
-  'cli.collection.labelsNone': {
+  'cli.labels.none': {
     description:
       'Stands in for the default labels in the menu row when the list sets none. Lower case, inside parentheses.',
   },
-  'cli.collection.defaultLabelsSet': {
+  'cli.labels.defaultSet': {
     description:
       "Confirms the list's new default labels. The square brackets mirror how the value is written in the file.",
   },
-  'cli.collection.defaultLabelsCleared': {
+  'cli.labels.defaultCleared': {
     description: 'Confirms the list no longer sets a default label.',
+  },
+  'cli.art.promptAction': {
+    description:
+      "Prompt heading for the Set Custom Art action. {art} is the card's current reference — an art-directory-relative file path or a URL, never translated — or the 'none set' string below.",
+  },
+  'cli.art.none': {
+    description: 'Stands in for {art} above when the card has no custom art yet.',
+  },
+  'cli.art.actionUrl': {
+    description: 'Set Custom Art menu row: type an image URL.',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.art.actionFile': {
+    description: 'Set Custom Art menu row: browse the configured art directory for an image file.',
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.art.actionClear': {
+    description:
+      "Set Custom Art menu row: drop the card's custom art so its real printing scan shows again. Offered only when it has some.",
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.art.promptUrl': { description: 'Prompt heading for typing an image URL.' },
+  'cli.art.promptPickFile': {
+    description:
+      'Prompt heading for the art-directory file browser. {dir} is the directory being listed, as a path.',
+  },
+  'cli.art.rowUp': {
+    description:
+      "File-browser row that leaves the current directory for the one above it. The leading '..' is the path convention and stays as it is.",
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.art.dirMissing': {
+    description:
+      "Refusal when the configured art directory does not exist. {dir} is its path; the 'ritual config set artDir' command never translates.",
+  },
+  'cli.art.dirGone': {
+    description:
+      'Refusal when a directory *inside* the art tree — one the file browser had just listed — is no longer there. {dir} is that directory’s path, not the art directory’s.',
+  },
+  'cli.art.dirUnreadable': {
+    description:
+      'Refusal when a directory in the art tree could not be listed. {reason} is the operating system error text.',
+  },
+  'cli.art.dirEmpty': {
+    description:
+      'Notice that a directory holds no image Ritual can use. {extensions} is the comma-separated list of accepted file extensions and never translates.',
+  },
+  'cli.art.invalid': {
+    description:
+      'Reports that the reference the user gave was refused, so nothing changed. {reason} is untranslated engine prose from the art parser (e.g. \'"x" is not a valid URL\').',
+  },
+  'cli.art.sidecarUnreadable': {
+    description:
+      "Refusal to open the art action when the list's <list>.art.json sidecar cannot be read, since saving would overwrite it. {reason} is untranslated engine prose naming the file.",
+  },
+  'cli.art.set': {
+    description:
+      "Confirms the card's new custom art, staged like every other session edit. {art} is the file path or URL.",
+  },
+  'cli.art.cleared': {
+    description: "Confirms the card's custom art was dropped, staged until the session is saved.",
   },
   'cli.collection.frontMatterUnreadable': {
     description:

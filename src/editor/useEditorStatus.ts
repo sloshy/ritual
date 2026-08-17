@@ -77,7 +77,10 @@ export function useEditorStatus(): [EditorStatus, EditorStatusActions] {
     loadStart: () => setState({ loading: true, error: null, saveStatus: null }),
     loadSuccess: () => setState({ loading: false }),
     loadError: (error) => setState({ loading: false, error }),
-    saveStart: () => setState({ saving: true, saveStatus: null }),
+    // A new attempt invalidates the last one's error — including one raised
+    // after a save landed (a failed custom-art write), which otherwise sits on
+    // screen forever because nothing else clears `error`.
+    saveStart: () => setState({ saving: true, error: null, saveStatus: null }),
     saveSuccess: (message) => setState({ saving: false, saveStatus: message }),
     saveError: (error) => setState({ saving: false, error }),
     setError: (error) => setState({ error }),

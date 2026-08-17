@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { buildCollectionSetBody, buildDeckSetBody } from '../../src/commands/metadata'
+import {
+  buildCollectionSetBody,
+  buildDeckSetBody,
+  type DeckArrayValues,
+} from '../../src/commands/metadata'
 import { mergeArrayValues, splitCommaTokens } from '../../src/config-fields'
 import { dumpFrontMatterBlock, readFrontMatterMapping } from '../../src/front-matter-write'
 
@@ -25,30 +29,47 @@ describe('splitCommaTokens', () => {
 })
 
 describe('buildDeckSetBody', () => {
+  const none: DeckArrayValues = { tags: [], labels: [] }
+
   test('description joins its values with spaces', () => {
-    expect(buildDeckSetBody('description', ['A', 'budget', 'list'], [], 'replace')).toEqual({
+    expect(buildDeckSetBody('description', ['A', 'budget', 'list'], none, 'replace')).toEqual({
       description: 'A budget list',
     })
   })
 
   test('tags treat each value as one tag and honor the array mode', () => {
-    expect(buildDeckSetBody('tags', ['budget'], ['aggro'], 'add')).toEqual({
+    expect(buildDeckSetBody('tags', ['budget'], { tags: ['aggro'], labels: [] }, 'add')).toEqual({
       tags: ['aggro', 'budget'],
     })
   })
 
   test('tags tokenize commas inside a single argument too', () => {
-    expect(buildDeckSetBody('tags', ['a,b', 'c'], [], 'replace')).toEqual({ tags: ['a', 'b', 'c'] })
+    expect(buildDeckSetBody('tags', ['a,b', 'c'], none, 'replace')).toEqual({
+      tags: ['a', 'b', 'c'],
+    })
   })
 
   test('single-value keys refuse multiple values', () => {
-    expect(buildDeckSetBody('format', ['modern', 'legacy'], [], 'replace')).toContain(
+    expect(buildDeckSetBody('format', ['modern', 'legacy'], none, 'replace')).toContain(
       'exactly one value',
     )
   })
 
   test('--add on a non-array key is an error', () => {
-    expect(buildDeckSetBody('description', ['x'], [], 'add')).toContain('--add/--remove')
+    expect(buildDeckSetBody('description', ['x'], none, 'add')).toContain('--add/--remove')
+  })
+
+  test('labels accept the deck vocabulary and honor the array mode', () => {
+    expect(buildDeckSetBody('labels', ['Proxy'], none, 'replace')).toEqual({ labels: ['proxy'] })
+    expect(
+      buildDeckSetBody('labels', ['proxy'], { tags: [], labels: ['proxy'] }, 'remove'),
+    ).toEqual({ labels: [] })
+  })
+
+  test('a label a deck cannot carry is refused, naming the deck vocabulary', () => {
+    const message = buildDeckSetBody('labels', ['sale'], none, 'replace')
+    expect(message).toContain("Invalid label 'sale'")
+    expect(message).toContain('proxy')
   })
 })
 

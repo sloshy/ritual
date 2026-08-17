@@ -22,11 +22,20 @@ import { listDisplayName } from '../list-lifecycle'
 import {
   loadStagedFile,
   applyRemoveFromStaged,
+  adoptedCardId,
   applyAddToStaged,
+  stagedCardIds,
   writeStagedFile,
   type DroppedNote,
+  type StagedAddResult,
   type StagedFile,
 } from './move-io'
+import {
+  createCardArtCache,
+  reconcileCardArt,
+  reconciledArtPath,
+  type CardArtRef,
+} from '../card-art'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
 import { isListMarkdownFile } from '../list-file-name'
 
@@ -52,11 +61,12 @@ export type PhysicalCard = {
   /** The line's `[ja]`-style language token. Absent means `en`; rides every move. */
   language?: CardLanguage
   /**
-   * Label override — collection entries only. A `ritual move`
-   * collection→collection move carries it (like the note); moves to a deck or
-   * wanted list drop it, since those grammars have no labels token. The editor
-   * sessions' move events do not carry it at all — an editor move drops the
-   * override even between collections, matching the notes precedent.
+   * Label override — decks and collections (see `LIST_TYPE_LABELS`). A `ritual
+   * move` carries it (like the note), filtered on arrival to what the
+   * destination type accepts: `proxy` survives a move into a deck, `sale` does
+   * not, and a wanted list keeps none of it. The editor sessions' move events
+   * do not carry it at all — an editor move drops the override even between
+   * collections, matching the notes precedent.
    */
   labels?: CardLabel[]
   note?: string
@@ -186,6 +196,7 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
               finish: card.finish,
               condition: card.condition,
               language: card.language,
+              labels: card.labels,
               note: card.note,
               cardId: card.cardId,
               copyIndex: i,
@@ -421,6 +432,108 @@ type PerFileChanges = {
   adds: VirtualCard[]
 }
 
+// ── Custom art ────────────────────────────────────────────────────────────────
+
+/**
+ * One list's pending `<list>.art.json` edits, keyed by the ids its sidecar uses.
+ *
+ * Custom art is filed under a card line's `&N`, and a move frees that id on the
+ * source side while allocating a fresh one on the destination side — so the art
+ * has to be re-filed, or the source's next added card inherits it.
+ */
+type ArtReconcile = {
+  removed: Set<number>
+  added: Map<number, CardArtRef>
+}
+
+function artReconcileFor(byFile: Map<string, ArtReconcile>, filePath: string): ArtReconcile {
+  let entry = byFile.get(filePath)
+  if (!entry) {
+    entry = { removed: new Set(), added: new Map() }
+    byFile.set(filePath, entry)
+  }
+  return entry
+}
+
+/**
+ * Write every reconciled art sidecar, returning the paths written so the caller
+ * can stage them. A sidecar Ritual cannot read is left exactly as it is — see
+ * {@link reconcileCardArt}.
+ */
+async function commitArtReconciles(byFile: Map<string, ArtReconcile>): Promise<string[]> {
+  const written: string[] = []
+  for (const [filePath, entry] of byFile) {
+    const artPath = reconciledArtPath(await reconcileCardArt(filePath, entry))
+    if (artPath !== undefined) written.push(artPath)
+  }
+  return written
+}
+
+/**
+ * Which `&N` each source file still carried once the batch's removals had been
+ * applied and **before** its additions were.
+ *
+ * Snapshotting between the two phases is what makes "the id is free" answerable
+ * at all: the additions allocate from the same pool the removals just fed, so a
+ * swap (A→B while B→A) hands the departed card's id straight to the arriving
+ * one. Read after the additions, the id looks alive and the departed card's art
+ * would stay filed under it — on a different card.
+ */
+function snapshotSurvivingIds(
+  bySource: Map<string, PerFileChanges>,
+  staged: Map<string, StagedFile>,
+): Map<string, Set<number>> {
+  const surviving = new Map<string, Set<number>>()
+  for (const { listEntry } of bySource.values()) {
+    if (surviving.has(listEntry.filePath)) continue
+    surviving.set(listEntry.filePath, stagedCardIds(staged.get(listEntry.filePath)!))
+  }
+  return surviving
+}
+
+/**
+ * Plan the art sidecar edits a committed batch implies: drop each departed
+ * card's entry from its source, and re-file it under the id its destination
+ * line was given.
+ *
+ * `surviving` comes from {@link snapshotSurvivingIds} rather than from the
+ * removal bookkeeping alone, because "the card left" and "the id is free" are
+ * different facts: a deck line that still has copies keeps both its `&N` and its
+ * art.
+ */
+async function planMovedArt(
+  bySource: Map<string, PerFileChanges>,
+  surviving: ReadonlyMap<string, Set<number>>,
+  removedKeys: Set<string>,
+  landed: Map<string, StagedAddResult>,
+): Promise<Map<string, ArtReconcile>> {
+  const byFile = new Map<string, ArtReconcile>()
+  const cache = createCardArtCache()
+  for (const { listEntry, removes } of bySource.values()) {
+    const departed = removes.filter((vc) => removedKeys.has(vc.physicalKey))
+    if (departed.length === 0) continue
+    // An unreadable sidecar reads as no art and is left untouched rather than
+    // rewritten from a partial read; every read path already reports it.
+    const art = await cache.load(listEntry.filePath)
+    if (art.size === 0) continue
+    const stillHeld = surviving.get(listEntry.filePath) ?? new Set<number>()
+    for (const vc of departed) {
+      const cardId = vc.card.cardId
+      if (cardId === undefined) continue
+      const ref = art.get(cardId)
+      if (ref === undefined) continue
+      // A line that still has copies left keeps its id — and its art.
+      if (!stillHeld.has(cardId)) artReconcileFor(byFile, listEntry.filePath).removed.add(cardId)
+      const arrival = landed.get(vc.physicalKey)
+      const adopted = arrival === undefined ? undefined : adoptedCardId(arrival)
+      if (adopted !== undefined) {
+        artReconcileFor(byFile, vc.currentList.filePath).added.set(adopted, ref)
+      }
+    }
+  }
+  return byFile
+}
+
 export type CommitMovesResult = {
   /** Number of cards actually moved. */
   moved: number
@@ -510,16 +623,27 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
     }
   }
 
+  // Snapshot the source id space between the removals and the additions: the
+  // additions allocate from the pool the removals just fed, so an id read after
+  // them looks alive even when the line that held it is gone.
+  const survivingBySource = snapshotSurvivingIds(bySource, staged)
+
   // --- APPLY: Additions in memory (only for successfully removed cards) ---
   const droppedNotes: DroppedNote[] = []
+  /** Where each moved card landed, so its custom art can follow it. */
+  const landed = new Map<string, StagedAddResult>()
   for (const { listEntry, adds } of byDest.values()) {
     const stagedFile = staged.get(listEntry.filePath)!
     for (const vc of adds) {
       if (!removedKeys.has(vc.physicalKey)) continue
-      const dropped = applyAddToStaged(stagedFile, vc.card, listEntry.ref.type, vc.destSection)
-      if (dropped) droppedNotes.push(dropped)
+      const added = applyAddToStaged(stagedFile, vc.card, listEntry.ref.type, vc.destSection)
+      landed.set(vc.physicalKey, added)
+      if (added.droppedNote) droppedNotes.push(added.droppedNote)
     }
   }
+
+  // --- APPLY: Custom art follows the cards (sidecars, written below) ---
+  const artByFile = await planMovedArt(bySource, survivingBySource, removedKeys, landed)
 
   // --- WRITE: All modified files to disk in a single pass ---
   const writtenFiles: string[] = []
@@ -566,6 +690,9 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
       writtenFiles.push(await appendChangelog(listEntry.filePath, listEntry.ref.name, changes))
     }
   }
+
+  // --- ART: re-file the sidecars planned above (card lines are already written) ---
+  writtenFiles.push(...(await commitArtReconciles(artByFile)))
 
   return { moved: removedKeys.size, writtenFiles: [...new Set(writtenFiles)], droppedNotes }
 }
@@ -625,6 +752,17 @@ export async function commitAllRemovals(
     }
   }
 
+  // --- APPLY: A removed card's custom art goes with it (no destination here) ---
+  // Nothing is added on this path, so the post-removal snapshot is the final
+  // id space — taken through the same helper so both engines agree on when an
+  // `&N` counts as free.
+  const artByFile = await planMovedArt(
+    bySource,
+    snapshotSurvivingIds(bySource, staged),
+    removedKeys,
+    new Map(),
+  )
+
   // --- WRITE: All modified files to disk in a single pass ---
   const writtenFiles: string[] = []
   for (const [filePath, stagedFile] of staged.entries()) {
@@ -650,6 +788,9 @@ export async function commitAllRemovals(
       writtenFiles.push(await appendChangelog(listEntry.filePath, listEntry.ref.name, changes))
     }
   }
+
+  // --- ART: drop the departed cards' sidecar entries ---
+  writtenFiles.push(...(await commitArtReconciles(artByFile)))
 
   return { removed: removedKeys.size, writtenFiles: [...new Set(writtenFiles)] }
 }

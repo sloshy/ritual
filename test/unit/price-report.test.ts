@@ -1,16 +1,21 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  BY_RULE_UNPRICED_REASONS,
   buildPriceReport,
   comparePricedEntries,
   deckPriceEntries,
   filterPricedEntries,
   hasActiveFilters,
+  isByRuleUnpricedReason,
+  isPricelessEntry,
   isPriceSortField,
+  pricelessEntryReason,
   sumPricedEntries,
   UNRANKED_EDHREC,
   type PriceListInput,
   type PricedEntry,
 } from '../../src/price-report'
+import type { CardArtMap } from '../../src/card-art'
 import type { CardPrintingsLookup } from '../../src/card-printing'
 import type { ScryfallCard } from '../../src/types'
 import { makeScryfallCard } from '../test-utils'
@@ -331,6 +336,102 @@ describe('buildPriceReport pricing rules', () => {
     expect(japanese.price).toBe(3)
     expect(japanese.unpricedReason).toBeUndefined()
   })
+
+  test('proxy entry is priced at 0 even though its printing is priced', async () => {
+    const entry = await priceSingle(
+      input({
+        entries: [
+          {
+            name: 'Test Card',
+            quantity: 1,
+            set: 'bbb',
+            collectorNumber: '7',
+            labels: ['proxy'],
+            section: 'Main',
+          },
+        ],
+      }),
+      { 'Test Card': [makeCard({ set: 'bbb', collector_number: '7' }, { usd: '3.00' })] },
+    )
+    expect(entry.price).toBe(0)
+    expect(entry.lowest).toBe(0)
+    expect(entry.unpricedReason).toBe('proxy')
+    // The printing still travels with the entry — a proxy is a proxy *of* a card.
+    expect(entry.set).toBe('bbb')
+    expect(entry.collectorNumber).toBe('7')
+  })
+
+  test('custom-art entry is priced at 0 even though its printing is priced', async () => {
+    const entry = await priceSingle(
+      input({
+        entries: [
+          {
+            name: 'Test Card',
+            quantity: 1,
+            set: 'bbb',
+            collectorNumber: '7',
+            hasCustomArt: true,
+            section: 'Main',
+          },
+        ],
+      }),
+      { 'Test Card': [makeCard({ set: 'bbb', collector_number: '7' }, { usd: '3.00' })] },
+    )
+    expect(entry.price).toBe(0)
+    expect(entry.lowest).toBe(0)
+    expect(entry.unpricedReason).toBe('custom-art')
+    // The printing still travels with the entry — the art replaced the picture,
+    // not the card.
+    expect(entry.set).toBe('bbb')
+    expect(entry.collectorNumber).toBe('7')
+  })
+
+  // Which of the two by-rule reasons wins when a card carries both is
+  // `pricelessReason`'s rule, pinned once in `card-labels.test.ts` and mapped
+  // onto entry fields by `pricelessEntryReason` below — `buildPriceReport`
+  // only passes the answer through.
+
+  test('custom-art reason wins over a card the cache does not know at all', async () => {
+    const entry = await priceSingle(
+      input({
+        entries: [{ name: 'Unknown Card', quantity: 1, hasCustomArt: true, section: 'Main' }],
+      }),
+      {},
+    )
+    expect(entry.unpricedReason).toBe('custom-art')
+  })
+
+  test('proxy reason wins over a card the cache does not know at all', async () => {
+    const entry = await priceSingle(
+      input({
+        entries: [{ name: 'Unknown Card', quantity: 1, labels: ['proxy'], section: 'Main' }],
+      }),
+      {},
+    )
+    expect(entry.unpricedReason).toBe('proxy')
+  })
+
+  test('a non-proxy label leaves pricing untouched', async () => {
+    const entry = await priceSingle(
+      input({
+        type: 'collection',
+        name: 'Binder',
+        entries: [
+          {
+            name: 'Test Card',
+            quantity: 1,
+            set: 'bbb',
+            collectorNumber: '7',
+            labels: ['keep'],
+            section: 'Main',
+          },
+        ],
+      }),
+      { 'Test Card': [makeCard({ set: 'bbb', collector_number: '7' }, { usd: '3.00' })] },
+    )
+    expect(entry.price).toBe(3)
+    expect(entry.unpricedReason).toBeUndefined()
+  })
 })
 
 describe('buildPriceReport aggregation', () => {
@@ -387,6 +488,77 @@ describe('deckPriceEntries', () => {
       sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'A', set: 'NEO' }] }],
     })
     expect(entries[0]!.set).toBe('neo')
+  })
+
+  test('a line without labels inherits the deck default', () => {
+    const entries = deckPriceEntries(
+      { sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'A' }] }] },
+      ['proxy'],
+    )
+    expect(entries[0]!.labels).toEqual(['proxy'])
+  })
+
+  test('a line’s own labels are its effective ones, and no labels means none', () => {
+    const entries = deckPriceEntries({
+      sections: [
+        {
+          name: 'Main',
+          cards: [
+            { quantity: 1, name: 'Bare' },
+            { quantity: 1, name: 'Proxied', labels: ['proxy'] },
+          ],
+        },
+      ],
+    })
+    expect(entries.map((e) => e.labels)).toEqual([undefined, ['proxy']])
+  })
+
+  test('flags the lines the art sidecar names, by their card id', () => {
+    const art: CardArtMap = new Map([[2, { url: 'https://example.com/a.png' }]])
+    const entries = deckPriceEntries(
+      {
+        sections: [
+          {
+            name: 'Main',
+            cards: [
+              { quantity: 1, name: 'Plain', cardId: 1 },
+              { quantity: 1, name: 'Arted', cardId: 2 },
+              // No `&N` at all: nothing in the sidecar can be keyed to it.
+              { quantity: 1, name: 'Unnumbered' },
+            ],
+          },
+        ],
+      },
+      undefined,
+      art,
+    )
+    expect(entries.map((e) => e.hasCustomArt)).toEqual([undefined, true, undefined])
+  })
+})
+
+describe('pricelessEntryReason', () => {
+  // The adapter, not the rule: which entry field feeds which half of
+  // `pricelessReason`. The precedence between the two is pinned once, in
+  // `card-labels.test.ts`.
+  test('maps an entry’s labels and art flag onto the priceless rule', () => {
+    expect(pricelessEntryReason({})).toBeUndefined()
+    expect(pricelessEntryReason({ labels: ['sale'] })).toBeUndefined()
+    expect(pricelessEntryReason({ labels: ['proxy'] })).toBe('proxy')
+    expect(pricelessEntryReason({ hasCustomArt: true })).toBe('custom-art')
+  })
+
+  test('isPricelessEntry answers the same question as a boolean', () => {
+    expect(isPricelessEntry({ labels: ['keep'] })).toBe(false)
+    expect(isPricelessEntry({ hasCustomArt: true })).toBe(true)
+  })
+})
+
+describe('isByRuleUnpricedReason', () => {
+  test('separates the by-rule reasons from the data gaps', () => {
+    expect(isByRuleUnpricedReason(undefined)).toBe(false)
+    expect(isByRuleUnpricedReason('no-price-data')).toBe(false)
+    expect(isByRuleUnpricedReason('proxy')).toBe(true)
+    expect(isByRuleUnpricedReason('custom-art')).toBe(true)
   })
 })
 
@@ -507,4 +679,19 @@ describe('sumPricedEntries', () => {
     ])
     expect(totals).toEqual({ cardCount: 7, total: 6, lowestTotal: 3, unpricedCount: 4 })
   })
+
+  // Driven off the reason list itself, so a third by-rule reason is pinned the
+  // day it is added rather than the day someone remembers to copy this block.
+  test.each([...BY_RULE_UNPRICED_REASONS])(
+    'a %s card counts as a card but never as an unpriced one',
+    (reason) => {
+      const totals = sumPricedEntries([
+        entry({ price: 2, lowest: 2, quantity: 1 }),
+        entry({ price: 0, lowest: 0, quantity: 3, unpricedReason: reason }),
+        // A real gap in the data still counts, alongside them.
+        entry({ price: 0, lowest: 0, quantity: 1, unpricedReason: 'no-price-data' }),
+      ])
+      expect(totals).toEqual({ cardCount: 5, total: 2, lowestTotal: 2, unpricedCount: 1 })
+    },
+  )
 })

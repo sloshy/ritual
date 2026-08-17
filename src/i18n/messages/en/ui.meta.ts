@@ -334,6 +334,11 @@ export const uiMeta = {
       'Menu row opening the label picker ("for sale", "for trade", "to keep"). Collections only.',
     maxLen: 24,
   },
+  'ui.cardMenu.setCustomArt': {
+    description:
+      'Menu row opening the dialog that replaces this card’s printing image with a local file or an image URL. Admin editors only.',
+    maxLen: 24,
+  },
   'ui.cardMenu.setLanguage': {
     description: 'Menu row opening the picker for the language the physical card is printed in.',
     maxLen: 24,
@@ -455,6 +460,33 @@ export const uiMeta = {
   'ui.addCard.priceEtched': {
     description:
       'A price that is only known for the etched printing. {price} is the already-formatted amount.',
+  },
+  'ui.addCard.optionsHeading': {
+    description:
+      'Heading of the optional per-card settings in the add-card dialog: the label the new card starts under, and its custom art.',
+    maxLen: 24,
+  },
+  'ui.addCard.labelField': {
+    description:
+      'Label of the dropdown choosing the new card’s label override (Proxy, Keep, For Sale…), or the list’s default when nothing is picked.',
+    maxLen: 16,
+  },
+  'ui.addCard.artField': {
+    description:
+      'Label of the text field holding the new card’s custom art: a path inside the configured art directory, or an image URL.',
+    maxLen: 20,
+  },
+  'ui.addCard.artPlaceholder': {
+    description:
+      'Placeholder showing both accepted forms of a custom-art reference. The example path and URL are sample data and are not translated.',
+  },
+  'ui.addCard.artInvalid': {
+    description:
+      'Shown under the custom-art field when the typed reference cannot be used. {reason} is the parser’s own sentence, which is English engine prose.',
+  },
+  'ui.addCard.artPendingNote': {
+    description:
+      'Note under the custom-art field explaining that, unlike the printing itself, the art reaches the list only when the pending changes are saved.',
   },
   'ui.hint.navigate': {
     description: 'Footer key hint: the arrow keys walk the result list.',

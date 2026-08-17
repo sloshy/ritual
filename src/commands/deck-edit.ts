@@ -2,6 +2,7 @@ import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
 import type { Card, DeckData } from '../types'
 import {
+  consolidateSetLabel,
   consolidateSetLanguage,
   consolidateSetNote,
   consolidateSetPrinting,
@@ -9,6 +10,7 @@ import {
   createAddChange,
   createMoveFromChange,
   createRemoveChange,
+  createSetLabelChange,
   createSetLanguageChange,
   createSetNoteChange,
   createSetPrintingChange,
@@ -25,6 +27,15 @@ import {
   type MoveDeps,
   type MoveDestination,
 } from './edit-move'
+import { sameCardLabels, type CardLabel } from '../card-labels'
+import {
+  noteArtLineRemoved,
+  noteArtLineRestored,
+  noteArtRepack,
+  noteArtSet,
+  type SessionArtChanges,
+} from './session-art'
+import { editCardArt } from './edit-art'
 import { displayLanguage, type CardLanguage } from '../card-language'
 import { t } from '../i18n/t'
 import { allocateId, assignMissingDeckCardIds, collectDeckCardIds, createIdPool } from '../card-id'
@@ -47,6 +58,7 @@ import {
   type SessionChangeItem,
 } from './card-session'
 import {
+  promptCardLabelChoice,
   promptFinishAndCondition,
   promptLanguageChoice,
   resolveCardPrinting,
@@ -77,12 +89,16 @@ export type DeckCardSnapshot = {
   printing: PrintingTuple
   /** The line's `[ja]`-style language token at session start. Absent means `en`. */
   language?: CardLanguage
+  /** The line's `[proxy]` label override at session start; absent means the deck default. */
+  labels?: CardLabel[]
   note?: string
   section: string
 }
 
 /** The mutable deck-session state shared by the strategy and the edit operations. */
 export type DeckSessionState = {
+  /** The deck file the session writes, and whose sidecars belong to it. */
+  filePath: string
   /** The in-memory deck — the single source of truth until persisted. */
   deck: DeckData
   /** Per-copy adds this session, in add order (drives the discard menu). */
@@ -101,6 +117,12 @@ export type DeckSessionState = {
   originals: Map<number, DeckCardSnapshot>
   /** Whether the in-memory deck differs from what was last written to disk. */
   dirty: boolean
+  /**
+   * Pending `<deck>.art.json` edits, applied by the same save that writes the
+   * deck — the sidecar is keyed by `&N`, and a removed line's id is handed to
+   * the next line the session creates.
+   */
+  art: SessionArtChanges
 }
 
 /**
@@ -162,6 +184,7 @@ function originalSnapshot(
     name: card.name,
     printing: cardPrinting(card),
     language: card.language,
+    labels: card.labels,
     note: card.note,
     section: sectionName,
   }
@@ -205,6 +228,11 @@ export function discardDeckSessionAdd(
   state.sessionAdds = outcome.sessionAdds
   state.sessionLineIds = outcome.sessionLineIds
   state.dirty = true
+  // Pending custom art is keyed by the same line ids: a discarded line's art
+  // goes with it, and the survivors' art follows the re-pack rather than
+  // staying on a number another line now carries. A discard that only took a
+  // copy off a line leaves both alone — the line, its id, and its art remain.
+  if (outcome.lineRemoved) noteArtRepack(state.art, outcome.remap, outcome.discarded.cardId)
 
   // The re-pack may have renumbered ids that pending edit-undo entries reference,
   // so the edit history can no longer be replayed safely. Dropping it is the
@@ -317,6 +345,8 @@ export async function editDeckCard(
       ? [{ title: `➖ ${t('cli.editAction.removeCopy')}`, value: 'remove-copy' }]
       : []),
     { title: `🌐 ${t('cli.editAction.changeLanguage')}`, value: 'language' },
+    { title: `🏷️  ${t('cli.editAction.changeLabel')}`, value: 'label' },
+    { title: `🎨 ${t('cli.editAction.setArt')}`, value: 'art' },
     { title: `🗂️  ${t('cli.editAction.moveToSection')}`, value: 'move' },
     ...(deps.move ? [{ title: `📤 ${t('cli.editAction.moveToList')}`, value: 'move-list' }] : []),
     { title: `📝 ${t('cli.editAction.editNote')}`, value: 'note' },
@@ -409,6 +439,34 @@ export async function editDeckCard(
     return
   }
 
+  if (action === 'label') {
+    const labels = await promptCardLabelChoice('deck', card.labels)
+    if (labels === null || sameCardLabels(labels, card.labels)) return
+    applyDeckFieldEdit(state, ctx, card, sectionName, cardId, {
+      label: t('cli.editLabel.labels', { name: card.name }),
+      change: createSetLabelChange(card.name, { labels, cardId }),
+      inverse: createSetLabelChange(card.name, { labels: [...(card.labels ?? [])], cardId }),
+      consolidate: (changes, original) =>
+        consolidateSetLabel(changes, card.name, labels, original.labels, cardId),
+    })
+    logUpdatedLine(state, cardId, card.name)
+    return
+  }
+
+  if (action === 'art') {
+    await editCardArt({
+      filePath: state.filePath,
+      cardId,
+      cardName: card.name,
+      art: state.art,
+      editUndo: state.editUndo,
+      markDirty: () => {
+        state.dirty = true
+      },
+    })
+    return
+  }
+
   if (action === 'move') {
     const target = await promptMoveSection(state.deck, sectionName)
     if (!target || target === sectionName) return
@@ -491,6 +549,9 @@ export function performDeckLineMove(
   state.sessionAdds = state.sessionAdds.filter((record) => record.cardId !== cardId)
   state.sessionLineIds = state.sessionLineIds.filter((id) => id !== cardId)
   state.pendingMoveIds = [...state.pendingMoveIds, cardId]
+  // The line is leaving this deck, so its custom art leaves too. The destination
+  // side adopts it at save time, where the id it lands on is known.
+  noteArtLineRemoved(state.art, cardId)
 
   const moveEvents: ChangeEvent[] = []
   const inverse: ChangeEvent[] = []
@@ -598,6 +659,12 @@ export function performDeckCopyRemoval(
   })
   applyDeckChange(state, removeEvent)
   ctx.sessionChanges.push(removeEvent)
+  // Whether the `&N` survived is read off the deck rather than assumed from the
+  // caller: the edit menu only offers this action above one copy, but the
+  // function is exported, and a last copy taken out here really does delete the
+  // line — freeing its id, and with it the claim on its custom art.
+  const survived = findCardById(state.deck, cardId) !== null
+  if (!survived) noteArtLineRemoved(state.art, cardId)
   state.editUndo.push({
     cardId,
     kind: 'removal',
@@ -612,6 +679,7 @@ export function performDeckCopyRemoval(
     ],
     addedToChangelog: [removeEvent],
     removedFromChangelog: [],
+    ...(survived ? {} : { reclaimId: cardId }),
   })
   resetStaleLastAdded(ctx, cardId)
   logUpdatedLine(state, cardId, card.name)
@@ -689,6 +757,10 @@ export function performDeckLineRemoval(
     inverse.push(createSetNoteChange(snapshot.name, { note: snapshot.note, cardId }))
   }
 
+  // The last copy went, so the line — and its `&N` — is gone; its custom art
+  // goes with it, or the next line to take the id would inherit it.
+  noteArtLineRemoved(state.art, cardId)
+
   // The removed line's earlier edit events are moot, so they fold out of the
   // changelog (and come back if the removal is undone).
   const { kept, displaced } = foldOutCardChanges(ctx.sessionChanges, cardId, { keepAdds: false })
@@ -753,10 +825,20 @@ export function undoDeckEditAt(
   // and a free id needs no claim step — applying the inverse adds below restores
   // the line with its original id. Only the reused-id case needs intervention
   // (the flat-list counterpart instead claims/allocates from its persistent pool).
-  if (undo.reclaimId !== undefined && findCardById(state.deck, undo.reclaimId) !== null) {
-    const pool = createIdPool(collectDeckCardIds(state.deck))
-    retargetUndoCardId([undo, ...state.editUndo], undo.reclaimId, allocateId(pool))
+  if (undo.reclaimId !== undefined) {
+    if (findCardById(state.deck, undo.reclaimId) !== null) {
+      // The id was reused, so the restored line takes a fresh one — and the
+      // custom art stays dropped, because its old id is another card's now.
+      const pool = createIdPool(collectDeckCardIds(state.deck))
+      retargetUndoCardId([undo, ...state.editUndo], undo.reclaimId, allocateId(pool))
+    } else {
+      // The line comes back under its own id, so its custom art comes with it.
+      noteArtLineRestored(state.art, undo.reclaimId)
+    }
   }
+
+  // An art edit's only effect is on the sidecar, so its undo is a re-stage.
+  if (undo.restoreArt) noteArtSet(state.art, undo.cardId, undo.restoreArt.ref)
 
   for (const change of undo.inverse) {
     applyDeckChange(state, change)

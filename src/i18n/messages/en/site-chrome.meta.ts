@@ -275,6 +275,10 @@ export const siteChromeMeta = {
     description:
       'Tooltip on the "to keep" label filter chip. Keeping is exclusive: picking it clears the other label chips.',
   },
+  'site.filter.labelProxyTitle': {
+    description:
+      'Tooltip on the "proxy" label filter chip. Proxying is exclusive: picking it clears the other label chips.',
+  },
   'site.filter.labelNoneTitle': { description: 'Tooltip on the unlabelled label filter chip.' },
   'site.filter.buylist': {
     description:
@@ -464,6 +468,9 @@ export const siteChromeMeta = {
     description: `${VIEW_ALL_CONTEXT} Cards carrying either label.`,
   },
   'site.index.viewAllKeep': { description: VIEW_ALL_CONTEXT },
+  'site.index.viewAllProxy': {
+    description: `${VIEW_ALL_CONTEXT} Cards labeled as proxies — stand-in printouts rather than real cards.`,
+  },
   'site.index.commander': {
     description:
       "Subtitle on a deck cover naming the deck's commander — the single legendary creature a Commander deck is built around. {name} is the card name and is never translated.",
@@ -964,6 +971,12 @@ export const siteChromeMeta = {
   },
   'site.themeVar.labelKeep.description': {
     description: 'Tooltip for the `--label-keep` swatch, explaining what the variable colors.',
+  },
+  'site.themeVar.labelProxy.label': {
+    description: 'Swatch label for the `--label-proxy` CSS variable in the theme editor.',
+  },
+  'site.themeVar.labelProxy.description': {
+    description: 'Tooltip for the `--label-proxy` swatch, explaining what the variable colors.',
   },
   'site.themeVar.overlayLight.label': {
     description: 'Swatch label for the `--overlay-light` CSS variable in the theme editor.',

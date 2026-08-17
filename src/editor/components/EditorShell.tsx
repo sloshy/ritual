@@ -1,4 +1,4 @@
-import { type JSX, Show, For, createSignal } from 'solid-js'
+import { type JSX, Show, For, createMemo, createSignal } from 'solid-js'
 import type { ScryfallCard } from '../../types'
 import type { UseEditorResult, ListItem } from '../useEditor'
 import type { UseEditorDefaultsResult } from '../useEditorDefaults'
@@ -9,6 +9,7 @@ import { ChangesDialog } from './ChangesDialog'
 import { ImportChangesDialog } from './ImportChangesDialog'
 import { DiscardConfirmDialog } from './DiscardConfirmDialog'
 import { CardSearchModal } from './CardSearchModal'
+import type { AddCardOptionsConfig } from './AddCardOptions'
 import { ChangePrintingQuantityDialog } from './ChangePrintingQuantityDialog'
 import { EditorActionBar, focusActionBar } from './EditorActionBar'
 import { TextPromptDialog } from './TextPromptDialog'
@@ -48,6 +49,13 @@ type EditorShellProps<TData, TCardEntry> = {
   importKind?: ListType
   /** Open the list-default label editor (admin collection editor only). */
   onEditLabels?: () => void
+  /**
+   * Offer custom art in the add dialog. Set by the hosts that can actually write
+   * it — the admin editors, whose art route the staged reference is flushed to.
+   * The label row needs no flag: labels ride the `add` event, so they travel in
+   * the public editor's exported changes too.
+   */
+  enableAddArt?: boolean
   contextMenu?: JSX.Element
   children: JSX.Element
 }
@@ -61,6 +69,13 @@ export function EditorShell<TData, TCardEntry>(
   const listType = (): ListType => entityListType(props.entityLabel)
   let actionBarEl: HTMLDivElement | undefined
   const [showShortcuts, setShowShortcuts] = createSignal(false)
+
+  // The add dialog's per-card options, derived from what this list is: only the
+  // add flow gets them, so the change-printing modal below is left without.
+  const addOptions = createMemo<AddCardOptionsConfig>(() => ({
+    listType: listType(),
+    enableArt: props.enableAddArt === true,
+  }))
 
   useEditorShortcuts({
     onAddCard: () => editor.dialogs.openSearchModal(),
@@ -117,6 +132,7 @@ export function EditorShell<TData, TCardEntry>(
         search={props.search}
         requirePrinting={props.requirePrinting}
         defaults={props.defaults.defaults()}
+        addOptions={addOptions()}
       />
 
       {/* Change-printing flow: optional quantity prompt, then the printing picker

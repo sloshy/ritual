@@ -72,6 +72,80 @@ describe('applyRemoveFromStaged (text) line matching', () => {
   })
 })
 
+describe('applyAddToStaged label handling', () => {
+  test('a deck destination keeps only the labels a deck line can express', () => {
+    const deck: DeckData = { name: 'Test', sections: [{ name: 'Main', cards: [] }] }
+    const staged = deckStaged(deck)
+
+    applyAddToStaged(staged, physicalCard('Sol Ring', { labels: ['proxy'] }), 'deck')
+    applyAddToStaged(staged, physicalCard('Mana Crypt', { labels: ['sale', 'trade'] }), 'deck')
+
+    const cards = deck.sections[0]!.cards
+    expect(cards.find((c) => c.name === 'Sol Ring')!.labels).toEqual(['proxy'])
+    expect(cards.find((c) => c.name === 'Mana Crypt')!.labels).toBeUndefined()
+  })
+
+  test('a moved proxy never merges onto the deck line holding the real copies', () => {
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [
+        {
+          name: 'Main',
+          cards: [{ quantity: 2, name: 'Sol Ring', set: 'lea', collectorNumber: '270', cardId: 1 }],
+        },
+      ],
+    }
+    const staged = deckStaged(deck)
+    const result = applyAddToStaged(
+      staged,
+      physicalCard('Sol Ring', { set: 'lea', collectorNumber: '270', labels: ['proxy'] }),
+      'deck',
+    )
+    expect(result.merged).toBe(false)
+    expect(deck.sections[0]!.cards).toHaveLength(2)
+    expect(deck.sections[0]!.cards[1]).toMatchObject({ quantity: 1, labels: ['proxy'] })
+  })
+
+  test('a moved copy whose override the deck drops merges onto the plain line', () => {
+    // `sale` cannot be written on a deck line, so the moved copy arrives
+    // unlabeled — and unlabeled is exactly what the existing line is.
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [
+        {
+          name: 'Main',
+          cards: [{ quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '270', cardId: 1 }],
+        },
+      ],
+    }
+    const staged = deckStaged(deck)
+    const result = applyAddToStaged(
+      staged,
+      physicalCard('Sol Ring', { set: 'lea', collectorNumber: '270', labels: ['sale'] }),
+      'deck',
+    )
+    expect(result).toMatchObject({ merged: true, cardId: 1 })
+    expect(deck.sections[0]!.cards).toHaveLength(1)
+    expect(deck.sections[0]!.cards[0]!.quantity).toBe(2)
+  })
+
+  test('a collection destination keeps the whole override', () => {
+    const staged: StagedFile = { kind: 'text', content: '# Binder\n\n- Mox Pearl (LEA:265) &1\n' }
+    applyAddToStaged(
+      staged,
+      physicalCard('Sol Ring', {
+        set: 'c19',
+        collectorNumber: '221',
+        labels: ['sale', 'trade'],
+      }),
+      'collection',
+    )
+    expect(staged.kind === 'text' && staged.content).toContain(
+      '- Sol Ring (C19:221) [sale,trade] &2',
+    )
+  })
+})
+
 describe('applyAddToStaged (deck) ID allocation', () => {
   test('reuses the smallest released ID gap instead of taking the next-highest', () => {
     const deck: DeckData = {
@@ -219,13 +293,17 @@ describe('applyAddToStaged (deck) dropped-note reporting', () => {
   test('reports the incoming note when a merge discards it', () => {
     const staged = deckStaged(deckWithLine('keep me'))
 
-    const dropped = applyAddToStaged(
+    const added = applyAddToStaged(
       staged,
       physicalCard('Sol Ring', { note: 'incoming note', cardId: 7 }),
       'deck',
     )
 
-    expect(dropped).toEqual({ cardName: 'Sol Ring', cardId: 7, note: 'incoming note' })
+    expect(added).toEqual({
+      cardId: 1,
+      merged: true,
+      droppedNote: { cardName: 'Sol Ring', cardId: 7, note: 'incoming note' },
+    })
     // The destination line's existing note wins; nothing is merged into it.
     expect(staged.kind === 'deck' && staged.data.deck.sections[0]!.cards[0]!.note).toBe('keep me')
   })
@@ -233,33 +311,30 @@ describe('applyAddToStaged (deck) dropped-note reporting', () => {
   test('reports nothing when the incoming card has no note', () => {
     const staged = deckStaged(deckWithLine('existing'))
 
-    const dropped = applyAddToStaged(staged, physicalCard('Sol Ring'), 'deck')
+    const added = applyAddToStaged(staged, physicalCard('Sol Ring'), 'deck')
 
-    expect(dropped).toBeUndefined()
+    expect(added).toEqual({ cardId: 1, merged: true, droppedNote: undefined })
   })
 
   test('reports nothing when the incoming note matches the existing line note', () => {
     const staged = deckStaged(deckWithLine('same note'))
 
-    const dropped = applyAddToStaged(
-      staged,
-      physicalCard('Sol Ring', { note: 'same note' }),
-      'deck',
-    )
+    const added = applyAddToStaged(staged, physicalCard('Sol Ring', { note: 'same note' }), 'deck')
 
-    expect(dropped).toBeUndefined()
+    expect(added.droppedNote).toBeUndefined()
   })
 
   test('reports nothing when the card appends a new line (note travels with it)', () => {
     const staged = deckStaged(deckWithLine())
 
-    const dropped = applyAddToStaged(
+    const added = applyAddToStaged(
       staged,
       physicalCard('Lightning Bolt', { note: 'travels' }),
       'deck',
     )
 
-    expect(dropped).toBeUndefined()
+    // A new line, so the note travels with it and the id is the one allocated.
+    expect(added).toEqual({ cardId: 2, merged: false })
     const deck = staged.kind === 'deck' ? staged.data.deck : null
     expect(deck!.sections[0]!.cards.find((c) => c.name === 'Lightning Bolt')!.note).toBe('travels')
   })

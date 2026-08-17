@@ -153,6 +153,29 @@
   color: var(--text-primary);
 }
 
+/* Custom-art dialog: the file/URL toggle and the live preview of whatever the
+   text field currently names. The preview is capped by height so a tall image
+   cannot push the dialog's buttons off screen. */
+.card-art-modes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.75rem 0;
+}
+
+.card-art-preview {
+  display: flex;
+  justify-content: center;
+  margin: 0.75rem 0;
+}
+
+.card-art-preview img {
+  max-width: 100%;
+  max-height: 260px;
+  border-radius: var(--card-corner-radius);
+  background: var(--bg-subtle);
+}
+
 /* ===== Bottom sheet =====
    Chrome for the <BottomSheet> component (src/ui/BottomSheet.tsx): a native
    <dialog> whose panel slides up from the bottom edge, full width, with a grip

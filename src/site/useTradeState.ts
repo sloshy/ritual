@@ -6,6 +6,8 @@ import { getCardPriceForFinish } from '../price-currency'
 import { resolveTradeFinish } from './trade-finish'
 import { displayLanguage } from '../card-language'
 import { confirmKeepAdd } from './keep-trade-prompt'
+import { cardPricelessReason, isPricelessCard, type PricelessCard } from './priceless'
+import { sameCardLabels } from '../card-labels'
 
 // Module-level signals survive page navigation within the same tab.
 const [leftCards, setLeftCards] = createSignal<TradeCardEntry[]>([])
@@ -15,6 +17,19 @@ type TradeToast = { name: string; imageUrl: string | null; id: number }
 const [tradeToast, setTradeToast] = createSignal<TradeToast | null>(null)
 let _toastTimer: ReturnType<typeof setTimeout> | null = null
 let _toastId = 0
+
+/**
+ * A trade row's price: nothing at all for a copy that carries no price by rule
+ * (a proxy, or one wearing custom art), the computed retail price otherwise.
+ *
+ * The rule is applied where the row is *built* rather than where it is
+ * displayed, so the column totals and the balance follow from the same zero the
+ * row shows its `PROXY`/`CUSTOM` marker for. Every reprice path — currency
+ * switch, "Update Prices", the printing picker — goes through here.
+ */
+export function tradePrice(card: PricelessCard, compute: () => number): number {
+  return isPricelessCard(card) ? 0 : compute()
+}
 
 export function showTradeToast(name: string, imageUrl: string | null): void {
   if (_toastTimer !== null) clearTimeout(_toastTimer)
@@ -53,6 +68,15 @@ function matchesTradeEntry(c: TradeCardEntry, entry: TradeSearchEntry): boolean 
     // explicit `en` compare equal.
     displayLanguage(c.language) === displayLanguage(entry.language) &&
     c.note === entry.note &&
+    // Labels and custom art are part of a row's identity, not decoration on it:
+    // a `PROXY`/`CUSTOM` copy is worth nothing while its plain twin is worth
+    // retail, so merging the two would price one of them wrong — and a
+    // keep-labeled copy folded into an unlabeled stack would lose the badge that
+    // guards it. Compared as *facts*, not as display URLs, so a reference whose
+    // file the build could not deploy still fails to match a plain copy.
+    sameCardLabels(c.labels, entry.labels) &&
+    c.customArt === entry.customArt &&
+    cardPricelessReason(c) === cardPricelessReason(entry) &&
     c.source === entry.sourceKind &&
     c.sourceName === entry.sourceName
   )
@@ -60,9 +84,11 @@ function matchesTradeEntry(c: TradeCardEntry, entry: TradeSearchEntry): boolean 
 
 function tradeCardFromEntry(entry: TradeSearchEntry, currency: PriceCurrency): TradeCardEntry {
   const finish = resolveTradeFinish(entry.scryfallCard, entry.finish)
-  const price = entry.scryfallCard
-    ? getCardPriceForFinish(entry.scryfallCard, finish, currency)
-    : (entry.price ?? 0)
+  const price = tradePrice(entry, () =>
+    entry.scryfallCard
+      ? getCardPriceForFinish(entry.scryfallCard, finish, currency)
+      : (entry.price ?? 0),
+  )
   return {
     name: entry.name,
     set: entry.set,
@@ -71,6 +97,8 @@ function tradeCardFromEntry(entry: TradeSearchEntry, currency: PriceCurrency): T
     condition: entry.condition,
     language: entry.language,
     labels: entry.labels,
+    customArt: entry.customArt,
+    hasCustomArt: entry.hasCustomArt,
     note: entry.note,
     price,
     scryfallCard: entry.scryfallCard,

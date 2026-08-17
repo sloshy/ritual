@@ -10,6 +10,7 @@ import { getCardPrice, getCardPriceForFinish, formatPrice } from '../price-curre
 import { defaultPrintingFinish } from '../finish-condition'
 import { languageBadge, scryfallCardLanguage } from '../card-language'
 import { rarityName } from './printing-display'
+import { cardPricelessMarkerText } from './priceless'
 import { useT } from '../ui/i18n'
 import { findPrintingsAvailable, openFindPrintings } from './find-printings'
 // The one shared declaration: this component renders every page's meta table, so a
@@ -21,6 +22,19 @@ type PrintingsSortField = 'released_at' | 'set_name' | 'price'
 interface CardModalProps {
   open: boolean
   card: ScryfallCard | null
+  /**
+   * The entry's custom art, replacing the modal's main **front** image only.
+   * The "other printings" grid below keeps the real printing thumbnails — that
+   * list exists to show what the printings actually look like.
+   */
+  customArt?: string
+  /**
+   * Whether the entry has custom art at all. Read by the default price line
+   * below, which must show the `CUSTOM` marker for a reference whose file the
+   * build could not deploy too — that card shows its real printing and still
+   * has no price.
+   */
+  hasCustomArt?: boolean
   cardName: string | null
   symbolMap: Record<string, string>
   useScryfallImgUrls?: boolean
@@ -62,7 +76,9 @@ export const CardModal: Component<CardModalProps> = (props) => {
 
   const isDfc = createMemo(() => (props.card ? isDoubleFacedCard(props.card) : false))
   const imgSources = createMemo(() =>
-    props.card ? resolveCardImageSources(props.card, Boolean(props.useScryfallImgUrls)) : null,
+    props.card
+      ? resolveCardImageSources(props.card, Boolean(props.useScryfallImgUrls), props.customArt)
+      : null,
   )
 
   const isSideways = createMemo(() => isCardSideways(props.card))
@@ -84,8 +100,17 @@ export const CardModal: Component<CardModalProps> = (props) => {
     if (props.meta) return props.meta
     const parts: MetaEntry[] = []
     if (props.card) {
+      // A copy wearing custom art is not the printing a price would be for, so
+      // the marker stands in for the figure. (The proxy half of the rule needs
+      // the entry's labels, which only a caller has — every page that knows them
+      // passes its own `meta` and never reaches this default.)
+      const marker = cardPricelessMarkerText(t, {
+        customArt: props.customArt,
+        hasCustomArt: props.hasCustomArt,
+      })
       const price = getCardPrice(props.card, props.currency)
-      if (price > 0) parts.push({ label: 'price', value: formatPrice(price, props.currency) })
+      if (marker !== undefined) parts.push({ label: 'price', value: marker })
+      else if (price > 0) parts.push({ label: 'price', value: formatPrice(price, props.currency) })
       parts.push({
         label: 'set',
         value: `${props.card.set_name} (#${props.card.collector_number})`,

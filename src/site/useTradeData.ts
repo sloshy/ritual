@@ -20,6 +20,7 @@ import {
 } from '../term-match'
 import type { SelectionSourceKind } from './useCardSelection'
 import { effectiveLabels, type CardLabel } from '../card-labels'
+import { cardPricelessReason, pricelessFacts } from './priceless'
 import { displayLanguage, storedLanguage, type CardLanguage } from '../card-language'
 import { lookupPrintingCard } from '../printing-key'
 
@@ -39,11 +40,23 @@ export interface TradeSearchEntry {
   /** The source entry's language token, when present. Absent means `en`. */
   language?: CardLanguage
   /**
-   * Effective card labels — collection entries only. When note-less duplicates
-   * aggregate into one searchable group, keep dominates: a stack holding one
-   * keep-marked copy is guarded as a whole.
+   * Effective card labels — collection and deck entries. When note-less
+   * duplicates aggregate into one searchable group, keep dominates: a stack
+   * holding one keep-marked copy is guarded as a whole.
    */
   labels?: CardLabel[]
+  /**
+   * The entry's baked custom art, when it has any. The trade board shows the
+   * real printing either way — it is the card you would hand over — but a copy
+   * wearing art of its own carries no price, so the rule has to travel with it.
+   */
+  customArt?: string
+  /**
+   * Whether the source list gives the entry custom art at all — the fact the
+   * price rule reads, since a reference whose file the build could not deploy
+   * bakes no display URL.
+   */
+  hasCustomArt?: boolean
   note?: string
   price?: number
   scryfallCard: ScryfallCard | null
@@ -187,6 +200,8 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
               condition: entry.condition,
               language: entryTradeLanguage(entry.language),
               labels: labels.length > 0 ? labels : undefined,
+              customArt: entry.customArt,
+              hasCustomArt: entry.hasCustomArt,
               note: entry.note,
               price: entry.price,
               scryfallCard,
@@ -199,7 +214,10 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
               allEntries.push(mapped)
               continue
             }
-            const groupKey = `${entry.name}|${setLower}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${displayLanguage(entry.language)}`
+            // A copy that carries no price by rule never merges into a stack of
+            // priced ones (and vice versa): the group is one tradable unit with
+            // one price, so `PROXY`/`CUSTOM` has to be part of its identity.
+            const groupKey = `${entry.name}|${setLower}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${displayLanguage(entry.language)}|${cardPricelessReason(mapped) ?? ''}`
             const existing = groups.get(groupKey)
             if (existing) {
               existing.maxQty += 1
@@ -241,6 +259,8 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
               collectorNumber: entry.collectorNumber,
               finish: entry.finish,
               language: entryTradeLanguage(entry.language),
+              customArt: entry.customArt,
+              hasCustomArt: entry.hasCustomArt,
               note: entry.note,
               price: entry.price,
               scryfallCard,
@@ -253,7 +273,10 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
               allWanted.push(mapped)
               continue
             }
-            const groupKey = `${entry.name}|${setLower ?? ''}|${entry.collectorNumber ?? ''}|${entry.finish ?? ''}|${displayLanguage(entry.language)}`
+            // Pricelessness joins the key for the same reason it does above: a
+            // wanted line wearing custom art is one tradable unit with no price,
+            // and must not merge into a stack of priced copies.
+            const groupKey = `${entry.name}|${setLower ?? ''}|${entry.collectorNumber ?? ''}|${entry.finish ?? ''}|${displayLanguage(entry.language)}|${cardPricelessReason(mapped) ?? ''}`
             const existing = groups.get(groupKey)
             if (existing) {
               existing.maxQty += 1
@@ -292,7 +315,11 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
           for (const card of section.cards) {
             const setLower = card.set?.toLowerCase()
             const scryfallCard = detail.cards[card.name] ?? null
-            const groupKey = `${card.name}|${setLower ?? ''}|${card.collectorNumber ?? ''}|${card.finish ?? ''}|${displayLanguage(card.language)}`
+            // A deck line's labels are `proxy` or nothing, resolved against the
+            // deck's front-matter default like the deck page resolves them.
+            const labels = effectiveLabels(card.labels, detail.labels)
+            const priceless = cardPricelessReason(pricelessFacts(card, labels))
+            const groupKey = `${card.name}|${setLower ?? ''}|${card.collectorNumber ?? ''}|${card.finish ?? ''}|${displayLanguage(card.language)}|${priceless ?? ''}`
             const existing = groups.get(groupKey)
             if (existing) {
               existing.maxQty += card.quantity
@@ -305,6 +332,9 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
                 collectorNumber: card.collectorNumber,
                 finish: card.finish,
                 language: entryTradeLanguage(card.language),
+                labels: labels.length > 0 ? labels : undefined,
+                customArt: card.customArt,
+                hasCustomArt: card.hasCustomArt,
                 scryfallCard,
                 sourceName: deckName,
                 sourceKind: 'deck',

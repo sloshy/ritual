@@ -1,4 +1,5 @@
 import type { ChangeEvent, ConsolidateResult } from '../change-event'
+import type { CardArtEdit } from './edit-art'
 import { t } from '../i18n/t'
 import type { CardSessionContext, SessionAddItem, SessionChangeItem } from './card-session'
 
@@ -26,6 +27,15 @@ export type EditUndoEntry = {
   removedFromChangelog: ChangeEvent[]
   /** For removals: the entry/line id the undo restores (reclaimed when still free). */
   reclaimId?: number
+  /**
+   * For a Set Custom Art edit: the card's art before it, re-staged on undo
+   * (`ref: null` when it had none). The same {@link CardArtEdit} the prompt
+   * resolves to — an undo stages a prior state exactly the way the action
+   * staged the new one — and wrapped rather than a bare `CardArtRef | null`, so
+   * "no art to put back" and "this operation is not an art edit" stay different
+   * things.
+   */
+  restoreArt?: CardArtEdit
 }
 
 /** The changelog footprint of one operation, as undo-entry fields. */

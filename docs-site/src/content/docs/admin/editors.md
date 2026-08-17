@@ -32,13 +32,13 @@ On macOS, **Cmd** substitutes for **Ctrl**. The same shortcuts are available in 
 
 The list toolbar (shared with the public site pages) groups all card filters under a right-aligned **Filters** dropdown. The button shows a badge with the number of active filters, and the panel offers:
 
-- **Hide Lands** / **Hide Unpriced** — toggle lands and cards without a known price
+- **Hide Lands** / **Hide Unpriced** — toggle lands and cards without a known price. Hide Unpriced reads the price rather than the reason, so it also hides cards that are [priceless by rule](/custom-art/#custom-art-carries-no-price): proxies and custom-art copies price at `0`
 - **Hide Extras** — deck pages only; hides the maybeboard/token sections
 - **Name** — space-separated terms; a card matches when every term appears somewhere in its name, case- and accent-insensitively (`jotun` matches `Jötun Grunt`; the same matching the CLI session filter uses)
 - **Color Identity** — toggle any combination of the five colors plus a **Colorless** swatch (select it alone to find cards with no color identity), then pick a match mode: **Subset** (the default) matches any card that could be played in a deck of the selected colors, **Include** matches cards using at least one of them, **Exclude** matches cards using none of them, and **Exact** matches cards whose identity is exactly the selection
 - **Sets** — a tag input filtering by set code; type a code (space or comma finishes the tag) or pick from the autocomplete list of codes present in the list. **Include** (the default) keeps the selected sets; **Exclude** drops them
 - **Card Type** / **Oracle Tags** / **Art Tags** — tag inputs sharing the same **Include / Exclude / Exact** match mode, defaulting to **Exact** (a card must carry every selected value)
-- **Labels** — collection pages only; chips for **For Sale** / **For Trade** / **To Keep** / **Unlabeled**, matched against each card's effective [labels](#card-labels) (see the public-site [filtering](/public-site/filtering/#available-filters) page for the selection rules)
+- **Labels** — label-carrying pages only; chips for **For Sale** / **For Trade** / **To Keep** / **Proxy** / **Unlabeled**, matched against each card's effective [labels](#card-labels). A deck page shows only the two chips a deck can answer, **Proxy** and **Unlabeled**; a wanted list shows the row not at all (see the public-site [filtering](/public-site/filtering/#available-filters) page for the selection rules)
 - **Mana Value** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against a non-negative value (0 is valid)
 - **Buylist ($)** — sell mode only; a comparison against the buyer's per-copy offer, always in dollars
 - **Buylist** — sell mode only; chips for **On buylist** / **Not on buylist**, matched against whether the selected buyer is currently buying the card's printing — a paused offer counts as **Not on buylist** (see [sell mode](/public-site/sell/))
@@ -75,9 +75,9 @@ While a list is open in edit mode, the **Selected (N)** menu also gains an **edi
 - **Change Printing…** — runs the printing picker over the selected cards one at a time (cancelling skips that card and continues)
 - **Set Language…** — opens the [language picker](#card-language) and applies the chosen language to every selected card
 - **Set as Commander** — decks only; marks each selected card as a commander
-- **Set Label…** — collections only; opens the [label picker](#card-labels) and applies the chosen override to every selected card
+- **Set Label…** — decks and collections; opens the [label picker](#card-labels) for the selection's list type (a deck is offered **Proxy** and **Use list default**) and applies the chosen override to every selected card. The item is hidden when the selection spans several list types, or is on a list type that carries no labels (wanted lists)
 - **Move to section…** — opens a picker to move every selected card into an existing section, or **New section…** to name a new one
-- **Move to list…** — opens a picker to move every selected card into another list
+- **Move to list…** — opens a picker to move every selected card into another list (each card's [custom art](#custom-art) goes with it)
 
 These edits go through the same pending-changes/undo flow as per-card edits, so nothing is written until you **Save** (admin) or export (public). The selection is cleared once an action is applied.
 
@@ -149,9 +149,18 @@ The step offers two commit buttons, each with its shortcut shown in its corner (
 
 A deck folds the added copies into one entry with a quantity; collections and wanted lists store one entry per copy, since each copy carries its own condition and note.
 
+#### Card Options
+
+Beneath the printing grid (and again on the finish/condition step, bound to the same values) the dialog offers two optional per-card settings:
+
+- **Label** — the [label override](#card-labels) the new card starts under, listing what the list type carries: the full vocabulary on a collection, **Proxy** alone on a deck, nothing at all on a wanted list. The label rides the `add` change itself, so it lands on the copy being added and never on a same-named card already in the list.
+- **Custom art** — a path inside the [art directory](/configuration/#directory-options) or an image URL, validated as you type; an unusable reference is explained under the field and blocks the add until it is fixed or cleared. Unlike the printing, the art is not part of the change: it is held until the save gives the new line its `&N`, and written straight after it (see [Custom Art](#custom-art)). Offered in the admin editors only — the public editor exports changes and has no sidecar to write.
+
+Both fields reset for the next card, including after **Add Another Card**.
+
 ### Context Menu
 
-Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil**, **Change Printing…**, [**Set Language…**](#card-language), and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**; the Collection Editor offers [**Set Label…**](#card-labels).
+Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil**, **Change Printing…**, [**Set Language…**](#card-language), [**Set Custom Art…**](#custom-art), and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**; the Deck and Collection Editors offer [**Set Label…**](#card-labels) with their type's choices.
 
 #### Move to Section
 
@@ -193,6 +202,43 @@ Every card entry has a [language](/commands/edit/#card-language) — a Scryfall 
 - **Adding never asks for a language**: new cards are stamped with the configured [`defaultLanguage`](/configuration/#default-language) (editable on the admin **Settings** page). Change an individual copy afterwards with **Set Language…**.
 - The **printing picker** shows one tile per physical printing (set + collector number), never one per language object. Under a non-English default, a printing that does not exist in that language is marked with a notice — picking it records the copy in the language that does exist (English when available) rather than inventing a language Scryfall has no card object for.
 
+### Custom Art
+
+**Set Custom Art…** in a card's `⋯` context menu opens the **Custom Art** dialog, where a card can
+be shown with your own image instead of its Scryfall art — a proxy scan, an alter, commissioned art.
+See [Custom Card Art](/custom-art/) for the sidecar format and how the image is published.
+
+- Pick an **Image source**: _File in the art directory_ (a path like `proxies/sol-ring.jpg`,
+  relative to [`artDir`](/configuration/#directory-options)) or _Image on the web_ (an `http(s)`
+  URL). A live preview renders as you type, and says so when the image cannot be loaded.
+- **Save** writes immediately through the [Card Art](/admin/api/#card-art) route; **Remove art**
+  clears the card's entry. Both take effect in the editor at once — the tile and the card modal
+  re-render with the new image.
+- _Setting_ custom art is **metadata, not a pending change**: it is never listed in **Changes**,
+  never part of a save, and never recorded in the changelog. It is also safe to set while card edits
+  are pending, since the card lines and the art sidecar are disjoint files. A save still _re-files_
+  the sidecar for the ids it changed — a removed card's art goes with it, a renumbered line takes
+  its entry along, and **Move to list…** carries the entry to the destination. See
+  [Art follows the card](/custom-art/#art-follows-the-card).
+- The dialog targets a card's `&N` id. A tile that groups identical copies applies the art to the
+  **first** copy — the one the tile renders.
+- A card **added during this session** has no card line yet, so there is nothing for the art route
+  to write against. The dialog says so and holds the reference with your pending changes instead;
+  the save that writes the card's line writes its art immediately afterwards. If that write fails
+  (a file that is not there, for instance) the editor's error banner says which card and why — the
+  list is saved either way, so re-open the dialog and fix the reference.
+- **Undo** of a removal brings the card's art back with it, as long as the id has not been
+  reused: the undo reclaims the card's original `&N`, and whatever art the list holds for it
+  applies again. An undo that has to allocate a fresh id restores the card without its art.
+- A card given custom art [carries no price](/custom-art/#custom-art-carries-no-price) —
+  the same rule the `proxy` label carries, and `custom-art` is the reason that wins when a card
+  has both. It shows **CUSTOM** where a price would be, counts as `0` in every total, and is
+  never quoted against a buylist. That holds from the moment the reference is written, even if
+  the image file itself is missing.
+- A local file must already exist under the art directory: the route refuses a path with nothing
+  behind it and names the exact location it checked. The admin server serves the art directory
+  read-only (behind the same login) so the preview can show local files.
+
 ### Change Tracking
 
 All edits are tracked as in-memory change events until explicitly saved.
@@ -200,7 +246,7 @@ All edits are tracked as in-memory change events until explicitly saved.
 - **Changes** button shows the count of pending changes and opens a dialog listing them
 - Additive changes (add card, set commander, set finish, set printing, set language) are shown in green
 - Destructive changes (remove card) are shown in red
-- Opposite changes cancel out automatically (e.g., adding then removing the same card)
+- Opposite changes cancel out automatically (e.g., adding then removing the same card) — but only when the two copies are the same card in every respect, [label override](#card-labels) included: re-adding a card as a proxy does not cancel the removal of a real copy of it
 - Card names in the changes dialog are clickable links that open the card detail modal
 - Hovering a card name shows a preview image of the card
 
@@ -241,11 +287,35 @@ Open **Edit Lists** (admin sidebar or Dashboard card) and select the **Decks** t
 
 ### Context Menu
 
-The **⋯** button opens a context menu with:
+The **⋯** button opens a context menu with the [items every editor shares](#context-menu) —
+**Set as Foil**, **Change Printing…**, [**Set Language…**](#card-language), [**Set Custom
+Art…**](#custom-art), and **Move to section…** — plus two the Deck Editor adds:
 
-- **Set as Foil** — Mark the card as foil (greyed out if the printing doesn't support foil)
-- **Change Printing…** — Pick a new printing for the card; for an entry with quantity > 1 you are first asked how many copies to retarget (see [Change Printing](#change-printing))
 - **Set as Commander** — Move the card to the Commander section (supports multiple commanders)
+- [**Set Label…**](#deck-labels) — Set the line's `proxy` override
+
+**Change Printing…** on an entry with quantity > 1 first asks how many copies to retarget (see
+[Change Printing](#change-printing)); **Set as Foil** is greyed out when the printing has no foil.
+
+### Deck Labels
+
+A deck carries exactly one [card label](/commands/edit/#card-labels), **Proxy**, and the deck
+editor edits it at both levels:
+
+- The action bar's **Labels** button opens the same **Default Labels** modal collections use,
+  offering **No default** and **Proxy**. It writes the deck's front-matter `labels:` through the
+  [List Metadata](/admin/api/#list-metadata) route immediately, exactly as it does for a
+  collection — which is how you mark a whole playtest deck as proxies without touching a card
+  line.
+- **Set Label…** in a card's **⋯** context menu (and in the multi-select **Selected** menu) sets
+  one line's override, offering **Proxy** and **Use list default** — the deck's whole vocabulary.
+  It is a pending `set-label` change like any other: undoable, listed in **Changes**, and written
+  on save.
+
+Proxied cards render their badge and, in place of a price, the **PROXY** marker — in the editor
+and on the public site alike. They count as `0` in every total and are never offered to a
+buylist; see [Custom art carries no price](/custom-art/#custom-art-carries-no-price) for the one
+rule both by-rule priceless flavours share.
 
 ### Adding Cards
 
@@ -268,6 +338,8 @@ Fields in order:
 - `(SET:CN)` — Set code and collector number
 - `[finish]` — `nonfoil`, `foil`, or `etched`
 - `[condition]` — `NM`, `LP`, `MP`, `HP`, or `DMG`
+- `[lang]` — a [Scryfall language code](#card-language); omitted for English
+- `[labels]` — the card's [label override](/commands/edit/#card-labels); a deck carries `proxy` only
 - `&N` — Persistent card ID (auto-assigned, used internally for change tracking)
 
 All fields are optional and backwards-compatible with the basic format.
@@ -288,10 +360,11 @@ Collections correspond to `.md` files in the `collections/` directory.
 
 ### Card Labels
 
-Collections carry [card labels](/commands/edit/#collection-files) (For sale / For trade / To keep), and the collection editor is where they're edited:
+Collections carry the whole [card label](/commands/edit/#card-labels) vocabulary — For sale / For trade / To keep / Proxy — where a deck carries **Proxy** alone:
 
-- **Set Label…** in a card's `⋯` context menu (and in the multi-select **Selected** menu) opens a picker with the four label states plus **Use list default**, which clears the card's override. The change is a pending `set-label` edit like any other — undoable, listed in **Changes**, and written on save. Tiles badge cards whose _override_ differs from the list default.
-- The action bar's **Labels** button opens the **Default Labels** modal, which writes the collection's front-matter `labels:` default through the [List Metadata](/admin/api/#list-metadata) route immediately (front matter is not part of the card-change pipeline, so it needs no save — and the editor adopts the returned content hash, so pending card edits still save cleanly afterward).
+- **Set Label…** in a card's `⋯` context menu (and in the multi-select **Selected** menu) opens a picker with the five label states plus **Use list default**, which clears the card's override. The change is a pending `set-label` edit like any other — undoable, listed in **Changes**, and written on save. Tiles badge cards whose _override_ differs from the list default.
+- The picker offers only what the selected cards' list type carries, so in the **Selected** menu it is hidden altogether for a selection spanning several list types (their vocabularies differ) or one whose type carries no labels.
+- The action bar's **Labels** button opens the **Default Labels** modal, which writes the list's front-matter `labels:` default through the [List Metadata](/admin/api/#list-metadata) route immediately (front matter is not part of the card-change pipeline, so it needs no save — and the editor adopts the returned content hash, so pending card edits still save cleanly afterward).
 
 ---
 
@@ -319,7 +392,8 @@ Wanted lists correspond to `.md` files in the `wanted/` directory.
 | No specific printing      | ✅ Allowed              | ❌ Must select    | ✅ Allowed         |
 | Condition field           | ✅ Optional             | ✅ Required       | ❌ Not applicable  |
 | Finish field              | ✅ Optional             | ✅ Required       | ✅ Optional        |
-| Card labels               | ❌                      | ✅ + list default | ❌                 |
+| Card labels               | ✅ Proxy + list default | ✅ + list default | ❌                 |
+| Custom art                | ✅                      | ✅                | ✅                 |
 | Sections                  | ✅ + reserved Commander | ✅ User-named     | ✅ User-named      |
 | Add/rename/delete section | ✅                      | ✅                | ✅                 |
 | Move card to section      | ✅                      | ✅                | ✅                 |

@@ -185,6 +185,45 @@ describe('site server (Integration)', () => {
     expect((await fetch(`${base}/api/deck/emberwild-aggro`, { method: 'DELETE' })).status).toBe(404)
   })
 
+  describe('custom art route', () => {
+    beforeAll(async () => {
+      // The workspace's configured art directory (`artDir`, default ./art).
+      await fs.mkdir(path.join(dir, 'art', 'proxies'), { recursive: true })
+      await fs.writeFile(path.join(dir, 'art', 'proxies', 'sol ring.png'), 'ring-bytes')
+      await fs.writeFile(path.join(dir, 'art', 'notes.txt'), 'not an image')
+      // A real image one level *above* the art directory, with an extension the
+      // route serves: the target a traversal would reach if the guard were
+      // gone. Without it, a `..` request 404s on the extension gate or on the
+      // file simply not being there, and the assertion below would hold for a
+      // route that has no guard at all.
+      await fs.writeFile(path.join(dir, 'outside.png'), 'outside-bytes')
+    })
+
+    test('serves a nested art file at the path a built site carries it at', async () => {
+      const response = await fetch(`${base}/art/proxies/sol%20ring.png`)
+      expect(response.status).toBe(200)
+      expect(response.headers.get('Content-Type')).toBe('image/png')
+      expect(await response.text()).toBe('ring-bytes')
+    })
+
+    test('404s a missing file and a non-image extension', async () => {
+      expect((await fetch(`${base}/art/nope.png`)).status).toBe(404)
+      expect((await fetch(`${base}/art/notes.txt`)).status).toBe(404)
+    })
+
+    test('404s a traversal to a real image outside the art directory', async () => {
+      for (const suffix of [
+        '..%2Foutside.png',
+        '..%5Coutside.png',
+        'proxies/..%2F..%2Foutside.png',
+      ]) {
+        const response = await fetch(`${base}/art/${suffix}`)
+        expect(response.status).toBe(404)
+        expect(await response.text()).not.toContain('outside-bytes')
+      }
+    })
+  })
+
   test('static assets and SPA fallback still work; unknown /api/* is JSON 404, not SPA', async () => {
     const html = await fetch(`${base}/`)
     expect(html.status).toBe(200)

@@ -9,8 +9,8 @@ import {
   createChangeId,
 } from '../../src/change-event'
 import { formatChange } from '../../src/change-message'
-import type { ChangeEvent, ChangeAction } from '../../src/change-event'
-import { applyChangeToDeck } from '../../src/editor/deck-changes'
+import type { AddChange, ChangeAction, ChangeEvent, ChangeInput } from '../../src/change-event'
+import { applyChangeToDeck, findDeckAddMergeTargetId } from '../../src/editor/deck-changes'
 import type { DeckData } from '../../src/types'
 import { runMissMatrix, type MissMatrixCase } from '../test-utils'
 
@@ -26,6 +26,7 @@ type MakeChangeOverrides = {
   note?: string
   section?: string
   newSection?: string
+  labels?: string[]
   to?: unknown
   from?: unknown
 }
@@ -187,6 +188,38 @@ describe('areOppositeChanges', () => {
       'add to Sideboard + remove from Main (default) does not cancel',
       { action: 'add', cardName: 'Sol Ring', board: 'Sideboard' },
       { action: 'remove', cardName: 'Sol Ring' },
+      false,
+    ],
+    // Labels are part of the card's identity: cancelling these would keep the
+    // line that was there, override and all, and the re-add's would never land.
+    [
+      'a proxy re-add does not cancel the removal of a real copy',
+      { action: 'add', cardName: 'Sol Ring', labels: ['proxy'] },
+      { action: 'remove', cardName: 'Sol Ring' },
+      false,
+    ],
+    [
+      'a real re-add does not cancel the removal of a proxy copy',
+      { action: 'add', cardName: 'Sol Ring' },
+      { action: 'remove', cardName: 'Sol Ring', labels: ['proxy'] },
+      false,
+    ],
+    [
+      'add + remove under the same override cancel',
+      { action: 'add', cardName: 'Sol Ring', labels: ['proxy'] },
+      { action: 'remove', cardName: 'Sol Ring', labels: ['proxy'] },
+      true,
+    ],
+    [
+      'an empty override and none at all are the same thing',
+      { action: 'add', cardName: 'Sol Ring', labels: [] },
+      { action: 'remove', cardName: 'Sol Ring' },
+      true,
+    ],
+    [
+      'add + remove under different overrides do not cancel',
+      { action: 'add', cardName: 'Sol Ring', labels: ['keep'] },
+      { action: 'remove', cardName: 'Sol Ring', labels: ['proxy'] },
       false,
     ],
   ]
@@ -981,6 +1014,85 @@ describe('applyChangeToDeck — additional action coverage', () => {
   })
 })
 
+describe('applyChangeToDeck — labels', () => {
+  test('set-label writes the override; an empty set clears it', () => {
+    const labeled = applyChangeToDeck(
+      makeDeck(),
+      makeChange({ action: 'set-label', cardName: 'Lightning Bolt', cardId: 5, labels: ['proxy'] }),
+    )
+    expect(labeled.sections[0]!.cards[0]!.labels).toEqual(['proxy'])
+
+    const cleared = applyChangeToDeck(
+      labeled,
+      makeChange({ action: 'set-label', cardName: 'Lightning Bolt', cardId: 5, labels: [] }),
+    )
+    expect(cleared.sections[0]!.cards[0]!.labels).toBeUndefined()
+  })
+
+  test('an add carries its label override onto the new line', () => {
+    const result = applyChangeToDeck(
+      makeDeck(),
+      makeChange({
+        action: 'add',
+        cardName: 'Sol Ring',
+        set: 'ltc',
+        collectorNumber: '284',
+        labels: ['proxy'],
+      }),
+    )
+    const added = result.sections[0]!.cards.find((c) => c.name === 'Sol Ring')!
+    expect(added.labels).toEqual(['proxy'])
+  })
+})
+
+describe('findDeckAddMergeTargetId', () => {
+  /** The add an editing session builds: a freshly allocated id no line carries. */
+  const addOf = (overrides: Partial<AddChange> = {}): ChangeInput => ({
+    action: 'add',
+    cardName: 'Lightning Bolt',
+    set: 'lea',
+    collectorNumber: '161',
+    cardId: 99,
+    ...overrides,
+  })
+
+  test('names the line the add merges into, whose id is not the one it carries', () => {
+    const deck = makeDeck()
+    const add = addOf()
+    expect(findDeckAddMergeTargetId(deck, add)).toBe(5)
+    // The reason it matters: the allocated `&99` reaches no card line, so
+    // per-line metadata (custom art) aimed at it would be written for nothing.
+    const result = applyChangeToDeck(deck, add)
+    expect(result.sections[0]!.cards).toHaveLength(1)
+    expect(result.sections[0]!.cards[0]!.quantity).toBe(5)
+    expect(result.sections.flatMap((s) => s.cards).map((c) => c.cardId)).toEqual([5])
+  })
+
+  test('a printing the deck does not have starts its own line', () => {
+    expect(
+      findDeckAddMergeTargetId(makeDeck(), addOf({ set: 'm10', collectorNumber: '146' })),
+    ).toBeUndefined()
+  })
+
+  test('a copy under a different label override starts its own line', () => {
+    expect(findDeckAddMergeTargetId(makeDeck(), addOf({ labels: ['proxy'] }))).toBeUndefined()
+  })
+
+  test('a card the deck does not have starts its own line', () => {
+    expect(findDeckAddMergeTargetId(makeDeck(), addOf({ cardName: 'Sol Ring' }))).toBeUndefined()
+  })
+
+  test('answers nothing for a change that is not an add', () => {
+    expect(
+      findDeckAddMergeTargetId(makeDeck(), {
+        action: 'remove',
+        cardName: 'Lightning Bolt',
+        cardId: 5,
+      }),
+    ).toBeUndefined()
+  })
+})
+
 describe('applyChangeToDeck — onMiss reporting', () => {
   const cases: MissMatrixCase<ChangeEvent>[] = [
     [
@@ -1008,6 +1120,16 @@ describe('applyChangeToDeck — onMiss reporting', () => {
       // valid name resolves by name rather than missing.
       'remove with a stale cardId and a valid name applies via the name tier',
       makeChange({ action: 'remove', cardName: 'Lightning Bolt', cardId: 999 }),
+      null,
+    ],
+    [
+      'set-label on an absent card misses',
+      makeChange({ action: 'set-label', cardName: 'Sol Ring', labels: ['proxy'] }),
+      'no-target',
+    ],
+    [
+      'set-label on a present card applies',
+      makeChange({ action: 'set-label', cardName: 'Lightning Bolt', labels: ['proxy'] }),
       null,
     ],
     [

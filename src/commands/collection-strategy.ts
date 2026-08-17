@@ -9,6 +9,8 @@ import {
   isCondition,
   isFinish,
   lookupPinnedPrinting,
+  promptCardLabelChoice,
+  promptDefaultLabelsChoice,
   promptFinishAndCondition,
   promptLanguageChoice,
   resolveAddedLanguage,
@@ -41,6 +43,7 @@ import {
 } from './flat-list-session'
 import {
   applyFlatListFieldEdit,
+  editFlatListArt,
   editFlatListNote,
   entryPrinting,
   findFlatListEntry,
@@ -69,13 +72,10 @@ import {
 } from '../change-event'
 import { displayLanguage, type CardLanguage } from '../card-language'
 import {
-  CARD_LABEL_CHOICES,
-  CARD_LABEL_DEFAULT_CHOICES,
   formatCardLabels,
   parseCardLabelsValue,
   sameCardLabels,
   type CardLabel,
-  type CardLabelChoice,
 } from '../card-labels'
 import { dumpFrontMatterBlock, readFrontMatterMapping } from '../front-matter-write'
 import { applyLabelsPatch } from '../flat-list-metadata'
@@ -100,47 +100,6 @@ async function promptFinishChoice(
     initial: Math.max(0, VALID_FINISHES.indexOf(current)),
   })) as ValuePromptResponse
   return isFinish(response.value) ? response.value : null
-}
-
-/**
- * Pick a label state from `choices`, marking the current one and starting the
- * cursor on it. Returns null when cancelled. Choices round-trip through their
- * canonical serialized form (`''` for the clear row) — a real domain value,
- * like `promptConditionChoice`'s, rather than an array index. Shared by the
- * per-card override picker and the list-default picker.
- */
-async function promptLabelChoiceFrom(
-  choices: readonly CardLabelChoice[],
-  current: readonly CardLabel[] | undefined,
-  message: string,
-): Promise<CardLabel[] | null> {
-  const currentKey = formatCardLabels(current ?? [])
-  const currentIndex = choices.findIndex((choice) => formatCardLabels(choice.labels) === currentKey)
-  const response = (await prompts({
-    type: 'select',
-    name: 'value',
-    message,
-    choices: choices.map((choice, i) => ({
-      title:
-        i === currentIndex ? t('cli.edit.current', { label: t(choice.label) }) : t(choice.label),
-      value: formatCardLabels(choice.labels),
-    })),
-    initial: Math.max(0, currentIndex),
-  })) as ValuePromptResponse
-  const key = response.value
-  if (key === undefined) return null
-  const picked = choices.find((choice) => formatCardLabels(choice.labels) === key)
-  return picked ? [...picked.labels] : null
-}
-
-/**
- * Pick a label override for an existing entry: the four label states plus
- * "Use list default" (clear, encoded as `[]`).
- */
-async function promptLabelChoice(
-  current: readonly CardLabel[] | undefined,
-): Promise<CardLabel[] | null> {
-  return promptLabelChoiceFrom(CARD_LABEL_CHOICES, current, t('cli.collection.promptLabel'))
 }
 
 /** Pick a condition for an existing entry, defaulting the cursor to the current one. */
@@ -238,11 +197,7 @@ export function createCollectionStrategy(
     const stored =
       data.labels === undefined ? undefined : parseCardLabelsValue(data.labels, 'labels')
     const current = stored?.ok ? stored.labels : []
-    const labels = await promptLabelChoiceFrom(
-      CARD_LABEL_DEFAULT_CHOICES,
-      current,
-      t('cli.collection.promptDefaultLabels'),
-    )
+    const labels = await promptDefaultLabelsChoice('collection', current)
     if (labels === null) return
     // A stored value the parser refuses reads as "none" above, but re-picking
     // "No default" must still rewrite the block — it is how the TUI repairs an
@@ -256,8 +211,8 @@ export function createCollectionStrategy(
     session.dirty = true
     console.log(
       labels.length > 0
-        ? t('cli.collection.defaultLabelsSet', { labels: formatCardLabels(labels) })
-        : t('cli.collection.defaultLabelsCleared'),
+        ? t('cli.labels.defaultSet', { labels: formatCardLabels(labels) })
+        : t('cli.labels.defaultCleared'),
     )
   }
 
@@ -267,11 +222,11 @@ export function createCollectionStrategy(
     sessionConfig,
     extraMenuItems: (): MenuChoice[] => {
       const params = {
-        labels: formatCardLabels(currentDefaultLabels()) || t('cli.collection.labelsNone'),
+        labels: formatCardLabels(currentDefaultLabels()) || t('cli.labels.none'),
       }
       return [
-        menuItem(`🏷️  ${t('cli.collection.menuListLabels', params)}`, '__LIST_LABELS__', [
-          tIn(DEFAULT_LOCALE, 'cli.collection.menuListLabels', params),
+        menuItem(`🏷️  ${t('cli.labels.menuListLabels', params)}`, '__LIST_LABELS__', [
+          tIn(DEFAULT_LOCALE, 'cli.labels.menuListLabels', params),
         ]),
       ]
     },
@@ -281,7 +236,7 @@ export function createCollectionStrategy(
     updateConfig: (excludeDigital: boolean) =>
       promptSessionConfigUpdate(sessionConfig, true, excludeDigital),
     applyChange: (change: ChangeEvent) => applyFlatListChange(session, change),
-    receiveMove: (change) => receiveFlatListMove(session, change),
+    receiveMove: (change, art) => receiveFlatListMove(session, change, art),
     persist: () => persistFlatListSession(session),
     hasUnsavedChanges: () => session.dirty,
     sessionSaved: () => resetFlatListSessionTracking(list),
@@ -353,6 +308,7 @@ export function createCollectionStrategy(
         { title: `📋 ${t('cli.editAction.changeCondition')}`, value: 'condition' },
         { title: `🌐 ${t('cli.editAction.changeLanguage')}`, value: 'language' },
         { title: `🏷️  ${t('cli.editAction.changeLabel')}`, value: 'label' },
+        { title: `🎨 ${t('cli.editAction.setArt')}`, value: 'art' },
         ...(moveTargets
           ? [{ title: `📤 ${t('cli.editAction.moveToList')}`, value: 'move-list' }]
           : []),
@@ -445,7 +401,7 @@ export function createCollectionStrategy(
       }
 
       if (action === 'label') {
-        const labels = await promptLabelChoice(entry.labels)
+        const labels = await promptCardLabelChoice('collection', entry.labels)
         if (labels === null || sameCardLabels(labels, entry.labels)) {
           return
         }
@@ -457,6 +413,11 @@ export function createCollectionStrategy(
             consolidateSetLabel(changes, entry.name, labels, original.labels, cardId),
         })
         logUpdated(cardId, entry.name)
+        return
+      }
+
+      if (action === 'art') {
+        await editFlatListArt(list, entry, cardId)
         return
       }
 

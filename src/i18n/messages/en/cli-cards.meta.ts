@@ -16,8 +16,9 @@ export const cliCardsMeta = {
     description:
       'Refusal when --condition is used on a wanted list, which records no card condition.',
   },
-  'cli.cardOps.labelCollectionsOnly': {
-    description: 'Refusal when --label is used on a deck or wanted list.',
+  'cli.cardOps.labelsUnsupported': {
+    description:
+      'Refusal when --label names labels the list type does not carry. {labels} lists the offenders and {supported} the labels that type accepts (both are comma-joined machine slugs); the wanted branch has neither, since wanted entries carry no labels at all. One sentence per type: the noun is gendered in most languages.',
   },
   'cli.cardOps.cardIdPositive': {
     description:
@@ -254,6 +255,37 @@ export const cliCardsMeta = {
   },
   'cli.setCard.noChangeGiven': {
     description: 'set-card was run with no mutating flag. The flag names never translate.',
+  },
+  'cli.setCard.artInvalid': {
+    description:
+      "Wraps the art-reference parser's refusal of a --art value with the escape hatch. 'none' is a machine value; {reason} is untranslated engine prose.",
+  },
+  'cli.setCard.artFileMissing': {
+    description:
+      "Refusal when --art names a file that is not in the art directory. {path} is the absolute path checked, {dir} the art directory. The 'ritual config set artDir' command never translates.",
+  },
+  'cli.setCard.artFileUnreadable': {
+    description:
+      'Refusal when the --art file exists but could not be examined. {reason} is the operating system error text.',
+  },
+  'cli.setCard.artNotAFile': {
+    description: 'Refusal when the --art path resolves to a directory rather than an image file.',
+  },
+  'cli.setCard.artNeedsId': {
+    description:
+      "Refusal when --art targets a card line with no &N id to file the art under. '&N' is the file format's card-id token.",
+  },
+  'cli.setCard.artSidecarUnreadable': {
+    description:
+      "Refusal when the list's existing custom-art sidecar could not be read. {reason} is untranslated engine prose naming the file.",
+  },
+  'cli.setCard.appliedArt': {
+    description:
+      'One entry of the applied-changes list. {art} is the image path or URL now recorded for the card.',
+  },
+  'cli.setCard.artCleared': {
+    description:
+      "One entry of the applied-changes list: the card's custom art was removed, so its real art shows again.",
   },
   'cli.setCard.sectionDecksOnly': { description: 'Refusal when --section is used outside a deck.' },
   'cli.setCard.commanderDecksOnly': {

@@ -67,6 +67,11 @@ export const domainMeta = {
     description: 'Card label meaning the owner will not part with this card.',
     maxLen: 16,
   },
+  'domain.label.proxy': {
+    description:
+      'Card label meaning this copy is a proxy — a stand-in printout, not a real card — so it is worth nothing.',
+    maxLen: 16,
+  },
   'domain.label.saleAndTrade': {
     description: 'Label picker row applying both the "for sale" and "for trade" labels at once.',
     maxLen: 24,
@@ -490,7 +495,7 @@ export const domainMeta = {
     description: `${CHANGE_CONTEXT} A card's note was deleted. ${ID_CONTEXT}`,
   },
   'domain.change.setLabels': {
-    description: `${CHANGE_CONTEXT} A card's labels were set. {labels} is a comma-joined list of the untranslated tokens sale / trade / keep; keep the square brackets, which are file-format punctuation. ${ID_CONTEXT}`,
+    description: `${CHANGE_CONTEXT} A card's labels were set. {labels} is a comma-joined list of the untranslated tokens sale / trade / keep / proxy; keep the square brackets, which are file-format punctuation. ${ID_CONTEXT}`,
   },
   'domain.change.clearLabels': {
     description: `${CHANGE_CONTEXT} A card's label override was cleared, so the list default applies again. ${ID_CONTEXT}`,

@@ -19,6 +19,7 @@ export const domainMessages = {
   'domain.label.sale': 'For sale',
   'domain.label.trade': 'For trade',
   'domain.label.keep': 'To keep',
+  'domain.label.proxy': 'Proxy',
   'domain.label.saleAndTrade': 'For sale + trade',
   'domain.label.useListDefault': 'Use list default',
   'domain.label.noDefault': 'No default',

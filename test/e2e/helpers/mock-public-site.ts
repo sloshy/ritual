@@ -18,6 +18,7 @@ import {
   MOCK_COLLECTION_CARD_PRICED,
   MOCK_COLLECTION_DETAIL,
   MOCK_WANTED_LIST_DETAIL,
+  TINY_PNG,
   makeMockScryfallCard,
   withImage,
 } from './mock-cards'
@@ -605,6 +606,179 @@ export async function mockPublicSiteCollectionsForLabels(page: Page): Promise<vo
   await fulfillJson(page, '**/collections/sale-binder.json', MOCK_SALE_BINDER_DETAIL)
 }
 
+// ===== Deck with a proxy and custom art =====
+
+/** The baked `customArt` of the deck's proxy card — a site-relative art path. */
+export const MOCK_DECK_ART_PATH = 'art/proxies/bolt.png'
+
+/** Every deck card carries the same printing price, so the total tells them apart. */
+function makeProxyDeckCard(name: string, collectorNumber: string): ScryfallCard {
+  return withImage(
+    makeMockScryfallCard({
+      id: `proxy-deck-${collectorNumber}`,
+      name,
+      cmc: 1,
+      type_line: 'Artifact',
+      prices: { usd: '10.00' },
+      set: 'tst',
+      collector_number: collectorNumber,
+    }),
+  )
+}
+
+const MOCK_PROXY_DECK_REAL = makeProxyDeckCard('Real Ring', '20')
+const MOCK_PROXY_DECK_PROXY = makeProxyDeckCard('Proxy Bolt', '21')
+const MOCK_PROXY_DECK_PLAIN_PROXY = makeProxyDeckCard('Plain Proxy', '22')
+
+// All three cards price at $10, and only the real one counts: the deck total is
+// the observable that separates "the client zeroed the priceless copies" from
+// "the bake did", since the tile prices come straight off the printing. Two
+// flavours of priceless are present on purpose — `Proxy Bolt` is a proxy that
+// also wears custom art (so its marker must read CUSTOM, the winning reason),
+// while `Plain Proxy` carries the label alone (PROXY).
+const MOCK_PROXY_DECK = {
+  deck: {
+    name: 'Proxy Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 1, name: 'Real Ring', set: 'tst', collectorNumber: '20', cardId: 1 },
+          {
+            quantity: 1,
+            name: 'Proxy Bolt',
+            set: 'tst',
+            collectorNumber: '21',
+            cardId: 2,
+            labels: ['proxy'],
+            customArt: MOCK_DECK_ART_PATH,
+          },
+          {
+            quantity: 1,
+            name: 'Plain Proxy',
+            set: 'tst',
+            collectorNumber: '22',
+            cardId: 3,
+            labels: ['proxy'],
+          },
+        ],
+      },
+    ],
+  },
+  cards: {
+    'Real Ring': MOCK_PROXY_DECK_REAL,
+    'Proxy Bolt': MOCK_PROXY_DECK_PROXY,
+    'Plain Proxy': MOCK_PROXY_DECK_PLAIN_PROXY,
+  },
+  printings: { 'Proxy Bolt': [MOCK_PROXY_DECK_PROXY] },
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+} satisfies DeckDetail
+
+const MOCK_SITE_INDEX_WITH_PROXY_DECK = makeSiteIndex({
+  decks: [
+    makeDeckSummary({ slug: 'proxy-deck', name: 'Proxy Deck', cardCount: 3, totalPrice: 10 }),
+  ],
+})
+
+/**
+ * Serve every `art/…` request a real (1×1) PNG, standing in for the files a
+ * built site copies into `dist/art/`. Without it the custom-art `<img>` would
+ * 404 and the spec could not tell "pointed at the art" from "rendered nothing".
+ */
+export async function mockCustomArtFiles(page: Page): Promise<void> {
+  const body = Buffer.from(TINY_PNG.slice(TINY_PNG.indexOf(',') + 1), 'base64')
+  await page.route('**/art/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'image/png', body }),
+  )
+}
+
+/**
+ * Mock a synthetic deck holding one ordinary card, one `[proxy]` card that also
+ * carries custom art, and one plain `[proxy]` — the deck-side label surfaces
+ * (badge, chips, the zero-price rule), both priceless markers, and the
+ * custom-art image override in one payload.
+ */
+export async function mockPublicSiteProxyDeck(page: Page): Promise<void> {
+  await mockCustomArtFiles(page)
+  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_WITH_PROXY_DECK)
+  await fulfillJson(page, '**/decks/proxy-deck.json', MOCK_PROXY_DECK)
+}
+
+// ===== Collection whose custom-art file the build could not deploy =====
+
+/**
+ * Two identical $10 printings, one of which the art sidecar claims. Only the
+ * *claim* is baked (`hasCustomArt`) — no `customArt` URL — which is exactly what
+ * a build produces for a reference whose image file it could not copy: the card
+ * shows its real printing and is priceless all the same.
+ */
+const MOCK_GHOST_ART_DETAIL = {
+  name: 'Ghost Art Binder',
+  entries: [
+    makeCollectionEntry({
+      name: 'Ghost Art',
+      collectorNumber: '30',
+      price: 0,
+      fileOrder: 0,
+      cardId: 1,
+      hasCustomArt: true,
+    }),
+    makeCollectionEntry({
+      name: 'Real Card',
+      collectorNumber: '31',
+      price: 10,
+      fileOrder: 1,
+      cardId: 2,
+    }),
+  ],
+  cards: {
+    'tst:30': makeMockScryfallCard({
+      id: 'ghost-30',
+      name: 'Ghost Art',
+      cmc: 1,
+      type_line: 'Artifact',
+      prices: { usd: '10.00' },
+      set: 'tst',
+      collector_number: '30',
+    }),
+    'tst:31': makeMockScryfallCard({
+      id: 'ghost-31',
+      name: 'Real Card',
+      cmc: 1,
+      type_line: 'Artifact',
+      prices: { usd: '10.00' },
+      set: 'tst',
+      collector_number: '31',
+    }),
+  },
+  printings: {},
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  totalPrice: 10,
+  defaultCurrency: 'usd',
+} satisfies CollectionDetail
+
+const MOCK_SITE_INDEX_WITH_GHOST_ART = makeSiteIndex({
+  collections: [
+    makeCollectionSummary({
+      slug: 'ghost-art-binder',
+      name: 'Ghost Art Binder',
+      cardCount: 2,
+      totalPrice: 10,
+    }),
+  ],
+})
+
+/** Mock a collection holding one card whose custom-art file was never deployed. */
+export async function mockPublicSiteCollectionWithUndeployedArt(page: Page): Promise<void> {
+  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_WITH_GHOST_ART)
+  await fulfillJson(page, '**/collections/ghost-art-binder.json', MOCK_GHOST_ART_DETAIL)
+}
+
 // ===== Sell mode (Card Kingdom buylist) =====
 
 /** One synthetic printing per sell-mode entry, keyed by a unique set:cn. */
@@ -1115,6 +1289,38 @@ const MOCK_TRADE_COLLECTION_CARD_GEM = makeMockScryfallCard({
   released_at: '2020-01-01',
 })
 
+/**
+ * The two by-rule priceless entries the trade board must mark instead of
+ * pricing. Both printings are worth real money, so a row showing a figure is a
+ * regression rather than a fixture accident. Named so no existing spec's search
+ * query reaches them.
+ */
+const MOCK_TRADE_COLLECTION_CARD_ALTERED = makeMockScryfallCard({
+  id: 'trade-altered-id',
+  name: 'Altered Bauble',
+  cmc: 1,
+  type_line: 'Artifact',
+  prices: { usd: '12.00', eur: '10.00' },
+  set: 'tst',
+  set_name: 'Test Set',
+  collector_number: '43',
+  rarity: 'rare',
+  released_at: '2020-01-01',
+})
+
+const MOCK_TRADE_COLLECTION_CARD_FAKE = makeMockScryfallCard({
+  id: 'trade-fake-id',
+  name: 'Fake Relic',
+  cmc: 1,
+  type_line: 'Artifact',
+  prices: { usd: '15.00', eur: '13.00' },
+  set: 'tst',
+  set_name: 'Test Set',
+  collector_number: '44',
+  rarity: 'rare',
+  released_at: '2020-01-01',
+})
+
 const MOCK_TRADE_WANTED_CARD_CRYPT = makeMockScryfallCard({
   id: 'trade-crypt-id',
   name: 'Mana Crypt',
@@ -1202,18 +1408,50 @@ const MOCK_TRADE_COLLECTION_DETAIL = {
       section: 'Main',
       cardId: 6,
     },
+    // Priceless by rule, and baked as the site bakes them: price 0, with the
+    // reason still readable from the entry. Custom art wins over the label when
+    // both apply, which is why the altered copy carries the label too.
+    {
+      name: 'Altered Bauble',
+      set: 'tst',
+      collectorNumber: '43',
+      finish: 'nonfoil',
+      condition: 'NM',
+      labels: ['proxy'],
+      customArt: MOCK_DECK_ART_PATH,
+      price: 0,
+      fileOrder: 6,
+      section: 'Main',
+      cardId: 7,
+    },
+    {
+      name: 'Fake Relic',
+      set: 'tst',
+      collectorNumber: '44',
+      finish: 'nonfoil',
+      condition: 'NM',
+      labels: ['proxy'],
+      price: 0,
+      fileOrder: 7,
+      section: 'Main',
+      cardId: 8,
+    },
   ],
   cards: {
     'lea:161': MOCK_TRADE_COLLECTION_CARD_BOLT,
     'c19:221': MOCK_TRADE_COLLECTION_CARD_RING,
     'csp:14': MOCK_TRADE_COLLECTION_CARD_JOTUN,
     'tst:42': MOCK_TRADE_COLLECTION_CARD_GEM,
+    'tst:43': MOCK_TRADE_COLLECTION_CARD_ALTERED,
+    'tst:44': MOCK_TRADE_COLLECTION_CARD_FAKE,
   },
   printings: {
     'Lightning Bolt': [MOCK_TRADE_COLLECTION_CARD_BOLT],
     'Sol Ring': [MOCK_TRADE_COLLECTION_CARD_RING],
     'Jötun Grunt': [MOCK_TRADE_COLLECTION_CARD_JOTUN],
     'Guarded Gem': [MOCK_TRADE_COLLECTION_CARD_GEM],
+    'Altered Bauble': [MOCK_TRADE_COLLECTION_CARD_ALTERED],
+    'Fake Relic': [MOCK_TRADE_COLLECTION_CARD_FAKE],
   },
   symbolMap: {},
   useScryfallImgUrls: false,
@@ -1310,7 +1548,9 @@ const MOCK_SITE_INDEX_FOR_TRADE = makeSiteIndex({
     makeCollectionSummary({
       slug: 'trade-collection',
       name: 'Trade Collection',
-      cardCount: 6,
+      // The two priceless entries count as cards but contribute nothing to the
+      // total, exactly as the bake reports them.
+      cardCount: 8,
       totalPrice: 20.5,
     }),
   ],
@@ -1345,6 +1585,9 @@ export async function mockPublicSiteForTrade(
     options.apiBaseUrl === undefined
       ? MOCK_SITE_INDEX_FOR_TRADE
       : { ...MOCK_SITE_INDEX_FOR_TRADE, apiBaseUrl: options.apiBaseUrl }
+  // The collection carries a custom-art entry, so its `art/…` image must resolve
+  // the same way a built site's `dist/art/` would.
+  await mockCustomArtFiles(page)
   await fulfillJson(page, '**/index.json', index)
   await fulfillJson(page, '**/collections/trade-collection.json', MOCK_TRADE_COLLECTION_DETAIL)
   await fulfillJson(page, '**/wanted/trade-wanted-list.json', MOCK_TRADE_WANTED_DETAIL)

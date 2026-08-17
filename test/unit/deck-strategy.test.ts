@@ -1,11 +1,19 @@
 import { describe, expect, test } from 'bun:test'
 import prompts from 'prompts'
 import { createDeckStrategy } from '../../src/commands/deck-strategy'
-import { buildInitialSessionConfig } from '../../src/commands/card-session'
+import {
+  buildInitialSessionConfig,
+  createCardSessionContext,
+} from '../../src/commands/card-session'
 import { deckFormatChoices, type DeckSessionConfig } from '../../src/commands/deck-helpers'
 import { DECK_FORMAT_KEYS } from '../../src/deck-format'
 import type { DeckFrontMatter } from '../../src/deck-file'
 import type { DeckData } from '../../src/types'
+import { scratchListPath, stubTty } from '../test-utils'
+
+// The Set Custom Art prompts go through `ask`, which refuses to open without a
+// terminal; these tests answer them with prompts.inject instead.
+stubTty({ stdin: true })
 
 function makeSessionConfig(): DeckSessionConfig {
   return { ...buildInitialSessionConfig({}, undefined), targetSection: null }
@@ -17,7 +25,7 @@ function makeDeck(sections: DeckData['sections'] = []): DeckData {
 
 function makeStrategy(frontMatter: DeckFrontMatter, deck: DeckData = makeDeck()) {
   return createDeckStrategy({
-    deckFile: '/decks/test-deck.md',
+    deckFile: scratchListPath('test-deck.md'),
     deckName: 'Test Deck',
     initialDeck: deck,
     frontMatter,
@@ -59,7 +67,7 @@ describe('deck strategy — Edit Tags', () => {
   test('the deck session offers exactly the extras the tallest-menu guard assumes', () => {
     // card-session.test.ts's SESSION_MENU_LIMIT test hand-writes a deck's
     // extras; this pin keeps that list honest when an item is added here.
-    expect(menuTitles({})).toHaveLength(3)
+    expect(menuTitles({})).toHaveLength(4)
   })
 
   test('the menu item shows the current tags (or none)', () => {
@@ -97,6 +105,42 @@ describe('deck strategy — Edit Tags', () => {
   })
 })
 
+describe('deck strategy — Edit List Labels', () => {
+  const labelsTitle = (frontMatter: DeckFrontMatter): string | undefined =>
+    menuTitles(frontMatter).find((title) => title.includes('Edit List Labels'))
+
+  test('the menu item shows the deck default (or none)', () => {
+    expect(labelsTitle({})).toContain('Edit List Labels (default: none)')
+    expect(labelsTitle({ labels: ['proxy'] })).toContain('Edit List Labels (default: proxy)')
+  })
+
+  test('picking a default writes the front matter and dirties the session', async () => {
+    const frontMatter: DeckFrontMatter = {}
+    const strategy = makeStrategy(frontMatter)
+    // Rows for a deck: "No default", then "Proxy" — the only label a deck carries.
+    prompts.inject(['proxy'])
+    await strategy.handleSentinel?.({} as never, '__LIST_LABELS__')
+    expect(frontMatter.labels).toEqual(['proxy'])
+    expect(strategy.hasUnsavedChanges()).toBeTrue()
+  })
+
+  test('picking "No default" clears the key; cancelling changes nothing', async () => {
+    const cleared: DeckFrontMatter = { labels: ['proxy'] }
+    const clearing = makeStrategy(cleared)
+    prompts.inject([''])
+    await clearing.handleSentinel?.({} as never, '__LIST_LABELS__')
+    expect('labels' in cleared).toBeFalse()
+    expect(clearing.hasUnsavedChanges()).toBeTrue()
+
+    const untouched: DeckFrontMatter = { labels: ['proxy'] }
+    const cancelling = makeStrategy(untouched)
+    prompts.inject([new Error('cancelled')])
+    await cancelling.handleSentinel?.({} as never, '__LIST_LABELS__')
+    expect(untouched.labels).toEqual(['proxy'])
+    expect(cancelling.hasUnsavedChanges()).toBeFalse()
+  })
+})
+
 describe('deckFormatChoices', () => {
   test('lists every format in declaration order with display labels', () => {
     const choices = deckFormatChoices(null)
@@ -108,5 +152,40 @@ describe('deckFormatChoices', () => {
     const choices = deckFormatChoices('modern')
     expect(choices.find((c) => c.value === 'modern')?.title).toBe('Modern (current)')
     expect(choices.find((c) => c.value === 'commander')?.title).toBe('Commander')
+  })
+})
+
+describe('deck strategy — Set Custom Art', () => {
+  /** A deck holding one identified line, with no `.art.json` beside it. */
+  function deckWithLine(): DeckData {
+    return makeDeck([{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] }])
+  }
+
+  test('a URL is staged for the save and undone by the edit stack', async () => {
+    const strategy = makeStrategy({}, deckWithLine())
+    const ctx = createCardSessionContext()
+
+    prompts.inject(['art', 'url', 'https://example.com/sol.png'])
+    await strategy.editEntry(ctx, 1)
+
+    // Custom art is metadata: the deck line is untouched and nothing reaches
+    // the changelog — only the dirty flag tells the save there is work.
+    expect(ctx.sessionChanges).toHaveLength(0)
+    expect(strategy.hasUnsavedChanges()).toBeTrue()
+    expect(strategy.lastEditUndoLabel()).toBe('custom art on Sol Ring')
+
+    await strategy.undoLastEdit(ctx)
+    expect(strategy.lastEditUndoLabel()).toBeNull()
+  })
+
+  test('cancelling the action leaves the session clean', async () => {
+    const strategy = makeStrategy({}, deckWithLine())
+    const ctx = createCardSessionContext()
+
+    prompts.inject(['art', new Error('cancelled')])
+    await strategy.editEntry(ctx, 1)
+
+    expect(strategy.hasUnsavedChanges()).toBeFalse()
+    expect(strategy.lastEditUndoLabel()).toBeNull()
   })
 })

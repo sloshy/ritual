@@ -1,11 +1,13 @@
 import { unreadableLines } from '../../markdown-fence'
 import { computeHash } from '../../content-hash'
+import { collectDeckCardIds } from '../../card-id'
 import { loadDeckFile } from '../../importers/text-file'
 import { parseDeckFrontMatter } from '../../deck-file'
 import { apiHandler } from '../utils'
 import { getDecksDir } from '../../ritual-config'
 import { addChangelogCardNames, fetchSymbolMap, loadDeckCardData } from './card-data-loader'
 import { resolveDeckFile } from './list-file'
+import { listArtRecord } from './art'
 import { readListLoadRequest, stampLoadBody } from './list-load'
 import { countDeck, filterDeck, isNarrowedLoad, toCountParams } from './list-load-params'
 import type { DeckCardsLoadResult, DeckFullLoadResult, ListSummaryLoadResult } from './load-results'
@@ -63,6 +65,14 @@ export function handleDeckLoad(req: Request): Promise<Response> {
 
     const { deck, totalCount } = filterDeck(loaded, params)
     const partial = isNarrowedLoad(params)
+    // Spread onto the body, never merged into `warnings`: an unreadable art
+    // sidecar is display metadata gone wrong, not a line the save would eat.
+    const art = await listArtRecord(filePath, {
+      cardIds: deck.sections.flatMap((section) => section.cards.map((card) => card.cardId)),
+      // The unfiltered deck: an orphan is an id no line in the whole file
+      // carries, which a filtered page cannot answer on its own.
+      knownCardIds: new Set(collectDeckCardIds(loaded)),
+    })
 
     if (params.view === 'cards') {
       // Front matter travels with the cards view because the deck save flow
@@ -73,8 +83,10 @@ export function handleDeckLoad(req: Request): Promise<Response> {
         view: 'cards',
         deck,
         frontMatter,
+        labels: frontMatter.labels,
         totalCount,
         warnings,
+        ...art,
       }
       return Response.json(stampLoadBody(body, partial, contentHash))
     }
@@ -105,8 +117,10 @@ export function handleDeckLoad(req: Request): Promise<Response> {
       lowestPriceCardsTix,
       symbolMap,
       frontMatter,
+      labels: frontMatter.labels,
       slug,
       warnings,
+      ...art,
     }
     return Response.json(stampLoadBody(body, partial, contentHash))
   })

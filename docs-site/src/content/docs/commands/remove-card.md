@@ -88,6 +88,10 @@ Collection and wanted-list entries are one physical card each, so `-q` greater t
 
 Each removal is recorded in the list's `.changes.md` changelog (one `Removed "<Card>" ... &N` line per copy, in a single changelog block per invocation).
 
+### Custom Art
+
+Deleting a line also drops that card's entry from the list's [custom-art sidecar](/custom-art/#art-follows-the-card) — the released `&N` would otherwise hand the image to the next card added. A deck decrement that leaves copies on the line keeps both the id and the art. Like every other art write, this records no changelog entry.
+
 ## Exit Codes
 
 | Code | Meaning                                                                                                                                                                                                                   |

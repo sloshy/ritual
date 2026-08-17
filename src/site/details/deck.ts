@@ -1,7 +1,10 @@
 import path from 'node:path'
 import { loadDeckFile } from '../../importers/text-file'
+import { parseDeckFrontMatter } from '../../deck-file'
 import { extractChangelogCardNames } from '../../changelog-parser'
 import type { ChangelogPage } from '../../changelog-parser'
+import { effectiveLabels, isPriceless, type CardLabel } from '../../card-labels'
+import type { CardArtMap } from '../../card-art'
 import { extractPrimerCardNames } from '../../primer-parser'
 import { resolveDeckFormat, getMainDeckSize } from '../../deck-format'
 import { findPrinting, hasSpecificPrinting } from '../../card-printing'
@@ -9,15 +12,25 @@ import { resolveCardImageSources } from '../image-sources'
 import { getCardPrice } from '../../price-currency'
 import type { PriceCurrency } from '../../price-currency'
 import { getErrorMessage } from '../../errors'
-import type { DeckData, ScryfallCard } from '../../types'
-import type { DeckDetail, DeckSummary } from '../data-types'
-import { bakeBuylistQuotes, loadListSidecars, slugifyListName } from './shared'
-import type { BuylistBakeSource } from './shared'
+import type { Card, DeckData, ScryfallCard } from '../../types'
+import type { BakedDeckData, DeckDetail, DeckSummary } from '../data-types'
+import {
+  bakeBuylistQuotes,
+  cardIdsOf,
+  customArtLookup,
+  loadListSidecars,
+  slugifyListName,
+} from './shared'
+import type { BuylistBakeSource, CustomArtLookup } from './shared'
 import type { SiteDetailContext } from './types'
 
 export type LoadedDeck = {
   data: DeckData
   changelog: ChangelogPage[]
+  /** The deck's default card labels from its front matter, when declared. */
+  labels?: CardLabel[]
+  /** Custom art from the `.art.json` sidecar, keyed by card id. */
+  art?: CardArtMap
   /** Lines the deck parser could not read — reported by callers, never fatal. */
   warnings: string[]
   /** ISO timestamp of the deck file's mtime, or undefined for non-file sources. */
@@ -33,25 +46,51 @@ export async function loadDeckSource(
   source: string,
 ): Promise<LoadedDeck | string> {
   const fileName = path.basename(source.endsWith('.md') ? source : `${source}.md`)
+  const filePath = path.join(decksDir, fileName)
   let data: DeckData
   let warnings: string[]
+  let labels: CardLabel[] | undefined
   try {
-    const parsed = await loadDeckFile(path.join(decksDir, fileName))
+    const parsed = await loadDeckFile(filePath)
     data = parsed.deck
     warnings = parsed.warnings
+    // The deck's label default lives in front matter, which the deck parser
+    // does not project onto DeckData; the site resolves each line against it.
+    labels = (await parseDeckFrontMatter(filePath)).labels
   } catch (e) {
     return getErrorMessage(e)
   }
 
   const baseName = source.endsWith('.md') ? source.slice(0, -3) : source
-  const deckFileName = source.endsWith('.md') ? source : `${source}.md`
-  const { changelog, fileMtime } = await loadListSidecars(
+  const { changelog, fileMtime, art, artWarnings } = await loadListSidecars(
     decksDir,
     baseName,
-    path.join(decksDir, deckFileName),
+    filePath,
+    { knownCardIds: cardIdsOf(data.sections.flatMap((section) => section.cards)) },
   )
 
-  return { data, changelog, warnings, fileMtime }
+  return { data, changelog, labels, art, warnings: [...warnings, ...artWarnings], fileMtime }
+}
+
+/**
+ * The deck's card lines with their custom art baked on: the display URL the
+ * build could resolve, and — for every reference, deployed or not — the
+ * pricelessness fact. Carrying both is why this is not the editors'
+ * `withDeckArtUrls`, which knows only about display URLs: a card whose art file
+ * never made it into `dist/` shows its real printing and must still read
+ * `CUSTOM` where its price would be.
+ */
+function withDeckCustomArt(deck: DeckData, artFor: CustomArtLookup): BakedDeckData {
+  return {
+    ...deck,
+    sections: deck.sections.map((section) => ({
+      ...section,
+      cards: section.cards.map((card) => {
+        const art = artFor(card.cardId)
+        return art.hasCustomArt === true ? { ...card, ...art } : card
+      }),
+    })),
+  }
 }
 
 export type DeckArtifacts = { slug: string; detail: DeckDetail; summary: DeckSummary }
@@ -63,6 +102,23 @@ export async function buildDeckArtifacts(
 ): Promise<DeckArtifacts> {
   const { data: deckData, changelog, fileMtime } = loaded
   const { cardData, availableCurrencies, useScryfallImgUrls, defaultCurrency } = ctx
+  // Resolved once and used twice: it decides what a card's art bakes to, and —
+  // because a copy wearing custom art is no longer the printing a price would be
+  // for — whether the card is priced at all. Those are deliberately two answers
+  // from one lookup: a reference whose file the build could not deploy bakes no
+  // display URL (the card shows its real printing) and still prices at nothing,
+  // which is how the site stays in step with what `ritual price` reads.
+  const customArtFor = customArtLookup(loaded.art, ctx)
+  /**
+   * A proxy is not a real card and a custom-art copy is not a printing: either
+   * way it is priced at nothing, counts toward no shortfall, and is offered to
+   * no buyer.
+   */
+  const pricesAtNothing = (card: Card): boolean =>
+    isPriceless(
+      effectiveLabels(card.labels, loaded.labels),
+      customArtFor(card.cardId).hasCustomArt === true,
+    )
   const hasUsd = availableCurrencies.includes('usd')
   const hasEur = availableCurrencies.includes('eur')
   const hasTix = availableCurrencies.includes('tix')
@@ -170,6 +226,7 @@ export async function buildDeckArtifacts(
   if (ctx.buylist) {
     for (const section of deckData.sections) {
       for (const entry of section.cards) {
+        if (pricesAtNothing(entry)) continue
         const candidates: (ScryfallCard | null | undefined)[] = [
           hasSpecificPrinting(entry)
             ? findPrinting(deckPrintingsMap[entry.name], entry.set, entry.collectorNumber)
@@ -186,10 +243,17 @@ export async function buildDeckArtifacts(
     }
   }
 
+  // Custom art rides on the card lines themselves (a deck detail ships the deck,
+  // not a separate entry list). A deck with no art is passed through by
+  // identity, so it is baked byte for byte as before.
+  const hasArt = loaded.art !== undefined && loaded.art.size > 0
+  const bakedDeck: BakedDeckData = hasArt ? withDeckCustomArt(deckData, customArtFor) : deckData
+
   // cardId is shipped on each public-site card so the trade page can
   // encode deck cards into shareable URLs.
   const detail: DeckDetail = {
-    deck: deckData,
+    deck: bakedDeck,
+    labels: loaded.labels,
     cards: deckCardMap,
     printings: deckPrintingsMap,
     lowestPriceCards: hasUsd ? deckLowestPriceCardMap : undefined,
@@ -230,6 +294,10 @@ export async function buildDeckArtifacts(
     const sLow = section.name.toLowerCase()
     if (sLow.includes('maybeboard') || sLow.includes('token')) continue
     for (const c of section.cards) {
+      // A proxy and a custom-art copy are worth nothing and are not cards whose
+      // price is *missing*, so they leave the totals and the missing counts
+      // untouched.
+      if (pricesAtNothing(c)) continue
       if (hasUsd) {
         const defaultCard = cardData.cards[c.name]
         const cheapCard = cheapestUsd[c.name]

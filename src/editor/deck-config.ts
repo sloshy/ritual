@@ -1,5 +1,6 @@
 import { batch } from 'solid-js'
 import type { DeckData, Finish } from '../types'
+import type { CardLabel } from '../card-labels'
 import type { CardLanguage } from '../card-language'
 import { type PrintingTuple, isSamePrinting } from '../change-event'
 import type { CardContextInfo } from './context-menu'
@@ -50,6 +51,27 @@ export function findDeckCardLanguage(
     if (byId) return byId.language
   }
   return allCards.find((c) => c.name === cardName)?.language
+}
+
+/**
+ * Find a card's label override by card ID (falling back to name), for
+ * set-label consolidation — restoring a line's on-disk override cancels the
+ * pending change outright. `undefined` means the line carries no override and
+ * inherits the deck's front-matter default. Resolves by id first for the same
+ * reason {@link findDeckCardLanguage} does.
+ */
+export function findDeckCardLabels(
+  deck: DeckData | null,
+  cardName: string,
+  cardId?: number,
+): CardLabel[] | undefined {
+  if (!deck) return undefined
+  const allCards = deck.sections.flatMap((s) => s.cards)
+  if (cardId !== undefined) {
+    const byId = allCards.find((c) => c.cardId === cardId)
+    if (byId) return byId.labels
+  }
+  return allCards.find((c) => c.name === cardName)?.labels
 }
 
 /** Find a card's on-disk printing by card ID, for change-printing revert detection. */

@@ -138,6 +138,18 @@ ritual build-site --sell-mode                      # offer sell mode for this ru
 \`--cache-images\` downloads card images locally instead of hot-linking Scryfall;
 \`-v\`/\`--verbose\` lists the cards to be fetched.
 
+A card with **custom art** (see the **ritual** skill) publishes it too: every
+file a list's \`<name>.art.json\` references is copied from the configured
+\`artDir\` into \`dist/art/\` (once per unique path, so lists share files) and baked
+onto the card, while a \`url\` reference is baked verbatim. The build reports how
+many files it copied, and names any referenced file that is missing — that card
+falls back to the printing's own scan rather than failing the build. \`ritual
+serve --api\` needs no copy: it serves the art directory live at \`/art/*\`, and an
+edit to a sidecar invalidates that list's cached detail. Such a card is baked at
+price **0** and left out of the totals and the missing-price counts — the same
+rule the \`proxy\` label carries — and the pages show \`CUSTOM\` (or \`PROXY\`)
+where a price would be, with no buylist quote in sell mode.
+
 ### Site language
 
 The three locale flags decide what language the published site speaks. They are
@@ -351,6 +363,16 @@ language from \`GET /api/config\`, so switching it rebuilds nothing. There is no
 \`--locale\` build flag here: \`ritual admin\` regenerates its bundle (and its
 dictionaries) on every start, and \`--locale\`/\`RITUAL_LOCALE\` still set the
 language of the command's **terminal** output.
+
+Each card's context menu in the admin editors carries **Set Custom Art…** — a
+file-or-URL field with a live preview that writes the list's \`<name>.art.json\`
+immediately (metadata, not part of the deferred change batch), the same
+operation as \`ritual set-card --art\` and the MCP \`set_card_art\` tool. The admin
+serves the art directory at \`/art/*\` for those previews. The **add-card dialog**
+takes a label override and custom art for the card being added, too; art for a
+card the session added (there or through the context menu) has no card line to
+write against yet, so it is held with the pending changes and written by the save
+that creates the line.
 
 With the \`admin.gitEnabled\` and \`admin.gitAutoCommit\` config keys set, saves
 made through the admin UI (and the MCP server, which reuses the admin handlers)

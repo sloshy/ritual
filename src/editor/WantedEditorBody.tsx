@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import { createMemo, type JSX } from 'solid-js'
 import type { WantedListCardEntry } from '../site/data-types'
 import type { SellModeProps } from '../site/sell-mode'
 import type { PriceCurrency } from '../price-currency'
@@ -6,6 +6,8 @@ import { WantedListPage } from '../site/WantedListPage'
 import type { UseEditorDefaultsResult } from './useEditorDefaults'
 import type { SearchProvider } from './search-provider'
 import { type FlatListController, FlatListEditorShell } from './flat-list-controller'
+import type { CardContextInfo } from './context-menu'
+import { withEntryArt, type CardArtRefs } from './card-art-view'
 
 type WantedEditorBodyProps = SellModeProps & {
   ctrl: FlatListController<WantedListCardEntry>
@@ -24,6 +26,10 @@ type WantedEditorBodyProps = SellModeProps & {
   enablePriceRefresh?: boolean
   /** Forwarded to the page: offer "Add to Trade" in the multi-select menu (public site only). */
   enableTrade?: boolean
+  /** The list's custom art, resolved onto the entries the page renders. */
+  customArt?: CardArtRefs
+  /** Open the custom-art dialog for a card (admin editor only — needs the authed art route). */
+  onSetCustomArt?: (target: CardContextInfo) => void
 }
 
 /**
@@ -32,6 +38,14 @@ type WantedEditorBodyProps = SellModeProps & {
  */
 export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
   const ctrl = props.ctrl
+  // Memoized: the projection clones every entry on a list that has art, and the
+  // page prop is read on each of the editor's frequent re-renders. Null while
+  // no list is loaded — a memo runs as soon as either input changes, and the
+  // art references land a beat before the entries they decorate.
+  const entriesWithArt = createMemo(() => {
+    const entries = ctrl.editor.data()
+    return entries === null ? null : withEntryArt(entries, props.customArt)
+  })
   return (
     <FlatListEditorShell
       ctrl={ctrl}
@@ -44,11 +58,12 @@ export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
       showDiscard={props.showDiscard}
       enableImport={props.enableImport}
       importKind="wanted"
+      onSetCustomArt={props.onSetCustomArt}
     >
       <WantedListPage
         name={props.name}
         slug={ctrl.editor.slug() ?? undefined}
-        entries={ctrl.editor.data()!}
+        entries={entriesWithArt()!}
         sectionOrder={ctrl.editor.sectionOrder()}
         cards={ctrl.cardData.cards}
         printings={ctrl.cardData.printings}

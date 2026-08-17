@@ -3,10 +3,13 @@ import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import {
-  buildVirtualState,
   applyVirtualMove,
+  applyVirtualRemove,
+  buildVirtualState,
   commitAllMoves,
+  commitAllRemovals,
 } from '../../src/commands/move-helpers'
+import { artSidecarPath, loadCardArt, saveCardArt } from '../../src/card-art'
 import type { PhysicalCard, ListEntry } from '../../src/commands/move-helpers'
 import { collectionMarkdown, deckMarkdown, wantedMarkdown } from './helpers/workspace'
 
@@ -325,5 +328,143 @@ describe('commitAllMoves', () => {
     // Source must be completely untouched — card was never removed
     const srcContent = await fs.readFile(srcList.filePath, 'utf-8')
     expect(srcContent).toContain('Sol Ring')
+  })
+})
+
+// ── Custom art ─────────────────────────────────────────────────────────────────
+
+/**
+ * A `<list>.art.json` entry is filed under the card line's `&N`, and a move
+ * frees that id on the source side while allocating a new one on the
+ * destination side. The art has to follow, or it stays behind and reappears on
+ * whichever card takes the freed id next.
+ */
+describe('custom art follows a committed move', () => {
+  /** The sidecar's art map, or a thrown failure naming the parse error. */
+  async function artOf(listPath: string): Promise<Map<number, unknown>> {
+    const loaded = await loadCardArt(listPath)
+    if (!loaded.ok) throw new Error(`expected readable art, got: ${loaded.message}`)
+    return loaded.art
+  }
+
+  test('the entry leaves the source and lands under the destination’s new id', async () => {
+    const srcList = makeList('collection', 'Source', 'src.md')
+    const dstList = makeList('collection', 'Dest', 'dst.md')
+    await fs.writeFile(
+      srcList.filePath,
+      collectionMarkdown({
+        title: 'Source',
+        entries: [
+          { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 4 },
+          { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 5 },
+        ],
+      }),
+    )
+    await fs.writeFile(dstList.filePath, collectionMarkdown({ title: 'Dest', entries: [] }))
+    await saveCardArt(srcList.filePath, new Map([[4, { file: 'proxies/bolt.png' }]]))
+
+    const card = makeCard('Lightning Bolt', srcList, { collectorNumber: '161', cardId: 4 })
+    const state = buildVirtualState([card])
+    applyVirtualMove(state, card.key, dstList)
+
+    const { moved, writtenFiles } = await commitAllMoves(state)
+    expect(moved).toBe(1)
+
+    // Gone from the source — its `&4` is back in the pool.
+    expect(await fs.exists(artSidecarPath(srcList.filePath))).toBe(false)
+    // And filed under the id the destination line was given.
+    const destContent = await fs.readFile(dstList.filePath, 'utf-8')
+    expect(destContent).toContain('- Lightning Bolt (LEA:161) &1')
+    expect(await artOf(dstList.filePath)).toEqual(new Map([[1, { file: 'proxies/bolt.png' }]]))
+    // Both sidecars are reported, so an auto-commit stages them.
+    expect(writtenFiles).toContain(artSidecarPath(dstList.filePath))
+    expect(writtenFiles).toContain(artSidecarPath(srcList.filePath))
+  })
+
+  test('a move of a card with no art writes no sidecar at all', async () => {
+    const srcList = makeList('collection', 'Source', 'src.md')
+    const dstList = makeList('collection', 'Dest', 'dst.md')
+    await fs.writeFile(
+      srcList.filePath,
+      collectionMarkdown({
+        title: 'Source',
+        entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 }],
+      }),
+    )
+    await fs.writeFile(dstList.filePath, collectionMarkdown({ title: 'Dest', entries: [] }))
+
+    const card = makeCard('Sol Ring', srcList, { set: 'c21', collectorNumber: '263' })
+    const state = buildVirtualState([card])
+    applyVirtualMove(state, card.key, dstList)
+
+    const { writtenFiles } = await commitAllMoves(state)
+    expect(await fs.exists(artSidecarPath(dstList.filePath))).toBe(false)
+    expect(writtenFiles.some((file) => file.endsWith('.art.json'))).toBe(false)
+  })
+
+  test('a deck line that keeps copies keeps its art, and the moved copy still gets it', async () => {
+    const srcList = makeList('deck', 'Source', 'src.md')
+    const dstList = makeList('collection', 'Dest', 'dst.md')
+    await fs.writeFile(
+      srcList.filePath,
+      deckMarkdown({
+        frontMatter: { name: 'Source' },
+        sections: [
+          {
+            name: 'Main',
+            cards: [
+              { quantity: 2, name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 },
+            ],
+          },
+        ],
+      }),
+    )
+    await fs.writeFile(dstList.filePath, collectionMarkdown({ title: 'Dest', entries: [] }))
+    await saveCardArt(srcList.filePath, new Map([[1, { url: 'https://example.test/ring.png' }]]))
+
+    const card = makeCard('Sol Ring', srcList, { set: 'c21', collectorNumber: '263' })
+    const state = buildVirtualState([card])
+    applyVirtualMove(state, card.key, dstList)
+
+    await commitAllMoves(state)
+
+    // One copy is left, so the deck line — and its `&1` — is still there.
+    expect(await fs.readFile(srcList.filePath, 'utf-8')).toContain('1 Sol Ring (C21:263) &1')
+    expect(await artOf(srcList.filePath)).toEqual(
+      new Map([[1, { url: 'https://example.test/ring.png' }]]),
+    )
+    expect(await artOf(dstList.filePath)).toEqual(
+      new Map([[1, { url: 'https://example.test/ring.png' }]]),
+    )
+  })
+
+  test('a committed removal drops the departed card’s art', async () => {
+    const srcList = makeList('collection', 'Source', 'src.md')
+    await fs.writeFile(
+      srcList.filePath,
+      collectionMarkdown({
+        title: 'Source',
+        entries: [
+          { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
+          { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 2 },
+        ],
+      }),
+    )
+    await saveCardArt(
+      srcList.filePath,
+      new Map([
+        [1, { file: 'proxies/bolt.png' }],
+        [2, { file: 'proxies/ring.png' }],
+      ]),
+    )
+
+    const card = makeCard('Lightning Bolt', srcList, { collectorNumber: '161', cardId: 1 })
+    const state = buildVirtualState([card])
+    applyVirtualRemove(state, card.key)
+
+    const { removed, writtenFiles } = await commitAllRemovals(state)
+    expect(removed).toBe(1)
+    expect(await artOf(srcList.filePath)).toEqual(new Map([[2, { file: 'proxies/ring.png' }]]))
+    expect(writtenFiles).toContain(artSidecarPath(srcList.filePath))
   })
 })

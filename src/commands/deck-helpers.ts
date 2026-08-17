@@ -232,7 +232,18 @@ export type DeckDiscardState = {
 }
 
 /** A successful discard's next state, plus the copy that was removed. */
-export type DeckDiscardOutcome = DeckDiscardState & { discarded: DeckCopyRecord }
+export type DeckDiscardOutcome = DeckDiscardState & {
+  discarded: DeckCopyRecord
+  /**
+   * Old id → new id for the lines the re-pack renumbered, empty when it did not
+   * run. Reported rather than kept private because the deck is not the only
+   * thing keyed by these ids: the session's pending custom art is too, and it
+   * has to follow them.
+   */
+  remap: ReadonlyMap<number, number>
+  /** Whether the discard took the line out entirely (rather than a copy off it). */
+  lineRemoved: boolean
+}
 
 /**
  * Discard the session copy at `index` (into {@link DeckDiscardState.sessionAdds}):
@@ -269,9 +280,11 @@ export function discardDeckCopy(state: DeckDiscardState, index: number): DeckDis
   }
 
   let sessionLineIds = state.sessionLineIds
+  let repacked: ReadonlyMap<number, number> = new Map()
   if (lineRemoved && sessionLineIds.includes(cardId)) {
     const survivors = sessionLineIds.filter((id) => id !== cardId)
     const { remap } = repackSessionIds(sessionLineIds, survivors)
+    repacked = remap
     for (const section of deck.sections) {
       for (const card of section.cards) {
         if (card.cardId !== undefined && remap.has(card.cardId)) {
@@ -290,7 +303,15 @@ export function discardDeckCopy(state: DeckDiscardState, index: number): DeckDis
     sessionLineIds = survivors.map((id) => remap.get(id) ?? id)
   }
 
-  return { deck, sessionChanges, sessionAdds, sessionLineIds, discarded: record }
+  return {
+    deck,
+    sessionChanges,
+    sessionAdds,
+    sessionLineIds,
+    discarded: record,
+    remap: repacked,
+    lineRemoved,
+  }
 }
 
 const PROMPT_EVERY_TIME = '__PROMPT__'

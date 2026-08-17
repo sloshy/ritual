@@ -168,6 +168,48 @@ describe('build-site sources (Integration)', () => {
     expect(await Bun.file(path.join(distDir(), 'index.json')).exists()).toBeTrue()
   }, 120_000)
 
+  test('custom art files are copied into the site, and a missing one only warns', async () => {
+    await fs.mkdir(path.join(dir, 'art', 'proxies'), { recursive: true })
+    await fs.writeFile(path.join(dir, 'art', 'proxies', 'bolt.png'), 'bolt-bytes')
+    await fs.writeFile(
+      path.join(dir, 'decks', 'emberwild-aggro.art.json'),
+      JSON.stringify({ '1': { file: 'proxies/bolt.png' }, '2': { file: 'gone.png' } }),
+    )
+    // A second list whose sidecar does not parse at all: the build must say so
+    // and carry on, not fail and not silently publish a list with no art.
+    await fs.writeFile(path.join(dir, 'collections', 'test-binder.art.json'), '{ not json')
+
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (...args: unknown[]) => void warnings.push(args.join(' '))
+    try {
+      expect(await build()).toBe(0)
+    } finally {
+      console.warn = originalWarn
+    }
+
+    // Copied under its art-dir-relative path — the same path the baked value
+    // and the live `/art/*` route name.
+    expect(await Bun.file(path.join(distDir(), 'art', 'proxies', 'bolt.png')).text()).toBe(
+      'bolt-bytes',
+    )
+    expect(warnings.join('\n')).toContain('gone.png')
+    // The parse failure is a build warning too, naming what is wrong with it.
+    expect(warnings.join('\n')).toContain('not valid JSON')
+    expect(await Bun.file(path.join(distDir(), 'collections', 'test-binder.json')).exists()).toBe(
+      true,
+    )
+
+    // The deck detail names the deployed file, and says nothing at all about
+    // the one that is not there — that card falls back to its real art.
+    const detail = JSON.parse(
+      await fs.readFile(path.join(distDir(), 'decks', 'emberwild-aggro.json'), 'utf-8'),
+    ) as { deck: { sections: { cards: { cardId?: number; customArt?: string }[] }[] } }
+    const cards = detail.deck.sections.flatMap((section) => section.cards)
+    expect(cards.find((card) => card.cardId === 1)?.customArt).toBe('art/proxies/bolt.png')
+    expect(cards.find((card) => card.cardId === 2)).not.toHaveProperty('customArt')
+  }, 120_000)
+
   test('a bare selection flag is a usage error, not a silent full build', async () => {
     // Built first, so the assertion distinguishes "refused before building" from
     // "built and produced nothing" — in a fresh workspace it could not.

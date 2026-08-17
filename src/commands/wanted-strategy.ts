@@ -37,6 +37,7 @@ import {
 } from './flat-list-session'
 import {
   applyFlatListFieldEdit,
+  editFlatListArt,
   editFlatListNote,
   entryPrinting,
   findFlatListEntry,
@@ -172,7 +173,7 @@ export function createWantedStrategy(
     updateConfig: (excludeDigital: boolean) =>
       promptSessionConfigUpdate(sessionConfig, false, excludeDigital),
     applyChange: (change: ChangeEvent) => applyFlatListChange(session, change),
-    receiveMove: (change) => receiveFlatListMove(session, change),
+    receiveMove: (change, art) => receiveFlatListMove(session, change, art),
     persist: () => persistFlatListSession(session),
     hasUnsavedChanges: () => session.dirty,
     sessionSaved: () => resetFlatListSessionTracking(list),
@@ -265,6 +266,7 @@ export function createWantedStrategy(
           ? [{ title: `✨ ${t('cli.editAction.changeFinish')}`, value: 'finish' }]
           : []),
         { title: `🌐 ${t('cli.editAction.changeLanguage')}`, value: 'language' },
+        { title: `🎨 ${t('cli.editAction.setArt')}`, value: 'art' },
         ...(moveTargets
           ? [{ title: `📤 ${t('cli.editAction.moveToList')}`, value: 'move-list' }]
           : []),
@@ -343,6 +345,11 @@ export function createWantedStrategy(
             consolidateSetLanguage(changes, entry.name, language, original.language, cardId),
         })
         logUpdated(cardId, entry.name)
+        return
+      }
+
+      if (action === 'art') {
+        await editFlatListArt(list, entry, cardId)
         return
       }
 

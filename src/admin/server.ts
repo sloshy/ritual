@@ -38,6 +38,7 @@ import {
 } from './api/totp'
 import { handleLogin, handleLogout } from './api/auth-login'
 import { handleGetAuditLog } from './api/audit'
+import { handleArtFile } from '../api/art'
 import { handleAutocomplete } from '../api/autocomplete'
 import { handleDeckLoad } from './api/deck-load'
 import { handleCardPrintings } from '../api/card-printings'
@@ -54,6 +55,7 @@ import { handleWantedListLoad } from './api/wanted-load'
 import { handleWantedListSave } from './api/wanted-save'
 import { handleMoveCommit, handleRemoveCommit, handleSelectedMove } from './api/move'
 import { handleCardIndex } from './api/card-index'
+import { handleArtSave } from './api/art'
 import { handleMetadataSave } from './api/metadata'
 import { handleLists } from './api/lists'
 import { handleDiff } from './api/diff'
@@ -310,6 +312,10 @@ export const routes: Route[] = [
     handler: (req) => handleListDelete(req, WANTED_CFG),
     requiresAuth: true,
   },
+  // Not an `/api/*` route: the editor points an `<img>` at it, and it answers
+  // with the same art-directory files the public server and a built site serve
+  // at that path. Authed like everything else the admin exposes.
+  { method: 'GET', path: '/art/*', handler: (req) => handleArtFile(req), requiresAuth: true },
   { method: 'GET', path: '/api/lists', handler: handleLists, requiresAuth: true },
   { method: 'GET', path: '/api/diff', handler: handleDiff, requiresAuth: true },
   { method: 'GET', path: '/api/card-index', handler: handleCardIndex, requiresAuth: true },
@@ -334,6 +340,7 @@ export const routes: Route[] = [
     handler: handleMetadataSave,
     requiresAuth: true,
   },
+  { method: 'PUT', path: '/api/art/:type/:slug', handler: handleArtSave, requiresAuth: true },
   { method: 'GET', path: '/api/price/summary', handler: handlePriceSummary, requiresAuth: true },
   {
     method: 'GET',
@@ -438,8 +445,11 @@ const SECURITY_HEADERS: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
+  // `img-src` allows any https origin: a card's custom art may be a URL to
+  // anywhere, and the editor previews it. Scryfall's two hosts stay listed for
+  // documentation value — they are the sources every card image comes from.
   'Content-Security-Policy':
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cards.scryfall.io https://svgs.scryfall.io",
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: https://cards.scryfall.io https://svgs.scryfall.io",
 }
 
 function withSecurityHeaders(response: Response): Response {

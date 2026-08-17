@@ -1,8 +1,10 @@
-import type { JSX } from 'solid-js'
+import { createMemo, type JSX } from 'solid-js'
 import type { CollectionCardEntry } from '../site/data-types'
 import type { SellModeProps } from '../site/sell-mode'
 import type { PriceCurrency } from '../price-currency'
 import type { CardLabel } from '../card-labels'
+import type { CardContextInfo } from './context-menu'
+import { withEntryArt, type CardArtRefs } from './card-art-view'
 import { CollectionPage } from '../site/CollectionPage'
 import { promptCardLabels } from '../site/label-prompt'
 import type { UseEditorDefaultsResult } from './useEditorDefaults'
@@ -35,6 +37,10 @@ type CollectionEditorBodyProps = SellModeProps & {
   enableTrade?: boolean
   /** Open the list-default label editor (admin editor only — needs the authed metadata route). */
   onEditLabels?: () => void
+  /** The list's custom art, resolved onto the entries the page renders. */
+  customArt?: CardArtRefs
+  /** Open the custom-art dialog for a card (admin editor only — needs the authed art route). */
+  onSetCustomArt?: (target: CardContextInfo) => void
 }
 
 /**
@@ -45,6 +51,14 @@ type CollectionEditorBodyProps = SellModeProps & {
  */
 export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Element {
   const ctrl = props.ctrl
+  // Memoized: the projection clones every entry on a list that has art, and the
+  // page prop is read on each of the editor's frequent re-renders. Null while
+  // no list is loaded — a memo runs as soon as either input changes, and the
+  // art references land a beat before the entries they decorate.
+  const entriesWithArt = createMemo(() => {
+    const entries = ctrl.editor.data()
+    return entries === null ? null : withEntryArt(entries, props.customArt)
+  })
 
   const bulkEdit: FlatBulkEdit = {
     ...ctrl.bulkEdit,
@@ -69,8 +83,9 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
       enableImport={props.enableImport}
       importKind="collection"
       onEditLabels={props.onEditLabels}
+      onSetCustomArt={props.onSetCustomArt}
       onSetLabel={(target) =>
-        promptCardLabels((labels) =>
+        promptCardLabels('collection', (labels) =>
           setLabelsForCards(
             ctrl.editor,
             [{ cardName: target.cardName, cardIds: target.cardIds }],
@@ -82,7 +97,7 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
       <CollectionPage
         name={props.name}
         slug={ctrl.editor.slug() ?? undefined}
-        entries={ctrl.editor.data()!}
+        entries={entriesWithArt()!}
         sectionOrder={ctrl.editor.sectionOrder()}
         listLabels={props.listLabels}
         cards={ctrl.cardData.cards}

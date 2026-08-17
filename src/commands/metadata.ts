@@ -15,7 +15,7 @@ import {
 } from '../flat-list-metadata'
 import { parseDeckFrontMatter } from '../deck-file'
 import { readFrontMatterMapping } from '../front-matter-write'
-import { CARD_LABELS, isCardLabel, parseCardLabelsValue, type CardLabel } from '../card-labels'
+import { isCardLabel, LIST_TYPE_LABELS, parseCardLabelsValue, type CardLabel } from '../card-labels'
 import { parseCollectionMetadataBody, parseDeckMetadataBody } from '../admin/api/metadata'
 import { checkArchidektLink } from '../deck-sync/link'
 import { CardCommandError, localizedCommandError } from '../errors'
@@ -48,8 +48,9 @@ import {
 /**
  * `ritual metadata` — inspect and modify a list's front-matter metadata from
  * scripts, mirroring `ritual config`'s subcommand shape (`set`/`get`/`list`/
- * `unset`). Decks take `description`/`tags`/`format`/`sourceId`/`sourceUrl`;
- * collections take `labels` (their default card labels); wanted lists carry no
+ * `unset`). Decks take `description`/`tags`/`format`/`sourceId`/`sourceUrl` plus
+ * `labels` (their default card labels, `proxy` alone);
+ * collections take `labels` over the whole vocabulary; wanted lists carry no
  * metadata and are refused. Writes go through the same engines as the admin
  * route and the MCP `set_list_metadata` tool ({@link applyDeckMetadata} /
  * {@link applyCollectionMetadata}), so validation and the body-preserving,
@@ -227,16 +228,25 @@ function currentCollectionLabels(data: Record<string, unknown>): CardLabel[] {
 export function buildDeckSetBody(
   property: string,
   values: readonly string[],
-  currentTags: readonly string[],
+  current: DeckArrayValues,
   mode: ArrayMode,
 ): Record<string, unknown> | string {
-  if (mode !== 'replace' && property !== 'tags') return t('cli.metadata.arrayOnlyDeck')
-  if (property === 'tags') {
-    return { tags: mergeArrayValues(currentTags, splitCommaTokens(values), mode) }
+  if (mode !== 'replace' && property !== 'tags' && property !== 'labels') {
+    return t('cli.metadata.arrayOnlyDeck')
   }
+  if (property === 'tags') {
+    return { tags: mergeArrayValues(current.tags, splitCommaTokens(values), mode) }
+  }
+  if (property === 'labels') return buildLabelsSetBody('deck', values, current.labels, mode)
   if (property === 'description') return { description: values.join(' ') }
   if (values.length !== 1) return t('cli.metadata.singleValue', { property })
   return { [property]: values.join(' ') }
+}
+
+/** The deck's current values for the keys `--add`/`--remove` merge against. */
+export type DeckArrayValues = {
+  tags: readonly string[]
+  labels: readonly string[]
 }
 
 /**
@@ -252,10 +262,26 @@ export function buildCollectionSetBody(
   mode: ArrayMode,
 ): Record<string, unknown> | string {
   if (mode !== 'replace' && property !== 'labels') return t('cli.metadata.arrayOnlyCollection')
+  return buildLabelsSetBody('collection', values, currentLabels, mode)
+}
+
+/**
+ * The `labels` body both list types build, validated against what that type
+ * carries: a deck offers `proxy` alone, so `--add sale` on a deck names the
+ * accepted choices rather than writing a label the grammar cannot express.
+ */
+function buildLabelsSetBody(
+  type: ListType,
+  values: readonly string[],
+  currentLabels: readonly string[],
+  mode: ArrayMode,
+): Record<string, unknown> | string {
+  // Widened from the literal tuple: this asks about membership, not identity.
+  const supported: readonly CardLabel[] = LIST_TYPE_LABELS[type]
   const tokens = splitCommaTokens(values).map((token) => token.toLowerCase())
-  const unknown = tokens.find((token) => !isCardLabel(token))
+  const unknown = tokens.find((token) => !isCardLabel(token) || !supported.includes(token))
   if (unknown !== undefined) {
-    return t('cli.metadata.invalidLabel', { value: unknown, choices: CARD_LABELS.join(', ') })
+    return t('cli.metadata.invalidLabel', { value: unknown, choices: supported.join(', ') })
   }
   if (mode === 'replace' && tokens.length === 0) return t('cli.metadata.noLabels')
   return { labels: mergeArrayValues(currentLabels, tokens, mode) }
@@ -346,7 +372,12 @@ function registerSetSubcommand(metadata: Command): void {
 
         if (target.type === 'deck') {
           const current = await parseDeckFrontMatter(target.filePath)
-          const body = buildDeckSetBody(property, values, current.tags ?? [], mode)
+          const body = buildDeckSetBody(
+            property,
+            values,
+            { tags: current.tags ?? [], labels: current.labels ?? [] },
+            mode,
+          )
           if (typeof body === 'string') {
             throw new CardCommandError('usage_error', body, ExitCode.UsageError)
           }

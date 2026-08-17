@@ -20,6 +20,7 @@ import {
   REMOVE_SELECTED_CARDS_OUTPUT,
   RENAME_LIST_OUTPUT,
   REWRITE_HISTORY_OUTPUT,
+  SET_CARD_ART_OUTPUT,
   SYNC_COLLECTION_OUTPUT,
   SYNC_DECKS_OUTPUT,
   TOOL_ERROR_OUTPUT,
@@ -31,6 +32,7 @@ import { toToolErrorPayload } from '../../../src/mcp/result'
 import { MCP_TOOL_NAMES } from '../../../src/mcp/tools/names'
 import { VALID_FINISHES } from '../../../src/finish-condition'
 import { CARD_LANGUAGES } from '../../../src/card-language'
+import { BY_RULE_UNPRICED_REASONS, UNPRICED_REASONS } from '../../../src/price-report'
 import type { BuildSiteResult, DeckSyncResult } from '../../../src/mcp/tools/destructive-tools'
 import type { ImportCsvResponse } from '../../../src/admin/api/import-csv'
 import type { CollectionSyncReport } from '../../../src/collection-sync/engine'
@@ -59,7 +61,7 @@ type SchemaNode = {
   type?: unknown
   format?: unknown
   $schema?: unknown
-  additionalProperties?: unknown
+  additionalProperties?: SchemaNode | boolean
   minimum?: unknown
   maximum?: unknown
   properties?: Record<string, SchemaNode>
@@ -181,15 +183,54 @@ describe('MCP output schemas, as authored', () => {
     const listBranches = (GET_LIST_OUTPUT as unknown as SchemaNode).oneOf ?? []
     expect(listBranches).toHaveLength(3)
     expect(listBranches.map((b) => Object.keys(b.properties ?? {}))).toEqual([
-      ['view', 'listType', 'slug', 'warnings', 'deck', 'frontMatter', 'totalCount'],
-      ['view', 'listType', 'slug', 'warnings', 'entries', 'sectionOrder', 'labels', 'totalCount'],
+      [
+        'view',
+        'listType',
+        'slug',
+        'warnings',
+        'deck',
+        'frontMatter',
+        'labels',
+        'customArt',
+        'totalCount',
+        'artWarnings',
+      ],
+      [
+        'view',
+        'listType',
+        'slug',
+        'warnings',
+        'entries',
+        'sectionOrder',
+        'labels',
+        'customArt',
+        'totalCount',
+        'artWarnings',
+      ],
       ['view', 'listType', 'slug', 'warnings', 'counts'],
     ])
+    // Custom art rides beside the entries, keyed by &N, on both cards arms — a
+    // client that can edit it needs the raw {file}/{url} reference, so the map's
+    // values must stay the two-arm reference and never a display URL.
+    for (const branch of listBranches.slice(0, 2)) {
+      const artValues = branch.properties?.customArt?.additionalProperties
+      const artArms = typeof artValues === 'object' ? (artValues.anyOf ?? []) : []
+      expect(artArms.map((arm) => Object.keys(arm.properties ?? {}))).toEqual([['file'], ['url']])
+      // Never required: a list whose cards have no art omits the key entirely.
+      expect(branch.required ?? []).not.toContain('customArt')
+    }
     // `warnings` is required on all three arms, not merely present: a client
     // that never sees the key is a client that reads a truncated list as whole.
     for (const branch of listBranches) {
       expect(branch.required).toContain('warnings')
     }
+    // `artWarnings` is the opposite: a separate, optional channel. Folding a
+    // custom-art problem into `warnings` would read as "this list has lines a
+    // mutation would eat", which is what that channel promises and art is not.
+    for (const branch of listBranches.slice(0, 2)) {
+      expect(branch.required ?? []).not.toContain('artWarnings')
+    }
+    expect(listBranches[2]?.properties?.artWarnings).toBeUndefined()
     for (const branch of listBranches) {
       expect(branch.required).toContain('view')
       expect(branch.required).toContain('listType')
@@ -217,6 +258,8 @@ describe('MCP output schemas, as authored', () => {
       'slug',
       'effects',
       'unmatched',
+      // The sidecar channel a save reports on, mirroring get_list's arms.
+      'artWarnings',
     ])
     expect(mutation.required).toEqual([
       'applied',
@@ -226,6 +269,24 @@ describe('MCP output schemas, as authored', () => {
       'effects',
       'unmatched',
     ])
+    // Optional, like the load routes' copy: a save whose art reconcile was
+    // clean says nothing at all rather than an empty list.
+    expect(mutation.required ?? []).not.toContain('artWarnings')
+
+    // set_card_art echoes what the card now carries, and `art` is required with
+    // `null` as a *value*: a cleared card carries nothing, and an omitted key
+    // would be indistinguishable from a handler that forgot to report.
+    const setCardArt = SET_CARD_ART_OUTPUT as unknown as SchemaNode
+    expect(Object.keys(setCardArt.properties ?? {})).toEqual([
+      'message',
+      'messageKey',
+      'messageParams',
+      'slug',
+      'cardId',
+      'art',
+    ])
+    expect(setCardArt.required).toEqual(['message', 'slug', 'cardId', 'art'])
+    expect((setCardArt.properties?.art?.anyOf ?? []).at(-1)?.type).toBe('null')
 
     // export_cards and get_price_report are both unions; each must be
     // discriminable by a single const-valued key, and the two values a client
@@ -244,10 +305,16 @@ describe('MCP output schemas, as authored', () => {
 
     // PricedEntry: both finish fields are the shared enum, not free strings. The
     // report only ever emits a modelled finish, so a client can switch on them.
+    // `unpricedReason` is the engine's own list — the by-rule reasons (`proxy`
+    // and `custom-art`, cards with no price by rule rather than for want of
+    // data) must reach a client that branches on why a price is missing.
     const pricedEntry = defsFor('PricedEntry')['PricedEntry'] as unknown as SchemaNode
     for (const field of ['finish', 'lowestFinish']) {
       expect(pricedEntry.properties?.[field]?.enum).toEqual([...VALID_FINISHES])
     }
+    const unpricedReasons = pricedEntry.properties?.['unpricedReason']?.enum ?? []
+    expect(unpricedReasons).toEqual([...UNPRICED_REASONS])
+    for (const reason of BY_RULE_UNPRICED_REASONS) expect(unpricedReasons).toContain(reason)
 
     // The config pair: only `get_config` reports what a session flag (`--sell-mode`)
     // displaced, and `overrides` must stay *optional* — its absence is what says
@@ -473,6 +540,7 @@ describe('MCP output schemas, as authored', () => {
       MOVE_SELECTED_CARDS_OUTPUT,
       REMOVE_SELECTED_CARDS_OUTPUT,
       MUTATION_OUTPUT,
+      SET_CARD_ART_OUTPUT,
     ]
     for (const schema of keyed) {
       const node = schema as unknown as SchemaNode

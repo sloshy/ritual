@@ -1,6 +1,7 @@
-import { type Accessor, type JSX, Show, batch, createSignal } from 'solid-js'
+import { type Accessor, type JSX, Show, batch, createMemo, createSignal } from 'solid-js'
 import type { SellModeProps } from '../site/sell-mode'
 import type { DeckData, Card, Finish } from '../types'
+import type { CardLabel } from '../card-labels'
 import type { CardLanguage } from '../card-language'
 import { DeckPage } from '../site/DeckPage'
 import type { PriceCurrency } from '../price-currency'
@@ -11,20 +12,23 @@ import type { ListEditorConfig, UseEditorResult } from './useEditor'
 import { contextInfoFromSelected } from './selected-to-context'
 import { printingForMove } from '../site/printing-prompt'
 import { promptListMove, promptSectionMove } from '../site/move-prompt'
+import { promptCardLabels } from '../site/label-prompt'
 import { promptCardLanguage } from './language-prompt'
 import { useEditor } from './useEditor'
 import type { UseEditorDefaultsResult } from './useEditorDefaults'
 import type { SearchProvider } from './search-provider'
 import { useDeckCardData, type DeckCardData, type DeckCardDataActions } from './useDeckCardData'
-import { applyChangeToDeck } from './deck-changes'
+import { applyChangeToDeck, findDeckAddMergeTargetId } from './deck-changes'
 import {
   findDeckCardId,
   findDeckCardIdInSection,
+  findDeckCardLabels,
   findDeckCardLanguage,
   findDeckCardSection,
 } from './deck-config'
 import { CardContextMenu } from './components/CardContextMenu'
 import { EditorShell } from './components/EditorShell'
+import { withDeckArt, type CardArtRefs } from './card-art-view'
 
 /** Deck context-menu state plus whether the targeted card is currently a commander. */
 export type DeckContextMenuState = ContextMenuState & { isInCommanderSection: boolean }
@@ -46,6 +50,11 @@ export type DeckBulkEdit = {
   setFinish: (cards: SelectedCard[], finish: Finish) => void
   /** Set the language on each selected card (every copy of the entry). */
   setLanguage: (cards: SelectedCard[], language: CardLanguage) => void
+  /**
+   * Set (or clear, with `[]`) the label override on each selected card. Decks
+   * carry `proxy` alone, so the picker offers that and the clear row.
+   */
+  setLabel: (cards: SelectedCard[], labels: CardLabel[]) => void
   /** Run the change-printing flow over the selection one card at a time. */
   changePrinting: (cards: SelectedCard[]) => void
   /** Mark each selected card as a commander. */
@@ -80,6 +89,11 @@ export type DeckEditController = {
   handleDecrement: (cardName: string) => void
   handleContextMenu: (info: CardContextInfo, rect: DOMRect) => void
   handleChangePrinting: () => void
+  /**
+   * Set (or clear, with `[]`) one card's label override — the body behind the
+   * context menu's "Set Label…" and the multi-select bulk action.
+   */
+  handleSetLabelFor: (cardName: string, labels: CardLabel[], cardId?: number) => void
   handleSetCommander: () => void
   handleUnsetCommander: () => void
   /** Move the context-menu's card (every copy of the entry) into another list. */
@@ -110,6 +124,10 @@ export function useDeckEditController(
       findOriginalLanguage: findDeckCardLanguage,
       ...buildConfig(cardActions),
       copyModel: 'quantity',
+      // Follows from the data shape, like the copy model: a deck folds a repeat
+      // of the same printing into the existing entry, so per-line metadata an
+      // add carries has to be aimed at that entry's `&N`.
+      findAddMergeTargetId: findDeckAddMergeTargetId,
     },
     initialSlug,
   )
@@ -117,9 +135,13 @@ export function useDeckEditController(
   const handleIncrement = (cardName: string) => {
     const d = editor.data()
     const cardId = d ? findDeckCardId(d, cardName) : undefined
-    editor.changes.incrementCard(cardName, cardId)
+    // The copy joins a line that already has an override, so the event carries
+    // it: labels are part of a card's identity, and an add that claimed none
+    // would no longer be the opposite of the matching decrement.
+    const labels = findDeckCardLabels(d, cardName, cardId)
+    editor.changes.addCard(cardName, { cardId, labels })
     editor.setData((prev) =>
-      prev ? applyChangeToDeck(prev, { action: 'add', cardName, cardId }) : prev,
+      prev ? applyChangeToDeck(prev, { action: 'add', cardName, labels, cardId }) : prev,
     )
   }
 
@@ -139,7 +161,12 @@ export function useDeckEditController(
       }
     }
 
-    editor.changes.decrementCard(cardName, cardId, removedCardData)
+    editor.changes.decrementCard(
+      cardName,
+      cardId,
+      removedCardData,
+      findDeckCardLabels(d, cardName, cardId),
+    )
     editor.setData((prev) =>
       prev ? applyChangeToDeck(prev, { action: 'remove', cardName, cardId }) : prev,
     )
@@ -167,6 +194,20 @@ export function useDeckEditController(
     const menu = deckContextMenu()
     closeContextMenu()
     if (menu) editor.startChangePrinting(menu)
+  }
+
+  /**
+   * Set (or, with `[]`, clear) a deck line's label override. A deck entry holds
+   * every copy under one `cardId`, so one event covers the whole tile. The
+   * change consolidates against the on-disk override, so restoring a card's
+   * original label cancels the pending change outright.
+   */
+  const handleSetLabelFor = (cardName: string, labels: CardLabel[], cardId?: number) => {
+    const originalLabels = findDeckCardLabels(editor.getOriginal(), cardName, cardId)
+    editor.changes.setLabel(cardName, labels, originalLabels, cardId)
+    editor.setData((prev) =>
+      prev ? applyChangeToDeck(prev, { action: 'set-label', cardName, labels, cardId }) : prev,
+    )
   }
 
   const setCommanderFor = (cardName: string) => {
@@ -280,6 +321,11 @@ export function useDeckEditController(
         for (const c of cards) editor.handleSetLanguageFor(c.name, language, c.cardIds[0])
       })
     },
+    setLabel: (cards, labels) => {
+      batch(() => {
+        for (const c of cards) handleSetLabelFor(c.name, labels, c.cardIds[0])
+      })
+    },
     changePrinting: (cards) => editor.startBulkChangePrinting(cards.map(contextInfoFromSelected)),
     setCommander: (cards) => {
       for (const c of cards) setCommanderFor(c.name)
@@ -321,6 +367,7 @@ export function useDeckEditController(
     handleDecrement,
     handleContextMenu,
     handleChangePrinting,
+    handleSetLabelFor,
     handleSetCommander,
     handleUnsetCommander,
     handleMoveCardToList,
@@ -348,6 +395,14 @@ type DeckEditorBodyProps = SellModeProps & {
   enablePriceRefresh?: boolean
   /** Forwarded to the page: offer "Add to Trade" in the multi-select menu (public site only). */
   enableTrade?: boolean
+  /** The deck's default card labels (`proxy`), shown as badges on cards without an override. */
+  listLabels?: CardLabel[]
+  /** Open the list-default label editor (admin editor only — needs the authed metadata route). */
+  onEditLabels?: () => void
+  /** The deck's custom art, resolved onto the card lines the page renders. */
+  customArt?: CardArtRefs
+  /** Open the custom-art dialog for a card (admin editor only — needs the authed art route). */
+  onSetCustomArt?: (target: CardContextInfo) => void
 }
 
 /**
@@ -359,6 +414,14 @@ type DeckEditorBodyProps = SellModeProps & {
 export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
   const ctrl = props.ctrl
   const editor = ctrl.editor
+  // Memoized: the projection clones every section on a list that has art, and
+  // the page prop is read on each of the editor's frequent re-renders. Null
+  // while no deck is loaded — a memo runs as soon as either input changes, and
+  // the art references land a beat before the data they decorate.
+  const deckWithArt = createMemo(() => {
+    const deck = editor.data()
+    return deck === null ? null : withDeckArt(deck, props.customArt)
+  })
   return (
     <EditorShell
       entityLabel="deck"
@@ -371,6 +434,8 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
       showDiscard={props.showDiscard}
       enableImport={props.enableImport}
       importKind="deck"
+      onEditLabels={props.onEditLabels}
+      enableAddArt={props.onSetCustomArt !== undefined}
       contextMenu={
         <Show when={ctrl.deckContextMenu()}>
           {(menu) => (
@@ -385,6 +450,14 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
               }
               onSetFoil={editor.handleSetFoil}
               onChangePrinting={ctrl.handleChangePrinting}
+              onSetLabel={() => {
+                const target = menu()
+                ctrl.closeContextMenu()
+                // Deck-only choices: `proxy` and "use list default".
+                promptCardLabels('deck', (labels) =>
+                  ctrl.handleSetLabelFor(target.cardName, labels, target.cardIds[0]),
+                )
+              }}
               onSetLanguage={() => {
                 const target = menu()
                 const d = editor.data()
@@ -396,6 +469,21 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
                   editor.handleSetLanguageFor(target.cardName, language, target.cardIds[0]),
                 )
               }}
+              // Offered for a card added this session too: its art is held
+              // with the pending changes and written by the save that gives the
+              // line its `&N` (see `pending-art.ts`). Only a tile with no id at
+              // all — nothing to key art by — hides the item.
+              onSetCustomArt={
+                props.onSetCustomArt && menu().cardIds[0] !== undefined
+                  ? () => {
+                      const apply = props.onSetCustomArt
+                      if (!apply) return
+                      const target = menu()
+                      ctrl.closeContextMenu()
+                      apply(target)
+                    }
+                  : undefined
+              }
               onSetCommander={ctrl.handleSetCommander}
               onUnsetCommander={ctrl.handleUnsetCommander}
               isCommander={menu().isInCommanderSection}
@@ -427,7 +515,8 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
       }
     >
       <DeckPage
-        deck={editor.data()!}
+        deck={deckWithArt()!}
+        listLabels={props.listLabels}
         cards={ctrl.cardData.cards}
         printings={ctrl.cardData.printings}
         lowestPriceCards={ctrl.cardData.lowestPriceCards}

@@ -50,7 +50,7 @@ import { readRecordedCardBulkType } from '../cache/bulk-provenance'
 import { CardCommandError, getErrorMessage, localizedCommandError } from '../errors'
 import { t, type MessageParams } from '../i18n/t'
 import { parsePositiveInteger } from '../parse-number'
-import type { CardLabel } from '../card-labels'
+import { checkLabelsForListType, LIST_TYPE_LABELS, type CardLabel } from '../card-labels'
 import {
   displayLanguage,
   formatLanguageList,
@@ -70,7 +70,7 @@ export type EntryRef = {
   condition?: Condition
   /** The line's language token, when present. Absent means `en` (a bare line means English). */
   language?: CardLanguage
-  /** Label override — collections only; deck and wanted entries never carry labels. */
+  /** Label override — where the list type carries labels (never on a wanted entry). */
   labels?: CardLabel[]
   note?: string
   cardId?: number
@@ -148,6 +148,23 @@ export function parseCardIdFlag(raw: string): number {
     })
   }
   return parsed
+}
+
+/**
+ * Refuse a `--label` value the resolved list type cannot carry. The decision is
+ * {@link checkLabelsForListType}'s — shared with the admin routes, the bundle
+ * importer, and the MCP schemas — and only the wording is the CLI's own, since
+ * this is the one surface of the five whose refusal a human reads.
+ * Shared by `set-card` and `add-card` so the two refuse alike.
+ */
+export function ensureLabelsSupported(type: ListType, labels: readonly CardLabel[]): void {
+  const check = checkLabelsForListType(type, labels)
+  if (check.ok) return
+  throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.labelsUnsupported', {
+    type,
+    labels: check.unsupported.join(', '),
+    supported: LIST_TYPE_LABELS[type].join(', '),
+  })
 }
 
 /**
@@ -310,6 +327,7 @@ export async function loadEntryRefs(type: ListType, filePath: string): Promise<E
           finish: card.finish,
           condition: card.condition,
           language: card.language,
+          labels: card.labels,
           note: card.note,
           cardId: card.cardId,
           quantity: card.quantity,

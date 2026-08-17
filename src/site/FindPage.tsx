@@ -2,7 +2,8 @@ import type { Component, Accessor } from 'solid-js'
 import { createSignal, createMemo, onCleanup, For, Show } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
 import type { PriceCurrency } from '../price-currency'
-import { formatPrice, formatPriceOrNA } from '../price-currency'
+import { formatPrice } from '../price-currency'
+import { cardPriceText, cardPricelessReason } from './priceless'
 import { useT } from '../ui/i18n'
 import { LIST_TYPE_DISPLAY, listTypeTitle, type ListType } from '../list-type'
 import { CardItem } from './CardItem'
@@ -218,7 +219,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
     if (!card) return undefined
     const tile = card.selectedTile
     const parts: MetaEntry[] = [
-      { label: 'price', value: formatPriceOrNA(card.price, props.currency) },
+      { label: 'price', value: cardPriceText(t, card, card.price, props.currency) },
       { label: 'list', value: card.sourceName },
     ]
     if (card.hasPrinting && tile.set) {
@@ -235,6 +236,8 @@ export const FindPage: Component<FindPageProps> = (props) => {
       name={c.name}
       quantity={c.quantity}
       card={c.card}
+      customArt={c.customArt}
+      priceless={cardPricelessReason(c)}
       symbolMap={symbolMap()}
       viewMode="list"
       hideCount={c.quantity <= 1}
@@ -415,6 +418,8 @@ export const FindPage: Component<FindPageProps> = (props) => {
       <CardModal
         open={Boolean(modalTile())}
         card={modalTile()?.card ?? null}
+        customArt={modalTile()?.customArt}
+        hasCustomArt={modalTile()?.hasCustomArt}
         cardName={modalTile()?.name ?? null}
         symbolMap={symbolMap()}
         useScryfallImgUrls={props.useScryfallImgUrls}

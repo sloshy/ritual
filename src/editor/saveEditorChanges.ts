@@ -1,4 +1,5 @@
 import type { DroppedNote } from '../commands/move-io'
+import type { SaveEffect } from './save-effects'
 import { formatDroppedNotesSuffix } from './dropped-notes'
 import { type EditorStatusActions, statusMessage, statusText } from './useEditorStatus'
 
@@ -10,6 +11,12 @@ type SaveResponse = {
   contentHash?: string
   /** Notes discarded by the destination side of this save's cross-list moves. */
   droppedNotes?: DroppedNote[]
+  /**
+   * What the save did to individual card lines, ids resolved. Read for the `&N`
+   * a line ended up with — the editor's optimistic ids are not binding, and the
+   * serializer renumbers a line whose number another entry claimed first.
+   */
+  effects?: SaveEffect[]
 }
 
 export async function saveEditorChanges(

@@ -485,7 +485,7 @@ export const adminMeta = {
 
   // ── Collection default-labels modal ───────────────────────────────────
   'admin.labels.title': {
-    description: 'Title of the dialog setting a collection’s default card labels.',
+    description: 'Title of the dialog setting a list’s default card labels.',
   },
   'admin.labels.desc': {
     description: 'Explains that the chosen labels apply to every card that does not set its own.',
@@ -498,6 +498,64 @@ export const adminMeta = {
   },
   'admin.labels.saving': { description: 'Button label while the labels are being saved.' },
   'admin.labels.save': { description: 'Button that saves the chosen default labels.' },
+
+  // ── Custom art dialog ─────────────────────────────────────────────────
+  'admin.art.title': {
+    description:
+      'Title of the dialog that replaces a card’s printing image with an image of the user’s own.',
+  },
+  'admin.art.desc': {
+    description:
+      'Explains what the dialog does. {name} is the card’s name. The "art directory" is the configurable folder (artDir) the user keeps local images in.',
+  },
+  'admin.art.modeLabel': {
+    description:
+      'Accessible name of the radio group choosing between a local file and a web address.',
+  },
+  'admin.art.modeFile': {
+    description: 'Radio choice: the image is a file inside the configured art directory.',
+  },
+  'admin.art.modeUrl': { description: 'Radio choice: the image is linked from the web.' },
+  'admin.art.fileLabel': {
+    description:
+      'Label of the text field holding the image’s path relative to the art directory (e.g. proxies/sol-ring.jpg).',
+  },
+  'admin.art.urlLabel': { description: 'Label of the text field holding the image’s web address.' },
+  'admin.art.filePlaceholder': {
+    description:
+      'Example file path shown in the empty field. A path, not prose — translate only if the example would be clearer localized.',
+  },
+  'admin.art.urlPlaceholder': {
+    description: 'Example image URL shown in the empty field. A URL, not prose.',
+  },
+  'admin.art.previewAlt': {
+    description: 'Alt text of the preview image in the dialog. {name} is the card’s name.',
+  },
+  'admin.art.previewFailed': {
+    description:
+      'Shown under the preview when the browser could not load the image at the entered path or URL.',
+  },
+  'admin.art.invalid': {
+    description:
+      'Shown under the field when what was typed is not a usable image reference, so Save stays disabled. {reason} is untranslated engine prose from the art parser (e.g. \'"../x.png" escapes the art directory\').',
+  },
+  'admin.art.saveFailed': {
+    description: 'Error when the art could not be saved. {status} is an HTTP status code.',
+  },
+  'admin.art.saving': { description: 'Button label while the art is being saved.' },
+  'admin.art.save': { description: 'Button that saves the entered image as the card’s art.' },
+  'admin.art.clear': {
+    description:
+      'Button that removes the card’s custom art, so it shows its real printing again. Only shown when the card has custom art.',
+  },
+  'admin.art.pendingNote': {
+    description:
+      'Note in the custom-art dialog when the card was added during this editing session: the art is held with the pending changes and written by the next save, rather than immediately like it is for a card already in the list.',
+  },
+  'admin.art.pendingFailed': {
+    description:
+      'Error banner shown when the list saved but writing back the custom art it had been holding failed afterwards. {count} is how many cards failed; {cardId} is the first failing card line’s internal &N number, and {reason} is the server’s own sentence about that one.',
+  },
 
   // ── Change History ────────────────────────────────────────────────────
   'admin.combine.title': {
@@ -1211,6 +1269,16 @@ export const adminMeta = {
   'admin.settings.wantedDirPlaceholder': {
     description: 'Example value for the wanted-list folder. A literal path.',
   },
+  'admin.settings.artDir': {
+    description: 'Field label: the folder holding local images used as custom card art.',
+  },
+  'admin.settings.artDirPlaceholder': {
+    description: 'Example value for the custom-art folder. A literal path.',
+  },
+  'admin.settings.artDirHint': {
+    description:
+      'Explains the custom-art folder: images placed there can replace a card’s printing image, and a card refers to one by its path relative to this folder.',
+  },
   'admin.settings.defaultCurrency': {
     description: 'Field label: which currency prices are shown in.',
   },
@@ -1406,6 +1474,18 @@ export const adminMeta = {
   'admin.api.save.saved': {
     description:
       'Success alert after an editor save. {count} is how many individual changes were written, {name} the list they were written to. Deliberately not a plural table: the English wording is fixed by the response MCP clients already read.',
+  },
+  'admin.api.save.artUnreconciled': {
+    description:
+      "Warning in an editor save's response when the list's (or a move destination's) <list>.art.json custom-art sidecar could not be read, so the &N ids the save freed or renumbered could not be re-filed. {reason} is untranslated engine prose naming the file and the parse failure. A warning, never a failure: the card lines were written correctly.",
+  },
+  'admin.api.art.set': {
+    description:
+      "Success alert after a card's custom art is set from the editor. {name} is the list's slug. The card is not named: card ids are internal, and the alert appears beside the card that was just edited.",
+  },
+  'admin.api.art.cleared': {
+    description:
+      "Success alert after a card's custom art is removed, so it shows its real printing again. {name} is the list's slug.",
   },
   'admin.api.buildSite.built': {
     description: 'Success alert after the public site finishes building and is published.',

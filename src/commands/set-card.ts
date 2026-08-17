@@ -1,4 +1,6 @@
 import { Command, InvalidArgumentError } from 'commander'
+import type { Stats } from 'node:fs'
+import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
   createSetCommanderChange,
@@ -13,11 +15,22 @@ import {
 import { languageDisplayName, type CardLanguage } from '../card-language'
 import type { PrintingFields } from '../card-printing'
 import { parseCardLabelsToken, type CardLabel } from '../card-labels'
+import {
+  cardArtFilePath,
+  isCardArtRefError,
+  loadCardArt,
+  parseCardArtInput,
+  saveCardArt,
+  type CardArtFileRef,
+  type CardArtRef,
+} from '../card-art'
+import { getArtDir } from '../ritual-config'
 import type { CardMutationChange } from '../list-mutate'
 import { applyTargetedChanges } from './line-mutate'
 import {
   addDryRunOption,
   addScriptingOptions,
+  classifyFileReadError,
   emitOutput,
   emitWarnings,
   ExitCode,
@@ -25,13 +38,14 @@ import {
   type DryRunOptions,
   type ScriptingOptions,
 } from './scripting'
-import { localizedCommandError } from '../errors'
+import { getErrorMessage, localizedCommandError } from '../errors'
 import { t } from '../i18n/t'
 import {
   addListTypeFlags,
   describeEntry,
   ensureFinishAvailable,
   ensureFinishAvailableForEntry,
+  ensureLabelsSupported,
   ensureLanguageAvailableForEntry,
   parseCardIdFlag,
   parseLanguageFlag,
@@ -56,6 +70,21 @@ import { parseSetCode } from '../set-codes'
 import type { ListType } from '../list-type'
 import type { Finish } from '../types'
 
+/**
+ * `--art none`: remove whatever custom art the card carries. Spelled as an
+ * object rather than the `null` the admin route's body uses, because Commander
+ * rewrites an argParser's `null` result to `''` before the action ever sees it.
+ */
+export type CardArtClear = { clear: true }
+
+/** A `--art` value once parsed: the reference to record, or the `none` clear. */
+export type CardArtUpdate = CardArtRef | CardArtClear
+
+/** True when a parsed `--art` value asks for the card's art to be removed. */
+function isCardArtClear(update: CardArtUpdate): update is CardArtClear {
+  return 'clear' in update
+}
+
 type SetCardOptions = {
   cardId?: string
   set?: string
@@ -66,6 +95,8 @@ type SetCardOptions = {
   language?: CardLanguage
   /** The new label override; an empty array (`--label none`) clears it. */
   label?: CardLabel[]
+  /** The new custom art; a clear for `--art none`. */
+  art?: CardArtUpdate
   section?: string
   /** true = --commander, false = --no-commander, undefined = neither. */
   commander?: boolean
@@ -121,6 +152,21 @@ export function parseLabelFlag(value: string): CardLabel[] {
   return parsed.labels
 }
 
+/**
+ * Commander argParser for `--art`: `none` to clear the card's custom art, an
+ * http(s) URL kept verbatim, or an image path relative to the configured art
+ * directory. Whether that path exists is checked later, against the art
+ * directory the run resolves.
+ */
+export function parseArtFlag(value: string): CardArtUpdate {
+  if (value.trim().toLowerCase() === 'none') return { clear: true }
+  const ref = parseCardArtInput(value)
+  if (isCardArtRefError(ref)) {
+    throw new InvalidArgumentError(t('cli.setCard.artInvalid', { reason: ref.error }))
+  }
+  return ref
+}
+
 export function registerSetCardCommand(program: Command): void {
   const command = addScriptingOptions(
     addListTypeFlags(
@@ -147,6 +193,7 @@ export function registerSetCardCommand(program: Command): void {
         parseConditionFlag,
       )
       .option('--label <labels>', t('help.setCard.label'), parseLabelFlag)
+      .option('--art <value>', t('help.setCard.art'), parseArtFlag)
       .option('--section <name>', t('help.setCard.section'))
       .option('--commander', t('help.setCard.commander'))
       .option('--no-commander', t('help.setCard.noCommander')),
@@ -171,6 +218,7 @@ export function registerSetCardCommand(program: Command): void {
             condition: options.condition,
             language: options.language,
             label: options.label,
+            art: options.art,
             section: options.section,
             commander: options.commander,
             dryRun: options.dryRun ?? false,
@@ -197,6 +245,8 @@ type RunInput = {
   language: CardLanguage | undefined
   /** The new label override; an empty array clears it. */
   label: CardLabel[] | undefined
+  /** The new custom art; a clear removes it. */
+  art: CardArtUpdate | undefined
   section: string | undefined
   commander: boolean | undefined
   dryRun: boolean
@@ -254,6 +304,83 @@ function describeSkippedFinishCheck(
   return t('cli.setCard.finishCheckCacheMiss', { finish, entry })
 }
 
+/**
+ * Reject a `--art` file reference with nothing behind it. The resolved path is
+ * part of the message: the flag value is art-dir-relative, so without it the
+ * user cannot tell which directory was searched.
+ */
+async function ensureArtFileExists(ref: CardArtFileRef): Promise<void> {
+  const artDir = getArtDir()
+  const filePath = cardArtFilePath(artDir, ref)
+  let stats: Stats
+  try {
+    stats = await fs.stat(filePath)
+  } catch (err) {
+    const { errorCode, exitCode } = classifyFileReadError(err)
+    throw errorCode === 'not_found'
+      ? localizedCommandError(errorCode, exitCode, 'cli.setCard.artFileMissing', {
+          path: filePath,
+          dir: artDir,
+        })
+      : localizedCommandError(errorCode, exitCode, 'cli.setCard.artFileUnreadable', {
+          path: filePath,
+          reason: getErrorMessage(err),
+        })
+  }
+  if (!stats.isFile()) {
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.setCard.artNotAFile', {
+      path: filePath,
+    })
+  }
+}
+
+/** The custom-art write a run performs, once the target's `&N` id is known. */
+type ArtWrite = {
+  cardId: number
+  art: CardArtUpdate
+}
+
+/**
+ * The `&N` id `--art` will be filed under. Custom art is keyed by card id, so a
+ * line that carries none cannot hold any — every command that writes card lines
+ * backfills ids first, so this only fires on a target resolved from a file the
+ * backfill did not touch.
+ */
+function resolveArtWrite(target: EntryRef, art: CardArtUpdate): ArtWrite {
+  if (target.cardId === undefined) {
+    throw localizedCommandError('runtime_error', ExitCode.RuntimeError, 'cli.setCard.artNeedsId', {
+      entry: describeEntry(target),
+    })
+  }
+  return { cardId: target.cardId, art }
+}
+
+/**
+ * Record (or clear) one card's custom art in the list's `.art.json` sidecar.
+ * Art is list metadata like the primer: written straight to the sidecar, with
+ * no change event and no changelog entry.
+ */
+async function writeCardArt(filePath: string, write: ArtWrite): Promise<void> {
+  const loaded = await loadCardArt(filePath)
+  if (!loaded.ok) {
+    throw localizedCommandError(
+      'runtime_error',
+      ExitCode.RuntimeError,
+      'cli.setCard.artSidecarUnreadable',
+      { reason: loaded.message },
+    )
+  }
+  if (isCardArtClear(write.art)) loaded.art.delete(write.cardId)
+  else loaded.art.set(write.cardId, write.art)
+  await saveCardArt(filePath, loaded.art)
+}
+
+/** How an applied `--art` reads in the success output. */
+function describeArtUpdate(art: CardArtUpdate): string {
+  if (isCardArtClear(art)) return t('cli.setCard.artCleared')
+  return t('cli.setCard.appliedArt', { art: 'file' in art ? art.file : art.url })
+}
+
 async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise<void> {
   const cardId = input.cardId !== undefined ? parseCardIdFlag(input.cardId) : undefined
 
@@ -266,6 +393,7 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     input.condition !== undefined ||
     input.language !== undefined ||
     input.label !== undefined ||
+    input.art !== undefined ||
     input.section !== undefined ||
     input.commander !== undefined
   if (!hasMutation) {
@@ -281,12 +409,11 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
   if (type !== 'deck' && input.section !== undefined) {
     throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.setCard.sectionDecksOnly')
   }
-  if (type !== 'collection' && input.label !== undefined) {
-    throw localizedCommandError(
-      'usage_error',
-      ExitCode.UsageError,
-      'cli.cardOps.labelCollectionsOnly',
-    )
+  if (input.label !== undefined) ensureLabelsSupported(type, input.label)
+  // Checked before the target is resolved: a path with no image behind it is
+  // the user's mistake whichever card they meant.
+  if (input.art !== undefined && 'file' in input.art) {
+    await ensureArtFileExists(input.art)
   }
   if (type !== 'deck' && input.commander !== undefined) {
     throw localizedCommandError(
@@ -297,6 +424,7 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
   }
 
   const target = await resolveTarget(type, filePath, { cardId, cardName: input.cardName })
+  const artWrite = input.art !== undefined ? resolveArtWrite(target, input.art) : undefined
 
   // A finish is validated on every branch that records one — against the pinned
   // printing when the command pins one, otherwise against the printing the entry
@@ -422,6 +550,7 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
         : t('cli.setCard.appliedLabel', { labels: input.label.join(', ') }),
     )
   }
+  if (input.art !== undefined) applied.push(describeArtUpdate(input.art))
   if (input.section !== undefined) {
     changes.push(createSetSectionChange(target.name, input.section, target.cardId))
     applied.push(t('cli.setCard.appliedSection', { section: input.section }))
@@ -436,7 +565,12 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
 
   // A dry run resolves the list, the target, and every validation above, then
   // stops before the first write: no list file, no changelog, no sidecar.
-  if (!input.dryRun) await applyTargetedChanges(type, filePath, target, changes)
+  if (!input.dryRun) {
+    // `--art` alone leaves no line change to apply, and an empty batch would
+    // still rewrite the list file and open a changelog entry for nothing.
+    if (changes.length > 0) await applyTargetedChanges(type, filePath, target, changes)
+    if (artWrite !== undefined) await writeCardArt(filePath, artWrite)
+  }
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {

@@ -70,6 +70,7 @@ import {
 import {
   cancelledError,
   ensureFinishAvailable,
+  ensureLabelsSupported,
   listArgumentConflictError,
   parseLanguageFlag,
   resolveListTypeFlag,
@@ -126,7 +127,7 @@ type AddCardOptions = {
   condition?: ConditionUpdate
   /** Explicit `--language` override; otherwise the configured default applies. */
   language?: CardLanguage
-  /** Label override the new card starts with — collections only. */
+  /** Label override the new card starts with, where the list type carries labels. */
   label?: CardLabel[]
   exact?: boolean
   set?: string
@@ -165,7 +166,7 @@ type AddCardSuccess = {
   condition?: Condition
   /** The recorded language; omitted for English (bare-line default). */
   language?: CardLanguage
-  /** Collection adds only: the label override the new line carries. */
+  /** The label override the new line carries, where the list type carries labels. */
   labels?: CardLabel[]
   quantity?: number
   cardId: number
@@ -376,13 +377,7 @@ function validateTargetFlags(
   if (type === 'wanted' && options.condition !== undefined) {
     throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.wantedNoCondition')
   }
-  if (type !== 'collection' && options.label !== undefined) {
-    throw localizedCommandError(
-      'usage_error',
-      ExitCode.UsageError,
-      'cli.cardOps.labelCollectionsOnly',
-    )
-  }
+  if (options.label !== undefined) ensureLabelsSupported(type, options.label)
   if (type !== 'deck' && (options.section !== undefined || options.commander)) {
     throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.addCard.deckOnlyFlags')
   }
@@ -630,6 +625,7 @@ async function addToDeck(
     finish: options.finish,
     condition: applyConditionUpdate(options.condition, undefined),
     language: resolveAddLanguage(options.language, undefined),
+    labels: options.label,
   }
   const placement: DeckAddPlacement = {
     section: options.section,
@@ -655,6 +651,7 @@ async function addToDeck(
       finish: card.finish,
       condition: card.condition,
       language: card.language,
+      labels: card.labels,
       quantity: options.quantity,
       cardId: outcome.cardId,
       section: outcome.section,

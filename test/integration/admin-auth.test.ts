@@ -1,4 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import {
   createAdminUser,
   verifyAdminUser,
@@ -8,6 +10,7 @@ import {
   setTotpSecret,
 } from '../../src/admin/auth'
 import { startAdminServer } from '../../src/admin/server'
+import { createSession, getSessionCookieName } from '../../src/admin/session'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
 /**
@@ -92,6 +95,112 @@ describe('admin auth (Integration)', () => {
     await createAdminUser('admin', 'test1234')
     await setTotpSecret('JBSWY3DPEHPK3PXP')
     expect(await isTotpEnabled()).toBe(true)
+  })
+})
+
+describe('admin custom-art route (Integration)', () => {
+  beforeEach(async () => {
+    ws = await bindWorkspace({ dirs: [], config: false })
+  })
+
+  afterEach(async () => {
+    await ws.dispose()
+  })
+
+  /**
+   * A session cookie for the in-process server. Sessions live in a module-level
+   * map, so minting one directly is the same thing `POST /api/login` does —
+   * without a password round trip in a test that is about the art route.
+   */
+  function sessionHeader(): Record<string, string> {
+    const session = createSession('admin', '127.0.0.1')
+    return { Cookie: `${getSessionCookieName()}=${session.token}` }
+  }
+
+  /** The art directory, plus one image the route is allowed to hand out. */
+  async function seedArt(): Promise<void> {
+    await fs.mkdir(path.join(ws.dir, 'art'), { recursive: true })
+    await fs.writeFile(path.join(ws.dir, 'art', 'bolt.png'), 'bolt-bytes')
+  }
+
+  test('serves the art directory only to a session', async () => {
+    // The editor previews local art through this route, so it is one of the few
+    // admin routes outside /api/ — and must still refuse an anonymous caller
+    // rather than falling through to the static/SPA handler.
+    await createAdminUser('admin', 'test1234')
+    await seedArt()
+
+    const server = await startAdminServer({ port: 0, host: '127.0.0.1', distDir: ws.dir })
+    try {
+      const response = await fetch(`http://127.0.0.1:${server.port}/art/bolt.png`)
+      expect(response.status).toBe(401)
+    } finally {
+      await server.stop(true)
+    }
+  })
+
+  test('hands a session the image bytes with the extension’s content type', async () => {
+    await createAdminUser('admin', 'test1234')
+    await seedArt()
+
+    const server = await startAdminServer({ port: 0, host: '127.0.0.1', distDir: ws.dir })
+    try {
+      const response = await fetch(`http://127.0.0.1:${server.port}/art/bolt.png`, {
+        headers: sessionHeader(),
+      })
+      expect(response.status).toBe(200)
+      // The type comes from the allowlist's table, not from sniffing: an
+      // `<img>` in the editor will not render a file served as octet-stream.
+      expect(response.headers.get('Content-Type')).toBe('image/png')
+      expect(await response.text()).toBe('bolt-bytes')
+    } finally {
+      await server.stop(true)
+    }
+  })
+
+  test('404s an authenticated traversal, even with a real image to escape to', async () => {
+    // Planted *outside* the art directory and given an allowed extension, so a
+    // route that resolved the `..` would answer 200 with these bytes. Without
+    // the file this test would pass on the extension gate alone and prove
+    // nothing about the guard.
+    await createAdminUser('admin', 'test1234')
+    await seedArt()
+    await fs.writeFile(path.join(ws.dir, 'outside.png'), 'outside-bytes')
+
+    // An empty static root, unlike the sibling tests: `%2E%2E` is collapsed by
+    // URL parsing itself, so that request never reaches the art route at all —
+    // and with the workspace as `distDir` the *static* handler would serve the
+    // planted file, turning a passing guard into a failing test.
+    const distDir = path.join(ws.dir, 'dist')
+    await fs.mkdir(distDir, { recursive: true })
+
+    const server = await startAdminServer({ port: 0, host: '127.0.0.1', distDir })
+    try {
+      const base = `http://127.0.0.1:${server.port}`
+      const headers = sessionHeader()
+      for (const suffix of ['..%2Foutside.png', '..%5Coutside.png', '%2E%2E/outside.png']) {
+        const response = await fetch(`${base}/art/${suffix}`, { headers })
+        expect(response.status).toBe(404)
+        expect(await response.text()).not.toContain('outside-bytes')
+      }
+    } finally {
+      await server.stop(true)
+    }
+  })
+
+  test('refuses an anonymous write to a card’s art', async () => {
+    await createAdminUser('admin', 'test1234')
+    const server = await startAdminServer({ port: 0, host: '127.0.0.1', distDir: ws.dir })
+    try {
+      const response = await fetch(`http://127.0.0.1:${server.port}/api/art/collection/binder`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cardId: 1, art: null }),
+      })
+      expect(response.status).toBe(401)
+    } finally {
+      await server.stop(true)
+    }
   })
 })
 

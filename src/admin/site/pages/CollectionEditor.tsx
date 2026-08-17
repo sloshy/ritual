@@ -1,8 +1,9 @@
 import { createSignal, type JSX } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
 import type { CardLabel } from '../../../card-labels'
+import type { CardArtRecord } from '../../../card-art'
 import type { CollectionCardEntry } from '../../../site/data-types'
-import { CollectionLabelsModal } from '../components/CollectionLabelsModal'
+import { ListLabelsModal } from '../components/ListLabelsModal'
 import type { ListEditorConfig } from '../../../editor/useEditor'
 import type { EntryCardDataActions } from '../../../editor/useEntryCardData'
 import { collectExistingIds } from '../../../card-id'
@@ -20,6 +21,7 @@ import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, moveTargetsExcluding } from '../move-targets'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
+import { useCardArt } from '../hooks/useCardArt'
 import { sellModeEnabled } from '../sell-enabled'
 
 type CollectionListResponse = { collections?: { slug: string; name: string }[] }
@@ -29,6 +31,7 @@ type CollectionDataResponse = {
   entries: CollectionCardEntry[]
   sectionOrder?: string[]
   labels?: CardLabel[]
+  customArt?: CardArtRecord
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
@@ -44,6 +47,7 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
   // modal's save (front matter is not part of the card-change pipeline).
   const [listLabels, setListLabels] = createSignal<CardLabel[] | undefined>(undefined)
   const [labelsOpen, setLabelsOpen] = createSignal(false)
+  const cardArt = useCardArt('collection')
 
   const buildConfig = (
     cardActions: EntryCardDataActions,
@@ -65,8 +69,14 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
 
     processLoadResponse: (response) => {
       const r = response as CollectionDataResponse
-      if (!r.success) return null
+      // Adopted before the failure check: both are per-list state, so a failed
+      // load must clear the previous list's labels and art rather than leave
+      // them decorating whatever is on screen.
       setListLabels(r.labels)
+      // The ids the *saved* list holds: an art edit on any other card has to
+      // wait for the save that gives its line an `&N`.
+      cardArt.adopt(r.slug, r.customArt, r.success ? collectExistingIds(r.entries) : [])
+      if (!r.success) return null
       return {
         data: r.entries,
         poolIds: collectExistingIds(r.entries),
@@ -80,6 +90,9 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
       cardActions.load({ cards: r.cards, printings: r.printings, symbolMap: r.symbolMap })
     },
     addCardData: (cardName, card, printings) => cardActions.addCard(cardName, card, printings),
+    onCardArt: cardArt.stage,
+    onCardArtReset: cardArt.reset,
+    onSaved: cardArt.flush,
     onCardAdded: async (cardName, scryfallCard) => {
       const data = await fetchCardPrice(cardName)
       if (!data) return
@@ -114,6 +127,10 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
     applyChange: applyChangeToCollection,
     printingOf: collectionPrintingOf,
   })
+  // Wired after the editor exists: a staged art write that fails *after* a
+  // successful save has no dialog left to report into, so it takes over the
+  // editor's own error banner.
+  cardArt.attachStatus(ctrl.editor.statusActions)
   useSlugSync(ctrl.editor.slug, props)
 
   const name = () =>
@@ -132,10 +149,13 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
         listLabels={listLabels()}
         enableImport={true}
         onEditLabels={() => setLabelsOpen(true)}
+        customArt={cardArt.art()}
+        onSetCustomArt={cardArt.open}
       />
-      <CollectionLabelsModal
+      <ListLabelsModal
         open={labelsOpen()}
         onClose={() => setLabelsOpen(false)}
+        type="collection"
         slug={ctrl.editor.slug()}
         labels={listLabels()}
         contentHash={ctrl.editor.contentHash()}

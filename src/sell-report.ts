@@ -5,6 +5,9 @@
  *
  * Matching per entry:
  *
+ * - A proxy entry, and a card wearing custom art, never reach this engine at
+ *   all: {@link loadSellListInputs} drops both, so a card nobody can sell is
+ *   absent from the report rather than counted as one CK declined.
  * - A non-English entry (`[ja]` and friends) is never matched at all: CK's
  *   feed is English-only, and the English product's price is not this card's
  *   price. Such entries report `no-match` with reason `non-english`.
@@ -52,6 +55,7 @@ import {
 import { displayFinish } from './finish-condition'
 import { LIST_TYPES, type ListType } from './list-type'
 import {
+  isPricelessEntry,
   loadPriceListInputs,
   type LoadedPriceInputs,
   type PriceListEntry,
@@ -216,6 +220,11 @@ export type SellReportPayload = {
  * through the shared list loader (deck extras excluded, sideboards included,
  * set codes lowercased — the price report's rules). Collection files hold one
  * line per physical copy, so identical variants are aggregated per list.
+ *
+ * Proxies and custom-art copies are dropped here, before aggregation: there is
+ * nothing to sell, and such a copy left in would otherwise merge into an
+ * identical real one (the variant key is printing + finish + condition +
+ * language, not labels or art) and offer CK a card that does not exist.
  */
 export async function loadSellListInputs(
   type?: ListType,
@@ -224,7 +233,10 @@ export async function loadSellListInputs(
   const { inputs, warnings } = await loadPriceListInputs(type, locations)
   return {
     inputs: inputs.map(
-      (input): SellListInput => ({ ...input, entries: aggregateSellEntries(input.entries) }),
+      (input): SellListInput => ({
+        ...input,
+        entries: aggregateSellEntries(input.entries.filter((entry) => !isPricelessEntry(entry))),
+      }),
     ),
     warnings,
   }

@@ -8,6 +8,8 @@ import {
   writeListViewParams,
 } from '../../src/site/list-view-url'
 import { type CardFilters, createDefaultCardFilters } from '../../src/site/card-filters'
+import { offeredLabels } from '../../src/site/useListViewUrlSync'
+import { labelFiltersFor } from '../../src/card-labels'
 
 const DEFAULTS: ListViewDefaults = { groupBy: 'type', sortBy: 'name' }
 
@@ -479,6 +481,34 @@ describe('labels param', () => {
   test('an illegal combination is ignored whole', () => {
     const params = new URLSearchParams('labels=keep,sale')
     expect(parseListViewParams(params).filters?.labels).toBeUndefined()
+  })
+})
+
+describe('offeredLabels (per-page narrowing of a URL selection)', () => {
+  const DECK_CHIPS = labelFiltersFor('deck')
+
+  test('keeps a selection the page offers', () => {
+    expect(offeredLabels(['proxy'], DECK_CHIPS)).toEqual(['proxy'])
+    expect(offeredLabels(['sale', 'trade'], labelFiltersFor('collection'))).toEqual([
+      'sale',
+      'trade',
+    ])
+  })
+
+  test('drops a selection none of whose values this page offers', () => {
+    // A collection link pasted onto a deck: filtering on `sale` there would
+    // empty the list behind a chip the deck's toolbar cannot show or clear.
+    expect(offeredLabels(['sale'], DECK_CHIPS)).toBeUndefined()
+    expect(offeredLabels(['keep'], DECK_CHIPS)).toBeUndefined()
+  })
+
+  test('narrows a mixed selection to the offered half', () => {
+    expect(offeredLabels(['sale', 'proxy'], DECK_CHIPS)).toEqual(['proxy'])
+  })
+
+  test('a page with no labels at all drops every selection', () => {
+    expect(offeredLabels(['none'], labelFiltersFor('wanted'))).toBeUndefined()
+    expect(offeredLabels(['proxy'], undefined)).toBeUndefined()
   })
 })
 

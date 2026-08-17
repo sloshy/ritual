@@ -3,8 +3,8 @@
  * or wanted list file. Every surface that manages list files (the CLI commands
  * `new`/`rename`/`delete`, the admin handlers, and through them the MCP tools)
  * routes through here, so the file mechanics — slug sanitization, display-name
- * rewrites, and the `.sha256`/`.changes.md`/`.primer.md` sidecar set — cannot
- * drift between surfaces.
+ * rewrites, and the `.sha256`/`.changes.md`/`.primer.md`/`.art.json` sidecar
+ * set — cannot drift between surfaces.
  *
  * The engines never touch git: callers that auto-commit (the admin handlers)
  * receive the touched file paths and commit them themselves.
@@ -13,6 +13,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import matter from 'gray-matter'
+import { artSidecarPath } from './card-art'
 import { hashPath, isRitualClean, writeFileWithHash } from './content-hash'
 import { newDeckMarkdown, parseDeckFrontMatter } from './deck-file'
 import { invalidDeckFormatMessage, parseDeckFormat } from './deck-format'
@@ -390,8 +391,9 @@ export async function renameList(
 
 /**
  * Delete a list file and every sidecar it may have: the `.sha256` content hash,
- * the `.changes.md` changelog, and the `.primer.md` primer. Sidecar paths come
- * from `list-sidecars`/`content-hash` uniformly, so none can be orphaned by a
+ * the `.changes.md` changelog, the `.primer.md` primer, and the `.art.json`
+ * custom art. Sidecar paths come from `list-sidecars`/`content-hash`/`card-art`
+ * uniformly, so none can be orphaned by a
  * hand-rolled path at one call site.
  */
 export async function deleteList(type: ListType, filePath: string): Promise<DeleteListResult> {
@@ -407,6 +409,7 @@ export async function deleteList(type: ListType, filePath: string): Promise<Dele
     hashPath(filePath),
     changelogSidecarPath(filePath),
     primerSidecarPath(filePath),
+    artSidecarPath(filePath),
   ]
   const deletedFiles: string[] = []
   for (const candidate of candidates) {

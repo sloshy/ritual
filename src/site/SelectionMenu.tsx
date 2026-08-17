@@ -13,7 +13,8 @@ import { openSelectionView } from './SelectionModal'
 import { promptListMove, promptSectionMove } from './move-prompt'
 import { promptCardLabels } from './label-prompt'
 import { promptCardLanguage } from '../editor/language-prompt'
-import type { CardLabel } from '../card-labels'
+import { supportsAnyLabels, type CardLabel } from '../card-labels'
+import type { ListType } from '../list-type'
 import { displayLanguage, type CardLanguage } from '../card-language'
 import { buyerName } from '../buylist'
 import { cartBuyer } from './sell-mode'
@@ -29,6 +30,18 @@ function commonSelectionLanguage(cards: SelectedCard[]): CardLanguage | undefine
   if (cards.length === 0) return undefined
   const first = displayLanguage(cards[0]?.language)
   return cards.every((c) => displayLanguage(c.language) === first) ? first : undefined
+}
+
+/**
+ * The list type whose label vocabulary the picker should offer — the kind every
+ * selected card shares, when that kind carries labels at all. Undefined for a
+ * mixed selection: the vocabularies differ by type (a deck takes `proxy`
+ * alone), so no one picker could describe the whole selection.
+ */
+function commonLabelListType(cards: SelectedCard[]): ListType | undefined {
+  const first = cards[0]?.sourceKind
+  if (first === undefined || !supportsAnyLabels(first)) return undefined
+  return cards.every((c) => c.sourceKind === first) ? first : undefined
 }
 
 /**
@@ -58,7 +71,11 @@ export interface SelectionEditActions {
   changePrinting: () => void
   /** Present for decks only. */
   setCommander?: () => void
-  /** Present for collections only — set/clear the label override on the selection. */
+  /**
+   * Set/clear the label override on the selection. Present only where the
+   * open editor wires it — collections (the whole vocabulary) and decks
+   * (`proxy` alone); wanted lists carry no labels.
+   */
   setLabel?: (labels: CardLabel[]) => void
   moveToSection: (section: string) => void
   promptNewSection: () => void
@@ -194,6 +211,9 @@ type SelectionMenuItemsProps = SelectionMenuProps & {
   onClose: () => void
 }
 
+/** The label picker the menu can open: which vocabulary, and what to do with the pick. */
+type LabelAction = { type: ListType; setLabel: (labels: CardLabel[]) => void }
+
 const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
   const t = useT()
   const copy = useSelectionCopy(() => props.selection.selected())
@@ -201,6 +221,18 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
   // represents more than one copy; for single-copy tiles it duplicates "Remove from
   // list". Reactive to the live selection so it appears/disappears as it changes.
   const canRemoveCopy = createMemo(() => props.selection.selected().some((c) => c.groupSize > 1))
+
+  /**
+   * The "Set Label…" action and the list type whose choices it offers, or
+   * undefined when the open editor exposes no label handler or the selection
+   * spans list types with different vocabularies.
+   */
+  const labelAction = createMemo((): LabelAction | undefined => {
+    const setLabel = props.editActions?.setLabel
+    if (!setLabel) return undefined
+    const type = commonLabelListType(props.selection.selected())
+    return type ? { type, setLabel } : undefined
+  })
 
   const viewAll = () => {
     openSelectionView()
@@ -316,8 +348,8 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
                 </button>
               )}
             </Show>
-            <Show when={actions().setLabel}>
-              {(setLabel) => (
+            <Show when={labelAction()}>
+              {(action) => (
                 <button
                   type="button"
                   role="menuitem"
@@ -325,9 +357,9 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
                   onClick={() => {
                     // Capture before closing: the close may unmount this <Show>,
                     // and the picker's callback runs after that.
-                    const apply = setLabel()
+                    const { type, setLabel } = action()
                     props.onClose()
-                    promptCardLabels((labels) => apply(labels))
+                    promptCardLabels(type, (labels) => setLabel(labels))
                   }}
                 >
                   {t('site.selection.setLabel')}

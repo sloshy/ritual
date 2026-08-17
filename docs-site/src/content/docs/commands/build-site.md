@@ -233,6 +233,7 @@ Generates a single-page application in the `dist/` directory (or the `--out-dir`
 - `decks/{slug}.json` — Full deck data loaded on demand
 - `collections/{slug}.json` — Full collection data with pricing loaded on demand
 - `wanted/{slug}.json` — Full wanted list data with pricing loaded on demand — each of these three also carries that list's baked Card Kingdom buy prices when [sell mode](#sell-mode---sell-mode) is on
+- `art/{path}` — [Custom card art](/custom-art/) files referenced by any published list, copied out of the configured art directory under their art-dir-relative path (once per unique path, so lists sharing an image share the file). A referenced file that is not on disk is a build warning and is left out of the baked data, so the card falls back to its normal art
 - `styles.css` — Bundled CSS
 - Responsive design for desktop and mobile
 - Dark mode support
@@ -607,9 +608,19 @@ Both deck and collection pages share a unified card detail modal. Clicking any c
 - A "View on Scryfall" link to the card's Scryfall page
 - An "Other Printings" button showing a paginated binder-style grid (8 per page) of all known printings, sorted by release date (newest first) by default, each linking to Scryfall with prices. Sorting can be changed via a dropdown to release date, set name, or price, with a toggle to reverse the sort direction.
 
+A card carrying [custom art](/custom-art/) shows that image on its tile in every view (grid, binder, stacks, and the list view's hover preview) and as the modal's main picture. Only the front is replaced — a double-faced card flips to its real back — and the **Other Printings** grid keeps real thumbnails, since showing you actual printings is what it is for.
+
+## Card Labels
+
+Cards carry [labels](/commands/edit/#card-labels) — `sale`, `trade`, `keep`, `proxy` on a collection, `proxy` on a deck — and the site filters on each card's _effective_ labels (its own override, else the list's front-matter default) through the toolbar's [Labels filter](/public-site/filtering/#available-filters), which offers only the chips the page's lists can answer. Tiles **badge** the entry's own override, in a themable color per label; a list-wide default is not badged on every tile (in a [combined view](/public-site/combined-view/), where there is no one ambient default, the badge shows the effective labels instead).
+
+A **proxy** is not a real card, so the build prices it at **0** in every currency: it is left out of the list totals, left out of the missing-price counts and banner, and never offered to a buyer in [sell mode](#sell-mode---sell-mode). Switching currency or pressing **Update Prices** cannot resurrect a price for it — the rule is applied client-side too.
+
+A card wearing [custom art](/custom-art/) is treated exactly the same way, for the same reason: it is no longer the printing a price would be quoted for. Wherever a per-card price is shown — the grid and list views, the card modal, the [Trade Planner](#trade-planner) — such a card reads **CUSTOM**, and a proxy without custom art reads **PROXY**, in place of the amount. A card that is both reads **CUSTOM**: custom art wins.
+
 ## Missing Card Warnings
 
-When a card cannot be priced in a selected currency (e.g., a paper-only card has no TIX price, or an MTGO-only card has no USD/EUR price), it is omitted from price totals. A collapsible warning banner appears at the top of the deck page listing cards with missing prices for the active currency. The banner updates reactively when switching currencies.
+When a card cannot be priced in a selected currency (e.g., a paper-only card has no TIX price, or an MTGO-only card has no USD/EUR price), it is omitted from price totals. A collapsible warning banner appears at the top of the deck page listing cards with missing prices for the active currency. The banner updates reactively when switching currencies. [Proxies](#card-labels) and [custom-art](/custom-art/) cards are not "missing" — they are priced at zero by rule and never appear in this banner.
 
 On the index page, deck and collection entries with missing prices display the total as **"At least $X.XX (missing N cards)"** instead of the raw total, making it clear the price is incomplete. The "lowest price" variant is hidden when a deck has missing prices to avoid confusion.
 
@@ -685,6 +696,7 @@ Although the generated site is static (no server), the navbar has an **Edit** to
 - **Edited vs. published** — while editing, the navbar grows a second row that makes it clear you are viewing a local copy, with an **Original / Edited** toggle to switch between your changes and the published version, and a **Discard** button to drop them. Press **Done** (the same navbar toggle) to leave edit mode.
 - **Card search** — adding cards searches Scryfall directly (preferring the shared session cache), the same as the Trade Planner. Matching is Scryfall's own: the [autocomplete API](https://scryfall.com/docs/api/cards/autocomplete) treats your query as one contiguous string, unlike [the admin editor's term matching](/admin/editors/#step-1-search) over the local card cache (where `in tre` finds "In the Trenches"). Results can therefore differ between the two editors — the search dialog notes this and links to the Scryfall API docs. On a site backed by a [live API](/public-site/hosted/), search goes through the backend's cache with the admin editor's term matching instead, and the note disappears.
 - **Keyboard shortcuts** — the editor shares the admin site's [keyboard shortcuts](/admin/editors/#keyboard-shortcuts): **Ctrl+Enter** opens the card search, **Ctrl+B** focuses the bottom action bar, and every step of the add-card dialog is arrow-key navigable. Press **?** (or the **?** button at the end of the action bar) for the full list.
+- **Label a card as you add it** — the add-card dialog's [Card Options](/admin/editors/#card-options) row offers the new card's [label override](/commands/edit/#card-labels), listing what the list type carries (the full vocabulary on a collection, **Proxy** alone on a deck, nothing on a wanted list). The label rides the `add` change, so it travels in the exported bundle and lands on the copy you added. Custom art is not offered here: this editor writes no files, and art lives in a sidecar only the admin site (or the CLI) can write.
 - **Set a card's language** — **Set Language…** is available in the per-card **⋯** context menu and in the multi-select **Selected** menu, exactly as in [the admin editor](/admin/editors/#card-language): a picker over the 17 Scryfall [card languages](/commands/edit/#card-language), with **English** clearing the line's token (a bare line always means `en`).
 - **Move a card to another list** — the per-card **⋯** menu, the per-list **Selected** menu, and the cross-list **All Selected** navbar menu each offer a single **Move to list…** item that opens a picker listing your other decks, collections, and wanted lists. Moving a card removes it from the list you're editing (it disappears from the edited view) and records the move in your exported change bundle. Moving a printing-less card into a collection (which needs a specific printing) opens the same printing picker the Trade Planner uses. Because the public site has no server, the destination list is only updated when the change bundle is later imported into the admin editor and saved.
 - **Export your edits** — the **Export…** panel offers two ways to keep your changes:
@@ -724,6 +736,7 @@ The left column is for cards you are offering. It searches cards from the collec
 - Cards show: thumbnail image, name, set code and collector number — with the language badged beside it for a non-English copy (`2XM:270 · JA`) — finish, condition, and price
 - If a deck card has no specific printing pinned, selecting it opens the printing picker so you can choose one (the deck source is preserved on the resulting trade row)
 - Sort by card name or price (toggle ascending/descending independently)
+- A row whose card carries no price by rule — a [proxy](#card-labels), or a card with [custom art](/custom-art/) — shows **PROXY** / **CUSTOM** where its price would be and counts as $0 in the column total and the balance between the columns
 - Price total shown at the bottom of the column
 
 **Quantity caps:** Each trade row's quantity stepper caps at the maximum number of that exact variant available in its source — for collections this is the count of identical note-less entries (same name, set, collector number, finish, condition); for decks it is the sum across mainboard/sideboard/etc. for that printing in that deck. When only one copy exists the stepper is hidden and a fixed quantity of 1 is displayed.

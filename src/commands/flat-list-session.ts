@@ -37,6 +37,15 @@ import { trackAdd, trackAnotherCopy, trackEdit } from '../session-changelog'
 import { parseCollectionFile, type CollectionEntry } from '../collection-file'
 import { parseWantedListFile, type WantedListEntry } from './wanted-helpers'
 import type { FlatListFrontMatter } from '../flat-list-front-matter'
+import type { CardArtRef } from '../card-art'
+import {
+  commitSessionArt,
+  createSessionArtChanges,
+  noteArtArrival,
+  noteArtRepack,
+  warnUnreconciledArt,
+  type SessionArtChanges,
+} from './session-art'
 import type { CardSessionContext, SessionAddItem } from './card-session'
 import type { EditUndoEntry } from './edit-undo'
 import type { ApplyChange } from '../editor/apply-batch'
@@ -64,6 +73,12 @@ export type FlatListSession<E extends FlatListEntry> = {
   pool: CardIdPool
   /** Whether the in-memory entries differ from what was last written to disk. */
   dirty: boolean
+  /**
+   * Pending `<list>.art.json` edits, applied by the same save that writes the
+   * entries — the sidecar is keyed by `&N`, and this session reuses the ids its
+   * removals free.
+   */
+  art: SessionArtChanges
   apply: ApplyChange<E[], ChangeEvent>
   serialize: FlatListSerialize<E>
 }
@@ -115,6 +130,7 @@ function newFlatListSession<E extends FlatListEntry>(
     sectionOrder: [],
     pool: createIdPool([]),
     dirty: true,
+    art: createSessionArtChanges(),
     apply,
     serialize,
   }
@@ -246,6 +262,7 @@ export async function loadCollectionSession(filePath: string): Promise<Collectio
     frontMatter: file.frontMatter,
     pool: file.pool,
     dirty: false,
+    art: createSessionArtChanges(),
     apply: applyChangeToCollection,
     serialize: collectionToMarkdown,
   }
@@ -263,6 +280,7 @@ export async function loadWantedSession(filePath: string): Promise<WantedSession
     frontMatter: file.frontMatter,
     pool: file.pool,
     dirty: false,
+    art: createSessionArtChanges(),
     apply: applyChangeToWantedList,
     serialize: wantedToMarkdown,
   }
@@ -301,11 +319,17 @@ export function applyFlatListChange<E extends FlatListEntry>(
  * changelog only) in the session's target section — the same placement a
  * regular add gets. Shared by the collection and wanted strategies so the
  * "how a moved card lands" rule exists once.
+ *
+ * `art` is the moved card's custom art in the source list, which follows it onto
+ * the id allocated here — the in-memory counterpart of what `applyAddToStaged`'s
+ * reported id lets the on-disk move paths do.
  */
 export function receiveFlatListMove<E extends FlatListEntry>(
   session: FlatListSession<E>,
   change: MoveToChange,
+  art?: CardArtRef,
 ): void {
+  const cardId = allocateId(session.pool)
   applyFlatListChange(
     session,
     createAddChange(change.cardName, {
@@ -314,16 +338,18 @@ export function receiveFlatListMove<E extends FlatListEntry>(
       finish: change.finish,
       condition: change.condition,
       language: change.language,
-      cardId: allocateId(session.pool),
+      cardId,
       section: flatListTargetSection(session),
     }),
   )
+  if (art) noteArtArrival(session.art, cardId, art)
 }
 
 /**
  * Write the session's in-memory entries back to its file in canonical form,
  * creating the list directory when the session is a new one whose file has
- * never existed.
+ * never existed. The list's custom-art sidecar is re-filed in the same step, so
+ * the ids the session freed never carry their art onto the cards that take them.
  */
 export async function persistFlatListSession<E extends FlatListEntry>(
   session: FlatListSession<E>,
@@ -334,6 +360,7 @@ export async function persistFlatListSession<E extends FlatListEntry>(
     session.serialize(session.title, session.entries, session.sectionOrder, session.frontMatter),
   )
   session.dirty = false
+  warnUnreconciledArt(await commitSessionArt(session.filePath, session.art))
 }
 
 // ── Shared strategy operations ──────────────────────────────────────
@@ -550,6 +577,10 @@ export function discardFlatListAdd<E extends NamedFlatListEntry>(
   }
   list.sessionAdds = survivorIds.map((id) => remap.get(id) ?? id)
   releaseId(session.pool, releasedId)
+  // Pending custom art is keyed by the same ids, so it follows the re-pack —
+  // otherwise art staged for a card added this session would land on whichever
+  // card inherited its number.
+  noteArtRepack(session.art, remap, targetId)
 
   // The re-pack may have renumbered ids that pending edit-undo entries reference,
   // so the edit history can no longer be replayed safely. Dropping it is the

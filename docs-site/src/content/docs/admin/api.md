@@ -108,7 +108,7 @@ case-insensitive file system.
 POST /api/deck/:slug/rename
 ```
 
-Rename a deck. Updates the frontmatter `name` field and renames the file to match the new slug. Also renames any associated changelog and primer files.
+Rename a deck. Updates the frontmatter `name` field and renames the `.md` together with every sidecar it has — see [List lifecycle responses](#list-lifecycle-responses).
 
 **Request Body:**
 
@@ -136,7 +136,7 @@ Rename a deck. Updates the frontmatter `name` field and renames the file to matc
 DELETE /api/deck/:slug
 ```
 
-Delete a deck. Requires the full deck name to be provided as confirmation. Removes the deck file along with any changelog and primer files.
+Delete a deck (and every sidecar it has — see [List lifecycle responses](#list-lifecycle-responses)). Requires the full deck name to be provided as confirmation.
 
 **Request Body:**
 
@@ -246,7 +246,11 @@ A missing list is a `404` whose message names `GET /api/lists` as the way to fin
 }
 ```
 
-Front matter travels with the deck's `cards` view because the save route re-sends it; a collection or wanted list returns `entries` + `sectionOrder` instead (a collection additionally carries `labels` — its front-matter default — and each entry may carry a `labels` override). A narrowed request replaces `contentHash` with `"partial": true`.
+Front matter travels with the deck's `cards` view because the save route re-sends it; a collection or wanted list returns `entries` + `sectionOrder` instead. A deck and a collection additionally carry a top-level `labels` — the list's [front-matter default](/commands/edit/#card-labels), a deck's being `proxy` alone — and each of their cards may carry its own `labels` override. A narrowed request replaces `contentHash` with `"partial": true`.
+
+Every non-summary load also carries `customArt` when the list has any: a `{ "<cardId>": { "file": … } | { "url": … } }` record of the **raw** [custom art](/custom-art/) references for the cards in the body (clients derive display URLs themselves, since an editor needs the path the user typed). It is omitted when none of the returned cards has art.
+
+Problems with the `.art.json` sidecar — it cannot be read, or it holds art filed under a card id the **whole** list no longer has — come back as a separate `artWarnings` array rather than failing the load. It is deliberately not folded into `warnings`: that channel means card lines the parser could not read, and the [save routes refuse](#unreadable-lines-block-a-save) a list that has any, while bad custom art blocks nothing. `artWarnings` is omitted when the sidecar is clean or absent. The orphan check ignores the filters, so a paged read never reports the cards it did not ask for.
 
 **Response (`view=summary`):**
 
@@ -516,6 +520,12 @@ An unknown `type` or `currency` returns `400`.
 `mode` discriminates the two price bodies — `"summary"` here, `"list"` on
 [Price List](#price-list) — so a client that can receive either reads one field to know which it got.
 
+`unpricedCount` counts copies whose price the data could not supply, and **only** those. Cards that
+carry no price [by rule](/custom-art/#custom-art-carries-no-price) — a `proxy` label, custom art, or
+both — are priced at `0` and counted in `cardCount` like any other card, but are deliberately left
+out of `unpricedCount`: they are not a gap in the price data, and a client showing "2 unpriced" for
+a deck of deliberate proxies would be reporting a problem that does not exist.
+
 **Response:**
 
 ```json
@@ -604,6 +614,14 @@ Price a single list and return its summary plus every priced card entry (in file
 }
 ```
 
+An entry that could not be priced also carries **`unpricedReason`**, absent on every priced card.
+It is one of `no-printings`, `printing-not-found`, `currency-unavailable`,
+`finish-unpriced-in-currency`, `no-price-data` — the data gaps, which `unpricedCount` counts — or
+one of the two **by-rule** reasons, `proxy` and `custom-art`, which it does not (see
+[Price Summary](#price-summary)). `custom-art` wins when a card is both. The by-rule entries still
+carry their printing and their `set`/`collectorNumber`: a proxy is a proxy _of_ a card, and custom
+art replaced the picture, not the card.
+
 ## Sell Report
 
 :::note[The five sell routes are gated on sell mode]
@@ -635,6 +653,8 @@ GET /api/sell/report
 ```
 
 Match listed cards against the locally cached [Card Kingdom buylist](/commands/sell/) and report what CK is buying, the cash quote per Near Mint copy, and their quantity caps — the same payload as [`sell --output json`](/commands/sell/). Strictly cache-backed: the card cache **and** a downloaded feed are prerequisites (`503` otherwise, each naming its remedy), and this endpoint never downloads anything — that is [Sell Refresh](#sell-refresh)'s job.
+
+Copies that are [priceless by rule](/custom-art/#custom-art-carries-no-price) — labeled `proxy`, wearing custom art, or both — are dropped **before** matching, so they are never quoted and never counted as cards the buyer declined. A proxy is not a card CK would take, and a copy wearing art of its own is not the printing a quote would be for. They are dropped rather than merged, so an otherwise-identical real copy in the same list keeps its own quote and its own quantity.
 
 ### Parameters
 
@@ -855,6 +875,8 @@ POST /api/deck/:slug/save
 
 Save deck changes. Writes the updated deck file and appends to the changelog. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session.
 
+`set-label` changes (and label-carrying `add`s and deck cards) are accepted here, validated against what a deck line can carry: `proxy` alone. Any other label — or an illegal combination — is a `400` and nothing is written.
+
 **Request Body:**
 
 ```json
@@ -927,6 +949,27 @@ until the response says so. That is what removes the follow-up load an MCP agent
 would otherwise make just to learn one number. Set codes inside `printing` are lowercase, per the
 project's data-payload convention.
 
+A save also re-files the list's [custom-art](/custom-art/) sidecar as part of the same write, and it
+reads the **changes** to do it, not the file it produced: a card the payload removes loses its art
+even when the payload re-adds the same card and the new line takes the same `&N` back. A client that
+wants art on a card it is adding therefore holds the reference until the save answers, then aims a
+[Card Art](#card-art) write at the id the effects report (following `previousCardId` where a line was
+renumbered) — the admin editors' [add-card dialog](/admin/editors/#card-options) does exactly this.
+
+### `artWarnings`
+
+When that re-filing could not happen — the list's own `.art.json` cannot be read, or neither can
+that of a list this save's cross-list moves ([**Move to list…**](/admin/editors/#custom-art)) are
+sending cards to — the save still succeeds and reports the problem in an **`artWarnings`** array,
+one message per sidecar it had to leave alone. The field is omitted
+when everything re-filed cleanly, and it carries the same channel name the load routes use for
+[sidecar problems](#load-deck), so a client reads one field on both.
+
+It is a warning rather than a failure on purpose: the card lines were written correctly, and the
+only casualty is that art may now sit under an `&N` the save freed or renumbered. The remedy is to
+fix the sidecar by hand — the message names the file and the parse failure — and the art then
+applies again, or comes off the list with the next art write.
+
 ## List Collections
 
 ```
@@ -979,7 +1022,7 @@ Load a collection with full card data, printings, and mana symbol map. Accepts t
 POST /api/collection/:slug/save
 ```
 
-Save collection changes. Writes the updated collection file and creates a changelog entry. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. Every collection entry must carry a printing: an `add`, `move-to`, or `set-printing` change missing `set` or `collectorNumber` returns `400` and leaves the file untouched. A change whose target entry does not exist (matching is exact and case-sensitive on name, with `cardId` taking priority) also returns `400` naming the unapplied changes, and nothing is written — a save must never report success while dropping changes. The optional [`validateCardNames`](#validatecardnames) flag applies here too. `set-label` changes (and label-carrying `add`s) are accepted here — their `labels` are validated against the label vocabulary and the keep-exclusivity rule (`400` on an illegal combination) and normalized to canonical order before the write; the file's front-matter block always rides through a save untouched.
+Save collection changes. Writes the updated collection file and creates a changelog entry. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. Every collection entry must carry a printing: an `add`, `move-to`, or `set-printing` change missing `set` or `collectorNumber` returns `400` and leaves the file untouched. A change whose target entry does not exist (matching is exact and case-sensitive on name, with `cardId` taking priority) also returns `400` naming the unapplied changes, and nothing is written — a save must never report success while dropping changes. The optional [`validateCardNames`](#validatecardnames) flag applies here too. `set-label` changes (and label-carrying `add`s) are accepted here — their `labels` are validated against the label vocabulary, the labels a collection carries, and the `keep`/`proxy` exclusivity rule (`400` on an illegal combination) and normalized to canonical order before the write; the file's front-matter block always rides through a save untouched.
 
 **Request Body:**
 
@@ -1564,7 +1607,7 @@ Overwrite the list's change log with the supplied change sets. Each set needs a 
 PUT /api/metadata/:type/:slug
 ```
 
-Write a list's YAML front matter. Decks take the deck vocabulary below; collections take `labels` (their [default card labels](/commands/edit/#collection-front-matter)). Wanted lists define no front-matter keys, so `:type` of `wanted` is a `400`. Shares its engine with the [`metadata`](/commands/metadata/) CLI command.
+Write a list's YAML front matter. Decks take the deck vocabulary below; both decks and collections take `labels` (their [default card labels](/commands/edit/#card-labels)). Wanted lists define no front-matter keys, so `:type` of `wanted` is a `400`. Shares its engine with the [`metadata`](/commands/metadata/) CLI command.
 
 Only the fields present in the body are written; every other front-matter key (including user-authored ones) round-trips untouched. A field sent as `null` is deleted, as is a `description` sent as an empty string. The markdown body below the front matter is left byte for byte as it was — card lines are never re-serialized and no card IDs are assigned. **No changelog entry is written**: the change log is card-level, and metadata is not a card change.
 
@@ -1590,15 +1633,15 @@ Only the fields present in the body are written; every other front-matter key (i
 }
 ```
 
-| Field         | Validation                                                                                                                                                                            |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `description` | Deck only. String (trimmed) or `null`; an empty string clears it                                                                                                                      |
-| `tags`        | Deck only. Array of non-empty strings (trimmed, deduplicated, order preserved); `null` or `[]` clears the key                                                                         |
-| `format`      | Deck only. A [deck format](/commands/new/#deck-format) name, canonicalized (`EDH` → `commander`); `null` clears it and the deck falls back to section inference                       |
-| `sourceId`    | Deck only. Non-empty string or `null`                                                                                                                                                 |
-| `sourceUrl`   | Deck only. An `http`/`https` URL or `null`                                                                                                                                            |
-| `labels`      | Collection only. Array of `sale`/`trade` (combinable) or `keep` (alone), case-insensitive, normalized to canonical order; `null` or `[]` clears the default (removing an empty block) |
-| `contentHash` | Optional concurrency token from the list's load endpoint; a non-string value is a `400`                                                                                               |
+| Field         | Validation                                                                                                                                                                                                                                |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `description` | Deck only. String (trimmed) or `null`; an empty string clears it                                                                                                                                                                          |
+| `tags`        | Deck only. Array of non-empty strings (trimmed, deduplicated, order preserved); `null` or `[]` clears the key                                                                                                                             |
+| `format`      | Deck only. A [deck format](/commands/new/#deck-format) name, canonicalized (`EDH` → `commander`); `null` clears it and the deck falls back to section inference                                                                           |
+| `sourceId`    | Deck only. Non-empty string or `null`                                                                                                                                                                                                     |
+| `sourceUrl`   | Deck only. An `http`/`https` URL or `null`                                                                                                                                                                                                |
+| `labels`      | Deck and collection. Array of `sale`/`trade` (combinable) or `keep`/`proxy` (each alone), case-insensitive, normalized to canonical order — a **deck** accepts `proxy` alone; `null` or `[]` clears the default (removing an empty block) |
+| `contentHash` | Optional concurrency token from the list's load endpoint; a non-string value is a `400`                                                                                                                                                   |
 
 `name` is rejected with a `400` pointing at [`POST /api/deck/:slug/rename`](#rename-deck), which also renames the file and its sidecars. `created` and `lastSynced` are stamped by Ritual (deck creation and [deck sync](/commands/deck-sync/) respectively) and are likewise rejected, as is any unknown field — a deck-only field on a collection (and vice versa) is an unknown field. A collection write refuses (`400`) when the file's existing front matter cannot be read as a YAML mapping, since merging over keys it cannot see would clobber them.
 
@@ -1632,6 +1675,49 @@ When `contentHash` is supplied and no longer matches the file, the response is `
 An unknown deck is a `404`.
 
 When git auto-commit is enabled, the deck file and its `.sha256` hash sidecar are committed with the message `Update metadata for deck <slug>`.
+
+## Card Art
+
+```
+PUT /api/art/:type/:slug
+```
+
+Set or clear one card's [custom art](/custom-art/) on any list type. Like the metadata route this is a **direct** write: no change event, no changelog entry, and **no `contentHash` round trip** — card lines and the `<list>.art.json` sidecar are disjoint files, so the write is safe alongside an editor's pending card edits.
+
+**Request Body:**
+
+```json
+{ "cardId": 5, "art": { "file": "proxies/sol-ring.jpg" } }
+```
+
+| Field    | Validation                                                                                                                                                                                                                                 |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `cardId` | Required. A card line's `&N` id (a positive integer) that the list actually holds                                                                                                                                                          |
+| `art`    | Required. `{ "file": "<art-dir-relative path>" }` (ending in `.avif`/`.gif`/`.jpeg`/`.jpg`/`.png`/`.webp`), `{ "url": "<http(s) URL>" }`, or `null` to clear the card's art. Exactly one of `file`/`url`, and no other key, may be present |
+
+Any other field is a `400` naming it — a typo must not look like a write that changed nothing.
+
+A `cardId` the list does not hold yet — a card an editing session has added but not saved — is a `400`: write the card's line first, then aim this route at the id the save's [`effects`](#effects) report.
+
+The reverse direction needs no route: the save endpoints and the move/remove routes re-file this sidecar themselves. A save or removal that drops a card drops its art (including a removal the same save re-adds the card after), a renumbered line takes its entry with it, and a cross-list move carries the entry to the destination list's sidecar under the new line's `&N` (a copy that merges onto a line the destination already had keeps that line's own art). The sidecars land in the same auto-commit as the list files they describe. See [Art follows the card](/custom-art/#art-follows-the-card).
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "slug": "my-deck",
+  "cardId": 5,
+  "art": { "file": "proxies/sol-ring.jpg" },
+  "message": "Set custom art on 'my-deck'"
+}
+```
+
+Refusals are `400` for a malformed body, a `cardId` the list does not hold, a reference that does not parse (a backslash, an absolute path, a `..` escape, a `file` whose extension is not one the art route serves, a non-`http(s)` URL), a `file` with no image behind it in the configured art directory (the message names the exact path that was checked), or an existing `.art.json` that cannot be read — the route refuses rather than overwrite it, since that would erase art for cards the request never mentioned. An unknown list is a `404`.
+
+Clearing the last card's art removes the sidecar rather than writing `{}`. When git auto-commit is enabled the sidecar is committed with the message `Update custom art for <type> <slug>` — but only when a file was actually written or removed.
+
+The images themselves are served read-only, behind the same login, at `GET /art/<relpath>` from the configured [`artDir`](/configuration/#directory-options), which is what lets the editor preview a local file. Only `.avif`, `.gif`, `.jpeg`, `.jpg`, `.png`, and `.webp` are served — the same allowlist a `file` reference is validated against, so anything that parses is answerable; any path leaving the art directory is a `404`.
 
 ## Deck Sync Status
 
@@ -2147,7 +2233,7 @@ Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collecti
 }
 ```
 
-`lists` names resolve like CLI list arguments (the optional `type` pins an ambiguous name). Each `cards` entry is whitespace-separated name terms; every entry across all lists whose name matches all terms is added (deduplicated against the selected lists). `filters.conditions` takes condition grades and/or `none` (cards with no condition marked), matching the CLI's `--condition` semantics; `filters.labels` takes label values (`sale`, `trade`, `keep`) and/or `none` (unlabeled), matched against each collection card's effective labels like the CLI's `--labels`. `preset` starts from a saved or built-in [export preset](/commands/export/#presets) — the built-in `archidekt` preset needs no config, and a saved preset of that name shadows it; the explicit fields override the preset's values.
+`lists` names resolve like CLI list arguments (the optional `type` pins an ambiguous name). Each `cards` entry is whitespace-separated name terms; every entry across all lists whose name matches all terms is added (deduplicated against the selected lists). `filters.conditions` takes condition grades and/or `none` (cards with no condition marked), matching the CLI's `--condition` semantics; `filters.labels` takes label values (`sale`, `trade`, `keep`, `proxy`) and/or `none` (unlabeled), matched against each deck and collection card's effective labels like the CLI's `--labels` (wanted entries carry no labels and never match). `preset` starts from a saved or built-in [export preset](/commands/export/#presets) — the built-in `archidekt` preset needs no config, and a saved preset of that name shadows it; the explicit fields override the preset's values.
 
 `format` is one of `csv` (default), `json`, `text` (one flat merged decklist, quantities aggregated), or `md` (canonical list markdown without `&N` ids) — see [export formats](/commands/export/#formats). `columns`, `header`, `quoteAll`, and `dialect` shape `csv`/`json` output only and are ignored for `text`/`md` (unlike the CLI, the route does not reject the combination). `dialect` is the value vocabulary for finish and condition: `ritual` (the default — `nonfoil`/`foil`/`etched`, `NM`…`DMG`) or `archidekt` (`Normal`/`Foil`/`Etched` under a `Variant` header, and `NM|LP|MP|HP|D`) — see [dialects](/commands/export/#dialects). An unknown `dialect` or `preset` is a `400`. A selected `scryfallId` column is resolved from the local Scryfall cache.
 

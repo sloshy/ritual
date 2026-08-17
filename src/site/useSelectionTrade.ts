@@ -32,6 +32,11 @@ function baseEntry(card: SelectedCard): TradeSearchEntry {
     condition: card.condition,
     language: card.language,
     labels: card.labels,
+    // The board shows the real printing either way — it is the card being handed
+    // over — but a proxy and a custom-art copy carry no price, and the rule has
+    // to travel with them or the row is valued at the printing's retail.
+    customArt: card.customArt,
+    hasCustomArt: card.hasCustomArt,
     note: card.note,
     price: card.price,
     scryfallCard: card.scryfallCard,

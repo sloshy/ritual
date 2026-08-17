@@ -1,6 +1,10 @@
 import type { ChangeEvent } from '../change-event'
 import { CHANGE_ACTIONS } from '../change-event'
-import { parseCardLabelsValue } from '../card-labels'
+import {
+  checkLabelsForListType,
+  parseCardLabelsValue,
+  unsupportedLabelsMessage,
+} from '../card-labels'
 import { isCardLanguage } from '../card-language'
 import { isCondition, isFinish } from '../finish-condition'
 import type { ListType } from '../list-type'
@@ -97,7 +101,7 @@ export function countLabel(count: number, noun: string): string {
  * JSON, so set codes are normalized to lowercase here — every in-memory
  * representation downstream assumes it.
  */
-function validateChanges(raw: unknown, where: string): ChangeEvent[] | string {
+function validateChanges(raw: unknown, where: string, kind: ListType): ChangeEvent[] | string {
   if (!Array.isArray(raw)) return `${where}Missing or invalid "changes" array.`
   const changes: ChangeEvent[] = []
   for (const [i, change] of raw.entries()) {
@@ -117,7 +121,8 @@ function validateChanges(raw: unknown, where: string): ChangeEvent[] | string {
     // A labels payload is a closed vocabulary with an exclusivity rule —
     // imported JSON must not smuggle garbage into a serialize. The parsed form
     // is normalized (deduped, canonical order). On a set-label an empty array
-    // (a clear) is valid; an add either carries an override or omits the field.
+    // (a clear) is valid; an add (or the record of the line a remove took away)
+    // either carries an override or omits the field.
     let normalized = typeof obj.set === 'string' ? { ...obj, set: obj.set.toLowerCase() } : obj
     // Languages are a closed vocabulary: normalize to lowercase and reject
     // unknown codes the way unknown actions are rejected — an invalid code must
@@ -146,9 +151,20 @@ function validateChanges(raw: unknown, where: string): ChangeEvent[] | string {
         return `${where}Change #${i + 1} has an unknown condition: ${JSON.stringify(obj.condition)}.`
       }
     }
-    if (obj.action === 'set-label' || (obj.action === 'add' && obj.labels !== undefined)) {
+    if (
+      obj.action === 'set-label' ||
+      ((obj.action === 'add' || obj.action === 'remove') && obj.labels !== undefined)
+    ) {
       const labels = parseCardLabelsValue(obj.labels, 'labels')
       if (!labels.ok) return `${where}Change #${i + 1}: ${labels.message}`
+      // Which labels are legal depends on the list the change lands in: a deck
+      // carries `proxy` alone, a wanted list none at all — and an empty set is
+      // a clear, which still says nothing on a list with no labels. The same
+      // decision the CLI, the save routes, and the MCP schemas make.
+      const check = checkLabelsForListType(kind, labels.labels)
+      if (!check.ok) {
+        return `${where}Change #${i + 1}: ${unsupportedLabelsMessage(kind, check.unsupported)}`
+      }
       normalized = { ...normalized, labels: labels.labels }
     }
     changes.push(normalized as ChangeEvent)
@@ -166,10 +182,11 @@ function validateList(obj: Record<string, unknown>, where: string): ChangeBundle
   if (obj.baseContentHash !== undefined && typeof obj.baseContentHash !== 'string') {
     return `${where}Invalid "baseContentHash".`
   }
-  const changes = validateChanges(obj.changes, where)
+  const kind = obj.kind as ListType
+  const changes = validateChanges(obj.changes, where, kind)
   if (typeof changes === 'string') return changes
   return {
-    kind: obj.kind as ListType,
+    kind,
     slug: obj.slug,
     name: obj.name,
     baseContentHash: obj.baseContentHash,

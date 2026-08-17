@@ -1,4 +1,5 @@
 import type { Condition, DeckData, Finish } from '../../types'
+import type { CardArtRecord } from '../../card-art'
 import type { CardLabel } from '../../card-labels'
 import type { CardLanguage } from '../../card-language'
 import type { ParsedWantedEntry } from '../../editor/wanted-entries'
@@ -77,6 +78,22 @@ export interface ListLoadBase extends ListLoadStamp {
    * re-serializing would delete those lines and recycle their `&N` ids.
    */
   warnings: string[]
+  /**
+   * What was wrong with the list's `<list>.art.json` sidecar: unreadable, or
+   * holding art for cards the list no longer has. Kept apart from
+   * {@link ListLoadBase.warnings} on purpose — that channel means "lines this
+   * file would lose if you saved it", and a save refuses on it. Custom art is
+   * display metadata in a file no card save touches, so it is reported and
+   * nothing more. Omitted when the sidecar is clean or absent.
+   */
+  artWarnings?: string[]
+  /**
+   * The custom art of the cards in this body, keyed by their `&N` id — the raw
+   * references, not display URLs, because a client that can edit them (the
+   * admin editor, via `PUT /api/art/:type/:slug`) needs the file path or URL
+   * the user typed. Omitted when none of the returned cards has any.
+   */
+  customArt?: CardArtRecord
 }
 
 /** `GET /api/deck/:slug?view=cards` — the deck's lines and front matter. */
@@ -84,6 +101,12 @@ export interface DeckCardsLoadResult extends ListLoadBase {
   view: 'cards'
   deck: DeckData
   frontMatter: Record<string, unknown>
+  /**
+   * The deck's default card labels from its front matter (`proxy` alone).
+   * Projected out of `frontMatter` so every list type reports its list-level
+   * default the same way; a card's own `labels` override it.
+   */
+  labels?: CardLabel[]
 }
 
 /** `GET /api/deck/:slug` (`view=full`) — the editor payload: the cards view plus Scryfall data. */
@@ -91,6 +114,8 @@ export interface DeckFullLoadResult extends ListLoadBase, DeckCardLoadResult {
   view: 'full'
   deck: DeckData
   frontMatter: Record<string, unknown>
+  /** See {@link DeckCardsLoadResult.labels}. */
+  labels?: CardLabel[]
   symbolMap: Record<string, string>
 }
 

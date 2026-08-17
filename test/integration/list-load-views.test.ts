@@ -177,6 +177,33 @@ describe('view=cards', () => {
     expect(body.totalCount).toBe(3)
   })
 
+  test('a deck cards view projects its front-matter labels default and line overrides', async () => {
+    await writeDeckFile(ws.dir, 'proxies', {
+      frontMatter: { name: 'Proxies', labels: ['proxy'] },
+      cards: [
+        { quantity: 1, name: 'Black Lotus', set: 'lea', collectorNumber: '232', cardId: 1 },
+        {
+          quantity: 1,
+          name: 'Mox Pearl',
+          set: 'lea',
+          collectorNumber: '265',
+          labels: ['proxy'],
+          cardId: 2,
+        },
+      ],
+    })
+    const { body } = await callJson<DeckLoadResult & { success: true }>(
+      handleDeckLoad,
+      'GET',
+      '/api/deck/proxies?view=cards',
+    )
+    expect(body.labels).toEqual(['proxy'])
+    const cards = body.deck.sections.flatMap((s) => s.cards)
+    expect(cards.find((c) => c.name === 'Mox Pearl')!.labels).toEqual(['proxy'])
+    // No override on the other line: its effective labels are the deck default.
+    expect(cards.find((c) => c.name === 'Black Lotus')!.labels).toBeUndefined()
+  })
+
   test('a collection cards view filters by name terms', async () => {
     const { body } = await callJson<{ entries: { name: string }[]; totalCount: number }>(
       handleCollectionLoad,

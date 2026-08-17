@@ -128,6 +128,10 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
         <DeckEditorBody
           ctrl={ctrl}
           defaults={defaults}
+          // The deck's front-matter default labels, exactly as the "Original"
+          // view below gets them: without these the two sides would price an
+          // inherited `proxy` differently with zero edits made.
+          listLabels={props.detail.labels}
           search={siteSearch}
           currency={props.currency}
           useScryfallImgUrls={props.detail.useScryfallImgUrls}
@@ -143,6 +147,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
       original={
         <DeckPage
           deck={props.detail.deck}
+          listLabels={props.detail.labels}
           cards={props.detail.cards}
           printings={props.detail.printings ?? {}}
           lowestPriceCards={props.detail.lowestPriceCards}

@@ -56,7 +56,7 @@ The JSON payload is `{ type, slug, deleted: true, deletedFiles }`, where `delete
 
 ## Behavior
 
-Deleting a list removes the markdown file and every sidecar it may have: the `.sha256` content hash, the `.changes.md` changelog, and — for decks — the `.primer.md` primer. Nothing is deleted until the confirmation name matches the display name exactly.
+Deleting a list removes the markdown file and every sidecar it may have: the `.sha256` content hash, the `.changes.md` changelog, the `.art.json` [custom art](/custom-art/) map, and — for decks — the `.primer.md` primer. Nothing is deleted until the confirmation name matches the display name exactly.
 
 ## Exit Codes
 

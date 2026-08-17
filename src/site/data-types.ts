@@ -1,4 +1,4 @@
-import type { Condition, DeckData, Finish, ScryfallCard } from '../types'
+import type { Card, Condition, DeckData, Finish, ScryfallCard } from '../types'
 import type { BuyerId, BuylistFeedProvenance, BuylistQuote } from '../buylist'
 import type { CardLabel } from '../card-labels'
 import type { CardLanguage } from '../card-language'
@@ -38,6 +38,40 @@ export type BakedBuylistQuotes = BuylistFeedProvenance & {
  */
 export type BakedBuylist = Partial<Record<BuyerId, BakedBuylistQuotes>>
 
+/**
+ * A deck line as it is baked into a detail: the parsed card plus the display
+ * data only the site carries. Deliberately a site-side widening of {@link Card}
+ * rather than a field on the engine type — `customArt` is never written to a
+ * deck file, and the serializers must not learn about it.
+ */
+export interface BakedDeckCard extends Card {
+  /**
+   * Custom art replacing this card's Scryfall image: `art/<relpath>` for a
+   * local file (served from the built site or by `serve --api`'s art route), or
+   * the verbatim URL the list's `.art.json` sidecar named. Absent for cards with
+   * no custom art, and for file references the build could not deploy.
+   */
+  customArt?: string
+  /**
+   * Whether the list's art sidecar gives this card custom art at all — the
+   * "no price, no quote, no sale" fact, which {@link BakedDeckCard.customArt}
+   * cannot answer on its own: a reference whose file the build could not deploy
+   * bakes no display URL and still prices at nothing. Absent (never `false`)
+   * for the cards that wear their own printing.
+   */
+  hasCustomArt?: boolean
+}
+
+export interface BakedDeckSection {
+  name: string
+  cards: BakedDeckCard[]
+}
+
+/** The deck a {@link DeckDetail} ships: {@link DeckData} with baked card lines. */
+export interface BakedDeckData extends Omit<DeckData, 'sections'> {
+  sections: BakedDeckSection[]
+}
+
 export interface DeckSummary {
   slug: string
   name: string
@@ -67,7 +101,13 @@ export interface DeckSummary {
 }
 
 export interface DeckDetail {
-  deck: DeckData
+  deck: BakedDeckData
+  /**
+   * The deck's default card labels from its front matter, when declared. A
+   * line's own `labels` override replaces it entirely — resolve the pair with
+   * `effectiveLabels`, exactly as a collection's entries do.
+   */
+  labels?: CardLabel[]
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   lowestPriceCards?: Record<string, ScryfallCard | null>
@@ -115,6 +155,14 @@ export interface CollectionCardEntry {
    * this when present, else the list's `CollectionDetail.labels` default.
    */
   labels?: CardLabel[]
+  /**
+   * This entry's custom art, resolved like {@link BakedDeckCard.customArt}:
+   * `art/<relpath>` for a local file, or the sidecar's URL verbatim.
+   */
+  customArt?: string
+  /** Whether the sidecar gives this entry art, like {@link BakedDeckCard.hasCustomArt}. */
+  hasCustomArt?: boolean
+  /** Zero for a priceless entry — a proxy, or a copy wearing custom art. */
   price: number
   fileOrder: number
   /** Section this entry belongs to. Defaults to `DEFAULT_SECTION` ("Main") when unsectioned. */
@@ -172,6 +220,13 @@ export interface WantedListCardEntry {
   finish?: Finish
   /** The line's language token, when present. Absent means `en`. */
   language?: CardLanguage
+  /**
+   * This entry's custom art, resolved like {@link BakedDeckCard.customArt}:
+   * `art/<relpath>` for a local file, or the sidecar's URL verbatim.
+   */
+  customArt?: string
+  /** Whether the sidecar gives this entry art, like {@link BakedDeckCard.hasCustomArt}. */
+  hasCustomArt?: boolean
   price: number
   fileOrder: number
   /** Section this entry belongs to. Defaults to `DEFAULT_SECTION` ("Main") when unsectioned. */
@@ -272,8 +327,21 @@ export interface TradeCardEntry {
   condition?: Condition
   /** The source entry's language token, when present. Absent means `en`. */
   language?: CardLanguage
-  /** Effective card labels of the source entry — collection rows only. */
+  /** Effective card labels of the source entry — collection and deck rows. */
   labels?: CardLabel[]
+  /**
+   * The source entry's baked custom art, when it has any. The row still shows
+   * the real printing (it is the card being handed over); this only carries the
+   * "no price" rule onto the board, where the row reads `CUSTOM` and counts as
+   * nothing toward the column total.
+   */
+  customArt?: string
+  /**
+   * Whether the source entry has custom art at all, like
+   * {@link BakedDeckCard.hasCustomArt} — the fact the board's price rule reads,
+   * since a reference with no deployed file carries no display URL.
+   */
+  hasCustomArt?: boolean
   note?: string
   price?: number
   scryfallCard: ScryfallCard | null

@@ -16,6 +16,10 @@ export const errorsMeta = {
     description:
       'Rejection of a non-string value for a fixed-choice field (an HTTP body sending a number where an enum was expected). {field} is the field name and {choices} a comma-joined list; both are English identifiers.',
   },
+  'errors.label.exclusive': {
+    description:
+      'Rejection of an illegal card-label combination. {label} is the exclusive label the user asked for (the untranslated token `keep` or `proxy`), which stands alone and cannot be paired with any other label. Keep the quotes around it.',
+  },
   'errors.skills.unknown': {
     description:
       'Rejection of `ritual skills install <name>` for a name that is not in the catalog. {names} is a comma-joined list of what the user asked for, {available} a comma-joined list of every skill name. Both are English skill identifiers and must not be translated.',

@@ -55,6 +55,7 @@ const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set(
     decksDir: true,
     collectionsDir: true,
     wantedDir: true,
+    artDir: true,
     defaultCurrency: true,
     defaultLanguage: true,
     uiLocale: true,
@@ -76,7 +77,7 @@ const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set(
 const KNOWN_ADMIN_CONFIG_KEYS: ReadonlySet<string> = new Set(Object.keys(DEFAULT_ADMIN_CONFIG))
 
 /** The directory keys, all plain (unconstrained) strings. */
-const DIRECTORY_CONFIG_KEYS = ['decksDir', 'collectionsDir', 'wantedDir'] as const
+const DIRECTORY_CONFIG_KEYS = ['decksDir', 'collectionsDir', 'wantedDir', 'artDir'] as const
 
 /**
  * The constrained scalar keys sharing one presence-check → parse → stage shape.

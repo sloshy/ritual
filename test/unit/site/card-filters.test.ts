@@ -886,6 +886,13 @@ describe('toggleLabelFilterOption', () => {
     expect(toggleLabelFilterOption(['keep'], 'sale')).toEqual(['sale'])
     expect(toggleLabelFilterOption(['none'], 'trade')).toEqual(['trade'])
   })
+
+  test('proxy replaces the whole selection and is replaced in turn', () => {
+    expect(toggleLabelFilterOption(['sale', 'trade'], 'proxy')).toEqual(['proxy'])
+    expect(toggleLabelFilterOption(['keep'], 'proxy')).toEqual(['proxy'])
+    expect(toggleLabelFilterOption(['proxy'], 'sale')).toEqual(['sale'])
+    expect(toggleLabelFilterOption(['proxy'], 'proxy')).toEqual([])
+  })
 })
 
 describe('parseLabelsParam', () => {
@@ -906,6 +913,12 @@ describe('parseLabelsParam', () => {
   test('a combination the chips cannot produce invalidates the whole param', () => {
     expect(parseLabelsParam('keep,sale')).toBeUndefined()
     expect(parseLabelsParam('none,trade')).toBeUndefined()
+    expect(parseLabelsParam('proxy,sale')).toBeUndefined()
+    expect(parseLabelsParam('keep,proxy')).toBeUndefined()
+  })
+
+  test('proxy parses on its own', () => {
+    expect(parseLabelsParam('PROXY')).toEqual(['proxy'])
   })
 
   test('null and empty-ish values parse to undefined', () => {

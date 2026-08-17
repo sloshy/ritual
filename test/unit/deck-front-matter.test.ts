@@ -45,6 +45,19 @@ describe('validateDeckFrontMatter', () => {
     expect(validateDeckFrontMatter({ format: 42 })).not.toHaveProperty('format')
   })
 
+  test('keeps a deck-supported labels default and normalizes it', () => {
+    expect(validateDeckFrontMatter({ labels: ['proxy'] }).labels).toEqual(['proxy'])
+  })
+
+  test('drops a labels value a deck cannot carry, whole rather than filtered', () => {
+    // Half of `[sale, proxy]` is a different statement than the one written, so
+    // the key is dropped rather than reduced to the supported half.
+    expect(validateDeckFrontMatter({ labels: ['sale', 'proxy'] })).not.toHaveProperty('labels')
+    expect(validateDeckFrontMatter({ labels: ['keep'] })).not.toHaveProperty('labels')
+    expect(validateDeckFrontMatter({ labels: 'proxy' })).not.toHaveProperty('labels')
+    expect(validateDeckFrontMatter({ labels: [] })).not.toHaveProperty('labels')
+  })
+
   test('passes unknown keys through untouched', () => {
     const parsed = validateDeckFrontMatter({ colors: ['R'], budget: 50 })
     expect(parsed.colors).toEqual(['R'])

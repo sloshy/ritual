@@ -13,6 +13,7 @@ import {
   type FlatListFieldEdit,
 } from '../../src/commands/flat-list-edit'
 import type { MoveDestination } from '../../src/commands/edit-move'
+import { createSessionArtChanges } from '../../src/commands/session-art'
 import {
   discardFlatListAdd,
   listFlatListSessionAdds,
@@ -21,6 +22,7 @@ import {
   type FlatListStrategyContext,
 } from '../../src/commands/flat-list-session'
 import type { CardSessionContext } from '../../src/commands/card-session'
+import { scratchListPath } from '../test-utils'
 import type { CollectionCardEntry } from '../../src/site/data-types'
 import { applyChangeToCollection } from '../../src/editor/collection-changes'
 import { collectionToMarkdown } from '../../src/editor/list-export'
@@ -63,12 +65,13 @@ type Harness = {
 
 function harness(entries: CollectionCardEntry[]): Harness {
   const session: CollectionSession = {
-    filePath: '/tmp/unused.md',
+    filePath: scratchListPath('flat-list-edit-test.md'),
     title: 'Binder',
     entries,
     sectionOrder: ['Main'],
     pool: createIdPool(collectExistingIds(entries)),
     dirty: false,
+    art: createSessionArtChanges(),
     apply: applyChangeToCollection,
     serialize: collectionToMarkdown,
   }
@@ -294,6 +297,56 @@ describe('performFlatListRemoval', () => {
     expect(restored.cardId).toBe(3)
     // Both the reusing card and the restored card coexist with distinct ids.
     expect(session.entries.map((e) => e.cardId).sort()).toEqual([1, 2, 3])
+  })
+})
+
+describe('custom-art bookkeeping', () => {
+  const dest: MoveDestination = {
+    target: { type: 'wanted', name: 'To Buy', file: '/wanted/to-buy.md' },
+    printing: null,
+  }
+
+  // The sidecar is keyed by `&N` and the session reuses the ids its removals
+  // free, so what the save re-files against is recorded here rather than
+  // derived from the entries at write time.
+  test('a removal records the freed id; undoing it under the same id takes it back', () => {
+    const h = harness([entry('Sol Ring', 1), entry('Lightning Bolt', 2)])
+
+    performFlatListRemoval(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1)
+    expect([...h.session.art.removed]).toEqual([1])
+
+    undoFlatListEdit(h.list, h.ctx)
+    expect([...h.session.art.removed]).toEqual([])
+  })
+
+  test('a removal undone under a fresh id leaves the art dropped', () => {
+    const h = harness([entry('Sol Ring', 1)])
+    performFlatListRemoval(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1)
+    // A later add takes &1, so the restored entry gets a new id — and the art
+    // filed under &1 now belongs to a different card.
+    simulateAdd(h, 'Brainstorm')
+    expect(findFlatListEntry(h.list, 1)!.name).toBe('Brainstorm')
+
+    undoFlatListEdit(h.list, h.ctx)
+    expect([...h.session.art.removed]).toEqual([1])
+  })
+
+  test('a move out records the freed id, and undoing the move takes it back', () => {
+    const h = harness([entry('Sol Ring', 1)])
+    performFlatListMove(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1, dest)
+    expect([...h.session.art.removed]).toEqual([1])
+
+    undoFlatListEdit(h.list, h.ctx)
+    expect([...h.session.art.removed]).toEqual([])
+  })
+
+  test('discarding a card added this session records nothing: it never had a line on disk', () => {
+    const h = harness([entry('Sol Ring', 1)])
+    const addedId = simulateAdd(h, 'Brainstorm')
+
+    performFlatListRemoval(h.list, h.ctx, findFlatListEntry(h.list, addedId)!, addedId)
+    expect(findFlatListEntry(h.list, addedId)).toBeUndefined()
+    expect([...h.session.art.removed]).toEqual([])
   })
 })
 

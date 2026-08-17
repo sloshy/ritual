@@ -221,6 +221,14 @@
   margin-top: 8px;
 }
 
+/* The add flow's commit buttons go dead while the options row refuses the typed
+   art. Same treatment as `.btn:disabled` above, so a blocked commit reads the
+   same here as it does everywhere else. */
+.btn-add-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Keyboard-shortcut chip pinned in a button's corner. Inherits the button's
    text color so it stays legible on any themed button background. Hidden on
    touch-first devices (see touch.css). */

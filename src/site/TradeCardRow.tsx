@@ -7,6 +7,7 @@ import type { TradeCardEntry } from './data-types'
 import { languageBadge } from '../card-language'
 import { QuantityStepper } from '../ui/QuantityStepper'
 import { useT } from '../ui/i18n'
+import { cardPricelessMarkerText } from './priceless'
 
 export interface TradeCardRowProps {
   card: TradeCardEntry
@@ -64,6 +65,27 @@ export const TradeCardRow: Component<TradeCardRowProps> = (props) => {
 
   const totalPrice = () => (props.card.price ?? 0) * props.card.qty
 
+  /**
+   * A copy that carries no price by rule shows its marker where the figure
+   * would be. Its price is already 0 (set when the row was built), so the
+   * column total and the balance need nothing from here.
+   */
+  const pricelessMarker = () => cardPricelessMarkerText(t, props.card)
+
+  /** The priced rendering: the row's total, with the per-copy figure under it. */
+  const priceRun = () => (
+    <Show when={(props.card.price ?? 0) > 0} fallback="—">
+      {formatPrice(totalPrice(), props.currency)}
+      <Show when={props.card.qty > 1}>
+        <span class="trade-row-price-each">
+          {t('site.tradeRow.priceEach', {
+            amount: formatPrice(props.card.price!, props.currency),
+          })}
+        </span>
+      </Show>
+    </Show>
+  )
+
   const handleMouseEnter = () => {
     const src = imageUrl()
     if (!src) return
@@ -116,18 +138,7 @@ export const TradeCardRow: Component<TradeCardRowProps> = (props) => {
           onChange={(next) => props.onUpdateQty(next - props.card.qty)}
         />
       </Show>
-      <span class="trade-row-price">
-        <Show when={(props.card.price ?? 0) > 0} fallback="—">
-          {formatPrice(totalPrice(), props.currency)}
-          <Show when={props.card.qty > 1}>
-            <span class="trade-row-price-each">
-              {t('site.tradeRow.priceEach', {
-                amount: formatPrice(props.card.price!, props.currency),
-              })}
-            </span>
-          </Show>
-        </Show>
-      </span>
+      <span class="trade-row-price">{pricelessMarker() ?? priceRun()}</span>
       <button class="trade-row-remove" onClick={props.onRemove} title={t('site.tradeRow.remove')}>
         ✕
       </button>

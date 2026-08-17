@@ -23,7 +23,12 @@ export const cliCardsMessages = {
   'cli.cardOps.pinNeedsBoth': '--set and --collector-number must be given together.',
   'cli.cardOps.wantedNoCondition':
     'Wanted list entries do not track condition — --condition applies to decks and collections only.',
-  'cli.cardOps.labelCollectionsOnly': '--label only applies to collections.',
+  'cli.cardOps.labelsUnsupported': {
+    $select: 'type',
+    deck: 'Decks only carry these labels: {supported} — {labels} cannot be used there.',
+    collection: 'Collections only carry these labels: {supported} — {labels} cannot be used there.',
+    wanted: 'Wanted list entries do not carry labels — --label applies to decks and collections.',
+  },
   'cli.cardOps.cardIdPositive': "--card-id must be a positive integer (got '{value}').",
   'cli.cardOps.quantityPositive': "--quantity must be a positive integer (got '{value}').",
   'cli.cardOps.oneTypeFlag': 'Specify only one of --deck, --collection, or --wanted.',
@@ -163,7 +168,18 @@ export const cliCardsMessages = {
   'cli.setCard.finishCheckCacheMiss':
     "Note: could not verify finish '{finish}' for {entry} — the card cache holds no complete printing list for it. Run 'ritual cache preload-all' to enable the check.",
   'cli.setCard.noChangeGiven':
-    'Specify at least one change: --set/--collector-number, --finish, --condition, --language, --label, --section, --commander, or --no-commander.',
+    'Specify at least one change: --set/--collector-number, --finish, --condition, --language, --label, --art, --section, --commander, or --no-commander.',
+  'cli.setCard.artInvalid': "{reason}. Or pass 'none' to clear the custom art.",
+  'cli.setCard.artFileMissing':
+    "No image file at {path}. Custom art paths are relative to the art directory ({dir}) — move the image there, or point elsewhere with 'ritual config set artDir <dir>'.",
+  'cli.setCard.artFileUnreadable': 'Could not read {path}: {reason}',
+  'cli.setCard.artNotAFile': '{path} is not an image file.',
+  'cli.setCard.artNeedsId':
+    'Custom art is stored per card ID, and the line for {entry} carries no &N id.',
+  'cli.setCard.artSidecarUnreadable':
+    'Could not read the custom art already recorded for this list: {reason}',
+  'cli.setCard.appliedArt': 'custom art → {art}',
+  'cli.setCard.artCleared': 'custom art → none (cleared)',
   'cli.setCard.sectionDecksOnly': '--section only applies to decks.',
   'cli.setCard.commanderDecksOnly': '--commander/--no-commander only apply to decks.',
   'cli.setCard.languageUnverified':

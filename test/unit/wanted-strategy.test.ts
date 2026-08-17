@@ -5,6 +5,11 @@ import { newWantedSession, type WantedSession } from '../../src/commands/flat-li
 import { buildInitialSessionConfig, type CardSessionContext } from '../../src/commands/card-session'
 import type { WantedListSessionConfig } from '../../src/commands/wanted-helpers'
 import type { CardLanguage } from '../../src/card-language'
+import { scratchListPath, stubTty } from '../test-utils'
+
+// The Set Custom Art prompts go through `ask`, which refuses to open without a
+// terminal; these tests answer them with prompts.inject instead.
+stubTty({ stdin: true })
 
 function makeSessionConfig(): WantedListSessionConfig {
   return buildInitialSessionConfig({}, undefined)
@@ -24,7 +29,7 @@ function makeCtx(): CardSessionContext {
 function sessionWithEntry(
   overrides: { language?: CardLanguage; set?: string } = {},
 ): WantedSession {
-  const session = newWantedSession('/wanted/needs.md', 'Needs')
+  const session = newWantedSession(scratchListPath('needs.md'), 'Needs')
   session.entries = [
     {
       name: 'Demonic Tutor',
@@ -79,5 +84,21 @@ describe('wanted strategy — Change Language', () => {
     const written = session.serialize('Needs', session.entries, ['Main'], undefined)
     expect(written).toContain('- Demonic Tutor (STA:90) &1')
     expect(written).not.toContain('[ja]')
+  })
+})
+
+describe('wanted strategy — Set Custom Art', () => {
+  test('a wanted entry takes custom art too, staged for the save', async () => {
+    const session = sessionWithEntry()
+    const strategy = createWantedStrategy(session, makeSessionConfig(), 'Needs', true)
+    const ctx = makeCtx()
+
+    prompts.inject(['art', 'url', 'https://example.com/tutor.png'])
+    await strategy.editEntry(ctx, 1)
+
+    expect(session.art.edited.get(1)).toEqual({ url: 'https://example.com/tutor.png' })
+    expect(ctx.sessionChanges).toHaveLength(0)
+    expect(strategy.hasUnsavedChanges()).toBeTrue()
+    expect(strategy.lastEditUndoLabel()).toBe('custom art on Demonic Tutor')
   })
 })

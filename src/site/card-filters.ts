@@ -8,7 +8,9 @@ import { printingKey, printingLanguageKey } from '../printing-key'
 import { displayLanguage } from '../card-language'
 import { displayFinish } from '../finish-condition'
 import {
+  CARD_LABEL_SELECTION_NONE,
   CARD_LABEL_SELECTIONS,
+  EXCLUSIVE_CARD_LABELS,
   isCardLabelSelection,
   matchesCardLabelSelection,
   type CardLabelSelection,
@@ -19,17 +21,24 @@ export type { ColorMatchMode, FilterMatchMode, SetCodeFilterMode }
 
 /**
  * One selectable chip in the labels filter. The alias names the site's
- * chip-specific rule on top of the shared selection vocabulary: here `keep`
- * and `none` are singleton selections (see {@link toggleLabelFilterOption}),
- * unlike the export filter, where a selection combines freely.
+ * chip-specific rule on top of the shared selection vocabulary: here `keep`,
+ * `proxy`, and `none` are singleton selections (see
+ * {@link toggleLabelFilterOption}), unlike the export filter, where a selection
+ * combines freely.
  */
 export type LabelFilterOption = CardLabelSelection
 
 /** Every labels-filter option, in canonical UI and URL order. */
 export const LABEL_FILTER_OPTIONS = CARD_LABEL_SELECTIONS
 
-/** The chips that replace the whole selection when picked (and reject URL combos). */
-const EXCLUSIVE_LABEL_OPTIONS = ['keep', 'none'] as const satisfies readonly LabelFilterOption[]
+/**
+ * The chips that replace the whole selection when picked (and reject URL
+ * combos): the labels that stand alone as declarations, plus `none`.
+ */
+const EXCLUSIVE_LABEL_OPTIONS = [
+  ...EXCLUSIVE_CARD_LABELS,
+  CARD_LABEL_SELECTION_NONE,
+] as const satisfies readonly LabelFilterOption[]
 
 function isExclusiveLabelOption(option: LabelFilterOption): boolean {
   return (EXCLUSIVE_LABEL_OPTIONS as readonly LabelFilterOption[]).includes(option)
@@ -660,8 +669,9 @@ export function toggleColorSelection(selected: string[], color: string): string[
 
 /**
  * Toggle a labels-filter chip, enforcing the selection rules so the store can
- * never hold an illegal combination: `sale` and `trade` combine (OR); `keep`
- * and `none` are each exclusive selections that replace whatever was picked.
+ * never hold an illegal combination: `sale` and `trade` combine (OR); `keep`,
+ * `proxy`, and `none` are each exclusive selections that replace whatever was
+ * picked.
  * The result is in canonical {@link LABEL_FILTER_OPTIONS} order.
  */
 export function toggleLabelFilterOption(
@@ -677,7 +687,7 @@ export function toggleLabelFilterOption(
 /**
  * Parse a `labels=` URL value leniently: lowercase comma-separated tokens,
  * unknown ones dropped, deduped into canonical order. A combination the chips
- * cannot produce (`keep` or `none` alongside anything else) invalidates the
+ * cannot produce (an exclusive option alongside anything else) invalidates the
  * whole param — `undefined` — matching the store invariant rather than
  * silently repairing a hand-edited URL.
  */

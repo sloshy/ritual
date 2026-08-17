@@ -18,10 +18,19 @@ import type { ScryfallCard } from '../types'
 import type { CardContextInfo } from './card-context'
 import type { CollectionCardEntry } from './data-types'
 import type { MetaEntry } from './meta-entry'
-import { cardLabelName, effectiveLabels, formatCardLabels, type CardLabel } from '../card-labels'
+import {
+  cardLabelName,
+  effectiveLabels,
+  formatCardLabels,
+  labelFiltersFor,
+  type CardLabel,
+  type CardLabelSelection,
+  type PricelessReason,
+} from '../card-labels'
+import { cardPriceText, cardPricelessReason, pricelessFacts } from './priceless'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
-import { getCardPriceForFinish, formatPrice, formatPriceOrNA } from '../price-currency'
+import { getCardPriceForFinish, formatPrice } from '../price-currency'
 import {
   type CardData,
   type CardGroup,
@@ -106,6 +115,14 @@ const COLLECTION_SORT_BYS: readonly SortBy[] = [
   'set-code',
   'edhrec',
 ]
+
+/**
+ * The label chips this page offers, and the `labels=` values a shared URL may
+ * name here — a collection takes the whole vocabulary. Derived rather than
+ * listed, and known synchronously, as {@link useListViewUrlSync} requires.
+ */
+const COLLECTION_LABEL_FILTERS: readonly CardLabelSelection[] = labelFiltersFor('collection')
+
 type GroupedEntry = { entry: CollectionCardEntry; count: number }
 
 interface CollectionPageProps extends SellModeProps {
@@ -226,7 +243,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     groupByValues: groupByOptionsFor(Boolean(props.enableSellMode)).map((o) => o.value),
     sortByValues: sortValuesFor(Boolean(props.enableSellMode)),
     enabled: props.enableUrlState,
-    supportsLabels: true,
+    availableLabels: COLLECTION_LABEL_FILTERS,
     supportsSellMode: Boolean(props.enableSellMode),
   })
 
@@ -288,14 +305,33 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     effectiveLabels(entry.labels, props.listLabels)
 
   /**
+   * Whether this copy carries no price by rule — a proxy (not a real card) or a
+   * copy wearing custom art (not the printing a price would be for).
+   */
+  const entryPricelessReason = (entry: CollectionCardEntry): PricelessReason | undefined =>
+    cardPricelessReason(pricelessFacts(entry, entryLabels(entry)))
+
+  /**
+   * The price cell's text for an entry: the marker when the copy carries no
+   * price by rule, the formatted amount otherwise. "$0.00" would read as a
+   * price rather than as the refusal to quote one.
+   */
+  const entryPriceText = (entry: CollectionCardEntry): string =>
+    cardPriceText(t, pricelessFacts(entry, entryLabels(entry)), entry.price, props.currency)
+
+  /**
    * Identity of a tile when grouping duplicates: printing + condition plus the
-   * raw label override — labels join the key so a keep-marked copy never merges
-   * into (and mislabels) a stack of otherwise-identical tradable copies. Shared
-   * by the grouped `allCards` builder and `groupCardIds`, so a tile's card IDs
-   * are exactly the entries it visually represents.
+   * raw label override and the copy's custom art — both join the key so a
+   * keep-marked or custom-art copy never merges into (and mislabels, or
+   * zero-prices) a stack of otherwise-identical tradable copies. The art joins
+   * it as the *fact* as well as the URL: a copy whose art file was not deployed
+   * has no URL to tell it apart from a plain one, and merging the two would
+   * price the priceless copy at retail. Shared by the grouped `allCards`
+   * builder and `groupCardIds`, so a tile's card IDs are exactly the entries it
+   * visually represents.
    */
   const duplicateGroupKey = (entry: CollectionCardEntry): string =>
-    `${entry.name}|${entry.set}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${displayLanguage(entry.language)}|${formatCardLabels(entry.labels ?? [])}`
+    `${entry.name}|${entry.set}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${displayLanguage(entry.language)}|${formatCardLabels(entry.labels ?? [])}|${entry.customArt ?? ''}|${entry.hasCustomArt === true ? 'art' : ''}`
 
   const buildCollectionSearchEntry = (
     entry: CollectionCardEntry,
@@ -313,6 +349,8 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       condition: entry.condition,
       language: entryLanguage(entry),
       labels: labels.length > 0 ? labels : undefined,
+      customArt: entry.customArt,
+      hasCustomArt: entry.hasCustomArt,
       note: entry.note,
       price: entry.price,
       scryfallCard,
@@ -347,7 +385,14 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       const cardKey = printingKey(entry.set, entry.collectorNumber)
       const card = overlayCard(props.cards[cardKey] ?? null)
       if (!card) return entry
-      const price = getCardPriceForFinish(card, entry.finish, props.currency)
+      // A proxy and a custom-art copy price at 0 in every currency — the same
+      // rule the bake and the price report apply, restated here because this
+      // recompute replaces the baked figure whenever the currency changes or
+      // prices are refreshed.
+      const price =
+        entryPricelessReason(entry) !== undefined
+          ? 0
+          : getCardPriceForFinish(card, entry.finish, props.currency)
       return { ...entry, price }
     })
   })
@@ -361,6 +406,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   // `currencyEntries` computed from the printing's default-language object.
   const toCardData = (entry: CollectionCardEntry, quantity: number): CardData => {
     const card = entryCard(entry)
+    const labels = entryLabels(entry)
     return {
       name: entry.name,
       quantity,
@@ -377,10 +423,12 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       hasPrinting: true,
       oracleTags: card?.oracleTags ?? [],
       artTags: card?.artTags ?? [],
-      labels: entryLabels(entry),
+      labels,
+      customArt: entry.customArt,
+      hasCustomArt: entry.hasCustomArt,
       finish: entry.finish,
       language: entryLanguage(entry),
-      ...buylistFieldsFor(card, entry.finish, entry.language),
+      ...buylistFieldsFor(card, entry.finish, entry.language, pricelessFacts(entry, labels)),
       card,
     }
   }
@@ -530,7 +578,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     const showTrade = !props.editMode && !props.onCardMove && entry !== undefined
     const selectKey = String(entryIdx)
     const buildSelected = (): SelectedCard => {
-      const preview = resolveCardPreview(c.card, Boolean(props.useScryfallImgUrls))
+      const preview = resolveCardPreview(c.card, Boolean(props.useScryfallImgUrls), c.customArt)
       return {
         key: selectKey,
         name: c.name,
@@ -540,6 +588,8 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         condition: entry?.condition,
         language: entry ? entryLanguage(entry) : undefined,
         labels: entry ? entryLabels(entry) : undefined,
+        customArt: c.customArt,
+        hasCustomArt: c.hasCustomArt,
         note: entry?.note,
         quantity: c.quantity,
         groupSize: c.quantity,
@@ -569,6 +619,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         name={c.name}
         quantity={c.quantity}
         card={c.card}
+        customArt={c.customArt}
         symbolMap={props.symbolMap}
         buylistPrice={c.buylistPrice}
         viewMode={viewMode()}
@@ -583,6 +634,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         collectionSetCN={entry ? `${entry.set.toUpperCase()}:${entry.collectorNumber}` : undefined}
         collectionPrice={entry?.price}
         labelBadges={entry?.labels}
+        priceless={cardPricelessReason(c)}
         currency={props.currency}
         cardId={entry?.cardId}
         editMode={props.editMode}
@@ -610,7 +662,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     const entry = modalEntry()!
     const card = modalCard()!
     const parts: MetaEntry[] = []
-    parts.push({ label: 'price', value: formatPriceOrNA(entry.price, props.currency) })
+    parts.push({ label: 'price', value: entryPriceText(entry) })
     parts.push({
       label: 'set',
       value: `${entry.set.toUpperCase()}:${entry.collectorNumber}`,
@@ -752,7 +804,8 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         cardTypeOptions={cardTypeOptions()}
         oracleTagOptions={oracleTagOptions()}
         artTagOptions={artTagOptions()}
-        showLabelsFilter
+        showLabelsFilter={COLLECTION_LABEL_FILTERS.length > 0}
+        availableLabels={COLLECTION_LABEL_FILTERS}
         extraToggles={[
           {
             label: t('site.collection.groupDuplicates'),
@@ -804,6 +857,8 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       <CardModal
         open={Boolean(modalCard())}
         card={modalCard()}
+        customArt={modalEntry()?.customArt}
+        hasCustomArt={modalEntry()?.hasCustomArt}
         cardName={modalEntry()?.name ?? null}
         symbolMap={props.symbolMap}
         useScryfallImgUrls={props.useScryfallImgUrls}

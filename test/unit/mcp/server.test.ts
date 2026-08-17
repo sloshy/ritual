@@ -61,6 +61,7 @@ const EXPECTED_TOOLS = [
   'add_card',
   'remove_card',
   'set_card_printing',
+  'set_card_art',
   'apply_changes',
   'move_selected_cards',
   'remove_selected_cards',
@@ -81,6 +82,10 @@ const MUTATION_TOOLS = [
   'add_card',
   'remove_card',
   'set_card_printing',
+  // Not a card-line mutation at all — it writes the art sidecar — but it must
+  // stay hash-free for the stronger reason: art is metadata, so there is no
+  // optimistic-concurrency round trip for an agent to manage.
+  'set_card_art',
   'apply_changes',
   'move_selected_cards',
   'remove_selected_cards',

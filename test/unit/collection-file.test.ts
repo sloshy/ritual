@@ -275,10 +275,21 @@ describe('parseCollectionFile — labels token', () => {
     expect(entries[0]!.labels).toBeUndefined()
   })
 
+  test('parses the proxy token', () => {
+    const { entries, warnings } = parseCollectionFile('- Sol Ring (C21:263) [proxy] &4\n')
+    expect(entries[0]!.labels).toEqual(['proxy'])
+    expect(warnings).toHaveLength(0)
+  })
+
+  test('proxy-conflict keeps the entry, drops the labels, and warns', () => {
+    const { entries, warnings } = parseCollectionFile('- Sol Ring (C21:263) [keep,proxy] &2\n')
+    expect(entries[0]!.labels).toBeUndefined()
+    expect(warnings[0]).toContain('Conflicting labels [keep,proxy]')
+  })
+
   test('the line regex embeds the CARD_LABELS vocabulary', () => {
-    // The token alternation is spelled out in the regex literal; this pins it
-    // to the canonical vocabulary so adding a label cannot silently leave the
-    // grammar behind.
+    // The token alternation is built from the vocabulary; this pins the build
+    // so adding a label cannot silently leave the grammar behind.
     expect(COLLECTION_CARD_LINE_RE.source).toContain(CARD_LABELS.join('|'))
   })
 })

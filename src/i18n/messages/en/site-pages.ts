@@ -207,4 +207,6 @@ export const sitePagesMessages = {
   'site.detail.fileNotFound': 'File not found: {path}',
   'site.detail.noLanguageCard':
     "No {language} card object for '{name}' ({printing}); using the default-language object",
+  'site.detail.artUnreadable': 'Custom art sidecar ignored: {reason}',
+  'site.detail.artUnknownCards': 'Custom art is set for cards no longer in this list: {ids}',
 } as const satisfies MessageCatalogShape

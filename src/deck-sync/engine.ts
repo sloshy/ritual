@@ -62,7 +62,8 @@ import {
   type SyncLogLevel,
   type UnreadableSource,
 } from '../sync-common'
-import { assignMissingDeckCardIds } from '../card-id'
+import { assignMissingDeckCardIds, collectDeckCardIds } from '../card-id'
+import { reconcileCardArt, reconciledArtPath } from '../card-art'
 import { checkDeckDivergence, describeDivergence } from './divergence'
 import { hashPath, writeFileWithHash } from '../content-hash'
 import { getDecksDir } from '../ritual-config'
@@ -1161,6 +1162,13 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
       applyDownloadDiff(target.deck.sections, diff),
       printingDiff.updates,
     )
+    // Read before the ids are assigned: a card the pull removed frees its `&N`,
+    // and the assigner hands free ids straight to the cards the same pull added,
+    // so comparing against the *finished* deck would miss exactly the lines
+    // whose art would otherwise resurface on a different card.
+    const survivingIds = new Set(collectDeckCardIds({ sections: updatedSections }))
+    const removedCardIds = collectDeckCardIds(target.deck).filter((id) => !survivingIds.has(id))
+
     const updatedDeck: DeckData = assignMissingDeckCardIds({
       ...target.deck,
       format: formatSync.format ?? undefined,
@@ -1175,6 +1183,14 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     // export, and the editors' undo all *act on* changelog entries, so a phantom
     // propagates while a gap does not.
     writtenFiles.push(...(await saveDeckWithSyncTimestamp(target, updatedDeck, remoteUpdatedAt)))
+
+    // The deck's custom art is filed under its card lines' `&N`, so a pull that
+    // dropped lines must drop their art with them. Only pulls need this: a push
+    // writes the local deck back unchanged apart from its sync stamp.
+    const artPath = reconciledArtPath(
+      await reconcileCardArt(target.filePath, { removed: removedCardIds }),
+    )
+    if (artPath !== undefined) writtenFiles.push(artPath)
 
     // Changes are stamped with their card ID. Added and quantity-changed cards
     // resolve against the post-sync deck; removed cards (no longer present)

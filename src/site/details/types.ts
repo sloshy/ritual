@@ -68,6 +68,13 @@ export type SiteDetailContext = {
    * field at all.
    */
   buylist?: DetailBuylistContext
+  /**
+   * Art-dir-relative paths a build referenced but could not deploy (from
+   * `deployCardArt`). Entries pointing at one of these bake no `customArt`, so
+   * the card keeps its real art. Absent means every reference is baked — the
+   * live server serves the art directory itself and has nothing to deploy.
+   */
+  missingArtFiles?: ReadonlySet<string>
   /** Build-time side effects for a card shipped in a detail (symbol + image downloads). */
   onCardShipped?: (card: ScryfallCard) => Promise<void>
   /** Sink for data-quality warnings (e.g. a printing that can't be found). */

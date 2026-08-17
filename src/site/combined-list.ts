@@ -7,6 +7,7 @@ import { displayFinish } from '../finish-condition'
 import { type ListType, isListType } from '../list-type'
 import { hasSpecificPrinting, findPrinting } from '../card-printing'
 import { effectiveLabels } from '../card-labels'
+import { isPricelessCard, pricelessFacts } from './priceless'
 import { overlayCard } from './session-cache'
 import { resolveCardPreview } from './image-sources'
 import { resolveWantedCardEntry } from './resolve-card'
@@ -218,10 +219,20 @@ function buildDeckCards(
           )
         : null
       const card = overlayCard(matched ?? detail.cards[entry.name] ?? null)
-      const price = card ? getCardPrice(card, currency) : 0
+      // Resolved here because the combined view has no per-list context
+      // downstream.
+      const labels = effectiveLabels(entry.labels, detail.labels)
+      // Same shape as the collection branch below: the priceless rule is asked
+      // first, and only then does the price come from the card — a deck row
+      // has no baked figure to fall back on, so an unresolved card is 0. The
+      // art fact, not the display URL, decides: a reference whose file the
+      // build could not deploy shows the real printing and still prices at 0.
+      const facts = pricelessFacts(entry, labels)
+      const priceless = isPricelessCard(facts)
+      const price = priceless ? 0 : card ? getCardPrice(card, currency) : 0
       const localKey = localOrder++
       const key = selectKeyFor('deck', name, localKey)
-      const preview = resolveCardPreview(card, useScryfallImgUrls)
+      const preview = resolveCardPreview(card, useScryfallImgUrls, entry.customArt)
       const selectedTile: SelectedCard = {
         key,
         name: entry.name,
@@ -230,6 +241,9 @@ function buildDeckCards(
         finish: entry.finish,
         condition: entry.condition,
         language: entryLanguage(entry.language),
+        labels,
+        customArt: entry.customArt,
+        hasCustomArt: entry.hasCustomArt,
         quantity: entry.quantity,
         groupSize: entry.quantity,
         price,
@@ -257,12 +271,14 @@ function buildDeckCards(
         hasPrinting: specific,
         oracleTags: card?.oracleTags ?? [],
         artTags: card?.artTags ?? [],
-        labels: [],
+        labels,
+        customArt: entry.customArt,
+        hasCustomArt: entry.hasCustomArt,
         finish: entry.finish,
         // From the ENTRY, not the resolved card: under the default `en` cache no
         // `@lang` object is baked, so the card object cannot say (see CardData).
         language: entryLanguage(entry.language),
-        ...buylistFieldsFor(card, entry.finish, entry.language),
+        ...buylistFieldsFor(card, entry.finish, entry.language, facts),
         card,
         sourceName: name,
         sourceKind: 'deck',
@@ -287,11 +303,21 @@ function buildCollectionCards(
     // Language-resolved: a `[ja]` entry displays its baked `@ja` object when
     // present, falling through to the printing's default object.
     const card = overlayCard(lookupPrintingCard(detail.cards, entry))
-    const price = card ? getCardPriceForFinish(card, entry.finish, currency) : entry.price
-    const key = selectKeyFor('collection', name, index)
-    const preview = resolveCardPreview(card, useScryfallImgUrls)
     // Resolved here because the combined view has no per-list context downstream.
     const labels = effectiveLabels(entry.labels, detail.labels)
+    // A proxy is not a real card, and a copy wearing custom art is not the
+    // printing a price would be for: neither carries a price, whichever currency
+    // the view is in — checked before the baked figure is even consulted. Asked
+    // with the *effective* labels, not the entry's own override: a collection
+    // whose front matter marks every card `proxy` is priceless line by line.
+    const facts = pricelessFacts(entry, labels)
+    const price = isPricelessCard(facts)
+      ? 0
+      : card
+        ? getCardPriceForFinish(card, entry.finish, currency)
+        : entry.price
+    const key = selectKeyFor('collection', name, index)
+    const preview = resolveCardPreview(card, useScryfallImgUrls, entry.customArt)
     const selectedTile: SelectedCard = {
       key,
       name: entry.name,
@@ -301,6 +327,8 @@ function buildCollectionCards(
       condition: entry.condition,
       language: entryLanguage(entry.language),
       labels,
+      customArt: entry.customArt,
+      hasCustomArt: entry.hasCustomArt,
       note: entry.note,
       quantity: 1,
       groupSize: 1,
@@ -329,9 +357,11 @@ function buildCollectionCards(
       oracleTags: card?.oracleTags ?? [],
       artTags: card?.artTags ?? [],
       labels,
+      customArt: entry.customArt,
+      hasCustomArt: entry.hasCustomArt,
       finish: entry.finish,
       language: entryLanguage(entry.language),
-      ...buylistFieldsFor(card, entry.finish, entry.language),
+      ...buylistFieldsFor(card, entry.finish, entry.language, facts),
       card,
       sourceName: name,
       sourceKind: 'collection',
@@ -353,13 +383,19 @@ function buildWantedCards(
   return detail.entries.map((entry: WantedListCardEntry, index): CombinedCardData => {
     const specific = hasSpecificPrinting(entry)
     const card = resolveWantedCardEntry(entry, detail.cards)
-    // An entry with no finish token is read at the printing's default finish, not
-    // flatly as nonfoil: a foil-only printing has no nonfoil price to quote.
-    const price = card
-      ? getCardPriceForFinish(card, displayFinish(card, entry.finish), currency)
-      : entry.price
+    // A copy wearing custom art carries no price at all (wanted lines have no
+    // labels, so that is the only way one can be priceless). Otherwise: an entry
+    // with no finish token is read at the printing's default finish, not flatly
+    // as nonfoil — a foil-only printing has no nonfoil price to quote.
+    // Wanted lines carry no labels, so the entry's art facts are the whole rule.
+    const facts = pricelessFacts(entry)
+    const price = isPricelessCard(facts)
+      ? 0
+      : card
+        ? getCardPriceForFinish(card, displayFinish(card, entry.finish), currency)
+        : entry.price
     const key = selectKeyFor('wanted', name, index)
-    const preview = resolveCardPreview(card, useScryfallImgUrls)
+    const preview = resolveCardPreview(card, useScryfallImgUrls, entry.customArt)
     const selectedTile: SelectedCard = {
       key,
       name: entry.name,
@@ -367,6 +403,8 @@ function buildWantedCards(
       collectorNumber: specific ? entry.collectorNumber : undefined,
       finish: entry.finish,
       language: entryLanguage(entry.language),
+      customArt: entry.customArt,
+      hasCustomArt: entry.hasCustomArt,
       note: entry.note,
       quantity: 1,
       groupSize: 1,
@@ -396,9 +434,11 @@ function buildWantedCards(
       oracleTags: card?.oracleTags ?? [],
       artTags: card?.artTags ?? [],
       labels: [],
+      customArt: entry.customArt,
+      hasCustomArt: entry.hasCustomArt,
       finish: entry.finish,
       language: entryLanguage(entry.language),
-      ...buylistFieldsFor(card, entry.finish, entry.language),
+      ...buylistFieldsFor(card, entry.finish, entry.language, facts),
       card,
       sourceName: name,
       sourceKind: 'wanted',

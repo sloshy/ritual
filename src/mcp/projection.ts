@@ -1,4 +1,5 @@
 import type { ListCounts, ListSummaryLoadResult } from '../admin/api/load-results'
+import type { CardArtRecord } from '../card-art'
 import type { CardLabel } from '../card-labels'
 import type { ListType } from '../list-type'
 import type { DeckData } from '../types'
@@ -26,6 +27,11 @@ import type {
  * `language` field only when it is not English — an absent value always means
  * `en`, mirroring the card lines themselves, where the `[ja]`-style token is
  * omitted for English.
+ *
+ * Custom art rides beside the entries rather than on them, as `customArt` keyed
+ * by `&N` — the shape the load routes and the `<list>.art.json` sidecar both
+ * use, and the raw references `set_card_art` takes back rather than display
+ * URLs.
  */
 
 /** Read options `get_list` and the resource reader pass to the load routes. */
@@ -51,6 +57,14 @@ export type DeckProjection = {
   deck: DeckData
   frontMatter: Record<string, unknown>
   /**
+   * The deck's default card labels (`proxy` alone) — its front matter's, read
+   * out here so every list type reports its list-level default the same way. A
+   * card's own `labels` override it.
+   */
+  labels?: CardLabel[]
+  /** See the module comment: custom art by `&N`, absent when no card has any. */
+  customArt?: CardArtRecord
+  /**
    * Lines that matched before `limit`/`offset` applied. Always present; on an
    * unfiltered read it is the deck's whole line count.
    */
@@ -61,6 +75,13 @@ export type DeckProjection = {
    * shorter is exactly the failure an optional field hides.
    */
   warnings: string[]
+  /**
+   * What was wrong with the `<list>.art.json` sidecar, kept apart from
+   * {@link DeckProjection.warnings}: a mutation refuses a list whose *lines* are
+   * unreadable, and bad custom art must never be mistaken for that. Absent when
+   * the sidecar is clean or there is none.
+   */
+  artWarnings?: string[]
 }
 
 /** Projected flat-list (collection/wanted) load payload: entries plus section order. */
@@ -72,10 +93,14 @@ export type FlatListProjection = {
   sectionOrder?: string[]
   /** The list's default card labels from its front matter — collections only. */
   labels?: CardLabel[]
+  /** See {@link DeckProjection.customArt}. */
+  customArt?: CardArtRecord
   /** See {@link DeckProjection.totalCount}. */
   totalCount: number
   /** See {@link DeckProjection.warnings}. */
   warnings: string[]
+  /** See {@link DeckProjection.artWarnings}. */
+  artWarnings?: string[]
 }
 
 /** Projected `?view=summary` payload: how much is in the list, and nothing else. */
@@ -135,8 +160,11 @@ export async function loadProjectedList(
       slug,
       deck: data.deck,
       frontMatter: data.frontMatter,
+      labels: data.labels,
+      customArt: data.customArt,
       totalCount: data.totalCount,
       warnings: data.warnings,
+      artWarnings: data.artWarnings,
     }
     return projection
   }
@@ -148,8 +176,10 @@ export async function loadProjectedList(
     entries: data.entries,
     sectionOrder: data.sectionOrder,
     labels: data.labels,
+    customArt: data.customArt,
     totalCount: data.totalCount,
     warnings: data.warnings,
+    artWarnings: data.artWarnings,
   }
   return projection
 }

@@ -10,6 +10,7 @@ import { applyChangeToCollection } from '../../src/editor/collection-changes'
 import { applyChangeToWantedList } from '../../src/editor/wanted-changes'
 import { applyChangeToDeck } from '../../src/editor/deck-changes'
 import { parseChangeLine } from '../../src/changelog-parser'
+import { CARD_LABELS } from '../../src/card-labels'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/site/data-types'
 import type { DeckData } from '../../src/types'
 
@@ -85,15 +86,84 @@ describe('set-label on other list types', () => {
     expect(miss).toBe('not-applicable')
   })
 
-  it('decks report not-applicable', () => {
-    const deck: DeckData = { name: 'Test', sections: [{ name: 'Main', cards: [] }] }
+  it('decks apply the override, and report a missing target as no-target', () => {
+    // Decks carry `proxy` (the vocabulary check belongs to the write surfaces),
+    // so a set-label there is an ordinary targeting change.
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] }],
+    }
+    const applied = applyChangeToDeck(deck, {
+      action: 'set-label',
+      cardName: 'Sol Ring',
+      labels: ['proxy'],
+    })
+    expect(applied.sections[0]!.cards[0]!.labels).toEqual(['proxy'])
+
     let miss: string | undefined
     applyChangeToDeck(
       deck,
-      { action: 'set-label', cardName: 'Sol Ring', labels: ['sale'] },
+      { action: 'set-label', cardName: 'Mox Ruby', labels: ['proxy'] },
       { onMiss: (reason) => (miss = reason) },
     )
-    expect(miss).toBe('not-applicable')
+    expect(miss).toBe('no-target')
+  })
+})
+
+describe('applyChangeToDeck — add merges on the label override too', () => {
+  const proxiedDeck = (): DeckData => ({
+    name: 'Test',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 2, name: 'Sol Ring', set: 'lea', collectorNumber: '270', cardId: 1 },
+          {
+            quantity: 1,
+            name: 'Sol Ring',
+            set: 'lea',
+            collectorNumber: '270',
+            labels: ['proxy'],
+            cardId: 2,
+          },
+        ],
+      },
+    ],
+  })
+
+  it('a proxy add joins the proxy line, not the real one', () => {
+    const applied = applyChangeToDeck(proxiedDeck(), {
+      action: 'add',
+      cardName: 'Sol Ring',
+      set: 'lea',
+      collectorNumber: '270',
+      labels: ['proxy'],
+    })
+    expect(applied.sections[0]!.cards.map((c) => c.quantity)).toEqual([2, 2])
+  })
+
+  it('a real add joins the real line, not the proxy one', () => {
+    const applied = applyChangeToDeck(proxiedDeck(), {
+      action: 'add',
+      cardName: 'Sol Ring',
+      set: 'lea',
+      collectorNumber: '270',
+    })
+    expect(applied.sections[0]!.cards.map((c) => c.quantity)).toEqual([3, 1])
+  })
+
+  it('an override with no matching line becomes its own entry', () => {
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] }],
+    }
+    const applied = applyChangeToDeck(deck, {
+      action: 'add',
+      cardName: 'Sol Ring',
+      labels: ['proxy'],
+    })
+    expect(applied.sections[0]!.cards).toHaveLength(2)
+    expect(applied.sections[0]!.cards[1]).toMatchObject({ quantity: 1, labels: ['proxy'] })
   })
 })
 
@@ -154,6 +224,34 @@ describe('parseChangeLine — label lines', () => {
   test('parses a legacy unquoted card name', () => {
     const parsed = parseChangeLine('- Set labels on Sol Ring to [keep]')
     expect(parsed).toEqual({ action: 'Set labels', cardName: 'Sol Ring', labels: ['keep'] })
+  })
+
+  test('every label in the vocabulary round-trips through the changelog', () => {
+    // `changelog-parser` sits behind the persistence fence, so its label
+    // alternation is hand-maintained — it may not import the i18n-bearing
+    // vocabulary module. This test may: it drives the whole of CARD_LABELS
+    // through the writer's own formatter and back, so adding a label without
+    // widening the regex fails here instead of silently parsing that label's
+    // changelog lines as nothing at all.
+    for (const label of CARD_LABELS) {
+      const change = createSetLabelChange('Sol Ring', { labels: [label], cardId: 5 })
+      const line = formatChangeCore(change, { tense: 'past', quoteCardName: true })
+      expect(parseChangeLine(`- ${line}`)).toEqual({
+        action: 'Set labels',
+        cardName: 'Sol Ring',
+        labels: [label],
+      })
+    }
+  })
+
+  test('a combined override round-trips too', () => {
+    const change = createSetLabelChange('Sol Ring', { labels: ['trade', 'sale'], cardId: 5 })
+    const line = formatChangeCore(change, { tense: 'past', quoteCardName: true })
+    expect(parseChangeLine(`- ${line}`)).toEqual({
+      action: 'Set labels',
+      cardName: 'Sol Ring',
+      labels: ['sale', 'trade'],
+    })
   })
 
   test('parses a Cleared labels line', () => {

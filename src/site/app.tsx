@@ -750,6 +750,7 @@ function App() {
                       fallback={
                         <DeckPage
                           deck={deckDetail()!.deck}
+                          listLabels={deckDetail()!.labels}
                           cards={deckDetail()!.cards}
                           printings={deckDetail()!.printings ?? {}}
                           lowestPriceCards={deckDetail()!.lowestPriceCards}

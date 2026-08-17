@@ -33,7 +33,7 @@ export type SnapshotEntry = {
   condition?: Condition
   /** The line's `[ja]`-style language token. Absent means `en`. */
   language?: CardLanguage
-  /** Label override — collection entries only. */
+  /** Label override — deck and collection entries (see LIST_TYPE_LABELS). */
   labels?: CardLabel[]
   note?: string
   cardId?: number
@@ -73,6 +73,7 @@ export async function loadListSnapshot(type: ListType, filePath: string): Promis
           finish: card.finish,
           condition: card.condition,
           language: card.language,
+          labels: card.labels,
           note: card.note,
           cardId: card.cardId,
           section: section.name,

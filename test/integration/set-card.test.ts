@@ -952,7 +952,23 @@ describe('set-card --label (Integration)', () => {
     expect(changelog).toContain('- Cleared labels on "Sol Ring" &1')
   })
 
-  test('rejects --label on a deck target', async () => {
+  test('labels a deck card proxy, keeping &N last, and logs the changelog line', async () => {
+    const result = await runCli(
+      ['set-card', '--deck', 'test', '--card-id', '3', '--label', 'proxy', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual(['label → proxy'])
+
+    const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+    expect(deckContent).toContain('1 Lightning Bolt (2XM:157) [proxy] &3')
+
+    const changelog = await fs.readFile(path.join(dir, 'decks', 'test.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Set labels on "Lightning Bolt" &3 to [proxy]')
+  })
+
+  test('rejects a collection-only label on a deck target', async () => {
     const result = await runCli(
       ['set-card', '--deck', 'test', '--card-id', '3', '--label', 'sale', '--output', 'json'],
       dir,
@@ -960,7 +976,17 @@ describe('set-card --label (Integration)', () => {
     expect(result.exitCode).toBe(2)
     const err = JSON.parse(result.stderr) as ErrorJson
     expect(err.error.code).toBe('usage_error')
-    expect(err.error.message).toContain('--label only applies to collections')
+    expect(err.error.message).toContain('Decks only carry these labels: proxy')
+  })
+
+  test('rejects --label on a wanted list, which carries no labels at all', async () => {
+    const result = await runCli(
+      ['set-card', '--wanted', 'needs', 'Underground Sea', '--label', 'proxy', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as ErrorJson
+    expect(err.error.message).toContain('Wanted list entries do not carry labels')
   })
 
   test('rejects an illegal combination at parse time', async () => {
@@ -970,5 +996,192 @@ describe('set-card --label (Integration)', () => {
     )
     expect(result.exitCode).toBe(2)
     expect(result.stderr).toContain("'keep' cannot be combined")
+  })
+})
+
+describe('set-card --art (Integration)', () => {
+  /** The `.art.json` sidecar as JSON.parse yields it: card id → file/url ref. */
+  type ArtSidecar = Record<string, { file?: string; url?: string }>
+
+  const ART_URL = 'https://example.com/art/bolt.png'
+
+  /** Place an image under the workspace's default art directory (`./art`). */
+  async function seedArtFile(relPath: string): Promise<void> {
+    const full = path.join(dir, 'art', relPath)
+    await fs.mkdir(path.dirname(full), { recursive: true })
+    await fs.writeFile(full, 'not really a png')
+  }
+
+  async function readSidecar(relPath: string): Promise<ArtSidecar> {
+    return JSON.parse(await fs.readFile(path.join(dir, relPath), 'utf-8')) as ArtSidecar
+  }
+
+  test('records a local art file and leaves the list and changelog untouched', async () => {
+    await seedArtFile('proxies/bolt.png')
+    const before = await snapshotTree(dir)
+    const result = await runCli(
+      [
+        'set-card',
+        '--deck',
+        'test',
+        '--card-id',
+        '3',
+        '--art',
+        'proxies/bolt.png',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual(['custom art → proxies/bolt.png'])
+
+    expect(await readSidecar('decks/test.art.json')).toEqual({ '3': { file: 'proxies/bolt.png' } })
+    // Art is list metadata: the sidecar is the only file the run may touch.
+    const after = await snapshotTree(dir)
+    delete after['decks/test.art.json']
+    expect(after).toEqual(before)
+  })
+
+  test('stores an http(s) URL verbatim on a collection entry', async () => {
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--art', ART_URL, '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual([`custom art → ${ART_URL}`])
+    expect(await readSidecar('collections/main.art.json')).toEqual({ '1': { url: ART_URL } })
+  })
+
+  test('sets art on a wanted list entry', async () => {
+    const result = await runCli(
+      ['set-card', '--wanted', 'needs', 'Underground Sea', '--art', ART_URL, '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    expect(await readSidecar('wanted/needs.art.json')).toEqual({ '2': { url: ART_URL } })
+  })
+
+  test('--art none clears the entry, removing the sidecar with the last one', async () => {
+    await runCli(['set-card', '--collection', 'main', 'Sol Ring', '--art', ART_URL], dir)
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--art', 'none', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual(['custom art → none (cleared)'])
+    expect(await Bun.file(path.join(dir, 'collections', 'main.art.json')).exists()).toBe(false)
+  })
+
+  test('keeps other cards art when one is cleared', async () => {
+    await runCli(['set-card', '--collection', 'main', 'Sol Ring', '--art', ART_URL], dir)
+    await runCli(['set-card', '--collection', 'main', 'Mana Crypt', '--art', ART_URL], dir)
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--art', 'none'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    expect(await readSidecar('collections/main.art.json')).toEqual({ '2': { url: ART_URL } })
+  })
+
+  test('applies art alongside a line change in one run', async () => {
+    const result = await runCli(
+      [
+        'set-card',
+        '--deck',
+        'test',
+        '--card-id',
+        '3',
+        '--label',
+        'proxy',
+        '--art',
+        ART_URL,
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual(['label → proxy', `custom art → ${ART_URL}`])
+
+    const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+    expect(deckContent).toContain('1 Lightning Bolt (2XM:157) [proxy] &3')
+    expect(await readSidecar('decks/test.art.json')).toEqual({ '3': { url: ART_URL } })
+
+    const changelog = await fs.readFile(path.join(dir, 'decks', 'test.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Set labels on "Lightning Bolt" &3 to [proxy]')
+    // The sidecar write is metadata — it must not reach the changelog.
+    expect(changelog).not.toContain(ART_URL)
+  })
+
+  test('rejects a path with no image behind it, naming the path it checked', async () => {
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--art', 'missing.png', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(3)
+    const err = JSON.parse(result.stderr) as ErrorJson
+    expect(err.error.code).toBe('not_found')
+    expect(err.error.message).toContain(path.join('art', 'missing.png'))
+    expect(await Bun.file(path.join(dir, 'collections', 'main.art.json')).exists()).toBe(false)
+  })
+
+  test('rejects a file that is not an image, before it can be deployed and 404', async () => {
+    await seedArtFile('notes.txt')
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--art', 'notes.txt'],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain('not an image file')
+    expect(await Bun.file(path.join(dir, 'collections', 'main.art.json')).exists()).toBe(false)
+  })
+
+  test('rejects a path escaping the art directory at parse time', async () => {
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--art', '../secrets.png'],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain('escapes the art directory')
+  })
+
+  test('rejects art for a card the list does not have', async () => {
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Black Lotus', '--art', ART_URL, '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(3)
+    const err = JSON.parse(result.stderr) as ErrorJson
+    expect(err.error.code).toBe('not_found')
+    expect(await Bun.file(path.join(dir, 'collections', 'main.art.json')).exists()).toBe(false)
+  })
+
+  test('--dry-run reports the art change and writes nothing', async () => {
+    await seedArtFile('proxies/bolt.png')
+    const before = await snapshotTree(dir)
+    const result = await runCli(
+      [
+        'set-card',
+        '--collection',
+        'main',
+        'Sol Ring',
+        '--art',
+        'proxies/bolt.png',
+        '-n',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson & { dryRun?: boolean }
+    expect(json.dryRun).toBe(true)
+    expect(json.applied).toEqual(['custom art → proxies/bolt.png'])
+    expect(await snapshotTree(dir)).toEqual(before)
   })
 })

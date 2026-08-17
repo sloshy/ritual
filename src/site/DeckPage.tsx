@@ -14,8 +14,24 @@ import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
 import { ListPageStats, SellModeNotice } from './PageStats'
-import type { Card, DeckData, ScryfallCard, Finish } from '../types'
+import type { Card, ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
+import type { BakedDeckCard, BakedDeckData } from './data-types'
+import {
+  cardLabelName,
+  effectiveLabels,
+  labelFiltersFor,
+  type CardLabel,
+  type CardLabelSelection,
+} from '../card-labels'
+import {
+  cardPricelessReason,
+  isPricelessCard,
+  pricelessFacts,
+  pricelessMarkerText,
+} from './priceless'
+import type { MetaEntry } from './meta-entry'
+import { rarityName } from './printing-display'
 import type { ChangelogPage } from '../changelog-parser'
 import { findPrinting, hasSpecificPrinting } from '../card-printing'
 import { storedLanguage } from '../card-language'
@@ -69,6 +85,14 @@ import { deckToExportText, deckToMarkdown } from '../deck-text'
 import { deckToCsv } from '../editor/list-export'
 
 type DeckTradePicker = { cardName: string; printings: ScryfallCard[]; deckEntry: Card }
+
+/**
+ * The label chips a deck's filter row offers, and the `labels=` values a shared
+ * URL may name here. Derived from the vocabulary (decks carry `proxy` alone),
+ * so the row cannot drift from what a deck line can actually hold — and known
+ * synchronously, which is what {@link useListViewUrlSync} needs at setup.
+ */
+const DECK_LABEL_FILTERS: readonly CardLabelSelection[] = labelFiltersFor('deck')
 
 /**
  * Every key a group-by dropdown label may name. Narrower than `MessageKey` so
@@ -129,7 +153,12 @@ const isExtraSection = (s: string): boolean => {
 }
 
 export interface DeckPageProps extends SellModeProps {
-  deck: DeckData
+  deck: BakedDeckData
+  /**
+   * The deck's default card labels from its front matter; a line's own labels
+   * override replaces it entirely. Decks accept `proxy` alone.
+   */
+  listLabels?: CardLabel[]
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   lowestPriceCards?: Record<string, ScryfallCard | null>
@@ -221,6 +250,9 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     groupByValues: deckGroupByOptions(Boolean(props.enableSellMode)).map((o) => o.value),
     sortByValues: sortValuesFor(Boolean(props.enableSellMode)),
     enabled: props.enableUrlState,
+    // The same chips the toolbar draws, so a `labels=` param can only ask for
+    // something this page can also show and clear.
+    availableLabels: DECK_LABEL_FILTERS,
     supportsSellMode: Boolean(props.enableSellMode),
   })
 
@@ -255,10 +287,14 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
 
   const [deckTradePicker, setDeckTradePicker] = createSignal<DeckTradePicker | null>(null)
 
+  /** A line's effective labels: its own override, else the deck's front-matter default. */
+  const entryLabels = (entry: BakedDeckCard): CardLabel[] =>
+    effectiveLabels(entry.labels, props.listLabels)
+
   // Build a fileOrder → original Card entry lookup for trade support.
   // Mirrors the order counter in allCards() so indices align.
   const deckEntryByOrder = createMemo(() => {
-    const map = new Map<number, Card>()
+    const map = new Map<number, BakedDeckCard>()
     let order = 0
     for (const section of props.deck.sections) {
       for (const entry of section.cards) {
@@ -270,7 +306,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
 
   // First-occurrence name lookup used for the modal's "Add to Trade" button.
   const deckEntryByName = createMemo(() => {
-    const map = new Map<string, Card>()
+    const map = new Map<string, BakedDeckCard>()
     for (const section of props.deck.sections) {
       for (const entry of section.cards) {
         if (!map.has(entry.name)) map.set(entry.name, entry)
@@ -281,7 +317,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
 
   const buildDeckSearchEntry = (
     cardName: string,
-    entry: Card,
+    entry: BakedDeckCard,
     scryfallCard: ScryfallCard | null,
     maxQty: number,
   ): TradeSearchEntry => ({
@@ -290,6 +326,12 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     set: entry.set?.toLowerCase(),
     collectorNumber: entry.collectorNumber,
     finish: entry.finish,
+    labels: entryLabels(entry),
+    // The board shows the real printing — it is the card being handed over —
+    // but a proxy and a custom-art copy carry no price, so the rule has to
+    // travel with the row or it is valued at the printing's retail.
+    customArt: entry.customArt,
+    hasCustomArt: entry.hasCustomArt,
     scryfallCard,
     sourceName: props.deck.name,
     sourceKind: 'deck',
@@ -430,12 +472,19 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     for (const section of props.deck.sections) {
       for (const entry of section.cards) {
         const card = resolveEntryCard(entry)
+        const labels = entryLabels(entry)
         result.push({
           name: entry.name,
           quantity: entry.quantity,
           cmc: card?.cmc ?? 0,
           edhrec: card?.edhrec_rank ?? 999999,
-          price: card ? getCardPrice(card, props.currency) : 0,
+          // A proxy is not a real card, and a copy wearing custom art is not the
+          // printing a price would be for: neither carries a price in any
+          // currency — the same rule the bake and the price report apply.
+          price:
+            card && !isPricelessCard(pricelessFacts(entry, labels))
+              ? getCardPrice(card, props.currency)
+              : 0,
           type: card?.type_line ?? '',
           section: section.name,
           fileOrder: order++,
@@ -444,10 +493,12 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           hasPrinting: hasSpecificPrinting(entry),
           oracleTags: card?.oracleTags ?? [],
           artTags: card?.artTags ?? [],
-          labels: [],
+          labels,
+          customArt: entry.customArt,
+          hasCustomArt: entry.hasCustomArt,
           finish: entry.finish,
           language: storedLanguage(entry.language),
-          ...buylistFieldsFor(card, entry.finish, entry.language),
+          ...buylistFieldsFor(card, entry.finish, entry.language, pricelessFacts(entry, labels)),
           card,
         })
       }
@@ -593,6 +644,31 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     return activeCards()[props.modalCardName] ?? null
   })
 
+  /**
+   * The modal's meta row, built here rather than left to the modal's own
+   * default: the modal holds only the Scryfall card, whose retail price a proxy
+   * or custom-art copy does not have. Labels are the *effective* ones —
+   * inherited deck default included — since the modal is the full-truth view,
+   * unlike the tiles, which badge overrides only.
+   */
+  const modalMeta = createMemo((): MetaEntry[] | undefined => {
+    const card = modalCard()
+    const entry = modalDeckEntry()
+    if (!card || !entry) return undefined
+    const labels = entryLabels(entry)
+    const marker = pricelessMarkerText(t, cardPricelessReason(pricelessFacts(entry, labels)))
+    const price = marker === undefined ? getCardPrice(card, props.currency) : 0
+    const parts: MetaEntry[] = []
+    if (marker !== undefined) parts.push({ label: 'price', value: marker })
+    else if (price > 0) parts.push({ label: 'price', value: formatPrice(price, props.currency) })
+    parts.push({ label: 'set', value: `${card.set_name} (#${card.collector_number})` })
+    if (labels.length > 0) {
+      parts.push({ label: 'labels', value: labels.map(cardLabelName).join(' · ') })
+    }
+    parts.push({ label: 'rarity', value: rarityName(t, card.rarity) })
+    return parts
+  })
+
   const serializeDeck = (format: ExportFormat): string => {
     switch (format) {
       case 'txt':
@@ -612,7 +688,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     // ship the printings list — adding such a card to a trade prompts for one.
     const specific = deckEntry !== undefined && hasSpecificPrinting(deckEntry)
     const buildSelected = (): SelectedCard => {
-      const preview = resolveCardPreview(c.card, Boolean(props.useScryfallImgUrls))
+      const preview = resolveCardPreview(c.card, Boolean(props.useScryfallImgUrls), c.customArt)
       return {
         key: selectKey,
         name: c.name,
@@ -620,6 +696,9 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         collectorNumber: specific ? deckEntry?.collectorNumber : undefined,
         finish: deckEntry?.finish,
         condition: deckEntry?.condition,
+        labels: c.labels.length > 0 ? c.labels : undefined,
+        customArt: c.customArt,
+        hasCustomArt: c.hasCustomArt,
         quantity: c.quantity,
         groupSize: c.quantity,
         price: c.price,
@@ -649,6 +728,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         name={c.name}
         quantity={c.quantity}
         card={c.card}
+        customArt={c.customArt}
         symbolMap={props.symbolMap}
         buylistPrice={c.buylistPrice}
         viewMode={viewMode()}
@@ -658,6 +738,12 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
         onTooltipLeave={() => setTooltip(null)}
         collectionFinish={deckEntry?.finish}
+        // The entry's own price, not the printing's: a proxy computed 0 above,
+        // and letting the tile re-derive from the Scryfall card would print a
+        // retail figure the deck total does not include.
+        collectionPrice={c.price}
+        labelBadges={deckEntry?.labels}
+        priceless={cardPricelessReason(c)}
         currency={props.currency}
         cardId={deckEntry?.cardId}
         editMode={props.editMode}
@@ -812,6 +898,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         oracleTagOptions={oracleTagOptions()}
         artTagOptions={artTagOptions()}
         showHideExtras
+        showLabelsFilter={DECK_LABEL_FILTERS.length > 0}
+        availableLabels={DECK_LABEL_FILTERS}
         extraToggles={
           hasLowestPriceCards()
             ? [
@@ -970,12 +1058,15 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
       <CardModal
         open={Boolean(modalCard())}
         card={modalCard()}
+        customArt={modalDeckEntry()?.customArt}
+        hasCustomArt={modalDeckEntry()?.hasCustomArt}
         cardName={props.modalCardName}
         symbolMap={props.symbolMap}
         useScryfallImgUrls={props.useScryfallImgUrls}
         currency={props.currency}
         printings={modalPrintings()}
         onClose={props.onCloseModal}
+        meta={modalMeta()}
         onAddToTrade={!props.editMode && !props.onCardMove ? handleModalAddToTrade : undefined}
         addToTradeDisabled={
           !props.editMode && !props.onCardMove ? modalAddToTradeDisabled() : undefined

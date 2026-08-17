@@ -21,6 +21,7 @@ import {
 } from './buylist-quotes'
 import type { BakedBuylist } from './data-types'
 import { useT } from '../ui/i18n'
+import { isPricelessCard } from './priceless'
 import type { CardData, SortBy, SortLayer } from './card-sorting'
 import { SELL_GROUP_BY_OPTIONS, SELL_SORT_BYS } from './card-sorting'
 import type { CardFilters } from './card-filters'
@@ -126,6 +127,10 @@ function quoteRequests(cards: CardData[]): BuylistQuoteRequest[] {
   // card object must not be quoted at the English price.
   const requests = new Map<string, BuylistQuoteRequest>()
   for (const card of cards) {
+    // A proxy and a custom-art copy are never quoted (see `buylistFieldsFor`),
+    // so asking about the printing would spend a request on an answer nothing
+    // can display.
+    if (isPricelessCard(card)) continue
     const request = buylistRequestFor(card.card, card.finish, card.language)
     if (!request) continue
     requests.set(quoteKey(request.set, request.collectorNumber, request.finish), request)

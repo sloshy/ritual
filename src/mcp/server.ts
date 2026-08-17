@@ -33,6 +33,13 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   locale-invariant identifier to match on instead of matching prose.
 - Card names on writes are validated against the local cache; an unknown one is rejected with the
   closest cached names, and a cold cache says to run refresh_cache.
+- Card labels are per list type: a collection takes the whole vocabulary ("sale"/"trade" combine,
+  "keep" and "proxy" each stand alone), a deck takes "proxy" alone, a wanted list none. A card
+  labeled "proxy" is not a real copy, and a card given custom art (set_card_art) is no longer the
+  printing a price is quoted for: either one prices as 0 everywhere and is left out of unpriced
+  counts, sell reports, and buylist quotes entirely — its absence there is the rule, not a lookup
+  failure. In a price report such an entry carries unpricedReason "proxy" or "custom-art"
+  ("custom-art" wins when both apply).
 - Card language: an entry without a language field is English ("en" — a bare card line always
   means English). Adds never prompt for one — the defaultLanguage config key stamps new cards;
   set-language / the language fields change it afterwards. Non-English copies are not quotable

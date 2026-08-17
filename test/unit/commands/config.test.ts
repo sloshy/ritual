@@ -188,6 +188,7 @@ describe('applyConfigSet — string properties', () => {
     ['decksDir', './my-decks'],
     ['collectionsDir', '/abs/path'],
     ['wantedDir', './wanted'],
+    ['artDir', './proxy-art'],
   ] as const)('sets string property %s', (key, value) => {
     const result = applyConfigSet(base, key, [value], 'replace')
     expect('error' in result).toBeFalse()

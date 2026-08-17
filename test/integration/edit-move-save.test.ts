@@ -8,6 +8,7 @@ import {
   type ListRef,
 } from '../../src/change-event'
 import type { ListType } from '../../src/list-type'
+import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/card-art'
 import { openListSession, saveOpenList, type OpenList } from '../../src/commands/edit-lists'
 import { buildInitialSessionConfig } from '../../src/commands/card-session'
 import type { DeckSessionConfig } from '../../src/commands/deck-helpers'
@@ -255,6 +256,105 @@ describe('saveOpenList', () => {
     expect(deckAfter.match(/Giant Growth/g)).toHaveLength(1)
     const wishlistAfter = await fs.readFile(path.join(tmpDir, 'wanted', 'wishlist.md'), 'utf-8')
     expect(wishlistAfter).toContain('Brainstorm')
+  })
+
+  test('a moved card’s custom art follows it into an open flat list’s session', async () => {
+    // The in-memory delivery path through `receiveFlatListMove`: the wanted
+    // session allocates the id itself, so the source art has to be read before
+    // any file is rewritten and handed to the receiving strategy. (The
+    // closed-destination path is `prepareOutgoingMoves`, pinned directly in
+    // `move-save.test.ts`.)
+    const binder = await openBinder()
+    const wishlist = await openWishlist()
+    await saveCardArt(
+      path.join(tmpDir, 'collections', 'binder.md'),
+      new Map<number, CardArtRef>([[1, { file: 'proxies/bolt.png' }]]),
+    )
+    recordMove(binder, BOLT, { type: 'wanted', name: 'Wishlist' })
+
+    expect(await saveOpenList(binder, () => [binder, wishlist])).toBe(true)
+
+    // Wishlist's own Brainstorm holds &1, so the arriving line took &2.
+    const destPath = path.join(tmpDir, 'wanted', 'wishlist.md')
+    expect(await fs.readFile(destPath, 'utf-8')).toMatch(/Lightning Bolt \(LEA:161\) &2/)
+    const destArt = await loadCardArt(destPath)
+    expect(destArt.ok && [...destArt.art.entries()]).toEqual([[2, { file: 'proxies/bolt.png' }]])
+  })
+
+  test('a moved card’s custom art follows it into an open deck’s session', async () => {
+    const binder = await openBinder()
+    const deck = await openDeck()
+    await saveCardArt(
+      path.join(tmpDir, 'collections', 'binder.md'),
+      new Map<number, CardArtRef>([[1, { url: 'https://example.test/bolt.png' }]]),
+    )
+    recordMove(binder, BOLT, { type: 'deck', name: 'My Deck' })
+
+    expect(await saveOpenList(binder, () => [binder, deck])).toBe(true)
+
+    const path2 = path.join(tmpDir, 'decks', 'my-deck.md')
+    expect(await fs.readFile(path2, 'utf-8')).toMatch(/1 Lightning Bolt \(LEA:161\) &2/)
+    const deckArt = await loadCardArt(path2)
+    expect(deckArt.ok && [...deckArt.art.entries()]).toEqual([
+      [2, { url: 'https://example.test/bolt.png' }],
+    ])
+  })
+
+  test('a copy merging onto an open deck’s existing line keeps that line’s own art', async () => {
+    // `deck-strategy.receiveMove`'s merge branch: no new `&N` appears, so the
+    // incoming reference is not adopted and the deck's own art stands.
+    const binder = await openBinder()
+    const deck = await openDeck()
+    const deckFile = path.join(tmpDir, 'decks', 'my-deck.md')
+    await saveCardArt(deckFile, new Map<number, CardArtRef>([[1, { file: 'deck/own.png' }]]))
+    await saveCardArt(
+      path.join(tmpDir, 'collections', 'binder.md'),
+      new Map<number, CardArtRef>([[1, { file: 'proxies/ring.png' }]]),
+    )
+    // The deck already holds this exact printing, so the copy merges. The
+    // binder's single entry (&1) stands in as the departing card, which is what
+    // the move-from event — and so the source art lookup — is keyed on.
+    recordMove(
+      binder,
+      { name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 },
+      { type: 'deck', name: 'My Deck' },
+    )
+
+    expect(await saveOpenList(binder, () => [binder, deck])).toBe(true)
+
+    expect(await fs.readFile(deckFile, 'utf-8')).toContain('2 Sol Ring')
+    const deckArt = await loadCardArt(deckFile)
+    expect(deckArt.ok && [...deckArt.art.entries()]).toEqual([[1, { file: 'deck/own.png' }]])
+  })
+
+  test('a closed destination’s unreadable sidecar is warned about, not swallowed', async () => {
+    // The card lines land either way — what did not happen is the art following
+    // them — so the save succeeds and says so on stderr. Silently discarding
+    // `commit()`'s result would make the move look clean while the reference it
+    // was carrying was quietly dropped.
+    const binder = await openBinder()
+    await saveCardArt(
+      path.join(tmpDir, 'collections', 'binder.md'),
+      new Map<number, CardArtRef>([[1, { file: 'proxies/bolt.png' }]]),
+    )
+    const destPath = path.join(tmpDir, 'wanted', 'wishlist.md')
+    await fs.writeFile(artSidecarPath(destPath), '{ this is not json')
+    recordMove(binder, BOLT, { type: 'wanted', name: 'Wishlist' })
+
+    const warnings: string[] = []
+    const realWarn = console.warn
+    console.warn = (...args: unknown[]) => void warnings.push(args.join(' '))
+    try {
+      expect(await saveOpenList(binder, () => [binder])).toBe(true)
+    } finally {
+      console.warn = realWarn
+    }
+
+    expect(warnings.join('\n')).toContain('not valid JSON')
+    // The line moved; only its art stayed behind, and the sidecar was left
+    // exactly as the user wrote it rather than overwritten.
+    expect(await fs.readFile(destPath, 'utf-8')).toContain('Lightning Bolt')
+    expect(await fs.readFile(artSidecarPath(destPath), 'utf-8')).toBe('{ this is not json')
   })
 
   test('a destination that cannot be resolved aborts the save and keeps the session intact', async () => {

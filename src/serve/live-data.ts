@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { artSidecarPath } from '../card-art'
 import { cardCache } from '../cache'
 import { getCacheFile } from '../cache/file-cache'
 import { getCacheServerBaseUrl } from '../cache/config'
@@ -79,6 +80,8 @@ const LIVE_CURRENCIES: PriceCurrency[] = [...VALID_CURRENCIES]
 type ListStamp = {
   listMtimeMs: number
   changesMtimeMs: number
+  /** mtime of the `.art.json` custom-art sidecar; 0 when the list has none. */
+  artMtimeMs: number
   generation: number
   configStamp: string
 }
@@ -105,6 +108,7 @@ function stampsEqual(a: ListStamp, b: ListStamp): boolean {
   return (
     a.listMtimeMs === b.listMtimeMs &&
     a.changesMtimeMs === b.changesMtimeMs &&
+    a.artMtimeMs === b.artMtimeMs &&
     a.generation === b.generation &&
     a.configStamp === b.configStamp
   )
@@ -258,6 +262,9 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
       // them, so the site's sell mode reads one shape in both modes and never
       // calls the quotes API. Absent feed (or sell mode off) = no baked field.
       ...(buylistFeed ? { buylist: detailBuylistContext(buylistFeed) } : {}),
+      // No `missingArtFiles`: nothing is deployed here, so every custom-art
+      // reference is baked as `art/<relpath>` and answered — or 404'd — live by
+      // the `/art/*` route reading the configured art directory.
       // Surface data-quality warnings (e.g. an unresolvable printing) in the
       // server log, matching what build-site prints for the same condition.
       warn: (message) => console.warn(message),
@@ -272,12 +279,23 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
   ): Promise<BuiltList | null> {
     const dir = dirForType(kind, config)
     const fileName = basename.endsWith('.md') ? basename : `${basename}.md`
-    const listMtimeMs = await statMtimeMs(path.join(dir, fileName))
+    const listFilePath = path.join(dir, fileName)
+    const listMtimeMs = await statMtimeMs(listFilePath)
     if (listMtimeMs === 0) return null
     const changesMtimeMs = await statMtimeMs(
       path.join(dir, `${fileName.slice(0, -'.md'.length)}.changes.md`),
     )
-    const stamp: ListStamp = { listMtimeMs, changesMtimeMs, generation, configStamp }
+    // Custom art is list metadata carried by its own sidecar, so a change to it
+    // moves no other file's mtime — without this the detail would keep its
+    // previously baked art until the list itself was edited.
+    const artMtimeMs = await statMtimeMs(artSidecarPath(listFilePath))
+    const stamp: ListStamp = {
+      listMtimeMs,
+      changesMtimeMs,
+      artMtimeMs,
+      generation,
+      configStamp,
+    }
 
     const key = `${kind}:${basename}`
     const memoized = listMemo.get(key)
@@ -321,7 +339,7 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
       detail: {
         body: detailBody,
         etag: etagFor(detailBody),
-        lastModified: new Date(Math.max(listMtimeMs, changesMtimeMs)).toUTCString(),
+        lastModified: new Date(Math.max(listMtimeMs, changesMtimeMs, artMtimeMs)).toUTCString(),
       },
       stamp,
     }
@@ -370,8 +388,12 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
       sellMode: getSiteSellMode(config),
     }
     const body = JSON.stringify(index)
+    // Every file the payloads are built from, art sidecars included — the index
+    // carries each list's totals, and those move when custom art is set or
+    // cleared. Matches the per-detail `lastModified` below it.
     const newestMtime = [...listMemo.values()].reduce(
-      (max, built) => Math.max(max, built.stamp.listMtimeMs, built.stamp.changesMtimeMs),
+      (max, built) =>
+        Math.max(max, built.stamp.listMtimeMs, built.stamp.changesMtimeMs, built.stamp.artMtimeMs),
       0,
     )
     return {

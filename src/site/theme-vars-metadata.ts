@@ -447,6 +447,13 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     group: 'labels',
     type: 'color',
   },
+  {
+    name: '--label-proxy',
+    label: 'site.themeVar.labelProxy.label',
+    description: 'site.themeVar.labelProxy.description',
+    group: 'labels',
+    type: 'color',
+  },
 
   // ----- Overlays -----
   {

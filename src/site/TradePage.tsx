@@ -42,6 +42,7 @@ import {
   addEntryToRight,
   isAlreadyInLeftList,
   isAlreadyInRightList,
+  tradePrice,
 } from './useTradeState'
 import { useStuck } from './useStuck'
 
@@ -160,7 +161,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
     const next = cards.map((c) => {
       if (!c.scryfallCard) return c
       const finish = resolveTradeFinish(c.scryfallCard, c.finish)
-      const price = getCardPriceForFinish(c.scryfallCard, finish, currency)
+      const price = tradePrice(c, () => getCardPriceForFinish(c.scryfallCard!, finish, currency))
       if (price === c.price && finish === c.finish) return c
       changed = true
       return { ...c, price, finish }
@@ -331,7 +332,9 @@ export const TradePage: Component<TradePageProps> = (props) => {
                 collectorNumber: printing.collector_number,
                 finish,
                 scryfallCard: printing,
-                price,
+                // Re-picking the printing does not make a proxy real, nor undo a
+                // copy's custom art: the row keeps both, and with them its price.
+                price: tradePrice(c, () => price),
               }
             : c,
         ),
@@ -494,7 +497,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
       const fresh = c.scryfallCard ? updated.get(c.scryfallCard.id) : undefined
       if (!fresh) return c
       const finish = resolveTradeFinish(fresh, c.finish)
-      const price = getCardPriceForFinish(fresh, finish, props.currency)
+      const price = tradePrice(c, () => getCardPriceForFinish(fresh, finish, props.currency))
       changed = true
       return { ...c, scryfallCard: fresh, finish, price }
     })

@@ -31,6 +31,11 @@ interface CardContextMenuProps {
    */
   onSetLanguage?: () => void
   /**
+   * Open the custom-art dialog for the targeted card. Admin editors only —
+   * the write goes straight to the admin API, not through the change pipeline.
+   */
+  onSetCustomArt?: () => void
+  /**
    * Open the move-to-section picker for the targeted card. Present whenever section
    * moves apply (the picker offers the other sections plus "New section…").
    */
@@ -104,6 +109,13 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
         {(setLanguage) => (
           <button class="card-context-menu-item" onClick={() => setLanguage()()}>
             {t('ui.cardMenu.setLanguage')}
+          </button>
+        )}
+      </Show>
+      <Show when={props.onSetCustomArt}>
+        {(setCustomArt) => (
+          <button class="card-context-menu-item" onClick={() => setCustomArt()()}>
+            {t('ui.cardMenu.setCustomArt')}
           </button>
         )}
       </Show>

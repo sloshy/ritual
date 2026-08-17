@@ -21,7 +21,7 @@ import type { CardContextInfo } from './card-context'
 import type { WantedListCardEntry } from './data-types'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
-import { getCardPriceForFinish, formatPrice, formatPriceOrNA } from '../price-currency'
+import { getCardPriceForFinish, formatPrice } from '../price-currency'
 import {
   type CardData,
   type CardGroup,
@@ -46,6 +46,7 @@ import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
 import { useListViewUrlSync } from './useListViewUrlSync'
+import { labelFiltersFor } from '../card-labels'
 import { useCardFilters } from './useCardFilters'
 import {
   collectArtTags,
@@ -63,6 +64,7 @@ import type { TradeSearchEntry } from './useTradeData'
 import { resolveCardThumbnailUrl, resolveCardPreview } from './image-sources'
 import { hasSpecificPrinting } from '../card-printing'
 import { resolveWantedCardEntry } from './resolve-card'
+import { cardPriceText, cardPricelessReason, isPricelessCard, pricelessFacts } from './priceless'
 import { useCardSelection, type SelectedCard } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
 import { buildSelectionEditActions } from './selection-edit-actions'
@@ -220,6 +222,9 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     groupByValues: groupByOptionsFor(Boolean(props.enableSellMode)).map((o) => o.value),
     sortByValues: sortValuesFor(Boolean(props.enableSellMode)),
     enabled: props.enableUrlState,
+    // Wanted-list entries carry no labels at all, so every `labels=` value a
+    // pasted link brings is dropped rather than filtering the page to nothing.
+    availableLabels: labelFiltersFor('wanted'),
     supportsSellMode: Boolean(props.enableSellMode),
   })
 
@@ -258,6 +263,10 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     set: entry.set?.toLowerCase(),
     collectorNumber: entry.collectorNumber,
     finish: entry.finish,
+    // The row shows the real printing — it is the card being asked for — but a
+    // copy wearing art of its own carries no price, so the rule travels with it.
+    customArt: entry.customArt,
+    hasCustomArt: entry.hasCustomArt,
     note: entry.note,
     price: entry.price,
     scryfallCard,
@@ -327,9 +336,15 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
       const card = resolveWantedCardEntry(entry, props.cards)
       if (!card) return entry
 
+      // A copy wearing custom art is not the printing a price would be for, so
+      // it prices at nothing — the same rule the bake applies. (Wanted lines
+      // carry no labels, so custom art is the only way one can be priceless.)
+      //
       // An entry with no finish token is read at the printing's default finish,
       // not flatly as nonfoil: a foil-only printing has no nonfoil price to quote.
-      const price = getCardPriceForFinish(card, displayFinish(card, entry.finish), props.currency)
+      const price = isPricelessCard(pricelessFacts(entry))
+        ? 0
+        : getCardPriceForFinish(card, displayFinish(card, entry.finish), props.currency)
       return { ...entry, price }
     })
   })
@@ -356,9 +371,13 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         oracleTags: card?.oracleTags ?? [],
         artTags: card?.artTags ?? [],
         labels: [],
+        customArt: entry.customArt,
+        hasCustomArt: entry.hasCustomArt,
         finish: entry.finish,
         language: storedLanguage(entry.language),
-        ...buylistFieldsFor(card, entry.finish, entry.language),
+        // Wanted lines carry no labels, so their art is the only way one can be
+        // priceless — and the sidecar fact, not the display URL, is what says so.
+        ...buylistFieldsFor(card, entry.finish, entry.language, pricelessFacts(entry)),
         card,
       }
     })
@@ -494,7 +513,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     const selectKey = String(entryIdx)
     const specific = entry !== undefined && hasSpecificPrinting(entry)
     const buildSelected = (): SelectedCard => {
-      const preview = resolveCardPreview(c.card, Boolean(props.useScryfallImgUrls))
+      const preview = resolveCardPreview(c.card, Boolean(props.useScryfallImgUrls), c.customArt)
       return {
         key: selectKey,
         name: c.name,
@@ -509,6 +528,8 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         scryfallCard: c.card,
         image: preview.image || undefined,
         sideways: preview.sideways,
+        customArt: c.customArt,
+        hasCustomArt: c.hasCustomArt,
         printings: specific ? undefined : (props.printings[c.name] ?? []),
         sourceName: props.name,
         sourceSlug: props.slug,
@@ -531,6 +552,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         name={c.name}
         quantity={c.quantity}
         card={c.card}
+        customArt={c.customArt}
         symbolMap={props.symbolMap}
         buylistPrice={c.buylistPrice}
         viewMode={viewMode()}
@@ -547,6 +569,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
             : undefined
         }
         collectionPrice={entry?.price}
+        priceless={cardPricelessReason(c)}
         currency={props.currency}
         cardId={entry?.cardId}
         editMode={props.editMode}
@@ -576,7 +599,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     const parts: MetaEntry[] = []
     parts.push({
       label: 'price',
-      value: formatPriceOrNA(entry.price, props.currency),
+      value: cardPriceText(t, entry, entry.price, props.currency),
     })
     if (hasSpecificPrinting(entry)) {
       parts.push({
@@ -748,6 +771,8 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
       <CardModal
         open={Boolean(modalCard())}
         card={modalCard()}
+        customArt={modalEntry()?.customArt}
+        hasCustomArt={modalEntry()?.hasCustomArt}
         cardName={modalEntry()?.name ?? null}
         symbolMap={props.symbolMap}
         useScryfallImgUrls={props.useScryfallImgUrls}

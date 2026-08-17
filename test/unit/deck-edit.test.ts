@@ -26,6 +26,12 @@ import {
   createSetPrintingChange,
   type PrintingTuple,
 } from '../../src/change-event'
+import { createSessionArtChanges, pendingSessionArt } from '../../src/commands/session-art'
+import { scratchListPath, stubTty } from '../test-utils'
+
+// The Set Custom Art prompts go through `ask`, which refuses to open without a
+// terminal; these tests answer them with prompts.inject instead.
+stubTty({ stdin: true })
 
 function deckOf(cards: Card[]): DeckData {
   return { name: 'Test', sections: [{ name: 'Main', cards }] }
@@ -33,6 +39,7 @@ function deckOf(cards: Card[]): DeckData {
 
 function stateOf(deck: DeckData): DeckSessionState {
   return {
+    filePath: scratchListPath('deck-edit-test.md'),
     deck,
     sessionAdds: [],
     sessionLineIds: [],
@@ -40,6 +47,7 @@ function stateOf(deck: DeckData): DeckSessionState {
     editUndo: [],
     originals: new Map(),
     dirty: false,
+    art: createSessionArtChanges(),
   }
 }
 
@@ -165,6 +173,58 @@ describe('performDeckLineRemoval', () => {
     // Brainstorm keeps the reused id 1; the restored line takes a fresh one.
     expect(cards.find((c) => c.name === 'Brainstorm')!.cardId).toBe(1)
     expect(cards.find((c) => c.name === 'Sol Ring')!.cardId).toBe(2)
+  })
+})
+
+describe('deck custom-art bookkeeping', () => {
+  const dest: MoveDestination = {
+    target: { type: 'collection', name: 'Binder', file: '/collections/binder.md' },
+    printing: null,
+  }
+
+  // The sidecar is keyed by `&N` and the deck hands a freed id to the next line
+  // it creates, so what the save re-files against is recorded as it happens.
+  test('a full line removal records the freed id; undoing it under the same id takes it back', () => {
+    const state = stateOf(deckOf([{ quantity: 2, name: 'Sol Ring', cardId: 1 }]))
+    const ctx = contextOf()
+
+    performDeckLineRemoval(state, ctx, 1)
+    expect([...state.art.removed]).toEqual([1])
+
+    undoDeckEdit(state, ctx)
+    expect([...state.art.removed]).toEqual([])
+  })
+
+  test('a removal undone under a fresh id leaves the art dropped', () => {
+    const state = stateOf(deckOf([{ quantity: 1, name: 'Sol Ring', cardId: 1 }]))
+    const ctx = contextOf()
+
+    performDeckLineRemoval(state, ctx, 1)
+    applyDeckChange(state, createAddChange('Brainstorm', { section: 'Main' }))
+    expect(findCardById(state.deck, 1)!.card.name).toBe('Brainstorm')
+
+    undoDeckEdit(state, ctx)
+    expect([...state.art.removed]).toEqual([1])
+  })
+
+  test('removing one copy of a multi-copy line records nothing: the line keeps its id', () => {
+    const state = stateOf(deckOf([{ quantity: 2, name: 'Sol Ring', cardId: 1 }]))
+    const ctx = contextOf()
+
+    performDeckCopyRemoval(state, ctx, 1)
+    expect(findCardById(state.deck, 1)!.card.quantity).toBe(1)
+    expect([...state.art.removed]).toEqual([])
+  })
+
+  test('a move out records the freed id, and undoing the move takes it back', () => {
+    const state = stateOf(deckOf([{ quantity: 2, name: 'Sol Ring', cardId: 1 }]))
+    const ctx = contextOf()
+
+    performDeckLineMove(state, ctx, 1, dest)
+    expect([...state.art.removed]).toEqual([1])
+
+    undoDeckEdit(state, ctx)
+    expect([...state.art.removed]).toEqual([])
   })
 })
 
@@ -358,6 +418,56 @@ describe('deck edit-mode — Change Language', () => {
   })
 })
 
+describe('deck edit-mode — Change Label', () => {
+  test('the edit menu applies a set-label change, undoable back to the original', async () => {
+    const state = stateOf(
+      deckOf([{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }]),
+    )
+    const ctx = contextOf()
+
+    // The deck picker offers Proxy and "Use list default" only; picking Proxy
+    // is the serialized `proxy` value.
+    prompts.inject(['label', 'proxy'])
+    await editDeckCard(state, ctx, 1, { sessionConfig: {}, excludeDigitalOnly: true })
+
+    expect(findCardById(state.deck, 1)!.card.labels).toEqual(['proxy'])
+    expect(ctx.sessionChanges).toHaveLength(1)
+    expect(ctx.sessionChanges[0]).toMatchObject({
+      action: 'set-label',
+      labels: ['proxy'],
+      cardId: 1,
+    })
+    expect(lastDeckEditLabel(state)).toBe('labels on Sol Ring')
+
+    undoDeckEdit(state, ctx)
+    expect(findCardById(state.deck, 1)!.card.labels).toBeUndefined()
+    expect(ctx.sessionChanges).toHaveLength(0)
+  })
+
+  test('re-picking the current label is a no-op', async () => {
+    const state = stateOf(
+      deckOf([
+        {
+          quantity: 1,
+          name: 'Sol Ring',
+          set: 'c19',
+          collectorNumber: '221',
+          labels: ['proxy'],
+          cardId: 1,
+        },
+      ]),
+    )
+    const ctx = contextOf()
+
+    prompts.inject(['label', 'proxy'])
+    await editDeckCard(state, ctx, 1, { sessionConfig: {}, excludeDigitalOnly: true })
+
+    expect(findCardById(state.deck, 1)!.card.labels).toEqual(['proxy'])
+    expect(ctx.sessionChanges).toHaveLength(0)
+    expect(lastDeckEditLabel(state)).toBeNull()
+  })
+})
+
 describe('performDeckLineMove', () => {
   const dest: MoveDestination = {
     target: { type: 'collection', name: 'Binder', file: '/collections/binder.md' },
@@ -479,5 +589,47 @@ describe('performDeckLineMove', () => {
     applyDeckChange(state, createAddChange('Brainstorm', { set: 'ice', section: 'Main' }))
     const added = state.deck.sections[0]!.cards.find((card) => card.name === 'Brainstorm')!
     expect(added.cardId).not.toBe(1)
+  })
+})
+
+describe('deck edit-mode — Set Custom Art', () => {
+  /** A one-line deck whose `.art.json` does not exist (so the sidecar reads empty). */
+  function stateWithLine(): DeckSessionState {
+    return stateOf(
+      deckOf([{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }]),
+    )
+  }
+
+  test('the edit menu stages art for the save and undoes to the previous reference', async () => {
+    const state = stateWithLine()
+    const ctx = contextOf()
+
+    prompts.inject(['art', 'url', 'https://example.com/first.png'])
+    await editDeckCard(state, ctx, 1, { sessionConfig: {}, excludeDigitalOnly: true })
+    prompts.inject(['art', 'url', 'https://example.com/second.png'])
+    await editDeckCard(state, ctx, 1, { sessionConfig: {}, excludeDigitalOnly: true })
+
+    expect(state.art.edited.get(1)).toEqual({ url: 'https://example.com/second.png' })
+    // The line itself never changes, so nothing joins the changelog.
+    expect(ctx.sessionChanges).toHaveLength(0)
+    expect(state.dirty).toBeTrue()
+    expect(lastDeckEditLabel(state)).toBe('custom art on Sol Ring')
+
+    undoDeckEdit(state, ctx)
+    expect(state.art.edited.get(1)).toEqual({ url: 'https://example.com/first.png' })
+    undoDeckEdit(state, ctx)
+    expect(state.art.edited.get(1)).toBeNull()
+    expect(lastDeckEditLabel(state)).toBeNull()
+  })
+
+  test('removing the line afterwards drops the staged art with it', async () => {
+    const state = stateWithLine()
+    const ctx = contextOf()
+
+    prompts.inject(['art', 'url', 'https://example.com/first.png'])
+    await editDeckCard(state, ctx, 1, { sessionConfig: {}, excludeDigitalOnly: true })
+    performDeckLineRemoval(state, ctx, 1)
+
+    expect(pendingSessionArt(state.art)).toEqual({ removed: new Set([1]), added: new Map() })
   })
 })

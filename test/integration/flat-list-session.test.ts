@@ -15,6 +15,18 @@ import {
   createSetNoteChange,
   createSetPrintingChange,
 } from '../../src/change-event'
+import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/card-art'
+import { createCardSessionContext } from '../../src/commands/card-session'
+import {
+  performFlatListMove,
+  performFlatListRemoval,
+  undoFlatListEdit,
+} from '../../src/commands/flat-list-edit'
+import type {
+  CollectionSession,
+  FlatListStrategyContext,
+} from '../../src/commands/flat-list-session'
+import type { CollectionCardEntry } from '../../src/site/data-types'
 
 describe('flat-list session models', () => {
   let tmpDir: string
@@ -205,5 +217,164 @@ describe('session front matter', () => {
     expect(await fs.readFile(filePath, 'utf-8')).toBe(
       original.replace('[keep] &1', '[keep] {signed} &1'),
     )
+  })
+})
+
+/**
+ * Custom art is filed under a card line's `&N`, and an edit session hands the
+ * ids its removals free straight back out — so the sidecar has to be re-filed
+ * by the same save that writes the entries. The bookkeeping itself (which id a
+ * removal, move, or undo records) is pinned in `test/unit/flat-list-edit.test.ts`;
+ * this covers the save's file side effects.
+ */
+describe('session custom art', () => {
+  let tmpDir: string
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-test-'))
+  })
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true })
+  })
+
+  /** A two-card collection whose lines both carry custom art. */
+  async function binderWithArt(): Promise<string> {
+    const filePath = path.join(tmpDir, 'binder.md')
+    await fs.writeFile(
+      filePath,
+      '# Binder\n\n## Main\n- Sol Ring (C21:263) &1\n- Lightning Bolt (LEA:161) &2\n',
+    )
+    await saveCardArt(
+      filePath,
+      new Map<number, CardArtRef>([
+        [1, { file: 'proxies/ring.png' }],
+        [2, { url: 'https://example.test/bolt.png' }],
+      ]),
+    )
+    return filePath
+  }
+
+  /** The strategy context the edit-mode operations work through. */
+  function contextFor(session: CollectionSession): FlatListStrategyContext<CollectionCardEntry> {
+    return {
+      session,
+      state: { snapshot: null },
+      renderLine: () => '',
+      renderEntry: (entry) => entry.name,
+      sessionAdds: [],
+      editUndo: [],
+      originals: new Map(),
+    }
+  }
+
+  /** The sidecar as it stands on disk, as plain pairs. */
+  async function artOnDisk(filePath: string): Promise<[number, CardArtRef][]> {
+    const loaded = await loadCardArt(filePath)
+    if (!loaded.ok) throw new Error(loaded.message)
+    return [...loaded.art.entries()]
+  }
+
+  test('a removal drops the art, and only when the session is saved', async () => {
+    const filePath = await binderWithArt()
+    const session = await loadCollectionSession(filePath)
+    const list = contextFor(session)
+    const ctx = createCardSessionContext()
+
+    performFlatListRemoval(list, ctx, session.entries[0]!, 1)
+    // Deferred like every other session edit: the sidecar is untouched until
+    // the save, so exiting without saving keeps the art.
+    expect(await artOnDisk(filePath)).toHaveLength(2)
+
+    await persistFlatListSession(session)
+    expect(await artOnDisk(filePath)).toEqual([[2, { url: 'https://example.test/bolt.png' }]])
+  })
+
+  test('a removal undone before the save leaves the sidecar untouched', async () => {
+    const filePath = await binderWithArt()
+    const before = await fs.stat(artSidecarPath(filePath))
+    const session = await loadCollectionSession(filePath)
+    const list = contextFor(session)
+    const ctx = createCardSessionContext()
+
+    performFlatListRemoval(list, ctx, session.entries[0]!, 1)
+    undoFlatListEdit(list, ctx)
+    await persistFlatListSession(session)
+
+    // Not merely "the art is still right" — the file is not rewritten at all,
+    // so a save with nothing to re-file never touches the sidecar's mtime.
+    expect((await fs.stat(artSidecarPath(filePath))).mtimeMs).toBe(before.mtimeMs)
+    expect(await artOnDisk(filePath)).toEqual([
+      [1, { file: 'proxies/ring.png' }],
+      [2, { url: 'https://example.test/bolt.png' }],
+    ])
+  })
+
+  test('a move out drops the source entry when the session is saved', async () => {
+    const filePath = await binderWithArt()
+    const session = await loadCollectionSession(filePath)
+    const list = contextFor(session)
+    const ctx = createCardSessionContext()
+
+    performFlatListMove(list, ctx, session.entries[0]!, 1, {
+      target: { type: 'wanted', name: 'To Buy', file: '/wanted/to-buy.md' },
+      printing: null,
+    })
+    await persistFlatListSession(session)
+
+    // The destination side is committed by `saveOpenList` (pinned in
+    // `edit-move-save.test.ts`); the source must not keep the reference, or the
+    // next card to take &1 would wear the departed card's art.
+    expect(await artOnDisk(filePath)).toEqual([[2, { url: 'https://example.test/bolt.png' }]])
+  })
+
+  test('a sidecar Ritual cannot read is left as it is, and is not retried on the next save', async () => {
+    const filePath = path.join(tmpDir, 'binder.md')
+    await fs.writeFile(
+      filePath,
+      '# Binder\n\n## Main\n- Sol Ring (C21:263) &1\n- Lightning Bolt (LEA:161) &2\n',
+    )
+    const malformed = '{ not json'
+    await fs.writeFile(artSidecarPath(filePath), malformed)
+    const session = await loadCollectionSession(filePath)
+    const list = contextFor(session)
+    const ctx = createCardSessionContext()
+
+    performFlatListRemoval(list, ctx, session.entries[0]!, 1)
+    await persistFlatListSession(session)
+
+    // The card lines were written; the sidecar is byte-identical rather than
+    // rewritten from a partial read.
+    expect(await fs.readFile(filePath, 'utf-8')).not.toContain('Sol Ring')
+    expect(await fs.readFile(artSidecarPath(filePath), 'utf-8')).toBe(malformed)
+    // And the pending removal is not held over: replaying it against a later
+    // save would target an id the list has since handed to another card.
+    expect([...session.art.removed]).toEqual([])
+  })
+
+  test('the id a removal frees carries no art onto the card that reuses it', async () => {
+    const filePath = await binderWithArt()
+    const session = await loadCollectionSession(filePath)
+    const list = contextFor(session)
+    const ctx = createCardSessionContext()
+
+    performFlatListRemoval(list, ctx, session.entries[0]!, 1)
+    // The pool hands &1 straight back, which is exactly why a set-difference
+    // over the saved ids would not catch this: &1 is present before and after.
+    const reused = allocateId(session.pool)
+    expect(reused).toBe(1)
+    applyFlatListChange(
+      session,
+      createAddChange('Mana Crypt', {
+        set: '2xm',
+        collectorNumber: '270',
+        cardId: reused,
+        section: flatListTargetSection(session),
+      }),
+    )
+    await persistFlatListSession(session)
+
+    expect(await fs.readFile(filePath, 'utf-8')).toContain('Mana Crypt (2XM:270) &1')
+    expect(await artOnDisk(filePath)).toEqual([[2, { url: 'https://example.test/bolt.png' }]])
   })
 })

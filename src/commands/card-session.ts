@@ -16,6 +16,7 @@ import { conditionLabel, isCondition, isFinish, VALID_CONDITIONS } from '../fini
 import type { PromptState } from './prompts-types'
 import { appendChangelog } from '../changelog-writer'
 import { createSetNoteChange, type ChangeEvent, type MoveToChange } from '../change-event'
+import type { CardArtRef } from '../card-art'
 import { writeFileWithHash } from '../content-hash'
 import { formatSetCodesForDisplay, parseSetCodesInput } from '../set-codes'
 import { rankNameMatches } from '../term-match'
@@ -325,8 +326,12 @@ export type CardSessionStrategy = {
    * is the *source* list's, kept for the changelog only). Called by the save
    * path when a saved list's `move-from` targets a list that is open in the
    * editor.
+   *
+   * `art` is the moved card's custom art in the source list, if it had any: the
+   * strategy files it under the id it just allocated, so the art follows the
+   * card the way it does on the on-disk move paths.
    */
-  receiveMove: (change: MoveToChange) => void
+  receiveMove: (change: MoveToChange, art?: CardArtRef) => void
   /** Write the in-memory list model to the list file. */
   persist: () => Promise<void>
   /** Whether the in-memory model differs from what was last written to disk. */
@@ -725,7 +730,7 @@ function buildSaveAndSwitchItems(input: MenuBuildInput): Choice[] {
  * the fold. A new conditional menu item therefore has to be raised here and in
  * the maximal input of the "tallest possible menu" test that guards it.
  */
-export const SESSION_MENU_LIMIT = 17
+export const SESSION_MENU_LIMIT = 18
 
 /**
  * Build the full autocomplete choice list (menu shortcuts first, then cards).

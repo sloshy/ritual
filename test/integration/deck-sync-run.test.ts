@@ -16,6 +16,7 @@ import { captureStream } from './helpers/capture'
 import { runInProcess } from './helpers/cli'
 import type { Card, DeckSection } from '../../src/types'
 import type { ArchidektCardModifier } from '../../src/importers/archidekt-types'
+import { loadCardArt, saveCardArt, type CardArtRef } from '../../src/card-art'
 
 /**
  * End-to-end coverage for the `deck-sync` behaviors only the command and engine
@@ -872,5 +873,38 @@ describe('deck-sync --sync-printings (Integration)', () => {
     expect(await readDeck()).toContain('1 Lightning Bolt (2XM:117) [foil] &2')
     const changelog = await fs.readFile(path.join(dir, 'decks', 'winota-stax.changes.md'), 'utf-8')
     expect(changelog).toContain('Added "Lightning Bolt" (2XM:117) [foil] &2')
+  })
+})
+
+describe('deck-sync custom art (Integration)', () => {
+  const SYNCED = { sourceUpdatedAt: '2026-08-01T00:00:00.000Z' }
+
+  test('a pull drops the custom art of the cards it removed', async () => {
+    // The sidecar is keyed by `&N`, and a pull hands the ids it frees straight
+    // to the cards it adds — so art left behind would resurface on a different
+    // card. The remote holds only Sol Ring, so &2 goes.
+    await writeLinkedDeck(
+      [
+        { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] },
+        { name: 'Maybeboard', cards: [{ quantity: 1, name: 'Cavern-Hoard Dragon', cardId: 2 }] },
+      ],
+      SYNCED,
+    )
+    const deckPath = path.join(dir, 'decks', 'winota-stax.md')
+    await saveCardArt(
+      deckPath,
+      new Map<number, CardArtRef>([
+        [1, { file: 'proxies/ring.png' }],
+        [2, { url: 'https://example.test/dragon.png' }],
+      ]),
+    )
+    stubFetch(pushRoutes('2026-08-02T00:00:00.000Z'))
+
+    expect(await runDeckSync(['pull'])).toBe(0)
+
+    // The pull really removed the card whose art must go with it.
+    expect(await readDeck()).not.toContain('Cavern-Hoard Dragon')
+    const art = await loadCardArt(deckPath)
+    expect(art.ok && [...art.art.entries()]).toEqual([[1, { file: 'proxies/ring.png' }]])
   })
 })

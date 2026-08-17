@@ -21,6 +21,10 @@ async function seedDeckWithSidecars(dir: string): Promise<string> {
   await fs.writeFile(`${filePath}.sha256`, computeHash(await fs.readFile(filePath, 'utf-8')) + '\n')
   await fs.writeFile(path.join(dir, 'decks', 'test.changes.md'), '# Changelog\n')
   await fs.writeFile(path.join(dir, 'decks', 'test.primer.md'), '# Primer\n')
+  await fs.writeFile(
+    path.join(dir, 'decks', 'test.art.json'),
+    '{\n  "1": { "file": "proxies/sol-ring.jpg" }\n}\n',
+  )
   return filePath
 }
 
@@ -40,12 +44,18 @@ describe('rename CLI (Integration)', () => {
       expect(await exists(path.join(decksDir, 'test.md.sha256'))).toBe(false)
       expect(await exists(path.join(decksDir, 'test.changes.md'))).toBe(false)
       expect(await exists(path.join(decksDir, 'test.primer.md'))).toBe(false)
+      expect(await exists(path.join(decksDir, 'test.art.json'))).toBe(false)
 
       // New file with a fresh hash and the moved sidecars.
       expect(await exists(newPath)).toBe(true)
       expect(await exists(`${newPath}.sha256`)).toBe(true)
       expect(await exists(path.join(decksDir, 'Fresh Name.changes.md'))).toBe(true)
       expect(await exists(path.join(decksDir, 'Fresh Name.primer.md'))).toBe(true)
+      // Art travels by content, not just by name: a renamed list keeps pointing
+      // at the same images.
+      expect(await fs.readFile(path.join(decksDir, 'Fresh Name.art.json'), 'utf-8')).toContain(
+        'proxies/sol-ring.jpg',
+      )
 
       const content = await fs.readFile(newPath, 'utf-8')
       expect(content).toContain('name: Fresh Name')
@@ -134,6 +144,7 @@ describe('rename CLI (Integration)', () => {
       expect(await exists(path.join(decksDir, 'TEST.md'))).toBe(true)
       expect(await exists(path.join(decksDir, 'TEST.changes.md'))).toBe(true)
       expect(await exists(path.join(decksDir, 'TEST.primer.md'))).toBe(true)
+      expect(await exists(path.join(decksDir, 'TEST.art.json'))).toBe(true)
       expect(await exists(path.join(decksDir, 'test.md'))).toBe(false)
     })
   })
@@ -185,15 +196,18 @@ describe('delete CLI (Integration)', () => {
           path.join(decksDirForPayload, 'test.md.sha256'),
           path.join(decksDirForPayload, 'test.changes.md'),
           path.join(decksDirForPayload, 'test.primer.md'),
+          path.join(decksDirForPayload, 'test.art.json'),
         ],
       })
 
-      // All four files are gone — the .sha256 sidecar is not orphaned.
+      // Every file is gone — no sidecar is orphaned, the .sha256 and the
+      // custom-art map included.
       const decksDir = path.join(dir, 'decks')
       expect(await exists(path.join(decksDir, 'test.md'))).toBe(false)
       expect(await exists(path.join(decksDir, 'test.md.sha256'))).toBe(false)
       expect(await exists(path.join(decksDir, 'test.changes.md'))).toBe(false)
       expect(await exists(path.join(decksDir, 'test.primer.md'))).toBe(false)
+      expect(await exists(path.join(decksDir, 'test.art.json'))).toBe(false)
     })
   })
 

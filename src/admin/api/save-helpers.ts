@@ -6,7 +6,10 @@ import {
 import { cardCache } from '../../cache'
 import { CACHE_REFRESH_REMEDY } from '../../cache/status'
 import { computeHash, hashPath, writeFileWithHash } from '../../content-hash'
+import { reconcileCardArt, reconciledArtPath, type CardArtReconcileInput } from '../../card-art'
 import { appendChangelog } from '../../changelog-writer'
+import type { EntryWithCardId } from '../../card-id'
+import type { DeckData } from '../../types'
 import { isRecord } from '../../json'
 import { listTypeLabel, type ListType } from '../../list-type'
 import { dirForType } from '../../resolve-list'
@@ -19,7 +22,12 @@ import {
   type LoadedCardKingdomFeed,
 } from '../../cardkingdom'
 import { normalizeNote } from '../../note-helpers'
-import { parseCardLabelsValue } from '../../card-labels'
+import {
+  checkLabelsForListType,
+  parseCardLabelsValue,
+  unsupportedLabelsMessage,
+  type CardLabel,
+} from '../../card-labels'
 import {
   invalidLanguageMessage,
   isCardLanguage,
@@ -29,8 +37,9 @@ import {
 import type { ChangeEvent } from '../../change-event'
 import type { DroppedNote } from '../../commands/move-io'
 import type { SaveEffect } from '../../editor/save-effects'
+import { t } from '../../i18n/t'
 import { apiMessage, type ApiMessage } from './result'
-import type { ListSaveResponse } from './move-save'
+import type { ListSaveResponse, OutgoingMovesResult } from './move-save'
 
 /**
  * The one error body an admin route returns on a refusal, whatever the status.
@@ -268,24 +277,65 @@ export function normalizeRequestNotes(
 }
 
 /**
- * Validate and normalize the labels on every `set-label` (and label-carrying
- * `add`) change in the request payload, mutating each in place to the
- * normalized (deduped, canonically ordered) form. The request body is cast
- * unvalidated, so this is the boundary that keeps an illegal combination —
- * `keep` alongside `sale`/`trade`, or an unknown token — out of the serializer.
- * Returns a 400 Response naming the first offender, or null when all are legal.
+ * An entry (deck card) whose request-supplied labels need validating.
+ * `unknown` on purpose: the request body is cast unvalidated, and this is the
+ * boundary that exists to *prove* the value, not assume it.
  */
-export function normalizeRequestLabels(changes: ChangeEvent[]): Response | null {
+type RequestLabelEntry = { labels?: unknown }
+
+/**
+ * Validate one incoming label set against what `type` carries, returning the
+ * normalized labels or the 400 refusal naming the offenders.
+ */
+type LabelFieldResult = { ok: true; labels: CardLabel[] } | { ok: false; response: Response }
+
+function normalizeLabelField(raw: unknown, type: ListType): LabelFieldResult {
+  const result = parseCardLabelsValue(raw, 'labels')
+  if (!result.ok) return { ok: false, response: badRequest(result.message) }
+  // One decision for every surface — the CLI flags, this route, the bundle
+  // importer, and the MCP schemas all ask `checkLabelsForListType`, so an empty
+  // set (a clear) is accepted and refused in the same places by all of them.
+  const check = checkLabelsForListType(type, result.labels)
+  if (!check.ok) {
+    return { ok: false, response: badRequest(unsupportedLabelsMessage(type, check.unsupported)) }
+  }
+  return { ok: true, labels: result.labels }
+}
+
+/**
+ * Validate and normalize the labels on every `set-label` (and label-carrying
+ * `add` / `remove`) change in the request payload — and on every request entry that will
+ * be re-serialized — mutating each in place to the normalized (deduped,
+ * canonically ordered) form. The request body is cast unvalidated, so this is
+ * the boundary that keeps an illegal combination (`keep` alongside
+ * `sale`/`trade`), an unknown token, or a label the list type does not carry
+ * (`sale` on a deck) out of the serializer. Returns a 400 Response naming the
+ * first offender, or null when all are legal.
+ */
+export function normalizeRequestLabels(
+  changes: ChangeEvent[],
+  type: ListType,
+  entries: RequestLabelEntry[] = [],
+): Response | null {
   for (const change of changes) {
     if (change.action === 'set-label') {
-      const result = parseCardLabelsValue(change.labels, 'labels')
-      if (!result.ok) return badRequest(result.message)
+      const result = normalizeLabelField(change.labels, type)
+      if (!result.ok) return result.response
       change.labels = result.labels
-    } else if (change.action === 'add' && change.labels !== undefined) {
-      const result = parseCardLabelsValue(change.labels, 'labels')
-      if (!result.ok) return badRequest(result.message)
+    } else if (
+      (change.action === 'add' || change.action === 'remove') &&
+      change.labels !== undefined
+    ) {
+      const result = normalizeLabelField(change.labels, type)
+      if (!result.ok) return result.response
       change.labels = result.labels.length > 0 ? result.labels : undefined
     }
+  }
+  for (const entry of entries) {
+    if (entry.labels === undefined) continue
+    const result = normalizeLabelField(entry.labels, type)
+    if (!result.ok) return result.response
+    entry.labels = result.labels.length > 0 ? result.labels : undefined
   }
   return null
 }
@@ -403,6 +453,18 @@ export interface ListSaveTail {
    */
   changelogName: string
   changes: readonly ChangeEvent[]
+  /**
+   * What the save did to individual card lines. Reported to the client, and the
+   * only place the tail learns which `&N` ids the write freed or renumbered —
+   * which is what the list's custom-art sidecar has to be re-filed against.
+   */
+  effects: readonly SaveEffect[]
+  /**
+   * The list as it stood on disk, as copies per `&N` — see {@link LineQuantities}.
+   * Only the custom-art reconcile reads it, and only to tell a decremented line
+   * from one this save removed and re-created under the same id.
+   */
+  previousLineQuantities: LineQuantities
   /** Merge into the session's existing changelog entry instead of a new one. */
   continueSession?: boolean
   /**
@@ -417,14 +479,146 @@ export interface ListSaveTail {
 /** The list file's new content hash, which the save response returns. */
 export interface ListSaveTailResult {
   contentHash: string
+  /**
+   * What the custom-art re-file could not do. The card lines were written, so
+   * this is never a failed save — but it must not be silent either: a sidecar
+   * Ritual could not read still files art under the `&N` ids this save freed,
+   * and the next card to take one of those numbers would wear it.
+   *
+   * Named to match the load routes' channel ({@link
+   * import('./load-results').ListLoadBase.artWarnings}), so a client reads
+   * sidecar trouble out of the same field whichever direction it was going.
+   * Omitted when the reconcile was clean.
+   */
+  artWarnings?: string[]
 }
 
 /** What a save learned that {@link ListSaveTail} does not already say. */
 export interface ListSaveOutcome extends ListSaveTailResult {
   /** Notes the destination side of a cross-list move could not keep. */
   droppedNotes: DroppedNote[]
-  /** What the save did to individual entries, with the `&N` ids it allocated. */
-  effects: SaveEffect[]
+}
+
+/**
+ * The save response's outcome, assembled from the two halves that produce one:
+ * this list's own save tail and the destination side of its cross-list moves.
+ * Both can leave a sidecar unreconciled, and the response carries one
+ * `artWarnings` list, so the merge lives here rather than in each save route.
+ */
+export function listSaveOutcome(
+  result: ListSaveTailResult,
+  outgoing: OutgoingMovesResult,
+): ListSaveOutcome {
+  // The move side reports the reconcile's own refusal, so the response's
+  // wording is applied here — the same sentence this list's own reconcile
+  // failure already carries.
+  const artWarnings = [
+    ...(result.artWarnings ?? []),
+    ...outgoing.artFailures.map((failure) => unreconciledArtWarning(failure.message)),
+  ]
+  return {
+    contentHash: result.contentHash,
+    droppedNotes: outgoing.droppedNotes,
+    ...(artWarnings.length > 0 ? { artWarnings } : {}),
+  }
+}
+
+/**
+ * How many copies each `&N` line held **before** the save, keyed by card id.
+ *
+ * The art reconcile's one ambiguity lives here: a deck line that lost a copy and
+ * a deck line that was removed and re-created under the same reused id look
+ * identical once the file is written. Counting the removals against the copies
+ * the line started with separates them. Flat lists hold one copy per line, so
+ * theirs is simply `1` per entry ({@link entryLineQuantities}).
+ */
+export type LineQuantities = ReadonlyMap<number, number>
+
+/** {@link LineQuantities} for a deck's on-disk state. */
+export function deckLineQuantities(deck: DeckData): LineQuantities {
+  const quantities = new Map<number, number>()
+  for (const section of deck.sections) {
+    for (const card of section.cards) {
+      if (card.cardId === undefined) continue
+      quantities.set(card.cardId, (quantities.get(card.cardId) ?? 0) + card.quantity)
+    }
+  }
+  return quantities
+}
+
+/** {@link LineQuantities} for a flat list's on-disk entries — one copy per line. */
+export function entryLineQuantities(entries: readonly EntryWithCardId[]): LineQuantities {
+  const quantities = new Map<number, number>()
+  for (const entry of entries) {
+    if (entry.cardId !== undefined) quantities.set(entry.cardId, 1)
+  }
+  return quantities
+}
+
+/**
+ * The ids whose custom art this save drops, read from the **changes** rather
+ * than from the file it produced.
+ *
+ * An explicit removal always takes the card's art with it (`Part 4.3`): art
+ * returns only through an undo — which takes the removal out of this very list —
+ * or through a re-add that names art of its own. The written file cannot answer
+ * this on its own, because the id pool hands a removed line's `&N` straight to
+ * the next card added, and the effects diff then reports one `updated` line that
+ * kept its number. Reading the removals instead is what stops a same-name
+ * remove + re-add from silently inheriting the old card's art.
+ *
+ * A line that merely lost copies keeps its art: the removals only add up to a
+ * removed *line* once they meet the copies it had.
+ *
+ * Copies are replayed **in order** rather than netted, because the order is the
+ * only thing that tells the two same-id sequences apart. A deck line that gains
+ * a copy and loses one again (add, then remove — which no longer cancel each
+ * other out, since labels joined a change's identity) never empties, so its art
+ * stays. A line that is removed and then re-added under the id the pool handed
+ * straight back *does* empty in between, and the art of the card that left goes
+ * with it — the same-name remove + re-add must not silently inherit it.
+ */
+export function removedArtCardIds(
+  changes: readonly ChangeEvent[],
+  baseline: LineQuantities,
+): Set<number> {
+  const removed = new Set<number>()
+  const copies = new Map<number, number>()
+  for (const change of changes) {
+    if (change.action !== 'add' && change.action !== 'remove' && change.action !== 'move-from') {
+      continue
+    }
+    const { cardId } = change
+    if (cardId === undefined) continue
+    // An id the baseline does not know is a line this save created; art filed
+    // under it belonged to something that is already gone.
+    const held = copies.get(cardId) ?? baseline.get(cardId) ?? 1
+    if (change.action === 'add') {
+      copies.set(cardId, held + 1)
+      continue
+    }
+    const left = held - 1
+    copies.set(cardId, left)
+    if (left <= 0) removed.add(cardId)
+  }
+  return removed
+}
+
+/**
+ * Read a save as an art-sidecar reconcile: the lines its changes removed
+ * ({@link removedArtCardIds}), plus the lines its `updated` effects renumbered.
+ * An `added` line is new — nothing the save kept can have been filed under an id
+ * it had to allocate.
+ */
+function artReconcile(tail: ListSaveTail): CardArtReconcileInput {
+  const removed = removedArtCardIds(tail.changes, tail.previousLineQuantities)
+  const renumbered = new Map<number, number>()
+  for (const effect of tail.effects) {
+    if (effect.action === 'removed') removed.add(effect.cardId)
+    else if (effect.previousCardId !== undefined)
+      renumbered.set(effect.previousCardId, effect.cardId)
+  }
+  return { removed, renumbered }
 }
 
 /**
@@ -443,6 +637,13 @@ export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailRe
   const contentHash = await writeFileWithHash(tail.filePath, tail.content)
 
   const filesToCommit = [tail.filePath, hashPath(tail.filePath), ...(tail.extraFiles ?? [])]
+  // Custom art is filed under a card line's `&N`, and this save may have freed
+  // ids (a removed or moved-out line, whose number the pool hands to the next
+  // card added) or renumbered them. Re-file before the commit, so the sidecar
+  // travels with the list file it describes.
+  const art = await reconcileCardArt(tail.filePath, artReconcile(tail))
+  const artPath = reconciledArtPath(art)
+  if (artPath !== undefined) filesToCommit.push(artPath)
   if (tail.changes.length > 0) {
     const changelogPath = await appendChangelog(tail.filePath, tail.changelogName, tail.changes, {
       continueSession: tail.continueSession,
@@ -456,7 +657,19 @@ export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailRe
     `Edit ${listTypeLabel(tail.listType)}: ${tail.changelogName} (${tail.changes.length} changes)`,
   )
 
-  return { contentHash }
+  return art.ok
+    ? { contentHash }
+    : { contentHash, artWarnings: [unreconciledArtWarning(art.message)] }
+}
+
+/**
+ * A sidecar a save could not re-file, as the response's warning. The CLI's
+ * equivalent (`warnUnreconciledArt`) prints the same sentence; both exist
+ * because the reconcile runs *after* the card lines are written, so its failure
+ * is news to report rather than a save to undo.
+ */
+export function unreconciledArtWarning(reason: string): string {
+  return t('admin.api.save.artUnreconciled', { reason })
 }
 
 /**
@@ -473,7 +686,8 @@ export function listSaveResponse(tail: ListSaveTail, outcome: ListSaveOutcome): 
     }),
     contentHash: outcome.contentHash,
     droppedNotes: outcome.droppedNotes,
-    effects: outcome.effects,
+    effects: [...tail.effects],
+    ...(outcome.artWarnings === undefined ? {} : { artWarnings: outcome.artWarnings }),
   }
 }
 

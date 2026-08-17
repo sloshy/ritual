@@ -22,6 +22,8 @@ import { isNonEnglishCard, quoteFor } from './buylist-quotes'
 import { displayFinish } from '../finish-condition'
 import { displayLanguage, type CardLanguage } from '../card-language'
 import type { CardData } from './card-sorting'
+import type { CardLabel } from '../card-labels'
+import { isPricelessCard } from './priceless'
 import { t } from '../i18n/t'
 
 /**
@@ -37,8 +39,32 @@ export type SellableCard = {
   finish?: Finish
   /** The entry's language token, when present. Absent means `en`. Non-English copies are never quotable. */
   language?: CardLanguage
+  /**
+   * The entry's effective labels. A `proxy` copy is not a real card, so it is
+   * never quoted — the same rule `buylistFieldsFor` and the sell report apply.
+   */
+  labels?: readonly CardLabel[]
+  /**
+   * The entry's baked custom art, when it has any. A copy wearing art of its own
+   * is not the printing a quote would be for, so it is never quoted either.
+   */
+  customArt?: string
+  /**
+   * Whether the entry has custom art at all — the fact the rule reads, since a
+   * reference whose file the build could not deploy carries no display URL and
+   * is still not the printing a buyer is bidding on.
+   */
+  hasCustomArt?: boolean
   /** The printing actually displayed, used when the entry pins none. */
   scryfallCard: ScryfallCard | null
+}
+
+/**
+ * Whether a tile carries no offer from any buyer by rule — a proxy, or a copy
+ * wearing custom art. The site's single {@link isPricelessCard} rule.
+ */
+export function isPricelessSellable(card: SellableCard): boolean {
+  return isPricelessCard(card)
 }
 
 /**
@@ -65,6 +91,9 @@ export function sellableFromCardData(card: CardData): SellableCard {
     quantity: card.quantity,
     finish: card.finish,
     language: card.language,
+    labels: card.labels,
+    customArt: card.customArt,
+    hasCustomArt: card.hasCustomArt,
     scryfallCard: card.card,
   }
 }
@@ -87,8 +116,10 @@ export type SellAllocation = {
  */
 function quoteForSelection(card: SellableCard): BuylistQuote | undefined {
   // Never quote a non-English copy: its `set:cn` is shared with the English
-  // printing, so the store *would* answer — with the English offer.
-  if (isNonEnglishSellable(card)) return undefined
+  // printing, so the store *would* answer — with the English offer. A proxy and
+  // a custom-art copy share their printing's key for the same reason and are
+  // refused for the same one: nobody is buying a card that is not that printing.
+  if (isNonEnglishSellable(card) || isPricelessSellable(card)) return undefined
   // Card-first, matching `buylistFieldsFor` and the request builder: the quote
   // belongs to the printing the tile is actually showing, which for an unpinned
   // line is not the one the line names. (Casing no longer matters either way —

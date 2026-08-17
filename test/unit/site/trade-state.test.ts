@@ -122,3 +122,76 @@ describe('language as a trade variant dimension', () => {
     expect(leftCards()[0]?.qty).toBe(2)
   })
 })
+
+describe('a copy with no price by rule', () => {
+  const priced = makeScryfallCard({ prices: { usd: '3.00' } })
+
+  test('a proxy row lands on the board at nothing, whatever its printing is worth', () => {
+    addEntryToLeft(makeEntry({ scryfallCard: priced, labels: ['proxy'] }), 'usd')
+    expect(leftCards()[0]?.price).toBe(0)
+    expect(leftCards()[0]?.labels).toEqual(['proxy'])
+  })
+
+  test('a custom-art row does too, and carries the art reference with it', () => {
+    addEntryToLeft(makeEntry({ scryfallCard: priced, customArt: 'art/sol-ring.jpg' }), 'usd')
+    expect(leftCards()[0]).toMatchObject({ price: 0, customArt: 'art/sol-ring.jpg' })
+  })
+
+  test('an ordinary row still prices from its printing', () => {
+    addEntryToLeft(makeEntry({ scryfallCard: priced }), 'usd')
+    expect(leftCards()[0]?.price).toBe(3)
+  })
+
+  // A row is one tradable unit with one price, so anything that changes what a
+  // copy is worth has to be part of its identity — otherwise the second add
+  // increments the first row and the board quotes a proxy at retail (or hides a
+  // real card's value behind a CUSTOM marker).
+  test('a proxy copy never merges into a priced row of the same printing', () => {
+    addEntryToLeft(makeEntry({ scryfallCard: priced, cardIds: [1], maxQty: 2 }), 'usd')
+    addEntryToLeft(
+      makeEntry({ scryfallCard: priced, labels: ['proxy'], cardIds: [2], maxQty: 2 }),
+      'usd',
+    )
+    expect(leftCards()).toHaveLength(2)
+    expect(leftCards().map((c) => c.price)).toEqual([3, 0])
+  })
+
+  test('a custom-art copy never merges into a priced row of the same printing', () => {
+    addEntryToLeft(makeEntry({ scryfallCard: priced, cardIds: [1], maxQty: 2 }), 'usd')
+    addEntryToLeft(
+      makeEntry({ scryfallCard: priced, customArt: 'art/sol-ring.jpg', cardIds: [2], maxQty: 2 }),
+      'usd',
+    )
+    expect(leftCards()).toHaveLength(2)
+    expect(leftCards().map((c) => c.price)).toEqual([3, 0])
+  })
+
+  test('a reference the build could not deploy still splits the row', () => {
+    // No display URL to compare — only `hasCustomArt` says this copy wears art.
+    addEntryToLeft(makeEntry({ scryfallCard: priced, cardIds: [1], maxQty: 2 }), 'usd')
+    addEntryToLeft(
+      makeEntry({ scryfallCard: priced, hasCustomArt: true, cardIds: [2], maxQty: 2 }),
+      'usd',
+    )
+    expect(leftCards()).toHaveLength(2)
+    expect(leftCards().map((c) => c.price)).toEqual([3, 0])
+  })
+
+  test('two copies wearing the same art still stack', () => {
+    const art = { customArt: 'art/sol-ring.jpg', hasCustomArt: true, maxQty: 2 }
+    addEntryToLeft(makeEntry({ scryfallCard: priced, cardIds: [1], ...art }), 'usd')
+    addEntryToLeft(makeEntry({ scryfallCard: priced, cardIds: [2], ...art }), 'usd')
+    expect(leftCards()).toHaveLength(1)
+    expect(leftCards()[0]?.qty).toBe(2)
+  })
+
+  test('a keep-labeled copy never merges into an unlabeled row', () => {
+    addEntryToLeft(makeEntry({ scryfallCard: priced, cardIds: [1], maxQty: 2 }), 'usd')
+    addEntryToLeft(
+      makeEntry({ scryfallCard: priced, labels: ['keep'], cardIds: [2], maxQty: 2 }),
+      'usd',
+    )
+    expect(leftCards()).toHaveLength(2)
+    expect(leftCards()[1]?.labels).toEqual(['keep'])
+  })
+})

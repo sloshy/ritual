@@ -1,4 +1,5 @@
 import { computeHash } from '../../content-hash'
+import { collectExistingIds } from '../../card-id'
 import { apiHandler } from '../utils'
 import { addChangelogCardNames, fetchSymbolMap, loadEntryCardData } from './card-data-loader'
 import {
@@ -22,6 +23,7 @@ import type {
   ListLoadStamp,
   ListSummaryLoadResult,
 } from './load-results'
+import { listArtRecord } from './art'
 import { apiError } from './save-helpers'
 import { parseSlugFromUrl } from './target'
 
@@ -114,6 +116,8 @@ export interface FlatListParseResult<T> {
 export interface FlatLoadEntry {
   name: string
   section?: string
+  /** The line's `&N`, which its custom art is keyed by. */
+  cardId?: number
 }
 
 /** Everything a flat (collection | wanted) load differs by. */
@@ -168,6 +172,14 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
 
     const { entries, totalCount } = filterEntries(allEntries, params, nameOf, sectionOf)
     const partial = isNarrowedLoad(params)
+    // Spread onto the body, never merged into `warnings`: an unreadable art
+    // sidecar is display metadata gone wrong, not a line the save would eat.
+    const art = await listArtRecord(filePath, {
+      cardIds: entries.map((entry) => entry.cardId),
+      // The unfiltered entries: an orphan is an id no line in the whole file
+      // carries, which a filtered page cannot answer on its own.
+      knownCardIds: new Set(collectExistingIds(allEntries)),
+    })
 
     if (params.view === 'cards') {
       const body: FlatCardsLoadResult<T> = {
@@ -179,6 +191,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
         labels,
         totalCount,
         warnings,
+        ...art,
       }
       return Response.json(stampLoadBody(body, partial, contentHash))
     }
@@ -203,6 +216,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
       symbolMap,
       slug,
       warnings,
+      ...art,
     }
     return Response.json(stampLoadBody(body, partial, contentHash))
   })

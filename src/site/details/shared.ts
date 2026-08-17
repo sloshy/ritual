@@ -10,6 +10,8 @@ import { computeRepresentativePrints } from '../../scryfall'
 import { getErrorMessage } from '../../errors'
 import { t } from '../../i18n/t'
 import { buylistRequestFor, quoteKey, type BuylistQuote } from '../../buylist'
+import { loadCardArt, type CardArtMap } from '../../card-art'
+import { siteArtUrl } from '../art-url'
 import type { CardLanguage } from '../../card-language'
 import type { Finish, ScryfallCard } from '../../types'
 import type { BakedBuylist } from '../data-types'
@@ -46,16 +48,32 @@ export type ListSidecars = {
   changelog: ChangelogPage[]
   /** ISO mtime of the list file, or undefined when it can't be statted. */
   fileMtime?: string
+  /** Custom art from the `.art.json` sidecar; empty when the list has none. */
+  art: CardArtMap
+  /**
+   * What was wrong with the art sidecar, already phrased for the caller's
+   * warning channel. A sidecar that cannot be parsed yields no art at all.
+   */
+  artWarnings: string[]
+}
+
+export type ListSidecarOptions = {
+  /**
+   * The card ids the list currently has. Art entries pointing outside it are
+   * reported (by raw id — the cards they named are gone) and still loaded.
+   */
+  knownCardIds?: ReadonlySet<number>
 }
 
 /**
- * Read a list's optional `.changes.md` sidecar (absence is normal) and the list
- * file's mtime. Shared by all three list loaders.
+ * Read a list's optional sidecars — `.changes.md` and `.art.json`, absence is
+ * normal for both — and the list file's mtime. Shared by all three list loaders.
  */
 export async function loadListSidecars(
   dir: string,
   baseName: string,
   listFilePath: string,
+  options: ListSidecarOptions = {},
 ): Promise<ListSidecars> {
   let changelog: ChangelogPage[] = []
   try {
@@ -73,7 +91,88 @@ export async function loadListSidecars(
     // The caller already loaded the list file; ignore stat errors.
   }
 
-  return { changelog, fileMtime }
+  const loadedArt = await loadCardArt(listFilePath, { knownCardIds: options.knownCardIds })
+  const artWarnings: string[] = []
+  if (!loadedArt.ok) {
+    artWarnings.push(t('site.detail.artUnreadable', { reason: loadedArt.message }))
+  } else {
+    for (const warning of loadedArt.warnings) {
+      artWarnings.push(t('site.detail.artUnknownCards', { ids: warning.ids.join(', ') }))
+    }
+  }
+
+  return { changelog, fileMtime, art: loadedArt.ok ? loadedArt.art : new Map(), artWarnings }
+}
+
+/** Anything carrying a card line's `&N` id — every list type's entry shape. */
+export type CardIdBearing = {
+  cardId?: number
+}
+
+/** The ids a list currently has, which an art sidecar's keys are checked against. */
+export function cardIdsOf(entries: Iterable<CardIdBearing>): Set<number> {
+  const ids = new Set<number>()
+  for (const entry of entries) {
+    if (entry.cardId !== undefined) ids.add(entry.cardId)
+  }
+  return ids
+}
+
+/**
+ * What one card's custom art bakes to: the image to display, and whether the
+ * list's sidecar names the card at all. The two answers are deliberately
+ * separate — a reference whose file the build could not deploy has no image to
+ * show, but the copy in hand still wears custom art, so it is still priceless.
+ */
+export type BakedCardArt = {
+  /**
+   * The display URL, or absent when there is nothing to show: no reference at
+   * all, or one naming a file the build could not deploy (the card then falls
+   * back to its real printing's image rather than pointing at a 404).
+   */
+  customArt?: string
+  /**
+   * Whether the sidecar gives this card custom art — the pricelessness fact,
+   * true even when {@link BakedCardArt.customArt} is absent. Left off entirely
+   * for the overwhelming majority of cards, which have no art reference.
+   */
+  hasCustomArt?: boolean
+}
+
+/** The custom-art fields a baked entry carries, by card id. */
+export type CustomArtLookup = (cardId: number | undefined) => BakedCardArt
+
+/** Shared so every art-less card spreads the same empty object. */
+const NO_CARD_ART: BakedCardArt = {}
+
+/**
+ * Resolve a list's custom art into the fields baked onto each entry: a file
+ * reference becomes the site-relative `art/<relpath>` that both the built site
+ * and `serve --api`'s `/art/*` route answer for; a URL is carried verbatim.
+ *
+ * References whose file the build could not deploy bake no display URL, so the
+ * card falls back to its real art — the build already warned about each of
+ * those (`deployCardArt`), so nothing is said here. They still report
+ * `hasCustomArt`, which is what keeps the site's pricing in step with
+ * `ritual price`: both judge the copy by the *reference* the list wrote, never
+ * by whether an image happened to make it into `dist/`. A context with no
+ * {@link SiteDetailContext.missingArtFiles} (the live server) bakes every
+ * reference and lets the art route answer for the file.
+ */
+export function customArtLookup(
+  art: CardArtMap | undefined,
+  ctx: SiteDetailContext,
+): CustomArtLookup {
+  if (!art || art.size === 0) return () => NO_CARD_ART
+  const missing = ctx.missingArtFiles
+  return (cardId) => {
+    if (cardId === undefined) return NO_CARD_ART
+    const ref = art.get(cardId)
+    if (!ref) return NO_CARD_ART
+    if ('url' in ref) return { customArt: ref.url, hasCustomArt: true }
+    if (missing?.has(ref.file)) return { hasCustomArt: true }
+    return { customArt: siteArtUrl(ref.file), hasCustomArt: true }
+  }
 }
 
 /**

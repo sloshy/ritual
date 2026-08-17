@@ -431,6 +431,7 @@ const RITUAL_CONFIG = {
   decksDir: './decks',
   collectionsDir: './collections',
   wantedDir: './wanted',
+  artDir: './art',
   defaultCurrency: 'usd',
   defaultLanguage: 'en',
   uiLocale: localeTag('en'),

@@ -5,6 +5,7 @@ import type { ScryfallCard } from '../types'
 import { getCardPriceForFinish } from '../price-currency'
 import type { PriceCurrency } from '../price-currency'
 import { resolveTradeFinish } from './trade-finish'
+import { tradePrice } from './useTradeState'
 import { cardLookupSourceName, fetchCardsByIds } from './card-lookup'
 
 /**
@@ -193,8 +194,10 @@ function decodeCollectionParam(
         // so a decoded keep card gets its badge — but never the confirm dialog:
         // decode writes the card signals directly, bypassing the guarded add.
         labels: entry.labels,
+        customArt: entry.customArt,
+        hasCustomArt: entry.hasCustomArt,
         note: entry.note,
-        price: entry.price,
+        price: tradePrice(entry, () => entry.price ?? 0),
         scryfallCard: entry.scryfallCard,
         source: 'collection',
         sourceName: entry.sourceName,
@@ -245,10 +248,15 @@ function decodeDeckParam(
         collectorNumber: scryfallCard?.collector_number ?? entry.collectorNumber,
         finish,
         language: parseUrlLanguage(sf.urlLanguage, token, ctx.warnings),
+        labels: entry.labels,
+        customArt: entry.customArt,
+        hasCustomArt: entry.hasCustomArt,
         scryfallCard,
-        price: scryfallCard
-          ? getCardPriceForFinish(scryfallCard, finish, ctx.currency)
-          : (entry.price ?? 0),
+        price: tradePrice(entry, () =>
+          scryfallCard
+            ? getCardPriceForFinish(scryfallCard, finish, ctx.currency)
+            : (entry.price ?? 0),
+        ),
         source: 'deck',
         sourceName: entry.sourceName,
         qty,
@@ -341,9 +349,13 @@ function decodeWantedParam(
         language: parseUrlLanguage(urlLanguage, token, ctx.warnings),
         condition: entry.condition,
         note: entry.note,
-        price: scryfallCard
-          ? getCardPriceForFinish(scryfallCard, finish, ctx.currency)
-          : (entry.price ?? 0),
+        customArt: entry.customArt,
+        hasCustomArt: entry.hasCustomArt,
+        price: tradePrice(entry, () =>
+          scryfallCard
+            ? getCardPriceForFinish(scryfallCard, finish, ctx.currency)
+            : (entry.price ?? 0),
+        ),
         scryfallCard,
         source: 'wanted',
         sourceName: entry.sourceName,

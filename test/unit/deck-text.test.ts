@@ -154,6 +154,25 @@ describe('serializeCardLine', () => {
       card: { quantity: 1, name: 'Sol Ring', language: 'zhs', note: 'x' },
       expected: '1 Sol Ring [zhs] {x}',
     },
+    {
+      label: 'a labels token follows the language and precedes the note and id',
+      card: {
+        quantity: 1,
+        name: 'Sol Ring',
+        set: 'c21',
+        collectorNumber: '263',
+        language: 'ja',
+        labels: ['proxy'],
+        note: 'printed at home',
+        cardId: 8,
+      },
+      expected: '1 Sol Ring (C21:263) [ja] [proxy] {printed at home} &8',
+    },
+    {
+      label: 'an empty labels override is not a token — it means "inherit the list default"',
+      card: { quantity: 1, name: 'Sol Ring', labels: [], cardId: 8 },
+      expected: '1 Sol Ring &8',
+    },
   ]
 
   for (const { label, card, expected } of cases) {

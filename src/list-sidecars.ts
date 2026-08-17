@@ -1,13 +1,15 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { artSidecarPath } from './card-art'
 import { hashPath } from './content-hash'
 
 /**
  * The one place a list file's sidecar files are enumerated. A list `<name>.md`
  * may be accompanied by `<name>.md.sha256` (its content hash), `<name>.changes.md`
- * (its changelog), and — decks only — `<name>.primer.md` (its primer text). Every
- * surface that renames or moves a list derives the sidecar set from here, so a
- * future sidecar type cannot be silently left behind at one call site.
+ * (its changelog), `<name>.art.json` (its custom card art), and — decks only —
+ * `<name>.primer.md` (its primer text). Every surface that renames or moves a
+ * list derives the sidecar set from here, so a future sidecar type cannot be
+ * silently left behind at one call site.
  */
 
 /** The path of a list's `.changes.md` changelog sidecar. */
@@ -24,9 +26,9 @@ export function primerSidecarPath(mdPath: string): string {
 export type SidecarMove = { from: string; to: string }
 
 /**
- * Move the changelog and primer sidecars of `oldPath` (those that exist) to sit
- * beside `newPath`. Returns the moves performed so callers can track the touched
- * files (e.g. for a git auto-commit).
+ * Move the changelog, primer and custom-art sidecars of `oldPath` (those that
+ * exist) to sit beside `newPath`. Returns the moves performed so callers can
+ * track the touched files (e.g. for a git auto-commit).
  *
  * The `.sha256` hash sidecar is deliberately not handled here: a caller that
  * rewrites content owns the hash through `writeFileWithHash`, and a caller that
@@ -37,6 +39,7 @@ export async function moveListSidecars(oldPath: string, newPath: string): Promis
   const candidates: readonly SidecarMove[] = [
     { from: changelogSidecarPath(oldPath), to: changelogSidecarPath(newPath) },
     { from: primerSidecarPath(oldPath), to: primerSidecarPath(newPath) },
+    { from: artSidecarPath(oldPath), to: artSidecarPath(newPath) },
   ]
   const moves: SidecarMove[] = []
   for (const move of candidates) {
@@ -54,7 +57,7 @@ export async function moveListSidecars(oldPath: string, newPath: string): Promis
  * kind cannot be added to the type yet left out of the moves — the `Record`
  * below then forces its path function to exist too.
  */
-export const LIST_SIDECAR_KINDS = ['hash', 'changelog', 'primer'] as const
+export const LIST_SIDECAR_KINDS = ['hash', 'changelog', 'primer', 'art'] as const
 
 export type ListSidecarKind = (typeof LIST_SIDECAR_KINDS)[number]
 
@@ -63,6 +66,7 @@ export const listSidecarPath: Record<ListSidecarKind, (mdPath: string) => string
   hash: hashPath,
   changelog: changelogSidecarPath,
   primer: primerSidecarPath,
+  art: artSidecarPath,
 }
 
 /** One sidecar move, tagged with which sidecar moved. */

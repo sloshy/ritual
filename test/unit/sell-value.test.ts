@@ -93,6 +93,30 @@ describe('allocateSellQuantities', () => {
     })
   })
 
+  test('never quotes a proxy, however good the buyer’s offer for the printing is', async () => {
+    await seedQuotes([{ key: 'dsk:1:nonfoil', productId: 10, priceBuy: 2, qtyBuying: 3 }])
+
+    expect(allocateSellQuantities([{ ...card('1', 2), labels: ['proxy'] }])[0]).toMatchObject({
+      quote: undefined,
+      sellableQuantity: 0,
+      value: 0,
+    })
+    // The cart never carries a row for it either.
+    expect(selectionToCartCsv([{ ...card('1', 2), labels: ['proxy'] }]).cardCount).toBe(0)
+  })
+
+  test('never quotes a copy wearing custom art — it is not that printing', async () => {
+    await seedQuotes([{ key: 'dsk:1:nonfoil', productId: 10, priceBuy: 2, qtyBuying: 3 }])
+
+    const custom = { ...card('1', 2), customArt: 'art/sol-ring.jpg' }
+    expect(allocateSellQuantities([custom])[0]).toMatchObject({
+      quote: undefined,
+      sellableQuantity: 0,
+      value: 0,
+    })
+    expect(selectionToCartCsv([custom]).cardCount).toBe(0)
+  })
+
   test('shares one budget across tiles resolving to the same product', async () => {
     await seedQuotes([{ key: 'dsk:1:nonfoil', productId: 10, priceBuy: 2, qtyBuying: 3 }])
 
@@ -248,13 +272,13 @@ describe('buylistFieldsFor', () => {
     // Quotes outlive a toggle-off, so the mode — not the store — is the gate.
     // The spread is 0 rather than the -$6 the card would score in sell mode:
     // with the sort's controls gone, nothing may keep reordering the page.
-    expect(buylistFieldsFor(printing, 'nonfoil')).toMatchObject({
+    expect(buylistFieldsFor(printing, 'nonfoil', undefined, {})).toMatchObject({
       buylistPrice: 0,
       buylistSpread: 0,
       onBuylist: false,
     })
     setSellModeActive(true)
-    expect(buylistFieldsFor(printing, 'nonfoil')).toMatchObject({
+    expect(buylistFieldsFor(printing, 'nonfoil', undefined, {})).toMatchObject({
       buylistPrice: 2,
       buylistSpread: -4,
       onBuylist: true,
@@ -271,7 +295,7 @@ describe('buylistFieldsFor', () => {
       prices: { usd: '3.00' },
     })
 
-    expect(buylistFieldsFor(paused, 'nonfoil')).toMatchObject({
+    expect(buylistFieldsFor(paused, 'nonfoil', undefined, {})).toMatchObject({
       buylistPrice: 0,
       // Card Kingdom's feed carries every product they have ever sold, ~45% of
       // it paused. Counting a mere catalog entry as "on the buylist" made the
@@ -281,6 +305,38 @@ describe('buylistFieldsFor', () => {
       // A paused offer is not money you can get today, so it counts as 0 on the
       // buylist side of the spread — leaving the card's retail price as a loss.
       buylistSpread: -3,
+    })
+  })
+
+  test('a copy that is priceless by rule is never quoted, whatever the offer', async () => {
+    await seedQuotes([{ key: 'dsk:1:nonfoil', productId: 10, priceBuy: 2, qtyBuying: 3 }])
+    setSellModeActive(true)
+
+    expect(buylistFieldsFor(printing, 'nonfoil', undefined, { labels: ['proxy'] })).toMatchObject({
+      buylistPrice: 0,
+      buylistSpread: 0,
+      onBuylist: false,
+    })
+    // A copy wearing custom art is refused for the same reason: it is no longer
+    // the printing the quote would be for.
+    expect(
+      buylistFieldsFor(printing, 'nonfoil', undefined, { customArt: 'art/sol-ring.jpg' }),
+    ).toMatchObject({
+      buylistPrice: 0,
+      buylistSpread: 0,
+      onBuylist: false,
+    })
+    // And by the sidecar fact alone: an art file the build could not deploy
+    // leaves the tile showing its real printing, with nothing to quote.
+    expect(buylistFieldsFor(printing, 'nonfoil', undefined, { hasCustomArt: true })).toMatchObject({
+      buylistPrice: 0,
+      buylistSpread: 0,
+      onBuylist: false,
+    })
+    // Any other label leaves the quote exactly as it was.
+    expect(buylistFieldsFor(printing, 'nonfoil', undefined, { labels: ['keep'] })).toMatchObject({
+      buylistPrice: 2,
+      onBuylist: true,
     })
   })
 
@@ -296,7 +352,7 @@ describe('buylistFieldsFor', () => {
       prices: { usd: '10.00', usd_foil: '30.00' },
     })
 
-    expect(buylistFieldsFor(foilOnly, undefined)).toMatchObject({
+    expect(buylistFieldsFor(foilOnly, undefined, undefined, {})).toMatchObject({
       buylistPrice: 5,
       // The retail half follows the same finish: against the nonfoil price the
       // spread would be -5.
@@ -318,7 +374,7 @@ describe('buylistFieldsFor spread', () => {
     })
 
     // Against EUR this would be +3, a number that means nothing.
-    expect(buylistFieldsFor(priced, 'nonfoil').buylistSpread).toBe(-6)
+    expect(buylistFieldsFor(priced, 'nonfoil', undefined, {}).buylistSpread).toBe(-6)
   })
 
   test('is rounded to cents, not left to float drift', async () => {
@@ -332,7 +388,7 @@ describe('buylistFieldsFor spread', () => {
     })
 
     // The raw subtraction is -6.199999999999999.
-    expect(buylistFieldsFor(priced, 'nonfoil').buylistSpread).toBe(-6.2)
+    expect(buylistFieldsFor(priced, 'nonfoil', undefined, {}).buylistSpread).toBe(-6.2)
   })
 
   test('counts a missing USD retail price as zero', async () => {
@@ -347,7 +403,7 @@ describe('buylistFieldsFor spread', () => {
 
     // The EUR price is deliberately not substituted: the spread is USD on both
     // sides, and a card with no USD retail is compared against 0.
-    expect(buylistFieldsFor(eurOnly, 'nonfoil')).toMatchObject({
+    expect(buylistFieldsFor(eurOnly, 'nonfoil', undefined, {})).toMatchObject({
       buylistPrice: 4,
       buylistSpread: 4,
       onBuylist: true,
@@ -363,7 +419,7 @@ describe('buylistFieldsFor spread', () => {
       prices: { usd: '7.50' },
     })
 
-    expect(buylistFieldsFor(unquoted, 'nonfoil')).toMatchObject({
+    expect(buylistFieldsFor(unquoted, 'nonfoil', undefined, {})).toMatchObject({
       buylistPrice: 0,
       buylistSpread: -7.5,
       onBuylist: false,

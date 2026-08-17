@@ -38,7 +38,8 @@ export const helpCardsMessages = {
     'Card condition: NM, LP, MP, HP, DMG, or NONE to record no condition (decks and collections only)',
   'help.addCard.language':
     "Card language (e.g. ja); overrides the configured defaultLanguage. Never prompted — en is a bare line's default",
-  'help.addCard.label': 'Label the new card: sale,trade (combinable) or keep (collections only)',
+  'help.addCard.label':
+    'Label the new card: sale,trade (combinable), keep or proxy on a collection; proxy alone on a deck',
   'help.addCard.section': 'Deck section to add to, created if missing (decks only)',
   'help.addCard.commander': "Add the card to the deck's Commander section (decks only)",
   'help.addCard.exact': 'Use exact matching (skip interactive selection if name matches)',
@@ -68,7 +69,10 @@ export const helpCardsMessages = {
   'help.setCard.condition':
     'New condition: {choices}, or NONE to clear it (decks and collections only)',
   'help.setCard.label':
-    'New label override: sale,trade (combinable), keep, or none to clear it (collections only)',
+    'New label override: sale,trade (combinable), keep or proxy, or none to clear it ' +
+    '(decks take proxy only)',
+  'help.setCard.art':
+    'Custom art for this card: an image path relative to the art directory, an http(s) URL, or none to clear it',
   'help.setCard.section': 'Move the card to this section, created if missing (decks only)',
   'help.setCard.commander': 'Move the card to the Commander section (decks only)',
   'help.setCard.noCommander': 'Move the card out of the Commander section (decks only)',

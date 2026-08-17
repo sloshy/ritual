@@ -15,6 +15,8 @@ import { pendingPrintingPrompt } from '../../site/printing-prompt'
 import { TradePrintingPicker } from '../../site/TradePrintingPicker'
 import { pendingMovePrompt, closeMovePrompt } from '../../site/move-prompt'
 import { MoveTargetPicker } from '../../site/MoveTargetPicker'
+import { CardArtModal } from './components/CardArtModal'
+import { pendingCardArtPrompt, closeCardArtPrompt } from './card-art-prompt'
 import { Layout } from './components/Layout'
 import { AuthGuard } from './components/AuthGuard'
 import { NavigationGuardProvider, createNavigationGuard } from '../../editor/navigation-guard'
@@ -176,6 +178,14 @@ function App() {
               {/* Shared picker for choosing a move destination (section or list). */}
               <Show when={pendingMovePrompt()}>
                 {(prompt) => <MoveTargetPicker prompt={prompt()} onClose={closeMovePrompt} />}
+              </Show>
+
+              {/* Custom-art dialog, opened from any editor's card context menu.
+                  Keyed: the form seeds its mode and value from the prompt at
+                  construction, so opening it for a second card has to remount
+                  it or the first card's reference would still be in the field. */}
+              <Show when={pendingCardArtPrompt()} keyed>
+                {(prompt) => <CardArtModal prompt={prompt} onClose={closeCardArtPrompt} />}
               </Show>
 
               {/* Shared printing picker for moving a printing-less card into a collection. */}

@@ -5,6 +5,7 @@ import {
   effectiveLabels,
   isCardLabelSelection,
   matchesCardLabelSelection,
+  supportsAnyLabels,
   type CardLabel,
   type CardLabelSelection,
 } from '../card-labels'
@@ -13,6 +14,7 @@ import type { CardLanguage } from '../card-language'
 import type { ListType } from '../list-type'
 import type { ListLocation } from '../resolve-list'
 import { loadDeckFile } from '../importers/text-file'
+import { parseDeckFrontMatter } from '../deck-file'
 import { parseCollectionFile, type CollectionEntry } from '../collection-file'
 import { parseWantedListFile, type WantedListEntry } from '../commands/wanted-helpers'
 import { matchesAllTerms } from '../term-match'
@@ -40,9 +42,10 @@ export type ExportEntry = {
   language?: CardLanguage
   /**
    * The card's *effective* labels (its line's override, else the list's
-   * front-matter default) — collections only; absent when the effective set is
-   * empty. Exports flatten away the list file, so the override/default split
-   * would be meaningless here.
+   * front-matter default) — decks and collections; absent when the effective
+   * set is empty, and always absent for wanted entries, which carry no labels.
+   * Exports flatten away the list file, so the override/default split would be
+   * meaningless here.
    */
   labels?: CardLabel[]
   note?: string
@@ -79,9 +82,15 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
     if (location.type === 'deck') {
       const { deck, warnings: deckWarnings } = await loadDeckFile(location.filePath)
       warnings.push(...deckWarnings.map((w) => `${location.name}: ${w}`))
+      // The deck's `labels:` default lives in front matter, which the deck
+      // parser does not project onto DeckData — read separately, exactly as the
+      // site's deck baker does, so an export resolves the same effective labels
+      // the site displays.
+      const listLabels = (await parseDeckFrontMatter(location.filePath)).labels
       let fileOrder = 0
       for (const section of deck.sections) {
         for (const card of section.cards) {
+          const labels = effectiveLabels(card.labels, listLabels)
           entries.push({
             listType: 'deck',
             listName: location.name,
@@ -93,6 +102,7 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
             finish: card.finish,
             condition: card.condition,
             language: card.language,
+            labels: labels.length > 0 ? labels : undefined,
             note: card.note,
             fileOrder: fileOrder++,
           })
@@ -293,8 +303,9 @@ export type ExportFilters = {
   conditions?: ConditionFilterValue[]
   /**
    * Labels to match (logical OR within the list) against each entry's
-   * *effective* labels; `'none'` matches unlabeled collection entries. Labels
-   * are a collection concept, so deck and wanted entries never match.
+   * *effective* labels; `'none'` matches label-carrying entries whose effective
+   * set is empty. Wanted entries carry no labels at all, so they never match —
+   * not even `'none'`, which would otherwise select every one of them.
    */
   labels?: LabelFilterValue[]
 }
@@ -322,7 +333,7 @@ export function filterExportEntries(entries: ExportEntry[], filters: ExportFilte
       if (!conditions.includes(entry.condition ?? CONDITION_FILTER_NONE)) return false
     }
     if (labels && labels.length > 0) {
-      if (entry.listType !== 'collection') return false
+      if (!supportsAnyLabels(entry.listType)) return false
       if (!matchesCardLabelSelection(entry.labels ?? [], labels)) return false
     }
     return true

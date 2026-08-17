@@ -2,7 +2,8 @@ import type { Component, JSX } from 'solid-js'
 import { createSignal, createMemo, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import type { PriceCurrency } from '../price-currency'
-import { formatPrice, formatPriceOrNA } from '../price-currency'
+import { formatPrice } from '../price-currency'
+import { cardPriceText, cardPricelessReason } from './priceless'
 import {
   type GroupBy,
   type SortBy,
@@ -34,11 +35,20 @@ import {
   collectSetCodes,
   filterCards,
 } from './card-filters'
-import { useCombinedSelection, type SelectionListId } from './useCardSelection'
+import {
+  useCombinedSelection,
+  type SelectionListId,
+  type SelectionSourceKind,
+} from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
 import type { MetaEntry } from './meta-entry'
 import type { CombinedCardData } from './combined-list'
-import { cardLabelName } from '../card-labels'
+import {
+  CARD_LABEL_SELECTIONS,
+  cardLabelName,
+  labelFiltersFor,
+  type CardLabelSelection,
+} from '../card-labels'
 import { useT } from '../ui/i18n'
 import type { MessageKey } from '../i18n/messages/en'
 
@@ -66,6 +76,26 @@ const COMBINED_SORT_BYS: readonly SortBy[] = [
   'edhrec',
   'file-order',
 ]
+
+/**
+ * The label chips a combined view offers — and the `labels=` values a shared
+ * URL may name here: the union of what its lists' kinds accept (collections
+ * take the whole vocabulary, decks `proxy` alone, wanted lists nothing), plus
+ * the "unlabeled" chip, in canonical order. Empty when no selected list can
+ * carry a label at all, which is what hides the row.
+ *
+ * Derived per kind from {@link labelFiltersFor} — the same derivation the
+ * single-list pages use — and from the list *kinds* rather than the loaded
+ * cards, since it must answer before any detail has arrived.
+ */
+export function combinedLabelFilters(
+  kinds: readonly SelectionSourceKind[],
+): readonly CardLabelSelection[] {
+  const available = new Set<CardLabelSelection>()
+  for (const kind of kinds) for (const value of labelFiltersFor(kind)) available.add(value)
+  if (available.size === 0) return []
+  return CARD_LABEL_SELECTIONS.filter((value) => available.has(value))
+}
 
 interface CombinedCardsViewProps extends SellModeProps {
   /** The already-built combined cards to display (flattened across source lists). */
@@ -134,6 +164,11 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
 
   const hasCollections = createMemo(() => props.cards.some((c) => c.sourceKind === 'collection'))
 
+  /** The label chips this view offers; empty hides the row entirely. */
+  const labelFilters = createMemo(() =>
+    combinedLabelFilters(props.selectionLists.map((l) => l.kind)),
+  )
+
   // Group-by options are the lowest common denominator of the combined list types,
   // plus "Source List". "Printing" only applies when no collection is present (every
   // collection card is pinned, so the distinction is meaningless once one is mixed in).
@@ -176,7 +211,10 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
     enabled: props.enableUrlState,
     // From the selection's list *kinds*, not the loaded cards: the URL params
     // are applied once at construction, before any card data has arrived.
-    supportsLabels: props.selectionLists.some((l) => l.kind === 'collection'),
+    // Decks count too — they carry the `proxy` label — and a chip no selected
+    // kind offers is dropped from the incoming param rather than hiding
+    // everything behind a filter this row cannot show.
+    availableLabels: labelFilters(),
     supportsSellMode: Boolean(props.enableSellMode),
   })
 
@@ -232,7 +270,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
     if (!card) return undefined
     const tile = card.selectedTile
     const parts: MetaEntry[] = [
-      { label: 'price', value: formatPriceOrNA(card.price, props.currency) },
+      { label: 'price', value: cardPriceText(t, card, card.price, props.currency) },
       { label: 'list', value: card.sourceName },
     ]
     if (card.hasPrinting && tile.set) {
@@ -255,6 +293,8 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
       name={c.name}
       quantity={c.quantity}
       card={c.card}
+      customArt={c.customArt}
+      priceless={cardPricelessReason(c)}
       symbolMap={props.symbolMap}
       buylistPrice={c.buylistPrice}
       viewMode={viewMode()}
@@ -332,7 +372,8 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
         cardTypeOptions={cardTypeOptions()}
         oracleTagOptions={oracleTagOptions()}
         artTagOptions={artTagOptions()}
-        showLabelsFilter={hasCollections()}
+        showLabelsFilter={labelFilters().length > 0}
+        availableLabels={labelFilters()}
         selectionMenu={
           <SelectionMenu
             selection={selection}
@@ -390,6 +431,8 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
       <CardModal
         open={Boolean(modalTile())}
         card={modalTile()?.card ?? null}
+        customArt={modalTile()?.customArt}
+        hasCustomArt={modalTile()?.hasCustomArt}
         cardName={modalTile()?.name ?? null}
         symbolMap={props.symbolMap}
         useScryfallImgUrls={props.useScryfallImgUrls}

@@ -347,6 +347,7 @@ describe('buildMenuChoices', () => {
         { title: '🗂️  Set Target Section', value: '__SECTION__' },
         { title: '🏷️  Change Format', value: '__FORMAT__' },
         { title: '🔖 Edit Tags', value: '__TAGS__' },
+        { title: '🏷️  Edit List Labels (default: none)', value: '__LIST_LABELS__' },
       ],
       multiList: { totalChangeCount: 5, listsWithChanges: 2 },
       cardChoices: [],
@@ -377,7 +378,7 @@ describe('buildMenuChoices', () => {
    *
    * The catalog validator enforces the budgets across the whole catalog; this
    * asserts the two things it cannot see: that every menu key actually declares
-   * one, and that the menu the engine builds is still the same seventeen rows
+   * one, and that the menu the engine builds is still the same eighteen rows
    * once every label has been swapped.
    */
   describe('under the en-XA pseudo-locale', () => {
@@ -385,7 +386,7 @@ describe('buildMenuChoices', () => {
     /** One standard terminal line. A row wider than this wraps and costs a second. */
     const MENU_ROW_BUDGET = 80
     /** Rows a not-yet-converted strategy contributes, still English by definition. */
-    const UNCONVERTED_ROWS = new Set(['__SECTION__', '__FORMAT__', '__TAGS__'])
+    const UNCONVERTED_ROWS = new Set(['__SECTION__', '__FORMAT__', '__TAGS__', '__LIST_LABELS__'])
 
     beforeAll(() => {
       loadDictionary(PSEUDO_LOCALE, pseudoLocalize(en, enMeta))

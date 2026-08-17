@@ -120,6 +120,7 @@ export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
   decksDir: 'string',
   collectionsDir: 'string',
   wantedDir: 'string',
+  artDir: 'string',
   defaultCurrency: 'string',
   defaultLanguage: 'string',
   uiLocale: 'string',

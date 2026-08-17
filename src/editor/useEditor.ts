@@ -12,6 +12,9 @@ import {
 import { replaySectionOrder } from '../change-event'
 import { DEFAULT_SECTION, type Finish, type ScryfallCard } from '../types'
 import type { CardLanguage } from '../card-language'
+import type { CardLabel } from '../card-labels'
+import type { CardArtRef } from '../card-art'
+import type { SaveEffect } from './save-effects'
 import type { PriceCurrency } from '../price-currency'
 import { DEFAULT_CURRENCY } from '../price-currency'
 import type {
@@ -36,6 +39,7 @@ import { useDialogState } from './useDialogState'
 import { useCardIdPool } from './useCardIdPool'
 import { useCardChanges } from './useCardChanges'
 import { reconcileIdPoolForUndo, replayChanges } from './reconcile-undo'
+import { addedCopyArtActions, artIdsResetByUndo } from './pending-art'
 import { useNavigationGuard } from './navigation-guard'
 import { clampQuantity } from '../ui/quantity'
 import type { ApplyChange } from './apply-batch'
@@ -103,7 +107,22 @@ export type AddCardFromSearch = (
   allPrintings?: ScryfallCard[],
   /** Copies to add. Defaults to 1. */
   quantity?: number,
+  extras?: AddCardExtras,
 ) => void
+
+/**
+ * What the add dialog can attach to the new card beyond its printing: the label
+ * override it starts under, and custom art for the line it becomes.
+ *
+ * Kept apart from {@link CardPrintingOptions} because neither is part of a
+ * printing's identity — the labels ride the `add` event, while the art is list
+ * metadata the editor stages against the id it allocates (see
+ * `pending-art.ts`).
+ */
+export type AddCardExtras = {
+  labels?: CardLabel[]
+  art?: CardArtRef
+}
 
 /**
  * How a list models multiple copies of the same printing. Decks keep one entry
@@ -161,6 +180,42 @@ export type EditorConfig<TData> = {
    * hand or its session cache. Optional — adding still works without prices.
    */
   onCardAdded?: (cardName: string, scryfallCard?: ScryfallCard) => Promise<void> | void
+  /**
+   * Aim custom art at a card line this session created (or clear what a reused
+   * `&N` was carrying). Called once per allocated id: with the reference an add
+   * supplied, and with `null` for an id the pool handed out that some earlier
+   * card's art is still filed under. Optional — a host with no art route (the
+   * public editor) simply does not offer art at add time.
+   */
+  onCardArt?: (cardId: number, art: CardArtRef | null) => void
+  /**
+   * An undo handed a card id back to the pool: whatever art was staged against
+   * it belongs to a card that is no longer there, and the list's own art applies
+   * again. Covers both directions — a session add taken back, and a removal
+   * reclaiming the `&N` it had released, which is how undoing the removal of a
+   * card with custom art gets that art back.
+   */
+  onCardArtReset?: (cardId: number) => void
+  /**
+   * The `&N` an add of this card would land on because it *merges* into a line
+   * the list already has, or `undefined` when it starts a new line. Decks fold a
+   * repeat of the same printing (and label override) into one entry, so the id
+   * the editor just allocated never reaches a card line — and art staged against
+   * it would be written for a line that does not exist. Art is per line, so the
+   * copies share the target line's.
+   *
+   * Only consulted for art targeting; the add itself still carries the allocated
+   * id, exactly as before. Omitted by list types whose adds never merge.
+   */
+  findAddMergeTargetId?: (data: TData, add: ChangeInput) => number | undefined
+  /**
+   * Run after a save has succeeded, with what the save reported it did. The
+   * admin editors use it to flush the art they staged for cards that had no line
+   * on disk until this very save — the effects say which `&N` each of those
+   * cards actually got. Awaited by no one: the save is already committed, and
+   * the hook reports its own failures.
+   */
+  onSaved?: (effects: readonly SaveEffect[]) => void | Promise<void>
 
   /** Apply a change to the in-memory data, returning updated data */
   applyChange: ApplyChange<TData, ChangeInput>
@@ -553,6 +608,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     scryfallCard?: ScryfallCard,
     allPrintings?: ScryfallCard[],
     quantity = 1,
+    extras?: AddCardExtras,
   ) => {
     // Normalize the set code to lowercase at this single boundary so every
     // downstream consumer (change events and in-memory entries) stores it
@@ -568,10 +624,28 @@ export function useEditor<TData, TCardEntry = unknown>(
     // store one entry per copy and each needs its own. Batched so the view
     // repaints once rather than per copy.
     const sharedId = config.copyModel === 'quantity' ? pool.allocate() : undefined
+    const labels = extras?.labels
+    const art = extras?.art ?? null
+    // Resolved against the data as it stands *before* the first copy is applied:
+    // afterwards the new line exists and every further copy merges into it.
+    const currentData = data()
+    const mergeTargetId =
+      currentData !== null
+        ? config.findAddMergeTargetId?.(currentData, {
+            action: 'add',
+            cardName,
+            set: normalized.set,
+            collectorNumber: normalized.collectorNumber,
+            finish: normalized.finish,
+            condition: normalized.condition,
+            language: normalized.language,
+            labels,
+          })
+        : undefined
     batch(() => {
       for (let i = 0; i < copies; i++) {
         const cardId = sharedId ?? pool.allocate()
-        changes.addCard(cardName, { ...normalized, cardId })
+        const result = changes.addCard(cardName, { ...normalized, cardId, labels })
         setData((prev) =>
           prev !== null
             ? config.applyChange(prev, {
@@ -582,10 +656,23 @@ export function useEditor<TData, TCardEntry = unknown>(
                 finish: normalized.finish,
                 condition: normalized.condition,
                 language: normalized.language,
+                labels,
                 cardId,
               })
             : prev,
         )
+        // Where this copy's art belongs — including the case the rule exists
+        // for: an add that cancelled a pending removal *and named art* puts that
+        // art on the line that survived, rather than dropping it with the add.
+        const actions = addedCopyArtActions(
+          result.kind === 'cancelled'
+            ? { kind: 'cancelled', cardId, survivorId: result.cancelled?.cardId, art }
+            : { kind: 'recorded', cardId, mergeTargetId, art },
+        )
+        for (const action of actions) {
+          if (action.kind === 'reset') config.onCardArtReset?.(action.cardId)
+          else config.onCardArt?.(action.cardId, action.art)
+        }
       }
     })
     config.addCardData(cardName, scryfallCard, allPrintings)
@@ -837,6 +924,11 @@ export function useEditor<TData, TCardEntry = unknown>(
     const origData = original
     const { entry, remainingChanges } = result
     reconcileIdPoolForUndo(pool.release, pool.claim, entry, remainingChanges)
+    // Same rule, one source: an id the undo moved carries no staged art any
+    // more, and shows whatever the list holds for it on disk again.
+    for (const cardId of artIdsResetByUndo(entry, remainingChanges)) {
+      config.onCardArtReset?.(cardId)
+    }
     setData(() => replayChanges(origData, remainingChanges, config.applyChange))
   }
 
@@ -858,6 +950,11 @@ export function useEditor<TData, TCardEntry = unknown>(
     if (result?.contentHash) {
       setContentHash(result.contentHash)
       setHasSavedThisSession(true)
+      // Only on a save that actually landed: the effects say which `&N` each
+      // line ended up with, which is what a staged art write has been waiting
+      // for. A failed or conflicted save leaves the staging alone to be flushed
+      // by the next attempt.
+      void config.onSaved?.(result.effects ?? [])
     }
   }
 

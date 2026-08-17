@@ -4,6 +4,7 @@ import path from 'node:path'
 import { applyChangesToCollectionFile } from '../../src/list-mutate'
 import { createAddChange, createRemoveChange } from '../../src/change-event'
 import { withTempDir } from './helpers/cli'
+import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/card-art'
 
 async function writeList(dir: string, relative: string, content: string): Promise<string> {
   const filePath = path.join(dir, relative)
@@ -99,6 +100,59 @@ describe('applyChangesToCollectionFile — front matter and labels', () => {
       expect(content.startsWith('---\nlabels: [sale]\n---\n\n# Binder')).toBe(true)
       expect(content).toContain('- Lightning Bolt (LEA:161) [keep] &1')
       expect(content).toContain('- Sol Ring (C21:263) &2')
+    })
+  })
+})
+
+describe('applyChangesToCollectionFile — custom art (Integration)', () => {
+  test('a removed line drops its custom art, so the reused id inherits none', async () => {
+    await withTempDir(async (dir) => {
+      const filePath = await writeList(
+        dir,
+        'collections/Binder.md',
+        '# Binder\n\n- Lightning Bolt (LEA:161) &1\n- Sol Ring (C21:263) &2\n',
+      )
+      await saveCardArt(
+        filePath,
+        new Map<number, CardArtRef>([
+          [1, { file: 'proxies/bolt.png' }],
+          [2, { url: 'https://example.test/ring.png' }],
+        ]),
+      )
+
+      const result = await applyChangesToCollectionFile(filePath, [
+        createRemoveChange('Lightning Bolt', { set: 'lea', collectorNumber: '161', cardId: 1 }),
+      ])
+
+      const art = await loadCardArt(filePath)
+      expect(art.ok && [...art.art.entries()]).toEqual([
+        [2, { url: 'https://example.test/ring.png' }],
+      ])
+      // The sidecar is staged alongside the list file, so an auto-committing
+      // caller commits the pair together.
+      expect(result.writtenFiles).toContain(artSidecarPath(filePath))
+    })
+  })
+
+  test('a list with no art is never given an art sidecar', async () => {
+    await withTempDir(async (dir) => {
+      const filePath = await writeList(
+        dir,
+        'collections/Binder.md',
+        '# Binder\n\n- Lightning Bolt (LEA:161) &1\n',
+      )
+
+      const result = await applyChangesToCollectionFile(filePath, [
+        createRemoveChange('Lightning Bolt', { set: 'lea', collectorNumber: '161', cardId: 1 }),
+      ])
+
+      // The removal really happened; without this the absence checks below
+      // would hold for an apply that silently did nothing.
+      expect(await fs.readFile(filePath, 'utf-8')).not.toContain('Lightning Bolt')
+      // No phantom path reaches a caller's git-staging list, and no `{}` file
+      // is created for a list that never had art.
+      expect(await fs.exists(artSidecarPath(filePath))).toBe(false)
+      expect(result.writtenFiles).not.toContain(artSidecarPath(filePath))
     })
   })
 })

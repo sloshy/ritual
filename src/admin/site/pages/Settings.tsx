@@ -237,6 +237,18 @@ export function Settings(): JSX.Element {
             />
           </div>
           <div>
+            <label class="form-label">{t('admin.settings.artDir')}</label>
+            <input
+              type="text"
+              class="form-input"
+              name="artDir"
+              placeholder={t('admin.settings.artDirPlaceholder')}
+              value={config()!.artDir}
+              onInput={(e) => updateField('artDir', e.currentTarget.value)}
+            />
+            <p class="form-hint">{t('admin.settings.artDirHint')}</p>
+          </div>
+          <div>
             <label class="form-label">{t('admin.settings.defaultCurrency')}</label>
             <select
               class="form-input"

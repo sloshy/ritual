@@ -9,7 +9,12 @@ import { invalidateCardKingdomIndex, saveCardKingdomCache } from '../../../src/c
 import { createLiveSiteData } from '../../../src/serve/live-data'
 import { createSyntheticWorkspace } from '../../e2e/helpers/synthetic-workspace'
 import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../../test-utils'
-import type { CollectionDetail, DeckDetail, SiteIndex } from '../../../src/site/data-types'
+import type {
+  BakedDeckCard,
+  CollectionDetail,
+  DeckDetail,
+  SiteIndex,
+} from '../../../src/site/data-types'
 
 describe('createLiveSiteData', () => {
   let dir: string
@@ -39,6 +44,16 @@ describe('createLiveSiteData', () => {
     invalidateCardKingdomIndex()
     await fs.rm(dir, { recursive: true, force: true })
   })
+
+  /** The deck line with this `&N` id, from a served deck detail body. */
+  function deckCard(body: string, cardId: number): BakedDeckCard {
+    const detail = JSON.parse(body) as DeckDetail
+    const card = detail.deck.sections
+      .flatMap((section) => section.cards)
+      .find((entry) => entry.cardId === cardId)
+    if (!card) throw new Error(`No card &${cardId} in the served deck`)
+    return card
+  }
 
   /** Merge `patch` into the workspace's config file, which the live layer re-reads. */
   async function patchConfig(patch: Record<string, unknown>): Promise<void> {
@@ -116,6 +131,45 @@ describe('createLiveSiteData', () => {
     const after = await live.getDetail('deck', 'emberwild-aggro')
     expect(after!.etag).not.toBe(before!.etag)
     expect((JSON.parse(after!.body) as DeckDetail).changelog).toBeDefined()
+  })
+
+  test('rebuilds when the custom-art sidecar changes', async () => {
+    // Art lives in its own sidecar, so nothing else about the list moves when it
+    // is edited — without the art stamp the memo would serve the old detail
+    // until the markdown itself changed.
+    const live = createLiveSiteData()
+    const before = await live.getDetail('deck', 'emberwild-aggro')
+    expect(deckCard(before!.body, 1).customArt).toBeUndefined()
+    const indexBefore = await live.getIndex()
+
+    const artPath = path.join(dir, 'decks', 'emberwild-aggro.art.json')
+    fsSync.writeFileSync(artPath, '{"1":{"url":"https://example.test/bolt.png"}}\n')
+    // Last-Modified has second resolution; stamp the sidecar far enough ahead
+    // that the header has to move rather than sleeping for a second.
+    const later = new Date(Date.now() + 60_000)
+    fsSync.utimesSync(artPath, later, later)
+
+    const after = await live.getDetail('deck', 'emberwild-aggro')
+    expect(after!.lastModified).not.toBe(before!.lastModified)
+    expect(deckCard(after!.body, 1).customArt).toBe('https://example.test/bolt.png')
+    // The index is built from the same files, and its summaries carry totals
+    // that custom art changes — so its Last-Modified has to move with the art
+    // sidecar too, not just the detail's.
+    expect((await live.getIndex()).lastModified).not.toBe(indexBefore.lastModified)
+  })
+
+  test('bakes a local art reference as the path the /art route serves', async () => {
+    fsSync.writeFileSync(
+      path.join(dir, 'decks', 'emberwild-aggro.art.json'),
+      '{"2":{"file":"proxies/bolt.png"}}\n',
+    )
+    const live = createLiveSiteData()
+
+    const detail = await live.getDetail('deck', 'emberwild-aggro')
+
+    // Nothing is deployed in live mode, so the reference is baked whether or not
+    // the file is there — `/art/*` reads the art directory on request.
+    expect(deckCard(detail!.body, 2).customArt).toBe('art/proxies/bolt.png')
   })
 
   test('serves the configured defaultLanguage, honoring a config edit without a restart', async () => {

@@ -4,6 +4,7 @@ import { useT } from '../ui/i18n'
 import type { MessageKey } from '../i18n/messages/en'
 import type { PriceCurrency } from '../price-currency'
 import { formatPrice } from '../price-currency'
+import { cardPricelessMarkerText } from './priceless'
 import type { TradeCardEntry } from './data-types'
 import { TradeCardRow } from './TradeCardRow'
 import { isCardSideways, resolveCardImageSources } from './image-sources'
@@ -204,6 +205,10 @@ export const TradeColumn: Component<TradeColumnProps> = (props) => {
 
   const suggestionPrice = (item: AutocompleteItem): string => {
     if (item.kind === 'search') return ''
+    // Same rule as the rows the suggestion becomes: a proxy or custom-art copy
+    // reads as its marker rather than as the printing's price.
+    const marker = cardPricelessMarkerText(t, item.entry)
+    if (marker !== undefined) return marker
     const price = item.entry.price
     if (price === undefined || price <= 0) return t('site.tradeColumn.priceUnavailable')
     return formatPrice(price, props.currency)

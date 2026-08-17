@@ -61,6 +61,8 @@ export const siteCardsMessages = {
   'site.card.atMaxQuantity': 'Already at maximum quantity',
   'site.card.buylistTitle': 'Buylist offer per copy (USD)',
   'site.card.buylistOffer': 'Buy {price}',
+  'site.card.markerProxy': 'PROXY',
+  'site.card.markerCustomArt': 'CUSTOM',
 
   // ── Card modal ────────────────────────────────────────────────────────
   'site.cardModal.aria': 'Card details: {name}',

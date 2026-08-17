@@ -18,14 +18,20 @@
  *   cheapest printing overall.
  *
  * An entry whose price resolves to 0 is "unpriced"; unpriced counts are
- * quantity-weighted, matching the public site's missing-price counts.
+ * quantity-weighted, matching the public site's missing-price counts. Two
+ * priceless entries are not gaps in the data: a proxy is not a real card, and a
+ * card wearing custom art is not the printing a price could be quoted for.
+ * Both price at 0 by rule and are left out of the unpriced counts.
  */
 
 import { compareData } from './i18n/collate'
 
 import * as fs from 'node:fs/promises'
+import { loadCardArt, type CardArtMap } from './card-art'
+import { effectiveLabels, pricelessReason, PRICELESS_REASONS, type CardLabel } from './card-labels'
 import { findPrinting, hasSpecificPrinting, type CardPrintingsLookup } from './card-printing'
 import { parseCollectionFile } from './collection-file'
+import { parseDeckFrontMatter } from './deck-file'
 import { displayFinish } from './finish-condition'
 import { isExtraSection } from './deck-format'
 import { loadDeckFile } from './importers/text-file'
@@ -68,7 +74,44 @@ export type PriceListEntry = {
    * copies against an English-only buylist.
    */
   language?: CardLanguage
+  /**
+   * The card's *effective* labels — its own override already resolved against
+   * the list's front-matter default, so nothing downstream needs the list to
+   * answer "is this a proxy?". Absent means no labels at all.
+   */
+  labels?: readonly CardLabel[]
+  /**
+   * Whether the list's `<name>.art.json` sidecar gives this card a custom
+   * image. The reference itself is not needed here — pricing only cares that
+   * the copy in hand is no longer the printing a quote would be for.
+   */
+  hasCustomArt?: boolean
   section: string
+}
+
+/** The fields that decide whether an entry is priceless by rule. */
+export type PricelessEntryFields = Pick<PriceListEntry, 'labels' | 'hasCustomArt'>
+
+/**
+ * Why an entry carries no price *by rule* — a statement about the card itself
+ * rather than about the price data — or `undefined` when it should be priced
+ * normally. Custom art wins over the proxy label when both apply: a card
+ * wearing art of its own is the more specific thing to say about it.
+ *
+ * Both report engines branch on this single answer, so "no price, no quote, no
+ * sale" is decided in exactly one place. That place is `pricelessReason` in
+ * `src/card-labels.ts`, which the site surfaces call with their own entry
+ * shapes — this is the price engine's spelling of the same rule.
+ */
+export function pricelessEntryReason(
+  entry: PricelessEntryFields,
+): ByRuleUnpricedReason | undefined {
+  return pricelessReason(entry.labels, entry.hasCustomArt === true)
+}
+
+/** Whether an entry is priceless by rule (see {@link pricelessEntryReason}). */
+export function isPricelessEntry(entry: PricelessEntryFields): boolean {
+  return pricelessEntryReason(entry) !== undefined
 }
 
 /** One list's entries, ready for pricing. */
@@ -84,12 +127,43 @@ export type LoadedPriceInputs = {
   warnings: string[]
 }
 
-export type UnpricedReason =
-  | 'no-printings'
-  | 'printing-not-found'
-  | 'currency-unavailable'
-  | 'finish-unpriced-in-currency'
-  | 'no-price-data'
+/**
+ * The reasons that report the *card* rather than a gap in the price data: a
+ * proxy is not a real card, and a card given custom art is not the printing a
+ * quote would be for. These are the reasons that do not count as unpriced, and
+ * the ones the surfaces render as a marker (`PROXY` / `CUSTOM`) in place of a
+ * price.
+ *
+ * The rule's own list, not a copy of it: a reason added to
+ * {@link PRICELESS_REASONS} is one `pricelessEntryReason` can return, so
+ * re-listing them here could only ever go out of date (a `satisfies` check
+ * catches a *wrong* member, never a missing one).
+ */
+export const BY_RULE_UNPRICED_REASONS = PRICELESS_REASONS
+
+export type ByRuleUnpricedReason = (typeof BY_RULE_UNPRICED_REASONS)[number]
+
+/**
+ * Why an entry carries no price. Every reason but the by-rule ones reports a
+ * gap between the entry and the price data.
+ */
+export const UNPRICED_REASONS = [
+  'no-printings',
+  'printing-not-found',
+  'currency-unavailable',
+  'finish-unpriced-in-currency',
+  'no-price-data',
+  ...BY_RULE_UNPRICED_REASONS,
+] as const
+
+export type UnpricedReason = (typeof UNPRICED_REASONS)[number]
+
+/** Whether a reason is one of the by-rule ones (narrowing, for display tables). */
+export function isByRuleUnpricedReason(
+  reason: UnpricedReason | undefined,
+): reason is ByRuleUnpricedReason {
+  return reason !== undefined && (BY_RULE_UNPRICED_REASONS as readonly string[]).includes(reason)
+}
 
 /** A single priced card line in the report. */
 export type PricedEntry = {
@@ -212,9 +286,15 @@ export type PriceCardSearchPayload = {
 /**
  * Flatten a deck's sections into pricing entries, excluding extras
  * (maybeboard/token sections) to match the public site's deck totals;
- * sideboards are included.
+ * sideboards are included. `listLabels` is the deck's front-matter default,
+ * which each line's own labels override; `art` is the deck's custom-art
+ * sidecar, whose keys are the lines' `&N` ids.
  */
-export function deckPriceEntries(deck: Pick<DeckData, 'sections'>): PriceListEntry[] {
+export function deckPriceEntries(
+  deck: Pick<DeckData, 'sections'>,
+  listLabels?: readonly CardLabel[],
+  art?: CardArtMap,
+): PriceListEntry[] {
   const entries: PriceListEntry[] = []
   for (const section of deck.sections) {
     if (isExtraSection(section.name)) continue
@@ -227,11 +307,36 @@ export function deckPriceEntries(deck: Pick<DeckData, 'sections'>): PriceListEnt
         finish: card.finish,
         condition: card.condition,
         language: card.language,
+        labels: labelsOrUndefined(card.labels, listLabels),
+        hasCustomArt: customArtFlag(art, card.cardId),
         section: section.name,
       })
     }
   }
   return entries
+}
+
+/**
+ * Whether a card line has custom art, as the optional flag the entry carries —
+ * `undefined` rather than `false` when it does not, so an entry says nothing
+ * about art it does not have (the same shape `labelsOrUndefined` produces).
+ * A line with no `&N` id cannot be in the sidecar at all.
+ */
+function customArtFlag(art: CardArtMap | undefined, cardId: number | undefined): true | undefined {
+  if (art === undefined || cardId === undefined) return undefined
+  return art.has(cardId) ? true : undefined
+}
+
+/**
+ * The effective labels of a card line, or `undefined` when it has none —
+ * pricing entries carry a label field only when there is something to say.
+ */
+function labelsOrUndefined(
+  override: readonly CardLabel[] | undefined,
+  listDefault: readonly CardLabel[] | undefined,
+): CardLabel[] | undefined {
+  const labels = effectiveLabels(override, listDefault)
+  return labels.length > 0 ? labels : undefined
 }
 
 export async function loadPriceListInputs(
@@ -243,10 +348,24 @@ export async function loadPriceListInputs(
   const warnings: string[] = []
 
   for (const location of resolvedLocations) {
+    // Custom art is per-list metadata in a sidecar, and it prices a card at 0
+    // the way the proxy label does, so every list is read alongside its lines.
+    // An unreadable sidecar is a warning, not a failure: the lines still price.
+    const loadedArt = await loadCardArt(location.filePath)
+    if (!loadedArt.ok) warnings.push(`${location.name}: ${loadedArt.message}`)
+    const art: CardArtMap = loadedArt.ok ? loadedArt.art : new Map()
+
     if (location.type === 'deck') {
       const { deck, warnings: deckWarnings } = await loadDeckFile(location.filePath)
       warnings.push(...deckWarnings.map((w) => `${location.name}: ${w}`))
-      inputs.push({ type: 'deck', name: location.name, entries: deckPriceEntries(deck) })
+      // The deck body carries no front matter, so the list's default labels are
+      // read separately — the same second parse the deck load route does.
+      const frontMatter = await parseDeckFrontMatter(location.filePath)
+      inputs.push({
+        type: 'deck',
+        name: location.name,
+        entries: deckPriceEntries(deck, frontMatter.labels, art),
+      })
       continue
     }
 
@@ -266,6 +385,8 @@ export async function loadPriceListInputs(
             finish: entry.finish,
             condition: entry.condition,
             language: entry.language,
+            labels: labelsOrUndefined(entry.labels, parsed.labels),
+            hasCustomArt: customArtFlag(art, entry.cardId),
             section: entry.section,
           }),
         ),
@@ -285,6 +406,7 @@ export async function loadPriceListInputs(
           collectorNumber: entry.collectorNumber,
           finish: entry.finish,
           language: entry.language,
+          hasCustomArt: customArtFlag(art, entry.cardId),
           section: entry.section,
         }),
       ),
@@ -363,6 +485,13 @@ function priceEntry(
     fileOrder,
   }
 
+  // Judged before any price lookup: a proxy and a card wearing custom art are
+  // priced at 0 by rule, not for want of data, so no printing of either may
+  // quote a price and no cache gap of the name may be reported against it.
+  const byRuleReason = pricelessEntryReason(entry)
+  if (byRuleReason) {
+    return { ...base, unpricedReason: byRuleReason }
+  }
   if (pricing.printings.length === 0) {
     return { ...base, unpricedReason: 'no-printings' }
   }
@@ -419,14 +548,21 @@ function priceEntry(
   }
 }
 
-/** Sum totals over any set of priced entries. */
+/**
+ * Sum totals over any set of priced entries. Proxies and custom-art cards
+ * count as cards but never as unpriced ones: "3 unpriced" must mean three cards
+ * whose price could not be found, not three the user built out of paper or gave
+ * art of their own on purpose.
+ */
 export function sumPricedEntries(entries: PricedEntry[]): PriceTotals {
   const totals: PriceTotals = { cardCount: 0, total: 0, lowestTotal: 0, unpricedCount: 0 }
   for (const entry of entries) {
     totals.cardCount += entry.quantity
     totals.total += entry.price * entry.quantity
     totals.lowestTotal += entry.lowest * entry.quantity
-    if (entry.price <= 0) totals.unpricedCount += entry.quantity
+    if (entry.price <= 0 && !isByRuleUnpricedReason(entry.unpricedReason)) {
+      totals.unpricedCount += entry.quantity
+    }
   }
   return totals
 }

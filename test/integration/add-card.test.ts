@@ -1344,7 +1344,20 @@ describe('add-card --label (Integration)', () => {
     expect(changelog).toContain('- Added "Lightning Bolt" (STA:42) [etched] &2')
   })
 
-  test('rejects --label on a deck target', async () => {
+  test('a deck add carries a proxy label onto the new line', async () => {
+    const result = await runCli(
+      ['add-card', '--deck', 'test', 'Sol', 'Ring', '--label', 'proxy', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as AddCardPayload & { labels?: string[] }
+    expect(json.labels).toEqual(['proxy'])
+
+    const content = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+    expect(content).toMatch(/1 Sol Ring.*\[proxy\] &\d+/)
+  })
+
+  test('rejects a collection-only label on a deck target', async () => {
     const result = await runCli(
       ['add-card', '--deck', 'test', 'Sol', 'Ring', '--label', 'sale', '--output', 'json'],
       dir,
@@ -1352,7 +1365,7 @@ describe('add-card --label (Integration)', () => {
     expect(result.exitCode).toBe(2)
     const err = JSON.parse(result.stderr) as CliErrorPayload
     expect(err.error.code).toBe('usage_error')
-    expect(err.error.message).toContain('--label only applies to collections')
+    expect(err.error.message).toContain('Decks only carry these labels: proxy')
   })
 
   test('rejects an illegal combination at parse time', async () => {

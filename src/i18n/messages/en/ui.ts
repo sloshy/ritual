@@ -213,6 +213,7 @@ export const uiMessages = {
   'ui.cardMenu.changePrinting': 'Change Printing…',
   'ui.cardMenu.setLabel': 'Set Label…',
   'ui.cardMenu.setLanguage': 'Set Language…',
+  'ui.cardMenu.setCustomArt': 'Set Custom Art…',
   'ui.cardMenu.setCommander': 'Set as Commander',
   'ui.cardMenu.unsetCommander': 'Unset as Commander',
   'ui.cardMenu.moveToSection': 'Move to section…',
@@ -247,6 +248,12 @@ export const uiMessages = {
   'ui.addCard.priceUnknown': 'N/A',
   'ui.addCard.priceFoil': '{price} (foil)',
   'ui.addCard.priceEtched': '{price} (etched)',
+  'ui.addCard.optionsHeading': 'Card options',
+  'ui.addCard.labelField': 'Label',
+  'ui.addCard.artField': 'Custom art',
+  'ui.addCard.artPlaceholder': 'proxies/sol-ring.jpg or https://example.com/sol-ring.jpg',
+  'ui.addCard.artInvalid': 'That custom art is not usable: {reason}',
+  'ui.addCard.artPendingNote': 'Custom art is written when you save the list.',
 
   // ── Footer key hints (add-card dialog) ────────────────────────────────
   //

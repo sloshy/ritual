@@ -85,7 +85,7 @@ const CLEARED_NOTE_LINE_REGEX = /^-\s+Cleared\s+note\s+on\s+(.+?)(?:\s+&\d+)?\s*
  * body is the canonical card-line vocabulary, so the alternation mirrors it.
  */
 const SET_LABELS_LINE_REGEX =
-  /^-\s+Set\s+labels\s+on\s+(.+?)(?:\s+&\d+)?\s+to\s+\[((?:sale|trade|keep)(?:,(?:sale|trade|keep))*)\]\s*$/
+  /^-\s+Set\s+labels\s+on\s+(.+?)(?:\s+&\d+)?\s+to\s+\[((?:sale|trade|keep|proxy)(?:,(?:sale|trade|keep|proxy))*)\]\s*$/
 /** Matches `Cleared labels on "Card Name" &5`. */
 const CLEARED_LABELS_LINE_REGEX = /^-\s+Cleared\s+labels\s+on\s+(.+?)(?:\s+&\d+)?\s*$/
 /**

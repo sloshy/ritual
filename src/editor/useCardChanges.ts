@@ -1,4 +1,4 @@
-import { type Accessor, createSignal, createMemo } from 'solid-js'
+import { type Accessor, batch, createSignal, createMemo } from 'solid-js'
 import type { Finish } from '../types'
 import type { ChangeInput } from '../change-event'
 import {
@@ -6,6 +6,7 @@ import {
   type CardPrintingOptions,
   type PrintingTuple,
   type ListRef,
+  type RemoveChange,
   createChangeId,
   areOppositeChanges,
   consolidateSetFinish,
@@ -16,6 +17,30 @@ import {
 } from '../change-event'
 import type { CardLabel } from '../card-labels'
 import type { CardLanguage } from '../card-language'
+
+/**
+ * What an add (or the record of what a remove took away) may carry beyond the
+ * printing: the line's label override. Labels ride the `add`/`remove` event
+ * itself so they land on the copy the change is about — and so a remove and a
+ * re-add under different overrides are not read as opposites.
+ */
+export type AddCardOptions = CardPrintingOptions & {
+  labels?: CardLabel[]
+}
+
+/**
+ * What an {@link UseCardChangesResult.addCard} did.
+ *
+ * `cancelled` is not merely "no change was recorded": the pending removal it
+ * annulled names, through its `cardId`, the line that therefore survives — the
+ * only handle a caller has on the card the add actually landed on. Art picked
+ * at add time belongs on *that* line (a re-add that specifies art is one of the
+ * two ways art comes back after a removal), so the counterpart is surfaced
+ * rather than folded into a bare `null`.
+ */
+export type AddCardResult =
+  | { kind: 'added'; change: ChangeEvent }
+  | { kind: 'cancelled'; cancelled: RemoveChange | null }
 
 /**
  * Stores enough context to fully reverse a single user action.
@@ -44,10 +69,28 @@ export type UseCardChangesResult<T = unknown> = {
   canUndo: Accessor<boolean>
   undo: () => UndoResult<T> | null
   undoStack: Accessor<UndoEntry<T>[]>
-  incrementCard: (cardName: string, cardId?: number) => void
-  decrementCard: (cardName: string, cardId?: number, removedCardData?: T) => void
-  addCard: (cardName: string, options?: CardPrintingOptions) => void
-  removeCard: (cardName: string, options?: CardPrintingOptions, removedCardData?: T) => void
+  /**
+   * Drop one copy. `labels` is the override the line being decremented carries,
+   * recorded on the change so a re-add under a different override does not
+   * cancel it (see {@link RemoveChange.labels}).
+   */
+  decrementCard: (
+    cardName: string,
+    cardId?: number,
+    removedCardData?: T,
+    labels?: CardLabel[],
+  ) => void
+  /**
+   * Add a copy, optionally under a label override the new line starts with.
+   *
+   * Reports the recorded `add`, or the pending removal it cancelled instead
+   * (see {@link areOppositeChanges}) — in which case the session leaves the line
+   * exactly as the file has it, and a caller staging anything against the id it
+   * allocated (custom art) must take that back and aim it at the surviving line
+   * named by the cancelled removal.
+   */
+  addCard: (cardName: string, options?: AddCardOptions) => AddCardResult
+  removeCard: (cardName: string, options?: AddCardOptions, removedCardData?: T) => void
   /** Record a move of a card out of this list into another list (`to`). */
   moveCardToList: (
     cardName: string,
@@ -89,7 +132,13 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
   let changesRef: ChangeEvent[] = []
   let undoStackRef: UndoEntry<T>[] = []
 
-  function addChange(partial: ChangeInput, removedCardData?: T): ChangeEvent | null {
+  /**
+   * Record one change, cancelling a pending opposite instead when there is one,
+   * and report both halves. `addChange` is the public half of this and keeps
+   * returning only what was added; {@link addCard} needs the cancelled event
+   * too, because its `cardId` is the line that survived.
+   */
+  function recordChange(partial: ChangeInput, removedCardData?: T): UndoEntry<T> {
     const newEvent = {
       ...partial,
       id: createChangeId(),
@@ -109,12 +158,22 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
       changesRef = [...changesRef, newEvent]
     }
 
-    undoStackRef = [...undoStackRef, { addedChange, cancelledChange, removedCardData }]
+    const entry: UndoEntry<T> = { addedChange, cancelledChange, removedCardData }
+    undoStackRef = [...undoStackRef, entry]
 
-    setChanges([...changesRef])
-    setUndoStack([...undoStackRef])
+    // One update cycle rather than two: the card list and the undo button both
+    // repaint from this, and every caller outside the add flow's own `batch`
+    // would otherwise pay for a second pass.
+    batch(() => {
+      setChanges([...changesRef])
+      setUndoStack([...undoStackRef])
+    })
 
-    return addedChange
+    return entry
+  }
+
+  function addChange(partial: ChangeInput, removedCardData?: T): ChangeEvent | null {
+    return recordChange(partial, removedCardData).addedChange
   }
 
   function loadChanges(loaded: ChangeEvent[]) {
@@ -154,19 +213,25 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     return { entry, remainingChanges: changesRef }
   }
 
-  function incrementCard(cardName: string, cardId?: number) {
-    addChange({ action: 'add', cardName, cardId })
+  function decrementCard(
+    cardName: string,
+    cardId?: number,
+    removedCardData?: T,
+    labels?: CardLabel[],
+  ) {
+    addChange({ action: 'remove', cardName, cardId, labels }, removedCardData)
   }
 
-  function decrementCard(cardName: string, cardId?: number, removedCardData?: T) {
-    addChange({ action: 'remove', cardName, cardId }, removedCardData)
+  function addCard(cardName: string, options?: AddCardOptions): AddCardResult {
+    const { addedChange, cancelledChange } = recordChange({ action: 'add', cardName, ...options })
+    if (addedChange !== null) return { kind: 'added', change: addedChange }
+    // Only a `remove` is ever the opposite of an `add` (see areOppositeChanges),
+    // so the narrowing here can never actually discard a cancellation.
+    const removed = cancelledChange?.action === 'remove' ? cancelledChange : null
+    return { kind: 'cancelled', cancelled: removed }
   }
 
-  function addCard(cardName: string, options?: CardPrintingOptions) {
-    addChange({ action: 'add', cardName, ...options })
-  }
-
-  function removeCard(cardName: string, options?: CardPrintingOptions, removedCardData?: T) {
+  function removeCard(cardName: string, options?: AddCardOptions, removedCardData?: T) {
     addChange({ action: 'remove', cardName, ...options }, removedCardData)
   }
 
@@ -276,7 +341,6 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     canUndo,
     undo,
     undoStack,
-    incrementCard,
     decrementCard,
     addCard,
     removeCard,

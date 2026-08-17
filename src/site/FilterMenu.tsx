@@ -18,7 +18,7 @@ import {
   type NumericComparator,
   type NumericFilterParse,
 } from './card-filters'
-import { CARD_LABEL_DISPLAY_NAMES } from '../card-labels'
+import { CARD_LABEL_DISPLAY_NAMES, type CardLabelSelection } from '../card-labels'
 import { type PriceCurrency, getCurrencySymbol } from '../price-currency'
 import type { MessageKey } from '../i18n/messages/en'
 import { useT } from '../ui/i18n'
@@ -311,8 +311,14 @@ export interface FilterMenuProps {
   artTagOptions: string[]
   /** Show the "Hide Extras" toggle (deck pages only). */
   showHideExtras?: boolean
-  /** Show the Labels chip row (collection-bearing views only). */
+  /** Show the Labels chip row (label-bearing views only). */
   showLabelsFilter?: boolean
+  /**
+   * Which label chips the row offers. Omitted means all of them — a page whose
+   * lists carry only part of the vocabulary (decks take `proxy` alone) names
+   * its subset so the row never offers a chip that can match nothing.
+   */
+  availableLabels?: readonly CardLabelSelection[]
   /** Show the Buylist chip row (sell mode only). */
   showBuylistFilter?: boolean
 }
@@ -325,7 +331,7 @@ type ChipCopy<T extends string> = { value: T; labelKey: PlainMessageKey; titleKe
  * with every other label surface (`CARD_LABEL_DISPLAY_NAMES`), so the chips and
  * the badges on the cards can never disagree.
  *
- * `keep` and `none` replace the whole selection when picked —
+ * `keep`, `proxy`, and `none` replace the whole selection when picked —
  * `toggleLabelFilterOption` enforces it — so the titles say so rather than
  * letting the chips silently deselect each other.
  */
@@ -345,8 +351,26 @@ const LABEL_FILTER_COPY = [
     labelKey: CARD_LABEL_DISPLAY_NAMES.keep,
     titleKey: 'site.filter.labelKeepTitle',
   },
+  {
+    value: 'proxy',
+    labelKey: CARD_LABEL_DISPLAY_NAMES.proxy,
+    titleKey: 'site.filter.labelProxyTitle',
+  },
   { value: 'none', labelKey: 'site.filter.labelUnlabeled', titleKey: 'site.filter.labelNoneTitle' },
 ] as const satisfies readonly ChipCopy<LabelFilterOption>[]
+
+/**
+ * The chips a page actually offers: the whole row unless the caller names a
+ * subset, which a page whose lists cannot carry every label does (a deck takes
+ * `proxy` alone). Filtering the copy table rather than holding a second one
+ * keeps the wording and the order in one place.
+ */
+function labelChipCopy(
+  available: readonly CardLabelSelection[] | undefined,
+): readonly ChipCopy<LabelFilterOption>[] {
+  if (!available) return LABEL_FILTER_COPY
+  return LABEL_FILTER_COPY.filter((chip) => available.includes(chip.value))
+}
 
 /** The buylist filter's chips, in canonical order. The two combine freely (OR). */
 const BUYLIST_FILTER_COPY = [
@@ -542,6 +566,7 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
           artTagOptions={props.artTagOptions}
           showHideExtras={props.showHideExtras}
           showLabelsFilter={props.showLabelsFilter}
+          availableLabels={props.availableLabels}
           showBuylistFilter={props.showBuylistFilter}
         />
       </AdaptiveMenu>
@@ -725,7 +750,7 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         <ChipFilterRow
           label={t('site.filter.labels')}
           ariaLabel={t('site.filter.labelMode')}
-          options={chipOptions(LABEL_FILTER_COPY, t)}
+          options={chipOptions(labelChipCopy(props.availableLabels), t)}
           selected={props.filters.filters.labels}
           onToggle={(value) =>
             props.filters.update({

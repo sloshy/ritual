@@ -1,6 +1,6 @@
 /**
  * Writing a deck's front-matter metadata — the one path every surface that
- * edits `description`/`tags`/`format`/`sourceId`/`sourceUrl` goes through: the
+ * edits `description`/`tags`/`format`/`labels`/`sourceId`/`sourceUrl` goes through: the
  * admin route `PUT /api/metadata/:type/:slug` (and therefore the MCP
  * `set_list_metadata` tool), and the `deck-sync link` CLI command.
  *
@@ -10,6 +10,7 @@
  * what lives here is the vocabulary of writable keys and how a patch merges.
  */
 
+import type { CardLabel } from './card-labels'
 import { parseDeckFrontMatter, writeDeckFrontMatter, type DeckFrontMatter } from './deck-file'
 import type { DeckFormatKey } from './deck-format'
 
@@ -18,6 +19,7 @@ export const DECK_METADATA_KEYS = [
   'description',
   'tags',
   'format',
+  'labels',
   'sourceId',
   'sourceUrl',
 ] as const
@@ -40,6 +42,8 @@ export type DeckMetadataPatch = {
   description?: string | null
   tags?: string[] | null
   format?: DeckFormatKey | null
+  /** The deck's default card labels; `null` (or an empty set) clears them. */
+  labels?: CardLabel[] | null
   sourceId?: string | null
   sourceUrl?: string | null
 }

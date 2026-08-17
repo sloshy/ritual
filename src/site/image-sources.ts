@@ -16,10 +16,19 @@ export function isCardSideways(card: ScryfallCard | null | undefined): boolean {
   return frontType.includes('Room') || frontType.includes('Battle')
 }
 
+/**
+ * Thumbnail URL for a card, or null when it has no resolvable image.
+ *
+ * `customArt` — a list entry's baked custom art (`art/<relpath>` or a verbatim
+ * URL) — replaces it outright, and does so even for a card that resolved to
+ * nothing: the art is the entry's own, not the printing's.
+ */
 export function resolveCardThumbnailUrl(
   card: ScryfallCard | null,
   useScryfallImgUrls: boolean,
+  customArt?: string,
 ): string | null {
+  if (customArt) return customArt
   if (!card) return null
   if (useScryfallImgUrls) {
     return card.image_uris?.small ?? card.card_faces?.[0]?.image_uris?.normal ?? null
@@ -28,10 +37,21 @@ export function resolveCardThumbnailUrl(
   return hasFrontImage ? `images/${card.id}.jpg` : null
 }
 
+/**
+ * Front/back image URLs for a card.
+ *
+ * `customArt` replaces the **front** image only: a custom face is one image, and
+ * a double-faced card keeps the real back so the flip control still shows the
+ * printing's other side.
+ */
 export function resolveCardImageSources(
   card: ScryfallCard,
   useScryfallImgUrls: boolean,
+  customArt?: string,
 ): CardImageSources {
+  if (customArt) {
+    return { ...resolveCardImageSources(card, useScryfallImgUrls), frontImage: customArt }
+  }
   const isDFC = isDoubleFacedCard(card)
 
   if (useScryfallImgUrls) {
@@ -72,14 +92,20 @@ export interface CardPreview {
   sideways: boolean
 }
 
-/** Resolve the hover-preview image + orientation for a card, or empties when absent. */
+/**
+ * Resolve the hover-preview image + orientation for a card, or empties when
+ * absent. `customArt` replaces the image exactly as it does elsewhere; the
+ * sideways flag stays the card's, since the preview is still rotated by what
+ * the *card* is (a Battle), not by what art was substituted for it.
+ */
 export function resolveCardPreview(
   card: ScryfallCard | null,
   useScryfallImgUrls: boolean,
+  customArt?: string,
 ): CardPreview {
-  if (!card) return { image: '', sideways: false }
+  if (!card) return { image: customArt ?? '', sideways: false }
   return {
-    image: resolveCardImageSources(card, useScryfallImgUrls).frontImage,
+    image: resolveCardImageSources(card, useScryfallImgUrls, customArt).frontImage,
     sideways: isCardSideways(card),
   }
 }

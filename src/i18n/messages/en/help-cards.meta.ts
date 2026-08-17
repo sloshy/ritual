@@ -54,7 +54,7 @@ export const helpCardsMeta = {
   },
   'help.addCard.label': {
     description:
-      'Help for add-card --label. "sale", "trade" and "keep" are persisted label slugs and never translate.',
+      'Help for add-card --label. "sale", "trade", "keep" and "proxy" are persisted label slugs and never translate.',
   },
   'help.addCard.section': { description: 'Help for add-card --section (deck sections only).' },
   'help.addCard.commander': {
@@ -99,7 +99,12 @@ export const helpCardsMeta = {
       'Help for set-card --condition. {choices} is the comma-joined grade list; NONE clears a recorded grade.',
   },
   'help.setCard.label': {
-    description: 'Help for set-card --label. The label slugs and "none" are machine values.',
+    description:
+      'Help for set-card --label. The label slugs and "none" are machine values; decks carry "proxy" alone.',
+  },
+  'help.setCard.art': {
+    description:
+      'Help for set-card --art, which records a replacement image for one card. "none" is a machine value; the art directory is the configured artDir.',
   },
   'help.setCard.section': { description: 'Help for set-card --section (decks only).' },
   'help.setCard.commander': { description: 'Help for set-card --commander (decks only).' },

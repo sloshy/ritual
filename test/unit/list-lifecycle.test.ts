@@ -122,7 +122,7 @@ describe('list-lifecycle engine', () => {
   })
 
   describe('renameList', () => {
-    test('moves the file with its changelog and primer sidecars and drops the old .sha256', async () => {
+    test('moves the file with its changelog, primer and art sidecars and drops the old .sha256', async () => {
       const oldPath = path.join(decksDir, 'Old Deck.md')
       const oldContent = '---\nname: "Old Deck"\nformat: commander\n---\n\n# Old Deck\n\n## Main\n'
       await fs.writeFile(oldPath, oldContent)
@@ -131,6 +131,10 @@ describe('list-lifecycle engine', () => {
       await fs.writeFile(`${oldPath}.sha256`, computeHash(oldContent) + '\n')
       await fs.writeFile(path.join(decksDir, 'Old Deck.changes.md'), '# Changelog\n')
       await fs.writeFile(path.join(decksDir, 'Old Deck.primer.md'), '# Primer\n')
+      await fs.writeFile(
+        path.join(decksDir, 'Old Deck.art.json'),
+        '{\n  "1": { "url": "https://example.test/a.png" }\n}\n',
+      )
 
       const result = unwrap<RenameListSuccess>(await renameList('deck', oldPath, 'New Deck'))
 
@@ -144,12 +148,14 @@ describe('list-lifecycle engine', () => {
       expect(await exists(`${oldPath}.sha256`)).toBe(false)
       expect(await exists(path.join(decksDir, 'Old Deck.changes.md'))).toBe(false)
       expect(await exists(path.join(decksDir, 'Old Deck.primer.md'))).toBe(false)
+      expect(await exists(path.join(decksDir, 'Old Deck.art.json'))).toBe(false)
 
       // New file, fresh hash, moved sidecars.
       expect(await exists(newPath)).toBe(true)
       expect(await exists(`${newPath}.sha256`)).toBe(true)
       expect(await exists(path.join(decksDir, 'New Deck.changes.md'))).toBe(true)
       expect(await exists(path.join(decksDir, 'New Deck.primer.md'))).toBe(true)
+      expect(await exists(path.join(decksDir, 'New Deck.art.json'))).toBe(true)
 
       // Display name rewritten in front matter (canonical gray-matter form,
       // matching every deck save) and legacy H1.
@@ -286,12 +292,16 @@ describe('list-lifecycle engine', () => {
       expect((await fs.stat(newPath)).ino).toBe(originalInode)
     })
 
-    test('a same-file destination moves the .sha256 and primer sidecars too', async () => {
+    test('a same-file destination moves the .sha256, primer and art sidecars too', async () => {
       const filePath = path.join(decksDir, 'burn.md')
       const content = '---\nname: burn\nformat: modern\n---\n\n# burn\n\n## Main\n'
       await fs.writeFile(filePath, content)
       await fs.writeFile(`${filePath}.sha256`, computeHash(content) + '\n')
       await fs.writeFile(path.join(decksDir, 'burn.primer.md'), '# Primer\n')
+      await fs.writeFile(
+        path.join(decksDir, 'burn.art.json'),
+        '{\n  "1": { "file": "burn.jpg" }\n}\n',
+      )
       const originalInode = (await fs.stat(filePath)).ino
 
       const result = unwrap<RenameListSuccess>(
@@ -303,6 +313,8 @@ describe('list-lifecycle engine', () => {
       expect(await exists(`${newPath}.sha256`)).toBe(true)
       expect(await exists(path.join(decksDir, 'Burn.primer.md'))).toBe(true)
       expect(await exists(path.join(decksDir, 'burn.primer.md'))).toBe(false)
+      expect(await exists(path.join(decksDir, 'Burn.art.json'))).toBe(true)
+      expect(await exists(path.join(decksDir, 'burn.art.json'))).toBe(false)
       // The hash was refreshed for the rewritten display name, so the file stays
       // Ritual-clean.
       const renamed = await fs.readFile(newPath, 'utf-8')
@@ -343,7 +355,7 @@ describe('list-lifecycle engine', () => {
   })
 
   describe('deleteList', () => {
-    test('removes the file and all three sidecars, including the .sha256 hash', async () => {
+    test('removes the file and every sidecar, including the .sha256 hash', async () => {
       // Pins the fix for the old admin deck-delete handler, which hand-rolled the
       // sidecar paths and orphaned the .sha256 sidecar on deck deletion.
       const filePath = path.join(decksDir, 'Doomed.md')
@@ -351,6 +363,10 @@ describe('list-lifecycle engine', () => {
       await fs.writeFile(`${filePath}.sha256`, 'hash\n')
       await fs.writeFile(path.join(decksDir, 'Doomed.changes.md'), '# Changelog\n')
       await fs.writeFile(path.join(decksDir, 'Doomed.primer.md'), '# Primer\n')
+      await fs.writeFile(
+        path.join(decksDir, 'Doomed.art.json'),
+        '{\n  "1": { "file": "d.jpg" }\n}\n',
+      )
 
       const result = unwrap<DeleteListSuccess>(await deleteList('deck', filePath))
 
@@ -359,11 +375,13 @@ describe('list-lifecycle engine', () => {
         `${filePath}.sha256`,
         path.join(decksDir, 'Doomed.changes.md'),
         path.join(decksDir, 'Doomed.primer.md'),
+        path.join(decksDir, 'Doomed.art.json'),
       ])
       expect(await exists(filePath)).toBe(false)
       expect(await exists(`${filePath}.sha256`)).toBe(false)
       expect(await exists(path.join(decksDir, 'Doomed.changes.md'))).toBe(false)
       expect(await exists(path.join(decksDir, 'Doomed.primer.md'))).toBe(false)
+      expect(await exists(path.join(decksDir, 'Doomed.art.json'))).toBe(false)
     })
 
     test('only touches the files that exist', async () => {

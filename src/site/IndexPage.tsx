@@ -68,14 +68,15 @@ const ViewAllLink: Component<ViewAllLinkProps> = (props) => (
 )
 
 /**
- * A legal labels query for a menu entry. `keep` and `none` are exclusive
- * selections (see `toggleLabelFilterOption`), so spelling the combinations out
- * keeps an illegal entry a compile error rather than a link that quietly
- * applies no filter at all.
+ * A legal labels query for a menu entry. `keep`, `proxy`, and `none` are
+ * exclusive selections (see `toggleLabelFilterOption`), so spelling the
+ * combinations out keeps an illegal entry a compile error rather than a link
+ * that quietly applies no filter at all.
  */
 type LabelQuery =
   | readonly []
   | readonly ['keep']
+  | readonly ['proxy']
   | readonly ['none']
   | readonly ('sale' | 'trade')[]
 
@@ -97,6 +98,7 @@ const COLLECTION_VIEWS = [
   { label: 'site.index.viewAllTrade', query: ['trade'] },
   { label: 'site.index.viewAllSaleOrTrade', query: ['sale', 'trade'] },
   { label: 'site.index.viewAllKeep', query: ['keep'] },
+  { label: 'site.index.viewAllProxy', query: ['proxy'] },
 ] as const satisfies readonly CollectionView[]
 
 /**

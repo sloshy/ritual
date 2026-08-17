@@ -41,7 +41,8 @@ export type AddChange = BaseChange & {
   /** The added copy's language. Omitted means English (the bare-line default). */
   language?: CardLanguage
   /**
-   * Label override the new card starts with — collections only. Rides the add
+   * Label override the new card starts with, where the list type carries labels
+   * (see {@link SetLabelChange}). Rides the add
    * event itself (rather than a follow-up set-label) so the label lands on the
    * added copy and never on a same-named existing entry. Not annotated in the
    * changelog text line.
@@ -61,6 +62,15 @@ export type RemoveChange = BaseChange & {
   condition?: Condition
   /** The removed copy's language. Omitted means English (the bare-line default). */
   language?: CardLanguage
+  /**
+   * The label override the removed line carried, where the list type carries
+   * labels. Recorded so {@link areOppositeChanges} can treat label state as part
+   * of a card's identity: re-adding a `[proxy]` copy of a card that was removed
+   * as a real one is not the removal undone, and must not cancel it. Like
+   * {@link AddChange.labels} it is not annotated in the changelog text line, so a
+   * surface that does not know a line's labels may leave it absent.
+   */
+  labels?: CardLabel[]
   /** Deck board the card was removed from. Omitted/`Main` renders without annotation. */
   board?: Board
 }
@@ -105,7 +115,12 @@ export type SetLanguageChange = BaseChange & {
   language: CardLanguage
 }
 
-/** Collections only — deck and wanted entries carry no labels. */
+/**
+ * Applies wherever the list type carries labels — the whole vocabulary on a
+ * collection, `proxy` alone on a deck, never on a wanted list (see
+ * `LIST_TYPE_LABELS`). The write surfaces validate the set against the type;
+ * the event itself just carries it.
+ */
 export type SetLabelChange = BaseChange & {
   action: 'set-label'
   /** The new label override. An empty array clears it (the list default applies again). */
@@ -263,7 +278,11 @@ export type AddRemoveOptions = {
   condition?: Condition
   /** The copy's language. Omitted means English (the bare-line default). */
   language?: CardLanguage
-  /** Label override for the new card (collections only). Only consumed by `add`. */
+  /**
+   * The copy's label override, where the type carries labels: what an `add`
+   * starts the new card with, and what the line a `remove` takes away was
+   * carrying (see {@link RemoveChange.labels}).
+   */
   labels?: CardLabel[]
   cardId?: number
   /** Deck board the card was added to / removed from (e.g. `Sideboard`, `Maybeboard`). */
@@ -393,6 +412,7 @@ export function createRemoveChange(cardName: string, options?: AddRemoveOptions)
     finish: options?.finish,
     condition: options?.condition,
     language: options?.language,
+    labels: options?.labels,
     board: options?.board,
   }
 }
@@ -578,6 +598,14 @@ export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
   // Board must match — an absent board means the default Main board, so a
   // Sideboard add and a Main remove of the same card are not opposites.
   if ((ac.board ?? 'Main') !== (bc.board ?? 'Main')) return false
+
+  // Labels are part of the card's identity, not a decoration on it: cancelling a
+  // removal against a re-add that lands the card under a different override
+  // would silently keep the *old* line, override and all, and the re-add's
+  // `[proxy]` (or its absence) would never reach the file. An absent override
+  // and an empty one are the same thing, so a surface that carries no labels at
+  // all still cancels exactly as it did before.
+  if (!sameCardLabels(ac.labels, bc.labels)) return false
 
   return true
 }

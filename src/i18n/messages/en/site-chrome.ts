@@ -105,6 +105,7 @@ export const siteChromeMessages = {
   'site.filter.labelSaleTitle': 'Cards labeled for sale',
   'site.filter.labelTradeTitle': 'Cards labeled for trade',
   'site.filter.labelKeepTitle': 'Cards labeled to keep (never combined with the other labels)',
+  'site.filter.labelProxyTitle': 'Proxy cards (never combined with the other labels)',
   'site.filter.labelNoneTitle': 'Cards with no labels at all',
   'site.filter.buylist': 'Buylist',
   'site.filter.buylistMode': 'Buylist filter',
@@ -184,6 +185,7 @@ export const siteChromeMessages = {
   'site.index.viewAllTrade': 'View all for trade',
   'site.index.viewAllSaleOrTrade': 'View all for sale or trade',
   'site.index.viewAllKeep': 'View all to keep',
+  'site.index.viewAllProxy': 'View all proxies',
   'site.index.commander': 'Commander: {name}',
   'site.index.sortAlphabetical': 'Alphabetical',
   'site.index.sortRecent': 'Recently updated',
@@ -386,6 +388,9 @@ export const siteChromeMessages = {
   'site.themeVar.labelKeep.label': 'To keep',
   'site.themeVar.labelKeep.description':
     'Tone of the KEEP badge on collection cards labeled to keep, and the Keep tag on trade rows.',
+  'site.themeVar.labelProxy.label': 'Proxy',
+  'site.themeVar.labelProxy.description':
+    'Tone of the PROXY badge on cards labeled as proxies, which carry no value.',
   'site.themeVar.overlayLight.label': 'Light overlay',
   'site.themeVar.overlayLight.description':
     'Translucent dark scrim for shadows and small backdrops.',

@@ -26,19 +26,34 @@ import {
   COLLECTION_LINE_LABELS_GROUP,
   COLLECTION_LINE_LANGUAGE_GROUP,
 } from '../collection-file'
-import { parseCardLabelsToken, type CardLabel } from '../card-labels'
+import {
+  checkLabelsForListType,
+  parseCardLabelsToken,
+  sameCardLabels,
+  supportsAnyLabels,
+  unsupportedLabelsFor,
+  unsupportedLabelsMessage,
+  type CardLabel,
+} from '../card-labels'
 import {
   formatWantedListLine,
   WANTED_CARD_LINE_RE,
   WANTED_LINE_LANGUAGE_GROUP,
 } from './wanted-helpers'
 import { formatCollectionLine } from './collection-helpers'
-import { DECK_CARD_LINE_RE, DECK_LINE_LANGUAGE_GROUP } from '../importers/text-file'
+import {
+  DECK_CARD_LINE_RE,
+  DECK_LINE_ID_GROUP,
+  DECK_LINE_LABELS_GROUP,
+  DECK_LINE_LANGUAGE_GROUP,
+  DECK_LINE_NOTE_GROUP,
+} from '../importers/text-file'
 import { isCardLanguage, storedLanguage, type CardLanguage } from '../card-language'
 import { serializeCardLine } from '../deck-file'
 import { COMMANDER_SECTION, isCommanderSection, isSideboardSection } from '../deck-format'
 import { DEFAULT_SECTION } from '../types'
 import { hashPath, writeFileWithHash } from '../content-hash'
+import { reconcileCardArt, reconciledArtPath } from '../card-art'
 import { endsInsideOpenFence, frontMatterBodyStart, markFencedLines } from '../markdown-fence'
 import { appendChangelog } from '../changelog-writer'
 import { allocateNextIdFromContent } from '../card-id'
@@ -58,7 +73,11 @@ import type { CardMutationChange } from '../list-mutate'
 import type { EntryRef } from './card-target'
 
 export type TargetedMutateResult = {
-  /** Absolute paths the mutation wrote: the list file, its hash sidecar, and the changelog. */
+  /**
+   * Absolute paths the mutation wrote: the list file, its hash sidecar, the
+   * changelog, and — when the edit deleted a card line that had custom art —
+   * the list's `.art.json` sidecar.
+   */
   writtenFiles: string[]
 }
 
@@ -92,7 +111,35 @@ export async function applyTargetedChanges(
   await writeFileWithHash(filePath, newContent)
   const slug = path.basename(filePath, '.md')
   const changelogPath = await appendChangelog(filePath, slug, stamped)
-  return { writtenFiles: [filePath, hashPath(filePath), changelogPath] }
+  const writtenFiles = [filePath, hashPath(filePath), changelogPath]
+
+  // A deleted line releases its `&N` to the reuse pool, so custom art left
+  // filed under it would surface on whichever card takes the id next.
+  const gone = removedLineCardId(newContent, type, resolved, stamped)
+  if (gone !== undefined) {
+    const artPath = reconciledArtPath(await reconcileCardArt(filePath, { removed: [gone] }))
+    if (artPath !== undefined) writtenFiles.push(artPath)
+  }
+  return { writtenFiles }
+}
+
+/**
+ * The `&N` of a card line this batch deleted outright, if any: a `remove` change
+ * whose line is no longer in the written content. A deck decrement that left the
+ * line standing keeps its id — and its art — so it is not reported here.
+ */
+function removedLineCardId(
+  newContent: string,
+  type: ListType,
+  target: EntryRef,
+  changes: readonly CardMutationChange[],
+): number | undefined {
+  if (target.cardId === undefined) return undefined
+  if (!changes.some((change) => change.action === 'remove')) return undefined
+  const lines = newContent.split('\n')
+  return findTargetLineIndex(lines, type, { name: target.name, cardId: target.cardId }) === -1
+    ? target.cardId
+    : undefined
 }
 
 /**
@@ -119,13 +166,18 @@ export function applyTargetedChangesToContent(
   // token likewise, so a structurally-resolved note or printing edit on a
   // labeled line does not strip the override — and its `[ja]` language token
   // the same way, so a rewrite never silently anglicizes the entry.
-  const rewriteWith = (mutate: () => void): void => {
+  //
+  // `ownsLabels` marks the one change that is *about* the labels token
+  // (`set-label`): it writes the token wholesale, so neither the adoption nor
+  // the refusal below applies — refusing there would make a bad token
+  // unrepairable by the very command that exists to replace it.
+  const rewriteWith = (mutate: () => void, ownsLabels = false): void => {
     const idx = findTargetLineIndex(lines, type, entry)
     if (idx === -1) throw targetLineGone()
     entry.cardId ??= lineCardIdAt(lines, idx, type)
     entry.language ??= lineLanguageAt(lines, idx, type)
-    if (type === 'collection') {
-      const lineLabels = lineLabelsAt(lines, idx)
+    if (supportsAnyLabels(type) && !ownsLabels) {
+      const lineLabels = lineLabelsAt(lines, idx, type)
       if ('invalid' in lineLabels) throw conflictingLabelsToken(lineLabels.invalid)
       entry.labels ??= lineLabels.labels
     }
@@ -162,10 +214,10 @@ export function applyTargetedChangesToContent(
         })
         break
       case 'set-label':
-        requireCollection(type, change.action)
+        requireSupportedLabels(type, change.labels)
         rewriteWith(() => {
           entry.labels = change.labels.length > 0 ? change.labels : undefined
-        })
+        }, true)
         break
       case 'set-section':
         requireDeck(type, change.action)
@@ -235,11 +287,19 @@ function requireDeck(type: ListType, action: string): void {
   }
 }
 
-/** Label overrides are collection-line tokens only. */
-function requireCollection(type: ListType, action: string): void {
-  if (type !== 'collection') {
-    throw new Error(`applyTargetedChanges cannot apply '${action}' to a ${type}`)
-  }
+/**
+ * A label override may only name labels the list type carries — `proxy` on a
+ * deck, the whole vocabulary on a collection, none on a wanted list. An empty
+ * set (the clear) is legal wherever labels exist at all. Thrown as a plain
+ * Error like the other apply-path guards: reaching here means the caller's own
+ * flag/route validation let through a change its list type cannot express.
+ */
+function requireSupportedLabels(type: ListType, labels: readonly CardLabel[]): void {
+  const check = checkLabelsForListType(type, labels)
+  if (check.ok) return
+  throw new Error(
+    `applyTargetedChanges cannot apply this set-label: ${unsupportedLabelsMessage(type, check.unsupported)}`,
+  )
 }
 
 function findTargetLineIndex(lines: string[], type: ListType, target: EntryRef): number {
@@ -306,20 +366,34 @@ function lineLanguageAt(lines: string[], idx: number, type: ListType): CardLangu
 }
 
 /**
- * The labels token on a collection card line: absent or parsed (`labels`), or
- * present but refused by the parser (`invalid`, e.g. `[sale,keep]`) — the
- * caller must not rewrite such a line, since the re-serialize would silently
- * drop the token.
+ * The labels token on a card line: absent or parsed (`labels`), or present but
+ * refused (`invalid`, e.g. `[sale,keep]`, or a label the list type does not
+ * carry) — the caller must not rewrite such a line, since the re-serialize
+ * would silently drop the token.
  */
 type LineLabels = { labels: CardLabel[] | undefined } | { invalid: string }
 
-/** The labels token carried by the collection card line at `idx`, if any. */
-function lineLabelsAt(lines: string[], idx: number): LineLabels {
-  const m = lines[idx]!.trim().match(COLLECTION_CARD_LINE_RE)
-  const raw = m?.[COLLECTION_LINE_LABELS_GROUP]
+/** The grammar's labels capture-group index for a label-carrying list type. */
+function labelsGroup(type: ListType): number {
+  return type === 'deck' ? DECK_LINE_LABELS_GROUP : COLLECTION_LINE_LABELS_GROUP
+}
+
+/**
+ * Parse a card line's raw labels token against what `type` carries. A token the
+ * parser refuses (`[sale,keep]`) and one the type does not carry (`[keep]` on a
+ * deck) are the same answer here: the line must not be rewritten from it.
+ */
+function tokenLabels(raw: string | undefined, type: ListType): LineLabels {
   if (raw === undefined) return { labels: undefined }
   const parsed = parseCardLabelsToken(raw)
-  return parsed.ok ? { labels: parsed.labels } : { invalid: raw }
+  if (!parsed.ok || unsupportedLabelsFor(type, parsed.labels).length > 0) return { invalid: raw }
+  return { labels: parsed.labels }
+}
+
+/** The labels token carried by the card line at `idx`, if any. */
+function lineLabelsAt(lines: string[], idx: number, type: ListType): LineLabels {
+  const m = lines[idx]!.trim().match(cardLineRe(type))
+  return tokenLabels(m?.[labelsGroup(type)], type)
 }
 
 /** Thrown when the target line carries a labels token the parser refuses. */
@@ -345,6 +419,7 @@ function serializeEntryLine(type: ListType, entry: EntryRef): string {
       finish: entry.finish,
       condition: entry.condition,
       language: entry.language,
+      labels: entry.labels,
       note: entry.note,
       cardId: entry.cardId,
     })
@@ -406,11 +481,18 @@ function removeTargetCopies(
     )
     const remaining = lineQuantity - copies
     if (remaining > 0) {
+      const lineLabels = lineLabelsAt(lines, idx, type)
+      // A decrement rewrites the line, so a token the parser refuses would be
+      // deleted by it — the same silent loss `rewriteWith` refuses, and refused
+      // here for the same reason rather than left to a guard this path skips.
+      if ('invalid' in lineLabels) throw conflictingLabelsToken(lineLabels.invalid)
       const entry: EntryRef = {
         ...target,
         quantity: remaining,
         cardId: target.cardId ?? lineCardIdAt(lines, idx, type),
         language: target.language ?? lineLanguageAt(lines, idx, type),
+        // A decrement must not strip the line's `[proxy]` override.
+        labels: target.labels ?? lineLabels.labels,
       }
       return replaceLineAt(lines, idx, serializeEntryLine(type, entry))
     }
@@ -678,6 +760,7 @@ export async function applyDeckAdd(
     changes.push(
       createAddChange(card.name, {
         ...printingOptionsFrom(card),
+        labels: card.labels,
         // The section the copies actually landed in, which is not always the
         // requested one: copies merge onto an existing line wherever it lives.
         section: outcome.section,
@@ -696,8 +779,11 @@ export async function applyDeckAdd(
 /**
  * The line `card`'s copies should merge onto: the `&N` line when one is known,
  * otherwise a line for the same name whose printing (set, collector number,
- * finish, condition) is identical — the editor engine's `findCardForAdd` rule,
- * which keeps a differently-printed copy as its own line.
+ * finish, condition, language) **and label override** are identical — the
+ * editor engine's `findCardForAdd` rule, which keeps a differently-printed copy
+ * as its own line. Labels are part of that identity because they are part of
+ * what the copies *are*: a proxy must not disappear into the line holding the
+ * real card, nor confer its `[proxy]` on a real one added beside it.
  */
 function findDeckMergeLineIndex(
   lines: string[],
@@ -711,12 +797,19 @@ function findDeckMergeLineIndex(
     if (fenced[i]) continue
     const m = lines[i]!.trim().match(DECK_CARD_LINE_RE)
     if (!m) continue
-    const lineId = m[9] ? Number.parseInt(m[9], 10) : undefined
+    const rawId = m[DECK_LINE_ID_GROUP]
+    const lineId = rawId ? Number.parseInt(rawId, 10) : undefined
     if (cardId !== undefined) {
       if (lineId === cardId) return i
       continue
     }
     if (m[2]?.trim() !== card.name) continue
+    // A token this file cannot re-emit is never a merge target: the rewrite
+    // would delete it, and its labels cannot be compared against the incoming
+    // card's. The copies get their own line instead.
+    const lineLabels = tokenLabels(m[DECK_LINE_LABELS_GROUP], 'deck')
+    if ('invalid' in lineLabels) continue
+    if (!sameCardLabels(lineLabels.labels, card.labels)) continue
     // Language distinguishes variants like finish does — `isSamePrinting`
     // folds a missing token to `en` on both sides, so a `[ja]` line never
     // absorbs an English add.
@@ -737,11 +830,17 @@ function findDeckMergeLineIndex(
  * Read a deck card line back into an {@link EntryRef} — every field the line
  * carries, including the `{note}` and `&N` a merging add must preserve.
  * Returns undefined for a line that is not a card line.
+ *
+ * Throws {@link conflictingLabelsToken} for a line whose labels token the
+ * parser (or the deck vocabulary) refuses: the caller is about to rewrite this
+ * line, and a dropped token would take the user's override with it — the same
+ * refusal the edit paths make in `rewriteWith`.
  */
 function parseDeckLineEntry(line: string): EntryRef | undefined {
   const m = line.trim().match(DECK_CARD_LINE_RE)
   if (!m) return undefined
   const rawLanguage = m[DECK_LINE_LANGUAGE_GROUP]
+  const rawId = m[DECK_LINE_ID_GROUP]
   return {
     name: m[2]!.trim(),
     quantity: Number.parseInt(m[1] ?? '1', 10),
@@ -750,9 +849,21 @@ function parseDeckLineEntry(line: string): EntryRef | undefined {
     finish: isFinish(m[5]) ? m[5] : undefined,
     condition: isCondition(m[6]) ? m[6] : undefined,
     language: rawLanguage && isCardLanguage(rawLanguage) ? rawLanguage : undefined,
-    note: noteOrUndefined(m[8]),
-    cardId: m[9] ? Number.parseInt(m[9], 10) : undefined,
+    labels: deckLineLabels(m[DECK_LINE_LABELS_GROUP]),
+    note: noteOrUndefined(m[DECK_LINE_NOTE_GROUP]),
+    cardId: rawId ? Number.parseInt(rawId, 10) : undefined,
   }
+}
+
+/**
+ * A deck line's labels token, parsed — `undefined` for a line with no token.
+ * A token the deck grammar refuses throws rather than resolving to "no labels":
+ * the caller is rewriting this line, and "no labels" would delete the override.
+ */
+function deckLineLabels(raw: string | undefined): CardLabel[] | undefined {
+  const result = tokenLabels(raw, 'deck')
+  if ('invalid' in result) throw conflictingLabelsToken(result.invalid)
+  return result.labels
 }
 
 /**

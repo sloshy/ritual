@@ -91,6 +91,7 @@ export const MOCK_CONFIG = {
   decksDir: './decks',
   collectionsDir: './collections',
   wantedDir: './wanted',
+  artDir: './art',
   defaultCurrency: 'eur',
   defaultLanguage: 'en',
   uiLocale: localeTag('en'),

@@ -4,6 +4,9 @@ import {
   expect,
   test as bunTest,
 } from 'bun:test'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import * as path from 'node:path'
 import type { ApplyChange, MissReason } from '../src/editor/apply-batch'
 import {
   type HttpClient,
@@ -465,6 +468,24 @@ export function stubTty(streams: TtyStubs): void {
     process.stdin.isTTY = original.stdin
     process.stdout.isTTY = original.stdout
   })
+}
+
+/** Created once per test process, the first time {@link scratchListPath} is asked for one. */
+let scratchListDir: string | undefined
+
+/**
+ * An absolute path, inside a real but empty temp directory, for a list file the
+ * test never writes.
+ *
+ * Sessions read their custom-art sidecar (`<file>.art.json`) lazily, so a
+ * session pointed at a made-up absolute path like `/collections/binder.md`
+ * makes a unit test's result depend on what happens to sit at `/collections`
+ * on the machine running it. Pointing at a fresh temp directory keeps "no
+ * sidecar" a property of the fixture.
+ */
+export function scratchListPath(name: string): string {
+  scratchListDir ??= mkdtempSync(path.join(tmpdir(), 'ritual-scratch-list-'))
+  return path.join(scratchListDir, name)
 }
 
 /** Minimal in-memory localStorage stand-in for the test environment. */

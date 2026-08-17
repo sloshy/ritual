@@ -102,6 +102,14 @@ export const siteCardsMeta = {
     description:
       'The buyer\'s per-copy offer shown beside the retail price. "Buy" is what the store does, not the reader. {price} is already formatted with its currency.',
   },
+  'site.card.markerProxy': {
+    description:
+      'Shown in place of a price on a card labeled as a proxy, which is not a real card and so is worth nothing. All-caps like a stamp; keep it short enough for a price column.',
+  },
+  'site.card.markerCustomArt': {
+    description:
+      'Shown in place of a price on a card given custom art, which is no longer the printing a price would be for. All-caps like a stamp; keep it short enough for a price column. Takes precedence over the proxy marker when a card is both.',
+  },
 
   // ── Card modal ────────────────────────────────────────────────────────
   'site.cardModal.aria': {

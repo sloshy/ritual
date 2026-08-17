@@ -11,10 +11,12 @@ import { changeCardNames, refuseUnknownCardNames } from './card-name-check'
 import { applyOutgoingMoves } from './move-save'
 import {
   apiError,
+  entryLineQuantities,
   PARTIAL_LOAD_HINT,
   readJsonObjectBody,
   validateContentHash,
   finishListSave,
+  listSaveOutcome,
   listSaveResponse,
   normalizeRequestLanguages,
   normalizeRequestNotes,
@@ -96,7 +98,7 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
 
     // Apply the destination side of any cross-list moves first; a bad destination
     // aborts before the source is rewritten.
-    const outgoing = await applyOutgoingMoves({ type: 'wanted', name: title }, changes)
+    const outgoing = await applyOutgoingMoves({ type: 'wanted', name: title }, filePath, changes)
 
     const order = sectionOrder ?? []
     // Ids are assigned here rather than only inside `wantedToMarkdown` (which
@@ -110,22 +112,20 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
       content: newContent,
       changelogName: slug,
       changes,
+      // Computed before the write: the tail re-files the list's custom art
+      // against the ids these effects report as freed or renumbered.
+      effects: computeEntrySaveEffects({
+        before: previousEntries,
+        after: idedEntries,
+        assignments,
+      }),
+      previousLineQuantities: entryLineQuantities(previousEntries),
       continueSession,
       extraFiles: outgoing.writtenFiles,
     }
-    const { contentHash: newContentHash } = await finishListSave(tail)
+    const saved = await finishListSave(tail)
 
-    return Response.json(
-      listSaveResponse(tail, {
-        contentHash: newContentHash,
-        droppedNotes: outgoing.droppedNotes,
-        effects: computeEntrySaveEffects({
-          before: previousEntries,
-          after: idedEntries,
-          assignments,
-        }),
-      }),
-    )
+    return Response.json(listSaveResponse(tail, listSaveOutcome(saved, outgoing)))
   } catch (error) {
     return apiError(getErrorMessage(error), 500)
   }

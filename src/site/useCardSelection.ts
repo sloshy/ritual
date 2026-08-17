@@ -1,6 +1,7 @@
 import { createSignal, type Accessor } from 'solid-js'
 import type { Finish, Condition, ScryfallCard } from '../types'
 import type { CardLabel } from '../card-labels'
+import { isPricelessCard } from './priceless'
 import type { CardLanguage } from '../card-language'
 import { getCardPriceForFinish, type PriceCurrency } from '../price-currency'
 
@@ -23,8 +24,23 @@ export interface SelectedCard {
   condition?: Condition
   /** The source line's language token, when present. Absent means `en`. */
   language?: CardLanguage
-  /** Effective card labels — collection tiles only; used by the trade keep-guard. */
+  /**
+   * The tile's effective labels (collection and deck tiles; wanted lists carry
+   * none). Read by the trade keep-guard and by the selection's own valuation,
+   * where a `proxy` copy counts as worth nothing.
+   */
   labels?: CardLabel[]
+  /**
+   * The tile's baked custom art, when it has any. Carried for the valuation and
+   * the sell quote, both of which refuse a copy that is not its printing.
+   */
+  customArt?: string
+  /**
+   * Whether the tile's entry has custom art at all. The valuation and the quote
+   * read this rather than the URL beside it: a reference whose file the build
+   * could not deploy shows the real printing and is still worth nothing.
+   */
+  hasCustomArt?: boolean
   note?: string
   /** Copies currently selected from this tile (1..groupSize). Removing copies lowers it. */
   quantity: number
@@ -124,11 +140,18 @@ const sumQuantities = (cards: SelectedCard[]): number =>
  * A selected tile's per-copy price in the given currency. Prefers the tile's
  * resolved card so a currency switch re-prices the selection; falls back to the
  * price captured at selection time for tiles whose card never resolved.
+ *
+ * A proxy — and a copy wearing custom art — prices at nothing in every currency,
+ * the same rule the bake, the price report and the pages apply, so re-deriving
+ * from the Scryfall card is skipped outright: it is the printing's price, and
+ * this copy is not that printing.
  */
-const unitPrice = (card: SelectedCard, currency: PriceCurrency): number =>
-  card.scryfallCard
+const unitPrice = (card: SelectedCard, currency: PriceCurrency): number => {
+  if (isPricelessCard(card)) return 0
+  return card.scryfallCard
     ? getCardPriceForFinish(card.scryfallCard, card.finish ?? 'nonfoil', currency)
     : (card.price ?? 0)
+}
 
 const sumValue = (cards: SelectedCard[], currency: PriceCurrency): number =>
   cards.reduce((sum, c) => sum + unitPrice(c, currency) * c.quantity, 0)

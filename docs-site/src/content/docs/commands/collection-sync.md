@@ -131,7 +131,9 @@ you know which.
      card left. That is an [ambiguous removal](#ambiguous-removals), and it has to be resolved
      before the run writes anything.
 5. Changes are applied through the same path the editors use, so `&N` card IDs, the list's
-   `.changes.md` changelog, and its content hash all behave exactly as they do for a manual edit.
+   `.changes.md` changelog, its [custom-art sidecar](/custom-art/#art-follows-the-card), and its
+   content hash all behave exactly as they do for a manual edit — a removed line takes its custom
+   art with it rather than leaving it for whichever card reuses the id.
 
 ### Where pulled cards land
 

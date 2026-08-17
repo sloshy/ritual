@@ -10,11 +10,14 @@ import { changeCardNames, refuseUnknownCardNames } from './card-name-check'
 import { applyOutgoingMoves } from './move-save'
 import {
   apiError,
+  deckLineQuantities,
   PARTIAL_LOAD_HINT,
   readJsonObjectBody,
   validateContentHash,
   finishListSave,
+  listSaveOutcome,
   listSaveResponse,
+  normalizeRequestLabels,
   normalizeRequestLanguages,
   normalizeRequestNotes,
   refuseUnreadableBaseline,
@@ -58,8 +61,12 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     const noteError = normalizeRequestNotes(changes, allDeckCards)
     if (noteError) return noteError
 
-    // The request's deck cards are serialized directly, so their languages are
-    // validated alongside the changes'.
+    // The request's deck cards are serialized directly, so their labels and
+    // languages are validated alongside the changes' — a deck line carries
+    // `proxy` alone, and an unvalidated set would reach the serializer.
+    const labelError = normalizeRequestLabels(changes, 'deck', allDeckCards)
+    if (labelError) return labelError
+
     const languageError = normalizeRequestLanguages(changes, allDeckCards)
     if (languageError) return languageError
 
@@ -96,7 +103,7 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     // Apply the destination side of any cross-list moves first; a bad destination
     // (missing list, or a printing-less card into a collection) aborts before the
     // source is written.
-    const outgoing = await applyOutgoingMoves({ type: 'deck', name: deck.name }, changes)
+    const outgoing = await applyOutgoingMoves({ type: 'deck', name: deck.name }, filePath, changes)
 
     // Ids are assigned here rather than only inside `serializeDeckToMarkdown`
     // (which re-runs the assigner idempotently) so the response can report the
@@ -110,18 +117,16 @@ export async function handleDeckSave(req: Request): Promise<Response> {
       content: markdown,
       changelogName: deck.name,
       changes,
+      // Computed before the write: the tail re-files the list's custom art
+      // against the ids these effects report as freed or renumbered.
+      effects: computeDeckSaveEffects({ before: previousDeck, after: idedDeck, assignments }),
+      previousLineQuantities: deckLineQuantities(previousDeck),
       continueSession,
       extraFiles: outgoing.writtenFiles,
     }
-    const { contentHash: newContentHash } = await finishListSave(tail)
+    const saved = await finishListSave(tail)
 
-    return Response.json(
-      listSaveResponse(tail, {
-        contentHash: newContentHash,
-        droppedNotes: outgoing.droppedNotes,
-        effects: computeDeckSaveEffects({ before: previousDeck, after: idedDeck, assignments }),
-      }),
-    )
+    return Response.json(listSaveResponse(tail, listSaveOutcome(saved, outgoing)))
   } catch (error) {
     return apiError(getErrorMessage(error), 500)
   }

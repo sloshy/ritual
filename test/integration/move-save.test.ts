@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { createMoveFromChange } from '../../src/change-event'
+import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/card-art'
 import { applyOutgoingMoves, prepareOutgoingMoves } from '../../src/admin/api/move-save'
 import { handleSelectedMove } from '../../src/admin/api/move'
 import { handleLists } from '../../src/admin/api/lists'
@@ -37,10 +38,18 @@ afterEach(async () => {
   await ws.dispose()
 })
 
+/** The fixture lists' files — the key a batch's custom art is read under. */
+const binderPath = (): string => path.join(tmpDir, 'collections', 'binder.md')
+const deckPath = (): string => path.join(tmpDir, 'decks', 'my-deck.md')
+
 describe('applyOutgoingMoves', () => {
   test('no moves returns no written files', async () => {
-    const result = await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, [])
-    expect(result).toEqual({ writtenFiles: [], droppedNotes: [] })
+    const result = await applyOutgoingMoves(
+      { type: 'collection', name: 'Binder' },
+      binderPath(),
+      [],
+    )
+    expect(result).toEqual({ writtenFiles: [], droppedNotes: [], artFailures: [] })
   })
 
   test('writes the destination list and a move-to changelog', async () => {
@@ -50,7 +59,9 @@ describe('applyOutgoingMoves', () => {
       cardId: 1,
       to: { type: 'deck', name: 'My Deck' },
     })
-    const result = await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, [change])
+    const result = await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, binderPath(), [
+      change,
+    ])
 
     const deckPath = path.join(tmpDir, 'decks', 'my-deck.md')
     const deckContent = await fs.readFile(deckPath, 'utf-8')
@@ -73,7 +84,9 @@ describe('applyOutgoingMoves', () => {
       cardId: 2,
       to: { type: 'deck', name: 'My Deck' },
     })
-    const result = await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, [change])
+    const result = await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, binderPath(), [
+      change,
+    ])
 
     const deckContent = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.md'), 'utf-8')
     expect(deckContent).toContain('2 Sol Ring')
@@ -93,13 +106,99 @@ describe('applyOutgoingMoves', () => {
       cardId: 1,
       to: { type: 'deck', name: 'My Deck' },
     })
-    await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, [change])
+    await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, binderPath(), [change])
 
     const deckContent = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.md'), 'utf-8')
     expect(deckContent).toContain('1 Lightning Bolt (LEA:161) [ja]')
 
     const changelog = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.changes.md'), 'utf-8')
     expect(changelog).toMatch(/Moved "Lightning Bolt" \(LEA:161\) \[ja\].*from Collection 'Binder'/)
+  })
+
+  test('carries the moved card’s custom art onto the destination line’s new id', async () => {
+    await saveCardArt(
+      binderPath(),
+      new Map<number, CardArtRef>([[1, { file: 'proxies/bolt.png' }]]),
+    )
+    const change = createMoveFromChange('Lightning Bolt', {
+      set: 'lea',
+      collectorNumber: '161',
+      cardId: 1,
+      to: { type: 'deck', name: 'My Deck' },
+    })
+
+    const result = await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, binderPath(), [
+      change,
+    ])
+
+    // The deck's own Sol Ring holds &1, so the arriving line took &2 — which is
+    // the id the art has to be re-filed under.
+    expect(await fs.readFile(deckPath(), 'utf-8')).toMatch(/1 Lightning Bolt \(LEA:161\) &2/)
+    const deckArt = await loadCardArt(deckPath())
+    expect(deckArt.ok && [...deckArt.art.entries()]).toEqual([[2, { file: 'proxies/bolt.png' }]])
+    expect(result.writtenFiles).toContain(artSidecarPath(deckPath()))
+
+    // The source side is the save tail's job (it reconciles against the save's
+    // `removed` effects), so this path leaves the source sidecar alone.
+    const sourceArt = await loadCardArt(binderPath())
+    expect(sourceArt.ok && [...sourceArt.art.keys()]).toEqual([1])
+  })
+
+  test('a destination sidecar it cannot read is reported, not thrown', async () => {
+    // The card line lands either way — the reconcile runs after the write — so
+    // the refusal travels back to the caller (the admin save renders it into
+    // `artWarnings`, the CLI editor prints it) instead of failing the move.
+    await saveCardArt(
+      binderPath(),
+      new Map<number, CardArtRef>([[1, { file: 'proxies/bolt.png' }]]),
+    )
+    await fs.writeFile(artSidecarPath(deckPath()), '{ this is not json')
+    const change = createMoveFromChange('Lightning Bolt', {
+      set: 'lea',
+      collectorNumber: '161',
+      cardId: 1,
+      to: { type: 'deck', name: 'My Deck' },
+    })
+
+    const result = await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, binderPath(), [
+      change,
+    ])
+
+    expect(result.artFailures.map((failure) => failure.message).join('\n')).toContain(
+      'not valid JSON',
+    )
+    expect(await fs.readFile(deckPath(), 'utf-8')).toContain('Lightning Bolt')
+    // Left exactly as the user wrote it: overwriting a file Ritual cannot read
+    // would destroy art they still have.
+    expect(await fs.readFile(artSidecarPath(deckPath()), 'utf-8')).toBe('{ this is not json')
+  })
+
+  test('a quantity merge keeps the destination line’s own art', async () => {
+    // The copy lands on the deck's existing Sol Ring line, which already stands
+    // for the card and has art of its own — adopting the incoming reference
+    // would repaint copies that never moved.
+    await saveCardArt(deckPath(), new Map<number, CardArtRef>([[1, { file: 'deck/own.png' }]]))
+    await saveCardArt(
+      binderPath(),
+      new Map<number, CardArtRef>([[2, { file: 'proxies/ring.png' }]]),
+    )
+    const change = createMoveFromChange('Sol Ring', {
+      set: 'c19',
+      collectorNumber: '221',
+      cardId: 2,
+      to: { type: 'deck', name: 'My Deck' },
+    })
+
+    const result = await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, binderPath(), [
+      change,
+    ])
+
+    // The merge really happened — without this the art assertion below would
+    // hold for an add that silently did nothing.
+    expect(await fs.readFile(deckPath(), 'utf-8')).toContain('2 Sol Ring')
+    const deckArt = await loadCardArt(deckPath())
+    expect(deckArt.ok && [...deckArt.art.entries()]).toEqual([[1, { file: 'deck/own.png' }]])
+    expect(result.writtenFiles).not.toContain(artSidecarPath(deckPath()))
   })
 
   test('throws moving a printing-less card into a collection', async () => {
@@ -109,7 +208,7 @@ describe('applyOutgoingMoves', () => {
     })
     let threw = false
     try {
-      await applyOutgoingMoves({ type: 'deck', name: 'My Deck' }, [change])
+      await applyOutgoingMoves({ type: 'deck', name: 'My Deck' }, deckPath(), [change])
     } catch {
       threw = true
     }
@@ -128,7 +227,7 @@ describe('applyOutgoingMoves', () => {
     })
     let threw = false
     try {
-      await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, [change])
+      await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, binderPath(), [change])
     } catch {
       threw = true
     }
@@ -363,8 +462,16 @@ describe('prepareOutgoingMoves', () => {
     const before = await fs.readFile(deckPath, 'utf-8')
 
     const prepared = await prepareOutgoingMoves([
-      { sourceRef: { type: 'collection', name: 'Binder' }, changes: [boltMove] },
-      { sourceRef: { type: 'wanted', name: 'Wishlist' }, changes: [brainstormMove] },
+      {
+        sourceRef: { type: 'collection', name: 'Binder' },
+        sourceFile: binderPath(),
+        changes: [boltMove],
+      },
+      {
+        sourceRef: { type: 'wanted', name: 'Wishlist' },
+        sourceFile: path.join(tmpDir, 'wanted', 'wishlist.md'),
+        changes: [brainstormMove],
+      },
     ])
     // Staging writes nothing: the split exists so a multi-source save can
     // validate every batch before the first byte lands.

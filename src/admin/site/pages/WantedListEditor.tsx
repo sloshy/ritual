@@ -1,6 +1,7 @@
 import type { JSX } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
 import type { WantedListCardEntry } from '../../../site/data-types'
+import type { CardArtRecord } from '../../../card-art'
 import type { ListEditorConfig } from '../../../editor/useEditor'
 import type { EntryCardDataActions } from '../../../editor/useEntryCardData'
 import { collectExistingIds } from '../../../card-id'
@@ -15,6 +16,7 @@ import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, moveTargetsExcluding } from '../move-targets'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
+import { useCardArt } from '../hooks/useCardArt'
 import { sellModeEnabled } from '../sell-enabled'
 
 type WantedListListResponse = { wantedLists?: { slug: string; name: string }[] }
@@ -23,6 +25,7 @@ type WantedListDataResponse = {
   success: boolean
   entries: WantedListCardEntry[]
   sectionOrder?: string[]
+  customArt?: CardArtRecord
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
@@ -34,6 +37,7 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
   const defaults = useEditorDefaults('wanted', 'admin')
   const lists = useAdminLists()
   const defaultCurrency = useDefaultCurrency()
+  const cardArt = useCardArt('wanted')
 
   const buildConfig = (
     cardActions: EntryCardDataActions,
@@ -56,6 +60,12 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
 
     processLoadResponse: (response) => {
       const r = response as WantedListDataResponse
+      // Adopted before the failure check: art is per-list state, so a failed
+      // load must clear the previous list's rather than leave it decorating
+      // whatever is on screen.
+      // The ids the *saved* list holds: an art edit on any other card has to
+      // wait for the save that gives its line an `&N`.
+      cardArt.adopt(r.slug, r.customArt, r.success ? collectExistingIds(r.entries) : [])
       if (!r.success) return null
       return {
         data: r.entries,
@@ -70,6 +80,9 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
       cardActions.load({ cards: r.cards, printings: r.printings, symbolMap: r.symbolMap })
     },
     addCardData: (cardName, card, printings) => cardActions.addCard(cardName, card, printings),
+    onCardArt: cardArt.stage,
+    onCardArtReset: cardArt.reset,
+    onSaved: cardArt.flush,
     onCardAdded: async (cardName, scryfallCard) => {
       const data = await fetchCardPrice(cardName)
       if (!data) return
@@ -104,6 +117,10 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
     applyChange: applyChangeToWantedList,
     printingOf: wantedPrintingOf,
   })
+  // Wired after the editor exists: a staged art write that fails *after* a
+  // successful save has no dialog left to report into, so it takes over the
+  // editor's own error banner.
+  cardArt.attachStatus(ctrl.editor.statusActions)
   useSlugSync(ctrl.editor.slug, props)
 
   const name = () =>
@@ -119,6 +136,8 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
       useScryfallImgUrls={true}
       name={name()}
       enableImport={true}
+      customArt={cardArt.art()}
+      onSetCustomArt={cardArt.open}
     />
   )
 }

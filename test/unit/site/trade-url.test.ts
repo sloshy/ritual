@@ -1019,4 +1019,54 @@ describe('decode — labels re-resolved from the loaded entries', () => {
     const decoded = await roundTrip(left, [], { ...noEntries, collectionEntries: [entry] })
     expect(decoded.left[0]!.labels).toEqual(['keep'])
   })
+
+  test('a decoded row that carries no price by rule is re-decoded at nothing', async () => {
+    const card = makeCard({
+      prices: {
+        usd: '9.99',
+        usd_foil: null,
+        usd_etched: null,
+        eur: null,
+        eur_foil: null,
+        tix: null,
+      },
+    })
+    const proxy = makeSearchEntry({
+      sourceName: 'My Deck',
+      sourceKind: 'deck',
+      scryfallCard: card,
+      labels: ['proxy'],
+      price: 9.99,
+      maxQty: 1,
+      cardIds: [3],
+    })
+    const custom = makeSearchEntry({
+      sourceName: 'My Binder',
+      sourceKind: 'collection',
+      scryfallCard: card,
+      customArt: 'art/sol-ring.jpg',
+      price: 9.99,
+      maxQty: 1,
+      cardIds: [4],
+    })
+    const row = (entry: TradeSearchEntry, source: 'deck' | 'collection'): TradeCardEntry => ({
+      name: entry.name,
+      scryfallCard: card,
+      source,
+      sourceName: entry.sourceName,
+      qty: 1,
+      sourceCardIds: entry.cardIds,
+    })
+
+    const decoded = await roundTrip([row(proxy, 'deck'), row(custom, 'collection')], [], {
+      ...noEntries,
+      deckEntries: [proxy],
+      collectionEntries: [custom],
+    })
+
+    // Both sides of the rule survive the URL: the board totals them as nothing.
+    expect(decoded.left.map((c) => c.price)).toEqual([0, 0])
+    expect(decoded.left.find((c) => c.source === 'deck')?.labels).toEqual(['proxy'])
+    expect(decoded.left.find((c) => c.source === 'collection')?.customArt).toBe('art/sol-ring.jpg')
+  })
 })

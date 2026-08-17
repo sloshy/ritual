@@ -322,6 +322,26 @@ export const cliInfraMeta = {
     description:
       'Warning: sell mode is on but no buylist could be loaded, so the built site carries no buy prices. Card Kingdom is a company name; {reason} is an advice sentence explaining how to get one.',
   },
+  'cli.buildSite.artCopied': {
+    description:
+      'Progress line: local custom-art images were copied into the built site. {counted} is a pre-rendered "N files" fragment.',
+  },
+  'cli.buildSite.artMissing': {
+    description:
+      'Warning: a card points at a custom-art image that is not in the art directory, so the card keeps its normal art. {path} is the path as written in the sidecar; {dir} is the art directory. Keep the indentation.',
+  },
+  'cli.buildSite.artSidecarFailed': {
+    description:
+      "Warning: a list's custom-art sidecar could not be read or parsed. {reason} is the parser's own report, which names the file. Keep the indentation.",
+  },
+  'cli.buildSite.artCopyFailed': {
+    description:
+      'Warning: a custom-art image exists but copying it into the built site failed. {path} is the art-directory-relative path; {reason} is the system error. Keep the indentation.',
+  },
+  'cli.buildSite.artSourceUnreadable': {
+    description:
+      'Warning: a custom-art image could not be inspected at all (a permission denial, a broken symlink), so the card keeps its normal art. {path} is the art-directory-relative path; {reason} is the system error. Keep the indentation.',
+  },
   'cli.buildSite.generatingData': { description: 'Progress line: JSON data file phase.' },
   'cli.buildSite.writingApp': { description: 'Progress line: SPA bundle phase.' },
   'cli.buildSite.writingLocales': {
@@ -631,6 +651,22 @@ export const cliInfraMeta = {
   },
   'cli.price.unpricedNoPriceData': {
     description: 'Unpriced reason: the printing is cached but carries no price.',
+  },
+  'cli.price.unpricedProxy': {
+    description:
+      'Unpriced reason: the card carries the proxy label, so it is not a real card and has no price.',
+  },
+  'cli.price.unpricedCustomArt': {
+    description:
+      'Unpriced reason: the card has been given custom art, so it is no longer the printing a price could be quoted for.',
+  },
+  'cli.price.markerProxy': {
+    description:
+      'Shown in the price column instead of an amount, for a card labeled as a proxy. Short and uppercase, like a stamp; it replaces a price such as "$4.99".',
+  },
+  'cli.price.markerCustomArt': {
+    description:
+      'Shown in the price column instead of an amount, for a card given custom art. Short and uppercase, like a stamp; it replaces a price such as "$4.99".',
   },
   'cli.price.promptMainMenu': { description: 'Autocomplete prompt of the browser’s main menu.' },
   'cli.price.promptSortBy': { description: 'Select prompt of the sort picker.' },

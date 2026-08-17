@@ -104,7 +104,11 @@ Turn on **Sell mode** in the list toolbar. It adds:
 - **A buylist price on every card**, beside the retail price, in every view mode. Cards the buyer
   has no active offer for render exactly as they do outside sell mode. Non-English copies (a
   `[ja]`-style [language token](/commands/edit/#card-language)) never carry a quote — the feed is
-  English-only, and quoting the English price for a foreign copy would overstate it.
+  English-only, and quoting the English price for a foreign copy would overstate it. Neither do
+  copies that carry no price by rule — a card labeled [`proxy`](/commands/edit/#card-labels) is not
+  a real copy, and one wearing [custom art](/custom-art/) is not the printing a buyer is quoting —
+  so neither is ever quoted, counted in the page or selection buylist totals, or written into a
+  cart export. Both show **PROXY** / **CUSTOM** where a price would be.
 - **A Buylist filter** in the filter menu: `On buylist` / `Not on buylist`. The two chips combine
   (selecting both, or neither, matches everything). "On buylist" means the buyer is _actively_
   buying the printing — a paused offer counts as "not on buylist", matching what the card shows.

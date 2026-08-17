@@ -1,4 +1,5 @@
 import type { DeckFormatKey } from './deck-format'
+import type { CardLabel } from './card-labels'
 import type { CardLanguage } from './card-language'
 
 export type Finish = 'nonfoil' | 'foil' | 'etched'
@@ -31,6 +32,12 @@ export interface Card {
   condition?: Condition
   /** The printing's language, from a `[ja]`-style line token. Absent means `en`. */
   language?: CardLanguage
+  /**
+   * This line's label override (`[proxy]`). Replaces the deck's front-matter
+   * default entirely; `undefined` means "inherit the default". Decks accept
+   * `proxy` alone — see {@link LIST_TYPE_LABELS}.
+   */
+  labels?: CardLabel[]
   note?: string
   cardId?: number
 }

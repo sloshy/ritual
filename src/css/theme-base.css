@@ -36,12 +36,14 @@
      fixed teal so the bar reads as a gradient regardless of the accent hue. */
   --progress-end: oklch(70% 0.15 200);
 
-  /* ---- Card labels (sale / trade / keep badges) ----
+  /* ---- Card labels (sale / trade / keep / proxy badges) ----
      Mid-lightness tones that read on both the dark card-label scrim and panel
-     surfaces, like the trade rows' source tags. Keep is red — "do not trade". */
+     surfaces, like the trade rows' source tags. Keep is red — "do not trade";
+     proxy is violet, well away from the three ownership tones. */
   --label-sale: oklch(78% 0.13 85);
   --label-trade: oklch(75% 0.12 250);
   --label-keep: oklch(70% 0.17 25);
+  --label-proxy: oklch(72% 0.14 310);
 
   /* ---- Overlays ---- */
   --overlay-light: rgba(0, 0, 0, 0.5);

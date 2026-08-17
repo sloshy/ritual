@@ -48,6 +48,7 @@ These are the values Ritual uses when there is no config file, and what a first 
   "decksDir": "./decks",
   "collectionsDir": "./collections",
   "wantedDir": "./wanted",
+  "artDir": "./art",
   "defaultCurrency": "usd",
   "defaultLanguage": "en",
   "uiLocale": "en",
@@ -82,10 +83,13 @@ These are the values Ritual uses when there is no config file, and what a first 
 | `decksDir`       | `./decks`       | Where deck markdown files live. Used by the CLI, build-site, and admin. |
 | `collectionsDir` | `./collections` | Where collection markdown files live.                                   |
 | `wantedDir`      | `./wanted`      | Where wanted-list markdown files live.                                  |
+| `artDir`         | `./art`         | Where [custom card art](/custom-art/) images live.                      |
 
 Directory paths are resolved relative to the base directory. For example, with `--base-dir ~/mtg` and `"decksDir": "./my-decks"`, Ritual reads decks from `~/mtg/my-decks`.
 
 You can use absolute paths (`"/srv/mtg/decks"`) or paths that step outside the base dir (`"../shared-decks"`) when that fits your workflow.
+
+`artDir` is the one directory Ritual never creates: it is read only when a list references [custom art](/custom-art/), and a missing directory simply means the workspace has none. A card's `file` reference is a path **relative to** this directory, so moving the directory (or pointing `artDir` somewhere else) never invalidates a reference.
 
 ## Default currency
 

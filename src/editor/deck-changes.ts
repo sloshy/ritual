@@ -1,5 +1,6 @@
-import type { DeckData } from '../types'
+import type { Card, DeckData } from '../types'
 import type { ChangeInput, PrintingTuple } from '../change-event'
+import type { CardLabel } from '../card-labels'
 import type { ApplyChangeOptions } from './apply-batch'
 import { isSamePrinting } from '../change-event'
 import {
@@ -8,12 +9,56 @@ import {
   isCommanderSection,
   resolveDefaultAddSection,
 } from '../deck-format'
+import { normalizedOverride, sameCardLabels } from '../card-labels'
 import { applyConditionUpdate } from '../finish-condition'
 import { noteOrUndefined } from '../note-helpers'
 import { storedLanguage } from '../card-language'
 
 /** The card fields commander targeting matches on. */
 type CommanderTarget = { cardId?: number; name: string }
+
+/**
+ * Whether an `add` of this name, printing and label override folds into `card`
+ * rather than starting a line of its own.
+ *
+ * A card whose printing differs (e.g. after a partial "change printing" split)
+ * stays its own entry instead of merging into a same-named entry with a
+ * different set/finish/condition — and a `[proxy]` copy stays off the line
+ * holding the real card, which would otherwise either lose its label or hand it
+ * to copies that are not proxies.
+ */
+function mergesOntoCard(
+  card: Card,
+  cardName: string,
+  printing: PrintingTuple,
+  labels: readonly CardLabel[] | undefined,
+): boolean {
+  return (
+    card.name === cardName && isSamePrinting(card, printing) && sameCardLabels(card.labels, labels)
+  )
+}
+
+/**
+ * The `&N` an `add` would land on because it merges into a line the deck
+ * already has, or `undefined` when it would start a new one (or the line it
+ * merges into carries no id yet).
+ *
+ * Deliberately ignores `change.cardId`: the caller is an editing session asking
+ * *before* it applies the add, and the id it allocated is by definition one no
+ * line carries. What the answer is for is aiming per-line metadata — custom art
+ * — at the line the copies will actually share, rather than at an id that
+ * evaporates when {@link applyChangeToDeck} folds the copy in.
+ */
+export function findDeckAddMergeTargetId(deck: DeckData, change: ChangeInput): number | undefined {
+  if (change.action !== 'add') return undefined
+  for (const section of deck.sections) {
+    const found = section.cards.find((c) =>
+      mergesOntoCard(c, change.cardName, change, change.labels),
+    )
+    if (found) return found.cardId
+  }
+  return undefined
+}
 
 /**
  * Apply one change to a deck, returning a new deck (the input is not mutated).
@@ -60,10 +105,10 @@ export function applyChangeToDeck(
     return null
   }
 
-  // For adds, an existing entry is matched by cardId first, then by name AND
-  // identical printing. This keeps a card whose printing differs (e.g. after a
-  // partial "change printing" split) as its own entry instead of merging it into
-  // a same-named entry with a different set/finish/condition.
+  // For adds, an existing entry is matched by cardId first, then by the
+  // merge rule ({@link mergesOntoCard}) — name AND identical printing AND the
+  // same label override.
+  const changeLabels = 'labels' in change ? change.labels : undefined
   const findCardForAdd = (sectionList: typeof sections, printing: PrintingTuple) => {
     if (changeCardId !== undefined) {
       for (const section of sectionList) {
@@ -72,8 +117,8 @@ export function applyChangeToDeck(
       }
     }
     for (const section of sectionList) {
-      const idx = section.cards.findIndex(
-        (c) => c.name === changeCardName && isSamePrinting(c, printing),
+      const idx = section.cards.findIndex((c) =>
+        mergesOntoCard(c, changeCardName, printing, changeLabels),
       )
       if (idx !== -1) return { section, idx, card: section.cards[idx]! }
     }
@@ -106,6 +151,9 @@ export function applyChangeToDeck(
         condition: change.condition,
         // The written value: `undefined` means `en` and serializes bare.
         language: change.language,
+        // An empty override is no override — the deck's front-matter default
+        // applies, exactly as on a collection.
+        labels: normalizedOverride(change.labels),
         cardId: change.cardId,
       })
       return { ...deck, sections }
@@ -227,8 +275,16 @@ export function applyChangeToDeck(
     }
 
     case 'set-label': {
-      // Labels are a collection-only concept — never applicable to a deck.
-      options?.onMiss?.('not-applicable')
+      const found = findCard(sections)
+      if (!found) {
+        options?.onMiss?.('no-target')
+        return { ...deck, sections }
+      }
+      // A deck carries `proxy` alone; validating the vocabulary is the write
+      // surfaces' job (CLI flags, HTTP bodies), exactly as for a collection.
+      // An empty set clears the override — the line falls back to the deck's
+      // front-matter default.
+      found.card.labels = normalizedOverride(change.labels)
       return { ...deck, sections }
     }
 

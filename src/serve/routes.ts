@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { handleArtFile } from '../api/art'
 import { handleAutocomplete } from '../api/autocomplete'
 import { handleBuylistQuotes, handleBuylistStatus, withSellModeGate } from '../api/buylist'
 import { handleCards } from '../api/cards'
@@ -95,10 +96,15 @@ function localeHandler(distDir: string): SiteRouteHandler {
  * there is deliberately no public refresh route, since an unauthenticated
  * wildcard-CORS endpoint must never trigger a ~70 MB download — and 404 when
  * `site.sellMode` is off.
+ *
+ * `/art/*` is the live counterpart of the files `build-site` copies into
+ * `dist/art/`: it reads the workspace's art directory, so a card's custom art
+ * appears here without a rebuild, at the very path the baked value names.
  */
 export function buildSiteRoutes(live: LiveSiteData, distDir: string): SiteRoute[] {
   return [
     { method: 'GET', path: '/locales/:file', handler: localeHandler(distDir) },
+    { method: 'GET', path: '/art/*', handler: handleArtFile },
     {
       method: 'GET',
       path: '/index.json',

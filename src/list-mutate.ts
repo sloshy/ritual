@@ -35,6 +35,7 @@ import { parseTitleFromContent } from './section-format'
 import { writeFileWithHash, hashPath } from './content-hash'
 import { appendChangelog } from './changelog-writer'
 import { allocateId, collectExistingIds, createIdPool, type EntryWithCardId } from './card-id'
+import { reconcileCardArt, reconciledArtPath } from './card-art'
 import { CardCommandError, ExitCode } from './errors'
 import type { ChangeEvent, MoveFromChange, MoveToChange } from './change-event'
 import {
@@ -78,11 +79,17 @@ export async function applyChangesToCollectionFile(
 
   // The applied changes, not the requested ones: an `add` is stamped with the
   // `&N` it will carry on disk, so the changelog names the same id the line does.
-  const applied = await applyToCollection(filePath, changes)
+  const { applied, removedCardIds } = await applyToCollection(filePath, changes)
 
   const slug = path.basename(filePath, '.md')
   const changelogPath = await appendChangelog(filePath, slug, applied)
-  return { writtenFiles: [filePath, hashPath(filePath), changelogPath] }
+  const writtenFiles = [filePath, hashPath(filePath), changelogPath]
+
+  // A removed line releases its `&N` to the reuse pool, so custom art left filed
+  // under it would surface on whichever card takes the id next.
+  const artPath = reconciledArtPath(await reconcileCardArt(filePath, { removed: removedCardIds }))
+  if (artPath !== undefined) writtenFiles.push(artPath)
+  return { writtenFiles }
 }
 
 /**
@@ -132,10 +139,33 @@ function stampAddIds(
   )
 }
 
+/** What {@link applyToCollection} wrote, beyond the file itself. */
+type AppliedCollectionChanges = {
+  /** The changes as applied, with every `add` stamped with the id it landed on. */
+  applied: CardMutationChange[]
+  /**
+   * The `&N` of every line the batch deleted, so the list's custom art can
+   * follow. Set-differenced from the entries, because the change kinds that
+   * delete a line are not a fixed list — plus the ids an `add` in the same batch
+   * *claimed*: {@link stampAddIds} keeps its own allocations off freed ids, but
+   * a caller may hand an `add` an explicit `cardId` (a replayed change bundle,
+   * an undo reclaiming its id), and such an add is a different card taking over
+   * a freed number.
+   */
+  removedCardIds: number[]
+}
+
+/** The explicit `&N`s the batch's changes of one kind name. */
+function idsOfAction(changes: readonly CardMutationChange[], action: 'add' | 'remove'): number[] {
+  return changes.flatMap((change) =>
+    change.action === action && change.cardId !== undefined ? [change.cardId] : [],
+  )
+}
+
 async function applyToCollection(
   filePath: string,
   changes: CardMutationChange[],
-): Promise<CardMutationChange[]> {
+): Promise<AppliedCollectionChanges> {
   const printingError = findCollectionPrintingError(changes)
   if (printingError) {
     throw new CardCommandError('usage_error', printingError, ExitCode.UsageError)
@@ -154,5 +184,18 @@ async function applyToCollection(
     filePath,
     collectionToMarkdown(title, result.data, parsed.sectionOrder, parsed.frontMatter),
   )
-  return applied
+  const surviving = new Set(collectExistingIds(result.data))
+  // An id the batch both removed and re-added under an explicit `cardId` is a
+  // *different* card taking the freed number, so the line's art must not stay —
+  // even though the id itself survives the batch. Requiring both halves keeps a
+  // line that merely coexists with a same-id add out of the freed set.
+  const reclaimed = new Set(
+    idsOfAction(applied, 'remove').filter((id) => idsOfAction(applied, 'add').includes(id)),
+  )
+  return {
+    applied,
+    removedCardIds: collectExistingIds(entries).filter(
+      (id) => !surviving.has(id) || reclaimed.has(id),
+    ),
+  }
 }

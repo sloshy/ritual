@@ -8,6 +8,13 @@ import {
   LANGUAGE_TOKEN_PATTERN,
   malformedLanguageTokenHint,
 } from '../card-language'
+import {
+  LABEL_TOKEN_PATTERN,
+  parseCardLabelsToken,
+  readListDefaultLabels,
+  unsupportedLabelsFor,
+  type CardLabel,
+} from '../card-labels'
 import { isDroppedEmptySection, parseDeckFormat } from '../deck-format'
 import { createFenceTracker } from '../markdown-fence'
 import { isListMarkdownFile } from '../list-file-name'
@@ -57,18 +64,30 @@ export async function readDeckName(filePath: string): Promise<string> {
 }
 
 /**
- * Matches a deck card line: `2 Lightning Bolt (LEA:161) [foil] [NM] [ja] {note} &12`.
+ * Matches a deck card line: `2 Lightning Bolt (LEA:161) [foil] [NM] [ja] [proxy] {note} &12`.
  * Set codes allow `_` (some art-series / playtest sets use underscores).
- * Whitespace is `\s+` so multiple spaces between tokens are tolerated. The
+ * Whitespace is `\s+` so multiple spaces between tokens are tolerated. The four
+ * bracketed vocabularies (finish, condition, language, labels) are disjoint, so
+ * each token is unambiguous; the labels token accepts the whole label
+ * vocabulary and {@link parseDeckText} warns about one a deck cannot carry. The
  * optional `&N` id stays the final capture group (the id backfill and the
  * line-preserving mutations index the match by its last group).
  */
 export const DECK_CARD_LINE_RE = new RegExp(
-  `^(\\d+)[xX]?\\s+(.+?)(?:\\s+\\(([A-Za-z0-9_]+):([^)]+)\\))?(?:\\s+\\[(nonfoil|foil|etched)\\])?(?:\\s+\\[(NM|LP|MP|HP|DMG)\\])?(?:\\s+\\[(${LANGUAGE_TOKEN_PATTERN})\\])?(?:\\s+\\{(.*)\\})?(?:\\s+&(\\d+))?$`,
+  `^(\\d+)[xX]?\\s+(.+?)(?:\\s+\\(([A-Za-z0-9_]+):([^)]+)\\))?(?:\\s+\\[(nonfoil|foil|etched)\\])?(?:\\s+\\[(NM|LP|MP|HP|DMG)\\])?(?:\\s+\\[(${LANGUAGE_TOKEN_PATTERN})\\])?(?:\\s+\\[(${LABEL_TOKEN_PATTERN}(?:,${LABEL_TOKEN_PATTERN})*)\\])?(?:\\s+\\{(.*)\\})?(?:\\s+&(\\d+))?$`,
 )
 
 /** The {@link DECK_CARD_LINE_RE} capture group holding the language token body. */
 export const DECK_LINE_LANGUAGE_GROUP = 7
+
+/** The {@link DECK_CARD_LINE_RE} capture group holding the labels token body. */
+export const DECK_LINE_LABELS_GROUP = 8
+
+/** The {@link DECK_CARD_LINE_RE} capture group holding the `{note}` body. */
+export const DECK_LINE_NOTE_GROUP = 9
+
+/** The {@link DECK_CARD_LINE_RE} capture group holding the `&N` id. */
+export const DECK_LINE_ID_GROUP = 10
 
 /**
  * Matches an MTG Arena / MTGO export card line's printing suffix:
@@ -207,6 +226,45 @@ export type DeckParseResult = {
 }
 
 /**
+ * A deck line's label override: the parsed labels (absent when the line carries
+ * no token), plus the warning explaining a token that was dropped.
+ */
+type DeckLineLabels = { labels?: CardLabel[] } | { labels?: undefined; warning: string }
+
+/**
+ * Read a deck card line's labels token. The regex guarantees the token's shape
+ * and vocabulary, so the only ways this fails are the exclusivity rule and a
+ * label decks do not carry (`[keep]` in a deck file). Either way the card is
+ * kept — it is perfectly usable on read surfaces — and the labels are dropped,
+ * which is exactly why this is a warning and not an advisory: a whole-file
+ * rewrite would lose the token, so the rewrite gates must block.
+ */
+function parseDeckLineLabels(
+  raw: string | undefined,
+  cardName: string,
+  line: string,
+): DeckLineLabels {
+  if (raw === undefined) return {}
+  const parsed = parseCardLabelsToken(raw)
+  if (!parsed.ok) {
+    return {
+      warning:
+        `Conflicting labels [${raw}] on '${cardName}' — ${parsed.message} ` +
+        `The labels were ignored, and a rewrite would drop them: ${line}`,
+    }
+  }
+  const unsupported = unsupportedLabelsFor('deck', parsed.labels)
+  if (unsupported.length > 0) {
+    return {
+      warning:
+        `Labels [${unsupported.join(',')}] on '${cardName}' are not supported on a deck. ` +
+        `The labels were ignored, and a rewrite would drop them: ${line}`,
+    }
+  }
+  return { labels: parsed.labels }
+}
+
+/**
  * Parse a deck's markdown/decklist text into structured {@link DeckData}.
  *
  * The text may carry optional YAML frontmatter (`name`, `description`,
@@ -257,6 +315,14 @@ export function parseDeckText(
   const lines = parsed.content.split(/\r?\n/)
   const warnings: string[] = []
   const advisories: string[] = []
+  // A `labels:` default the deck cannot carry is dropped by
+  // `validateDeckFrontMatter`, so the next save deletes the key outright — the
+  // same loss a refused card-line token would cause, and a warning for the same
+  // reason: the whole-file-rewrite gates must see it.
+  if ('labels' in parsed.data) {
+    const defaultLabels = readListDefaultLabels('deck', parsed.data.labels)
+    if (defaultLabels.warning) warnings.push(defaultLabels.warning)
+  }
   // Fenced code blocks are prose: a card-looking line or a `## Heading` inside
   // one is an example, not deck data, and must not warn either.
   const fence = createFenceTracker()
@@ -361,6 +427,9 @@ export function parseDeckText(
       }
 
       const rawLanguage = quantityMatch[DECK_LINE_LANGUAGE_GROUP]
+      const labels = parseDeckLineLabels(quantityMatch[DECK_LINE_LABELS_GROUP], cardName, trimmed)
+      if ('warning' in labels) warnings.push(labels.warning)
+      const rawCardId = quantityMatch[DECK_LINE_ID_GROUP]
       currentSection.cards.push({
         quantity: Number.parseInt(quantityMatch[1], 10),
         name: cardName,
@@ -372,8 +441,9 @@ export function parseDeckText(
         condition: quantityMatch[6] && isCondition(quantityMatch[6]) ? quantityMatch[6] : undefined,
         // Set only when the token is present — a bare line means `en` and stays bare.
         language: rawLanguage && isCardLanguage(rawLanguage) ? rawLanguage : undefined,
-        note: quantityMatch[8],
-        cardId: quantityMatch[9] ? Number.parseInt(quantityMatch[9], 10) : undefined,
+        labels: labels.labels,
+        note: quantityMatch[DECK_LINE_NOTE_GROUP],
+        cardId: rawCardId ? Number.parseInt(rawCardId, 10) : undefined,
       })
       continue
     }

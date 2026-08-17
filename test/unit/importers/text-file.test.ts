@@ -2,9 +2,13 @@ import { describe, expect, test, afterAll } from 'bun:test'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { unlink, writeFile } from 'node:fs/promises'
+import { serializeCardLine } from '../../../src/deck-text'
 import {
   DECK_CARD_LINE_RE,
+  DECK_LINE_ID_GROUP,
+  DECK_LINE_LABELS_GROUP,
   DECK_LINE_LANGUAGE_GROUP,
+  DECK_LINE_NOTE_GROUP,
   IMPORT_TEXT_PARSE_OPTIONS,
   importFromTextFile,
   matchArenaSuffix,
@@ -622,9 +626,57 @@ describe('parseDeckText — language token', () => {
   })
 
   test('the DECK_CARD_LINE_RE keeps &N as the final capture group', () => {
-    const match = '2 Sol Ring (LTC:284) [foil] [LP] [ja] {x} &12'.match(DECK_CARD_LINE_RE)!
+    const match = '2 Sol Ring (LTC:284) [foil] [LP] [ja] [proxy] {x} &12'.match(DECK_CARD_LINE_RE)!
     expect(match[match.length - 1]).toBe('12')
     expect(match[DECK_LINE_LANGUAGE_GROUP]).toBe('ja')
+    expect(match[DECK_LINE_LABELS_GROUP]).toBe('proxy')
+    expect(match[DECK_LINE_NOTE_GROUP]).toBe('x')
+    expect(match[DECK_LINE_ID_GROUP]).toBe('12')
+  })
+
+  test("a [proxy] token parses as the line's label override and round-trips", () => {
+    const line = '2 Sol Ring (LTC:284) [foil] [ja] [proxy] {mine} &7'
+    const { deck, warnings } = parseDeckText(`## Main\n${line}`, 'd')
+    const card = deck.sections[0]!.cards[0]!
+    expect(warnings).toHaveLength(0)
+    expect(card.labels).toEqual(['proxy'])
+    expect(serializeCardLine(card)).toBe(line)
+  })
+
+  test('a label a deck cannot carry warns, keeping the card without the labels', () => {
+    const { deck, warnings } = parseDeckText('## Main\n1 Sol Ring (LTC:284) [keep] &1', 'd')
+    const card = deck.sections[0]!.cards[0]!
+    expect(card.name).toBe('Sol Ring')
+    expect(card.labels).toBeUndefined()
+    expect(warnings[0]).toContain('[keep]')
+    expect(warnings[0]).toContain('not supported on a deck')
+  })
+
+  test('a front-matter labels default the deck cannot carry warns', () => {
+    // The next whole-file save deletes the key (`validateDeckFrontMatter` drops
+    // it), so this is a warning — the same treatment a refused card-line token
+    // gets, and what makes the rewrite gates block.
+    const { deck, warnings } = parseDeckText(
+      '---\nname: D\nlabels: [sale]\n---\n\n## Main\n1 Sol Ring (LTC:284) &1',
+      'd',
+    )
+    expect(deck.sections[0]!.cards[0]!.name).toBe('Sol Ring')
+    expect(warnings[0]).toContain("Front matter 'labels' ignored")
+    expect(warnings[0]).toContain('not supported on a deck')
+  })
+
+  test('a legal front-matter labels default is silent', () => {
+    const { warnings } = parseDeckText(
+      '---\nname: D\nlabels: [proxy]\n---\n\n## Main\n1 Sol Ring (LTC:284) &1',
+      'd',
+    )
+    expect(warnings).toHaveLength(0)
+  })
+
+  test('a conflicting labels token warns and drops the override', () => {
+    const { deck, warnings } = parseDeckText('## Main\n1 Sol Ring (LTC:284) [sale,proxy] &1', 'd')
+    expect(deck.sections[0]!.cards[0]!.labels).toBeUndefined()
+    expect(warnings[0]).toContain('Conflicting labels [sale,proxy]')
   })
 
   test('a name-only deck line takes a language token', () => {

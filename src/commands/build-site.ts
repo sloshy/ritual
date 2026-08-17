@@ -30,7 +30,9 @@ import type { ScryfallCard } from '../types'
 import { resolveOutDir } from '../site/dist-dir'
 import { addSellModeOption, applySellModeOverride } from './sell-mode-flag'
 import { buildAndPublish } from '../site/publish'
+import { deployCardArt, undeployedArtFiles } from '../site/art-deploy'
 import {
+  getArtDir,
   getBannedPrintings,
   getCollectionsDir,
   getDecksDir,
@@ -742,6 +744,42 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     await fs.mkdir(symbolsDir, { recursive: true })
     await Bun.write(path.join(buildDir, 'app.svg'), siteSpaAssets.appSvg)
 
+    // Custom art, before any detail is baked: a file that isn't there must be
+    // known by the time the bakers decide which cards carry a `customArt` path.
+    const artDeploy = await deployCardArt({
+      listFilePaths: categories.flatMap((category) =>
+        category.buildable.map((source) => path.join(category.dir, `${source.basename}.md`)),
+      ),
+      artDir: getArtDir(),
+      buildDir,
+    })
+    for (const warning of artDeploy.warnings) {
+      if (warning.kind === 'sidecar-unreadable') {
+        console.warn(t('cli.buildSite.artSidecarFailed', { reason: warning.message }))
+      } else if (warning.kind === 'source-unreadable') {
+        console.warn(
+          t('cli.buildSite.artSourceUnreadable', {
+            path: warning.relPath,
+            reason: warning.message,
+          }),
+        )
+      } else {
+        console.warn(
+          t('cli.buildSite.artCopyFailed', { path: warning.relPath, reason: warning.message }),
+        )
+      }
+    }
+    for (const relPath of artDeploy.missing) {
+      console.warn(t('cli.buildSite.artMissing', { path: relPath, dir: getArtDir() }))
+    }
+    if (artDeploy.copied.length > 0) {
+      console.log(
+        t('cli.buildSite.artCopied', {
+          counted: t('domain.count.files', { count: artDeploy.copied.length }),
+        }),
+      )
+    }
+
     // Fetch and download symbols. `never` means "use the existing cache as-is",
     // so an uncached symbology is left uncached rather than downloaded — the site
     // then renders without mana symbols, which the warning says out loud.
@@ -1139,6 +1177,10 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       // Absent when sell mode is off or no feed could be had: every detail then
       // ships without a `buylist` field, which the site reads as "not baked".
       ...(bakedFeed ? { buylist: detailBuylistContext(bakedFeed) } : {}),
+      // Art the copy pass did not deploy — absent, unreadable, or a failed
+      // copy: those cards bake no `customArt` and fall back to their real art.
+      // Already warned about above, once per file.
+      missingArtFiles: undeployedArtFiles(artDeploy),
       onCardShipped: async (card) => {
         await ensureSymbols(card.mana_cost)
         await ensureSymbols(card.oracle_text)

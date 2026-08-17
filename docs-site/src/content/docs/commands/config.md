@@ -25,6 +25,7 @@ All subcommands accept the standard scripting options:
 | `decksDir`                | `string` | `./decks`       |
 | `collectionsDir`          | `string` | `./collections` |
 | `wantedDir`               | `string` | `./wanted`      |
+| `artDir`                  | `string` | `./art`         |
 | `defaultCurrency`         | `string` | `usd`           |
 | `defaultLanguage`         | `string` | `en`            |
 | `uiLocale`                | `string` | `en`            |
@@ -32,6 +33,8 @@ All subcommands accept the standard scripting options:
 | `cacheSource`             | `string` | `scryfall`      |
 | `cacheFeedUrl`            | `string` | —               |
 | `searchDebounceMs`        | `number` | `500`           |
+
+`artDir` is where [custom card art](/custom-art/) images live — the directory a card's `file` reference is relative to. It is never created; a missing directory just means the workspace has no local art.
 
 `defaultCurrency` must be one of `usd`, `eur`, or `tix`; it sets the currency every price-touching command defaults to.
 

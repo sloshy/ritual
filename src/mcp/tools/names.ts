@@ -35,6 +35,7 @@ export const MCP_TOOL_NAMES = [
   'add_card',
   'remove_card',
   'set_card_printing',
+  'set_card_art',
   'apply_changes',
   'move_selected_cards',
   'remove_selected_cards',

@@ -366,7 +366,8 @@ export const cliSyncMessages = {
   'cli.exportWizard.promptFinish': 'Show cards with finish',
   'cli.exportWizard.promptCondition': 'Show cards with condition (toggle any combination)',
   'cli.exportWizard.noConditionMarked': 'No condition marked',
-  'cli.exportWizard.promptLabels': 'Show collection cards with labels (toggle any combination)',
+  'cli.exportWizard.promptLabels':
+    'Show deck and collection cards with labels (toggle any combination)',
   'cli.exportWizard.noLabels': 'No labels at all',
 
   // ── `export` wizard — output shape ────────────────────────────────────

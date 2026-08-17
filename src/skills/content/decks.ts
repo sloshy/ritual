@@ -15,7 +15,7 @@ import {
 export const decksSkill: RitualSkill = {
   name: 'ritual-decks',
   description:
-    'Create, build, import, sync, and price Magic: The Gathering decks with Ritual. Use when the user wants to make a new deck, interactively build a deck by adding cards to sections, import a decklist from Archidekt, Moxfield, or MTGGoldfish, import a deck from a CSV file, pull or push changes to Archidekt, extract a deck primer, or price a deck.',
+    'Create, build, import, sync, and price Magic: The Gathering decks with Ritual. Use when the user wants to make a new deck, interactively build a deck by adding cards to sections, import a decklist from Archidekt, Moxfield, or MTGGoldfish, import a deck from a CSV file, pull or push changes to Archidekt, extract a deck primer, mark deck cards as proxies, or price a deck.',
   body: `# Managing decks with Ritual
 
 Decks live in \`decks/<name>.md\`. See the **ritual** skill for the file format and
@@ -47,8 +47,9 @@ section means Oathbreaker (checked first), and a command-zone section such as
 its next save, so do not add a \`format:\` by hand to "fix" a deck that displays
 correctly.
 
-The rest of the deck's front matter (\`description\`, \`tags\`, \`format\`, and the
-\`sourceId\`/\`sourceUrl\` sync link) is scripted with \`ritual metadata\` — a
+The rest of the deck's front matter (\`description\`, \`tags\`, \`format\`, the
+default card \`labels\`, and the \`sourceId\`/\`sourceUrl\` sync link) is scripted
+with \`ritual metadata\` — a
 front-matter-only write that never touches card lines and records no changelog:
 
 \`\`\`bash
@@ -83,6 +84,43 @@ new lines at the end of the deck's first regular section unless
 deck already runs the printing, the copies join that line where it is, and
 \`--commander\` then moves the whole line into the Commander section. Add \`-n\`/\`--dry-run\`
 to any one-shot command to preview it without writing anything.
+
+## Proxies
+
+A deck card can be marked a **proxy** — the one card label decks carry (\`sale\`,
+\`trade\`, and \`keep\` stay collection-only, and passing one on a deck is an error
+naming what the type supports). It is the same bracketed token collections use,
+written between the language token and the note: \`1 Sol Ring (LEA:270) [proxy] &5\`.
+A \`labels: [proxy]\` key in the deck's front matter marks the **whole deck** as
+proxies; a card's own token overrides that default, and \`--label none\` clears the
+override so the deck default applies again. A front-matter value the deck cannot
+carry (\`labels: [sale]\`) is dropped whole and reported as a parse warning — the
+next whole-file save would delete the key. Labels are part of a deck line's merge
+identity: adding a \`[proxy]\` copy of a card the deck already runs for real makes
+a second line rather than folding the proxies into the real copies.
+
+\`\`\`bash
+ritual set-card "Winota Stax" "Sol Ring" --deck --label proxy   # one card
+ritual set-card "Winota Stax" "Sol Ring" --deck --label none    # back to the deck default
+ritual add-card "Winota Stax" "Mox Jet" --deck --label proxy
+ritual metadata set "Winota Stax" labels proxy                  # every card in the deck
+ritual metadata unset "Winota Stax" labels                      # no deck default
+\`\`\`
+
+A proxy is **not a real card**: it prices as **0** everywhere (\`ritual price\`,
+the published site's deck totals, the card's own price) instead of counting as
+an unpriced card, and it never appears in \`ritual sell\`, the Card Kingdom
+buylist quotes, or the sell cart. \`ritual export --labels proxy\` selects a deck's
+proxies (effective labels, so the front-matter default counts). The published deck
+page shows a **Proxy** badge and a proxy/unlabeled filter. Pair it with custom art (see the **ritual**
+skill's *Custom art* section, \`--art\`) to show the proxy's own image instead of
+the printing's scan — a two-step for a card being added, since \`add-card\` takes
+\`--label\` but no art flag: add the line, then \`set-card <deck> <card> --deck --art
+<path|url>\` against the \`&N\` the add reports — custom art carries the **same** no-price rule on its own
+(unpriced reason \`custom-art\`, which wins over \`proxy\` when a card has both). The same edits are available in the \`ritual edit\` deck
+session (\`🏷️ Change Label\` per card, \`🏷️ Edit List Labels\` for the default),
+the admin deck editor, and the MCP \`apply_changes\` (\`set-label\`) and
+\`set_list_metadata\` tools.
 
 ## Build interactively
 
@@ -332,6 +370,8 @@ ritual price "Winota Stax" --prices eur             ${PRICE_CURRENCY_COMMENT}
 
 Deck totals cover every section except extras (maybeboard/token). Each deck also
 reports a "lowest" total (cheapest printing of every card) and a quantity-weighted
-unpriced-card count.
+unpriced-card count. Cards labeled \`proxy\`, and cards given custom art, price as
+0 and are **not** counted as unpriced — their reason is \`proxy\` or
+\`custom-art\`, not a missing price.
 `,
 }

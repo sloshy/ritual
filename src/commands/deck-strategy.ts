@@ -1,10 +1,12 @@
 import prompts from 'prompts'
 import type { DeckData } from '../types'
 import {
+  promptDefaultLabelsChoice,
   promptFinishAndCondition,
   resolveAddedLanguage,
   resolveCardPrinting,
 } from './collection-helpers'
+import { formatCardLabels, sameCardLabels } from '../card-labels'
 import { languageToken, type CardLanguage } from '../card-language'
 import {
   type DeckSessionConfig,
@@ -44,6 +46,14 @@ import {
   type SessionAddItem,
 } from './card-session'
 import { normalizeBoard } from '../deck-sync/diff'
+import { assignMissingDeckCardIds, collectDeckCardIds } from '../card-id'
+import type { CardArtRef } from '../card-art'
+import {
+  commitSessionArt,
+  createSessionArtChanges,
+  noteArtArrival,
+  warnUnreconciledArt,
+} from './session-art'
 import {
   createAddChange,
   createSetPrintingChange,
@@ -97,6 +107,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
   // order) drive the discard picker; the distinct line ids first created this
   // session are what re-pack keeps dense on full removal.
   const state: DeckSessionState = {
+    filePath: deckFile,
     deck: args.initialDeck,
     sessionAdds: [],
     sessionLineIds: [],
@@ -104,6 +115,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     editUndo: [],
     originals: new Map(),
     dirty: args.initiallyDirty ?? false,
+    art: createSessionArtChanges(),
   }
   let lastSection: string | null = null
   let lastPrinting: PrintingTuple | null = null
@@ -173,6 +185,30 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     )
   }
 
+  /** The deck's default labels as shown in the menu row: comma-joined, or "none". */
+  const labelsDisplay = (): string =>
+    formatCardLabels(frontMatter.labels ?? []) || t('cli.labels.none')
+
+  /**
+   * Prompt for the deck's default card labels (`labels:` front matter). Like a
+   * format or tags change, this is deck-level front matter outside the card
+   * change-event model: the edit marks the session dirty and is persisted by
+   * the next save, with no changelog entry.
+   */
+  const changeLabels = async (): Promise<void> => {
+    const current = frontMatter.labels ?? []
+    const labels = await promptDefaultLabelsChoice('deck', current)
+    if (labels === null || sameCardLabels(labels, current)) return
+    if (labels.length === 0) delete frontMatter.labels
+    else frontMatter.labels = labels
+    state.dirty = true
+    console.log(
+      labels.length > 0
+        ? t('cli.labels.defaultSet', { labels: formatCardLabels(labels) })
+        : t('cli.labels.defaultCleared'),
+    )
+  }
+
   /** Add a card (with or without a printing) to `section`, tracking it as the last added. */
   const addToDeck = async (
     ctx: CardSessionContext,
@@ -229,23 +265,40 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
       }),
       menuRow('🏷️ ', '__FORMAT__', 'cli.deck.menuChangeFormat', { format: formatDisplay() }),
       menuRow('🔖', '__TAGS__', 'cli.deck.menuEditTags', { tags: tagsDisplay() }),
+      menuRow('🏷️ ', '__LIST_LABELS__', 'cli.labels.menuListLabels', { labels: labelsDisplay() }),
     ],
     handleSentinel: async (_ctx: CardSessionContext, value: MenuSentinel): Promise<void> => {
       if (value === '__SECTION__') await promptSetTargetSection(state.deck, sessionConfig)
       if (value === '__FORMAT__') await changeFormat()
       if (value === '__TAGS__') await changeTags()
+      if (value === '__LIST_LABELS__') await changeLabels()
     },
     updateConfig: (excludeDigital: boolean) =>
       promptDeckConfigUpdate(state.deck, sessionConfig, excludeDigital),
     applyChange: (change: ChangeEvent) => applyDeckChange(state, change),
-    receiveMove: (change): void => {
+    receiveMove: (change, art?: CardArtRef): void => {
       // The event's cardId is the source list's (kept for its changelog); the
       // arriving line gets a deck id of its own via assignMissingDeckCardIds.
+      if (art === undefined) {
+        applyDeckChange(state, { ...change, cardId: undefined })
+        return
+      }
+      // A deck has no explicit id pool, so the arriving line's `&N` is read off
+      // the deck as the one the apply introduced. Heal any line still missing
+      // an id first (the apply would do it anyway, idempotently), so that
+      // difference names the moved card's line and nothing else.
+      state.deck = assignMissingDeckCardIds(state.deck, state.pendingMoveIds)
+      const before = new Set(collectDeckCardIds(state.deck))
       applyDeckChange(state, { ...change, cardId: undefined })
+      const landed = collectDeckCardIds(state.deck).find((id) => !before.has(id))
+      // No new id means the copy merged onto a line the deck already had, which
+      // stands for the card in its own right and may carry art of its own.
+      if (landed !== undefined) noteArtArrival(state.art, landed, art)
     },
     persist: async (): Promise<void> => {
       await writeDeck(deckFile, state.deck, frontMatter)
       state.dirty = false
+      warnUnreconciledArt(await commitSessionArt(deckFile, state.art))
     },
     hasUnsavedChanges: () => state.dirty,
     sessionSaved: (): void => {

@@ -176,14 +176,40 @@ export const adminMessages = {
   'admin.buylist.downloading': 'Downloading…',
   'admin.buylist.refresh': 'Refresh buylist',
 
-  // ── Collection default-labels modal ───────────────────────────────────
+  // ── List default-labels modal ─────────────────────────────────────────
   'admin.labels.title': 'Default Labels',
   'admin.labels.desc':
-    'The default for every card in this collection. Individual cards can override it with their own label.',
+    'The default for every card in this list. Individual cards can override it with their own label.',
   'admin.labels.groupLabel': 'Default labels',
   'admin.labels.saveFailed': 'Save failed ({status})',
   'admin.labels.saving': 'Saving…',
   'admin.labels.save': 'Save',
+
+  // ── Custom art dialog ─────────────────────────────────────────────────
+  'admin.art.title': 'Custom Art',
+  'admin.art.desc':
+    'Show a different image for {name} on this list. Point at a file in your art directory, or at an image on the web.',
+  'admin.art.modeLabel': 'Image source',
+  'admin.art.modeFile': 'File in the art directory',
+  'admin.art.modeUrl': 'Image on the web',
+  'admin.art.fileLabel': 'Path inside the art directory',
+  'admin.art.urlLabel': 'Image URL',
+  'admin.art.filePlaceholder': 'proxies/sol-ring.jpg',
+  'admin.art.urlPlaceholder': 'https://example.com/sol-ring.jpg',
+  'admin.art.previewAlt': 'Custom art preview for {name}',
+  'admin.art.previewFailed': 'That image could not be loaded.',
+  'admin.art.invalid': 'That custom art is not usable: {reason}',
+  'admin.art.saveFailed': 'Save failed ({status})',
+  'admin.art.saving': 'Saving…',
+  'admin.art.save': 'Save',
+  'admin.art.clear': 'Remove art',
+  'admin.art.pendingNote':
+    'This card is not in the saved list yet, so its art is written when you save your changes.',
+  'admin.art.pendingFailed': {
+    $plural: 'count',
+    one: 'Custom art could not be saved for card {cardId}: {reason}',
+    other: 'Custom art could not be saved for {count} cards, starting with card {cardId}: {reason}',
+  },
 
   // ── Change History ────────────────────────────────────────────────────
   'admin.combine.title': 'Combine change sets',
@@ -753,6 +779,10 @@ export const adminMessages = {
   'admin.settings.collectionsDirPlaceholder': 'e.g. ./collections',
   'admin.settings.wantedDir': 'Wanted List Directory',
   'admin.settings.wantedDirPlaceholder': 'e.g. ./wanted',
+  'admin.settings.artDir': 'Custom Art Directory',
+  'admin.settings.artDirPlaceholder': 'e.g. ./art',
+  'admin.settings.artDirHint':
+    'Local images a card can use in place of its printing. Files are referenced by their path inside this folder.',
   'admin.settings.defaultCurrency': 'Default Price Currency',
   'admin.settings.currencyUsd': 'USD (TCGplayer)',
   'admin.settings.currencyEur': 'EUR (Cardmarket)',
@@ -874,6 +904,10 @@ export const adminMessages = {
 
   // ── One-shot operations ───────────────────────────────────────────────
   'admin.api.save.saved': 'Saved {count} changes to {name}',
+  'admin.api.save.artUnreconciled':
+    "The list's custom art was left as it is — it could not be read: {reason}",
+  'admin.api.art.set': "Set custom art on '{name}'",
+  'admin.api.art.cleared': "Cleared custom art on '{name}'",
   'admin.api.buildSite.built': 'Site built successfully',
   'admin.api.cache.refreshed': 'Cache refreshed successfully',
   'admin.api.history.saved': {

@@ -9,7 +9,7 @@ import {
 } from './card-language'
 import { createFenceTracker } from './markdown-fence'
 import { quantityPrefixAdvisory } from './card-line'
-import { parseCardLabelsToken, type CardLabel } from './card-labels'
+import { LABEL_TOKEN_PATTERN, parseCardLabelsToken, type CardLabel } from './card-labels'
 import { parseFlatListFrontMatter, type FlatListFrontMatter } from './flat-list-front-matter'
 
 export type CollectionEntry = {
@@ -68,7 +68,7 @@ export type CollectionParseResult = {
  * and the line-preserving mutations index the match by its last group.
  */
 export const COLLECTION_CARD_LINE_RE = new RegExp(
-  `^- (.+?)(?:\\s\\(([A-Za-z0-9]+):([^)]+)\\))?(?:\\s\\[(nonfoil|foil|etched)\\])?(?:\\s\\[(NM|LP|MP|HP|DMG)\\])?(?:\\s\\[(${LANGUAGE_TOKEN_PATTERN})\\])?(?:\\s\\[((?:sale|trade|keep)(?:,(?:sale|trade|keep))*)\\])?(?:\\s\\{(.*)\\})?(?:\\s&(\\d+))?$`,
+  `^- (.+?)(?:\\s\\(([A-Za-z0-9]+):([^)]+)\\))?(?:\\s\\[(nonfoil|foil|etched)\\])?(?:\\s\\[(NM|LP|MP|HP|DMG)\\])?(?:\\s\\[(${LANGUAGE_TOKEN_PATTERN})\\])?(?:\\s\\[(${LABEL_TOKEN_PATTERN}(?:,${LABEL_TOKEN_PATTERN})*)\\])?(?:\\s\\{(.*)\\})?(?:\\s&(\\d+))?$`,
 )
 
 /** The {@link COLLECTION_CARD_LINE_RE} capture group holding the language token body. */

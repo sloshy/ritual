@@ -2,7 +2,7 @@
 title: 'set-card'
 ---
 
-Update a card in place — its printing, finish, condition, language, collection label, deck section, or commander status — in a deck, collection, or wanted list, without opening an editor.
+Update a card in place — its printing, finish, condition, language, label, custom art, deck section, or commander status — in a deck, collection, or wanted list, without opening an editor.
 
 The edit is line-preserving: only the targeted card's line is rewritten (or moved, for section and commander changes). Everything else in the file — prose, comments, unusual headings, even lines the parser cannot read — stays intact. (A `--section`/`--commander` move may additionally create the destination's `## Section` heading when it does not exist yet.)
 
@@ -34,7 +34,8 @@ The edit is line-preserving: only the targeted card's line is rewritten (or move
 | `--finish <finish>`       | New finish: `nonfoil`, `foil`, or `etched` (case-insensitive)                                                                  |         |
 | `--condition <condition>` | New condition: `NM`, `LP`, `MP`, `HP`, `DMG`, or `NONE` to clear it (case-insensitive; decks and collections only)             |         |
 | `--language <code>`       | New language as a Scryfall code (`ja`, `de`, `zhs`, ...; aliases like `jp`/`Japanese` normalize); `en` clears the line's token |         |
-| `--label <labels>`        | New label override: `sale,trade` (combinable), `keep`, or `none` to clear it (collections only)                                |         |
+| `--label <labels>`        | New label override: `sale,trade` (combinable), `keep` or `proxy`, or `none` to clear it (decks take `proxy` only)              |         |
+| `--art <value>`           | Custom art for this card: an image path relative to the art directory, an `http(s)` URL, or `none` to clear it                 |         |
 | `--section <name>`        | Move the card to this deck section, creating the section if it does not exist (decks only)                                     |         |
 | `--commander`             | Move the card to the deck's Commander section (decks only)                                                                     |         |
 | `--no-commander`          | Move the card out of the Commander section back to the main section (decks only)                                               |         |
@@ -83,7 +84,7 @@ Move a deck card to the sideboard section and capture JSON output:
 ./ritual set-card --deck "My Deck" "Winota, Joiner of Forces" --section Sideboard --output json
 ```
 
-The JSON payload is `{ type, list, cardName, cardId, applied }` (plus `dryRun: true` under `--dry-run`), where `applied` is one entry per change made (e.g. `"printing → 2XM:157"`, `"finish → foil"`, `"condition → LP"`, `"language → ja (Japanese)"`, `"label → sale, trade"`, `"section → Sideboard"`, `"commander"`, `"not commander"`).
+The JSON payload is `{ type, list, cardName, cardId, applied }` (plus `dryRun: true` under `--dry-run`), where `applied` is one entry per change made (e.g. `"printing → 2XM:157"`, `"finish → foil"`, `"condition → LP"`, `"language → ja (Japanese)"`, `"label → sale, trade"`, `"custom art → proxies/sol-ring.jpg"`, `"section → Sideboard"`, `"commander"`, `"not commander"`).
 
 Make a card the deck's commander:
 
@@ -113,15 +114,42 @@ Validating `--finish` against an entry's **existing** printing is cache-only: no
 
 Condition applies to decks and collections only (wanted-list entries never track condition). `--condition NONE` clears a recorded grade, matching [`add-card`](/commands/add-card/)'s vocabulary.
 
-`--label` applies to collections only: it sets the card's label override (`sale` and `trade` combine as `sale,trade`; `keep` stands alone), and `--label none` clears it so the collection's front-matter default applies again. See [Collection Files](/commands/edit/#collection-files) for the label semantics.
+**`NM` is the unrecorded default.** The line format omits a `[NM]` annotation, so `--condition NM` and `--condition NONE` produce the same line: one with no grade on it. This collapse is intentional — an ungraded card and a card graded Near Mint are one state in Ritual's file format. The success output says so rather than claiming a grade was recorded: `condition → NM (written as an ungraded line — NM is the default)` and `condition → none (grade cleared)`. Internally there is no standalone "set condition" change event — a condition change rides on the same printing-update event the editors use, carrying the card's current set/collector number/finish, so only the condition (and finish, if also given) actually changes. In the changelog this therefore appears as a printing update, e.g. `Set "Mana Crypt" printing to 2XM:1 [foil] [LP] &2`.
+
+### Label Updates
+
+`--label` sets the card's [label override](/commands/edit/#card-labels), and `--label none` clears it so the list's front-matter default applies again. Which labels the flag accepts depends on the list type: a **collection** takes the whole vocabulary (`sale` and `trade` combine as `sale,trade`; `keep` and `proxy` each stand alone), a **deck** takes `proxy` alone, and a **wanted list** carries no labels at all. A label the type does not carry is a usage error (exit `2`) naming the offending labels and the ones that type supports — it is never silently dropped. `--label` is also the only edit that can **repair** a line whose existing `[labels]` token the parser refuses (`[sale,keep]`, or a label the type does not carry): it replaces the token outright, while every other edit to that line refuses rather than dropping it silently.
 
 ```bash
 ./ritual set-card --collection main "Sol Ring" --label keep
 ./ritual set-card --collection main "Sol Ring" --label sale,trade
-./ritual set-card --collection main "Sol Ring" --label none
+./ritual set-card --deck "Winota Stax" "Sol Ring" --label proxy
+./ritual set-card --deck "Winota Stax" "Sol Ring" --label none
 ```
 
-**`NM` is the unrecorded default.** The line format omits a `[NM]` annotation, so `--condition NM` and `--condition NONE` produce the same line: one with no grade on it. This collapse is intentional — an ungraded card and a card graded Near Mint are one state in Ritual's file format. The success output says so rather than claiming a grade was recorded: `condition → NM (written as an ungraded line — NM is the default)` and `condition → none (grade cleared)`. Internally there is no standalone "set condition" change event — a condition change rides on the same printing-update event the editors use, carrying the card's current set/collector number/finish, so only the condition (and finish, if also given) actually changes. In the changelog this therefore appears as a printing update, e.g. `Set "Mana Crypt" printing to 2XM:1 [foil] [LP] &2`.
+A `proxy` card is priced at zero everywhere and is excluded from buylist and sell reports — see [Proxies carry no price](/commands/edit/#proxies-carry-no-price).
+
+### Custom Art
+
+`--art` records [custom art](/custom-art/) for the card on every list type. The value is one of:
+
+- an image path **relative to the [art directory](/configuration/#directory-options)** (`proxies/sol-ring.jpg`) — forward slashes only, never escaping that directory, and ending in `.avif`, `.gif`, `.jpeg`, `.jpg`, `.png`, or `.webp` (the extensions the art route serves);
+- an absolute `http(s)` URL (`https://example.com/bolt.png`), stored verbatim — no extension rule applies to a URL;
+- `none`, which removes whatever art the card carried.
+
+```bash
+./ritual set-card --deck "Winota Stax" "Sol Ring" --art proxies/sol-ring.jpg
+./ritual set-card --collection main "Lightning Bolt" --art https://example.com/bolt.png
+./ritual set-card --wanted "My Wants" "Mana Crypt" --art none
+```
+
+A path is checked against the configured art directory **before** anything is written: a missing file is a `not_found` (exit `3`) naming both the absolute path that was checked and the art directory, an unreadable one a runtime error (exit `1`), and a directory a usage error. A malformed value (a backslash, an absolute path, a `..` escape, an extension that is not an image, a non-`http(s)` URL) is rejected by argument parsing itself, exit `2`.
+
+The reference is filed under the card's `&N` id in the list's `<list>.art.json` sidecar, so a line that carries no id yet is refused rather than guessed at. Everything else about the card is untouched: art is list **metadata**, written straight to the sidecar with no change event, no changelog entry, and no `.sha256` refresh. `--art` counts toward the "at least one change" requirement, so it can be the only flag — and an `--art`-only run does not rewrite the list file at all.
+
+Applied output reads `custom art → proxies/sol-ring.jpg` (or `custom art → none (cleared)`).
+
+A card with custom art is priced at zero everywhere and excluded from buylist and sell reports, exactly like a `proxy` — see [Custom art carries no price](/custom-art/#custom-art-carries-no-price).
 
 ### Language Updates
 
@@ -139,17 +167,19 @@ In the changelog the change appears as `Set language of "Sol Ring" to Japanese &
 
 ### Dry Runs
 
-`-n` / `--dry-run` resolves the list and the card and runs every validation, then reports the change it _would_ apply and stops. Nothing is written: no list file, no changelog, no `.sha256` sidecar, and the card-ID backfill is skipped too. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true` alongside the usual fields.
+`-n` / `--dry-run` resolves the list and the card and runs every validation, then reports the change it _would_ apply and stops. Nothing is written: no list file, no changelog, no `.sha256` sidecar, no `.art.json` sidecar, and the card-ID backfill is skipped too. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true` alongside the usual fields. (Because the backfill is skipped, a dry-run `--art` against a list whose lines have no `&N` ids yet reports the missing id rather than inventing one.)
 
 ### Change Tracking
 
-Every applied change is recorded in the list's `.changes.md` changelog in a single block per invocation (`Set ... finish to foil`, `Set ... printing to 2XM:157`, `Moved ... to section "Sideboard"`, `Set ... as commander`, etc.).
+Every applied change is recorded in the list's `.changes.md` changelog in a single block per invocation (`Set ... finish to foil`, `Set ... printing to 2XM:157`, `Set labels on ... to [proxy]`, `Moved ... to section "Sideboard"`, `Set ... as commander`, etc.).
+
+`--art` is the exception: [custom art](/custom-art/) is list metadata, so it is written to the `.art.json` sidecar with no changelog entry at all.
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                                                                                                                                                            |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Success                                                                                                                                                                                                                                                                                                                            |
-| `2`  | Usage error (no mutation flags, a `--card-id` that disagrees with the card name, `--set` without `--collector-number`, unknown printing, unavailable finish, a language the printing has no Scryfall object in, flag not valid for the list type, ambiguous list or card, prompts unavailable for interactive list/card selection) |
-| `3`  | Not found (missing list file, missing card, missing card ID)                                                                                                                                                                                                                                                                       |
-| `1`  | Runtime error (Scryfall printing lookup failed, etc.)                                                                                                                                                                                                                                                                              |
+| Code | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `2`  | Usage error (no mutation flags, a `--card-id` that disagrees with the card name, `--set` without `--collector-number`, unknown printing, unavailable finish, a language the printing has no Scryfall object in, a label the list type does not carry, a malformed `--art` value or one naming a directory, flag not valid for the list type, ambiguous list or card, prompts unavailable for interactive list/card selection) |
+| `3`  | Not found (missing list file, missing card, missing card ID, an `--art` file that is not in the art directory)                                                                                                                                                                                                                                                                                                                |
+| `1`  | Runtime error (Scryfall printing lookup failed, an unreadable `--art` file or `.art.json` sidecar, a card line with no `&N` id to file art under, etc.)                                                                                                                                                                                                                                                                       |

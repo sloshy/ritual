@@ -75,7 +75,7 @@ For each changed file, the old version (at the specified commit) and current ver
 - **Commander promotions** (decks only) → `Set as commander` entries
 - **Commander demotions** (decks only) → `Unset as commander` entries
 
-Notes (`{note}`) and collection label overrides (`[labels]`) are deliberately invisible to the diff: hand-editing only a card's note or labels produces no changelog entries (the file still counts as `no card changes detected`).
+Notes (`{note}`) and label overrides (`[labels]`) are deliberately invisible to the diff: hand-editing only a card's note or labels produces no changelog entries (the file still counts as `no card changes detected`). A list's `.art.json` [custom art](/custom-art/) sidecar is likewise untracked — like a deck's `.primer.md`, it is metadata rather than card content, and the `.sha256` hash covers the markdown file alone.
 
 ### Card Matching
 

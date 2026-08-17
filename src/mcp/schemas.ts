@@ -1,8 +1,14 @@
 import { z } from 'zod'
 import { DECK_FORMAT_KEYS } from '../deck-format'
-import { CARD_LABELS } from '../card-labels'
+import {
+  CARD_LABELS,
+  checkLabelsForListType,
+  isCardLabel,
+  unsupportedLabelsMessage,
+} from '../card-labels'
 import { CARD_LANGUAGES } from '../card-language'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
+import { isListType } from '../list-type'
 import { VALID_CURRENCIES } from '../price-currency'
 
 /**
@@ -28,27 +34,30 @@ export const deckFormatSchema = z.enum(DECK_FORMAT_KEYS)
 export const cardLabelSchema = z.enum(CARD_LABELS)
 /**
  * A label-override *update*: the new override, where `sale` and `trade` combine
- * and `keep` stands alone, or an empty array to clear the override so the
- * collection's front-matter default applies again. Collections only.
+ * and `keep`/`proxy` each stand alone, or an empty array to clear the override
+ * so the list's front-matter default applies again. Which labels a list type
+ * carries is enforced by {@link refineLabelsForListType}.
  */
 export const labelsUpdateField = z
   .array(cardLabelSchema)
   .describe(
-    'New label override: "sale"/"trade" (combinable) or "keep" (exclusive). ' +
-      'An empty array clears the override (the list default applies). Collections only.',
+    'New label override: "sale"/"trade" (combinable), "keep" or "proxy" (each exclusive). ' +
+      'An empty array clears the override (the list default applies). Collections take the ' +
+      'whole vocabulary; decks take "proxy" alone; wanted lists carry no labels.',
   )
 /**
  * A label override attached to a newly added card — unlike
  * {@link labelsUpdateField} there is no override to clear, so an empty array is
- * rejected rather than meaning "clear". Collections only.
+ * rejected rather than meaning "clear".
  */
 export const labelsOverrideField = z
   .array(cardLabelSchema)
   .min(1)
   .optional()
   .describe(
-    'Label override for the new card: "sale"/"trade" (combinable) or "keep" ' +
-      '(exclusive). Collections only; omit to inherit the list default.',
+    'Label override for the new card: "sale"/"trade" (combinable), "keep" or "proxy" ' +
+      '(each exclusive). Collections take the whole vocabulary, decks "proxy" alone; ' +
+      'omit to inherit the list default.',
   )
 
 export const DECK_ONLY_FORMAT_MESSAGE = 'format is only valid when listType is "deck".'
@@ -69,6 +78,29 @@ type ListTypeWithFormat = { listType: string; format?: unknown }
 export function refineDeckOnlyFormat(val: ListTypeWithFormat, ctx: RefinementIssueSink): void {
   if (val.format !== undefined && val.listType !== 'deck') {
     ctx.addIssue({ code: 'custom', message: DECK_ONLY_FORMAT_MESSAGE })
+  }
+}
+
+/** The fields the per-type labels rule inspects. */
+type ListTypeWithLabels = { listType: string; labels?: readonly string[] }
+
+/**
+ * Shared cross-field rule: a `labels` field may only name labels `listType`
+ * carries — the whole vocabulary on a collection, `proxy` alone on a deck, none
+ * on a wanted list. The decision itself is `checkLabelsForListType` and the
+ * wording `unsupportedLabelsMessage`, so the CLI, the admin routes, the bundle
+ * importer, and the tools refuse exactly the same sets in the same words; this
+ * only reports the outcome as a zod issue.
+ */
+export function refineLabelsForListType(val: ListTypeWithLabels, ctx: RefinementIssueSink): void {
+  const { labels, listType } = val
+  // An unknown list type is the enum's own issue to report, not this rule's.
+  // The element enum has likewise already refused any non-label string, so the
+  // survivors are label values.
+  if (labels === undefined || !isListType(listType)) return
+  const check = checkLabelsForListType(listType, labels.filter(isCardLabel))
+  if (!check.ok) {
+    ctx.addIssue({ code: 'custom', message: unsupportedLabelsMessage(listType, check.unsupported) })
   }
 }
 
@@ -97,15 +129,27 @@ export const cardNameField = z
       'closest cached names, unless the name is already in the list being edited.',
   )
 
-export const cardIdField = z
+/** The `&N` id's numeric shape, shared by the optional and required spellings. */
+const cardIdNumber = z
   .number()
   .int()
   .positive()
   // Bounded so the advertised schema shows a meaningful ceiling rather than
   // JavaScript's MAX_SAFE_INTEGER: &N ids are per-file sequence numbers.
   .max(1_000_000)
+
+export const cardIdField = cardIdNumber
   .optional()
   .describe('Disambiguate by the persistent card ID (the &N suffix in list files).')
+
+/**
+ * The `&N` id as a *required* target, for a tool that addresses a card by id
+ * alone rather than by name.
+ */
+export const cardIdTargetField = cardIdNumber.describe(
+  'The card line’s persistent card ID (the &N suffix; get_list reports it). Ids are recycled ' +
+    'after removals, so take one from a current get_list read.',
+)
 
 /**
  * A required set code — the array-element form: `z.array(setCodeField)`.

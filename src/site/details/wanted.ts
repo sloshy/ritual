@@ -10,6 +10,7 @@ import { displayLanguage, scryfallCardLanguage } from '../../card-language'
 import { defaultPrintingFinish } from '../../finish-condition'
 import { getCardPrice, getCardPriceForFinish } from '../../price-currency'
 import { resolveCardImageSources } from '../image-sources'
+import type { CardArtMap } from '../../card-art'
 import type { ScryfallCard } from '../../types'
 import type {
   WantedListCardEntry,
@@ -19,6 +20,8 @@ import type {
 } from '../data-types'
 import {
   bakeBuylistQuotes,
+  cardIdsOf,
+  customArtLookup,
   includeChangelogCards,
   listReadErrorMessage,
   loadListSidecars,
@@ -38,6 +41,8 @@ export type LoadedWanted = {
   entries: WantedListEntry[]
   /** Section names in file order, including empty sections. */
   sectionOrder: string[]
+  /** Custom art from the `.art.json` sidecar, keyed by card id. */
+  art?: CardArtMap
   warnings: string[]
   changelog: ChangelogPage[]
   fileMtime?: string
@@ -67,9 +72,22 @@ export async function loadWantedSource(
   const displayName = parseTitleFromContent(content) ?? name
 
   const baseName = name.endsWith('.md') ? name.slice(0, -3) : name
-  const { changelog, fileMtime } = await loadListSidecars(wantedDir, baseName, filePath)
+  const { changelog, fileMtime, art, artWarnings } = await loadListSidecars(
+    wantedDir,
+    baseName,
+    filePath,
+    { knownCardIds: cardIdsOf(entries) },
+  )
 
-  return { displayName, entries, sectionOrder, warnings, changelog, fileMtime }
+  return {
+    displayName,
+    entries,
+    sectionOrder,
+    art,
+    warnings: [...warnings, ...artWarnings],
+    changelog,
+    fileMtime,
+  }
 }
 
 export type WantedArtifacts = {
@@ -105,6 +123,7 @@ export async function buildWantedArtifacts(
   let featuredPrice = -1
   /** Every entry's displayed printing, for the buylist bake (empty when not baking). */
   const buylistSources: BuylistBakeSource[] = []
+  const customArtFor = customArtLookup(loaded.art, ctx)
 
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i]!
@@ -130,6 +149,13 @@ export async function buildWantedArtifacts(
     let priceEur = 0
     let priceTix = 0
     let card: ScryfallCard | null = null
+    // Counted per entry and folded into the list's totals below, because a copy
+    // wearing custom art is not a card whose price is *missing* — it is a card
+    // that has no price to look up. The pricing branches below are unchanged;
+    // whether their answer counts is decided in one place.
+    let missingUsd = 0
+    let missingEur = 0
+    let missingTix = 0
 
     // Branch on the guard rather than on `state`: it narrows `entry.set` and
     // `entry.collectorNumber` to `string`, which the `state` ladder cannot.
@@ -147,22 +173,22 @@ export async function buildWantedArtifacts(
         if (hasUsd) {
           const c = cheapUsd ?? card
           price = parseFloat(c.prices.usd || '0')
-          if (price === 0) missingPriceCount++
+          if (price === 0) missingUsd++
         }
         if (hasEur) {
           const c = cheapEur ?? card
           priceEur = getCardPrice(c, 'eur')
-          if (priceEur === 0) missingPriceCountEur++
+          if (priceEur === 0) missingEur++
         }
         if (hasTix) {
           const c = cheapTix ?? card
           priceTix = getCardPrice(c, 'tix')
-          if (priceTix === 0) missingPriceCountTix++
+          if (priceTix === 0) missingTix++
         }
       } else {
-        missingPriceCount++
-        missingPriceCountEur++
-        missingPriceCountTix++
+        missingUsd++
+        missingEur++
+        missingTix++
       }
     } else {
       // State 2 or 3: find exact printing
@@ -202,15 +228,15 @@ export async function buildWantedArtifacts(
         if (entry.finish) {
           if (hasUsd) {
             price = getCardPriceForFinish(exactPrinting, entry.finish, 'usd')
-            if (price === 0) missingPriceCount++
+            if (price === 0) missingUsd++
           }
           if (hasEur) {
             priceEur = getCardPriceForFinish(exactPrinting, entry.finish, 'eur')
-            if (priceEur === 0) missingPriceCountEur++
+            if (priceEur === 0) missingEur++
           }
           if (hasTix) {
             priceTix = getCardPriceForFinish(exactPrinting, entry.finish, 'tix')
-            if (priceTix === 0) missingPriceCountTix++
+            if (priceTix === 0) missingTix++
           }
         } else {
           // State 2: the printing's default finish (nonfoil when it offers one).
@@ -218,15 +244,15 @@ export async function buildWantedArtifacts(
 
           if (hasUsd) {
             price = getCardPriceForFinish(exactPrinting, defaultFinish, 'usd')
-            if (price === 0) missingPriceCount++
+            if (price === 0) missingUsd++
           }
           if (hasEur) {
             priceEur = getCardPriceForFinish(exactPrinting, defaultFinish, 'eur')
-            if (priceEur === 0) missingPriceCountEur++
+            if (priceEur === 0) missingEur++
           }
           if (hasTix) {
             priceTix = getCardPriceForFinish(exactPrinting, defaultFinish, 'tix')
-            if (priceTix === 0) missingPriceCountTix++
+            if (priceTix === 0) missingTix++
           }
         }
       } else {
@@ -234,15 +260,33 @@ export async function buildWantedArtifacts(
           `  ⚠️  Could not find printing for '${entry.name}' (${formatPrintingLabel(entry.set, entry.collectorNumber)})`,
         )
         cardMap[cardKey] = null
-        missingPriceCount++
-        missingPriceCountEur++
-        missingPriceCountTix++
+        missingUsd++
+        missingEur++
+        missingTix++
       }
     }
 
-    // `card` is what `resolveWantedCardEntry` will hand the tile: the exact
-    // printing when the line pins one, the cheapest/representative otherwise.
-    if (ctx.buylist) buylistSources.push({ card, finish: entry.finish, language: entry.language })
+    // A copy wearing custom art is no longer the printing a price would be for:
+    // it is worth nothing in every currency, counts toward no shortfall, and is
+    // offered to no buyer. Wanted lines carry no labels, so custom art is the
+    // only way a wanted entry can be priceless. Judged by the sidecar
+    // *reference*, not by the display URL beside it: a reference whose file the
+    // build could not deploy shows the card's real art and must still price at
+    // nothing, exactly as `ritual price` reads it.
+    const art = customArtFor(entry.cardId)
+    const priceless = art.hasCustomArt === true
+    if (priceless) {
+      price = 0
+      priceEur = 0
+      priceTix = 0
+    } else {
+      missingPriceCount += missingUsd
+      missingPriceCountEur += missingEur
+      missingPriceCountTix += missingTix
+      // `card` is what `resolveWantedCardEntry` will hand the tile: the exact
+      // printing when the line pins one, the cheapest/representative otherwise.
+      if (ctx.buylist) buylistSources.push({ card, finish: entry.finish, language: entry.language })
+    }
 
     totalPrice += price
     totalPriceEur += priceEur
@@ -259,6 +303,7 @@ export async function buildWantedArtifacts(
       collectorNumber: entry.collectorNumber,
       finish: entry.finish,
       language: entry.language,
+      ...art,
       price,
       fileOrder: i,
       section: entry.section,

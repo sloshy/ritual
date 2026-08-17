@@ -25,6 +25,9 @@ export const cliMessages = {
     'whether to import the exact printings (pass --sync-printings or --no-sync-printings)',
   'cli.prompt.subject.filterValue': 'a filter value',
   'cli.prompt.subject.exitChoice': 'a choice of what to do with the unsaved changes',
+  'cli.prompt.subject.artChoice': "a choice of what to do with the card's custom art",
+  'cli.prompt.subject.artUrl': 'an image URL',
+  'cli.prompt.subject.artFile': 'an image file from the art directory',
 
   // ── `prompts` library strings Ritual overrides ────────────────────────
   //
@@ -85,6 +88,8 @@ export const cliMessages = {
   'cli.session.filtersUpdated': 'Session filters updated.',
   'cli.session.changesSaved': 'Changes saved.',
   'cli.session.changelogSaved': 'Changelog saved.',
+  'cli.session.artSidecarUnreadable':
+    "⚠️  A list's custom art was left as it is — it could not be read: {reason}",
   'cli.session.discardedAll': 'Discarded all unsaved changes.',
   'cli.session.exitingEditor': 'Exiting editor.',
   'cli.session.exitingManager': 'Exiting {manager}.',

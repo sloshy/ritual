@@ -176,6 +176,12 @@ export interface MutationResult extends ApiMessage {
    * success and failure shapes speak one vocabulary.
    */
   unmatched: string[]
+  /**
+   * Custom-art sidecars the save could not re-file — the list's own, or a move
+   * destination's. Never a failure: the card lines were written, and only the
+   * `&N` re-filing of `<list>.art.json` did not happen. Absent when clean.
+   */
+  artWarnings?: string[]
 }
 
 /** {@link mutateList}, reported as the structured result the write tools return. */
@@ -196,5 +202,6 @@ export async function applyMutation(
     slug,
     effects: saved.effects,
     unmatched: [],
+    ...(saved.artWarnings === undefined ? {} : { artWarnings: saved.artWarnings }),
   }
 }

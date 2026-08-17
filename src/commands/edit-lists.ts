@@ -21,6 +21,7 @@ import {
   type PreparedOutgoingMoves,
 } from '../admin/api/move-save'
 import { getErrorMessage } from '../errors'
+import { createCardArtCache } from '../card-art'
 import type { MoveTargetsProvider } from './edit-move'
 import { createCollectionStrategy } from './collection-strategy'
 import { createDeckStrategy } from './deck-strategy'
@@ -32,6 +33,7 @@ import {
   newCollectionSession,
   newWantedSession,
 } from './flat-list-session'
+import { warnUnreconciledArt } from './session-art'
 import { createWantedStrategy } from './wanted-strategy'
 
 /**
@@ -393,6 +395,13 @@ export async function saveOpenList(
     }
   }
 
+  // The departing cards' custom art, for the deliveries into open sessions
+  // below. Read from each source before that source is saved — a save re-files
+  // its own sidecar against the ids its removals freed, and by then the
+  // departed card's entry is gone. Keyed by file path, so a list whose display
+  // name differs from its slug still finds its art.
+  const sourceArt = createCardArtCache()
+
   // Stage every closed-destination batch in memory before anything is
   // written, in one shared staging across the closure: a batch that cannot
   // validate (deleted file, a printing-less card headed into a collection)
@@ -404,7 +413,11 @@ export async function saveOpenList(
   try {
     offline = await prepareOutgoingMoves(
       plans.map(
-        (plan): OutgoingMoveBatch => ({ sourceRef: plan.sourceRef, changes: plan.offline }),
+        (plan): OutgoingMoveBatch => ({
+          sourceRef: plan.sourceRef,
+          sourceFile: plan.source.ref.file,
+          changes: plan.offline,
+        }),
       ),
     )
   } catch (error) {
@@ -418,13 +431,21 @@ export async function saveOpenList(
   // the source removes its copy), never removed from its source without
   // having landed anywhere.
   try {
-    await offline.commit()
+    // A closed destination whose sidecar could not be re-filed kept its own art
+    // and lost the arriving cards' — the lines landed either way, so this is
+    // reported here rather than thrown, exactly as a session's own save reports
+    // its sidecar — through the same helper, so both print one sentence.
+    // Silently discarding the result would make a move look clean while the art
+    // it was carrying was quietly dropped.
+    const committed = await offline.commit()
+    for (const failure of committed.artFailures) warnUnreconciledArt(failure)
     // Deliver to the open destinations (each allocates its own line id; the
     // pushed move-to keeps the source id for its changelog).
     for (const plan of plans) {
       for (const { dest, move } of plan.openDest) {
         const moveTo = mirrorMoveTo(move, plan.sourceRef)
-        dest.strategy.receiveMove(moveTo)
+        const art = await sourceArt.lookup(plan.source.ref.file, move.cardId)
+        dest.strategy.receiveMove(moveTo, art)
         dest.ctx.sessionChanges.push(moveTo)
       }
     }

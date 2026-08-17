@@ -20,7 +20,11 @@ export type BulkEditBundle = {
   setLanguage: (cards: SelectedCard[], language: CardLanguage) => void
   changePrinting: (cards: SelectedCard[]) => void
   setCommander?: (cards: SelectedCard[]) => void
-  /** Present only for collections — labels are a collection concept. */
+  /**
+   * Present where the list type carries labels and its editor wires them —
+   * collections take the whole vocabulary, decks `proxy` alone, wanted lists
+   * none. The menu picks the offered choices from the selection's list type.
+   */
   setLabel?: (cards: SelectedCard[], labels: CardLabel[]) => void
   moveToSection: (cards: SelectedCard[], section: string) => void
   promptNewSection: (cards: SelectedCard[]) => void

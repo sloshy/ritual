@@ -185,9 +185,24 @@ export interface CardData {
   artTags: string[]
   /**
    * Effective card labels (the entry's override, else its list's default).
-   * Always empty for deck and wanted cards — labels are a collection concept.
+   * Always empty for wanted cards, which carry no labels; a deck card carries
+   * `proxy` alone (see `LIST_TYPE_LABELS`).
    */
   labels: CardLabel[]
+  /**
+   * The entry's custom art, as baked into the list detail: `art/<relpath>` for
+   * a local file or a verbatim URL. Absent for the overwhelming majority of
+   * cards, which show their printing's own image.
+   */
+  customArt?: string
+  /**
+   * Whether the source list's art sidecar gives this entry art at all — the
+   * fact the "no price, no quote, no sale" rule reads, which
+   * {@link CardData.customArt} cannot answer on its own: a reference whose file
+   * the build could not deploy bakes no display URL and is priceless all the
+   * same. Absent (never `false`) for cards wearing their own printing.
+   */
+  hasCustomArt?: boolean
   card: ScryfallCard | null
   /**
    * Display name of the list this card came from. Only set in the combined

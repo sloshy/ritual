@@ -174,6 +174,22 @@ describe('formatEntryChoiceTitle', () => {
       'Sol Ring (C19:221) — N/A',
     )
   })
+
+  test('marks a proxy instead of reporting a missing price', () => {
+    expect(
+      formatEntryChoiceTitle(entry({ price: 0, lowest: 0, unpricedReason: 'proxy' }), 'usd', false),
+    ).toBe('Sol Ring (C19:221) — PROXY')
+  })
+
+  test('marks a custom-art card with its own marker', () => {
+    expect(
+      formatEntryChoiceTitle(
+        entry({ price: 0, lowest: 0, unpricedReason: 'custom-art' }),
+        'usd',
+        false,
+      ),
+    ).toBe('Sol Ring (C19:221) — CUSTOM')
+  })
 })
 
 describe('buildCardBrowserChoices', () => {
@@ -274,6 +290,24 @@ describe('formatEntryDetailLines', () => {
     expect(lines).toContain('  Price: N/A')
     expect(lines.some((line) => line.includes('no price data'))).toBe(true)
     expect(lines.some((line) => line.includes('EDHREC'))).toBe(false)
+  })
+
+  test('a proxy detail marks the price and explains why there is none', () => {
+    const lines = formatEntryDetailLines(
+      entry({ price: 0, lowest: 0, unpricedReason: 'proxy' }),
+      'usd',
+    )
+    expect(lines).toContain('  Price: PROXY')
+    expect(lines.some((line) => line.includes('is a proxy'))).toBe(true)
+  })
+
+  test('a custom-art detail marks the price and explains why there is none', () => {
+    const lines = formatEntryDetailLines(
+      entry({ price: 0, lowest: 0, unpricedReason: 'custom-art' }),
+      'usd',
+    )
+    expect(lines).toContain('  Price: CUSTOM')
+    expect(lines.some((line) => line.includes('has custom art'))).toBe(true)
   })
 
   test('notes when the shown printing is only representative', () => {

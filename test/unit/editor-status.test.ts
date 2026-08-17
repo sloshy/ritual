@@ -3,6 +3,7 @@ import {
   renderStatus,
   statusMessage,
   statusText,
+  useEditorStatus,
   type EditorStatusMessage,
 } from '../../src/editor/useEditorStatus'
 import { entityListType } from '../../src/editor/entity'
@@ -82,6 +83,22 @@ describe('editor status messages', () => {
     } finally {
       resetI18nRuntime()
     }
+  })
+})
+
+describe('useEditorStatus transitions', () => {
+  it('clears the previous attempt’s error when a new save starts', () => {
+    const [state, actions] = useEditorStatus()
+    // Raised *after* a save landed — the custom-art write that followed it
+    // failed — so no load or save result clears it on the way in.
+    actions.setError(
+      statusMessage('admin.art.pendingFailed', { count: 1, cardId: 4, reason: 'no' }),
+    )
+    expect(state.error).not.toBeNull()
+
+    actions.saveStart()
+    expect(state.error).toBeNull()
+    expect(state.saving).toBe(true)
   })
 })
 

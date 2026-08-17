@@ -7,7 +7,13 @@ import {
   type CardSessionContext,
   type SessionConfig,
 } from '../../src/commands/card-session'
+import { currentSessionArt } from '../../src/commands/session-art'
+import { scratchListPath, stubTty } from '../test-utils'
 import type { CardLanguage } from '../../src/card-language'
+
+// The Set Custom Art prompts go through `ask`, which refuses to open without a
+// terminal; these tests answer them with prompts.inject instead.
+stubTty({ stdin: true })
 
 function makeSessionConfig(): SessionConfig {
   return buildInitialSessionConfig({}, undefined)
@@ -15,7 +21,7 @@ function makeSessionConfig(): SessionConfig {
 
 /** A quiet session with a known front-matter state and a clean dirty flag. */
 function makeSession(raw?: string, data?: Record<string, unknown>): CollectionSession {
-  const session = newCollectionSession('/collections/binder.md', 'Binder')
+  const session = newCollectionSession(scratchListPath('binder.md'), 'Binder')
   if (raw !== undefined) session.frontMatter = { raw, data: data ?? {} }
   session.dirty = false
   return session
@@ -200,5 +206,90 @@ describe('collection strategy — Change Language', () => {
     const line = session.serialize('Binder', session.entries, ['Main'], undefined)
     expect(line).toContain('- Sol Ring (C21:240) &1')
     expect(line).not.toContain('[ja]')
+  })
+})
+
+describe('collection strategy — Set Custom Art', () => {
+  function makeCtx(): CardSessionContext {
+    return {
+      sessionChanges: [],
+      lastChangeIndex: null,
+      lastAdded: null,
+      lastAddedCount: 0,
+      hasSavedChangelog: false,
+    }
+  }
+
+  /** A session holding one entry, with its `.art.json` absent (nothing to read). */
+  function sessionWithEntry(): CollectionSession {
+    const session = makeSession()
+    session.entries = [
+      {
+        name: 'Sol Ring',
+        set: 'c21',
+        collectorNumber: '240',
+        finish: 'nonfoil',
+        condition: 'NM',
+        price: 0,
+        fileOrder: 0,
+        section: 'Main',
+        cardId: 1,
+      },
+    ]
+    session.dirty = false
+    return session
+  }
+
+  test('a URL is staged for the save, not written, and is undoable', async () => {
+    const session = sessionWithEntry()
+    const strategy = makeStrategy(session)
+    const ctx = makeCtx()
+
+    prompts.inject(['art', 'url', 'https://example.com/sol.png'])
+    await strategy.editEntry(ctx, 1)
+
+    expect(session.art.edited.get(1)).toEqual({ url: 'https://example.com/sol.png' })
+    // Art carries no change event — only the dirty flag gives the save its cue.
+    expect(ctx.sessionChanges).toHaveLength(0)
+    expect(strategy.hasUnsavedChanges()).toBeTrue()
+    expect(strategy.lastEditUndoLabel()).toBe('custom art on Sol Ring')
+
+    await strategy.undoLastEdit(ctx)
+    expect(await currentSessionArt(session.filePath, session.art, 1)).toEqual({
+      ok: true,
+      ref: null,
+    })
+    expect(strategy.lastEditUndoLabel()).toBeNull()
+  })
+
+  test('clearing art the session set restores the card to no art', async () => {
+    const session = sessionWithEntry()
+    const strategy = makeStrategy(session)
+    const ctx = makeCtx()
+
+    prompts.inject(['art', 'url', 'https://example.com/sol.png'])
+    await strategy.editEntry(ctx, 1)
+    prompts.inject(['art', 'clear'])
+    await strategy.editEntry(ctx, 1)
+
+    expect(session.art.edited.get(1)).toBeNull()
+    expect(strategy.lastEditUndoLabel()).toBe('custom art on Sol Ring')
+  })
+
+  test('a refused URL and a cancelled prompt both leave the session alone', async () => {
+    const session = sessionWithEntry()
+    const strategy = makeStrategy(session)
+    const ctx = makeCtx()
+
+    prompts.inject(['art', 'url', 'ftp://example.com/sol.png'])
+    await strategy.editEntry(ctx, 1)
+    expect(session.art.edited.size).toBe(0)
+    expect(strategy.hasUnsavedChanges()).toBeFalse()
+
+    prompts.inject(['art', new Error('cancelled')])
+    await strategy.editEntry(ctx, 1)
+    expect(session.art.edited.size).toBe(0)
+    expect(strategy.hasUnsavedChanges()).toBeFalse()
+    expect(strategy.lastEditUndoLabel()).toBeNull()
   })
 })

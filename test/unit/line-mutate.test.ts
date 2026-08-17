@@ -344,6 +344,42 @@ describe('applyDeckAddToContent', () => {
     expect(outcome).toEqual({ cardId: 2, quantity: 3, section: 'Main', merged: true })
   })
 
+  test('a proxy add never merges onto the line holding the real copies', () => {
+    // Labels are part of what the copies *are*: folding them together would
+    // either lose the `[proxy]` or hand it to cards that are not proxies.
+    const { content, outcome } = applyDeckAddToContent(
+      mainboardDeck,
+      { name: 'Sol Ring', labels: ['proxy'] },
+      1,
+    )
+    expect(content).toContain('2 Sol Ring &2')
+    expect(content).toContain('1 Sol Ring [proxy] &4')
+    expect(outcome).toEqual({ cardId: 4, quantity: 1, section: 'Mainboard', merged: false })
+  })
+
+  test('a real add never merges onto a proxy line', () => {
+    const proxied = ['## Main', '2 Sol Ring (LEA:270) [proxy] &1', ''].join('\n')
+    const { content, outcome } = applyDeckAddToContent(
+      proxied,
+      { name: 'Sol Ring', set: 'lea', collectorNumber: '270' },
+      1,
+    )
+    expect(content).toContain('2 Sol Ring (LEA:270) [proxy] &1')
+    expect(content).toContain('1 Sol Ring (LEA:270) &2')
+    expect(outcome.merged).toBe(false)
+  })
+
+  test('copies with the same override do merge', () => {
+    const proxied = ['## Main', '2 Sol Ring (LEA:270) [proxy] &1', ''].join('\n')
+    const { content, outcome } = applyDeckAddToContent(
+      proxied,
+      { name: 'Sol Ring', set: 'lea', collectorNumber: '270', labels: ['proxy'] },
+      2,
+    )
+    expect(content).toContain('4 Sol Ring (LEA:270) [proxy] &1')
+    expect(outcome).toEqual({ cardId: 1, quantity: 4, section: 'Main', merged: true })
+  })
+
   test('a merge onto a line with no &N allocates one rather than reporting none', () => {
     // Reachable under --dry-run, which deliberately skips the ID backfill.
     const idLess = ['## Main', '1 Sol Ring (LEA:270)', ''].join('\n')
@@ -588,12 +624,97 @@ describe('applyTargetedChangesToContent — labels', () => {
     expect(result).toContain('- Lightning Bolt (LEA:161) [foil] [keep] {signed} &1')
   })
 
-  test('set-label on a deck throws', () => {
+  test('set-label writes the deck line token, keeping &N last', () => {
+    const result = applyTargetedChangesToContent(proseDeck, 'deck', bolt, [
+      createSetLabelChange('Lightning Bolt', { labels: ['proxy'], cardId: 1 }),
+    ])
+    expect(result).toContain('4 Lightning Bolt (LEA:161) [proxy] &1')
+  })
+
+  test('an empty label set clears the deck line token', () => {
+    const labeled = proseDeck.replace(
+      '4 Lightning Bolt (LEA:161) &1',
+      '4 Lightning Bolt (LEA:161) [proxy] &1',
+    )
+    const result = applyTargetedChangesToContent(labeled, 'deck', bolt, [
+      createSetLabelChange('Lightning Bolt', { labels: [], cardId: 1 }),
+    ])
+    expect(result).toContain('4 Lightning Bolt (LEA:161) &1')
+    expect(result).not.toContain('[proxy]')
+  })
+
+  test('a language edit on a labeled deck line preserves its token', () => {
+    const labeled = proseDeck.replace(
+      '4 Lightning Bolt (LEA:161) &1',
+      '4 Lightning Bolt (LEA:161) [proxy] &1',
+    )
+    const result = applyTargetedChangesToContent(labeled, 'deck', bolt, [
+      createSetLanguageChange('Lightning Bolt', { language: 'ja', cardId: 1 }),
+    ])
+    expect(result).toContain('4 Lightning Bolt (LEA:161) [ja] [proxy] &1')
+  })
+
+  test('set-label refuses a label the deck grammar cannot carry', () => {
     expect(() =>
       applyTargetedChangesToContent(proseDeck, 'deck', bolt, [
         createSetLabelChange('Lightning Bolt', { labels: ['sale'], cardId: 1 }),
       ]),
-    ).toThrow("cannot apply 'set-label' to a deck")
+    ).toThrow('labels [sale] are not supported on a deck')
+  })
+
+  test('set-label on a wanted list throws — the clear included', () => {
+    // The shared decision refuses an empty set on a label-less type too: there
+    // is no override there to clear.
+    const wanted = '# Wants\n\n- Sol Ring (C21:263) &1\n'
+    for (const labels of [['proxy'] as const, [] as const]) {
+      expect(() =>
+        applyTargetedChangesToContent(
+          wanted,
+          'wanted',
+          { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 },
+          [createSetLabelChange('Sol Ring', { labels: [...labels], cardId: 1 })],
+        ),
+      ).toThrow('labels do not apply to a wanted')
+    }
+  })
+
+  test('set-label repairs a line whose token the parser refuses', () => {
+    // The one change that owns the token: refusing here would leave a bad
+    // token unrepairable by the very command that replaces it.
+    const conflicted = '# Binder\n\n## Main\n- Sol Ring (C21:263) [sale,keep] &1\n'
+    const result = applyTargetedChangesToContent(
+      conflicted,
+      'collection',
+      { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 },
+      [createSetLabelChange('Sol Ring', { labels: ['keep'], cardId: 1 })],
+    )
+    expect(result).toContain('- Sol Ring (C21:263) [keep] &1')
+    expect(result).not.toContain('[sale,keep]')
+  })
+
+  test('a decrement refuses a line whose labels token the parser refuses', () => {
+    // The decrement rewrites the line, so it would delete the token — the same
+    // silent loss every other rewrite refuses.
+    const conflicted = '## Main\n2 Sol Ring (LEA:270) [sale,keep] &1\n'
+    expect(() =>
+      applyTargetedChangesToContent(
+        conflicted,
+        'deck',
+        { name: 'Sol Ring', set: 'lea', collectorNumber: '270', cardId: 1 },
+        [createRemoveChange('Sol Ring', { cardId: 1 })],
+      ),
+    ).toThrow('conflicting labels token [sale,keep]')
+  })
+
+  test('a decrement keeps a legal labels token', () => {
+    const labeled = '## Main\n2 Sol Ring (LEA:270) [proxy] &1\n'
+    const result = applyTargetedChangesToContent(
+      labeled,
+      'deck',
+      { name: 'Sol Ring', set: 'lea', collectorNumber: '270', cardId: 1 },
+      [createRemoveChange('Sol Ring', { cardId: 1 })],
+    )
+    expect(result).toContain('1 Sol Ring (LEA:270) [proxy] &1')
   })
 
   test('a conflicting labels token on the target line refuses the rewrite', () => {

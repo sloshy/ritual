@@ -1,4 +1,5 @@
 import { createEffect } from 'solid-js'
+import type { CardLabelSelection } from '../card-labels'
 import type { GroupBy, SortBy } from './card-sorting'
 import { SELL_MODE_FILTER_KEYS } from './card-filters'
 import type { CardFiltersControl } from './useCardFilters'
@@ -32,11 +33,14 @@ export type UseListViewUrlSyncConfig<G extends GroupBy> = {
   /** When false, the hook is inert — used to limit URL sync to the public read view. */
   enabled?: boolean
   /**
-   * Whether this page offers the labels filter (collections and the combined
-   * view). Off, an incoming `labels=` param is dropped rather than silently
-   * narrowing the list through a filter the toolbar cannot show or clear.
+   * The label chips this page actually offers (`labelFiltersFor` / the combined
+   * view's union). Incoming `labels=` values outside the set are dropped —
+   * a collection link's `labels=sale` pasted onto a deck would otherwise filter
+   * the whole list away through a chip the toolbar cannot show or clear — and a
+   * param left with nothing this page offers is dropped entirely. Omitted means
+   * "no labels here", which drops every `labels=` value.
    */
-  supportsLabels?: boolean
+  availableLabels?: readonly CardLabelSelection[]
   /**
    * Whether this page offers sell mode. Off, every sell-mode param
    * (`sell=`, `buyer=`, `buylist=`, `buyPrice=`, `buyPriceOp=`) is dropped
@@ -44,6 +48,26 @@ export type UseListViewUrlSyncConfig<G extends GroupBy> = {
    * clear.
    */
   supportsSellMode?: boolean
+}
+
+/**
+ * The members of a URL's `labels=` selection this page actually offers, or
+ * `undefined` when none of them survive — the caller drops the filter entirely
+ * rather than applying a selection that matches nothing.
+ *
+ * A shared link is pasted across pages: a collection's `labels=sale` landing on
+ * a deck (which carries `proxy` alone) must not empty the list behind a chip
+ * the deck's toolbar cannot show or clear. Narrowing rather than dropping keeps
+ * the honorable half of a mixed selection — `labels=sale,proxy` on a deck
+ * filters to proxies.
+ */
+export function offeredLabels(
+  labels: readonly CardLabelSelection[],
+  available: readonly CardLabelSelection[] | undefined,
+): CardLabelSelection[] | undefined {
+  const offered = new Set<CardLabelSelection>(available ?? [])
+  const kept = labels.filter((label) => offered.has(label))
+  return kept.length > 0 ? kept : undefined
 }
 
 function currentHashParams(): URLSearchParams {
@@ -72,9 +96,12 @@ function syncStateToUrl(state: ListViewState, defaults: ListViewDefaults): void 
  * state changes back into the URL via `history.replaceState` (no new history entries,
  * no route change), so the current view is always shareable by link.
  *
- * `groupByValues`, `sortByValues` and `supportsSellMode` are read **once, at
- * setup** — the pages pass them as plain values, not accessors, so a vocabulary
- * that changes while the page is mounted is not picked up. That is sound only
+ * `groupByValues`, `sortByValues`, `availableLabels` and `supportsSellMode` are
+ * read **once, at setup** — the pages pass them as plain values, not accessors,
+ * so a vocabulary that changes while the page is mounted is not picked up. Each
+ * is derived from the page's *kind* (a deck page is always a deck), never from
+ * data that arrives later, which is what lets the URL's filters apply on the
+ * first pass rather than after a load. That is sound only
  * because one page is mounted at a time and every page re-runs this on mount:
  * `sellModeEnabled` in particular is now runtime-mutable (the admin's Settings
  * checkbox flips it mid-session), and it stays correct because the Settings page
@@ -109,7 +136,11 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
       if (o.buyer) toolbar.setBuyer(o.buyer)
     }
     if (o.filters) {
-      if (config.supportsLabels !== true) delete o.filters.labels
+      if (o.filters.labels) {
+        const kept = offeredLabels(o.filters.labels, config.availableLabels)
+        if (kept === undefined) delete o.filters.labels
+        else o.filters.labels = kept
+      }
       if (config.supportsSellMode !== true) {
         for (const key of SELL_MODE_FILTER_KEYS) delete o.filters[key]
       }

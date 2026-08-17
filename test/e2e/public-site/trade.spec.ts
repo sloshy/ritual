@@ -123,6 +123,36 @@ test.describe('Trade Page', () => {
     await expect(leftTotal).toContainText('$2.50')
   })
 
+  test('left column: priceless copies read as their marker and count as nothing', async ({
+    page,
+  }) => {
+    await page.goto('#/trade')
+
+    const left = page.locator('.trade-col[data-side="left"]')
+    const leftTotal = left.locator('.trade-col-foot-total')
+
+    // Custom art wins over the proxy label when a copy carries both, so this
+    // $12 printing reads CUSTOM — in the suggestion and in the row it becomes.
+    await left.locator('.search-input').fill('Altered')
+    await expect(left.locator('.search-suggest .search-suggest-price')).toHaveText('CUSTOM')
+    await addToLeft(page, 'Altered')
+
+    const alteredRow = left.locator('.trade-row', { hasText: 'Altered Bauble' })
+    await expect(alteredRow.locator('.trade-row-price')).toHaveText('CUSTOM')
+
+    // The label alone reads PROXY.
+    await addToLeft(page, 'Fake Relic')
+    const fakeRow = left.locator('.trade-row', { hasText: 'Fake Relic' })
+    await expect(fakeRow.locator('.trade-row-price')).toHaveText('PROXY')
+
+    // Both printings are worth real money; neither may reach the column total.
+    await expect(leftTotal).toHaveText('—')
+
+    // A priced card still totals normally alongside them.
+    await addToLeft(page, 'Lightning')
+    await expect(leftTotal).toContainText('$2.50')
+  })
+
   test('right column: price total updates after adding a wanted card', async ({ page }) => {
     await page.goto('#/trade')
 

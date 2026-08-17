@@ -22,6 +22,7 @@ import {
   type SelectedMoveItem,
   type SelectedMoveRequest,
 } from '../../admin/api/move'
+import type { CardArtSaveRequest, CardArtSaveResponse } from '../../admin/api/art'
 import type { DeckCreateRequest } from '../../admin/api/deck-create'
 import type { BundleImportResponse } from '../../admin/api/import-changes'
 import type { ImportCsvRequest, ImportCsvResponse } from '../../admin/api/import-csv'
@@ -45,12 +46,14 @@ import {
   MOVE_SELECTED_CARDS_OUTPUT,
   MUTATION_OUTPUT,
   REMOVE_SELECTED_CARDS_OUTPUT,
+  SET_CARD_ART_OUTPUT,
   SET_LIST_METADATA_OUTPUT,
 } from '../schema-json'
 import type { ListType } from '../../list-type'
 import type { OmitSuccess } from '../types'
 import {
   cardIdField,
+  cardIdTargetField,
   cardNameField,
   collectorNumberField,
   conditionField,
@@ -69,6 +72,7 @@ import {
   listTypeSchema,
   quantityField,
   refineDeckOnlyFormat,
+  refineLabelsForListType,
   sectionField,
   setField,
   slugField,
@@ -94,6 +98,9 @@ export interface ListMetadataResult {
   slug: string
   frontMatter: Record<string, unknown>
 }
+
+/** `set_card_art` result: the reference the card now carries, or `null`. */
+export type SetCardArtResult = OmitSuccess<CardArtSaveResponse>
 
 /** `move_selected_cards` result: what the batch moved, skipped, and dropped. */
 export type MoveSelectedResult = OmitSuccess<MoveCommitResponse>
@@ -194,6 +201,41 @@ const moveItemSchema = z
 
 /** One card removal: an {@link entryTargetFields} target and nothing else. */
 const removeItemSchema = z.object(entryTargetFields)
+
+/**
+ * A custom-art reference, exactly as `PUT /api/art/:type/:slug` takes one:
+ * either a file under the configured art directory or an image URL, or `null`
+ * to clear the card's art.
+ *
+ * Each arm is strict so a value carrying both keys is refused here rather than
+ * parsed as whichever arm matched first — the route refuses it too, and the two
+ * must agree.
+ */
+const cardArtSchema = z
+  .union([
+    z.strictObject({
+      file: z
+        .string()
+        .min(1)
+        .describe(
+          'Image path relative to the configured art directory (the artDir config key), e.g. ' +
+            '"proxies/sol-ring.jpg". Forward slashes; it may not escape that directory; it must ' +
+            'end in .avif, .gif, .jpeg, .jpg, .png or .webp (the extensions the art route ' +
+            'serves); and the file must already exist — Ritual never uploads or downloads art.',
+        ),
+    }),
+    z.strictObject({
+      url: z
+        .string()
+        .url()
+        .describe(
+          'http(s) URL of the image. Referenced verbatim; never downloaded or cached, and ' +
+            'never extension-checked — the browser decides what it can render.',
+        ),
+    }),
+    z.null(),
+  ])
+  .describe('The art to record, or null to clear whatever the card carries.')
 
 /**
  * Fields shared by every card-level change in `apply_changes` that *targets* an
@@ -301,10 +343,12 @@ function toChangeEvent(input: ApplyChangeInput): ChangeEvent {
 
 /**
  * Register the write tools: creating lists, importing decks/CSV/change bundles,
- * deck metadata, the common single-card edits (add/remove/set-printing), the
- * batch `apply_changes` primitive, and cross-list `move_selected_cards` /
- * `remove_selected_cards`. Card edits go through {@link applyMutation}, which loads
- * then saves inside the one call so the agent never manages content hashes.
+ * deck metadata, the common single-card edits (add/remove/set-printing), one
+ * card's custom art, the batch `apply_changes` primitive, and cross-list
+ * `move_selected_cards` / `remove_selected_cards`. Card edits go through
+ * {@link applyMutation}, which loads then saves inside the one call so the agent
+ * never manages content hashes; `set_card_art` writes a sidecar instead, which
+ * is why it is not one of them.
  *
  * Note, section, and commander edits have no tool of their own: they are
  * `apply_changes` actions. `add_card`/`remove_card`/`set_card_printing` keep
@@ -488,9 +532,10 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
     {
       title: 'Set list metadata',
       description:
-        'Write a list’s front matter. Decks: description, tags, format, and the Archidekt source ' +
-        'link. Collections: labels — the default card labels ("sale"/"trade" combine; "keep" ' +
-        'stands alone) every entry without its own override inherits. Only the fields you send ' +
+        'Write a list’s front matter. Decks: description, tags, format, the Archidekt source ' +
+        'link, and labels ("proxy" alone). Collections: labels over the whole vocabulary ' +
+        '("sale"/"trade" combine; "keep" and "proxy" each stand alone) — the default every ' +
+        'entry without its own override inherits. Only the fields you send ' +
         'are touched; null (or "" for description) clears one. Setting sourceId together with an ' +
         'archidekt.com sourceUrl is what makes a deck sync-linked, so it is what sync_decks then ' +
         'operates on; the two must name the SAME Archidekt deck once merged over what the file ' +
@@ -500,7 +545,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       inputSchema: z
         .object({
           listType: listTypeSchema.describe(
-            'Deck fields for decks, labels for collections; wanted lists carry no front matter.',
+            'Deck fields for decks; labels for decks and collections; wanted lists carry no front matter.',
           ),
           slug: slugField,
           description: z.string().nullable().optional().describe('null or "" clears it.'),
@@ -526,14 +571,15 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
             .nullable()
             .optional()
             .describe(
-              'The collection’s default card labels; null (or an empty array) clears them. ' +
-                'Collections only.',
+              'The list’s default card labels; null (or an empty array) clears them. ' +
+                'Collections take the whole vocabulary, decks "proxy" alone; wanted lists ' +
+                'carry no labels.',
             ),
         })
         .superRefine((val, ctx) => {
-          if (val.labels !== undefined && val.listType !== 'collection') {
-            ctx.addIssue({ code: 'custom', message: 'labels apply to collections only.' })
-          }
+          // `null` is the clear, which every label-carrying type accepts, so
+          // only a present array is checked against the type's vocabulary.
+          if (val.labels != null) refineLabelsForListType({ ...val, labels: val.labels }, ctx)
         }),
       outputSchema: fromJsonSchema<ListMetadataResult>(SET_LIST_METADATA_OUTPUT),
     },
@@ -559,7 +605,8 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'Add a card to any list (decks increment quantity if the same printing already exists). ' +
         'Supply set + collectorNumber to pin the printing. quantity adds that many copies in ' +
         'one save. Collections require set + collectorNumber together — an add without one is ' +
-        'rejected. labels gives the new collection card a label override. language records a ' +
+        'rejected. labels gives the new card a label override (decks take "proxy" alone). ' +
+        'language records a ' +
         'non-English copy; without it the configured defaultLanguage applies.',
       inputSchema: z
         .object({
@@ -582,9 +629,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
               message: 'condition is not tracked on wanted lists.',
             })
           }
-          if (val.labels !== undefined && val.listType !== 'collection') {
-            ctx.addIssue({ code: 'custom', message: 'labels apply to collections only.' })
-          }
+          refineLabelsForListType(val, ctx)
         }),
       outputSchema: fromJsonSchema<MutationResult>(MUTATION_OUTPUT),
     },
@@ -732,6 +777,39 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
   )
 
   server.registerTool(
+    'set_card_art',
+    {
+      title: 'Set card art',
+      description:
+        'Set or clear the custom art of one card in any list — the image the published site and ' +
+        'the editors show in place of the printing’s own scan. The card is addressed by its &N ' +
+        'id alone (get_list reports it), and art is either a file under the configured art ' +
+        'directory (artDir) or an image URL; null clears it. A file must already exist there — ' +
+        'Ritual references images, it never uploads or downloads them. Custom art is list ' +
+        'metadata like the primer sidecar: it is written immediately to <list>.art.json, leaves ' +
+        'the card line untouched, and records no changelog entry, so it neither needs nor ' +
+        'affects a pending batch of card changes.',
+      inputSchema: z.object({
+        listType: listTypeSchema,
+        slug: slugField,
+        cardId: cardIdTargetField,
+        art: cardArtSchema,
+      }),
+      outputSchema: fromJsonSchema<SetCardArtResult>(SET_CARD_ART_OUTPUT),
+    },
+    async ({ listType, slug, cardId, art }) =>
+      runTool(async (): Promise<SetCardArtResult> => {
+        const body: CardArtSaveRequest = { cardId, art }
+        const data = await callApiData<CardArtSaveResponse>(
+          'PUT',
+          `/api/art/${listType}/${encodeURIComponent(slug)}`,
+          body,
+        )
+        return data
+      }),
+  )
+
+  server.registerTool(
     'apply_changes',
     {
       title: 'Apply changes',
@@ -747,10 +825,14 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'move_selected_cards. ' +
         'This is also the only way to set or clear a card note (set-note), change a card’s ' +
         'language on its own (set-language — "en" clears the token, since a bare line means ' +
-        'English), set or clear a collection card’s label override (set-label — collections ' +
-        'only), move a card to a section (set-section), and set or clear a deck commander ' +
+        'English), set or clear a card’s label override (set-label — the whole vocabulary on a ' +
+        'collection, "proxy" alone on a deck, never on a wanted list), move a card to a section ' +
+        '(set-section), and set or clear a deck commander ' +
         '(set-commander/unset-commander); the commander actions apply to decks only and fail ' +
         'on a collection or wanted list. ' +
+        'A removal drops the card’s custom art even when a later change in the same batch adds ' +
+        'the card back and the new line reuses its &N: re-add art explicitly (set_card_art after ' +
+        'this call) if the new copy should have it. ' +
         'Flagged destructive because a batch CAN remove cards in bulk — the note, label, ' +
         'section, and commander actions are themselves additive; the hint reflects worst-case ' +
         'capability, not what your batch does.',
@@ -761,11 +843,12 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
           changes: z.array(applyChangeSchema).min(1).describe('Changes to apply, in order.'),
         })
         .superRefine((val, ctx) => {
-          if (
-            val.listType !== 'collection' &&
-            val.changes.some((c) => c.action === 'add' && c.labels !== undefined)
-          ) {
-            ctx.addIssue({ code: 'custom', message: 'add labels apply to collections only.' })
+          // Both label-carrying actions are checked against the list type: an
+          // `add` may start a card labeled, a `set-label` may relabel one.
+          for (const change of val.changes) {
+            const labels =
+              change.action === 'add' || change.action === 'set-label' ? change.labels : undefined
+            refineLabelsForListType({ listType: val.listType, labels }, ctx)
           }
         }),
       outputSchema: fromJsonSchema<MutationResult>(MUTATION_OUTPUT),
@@ -788,7 +871,10 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         '(listType + slug + cardName, with cardId/copyIndex to pin the exact entry) and a ' +
         'destination list; set/collectorNumber/finish/condition/language override the printing ' +
         'on arrival, and toSection picks a destination deck section. Unresolvable moves are ' +
-        'skipped and counted; notes that a destination cannot keep are reported in droppedNotes.',
+        'skipped and counted; notes that a destination cannot keep are reported in droppedNotes. ' +
+        "A moved card's custom art follows it: the entry is re-filed under the destination line's " +
+        'new cardId, except for a copy that merges onto a line the destination already had, which ' +
+        'keeps its own art.',
       inputSchema: z.object({
         moves: z.array(moveItemSchema).min(1).describe('Moves to apply atomically.'),
       }),
@@ -824,7 +910,8 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       description:
         'Remove a batch of cards across lists in one atomic pass. Each item names its entry by ' +
         'listType + slug + cardName, with cardId/copyIndex to pin the exact entry. Unresolvable ' +
-        'items are skipped and counted.',
+        "items are skipped and counted. A removed line's custom art is dropped with it; a deck " +
+        'line that still has copies left keeps its cardId, and its art.',
       inputSchema: z.object({
         removes: z.array(removeItemSchema).min(1).describe('Cards to remove atomically.'),
       }),

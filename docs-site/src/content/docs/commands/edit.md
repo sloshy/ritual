@@ -238,7 +238,7 @@ land on it by overshooting.
 | `🗂️ Set Target Section`                  | Pin a deck section, create a new one, or prompt for each card (decks)                                                                |
 | `🏷️ Change Format`                       | Change the deck's [format](#deck-format) (decks)                                                                                     |
 | `🔖 Edit Tags`                           | Edit the deck's front-matter tags, comma-separated; empty clears them (decks)                                                        |
-| `🏷️ Edit List Labels`                    | Change the collection's [default card labels](#collection-front-matter) (collections)                                                |
+| `🏷️ Edit List Labels`                    | Change the list's default card labels (decks — `proxy` only — and collections); shows the current default                            |
 | `⚙️ Configure Session Filters`           | Adjust default sets, finish, condition, and (decks) target section (both entry modes)                                                |
 | `🔢 Switch to Collector Number Mode`     | Switch to collector number entry mode (name mode)                                                                                    |
 | `🔤 Switch to Name Mode`                 | Switch back to name entry mode (collector mode)                                                                                      |
@@ -293,8 +293,8 @@ a [multi-list mode](#multi-list-modes) there is no current list to single out, s
 is never shown.
 
 The counts track card changes. Pending work that is not a card change — a changed
-[deck format](#deck-format), edited deck tags, or an edited collection
-[default-labels block](#collection-front-matter) — still surfaces the save items, but is left out
+[deck format](#deck-format), edited deck tags, or an edited list
+[default-labels block](#card-labels) — still surfaces the save items, but is left out
 of the counts: a list whose only pending work is such an edit shows count-less labels instead
 (`💾 Save changes (keep editing)`, `💾 Save current list changes`, `💾 Save all changes (M lists)`).
 
@@ -442,6 +442,8 @@ For a **deck** line:
 | `🌐 Change Language`       | Pick the line's [language](#card-language) (`en` removes the token)                                 |
 | `➕ Add a Copy`            | Increment the line's quantity                                                                       |
 | `➖ Remove a Copy`         | Decrement the line's quantity (multi-copy lines only); keeps the `&N` id                            |
+| `🏷️ Change Label`          | Set the line's [label override](#card-labels) to **Proxy**, or revert to the deck's default         |
+| `🎨 Set Custom Art`        | Set or clear the line's [custom art](#custom-art) (an image URL, or a file from the art directory)  |
 | `🗂️ Move to Section`       | Move the line to another section (or a new one)                                                     |
 | `📤 Move to Another List`  | Move every copy of the line to a different list (see [Moving Cards](#moving-cards-to-another-list)) |
 | `📝 Edit Note`             | Edit or clear the line's note                                                                       |
@@ -450,16 +452,17 @@ For a **deck** line:
 
 For a **collection** entry:
 
-| Action                    | Description                                                                             |
-| ------------------------- | --------------------------------------------------------------------------------------- |
-| `🖼️ Change Printing`      | Pick a new printing, finish, and condition for the entry                                |
-| `✨ Change Finish`        | Switch between `nonfoil`, `foil`, and `etched`                                          |
-| `📋 Change Condition`     | Switch between `NM`, `LP`, `MP`, `HP`, and `DMG`                                        |
-| `🌐 Change Language`      | Pick the entry's [language](#card-language) (`en` removes the token)                    |
-| `🏷️ Change Label`         | Set the label override (For sale / For trade / both / To keep) or revert to the default |
-| `📤 Move to Another List` | Move the entry to a different list (see [Moving Cards](#moving-cards-to-another-list))  |
-| `📝 Edit Note`            | Edit or clear the entry's note                                                          |
-| `🗑️ Remove`               | Delete the entry (asks for confirmation); releases its `&N` id                          |
+| Action                    | Description                                                                                                     |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `🖼️ Change Printing`      | Pick a new printing, finish, and condition for the entry                                                        |
+| `✨ Change Finish`        | Switch between `nonfoil`, `foil`, and `etched`                                                                  |
+| `📋 Change Condition`     | Switch between `NM`, `LP`, `MP`, `HP`, and `DMG`                                                                |
+| `🌐 Change Language`      | Pick the entry's [language](#card-language) (`en` removes the token)                                            |
+| `🏷️ Change Label`         | Set the [label override](#card-labels) (For sale / For trade / both / To keep / Proxy) or revert to the default |
+| `🎨 Set Custom Art`       | Set or clear the entry's [custom art](#custom-art) (an image URL, or a file from the art directory)             |
+| `📤 Move to Another List` | Move the entry to a different list (see [Moving Cards](#moving-cards-to-another-list))                          |
+| `📝 Edit Note`            | Edit or clear the entry's note                                                                                  |
+| `🗑️ Remove`               | Delete the entry (asks for confirmation); releases its `&N` id                                                  |
 
 For a **wanted list** entry:
 
@@ -468,6 +471,7 @@ For a **wanted list** entry:
 | `🖼️ Change Printing`      | Re-pick the specificity: name-only, or a specific printing with optional finish        |
 | `✨ Change Finish`        | Switch between `nonfoil`, `foil`, `etched`, or no preference (printed entries only)    |
 | `🌐 Change Language`      | Pick the entry's [language](#card-language) (`en` removes the token)                   |
+| `🎨 Set Custom Art`       | Set or clear the entry's [custom art](#custom-art)                                     |
 | `📤 Move to Another List` | Move the entry to a different list (see [Moving Cards](#moving-cards-to-another-list)) |
 | `📝 Edit Note`            | Edit or clear the entry's note                                                         |
 | `🗑️ Remove`               | Delete the entry (asks for confirmation); releases its `&N` id                         |
@@ -509,7 +513,113 @@ source list is left unsaved with its session intact; saving from the exit menu t
 editor open rather than discarding the unsaved changes.
 
 Two things do not follow a moved card: its **note** (notes never move across lists — the CLI
-warns when one is left behind) and, for a collection entry, its **label override**.
+warns when one is left behind) and its **[label override](#card-labels)**. (The one-shot
+[`ritual move`](/commands/move/) does carry the override, as far as the destination type can
+express it.) Its **[custom art](/custom-art/#art-follows-the-card)** _does_ follow: the entry
+leaves the source list's `.art.json` and is re-filed under the destination line's new `&N` —
+unless the copy merged onto a line the destination already had, which keeps its own art.
+
+## Card Labels
+
+A card entry can carry **labels** — a bracket token on its line (`[sale,trade]`, `[keep]`,
+`[proxy]`) declaring what you intend to do with that copy. Which labels a list type carries
+differs, because the vocabulary describes two different things:
+
+| List type   | Labels it carries                |
+| ----------- | -------------------------------- |
+| Collection  | `sale`, `trade`, `keep`, `proxy` |
+| Deck        | `proxy` only                     |
+| Wanted list | none                             |
+
+- **`sale`** ("For sale") and **`trade`** ("For trade") are the only two that combine, as
+  `[sale,trade]`.
+- **`keep`** ("To keep") and **`proxy`** ("Proxy") are each **exclusive** — neither combines with
+  any other label, including each other. A token like `[sale,keep]` or `[keep,proxy]` is a parse
+  warning, as is one naming a label the list's type does not carry; the entry is kept and its
+  labels dropped, and the warning blocks whole-file rewrites until it is fixed.
+- **`proxy`** marks a copy that is not a real card, which is why it is the one label a deck
+  carries: proxied decks are normal, proxied collections are a matter of bookkeeping, and a wanted
+  list is a list of cards you do not have yet. It has [pricing consequences](#proxies-carry-no-price).
+
+A list can also declare a **default** in its front matter (`labels:`), which every entry without
+its own token inherits — see [Collection Front Matter](#collection-front-matter) and
+[Deck Front Matter Labels](#deck-front-matter-labels). A card's _effective_ labels are its own
+token when present, else the list default; an override **replaces** the default, it never merges
+with it.
+
+Set an override with [`set-card --label`](/commands/set-card/), the CLI editor's
+`🏷️ Change Label` [edit-mode action](#edit-mode), or — on a collection — the web editors'
+**Set Label…** menu item; `--label none` (or "Use list default") clears it. Every picker offers
+only what its list type carries, so on a deck the choice is **Proxy** or "use the list default" —
+and asking for `sale` on a deck is a usage error naming the labels that type supports, never a
+silent drop. `set-card --label` is also the way to **repair** a line whose token the parser
+refuses: it replaces the token outright, so it is the one edit that is not blocked by it (every
+other edit to that line refuses rather than dropping the token silently — including a
+[`remove-card`](/commands/remove-card/) that would decrement the line's quantity).
+
+Labels are part of a deck line's **identity** for merging purposes: copies added by
+[`add-card`](/commands/add-card/), by the editors, or by a [`ritual move`](/commands/move/) join
+an existing line only when its label override matches theirs, so a proxy never disappears into
+the line holding the real copies, and never confers `[proxy]` on a real card added beside it.
+
+### Proxies carry no price
+
+A card whose effective labels include `proxy` is not a real card, so Ritual prices it at **zero**
+everywhere rather than looking a price up:
+
+- [`price`](/commands/price/) reports it at `0` with the unpriced reason `proxy`, shows **PROXY**
+  in its price cell instead of `N/A`, and counts it as a card but **not** as unpriced — a deck of
+  proxies is fully priced at nothing, not a deck of price-lookup failures.
+- The generated site bakes `0` in every currency, leaves proxies out of list totals and out of the
+  missing-price counts, and never asks a buyer for a quote on one.
+- [`sell`](/commands/sell/) drops proxy entries before matching, so they are never quoted, never
+  counted, and never merged into an identical real copy.
+
+[Custom art](/custom-art/#custom-art-carries-no-price) carries the very same rule on its own — one
+rule, custom art or proxy ⇒ no price, no quotes, no sale. A card with both reports the unpriced
+reason `custom-art` and shows **CUSTOM**: custom art wins.
+
+## Custom Art
+
+`🎨 Set Custom Art` gives the selected card a picture of its own — a proxy scan, an altered card,
+a piece of commissioned art — shown in place of the printing's Scryfall image on the site and in
+the editors. It is available on **every** list type, and on any card (a proxy label is not
+required, and neither implies the other). The prompt names what the card wears now and offers:
+
+| Choice                  | What it does                                                                  |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| `🔗 Enter an Image URL` | Type an absolute `http`/`https` URL, used verbatim                            |
+| `📁 Pick a Local File`  | Browse the [art directory](/custom-art/#the-art-directory) for an image       |
+| `🚫 Clear Custom Art`   | Drop the reference so the real printing shows again (offered when it has one) |
+
+A `← Cancel` row (or Esc) backs out of any step without changing anything.
+
+The file browser walks the art directory one level at a time: `📁` rows descend, the leading
+`⬆️ ..` row goes back out, and `🖼️` rows pick the image. Typing filters the visible rows, exactly
+as it does everywhere else in the editor. Only the extensions Ritual serves (`.avif`, `.gif`,
+`.jpeg`, `.jpg`, `.png`, `.webp`) are listed — a file it would only ever `404` on is not offered —
+and dot-entries are hidden. A missing art directory says so and names it, rather than opening an
+empty picker.
+
+Whichever way you answer, the value is validated by the same parser
+[`set-card --art`](/commands/set-card/#custom-art), the admin dialog, and the sidecar itself use,
+so the editor accepts exactly what they do.
+
+Like every other session edit, an art edit is **deferred**: it is staged in memory and written to
+the list's `.art.json` [sidecar](/custom-art/#the-sidecar) by the save that writes the card lines,
+so exiting without saving changes nothing. `↩️ Undo Last Edit` puts the previous reference back,
+and `📋 View Session Changes` lists it as `custom art on <card>`. The card **line** is untouched:
+custom art is list metadata, so it produces no change event and no changelog entry — the only sign
+a save is pending is the editor's own unsaved-changes state.
+
+Removing a card releases its `&N`, and the art filed under that number goes with it, since the
+next card added would otherwise inherit the picture; undoing the removal brings both back — as
+long as the id has not been reused. If something added in the meantime took that `&N`, the undo
+restores the card under a fresh one, and the art stays dropped: it belonged to a number that is
+now somebody else's. Art staged for a card and then removed with it is gone for the same reason.
+
+A card with custom art also [carries no price](/custom-art/#custom-art-carries-no-price) — the
+same rule the `proxy` label carries, and it is `custom-art` that wins when a card has both.
 
 ## Card Language
 
@@ -581,7 +691,8 @@ used by the generated site for the deck's cover label and expected size. Creatin
 editor prompts for the format, and `🏷️ Change Format` in a deck session changes it later — the
 menu item shows the current format, and the change is written on the next save like any other
 pending edit (it counts as unsaved work, but is not a card change, so it does not appear in the
-changelog or the session-changes viewer). `🔖 Edit Tags` edits the deck's `tags:` the same
+changelog or the session-changes viewer). `🔖 Edit Tags` edits the deck's `tags:` and
+`🏷️ Edit List Labels` its [default card labels](#deck-front-matter-labels) the same
 deferred way; the description and sync-source fields have no session action — a single-line
 prompt would mangle a multi-line description, and linking is [`deck-sync link`](/commands/deck-sync/)'s
 job — so use [`ritual metadata`](/commands/metadata/) (or the admin metadata editor) for those.
@@ -616,6 +727,47 @@ condition — see [Card Language](#card-language)). The `&N` suffix is a persist
 internally for change tracking and is auto-assigned. Decrementing a quantity keeps the ID; only
 removing the whole line releases it.
 
+The full line grammar is:
+
+```
+<quantity> Card Name (SET:CN) [finish] [condition] [lang] [labels] {note} &N
+```
+
+Everything after the quantity and name is optional, and `&N` is always last:
+
+```
+1 Sol Ring (LTC:284) [proxy] &2
+4 Lightning Bolt (LEA:161) [foil] [LP] [ja] {playtest copies} &3
+```
+
+`[labels]` on a deck line is the card's [label override](#card-labels), and the only label a deck
+carries is `proxy`. A hand-written token a deck cannot carry (`[keep]`, `[sale,trade]`) — or an
+illegal combination — is a parse warning: the card is kept, the labels are dropped.
+
+### Deck Front Matter Labels
+
+A deck's front matter can declare a `labels:` default the same way a collection's can, and with
+the same one-label vocabulary as its lines:
+
+```markdown
+---
+name: 'Proxy Testing Deck'
+format: 'commander'
+labels: [proxy]
+---
+```
+
+Every line without its own `[labels]` token then counts as a proxy — which is how you mark a whole
+playtest deck without touching a single card line. An empty list (or no key) means no default, and
+a value the deck cannot carry is dropped **whole** rather than filtered down — `labels: [sale, proxy]`
+is a statement about a deck this format cannot make, and keeping half of it would be a different
+statement. Such a value is also a **parse warning**, exactly like a refused card-line token: the
+next whole-file save deletes the key, so the warning names it and the whole-file-rewrite gates
+block until you fix it. Set it with
+[`ritual metadata set <deck> labels proxy`](/commands/metadata/), the editor's
+`🏷️ Edit List Labels` action, the admin deck editor's **Labels** button, or the MCP
+`set_list_metadata` tool.
+
 ## Collections
 
 ### Collection Files
@@ -641,16 +793,13 @@ after entry via the `📝 Add Note` menu option. Notes are displayed in the card
 generated site. The `&N` suffix is a persistent card ID used internally for change tracking and is
 auto-assigned.
 
-The optional `[labels]` token is the card's **label override**: `sale` ("For sale") and `trade`
-("For trade") combine as `[sale,trade]`, while `keep` ("To keep") always stands alone — `[sale,keep]`
-is a parse warning that blocks whole-file rewrites until fixed. A card's _effective_ labels are its
-own token when present, else the collection's front-matter default (below); the override replaces
-the default, it never merges with it. Set an override with `set-card --label` or the editors'
-`🏷 Change Label` / `Set Label…` actions; `--label none` (or "Use list default") clears it. A
-[`ritual move`](/commands/move/) to another collection carries the override; moving to a deck or
-wanted list drops it (those formats have no labels), and the editors' **Move to list…** /
-`📤 Move to Another List` flow drops it in every case (like notes, the editor move events don't
-carry it).
+The optional `[labels]` token is the card's **label override**. Collections carry the whole
+vocabulary — `sale` and `trade` combine as `[sale,trade]`, while `keep` and `proxy` each stand
+alone — and the rules are shared with decks: see [Card Labels](#card-labels). A
+[`ritual move`](/commands/move/) carries the override as far as the destination type can express
+it: another collection keeps all of it, a deck keeps `proxy` and drops the rest, a wanted list
+keeps none. The editors' **Move to list…** / `📤 Move to Another List` flow drops it in every case
+(like notes, the editor move events don't carry it).
 
 ### Collection Front Matter
 
@@ -665,7 +814,7 @@ labels: [sale, trade]
 ```
 
 Every entry without its own `[labels]` override inherits the default. `labels:` takes `sale` and
-`trade` (together or alone) or `keep` (alone); an empty list means no default. Card-line saves
+`trade` (together or alone), or `keep` or `proxy` (each alone); an empty list means no default. Card-line saves
 round-trip the block byte-for-byte — unknown hand-authored keys included — and a block whose YAML
 cannot be read is carried verbatim with an advisory rather than rejected. (A _metadata_ edit —
 [`ritual metadata`](/commands/metadata/), the editor's `🏷️ Edit List Labels` action, the admin
@@ -673,8 +822,8 @@ cannot be read is carried verbatim with an advisory rather than rejected. (A _me
 comments and quoting style do not.) Set the default with
 [`ritual metadata set <list> labels …`](/commands/metadata/) (the surgical, front-matter-only
 write), the editor's `🏷️ Edit List Labels` menu action (deferred to the session's next Save —
-which, like any session save, rewrites the whole file in canonical form), the admin collection
-editor's **Labels** button, by hand-editing the file, or via the MCP `set_list_metadata` tool.
+which, like any session save, rewrites the whole file in canonical form), the admin editor's
+**Labels** button, by hand-editing the file, or via the MCP `set_list_metadata` tool.
 The editor action refuses to run when the existing block's YAML cannot be read — a merge over
 keys it cannot see would clobber them; fix the block by hand (every other session edit still
 carries it verbatim). Wanted lists carry no front-matter keys of their own, though a block on one

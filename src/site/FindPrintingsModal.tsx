@@ -14,6 +14,7 @@ import { useT } from '../ui/i18n'
 import type { PriceCurrency } from '../price-currency'
 import { LIST_TYPE_DISPLAY } from '../list-type'
 import { CardItem } from './CardItem'
+import { cardPricelessReason } from './priceless'
 import { CARD_SIZE_WIDTHS } from './card-sorting'
 import { seedCards, seedPrintings, sessionCacheVersion } from './session-cache'
 import { TooltipOverlay } from './TooltipOverlay'
@@ -233,6 +234,11 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
                         quantity={1}
                         hideCount
                         card={copy.tile.card}
+                        customArt={copy.tile.customArt}
+                        // Same rule as every other tile: a proxy or a custom-art
+                        // copy reads its marker where the price would be, rather
+                        // than showing nothing at all because it computed 0.
+                        priceless={cardPricelessReason(copy.tile)}
                         symbolMap={symbolMap()}
                         viewMode={viewMode()}
                         useScryfallImgUrls={props.useScryfallImgUrls}

@@ -337,7 +337,10 @@ export function registerReadTools(server: McpServer): void {
         'a list you have not seen. section and nameContains filter in either view; limit and ' +
         'offset page the cards view and are ignored by summary, whose counts always describe the ' +
         'whole filtered set. totalCount reports how many entries matched before limit and offset ' +
-        'applied, so you can page.',
+        'applied, so you can page. A cards view also carries the list’s default card labels ' +
+        '(labels) and, when any returned card has custom art, customArt keyed by &N id. ' +
+        'warnings holds lines the parser could not read (a mutation refuses a list that has any); ' +
+        'artWarnings holds custom-art sidecar problems, which block nothing.',
       inputSchema: z.object({
         listType: listTypeSchema,
         slug: slugField,
@@ -874,9 +877,9 @@ export function registerReadTools(server: McpServer): void {
               .array(z.enum([...CARD_LABELS, 'none']))
               .optional()
               .describe(
-                'Only collection cards whose effective labels (their override, else the list ' +
-                  "default) include one of these; 'none' matches unlabeled cards. Deck and " +
-                  'wanted entries never match.',
+                'Only deck and collection cards whose effective labels (their override, else ' +
+                  "the list default) include one of these; 'none' matches unlabeled cards. " +
+                  'Wanted entries carry no labels and never match.',
               ),
           })
           .optional(),

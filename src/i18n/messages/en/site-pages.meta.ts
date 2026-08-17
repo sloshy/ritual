@@ -516,4 +516,12 @@ export const sitePagesMeta = {
     description:
       'Build warning: no card object exists in the requested language, so the default-language one is used. {language} is a Scryfall language code, {name} the card name, {printing} its set and collector number.',
   },
+  'site.detail.artUnreadable': {
+    description:
+      "Build warning: a list's custom-art sidecar could not be read, so no custom art is used for that list. {reason} is the parser's English explanation.",
+  },
+  'site.detail.artUnknownCards': {
+    description:
+      'Build warning: the custom-art sidecar names card ids that the list no longer contains. {ids} is a comma-separated list of those raw numeric ids.',
+  },
 } as const satisfies MetaFor<typeof sitePagesMessages>

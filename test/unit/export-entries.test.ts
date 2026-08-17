@@ -208,6 +208,8 @@ describe('labels filter', () => {
     entry({ name: 'Keep Card', labels: ['keep'], fileOrder: 2 }),
     entry({ name: 'Plain Card', fileOrder: 3 }),
     entry({ name: 'Deck Card', listType: 'deck', labels: undefined, fileOrder: 4 }),
+    entry({ name: 'Deck Proxy', listType: 'deck', labels: ['proxy'], fileOrder: 5 }),
+    entry({ name: 'Wanted Card', listType: 'wanted', labels: undefined, fileOrder: 6 }),
   ]
 
   test('matches effective labels with OR semantics', () => {
@@ -215,26 +217,65 @@ describe('labels filter', () => {
     expect(result.map((e) => e.name)).toEqual(['Sale Card', 'Both Card'])
   })
 
-  test("'none' matches unlabeled collection entries only", () => {
+  test("'none' matches unlabeled entries of the label-carrying types", () => {
     const result = filterExportEntries(labeled, { labels: ['none'] })
-    expect(result.map((e) => e.name)).toEqual(['Plain Card'])
+    expect(result.map((e) => e.name)).toEqual(['Plain Card', 'Deck Card'])
+  })
+
+  test('a deck proxy is selectable by label', () => {
+    const result = filterExportEntries(labeled, { labels: ['proxy'] })
+    expect(result.map((e) => e.name)).toEqual(['Deck Proxy'])
   })
 
   test('a labels filter may combine keep with the others (it selects, not declares)', () => {
     const result = filterExportEntries(labeled, { labels: ['keep', 'none'] })
-    expect(result.map((e) => e.name)).toEqual(['Keep Card', 'Plain Card'])
+    expect(result.map((e) => e.name)).toEqual(['Keep Card', 'Plain Card', 'Deck Card'])
   })
 
-  test('deck and wanted entries never match a labels filter', () => {
-    const result = filterExportEntries(labeled, { labels: ['sale', 'trade', 'keep', 'none'] })
-    // Positive form: exactly the collection entries survive — 'Deck Card' is out
-    // even though 'none' matches every unlabeled collection entry.
-    expect(result.map((e) => e.name)).toEqual(['Sale Card', 'Both Card', 'Keep Card', 'Plain Card'])
+  test('wanted entries never match a labels filter, not even "none"', () => {
+    const result = filterExportEntries(labeled, {
+      labels: ['sale', 'trade', 'keep', 'proxy', 'none'],
+    })
+    // Positive form: every deck and collection entry survives — 'Wanted Card' is
+    // out even though 'none' matches every other unlabeled entry.
+    expect(result.map((e) => e.name)).toEqual([
+      'Sale Card',
+      'Both Card',
+      'Keep Card',
+      'Plain Card',
+      'Deck Card',
+      'Deck Proxy',
+    ])
   })
 
   test('counts as an active filter', () => {
     expect(hasActiveExportFilters({ labels: ['sale'] })).toBe(true)
     expect(hasActiveExportFilters({ labels: [] })).toBe(false)
+  })
+
+  test('the deck loader resolves effective labels against the front-matter default', async () => {
+    const content = [
+      '---',
+      'name: Test List',
+      'labels: [proxy]',
+      '---',
+      '',
+      '## Main',
+      '1 Sol Ring (C21:263) &1',
+      '1 Mox Jet (VMA:222) [proxy] &2',
+    ].join('\n')
+    await withListFile('deck', content, async (location) => {
+      const { entries: loaded } = await loadExportEntries([location])
+      // The first line inherits the deck default; the second declares it.
+      expect(loaded.map((e) => e.labels)).toEqual([['proxy'], ['proxy']])
+    })
+  })
+
+  test('a deck with no labels at all exports none', async () => {
+    await withListFile('deck', '## Main\n1 Sol Ring (C21:263) &1\n', async (location) => {
+      const { entries: loaded } = await loadExportEntries([location])
+      expect(loaded[0]!.labels).toBeUndefined()
+    })
   })
 
   test('the collection loader resolves effective labels from the file', async () => {

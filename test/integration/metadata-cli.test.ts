@@ -55,6 +55,38 @@ describe('metadata CLI (Integration)', () => {
     expect((await fs.readFile(filePath, 'utf-8')).startsWith('# ')).toBeTrue()
   })
 
+  test('set/get/unset round-trip a deck labels default, card lines untouched', async () => {
+    const filePath = await writeDeckFile(dir, 'burn', {
+      frontMatter: { name: 'Burn' },
+      cards: [
+        { quantity: 4, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
+      ],
+    })
+
+    const set = await runCli(['metadata', 'set', 'burn', 'labels', 'proxy'], dir)
+    expect(set.exitCode).toBe(0)
+    expect(set.stdout).toContain(`Set labels = ["proxy"] on deck 'burn'`)
+
+    const content = await fs.readFile(filePath, 'utf-8')
+    expect(content).toContain('labels:')
+    expect(content).toContain('4 Lightning Bolt (LEA:161) &1')
+
+    const get = await runCli(['metadata', 'get', 'burn', 'labels', '--output', 'json'], dir)
+    expect(JSON.parse(get.stdout)).toEqual(['proxy'])
+
+    const unset = await runCli(['metadata', 'unset', 'burn', 'labels'], dir)
+    expect(unset.exitCode).toBe(0)
+    expect(await fs.readFile(filePath, 'utf-8')).not.toContain('labels:')
+  })
+
+  test('a label a deck cannot carry is a usage error naming the deck vocabulary', async () => {
+    await writeDeckFile(dir, 'burn', { frontMatter: { name: 'Burn' }, cards: [] })
+    const result = await runCli(['metadata', 'set', 'burn', 'labels', 'sale'], dir)
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain("Invalid label 'sale'")
+    expect(result.stderr).toContain('proxy')
+  })
+
   test('a keep conflict is a usage error and writes nothing', async () => {
     const filePath = await writeCollectionFile(dir, 'binder', {
       entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 }],

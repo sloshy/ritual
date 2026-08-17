@@ -17,6 +17,7 @@ import type {
   CollectionDetail,
   WantedListDetail,
 } from '../../../src/site/data-types'
+import type { ScryfallCard } from '../../../src/types'
 import { makeBuylistQuote, makeScryfallCard } from '../../test-utils'
 
 const solRing = makeScryfallCard({
@@ -33,6 +34,13 @@ const bolt = makeScryfallCard({
   collector_number: '161',
   color_identity: ['R'],
 })
+
+/**
+ * The fields that make a list entry priceless by rule. `hasCustomArt` without a
+ * `customArt` URL is the undeployed-file case: the build could not copy the
+ * image, so the card shows its real printing and is priceless all the same.
+ */
+type PricelessEntryOverride = { labels?: string[]; customArt?: string; hasCustomArt?: boolean }
 
 function deckDetail(): Extract<LoadedListDetail, { kind: 'deck' }> {
   const detail = {
@@ -356,8 +364,211 @@ describe('buildCombinedCards — labels', () => {
     expect(cards[1]!.selectedTile.labels).toEqual(['keep'])
   })
 
-  test('deck and wanted cards are always unlabeled', () => {
-    const cards = buildCombinedCards([deckDetail(), wantedDetail()], 'usd', false)
-    for (const card of cards) expect(card.labels).toEqual([])
+  test('deck cards resolve effective labels; wanted cards are always unlabeled', () => {
+    const deck = deckDetail()
+    const detail = deck.detail as unknown as {
+      deck: { sections: { cards: { labels?: string[] }[] }[] }
+    }
+    detail.deck.sections[0]!.cards[0]!.labels = ['proxy']
+
+    const cards = buildCombinedCards([deck, wantedDetail()], 'usd', false)
+    expect(cards[0]!.labels).toEqual(['proxy'])
+    expect(cards[0]!.selectedTile.labels).toEqual(['proxy'])
+    // A line with no override on a deck with no default stays unlabeled, as do
+    // wanted cards, which carry no labels at all.
+    expect(cards[1]!.labels).toEqual([])
+    expect(cards[2]!.labels).toEqual([])
+  })
+})
+
+describe('buildCombinedCards — proxies and custom art', () => {
+  /** The printings the priceless assertions below are measured against. */
+  const PRICED_SOL_RING = makeScryfallCard({
+    id: 'sol',
+    name: 'Sol Ring',
+    set: 'c21',
+    collector_number: '263',
+    prices: { usd: '4.50' },
+  })
+  const PRICED_BOLT = makeScryfallCard({
+    id: 'bolt',
+    name: 'Lightning Bolt',
+    set: 'lea',
+    collector_number: '161',
+    prices: { usd: '9.99' },
+  })
+
+  /**
+   * Fixtures whose cards are worth something, seeded into the map each
+   * resolver actually reads: a deck line pinned to a printing resolves through
+   * `printings` (`findPrinting`), a name-only wanted line through `cards`, and
+   * a collection entry through `cards` under its `set:cn` key. Seeding the
+   * wrong map leaves the fixture priced at nothing, which every "prices at 0"
+   * assertion would then pass without the rule under test doing anything —
+   * hence the control assertion in each case below.
+   */
+  function pricedDeck(): Extract<LoadedListDetail, { kind: 'deck' }> {
+    const deck = deckDetail()
+    const detail = deck.detail as unknown as {
+      printings: Record<string, ScryfallCard[]>
+      cards: Record<string, ScryfallCard>
+    }
+    detail.printings['Sol Ring'] = [PRICED_SOL_RING]
+    detail.cards['Sol Ring'] = PRICED_SOL_RING
+    detail.cards['Lightning Bolt'] = PRICED_BOLT
+    return deck
+  }
+
+  function pricedWanted(): Extract<LoadedListDetail, { kind: 'wanted' }> {
+    const wanted = wantedDetail()
+    ;(wanted.detail as unknown as { cards: Record<string, ScryfallCard> }).cards['Lightning Bolt'] =
+      PRICED_BOLT
+    return wanted
+  }
+
+  function pricedCollection(): Extract<LoadedListDetail, { kind: 'collection' }> {
+    const collection = collectionDetail()
+    ;(collection.detail as unknown as { cards: Record<string, ScryfallCard> }).cards['c21:263'] =
+      PRICED_SOL_RING
+    return collection
+  }
+
+  /**
+   * The two by-rule priceless entries. They differ only in which field of the
+   * same collection entry is overridden, so the pricing pin is one table.
+   *
+   * Deliberately no buylist assertion here: `buildCombinedCards` runs with sell
+   * mode off and no quotes seeded, so `buylistPrice: 0` / `onBuylist: false`
+   * would hold for every card in the file and pin nothing. The priceless
+   * short-circuit in `buylistFieldsFor` is pinned against a live quote in
+   * `test/unit/sell-value.test.ts`.
+   */
+  const PRICELESS_ENTRY_CASES: [string, PricelessEntryOverride][] = [
+    ['a proxy', { labels: ['proxy'] }],
+    ['a custom-art copy', { customArt: 'art/sol-ring.jpg', hasCustomArt: true }],
+    ['a custom-art copy whose file was not deployed', { hasCustomArt: true }],
+  ]
+
+  test('the priced fixtures really are priced, so the assertions below can fail', () => {
+    // The control every "prices at 0" case leans on: seed the wrong map and the
+    // fixture is worth nothing on its own, which would make the priceless rule
+    // untestable through it.
+    const cards = buildCombinedCards(
+      [pricedCollection(), pricedDeck(), pricedWanted()],
+      'usd',
+      false,
+    )
+    expect(cards.map((card) => card.price)).toEqual([4.5, 4.5, 9.99, 9.99])
+  })
+
+  test.each(PRICELESS_ENTRY_CASES)(
+    '%s prices a collection card at 0, whatever the printing is worth',
+    (_label, override) => {
+      const collection = pricedCollection()
+      const detail = collection.detail as unknown as {
+        entries: (PricelessEntryOverride & { price: number })[]
+      }
+      Object.assign(detail.entries[0]!, override)
+
+      const [card] = buildCombinedCards([collection], 'usd', false)
+      expect(card!.price).toBe(0)
+      expect(card!.selectedTile.price).toBe(0)
+      expect(card!.selectedTile.customArt).toBe(override.customArt)
+      // The tile and its selection carry the *fact*, not just the URL: it is
+      // what the CUSTOM marker and the selection's own valuation read, and a
+      // card whose art file never shipped has nothing else to go on.
+      expect(card!.hasCustomArt).toBe(override.hasCustomArt)
+      expect(card!.selectedTile.hasCustomArt).toBe(override.hasCustomArt)
+    },
+  )
+
+  test('an undeployed art file leaves deck and wanted cards priceless too', () => {
+    const deck = pricedDeck()
+    const deckCards = (
+      deck.detail as unknown as { deck: { sections: { cards: { hasCustomArt?: boolean }[] }[] } }
+    ).deck.sections[0]!.cards
+    deckCards[0]!.hasCustomArt = true
+
+    const wanted = pricedWanted()
+    ;(
+      wanted.detail as unknown as { entries: { hasCustomArt?: boolean }[] }
+    ).entries[0]!.hasCustomArt = true
+
+    const cards = buildCombinedCards([deck, wanted], 'usd', false)
+    // No display URL anywhere — the tiles show the printings' own art — and yet
+    // neither card is worth anything.
+    expect(cards[0]!.customArt).toBeUndefined()
+    expect(cards[0]!.price).toBe(0)
+    expect(cards[0]!.hasCustomArt).toBe(true)
+    expect(cards.at(-1)!.price).toBe(0)
+    expect(cards.at(-1)!.hasCustomArt).toBe(true)
+  })
+
+  test('a collection default proxy label prices every line at 0', () => {
+    const collection = pricedCollection()
+    // The *list's* default, with no override on the line: the combined view has
+    // to resolve effective labels before asking the priceless rule, exactly as
+    // the collection page does.
+    ;(collection.detail as unknown as { labels?: string[] }).labels = ['proxy']
+
+    const [card] = buildCombinedCards([collection], 'usd', false)
+    expect(card!.labels).toEqual(['proxy'])
+    expect(card!.price).toBe(0)
+    expect(card!.selectedTile.price).toBe(0)
+  })
+
+  test('a deck line inherits the deck-default proxy label and prices at 0', () => {
+    const deck = deckDetail()
+    const detail = deck.detail as unknown as {
+      labels?: string[]
+      cards: Record<string, unknown>
+    }
+    detail.labels = ['proxy']
+    detail.cards['Lightning Bolt'] = makeScryfallCard({
+      id: 'bolt',
+      name: 'Lightning Bolt',
+      set: 'lea',
+      collector_number: '161',
+      prices: { usd: '9.99' },
+    })
+
+    const cards = buildCombinedCards([deck], 'usd', false)
+    for (const card of cards) {
+      expect(card.labels).toEqual(['proxy'])
+      expect(card.price).toBe(0)
+    }
+  })
+
+  test('custom art rides along on the card and its selection tile', () => {
+    const collection = collectionDetail()
+    const entries = (collection.detail as unknown as { entries: { customArt?: string }[] }).entries
+    entries[0]!.customArt = 'art/proxies/sol-ring.jpg'
+
+    const wanted = wantedDetail()
+    const wantedEntries = (wanted.detail as unknown as { entries: { customArt?: string }[] })
+      .entries
+    wantedEntries[0]!.customArt = 'https://example.com/bolt.png'
+
+    const cards = buildCombinedCards([collection, wanted], 'usd', true)
+    expect(cards[0]!.customArt).toBe('art/proxies/sol-ring.jpg')
+    expect(cards[0]!.selectedTile.image).toBe('art/proxies/sol-ring.jpg')
+    expect(cards[1]!.customArt).toBe('https://example.com/bolt.png')
+    expect(cards[1]!.selectedTile.image).toBe('https://example.com/bolt.png')
+  })
+
+  test('custom art prices deck and wanted cards at 0 as well', () => {
+    const deck = pricedDeck()
+    const deckCards = (
+      deck.detail as unknown as { deck: { sections: { cards: { customArt?: string }[] }[] } }
+    ).deck.sections[0]!.cards
+    deckCards[0]!.customArt = 'art/sol-ring.jpg'
+
+    const wanted = pricedWanted()
+    ;(wanted.detail as unknown as { entries: { customArt?: string }[] }).entries[0]!.customArt =
+      'https://example.com/bolt.png'
+
+    const cards = buildCombinedCards([deck, wanted], 'usd', false)
+    expect(cards[0]!.price).toBe(0)
+    expect(cards.at(-1)!.price).toBe(0)
   })
 })

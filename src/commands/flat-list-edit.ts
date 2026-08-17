@@ -43,6 +43,8 @@ import {
   type MoveDeps,
   type MoveDestination,
 } from './edit-move'
+import { noteArtLineRemoved, noteArtLineRestored, noteArtSet } from './session-art'
+import { editCardArt } from './edit-art'
 
 /**
  * Edit-mode operations shared by the collection and wanted sessions: targeting
@@ -200,6 +202,28 @@ export async function editFlatListNote<E extends EditableFlatListEntry>(
   )
 }
 
+/**
+ * Run the Set Custom Art action on an existing entry. Deferred like every other
+ * session edit: the `.art.json` sidecar is written by the save that writes the
+ * entries, so the session is only marked dirty here.
+ */
+export async function editFlatListArt<E extends EditableFlatListEntry>(
+  list: FlatListStrategyContext<E>,
+  entry: E,
+  cardId: number,
+): Promise<void> {
+  await editCardArt({
+    filePath: list.session.filePath,
+    cardId,
+    cardName: entry.name,
+    art: list.session.art,
+    editUndo: list.editUndo,
+    markDirty: () => {
+      list.session.dirty = true
+    },
+  })
+}
+
 type ConfirmPromptResponse = { confirm?: boolean }
 
 /** Confirmation gate in front of {@link performFlatListRemoval}. */
@@ -241,6 +265,9 @@ export function performFlatListRemoval<E extends EditableFlatListEntry>(
   const removeEvent = createRemoveChange(entry.name, { ...printingOptionsFrom(entry), cardId })
   applyFlatListChange(list.session, removeEvent)
   releaseId(list.session.pool, cardId)
+  // The id is back in the pool, so the line's custom art has to leave with it —
+  // written by the save, undone by the undo below.
+  noteArtLineRemoved(list.session.art, cardId)
 
   // The removed entry's earlier edit events are moot, so they fold out of the
   // changelog (and come back if the removal is undone).
@@ -344,6 +371,9 @@ export function performFlatListMove<E extends EditableFlatListEntry>(
   // load; undo restores the entry under the still-reserved id.
   const sessionIdx = list.sessionAdds.indexOf(cardId)
   if (sessionIdx !== -1) list.sessionAdds.splice(sessionIdx, 1)
+  // The card is leaving this list, so its art leaves too. The destination side
+  // adopts it at save time, where the id it lands on is known.
+  noteArtLineRemoved(list.session.art, cardId)
 
   const { kept, displaced } = foldOutCardChanges(ctx.sessionChanges, cardId, { keepAdds: true })
   ctx.sessionChanges = [...kept, moveEvent]
@@ -415,13 +445,22 @@ export function undoFlatListEditAt<E extends EditableFlatListEntry>(
     if (findFlatListEntry(list, undo.reclaimId) !== undefined) {
       // Another entry owns the id now (a removal's released id was reused), so
       // the restored entry takes a fresh one and its deeper history follows.
+      // The art stays dropped: its old id belongs to a different card.
       retargetUndoCardId([undo, ...list.editUndo], undo.reclaimId, allocateId(list.session.pool))
-    } else if (!list.session.pool.usedIds.has(undo.reclaimId)) {
-      claimId(list.session.pool, undo.reclaimId)
+    } else {
+      // A free id is claimed back; an id that is merely still reserved — a
+      // pending move keeps its id in the pool — needs nothing, the inverse add
+      // below restores the entry under it. Either way the entry returns under
+      // its own id, so its custom art returns with it.
+      if (!list.session.pool.usedIds.has(undo.reclaimId)) {
+        claimId(list.session.pool, undo.reclaimId)
+      }
+      noteArtLineRestored(list.session.art, undo.reclaimId)
     }
-    // Otherwise the id is merely still reserved — a pending move keeps its id
-    // in the pool — and the inverse add below restores the entry under it.
   }
+
+  // An art edit's only effect is on the sidecar, so its undo is a re-stage.
+  if (undo.restoreArt) noteArtSet(list.session.art, undo.cardId, undo.restoreArt.ref)
 
   for (const change of undo.inverse) {
     applyFlatListChange(list.session, change)

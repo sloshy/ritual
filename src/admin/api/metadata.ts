@@ -6,7 +6,13 @@ import {
   COLLECTION_METADATA_KEYS,
   type CollectionMetadataPatch,
 } from '../../flat-list-metadata'
-import { parseCardLabelsValue } from '../../card-labels'
+import {
+  LIST_TYPE_LABELS,
+  parseCardLabelsValue,
+  unsupportedLabelsFor,
+  type CardLabel,
+} from '../../card-labels'
+import type { ListType } from '../../list-type'
 import { checkArchidektLink } from '../../deck-sync/link'
 import { invalidDeckFormatMessage, parseDeckFormat } from '../../deck-format'
 import { parseListTarget } from './target'
@@ -22,8 +28,9 @@ import { MAX_LIST_BODY_SIZE } from '../validation'
 /**
  * `PUT /api/metadata/:type/:slug` — write a list's front matter.
  *
- * Decks accept the deck vocabulary (description/tags/format/source link);
- * collections accept `labels` (their default card labels). Wanted lists define
+ * Decks accept the deck vocabulary (description/tags/format/source link) plus
+ * `labels` (their default card labels, `proxy` alone); collections accept
+ * `labels` over the whole label vocabulary. Wanted lists define
  * no front-matter keys, so they are refused with a 400 rather than silently
  * accepting a write with nothing to say.
  */
@@ -33,6 +40,8 @@ export type DeckMetadataRequest = {
   description?: string | null
   tags?: string[] | null
   format?: string | null
+  /** The deck's default card labels; `null` or `[]` clears them. Decks accept `proxy` only. */
+  labels?: string[] | null
   sourceId?: string | null
   sourceUrl?: string | null
   /** Optional optimistic-concurrency token from `GET /api/deck/:slug`. */
@@ -113,6 +122,25 @@ function parseMetadataEnvelope(
 }
 
 /**
+ * Validate a request body's `labels` value as a list's default card labels for
+ * `type`: `null` (or an empty array) clears the key, anything else must name
+ * labels that type carries. Returns the patch value, or the message explaining
+ * the refusal. Shared by both body parsers so a deck and a collection refuse an
+ * illegal label set identically.
+ */
+function parseListDefaultLabels(raw: unknown, type: ListType): CardLabel[] | null | string {
+  if (raw === null) return null
+  const labels = parseCardLabelsValue(raw, 'labels')
+  if (!labels.ok) return labels.message
+  const unsupported = unsupportedLabelsFor(type, labels.labels)
+  if (unsupported.length > 0) {
+    return `labels [${unsupported.join(', ')}] are not supported on a ${type}; supported: ${LIST_TYPE_LABELS[type].join(', ')}.`
+  }
+  // An empty array says "no default"; clear the key rather than writing `[]`.
+  return labels.labels.length === 0 ? null : labels.labels
+}
+
+/**
  * Validate an untrusted request body object into a {@link ParsedDeckMetadataBody},
  * or return the error message explaining why it is not usable. The object guard
  * itself is the shared route prologue's job ({@link readJsonObjectBody}); this
@@ -168,6 +196,12 @@ export function parseDeckMetadataBody(
     }
   }
 
+  if ('labels' in raw) {
+    const labels = parseListDefaultLabels(raw.labels, 'deck')
+    if (typeof labels === 'string') return labels
+    patch.labels = labels
+  }
+
   if ('sourceId' in raw) {
     if (raw.sourceId === null) {
       patch.sourceId = null
@@ -217,14 +251,9 @@ export function parseCollectionMetadataBody(
   const { contentHash } = envelope
 
   if ('labels' in raw) {
-    if (raw.labels === null) {
-      patch.labels = null
-    } else {
-      const labels = parseCardLabelsValue(raw.labels, 'labels')
-      if (!labels.ok) return labels.message
-      // An empty array says "no default"; clear the key rather than writing `[]`.
-      patch.labels = labels.labels.length === 0 ? null : labels.labels
-    }
+    const labels = parseListDefaultLabels(raw.labels, 'collection')
+    if (typeof labels === 'string') return labels
+    patch.labels = labels
   }
 
   return contentHash === undefined ? { patch } : { patch, contentHash }
@@ -233,8 +262,9 @@ export function parseCollectionMetadataBody(
 /**
  * `PUT /api/metadata/:type/:slug` — replace the given front-matter fields on a
  * list, leaving the card lines untouched. Decks take the deck vocabulary below;
- * collections take `labels` (cleared by `null` or `[]`), validated against the
- * label vocabulary and the keep-exclusivity rule.
+ * both types take `labels` (cleared by `null` or `[]`), validated against the
+ * label vocabulary, the exclusivity rule, and what the list type carries — a
+ * deck accepts `proxy` alone.
  *
  * Only the fields present in the body are written; a field sent as `null` (or an
  * empty string, for `description`) is deleted. Every other key round-trips,

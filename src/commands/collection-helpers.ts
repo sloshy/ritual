@@ -20,6 +20,14 @@ import {
   storedLanguage,
   type CardLanguage,
 } from '../card-language'
+import {
+  cardLabelChoicesFor,
+  cardLabelDefaultChoicesFor,
+  formatCardLabels,
+  type CardLabel,
+  type CardLabelChoice,
+} from '../card-labels'
+import type { ListType } from '../list-type'
 import { resolvePrintingLanguage } from '../printing-language'
 import {
   VALID_FINISHES,
@@ -425,6 +433,66 @@ export async function promptLanguageChoice(
   })) as LanguagePromptResponse
   if (isExited || response.value === undefined || !isCardLanguage(response.value)) return null
   return response.value
+}
+
+type LabelPromptResponse = { value?: string }
+
+/**
+ * Pick a label state from `choices`, marking the current one and starting the
+ * cursor on it. Returns null when cancelled. Choices round-trip through their
+ * canonical serialized form (`''` for the clear row) — a real domain value,
+ * like {@link promptLanguageChoice}'s, rather than an array index. Shared by
+ * the per-card override picker and the list-default picker, for every list type
+ * that carries labels.
+ */
+async function promptLabelChoiceFrom(
+  choices: readonly CardLabelChoice[],
+  current: readonly CardLabel[] | undefined,
+  message: string,
+): Promise<CardLabel[] | null> {
+  const currentKey = formatCardLabels(current ?? [])
+  const currentIndex = choices.findIndex((choice) => formatCardLabels(choice.labels) === currentKey)
+  const response = (await prompts({
+    type: 'select',
+    name: 'value',
+    message,
+    choices: choices.map((choice, i) => ({
+      title:
+        i === currentIndex ? t('cli.edit.current', { label: t(choice.label) }) : t(choice.label),
+      value: formatCardLabels(choice.labels),
+    })),
+    initial: Math.max(0, currentIndex),
+  })) as LabelPromptResponse
+  const key = response.value
+  if (key === undefined) return null
+  const picked = choices.find((choice) => formatCardLabels(choice.labels) === key)
+  return picked ? [...picked.labels] : null
+}
+
+/**
+ * Pick a label override for an existing entry: the label states `type` carries
+ * plus "Use list default" (clear, encoded as `[]`).
+ */
+export async function promptCardLabelChoice(
+  type: ListType,
+  current: readonly CardLabel[] | undefined,
+): Promise<CardLabel[] | null> {
+  return promptLabelChoiceFrom(cardLabelChoicesFor(type), current, t('cli.labels.promptOverride'))
+}
+
+/**
+ * Pick the list's *default* labels: the label states `type` carries plus a
+ * leading "No default" clear row.
+ */
+export async function promptDefaultLabelsChoice(
+  type: ListType,
+  current: readonly CardLabel[] | undefined,
+): Promise<CardLabel[] | null> {
+  return promptLabelChoiceFrom(
+    cardLabelDefaultChoicesFor(type),
+    current,
+    t('cli.labels.promptDefault'),
+  )
 }
 
 /** A printing surfaced in a strict-pin error, as a `set`/`collectorNumber` pair. */

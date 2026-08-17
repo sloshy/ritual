@@ -72,6 +72,17 @@ describe('skill catalog invariants', () => {
     // The other half of that: `--sell-mode` writes nothing, so the *running*
     // server's `get_config` is the only place an agent can see it in force.
     ['ritual-site', 'overrides: {"site.sellMode": true}'],
+    // Custom art: an agent cannot discover the sidecar or the directory it
+    // resolves against by trial, and guessing wrong means writing a reference
+    // to a file nothing serves.
+    ['ritual', '.art.json'],
+    ['ritual', 'artDir'],
+    ['ritual-edit', '--art <path|url|none>'],
+    // The proxy label's two non-obvious halves: decks take it and nothing else,
+    // and a proxy carries no price rather than an unknown one.
+    ['ritual-decks', 'labels: [proxy]'],
+    ['ritual-decks', 'prices as **0**'],
+    ['ritual-collections', 'prices as **0**'],
   ])('the %s skill documents %p', (skillName, phrase) => {
     const skill = SKILLS.find((s) => s.name === skillName)
     expect(skill).toBeDefined()

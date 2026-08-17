@@ -397,10 +397,18 @@
   position: relative;
 }
 
-.printing-select-card:hover,
+.printing-select-card:hover:not(:disabled),
 .printing-select-card--highlighted {
   border-color: var(--accent);
   transform: scale(1.02);
+}
+
+/* A printing tile is a commit, so it goes dead with the rest of the add flow
+   while the options row refuses the typed art — matching the pagination
+   buttons' disabled treatment below. */
+.printing-select-card:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .printing-select-card img {
@@ -456,10 +464,16 @@
     background 0.15s;
 }
 
-.printing-no-printing:hover,
+.printing-no-printing:hover:not(:disabled),
 .printing-no-printing--highlighted {
   border-color: var(--accent);
   background: var(--bg-hover);
+}
+
+/* Dead alongside the printing tiles it sits with — it commits the same add. */
+.printing-no-printing:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .printing-select-pagination {

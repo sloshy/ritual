@@ -24,6 +24,7 @@ import {
 import {
   comparePricedEntries,
   filterPricedEntries,
+  isByRuleUnpricedReason,
   isPriceSortField,
   PRICE_SORT_FIELDS,
   sumPricedEntries,
@@ -34,6 +35,7 @@ import {
   type PriceReport,
   type PricedEntry,
   type PriceSortField,
+  type ByRuleUnpricedReason,
   type PriceTotals,
   type UnpricedReason,
 } from '../price-report'
@@ -82,7 +84,31 @@ const UNPRICED_REASON = {
   'currency-unavailable': 'cli.price.unpricedCurrencyUnavailable',
   'finish-unpriced-in-currency': 'cli.price.unpricedFinishUnpriced',
   'no-price-data': 'cli.price.unpricedNoPriceData',
+  proxy: 'cli.price.unpricedProxy',
+  'custom-art': 'cli.price.unpricedCustomArt',
 } as const satisfies Record<UnpricedReason, MessageKey>
+
+/**
+ * What stands in the price column for a card that has no price by rule. Message
+ * keys for the same reason as {@link UNPRICED_REASON}; the wording is the short
+ * uppercase marker the sites show, so a card reads the same in the browser as
+ * on the page.
+ */
+const BY_RULE_MARKER = {
+  proxy: 'cli.price.markerProxy',
+  'custom-art': 'cli.price.markerCustomArt',
+} as const satisfies Record<ByRuleUnpricedReason, MessageKey>
+
+/**
+ * An entry's price cell. A proxy or a custom-art card is marked rather than
+ * shown as "N/A": the absence of a price is the answer there, not a gap in the
+ * data. Custom art wins over the proxy label when both apply — the engine has
+ * already decided that, so the cell just renders the reason it was given.
+ */
+function formatEntryPrice(entry: PricedEntry, amount: number, currency: PriceCurrency): string {
+  if (isByRuleUnpricedReason(entry.unpricedReason)) return t(BY_RULE_MARKER[entry.unpricedReason])
+  return formatPriceOrNA(amount, currency)
+}
 
 /** What the user picked on the main screen. */
 export type PriceMainSelection =
@@ -224,7 +250,7 @@ export function formatEntryChoiceTitle(
       ? ` (${entry.set.toUpperCase()}:${entry.collectorNumber})${entry.pinned ? '' : '*'}`
       : ''
   const finish = entry.finish && entry.finish !== 'nonfoil' ? ` [${entry.finish}]` : ''
-  const price = formatPriceOrNA(entry.price * entry.quantity, currency)
+  const price = formatEntryPrice(entry, entry.price * entry.quantity, currency)
   const lowest =
     entry.lowest > 0 && entry.lowest !== entry.price
       ? ` · lowest ${formatPrice(entry.lowest * entry.quantity, currency)}`
@@ -339,7 +365,7 @@ export function formatEntryDetailLines(entry: PricedEntry, currency: PriceCurren
   if (!entry.pinned && entry.set) {
     lines.push(t('cli.price.detailRepresentative'))
   }
-  const unit = formatPriceOrNA(entry.price, currency)
+  const unit = formatEntryPrice(entry, entry.price, currency)
   const lineTotal =
     entry.quantity > 1
       ? t('cli.price.detailLineTotal', {
