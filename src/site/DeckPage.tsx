@@ -16,7 +16,8 @@ import { TagFilterWarning } from './TagFilterWarning'
 import { ListPageStats, SellModeNotice } from './PageStats'
 import type { Card, ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
-import type { BakedDeckCard, BakedDeckData } from './data-types'
+import type { BakedDeckCard, BakedDeckData, CardKingdomCards } from './data-types'
+import { sourceCards } from './source-cards'
 import {
   cardLabelName,
   effectiveLabels,
@@ -165,6 +166,9 @@ export interface DeckPageProps extends SellModeProps {
   lowestPriceCards?: Record<string, ScryfallCard | null>
   lowestPriceCardsEur?: Record<string, ScryfallCard | null>
   lowestPriceCardsTix?: Record<string, ScryfallCard | null>
+  /** Card Kingdom's own printing picks, read while the USD source is Card Kingdom. */
+  cardsCardKingdom?: CardKingdomCards
+  lowestPriceCardsCardKingdom?: CardKingdomCards
   symbolMap: Record<string, string>
   /** Show the page-header Copy/Download export menu (public read view only). */
   enableExport?: boolean
@@ -392,18 +396,36 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     props.modalCardName ? deckEntryByName().get(props.modalCardName) : undefined,
   )
 
-  // Active card map based on lowest price toggle and currency
+  // Active card map based on lowest price toggle, currency, and USD source. The
+  // store that priced a printing is the store that gets to pick it: under Card
+  // Kingdom both the default and the cheapest pick come from CK's catalog, or
+  // the tile would show a printing CK never stocked and price it at nothing.
   const activeCards = createMemo(() => {
     if (lowestPrice()) {
       if (props.currency === 'eur' && props.lowestPriceCardsEur) return props.lowestPriceCardsEur
       if (props.currency === 'tix' && props.lowestPriceCardsTix) return props.lowestPriceCardsTix
-      if (props.lowestPriceCards) return props.lowestPriceCards
+      if (props.lowestPriceCards) {
+        return sourceCards({
+          cards: props.lowestPriceCards,
+          cardKingdom: props.lowestPriceCardsCardKingdom,
+          currency: props.currency,
+        })
+      }
     }
-    return props.cards
+    return sourceCards({
+      cards: props.cards,
+      cardKingdom: props.cardsCardKingdom,
+      currency: props.currency,
+    })
   })
 
   const hasLowestPriceCards = createMemo(() =>
-    Boolean(props.lowestPriceCards || props.lowestPriceCardsEur || props.lowestPriceCardsTix),
+    Boolean(
+      props.lowestPriceCards ||
+      props.lowestPriceCardsEur ||
+      props.lowestPriceCardsTix ||
+      props.lowestPriceCardsCardKingdom,
+    ),
   )
 
   // Resolve the ScryfallCard to display for a deck entry. Each entry resolves its
@@ -515,6 +537,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     if (props.lowestPriceCards) seedCards(props.lowestPriceCards)
     if (props.lowestPriceCardsEur) seedCards(props.lowestPriceCardsEur)
     if (props.lowestPriceCardsTix) seedCards(props.lowestPriceCardsTix)
+    if (props.cardsCardKingdom) seedCards(props.cardsCardKingdom)
+    if (props.lowestPriceCardsCardKingdom) seedCards(props.lowestPriceCardsCardKingdom)
   })
 
   // Price refresh is wired for every render but only shown when the page opts in

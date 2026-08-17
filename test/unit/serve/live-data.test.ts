@@ -234,6 +234,31 @@ describe('createLiveSiteData', () => {
       expect(binderQuotes(second!.body)?.cardkingdom?.quotes[QUOTE_KEY]?.priceBuy).toBe(99)
     })
 
+    test('the cardkingdom price store gets CK printing picks in the live payload', async () => {
+      // No sell mode: the `cardkingdom` store alone must load the feed and reach
+      // the printing selection — the two-condition gate in `makeContext`.
+      await patchConfig({ priceSources: ['tcgplayer', 'cardkingdom'] })
+      await seedFeed(3, Date.now())
+
+      const detail = await createLiveSiteData().getDetail('deck', 'emberwild-aggro')
+      const deck = JSON.parse(detail!.body) as DeckDetail
+
+      // The buyer stocks Serra Angel (FDN:35) and nothing else this deck wants,
+      // so the map is present *and* sparse — the deck's other name-only lines
+      // keep their Scryfall picks.
+      expect(deck.cardsCardKingdom?.['Serra Angel']?.set).toBe('fdn')
+      expect(deck.cardsCardKingdom?.['Dark Ritual']).toBeUndefined()
+    })
+
+    test('a deployment without the cardkingdom store gets no picks, feed or no feed', async () => {
+      await patchConfig({ priceSources: ['tcgplayer'] })
+      await seedFeed(3, Date.now())
+
+      const detail = await createLiveSiteData().getDetail('deck', 'emberwild-aggro')
+
+      expect(JSON.parse(detail!.body)).not.toHaveProperty('cardsCardKingdom')
+    })
+
     test('sell mode off ships no buylist field at all, feed on disk or not', async () => {
       await seedFeed(3, Date.now())
 

@@ -101,8 +101,10 @@ export function handleDeckLoad(req: Request): Promise<Response> {
 
     await addChangelogCardNames(filePath, cardNames)
 
-    const { cards, printings, lowestPriceCards, lowestPriceCardsEur, lowestPriceCardsTix } =
-      await loadDeckCardData(cardNames)
+    // Spread whole: `DeckFullLoadResult` extends the loader's result, so a field
+    // added there (the Card Kingdom picks) reaches the client without a second
+    // edit here — and cannot be silently dropped by a stale destructure.
+    const cardData = await loadDeckCardData(cardNames)
     const symbolMap = await fetchSymbolMap()
 
     const body: DeckFullLoadResult = {
@@ -110,11 +112,7 @@ export function handleDeckLoad(req: Request): Promise<Response> {
       view: 'full',
       deck,
       totalCount,
-      cards,
-      printings,
-      lowestPriceCards,
-      lowestPriceCardsEur,
-      lowestPriceCardsTix,
+      ...cardData,
       symbolMap,
       frontMatter,
       labels: frontMatter.labels,

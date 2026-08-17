@@ -1,5 +1,6 @@
 import { type Accessor, type JSX, Show, batch, createMemo, createSignal } from 'solid-js'
 import type { SellModeProps } from '../site/sell-mode'
+import type { CardKingdomCards } from '../site/data-types'
 import type { DeckData, Card, Finish } from '../types'
 import type { CardLabel } from '../card-labels'
 import type { CardLanguage } from '../card-language'
@@ -397,6 +398,18 @@ type DeckEditorBodyProps = SellModeProps & {
   enableTrade?: boolean
   /** The deck's default card labels (`proxy`), shown as badges on cards without an override. */
   listLabels?: CardLabel[]
+  /**
+   * Card Kingdom's baked printing picks for this list, forwarded to the page so
+   * the editing view swaps printings on a source switch exactly as the read
+   * view does. Static for the session — a card added while editing simply has
+   * no CK pick and falls back to its Scryfall one.
+   *
+   * Only the *representative* map is threaded. The page's "Lowest Price" toggle
+   * is disabled while editing (editing acts on the printing each entry actually
+   * names), so its map — CK's or Scryfall's — has no reader on this path; the
+   * read views get theirs from the detail payload directly.
+   */
+  cardsCardKingdom?: CardKingdomCards
   /** Open the list-default label editor (admin editor only — needs the authed metadata route). */
   onEditLabels?: () => void
   /** The deck's custom art, resolved onto the card lines the page renders. */
@@ -522,6 +535,7 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
         lowestPriceCards={ctrl.cardData.lowestPriceCards}
         lowestPriceCardsEur={ctrl.cardData.lowestPriceCardsEur}
         lowestPriceCardsTix={ctrl.cardData.lowestPriceCardsTix}
+        cardsCardKingdom={props.cardsCardKingdom}
         symbolMap={ctrl.cardData.symbolMap}
         useScryfallImgUrls={props.useScryfallImgUrls}
         modalCardName={ctrl.modalCardName()}

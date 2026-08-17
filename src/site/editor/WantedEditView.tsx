@@ -134,6 +134,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
           enableTrade={true}
           enableSellMode={props.enableSellMode}
           bakedBuylist={() => props.detail.buylist}
+          cardsCardKingdom={props.detail.cardsCardKingdom}
         />
       }
       original={
@@ -142,6 +143,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
           entries={props.detail.entries}
           sectionOrder={props.detail.sectionOrder}
           cards={props.detail.cards}
+          cardsCardKingdom={props.detail.cardsCardKingdom}
           printings={props.detail.printings ?? {}}
           symbolMap={props.detail.symbolMap}
           useScryfallImgUrls={props.detail.useScryfallImgUrls}

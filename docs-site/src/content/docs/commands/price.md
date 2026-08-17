@@ -59,7 +59,7 @@ Selecting a list opens a card browser over that list; **🔎 Search all cards** 
 
 A source names the store prices come from, and therefore its currency — `tcgplayer` and `cardkingdom` price in USD, `cardmarket` in EUR — so `--source cardmarket` is `--prices eur` by another name, and passing a `--prices` that disagrees with the source is a usage error.
 
-`--source cardkingdom` prices every entry at Card Kingdom's **Near Mint retail** price from the cached [pricelist feed](/commands/sell/), matched by Scryfall ID (with the same SKU fallback the sell report uses). The feed follows this run's `--refresh` policy like the card cache; with no feed cached and bulk downloads disallowed, the command errors rather than silently falling back to Scryfall. Honesty over completeness: a printing Card Kingdom does not sell — and any non-English entry, which their English-only feed can never quote — is reported **unpriced**, and the "lowest" figure becomes the cheapest printing+finish CK actually sells. Structured payloads carry `"source": "cardkingdom"` beside `"currency": "usd"`.
+`--source cardkingdom` prices every entry at Card Kingdom's **Near Mint retail** price from the cached [pricelist feed](/commands/sell/), matched by Scryfall ID (with the same SKU fallback the sell report uses). The feed follows this run's `--refresh` policy like the card cache; with no feed cached and bulk downloads disallowed, the command errors rather than silently falling back to Scryfall. Honesty over completeness: a printing Card Kingdom does not sell — and any non-English entry, which their English-only feed can never quote — is reported **unpriced**, and the "lowest" figure becomes the cheapest printing+finish CK actually sells. Entries that name no printing are priced at a printing chosen from CK's own catalog (see [How Cards Are Priced](#how-cards-are-priced)), so an unpinned entry goes unpriced only when CK carries no printing of the card at all. Structured payloads carry `"source": "cardkingdom"` beside `"currency": "usd"`.
 
 ## Price Freshness
 
@@ -72,7 +72,7 @@ Prompts never fire when they can't be answered: under `--no-input` / `RITUAL_NO_
 ## How Cards Are Priced
 
 - An entry pinned to a specific printing (set + collector number) is priced at that exact printing — at its own finish when recorded, otherwise the printing's default finish. Collection entries are always pinned.
-- An unpinned entry is priced at a representative recent printing (the same pick the public site uses). Such printings are marked with `*` in card listings.
+- An unpinned entry is priced at a representative recent printing (the same pick the public site uses). Such printings are marked with `*` in card listings. The pick is made with the _active store's_ prices: under `--source cardkingdom` it is the newest printing Card Kingdom actually sells, so a report is not full of cards priced at printings CK never stocked. A card CK carries no printing of keeps the Scryfall pick and reports unpriced.
 - Every deck and wanted-list entry also carries a **lowest** price — the cheapest acceptable copy. For deck entries and name-only wanted entries that is the cheapest printing+finish overall; for a wanted entry pinned to a printing without a finish it is that printing's cheapest finish; for fully-specified entries it is the entry price itself.
 - Deck totals cover every section except extras (maybeboard/token sections), matching the public site.
 - A card with no price in the active currency counts as **unpriced**; unpriced counts are quantity-weighted.

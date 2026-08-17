@@ -127,6 +127,14 @@ export interface FlatListLoadConfig<T extends FlatLoadEntry> {
   getDir: () => string
   /** The list type's file parser. The collection's implementation lowercases `set`. */
   parse: (content: string) => FlatListParseResult<T>
+  /**
+   * Whether this list type has entries that resolve *by card name* — a wanted
+   * list's name-only lines. Only those can display a store's own printing pick,
+   * so a collection (every entry names its printing) opts out and the load skips
+   * the Card Kingdom selection entirely rather than computing a map no client
+   * can read.
+   */
+  resolvesByName?: boolean
 }
 
 function sectionOf(entry: FlatLoadEntry): string | undefined {
@@ -201,7 +209,11 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
 
     await addChangelogCardNames(filePath, cardNames)
 
-    const { cards, printings } = await loadEntryCardData(cardNames)
+    // Spread whole, like the deck route: the load result type *is* the loader's,
+    // so its Card Kingdom picks travel without a per-field restatement.
+    const cardData = await loadEntryCardData(cardNames, {
+      cardKingdomPicks: cfg.resolvesByName === true,
+    })
     const symbolMap = await fetchSymbolMap()
 
     const body: FlatFullLoadResult<T> = {
@@ -211,8 +223,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
       totalCount,
       sectionOrder,
       labels,
-      cards,
-      printings,
+      ...cardData,
       symbolMap,
       slug,
       warnings,

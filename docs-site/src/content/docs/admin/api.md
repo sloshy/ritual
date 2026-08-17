@@ -223,6 +223,7 @@ A missing list is a `404` whose message names `GET /api/lists` as the way to fin
   "totalCount": 42,
   "cards": { "Sol Ring": {} },
   "printings": { "Sol Ring": [] },
+  "cardsCardKingdom": { "Sol Ring": {} },
   "symbolMap": { "{W}": "https://..." },
   "frontMatter": {},
   "slug": "my-deck",
@@ -230,6 +231,10 @@ A missing list is a `404` whose message names `GET /api/lists` as the way to fin
   "warnings": []
 }
 ```
+
+A `full` deck load also carries `lowestPriceCards`, `lowestPriceCardsEur` and `lowestPriceCardsTix` — the cheapest printing per card name, per currency.
+
+`cardsCardKingdom` (and, on decks, `lowestPriceCardsCardKingdom`) is [Card Kingdom's own printing pick](/public-site/price-sources/#which-printing-a-card-is-priced-at) for each card name: the printing CK actually sells, chosen at CK's prices, which a client displays instead of the Scryfall pick while the Card Kingdom price store is selected. Both are **sparse** — a card CK stocks no printing of has no entry, and the client falls back to the Scryfall pick — and both are **absent entirely** unless [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom` and a buylist feed is cached. Nothing is downloaded to answer a load: with no cached feed the fields are simply absent.
 
 **Response (`view=cards`):**
 

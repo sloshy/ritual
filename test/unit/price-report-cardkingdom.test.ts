@@ -7,28 +7,16 @@ import {
 import type { CardPrintingsLookup } from '../../src/card-printing'
 import type { QuotePrinting } from '../../src/cardkingdom/quote'
 import type { ScryfallCard } from '../../src/types'
-import { makeBuylistQuote, makeScryfallCard } from '../test-utils'
+import { ckRetailQuote, makeBuylistQuote, makeScryfallCard } from '../test-utils'
 
 function lookupFor(printings: Record<string, ScryfallCard[]>): CardPrintingsLookup {
   return async (name) => printings[name] ?? []
 }
 
-/**
- * A CK lookup over a fixed retail table keyed by `set:cn:finish`, refusing
- * non-English requests exactly as the real matcher does.
- */
+/** The report's CK seam over the shared retail stub, with its ask log exposed. */
 function ckFor(retail: Record<string, number>): CardKingdomPricing & { asked: QuotePrinting[] } {
-  const asked: QuotePrinting[] = []
-  return {
-    asked,
-    quote: (printing) => {
-      asked.push(printing)
-      if (printing.language !== undefined && printing.language !== 'en') return null
-      const price = retail[`${printing.set}:${printing.collectorNumber}:${printing.finish}`]
-      if (price === undefined) return null
-      return makeBuylistQuote({ priceRetail: price, qtyRetail: 1, finish: printing.finish })
-    },
-  }
+  const quote = ckRetailQuote(retail)
+  return { quote, asked: quote.asked }
 }
 
 const bolt = makeScryfallCard({
@@ -165,6 +153,96 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
     // Scryfall's 5¢ printing is irrelevant: CK's cheapest offering is the foil at $3.25.
     expect(report.entries[0]!.lowest).toBe(3.25)
     expect(report.entries[0]!.lowestFinish).toBe('foil')
+  })
+
+  test('an unpinned entry is priced at a printing CK actually sells', async () => {
+    // Scryfall's newest printing is the representative it would pick; CK stocks
+    // only the older one, which is what the entry must be priced at.
+    const newer = makeScryfallCard({
+      id: 'sf-bolt-ccc',
+      name: 'Test Card',
+      set: 'ccc',
+      collector_number: '7',
+      released_at: '2026-01-01',
+      prices: { usd: '11.00' },
+    })
+    const older = makeScryfallCard({
+      id: 'sf-bolt-ddd',
+      name: 'Test Card',
+      set: 'ddd',
+      collector_number: '8',
+      released_at: '2015-01-01',
+      prices: { usd: '10.00' },
+    })
+    const ck = ckFor({ 'ddd:8:nonfoil': 7.25 })
+    const { report } = await buildPriceReport(
+      [
+        {
+          type: 'deck',
+          name: 'Deck',
+          entries: [{ name: 'Test Card', quantity: 1, section: 'Mainboard' }],
+        },
+      ],
+      { currency: 'usd', lookup: lookupFor({ 'Test Card': [newer, older] }), cardKingdom: ck },
+    )
+    expect(report.entries[0]!.set).toBe('ddd')
+    expect(report.entries[0]!.price).toBe(7.25)
+    expect(report.entries[0]!.unpricedReason).toBeUndefined()
+  })
+
+  test('an unpinned entry CK stocks no printing of stays unpriced, showing the Scryfall pick', async () => {
+    // Two printings, oldest first: only the *representative* fallback yields
+    // `ccc`, so the assertion cannot pass on `printings[0]` by accident.
+    const older = makeScryfallCard({
+      id: 'sf-bolt-ddd',
+      name: 'Test Card',
+      set: 'ddd',
+      collector_number: '8',
+      released_at: '2015-01-01',
+      prices: { usd: '10.00' },
+    })
+    const newer = makeScryfallCard({
+      id: 'sf-bolt-ccc',
+      name: 'Test Card',
+      set: 'ccc',
+      collector_number: '7',
+      released_at: '2026-01-01',
+      prices: { usd: '11.00' },
+    })
+    const ck = ckFor({})
+    const { report } = await buildPriceReport(
+      [
+        {
+          type: 'deck',
+          name: 'Deck',
+          entries: [{ name: 'Test Card', quantity: 1, section: 'Mainboard' }],
+        },
+      ],
+      { currency: 'usd', lookup: lookupFor({ 'Test Card': [older, newer] }), cardKingdom: ck },
+    )
+    expect(report.entries[0]!.price).toBe(0)
+    expect(report.entries[0]!.set).toBe('ccc')
+    expect(report.entries[0]!.unpricedReason).toBe('no-price-data')
+  })
+
+  test("a wanted printing pin without a finish takes CK's cheapest finish of it", async () => {
+    // "This printing, any finish" — priced from CK like everything else, or the
+    // lowest figure would mix a Scryfall number into a Card Kingdom total.
+    const ck = ckFor({ 'aaa:1:nonfoil': 4.5, 'aaa:1:foil': 2.75 })
+    const { report } = await buildPriceReport(
+      [
+        {
+          type: 'wanted',
+          name: 'Wants',
+          entries: [
+            { name: 'Test Card', quantity: 1, set: 'aaa', collectorNumber: '1', section: 'Main' },
+          ],
+        },
+      ],
+      { currency: 'usd', lookup: lookupFor({ 'Test Card': [bolt] }), cardKingdom: ck },
+    )
+    expect(report.entries[0]!.price).toBe(4.5)
+    expect(report.entries[0]!.lowest).toBe(2.75)
   })
 
   test('a plain Scryfall report is unchanged and carries no source', async () => {

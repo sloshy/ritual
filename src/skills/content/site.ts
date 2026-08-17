@@ -316,7 +316,18 @@ shareable in the view URL (\`prices=cardkingdom\`); switching it clears price fi
 currency switch. Under the Card Kingdom view a printing CK does not sell shows no price —
 there is deliberately no TCGplayer fallback — and the sell-mode spread compares CK's offer
 against the *selected* store's price (entering sell mode defaults the view to Card Kingdom
-retail unless the user picked a source). An **empty** \`priceSources\` array hides every
+retail unless the user picked a source).
+
+Each store also **picks its own printing** for a card line that names none: the
+representative printing, and the cheapest one behind the "Lowest Price" toggle, are chosen
+from that store's catalog at that store's prices. So switching to Card Kingdom swaps the
+printing such a card displays — its art and set change with the price — on the public site
+and in the admin editors alike. Two carve-outs: a line that *names* its printing displays
+and prices at that printing under every store (reading unpriced if CK does not sell it), and
+a card CK stocks no printing of keeps its Scryfall pick and simply reads unpriced. Because
+entering sell mode defaults the store to Card Kingdom, turning sell mode on can itself change
+which printing a name-only card shows — and therefore its buylist offer and the Buylist
+total. An **empty** \`priceSources\` array hides every
 price surface on the sites — per-card prices, totals, price sort/filter/grouping, and the
 currency selector — while \`ritual price\` and sell mode are unaffected:
 

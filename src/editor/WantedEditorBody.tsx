@@ -1,5 +1,5 @@
 import { createMemo, type JSX } from 'solid-js'
-import type { WantedListCardEntry } from '../site/data-types'
+import type { CardKingdomCards, WantedListCardEntry } from '../site/data-types'
 import type { SellModeProps } from '../site/sell-mode'
 import type { PriceCurrency } from '../price-currency'
 import { WantedListPage } from '../site/WantedListPage'
@@ -15,6 +15,13 @@ type WantedEditorBodyProps = SellModeProps & {
   search: SearchProvider
   currency: PriceCurrency
   useScryfallImgUrls: boolean
+  /**
+   * Card Kingdom's baked printing picks for this list, forwarded to the page so
+   * the editing pane swaps printings on a source switch exactly as the read
+   * pane beside it does. Static for the session — an entry added while editing
+   * simply has no CK pick and falls back to its Scryfall one.
+   */
+  cardsCardKingdom?: CardKingdomCards
   /** Display name for the list page header. */
   name: string
   showSave?: boolean
@@ -66,6 +73,7 @@ export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
         entries={entriesWithArt()!}
         sectionOrder={ctrl.editor.sectionOrder()}
         cards={ctrl.cardData.cards}
+        cardsCardKingdom={props.cardsCardKingdom}
         printings={ctrl.cardData.printings}
         symbolMap={ctrl.cardData.symbolMap}
         useScryfallImgUrls={props.useScryfallImgUrls}

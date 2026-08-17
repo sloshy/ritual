@@ -1,6 +1,6 @@
-import type { JSX } from 'solid-js'
+import { createSignal, type JSX } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
-import type { WantedListCardEntry } from '../../../site/data-types'
+import type { CardKingdomCards, WantedListCardEntry } from '../../../site/data-types'
 import type { CardArtRecord } from '../../../card-art'
 import type { ListEditorConfig } from '../../../editor/useEditor'
 import type { EntryCardDataActions } from '../../../editor/useEntryCardData'
@@ -27,6 +27,7 @@ type WantedListDataResponse = {
   sectionOrder?: string[]
   customArt?: CardArtRecord
   cards: Record<string, ScryfallCard | null>
+  cardsCardKingdom?: CardKingdomCards
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
   slug: string
@@ -38,6 +39,7 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
   const lists = useAdminLists()
   const defaultCurrency = useDefaultCurrency()
   const cardArt = useCardArt('wanted')
+  const [ckCards, setCkCards] = createSignal<CardKingdomCards | undefined>(undefined)
 
   const buildConfig = (
     cardActions: EntryCardDataActions,
@@ -77,6 +79,9 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
 
     loadCardData: (response) => {
       const r = response as WantedListDataResponse
+      // Held beside the card store, not in it: the picks are baked per load
+      // while the store is mutated as entries are added.
+      setCkCards(r.cardsCardKingdom)
       cardActions.load({ cards: r.cards, printings: r.printings, symbolMap: r.symbolMap })
     },
     addCardData: (cardName, card, printings) => cardActions.addCard(cardName, card, printings),
@@ -138,6 +143,7 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
       enableImport={true}
       customArt={cardArt.art()}
       onSetCustomArt={cardArt.open}
+      cardsCardKingdom={ckCards()}
     />
   )
 }

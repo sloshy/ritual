@@ -660,6 +660,7 @@ function App() {
                           entries={wantedListDetail()!.entries}
                           sectionOrder={wantedListDetail()!.sectionOrder}
                           cards={wantedListDetail()!.cards}
+                          cardsCardKingdom={wantedListDetail()!.cardsCardKingdom}
                           printings={wantedListDetail()!.printings ?? {}}
                           symbolMap={wantedListDetail()!.symbolMap}
                           useScryfallImgUrls={wantedListDetail()!.useScryfallImgUrls}
@@ -773,6 +774,8 @@ function App() {
                           lowestPriceCards={deckDetail()!.lowestPriceCards}
                           lowestPriceCardsEur={deckDetail()!.lowestPriceCardsEur}
                           lowestPriceCardsTix={deckDetail()!.lowestPriceCardsTix}
+                          cardsCardKingdom={deckDetail()!.cardsCardKingdom}
+                          lowestPriceCardsCardKingdom={deckDetail()!.lowestPriceCardsCardKingdom}
                           symbolMap={deckDetail()!.symbolMap}
                           enableExport={true}
                           useScryfallImgUrls={deckDetail()!.useScryfallImgUrls}

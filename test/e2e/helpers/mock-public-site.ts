@@ -946,6 +946,119 @@ export async function mockPublicSiteCollectionForPriceSources(
   await stubBuylistApiUnreachable(page)
 }
 
+// ===== Card Kingdom printing picks (deck) =====
+
+/**
+ * A deck whose one card names no printing, so the build picks one for it — and
+ * the two stores pick differently. Scryfall's pick (`tst:1`, $10) is a printing
+ * Card Kingdom does not stock at all; CK's own pick (`ckp:2`) is the printing it
+ * sells, at $3 retail.
+ *
+ * That asymmetry is the whole fixture: under Card Kingdom the row can only read
+ * $3.00 if the *printing* swapped with the source. Reading N/A would mean the
+ * page kept the TCGplayer pick and priced a card CK never carried.
+ */
+const MOCK_DECK_CK_SCRYFALL_PICK = withImage(
+  makeMockScryfallCard({
+    id: 'ck-pick-scryfall',
+    name: 'Split Pick',
+    set: 'tst',
+    collector_number: '1',
+    prices: { usd: '10.00' },
+  }),
+)
+
+const MOCK_DECK_CK_KINGDOM_PICK = withImage(
+  makeMockScryfallCard({
+    id: 'ck-pick-kingdom',
+    name: 'Split Pick',
+    set: 'ckp',
+    collector_number: '2',
+    prices: { usd: '12.00' },
+  }),
+)
+
+/** CK's *cheapest* printing — a third set, so the Lowest Price map is separately observable. */
+const MOCK_DECK_CK_KINGDOM_CHEAPEST = withImage(
+  makeMockScryfallCard({
+    id: 'ck-pick-cheapest',
+    name: 'Split Pick',
+    set: 'ckc',
+    collector_number: '3',
+    prices: { usd: '9.00' },
+  }),
+)
+
+const MOCK_DECK_FOR_PRICE_SOURCES = {
+  deck: {
+    name: 'Split Pick Deck',
+    sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Split Pick' }] }],
+  },
+  cards: { 'Split Pick': MOCK_DECK_CK_SCRYFALL_PICK },
+  printings: {
+    'Split Pick': [
+      MOCK_DECK_CK_SCRYFALL_PICK,
+      MOCK_DECK_CK_KINGDOM_PICK,
+      MOCK_DECK_CK_KINGDOM_CHEAPEST,
+    ],
+  },
+  cardsCardKingdom: { 'Split Pick': MOCK_DECK_CK_KINGDOM_PICK },
+  lowestPriceCards: { 'Split Pick': MOCK_DECK_CK_SCRYFALL_PICK },
+  lowestPriceCardsCardKingdom: { 'Split Pick': MOCK_DECK_CK_KINGDOM_CHEAPEST },
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  buylist: {
+    cardkingdom: {
+      quotes: {
+        'ckp:2:nonfoil': {
+          priceBuy: 1,
+          qtyBuying: 4,
+          priceRetail: 3,
+          qtyRetail: 4,
+          buying: true,
+          finish: 'nonfoil',
+          matchVia: 'scryfall-id',
+          productId: 9,
+          name: 'Split Pick',
+          edition: 'CK Printing',
+        },
+        'ckc:3:nonfoil': {
+          priceBuy: 0.5,
+          qtyBuying: 4,
+          priceRetail: 1.5,
+          qtyRetail: 4,
+          buying: true,
+          finish: 'nonfoil',
+          matchVia: 'scryfall-id',
+          productId: 10,
+          name: 'Split Pick',
+          edition: 'CK Cheapest Printing',
+        },
+      },
+      ...MOCK_BAKED_FEED,
+    },
+  },
+} satisfies DeckDetail
+
+/**
+ * Mock a static site offering both USD stores, whose deck's name-only card has a
+ * different representative printing per store.
+ */
+export async function mockPublicSiteDeckForPriceSources(page: Page): Promise<void> {
+  await fulfillJson(
+    page,
+    '**/index.json',
+    makeSiteIndex({
+      decks: [makeDeckSummary({ slug: 'split-pick-deck', name: 'Split Pick Deck', cardCount: 1 })],
+      priceSources: ['tcgplayer', 'cardkingdom'],
+    }),
+  )
+  await fulfillJson(page, '**/decks/split-pick-deck.json', MOCK_DECK_FOR_PRICE_SOURCES)
+  await stubBuylistApiUnreachable(page)
+}
+
 /** Quote-API requests a run made. The public site must make none of them. */
 export type BuylistApiWatch = {
   /** URLs of every intercepted request, in order. */

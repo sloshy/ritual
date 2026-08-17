@@ -466,40 +466,42 @@ describe('language baking', () => {
   })
 })
 
-describe('buylist baking', () => {
-  /** A recording buylist seam: what the builder asked, and what it was told. */
-  type StubBuylist = {
-    ctx: DetailBuylistContext
-    /** Every printing the builder quoted, in the order it asked. */
-    asked: BuylistQuoteRequest[]
-  }
+/** A recording buylist seam: what the builder asked, and what it was told. */
+type StubBuylist = {
+  ctx: DetailBuylistContext
+  /** Every printing the builder quoted, in the order it asked. */
+  asked: BuylistQuoteRequest[]
+}
 
-  const FEED_CREATED_AT = '2026-08-04 06:06:09'
-  const FEED_RETRIEVED_AT = 1785850800000
+const FEED_CREATED_AT = '2026-08-04 06:06:09'
+const FEED_RETRIEVED_AT = 1785850800000
 
-  const makeQuote = makeBuylistQuote
+const makeQuote = makeBuylistQuote
 
-  /**
-   * A seam answering from `catalog` (keyed exactly as the detail keys its baked
-   * map) and recording every ask, so the tests can pin *which* printing the
-   * builder decided a tile displays — not just what came back.
-   */
-  function stubBuylist(catalog: Record<string, BuylistQuote> = {}): StubBuylist {
-    const asked: BuylistQuoteRequest[] = []
-    return {
-      asked,
-      ctx: {
-        buyer: 'cardkingdom',
-        quote: (printing) => {
-          asked.push(printing)
-          return catalog[quoteKey(printing.set, printing.collectorNumber, printing.finish)] ?? null
-        },
-        feedCreatedAt: FEED_CREATED_AT,
-        feedRetrievedAt: FEED_RETRIEVED_AT,
+/**
+ * A seam answering from `catalog` (keyed exactly as the detail keys its baked
+ * map) and recording every ask, so the tests can pin *which* printing the
+ * builder decided a tile displays — not just what came back. Shared by the
+ * buylist-baking and Card Kingdom printing-selection suites, which ask the same
+ * question of the same seam.
+ */
+function stubBuylist(catalog: Record<string, BuylistQuote> = {}): StubBuylist {
+  const asked: BuylistQuoteRequest[] = []
+  return {
+    asked,
+    ctx: {
+      buyer: 'cardkingdom',
+      quote: (printing) => {
+        asked.push(printing)
+        return catalog[quoteKey(printing.set, printing.collectorNumber, printing.finish)] ?? null
       },
-    }
+      feedCreatedAt: FEED_CREATED_AT,
+      feedRetrievedAt: FEED_RETRIEVED_AT,
+    },
   }
+}
 
+describe('buylist baking', () => {
   /** A foil-only printing: its displayed finish is foil with no `[foil]` token. */
   const foilOnly = makeScryfallCard({
     id: 'angel-etched',
@@ -1231,5 +1233,197 @@ describe('custom art baking', () => {
     expect(summary.lowestPrice).toBeCloseTo(0.5)
     expect(summary.missingPriceCount).toBe(0)
     expect(buylist.asked.map((printing) => printing.set)).toEqual(['fdn'])
+  })
+})
+
+describe('Card Kingdom printing selection', () => {
+  /**
+   * CK's picks: a different representative from Scryfall's, a different
+   * cheapest from *both*, and a pick for the pinned card's name that the
+   * builders must refuse to key. Three distinct printings is what makes each
+   * map's candidate separately observable in the bake's quote asks.
+   */
+  const boltCkCheapest = makeScryfallCard({
+    id: 'bolt-chp',
+    name: 'Lightning Bolt',
+    set: 'chp',
+    collector_number: '9',
+    released_at: '2019-01-01',
+    prices: { usd: '0.20' },
+    image_uris: imageUris('https://img/bolt-chp.jpg'),
+  })
+  const angelCk = makeScryfallCard({
+    id: 'angel-ck',
+    name: 'Serra Angel',
+    set: 'ckp',
+    collector_number: '7',
+    released_at: '2023-01-01',
+    prices: { usd: '0.60' },
+    image_uris: imageUris('https://img/angel-ck.jpg'),
+  })
+
+  const cardKingdom = {
+    cards: { 'Lightning Bolt': boltCheap, 'Serra Angel': angelCk },
+    cheapest: { 'Lightning Bolt': boltCkCheapest, 'Serra Angel': angelCk },
+  }
+
+  const deck: LoadedDeck = {
+    data: {
+      name: 'CK Deck',
+      sections: [{ name: 'Mainboard', cards: [{ name: 'Lightning Bolt', quantity: 4 }] }],
+    },
+    changelog: [],
+    warnings: [],
+  }
+
+  const deckCardData: Partial<SiteCardData> = {
+    cards: { 'Lightning Bolt': bolt },
+    printings: { 'Lightning Bolt': [bolt, boltCheap, boltCkCheapest] },
+    cheapest: { usd: { 'Lightning Bolt': bolt } },
+    cardKingdom,
+  }
+
+  test("a deck ships CK's picks beside the Scryfall ones, and quotes both", async () => {
+    const buylist = stubBuylist({
+      'm10:146:nonfoil': makeBuylistQuote({ priceRetail: 2, name: 'Lightning Bolt' }),
+      'chp:9:nonfoil': makeBuylistQuote({ priceRetail: 1, name: 'Lightning Bolt' }),
+    })
+    const { ctx } = makeContext({
+      cardData: deckCardData,
+      currencies: ['usd'],
+      buylist: buylist.ctx,
+    })
+
+    const { detail } = await buildDeckArtifacts(deck, ctx)
+
+    // The Scryfall maps are untouched — the CK maps are an override layer.
+    expect(detail.cards['Lightning Bolt']).toBe(bolt)
+    expect(detail.cardsCardKingdom?.['Lightning Bolt']).toBe(boltCheap)
+    expect(detail.lowestPriceCardsCardKingdom?.['Lightning Bolt']).toBe(boltCkCheapest)
+    // Both CK picks are quoted, or the tile that displays one would price at 0 —
+    // the whole point of picking it. Asserted through the baked map, not just
+    // the ask list, so the quote has to survive into the payload.
+    expect(detail.buylist?.cardkingdom?.quotes['m10:146:nonfoil']?.priceRetail).toBe(2)
+    expect(detail.buylist?.cardkingdom?.quotes['chp:9:nonfoil']?.priceRetail).toBe(1)
+  })
+
+  test('a build with no CK data leaves both fields off the deck detail', async () => {
+    const { ctx } = makeContext({
+      cardData: { ...deckCardData, cardKingdom: undefined },
+      currencies: ['usd'],
+    })
+
+    const { detail } = await buildDeckArtifacts(deck, ctx)
+
+    const serialized = JSON.parse(JSON.stringify(detail))
+    expect(serialized).not.toHaveProperty('cardsCardKingdom')
+    expect(serialized).not.toHaveProperty('lowestPriceCardsCardKingdom')
+  })
+
+  test('a build without USD ships no CK picks, however much CK data it holds', async () => {
+    // Card Kingdom is a USD store; a EUR-only build has nothing to offer them to.
+    const { ctx } = makeContext({
+      cardData: { ...deckCardData, cheapest: { eur: { 'Lightning Bolt': boltCheap } } },
+      currencies: ['eur'],
+    })
+
+    const { detail } = await buildDeckArtifacts(deck, ctx)
+
+    expect(detail.cardsCardKingdom).toBeUndefined()
+    expect(detail.lowestPriceCardsCardKingdom).toBeUndefined()
+  })
+
+  test("a deck's pinned line keeps its printing, and claims no by-name override", async () => {
+    const pinned: LoadedDeck = {
+      ...deck,
+      data: {
+        name: 'CK Deck',
+        sections: [
+          {
+            name: 'Mainboard',
+            cards: [{ name: 'Serra Angel', quantity: 1, set: 'fdn', collectorNumber: '35' }],
+          },
+        ],
+      },
+    }
+    const { ctx } = makeContext({
+      cardData: {
+        cards: { 'Serra Angel': angel },
+        printings: { 'Serra Angel': [angel, angelCk] },
+        cheapest: { usd: { 'Serra Angel': angel } },
+        cardKingdom,
+      },
+      currencies: ['usd'],
+    })
+
+    const { detail } = await buildDeckArtifacts(pinned, ctx)
+
+    // CK picked a printing for the name, and the bake drops it: the line names
+    // its own printing, and a by-name override could only displace it.
+    expect(detail.cardsCardKingdom).toBeUndefined()
+    // The "Lowest Price" toggle ignores an entry's pin by design, so its map
+    // deliberately keeps the name.
+    expect(detail.lowestPriceCardsCardKingdom?.['Serra Angel']).toBe(angelCk)
+  })
+
+  test('a wanted list overrides only its name-only entries', async () => {
+    const { ctx } = makeContext({
+      cardData: {
+        cards: { 'Lightning Bolt': bolt },
+        cheapest: { usd: { 'Lightning Bolt': bolt } },
+        cardKingdom,
+      },
+      printingsByName: {
+        'Lightning Bolt': [bolt, boltCheap, boltCkCheapest],
+        'Serra Angel': [angel],
+      },
+      currencies: ['usd'],
+    })
+    const loaded: LoadedWanted = {
+      displayName: 'Wants',
+      entries: [
+        { name: 'Lightning Bolt', quantity: 1, section: 'Main', cardId: 1 },
+        {
+          name: 'Serra Angel',
+          quantity: 1,
+          set: 'fdn',
+          collectorNumber: '35',
+          section: 'Main',
+          cardId: 2,
+        },
+      ],
+      sectionOrder: ['Main'],
+      warnings: [],
+      changelog: [],
+    }
+
+    const { detail } = await buildWantedArtifacts(loaded, ctx)
+
+    // A wanted entry displays the *cheapest* printing, so CK's cheapest is its
+    // override — and the pinned entry gets none even though CK picked for it.
+    expect(detail.cardsCardKingdom).toEqual({ 'Lightning Bolt': boltCkCheapest })
+  })
+
+  test("a wanted list falls back to CK's representative when it has no cheapest", async () => {
+    const { ctx } = makeContext({
+      cardData: {
+        cards: { 'Lightning Bolt': bolt },
+        cheapest: { usd: { 'Lightning Bolt': bolt } },
+        cardKingdom: { cards: { 'Lightning Bolt': boltCheap }, cheapest: {} },
+      },
+      printingsByName: { 'Lightning Bolt': [bolt, boltCheap] },
+      currencies: ['usd'],
+    })
+    const loaded: LoadedWanted = {
+      displayName: 'Wants',
+      entries: [{ name: 'Lightning Bolt', quantity: 1, section: 'Main', cardId: 1 }],
+      sectionOrder: ['Main'],
+      warnings: [],
+      changelog: [],
+    }
+
+    const { detail } = await buildWantedArtifacts(loaded, ctx)
+
+    expect(detail.cardsCardKingdom).toEqual({ 'Lightning Bolt': boltCheap })
   })
 })

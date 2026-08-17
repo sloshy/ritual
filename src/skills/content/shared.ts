@@ -217,7 +217,11 @@ export function priceIntro(options: PriceIntroOptions): string {
       `\`tcgplayer\` (Scryfall USD, the default), \`cardmarket\` (Scryfall EUR), or ` +
       `\`cardkingdom\` (NM retail from the cached Card Kingdom feed; errors when no ` +
       `feed is downloaded — a bulk-allowing \`--refresh\` downloads it). A source ` +
-      `implies its currency, so don't pass a conflicting \`--prices\`. An ` +
+      `implies its currency, so don't pass a conflicting \`--prices\`. Each store ` +
+      `also picks its own printing for an entry that names none: under ` +
+      `\`cardkingdom\` that is the newest printing CK actually sells, so an unpinned ` +
+      `entry reads unpriced only when CK carries no printing of the card at all (a ` +
+      `pinned printing CK does not sell always does). An ` +
       `interactive browser opens on a TTY — ` +
       `for agents, always pass \`--summary\`, \`--output json\`, or the global ` +
       `\`--no-input\` flag:`,

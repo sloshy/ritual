@@ -40,6 +40,20 @@ export type BakedBuylistQuotes = BuylistFeedProvenance & {
 export type BakedBuylist = Partial<Record<BuyerId, BakedBuylistQuotes>>
 
 /**
+ * Printings picked from Card Kingdom's catalog at Card Kingdom's prices, keyed
+ * exactly like the Scryfall card map they override (card name, or `set:cn` for
+ * a wanted list's pinned lines).
+ *
+ * Sparse by construction — a card CK stocks no printing of gets no entry — and
+ * absent from the detail entirely when the build had no CK feed or the
+ * `cardkingdom` source is not enabled. A client always reads it as an override:
+ * `cardKingdom[key] ?? cards[key]`. Falling back rather than blanking is what
+ * keeps a CK-sourced page showing every card's art and oracle text, with only
+ * the price reading as unavailable for what CK does not carry.
+ */
+export type CardKingdomCards = Record<string, ScryfallCard>
+
+/**
  * A deck line as it is baked into a detail: the parsed card plus the display
  * data only the site carries. Deliberately a site-side widening of {@link Card}
  * rather than a field on the engine type — `customArt` is never written to a
@@ -111,9 +125,21 @@ export interface DeckDetail {
   labels?: CardLabel[]
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
+  /**
+   * Card Kingdom's own pick of the printing to display for a name-only line,
+   * read instead of {@link cards} while the USD source is Card Kingdom. Sparse
+   * and absent-by-default — see {@link CardKingdomCards}.
+   */
+  cardsCardKingdom?: CardKingdomCards
   lowestPriceCards?: Record<string, ScryfallCard | null>
   lowestPriceCardsEur?: Record<string, ScryfallCard | null>
   lowestPriceCardsTix?: Record<string, ScryfallCard | null>
+  /**
+   * The cheapest printing *Card Kingdom sells*, for the "Lowest Price" toggle
+   * under the Card Kingdom source. Overrides {@link lowestPriceCards} the same
+   * way {@link cardsCardKingdom} overrides {@link cards}.
+   */
+  lowestPriceCardsCardKingdom?: CardKingdomCards
   symbolMap: Record<string, string>
   useScryfallImgUrls: boolean
   defaultCurrency: PriceCurrency
@@ -262,6 +288,13 @@ export interface WantedListDetail {
   /** Section names in file order, including empty sections. Used to order/render section groups. */
   sectionOrder?: string[]
   cards: Record<string, ScryfallCard | null>
+  /**
+   * Card Kingdom's pick for the name-only entries, read instead of
+   * {@link cards} while the USD source is Card Kingdom. Pinned entries never
+   * appear here — a line that names its printing is displayed at that printing
+   * whatever store is pricing it.
+   */
+  cardsCardKingdom?: CardKingdomCards
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
   useScryfallImgUrls: boolean

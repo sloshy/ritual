@@ -1,13 +1,28 @@
 import { cardCache } from '../cache'
+import { cardKingdomDisplayPrints } from '../cardkingdom/retail'
+import type { PrintingQuoteFn } from '../cardkingdom/quote'
 import { computeRepresentativePrints } from '../scryfall'
 import { sortPrintingsByRelease } from '../site/details/shared'
-import type { SiteCardData } from '../site/details/types'
+import type { CardKingdomCardData, SiteCardData } from '../site/details/types'
 import type { ScryfallCard } from '../types'
 import type { PriceCurrency } from '../price-currency'
+
+/** The Card Kingdom half of a pass: the lookup, and the maps it fills. */
+type CardKingdomPass = {
+  quote: PrintingQuoteFn
+  data: CardKingdomCardData
+}
 
 export type CacheCardSourceOptions = {
   currencies: PriceCurrency[]
   bannedPrintings: ReadonlySet<string>
+  /**
+   * Card Kingdom's single-printing lookup, when this pass offers CK prices.
+   * Present means the source also picks CK's own representative and cheapest
+   * printings, exactly as `build-site` bakes them; absent leaves the CK maps off
+   * the payload entirely.
+   */
+  cardKingdomQuote?: PrintingQuoteFn
 }
 
 /**
@@ -29,7 +44,7 @@ export async function createCacheCardSource(
   names: readonly string[],
   options: CacheCardSourceOptions,
 ): Promise<CacheCardSource> {
-  const { currencies, bannedPrintings } = options
+  const { currencies, bannedPrintings, cardKingdomQuote } = options
   const printingsMemo = new Map<string, ScryfallCard[]>()
 
   // One round trip against an HTTP cache backend instead of one call per card.
@@ -45,6 +60,11 @@ export async function createCacheCardSource(
     cardData.cheapest[cur] = {}
     missing[cur] = []
   }
+  // One value, not a quote plus a maybe-map: the two are constructed from the
+  // same condition, and pairing them is what lets the loop below ask once.
+  const cardKingdom: CardKingdomPass | undefined = cardKingdomQuote
+    ? { quote: cardKingdomQuote, data: { cards: {}, cheapest: {} } }
+    : undefined
 
   for (const name of unique) {
     const printings = printingsMemo.get(name) ?? []
@@ -62,8 +82,22 @@ export async function createCacheCardSource(
       if (!rep) missing[cur]!.push(name)
       cardData.cheapest[cur]![name] = cheap ?? rep ?? base
     }
+    // Card Kingdom's picks, from its catalog at its prices — the same selection
+    // `build-site` bakes, so a live-served page and a built one show the same
+    // printing for the same name-only line.
+    if (cardKingdom) {
+      const ckPrints = cardKingdomDisplayPrints(
+        cardKingdom.quote,
+        sorted,
+        printings,
+        bannedPrintings,
+      )
+      if (ckPrints.representative) cardKingdom.data.cards[name] = ckPrints.representative
+      if (ckPrints.cheapest) cardKingdom.data.cheapest[name] = ckPrints.cheapest
+    }
   }
   cardData.missing = missing
+  if (cardKingdom) cardData.cardKingdom = cardKingdom.data
 
   return {
     cardData,

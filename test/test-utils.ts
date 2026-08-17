@@ -19,6 +19,8 @@ import { MemoryLogger, resetLogger, setLogger } from '../src/logger'
 import { quoteKey, type BuylistQuote } from '../src/buylist'
 import { setBuylistFetcher } from '../src/site/buylist-quotes'
 import type { CardKingdomCacheFile, CardKingdomProduct } from '../src/cardkingdom'
+import type { PrintingQuoteFn, QuotePrinting } from '../src/cardkingdom/quote'
+import { displayLanguage } from '../src/card-language'
 import type { ScryfallCard } from '../src/types'
 import type { CardData } from '../src/site/card-sorting'
 
@@ -592,6 +594,34 @@ export function makeBuylistQuote(overrides: Partial<BuylistQuote> = {}): Buylist
     edition: 'Test Set',
     ...overrides,
   }
+}
+
+/** A {@link ckRetailQuote} lookup, with the printings it was asked about. */
+export type StubCardKingdomQuote = PrintingQuoteFn & { asked: QuotePrinting[] }
+
+/**
+ * A Card Kingdom lookup over a fixed retail table keyed `set:collectorNumber:finish`
+ * — the one stub for every test that needs CK to carry some printings and not
+ * others. Refuses non-English requests through the same `displayLanguage` rule
+ * the real matcher applies, so a test of that rule cannot pass against a
+ * hand-rolled approximation of it.
+ *
+ * `asked` records every printing the code under test priced, which is how a
+ * test pins *which* printing was selected rather than only what came back.
+ */
+export function ckRetailQuote(retail: Record<string, number>): StubCardKingdomQuote {
+  const asked: QuotePrinting[] = []
+  const quote: StubCardKingdomQuote = Object.assign(
+    (printing: QuotePrinting) => {
+      asked.push(printing)
+      if (displayLanguage(printing.language) !== 'en') return null
+      const price = retail[`${printing.set}:${printing.collectorNumber}:${printing.finish}`]
+      if (price === undefined) return null
+      return makeBuylistQuote({ priceRetail: price, finish: printing.finish })
+    },
+    { asked },
+  )
+  return quote
 }
 
 /** The generation stamp {@link stubBuylistFetcher}'s answers carry. */

@@ -47,7 +47,12 @@ import { recordCardBulkType } from '../cache/bulk-provenance'
 import type { CacheRefreshProgressHandler, PreloadCacheOptions } from './progress'
 import { withCacheLock } from '../cache/lock'
 import { writeFileAtomic } from '../cache/atomic-write'
-import { cardPrintingKey } from '../printing-key'
+import {
+  NO_BANNED_PRINTINGS,
+  selectCheapestPrinting,
+  selectRepresentativePrinting,
+  type PrintingPriceFn,
+} from '../printing-select'
 
 const RATE_LIMIT_MS = 150
 const SCRYFALL_CARDS_PER_PAGE = 175
@@ -224,7 +229,8 @@ export type SearchAllPagesSuccess = {
 export type SearchAllPagesResult = SearchAllPagesSuccess | SearchPageFailure
 
 /**
- * Compute representative and cheapest prints from cached card data.
+ * Compute representative and cheapest prints from cached card data, per
+ * currency, against Scryfall's own price fields.
  * @param recentPrintings - Printings sorted by release date descending, used to pick the representative.
  * @param allPrintings - All printings for the card, used to find the cheapest.
  * @param bannedPrintings - `set:collectorNumber` keys (set code lowercased) that must
@@ -235,49 +241,21 @@ export function computeRepresentativePrints(
   recentPrintings: ScryfallCard[],
   allPrintings: ScryfallCard[],
   currencies: PriceCurrency[],
-  bannedPrintings: ReadonlySet<string> = new Set(),
+  bannedPrintings: ReadonlySet<string> = NO_BANNED_PRINTINGS,
 ): RepresentativePrintsResult {
-  type Candidate = { card: ScryfallCard; price: number }
   const result: RepresentativePrintsResult = {}
 
   for (const currency of currencies) {
     const priceField = getPriceField(currency)
-
-    const candidates: Candidate[] = []
-    for (const card of recentPrintings) {
-      if (candidates.length >= 5) break
-      if (bannedPrintings.has(cardPrintingKey(card))) continue
+    const priceOf: PrintingPriceFn = (card) => {
       const raw = card.prices?.[priceField]
-      if (!raw) continue
-      const price = parseFloat(raw)
-      if (Number.isFinite(price) && price > 0) candidates.push({ card, price })
+      return raw ? parseFloat(raw) : 0
     }
 
-    let representative: ScryfallCard | null = null
-    if (candidates.length > 0) {
-      const sorted = [...candidates].sort((a, b) => a.price - b.price)
-      const mid = Math.floor(sorted.length / 2)
-      const median =
-        sorted.length % 2 === 1
-          ? sorted[mid]!.price
-          : (sorted[mid - 1]!.price + sorted[mid]!.price) / 2
-      const chosen = candidates.find((c) => c.price <= median * 1.5)
-      representative = chosen?.card ?? null
+    result[currency] = {
+      representative: selectRepresentativePrinting(recentPrintings, priceOf, bannedPrintings),
+      cheapest: selectCheapestPrinting(allPrintings, priceOf),
     }
-
-    let cheapest: ScryfallCard | null = null
-    let minPrice = Infinity
-    for (const card of allPrintings) {
-      const raw = card.prices?.[priceField]
-      if (!raw) continue
-      const price = parseFloat(raw)
-      if (Number.isFinite(price) && price > 0 && price < minPrice) {
-        minPrice = price
-        cheapest = card
-      }
-    }
-
-    result[currency] = { representative, cheapest }
   }
 
   return result

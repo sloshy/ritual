@@ -201,7 +201,7 @@ export function sitePriceForFinish(
   currency: PriceCurrency,
 ): number {
   if (currency === 'usd' && activeUsdSource() === 'cardkingdom') {
-    return cardKingdomRetail(card, finish)
+    return cardKingdomRetailFromQuotes(card, finish)
   }
   return getCardPriceForFinish(card, finish, currency)
 }
@@ -214,18 +214,21 @@ export function sitePriceForFinish(
  */
 export function sitePrice(card: ScryfallCard, currency: PriceCurrency): number {
   if (currency === 'usd' && activeUsdSource() === 'cardkingdom') {
-    return cardKingdomRetail(card, undefined)
+    return cardKingdomRetailFromQuotes(card, undefined)
   }
   return getCardPrice(card, currency)
 }
 
 /**
  * Card Kingdom's NM retail for the printing at the finish a tile displays it,
- * read off the quote store. The finish resolves through `displayFinish`, the
+ * read off the *quote store* — the client-side twin of `cardKingdomRetail` in
+ * `src/cardkingdom/retail.ts`, which answers the same question against the feed
+ * on the server. The two must agree; keep any change to one in step with the
+ * other. The finish resolves through `displayFinish`, the
  * same rule `buylistRequestFor` applied when the quote was baked or requested
  * — the two must agree or the lookup misses a quote that is sitting there.
  */
-function cardKingdomRetail(card: ScryfallCard, finish: Finish | undefined): number {
+function cardKingdomRetailFromQuotes(card: ScryfallCard, finish: Finish | undefined): number {
   const retail =
     quoteFor(card.set, card.collector_number, displayFinish(card, finish))?.priceRetail ?? 0
   return retail > 0 ? retail : 0

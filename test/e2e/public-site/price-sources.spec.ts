@@ -1,5 +1,8 @@
 import { test, expect, type Page } from '@playwright/test'
-import { mockPublicSiteCollectionForPriceSources } from '../helpers/mock-public-site'
+import {
+  mockPublicSiteCollectionForPriceSources,
+  mockPublicSiteDeckForPriceSources,
+} from '../helpers/mock-public-site'
 import { gotoList } from '../helpers/list-ui'
 
 /**
@@ -96,5 +99,57 @@ test.describe('price-source selector', () => {
     await expect(page.locator('.page-stats')).toBeVisible()
     await expect(page.locator('.page-stats')).not.toContainText('$')
     await expect(page.locator(SOURCE_SELECT)).toHaveCount(0)
+  })
+})
+
+test.describe('per-store representative printings', () => {
+  /** The card id of the printing a tile is displaying, read off its image src. */
+  function tileImage(page: Page) {
+    return page.locator('.card-item').filter({ hasText: 'Split Pick' }).first().locator('img')
+  }
+
+  test('switching to Card Kingdom swaps the printing a name-only deck card displays', async ({
+    page,
+  }) => {
+    await mockPublicSiteDeckForPriceSources(page)
+    await gotoList(page, '#/deck/split-pick-deck')
+
+    // The displayed printing itself moves, not just the figure beside it: the
+    // tile's image names the card id it is rendering.
+    await expect(tileImage(page)).toHaveAttribute('src', /ck-pick-scryfall/)
+    await page.locator(SOURCE_SELECT).selectOption('cardkingdom')
+    await expect(tileImage(page)).toHaveAttribute('src', /ck-pick-kingdom/)
+    await page.locator(SOURCE_SELECT).selectOption('tcgplayer')
+
+    await switchToListView(page)
+
+    // TCGplayer: the Scryfall-picked printing, at its Scryfall price.
+    await expect(row(page, 'Split Pick').locator('.list-price')).toHaveText('$10.00')
+
+    await page.locator(SOURCE_SELECT).selectOption('cardkingdom')
+
+    // CK stocks no product for the Scryfall pick, so $3.00 is only reachable by
+    // displaying CK's own pick — an unswapped page would read N/A here.
+    await expect(row(page, 'Split Pick').locator('.list-price')).toHaveText('$3.00')
+    await expect(page.locator('.page-stats')).toContainText('$3.00')
+
+    await page.locator(SOURCE_SELECT).selectOption('tcgplayer')
+    await expect(row(page, 'Split Pick').locator('.list-price')).toHaveText('$10.00')
+  })
+
+  test('"Lowest Price" under Card Kingdom uses the cheapest printing CK sells', async ({
+    page,
+  }) => {
+    await mockPublicSiteDeckForPriceSources(page)
+    await gotoList(page, '#/deck/split-pick-deck')
+    await switchToListView(page)
+    await page.locator(SOURCE_SELECT).selectOption('cardkingdom')
+    await expect(row(page, 'Split Pick').locator('.list-price')).toHaveText('$3.00')
+
+    // A third printing again: $1.50 is CK's cheapest, and is reachable only
+    // through the CK lowest-price map — the Scryfall one points at a printing
+    // CK does not stock, which would read N/A.
+    await page.locator('.toolbar button.toolbar-toggle', { hasText: 'Lowest Price' }).click()
+    await expect(row(page, 'Split Pick').locator('.list-price')).toHaveText('$1.50')
   })
 })

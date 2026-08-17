@@ -142,6 +142,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
           enableTrade={true}
           enableSellMode={props.enableSellMode}
           bakedBuylist={() => props.detail.buylist}
+          cardsCardKingdom={props.detail.cardsCardKingdom}
         />
       }
       original={
@@ -153,6 +154,8 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
           lowestPriceCards={props.detail.lowestPriceCards}
           lowestPriceCardsEur={props.detail.lowestPriceCardsEur}
           lowestPriceCardsTix={props.detail.lowestPriceCardsTix}
+          cardsCardKingdom={props.detail.cardsCardKingdom}
+          lowestPriceCardsCardKingdom={props.detail.lowestPriceCardsCardKingdom}
           symbolMap={props.detail.symbolMap}
           useScryfallImgUrls={props.detail.useScryfallImgUrls}
           modalCardName={originalModalCard()}

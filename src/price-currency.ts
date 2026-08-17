@@ -5,6 +5,11 @@ import { numberFormat } from './i18n/format'
 import { currentLocale } from './i18n/runtime'
 import { t } from './i18n/t'
 import { displayWidth, padEndDisplay } from './i18n/width'
+import { selectCheapestPrintingFinish, type CheapestPrintingResult } from './printing-select'
+
+// Re-exported from its leaf home so the many callers that reach for it beside
+// `findCheapestPrinting` keep one import.
+export type { CheapestPrintingResult }
 
 export type PriceCurrency = 'usd' | 'eur' | 'tix'
 
@@ -351,32 +356,20 @@ export function parseCurrenciesFlag(input: string | undefined): PriceCurrency[] 
   return result
 }
 
-export type CheapestPrintingResult = {
-  price: number
-  card: ScryfallCard
-  finish: Finish
-}
-
 /**
  * Find the cheapest printing+finish combination from a list of card printings,
- * in the given currency (USD by default). Candidate finishes come from
- * {@link printingFinishes} rather than raw `card.finishes`, so a finish Ritual
- * doesn't model can't be quoted at the nonfoil price under its own name.
+ * in the given currency (USD by default). The scan itself lives in
+ * `printing-select.ts` — Card Kingdom's retail counterpart runs the identical
+ * loop over its own prices, and the two must not be able to disagree about
+ * which finishes are candidates.
  */
 export function findCheapestPrinting(
   printings: ScryfallCard[],
   currency: PriceCurrency = 'usd',
 ): CheapestPrintingResult | null {
-  let best: CheapestPrintingResult | null = null
-  for (const card of printings) {
-    for (const finish of printingFinishes(card)) {
-      const price = getCardPriceForFinish(card, finish, currency)
-      if (price > 0 && (best === null || price < best.price)) {
-        best = { price, card, finish }
-      }
-    }
-  }
-  return best
+  return selectCheapestPrintingFinish(printings, (card, finish) =>
+    getCardPriceForFinish(card, finish, currency),
+  )
 }
 
 /**

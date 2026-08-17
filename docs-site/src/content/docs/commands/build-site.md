@@ -232,7 +232,7 @@ Generates a single-page application in the `dist/` directory (or the `--out-dir`
 - `locales/{tag}.json` — One message dictionary per published locale, fetched on demand when the visitor switches language
 - `decks/{slug}.json` — Full deck data loaded on demand
 - `collections/{slug}.json` — Full collection data with pricing loaded on demand
-- `wanted/{slug}.json` — Full wanted list data with pricing loaded on demand — each of these three also carries that list's baked Card Kingdom quotes (buy **and** NM retail prices) when [sell mode](#sell-mode---sell-mode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`
+- `wanted/{slug}.json` — Full wanted list data with pricing loaded on demand — each of these three also carries that list's baked Card Kingdom quotes (buy **and** NM retail prices), plus Card Kingdom's own [printing picks](/public-site/price-sources/#which-printing-a-card-is-priced-at) for its name-only lines, when [sell mode](#sell-mode---sell-mode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`
 - `art/{path}` — [Custom card art](/custom-art/) files referenced by any published list, copied out of the configured art directory under their art-dir-relative path (once per unique path, so lists sharing an image share the file). A referenced file that is not on disk is a build warning and is left out of the baked data, so the card falls back to its normal art
 - `styles.css` — Bundled CSS
 - Responsive design for desktop and mobile
@@ -426,7 +426,7 @@ The menu's **View all selections…** entry opens a dialog listing every selecte
 
 ## Deck Features
 
-Deck pages include a "Lowest Price" toggle that swaps all cards to their cheapest available printing. When enabled, card images and prices update to reflect the lowest-priced version. Only printings with a listed price are considered.
+Deck pages include a "Lowest Price" toggle that swaps all cards to their cheapest available printing — cheapest in the active currency and at the active [price store](/public-site/price-sources/), so under Card Kingdom it is the cheapest printing CK actually sells. When enabled, card images and prices update to reflect the lowest-priced version. Only printings with a listed price are considered.
 
 ## Deck Cover Labels
 
@@ -468,7 +468,7 @@ The generated site includes a **Prices** dropdown in the header for switching be
 - All displayed prices update to the selected currency
 - Deck totals and section totals recalculate
 - Collection prices recompute using the card's finish-specific price in the new currency
-- The "Lowest Price" toggle finds the cheapest printing per the active currency — images update accordingly
+- The "Lowest Price" toggle finds the cheapest printing per the active currency and [price store](/public-site/price-sources/#which-printing-a-card-is-priced-at) — images update accordingly
 - Price bracket grouping labels adapt to the active currency symbol
 
 The `--currencies` flag controls which currencies are available on the site. The site opens in the configured [`defaultCurrency`](/configuration/#default-currency) when it is among the built currencies and has an enabled store behind it, otherwise the first offered currency. Users can switch between offered currencies at any time using the dropdown.
@@ -542,18 +542,24 @@ or for a single build with `--sell-mode`:
 The flag is enable-only (there is no `--no-sell-mode`); omit it and the build follows the config.
 
 When sell mode is on for the run — or [`priceSources`](/configuration/#price-stores-pricesources)
-includes `cardkingdom`, whose retail prices ride on the same feed — `build-site` does two extra
-things after the card data is assembled and before the per-list JSON is written:
+includes `cardkingdom`, whose retail prices ride on the same feed — `build-site` does three extra
+things:
 
-1. **Refreshes the Card Kingdom buylist**, under this run's `--refresh` mode — the same policy the
-   card cache answered to. A cached feed less than a day old is used as-is; a day-old one is
-   redownloaded under `ask`/`auto` and left alone under `no-bulk`/`never`; a **missing** feed is
-   downloaded under `auto` and prompted for under `ask` (default yes, ~70 MB). See
-   [`sell` → Feed freshness](/commands/sell/#feed-freshness).
-2. **Bakes the buy prices into each list's JSON.** Every printing a list displays is quoted from the
-   feed and written into that list's detail file, so the published site shows sell mode with **no
-   backend at all** — a static host on a CDN offers it exactly as a [live one](/public-site/hosted/)
-   does. Non-English copies are never quoted (Card Kingdom's feed is English-only).
+1. **Refreshes the Card Kingdom buylist**, before the card data is fetched, under this run's
+   `--refresh` mode — the same policy the card cache answered to. A cached feed less than a day old
+   is used as-is; a day-old one is redownloaded under `ask`/`auto` and left alone under
+   `no-bulk`/`never`; a **missing** feed is downloaded under `auto` and prompted for under `ask`
+   (default yes, ~70 MB). See [`sell` → Feed freshness](/commands/sell/#feed-freshness).
+2. **Picks Card Kingdom's own printings**, as each card is fetched, when `priceSources` includes
+   `cardkingdom`: a card line naming no printing gets a representative and a cheapest printing
+   chosen from Card Kingdom's catalog at Card Kingdom's prices, baked beside the Scryfall picks so
+   the site can switch stores without a rebuild. See
+   [Which printing a card is priced at](/public-site/price-sources/#which-printing-a-card-is-priced-at).
+3. **Bakes the buy prices into each list's JSON**, after the card data is assembled and before the
+   per-list JSON is written. Every printing a list displays is quoted from the feed and written into
+   that list's detail file, so the published site shows sell mode with **no backend at all** — a
+   static host on a CDN offers it exactly as a [live one](/public-site/hosted/) does. Non-English
+   copies are never quoted (Card Kingdom's feed is English-only).
 
 It reports what it baked:
 

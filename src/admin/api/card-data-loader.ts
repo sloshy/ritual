@@ -1,11 +1,15 @@
 import { cardCache, ensureCacheForCards } from '../../cache'
+import { detailBuylistContext, getCardKingdomFeed } from '../../cardkingdom'
+import { cardKingdomDisplayPrints } from '../../cardkingdom/retail'
+import type { PrintingQuoteFn } from '../../cardkingdom/quote'
 import { compareData } from '../../i18n/collate'
 import { fetchCardData, fetchSymbology, getCardPrintings } from '../../scryfall'
 import { computeRepresentativePrints } from '../../scryfall/client'
-import { getBannedPrintings } from '../../ritual-config'
+import { getBannedPrintings, getPriceSources } from '../../ritual-config'
 import { extractChangelogCardNames, parseChangelog } from '../../changelog-parser'
 import type { ScryfallCard } from '../../types'
 import type { PriceCurrency } from '../../price-currency'
+import type { CardKingdomCards } from '../../site/data-types'
 import { indexPrintingCard } from '../../editor/card-data-utils'
 
 const ALL_CURRENCIES: PriceCurrency[] = ['usd', 'eur', 'tix']
@@ -16,11 +20,45 @@ export type DeckCardLoadResult = {
   lowestPriceCards: Record<string, ScryfallCard | null>
   lowestPriceCardsEur: Record<string, ScryfallCard | null>
   lowestPriceCardsTix: Record<string, ScryfallCard | null>
+  /**
+   * Card Kingdom's own printing picks, exactly as the public site's payloads
+   * carry them — sparse, and absent when this deployment does not offer CK
+   * prices or has no feed cached. The editors read `cardsCardKingdom` under the
+   * CK source, so a name-only line shows the printing CK sells rather than one
+   * it never stocked. See {@link CardKingdomCards}.
+   */
+  cardsCardKingdom?: CardKingdomCards
+  /**
+   * CK's cheapest printing per name, the counterpart of `lowestPriceCards`.
+   * Carried because this response is the client-neutral API surface and the
+   * site payloads carry it; the *editors* have no reader for it, since their
+   * "Lowest Price" toggle is locked while editing.
+   */
+  lowestPriceCardsCardKingdom?: CardKingdomCards
 }
 
 export type EntryCardLoadResult = {
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
+  /**
+   * Card Kingdom's picks for the *name* keys, which only a wanted list's
+   * name-only entries resolve through — a collection entry names its printing
+   * and is never overridden. Absent under the same conditions as
+   * {@link DeckCardLoadResult.cardsCardKingdom}.
+   */
+  cardsCardKingdom?: CardKingdomCards
+}
+
+/**
+ * The Card Kingdom lookup to pick printings with, or null when this deployment
+ * offers no CK prices (or has no feed downloaded). Cache-only, like every other
+ * read on the load path: `getCardKingdomFeed` never downloads, so an editor
+ * load cannot block on ~70 MB.
+ */
+async function cardKingdomQuote(): Promise<PrintingQuoteFn | null> {
+  if (!getPriceSources().includes('cardkingdom')) return null
+  const feed = await getCardKingdomFeed()
+  return feed ? detailBuylistContext(feed).quote : null
 }
 
 /** Add card names referenced in a file's changelog to the given set. */
@@ -61,6 +99,9 @@ export async function loadDeckCardData(cardNames: Set<string>): Promise<DeckCard
   const lowestPriceCards: Record<string, ScryfallCard | null> = {}
   const lowestPriceCardsEur: Record<string, ScryfallCard | null> = {}
   const lowestPriceCardsTix: Record<string, ScryfallCard | null> = {}
+  const ckQuote = await cardKingdomQuote()
+  const cardsCardKingdom: CardKingdomCards = {}
+  const lowestPriceCardsCardKingdom: CardKingdomCards = {}
 
   for (const name of cardNames) {
     const cached = await cardCache.get(name)
@@ -83,6 +124,15 @@ export async function loadDeckCardData(cardNames: Set<string>): Promise<DeckCard
         repPrints.eur?.cheapest ?? repPrints.eur?.representative ?? fallback
       lowestPriceCardsTix[name] =
         repPrints.tix?.cheapest ?? repPrints.tix?.representative ?? fallback
+
+      // The same picks `build-site` and `serve --api` bake, from the same
+      // function — an editor and a published page must not disagree about which
+      // printing a name-only line is.
+      if (ckQuote) {
+        const ckPrints = cardKingdomDisplayPrints(ckQuote, sorted, sorted, bannedPrintings)
+        if (ckPrints.representative) cardsCardKingdom[name] = ckPrints.representative
+        if (ckPrints.cheapest) lowestPriceCardsCardKingdom[name] = ckPrints.cheapest
+      }
     } else {
       // Fallback to API
       const card = await fetchCardData(name, { silent: true })
@@ -102,16 +152,44 @@ export async function loadDeckCardData(cardNames: Set<string>): Promise<DeckCard
     }
   }
 
-  return { cards, printings, lowestPriceCards, lowestPriceCardsEur, lowestPriceCardsTix }
+  return {
+    cards,
+    printings,
+    lowestPriceCards,
+    lowestPriceCardsEur,
+    lowestPriceCardsTix,
+    // Absent when there is nothing to say — this deployment offers no CK prices,
+    // has no feed cached, or CK carries no printing of anything in this list.
+    // The site payloads spell it the same way, and every client treats a missing
+    // key and a missing entry identically (fall back to the Scryfall pick).
+    ...(Object.keys(cardsCardKingdom).length > 0 ? { cardsCardKingdom } : {}),
+    ...(Object.keys(lowestPriceCardsCardKingdom).length > 0 ? { lowestPriceCardsCardKingdom } : {}),
+  }
+}
+
+/** Options for {@link loadEntryCardData}. */
+export type EntryCardLoadOptions = {
+  /**
+   * Whether to select Card Kingdom's printings for the card *names*. Only a
+   * wanted list's name-only entries resolve that way — a collection entry names
+   * its printing — so a collection load passes `false` and skips the scan
+   * rather than paying for a map nothing reads.
+   */
+  cardKingdomPicks?: boolean
 }
 
 /** Load card data keyed by name and set:collectorNumber (for collections/wanted lists). */
-export async function loadEntryCardData(cardNames: Set<string>): Promise<EntryCardLoadResult> {
+export async function loadEntryCardData(
+  cardNames: Set<string>,
+  options: EntryCardLoadOptions = {},
+): Promise<EntryCardLoadResult> {
   await ensureCacheForCards(cardNames)
 
   const bannedPrintings = getBannedPrintings()
   const cards: Record<string, ScryfallCard | null> = {}
   const printings: Record<string, ScryfallCard[]> = {}
+  const ckQuote = options.cardKingdomPicks === true ? await cardKingdomQuote() : null
+  const cardsCardKingdom: CardKingdomCards = {}
 
   for (const name of cardNames) {
     const cached = await cardCache.get(name)
@@ -130,6 +208,14 @@ export async function loadEntryCardData(cardNames: Set<string>): Promise<EntryCa
       )
       const repPrints = computeRepresentativePrints(sorted, sorted, ALL_CURRENCIES, bannedPrintings)
       cards[name] = repPrints.usd?.representative ?? cached[0]!
+
+      // A wanted list's name-only entry displays the cheapest printing, so CK's
+      // cheapest is its override — the rule the wanted detail builder applies.
+      if (ckQuote) {
+        const ckPrints = cardKingdomDisplayPrints(ckQuote, sorted, sorted, bannedPrintings)
+        const ckCard = ckPrints.cheapest ?? ckPrints.representative
+        if (ckCard) cardsCardKingdom[name] = ckCard
+      }
     } else {
       const card = await fetchCardData(name, { silent: true })
       cards[name] = card
@@ -149,5 +235,9 @@ export async function loadEntryCardData(cardNames: Set<string>): Promise<EntryCa
     }
   }
 
-  return { cards, printings }
+  return {
+    cards,
+    printings,
+    ...(Object.keys(cardsCardKingdom).length > 0 ? { cardsCardKingdom } : {}),
+  }
 }

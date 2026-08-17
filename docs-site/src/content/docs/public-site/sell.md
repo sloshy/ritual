@@ -145,6 +145,13 @@ with no dollar price ranks by the offer alone. Nothing is pinned to either end o
 unquoted cheap card sits among the offers that land near retail rather than clustering with the
 other unquoted cards.
 
+The price store moves the **buy** side too, for a card line that names no printing: under Card
+Kingdom such a line is shown at the printing CK actually sells, and its offer — and the header's
+Buylist total — is that printing's quote, which can differ from the one the TCGplayer view shows.
+Because entering sell mode defaults the store to Card Kingdom, turning sell mode on can itself
+change which printing a name-only card displays. Lines that name their printing never move. See
+[Which printing a card is priced at](/public-site/price-sources/#which-printing-a-card-is-priced-at).
+
 ### Currency and condition
 
 Buylist figures are always **Card Kingdom's USD cash offer for a Near Mint copy**, whatever

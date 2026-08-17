@@ -13,7 +13,7 @@ import { getCardPrice } from '../../price-currency'
 import type { PriceCurrency } from '../../price-currency'
 import { getErrorMessage } from '../../errors'
 import type { Card, DeckData, ScryfallCard } from '../../types'
-import type { BakedDeckData, DeckDetail, DeckSummary } from '../data-types'
+import type { BakedDeckData, CardKingdomCards, DeckDetail, DeckSummary } from '../data-types'
 import {
   bakeBuylistQuotes,
   cardIdsOf,
@@ -125,6 +125,9 @@ export async function buildDeckArtifacts(
   const cheapestUsd = cardData.cheapest.usd ?? {}
   const cheapestEur = cardData.cheapest.eur ?? {}
   const cheapestTix = cardData.cheapest.tix ?? {}
+  // Only USD has a store choice, so CK's picks ride along with the USD maps and
+  // are dropped entirely when the site is not building USD at all.
+  const cardKingdomData = hasUsd ? cardData.cardKingdom : undefined
 
   // Find Featured Card
   let featured: ScryfallCard | null = null
@@ -164,6 +167,12 @@ export async function buildDeckArtifacts(
   const deckLowestPriceCardMap: Record<string, ScryfallCard | null> = {}
   const deckLowestPriceCardMapEur: Record<string, ScryfallCard | null> = {}
   const deckLowestPriceCardMapTix: Record<string, ScryfallCard | null> = {}
+  // Card Kingdom's own picks for this deck's names, shipped as sparse overrides
+  // beside the Scryfall maps: the client reads them only while the USD source
+  // is Card Kingdom, and falls back per name to the maps above for anything CK
+  // does not stock.
+  const deckCardMapCardKingdom: CardKingdomCards = {}
+  const deckLowestPriceCardMapCardKingdom: CardKingdomCards = {}
   deckData.sections.forEach((s) =>
     s.cards.forEach((c) => {
       deckCardMap[c.name] = cardData.cards[c.name] ?? null
@@ -173,6 +182,16 @@ export async function buildDeckArtifacts(
       if (hasUsd) deckLowestPriceCardMap[c.name] = cheapestUsd[c.name] ?? null
       if (hasEur) deckLowestPriceCardMapEur[c.name] = cheapestEur[c.name] ?? null
       if (hasTix) deckLowestPriceCardMapTix[c.name] = cheapestTix[c.name] ?? null
+      // Keyed only for names some line leaves unpinned — the same rule the
+      // wanted builder applies. A line that names its printing displays that
+      // printing under every store, and a by-name override for it could only
+      // ever displace it somewhere the pin is not consulted (the card modal).
+      const ckCard = hasSpecificPrinting(c) ? undefined : cardKingdomData?.cards[c.name]
+      if (ckCard) deckCardMapCardKingdom[c.name] = ckCard
+      // The cheapest map has no such carve-out: the "Lowest Price" toggle
+      // deliberately ignores an entry's own printing for every line.
+      const ckCheapest = cardKingdomData?.cheapest[c.name]
+      if (ckCheapest) deckLowestPriceCardMapCardKingdom[c.name] = ckCheapest
     }),
   )
 
@@ -235,6 +254,11 @@ export async function buildDeckArtifacts(
           deckLowestPriceCardMap[entry.name],
           deckLowestPriceCardMapEur[entry.name],
           deckLowestPriceCardMapTix[entry.name],
+          // The CK source swaps the displayed printing too, and its quote is
+          // where the price on the tile comes from — an unquoted CK pick would
+          // display at $0, which is exactly the bug the pick exists to fix.
+          deckCardMapCardKingdom[entry.name],
+          deckLowestPriceCardMapCardKingdom[entry.name],
         ]
         for (const card of candidates) {
           if (card) buylistSources.push({ card, finish: entry.finish, language: entry.language })
@@ -256,9 +280,15 @@ export async function buildDeckArtifacts(
     labels: loaded.labels,
     cards: deckCardMap,
     printings: deckPrintingsMap,
+    ...(Object.keys(deckCardMapCardKingdom).length > 0
+      ? { cardsCardKingdom: deckCardMapCardKingdom }
+      : {}),
     lowestPriceCards: hasUsd ? deckLowestPriceCardMap : undefined,
     lowestPriceCardsEur: hasEur ? deckLowestPriceCardMapEur : undefined,
     lowestPriceCardsTix: hasTix ? deckLowestPriceCardMapTix : undefined,
+    ...(Object.keys(deckLowestPriceCardMapCardKingdom).length > 0
+      ? { lowestPriceCardsCardKingdom: deckLowestPriceCardMapCardKingdom }
+      : {}),
     symbolMap: ctx.symbolMap,
     useScryfallImgUrls,
     defaultCurrency,

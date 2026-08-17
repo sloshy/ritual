@@ -53,6 +53,37 @@ switching the Prices selector to TCGplayer compares the offer against the market
 instead. An explicit choice always wins; leaving sell mode restores the default only if the
 default was in force.
 
+## Which printing a card is priced at
+
+A card line that names no printing (`4 Lightning Bolt`, not `4 Lightning Bolt (M10:146)`) has no
+printing of its own, so the build picks a **representative** one for it: among the five most
+recent printings that have a price, the newest that is not priced far above their median. The
+"Lowest Price" toggle swaps in a second pick — the cheapest printing of the card.
+
+Both picks are made **per store**, with that store's own prices over that store's own catalog.
+Under Card Kingdom the representative is the newest printing _CK actually sells_, and the
+lowest price is the cheapest printing+finish _CK actually sells_ — a foil counts, since Card
+Kingdom sells it as its own product. Switching the Prices selector therefore swaps the printing a
+name-only card displays (its art and set change with the price), and a build that offers Card
+Kingdom prices bakes both sets of picks so the switch needs no rebuild.
+
+This holds on both sites. The admin editors get the same picks from the admin API's list-load
+routes, computed by the same function against the same cached feed, so an editor and the published
+page can never disagree about which printing a line is. One difference follows from editing itself:
+the picks are made when the list loads, so a card added mid-session has no Card Kingdom pick yet and
+falls back to its Scryfall one until the next load.
+
+Two things deliberately do not move:
+
+- **A line that names its printing** displays and prices at that printing under every store. If
+  Card Kingdom does not sell it, it reads as unpriced — pinning a printing is a statement about
+  the card you want, not an invitation to substitute another.
+- **A card Card Kingdom stocks no printing of** keeps its Scryfall pick, so it still shows its
+  art and text, with only the price reading as unavailable.
+
+`ritual price --source cardkingdom` applies the same rule, so a deck priced on the CLI and the
+same deck on the site read the same printings.
+
 ## Turning prices off entirely
 
 An empty `priceSources` array hides every price surface on both sites: per-card prices, page

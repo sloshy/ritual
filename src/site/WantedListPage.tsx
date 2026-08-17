@@ -18,7 +18,7 @@ import { TagFilterWarning } from './TagFilterWarning'
 import { ListPageStats, PageCountAndTotal, SellModeNotice } from './PageStats'
 import type { ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
-import type { WantedListCardEntry } from './data-types'
+import type { CardKingdomCards, WantedListCardEntry } from './data-types'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
 import { pricesEnabled, sitePriceForFinish } from './price-view'
@@ -64,6 +64,7 @@ import type { TradeSearchEntry } from './useTradeData'
 import { resolveCardThumbnailUrl, resolveCardPreview } from './image-sources'
 import { hasSpecificPrinting } from '../card-printing'
 import { resolveWantedCardEntry } from './resolve-card'
+import type { SourceCardMaps } from './source-cards'
 import { cardPriceText, cardPricelessReason, isPricelessCard, pricelessFacts } from './priceless'
 import { useCardSelection, type SelectedCard } from './useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
@@ -113,6 +114,8 @@ interface WantedListPageProps extends SellModeProps {
   /** Section names in display order, including empty sections. Falls back to entry order. */
   sectionOrder?: string[]
   cards: Record<string, ScryfallCard | null>
+  /** Card Kingdom's picks for the name-only entries, read under the CK source. */
+  cardsCardKingdom?: CardKingdomCards
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
   useScryfallImgUrls?: boolean
@@ -330,10 +333,22 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     return !canAddMoreToRight(searchEntry)
   }
 
+  /**
+   * The card maps every entry resolves against — one object, rebuilt only when
+   * the currency or the baked maps change, rather than per entry per pass.
+   */
+  const cardMaps = createMemo(
+    (): SourceCardMaps => ({
+      cards: props.cards,
+      cardKingdom: props.cardsCardKingdom,
+      currency: props.currency,
+    }),
+  )
+
   const currencyEntries = createMemo((): WantedListCardEntry[] => {
     sessionCacheVersion() // re-price after an in-session "Update Prices"
     return props.entries.map((entry) => {
-      const card = resolveWantedCardEntry(entry, props.cards)
+      const card = resolveWantedCardEntry(entry, cardMaps())
       if (!card) return entry
 
       // A copy wearing custom art is not the printing a price would be for, so
@@ -355,7 +370,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
 
   const allCards = createMemo((): CardData[] => {
     return currencyEntries().map((entry) => {
-      const card = resolveWantedCardEntry(entry, props.cards)
+      const card = resolveWantedCardEntry(entry, cardMaps())
       return {
         name: entry.name,
         quantity: 1,
@@ -388,6 +403,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
   onMount(() => {
     seedCards(props.cards)
     seedPrintings(props.printings)
+    if (props.cardsCardKingdom) seedCards(props.cardsCardKingdom)
   })
 
   // Price refresh is wired for every render but only shown when `enablePriceRefresh`.
@@ -464,7 +480,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
 
   const modalCard = createMemo((): ScryfallCard | null => {
     if (!modalEntry()) return null
-    return resolveWantedCardEntry(modalEntry()!, props.cards)
+    return resolveWantedCardEntry(modalEntry()!, cardMaps())
   })
 
   const modalAddToTrade = createMemo(() => {

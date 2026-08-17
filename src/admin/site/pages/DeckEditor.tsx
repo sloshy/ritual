@@ -1,6 +1,7 @@
 import { createSignal, type JSX } from 'solid-js'
 import type { DeckData, ScryfallCard } from '../../../types'
 import type { CardLabel } from '../../../card-labels'
+import type { CardKingdomCards } from '../../../site/data-types'
 import type { CardArtRecord } from '../../../card-art'
 import type { ListEditorConfig } from '../../../editor/useEditor'
 import type { DeckCardDataActions } from '../../../editor/useDeckCardData'
@@ -36,6 +37,7 @@ type DeckDataResponse = {
   lowestPriceCards: Record<string, ScryfallCard | null>
   lowestPriceCardsEur: Record<string, ScryfallCard | null>
   lowestPriceCardsTix: Record<string, ScryfallCard | null>
+  cardsCardKingdom?: CardKingdomCards
   symbolMap: Record<string, string>
   frontMatter: Record<string, unknown>
   labels?: CardLabel[]
@@ -52,6 +54,16 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
   // The deck's default card labels, seeded from each load and updated by the
   // Labels modal's save (front matter is not part of the card-change pipeline).
   const [listLabels, setListLabels] = createSignal<CardLabel[] | undefined>(undefined)
+  // Card Kingdom's printing picks ride beside the editor's card store rather
+  // than inside it: they are baked per load, while the store is mutated as
+  // cards are added (an added card simply has no CK pick and falls back). Only
+  // the representative map — the "Lowest Price" toggle is locked while editing.
+  //
+  // Deliberately *not* cleared when a load fails: `useEditor` leaves the
+  // previous deck on screen in that case, so the picks it was loaded with are
+  // the consistent thing to keep showing. (List labels and art clear instead,
+  // because a stale badge reads as this deck's own metadata.)
+  const [ckCards, setCkCards] = createSignal<CardKingdomCards | undefined>(undefined)
   const [labelsOpen, setLabelsOpen] = createSignal(false)
 
   const buildConfig = (cardActions: DeckCardDataActions): ListEditorConfig<DeckData> => ({
@@ -91,6 +103,7 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
 
     loadCardData: (response) => {
       const r = response as DeckDataResponse
+      setCkCards(r.cardsCardKingdom)
       cardActions.load({
         cards: r.cards,
         printings: r.printings,
@@ -149,6 +162,7 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
         useScryfallImgUrls={true}
         enableImport={true}
         listLabels={listLabels()}
+        cardsCardKingdom={ckCards()}
         onEditLabels={() => setLabelsOpen(true)}
         customArt={cardArt.art()}
         onSetCustomArt={cardArt.open}

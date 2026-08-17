@@ -1,6 +1,5 @@
 import { Command } from 'commander'
 import { isCatalogEntryError, parseCatalogEntry } from '../i18n/catalog'
-import { compareData } from '../i18n/collate'
 import { en, type MessageKey } from '../i18n/messages/en'
 import { isLocaleTagError, parseLocaleTag } from '../i18n/locale-tag'
 import { DEFAULT_LOCALE } from '../i18n/runtime'
@@ -20,6 +19,7 @@ import {
   getCardPrintings,
   fetchRepresentativePrints,
   computeRepresentativePrints,
+  type RepresentativePrintsResult,
   fetchSymbology,
   downloadSymbol,
   attachTags,
@@ -56,7 +56,9 @@ import {
   loadEnsuredFeed,
   type LoadedCardKingdomFeed,
 } from '../cardkingdom'
+import { cardKingdomDisplayPrints } from '../cardkingdom/retail'
 import type {
+  CardKingdomCards,
   DeckSummary,
   CollectionSummary,
   WantedListSummary,
@@ -67,6 +69,7 @@ import { loadDeckSource, buildDeckArtifacts, type LoadedDeck } from '../site/det
 import { loadCollectionSource, buildCollectionArtifacts } from '../site/details/collection'
 import { loadWantedSource, buildWantedArtifacts } from '../site/details/wanted'
 import { deckCardNames, flatListCardNames } from '../site/details/card-names'
+import { sortPrintingsByRelease } from '../site/details/shared'
 import type { SiteCardData, SiteDetailContext } from '../site/details/types'
 import { parseCurrenciesFlag } from '../price-currency'
 import type { PriceCurrency } from '../price-currency'
@@ -944,6 +947,32 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     const lastBulkRefresh = await cardCache.getLastRefreshedAt?.()
     await offerBulkPriceRefresh(uniqueCards, mode, cacheJustRefreshed)
 
+    // Sell mode's buy prices are baked into each list's data, so a build that
+    // offers sell mode needs a current buyer feed — under this run's --refresh
+    // policy, the same one the card cache answered to. Never fatal: a build that
+    // cannot get a buylist is a site without buy prices, not a failed build.
+    //
+    // Loaded ahead of the card loop, not beside the detail builders that quote
+    // from it: the `cardkingdom` price source picks its *printings* out of this
+    // feed, and that pick happens per card name as the cards are fetched.
+    let bakedFeed: LoadedCardKingdomFeed | undefined
+    if (wantsCardKingdomFeed()) {
+      const feed = await ensureCardKingdomFeed(mode)
+      if (typeof feed === 'string') {
+        console.warn(t('cli.buildSite.buylistUnavailable', { reason: feed }))
+      } else {
+        // Adopting what this run holds, never re-reading the file it was just
+        // handed — see `loadEnsuredFeed`, which both this and the servers' warm
+        // share so the memo rule lives in one place.
+        bakedFeed = await loadEnsuredFeed(feed)
+        console.log(
+          t('cli.buildSite.buylistReady', {
+            counted: t('domain.count.items', { count: bakedFeed.file.feed.products.length }),
+          }),
+        )
+      }
+    }
+
     console.log(t('cli.buildSite.fetchingData'))
 
     const updateProgress = (current: number, total: number) => {
@@ -965,6 +994,16 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     const globalCheapestCardMap: Record<string, ScryfallCard | null> = {}
     const globalCheapestCardMapEur: Record<string, ScryfallCard | null> = {}
     const globalCheapestCardMapTix: Record<string, ScryfallCard | null> = {}
+
+    // Card Kingdom's own printing picks, made only when a CK feed is loaded and
+    // the site actually offers CK prices. Sparse: a card CK stocks no printing
+    // of stays absent, and the site falls back to the Scryfall pick.
+    const ckQuote =
+      bakedFeed && getPriceSources().includes('cardkingdom')
+        ? detailBuylistContext(bakedFeed).quote
+        : null
+    const globalCardKingdomCardMap: CardKingdomCards = {}
+    const globalCardKingdomCheapestMap: CardKingdomCards = {}
 
     // Track cards missing prices per currency
     const globalMissingCards: Partial<Record<PriceCurrency, Set<string>>> = {}
@@ -1000,23 +1039,22 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         ) {
           latestPriceTimestamp = priceTimestamp
         }
-        let repPrints
-        if (pricesFresh || !refreshStaleAllowed(mode)) {
-          // Use cached prices when they're fresh, or when --refresh never forbids
-          // refetching merely-stale prices.
-          const sortedPrintings = [...printings].sort((a, b) =>
-            compareData(b.released_at ?? '', a.released_at ?? ''),
-          )
-          repPrints = computeRepresentativePrints(
-            sortedPrintings,
-            sortedPrintings,
-            availableCurrencies,
-            getBannedPrintings(),
-          )
-        } else {
-          // Fetch representative and cheapest print per requested currency (all pages via queue)
-          repPrints = await fetchRepresentativePrints(name, availableCurrencies)
-        }
+        // Sorted once and used by both picks: the Scryfall representative and
+        // Card Kingdom's below must read the same recency order or they are not
+        // comparable answers to the same question.
+        const sortedPrintings = sortPrintingsByRelease(printings)
+        // Use cached prices when they're fresh, or when --refresh never forbids
+        // refetching merely-stale prices; otherwise fetch representative and
+        // cheapest print per requested currency (all pages via the queue).
+        const repPrints: RepresentativePrintsResult =
+          pricesFresh || !refreshStaleAllowed(mode)
+            ? computeRepresentativePrints(
+                sortedPrintings,
+                sortedPrintings,
+                availableCurrencies,
+                getBannedPrintings(),
+              )
+            : await fetchRepresentativePrints(name, availableCurrencies)
 
         if (hasUsd) {
           const rep = repPrints.usd?.representative ?? null
@@ -1050,6 +1088,21 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
           globalCheapestCardMapTix[name] = cheap ?? rep ?? card
         }
 
+        // Card Kingdom picks its own printings, from its own catalog at its own
+        // prices — the TCGplayer-priced representative above is regularly a
+        // printing CK never stocked, which reads as an unpriced card the moment
+        // the site's USD source is switched to CK.
+        if (ckQuote) {
+          const ckPrints = cardKingdomDisplayPrints(
+            ckQuote,
+            sortedPrintings,
+            printings,
+            getBannedPrintings(),
+          )
+          if (ckPrints.representative) globalCardKingdomCardMap[name] = ckPrints.representative
+          if (ckPrints.cheapest) globalCardKingdomCheapestMap[name] = ckPrints.cheapest
+        }
+
         const effectiveCard = globalCardMap[name]
         if (effectiveCard) {
           await ensureSymbols(effectiveCard.mana_cost)
@@ -1066,6 +1119,8 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
           hasUsd ? globalCheapestCardMap[name] : null,
           hasEur ? globalCheapestCardMapEur[name] : null,
           hasTix ? globalCheapestCardMapTix[name] : null,
+          globalCardKingdomCardMap[name] ?? null,
+          globalCardKingdomCheapestMap[name] ?? null,
         ]
         const seenIds = new Set<string>()
         if (globalCardMap[name]?.id) seenIds.add(globalCardMap[name].id)
@@ -1095,6 +1150,8 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         globalCheapestCardMap,
         globalCheapestCardMapEur,
         globalCheapestCardMapTix,
+        globalCardKingdomCardMap,
+        globalCardKingdomCheapestMap,
       ]) {
         for (const card of Object.values(map)) if (card) cards.add(card)
       }
@@ -1139,31 +1196,20 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
         ...(hasTix ? { tix: globalCheapestCardMapTix } : {}),
       },
       missing: {},
+      // Absent unless CK actually priced something: an empty pair of maps would
+      // claim a CK view the site cannot fill.
+      ...(Object.keys(globalCardKingdomCardMap).length > 0 ||
+      Object.keys(globalCardKingdomCheapestMap).length > 0
+        ? {
+            cardKingdom: {
+              cards: globalCardKingdomCardMap,
+              cheapest: globalCardKingdomCheapestMap,
+            },
+          }
+        : {}),
     }
     for (const cur of availableCurrencies) {
       cardData.missing[cur] = Array.from(globalMissingCards[cur] ?? [])
-    }
-
-    // Sell mode's buy prices are baked into each list's data, so a build that
-    // offers sell mode needs a current buyer feed — under this run's --refresh
-    // policy, the same one the card cache answered to. Never fatal: a build that
-    // cannot get a buylist is a site without buy prices, not a failed build.
-    let bakedFeed: LoadedCardKingdomFeed | undefined
-    if (wantsCardKingdomFeed()) {
-      const feed = await ensureCardKingdomFeed(mode)
-      if (typeof feed === 'string') {
-        console.warn(t('cli.buildSite.buylistUnavailable', { reason: feed }))
-      } else {
-        // Adopting what this run holds, never re-reading the file it was just
-        // handed — see `loadEnsuredFeed`, which both this and the servers' warm
-        // share so the memo rule lives in one place.
-        bakedFeed = await loadEnsuredFeed(feed)
-        console.log(
-          t('cli.buildSite.buylistReady', {
-            counted: t('domain.count.items', { count: bakedFeed.file.feed.products.length }),
-          }),
-        )
-      }
     }
 
     const detailCtx: SiteDetailContext = {

@@ -13,7 +13,12 @@ import { invalidateCardKingdomIndex, saveCardKingdomCache } from '../../src/card
 import { runBuildSite } from '../../src/commands/build-site'
 import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
 import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../test-utils'
-import type { CollectionDetail, SiteIndex, WantedListDetail } from '../../src/site/data-types'
+import type {
+  CollectionDetail,
+  DeckDetail,
+  SiteIndex,
+  WantedListDetail,
+} from '../../src/site/data-types'
 
 /**
  * The build's half of baked sell mode: `--sell-mode` turns the buylist on for
@@ -47,6 +52,15 @@ describe('build-site buylist baking (Integration)', () => {
     // The synthetic binder holds Serra Angel (FDN:35), a *foil* Lightning Bolt
     // (LEA:161) and a Sol Ring (C21:263). The buyer stocks the first two; the
     // Sol Ring is what proves the baked map is sparse rather than zero-filled.
+    await seedFeed()
+  })
+
+  /**
+   * Write the buyer's feed. A helper rather than inline setup because one case
+   * below deletes the file to reach the no-feed branch, and every case after it
+   * needs it back.
+   */
+  async function seedFeed(): Promise<void> {
     await saveCardKingdomCache(
       makeCardKingdomCacheFile(
         [
@@ -75,7 +89,7 @@ describe('build-site buylist baking (Integration)', () => {
       ),
     )
     invalidateCardKingdomIndex()
-  })
+  }
 
   afterAll(async () => {
     clearSiteSellModeOverride()
@@ -173,4 +187,34 @@ describe('build-site buylist baking (Integration)', () => {
     ) as Record<string, unknown>
     expect(detail).not.toHaveProperty('buylist')
   }, 180_000)
+
+  test('the cardkingdom price store bakes CK’s own printing picks into a deck detail', async () => {
+    // Sell mode is not what turns this on: the `cardkingdom` price store does,
+    // and it must reach the *card fetch loop*, where the picks are made.
+    // (The no-buylist case above removed the feed; this needs it back.)
+    await seedFeed()
+    const configPath = path.join(dir, 'ritual.config.json')
+    const config = JSON.parse(await fs.readFile(configPath, 'utf-8')) as Record<string, unknown>
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({ ...config, priceSources: ['tcgplayer', 'cardkingdom'] }, null, 2),
+    )
+    resetRitualConfigCache()
+    await refreshRitualConfig()
+
+    await runBuildSite({ refresh: 'never' })
+
+    const deck = JSON.parse(
+      await fs.readFile(path.join(dir, 'dist', 'decks', 'emberwild-aggro.json'), 'utf-8'),
+    ) as DeckDetail
+
+    // The buyer stocks Serra Angel's only printing, so it gets a pick. Lightning
+    // Bolt it stocks only as a *foil*, and a name-only line is picked at the
+    // printing's display finish (nonfoil here) — so the map is sparse, and the
+    // Bolt keeps its Scryfall pick and prices at nothing under Card Kingdom.
+    expect(deck.cardsCardKingdom?.['Serra Angel']?.set).toBe('fdn')
+    expect(deck.cardsCardKingdom?.['Lightning Bolt']).toBeUndefined()
+    // The Scryfall map is untouched — the CK map is an override layer.
+    expect(deck.cards['Serra Angel']?.set).toBe('fdn')
+  })
 })

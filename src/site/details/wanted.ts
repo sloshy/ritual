@@ -13,6 +13,7 @@ import { resolveCardImageSources } from '../image-sources'
 import type { CardArtMap } from '../../card-art'
 import type { ScryfallCard } from '../../types'
 import type {
+  CardKingdomCards,
   WantedListCardEntry,
   WantedListDetail,
   WantedListEntryState,
@@ -111,6 +112,12 @@ export async function buildWantedArtifacts(
   const cheapestTixMap = cardData.cheapest.tix ?? {}
 
   const cardMap: Record<string, ScryfallCard | null> = {}
+  // Card Kingdom's pick for the name-only entries, keyed by card name — the only
+  // key `resolveWantedCardEntry` consults for them. Pinned entries are left out
+  // on purpose: a line that names its printing displays that printing under
+  // every store.
+  const cardMapCardKingdom: CardKingdomCards = {}
+  const cardKingdomData = hasUsd ? cardData.cardKingdom : undefined
   const printingsMap: Record<string, ScryfallCard[]> = {}
   const cardEntries: WantedListCardEntry[] = []
   let totalPrice = 0
@@ -169,6 +176,12 @@ export async function buildWantedArtifacts(
         const cardKey = cardPrintingKey(card)
         cardMap[cardKey] = card
         cardMap[entry.name] = card
+
+        // The CK counterpart of the cheapest-printing pick above: the cheapest
+        // printing Card Kingdom actually sells, falling back to its
+        // representative when CK has no cheapest to offer.
+        const ckCard = cardKingdomData?.cheapest[entry.name] ?? cardKingdomData?.cards[entry.name]
+        if (ckCard) cardMapCardKingdom[entry.name] = ckCard
 
         if (hasUsd) {
           const c = cheapUsd ?? card
@@ -285,7 +298,15 @@ export async function buildWantedArtifacts(
       missingPriceCountTix += missingTix
       // `card` is what `resolveWantedCardEntry` will hand the tile: the exact
       // printing when the line pins one, the cheapest/representative otherwise.
-      if (ctx.buylist) buylistSources.push({ card, finish: entry.finish, language: entry.language })
+      // Under the CK source the tile shows CK's own pick instead, and its price
+      // is read off these very quotes — so that printing is quoted too.
+      if (ctx.buylist) {
+        buylistSources.push({ card, finish: entry.finish, language: entry.language })
+        const ckCard = cardMapCardKingdom[entry.name]
+        if (ckCard && ckCard !== card) {
+          buylistSources.push({ card: ckCard, finish: entry.finish, language: entry.language })
+        }
+      }
     }
 
     totalPrice += price
@@ -323,6 +344,7 @@ export async function buildWantedArtifacts(
     entries: cardEntries,
     sectionOrder,
     cards: cardMap,
+    ...(Object.keys(cardMapCardKingdom).length > 0 ? { cardsCardKingdom: cardMapCardKingdom } : {}),
     printings: printingsMap,
     symbolMap: ctx.symbolMap,
     useScryfallImgUrls: ctx.useScryfallImgUrls,

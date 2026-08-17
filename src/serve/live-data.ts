@@ -246,9 +246,15 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
     config: RitualConfig,
   ): Promise<SiteDetailContext> {
     const bannedPrintings = getBannedPrintings(config)
+    // The buylist context is built once and used twice: it quotes the printings
+    // a list displays, and — when the deployment offers CK prices — it is also
+    // what picks which printing a name-only line displays under that source.
+    const buylist = buylistFeed ? detailBuylistContext(buylistFeed) : null
+    const offersCardKingdom = getPriceSources(config).includes('cardkingdom')
     const source = await createCacheCardSource(names, {
       currencies: LIVE_CURRENCIES,
       bannedPrintings,
+      ...(buylist && offersCardKingdom ? { cardKingdomQuote: buylist.quote } : {}),
     })
     const configuredCurrency = getDefaultCurrency(config)
     return {
@@ -264,7 +270,7 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
       // Quotes are baked into the detail here exactly as `build-site` bakes
       // them, so the site's sell mode reads one shape in both modes and never
       // calls the quotes API. Absent feed (or sell mode off) = no baked field.
-      ...(buylistFeed ? { buylist: detailBuylistContext(buylistFeed) } : {}),
+      ...(buylist ? { buylist } : {}),
       // No `missingArtFiles`: nothing is deployed here, so every custom-art
       // reference is baked as `art/<relpath>` and answered — or 404'd — live by
       // the `/art/*` route reading the configured art directory.

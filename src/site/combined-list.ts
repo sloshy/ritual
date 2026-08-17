@@ -11,6 +11,7 @@ import { isPricelessCard, pricelessFacts } from './priceless'
 import { overlayCard } from './session-cache'
 import { resolveCardPreview } from './image-sources'
 import { resolveWantedCardEntry } from './resolve-card'
+import { sourceCard, type SourceCardMaps } from './source-cards'
 import type { CardData } from './card-sorting'
 import type { SelectedCard } from './useCardSelection'
 import { fetchJson } from './useFetchJson'
@@ -216,6 +217,12 @@ function buildDeckCards(
   const { detail, ref, name } = loaded
   const out: CombinedCardData[] = []
   let localOrder = 0
+  // Hoisted: one maps object for the whole list, not one per card line.
+  const cardMaps: SourceCardMaps = {
+    cards: detail.cards,
+    cardKingdom: detail.cardsCardKingdom,
+    currency,
+  }
   for (const section of detail.deck.sections) {
     for (const entry of section.cards) {
       const specific = hasSpecificPrinting(entry)
@@ -227,7 +234,9 @@ function buildDeckCards(
             entry.language,
           )
         : null
-      const card = overlayCard(matched ?? detail.cards[entry.name] ?? null)
+      // Unpinned rows follow the active USD source's own printing pick, the same
+      // rule the deck page applies.
+      const card = overlayCard(matched ?? sourceCard(cardMaps, entry.name))
       // Resolved here because the combined view has no per-list context
       // downstream.
       const labels = effectiveLabels(entry.labels, detail.labels)
@@ -394,7 +403,11 @@ function buildWantedCards(
   const { detail, ref, name } = loaded
   return detail.entries.map((entry: WantedListCardEntry, index): CombinedCardData => {
     const specific = hasSpecificPrinting(entry)
-    const card = resolveWantedCardEntry(entry, detail.cards)
+    const card = resolveWantedCardEntry(entry, {
+      cards: detail.cards,
+      cardKingdom: detail.cardsCardKingdom,
+      currency,
+    })
     // A copy wearing custom art carries no price at all (wanted lines have no
     // labels, so that is the only way one can be priceless). Otherwise: an entry
     // with no finish token is read at the printing's default finish, not flatly

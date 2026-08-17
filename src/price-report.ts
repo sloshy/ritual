@@ -32,7 +32,7 @@ import { effectiveLabels, pricelessReason, PRICELESS_REASONS, type CardLabel } f
 import { findPrinting, hasSpecificPrinting, type CardPrintingsLookup } from './card-printing'
 import { parseCollectionFile } from './collection-file'
 import { parseDeckFrontMatter } from './deck-file'
-import { displayFinish, printingFinishes } from './finish-condition'
+import { displayFinish } from './finish-condition'
 import { isExtraSection } from './deck-format'
 import { loadDeckFile } from './importers/text-file'
 import { LIST_TYPES, type ListType } from './list-type'
@@ -45,8 +45,12 @@ import {
   type CheapestPrintingResult,
   type PriceCurrency,
 } from './price-currency'
-import { displayLanguage } from './card-language'
 import type { PrintingQuoteFn } from './cardkingdom/quote'
+import {
+  cardKingdomPrints,
+  cardKingdomRetail,
+  findCheapestCardKingdomPrinting,
+} from './cardkingdom/retail'
 import type { PriceSource } from './price-source'
 import { listLocations, type ListLocation } from './resolve-list'
 import { comparePrintings, computeRepresentativePrints, getCardGames } from './scryfall'
@@ -269,44 +273,6 @@ export type CardKingdomPricing = {
   quote: PrintingQuoteFn
 }
 
-/** CK NM retail for one printing+finish; 0 when CK has no product (or no price) for it. */
-function cardKingdomRetail(
-  ck: CardKingdomPricing,
-  card: ScryfallCard,
-  finish: Finish,
-  language: CardLanguage | undefined,
-): number {
-  const quote = ck.quote({
-    set: card.set,
-    collectorNumber: card.collector_number,
-    finish,
-    scryfallId: card.id,
-    ...(displayLanguage(language) !== 'en' ? { language } : {}),
-  })
-  return quote && quote.priceRetail > 0 ? quote.priceRetail : 0
-}
-
-/**
- * The cheapest CK-retail printing+finish across a card's printings — the CK
- * counterpart of `findCheapestPrinting`, quoting each offered finish through
- * the shared matcher.
- */
-function findCheapestCardKingdomPrinting(
-  ck: CardKingdomPricing,
-  printings: ScryfallCard[],
-): CheapestPrintingResult | null {
-  let best: CheapestPrintingResult | null = null
-  for (const card of printings) {
-    for (const finish of printingFinishes(card)) {
-      const price = cardKingdomRetail(ck, card, finish, undefined)
-      if (price > 0 && (best === null || price < best.price)) {
-        best = { price, card, finish }
-      }
-    }
-  }
-  return best
-}
-
 /** A built report plus the printings fetched to build it (for detail views). */
 export type BuiltPriceReport = {
   report: PriceReport
@@ -497,7 +463,7 @@ type NamePricing = {
   printings: ScryfallCard[]
   games: string[]
   representative: ScryfallCard | null
-  cheapest: ReturnType<typeof findCheapestPrinting>
+  cheapest: CheapestPrintingResult | null
 }
 
 async function resolveNamePricing(
@@ -510,6 +476,17 @@ async function resolveNamePricing(
 
   const printings = await options.lookup(name)
   const newestFirst = [...printings].sort(comparePrintings)
+  // Under CK pricing both picks are made over CK's catalog with CK's prices:
+  // the printing a name-only line is priced at must be one CK actually sells,
+  // or the entry reads as unpriced for want of a printing nobody asked for.
+  const ckPrints = options.cardKingdom
+    ? cardKingdomPrints(
+        options.cardKingdom.quote,
+        newestFirst,
+        printings,
+        options.bannedPrintings ?? new Set(),
+      )
+    : null
   const repPrints = computeRepresentativePrints(
     newestFirst,
     printings,
@@ -519,12 +496,13 @@ async function resolveNamePricing(
   const pricing: NamePricing = {
     printings,
     games: getCardGames(printings),
-    representative: repPrints[options.currency]?.representative ?? null,
+    // A CK report falls back to the Scryfall pick only when CK carries no
+    // printing of the card at all — the entry is then unpriced, but still shows
+    // the printing's name, type and cost.
+    representative: ckPrints?.representative ?? repPrints[options.currency]?.representative ?? null,
     // Under CK pricing the cheapest acceptable copy is the cheapest printing
     // CK actually sells, quoted through the same matcher as everything else.
-    cheapest: options.cardKingdom
-      ? findCheapestCardKingdomPrinting(options.cardKingdom, printings)
-      : findCheapestPrinting(printings, options.currency),
+    cheapest: ckPrints ? ckPrints.cheapest : findCheapestPrinting(printings, options.currency),
   }
   cache.set(name, pricing)
   return pricing
@@ -589,12 +567,12 @@ function priceEntry(
   if (exactPrinting) {
     finish = displayFinish(exactPrinting, entry.finish)
     price = ck
-      ? cardKingdomRetail(ck, exactPrinting, finish, entry.language)
+      ? cardKingdomRetail(ck.quote, exactPrinting, finish, entry.language)
       : getCardPriceForFinish(exactPrinting, finish, currency)
   } else if (pricing.representative) {
     price = ck
       ? cardKingdomRetail(
-          ck,
+          ck.quote,
           pricing.representative,
           displayFinish(pricing.representative, undefined),
           entry.language,
@@ -615,7 +593,7 @@ function priceEntry(
     // "This printing, any finish" — priced from the same store as everything
     // else, or `lowest` would mix a Scryfall figure into a Card Kingdom total.
     lowest = ck
-      ? (findCheapestCardKingdomPrinting(ck, [exactPrinting])?.price ?? 0)
+      ? (findCheapestCardKingdomPrinting(ck.quote, [exactPrinting])?.price ?? 0)
       : (findCheapestPrinting([exactPrinting], currency)?.price ?? 0)
     cheapestPick = null
   } else {

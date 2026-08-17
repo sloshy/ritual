@@ -2,6 +2,7 @@ import type { ScryfallCard } from '../../types'
 import type { BuyerId, BuylistFeedProvenance } from '../../buylist'
 import type { PrintingQuoteFn } from '../../cardkingdom/quote'
 import type { PriceCurrency } from '../../price-currency'
+import type { CardKingdomCards } from '../data-types'
 
 /**
  * Prefetched per-name card data the detail builders read. Key presence mirrors
@@ -17,6 +18,24 @@ export type SiteCardData = {
   cheapest: Partial<Record<PriceCurrency, Record<string, ScryfallCard | null>>>
   /** Names with no price per currency, in fetch order. */
   missing: Partial<Record<PriceCurrency, readonly string[]>>
+  /**
+   * The Card Kingdom counterparts of {@link cards} and {@link cheapest}`.usd`:
+   * the printing a name-only line displays, and the cheapest printing, chosen
+   * from CK's catalog at CK's prices.
+   *
+   * Present only when the build had a CK feed to select against, and *sparse*
+   * within that — a name CK carries no printing of has no entry. Both are
+   * override layers over the Scryfall maps, never replacements: a client reads
+   * `cardKingdom[name] ?? cards[name]`, so a card CK does not stock keeps its
+   * usual printing and simply prices at nothing under the CK source.
+   */
+  cardKingdom?: CardKingdomCardData
+}
+
+/** The Card Kingdom printing selections for a build's cards. */
+export type CardKingdomCardData = {
+  cards: CardKingdomCards
+  cheapest: CardKingdomCards
 }
 
 /**
