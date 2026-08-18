@@ -9,7 +9,6 @@ import { extractPrimerCardNames } from '../../primer-parser'
 import { resolveDeckFormat, getMainDeckSize, isCommanderSection } from '../../deck-format'
 import { findPrinting, hasSpecificPrinting } from '../../card-printing'
 import { formatPrintingLabel, printingKey } from '../../printing-key'
-import { resolveCardImageSources } from '../image-sources'
 import { getCardPrice } from '../../price-currency'
 import type { PriceCurrency } from '../../price-currency'
 import { getErrorMessage } from '../../errors'
@@ -18,6 +17,7 @@ import type { BakedDeckData, CardKingdomCards, DeckDetail, DeckSummary } from '.
 import {
   bakeBuylistQuotes,
   cardIdsOf,
+  coverImage,
   customArtLookup,
   loadListSidecars,
   slugifyListName,
@@ -179,6 +179,7 @@ export async function buildDeckArtifacts(
   const commanderEntry = commanderSection?.cards[0]
   let commanderCard: ScryfallCard | null = null
   let priciest: ScryfallCard | null = null
+  let priciestEntry: Card | null = null
   let maxPrice = -1
   for (const section of deckData.sections) {
     for (const entry of section.cards) {
@@ -190,6 +191,7 @@ export async function buildDeckArtifacts(
       if (price > maxPrice) {
         maxPrice = price
         priciest = card
+        priciestEntry = entry
       }
     }
   }
@@ -197,7 +199,11 @@ export async function buildDeckArtifacts(
   // The commander when the deck names one the build could resolve; otherwise
   // the deck's priciest line, which is a tile image and not a commander — hence
   // the two facts stay separate rather than being re-derived from each other.
+  // The line is carried alongside its card because the tile's art is the
+  // *line's*: custom art overrides the printing here exactly as it does on the
+  // deck page.
   const featured: ScryfallCard | null = commanderCard ?? priciest
+  const featuredEntry: Card | null = commanderCard ? (commanderEntry ?? null) : priciestEntry
 
   const slug = slugifyListName(deckData.name)
 
@@ -346,9 +352,11 @@ export async function buildDeckArtifacts(
   const format = resolveDeckFormat(deckData)
   const latestChangelog = changelog[0]?.timestamp
   const lastUpdatedAt = latestChangelog ?? fileMtime
-  const featuredImage = featured
-    ? resolveCardImageSources(featured, useScryfallImgUrls).frontImage
-    : ''
+  const featuredImage = coverImage(
+    featured,
+    useScryfallImgUrls,
+    customArtFor(featuredEntry?.cardId).customArt,
+  )
 
   // Compute deck prices (mainboard + sideboard + commander, not extras)
   let deckTotalPrice = 0

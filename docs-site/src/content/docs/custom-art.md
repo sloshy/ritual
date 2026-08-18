@@ -107,7 +107,11 @@ The reasoning is the same as for a proxy: the price of a Sol Ring is the price o
 On the public site and in the editors, a card with custom art shows it on:
 
 - card tiles in every art view (grid, binder, stacks) and the list view's hover preview,
-- the [card detail modal](/commands/build-site/#card-detail-modal)'s main image.
+- the [card detail modal](/commands/build-site/#card-detail-modal)'s main image,
+- the list's cover image on the site index, when that card is the one the cover
+  picks (a deck's commander, or a collection's or wanted list's priciest entry).
+  The cover ranks entries by the **printing's** price rather than the zero
+  below, so a custom-art copy of an expensive card can still be a list's face.
 
 Only the **front** image is replaced. A double-faced card's back keeps its real face — the override is the entry's, not the printing's. The modal's **Other Printings** grid and the editors' printing pickers also keep real thumbnails: they exist to show you actual printings.
 

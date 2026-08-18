@@ -13,6 +13,7 @@ import { buylistRequestFor, quoteKey, type BuylistQuote } from '../../buylist'
 import { loadCardArt, type CardArtMap } from '../../card-art'
 import { printingFinishPairs } from '../../card-printing'
 import { siteArtUrl } from '../art-url'
+import { resolveCardImageSources } from '../image-sources'
 import type { CardLanguage } from '../../card-language'
 import type { Finish, ScryfallCard } from '../../types'
 import type { BakedBuylist } from '../data-types'
@@ -174,6 +175,25 @@ export function customArtLookup(
     if (missing?.has(ref.file)) return { hasCustomArt: true }
     return { customArt: siteArtUrl(ref.file), hasCustomArt: true }
   }
+}
+
+/**
+ * A list's cover image on the site index: the featured entry's own custom art
+ * when it wears some, the featured printing's front image otherwise.
+ *
+ * The art is the *entry's*, not the printing's, so it wins even for an entry
+ * whose printing resolved to nothing. A reference the build could not deploy
+ * carries no URL (see {@link customArtLookup}), which lands here as `undefined`
+ * and leaves the cover on the real printing — the same degraded rendering the
+ * list pages get. Empty when there is neither.
+ */
+export function coverImage(
+  card: ScryfallCard | null,
+  useScryfallImgUrls: boolean,
+  customArt: string | undefined,
+): string {
+  if (!card) return customArt ?? ''
+  return resolveCardImageSources(card, useScryfallImgUrls, customArt).frontImage
 }
 
 /**

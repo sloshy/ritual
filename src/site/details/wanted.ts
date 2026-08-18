@@ -9,7 +9,6 @@ import { findPrinting, hasSpecificPrinting } from '../../card-printing'
 import { displayLanguage, scryfallCardLanguage } from '../../card-language'
 import { defaultPrintingFinish } from '../../finish-condition'
 import { getCardPrice, getCardPriceForFinish } from '../../price-currency'
-import { resolveCardImageSources } from '../image-sources'
 import type { CardArtMap } from '../../card-art'
 import type { ScryfallCard } from '../../types'
 import type {
@@ -22,6 +21,7 @@ import type {
 import {
   bakeBuylistQuotes,
   cardIdsOf,
+  coverImage,
   customArtLookup,
   includeChangelogCards,
   listReadErrorMessage,
@@ -128,6 +128,8 @@ export async function buildWantedArtifacts(
   let missingPriceCountTix = 0
   let featured: ScryfallCard | null = null
   let featuredPrice = -1
+  /** The featured entry's card id, for the custom art its cover may wear. */
+  let featuredCardId: number | undefined
   /** Every entry's displayed printing, for the buylist bake (empty when not baking). */
   const buylistSources: BuylistBakeSource[] = []
   const customArtFor = customArtLookup(loaded.art, ctx)
@@ -288,6 +290,11 @@ export async function buildWantedArtifacts(
     // nothing, exactly as `ritual price` reads it.
     const art = customArtFor(entry.cardId)
     const priceless = art.hasCustomArt === true
+    // The printing's own price, before pricelessness is applied. The list's
+    // totals use the baked zero; the cover pick below ranks by this, so a
+    // custom-art copy can still be the list's face — the same way a deck's
+    // commander takes the cover whatever it is worth.
+    const printingPrice = price
     if (priceless) {
       price = 0
       priceEur = 0
@@ -313,9 +320,10 @@ export async function buildWantedArtifacts(
     totalPriceEur += priceEur
     totalPriceTix += priceTix
 
-    if (card && price > featuredPrice) {
-      featuredPrice = price
+    if (card && printingPrice > featuredPrice) {
+      featuredPrice = printingPrice
       featured = card
+      featuredCardId = entry.cardId
     }
 
     cardEntries.push({
@@ -355,9 +363,11 @@ export async function buildWantedArtifacts(
     buylist: bakeBuylistQuotes(ctx, buylistSources, printingsMap),
   }
 
-  const featuredImage = featured
-    ? resolveCardImageSources(featured, ctx.useScryfallImgUrls).frontImage
-    : ''
+  const featuredImage = coverImage(
+    featured,
+    ctx.useScryfallImgUrls,
+    customArtFor(featuredCardId).customArt,
+  )
 
   const summary: WantedListSummary = {
     slug,

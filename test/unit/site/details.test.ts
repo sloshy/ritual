@@ -1214,6 +1214,158 @@ describe('custom art baking', () => {
     expect(detail.deck.sections[0]?.cards[1]?.customArt).toBeUndefined()
   })
 
+  const artDeck = (art: CardArtMap): LoadedDeck => ({
+    data: {
+      name: 'Art Deck',
+      sections: [
+        { name: 'Commander', cards: [{ name: 'Serra Angel', quantity: 1, cardId: 1 }] },
+        { name: 'Mainboard', cards: [{ name: 'Lightning Bolt', quantity: 4, cardId: 2 }] },
+      ],
+    },
+    art,
+    changelog: [],
+    warnings: [],
+  })
+
+  test('a commander wearing custom art features that art, not its printing', async () => {
+    const { ctx } = makeContext({
+      cardData: {
+        cards: { 'Lightning Bolt': bolt, 'Serra Angel': angel },
+        printings: { 'Serra Angel': [angel] },
+      },
+    })
+    const { summary } = await buildDeckArtifacts(artDeck(artMap({ 1: { file: 'angel.png' } })), ctx)
+
+    expect(summary.featuredCardImage).toBe('art/angel.png')
+  })
+
+  test('art on a line the cover does not feature leaves the cover alone', async () => {
+    const { ctx } = makeContext({
+      cardData: {
+        cards: { 'Lightning Bolt': bolt, 'Serra Angel': angel },
+        printings: { 'Serra Angel': [angel] },
+      },
+    })
+    // Art on the mainboard Bolt, while the commander is what the cover shows.
+    const { summary } = await buildDeckArtifacts(artDeck(artMap({ 2: { file: 'bolt.png' } })), ctx)
+
+    expect(summary.featuredCardImage).toBe('https://img/angel.jpg')
+  })
+
+  test('a commanderless deck wears the art of the line its cover features', async () => {
+    const { ctx } = makeContext({
+      cardData: {
+        cards: { 'Lightning Bolt': bolt, 'Serra Angel': angel },
+        printings: { 'Serra Angel': [angel] },
+      },
+    })
+    const loaded: LoadedDeck = {
+      data: {
+        name: 'Art Deck',
+        sections: [
+          {
+            name: 'Mainboard',
+            cards: [
+              { name: 'Serra Angel', quantity: 1, cardId: 1 },
+              // The priciest line, so the cover's — and it wears custom art.
+              { name: 'Lightning Bolt', quantity: 4, cardId: 2 },
+            ],
+          },
+        ],
+      },
+      art: artMap({ 1: { file: 'angel.png' }, 2: { file: 'bolt.png' } }),
+      changelog: [],
+      warnings: [],
+    }
+
+    const { summary } = await buildDeckArtifacts(loaded, ctx)
+
+    expect(summary.commander).toBeNull()
+    expect(summary.featuredCardImage).toBe('art/bolt.png')
+  })
+
+  test('art the build could not deploy leaves the tile on the real printing', async () => {
+    const { ctx } = makeContext({
+      cardData: {
+        cards: { 'Lightning Bolt': bolt, 'Serra Angel': angel },
+        printings: { 'Serra Angel': [angel] },
+      },
+      missingArtFiles: new Set(['angel.png']),
+    })
+    const { summary } = await buildDeckArtifacts(artDeck(artMap({ 1: { file: 'angel.png' } })), ctx)
+
+    expect(summary.featuredCardImage).toBe('https://img/angel.jpg')
+  })
+
+  // The Bolt is the priciest line and wears the art; the Angel is there so the
+  // cover has a plainer, cheaper rival to pass over.
+  const artFlatEntries = [
+    {
+      name: 'Lightning Bolt',
+      quantity: 1,
+      set: 'lea',
+      collectorNumber: '161',
+      section: 'Main',
+      cardId: 4,
+    },
+    {
+      name: 'Serra Angel',
+      quantity: 1,
+      set: 'fdn',
+      collectorNumber: '35',
+      section: 'Main',
+      cardId: 5,
+    },
+  ]
+  const artFlatContext = (): StubContext =>
+    makeContext({ printingsByName: { 'Lightning Bolt': [bolt], 'Serra Angel': [angel] } })
+
+  test('a featured collection entry wearing custom art features that art', async () => {
+    const loaded: LoadedCollection = {
+      displayName: 'Art Binder',
+      entries: artFlatEntries,
+      sectionOrder: ['Main'],
+      art: artMap({ 4: { url: 'https://example.com/art/bolt.png' } }),
+      warnings: [],
+      changelog: [],
+    }
+
+    const { summary } = await buildCollectionArtifacts(loaded, artFlatContext().ctx)
+
+    expect(summary.featuredCardImage).toBe('https://example.com/art/bolt.png')
+  })
+
+  test('a featured wanted entry wearing custom art features that art', async () => {
+    const loaded: LoadedWanted = {
+      displayName: 'Wants',
+      entries: artFlatEntries,
+      sectionOrder: ['Main'],
+      art: artMap({ 4: { url: 'https://example.com/art/bolt.png' } }),
+      warnings: [],
+      changelog: [],
+    }
+
+    const { summary } = await buildWantedArtifacts(loaded, artFlatContext().ctx)
+
+    expect(summary.featuredCardImage).toBe('https://example.com/art/bolt.png')
+  })
+
+  test('a flat list’s cover ignores art on an entry it does not feature', async () => {
+    const loaded: LoadedCollection = {
+      displayName: 'Art Binder',
+      entries: artFlatEntries,
+      // Art on the Angel, which the cover passes over for the pricier Bolt.
+      art: artMap({ 5: { url: 'https://example.com/art/angel.png' } }),
+      sectionOrder: ['Main'],
+      warnings: [],
+      changelog: [],
+    }
+
+    const { summary } = await buildCollectionArtifacts(loaded, artFlatContext().ctx)
+
+    expect(summary.featuredCardImage).toBe('https://img/bolt.jpg')
+  })
+
   // A collection entry's zero price and missing quote are pinned alongside the
   // proxy label's in the `by-rule priceless baking` table above — same binder,
   // same observables, one rule.
@@ -1259,6 +1411,9 @@ describe('custom art baking', () => {
     expect(summary.totalPrice).toBeCloseTo(0.5)
     expect(summary.missingPriceCount).toBe(0)
     expect(buylist.asked.map((printing) => printing.set)).toEqual(['fdn'])
+    // The cover ranks by the printing's own price, not the baked zero, so the
+    // custom-art Bolt is still the list's face despite being worth nothing.
+    expect(summary.featuredCardImage).toBe('art/bolt.png')
   })
 
   test('an art file the build could not deploy still prices at nothing', async () => {

@@ -11,12 +11,12 @@ import { findPrinting } from '../../card-printing'
 import { displayLanguage, scryfallCardLanguage } from '../../card-language'
 import { displayFinish } from '../../finish-condition'
 import { getCardPriceForFinish } from '../../price-currency'
-import { resolveCardImageSources } from '../image-sources'
 import type { ScryfallCard } from '../../types'
 import type { CollectionCardEntry, CollectionDetail, CollectionSummary } from '../data-types'
 import {
   bakeBuylistQuotes,
   cardIdsOf,
+  coverImage,
   customArtLookup,
   includeChangelogCards,
   listReadErrorMessage,
@@ -109,6 +109,8 @@ export async function buildCollectionArtifacts(
   let missingPriceCountTix = 0
   let featured: ScryfallCard | null = null
   let featuredPrice = -1
+  /** The featured entry's card id, for the custom art its cover may wear. */
+  let featuredCardId: number | undefined
   /** Every entry's displayed printing, for the buylist bake (empty when not baking). */
   const buylistSources: BuylistBakeSource[] = []
   const customArtFor = customArtLookup(loaded.art, ctx)
@@ -182,7 +184,12 @@ export async function buildCollectionArtifacts(
       buylistSources.push({ card, finish: entry.finish, language: entry.language })
     }
     const finish = displayFinish(card, entry.finish)
-    const price = card && !priceless ? getCardPriceForFinish(card, finish, 'usd') : 0
+    // The printing's own price, before pricelessness is applied. The list's
+    // totals use the baked zero; the cover pick below ranks by this, so a proxy
+    // or a custom-art copy can still be the list's face — the same way a deck's
+    // commander takes the cover whatever it is worth.
+    const printingPrice = card ? getCardPriceForFinish(card, finish, 'usd') : 0
+    const price = priceless ? 0 : printingPrice
     const priceEur = card && !priceless ? getCardPriceForFinish(card, finish, 'eur') : 0
     const priceTix = card && !priceless ? getCardPriceForFinish(card, finish, 'tix') : 0
     totalPrice += price
@@ -194,9 +201,10 @@ export async function buildCollectionArtifacts(
       if (priceTix === 0) missingPriceCountTix++
     }
 
-    if (card && price > featuredPrice) {
-      featuredPrice = price
+    if (card && printingPrice > featuredPrice) {
+      featuredPrice = printingPrice
       featured = card
+      featuredCardId = entry.cardId
     }
 
     cardEntries.push({
@@ -237,9 +245,11 @@ export async function buildCollectionArtifacts(
     buylist: bakeBuylistQuotes(ctx, buylistSources, printingsMap),
   }
 
-  const featuredImage = featured
-    ? resolveCardImageSources(featured, ctx.useScryfallImgUrls).frontImage
-    : ''
+  const featuredImage = coverImage(
+    featured,
+    ctx.useScryfallImgUrls,
+    customArtFor(featuredCardId).customArt,
+  )
 
   const summary: CollectionSummary = {
     slug,
