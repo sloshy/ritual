@@ -188,6 +188,49 @@
   color: var(--error-text);
 }
 
+/* ----- Floating toasts -----
+   An alert that reports the result of an action (a save landing, a save
+   failing) is useless pinned to the top of a page the reader has scrolled far
+   down, so `StatusToast` lifts it out of the flow and pins it to the viewport
+   instead — just under whatever chrome is stuck to the top: the runtime theme
+   editor bar (--theme-editor-h) and the site header (--site-header-h), which
+   grows a row in edit mode. Surfaces without that chrome never set the vars, so
+   the 0px fallbacks put the stack at the top of the window. */
+.toast-stack {
+  position: fixed;
+  top: calc(var(--theme-editor-h, 0px) + var(--site-header-h, 0px) + 0.75rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: max-content;
+  max-width: min(92vw, 40rem);
+  /* The stack floats over live controls and dismisses itself, so it must never
+     swallow a click meant for what is underneath it. */
+  pointer-events: none;
+}
+
+.toast {
+  /* The stack owns the spacing between messages; .alert's flow margin would
+     only offset the bottom one from nothing. */
+  margin-bottom: 0;
+  box-shadow: var(--modal-shadow);
+  opacity: 1;
+  /* --toast-fade-ms is set on the stack by StatusToast, which unmounts the node
+     when the fade ends; the fallback only covers the component not rendering. */
+  transition: opacity var(--toast-fade-ms, 400ms) ease;
+  /* The message itself is selectable (server-authored failure prose is worth
+     copying); the gaps around it stay click-through. */
+  pointer-events: auto;
+}
+
+.toast--leaving {
+  opacity: 0;
+}
+
 /* ----- Button sizes ----- */
 .btn-lg {
   padding: 0.75rem 1.5rem;

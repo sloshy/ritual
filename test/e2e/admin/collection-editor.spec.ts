@@ -194,6 +194,55 @@ test.describe('Collection Editor sections', () => {
     await expect(prompt.locator('h3')).toHaveText('Rename section')
     await expect(page.locator('#text-prompt-input')).toHaveValue('Main')
   })
+
+  /** Stage a pending change (which one is irrelevant) so Save has something to send. */
+  async function stageASectionAdd(page: Page): Promise<void> {
+    await page.locator('.btn-sections').click()
+    await page.locator('.section-manager-input').fill('Foils')
+    await page.locator('.section-manager-add-btn').click()
+    await page.keyboard.press('Escape')
+  }
+
+  test('a save reports through a viewport-pinned toast that clears itself', async ({ page }) => {
+    await stageASectionAdd(page)
+    await page.locator('.btn-save').click()
+
+    const toast = page.locator('.toast-stack .alert-success')
+    await expect(toast).toHaveText('Changes saved successfully')
+    // Fixed and outside <main>: the banner it replaces scrolled away with the
+    // list, which is precisely when a save result needs to be readable.
+    const stackPosition = await page
+      .locator('.toast-stack')
+      .evaluate((el) => getComputedStyle(el).position)
+    expect(stackPosition).toBe('fixed')
+    await expect(page.locator('main .alert-success')).toHaveCount(0)
+
+    // Five seconds of it, then a fade, then gone — no click required. The
+    // mid-flight check is what stops a zero-length window from passing.
+    await page.waitForTimeout(3_000)
+    await expect(toast).toBeVisible()
+    await expect(toast).toHaveCount(0, { timeout: 5_000 })
+  })
+
+  test('a failed save toasts the error, and a later save toasts again', async ({ page }) => {
+    // Re-registered after the beforeEach route, so this one answers first.
+    await fulfillJson(page, '**/api/collection/test-sections/save', {
+      success: false,
+      error: 'Collection is locked',
+    })
+
+    await stageASectionAdd(page)
+    await page.locator('.btn-save').click()
+
+    const errorToast = page.locator('.toast-stack .alert-error')
+    await expect(errorToast).toHaveText('Collection is locked')
+    await expect(errorToast).toHaveCount(0, { timeout: 10_000 })
+
+    // Retrying after it expired must toast the same failure again rather than
+    // going silent because the message never changed.
+    await page.locator('.btn-save').click()
+    await expect(errorToast).toHaveText('Collection is locked')
+  })
 })
 
 /** One change event as captured from the save request body. */

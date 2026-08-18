@@ -14,6 +14,7 @@ import { ChangePrintingQuantityDialog } from './ChangePrintingQuantityDialog'
 import { EditorActionBar, focusActionBar } from './EditorActionBar'
 import { TextPromptDialog } from './TextPromptDialog'
 import { ShortcutsDialog } from './ShortcutsDialog'
+import { StatusToast } from '../../ui/StatusToast'
 import { useEditorShortcuts } from '../useEditorShortcuts'
 import { type EditorEntity, entityListType } from '../entity'
 import { renderStatus } from '../useEditorStatus'
@@ -107,13 +108,14 @@ export function EditorShell<TData, TCardEntry>(
         </div>
       </Show>
 
-      {/* Status messages */}
-      <Show when={editor.status.error}>
-        {(error) => <div class="alert alert-error">{renderStatus(tDyn, error())}</div>}
-      </Show>
-      <Show when={editor.status.saveStatus}>
-        {(saved) => <div class="alert alert-success">{renderStatus(tDyn, saved())}</div>}
-      </Show>
+      {/* Status messages. Floated over the viewport rather than left at the top
+          of the page: a list is long, and a save result the reader has to scroll
+          up to find is a save result they never see. */}
+      <StatusToast
+        error={editor.status.error}
+        status={editor.status.saveStatus}
+        render={(message) => renderStatus(tDyn, message)}
+      />
       <Show when={editor.status.loading}>
         <p class="text-muted">{t('ui.editor.loading', { listType: listType() })}</p>
       </Show>
