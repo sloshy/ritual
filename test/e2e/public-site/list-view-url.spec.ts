@@ -1,23 +1,8 @@
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { mockPublicSiteDeckForFilters } from '../helpers/mock-public-site'
+import { FILTER_DECK_CARDS, mockPublicSiteDeckForFilters } from '../helpers/mock-public-site'
 import { openFilterMenu } from '../helpers/filter-menu'
-
-const ALL_CARDS = [
-  'Boring Rock',
-  'Golgari Lord',
-  'Green Elf',
-  'Maybe Dragon',
-  'Test Forest',
-  'White Knight',
-]
-
-/** Assert the visible card names (order-independent), retrying while the DOM updates. */
-async function expectVisibleCards(page: Page, names: string[]): Promise<void> {
-  await expect
-    .poll(async () => (await page.locator('.list-name').allTextContents()).sort())
-    .toEqual([...names].sort())
-}
+import { expectVisibleCards } from '../helpers/list-ui'
 
 const groupSelect = (page: Page) =>
   page.locator('.toolbar-group', { hasText: 'Group:' }).locator('select')
@@ -109,7 +94,7 @@ test.describe('List view shareable URL', () => {
     // Hide Lands was active in the link: 'Test Forest' (the only land) is gone.
     await expectVisibleCards(
       page,
-      ALL_CARDS.filter((c) => c !== 'Test Forest'),
+      FILTER_DECK_CARDS.filter((c) => c !== 'Test Forest'),
     )
 
     await openFilterMenu(page)

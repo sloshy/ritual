@@ -1,36 +1,17 @@
 import { test, expect } from '@playwright/test'
-import type { Page } from '@playwright/test'
 import {
+  FILTER_DECK_CARDS,
   mockPublicSiteDeckForCopiesModes,
   mockPublicSiteDeckForFilters,
 } from '../helpers/mock-public-site'
 import { openFilterMenu } from '../helpers/filter-menu'
-
-// 'Maybe Dragon' lives in the Maybeboard (extras) section; the rest are mainboard.
-const ALL_CARDS = [
-  'Boring Rock',
-  'Golgari Lord',
-  'Green Elf',
-  'Maybe Dragon',
-  'Test Forest',
-  'White Knight',
-]
-
-/** Assert the visible card names (order-independent), retrying while the DOM updates. */
-async function expectVisibleCards(page: Page, names: string[]): Promise<void> {
-  await expect
-    .poll(async () => (await page.locator('.list-name').allTextContents()).sort())
-    .toEqual([...names].sort())
-}
+import { expectVisibleCards, switchToListView } from '../helpers/list-ui'
 
 test.describe('Toolbar Filters menu', () => {
   test.beforeEach(async ({ page }) => {
     await mockPublicSiteDeckForFilters(page)
     await page.goto('#/deck/test-filter-deck')
-    await page.waitForSelector('[data-view]', { timeout: 15_000 })
-    // Switch to list view so card names are visible as text
-    await page.locator('[data-view="list"]').click()
-    await page.waitForSelector('.card-list', { timeout: 10_000 })
+    await switchToListView(page)
   })
 
   test('clicking the Filters button while open closes the menu', async ({ page }) => {
@@ -42,14 +23,14 @@ test.describe('Toolbar Filters menu', () => {
   })
 
   test('name filter matches space-separated terms in any order', async ({ page }) => {
-    await expectVisibleCards(page, ALL_CARDS)
+    await expectVisibleCards(page, FILTER_DECK_CARDS)
 
     await openFilterMenu(page)
     await page.locator('#filter-name').fill('elf green')
     await expectVisibleCards(page, ['Green Elf'])
 
     await page.locator('#filter-name').fill('')
-    await expectVisibleCards(page, ALL_CARDS)
+    await expectVisibleCards(page, FILTER_DECK_CARDS)
   })
 
   test('color identity filter subset-matches by default and covers all four modes', async ({
@@ -89,12 +70,12 @@ test.describe('Toolbar Filters menu', () => {
       .click()
     await expectVisibleCards(
       page,
-      ALL_CARDS.filter((c) => c !== 'Boring Rock'),
+      FILTER_DECK_CARDS.filter((c) => c !== 'Boring Rock'),
     )
 
     // Deselecting clears the filter rather than leaving an empty selection applied.
     await page.locator('.filter-color-btn[title="Colorless"]').click()
-    await expectVisibleCards(page, ALL_CARDS)
+    await expectVisibleCards(page, FILTER_DECK_CARDS)
   })
 
   test('colorless combines with a color under include', async ({ page }) => {
@@ -119,7 +100,7 @@ test.describe('Toolbar Filters menu', () => {
     await expectVisibleCards(page, ['Boring Rock', 'Green Elf'])
 
     await page.getByRole('button', { name: 'Remove TSB' }).click()
-    await expectVisibleCards(page, ALL_CARDS)
+    await expectVisibleCards(page, FILTER_DECK_CARDS)
   })
 
   test('set code filter mode inverts to exclude the selected sets', async ({ page }) => {
@@ -134,12 +115,12 @@ test.describe('Toolbar Filters menu', () => {
       .click()
     await expectVisibleCards(
       page,
-      ALL_CARDS.filter((c) => c !== 'Boring Rock' && c !== 'Green Elf'),
+      FILTER_DECK_CARDS.filter((c) => c !== 'Boring Rock' && c !== 'Green Elf'),
     )
 
     // Removing the tag clears the filter, even while Exclude is selected.
     await page.getByRole('button', { name: 'Remove TSB' }).click()
-    await expectVisibleCards(page, ALL_CARDS)
+    await expectVisibleCards(page, FILTER_DECK_CARDS)
   })
 
   test('set code autocomplete suggests codes from the list and adds a tag on click', async ({
@@ -177,7 +158,7 @@ test.describe('Toolbar Filters menu', () => {
 
     // Removing the tag clears the filter, even while Exclude is selected.
     await page.getByRole('button', { name: 'Remove Artifact' }).click()
-    await expectVisibleCards(page, ALL_CARDS)
+    await expectVisibleCards(page, FILTER_DECK_CARDS)
   })
 
   test('card type match mode combines a type and a subtype tag', async ({ page }) => {
@@ -312,7 +293,7 @@ test.describe('Toolbar Filters menu', () => {
       .click()
     await expectVisibleCards(
       page,
-      ALL_CARDS.filter((c) => c !== 'Maybe Dragon'),
+      FILTER_DECK_CARDS.filter((c) => c !== 'Maybe Dragon'),
     )
   })
 
@@ -349,7 +330,7 @@ test.describe('Toolbar Filters menu', () => {
 
     // Clearing the field removes the filter entirely.
     await page.locator('#filter-mana-value').fill('')
-    await expectVisibleCards(page, ALL_CARDS)
+    await expectVisibleCards(page, FILTER_DECK_CARDS)
   })
 
   test('price filter compares against the active currency and excludes unpriced cards', async ({
@@ -373,7 +354,7 @@ test.describe('Toolbar Filters menu', () => {
 
     // Clearing the field removes the filter entirely.
     await page.locator('#filter-price').fill('')
-    await expectVisibleCards(page, ALL_CARDS)
+    await expectVisibleCards(page, FILTER_DECK_CARDS)
   })
 
   test('copies filter compares the total quantity of cards sharing a name', async ({ page }) => {
@@ -384,7 +365,7 @@ test.describe('Toolbar Filters menu', () => {
     // Default operator is '=': every one-of card, but not the 2-copy Golgari Lord.
     await expectVisibleCards(
       page,
-      ALL_CARDS.filter((c) => c !== 'Golgari Lord'),
+      FILTER_DECK_CARDS.filter((c) => c !== 'Golgari Lord'),
     )
 
     // One non-default comparator click proves the operator wiring: '> 1' keeps
@@ -397,7 +378,7 @@ test.describe('Toolbar Filters menu', () => {
 
     // Clearing the field removes the filter entirely.
     await page.locator('#filter-copies').fill('')
-    await expectVisibleCards(page, ALL_CARDS)
+    await expectVisibleCards(page, FILTER_DECK_CARDS)
   })
 
   test('switching currency clears the price filter field', async ({ page }) => {
@@ -410,7 +391,7 @@ test.describe('Toolbar Filters menu', () => {
     await page.locator('.currency-select').selectOption('eur')
 
     await expect(page.locator('.filter-menu-badge')).not.toBeVisible()
-    await expectVisibleCards(page, ALL_CARDS)
+    await expectVisibleCards(page, FILTER_DECK_CARDS)
 
     // The field itself is emptied, not just the applied filter. Reopen the menu
     // from a known-closed state (Escape is a no-op if it already closed) so the
@@ -449,7 +430,7 @@ test.describe('Toolbar Filters menu', () => {
     ])
 
     await page.getByRole('button', { name: 'Hide Extras' }).click()
-    await expectVisibleCards(page, ALL_CARDS)
+    await expectVisibleCards(page, FILTER_DECK_CARDS)
   })
 
   test('Filters button shows an active-count badge and Clear resets everything', async ({
@@ -470,7 +451,7 @@ test.describe('Toolbar Filters menu', () => {
     await clear.click()
     await expect(page.locator('.filter-menu-badge')).not.toBeVisible()
     await expect(clear).toBeDisabled()
-    await expectVisibleCards(page, ALL_CARDS)
+    await expectVisibleCards(page, FILTER_DECK_CARDS)
   })
 
   test('a filtered price appears next to the total only while a filter is active', async ({
@@ -488,7 +469,7 @@ test.describe('Toolbar Filters menu', () => {
     await expect(stats).toContainText('Filtered: $0.50')
 
     await page.locator('#filter-name').fill('')
-    await expectVisibleCards(page, ALL_CARDS)
+    await expectVisibleCards(page, FILTER_DECK_CARDS)
     await expect(stats).not.toContainText('Filtered:')
   })
 
@@ -511,7 +492,7 @@ test.describe('Toolbar Filters menu', () => {
 
   test('the name filter is debounced: it applies only after typing pauses', async ({ page }) => {
     await openFilterMenu(page)
-    await expectVisibleCards(page, ALL_CARDS)
+    await expectVisibleCards(page, FILTER_DECK_CARDS)
 
     // Freeze time (after the menu is open) so the debounce window is fully under our
     // control — the app's filter pass runs off a timer we now advance manually.
@@ -522,7 +503,7 @@ test.describe('Toolbar Filters menu', () => {
     // clock frozen the debounce timer can't have elapsed, so every card is still shown.
     await expect(page.locator('#filter-name')).toHaveValue('elf green')
     expect((await page.locator('.list-name').allTextContents()).sort()).toEqual(
-      [...ALL_CARDS].sort(),
+      [...FILTER_DECK_CARDS].sort(),
     )
 
     // Advancing past the debounce window fires the single deferred filter pass.

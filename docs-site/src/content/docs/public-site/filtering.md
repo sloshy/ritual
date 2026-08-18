@@ -4,6 +4,12 @@ title: 'Filtering Cards'
 
 Every list view on the public site — decks, collections, wanted lists, and the [Combined List view](/public-site/combined-view/) — has a **Filters** button in the toolbar. It opens a dropdown of filters (a [bottom sheet on touch devices](/public-site/mobile/)) that narrow the cards shown without changing the underlying list. The button shows a badge with the number of active filters, and a **Clear** action at the top of the panel resets them (it stays greyed out until at least one filter is active). Filters are applied together: a card must pass every active filter to be shown. The typed filters (Name, Mana Value, Price, Copies, and — in sell mode — Buylist ($)) apply a moment after you stop typing rather than on every keystroke, so fast typing stays smooth.
 
+## Quick filter
+
+You don't have to open the panel to search by name. On any list view, **just start typing**: a small **Quick filter** tab drops out of the bottom-right corner of the toolbar with what you typed in it, already focused, and the cards narrow as you go. It is the same **Name** filter the panel holds — one query, not two — so it shows up in the panel's field, counts toward the Filters badge, and travels in a [shared link](#sharing-a-configured-view) like any other filter.
+
+Empty the field (or press **Escape** in it, or use its **×**, or hit **Clear** in the Filters panel) and the tab goes away again. Keys typed into a field, a search box, or an open dialog are left alone, so this never steals what you're typing somewhere else.
+
 ## Match modes
 
 Every filter that takes more than one value — Color Identity, Sets, Card Type, Oracle Tags, and Art Tags — has the same toggle beside its heading, so one vocabulary covers the whole menu:

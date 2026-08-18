@@ -12,6 +12,7 @@ import type { PriceCurrency } from '../price-currency'
 import type { CardLabelSelection } from '../card-labels'
 import { useStuck } from './useStuck'
 import { FilterMenu } from './FilterMenu'
+import { QuickFilter } from './QuickFilter'
 import type { CardFiltersControl } from './useCardFilters'
 import { useMobileLayout, usePointerCoarse } from '../ui/useMediaQuery'
 import { BottomSheet } from '../ui/BottomSheet'
@@ -583,6 +584,10 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
           {filterMenu}
           {props.selectionMenu}
         </Show>
+        {/* Outside both layout branches: it is positioned against the toolbar
+            box rather than laid out in the row, and its "just start typing"
+            capture is the same on either width. */}
+        <QuickFilter filters={props.filters} />
       </div>
     </>
   )

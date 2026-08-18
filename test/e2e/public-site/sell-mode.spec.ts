@@ -1,7 +1,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test'
 import { mockPublicSiteCollectionForSell, type BuylistApiWatch } from '../helpers/mock-public-site'
 import { openFilterMenu } from '../helpers/filter-menu'
-import { gotoList, selectCard } from '../helpers/list-ui'
+import { expectVisibleCards, gotoList, selectCard, switchToListView } from '../helpers/list-ui'
 
 /**
  * Sell mode on the public site: the toolbar toggle gating buylist prices,
@@ -24,20 +24,8 @@ import { gotoList, selectCard } from '../helpers/list-ui'
 
 const SELL_TOGGLE = '.toolbar-sell-toggle'
 
-/** Poll the visible list-view card names until they equal `names` (any order). */
-async function expectVisibleCards(page: Page, names: string[]): Promise<void> {
-  await expect
-    .poll(async () => (await page.locator('.list-name').allTextContents()).sort())
-    .toEqual([...names].sort())
-}
-
 async function gotoSellBinder(page: Page): Promise<void> {
   await gotoList(page, '#/collection/sell-binder')
-}
-
-async function switchToListView(page: Page): Promise<void> {
-  await page.locator('[data-view="list"]').click()
-  await page.waitForSelector('.card-list', { timeout: 10_000 })
 }
 
 async function enableSellMode(page: Page): Promise<void> {

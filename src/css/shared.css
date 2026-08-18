@@ -158,6 +158,64 @@
   min-width: 1.75rem;
 }
 
+/* ===== Quick filter tab =====
+   Hangs off the bottom-right of the toolbar box (which is `position: sticky`,
+   so it is the containing block) rather than taking a slot in the toolbar row:
+   it comes and goes as the reader types, and reflowing the controls each time
+   would shove the whole card grid up and down. */
+.quick-filter {
+  position: absolute;
+  top: 100%;
+  right: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.3125rem 0.5rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 0.5rem 0.5rem;
+  box-shadow: 0 4px 12px var(--overlay-light);
+}
+
+/* Follows the toolbar's own padding as it goes full-bleed, so the tab stays
+   flush under the Filters button it extends. */
+.toolbar.is-stuck .quick-filter {
+  right: 2rem;
+}
+
+@media (max-width: 480px) {
+  .toolbar.is-stuck .quick-filter {
+    right: 1rem;
+  }
+}
+
+.quick-filter-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.quick-filter-input {
+  min-width: 10rem;
+}
+
+.quick-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25rem;
+  background: none;
+  border: 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+
 /* ===== Toolbar Filter Menu ===== */
 .filter-menu-badge {
   font-size: 0.6875rem;

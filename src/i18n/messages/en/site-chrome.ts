@@ -146,6 +146,11 @@ export const siteChromeMessages = {
   'site.filter.numericPlaceholder': 'Any',
   'site.filter.removeTag': 'Remove {value}',
 
+  // ── Quick filter (type anywhere on a list page) ───────────────────────
+  'site.quickFilter.label': 'Quick filter',
+  'site.quickFilter.ariaLabel': 'Quick filter by card name',
+  'site.quickFilter.clear': 'Clear quick filter',
+
   // ── Filter match modes ────────────────────────────────────────────────
   //
   // One vocabulary across every multi-value filter, so the menu reads as one

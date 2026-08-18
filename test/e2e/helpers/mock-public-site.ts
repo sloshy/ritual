@@ -1262,6 +1262,13 @@ const MOCK_FILTER_CARDS = [
   MOCK_FILTER_CARD_DRAGON,
 ]
 
+/**
+ * Every card name in the filter deck, derived from the fixture so an added card
+ * can never leave a spec's "nothing is filtered out" expectation behind.
+ * 'Maybe Dragon' is the Maybeboard (extras) card; the rest are mainboard.
+ */
+export const FILTER_DECK_CARDS = MOCK_FILTER_CARDS.map((card) => card.name)
+
 const MOCK_FILTER_DECK = {
   deck: {
     name: 'Test Filter Deck',

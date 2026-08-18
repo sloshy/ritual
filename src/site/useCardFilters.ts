@@ -1,4 +1,4 @@
-import { createEffect, createMemo, on } from 'solid-js'
+import { batch, createEffect, createMemo, createSignal, on } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import {
@@ -16,6 +16,15 @@ export type CardFiltersControl = {
   update: (patch: Partial<CardFilters>) => void
   /** Reset every filter to its default. */
   reset: () => void
+  /**
+   * Ticks on every {@link reset}. A debounced field observes it to drop a
+   * commit still in flight, which a reset does not otherwise announce: clearing
+   * a filter whose store value is already at its default changes nothing for
+   * the field's own external-sync effect to see, and the pending value would
+   * land a moment later and un-clear it. Fields inside the Filters panel are
+   * reset directly by "Clear all"; this is how a field outside it hears.
+   */
+  resetEpoch: Accessor<number>
   /** Number of filters currently active; drives the toolbar badge. */
   activeCount: Accessor<number>
   /** Number of active filters that actually narrow `filterCards`'s result; drives the filtered-price stat. */
@@ -25,6 +34,7 @@ export type CardFiltersControl = {
 /** Shared toolbar filter state for the deck, collection, and wanted list pages. */
 export function useCardFilters(): CardFiltersControl {
   const [filters, setFilters] = createStore<CardFilters>(createDefaultCardFilters())
+  const [resetEpoch, setResetEpoch] = createSignal(0)
   const activeCount = createMemo(() => countActiveFilters(filters))
   const narrowingCount = createMemo(() => countNarrowingFilters(filters))
 
@@ -48,7 +58,12 @@ export function useCardFilters(): CardFiltersControl {
   return {
     filters,
     update: (patch) => setFilters(patch),
-    reset: () => setFilters(createDefaultCardFilters()),
+    reset: () =>
+      batch(() => {
+        setFilters(createDefaultCardFilters())
+        setResetEpoch((n) => n + 1)
+      }),
+    resetEpoch,
     activeCount,
     narrowingCount,
   }

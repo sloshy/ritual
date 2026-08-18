@@ -33,8 +33,27 @@ export type AnchoredMenu = {
  * horizontally, and scroll its overflow when taller than either gap. Closes on
  * Escape or an outside click.
  */
+const [openMenus, setOpenMenus] = createSignal(0)
+
+/**
+ * Whether an anchored popup menu is open anywhere on the page.
+ *
+ * An anchored menu is a plain positioned `<div>`, not a `<dialog>` — nothing in
+ * the DOM marks it as holding the keyboard — but while one is up it owns Escape
+ * and its fields own the typing. Page-level key handlers read this to stand
+ * down; see {@link import('./useDocumentKeydown').isKeyboardClaimed}.
+ */
+export function anchoredMenuOpen(): boolean {
+  return openMenus() > 0
+}
+
 export function useAnchoredMenu(opts: AnchoredMenuOptions): AnchoredMenu {
   let menuRef: HTMLDivElement | undefined
+  // The hook lives exactly as long as the open menu does — every consumer
+  // renders it under a `<Show>` on its own open state — so mount/cleanup is the
+  // menu's open/closed edge.
+  setOpenMenus((n) => n + 1)
+  onCleanup(() => setOpenMenus((n) => n - 1))
   // Measured after mount so positioning uses the menu's real height (it varies with content)
   // rather than a fixed estimate that could overflow the viewport.
   const [menuHeight, setMenuHeight] = createSignal(0)

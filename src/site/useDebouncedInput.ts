@@ -9,6 +9,12 @@ export type DebouncedInput = {
   /** Commit any pending value immediately (e.g. on blur), cancelling the timer. */
   flush: () => void
   /**
+   * Set the draft to `value` and commit it now, cancelling any pending commit.
+   * For edits that must not wait out the debounce because the field is going
+   * away with them (a Clear button, an emptied quick filter).
+   */
+  commit: (value: string) => void
+  /**
    * Drop any pending commit and re-sync the draft to `external`. Call this when the
    * downstream value is reset directly (e.g. "Clear all"), since that reset may not
    * change `external` — a debounced value not yet committed leaves the store already
@@ -80,5 +86,11 @@ export function useDebouncedInput(
     }, delayMs)
   }
 
-  return { draft, onInput, flush, reset }
+  const commitNow = (value: string): void => {
+    cancel()
+    setDraft(value)
+    commit(value)
+  }
+
+  return { draft, onInput, flush, reset, commit: commitNow }
 }

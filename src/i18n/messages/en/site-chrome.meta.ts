@@ -406,6 +406,20 @@ export const siteChromeMeta = {
       "Accessible name of the × button on a selected filter chip. {value} is the chip's own text (a set code, card type or tag) and is never translated.",
   },
 
+  // ── Quick filter ──────────────────────────────────────────────────────
+  'site.quickFilter.label': {
+    description:
+      'Caption of a small tab that appears under the list toolbar when the reader starts typing on a list page. It holds a field wired to the same name filter as site.filter.name.',
+    maxLen: CHIP_MAX_LEN,
+  },
+  'site.quickFilter.ariaLabel': {
+    description: "Accessible name of the quick filter's text field. It matches on card names.",
+  },
+  'site.quickFilter.clear': {
+    description:
+      "Accessible name and tooltip of the × button that empties the quick filter's field and puts the tab away.",
+  },
+
   // ── Filter match modes ────────────────────────────────────────────────
   'site.filterMode.include': {
     description: 'Match-mode button: keep cards matching *any* of the selected values.',

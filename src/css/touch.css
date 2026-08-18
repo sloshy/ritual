@@ -181,6 +181,13 @@
     width: 7rem;
   }
 
+  /* The quick filter only ever appears with a keyboard attached, but once it is
+     up its × is a tap target like any other. */
+  .quick-filter-clear {
+    padding: 0.375rem 0.625rem;
+    font-size: 1.125rem;
+  }
+
   .filter-color-btn {
     width: 40px;
     height: 40px;

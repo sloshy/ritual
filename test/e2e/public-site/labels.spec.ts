@@ -6,6 +6,7 @@ import {
 } from '../helpers/mock-public-site'
 import { openFilterMenu } from '../helpers/filter-menu'
 import { addToLeft } from '../helpers/trade-page'
+import { expectVisibleCards, switchToListView } from '../helpers/list-ui'
 
 /**
  * Card labels on the public site: the Labels filter chips, tile badges, the
@@ -13,20 +14,6 @@ import { addToLeft } from '../helpers/trade-page'
  * confirm dialog + KEEP tag), and the deck side of the vocabulary — a deck
  * carries `proxy` alone, and a proxy carries no price.
  */
-
-/** Poll the visible list-view card names until they equal `names` (any order). */
-async function expectVisibleCards(page: Page, names: string[]): Promise<void> {
-  await expect
-    .poll(async () => (await page.locator('.list-name').allTextContents()).sort())
-    .toEqual([...names].sort())
-}
-
-/** Switch the current list page to list view, which renders names as text rows. */
-async function switchToListView(page: Page): Promise<void> {
-  await page.waitForSelector('[data-view]', { timeout: 15_000 })
-  await page.locator('[data-view="list"]').click()
-  await page.waitForSelector('.card-list', { timeout: 10_000 })
-}
 
 async function gotoLabelBinderListView(page: Page): Promise<void> {
   await page.goto('#/collection/label-binder')

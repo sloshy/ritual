@@ -15,6 +15,26 @@ export async function gotoList(page: Page, hash: string, waitFor = '.card-item')
 }
 
 /**
+ * Switch the current list page to list view, where each card renders its name
+ * as text — the view every card-set assertion below reads.
+ */
+export async function switchToListView(page: Page): Promise<void> {
+  await page.waitForSelector('[data-view]', { timeout: 15_000 })
+  await page.locator('[data-view="list"]').click()
+  await page.waitForSelector('.card-list', { timeout: 10_000 })
+}
+
+/**
+ * Assert the visible list-view card names (order-independent), polling while
+ * the DOM catches up — which also absorbs the filter fields' debounce.
+ */
+export async function expectVisibleCards(page: Page, names: string[]): Promise<void> {
+  await expect
+    .poll(async () => (await page.locator('.list-name').allTextContents()).sort())
+    .toEqual([...names].sort())
+}
+
+/**
  * Reveal the header's utility controls (currency, Edit, Theme). Desktop renders
  * them inline, but the phone layout collapses them behind the ⚙ toggle, so any
  * test reaching for one must open that row first.
