@@ -485,12 +485,16 @@ const makeQuote = makeBuylistQuote
  * buylist-baking and Card Kingdom printing-selection suites, which ask the same
  * question of the same seam.
  */
-function stubBuylist(catalog: Record<string, BuylistQuote> = {}): StubBuylist {
+function stubBuylist(
+  catalog: Record<string, BuylistQuote> = {},
+  quotePrintings = false,
+): StubBuylist {
   const asked: BuylistQuoteRequest[] = []
   return {
     asked,
     ctx: {
       buyer: 'cardkingdom',
+      quotePrintings,
       quote: (printing) => {
         asked.push(printing)
         return catalog[quoteKey(printing.set, printing.collectorNumber, printing.finish)] ?? null
@@ -765,15 +769,55 @@ describe('buylist baking', () => {
     expect(buylist.asked).toHaveLength(1)
     expect(detail.buylist?.cardkingdom?.quotes['fdn:35:nonfoil']).toMatchObject({ priceBuy: 4 })
   })
+
+  test('alternate printings are quoted only under quotePrintings, at every finish', async () => {
+    const loaded = binder([
+      {
+        name: 'Serra Angel',
+        quantity: 1,
+        set: 'fdn',
+        collectorNumber: '35',
+        section: 'Main',
+        cardId: 1,
+      },
+    ])
+    // Two printings of the name, only one of them displayed: the other is what
+    // the card modal's grid and the printing pickers offer.
+    const printingsByName = { 'Serra Angel': [angel, foilOnly] }
+
+    const off = recordingBuylist()
+    await buildCollectionArtifacts(loaded, makeContext({ printingsByName, buylist: off.ctx }).ctx)
+    expect(off.asked.map((p) => `${p.set}:${p.collectorNumber}:${p.finish}`)).toEqual([
+      'fdn:35:nonfoil',
+    ])
+
+    const on = recordingBuylist(true)
+    const { detail } = await buildCollectionArtifacts(
+      loaded,
+      makeContext({ printingsByName, buylist: on.ctx }).ctx,
+    )
+    // The displayed printing keeps its single ask (the dedupe holds), and the
+    // undisplayed one is quoted in each finish it publishes.
+    expect(on.asked.map((p) => `${p.set}:${p.collectorNumber}:${p.finish}`)).toEqual([
+      'fdn:35:nonfoil',
+      'fdn:35:foil',
+      'fdn:400:foil',
+    ])
+    expect(Object.keys(detail.buylist?.cardkingdom?.quotes ?? {})).toContain('fdn:400:foil')
+  })
 })
 
 /** A buylist seam recording every printing a builder offered a buyer. */
-function recordingBuylist(): { ctx: DetailBuylistContext; asked: BuylistQuoteRequest[] } {
+function recordingBuylist(quotePrintings = false): {
+  ctx: DetailBuylistContext
+  asked: BuylistQuoteRequest[]
+} {
   const asked: BuylistQuoteRequest[] = []
   return {
     asked,
     ctx: {
       buyer: 'cardkingdom',
+      quotePrintings,
       quote: (printing) => {
         asked.push(printing)
         return makeBuylistQuote({ name: 'Anything' })

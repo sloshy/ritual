@@ -13,6 +13,18 @@ import type { DetailBuylistContext } from '../site/details/types'
 import type { LoadedCardKingdomFeed } from './memo'
 import { quoteForPrinting } from './quote'
 
+/** What varies between one detail-quoting context and another. */
+export type DetailBuylistOptions = {
+  /** Which buyer is being quoted. */
+  buyer?: BuyerId
+  /**
+   * Whether to also quote the *alternate* printings a list carries — see
+   * `DetailBuylistContext.quotePrintings`. Off by default: a sell-mode-only
+   * deployment gets no use from them and should not pay their bytes.
+   */
+  quotePrintings?: boolean
+}
+
 /**
  * A quoting context over an already-loaded feed. Purely in-memory: the feed and
  * its index are the caller's (from `ensureCardKingdomFeed` or the process memo),
@@ -20,10 +32,11 @@ import { quoteForPrinting } from './quote'
  */
 export function detailBuylistContext(
   loaded: LoadedCardKingdomFeed,
-  buyer: BuyerId = DEFAULT_BUYER,
+  options: DetailBuylistOptions = {},
 ): DetailBuylistContext {
   return {
-    buyer,
+    buyer: options.buyer ?? DEFAULT_BUYER,
+    quotePrintings: options.quotePrintings ?? false,
     // Paused products are quoted like any other: presence in the baked map is
     // catalog membership, which is a different question from `CardData.onBuylist`
     // ("will they take a copy today"). See `BakedBuylistQuotes.quotes`.

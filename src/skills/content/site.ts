@@ -313,7 +313,11 @@ Scryfall's EUR trend price, and \`cardkingdom\` Card Kingdom's NM retail price, 
 same baked buylist quotes sell mode uses. With more than one USD store enabled, list pages
 grow a **Prices** selector (USD views only; EUR is always Cardmarket) whose choice is
 shareable in the view URL (\`prices=cardkingdom\`); switching it clears price filters like a
-currency switch. Under the Card Kingdom view a printing CK does not sell shows no price —
+currency switch. The same selector appears in the card modal's **Other Printings** grid and
+in the printing pickers (trade/edit, and the add-card dialog's printing step) — one shared
+choice, so switching it in a dialog switches the page behind it. Each printing there is
+priced under the selected store, with its alternate finishes listed underneath, and the
+grid's price sort follows the store too. Under the Card Kingdom view a printing CK does not sell shows no price —
 there is deliberately no TCGplayer fallback — and the sell-mode spread compares CK's offer
 against the *selected* store's price (entering sell mode defaults the view to Card Kingdom
 retail unless the user picked a source).
@@ -345,7 +349,10 @@ A site can also offer **sell mode**: Card Kingdom buylist prices beside each
 card, on-buylist chips plus a buylist-price threshold filter, buylist grouping, sorting by
 buylist price or by buylist-minus-retail ascending (\`Buylist vs Price\`, where a missing offer or
 retail price counts as $0), and a CK sell-cart export. The quotes are **baked into each list's
-JSON at build time**, so a fully static build shows sell mode without any backend. It is
+JSON at build time**, so a fully static build shows sell mode without any backend. With
+\`cardkingdom\` enabled as a price store the bake widens to every printing a list carries, at
+every finish, so the printing dialogs can price them offline too; a live backend
+(\`serve --api\`, admin) quotes printings outside the lists on demand instead. It is
 **off by default**; enable it for a published site with:
 
 \`\`\`bash

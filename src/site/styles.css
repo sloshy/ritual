@@ -1501,14 +1501,11 @@ body {
   color: var(--text-dim);
 }
 
+/* The per-finish price block is the shared .printing-prices in
+   css/controls.css; this only sets the row's own type scale. */
 .trade-picker-price {
   font-size: 0.75rem;
   color: var(--text-body);
-}
-
-.trade-picker-price-secondary {
-  color: var(--text-dim);
-  font-size: 0.7rem;
 }
 
 .trade-picker-finish-btns {

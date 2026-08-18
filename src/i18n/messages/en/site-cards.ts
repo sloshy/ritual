@@ -180,7 +180,8 @@ export const siteCardsMessages = {
     one: 'Page {page} of {total} · {count} printing',
     other: 'Page {page} of {total} · {count} printings',
   },
-  'site.tradePicker.priceNA': 'N/A',
+  'site.printingPrice.na': 'N/A',
+  'site.printingPrice.alternate': '{price} ({finish})',
   'site.tradePicker.languageNotice':
     'This printing is only available in {language} — it will be recorded as [{token}].',
   'site.tradePicker.continue': 'Continue',

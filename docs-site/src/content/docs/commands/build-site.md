@@ -232,7 +232,7 @@ Generates a single-page application in the `dist/` directory (or the `--out-dir`
 - `locales/{tag}.json` — One message dictionary per published locale, fetched on demand when the visitor switches language
 - `decks/{slug}.json` — Full deck data loaded on demand
 - `collections/{slug}.json` — Full collection data with pricing loaded on demand
-- `wanted/{slug}.json` — Full wanted list data with pricing loaded on demand — each of these three also carries that list's baked Card Kingdom quotes (buy **and** NM retail prices), plus Card Kingdom's own [printing picks](/public-site/price-sources/#which-printing-a-card-is-priced-at) for its name-only lines, when [sell mode](#sell-mode---sell-mode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`
+- `wanted/{slug}.json` — Full wanted list data with pricing loaded on demand — each of these three also carries that list's baked Card Kingdom quotes (buy **and** NM retail prices), plus Card Kingdom's own [printing picks](/public-site/price-sources/#which-printing-a-card-is-priced-at) for its name-only lines, when [sell mode](#sell-mode---sell-mode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`. Under the `cardkingdom` price store the quotes cover every printing the list _carries_, at every finish — not just the ones its tiles display — so the card modal's other-printings grid and the printing pickers can price them with no backend
 - `art/{path}` — [Custom card art](/custom-art/) files referenced by any published list, copied out of the configured art directory under their art-dir-relative path (once per unique path, so lists sharing an image share the file). A referenced file that is not on disk is a build warning and is left out of the baked data, so the card falls back to its normal art
 - `styles.css` — Bundled CSS
 - Responsive design for desktop and mobile
@@ -561,6 +561,13 @@ things:
    static host on a CDN offers it exactly as a [live one](/public-site/hosted/) does. Non-English
    copies are never quoted (Card Kingdom's feed is English-only).
 
+   With `priceSources` including `cardkingdom` this widens: every printing each list _carries_ is
+   quoted, at every finish it is published in, because the card modal's other-printings grid and the
+   [printing pickers](/public-site/price-sources/#the-prices-selector) price printings no tile
+   displays and a static client cannot fetch a quote it was not given. The extra bytes therefore
+   land only on builds that offer Card Kingdom prices — a sell-mode-only build still quotes the
+   displayed printings alone.
+
 It reports what it baked:
 
 ```
@@ -613,7 +620,7 @@ Both deck and collection pages share a unified card detail modal. Clicking any c
 - Card name, type line, mana cost, and oracle text
 - Price, set info, rarity, and other metadata
 - A "View on Scryfall" link to the card's Scryfall page
-- An "Other Printings" button showing a paginated binder-style grid (8 per page) of all known printings, sorted by release date (newest first) by default, each linking to Scryfall with prices. Sorting can be changed via a dropdown to release date, set name, or price, with a toggle to reverse the sort direction.
+- An "Other Printings" button showing a paginated binder-style grid (8 per page) of all known printings, sorted by release date (newest first) by default, each linking to Scryfall. Every printing is priced under the selected [price store](/public-site/price-sources/), with its alternate finishes listed underneath, and the grid carries its own **Prices** selector — the same one the toolbar has. Sorting can be changed via a dropdown to release date, set name, or price (which follows the selected store too), with a toggle to reverse the sort direction.
 
 A card carrying [custom art](/custom-art/) shows that image on its tile in every view (grid, binder, stacks, and the list view's hover preview) and as the modal's main picture. Only the front is replaced — a double-faced card flips to its real back — and the **Other Printings** grid keeps real thumbnails, since showing you actual printings is what it is for.
 
@@ -641,7 +648,7 @@ Collection pages show:
 - Individual card prices, conditions, finishes, and set/collector number in the card detail modal
 - Non-English copies labelled with their [language](/commands/edit/#card-language) beside the finish and condition — `(Foil · JA)` on card tiles in the art views, and as part of the parenthesised list-view label
 - A "View on Scryfall" link in the card detail modal that opens the card's Scryfall page
-- An "Other Printings" button that shows a paginated binder-style grid (8 per page) of all known printings of the card, sorted by release date (newest first) by default, each linking to Scryfall. Sorting can be changed via a dropdown to release date, set name, or price, with a toggle to reverse the sort direction.
+- An "Other Printings" button that shows a paginated binder-style grid (8 per page) of all known printings of the card, sorted by release date (newest first) by default, each linking to Scryfall, priced under the selected [price store](/public-site/price-sources/) with alternate finishes underneath. Sorting can be changed via a dropdown to release date, set name, or price, with a toggle to reverse the sort direction.
 - Cards displayed individually by default (not grouped), with a "Group Duplicates" toggle
 - File order as the default sort, with options for name, price, set code, type, mana value, and color identity
 - Grouping by section (the default when the collection has two or more sections), type, mana value, color identity, price brackets, or ungrouped
@@ -674,7 +681,7 @@ Deck pages include:
 - Total deck price (mainboard + sideboard) displayed at the top, updating when the "Lowest Price" toggle is enabled
 - When extras are visible, a separate parenthetical "all cards" total is shown next to the main price
 - "Lowest Price" toggle that swaps all cards to their cheapest available printing (images and prices update)
-- Card detail modal with Scryfall link, other printings (paginated, sortable by release date, set name, or price), and full card details
+- Card detail modal with Scryfall link, other printings (paginated, sortable by release date, set name, or price, and priced under the selected [price store](/public-site/price-sources/)), and full card details
 - Section/group price totals shown next to card counts
 - Grouping by type, section, mana value, color identity, price brackets, printing (whether a card is pinned to a specific printing), or ungrouped — applies to mainboard only
 - Price bracket grouping with three strategies: Archidekt-style brackets, every $5, or every $10

@@ -415,10 +415,15 @@ export const siteCardsMeta = {
     description:
       'Position within the paged printing list plus the total. {page} is the current page, {total} how many pages there are, {count} how many printings matched.',
   },
-  'site.tradePicker.priceNA': {
+  'site.printingPrice.na': {
     description:
-      'Stands in for a price the local cache does not have for this printing and finish. Very short.',
+      'Stands in for a price the selected price store does not publish for this printing and finish. Shown wherever a printing is priced — the card modal’s other-printings grid and the printing pickers. Very short.',
     maxLen: 8,
+  },
+  'site.printingPrice.alternate': {
+    description:
+      'One of a printing’s other finishes, listed under its main price. {price} is the formatted amount, {finish} the lower-case finish name (foil, etched).',
+    maxLen: 24,
   },
   'site.tradePicker.languageNotice': {
     description:

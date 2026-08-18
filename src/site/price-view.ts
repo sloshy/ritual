@@ -25,7 +25,7 @@ import {
   type UsdPriceSource,
 } from '../price-source'
 import type { MessageKey } from '../i18n/messages/en'
-import { quoteFor } from './buylist-quotes'
+import { isNonEnglishCard, quoteFor } from './buylist-quotes'
 import type { Finish, ScryfallCard } from '../types'
 
 // Re-exported so the site modules keep one import home for the choice axis.
@@ -189,10 +189,15 @@ export function maybeRestoreDefaultSource(): void {
  * reads the source signal and (on the CK path) the quote store, so a memo
  * calling it re-runs on a source switch and as quotes arrive.
  *
- * Deliberately Scryfall-only surfaces (do not "fix" them onto this helper):
- * the trade board, the printing pickers and the card modal's other-printings
- * grid (quotes exist only for the printings a list displays, so CK would read
- * 0 for nearly every row), the index page's baked summary totals, and the
+ * The printing pickers and the card modal's other-printings grid *do* go
+ * through this, and are the reason quotes exist for printings no list displays:
+ * a build with the CK source enabled bakes every printing a list carries, and a
+ * live backend quotes the rest on demand (`printing-quotes.ts`). A printing the
+ * buyer has no product for still reads 0 — an honest N/A beside the finishes
+ * they do stock.
+ *
+ * Deliberately Scryfall-only surfaces (do not "fix" them onto this helper): the
+ * trade board's own valuations, the index page's baked summary totals, and the
  * deck page's lowest-price printing selection (baked per currency).
  */
 export function sitePriceForFinish(
@@ -229,6 +234,13 @@ export function sitePrice(card: ScryfallCard, currency: PriceCurrency): number {
  * — the two must agree or the lookup misses a quote that is sitting there.
  */
 function cardKingdomRetailFromQuotes(card: ScryfallCard, finish: Finish | undefined): number {
+  // A buyer's feed is English-only and keyed by `set:cn`, which an
+  // alternate-language object *shares* with its English twin — so reading a
+  // quote for one would price a Japanese card at the English offer. The write
+  // side (`buylistRequestFor`) has always refused to ask for them; the read side
+  // must refuse to answer, now that the printing grid and the pickers render one
+  // row per language and would otherwise show the twin's money on every one.
+  if (isNonEnglishCard(card)) return 0
   const retail =
     quoteFor(card.set, card.collector_number, displayFinish(card, finish))?.priceRetail ?? 0
   return retail > 0 ? retail : 0

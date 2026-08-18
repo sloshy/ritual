@@ -4,11 +4,13 @@ import type { BuylistQuoteRequest, BuylistQuotesResponse } from '../../../src/bu
 import {
   buylistError,
   buylistLoading,
+  buylistQuotesOnline,
   quoteFor,
   requestBuylistQuotes,
   resetBuylistFetcher,
   resetBuylistQuotes,
   setBuylistFetcher,
+  setBuylistQuotesOnline,
 } from '../../../src/site/buylist-quotes'
 import {
   STUB_BUYLIST_FEED_CREATED_AT,
@@ -57,6 +59,25 @@ describe('requestBuylistQuotes', () => {
     await requestBuylistQuotes([SOL_RING])
 
     expect(fetcher.calls()).toBe(2)
+  })
+})
+
+describe('buylistQuotesOnline', () => {
+  test('survives a store reset, since going offline is not a data event', async () => {
+    setBuylistQuotesOnline(true)
+    await requestBuylistQuotes([SOL_RING])
+
+    // A buyer switch resets the store. The printing pickers must not conclude
+    // from that that the deployment lost its backend.
+    resetBuylistQuotes()
+
+    expect(buylistQuotesOnline()).toBe(true)
+  })
+
+  test('is cleared with the transport, so one file cannot leave the next online', () => {
+    setBuylistQuotesOnline(true)
+    resetBuylistFetcher()
+    expect(buylistQuotesOnline()).toBe(false)
   })
 })
 

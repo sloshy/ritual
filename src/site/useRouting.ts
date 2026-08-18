@@ -65,6 +65,39 @@ function parseHash(): Route {
   return { page: 'index', tab: 'decks' }
 }
 
+/**
+ * Which *view* a route names, ignoring in-view state (a deck's open primer, a
+ * scrolled-to section) and the hash query entirely.
+ *
+ * Two things need this. The fade transition is between views, so re-parsing the
+ * same view — which every toolbar control does, since filters, the price source
+ * and the currency all mirror themselves into the hash query — must not fade
+ * the page out and scroll it back to the top. And the app's "close the dialogs"
+ * effect is about leaving a view, not about the query changing underneath one:
+ * without this, picking a price store inside the card modal wrote the hash,
+ * which closed the modal the picker was rendered in.
+ */
+export function routeIdentity(route: Route): string {
+  switch (route.page) {
+    case 'deck':
+    case 'collection':
+    case 'wanted':
+      return `${route.page}/${route.slug}`
+    case 'combined':
+      return `combined/${route.all ? `all:${route.allType ?? ''}` : ''}/${route.refs
+        .map((ref) => `${ref.type}:${ref.slug}`)
+        .join(',')}`
+    case 'index':
+      return `index/${route.tab ?? ''}`
+    // Listed rather than defaulted: a route added to the union must decide what
+    // identifies it, instead of silently collapsing onto its page name.
+    case 'trade':
+    case 'find':
+    case 'search-results':
+      return route.page
+  }
+}
+
 export function useRouting(): UseRoutingResult {
   const [route, setRoute] = createSignal<Route>(parseHash())
   let transitioning = false
@@ -74,10 +107,11 @@ export function useRouting(): UseRoutingResult {
 
   const navigate = (newRoute: Route): void => {
     if (transitioning) return
-    // Skip the fade transition for within-deck navigation (primer open/close,
-    // section jumps) so the page doesn't flash on every TOC click.
+    // Skip the fade transition for navigation within one view (a deck's primer
+    // opening, a section jump, any toolbar control mirroring itself into the
+    // hash query) so the page doesn't flash on every TOC click.
     const cur = route()
-    if (cur.page === 'deck' && newRoute.page === 'deck' && cur.slug === newRoute.slug) {
+    if (routeIdentity(cur) === routeIdentity(newRoute)) {
       setRoute(newRoute)
       return
     }

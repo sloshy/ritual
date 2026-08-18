@@ -42,7 +42,7 @@ import {
   serializeChangeBundle,
 } from '../editor/change-bundle'
 import { QuickSwitch, useQuickSwitchShortcut } from './QuickSwitch'
-import { useRouting } from './useRouting'
+import { routeIdentity, useRouting } from './useRouting'
 import { useSiteData } from './useSiteData'
 import { apiActive, apiDegraded, detailUrl } from './api-base'
 import { notifyCurrencyChanged } from './currency-epoch'
@@ -209,11 +209,19 @@ function App() {
 
   useQuickSwitchShortcut(() => setQuickSwitchOpen((v) => !v))
 
-  // Reset the modal, quick switch, and combine dialog on route changes. Edit mode
-  // is intentionally left alone here so it persists across lists (see editMode).
+  // Reset the modal, quick switch, and combine dialog when the *view* changes.
+  //
+  // Keyed on a `routeIdentity` **memo**, not on the route object and not on a
+  // bare accessor. `useRouting` writes a fresh `Route` object on every parse,
+  // and `on` runs its callback whenever its input re-evaluates — it performs no
+  // equality check of its own — so only a memo's `===` gate stops navigation
+  // *within* one view (a deck primer anchor, a toolbar control mirroring itself
+  // into the hash) from closing a dialog the user is working in. Edit mode is
+  // intentionally left alone here so it persists across lists (see editMode).
+  const viewIdentity = createMemo(() => routeIdentity(route()))
   createEffect(
     on(
-      route,
+      viewIdentity,
       () => {
         setModalCard(null)
         setQuickSwitchOpen(false)

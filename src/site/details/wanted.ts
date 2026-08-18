@@ -352,7 +352,7 @@ export async function buildWantedArtifacts(
     defaultCurrency: ctx.defaultCurrency,
     pricesDate: ctx.pricesDate,
     changelog: changelog.length > 0 ? changelog : undefined,
-    buylist: bakeBuylistQuotes(ctx, buylistSources),
+    buylist: bakeBuylistQuotes(ctx, buylistSources, printingsMap),
   }
 
   const featuredImage = featured

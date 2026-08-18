@@ -3,7 +3,6 @@ import { createSignal, createMemo, createEffect, on, For, Show } from 'solid-js'
 import { Modal } from '../ui/Modal'
 import type { ScryfallCard, Finish } from '../types'
 import type { PriceCurrency } from '../price-currency'
-import { formatPrice, getCardPriceForFinish } from '../price-currency'
 import { isFinish } from '../finish-condition'
 import { isCardSideways, resolveCardImageSources } from './image-sources'
 import { defaultFinishForCard } from './trade-finish'
@@ -13,6 +12,9 @@ import { formatLanguageList, type CardLanguage } from '../card-language'
 import { defaultLanguage } from '../editor/default-language'
 import { pickedPrintingLanguage } from './printing-prompt'
 import { finishChipName } from './printing-display'
+import { PriceSourceSelect } from './PriceSourceSelect'
+import { PrintingPrices } from './PrintingPrices'
+import { usePrintingQuotes } from './printing-quotes'
 import { useT } from '../ui/i18n'
 import { useTooltip } from './useTooltip'
 import { PrintingFilter } from '../ui/PrintingFilter'
@@ -54,13 +56,6 @@ const PickerItem: Component<PickerItemProps> = (props) => {
   const { frontImage } = resolveCardImageSources(props.printing, Boolean(props.useScryfallImgUrls))
   const finishes: Finish[] = props.printing.finishes.filter(isFinish)
   if (finishes.length === 0) finishes.push('nonfoil')
-  // Memoized so a currency change while the picker is open re-prices reactively.
-  const prices = createMemo(() =>
-    finishes.map((f) => ({
-      finish: f,
-      value: getCardPriceForFinish(props.printing, f, props.currency),
-    })),
-  )
   const handleEnter = () => {
     if (frontImage) props.onTooltipEnter(frontImage, isCardSideways(props.printing))
   }
@@ -96,25 +91,11 @@ const PickerItem: Component<PickerItemProps> = (props) => {
           </Show>
         </span>
         <span class="trade-picker-release">{props.printing.released_at ?? ''}</span>
-        <span class="trade-picker-price">
-          <For each={prices()}>
-            {(p, i) => (
-              <>
-                <Show when={i() > 0}> </Show>
-                <span
-                  classList={{ 'trade-picker-price-secondary': i() > 0 }}
-                  title={finishChipName(t, p.finish)}
-                >
-                  <Show when={i() > 0}>(</Show>
-                  {p.value > 0
-                    ? formatPrice(p.value, props.currency)
-                    : t('site.tradePicker.priceNA')}
-                  <Show when={i() > 0}> {finishChipName(t, p.finish)})</Show>
-                </span>
-              </>
-            )}
-          </For>
-        </span>
+        <PrintingPrices
+          printing={props.printing}
+          currency={props.currency}
+          class="trade-picker-price"
+        />
       </div>
       <div class="trade-picker-finish-btns">
         <For each={finishes}>
@@ -148,6 +129,10 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
   // to the list. A deliberate pick of an alternate-language object *alongside*
   // a default-language one is badged in the list and needs no notice.
   const [languageNotice, setLanguageNotice] = createSignal<CardLanguage | null>(null)
+
+  // Card Kingdom quotes for the printings on offer; nothing is requested on the
+  // Scryfall-priced views or where the details already carry them baked.
+  usePrintingQuotes(() => props.printings)
 
   const desired = createMemo(() => new Set(props.desiredPrintings ?? []))
   const isDesired = (printing: ScryfallCard): boolean =>
@@ -247,6 +232,7 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
         <span class="trade-picker-title">
           {t('site.tradePicker.title', { name: props.cardName })}
         </span>
+        <PriceSourceSelect currency={props.currency} id="trade-picker-price-source" />
         <button class="trade-picker-close" onClick={props.onClose}>
           ×
         </button>

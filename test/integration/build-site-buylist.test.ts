@@ -216,5 +216,17 @@ describe('build-site buylist baking (Integration)', () => {
     expect(deck.cardsCardKingdom?.['Lightning Bolt']).toBeUndefined()
     // The Scryfall map is untouched — the CK map is an override layer.
     expect(deck.cards['Serra Angel']?.set).toBe('fdn')
+
+    // And the CK store also bakes the *alternate* printings, so the card
+    // modal's other-printings grid and the printing pickers can price a
+    // printing no tile displays without a backend. The foil Bolt is the proof:
+    // the deck's line displays it nonfoil, so only quoting displayed printings
+    // (the `--sell-mode` case above) leaves that key out entirely.
+    // Card Kingdom sells this Bolt only as a foil, and the deck's line names no
+    // finish — so `lea:161:foil` is not a printing any tile of this deck
+    // displays, and can only be here because the alternate printings were baked
+    // too. (The `--sell-mode` case above, which leaves the flag off, bakes the
+    // displayed printings alone.)
+    expect(Object.keys(deck.buylist?.cardkingdom?.quotes ?? {})).toContain('lea:161:foil')
   })
 })

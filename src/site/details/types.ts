@@ -52,6 +52,18 @@ export type DetailBuylistContext = BuylistFeedProvenance & {
   buyer: BuyerId
   /** Cache-backed single-printing lookup; null = buyer has no product for it. */
   quote: PrintingQuoteFn
+  /**
+   * Whether to quote every printing in the list's `printings` map as well as
+   * the ones its tiles display.
+   *
+   * The card modal's other-printings grid and the printing pickers price
+   * printings no tile shows, and a static site cannot fetch a quote it was not
+   * given — so under the Card Kingdom *price source* those printings are baked
+   * too, which is what lets the pickers follow the chosen source. A
+   * sell-mode-only deployment leaves this off: its pickers stay on Scryfall
+   * prices, and the extra quotes would be bytes nothing reads.
+   */
+  quotePrintings: boolean
 }
 
 /**

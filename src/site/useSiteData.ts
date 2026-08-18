@@ -1,10 +1,11 @@
-import { batch, createSignal, onMount, onCleanup } from 'solid-js'
+import { batch, createEffect, createSignal, onMount, onCleanup } from 'solid-js'
 import type { Accessor, Setter } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary, SiteIndex } from './data-types'
 import type { PriceCurrency } from '../price-currency'
 import { setSearchDebounceMs } from '../editor/search-debounce'
 import { setDefaultLanguage } from '../editor/default-language'
 import { apiActive, apiBase, dataUrl, reportDataFetchError, setApiBase } from './api-base'
+import { setBuylistQuotesOnline } from './buylist-quotes'
 import { setEnabledPriceSources } from './price-view'
 import { isAbortError } from './utils'
 import {
@@ -223,6 +224,12 @@ export function useSiteData(): UseSiteDataResult {
         if (apiBase() === '') console.error('Failed to refresh index:', e)
       })
   }
+
+  // The printing pickers may quote printings on demand exactly while a live
+  // backend is in use. Derived rather than set once at boot, so a configured
+  // backend that later proves unreachable takes the pickers back to the baked
+  // quotes with it instead of firing requests at a static host.
+  createEffect(() => setBuylistQuotesOnline(apiActive()))
 
   onMount(() => {
     const controller = new AbortController()

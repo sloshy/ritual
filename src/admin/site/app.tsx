@@ -35,7 +35,7 @@ import { ListEditor } from './pages/ListEditor'
 import { ListManager } from './pages/ListManager'
 import { MoveCards } from './pages/MoveCards'
 import { History } from './pages/History'
-import { setBuylistFetcher } from '../../site/buylist-quotes'
+import { setBuylistFetcher, setBuylistQuotesOnline } from '../../site/buylist-quotes'
 import { adminBuylistFetcher } from './editor-backend'
 import { setSellModeEnabled } from './sell-enabled'
 import { fetchStatus } from './status-api'
@@ -52,6 +52,9 @@ registerAdminMessages()
 // on admin that transport must carry the session cookie. Installed once, at
 // module load, before any page mounts.
 setBuylistFetcher(adminBuylistFetcher)
+// Admin always has its own API behind it, so the printing pickers may quote
+// printings on demand rather than waiting for a list to carry them baked.
+setBuylistQuotesOnline(true)
 
 /** The component each page renders. Typed by {@link Page}, so a new page cannot be forgotten. */
 const PAGE_COMPONENTS: Record<Page, Component> = {

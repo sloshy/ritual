@@ -68,7 +68,7 @@ export const siteChromeMessages = {
   'site.toolbar.sellModeBusyTitle': 'Sell mode: fetching buylist prices…',
   'site.toolbar.sellModeBusyStatus': 'Fetching buylist prices',
   'site.toolbar.buyerLabel': 'Buyer:',
-  'site.toolbar.priceSourceLabel': 'Prices:',
+  'site.priceSource.label': 'Prices:',
   'site.priceSource.tcgplayer': 'TCGplayer',
   'site.priceSource.cardkingdom': 'Card Kingdom',
   'site.priceSource.cardmarket': 'Cardmarket',

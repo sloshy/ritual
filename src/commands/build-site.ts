@@ -35,6 +35,7 @@ import {
   getArtDir,
   getBannedPrintings,
   getCollectionsDir,
+  cardKingdomPricesEnabled,
   getDecksDir,
   getDefaultCurrency,
   getDefaultLanguage,
@@ -999,9 +1000,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
     // the site actually offers CK prices. Sparse: a card CK stocks no printing
     // of stays absent, and the site falls back to the Scryfall pick.
     const ckQuote =
-      bakedFeed && getPriceSources().includes('cardkingdom')
-        ? detailBuylistContext(bakedFeed).quote
-        : null
+      bakedFeed && cardKingdomPricesEnabled() ? detailBuylistContext(bakedFeed).quote : null
     const globalCardKingdomCardMap: CardKingdomCards = {}
     const globalCardKingdomCheapestMap: CardKingdomCards = {}
 
@@ -1224,7 +1223,15 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
       pricesDate,
       // Absent when sell mode is off or no feed could be had: every detail then
       // ships without a `buylist` field, which the site reads as "not baked".
-      ...(bakedFeed ? { buylist: detailBuylistContext(bakedFeed) } : {}),
+      ...(bakedFeed
+        ? {
+            buylist: detailBuylistContext(bakedFeed, {
+              // Under the CK price source the details also carry quotes for the
+              // alternate printings, so the pickers can price them offline.
+              quotePrintings: cardKingdomPricesEnabled(),
+            }),
+          }
+        : {}),
       // Art the copy pass did not deploy — absent, unreadable, or a failed
       // copy: those cards bake no `customArt` and fall back to their real art.
       // Already warned about above, once per file.

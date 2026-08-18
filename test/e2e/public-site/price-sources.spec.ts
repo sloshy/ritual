@@ -137,6 +137,59 @@ test.describe('per-store representative printings', () => {
     await expect(row(page, 'Split Pick').locator('.list-price')).toHaveText('$10.00')
   })
 
+  test('the other-printings grid prices each printing from the selected store', async ({
+    page,
+  }) => {
+    const watch = await mockPublicSiteDeckForPriceSources(page)
+    await gotoList(page, '#/deck/split-pick-deck')
+    await page.locator('.card-item').first().locator('.card-binder').click()
+    await expect(page.locator('.card-modal')).toBeVisible({ timeout: 5000 })
+    await page.getByRole('button', { name: /Other Printings/ }).click()
+
+    // Anchored: a printing numbered 14 or 41 would otherwise satisfy `DFN:4`.
+    const tile = (label: string) =>
+      page.locator('.modal-printing-card').filter({ hasText: new RegExp(`\\b${label}\\b`) })
+
+    // TCGplayer: Scryfall money, with the dual-finish printing's foil listed
+    // underneath its nonfoil price.
+    await expect(tile('TST:1').locator('.printing-price-main')).toHaveText('$10.00')
+    await expect(tile('DFN:4').locator('.printing-price-main')).toHaveText('$5.00')
+    await expect(tile('DFN:4').locator('.printing-price-alt')).toHaveText('$20.00 (foil)')
+
+    // The dialog carries its own copy of the one selector; switching it here is
+    // switching it everywhere.
+    const modalSource = page.locator('#card-modal-price-source')
+    await expect(modalSource).toHaveValue('tcgplayer')
+    await modalSource.selectOption('cardkingdom')
+
+    // CK retail, per finish. The printing CK does not stock reads N/A rather
+    // than falling back to its TCGplayer price.
+    await expect(tile('CKP:2').locator('.printing-price-main')).toHaveText('$3.00')
+    await expect(tile('DFN:4').locator('.printing-price-main')).toHaveText('$4.00')
+    await expect(tile('DFN:4').locator('.printing-price-alt')).toHaveText('$15.00 (foil)')
+    await expect(tile('TST:1').locator('.printing-price-main')).toHaveText('N/A')
+
+    // One store, one signal: the page's own selector moved with it.
+    await page.locator('.modal-close').click()
+    await expect(page.locator(SOURCE_SELECT)).toHaveValue('cardkingdom')
+
+    // All of that came from the detail's baked quotes. A static site has no
+    // backend to ask, so quoting on demand here would 500 and price nothing.
+    expect(watch.requests).toEqual([])
+  })
+
+  test('with prices switched off the grid shows no money at all', async ({ page }) => {
+    await mockPublicSiteDeckForPriceSources(page, { priceSources: [] })
+    await gotoList(page, '#/deck/split-pick-deck')
+    await page.locator('.card-item').first().locator('.card-binder').click()
+    await page.getByRole('button', { name: /Other Printings/ }).click()
+
+    // The positive control first: the grid rendered, it is simply priceless.
+    await expect(page.locator('.modal-printing-card')).toHaveCount(4)
+    await expect(page.locator('.printing-prices')).toHaveCount(0)
+    await expect(page.locator('#card-modal-price-source')).toHaveCount(0)
+  })
+
   test('"Lowest Price" under Card Kingdom uses the cheapest printing CK sells', async ({
     page,
   }) => {

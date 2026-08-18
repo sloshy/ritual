@@ -10,6 +10,7 @@ import {
   getBannedPrintings,
   getDefaultCurrency,
   getDefaultLanguage,
+  cardKingdomPricesEnabled,
   getPriceSources,
   getSearchDebounceMs,
   getSiteSelectionConfig,
@@ -249,12 +250,16 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
     // The buylist context is built once and used twice: it quotes the printings
     // a list displays, and — when the deployment offers CK prices — it is also
     // what picks which printing a name-only line displays under that source.
-    const buylist = buylistFeed ? detailBuylistContext(buylistFeed) : null
-    const offersCardKingdom = getPriceSources(config).includes('cardkingdom')
+    const offersCardKingdom = cardKingdomPricesEnabled(config)
+    // `quotePrintings` follows the price source, not sell mode: it is the
+    // printing pickers and the other-printings grid that read those quotes.
+    const buylist = buylistFeed
+      ? detailBuylistContext(buylistFeed, { quotePrintings: offersCardKingdom })
+      : null
     const source = await createCacheCardSource(names, {
       currencies: LIVE_CURRENCIES,
       bannedPrintings,
-      ...(buylist && offersCardKingdom ? { cardKingdomQuote: buylist.quote } : {}),
+      ...(buylist?.quotePrintings ? { cardKingdomQuote: buylist.quote } : {}),
     })
     const configuredCurrency = getDefaultCurrency(config)
     return {

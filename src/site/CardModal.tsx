@@ -6,9 +6,12 @@ import type { ScryfallCard } from '../types'
 import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from './image-sources'
 import { ManaCost, OracleText } from './symbols'
 import type { PriceCurrency } from '../price-currency'
-import { formatPrice, getCardPrice, getCardPriceForFinish } from '../price-currency'
+import { formatPrice } from '../price-currency'
 import { pricesEnabled, sitePrice } from './price-view'
-import { defaultPrintingFinish } from '../finish-condition'
+import { PriceSourceSelect } from './PriceSourceSelect'
+import { PrintingPrices } from './PrintingPrices'
+import { printingSortPrice } from './printing-prices'
+import { usePrintingQuotes } from './printing-quotes'
 import { languageBadge, scryfallCardLanguage } from '../card-language'
 import { rarityName } from './printing-display'
 import { cardPricelessMarkerText } from './priceless'
@@ -60,19 +63,30 @@ export const CardModal: Component<CardModalProps> = (props) => {
 
   // Sub-view signals live in this (always-mounted) scope, so they persist across
   // open/close cycles and when the displayed card changes while the modal stays
-  // open. Reset to the front/details view on (re)open or card change so a new card
-  // never lands straight in the "other printings" or card-back view. (The brief
-  // window before this effect runs is masked by the dialog's open animation.)
+  // open. Reset to the front/details view on (re)open or when a *different card*
+  // is shown, so a new card never lands straight in the "other printings" or
+  // card-back view. (The brief window before this effect runs is masked by the
+  // dialog's open animation.)
+  //
+  // Keyed on the name rather than the printing: the displayed printing of one
+  // name swaps under the user (the price-source selector, the lowest-price
+  // toggle), and throwing them back to the details view for that would close the
+  // very grid the source selector lives in.
+  //
+  // A *memo* over a string key, not the bare tuple accessor this used to be.
+  // `on` re-runs whenever its input re-evaluates — it performs no equality check
+  // of its own — and `open` is a page memo over the displayed card object, which
+  // re-evaluates when the price source swaps the printing. Only a memo's `===`
+  // gate stops that from reading as "a different card was opened" and throwing
+  // the user out of the very grid the source selector lives in.
+  const viewKey = createMemo(() => `${props.open}|${props.cardName ?? ''}`)
   createEffect(
-    on(
-      () => [props.open, props.cardName, props.card?.id],
-      () => {
-        setShowingBack(false)
-        setShowPrintings(false)
-        setShowTags(false)
-        setPrintingsPage(0)
-      },
-    ),
+    on(viewKey, () => {
+      setShowingBack(false)
+      setShowPrintings(false)
+      setShowTags(false)
+      setPrintingsPage(0)
+    }),
   )
 
   const isDfc = createMemo(() => (props.card ? isDoubleFacedCard(props.card) : false))
@@ -130,11 +144,29 @@ export const CardModal: Component<CardModalProps> = (props) => {
 
   const PRINTINGS_PAGE_SIZE = 8
 
+  // Card Kingdom quotes for the printings on show — a no-op on the TCGplayer /
+  // Cardmarket views and on a static site, whose details carry them baked. Only
+  // while the grid is open: the modal is mounted on every list page.
+  const NO_PRINTINGS: readonly ScryfallCard[] = []
+  usePrintingQuotes(() => (showPrintings() ? props.printings : NO_PRINTINGS))
+
   const sortedPrintings = createMemo(() => {
-    const sorted = [...props.printings]
     const dir = printingsSortReversed() ? -1 : 1
+    const field = printingsSortField()
+    if (field === 'price') {
+      // Decorated: a price read is a quote-map lookup under the Card Kingdom
+      // source, and a comparator would repeat it O(n log n) times for n distinct
+      // values. Source-aware like the figures on the tiles — sorting by
+      // TCGplayer while the grid shows Card Kingdom money would order the rows
+      // by numbers that are not on screen.
+      return props.printings
+        .map((printing) => ({ printing, price: printingSortPrice(printing, props.currency) }))
+        .sort((a, b) => dir * (b.price - a.price))
+        .map((entry) => entry.printing)
+    }
+    const sorted = [...props.printings]
     sorted.sort((a, b) => {
-      switch (printingsSortField()) {
+      switch (field) {
         case 'released_at': {
           const da = a.released_at ?? ''
           const db = b.released_at ?? ''
@@ -146,13 +178,6 @@ export const CardModal: Component<CardModalProps> = (props) => {
           const na = parseInt(a.collector_number, 10) || 0
           const nb = parseInt(b.collector_number, 10) || 0
           return dir * (na - nb)
-        }
-        case 'price': {
-          // Scryfall on purpose: this grid spans printings no list displays,
-          // so the Card Kingdom view has no quotes to sort them by.
-          const pa = getCardPrice(a, props.currency)
-          const pb = getCardPrice(b, props.currency)
-          return dir * (pb - pa)
         }
         default:
           return 0
@@ -184,6 +209,7 @@ export const CardModal: Component<CardModalProps> = (props) => {
           })}
         </h3>
         <div class="printings-sort-controls">
+          <PriceSourceSelect currency={props.currency} id="card-modal-price-source" />
           <select
             class="printings-sort-select"
             value={printingsSortField()}
@@ -221,11 +247,6 @@ export const CardModal: Component<CardModalProps> = (props) => {
             // Alternate-language objects (from an all_cards cache) are badged so
             // two tiles sharing a set:cn are tellable apart. Absent lang = en.
             const pLang = languageBadge(scryfallCardLanguage(p))
-            // Quote the printing at the finish it's actually read at, which also
-            // covers a printing offered only in foil *and* etched. Scryfall on
-            // purpose (see the sort above) — and an accessor, so a currency
-            // switch re-prices the mounted rows.
-            const pPrice = () => getCardPriceForFinish(p, defaultPrintingFinish(p), props.currency)
             return (
               <a
                 href={pUrl}
@@ -242,11 +263,13 @@ export const CardModal: Component<CardModalProps> = (props) => {
                     {p.set.toUpperCase()}:{p.collector_number}
                     <Show when={pLang}> · {pLang}</Show>
                   </span>
-                  <Show when={pricesEnabled() && pPrice() > 0}>
+                  <Show when={pricesEnabled()}>
                     {' '}
-                    <span class="printing-label-price">
-                      {formatPrice(pPrice(), props.currency)}
-                    </span>
+                    <PrintingPrices
+                      printing={p}
+                      currency={props.currency}
+                      class="printing-label-price"
+                    />
                   </Show>
                 </div>
               </a>

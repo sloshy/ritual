@@ -11,6 +11,7 @@ import { getErrorMessage } from '../../errors'
 import { t } from '../../i18n/t'
 import { buylistRequestFor, quoteKey, type BuylistQuote } from '../../buylist'
 import { loadCardArt, type CardArtMap } from '../../card-art'
+import { printingFinishPairs } from '../../card-printing'
 import { siteArtUrl } from '../art-url'
 import type { CardLanguage } from '../../card-language'
 import type { Finish, ScryfallCard } from '../../types'
@@ -217,13 +218,22 @@ export type BuylistBakeSource = {
 export function bakeBuylistQuotes(
   ctx: SiteDetailContext,
   sources: readonly BuylistBakeSource[],
+  printings: Record<string, ScryfallCard[]>,
 ): BakedBuylist | undefined {
   const buylist = ctx.buylist
   if (!buylist) return undefined
 
+  // The displayed printings first, then — under the CK price source — every
+  // alternate printing the list carries. Order matters: the `asked` dedupe
+  // below keeps the first request for a key, and an entry's own finish/language
+  // tokens are the ones sell mode looks its quote up with.
+  const all: readonly BuylistBakeSource[] = buylist.quotePrintings
+    ? [...sources, ...Object.values(printings).flatMap(printingFinishPairs)]
+    : sources
+
   const quotes: Record<string, BuylistQuote> = {}
   const asked = new Set<string>()
-  for (const source of sources) {
+  for (const source of all) {
     const request = buylistRequestFor(source.card, source.finish, source.language)
     if (!request) continue
     const key = quoteKey(request.set, request.collectorNumber, request.finish)

@@ -191,9 +191,9 @@ export const siteChromeMeta = {
       "Label beside the dropdown choosing which shop's buylist prices are quoted, including its trailing colon.",
     maxLen: CHIP_MAX_LEN,
   },
-  'site.toolbar.priceSourceLabel': {
+  'site.priceSource.label': {
     description:
-      "Label beside the dropdown choosing which store's prices the page displays (TCGplayer or Card Kingdom), including its trailing colon.",
+      "Label beside the dropdown choosing which store's prices are displayed (TCGplayer or Card Kingdom), including its trailing colon. Shown on the list toolbar and inside the card modal and printing pickers, which all share one control.",
     maxLen: CHIP_MAX_LEN,
   },
   'site.priceSource.tcgplayer': {

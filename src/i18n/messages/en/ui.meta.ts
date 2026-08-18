@@ -449,18 +449,6 @@ export const uiMeta = {
     description:
       'The link text inside that attribution. "Scryfall" is a product name and is never translated; "API" may be if the local convention differs.',
   },
-  'ui.addCard.priceUnknown': {
-    description: 'Shown in place of a price when the printing has no price on record.',
-    maxLen: 8,
-  },
-  'ui.addCard.priceFoil': {
-    description:
-      'A price that is only known for the foil printing. {price} is the already-formatted amount.',
-  },
-  'ui.addCard.priceEtched': {
-    description:
-      'A price that is only known for the etched printing. {price} is the already-formatted amount.',
-  },
   'ui.addCard.optionsHeading': {
     description:
       'Heading of the optional per-card settings in the add-card dialog: the label the new card starts under, and its custom art.',

@@ -417,14 +417,21 @@
 }
 
 /* The label sits on card art, so it takes the same always-dark overlay treatment
-   (and the same themable colors) as the card-tile label everywhere else. */
+   (and the same themable colors) as the card-tile label everywhere else —
+   including the hold-then-fade stops, which are what keep a multi-finish
+   printing's first price line off the transparent end of the gradient. */
 .printing-select-card .printing-label {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(transparent, var(--overlay-heavy));
-  padding: 4px 8px;
+  background: linear-gradient(
+    to top,
+    var(--overlay-heavy) 0%,
+    var(--overlay-heavy) calc(100% - 1.25rem),
+    transparent 100%
+  );
+  padding: 1.25rem 8px 4px;
   font-size: 0.75rem;
   color: var(--card-label-text);
 }

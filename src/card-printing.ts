@@ -1,4 +1,5 @@
-import type { ScryfallCard } from './types'
+import type { Finish, ScryfallCard } from './types'
+import { printingFinishes } from './finish-condition'
 import {
   displayLanguage,
   scryfallCardLanguage,
@@ -6,6 +7,26 @@ import {
   type CardLanguage,
 } from './card-language'
 import { cardPrintingKey } from './printing-key'
+
+/** One printing at one of the finishes it is published in. */
+export type PrintingFinish = {
+  card: ScryfallCard
+  finish: Finish
+}
+
+/**
+ * Every printing in a list, at every finish it publishes — the enumeration a
+ * buyer's quotes are gathered over.
+ *
+ * One function because the two halves of that gathering must agree exactly: a
+ * static build bakes this set into each list detail, and a live backend quotes
+ * whatever the build did not carry. If one side ever enumerated fewer pairs than
+ * the other, a static site would render "no price" precisely where a served one
+ * renders a figure, and nothing would fail loudly.
+ */
+export function printingFinishPairs(cards: readonly ScryfallCard[]): PrintingFinish[] {
+  return cards.flatMap((card) => printingFinishes(card).map((finish) => ({ card, finish })))
+}
 
 /** The two fields that together pin a printing; either may be absent. */
 export type PrintingFields = { set?: string; collectorNumber?: string }

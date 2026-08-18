@@ -250,6 +250,41 @@ describe('createLiveSiteData', () => {
       expect(deck.cardsCardKingdom?.['Dark Ritual']).toBeUndefined()
     })
 
+    test('the cardkingdom price store also bakes the alternate printings', async () => {
+      // The other-printings grid and the printing pickers price printings no
+      // tile displays, and a static client cannot fetch a quote it was not
+      // given — so the price store (not sell mode) widens the bake. The build's
+      // twin of this is in test/integration/build-site-buylist.test.ts; the two
+      // paths must agree or `serve --api` ships a different quote set.
+      await patchConfig({ priceSources: ['tcgplayer', 'cardkingdom'] })
+      await saveCardKingdomCache(
+        makeCardKingdomCacheFile(
+          [
+            angelProduct(3),
+            makeCardKingdomProduct({
+              id: 2,
+              sku: 'FFDN-0035',
+              scryfallId: 'e2e00000-0000-4000-8000-000000000007',
+              name: 'Serra Angel',
+              edition: 'Foundations',
+              finish: 'foil',
+              priceBuy: 9,
+            }),
+          ],
+          Date.now(),
+        ),
+      )
+      invalidateCardKingdomIndex()
+
+      const detail = await createLiveSiteData().getDetail('deck', 'emberwild-aggro')
+      const quotes = (JSON.parse(detail!.body) as DeckDetail).buylist?.cardkingdom?.quotes ?? {}
+
+      // The deck's line names no finish, so the Angel displays nonfoil: the foil
+      // key exists only because every finish of every printing was quoted.
+      expect(quotes[QUOTE_KEY]).toMatchObject({ priceBuy: 3 })
+      expect(quotes['fdn:35:foil']).toMatchObject({ priceBuy: 9 })
+    })
+
     test('a deployment without the cardkingdom store gets no picks, feed or no feed', async () => {
       await patchConfig({ priceSources: ['tcgplayer'] })
       await seedFeed(3, Date.now())

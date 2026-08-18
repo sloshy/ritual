@@ -296,7 +296,7 @@ export async function buildDeckArtifacts(
     missingCards: deckMissingCards,
     pricesDate: ctx.pricesDate,
     changelog: changelog.length > 0 ? changelog : undefined,
-    buylist: bakeBuylistQuotes(ctx, buylistSources),
+    buylist: bakeBuylistQuotes(ctx, buylistSources, deckPrintingsMap),
   }
 
   // Build summary for index. Card count is the total quantity of cards in

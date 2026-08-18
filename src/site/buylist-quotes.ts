@@ -109,6 +109,31 @@ export function setBuylistFetcher(next: BuylistFetcher): void {
  */
 export function resetBuylistFetcher(): void {
   fetcher = defaultFetcher
+  setOnline(false)
+}
+
+/**
+ * Whether {@link requestBuylistQuotes} has a backend to ask.
+ *
+ * A *deployment* fact, not a data one, so it survives {@link
+ * resetBuylistQuotes} (a buyer switch must not convince the app it went
+ * offline) and is cleared only with the transport itself. The admin app sets it
+ * beside its credentialed fetcher; the public site sets it from `apiBase` —
+ * `null` there means a fully static build, whose only quotes are the ones its
+ * details carry baked.
+ *
+ * What it gates is on-demand quoting of printings *no list displays* — the
+ * other-printings grid and the printing pickers. On a static site those fall
+ * back to the baked quotes and nothing is requested, so a build without a Card
+ * Kingdom feed shows N/A rather than a failed request's error banner.
+ */
+const [online, setOnline] = createSignal(false)
+
+export const buylistQuotesOnline: Accessor<boolean> = online
+
+/** Declare whether a quote backend is reachable. See {@link buylistQuotesOnline}. */
+export function setBuylistQuotesOnline(next: boolean): void {
+  setOnline(next)
 }
 
 /** How fresh the loaded quotes are; null before any successful response. */
@@ -147,10 +172,15 @@ export const buylistFeedInfo: Accessor<BuylistFeedInfo | null> = feedInfo
 export const buylistLoading: Accessor<boolean> = loading
 
 /**
- * Why sell mode has no prices, or null. Sticky until the next successful load
- * so a UI can explain an empty sell mode — a failed request on the admin site,
- * or a list with no baked quotes on the public one (usually: no feed
- * downloaded).
+ * Why quotes are missing, or null. Sticky until the next successful load so a UI
+ * can explain an empty sell mode — a failed request on the admin site, or a list
+ * with no baked quotes on the public one (usually: no feed downloaded).
+ *
+ * Sell mode is its only reader, but no longer its only writer: the printing
+ * pickers quote on demand under the Card Kingdom *price source* with sell mode
+ * off, so a failure there can leave a reason behind for a mode nobody entered.
+ * Harmless — the message names the real problem either way — but it is why this
+ * is worded as "quotes", not "sell mode".
  */
 export const buylistError: Accessor<string | null> = error
 

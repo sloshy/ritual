@@ -1307,13 +1307,22 @@ h3 {
     border-radius: var(--card-corner-radius);
   }
 
-  /* Always-dark gradient over card art so the label reads in any theme. */
+  /* Always-dark gradient over card art so the label reads in any theme.
+     The overlay holds *solid* behind the text and fades only across the top
+     padding, so the label reads whatever its line count: a printing sold in
+     several finishes lists one line per finish, and a gradient that faded across
+     the whole box would put the first line where it is nearly transparent. */
   & .printing-label {
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    background: linear-gradient(to top, var(--overlay-heavy) 0%, transparent 100%);
+    background: linear-gradient(
+      to top,
+      var(--overlay-heavy) 0%,
+      var(--overlay-heavy) calc(100% - 1.5rem),
+      transparent 100%
+    );
     padding: 1.5rem 0.4rem 0.35rem;
     font-size: 0.65rem;
     color: oklch(80% 0 0);

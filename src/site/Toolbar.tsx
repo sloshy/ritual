@@ -18,15 +18,8 @@ import { BottomSheet } from '../ui/BottomSheet'
 import { selectionModeActive, toggleSelectionMode } from './selection-mode'
 import type { SellModeControl } from './sell-mode'
 import { buylistLoading } from './buylist-quotes'
-import { notifyCurrencyChanged } from './currency-epoch'
-import {
-  activeUsdSource,
-  offersUsdSourceChoice,
-  PRICE_SOURCE_LABELS,
-  pricesEnabled,
-  selectUsdSource,
-  usdSourceChoices,
-} from './price-view'
+import { PriceSourceSelect } from './PriceSourceSelect'
+import { pricesEnabled } from './price-view'
 import { BUYERS, buyerName, parseBuyerId, type BuyerId } from '../buylist'
 import type { MessageKey } from '../i18n/messages/en'
 import { useI18n } from '../ui/i18n'
@@ -337,39 +330,18 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
     </Show>
   )
 
-  // The price-source selector: which store the page's USD prices come from.
-  // Rendered only when there is a real choice (USD view, more than one USD
-  // store enabled). Module-store-backed like sell mode, so the choice survives
-  // navigation; switching bumps the currency epoch, clearing price filters
-  // exactly as a currency switch does — every price on the page just changed.
+  // The price-source selector: which store the page's USD prices come from. The
+  // same control the card modal and the printing pickers render — one shared
+  // component over one module-level signal, so switching it anywhere switches
+  // it everywhere.
   const sourceControls = (
-    <Show when={offersUsdSourceChoice(props.currency)}>
-      <div class="toolbar-group">
-        <label class="toolbar-label" for="price-source">
-          {t('site.toolbar.priceSourceLabel')}
-        </label>
-        <select
-          id="price-source"
-          class="toolbar-select"
-          value={activeUsdSource()}
-          onChange={(e) => {
-            const raw = e.currentTarget.value
-            const choice = usdSourceChoices().find((source) => source === raw)
-            if (!choice || choice === activeUsdSource()) return
-            selectUsdSource(choice)
-            notifyCurrencyChanged()
-          }}
-        >
-          <For each={usdSourceChoices()}>
-            {(source) => (
-              <option value={source} selected={source === activeUsdSource()}>
-                {t(PRICE_SOURCE_LABELS[source])}
-              </option>
-            )}
-          </For>
-        </select>
-      </div>
-    </Show>
+    <PriceSourceSelect
+      currency={props.currency}
+      id="price-source"
+      groupClass="toolbar-group"
+      labelClass="toolbar-label"
+      selectClass="toolbar-select"
+    />
   )
 
   // With prices hidden (`priceSources: []`), the price grouping and sort make

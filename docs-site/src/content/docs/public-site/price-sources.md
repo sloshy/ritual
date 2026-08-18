@@ -37,6 +37,14 @@ untouched default stays out of the URL, and so does sell mode's courtesy Card Ki
 sell mode is written precisely so a shared link can pin "offer versus market price". The choice
 survives navigation for the session.
 
+The same selector appears inside the dialogs that show one card's printings — the card modal's
+**Other Printings** grid, the trade/edit printing picker, and the add-card dialog's printing
+step. It is the same one choice, not a second one: switching it in a dialog switches the page
+behind it, and vice versa. Each printing there is priced under the selected store, and a
+printing sold in more than one finish lists its **alternate finishes underneath** its main
+price — the price you would pay for the copy as displayed, then what the foil (or etched)
+costs. The grid's price sort follows the selected store too.
+
 ## The Card Kingdom view is honest
 
 Card Kingdom retail prices ride on the same baked buylist quotes sell mode uses, so they work
@@ -45,6 +53,13 @@ their English-only catalog can never match — shows **no price** under this vie
 deliberately no TCGplayer fallback, so a total under the Card Kingdom view is a real
 "what these cards cost at CK" figure. An out-of-stock product keeps its listed price — the
 price stands even when the shelf is empty.
+
+Printing dialogs are covered by the same rule, and pay for it in advance. A build with the
+`cardkingdom` store enabled bakes a Card Kingdom quote for **every printing a list carries** —
+each finish of each printing in its other-printings grid, not just the printings its tiles
+display — so a fully static site can price the whole grid with no backend. Where there _is_ a
+live backend (`serve --api`, or the admin site), printings the build never saw — anything the
+add-card dialog's search turns up — are quoted on demand instead.
 
 In [sell mode](/public-site/sell/), the **spread** (`Buylist vs Price`) compares Card
 Kingdom's offer against the _selected_ store's price. Entering sell mode defaults the view to

@@ -9,7 +9,7 @@ import type {
   WantedListDetail,
   WantedListSummary,
 } from '../../../src/site/data-types'
-import type { ScryfallCard } from '../../../src/types'
+import type { Finish, ScryfallCard } from '../../../src/types'
 import type { BuylistQuote } from '../../../src/buylist'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
 import { DEFAULT_LOCALE } from '../../../src/i18n/runtime'
@@ -989,6 +989,48 @@ const MOCK_DECK_CK_KINGDOM_CHEAPEST = withImage(
   }),
 )
 
+/**
+ * A printing sold in both finishes, so the card modal's grid and the printing
+ * pickers have alternate finishes to list underneath the main price — in both
+ * stores, at different money.
+ */
+const MOCK_DECK_CK_DUAL_FINISH = withImage(
+  makeMockScryfallCard({
+    id: 'ck-pick-dual',
+    name: 'Split Pick',
+    set: 'dfn',
+    collector_number: '4',
+    finishes: ['nonfoil', 'foil'],
+    prices: { usd: '5.00', usd_foil: '20.00' },
+  }),
+)
+
+/**
+ * One Card Kingdom quote for the price-sources deck, so the fixture's four
+ * offers read as four numbers rather than four eleven-line literals. The buyer
+ * fields that never vary between them are filled in here.
+ */
+function ckQuote(fields: {
+  productId: number
+  edition: string
+  finish: Finish
+  priceBuy: number
+  priceRetail: number
+}): BuylistQuote {
+  return {
+    priceBuy: fields.priceBuy,
+    qtyBuying: 4,
+    priceRetail: fields.priceRetail,
+    qtyRetail: 4,
+    buying: true,
+    finish: fields.finish,
+    matchVia: 'scryfall-id',
+    productId: fields.productId,
+    name: 'Split Pick',
+    edition: fields.edition,
+  }
+}
+
 const MOCK_DECK_FOR_PRICE_SOURCES = {
   deck: {
     name: 'Split Pick Deck',
@@ -1000,6 +1042,7 @@ const MOCK_DECK_FOR_PRICE_SOURCES = {
       MOCK_DECK_CK_SCRYFALL_PICK,
       MOCK_DECK_CK_KINGDOM_PICK,
       MOCK_DECK_CK_KINGDOM_CHEAPEST,
+      MOCK_DECK_CK_DUAL_FINISH,
     ],
   },
   cardsCardKingdom: { 'Split Pick': MOCK_DECK_CK_KINGDOM_PICK },
@@ -1012,30 +1055,34 @@ const MOCK_DECK_FOR_PRICE_SOURCES = {
   buylist: {
     cardkingdom: {
       quotes: {
-        'ckp:2:nonfoil': {
-          priceBuy: 1,
-          qtyBuying: 4,
-          priceRetail: 3,
-          qtyRetail: 4,
-          buying: true,
-          finish: 'nonfoil',
-          matchVia: 'scryfall-id',
+        'ckp:2:nonfoil': ckQuote({
           productId: 9,
-          name: 'Split Pick',
           edition: 'CK Printing',
-        },
-        'ckc:3:nonfoil': {
-          priceBuy: 0.5,
-          qtyBuying: 4,
-          priceRetail: 1.5,
-          qtyRetail: 4,
-          buying: true,
           finish: 'nonfoil',
-          matchVia: 'scryfall-id',
+          priceBuy: 1,
+          priceRetail: 3,
+        }),
+        'dfn:4:nonfoil': ckQuote({
+          productId: 11,
+          edition: 'CK Dual Finish',
+          finish: 'nonfoil',
+          priceBuy: 2,
+          priceRetail: 4,
+        }),
+        'dfn:4:foil': ckQuote({
+          productId: 12,
+          edition: 'CK Dual Finish',
+          finish: 'foil',
+          priceBuy: 8,
+          priceRetail: 15,
+        }),
+        'ckc:3:nonfoil': ckQuote({
           productId: 10,
-          name: 'Split Pick',
           edition: 'CK Cheapest Printing',
-        },
+          finish: 'nonfoil',
+          priceBuy: 0.5,
+          priceRetail: 1.5,
+        }),
       },
       ...MOCK_BAKED_FEED,
     },
@@ -1046,17 +1093,25 @@ const MOCK_DECK_FOR_PRICE_SOURCES = {
  * Mock a static site offering both USD stores, whose deck's name-only card has a
  * different representative printing per store.
  */
-export async function mockPublicSiteDeckForPriceSources(page: Page): Promise<void> {
+export async function mockPublicSiteDeckForPriceSources(
+  page: Page,
+  options: { priceSources?: SiteIndex['priceSources'] } = {},
+): Promise<BuylistApiWatch> {
   await fulfillJson(
     page,
     '**/index.json',
     makeSiteIndex({
       decks: [makeDeckSummary({ slug: 'split-pick-deck', name: 'Split Pick Deck', cardCount: 1 })],
-      priceSources: ['tcgplayer', 'cardkingdom'],
+      priceSources: options.priceSources ?? ['tcgplayer', 'cardkingdom'],
     }),
   )
   await fulfillJson(page, '**/decks/split-pick-deck.json', MOCK_DECK_FOR_PRICE_SOURCES)
-  await stubBuylistApiUnreachable(page)
+  // Returned so a test can assert the count: the printing pickers quote on
+  // demand where a backend exists, and a *static* site must instead read the
+  // quotes its detail carries baked. A request reaching here is that regression.
+  const watch: BuylistApiWatch = { requests: [] }
+  await stubBuylistApiUnreachable(page, watch)
+  return watch
 }
 
 /** Quote-API requests a run made. The public site must make none of them. */

@@ -23,7 +23,6 @@ import {
 } from '../printing-pagination'
 import { stepQuantity } from '../../ui/quantity'
 import { useT, useTKey, useTSegments } from '../../ui/i18n'
-import type { TranslateFn } from '../../i18n/t'
 import { searchDebounceMs } from '../search-debounce'
 import {
   displayLanguage,
@@ -37,12 +36,16 @@ import {
 import { defaultLanguage } from '../default-language'
 import { dedupePrintingsByKey, printingLanguages } from '../../card-printing'
 import { resolvePrintingLanguage } from '../../printing-language'
-import {
-  formatPrice as formatAmount,
-  formatPriceOrNA,
-  getCardPriceForFinish,
-  type PriceCurrency,
-} from '../../price-currency'
+import { getCardPriceForFinish, type PriceCurrency } from '../../price-currency'
+import type { TranslateFn } from '../../i18n/t'
+import { PriceSourceSelect } from '../../site/PriceSourceSelect'
+import { PrintingPrices } from '../../site/PrintingPrices'
+import { printingPriceText } from '../../site/printing-prices'
+import { usePrintingQuotes } from '../../site/printing-quotes'
+import { pricesEnabled, sitePriceForFinish } from '../../site/price-view'
+
+/** Shared so the gated-off accessor keeps one identity instead of a fresh array. */
+const NO_PRINTINGS: readonly ScryfallCard[] = []
 
 type CardSearchModalProps = {
   open: boolean
@@ -117,13 +120,26 @@ type PreviewCard = {
   imageUrl: string
 }
 
+/**
+ * The cheapest printing, for the flow that commits one without the user picking
+ * (adding a card with "No specific printing").
+ *
+ * Scryfall prices deliberately, unlike everything else this dialog renders. The
+ * choice is made synchronously the moment the printings land, and a Card Kingdom
+ * quote for a printing nobody has looked at yet is still in flight then — under
+ * the CK view every candidate would read 0 and this would degrade to "the first
+ * printing returned". A price that is knowable now beats a store-correct one
+ * that is not.
+ *
+ * An unpriced printing sorts last rather than first: 0 is "no price on record",
+ * not "free".
+ */
 function getCheapestPrinting(printings: ScryfallCard[]): ScryfallCard | undefined {
-  const sorted = [...printings].sort((a, b) => {
-    const aPrice = a.prices.usd !== null ? parseFloat(a.prices.usd) : Infinity
-    const bPrice = b.prices.usd !== null ? parseFloat(b.prices.usd) : Infinity
-    return aPrice - bPrice
-  })
-  return sorted[0]
+  const priceOf = (card: ScryfallCard): number => {
+    const price = getCardPriceForFinish(card, defaultPrintingFinish(card), PICKER_CURRENCY)
+    return price > 0 ? price : Infinity
+  }
+  return [...printings].sort((a, b) => priceOf(a) - priceOf(b))[0]
 }
 
 /**
@@ -132,37 +148,19 @@ function getCheapestPrinting(printings: ScryfallCard[]): ScryfallCard | undefine
  * how a number is written. The currency sweep (plan §6.4 / Phase 3) is what gives
  * the picker a currency of its own.
  */
-const PICKER_CURRENCY: PriceCurrency = 'usd'
+const PICKER_CURRENCY = 'usd' as const satisfies PriceCurrency
 
 /**
  * What the picked printing costs in one of its finishes, shown beside that
- * finish's radio so the choice is priced before it is made.
+ * finish's radio so the choice is priced before it is made. Source-aware, and
+ * written the same way `PrintingPrices` writes the tiles' figures.
  */
-function finishPrice(printing: ScryfallCard, finish: Finish): string {
-  return formatPriceOrNA(getCardPriceForFinish(printing, finish, PICKER_CURRENCY), PICKER_CURRENCY)
-}
-
-/**
- * The grid tile's price line: the printing's own quote, annotated when the only
- * price it publishes belongs to a premium finish. Deliberately not
- * {@link finishPrice} of {@link defaultPrintingFinish} — that reads `N/A` for a
- * printing offered in nonfoil that has only ever been quoted in foil, where this
- * would rather show the foil price and say so.
- *
- * Named apart from `price-currency`'s exported `formatPrice`, which it calls for
- * the amount itself: two functions of that name in one file is how the two
- * renderings drifted apart in the first place.
- */
-function formatTilePrice(t: TranslateFn, card: ScryfallCard): string {
-  const amount = (raw: string): string => formatAmount(parseFloat(raw), PICKER_CURRENCY)
-  if (card.prices.usd !== null) return amount(card.prices.usd)
-  if (card.prices.usd_foil !== null) {
-    return t('ui.addCard.priceFoil', { price: amount(card.prices.usd_foil) })
-  }
-  if (card.prices.usd_etched !== null) {
-    return t('ui.addCard.priceEtched', { price: amount(card.prices.usd_etched) })
-  }
-  return t('ui.addCard.priceUnknown')
+function finishPrice(t: TranslateFn, printing: ScryfallCard, finish: Finish): string {
+  return printingPriceText(
+    t,
+    sitePriceForFinish(printing, finish, PICKER_CURRENCY),
+    PICKER_CURRENCY,
+  )
 }
 
 export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
@@ -223,6 +221,17 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
 
   /** The grid's rows: the fetched printings narrowed by the collector query. */
   const visiblePrintings = createMemo(() => filterPrintingsByQuery(printingFilter(), printings()))
+
+  // Card Kingdom quotes for the printings on offer. These come from
+  // `/api/card-printings` and can be any card at all, so — unlike a list page's
+  // — they are never baked and are always requested on demand. Gated on the
+  // step: `printings()` outlives the dialog's close (only reopening clears it),
+  // so an ungated effect would quote the last card looked at whenever the price
+  // source changed somewhere else on the page.
+  const quotablePrintings = createMemo(() =>
+    props.open && step() === 'printing' ? printings() : NO_PRINTINGS,
+  )
+  usePrintingQuotes(quotablePrintings)
 
   /**
    * Cells the "No specific printing" tile takes from the first page. It also
@@ -1058,6 +1067,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
             <h3 class="modal-heading-flex">
               {t('ui.addCard.selectPrinting', { name: selectedCardName() })}
             </h3>
+            <PriceSourceSelect currency={PICKER_CURRENCY} id="add-card-price-source" />
           </div>
           <PrintingFilter
             value={printingFilter()}
@@ -1114,7 +1124,11 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                             {printing.set.toUpperCase()} #{printing.collector_number}
                           </span>
                           {' · '}
-                          <span class="printing-label-price">{formatTilePrice(t, printing)}</span>
+                          <PrintingPrices
+                            printing={printing}
+                            currency={PICKER_CURRENCY}
+                            class="printing-label-price"
+                          />
                         </div>
                       </button>
                     )
@@ -1248,9 +1262,11 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
                               onChange={() => setSelectedFinish(finish)}
                             />
                             {finish}
-                            <span class="radio-option-price">
-                              {finishPrice(printing(), finish)}
-                            </span>
+                            <Show when={pricesEnabled()}>
+                              <span class="radio-option-price">
+                                {finishPrice(t, printing(), finish)}
+                              </span>
+                            </Show>
                           </label>
                         )}
                       </For>

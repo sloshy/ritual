@@ -5,7 +5,7 @@ import type { PrintingQuoteFn } from '../../cardkingdom/quote'
 import { compareData } from '../../i18n/collate'
 import { fetchCardData, fetchSymbology, getCardPrintings } from '../../scryfall'
 import { computeRepresentativePrints } from '../../scryfall/client'
-import { getBannedPrintings, getPriceSources } from '../../ritual-config'
+import { cardKingdomPricesEnabled, getBannedPrintings } from '../../ritual-config'
 import { extractChangelogCardNames, parseChangelog } from '../../changelog-parser'
 import type { ScryfallCard } from '../../types'
 import type { PriceCurrency } from '../../price-currency'
@@ -56,7 +56,7 @@ export type EntryCardLoadResult = {
  * load cannot block on ~70 MB.
  */
 async function cardKingdomQuote(): Promise<PrintingQuoteFn | null> {
-  if (!getPriceSources().includes('cardkingdom')) return null
+  if (!cardKingdomPricesEnabled()) return null
   const feed = await getCardKingdomFeed()
   return feed ? detailBuylistContext(feed).quote : null
 }

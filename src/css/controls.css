@@ -368,6 +368,62 @@
   border-color: var(--accent);
 }
 
+/* ===== Price source select =====
+   The shared price-store dropdown rendered by src/site/PriceSourceSelect.tsx.
+   One control over one module-level signal, so it appears on the list toolbar,
+   in the card modal's other-printings grid and in the printing pickers. The
+   toolbar passes its own `toolbar-*` classes on top of these, which is why the
+   base rules stay layout-only where the toolbar has an opinion. */
+.price-source-control {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.price-source-label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.price-source-select {
+  background: var(--btn-bg);
+  border: 1px solid var(--border);
+  color: var(--btn-text);
+  font-size: 0.7rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  appearance: auto;
+}
+
+.price-source-select:hover {
+  background: var(--btn-hover);
+}
+
+/* ===== Printing prices =====
+   What one printing costs under the active source, rendered by
+   src/site/PrintingPrices.tsx: the figure for the finish it is read at, with its
+   other finishes stacked underneath. A column so the alternates read as
+   subordinate to the main price rather than as a second price of equal weight.
+   Colour is the host's — a grid tile, a picker row and a card-modal thumbnail
+   each label their prices differently, and two of the three paint theirs on a
+   dark card-art overlay. The alternates therefore stay *in* that colour and
+   merely recede: a `--text-dim` of their own would be body-coloured text on the
+   overlay, unreadable in the light theme. */
+.printing-prices {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.printing-price-alt {
+  color: inherit;
+  opacity: 0.75;
+  font-size: 0.9em;
+}
+
 /* ===== Qty Stepper =====
    The inline `- N +` ticker rendered by src/ui/QuantityStepper.tsx, used by the
    trade builder's rows and the add-card dialog's finish/condition step. */
