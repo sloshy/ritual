@@ -17,7 +17,7 @@ MTGO tix stays a Scryfall-only currency with no store behind it; it is offered w
 prices are.
 
 One misconfiguration worth knowing: with `priceSources: ["cardmarket"]` on a build whose
-[`--currencies`](/commands/build-site/#currency-selection) excluded EUR, no offered currency
+[`--currencies`](/commands/build-site/#options) excluded EUR, no offered currency
 remains — the currency selector hides, and the pages keep showing the built default currency's
 Scryfall prices. Enable a store for a currency the site was actually built with.
 
