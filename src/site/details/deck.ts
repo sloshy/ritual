@@ -6,8 +6,9 @@ import type { ChangelogPage } from '../../changelog-parser'
 import { effectiveLabels, isPriceless, type CardLabel } from '../../card-labels'
 import type { CardArtMap } from '../../card-art'
 import { extractPrimerCardNames } from '../../primer-parser'
-import { resolveDeckFormat, getMainDeckSize } from '../../deck-format'
+import { resolveDeckFormat, getMainDeckSize, isCommanderSection } from '../../deck-format'
 import { findPrinting, hasSpecificPrinting } from '../../card-printing'
+import { formatPrintingLabel, printingKey } from '../../printing-key'
 import { resolveCardImageSources } from '../image-sources'
 import { getCardPrice } from '../../price-currency'
 import type { PriceCurrency } from '../../price-currency'
@@ -129,35 +130,74 @@ export async function buildDeckArtifacts(
   // are dropped entirely when the site is not building USD at all.
   const cardKingdomData = hasUsd ? cardData.cardKingdom : undefined
 
-  // Find Featured Card
-  let featured: ScryfallCard | null = null
-  const commanderSection = deckData.sections.find(
-    (s) => s.name.toLowerCase() === 'commander' || s.name.toLowerCase() === 'commanders',
-  )
-
-  const deckCards: ScryfallCard[] = []
-  deckData.sections.forEach((s) =>
-    s.cards.forEach((c) => {
-      const card = cardData.cards[c.name]
-      if (card) deckCards.push(card)
-    }),
-  )
-
-  if (commanderSection && commanderSection.cards[0]) {
-    const cmdrName = commanderSection.cards[0].name
-    featured = cardData.cards[cmdrName] || null
+  /**
+   * The printing a deck line stands for: its own when it pins one, the by-name
+   * representative otherwise. This is what `resolveEntryCard` shows on the deck
+   * page, so it is also the art the deck's tile must wear — a commander pinned
+   * to a particular printing is that printing everywhere or nowhere. A pin that
+   * resolves to nothing falls back rather than blanking the tile.
+   *
+   * Language-blind on purpose: a deck detail keys its cards by name only (no
+   * `set:cn@lang` entries, unlike a collection or wanted list), so the
+   * default-language object is the only one a deck can display.
+   *
+   * Safe to call repeatedly: the unresolvable-pin warning is emitted once per
+   * distinct pin, so the several lines that may name one are one message.
+   */
+  const warnedPins = new Set<string>()
+  const entryCard = (entry: Card): ScryfallCard | null => {
+    if (hasSpecificPrinting(entry)) {
+      const pinned = findPrinting(cardData.printings[entry.name], entry.set, entry.collectorNumber)
+      if (pinned) return pinned
+      const pin = `${entry.name}|${printingKey(entry.set, entry.collectorNumber)}`
+      if (!warnedPins.has(pin)) {
+        warnedPins.add(pin)
+        ctx.warn?.(
+          `  ⚠️  Could not find printing for '${entry.name}' (${formatPrintingLabel(entry.set, entry.collectorNumber)})`,
+        )
+      }
+    }
+    return cardData.cards[entry.name] ?? null
   }
 
-  if (!featured && deckCards.length > 0) {
-    let maxPrice = -1
-    for (const card of deckCards) {
+  // The prefetch caches an image for each name's *representative* printing, so
+  // every pinned line's own printing has to be shipped for its art (and its
+  // symbols) to exist locally — the same thing the collection and wanted
+  // builders do for their exact printings. Deduped by id: a printing named by
+  // several lines is one download.
+  const shippedPrintings = new Set<string>()
+  const shipPinned = async (card: ScryfallCard, entry: Card): Promise<void> => {
+    if (card.id === cardData.cards[entry.name]?.id) return
+    if (shippedPrintings.has(card.id)) return
+    shippedPrintings.add(card.id)
+    await ctx.onCardShipped?.(card)
+  }
+
+  // Find Featured Card. Every line is resolved to the printing it stands for —
+  // the same pass ships pinned printings and picks the fallback featured card.
+  const commanderSection = deckData.sections.find((s) => isCommanderSection(s.name))
+  const commanderEntry = commanderSection?.cards[0]
+  let commanderCard: ScryfallCard | null = null
+  let priciest: ScryfallCard | null = null
+  let maxPrice = -1
+  for (const section of deckData.sections) {
+    for (const entry of section.cards) {
+      const card = entryCard(entry)
+      if (!card) continue
+      await shipPinned(card, entry)
+      if (entry === commanderEntry) commanderCard = card
       const price = parseFloat(card.prices.usd || '0')
       if (price > maxPrice) {
         maxPrice = price
-        featured = card
+        priciest = card
       }
     }
   }
+
+  // The commander when the deck names one the build could resolve; otherwise
+  // the deck's priciest line, which is a tile image and not a commander — hence
+  // the two facts stay separate rather than being re-derived from each other.
+  const featured: ScryfallCard | null = commanderCard ?? priciest
 
   const slug = slugifyListName(deckData.name)
 
@@ -246,11 +286,11 @@ export async function buildDeckArtifacts(
     for (const section of deckData.sections) {
       for (const entry of section.cards) {
         if (pricesAtNothing(entry)) continue
-        const candidates: (ScryfallCard | null | undefined)[] = [
-          hasSpecificPrinting(entry)
-            ? findPrinting(deckPrintingsMap[entry.name], entry.set, entry.collectorNumber)
-            : undefined,
-          deckCardMap[entry.name],
+        const candidates: readonly (ScryfallCard | null | undefined)[] = [
+          // The one rule for what a line displays, shared with the tile above:
+          // a second spelling of it here could quote a printing the page never
+          // shows (and leave the one it does show unquoted).
+          entryCard(entry),
           deckLowestPriceCardMap[entry.name],
           deckLowestPriceCardMapEur[entry.name],
           deckLowestPriceCardMapTix[entry.name],
@@ -359,7 +399,9 @@ export async function buildDeckArtifacts(
     slug,
     name: deckData.name,
     featuredCardImage: featuredImage,
-    commander: featured && commanderSection ? featured.name : null,
+    // The deck's own commander, never whatever the tile fell back to. Its
+    // resolved name when the build has the card, the line's name otherwise.
+    commander: commanderEntry ? (commanderCard?.name ?? commanderEntry.name) : null,
     format,
     cardCount,
     lastUpdatedAt,

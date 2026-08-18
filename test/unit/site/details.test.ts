@@ -138,7 +138,7 @@ describe('buildDeckArtifacts', () => {
   }
 
   test('builds slug, featured commander, and per-card maps', async () => {
-    const { ctx } = makeContext({ cardData })
+    const { ctx, shipped } = makeContext({ cardData })
     const { slug, detail, summary } = await buildDeckArtifacts(deck, ctx)
 
     expect(slug).toBe('burn-deck')
@@ -148,6 +148,114 @@ describe('buildDeckArtifacts', () => {
     expect(detail.printings['Lightning Bolt']).toEqual([bolt, boltCheap])
     expect(detail.lowestPriceCards?.['Lightning Bolt']).toBe(boltCheap)
     expect(summary.lastUpdatedAt).toBe('2026-07-01T00:00:00.000Z')
+    // An unpinned commander already has its representative's image cached by
+    // the prefetch, so nothing extra is shipped for it.
+    expect(shipped).toEqual([])
+  })
+
+  test('a commander pinned to a printing features that printing, not the representative', async () => {
+    const angelAlt = makeScryfallCard({
+      id: 'angel-m10',
+      name: 'Serra Angel',
+      set: 'm10',
+      collector_number: '34',
+      released_at: '2009-07-17',
+      prices: { usd: '2.00' },
+      image_uris: imageUris('https://img/angel-m10.jpg'),
+    })
+    const { ctx, shipped } = makeContext({
+      cardData: {
+        ...cardData,
+        printings: { ...cardData.printings, 'Serra Angel': [angel, angelAlt] },
+      },
+    })
+    const pinned: LoadedDeck = {
+      ...deck,
+      data: {
+        ...deck.data,
+        sections: [
+          {
+            name: 'Commander',
+            cards: [{ name: 'Serra Angel', quantity: 1, set: 'm10', collectorNumber: '34' }],
+          },
+          ...deck.data.sections.slice(1),
+        ],
+      },
+    }
+    const { detail, summary } = await buildDeckArtifacts(pinned, ctx)
+
+    expect(summary.commander).toBe('Serra Angel')
+    expect(summary.featuredCardImage).toBe('https://img/angel-m10.jpg')
+    // The prefetch only cached the representative's image, so the pinned
+    // printing's has to be shipped for the tile to have art locally.
+    expect(shipped).toEqual([angelAlt])
+    // The pin resolves the tile only — the by-name maps the page reads still
+    // carry the representative and the full printings list.
+    expect(detail.cards['Serra Angel']).toBe(angel)
+    expect(detail.printings['Serra Angel']).toEqual([angel, angelAlt])
+  })
+
+  test('a commanderless deck features its priciest line, at that line’s printing', async () => {
+    const { ctx, shipped } = makeContext({
+      cardData: { ...cardData, cards: { ...cardData.cards, 'Lightning Bolt': boltCheap } },
+    })
+    const commanderless: LoadedDeck = {
+      ...deck,
+      data: {
+        ...deck.data,
+        sections: [
+          {
+            name: 'Mainboard',
+            cards: [
+              { name: 'Serra Angel', quantity: 1 },
+              // Pinned to the pricey Alpha printing while the deck's
+              // representative for the name is the $1 M10 one.
+              { name: 'Lightning Bolt', quantity: 4, set: 'lea', collectorNumber: '161' },
+            ],
+          },
+        ],
+      },
+    }
+    const { summary } = await buildDeckArtifacts(commanderless, ctx)
+
+    expect(summary.commander).toBeNull()
+    expect(summary.featuredCardImage).toBe('https://img/bolt.jpg')
+    expect(shipped).toEqual([bolt])
+  })
+
+  test('an unresolved commander still names the deck’s commander', async () => {
+    const { ctx } = makeContext({
+      cardData: { ...cardData, cards: { 'Lightning Bolt': bolt } },
+    })
+    const { summary } = await buildDeckArtifacts(deck, ctx)
+
+    // The priciest line supplies the tile's art, but the commander reported is
+    // the deck's own — never whatever the tile fell back to.
+    expect(summary.featuredCardImage).toBe('https://img/bolt.jpg')
+    expect(summary.commander).toBe('Serra Angel')
+  })
+
+  test('a pin naming no known printing warns and falls back to the representative', async () => {
+    const { ctx, warnings, shipped } = makeContext({ cardData })
+    const typo: LoadedDeck = {
+      ...deck,
+      data: {
+        ...deck.data,
+        sections: [
+          {
+            name: 'Commander',
+            cards: [{ name: 'Serra Angel', quantity: 1, set: 'zzz', collectorNumber: '1' }],
+          },
+          ...deck.data.sections.slice(1),
+        ],
+      },
+    }
+    const { summary } = await buildDeckArtifacts(typo, ctx)
+
+    expect(summary.featuredCardImage).toBe('https://img/angel.jpg')
+    expect(shipped).toEqual([])
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain("Could not find printing for 'Serra Angel' (ZZZ:1)")
   })
 
   test('totals exclude maybeboard and use cheapest for lowest price', async () => {
@@ -808,10 +916,7 @@ describe('buylist baking', () => {
 })
 
 /** A buylist seam recording every printing a builder offered a buyer. */
-function recordingBuylist(quotePrintings = false): {
-  ctx: DetailBuylistContext
-  asked: BuylistQuoteRequest[]
-} {
+function recordingBuylist(quotePrintings = false): StubBuylist {
   const asked: BuylistQuoteRequest[] = []
   return {
     asked,
