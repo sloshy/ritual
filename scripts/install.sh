@@ -5,6 +5,57 @@ set -euo pipefail
 REPO_OWNER="sloshy"
 REPO_NAME="ritual"
 
+prerelease="${RITUAL_PRERELEASE:-0}"
+
+usage() {
+  cat <<'EOF'
+Usage: install.sh [options]
+
+Options:
+  --prerelease        Install the newest release, including prereleases.
+  --version <tag>     Install a specific release tag (e.g. v0.3.0).
+  -h, --help          Show this help.
+
+Environment variables:
+  RITUAL_PRERELEASE=1        Same as --prerelease.
+  RITUAL_VERSION=<tag>       Same as --version. Use "prerelease" for the newest prerelease.
+  RITUAL_INSTALL_DIR=<dir>   Where to install the binary (default: $HOME/.local/bin).
+
+When piping the script, pass options after `--`:
+  curl -fsSL <url> | bash -s -- --prerelease
+EOF
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --prerelease)
+    prerelease=1
+    shift
+    ;;
+  --version)
+    if [ $# -lt 2 ]; then
+      echo "--version requires a release tag" >&2
+      exit 1
+    fi
+    RITUAL_VERSION="$2"
+    shift 2
+    ;;
+  --version=*)
+    RITUAL_VERSION="${1#--version=}"
+    shift
+    ;;
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  *)
+    echo "Unknown option: $1" >&2
+    usage >&2
+    exit 1
+    ;;
+  esac
+done
+
 os="$(uname -s)"
 arch="$(uname -m)"
 
@@ -39,6 +90,32 @@ esac
 version="${RITUAL_VERSION:-latest}"
 asset_name="ritual-${platform}-${target_arch}"
 
+if [ "$version" = "prerelease" ]; then
+  prerelease=1
+  version="latest"
+fi
+
+# Resolve the newest release tag, prereleases included. The unauthenticated
+# releases API omits drafts and lists newest first.
+resolve_latest_tag() {
+  curl --fail --silent --show-error --location \
+    -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases?per_page=20" |
+    grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' |
+    head -n 1 |
+    sed 's/.*"\([^"]*\)"$/\1/'
+}
+
+if [ "$prerelease" = "1" ] && [ "$version" = "latest" ]; then
+  echo "Resolving the newest release (prereleases included)..."
+  version="$(resolve_latest_tag)"
+  if [ -z "$version" ]; then
+    echo "No releases found for ${REPO_OWNER}/${REPO_NAME}." >&2
+    exit 1
+  fi
+  echo "Using release ${version}."
+fi
+
 if [ "$version" = "latest" ]; then
   base_url="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download"
 else
@@ -54,7 +131,13 @@ tmp_bin="${tmp_dir}/${asset_name}"
 tmp_checksum="${tmp_dir}/${asset_name}.sha256"
 
 echo "Downloading ${asset_name}..."
-curl --fail --silent --show-error --location "$download_url" --output "$tmp_bin"
+if ! curl --fail --silent --show-error --location "$download_url" --output "$tmp_bin"; then
+  echo "Failed to download ${download_url}" >&2
+  if [ "$version" = "latest" ]; then
+    echo "If ${REPO_OWNER}/${REPO_NAME} has only prereleases so far, re-run with --prerelease." >&2
+  fi
+  exit 1
+fi
 curl --fail --silent --show-error --location "$checksum_url" --output "$tmp_checksum"
 
 echo "Verifying checksum..."

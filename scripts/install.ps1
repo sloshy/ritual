@@ -1,8 +1,26 @@
+param(
+    # Install the newest release, including prereleases.
+    [switch]$Prerelease,
+    # Install a specific release tag (e.g. v0.3.0), or "prerelease".
+    [string]$Version
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $repoOwner = "sloshy"
 $repoName = "ritual"
+
+if (-not $Prerelease -and $env:RITUAL_PRERELEASE -eq "1") {
+    $Prerelease = $true
+}
+if (-not $Version -and $env:RITUAL_VERSION) {
+    $Version = $env:RITUAL_VERSION
+}
+if ($Version -eq "prerelease") {
+    $Prerelease = $true
+    $Version = ""
+}
 
 function Normalize-PathEntry {
     param(
@@ -33,7 +51,25 @@ switch ($osArch) {
     }
 }
 
-$downloadUrl = "https://github.com/$repoOwner/$repoName/releases/latest/download/$assetName"
+if ($Prerelease -and -not $Version) {
+    Write-Host "Resolving the newest release (prereleases included)..."
+    # The unauthenticated releases API omits drafts and lists newest first.
+    $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$repoOwner/$repoName/releases?per_page=20" -Headers @{ Accept = "application/vnd.github+json" }
+    $latest = @($releases)[0]
+    if (-not $latest) {
+        throw "No releases found for $repoOwner/$repoName."
+    }
+    $Version = $latest.tag_name
+    Write-Host "Using release $Version."
+}
+
+$baseUrl = if ($Version) {
+    "https://github.com/$repoOwner/$repoName/releases/download/$Version"
+} else {
+    "https://github.com/$repoOwner/$repoName/releases/latest/download"
+}
+
+$downloadUrl = "$baseUrl/$assetName"
 $checksumUrl = "$downloadUrl.sha256"
 $installPath = Join-Path $installDir "ritual.exe"
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("ritual-" + [Guid]::NewGuid().ToString())
@@ -45,7 +81,15 @@ try {
 
     Write-Host "Downloading $assetName..."
     $ProgressPreference = 'SilentlyContinue'
-    Invoke-WebRequest -Uri $downloadUrl -OutFile $tempPath
+    try {
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $tempPath
+    }
+    catch {
+        if (-not $Version) {
+            Write-Warning "If $repoOwner/$repoName has only prereleases so far, re-run with -Prerelease."
+        }
+        throw
+    }
     Invoke-WebRequest -Uri $checksumUrl -OutFile $tempChecksumPath
 
     Write-Host "Verifying checksum..."

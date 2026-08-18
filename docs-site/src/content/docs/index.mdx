@@ -26,6 +26,35 @@ irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1 | i
   </TabItem>
 </Tabs>
 
+### Prerelease Builds
+
+Ritual is pre-release, so there is no stable release yet. Install the newest build — prereleases included — with:
+
+<Tabs>
+  <TabItem label="macOS / Linux">
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.sh | bash -s -- --prerelease
+```
+
+  </TabItem>
+  <TabItem label="Windows (PowerShell)">
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1))) -Prerelease
+```
+
+  </TabItem>
+</Tabs>
+
+Both installers accept these options:
+
+| Option                             | Environment variable       | Description                                                                 |
+| ---------------------------------- | -------------------------- | --------------------------------------------------------------------------- |
+| `--prerelease`/`-Prerelease`       | `RITUAL_PRERELEASE=1`      | Install the newest release, including prereleases.                          |
+| `--version <tag>`/`-Version <tag>` | `RITUAL_VERSION=<tag>`     | Install a specific release tag. Use `prerelease` for the newest prerelease. |
+| —                                  | `RITUAL_INSTALL_DIR=<dir>` | Where to install the binary.                                                |
+
 ### Other Methods
 
 You can also download a platform-specific binary from the [releases page](https://github.com/sloshy/ritual/releases) and run it directly:
