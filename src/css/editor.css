@@ -729,8 +729,9 @@
   background: var(--accent);
 }
 
-/* Sections share the defaults button styling. */
-.btn-sections {
+/* Sections and labels share the defaults button styling. */
+.btn-sections,
+.btn-labels {
   background: var(--btn-bg);
   color: var(--btn-text);
   border: 1px solid var(--border);
@@ -745,7 +746,8 @@
   transition: background 0.15s;
 }
 
-.btn-sections:hover {
+.btn-sections:hover,
+.btn-labels:hover {
   background: var(--btn-hover);
 }
 
