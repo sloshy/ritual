@@ -112,16 +112,20 @@ export function useDialogModal(
   }
 
   createEffect(
-    on(open, (isOpen) => {
+    on(open, (isOpen, wasOpen) => {
       if (!dialog) return
       if (isOpen) {
         // Reopening mid-exit just cancels the exit — the element never closed.
         setExiting(false)
         freezePanel(false)
-        if (!dialog.open) {
-          dialog.showModal()
-          options.onOpen?.()
-        }
+        if (!dialog.open) dialog.showModal()
+        // Fire once per closed→open transition, including a reopen mid-exit where
+        // the element never actually closed but the new open still needs its
+        // content seeded and its input focused. Gate on the previous `open` value
+        // rather than on `dialog.open`: `on` re-runs whenever the owner's `open`
+        // expression re-evaluates, so keying off the element would both miss the
+        // mid-exit reopen and re-seed an already-open dialog on an unrelated update.
+        if (!wasOpen) options.onOpen?.()
         return
       }
       if (!dialog.open) return

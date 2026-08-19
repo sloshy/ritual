@@ -1,4 +1,5 @@
 import { type Component, createMemo, createSignal, Show } from 'solid-js'
+import { focusAndSelectOnOpen } from '../../ui/focus-on-open'
 import { Modal } from '../../ui/Modal'
 import { useT } from '../../ui/i18n'
 
@@ -41,12 +42,7 @@ export const TextPromptDialog: Component<TextPromptDialogProps> = (props) => {
       // Seed the draft and focus the input when the dialog opens.
       onOpen={() => {
         setValue(props.initialValue)
-        // Defer a microtask so the seeded value lands and the dialog is in the
-        // top layer before we focus and select the input.
-        queueMicrotask(() => {
-          inputRef?.focus()
-          inputRef?.select()
-        })
+        focusAndSelectOnOpen(() => inputRef)
       }}
     >
       <h3>{props.title}</h3>

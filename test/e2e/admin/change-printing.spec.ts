@@ -156,10 +156,13 @@ test.describe('Deck Editor — change printing', () => {
   test('changing some copies splits the entry into two printings', async ({ page }) => {
     await openChangePrinting(page)
 
+    // The prompt opens with the input focused and its value selected, so typing
+    // replaces the default and Enter advances to the printing picker.
     const qtyInput = page.locator('#change-printing-qty')
-    await expect(qtyInput).toBeVisible()
-    await qtyInput.fill('2')
-    await page.locator('.modal-panel button', { hasText: 'Continue' }).click()
+    await expect(qtyInput).toBeFocused()
+    await page.keyboard.type('2')
+    await expect(qtyInput).toHaveValue('2')
+    await page.keyboard.press('Enter')
 
     await expect(page.locator('.modal-heading-flex')).toContainText('Select a printing')
     await page.locator('.printing-select-card', { hasText: 'M10' }).click()
