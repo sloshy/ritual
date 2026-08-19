@@ -116,6 +116,18 @@ export const cliMeta = {
     description:
       'Fallback noun phrase for a prompt that has not yet been given a subject of its own. Deliberately vague — a converted prompt should name what it wanted instead.',
   },
+  'cli.prompt.subject.deckSection': {
+    description:
+      'Noun phrase naming what the destination-section prompt wanted, spliced into the --no-input refusal frame.',
+  },
+  'cli.prompt.subject.moveDestination': {
+    description:
+      'Noun phrase naming what the move-destination prompt wanted, spliced into the --no-input refusal frame.',
+  },
+  'cli.prompt.subject.cardsToMove': {
+    description:
+      "Noun phrase naming what the move session's card search wanted, spliced into the --no-input refusal frame.",
+  },
   'cli.prompt.subject.listType': {
     description:
       'Noun phrase for the import prompt asking whether the file is a deck, collection, or wanted list.',

@@ -5,7 +5,7 @@ import { inputRequiredError, isNoInput, promptsUnavailable } from '../no-input'
 import { t } from '../i18n/t'
 import { getLogger } from '../logger'
 import { canPromptWithOutput, type ScriptingOptions } from './scripting'
-import { matchesChoiceTitleTerms } from './menu-search'
+import { matchesChoiceTerms, matchesChoiceTitleTerms } from './menu-search'
 
 type PromptAnswer = { value?: unknown }
 
@@ -20,6 +20,34 @@ export async function suggestByTitleTerms(rawInput: unknown, choices: Choice[]):
   const input = String(rawInput)
   if (!input) return choices
   return choices.filter((choice) => matchesChoiceTitleTerms(choice, input))
+}
+
+/** A `prompts` autocomplete `suggest` callback. */
+type SuggestCallback = (rawInput: unknown, choices: Choice[]) => Promise<Choice[]>
+
+/** How a card prompt whose choice list also holds menu rows filters itself. */
+export type MenuAwareSuggestOptions = {
+  /** Tells a menu row from a card row; menu rows stay visible while filtering. */
+  isMenuChoice: (choice: Choice) => boolean
+  /** What an empty input shows: only the menu rows, or every row. */
+  emptyShows: 'menu' | 'all'
+}
+
+/**
+ * The `suggest` callback for an autocomplete that mixes menu rows with card
+ * rows. Card rows match under card-name terms — case-, diacritic- and
+ * punctuation-insensitive, and segmented for scripts that are typed without
+ * spaces — which is what makes the move session's search agree with the card
+ * sessions' on names like `Æther Vial`.
+ */
+export function suggestCardsWithMenu(options: MenuAwareSuggestOptions): SuggestCallback {
+  return async (rawInput, choices) => {
+    const input = String(rawInput).trim()
+    if (!input) return options.emptyShows === 'all' ? choices : choices.filter(options.isMenuChoice)
+    return choices.filter(
+      (choice) => options.isMenuChoice(choice) || matchesChoiceTerms(choice, input),
+    )
+  }
 }
 
 /**

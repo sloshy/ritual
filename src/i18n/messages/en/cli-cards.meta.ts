@@ -430,6 +430,10 @@ export const cliCardsMeta = {
   'cli.move.menuFilters': {
     description: 'Move-session menu row opening the source/destination filters.',
   },
+  'cli.move.menuBatch': {
+    description:
+      'Move-session menu row that switches the session into batch mode, where many cards are selected before one destination is chosen.',
+  },
   'cli.move.menuExit': { description: 'Move-session menu row that leaves the session.' },
   'cli.move.toRequiresFrom': { description: 'Usage refusal: --to is only meaningful with --from.' },
   'cli.move.scriptedNeedsBoth': {
@@ -535,6 +539,90 @@ export const cliCardsMeta = {
   'cli.move.queued': {
     description:
       'Confirms a move was added to the queue. The check mark and indent are decoration.',
+  },
+  'cli.move.sectionPrompt': {
+    description:
+      'Asks which section of the destination deck the card(s) should be added to. {list} is the deck, named as "Deck \'Burn\'".',
+  },
+  'cli.move.sectionNew': {
+    description:
+      'Row on the destination-section picker that creates a section the deck does not have yet.',
+  },
+  'cli.move.sectionNewPrompt': {
+    description: 'Text prompt asking for the name of the deck section to create.',
+  },
+  'cli.move.sectionNameInvalid': {
+    description:
+      "Refusal when a typed new-section name would not survive being written as a '## ' heading — it starts with '#' or carries a line break. {name} is what was typed.",
+  },
+  'cli.move.batchNoSources': {
+    description:
+      'Shown when the batch-mode list picker was left with no lists ticked, which ends batch mode.',
+  },
+  'cli.move.batchNoCards': {
+    description:
+      'Shown when none of the lists batch mode is viewing holds a card that can still be moved, which ends batch mode.',
+  },
+  'cli.move.batchPrompt': {
+    description:
+      'Prompt above the batch-mode card checklist. {count} is how many cards are ticked so far.',
+  },
+  'cli.move.batchDone': {
+    description:
+      'Batch-mode row that finishes selecting and moves on to the destination question. {count} is how many cards are ticked.',
+  },
+  'cli.move.batchSelectAll': {
+    description:
+      'Batch-mode row that ticks every card on screen. Shown only when a single list is being viewed.',
+  },
+  'cli.move.batchDeselectAll': {
+    description:
+      'Batch-mode row that unticks every card on screen, replacing "Select all" once everything is ticked.',
+  },
+  'cli.move.batchSelectAllFrom': {
+    description:
+      'Batch-mode row that opens a per-list picker for bulk selection. Shown when more than one list is being viewed. The trailing ellipsis marks it as opening another screen.',
+  },
+  'cli.move.batchExit': {
+    description: 'Batch-mode row that leaves batch mode and returns to the single-card search.',
+  },
+  'cli.move.batchNoneSelected': {
+    description: 'Refusal shown when "Done selecting" is chosen with no cards ticked.',
+  },
+  'cli.move.batchSelectFromPrompt': {
+    description:
+      'Prompt of the "Select all from…" screen, which ticks every card of whichever viewed lists are chosen.',
+  },
+  'cli.move.batchAllSelectedLists': {
+    description:
+      'Row on the "Select all from…" screen that takes every card of every list being viewed, whatever the individual boxes say.',
+  },
+  'cli.move.batchContinue': {
+    description: 'Row that applies the "Select all from…" screen\'s choices and returns.',
+  },
+  'cli.move.batchNoListsPicked': {
+    description:
+      'Refusal shown when Continue is chosen on the "Select all from…" screen with no list picked.',
+  },
+  'cli.move.batchDestination': {
+    description:
+      'Prompt asking where the whole batch goes. {count} is how many cards were selected.',
+  },
+  'cli.move.batchQueued': {
+    description:
+      'Result line after a batch is queued. {count} is how many cards were queued, {list} the destination named as "Deck \'Burn\'".',
+  },
+  'cli.move.batchSkippedSameList': {
+    description:
+      'Warns that some selected cards already sat in the chosen destination and were left alone. {count} is how many.',
+  },
+  'cli.move.batchSkippedPrinting': {
+    description:
+      'Warns that some selected cards could not enter a collection because no printing was resolved for them. {count} is how many.',
+  },
+  'cli.move.batchAbandoned': {
+    description:
+      'Warns that a cancelled printing prompt ended the batch early, so the cards after it were never queued. {count} is how many were left.',
   },
   'cli.move.filtersPrompt': { description: 'Prompt heading of the session-filters menu.' },
   'cli.move.configureSources': {

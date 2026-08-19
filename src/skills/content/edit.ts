@@ -224,7 +224,16 @@ ritual move --card-id 7 --from "wanted:To Buy" --to deck:storm --output json
 
 Interactively, \`ritual move\` (requires a terminal) opens a TUI session across all
 lists; \`--from <list>\` alone starts it with only that list enabled as a source
-(widen it under Session Filters).
+(widen it under Session Filters). A deck destination asks which section the card
+lands in (the deck's sections plus "New section…"; the default one is preselected).
+Its **🧺 Batch Mode** menu row switches the session to many-cards-one-destination:
+pick which lists to view (seeded from the session's Move FROM filter, but local to
+the batch), tick cards off one combined searchable checklist (with "Select all" /
+"Select all from…" for whole lists), then choose a single destination for the lot.
+Batches queue into the same pending state. Two things drop a card from a batch, each
+reported with a count: it already sits in the destination, or it is a printing-less
+card headed for a collection whose printing could not be resolved. The session stays
+in batch mode until you exit it, or until the viewed lists hold nothing left to move.
 
 You can also move a card **while editing a list** instead of using the dedicated batch
 tool. In the admin or public in-browser editor, a **Move to list…** item appears in

@@ -33,7 +33,15 @@ import { matchesAllNameTerms, matchesAllTerms, normalizeForSearch } from '../ter
  * which the library passes through to the `suggest` callback untouched, so no
  * parallel lookup table has to be threaded alongside the choice list.
  */
-export type SearchableChoice = Choice & { searchAliases?: string[] }
+export type SearchableChoice = Choice & {
+  searchAliases?: string[]
+  /**
+   * The text to match instead of the title, for a row whose title carries a UI
+   * ornament the user is not searching for — a batch checklist's `[X]` box
+   * would otherwise make `x` match every ticked row.
+   */
+  searchText?: string
+}
 
 /** How the caller's surface decides whether one string answers the input. */
 type TermMatcher = (text: string, input: string) => boolean
@@ -63,7 +71,8 @@ export function matchesChoiceTitleTerms(choice: Choice, input: string): boolean 
 }
 
 function matches(choice: Choice, input: string, base: TermMatcher): boolean {
-  const haystacks = [choice.title, ...choiceSearchAliases(choice)]
+  const searchText = (choice as SearchableChoice).searchText
+  const haystacks = [searchText ?? choice.title, ...choiceSearchAliases(choice)]
   // Segmentation first: for the input it applies to, the ordinary matchers
   // strip the query to nothing and would report a match against every row.
   const segments = segmentedTerms(input)

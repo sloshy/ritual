@@ -11,6 +11,7 @@ import {
   writeWantedFile,
 } from './helpers/workspace'
 import { makeScryfallCard } from '../test-utils'
+import { deckSectionChoices } from '../../src/commands/move-helpers'
 import type { ScryfallCard } from '../../src/types'
 
 /**
@@ -835,5 +836,56 @@ describe('move CLI interactive-session gating (Integration)', () => {
     const err = JSON.parse(result.stderr) as MoveErrorPayload
     expect(err.error.code).toBe('usage_error')
     expect(err.error.message).toContain('Input required')
+  })
+})
+
+describe('deckSectionChoices (Integration)', () => {
+  test("lists a deck's sections and names the one an unqualified add lands in", async () => {
+    const filePath = await writeDeckFile(dir, 'sections-storm', {
+      frontMatter: { name: 'Storm' },
+      sections: [
+        { name: 'Commander', cards: [{ name: 'Kess, Dissident Mage', quantity: 1 }] },
+        { name: 'Main', cards: [{ name: 'Dark Ritual', quantity: 4 }] },
+        { name: 'Sideboard', cards: [{ name: 'Duress', quantity: 2 }] },
+      ],
+    })
+
+    const result = await deckSectionChoices(filePath)
+
+    expect(result).toEqual({
+      ok: true,
+      names: ['Commander', 'Main', 'Sideboard'],
+      // Neither the commander nor the sideboard: the prompt preselects Main.
+      defaultName: 'Main',
+    })
+  })
+
+  test('a deck with only a commander and a sideboard offers the Main it would create', async () => {
+    // resolveDefaultAddSection *appends* Main here, so the name list has to be
+    // read after it — otherwise the prompt preselects Commander and a plain
+    // Return files the card in the command zone.
+    const filePath = await writeDeckFile(dir, 'sections-partner', {
+      frontMatter: { name: 'Partner' },
+      sections: [
+        { name: 'Commander', cards: [{ name: 'Thrasios, Triton Hero', quantity: 1 }] },
+        { name: 'Sideboard', cards: [{ name: 'Duress', quantity: 1 }] },
+      ],
+    })
+
+    const result = await deckSectionChoices(filePath)
+
+    expect(result).toEqual({
+      ok: true,
+      names: ['Commander', 'Sideboard', 'Main'],
+      defaultName: 'Main',
+    })
+  })
+
+  test('a deck file that cannot be read is reported, not reduced to "no sections"', async () => {
+    const result = await deckSectionChoices(path.join(dir, 'decks', 'missing.md'))
+
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('expected a read failure')
+    expect(result.error).toContain('missing.md')
   })
 })

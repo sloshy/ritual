@@ -131,7 +131,7 @@ Key behaviors:
 - **Label preservation**: A card's `[labels]` override travels with the move, filtered on arrival to what the destination type [carries](/commands/edit/#card-labels): another collection keeps all of it, a deck keeps `proxy` and drops the rest, and a wanted list keeps none. A move never invents a label, and never writes one the destination grammar cannot express. (The list _default_ never travels — the destination's own front matter applies.)
 - **Language preservation**: A card's language token (`[ja]`) travels with the move to any list type — a bare line stays bare, since a bare line always means English. When a printing is resolved for a collection destination, its availability in the card's language is checked like the printing itself, and the JSON record's `card` includes `language` for non-English copies.
 - **Name-only wanted entries**: If a card has no set/collector number (i.e., it is a name-only wanted list entry) and the destination requires a printing (e.g., a collection), you will be prompted to resolve a printing before the move is queued. The picker lists each printing's price in your configured `defaultCurrency` — see [Printing and Finish Prices](/commands/edit/#printing-and-finish-prices).
-- **Single destination**: If only one valid destination is configured, the destination prompt is skipped and the card is queued immediately.
+- **Single destination**: In the single-card flow, if only one valid destination is configured, the destination prompt is skipped and the card is queued immediately. [Batch Mode](#batch-mode) always asks.
 - **Change tracking**: Source files receive a `Moved … to …` changelog entry. Destination files receive a `Moved … from …` changelog entry.
 - **Deck files are rewritten in canonical form**: a move touching a deck re-serializes that deck file, so a move is **refused** when the parser cannot read some of that file (prose, comments, a fenced code block, an empty `## Main`/`## Sideboard` header) — the write would delete it. An empty extras section (`## Maybeboard`, `## Tokens`) is the exception: it holds nothing, so it is dropped rather than refused. Collection and wanted-list files are edited as text and keep such lines.
 
@@ -139,19 +139,78 @@ Key behaviors:
 
 When launched, the tool shows an autocomplete search field. You can type a card name to search, or select from the menu:
 
-| Option                         | Description                                                       |
-| ------------------------------ | ----------------------------------------------------------------- |
-| `📋 View Pending Changes (N)`  | Preview queued moves before committing                            |
-| `⚙️ Configure Session Filters` | Restrict which lists are eligible as sources or destinations      |
-| `🚪 Exit`                      | Leave the session (asks to save, discard, or cancel when pending) |
+| Option                                      | Description                                                       |
+| ------------------------------------------- | ----------------------------------------------------------------- |
+| `📋 View Pending Changes (N)`               | Preview queued moves before committing                            |
+| `🧺 Batch Mode — select many cards at once` | Select many cards at once and send them all to one destination    |
+| `⚙️ Configure Session Filters`              | Restrict which lists are eligible as sources or destinations      |
+| `🚪 Exit`                                   | Leave the session (asks to save, discard, or cancel when pending) |
 
 After searching, select a card and choose a destination (or confirm the single available one). The destination prompt is also an autocomplete field — type to filter the list of destinations instead of scrolling with the arrow keys. The move is queued as a pending change. You can queue multiple moves before committing.
+
+When the destination is a **deck**, the session then asks which section the card lands in, listing the deck's sections plus `➕ New section…` for one that does not exist yet. The deck's default section — the first that is neither the commander nor the sideboard — is preselected, so pressing Return keeps the behavior a move had before the prompt existed. (On a deck whose only sections are a commander and a sideboard, that default is a `Main` section the add would create, and it is offered as a row.) A deck with no sections at all is not asked about, and neither is a collection or wanted-list destination.
+
+Escaping the section prompt cancels the move: in the single-card flow nothing is queued, and in Batch Mode you return to the checklist with the selection intact. `➕ New section…` asks for a name; an empty name cancels the same way, a name matching an existing section (in any casing) is folded onto that section rather than creating a second one, and a name starting with `#` or containing a line break is refused — it could not survive being written as a `## ` heading. A destination deck whose file the parser cannot read is refused here too, rather than at save time.
 
 Foil and etched cards are flagged in the search results, the pending-changes view, and the queued-move confirmation (e.g. `Lightning Bolt (LEA:161) [Foil]`). Normal non-foil printings are shown without a finish tag.
 
 Nothing is written until you exit and choose to save. `🚪 Exit` (or pressing Escape) leaves the
 session immediately when nothing is pending; with pending moves it opens a menu to **Save and
 exit** (commit all pending moves), **Exit without saving**, or **Cancel** (keep editing).
+
+### Batch Mode
+
+Selecting `🧺 Batch Mode` switches the session from "one card at a time" to "many cards, one
+destination". It is a toggle: the batch screens replace the card search until you leave them, and
+every card you queue lands in the same pending-move state the single-card flow uses — `View Pending
+Changes`, chained moves, and the save-on-exit menu all behave identically.
+
+A batch is three screens:
+
+1. **Which lists to view.** The same two-level toggle screen the [Session Filters](#session-filters)
+   use, seeded from the current **Move FROM** filter. Changes here are local to the batch — they
+   never rewrite the session's filters. Emptying the list is how you leave Batch Mode from this
+   screen.
+2. **Which cards to take.** The cards from every viewed list are combined into one searchable,
+   autocomplete-filtered checklist. Each row carries the card's usual details — printing, finish,
+   language, `&N`, note — plus the list it comes from. Selecting a row toggles its `[X]`; the list
+   never reorders as you tick cards. Cards already queued for a move this session are not shown.
+3. **Where they go.** An autocomplete of every enabled destination — including lists some selected
+   cards already sit in, which are skipped and counted — then the deck-section question when the
+   destination is a deck. The whole selection is queued to that one destination.
+
+The rows above the cards are:
+
+| Row                     | Description                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| `✅ Done selecting (N)` | Continue to the destination screen; refuses while nothing is selected           |
+| `☐ Select all`          | Tick every card on screen — flips to `☑ Deselect all` once everything is ticked |
+| `☑ Select all from…`    | Shown instead when more than one list is being viewed (see below)               |
+| `⬅ Exit batch mode`     | Return to the single-card search                                                |
+
+`☑ Select all from…` opens a picker of the lists currently being viewed. Tick at least one and
+choose `→ Continue` to select every card in them, or take `★ All selected lists` to select every card
+from every viewed list at once whatever the boxes say. Both add to the current selection rather than
+replacing it; `← Back` (or Escape) returns to the checklist unchanged.
+
+Escape (or backing out) at the destination or section question returns to the checklist with the
+selection intact, and so does a batch in which nothing could be queued — picking the cards is never
+thrown away.
+
+After a batch is queued the session **stays in Batch Mode** and reopens at the list picker, with the
+same lists still ticked, ready for the next batch. The one exception is a view with nothing left to
+take: when every card of the viewed lists is already queued (or those lists are empty), Batch Mode
+reports `No cards left to move in the selected lists.` and hands the session back to the card search.
+So Batch Mode ends in four ways — `⬅ Exit batch mode`, Escape on the checklist, emptying the list
+picker, or running the viewed lists dry.
+
+Cards can drop out of a queued batch, each reported with a count:
+
+- It already sits in the chosen destination.
+- It is a printing-less card headed for a **collection** with no known printings. Each such card is
+  prompted for individually after the destination is chosen, exactly as the single-card flow prompts.
+- Escaping one of those printing prompts ends the batch there: the cards already resolved are
+  queued, and the ones after it are reported as left unqueued rather than asked about one by one.
 
 ### Session Filters
 

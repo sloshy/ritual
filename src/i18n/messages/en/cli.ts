@@ -21,6 +21,9 @@ export const cliMessages = {
   'cli.prompt.subject.pass': 'pass {what}',
   'cli.prompt.subject.interactiveInput': 'interactive input',
   'cli.prompt.subject.listType': 'the kind of list to import into',
+  'cli.prompt.subject.deckSection': 'the deck section to move into',
+  'cli.prompt.subject.moveDestination': 'the list to move the cards into',
+  'cli.prompt.subject.cardsToMove': 'a card to move, or a menu option',
   'cli.prompt.subject.syncPrintings':
     'whether to import the exact printings (pass --sync-printings or --no-sync-printings)',
   'cli.prompt.subject.filterValue': 'a filter value',
