@@ -62,6 +62,7 @@ import {
 } from '../change-event'
 import { displayLanguage, type CardLanguage } from '../card-language'
 import { t } from '../i18n/t'
+import { hasSpecificPrinting } from '../card-printing'
 
 type SpecificityPromptResponse = { specificity?: 'name-only' | 'specific' }
 type FinishPromptResponse = { finish?: string }
@@ -258,13 +259,14 @@ export function createWantedStrategy(
     async editEntry(ctx: CardSessionContext, cardId: number): Promise<void> {
       const entry = findFlatListEntry(list, cardId)
       if (!entry) return
-      const hasPrinting = Boolean(entry.set && entry.collectorNumber)
+      const pinned = hasSpecificPrinting(entry)
       const action = await promptEditAction(list.renderEntry(entry), [
-        { title: `🖼️  ${t('cli.editAction.changePrinting')}`, value: 'printing' },
+        {
+          title: `🖼️  ${t(pinned ? 'cli.editAction.changePrinting' : 'cli.editAction.setPrinting')}`,
+          value: 'printing',
+        },
         // Finish only annotates a specific printing; name-only entries have none to change.
-        ...(hasPrinting
-          ? [{ title: `✨ ${t('cli.editAction.changeFinish')}`, value: 'finish' }]
-          : []),
+        ...(pinned ? [{ title: `✨ ${t('cli.editAction.changeFinish')}`, value: 'finish' }] : []),
         { title: `🌐 ${t('cli.editAction.changeLanguage')}`, value: 'language' },
         { title: `🎨 ${t('cli.editAction.setArt')}`, value: 'art' },
         ...(moveTargets

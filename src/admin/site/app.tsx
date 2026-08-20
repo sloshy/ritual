@@ -36,7 +36,9 @@ import { ListManager } from './pages/ListManager'
 import { MoveCards } from './pages/MoveCards'
 import { History } from './pages/History'
 import { setBuylistFetcher, setBuylistQuotesOnline } from '../../site/buylist-quotes'
+import { setListShareSource } from '../../site/list-shares'
 import { adminBuylistFetcher } from './editor-backend'
+import { adminListShareSource } from './share-source'
 import { setSellModeEnabled } from './sell-enabled'
 import { fetchStatus } from './status-api'
 import { createI18nStore, I18nProvider, useI18n } from '../../ui/i18n'
@@ -55,6 +57,9 @@ setBuylistFetcher(adminBuylistFetcher)
 // Admin always has its own API behind it, so the printing pickers may quote
 // printings on demand rather than waiting for a list to carry them baked.
 setBuylistQuotesOnline(true)
+// The share filters ("Shares cards with") load other lists' saved contents
+// through the credentialed admin load routes rather than baked detail JSON.
+setListShareSource(adminListShareSource)
 
 /** The component each page renders. Typed by {@link Page}, so a new page cannot be forgotten. */
 const PAGE_COMPONENTS: Record<Page, Component> = {

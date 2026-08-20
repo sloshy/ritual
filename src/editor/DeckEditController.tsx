@@ -7,6 +7,7 @@ import type { CardLanguage } from '../card-language'
 import { DeckPage } from '../site/DeckPage'
 import type { PriceCurrency } from '../price-currency'
 import type { ListRef, PrintingTuple } from '../change-event'
+import type { NamedListRef } from '../site/combined-list'
 import type { SelectedCard } from '../site/useCardSelection'
 import type { CardContextInfo, ContextMenuState } from './context-menu'
 import type { ListEditorConfig, UseEditorResult } from './useEditor'
@@ -28,6 +29,7 @@ import {
   findDeckCardSection,
 } from './deck-config'
 import { CardContextMenu } from './components/CardContextMenu'
+import { hasSpecificPrinting } from '../card-printing'
 import { EditorShell } from './components/EditorShell'
 import { withDeckArt, type CardArtRefs } from './card-art-view'
 
@@ -416,6 +418,8 @@ type DeckEditorBodyProps = SellModeProps & {
   customArt?: CardArtRefs
   /** Open the custom-art dialog for a card (admin editor only — needs the authed art route). */
   onSetCustomArt?: (target: CardContextInfo) => void
+  /** Every list, for the toolbar's share filters (the page drops itself). */
+  shareLists?: readonly NamedListRef[]
 }
 
 /**
@@ -462,7 +466,12 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
                   .find((c) => c.name === menu().cardName)?.finish
               }
               onSetFoil={editor.handleSetFoil}
-              onChangePrinting={ctrl.handleChangePrinting}
+              printingAction={{
+                onSelect: ctrl.handleChangePrinting,
+                get hasPrinting() {
+                  return hasSpecificPrinting(menu())
+                },
+              }}
               onSetLabel={() => {
                 const target = menu()
                 ctrl.closeContextMenu()
@@ -555,6 +564,7 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
         bulkEdit={ctrl.bulkEdit}
         unsavedChangeCount={editor.changes.changeCount()}
         addedCardNames={editor.addedCardNames()}
+        shareLists={props.shareLists}
       />
     </EditorShell>
   )

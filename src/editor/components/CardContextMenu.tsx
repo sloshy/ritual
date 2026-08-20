@@ -7,6 +7,13 @@ import { findPrintingsAvailable, openFindPrintings } from '../../site/find-print
 
 const MENU_WIDTH = 180
 
+/** Opening the printing picker for the targeted card, and how to label the row. */
+type PrintingAction = {
+  onSelect: () => void
+  /** Whether the targeted line already pins a printing. */
+  hasPrinting: boolean
+}
+
 interface CardContextMenuProps {
   cardName: string
   card: ScryfallCard | null
@@ -14,7 +21,13 @@ interface CardContextMenuProps {
   currentFinish?: Finish
   /** Toggle the card's foil finish. Absent on read-only pages, hiding the item. */
   onSetFoil?: () => void
-  onChangePrinting?: () => void
+  /**
+   * The printing row. Absent on read-only pages, hiding the item. The flag and
+   * the handler travel together so the row can never be labelled from a missing
+   * flag: `hasPrinting` false means the line pins no printing yet, and the row
+   * reads "Set Printing…" — there is nothing to change.
+   */
+  printingAction?: PrintingAction
   onSetCommander?: () => void
   onUnsetCommander?: () => void
   onClose: () => void
@@ -91,10 +104,10 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
           </button>
         )}
       </Show>
-      <Show when={props.onChangePrinting}>
-        {(changePrinting) => (
-          <button class="card-context-menu-item" onClick={() => changePrinting()()}>
-            {t('ui.cardMenu.changePrinting')}
+      <Show when={props.printingAction}>
+        {(action) => (
+          <button class="card-context-menu-item" onClick={() => action().onSelect()}>
+            {action().hasPrinting ? t('ui.cardMenu.changePrinting') : t('ui.cardMenu.setPrinting')}
           </button>
         )}
       </Show>

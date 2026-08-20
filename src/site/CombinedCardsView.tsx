@@ -42,7 +42,8 @@ import {
 import { SelectionMenu } from './SelectionMenu'
 import { addSelectedCardToTrade, canAddSelectedCardToTrade } from './useSelectionTrade'
 import type { MetaEntry } from './meta-entry'
-import type { CombinedCardData } from './combined-list'
+import type { CombinedCardData, NamedListRef } from './combined-list'
+import { useShareFilterContext } from './list-shares'
 import {
   CARD_LABEL_SELECTIONS,
   cardLabelName,
@@ -120,6 +121,11 @@ interface CombinedCardsViewProps extends SellModeProps {
   emptyMessage?: string
   /** Mirror the toolbar/filter state into the URL query so the view is shareable (combined-list view only). */
   enableUrlState?: boolean
+  /**
+   * Every list, for the share filters. The view's own member lists stay
+   * offered — a card trivially "shares" with its own source list.
+   */
+  shareLists?: readonly NamedListRef[]
 }
 
 /**
@@ -147,6 +153,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
     setPriceGroupStrategy,
   } = toolbar
   const cardFilters = useCardFilters()
+  const shareContext = useShareFilterContext(cardFilters)
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
   const [modalTile, setModalTile] = createSignal<CombinedCardData | null>(null)
 
@@ -243,7 +250,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
   const artTagOptions = createMemo(() => collectArtTags(props.cards))
 
   const filteredCards = createMemo((): CombinedCardData[] =>
-    filterCards(props.cards, cardFilters.filters),
+    filterCards(props.cards, cardFilters.filters, shareContext()),
   )
 
   const cardGroups = createMemo((): CardGroup<CombinedCardData>[] => {
@@ -401,6 +408,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
         artTagOptions={artTagOptions()}
         showLabelsFilter={labelFilters().length > 0}
         availableLabels={labelFilters()}
+        shareLists={props.shareLists}
         selectionMenu={
           <SelectionMenu
             selection={selection}

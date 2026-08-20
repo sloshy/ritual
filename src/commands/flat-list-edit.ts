@@ -45,6 +45,7 @@ import {
 } from './edit-move'
 import { noteArtLineRemoved, noteArtLineRestored, noteArtSet } from './session-art'
 import { editCardArt } from './edit-art'
+import { hasSpecificPrinting } from '../card-printing'
 
 /**
  * Edit-mode operations shared by the collection and wanted sessions: targeting
@@ -325,7 +326,7 @@ export async function moveFlatListEntry<E extends EditableFlatListEntry>(
   const dest = await resolveMoveDestination({
     deps,
     cardName: entry.name,
-    hasPrinting: Boolean(entry.set && entry.collectorNumber),
+    hasPrinting: hasSpecificPrinting(entry),
   })
   if (!dest) return
   performFlatListMove(list, ctx, entry, cardId, dest)

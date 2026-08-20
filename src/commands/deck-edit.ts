@@ -74,6 +74,7 @@ import {
   targetedUndoBlocker,
   type EditUndoEntry,
 } from './edit-undo'
+import { hasSpecificPrinting } from '../card-printing'
 
 /**
  * Edit-mode operations for the deck session: changing a line's printing,
@@ -339,7 +340,10 @@ export async function editDeckCard(
   const sectionName = located.section.name
 
   const action = await promptEditAction(renderDeckCardLine(card, sectionName), [
-    { title: `🖼️  ${t('cli.editAction.changePrinting')}`, value: 'printing' },
+    {
+      title: `🖼️  ${t(hasSpecificPrinting(card) ? 'cli.editAction.changePrinting' : 'cli.editAction.setPrinting')}`,
+      value: 'printing',
+    },
     { title: `➕ ${t('cli.editAction.addCopy')}`, value: 'add-copy' },
     ...(card.quantity > 1
       ? [{ title: `➖ ${t('cli.editAction.removeCopy')}`, value: 'remove-copy' }]
@@ -512,7 +516,7 @@ export async function moveDeckLine(
   const dest = await resolveMoveDestination({
     deps: move,
     cardName: located.card.name,
-    hasPrinting: Boolean(located.card.set && located.card.collectorNumber),
+    hasPrinting: hasSpecificPrinting(located.card),
   })
   if (!dest) return
   performDeckLineMove(state, ctx, cardId, dest)

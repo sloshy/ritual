@@ -18,6 +18,7 @@ import type { SearchProvider } from './search-provider'
 import { useEntryCardData, type EntryCardData, type EntryCardDataActions } from './useEntryCardData'
 import { sectionOfTarget } from './section-helpers'
 import { CardContextMenu } from './components/CardContextMenu'
+import { hasSpecificPrinting } from '../card-printing'
 import { EditorShell } from './components/EditorShell'
 import type { ApplyChange } from './apply-batch'
 
@@ -368,7 +369,12 @@ export function FlatListContextMenu<E extends FlatEntry>(
           card={menu().card}
           currentFinish={editor.data()?.find((e) => e.name === menu().cardName)?.finish}
           onSetFoil={editor.handleSetFoil}
-          onChangePrinting={props.ctrl.handleChangePrinting}
+          printingAction={{
+            onSelect: props.ctrl.handleChangePrinting,
+            get hasPrinting() {
+              return hasSpecificPrinting(menu())
+            },
+          }}
           onSetLabel={
             props.onSetLabel
               ? () => {

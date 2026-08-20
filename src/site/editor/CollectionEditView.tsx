@@ -3,6 +3,7 @@ import type { CollectionDetail } from '../data-types'
 import type { PriceCurrency } from '../../price-currency'
 import type { CollectionCardEntry } from '../data-types'
 import type { ListRef } from '../../change-event'
+import type { NamedListRef } from '../combined-list'
 import type { ListEditorConfig } from '../../editor/useEditor'
 import type { EntryCardDataActions } from '../../editor/useEntryCardData'
 import { collectExistingIds } from '../../card-id'
@@ -33,6 +34,8 @@ type CollectionEditViewProps = {
   onExit: () => void
   /** Other lists a card can be moved into (excludes this collection). */
   moveTargets?: () => ListRef[]
+  /** Every list on the site, for the toolbar's share filters (the page drops itself). */
+  shareLists?: readonly NamedListRef[]
 }
 
 /** Public-site collection editor — mirrors {@link DeckEditView} for the flat collection list. */
@@ -146,6 +149,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
           enableTrade={true}
           enableSellMode={props.enableSellMode}
           bakedBuylist={() => props.detail.buylist}
+          shareLists={props.shareLists}
         />
       }
       original={
@@ -169,6 +173,11 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
           // without these the view would show prices with nothing to turn off.
           enableSellMode={props.enableSellMode}
           bakedBuylist={() => props.detail.buylist}
+          // Forwarded so the "Original" toolbar offers the same share filters
+          // as the edited side; the slug is what lets it exclude this
+          // collection itself from the options.
+          slug={props.slug}
+          shareLists={props.shareLists}
         />
       }
     />

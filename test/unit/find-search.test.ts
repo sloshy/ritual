@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  cardMatchKey,
   frontFaceName,
   findMatchKey,
   parseSearchLines,
   partitionSearch,
 } from '../../src/site/find-search'
+import { makeScryfallCard } from '../test-utils'
 
 describe('frontFaceName', () => {
   test('returns the name unchanged when there is no back face', () => {
@@ -46,6 +48,20 @@ describe('findMatchKey', () => {
 
   test('a single printing and a double-art printing share a key', () => {
     expect(findMatchKey('Steam Vents')).toBe(findMatchKey('Steam Vents // Steam Vents'))
+  })
+})
+
+describe('cardMatchKey', () => {
+  test('prefers the resolved Scryfall name over the entry name', () => {
+    const key = cardMatchKey({
+      name: 'Entry Spelling',
+      card: makeScryfallCard({ name: 'Résolved Name // Back Face' }),
+    })
+    expect(key).toBe('resolved name')
+  })
+
+  test('falls back to the entry name when nothing resolved', () => {
+    expect(cardMatchKey({ name: 'Jötun Grunt', card: null })).toBe('jotun grunt')
   })
 })
 

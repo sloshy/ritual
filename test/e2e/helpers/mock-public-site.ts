@@ -90,6 +90,53 @@ export function makeWantedListSummary(
   }
 }
 
+// ===== detail JSON builders =====
+
+/** A deck detail payload; the boilerplate tail defaults to the common single-currency shape. */
+export function makeDeckDetail(overrides: Partial<DeckDetail> = {}): DeckDetail {
+  return {
+    deck: { name: 'Test Deck', sections: [] },
+    cards: {},
+    printings: {},
+    symbolMap: {},
+    useScryfallImgUrls: false,
+    defaultCurrency: 'usd',
+    availableCurrencies: ['usd'],
+    missingCards: { usd: [], eur: [], tix: [] },
+    ...overrides,
+  }
+}
+
+/** A collection detail payload, defaulting the boilerplate fields. */
+export function makeCollectionDetail(overrides: Partial<CollectionDetail> = {}): CollectionDetail {
+  return {
+    name: 'Test Collection',
+    entries: [],
+    cards: {},
+    printings: {},
+    symbolMap: {},
+    useScryfallImgUrls: false,
+    totalPrice: 0,
+    defaultCurrency: 'usd',
+    ...overrides,
+  }
+}
+
+/** A wanted-list detail payload, defaulting the boilerplate fields. */
+export function makeWantedDetail(overrides: Partial<WantedListDetail> = {}): WantedListDetail {
+  return {
+    name: 'Test Wanted List',
+    entries: [],
+    cards: {},
+    printings: {},
+    symbolMap: {},
+    useScryfallImgUrls: false,
+    totalPrice: 0,
+    defaultCurrency: 'usd',
+    ...overrides,
+  }
+}
+
 // ===== Changelog deck =====
 
 const MOCK_SCRYFALL_CARD = makeMockScryfallCard({
@@ -1394,6 +1441,174 @@ const MOCK_COPIES_DECK = {
   availableCurrencies: ['usd'],
   missingCards: { usd: [], eur: [], tix: [] },
 } satisfies DeckDetail
+
+// ===== Share filters (cross-list) mock data =====
+
+/** One synthetic printing per share-filter card, keyed by a unique tst:cn. */
+function makeShareCard(name: string, collectorNumber: string): ScryfallCard {
+  return makeMockScryfallCard({
+    id: `share-${collectorNumber}`,
+    name,
+    cmc: 1,
+    type_line: 'Artifact',
+    prices: { usd: '1.00' },
+    set: 'tst',
+    collector_number: collectorNumber,
+  })
+}
+
+const MOCK_SHARE_CARD_ONLY = makeShareCard('Only Alpha', '40')
+const MOCK_SHARE_CARD_SHARED = makeShareCard('Shared Card', '41')
+const MOCK_SHARE_CARD_EXTRA = makeShareCard('Alpha Extra', '42')
+// A second printing of "Shared Card" (same name, different collector number),
+// held by collection Gamma — so the Name/Printing identity toggle can disagree:
+// Gamma matches Alpha's copy by name but not by printing.
+const MOCK_SHARE_CARD_SHARED_ALT = makeShareCard('Shared Card', '43')
+
+/** Every card name in the share-filter deck "Alpha", for whole-list assertions. */
+export const SHARE_FILTER_DECK_CARDS = [
+  MOCK_SHARE_CARD_ONLY.name,
+  MOCK_SHARE_CARD_SHARED.name,
+  MOCK_SHARE_CARD_EXTRA.name,
+]
+
+// The viewed deck: three distinct cards, one of which ("Shared Card") also
+// lives in deck "Beta" and collection "Gamma" below.
+const MOCK_SHARE_DECK_ALPHA = makeDeckDetail({
+  deck: {
+    name: 'Alpha',
+    sections: [
+      {
+        name: 'Main',
+        cards: [MOCK_SHARE_CARD_ONLY, MOCK_SHARE_CARD_SHARED, MOCK_SHARE_CARD_EXTRA].map(
+          (card, i) => ({
+            quantity: 1,
+            name: card.name,
+            set: card.set,
+            collectorNumber: card.collector_number,
+            cardId: i + 1,
+          }),
+        ),
+      },
+    ],
+  },
+  cards: Object.fromEntries(
+    [MOCK_SHARE_CARD_ONLY, MOCK_SHARE_CARD_SHARED, MOCK_SHARE_CARD_EXTRA].map((c) => [c.name, c]),
+  ),
+})
+
+const MOCK_SHARE_DECK_BETA = makeDeckDetail({
+  deck: {
+    name: 'Beta',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          {
+            quantity: 1,
+            name: MOCK_SHARE_CARD_SHARED.name,
+            set: MOCK_SHARE_CARD_SHARED.set,
+            collectorNumber: MOCK_SHARE_CARD_SHARED.collector_number,
+            cardId: 1,
+          },
+        ],
+      },
+    ],
+  },
+  cards: { [MOCK_SHARE_CARD_SHARED.name]: MOCK_SHARE_CARD_SHARED },
+})
+
+// Gamma holds "Shared Card" at a DIFFERENT printing (tst:43 vs Alpha's tst:41)
+// plus "Alpha Extra" at the very printing Alpha runs (tst:42): excluding Gamma
+// under Printing identity keeps Shared Card but still hides Alpha Extra, and
+// including Beta+Gamma separates Any (union) from All (intersection).
+const MOCK_SHARE_COLLECTION_GAMMA = makeCollectionDetail({
+  name: 'Gamma',
+  entries: [
+    makeCollectionEntry({
+      name: MOCK_SHARE_CARD_SHARED_ALT.name,
+      collectorNumber: MOCK_SHARE_CARD_SHARED_ALT.collector_number,
+      price: 1.0,
+      cardId: 1,
+    }),
+    makeCollectionEntry({
+      name: MOCK_SHARE_CARD_EXTRA.name,
+      collectorNumber: MOCK_SHARE_CARD_EXTRA.collector_number,
+      price: 1.0,
+      fileOrder: 1,
+      cardId: 2,
+    }),
+  ],
+  cards: { 'tst:43': MOCK_SHARE_CARD_SHARED_ALT, 'tst:42': MOCK_SHARE_CARD_EXTRA },
+  totalPrice: 2.0,
+})
+
+// Wanted list "Delta": exercises the share source's wanted-list branch.
+const MOCK_SHARE_WANTED_DELTA = makeWantedDetail({
+  name: 'Delta',
+  entries: [
+    {
+      name: MOCK_SHARE_CARD_ONLY.name,
+      set: MOCK_SHARE_CARD_ONLY.set,
+      collectorNumber: MOCK_SHARE_CARD_ONLY.collector_number,
+      price: 1.0,
+      fileOrder: 0,
+      section: 'Main',
+      state: 'printing',
+      cardId: 1,
+    },
+  ],
+  cards: { 'tst:40': MOCK_SHARE_CARD_ONLY },
+  totalPrice: 1.0,
+})
+
+/** Options for {@link mockPublicSiteForShareFilters}. */
+type ShareFilterMockOptions = {
+  /**
+   * Also index an (empty) *collection* named "Beta", so the share suggestions
+   * offer two lists with the same folded name and must disambiguate by type
+   * ("Beta (Deck)" / "Beta (Collection)").
+   */
+  duplicateBetaCollection?: boolean
+}
+
+/**
+ * Mock a multi-list site for the cross-list share filters: deck "Alpha" (the
+ * viewed page, three cards) plus deck "Beta", collection "Gamma", and wanted
+ * list "Delta", each sharing cards with Alpha as documented on the fixtures
+ * above. The other lists' detail JSON is served too, since the share filters
+ * fetch it lazily on first selection.
+ */
+export async function mockPublicSiteForShareFilters(
+  page: Page,
+  options: ShareFilterMockOptions = {},
+): Promise<void> {
+  const collections = [
+    makeCollectionSummary({ slug: 'share-c', name: 'Gamma', cardCount: 2, totalPrice: 2.0 }),
+  ]
+  if (options.duplicateBetaCollection) {
+    collections.push(makeCollectionSummary({ slug: 'share-e', name: 'Beta', cardCount: 0 }))
+  }
+  await fulfillJson(
+    page,
+    '**/index.json',
+    makeSiteIndex({
+      decks: [
+        makeDeckSummary({ slug: 'share-a', name: 'Alpha', cardCount: 3 }),
+        makeDeckSummary({ slug: 'share-b', name: 'Beta', cardCount: 1 }),
+      ],
+      collections,
+      wantedLists: [makeWantedListSummary({ slug: 'share-d', name: 'Delta', cardCount: 1 })],
+    }),
+  )
+  await fulfillJson(page, '**/decks/share-a.json', MOCK_SHARE_DECK_ALPHA)
+  await fulfillJson(page, '**/decks/share-b.json', MOCK_SHARE_DECK_BETA)
+  await fulfillJson(page, '**/collections/share-c.json', MOCK_SHARE_COLLECTION_GAMMA)
+  await fulfillJson(page, '**/wanted/share-d.json', MOCK_SHARE_WANTED_DELTA)
+  if (options.duplicateBetaCollection) {
+    await fulfillJson(page, '**/collections/share-e.json', makeCollectionDetail({ name: 'Beta' }))
+  }
+}
 
 /** Mock a deck holding two printings of one card name, for the Copies match modes. */
 export async function mockPublicSiteDeckForCopiesModes(page: Page): Promise<void> {

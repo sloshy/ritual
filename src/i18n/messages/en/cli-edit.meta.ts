@@ -185,6 +185,11 @@ export const cliEditMeta = {
     description: 'Edit-mode menu row: pick a different printing for this card.',
     maxLen: MENU_MAX_LEN,
   },
+  'cli.editAction.setPrinting': {
+    description:
+      'Edit-mode menu row shown instead of the "change printing" row when the line pins no printing yet: pick the printing for this card for the first time.',
+    maxLen: MENU_MAX_LEN,
+  },
   'cli.editAction.changeFinish': {
     description: 'Edit-mode menu row: pick a different finish (nonfoil / foil / etched).',
     maxLen: MENU_MAX_LEN,

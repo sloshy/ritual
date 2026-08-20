@@ -4,7 +4,7 @@ import { sellableFromCardData, selectionToCartCsv, type SellableCard } from './s
 import { buyerName } from '../buylist'
 import { cartBuyer, type SellModeProps } from './sell-mode'
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, onMount, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, on, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
 import { normalizeCardName } from '../term-match'
@@ -57,6 +57,13 @@ import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
 import { useListViewUrlSync } from './useListViewUrlSync'
 import { useCardFilters } from './useCardFilters'
+import {
+  pruneOwnShareSelections,
+  shareListsExcluding,
+  useShareFilterContext,
+  type ShareListsForPage,
+} from './list-shares'
+import type { NamedListRef } from './combined-list'
 import {
   collectArtTags,
   collectCardTypes,
@@ -174,6 +181,8 @@ interface CollectionPageProps extends SellModeProps {
   onCombine?: () => void
   /** Mirror the toolbar/filter state into the URL query so the view is shareable (public read view only). */
   enableUrlState?: boolean
+  /** Every list on the site, for the share filters; the page drops itself. */
+  shareLists?: readonly NamedListRef[]
 }
 
 export const CollectionPage: Component<CollectionPageProps> = (props) => {
@@ -237,6 +246,32 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     setPriceGroupStrategy,
   } = toolbar
   const cardFilters = useCardFilters()
+  const shareContext = useShareFilterContext(cardFilters)
+  // The share filters never offer the page's own list — a card trivially
+  // "shares" with the list it is on. One memo feeds the toolbar's options, the
+  // URL sync's self-stripping, and the slug-switch prune below.
+  const shareRefs = createMemo<ShareListsForPage | undefined>(() =>
+    props.slug
+      ? shareListsExcluding(props.shareLists, { type: 'collection', slug: props.slug })
+      : undefined,
+  )
+  const otherShareLists = (): readonly NamedListRef[] =>
+    shareRefs()?.others ?? props.shareLists ?? []
+  // Admin surfaces (the editors, Move Cards) keep this page mounted across slug
+  // switches with URL state off, so `currentShareList` stripping never runs
+  // there — a chip naming the newly opened list would survive and filter the
+  // list against itself. `on` has no equality check, so the prune itself bails
+  // without a store write when no chip names this list.
+  createEffect(
+    on(
+      () => props.slug,
+      () => {
+        const refs = shareRefs()
+        if (refs) pruneOwnShareSelections(cardFilters, refs.selfKey)
+      },
+      { defer: true },
+    ),
+  )
   useListViewUrlSync({
     toolbar,
     filters: cardFilters,
@@ -246,6 +281,9 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     enabled: props.enableUrlState,
     availableLabels: COLLECTION_LABEL_FILTERS,
     supportsSellMode: Boolean(props.enableSellMode),
+    // A shared URL's share-filter params naming this page itself are stripped
+    // — the page never offers its own list as an option.
+    currentShareList: shareRefs()?.selfKey,
   })
 
   // Declared once, at setup: a page handed a baked payload never calls the quote
@@ -413,6 +451,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       setCode: entry.set.toLowerCase(),
       colorIdentity: card?.color_identity ?? [],
       hasPrinting: true,
+      pinnedPrintingKey: printingKey(entry.set, entry.collectorNumber),
       oracleTags: card?.oracleTags ?? [],
       artTags: card?.artTags ?? [],
       labels,
@@ -466,7 +505,9 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       : [],
   )
 
-  const filteredCards = createMemo(() => filterCards(allCards(), cardFilters.filters))
+  const filteredCards = createMemo(() =>
+    filterCards(allCards(), cardFilters.filters, shareContext()),
+  )
 
   const filteredTotalPrice = createMemo(() => groupTotalPrice(filteredCards()))
 
@@ -799,6 +840,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         artTagOptions={artTagOptions()}
         showLabelsFilter={COLLECTION_LABEL_FILTERS.length > 0}
         availableLabels={COLLECTION_LABEL_FILTERS}
+        shareLists={otherShareLists()}
         extraToggles={[
           {
             label: t('site.collection.groupDuplicates'),

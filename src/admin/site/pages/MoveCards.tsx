@@ -17,6 +17,7 @@ import {
   needsPrintingFor,
 } from '../move-overlay'
 import { listInfoId, groupListsByType } from '../list-grouping'
+import { listInfosToNamedRefs } from '../move-targets'
 import { useMoveSession } from '../hooks/useMoveSession'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { MoveDestinationMenu } from '../components/MoveDestinationMenu'
@@ -53,6 +54,9 @@ export function MoveCards(): JSX.Element {
   const defaultCurrency = useDefaultCurrency()
   useSearchDebounce()
   const session = useMoveSession()
+  // One conversion for the three list views' share filters, so the array keeps
+  // its identity (and downstream option memos stay warm) across re-renders.
+  const shareLists = createMemo(() => listInfosToNamedRefs(session.lists()))
   const [filtersOpen, setFiltersOpen] = createSignal(false)
   const [pendingOpen, setPendingOpen] = createSignal(false)
   const [modalKey, setModalKey] = createSignal<string | null>(null)
@@ -340,6 +344,7 @@ export function MoveCards(): JSX.Element {
                 onCloseModal={closeModal}
                 currency={defaultCurrency()}
                 onCardMove={handleCardMove}
+                shareLists={shareLists()}
               />
             )}
           </Match>
@@ -348,6 +353,7 @@ export function MoveCards(): JSX.Element {
               <CollectionPage
                 enableSellMode={sellModeEnabled()}
                 name={view().name}
+                slug={session.viewedList()?.slug}
                 entries={view().entries}
                 sectionOrder={view().sectionOrder}
                 cards={session.cardData.cards}
@@ -360,6 +366,7 @@ export function MoveCards(): JSX.Element {
                 onCloseModal={closeModal}
                 currency={defaultCurrency()}
                 onCardMove={handleCardMove}
+                shareLists={shareLists()}
               />
             )}
           </Match>
@@ -368,6 +375,7 @@ export function MoveCards(): JSX.Element {
               <WantedListPage
                 enableSellMode={sellModeEnabled()}
                 name={view().name}
+                slug={session.viewedList()?.slug}
                 entries={view().entries}
                 sectionOrder={view().sectionOrder}
                 cards={session.cardData.cards}
@@ -380,6 +388,7 @@ export function MoveCards(): JSX.Element {
                 onCloseModal={closeModal}
                 currency={defaultCurrency()}
                 onCardMove={handleCardMove}
+                shareLists={shareLists()}
               />
             )}
           </Match>

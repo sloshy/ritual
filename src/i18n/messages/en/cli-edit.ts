@@ -157,6 +157,7 @@ export const cliEditMessages = {
 
   // ── The edit-mode action menu ─────────────────────────────────────────
   'cli.editAction.changePrinting': 'Change Printing',
+  'cli.editAction.setPrinting': 'Set Printing',
   'cli.editAction.changeFinish': 'Change Finish',
   'cli.editAction.changeCondition': 'Change Condition',
   'cli.editAction.changeLanguage': 'Change Language',

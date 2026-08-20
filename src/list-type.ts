@@ -2,7 +2,6 @@
  * The three kinds of card lists Ritual manages: decks (`decks/*.md`), collections
  * (`collections/*.md`), and wanted lists (`wanted/*.md`).
  */
-import type { MessageKey } from './i18n/messages/en'
 import { t, type ParameterlessKey } from './i18n/t'
 
 export type ListType = 'deck' | 'collection' | 'wanted'
@@ -20,7 +19,7 @@ export function listTypeLabel(type: ListType): string {
 }
 
 /**
- * How a list type is presented. `label` is a {@link MessageKey}, not rendered
+ * How a list type is presented. `label` is a {@link ParameterlessKey}, not rendered
  * text: this table is evaluated once at module load, so holding a string would
  * freeze every tab, heading, and menu row in whatever language was active when
  * the bundle booted. Resolve it with {@link listTypeTitle} at render time.
@@ -48,12 +47,16 @@ export function listTypeTitle(type: ListType): string {
  * message per type rather than the plural with a trailing `s` trimmed: that
  * trick only ever worked in English, and it silently produced "Wanted List"
  * from "Wanted Lists" while producing nonsense from anything inflected.
+ *
+ * Exported for surfaces that look the key up at runtime and render it
+ * themselves (the share filters' list-type disambiguator); everything else
+ * should call {@link listTypeSingularTitle}.
  */
-const LIST_TYPE_SINGULAR = {
+export const LIST_TYPE_SINGULAR = {
   deck: 'domain.listTypeSingular.deck',
   collection: 'domain.listTypeSingular.collection',
   wanted: 'domain.listTypeSingular.wanted',
-} as const satisfies Record<ListType, MessageKey>
+} as const satisfies Record<ListType, ParameterlessKey>
 
 /** A list type's singular display name in the active UI locale ("Wanted List"). */
 export function listTypeSingularTitle(type: ListType): string {

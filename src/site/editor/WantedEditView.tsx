@@ -3,6 +3,7 @@ import type { WantedListDetail } from '../data-types'
 import type { PriceCurrency } from '../../price-currency'
 import type { WantedListCardEntry } from '../data-types'
 import type { ListRef } from '../../change-event'
+import type { NamedListRef } from '../combined-list'
 import type { ListEditorConfig } from '../../editor/useEditor'
 import type { EntryCardDataActions } from '../../editor/useEntryCardData'
 import { collectExistingIds } from '../../card-id'
@@ -29,6 +30,8 @@ type WantedEditViewProps = {
   onExit: () => void
   /** Other lists a card can be moved into (excludes this wanted list). */
   moveTargets?: () => ListRef[]
+  /** Every list on the site, for the toolbar's share filters (the page drops itself). */
+  shareLists?: readonly NamedListRef[]
 }
 
 /** Public-site wanted-list editor — mirrors {@link DeckEditView} for the flat wanted list. */
@@ -135,6 +138,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
           enableSellMode={props.enableSellMode}
           bakedBuylist={() => props.detail.buylist}
           cardsCardKingdom={props.detail.cardsCardKingdom}
+          shareLists={props.shareLists}
         />
       }
       original={
@@ -158,6 +162,11 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
           // without these the view would show prices with nothing to turn off.
           enableSellMode={props.enableSellMode}
           bakedBuylist={() => props.detail.buylist}
+          // Forwarded so the "Original" toolbar offers the same share filters
+          // as the edited side; the slug is what lets it exclude this wanted
+          // list itself from the options.
+          slug={props.slug}
+          shareLists={props.shareLists}
         />
       }
     />

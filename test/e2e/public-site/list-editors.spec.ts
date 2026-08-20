@@ -123,4 +123,34 @@ test.describe('Public wanted-list editor', () => {
       page.locator('.export-panel button', { hasText: 'updated wanted list' }),
     ).toBeEnabled()
   })
+
+  test('the printing row reads "Set Printing" only for a name-only entry', async ({ page }) => {
+    await enterEditMode(page)
+
+    // Name-only entries are the normal case on a wanted list, so this editor is
+    // where the alternate label actually shows up.
+    const menu = page.locator('.card-context-menu')
+    const openMenu = async (name: string): Promise<void> => {
+      const tile = page.locator(`.card-item[data-name="${name}"]`)
+      await tile.hover()
+      await tile.locator('.edit-btn-context').click()
+      await expect(menu).toBeVisible()
+    }
+
+    await openMenu('lightning bolt')
+    await expect(menu.locator('.card-context-menu-item', { hasText: 'Set Printing' })).toBeVisible()
+    await expect(
+      menu.locator('.card-context-menu-item', { hasText: 'Change Printing' }),
+    ).toHaveCount(0)
+    await page.keyboard.press('Escape')
+
+    // Sol Ring pins C19:221, so the same row reads "Change Printing".
+    await openMenu('sol ring')
+    await expect(
+      menu.locator('.card-context-menu-item', { hasText: 'Change Printing' }),
+    ).toBeVisible()
+    await expect(menu.locator('.card-context-menu-item', { hasText: 'Set Printing' })).toHaveCount(
+      0,
+    )
+  })
 })

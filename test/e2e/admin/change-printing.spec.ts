@@ -356,3 +356,70 @@ test.describe('Deck Editor — bulk change printing', () => {
     }
   })
 })
+
+test.describe('Deck Editor — a line with no printing pinned', () => {
+  test.beforeEach(async ({ page }) => {
+    await disableSearchDebounce(page)
+    await gotoAdminDashboard(page)
+
+    await fulfillJson(
+      page,
+      '**/api/decks',
+      { decks: [{ slug: 'test-unpinned-printing', name: 'Unpinned Deck' }] },
+      { method: 'GET' },
+    )
+
+    await fulfillJson(page, '**/api/deck/test-unpinned-printing', {
+      success: true,
+      slug: 'test-unpinned-printing',
+      contentHash: 'hash-1',
+      deck: {
+        name: 'Unpinned Deck',
+        // Name only — no set/collectorNumber, and one copy so no quantity prompt.
+        // The `cards` map still resolves the name to a printing (that is what the
+        // tile renders); "pins none" is a property of the *entry*, which is what
+        // the menu label reads. Pinning this entry would defeat the test.
+        sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 5 }] }],
+      },
+      cards: { 'Lightning Bolt': LEA_BOLT },
+      printings: { 'Lightning Bolt': [LEA_BOLT, M10_BOLT, XM2_BOLT] },
+      lowestPriceCards: { 'Lightning Bolt': LEA_BOLT },
+      lowestPriceCardsEur: {},
+      lowestPriceCardsTix: {},
+      symbolMap: {},
+      frontMatter: {},
+    })
+
+    await fulfillJson(page, '**/api/card-printings*', {
+      success: true,
+      printings: [LEA_BOLT, M10_BOLT, XM2_BOLT],
+    })
+
+    await openDeckWithCards(page, 'test-unpinned-printing')
+  })
+
+  test('the context menu offers "Set Printing", then reads "Change Printing" once pinned', async ({
+    page,
+  }) => {
+    const tile = page.locator('.card-item').filter({ hasText: 'Lightning Bolt' }).first()
+    // The by-name representative (LEA) is what an unpinned line renders.
+    await expect(tile).toContainText('1.00')
+
+    await tile.locator('.edit-btn-context').click()
+    const menu = page.locator('.card-context-menu')
+    await expect(menu.locator('button', { hasText: 'Set Printing' })).toBeVisible()
+    await expect(menu.locator('button', { hasText: 'Change Printing' })).toHaveCount(0)
+
+    await menu.locator('button', { hasText: 'Set Printing' }).click()
+    // The picker names itself for the flow it is running, too.
+    await expect(page.getByRole('dialog', { name: 'Set printing' })).toBeVisible()
+    await page.locator('.printing-select-card', { hasText: 'M10' }).click()
+
+    // The pending change pins the line, so the tile re-renders against M10 and
+    // the row now reads "Change Printing" — the label follows live editor state.
+    await expect(tile).toContainText('2.50')
+    await tile.locator('.edit-btn-context').click()
+    await expect(menu.locator('button', { hasText: 'Change Printing' })).toBeVisible()
+    await expect(menu.locator('button', { hasText: 'Set Printing' })).toHaveCount(0)
+  })
+})

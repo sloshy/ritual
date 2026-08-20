@@ -4,7 +4,7 @@ import { sellableFromCardData, selectionToCartCsv, type SellableCard } from './s
 import { buyerName } from '../buylist'
 import { cartBuyer, type SellModeProps } from './sell-mode'
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, onMount, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, on, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
 import { normalizeCardName } from '../term-match'
@@ -68,6 +68,14 @@ import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
 import { useListViewUrlSync } from './useListViewUrlSync'
 import { useCardFilters } from './useCardFilters'
+import {
+  pruneOwnShareSelections,
+  shareListsExcluding,
+  useShareFilterContext,
+  type ShareListsForPage,
+} from './list-shares'
+import type { NamedListRef } from './combined-list'
+import { printingKey } from '../printing-key'
 import {
   collectArtTags,
   collectCardTypes,
@@ -213,6 +221,8 @@ export interface DeckPageProps extends SellModeProps {
   onCombine?: () => void
   /** Mirror the toolbar/filter state into the URL query so the view is shareable (public read view only). */
   enableUrlState?: boolean
+  /** Every list on the site, for the share filters; the page drops itself. */
+  shareLists?: readonly NamedListRef[]
 }
 
 export const DeckPage: Component<DeckPageProps> = (props) => {
@@ -237,6 +247,32 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     setPriceGroupStrategy,
   } = toolbar
   const cardFilters = useCardFilters()
+  const shareContext = useShareFilterContext(cardFilters)
+  // The share filters never offer the page's own list — a card trivially
+  // "shares" with the list it is on. One memo feeds the toolbar's options, the
+  // URL sync's self-stripping, and the slug-switch prune below.
+  const shareRefs = createMemo<ShareListsForPage | undefined>(() =>
+    props.slug
+      ? shareListsExcluding(props.shareLists, { type: 'deck', slug: props.slug })
+      : undefined,
+  )
+  const otherShareLists = (): readonly NamedListRef[] =>
+    shareRefs()?.others ?? props.shareLists ?? []
+  // Admin surfaces (the editors, Move Cards) keep this page mounted across slug
+  // switches with URL state off, so `currentShareList` stripping never runs
+  // there — a chip naming the newly opened list would survive and filter the
+  // list against itself. `on` has no equality check, so the prune itself bails
+  // without a store write when no chip names this list.
+  createEffect(
+    on(
+      () => props.slug,
+      () => {
+        const refs = shareRefs()
+        if (refs) pruneOwnShareSelections(cardFilters, refs.selfKey)
+      },
+      { defer: true },
+    ),
+  )
   // A parameter, not a read of the live mode, for the same reason as the
   // group-by options: the URL sync validates against the full set a shared
   // link may name, while the dropdown offers only what is currently on.
@@ -259,6 +295,9 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     // something this page can also show and clear.
     availableLabels: DECK_LABEL_FILTERS,
     supportsSellMode: Boolean(props.enableSellMode),
+    // A shared URL's share-filter params naming this page itself are stripped
+    // — the page never offers its own list as an option.
+    currentShareList: shareRefs()?.selfKey,
   })
 
   // Declared once, at setup: a page handed a baked payload never calls the quote
@@ -514,6 +553,9 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           setCode: card?.set ?? '',
           colorIdentity: card?.color_identity ?? [],
           hasPrinting: hasSpecificPrinting(entry),
+          pinnedPrintingKey: hasSpecificPrinting(entry)
+            ? printingKey(entry.set, entry.collectorNumber)
+            : undefined,
           oracleTags: card?.oracleTags ?? [],
           artTags: card?.artTags ?? [],
           labels,
@@ -588,7 +630,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   )
 
   const filteredMainboardCards = createMemo(() =>
-    filterCards(partitioned().mainboardCards, cardFilters.filters),
+    filterCards(partitioned().mainboardCards, cardFilters.filters, shareContext()),
   )
 
   // Sorted and grouped cards (mainboard only)
@@ -620,7 +662,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   })
 
   const filteredSideboardCards = createMemo(() =>
-    filterCards(partitioned().sideboardCards, cardFilters.filters),
+    filterCards(partitioned().sideboardCards, cardFilters.filters, shareContext()),
   )
 
   // Filtered deck price = commander (always shown, unfiltered) + filtered mainboard + filtered sideboard
@@ -808,7 +850,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   // Pre-compute extra sections for reactive rendering
   const extraSections = createMemo(() => {
     if (cardFilters.filters.hideExtras || partitioned().extraCards.length === 0) return []
-    const extraCards = filterCards(partitioned().extraCards, cardFilters.filters)
+    const extraCards = filterCards(partitioned().extraCards, cardFilters.filters, shareContext())
     return props.deck.sections
       .filter((s) => isExtraSection(s.name))
       .map((s) => ({
@@ -937,6 +979,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         showHideExtras
         showLabelsFilter={DECK_LABEL_FILTERS.length > 0}
         availableLabels={DECK_LABEL_FILTERS}
+        shareLists={otherShareLists()}
         extraToggles={
           hasLowestPriceCards()
             ? [

@@ -437,19 +437,19 @@ an entry opens an action menu that depends on the list type.
 
 For a **deck** line:
 
-| Action                     | Description                                                                                         |
-| -------------------------- | --------------------------------------------------------------------------------------------------- |
-| `🖼️ Change Printing`       | Pick a new printing, finish, and condition for the line                                             |
-| `🌐 Change Language`       | Pick the line's [language](#card-language) (`en` removes the token)                                 |
-| `➕ Add a Copy`            | Increment the line's quantity                                                                       |
-| `➖ Remove a Copy`         | Decrement the line's quantity (multi-copy lines only); keeps the `&N` id                            |
-| `🏷️ Change Label`          | Set the line's [label override](#card-labels) to **Proxy**, or revert to the deck's default         |
-| `🎨 Set Custom Art`        | Set or clear the line's [custom art](#custom-art) (an image URL, or a file from the art directory)  |
-| `🗂️ Move to Section`       | Move the line to another section (or a new one)                                                     |
-| `📤 Move to Another List`  | Move every copy of the line to a different list (see [Moving Cards](#moving-cards-to-another-list)) |
-| `📝 Edit Note`             | Edit or clear the line's note                                                                       |
-| `🗑️ Remove Card`           | Delete a single-copy line (asks for confirmation); releases its `&N` id                             |
-| `🗑️ Remove All Copies (N)` | Delete all N copies of a multi-copy line (asks for confirmation); releases the id                   |
+| Action                     | Description                                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `🖼️ Change Printing`       | Pick a new printing, finish, and condition for the line (reads `🖼️ Set Printing` when the line pins none yet) |
+| `🌐 Change Language`       | Pick the line's [language](#card-language) (`en` removes the token)                                           |
+| `➕ Add a Copy`            | Increment the line's quantity                                                                                 |
+| `➖ Remove a Copy`         | Decrement the line's quantity (multi-copy lines only); keeps the `&N` id                                      |
+| `🏷️ Change Label`          | Set the line's [label override](#card-labels) to **Proxy**, or revert to the deck's default                   |
+| `🎨 Set Custom Art`        | Set or clear the line's [custom art](#custom-art) (an image URL, or a file from the art directory)            |
+| `🗂️ Move to Section`       | Move the line to another section (or a new one)                                                               |
+| `📤 Move to Another List`  | Move every copy of the line to a different list (see [Moving Cards](#moving-cards-to-another-list))           |
+| `📝 Edit Note`             | Edit or clear the line's note                                                                                 |
+| `🗑️ Remove Card`           | Delete a single-copy line (asks for confirmation); releases its `&N` id                                       |
+| `🗑️ Remove All Copies (N)` | Delete all N copies of a multi-copy line (asks for confirmation); releases the id                             |
 
 For a **collection** entry:
 
@@ -467,15 +467,15 @@ For a **collection** entry:
 
 For a **wanted list** entry:
 
-| Action                    | Description                                                                            |
-| ------------------------- | -------------------------------------------------------------------------------------- |
-| `🖼️ Change Printing`      | Re-pick the specificity: name-only, or a specific printing with optional finish        |
-| `✨ Change Finish`        | Switch between `nonfoil`, `foil`, `etched`, or no preference (printed entries only)    |
-| `🌐 Change Language`      | Pick the entry's [language](#card-language) (`en` removes the token)                   |
-| `🎨 Set Custom Art`       | Set or clear the entry's [custom art](#custom-art)                                     |
-| `📤 Move to Another List` | Move the entry to a different list (see [Moving Cards](#moving-cards-to-another-list)) |
-| `📝 Edit Note`            | Edit or clear the entry's note                                                         |
-| `🗑️ Remove`               | Delete the entry (asks for confirmation); releases its `&N` id                         |
+| Action                    | Description                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `🖼️ Change Printing`      | Re-pick the specificity: name-only, or a specific printing with optional finish (reads `🖼️ Set Printing` for a name-only entry) |
+| `✨ Change Finish`        | Switch between `nonfoil`, `foil`, `etched`, or no preference (printed entries only)                                             |
+| `🌐 Change Language`      | Pick the entry's [language](#card-language) (`en` removes the token)                                                            |
+| `🎨 Set Custom Art`       | Set or clear the entry's [custom art](#custom-art)                                                                              |
+| `📤 Move to Another List` | Move the entry to a different list (see [Moving Cards](#moving-cards-to-another-list))                                          |
+| `📝 Edit Note`            | Edit or clear the entry's note                                                                                                  |
+| `🗑️ Remove`               | Delete the entry (asks for confirmation); releases its `&N` id                                                                  |
 
 Every edit is undoable with `↩️ Undo Last Edit` (a linear stack, newest first); undoing a removal
 restores the entry with its original `&N` id when the id has not been reused. Edits are folded into

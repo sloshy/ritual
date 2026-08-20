@@ -686,6 +686,7 @@ function App() {
                           enableSellMode={sellModeAvailable()}
                           bakedBuylist={() => wantedListDetail()?.buylist}
                           onCombine={openCombine}
+                          shareLists={allNamedLists()}
                         />
                       }
                     >
@@ -696,6 +697,7 @@ function App() {
                         currency={currency()}
                         onExit={exitEditMode}
                         moveTargets={moveTargetsFor('wanted', wantedListSlug)}
+                        shareLists={allNamedLists()}
                       />
                     </Show>
                   </Show>
@@ -745,6 +747,7 @@ function App() {
                           enableSellMode={sellModeAvailable()}
                           bakedBuylist={() => collectionDetail()?.buylist}
                           onCombine={openCombine}
+                          shareLists={allNamedLists()}
                         />
                       }
                     >
@@ -755,6 +758,7 @@ function App() {
                         currency={currency()}
                         onExit={exitEditMode}
                         moveTargets={moveTargetsFor('collection', collectionSlug)}
+                        shareLists={allNamedLists()}
                       />
                     </Show>
                   </Show>
@@ -803,6 +807,7 @@ function App() {
                           enableSellMode={sellModeAvailable()}
                           bakedBuylist={() => deckDetail()?.buylist}
                           onCombine={openCombine}
+                          shareLists={allNamedLists()}
                         />
                       }
                     >
@@ -813,6 +818,7 @@ function App() {
                         currency={currency()}
                         onExit={exitEditMode}
                         moveTargets={moveTargetsFor('deck', deckSlug)}
+                        shareLists={allNamedLists()}
                       />
                     </Show>
                   </Show>
@@ -829,6 +835,7 @@ function App() {
                   useScryfallImgUrls={useScryfallImgUrls()}
                   enableTrade
                   enableSellMode={sellModeAvailable()}
+                  allLists={allNamedLists()}
                 />
               </Show>
             </Match>
@@ -851,7 +858,11 @@ function App() {
               </Show>
             </Match>
             <Match when={route().page === 'search-results'}>
-              <SearchResultsPage currency={currency()} useScryfallImgUrls={useScryfallImgUrls()} />
+              <SearchResultsPage
+                currency={currency()}
+                useScryfallImgUrls={useScryfallImgUrls()}
+                shareLists={allNamedLists()}
+              />
             </Match>
           </Switch>
         </div>

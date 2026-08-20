@@ -34,6 +34,8 @@ interface CombinedListPageProps {
   enableTrade?: boolean
   /** Offer sell mode; true only on a site built with `site.sellMode` on. */
   enableSellMode?: boolean
+  /** Every list on the site, for the share filters (member lists stay offered). */
+  allLists?: NamedListRef[]
 }
 
 export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
@@ -123,6 +125,7 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
       enableTrade={props.enableTrade}
       enableSellMode={props.enableSellMode}
       bakedBuylist={bakedBuylist}
+      shareLists={props.allLists}
       enableUrlState
       title={pageTitle()}
       loading={loaded() === null}

@@ -19,10 +19,16 @@ import {
   toggleBuylistFilterOption,
   toggleLabelFilterOption,
   parseBuylistParam,
+  parseShareListParam,
   untaggedAddedCardNames,
+  updateShareSelection,
+  type CardFilterContext,
   type CardFilters,
   type CopiesMatchMode,
+  type ListShareKeys,
+  type ShareLoad,
 } from '../../../src/site/card-filters'
+import type { ListRefKey } from '../../../src/site/combined-list'
 import type { CardData } from '../../../src/site/card-sorting'
 import type { Finish } from '../../../src/types'
 import { makeCardData as makeCard, makeScryfallCard } from '../../test-utils'
@@ -974,6 +980,285 @@ describe('parseBuylistParam', () => {
     ['on,on', ['on']],
   ])('parses %p', (input, expected) => {
     expect(parseBuylistParam(input)).toEqual(expected as never)
+  })
+})
+
+describe('share filters', () => {
+  /** A tile with a resolved printing at `set:cn`, named `name` on both sides. */
+  function pinned(name: string, set: string, collectorNumber: string): CardData {
+    return makeCard({
+      name,
+      card: makeScryfallCard({ name, set, collector_number: collectorNumber }),
+    })
+  }
+
+  /** Share key sets for one list. */
+  function keys(names: string[], printings: string[] = []): ListShareKeys {
+    return { names: new Set(names), printings: new Set(printings) }
+  }
+
+  function shareContext(entries: [ListRefKey, ShareLoad][]): CardFilterContext {
+    return { shares: new Map(entries) }
+  }
+
+  const bolt = pinned('Lightning Bolt', 'lea', '161')
+  const ring = pinned('Sol Ring', 'c21', '263')
+  const rock = pinned('Mind Stone', 'wth', '153')
+  const all = [bolt, ring, rock]
+
+  const deckB = keys(['lightning bolt'], ['lea:161'])
+  const deckC = keys(['sol ring', 'lightning bolt'], ['c21:263', 'lea:161'])
+  /** Both fixture decks loaded — the arrangement most tests share. */
+  const ctxBC = shareContext([
+    ['deck:b', deckB],
+    ['deck:c', deckC],
+  ])
+
+  test('empty selections are inactive, with and without a context', () => {
+    expect(filterCards(all, makeFilters())).toEqual(all)
+    expect(filterCards(all, makeFilters(), shareContext([['deck:b', deckB]]))).toEqual(all)
+  })
+
+  test("include 'any' keeps cards present in at least one selected list", () => {
+    const result = filterCards(all, makeFilters({ sharedWith: ['deck:b', 'deck:c'] }), ctxBC)
+    expect(result.map((c) => c.name)).toEqual(['Lightning Bolt', 'Sol Ring'])
+  })
+
+  test("include 'all' requires presence in every selected list", () => {
+    const result = filterCards(
+      all,
+      makeFilters({ sharedWith: ['deck:b', 'deck:c'], sharedWithMode: 'all' }),
+      ctxBC,
+    )
+    expect(result.map((c) => c.name)).toEqual(['Lightning Bolt'])
+  })
+
+  test('a selected but unloaded list contributes nothing', () => {
+    // Alone: nothing loaded, so nothing narrows.
+    expect(
+      filterCards(all, makeFilters({ sharedWith: ['deck:missing'] }), shareContext([])),
+    ).toEqual(all)
+    // And with no context at all.
+    expect(filterCards(all, makeFilters({ sharedWith: ['deck:missing'] }))).toEqual(all)
+    // Alongside a loaded list under 'all', only the loaded one is consulted.
+    const result = filterCards(
+      all,
+      makeFilters({ sharedWith: ['deck:b', 'deck:missing'], sharedWithMode: 'all' }),
+      shareContext([['deck:b', deckB]]),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Lightning Bolt'])
+  })
+
+  test('a failed list narrows nothing, exactly like one still loading', () => {
+    const ctx = shareContext([
+      ['deck:b', deckB],
+      ['deck:broken', 'failed'],
+    ])
+    // Include 'any': the failed list contributes nothing, so nothing narrows.
+    expect(filterCards(all, makeFilters({ sharedWith: ['deck:broken'] }), ctx)).toEqual(all)
+    // Include 'all' alone: same.
+    expect(
+      filterCards(all, makeFilters({ sharedWith: ['deck:broken'], sharedWithMode: 'all' }), ctx),
+    ).toEqual(all)
+    // Include 'all' alongside a loaded list: only the loaded one is consulted.
+    const result = filterCards(
+      all,
+      makeFilters({ sharedWith: ['deck:b', 'deck:broken'], sharedWithMode: 'all' }),
+      ctx,
+    )
+    expect(result.map((c) => c.name)).toEqual(['Lightning Bolt'])
+    // Exclusion by a failed list drops nothing.
+    expect(filterCards(all, makeFilters({ notSharedWith: ['deck:broken'] }), ctx)).toEqual(all)
+  })
+
+  test("match 'name' uses the folded front-face identity", () => {
+    const dfc = pinned('Fire // Ice', 'apc', '128')
+    const accented = pinned('Jötun Grunt', 'csp', '9')
+    const ctx = shareContext([['collection:x', keys(['fire', 'jotun grunt'])]])
+    const result = filterCards(
+      [dfc, accented, rock],
+      makeFilters({ sharedWith: ['collection:x'] }),
+      ctx,
+    )
+    expect(result.map((c) => c.name)).toEqual(['Fire // Ice', 'Jötun Grunt'])
+  })
+
+  test("match 'name' prefers the resolved Scryfall name over the entry name", () => {
+    // The tile's entry name omits the back face; the resolved card carries it.
+    const tile = makeCard({
+      name: 'Fire',
+      card: makeScryfallCard({ name: 'Fire // Ice', set: 'apc', collector_number: '128' }),
+    })
+    const ctx = shareContext([['deck:x', keys(['fire'])]])
+    expect(filterCards([tile], makeFilters({ sharedWith: ['deck:x'] }), ctx)).toEqual([tile])
+  })
+
+  test("match 'printing' matches set:cn case-insensitively", () => {
+    const shifted = makeCard({
+      name: 'Shifty',
+      card: makeScryfallCard({ name: 'Shifty', set: 'MKM', collector_number: '507A' }),
+    })
+    const ctx = shareContext([['deck:x', keys([], ['mkm:507a'])]])
+    const filters = makeFilters({ sharedWith: ['deck:x'], sharedWithMatch: 'printing' })
+    expect(filterCards([shifted, rock], filters, ctx).map((c) => c.name)).toEqual(['Shifty'])
+  })
+
+  test("match 'printing' prefers the entry's own pin over the displayed printing", () => {
+    // Lowest Price and per-store picks re-target `card.card` to a different
+    // printing; the pin is the list's actual holding and must keep matching.
+    const repriced = makeCard({
+      name: 'Lightning Bolt',
+      pinnedPrintingKey: 'lea:161',
+      card: makeScryfallCard({ name: 'Lightning Bolt', set: 'm10', collector_number: '146' }),
+    })
+    const ctx = shareContext([['deck:x', keys([], ['lea:161'])]])
+    expect(
+      filterCards(
+        [repriced],
+        makeFilters({ sharedWith: ['deck:x'], sharedWithMatch: 'printing' }),
+        ctx,
+      ),
+    ).toEqual([repriced])
+  })
+
+  test("a card with no resolved printing fails a 'printing' include and passes a 'printing' exclude", () => {
+    const unresolved = makeCard({ name: 'Lightning Bolt', card: null })
+    // The list holds the name key too, so only the printing identity is missing.
+    const ctx = shareContext([['deck:x', keys(['lightning bolt'], ['lea:161'])]])
+    expect(
+      filterCards(
+        [unresolved],
+        makeFilters({ sharedWith: ['deck:x'], sharedWithMatch: 'printing' }),
+        ctx,
+      ),
+    ).toEqual([])
+    expect(
+      filterCards(
+        [unresolved],
+        makeFilters({ notSharedWith: ['deck:x'], notSharedWithMatch: 'printing' }),
+        ctx,
+      ),
+    ).toEqual([unresolved])
+  })
+
+  test('exclusion wins over inclusion for a card present in both selections', () => {
+    const result = filterCards(
+      all,
+      makeFilters({ sharedWith: ['deck:c'], notSharedWith: ['deck:b'] }),
+      ctxBC,
+    )
+    // Bolt is in both deck:c (included) and deck:b (excluded) — exclusion wins.
+    expect(result.map((c) => c.name)).toEqual(['Sol Ring'])
+  })
+
+  test('exclusion alone drops cards present in any selected loaded list', () => {
+    const result = filterCards(all, makeFilters({ notSharedWith: ['deck:b', 'deck:c'] }), ctxBC)
+    expect(result.map((c) => c.name)).toEqual(['Mind Stone'])
+  })
+
+  test('an unloaded excluded list passes everything', () => {
+    expect(
+      filterCards(all, makeFilters({ notSharedWith: ['deck:missing'] }), shareContext([])),
+    ).toEqual(all)
+  })
+
+  test('exclusion uses its own match identity, not the include one', () => {
+    // Exclude by printing: the name overlaps but the printing does not, so the
+    // card stays; under name matching it would be dropped.
+    const otherPrinting = pinned('Lightning Bolt', 'm10', '146')
+    const ctx = shareContext([['deck:b', deckB]])
+    expect(
+      filterCards(
+        [otherPrinting],
+        makeFilters({ notSharedWith: ['deck:b'], notSharedWithMatch: 'printing' }),
+        ctx,
+      ),
+    ).toEqual([otherPrinting])
+    expect(filterCards([otherPrinting], makeFilters({ notSharedWith: ['deck:b'] }), ctx)).toEqual(
+      [],
+    )
+  })
+
+  test('each active share filter counts once toward the badge', () => {
+    expect(countActiveFilters(makeFilters({ sharedWith: ['deck:b'] }))).toBe(1)
+    expect(countActiveFilters(makeFilters({ notSharedWith: ['deck:b'] }))).toBe(1)
+    expect(
+      countActiveFilters(makeFilters({ sharedWith: ['deck:b'], notSharedWith: ['deck:c'] })),
+    ).toBe(2)
+    // Modes alone are not active filters.
+    expect(
+      countActiveFilters(makeFilters({ sharedWithMode: 'all', sharedWithMatch: 'printing' })),
+    ).toBe(0)
+  })
+})
+
+describe('updateShareSelection', () => {
+  type ShareSelections = Pick<CardFilters, 'sharedWith' | 'notSharedWith'>
+
+  test('replaces the chosen field and removes entering keys from the other', () => {
+    const current: ShareSelections = { sharedWith: ['deck:a'], notSharedWith: ['deck:b', 'deck:c'] }
+    const patch = updateShareSelection(current, 'sharedWith', ['deck:a', 'deck:b'])
+    expect(patch.sharedWith).toEqual(['deck:a', 'deck:b'])
+    expect(patch.notSharedWith).toEqual(['deck:c'])
+  })
+
+  test('works symmetrically for the exclude field', () => {
+    const current: ShareSelections = { sharedWith: ['deck:a', 'deck:b'], notSharedWith: [] }
+    const patch = updateShareSelection(current, 'notSharedWith', ['deck:b'])
+    expect(patch.sharedWith).toEqual(['deck:a'])
+    expect(patch.notSharedWith).toEqual(['deck:b'])
+  })
+
+  test('dedupes the incoming selection', () => {
+    const patch = updateShareSelection({ sharedWith: [], notSharedWith: [] }, 'sharedWith', [
+      'deck:a',
+      'deck:a',
+    ])
+    expect(patch.sharedWith).toEqual(['deck:a'])
+  })
+
+  test('result fields are always disjoint', () => {
+    const patch = updateShareSelection(
+      { sharedWith: ['deck:x'], notSharedWith: ['deck:y'] },
+      'notSharedWith',
+      ['deck:x', 'deck:y'],
+    )
+    expect(patch.sharedWith).toEqual([])
+    expect(patch.notSharedWith).toEqual(['deck:x', 'deck:y'])
+    expect(patch.sharedWith.filter((k) => patch.notSharedWith.includes(k))).toEqual([])
+  })
+
+  test('clearing a field leaves the other untouched', () => {
+    const patch = updateShareSelection(
+      { sharedWith: ['deck:a'], notSharedWith: ['deck:b'] },
+      'sharedWith',
+      [],
+    )
+    expect(patch).toEqual({ sharedWith: [], notSharedWith: ['deck:b'] })
+  })
+
+  test('the other field keeps its array identity when nothing left it', () => {
+    const notSharedWith: ListRefKey[] = ['deck:b']
+    const patch = updateShareSelection({ sharedWith: [], notSharedWith }, 'sharedWith', ['deck:a'])
+    expect(patch.notSharedWith).toBe(notSharedWith)
+  })
+})
+
+// Token-level CSV behavior (trimming, malformed tokens, dedupe, colons in
+// slugs) is pinned on the shared `parseListRefKeyCsv` in combined-list.test.ts;
+// here only this parser's own arms are asserted.
+describe('parseShareListParam', () => {
+  test('parses a CSV of type:slug tokens into canonical refKeys, keeping order', () => {
+    expect(parseShareListParam('deck:alpha,collection:binder')).toEqual([
+      'deck:alpha',
+      'collection:binder',
+    ])
+  })
+
+  test('null, empty, and all-garbage values parse to undefined', () => {
+    expect(parseShareListParam(null)).toBeUndefined()
+    expect(parseShareListParam('')).toBeUndefined()
+    expect(parseShareListParam('bogus,unknown:slug')).toBeUndefined()
   })
 })
 

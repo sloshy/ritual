@@ -1,4 +1,4 @@
-import { createSignal, type JSX } from 'solid-js'
+import { createMemo, createSignal, type JSX } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
 import type { CardKingdomCards, WantedListCardEntry } from '../../../site/data-types'
 import type { CardArtRecord } from '../../../card-art'
@@ -13,7 +13,7 @@ import { useFlatListEditController } from '../../../editor/flat-list-controller'
 import { applyWantedChangePrinting, wantedPrintingOf } from '../../../editor/wanted-config'
 import { WantedEditorBody } from '../../../editor/WantedEditorBody'
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
-import { useAdminLists, moveTargetsExcluding } from '../move-targets'
+import { useAdminLists, listInfosToNamedRefs, moveTargetsExcluding } from '../move-targets'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
 import { useCardArt } from '../hooks/useCardArt'
@@ -116,6 +116,10 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
     moveTargets: (currentSlug) => moveTargetsExcluding(lists(), 'wanted', currentSlug),
   })
 
+  // Converted once per lists() change, so the array keeps its identity (and
+  // the filter menu's option memos stay warm) across re-renders.
+  const shareLists = createMemo(() => listInfosToNamedRefs(lists()))
+
   const ctrl = useFlatListEditController<WantedListCardEntry>({
     buildConfig,
     initialSlug: props.initialSlug,
@@ -144,6 +148,7 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
       customArt={cardArt.art()}
       onSetCustomArt={cardArt.open}
       cardsCardKingdom={ckCards()}
+      shareLists={shareLists()}
     />
   )
 }

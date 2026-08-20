@@ -1,4 +1,4 @@
-import { createSignal, type JSX } from 'solid-js'
+import { createMemo, createSignal, type JSX } from 'solid-js'
 import type { DeckData, ScryfallCard } from '../../../types'
 import type { CardLabel } from '../../../card-labels'
 import type { CardKingdomCards } from '../../../site/data-types'
@@ -20,7 +20,7 @@ import {
 } from '../../../editor/deck-config'
 import { useDeckEditController, DeckEditorBody } from '../../../editor/DeckEditController'
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
-import { useAdminLists, moveTargetsExcluding } from '../move-targets'
+import { useAdminLists, listInfosToNamedRefs, moveTargetsExcluding } from '../move-targets'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
 import { useCardArt } from '../hooks/useCardArt'
@@ -144,6 +144,10 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
     moveTargets: (currentSlug) => moveTargetsExcluding(lists(), 'deck', currentSlug),
   })
 
+  // Converted once per lists() change, so the array keeps its identity (and
+  // the filter menu's option memos stay warm) across re-renders.
+  const shareLists = createMemo(() => listInfosToNamedRefs(lists()))
+
   const ctrl = useDeckEditController(buildConfig, props.initialSlug)
   // Wired after the editor exists: a staged art write that fails *after* a
   // successful save has no dialog left to report into, so it takes over the
@@ -166,6 +170,7 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
         onEditLabels={() => setLabelsOpen(true)}
         customArt={cardArt.art()}
         onSetCustomArt={cardArt.open}
+        shareLists={shareLists()}
       />
       <ListLabelsModal
         open={labelsOpen()}

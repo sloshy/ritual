@@ -18,6 +18,7 @@ import { StatusToast } from '../../ui/StatusToast'
 import { useEditorShortcuts } from '../useEditorShortcuts'
 import { type EditorEntity, entityListType } from '../entity'
 import { renderStatus } from '../useEditorStatus'
+import { hasSpecificPrinting } from '../../card-printing'
 import { useT, useTDynamic } from '../../ui/i18n'
 
 type BaseCardData = {
@@ -70,6 +71,13 @@ export function EditorShell<TData, TCardEntry>(
   const listType = (): ListType => entityListType(props.entityLabel)
   let actionBarEl: HTMLDivElement | undefined
   const [showShortcuts, setShowShortcuts] = createSignal(false)
+
+  // Whether the change-printing flow's target already pins a printing — false
+  // both when it does not and when no flow is running (the dialogs are closed).
+  const changePrintingTargetPinned = createMemo(() => {
+    const target = editor.changePrinting()?.target
+    return target !== undefined && hasSpecificPrinting(target)
+  })
 
   // The add dialog's per-card options, derived from what this list is: only the
   // add flow gets them, so the change-printing modal below is left without.
@@ -142,6 +150,7 @@ export function EditorShell<TData, TCardEntry>(
       <ChangePrintingQuantityDialog
         open={editor.changePrinting()?.step === 'quantity'}
         cardName={editor.changePrinting()?.target.cardName ?? ''}
+        hasPrinting={changePrintingTargetPinned()}
         total={editor.changePrinting()?.target.quantity ?? 1}
         onConfirm={editor.confirmChangePrintingCount}
         onCancel={editor.cancelChangePrinting}
@@ -149,6 +158,7 @@ export function EditorShell<TData, TCardEntry>(
       <CardSearchModal
         open={editor.changePrinting()?.step === 'printing'}
         initialCardName={editor.changePrinting()?.target.cardName}
+        targetHasPrinting={changePrintingTargetPinned()}
         onClose={editor.cancelChangePrinting}
         onAddCard={(_cardName, options, scryfallCard, allPrintings) =>
           editor.handleChangePrintingSelect(options, scryfallCard, allPrintings)

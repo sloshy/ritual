@@ -69,6 +69,12 @@ type CardSearchModalProps = {
    */
   initialCardName?: string
   /**
+   * Change-printing flow only: whether the targeted line already pins a printing.
+   * When it does not, the dialog names itself "Set printing" — there is nothing
+   * to change yet.
+   */
+  targetHasPrinting?: boolean
+  /**
    * Offer the per-card add options (label override, custom art) alongside the
    * printing. Omitted in change-printing mode and wherever the dialog is reused
    * to pick a card rather than to add one — neither commits an `add`.
@@ -990,7 +996,13 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       size="lg"
       placement="top"
       panelClass="search-modal"
-      aria-label={t(isAddFlow() ? 'ui.addCard.title' : 'ui.editor.changePrintingTitle')}
+      aria-label={t(
+        isAddFlow()
+          ? 'ui.addCard.title'
+          : props.targetHasPrinting
+            ? 'ui.editor.changePrintingTitle'
+            : 'ui.editor.setPrintingTitle',
+      )}
       panelRef={(el) => (modalRef = el)}
       overlay={
         <Show when={previewCard() && step() === 'search'}>

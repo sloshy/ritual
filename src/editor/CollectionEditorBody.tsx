@@ -1,5 +1,6 @@
 import { createMemo, type JSX } from 'solid-js'
 import type { CollectionCardEntry } from '../site/data-types'
+import type { NamedListRef } from '../site/combined-list'
 import type { SellModeProps } from '../site/sell-mode'
 import type { PriceCurrency } from '../price-currency'
 import type { CardLabel } from '../card-labels'
@@ -41,6 +42,8 @@ type CollectionEditorBodyProps = SellModeProps & {
   customArt?: CardArtRefs
   /** Open the custom-art dialog for a card (admin editor only — needs the authed art route). */
   onSetCustomArt?: (target: CardContextInfo) => void
+  /** Every list, for the toolbar's share filters (the page drops itself). */
+  shareLists?: readonly NamedListRef[]
 }
 
 /**
@@ -121,6 +124,7 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
         bulkEdit={bulkEdit}
         unsavedChangeCount={ctrl.editor.changes.changeCount()}
         addedCardNames={ctrl.editor.addedCardNames()}
+        shareLists={props.shareLists}
       />
     </FlatListEditorShell>
   )

@@ -3,6 +3,7 @@ import type { CardLabelSelection } from '../card-labels'
 import type { GroupBy, SortBy } from './card-sorting'
 import { SELL_MODE_FILTER_KEYS, type CardFilters } from './card-filters'
 import type { CardFiltersControl } from './useCardFilters'
+import type { ListRefKey } from './combined-list'
 import { activeUsdSource, pricesEnabled, selectUsdSource, usdSourceIsExplicit } from './price-view'
 import type { UseToolbarStateResult } from './useToolbarState'
 import {
@@ -49,6 +50,14 @@ export type UseListViewUrlSyncConfig<G extends GroupBy> = {
    * clear.
    */
   supportsSellMode?: boolean
+  /**
+   * This page's own ListRefKey (`type:slug`). A shared URL's share-filter
+   * params naming the page itself are stripped — the page never offers itself
+   * as an option, so the value would sit behind a chip the toolbar cannot show
+   * or clear (the `availableLabels` precedent). Omitted on the combined view,
+   * which offers every list.
+   */
+  currentShareList?: ListRefKey
 }
 
 /**
@@ -69,6 +78,30 @@ export function offeredLabels(
   const offered = new Set<CardLabelSelection>(available ?? [])
   const kept = labels.filter((label) => offered.has(label))
   return kept.length > 0 ? kept : undefined
+}
+
+/**
+ * A copy of `filters` with `currentShareList` dropped from both share-filter
+ * selections (the input is left untouched, like its sibling `offeredLabels`).
+ * A single-list page never offers itself as a share option, so a pasted link
+ * naming it (e.g. a link shared *from* another list where this one was
+ * selected) must not seed a selection the panel cannot display. A selection
+ * left empty is removed entirely, keeping "no override" distinct from "an
+ * active filter with nothing selected".
+ */
+export function stripCurrentShareList(
+  filters: Partial<CardFilters>,
+  currentShareList: ListRefKey,
+): Partial<CardFilters> {
+  const next: Partial<CardFilters> = { ...filters }
+  for (const key of ['sharedWith', 'notSharedWith'] as const) {
+    const values = next[key]
+    if (values === undefined) continue
+    const kept = values.filter((token) => token !== currentShareList)
+    if (kept.length > 0) next[key] = kept
+    else delete next[key]
+  }
+  return next
 }
 
 function currentHashParams(): URLSearchParams {
@@ -148,6 +181,9 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
       }
       if (config.supportsSellMode !== true) {
         for (const key of SELL_MODE_FILTER_KEYS) delete o.filters[key]
+      }
+      if (config.currentShareList !== undefined) {
+        o.filters = stripCurrentShareList(o.filters, config.currentShareList)
       }
       filters.update(o.filters)
     }

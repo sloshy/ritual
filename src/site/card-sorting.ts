@@ -169,6 +169,15 @@ export interface CardData {
   /** Whether this entry is pinned to a specific printing (has both set and collector number). */
   hasPrinting: boolean
   /**
+   * The entry's own `set:cn` pin (via `printingKey`), independent of which
+   * printing the tile displays. Present exactly when the entry carries both a
+   * set and a collector number. `card` can be re-targeted by the Lowest Price
+   * toggle or a per-store printing pick, so identity checks that mean "the
+   * printing this line declares" (the share filters) must read this, not the
+   * displayed card.
+   */
+  pinnedPrintingKey?: string
+  /**
    * Finish of the copy this tile represents. Undefined on entries that do not
    * state one (deck and wanted lines default to nonfoil wherever it matters).
    */

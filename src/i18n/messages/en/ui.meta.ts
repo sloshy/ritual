@@ -262,6 +262,10 @@ export const uiMeta = {
     description:
       'Title of the dialog that re-points a card at a different printing (a different set / collector number).',
   },
+  'ui.editor.setPrintingTitle': {
+    description:
+      'Title of that same dialog when the card pins no printing yet, so one is being chosen for the first time rather than changed.',
+  },
   'ui.editor.changePrintingPrompt': {
     description:
       "Asks how many of a stack's copies get the new printing. {total} is how many copies exist, {name} is the card name.",
@@ -327,6 +331,11 @@ export const uiMeta = {
   'ui.cardMenu.changePrinting': {
     description:
       'Menu row opening the printing picker for this card. The ellipsis marks that a dialog follows.',
+    maxLen: 24,
+  },
+  'ui.cardMenu.setPrinting': {
+    description:
+      'Menu row opening the printing picker for a card whose line pins no printing yet, so there is nothing to change — it is being set for the first time. The ellipsis marks that a dialog follows.',
     maxLen: 24,
   },
   'ui.cardMenu.setLabel': {

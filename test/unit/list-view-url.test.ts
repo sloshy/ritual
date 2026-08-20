@@ -8,7 +8,7 @@ import {
   writeListViewParams,
 } from '../../src/site/list-view-url'
 import { type CardFilters, createDefaultCardFilters } from '../../src/site/card-filters'
-import { offeredLabels } from '../../src/site/useListViewUrlSync'
+import { offeredLabels, stripCurrentShareList } from '../../src/site/useListViewUrlSync'
 import { labelFiltersFor } from '../../src/card-labels'
 
 const DEFAULTS: ListViewDefaults = { groupBy: 'type', sortBy: 'name' }
@@ -481,6 +481,170 @@ describe('labels param', () => {
   test('an illegal combination is ignored whole', () => {
     const params = new URLSearchParams('labels=keep,sale')
     expect(parseListViewParams(params).filters?.labels).toBeUndefined()
+  })
+})
+
+describe('share filter parameters', () => {
+  test('default (empty) share filters write none of the five keys', () => {
+    const params = encode(defaultState())
+    for (const key of ['shared', 'sharedMode', 'sharedMatch', 'notShared', 'notSharedMatch']) {
+      expect(params.has(key)).toBe(false)
+    }
+  })
+
+  test('an active include selection writes its refKeys as CSV', () => {
+    const filters = createDefaultCardFilters()
+    filters.sharedWith = ['deck:alpha', 'collection:binder']
+    const params = encode(defaultState({ filters }))
+    expect(params.get('shared')).toBe('deck:alpha,collection:binder')
+    // Mode and match left at their defaults stay out of the URL.
+    expect(params.has('sharedMode')).toBe(false)
+    expect(params.has('sharedMatch')).toBe(false)
+  })
+
+  test('non-default mode and match ride with an active include selection', () => {
+    const filters = createDefaultCardFilters()
+    filters.sharedWith = ['deck:alpha']
+    filters.sharedWithMode = 'all'
+    filters.sharedWithMatch = 'printing'
+    const params = encode(defaultState({ filters }))
+    expect(params.get('sharedMode')).toBe('all')
+    expect(params.get('sharedMatch')).toBe('printing')
+  })
+
+  test('mode and match alone (no selection) stay out of the URL', () => {
+    const filters = createDefaultCardFilters()
+    filters.sharedWithMode = 'all'
+    filters.sharedWithMatch = 'printing'
+    filters.notSharedWithMatch = 'printing'
+    expect(encode(defaultState({ filters })).toString()).toBe('')
+  })
+
+  test('an active exclude selection writes its keys, with match only when non-default', () => {
+    const filters = createDefaultCardFilters()
+    filters.notSharedWith = ['wanted:someday']
+    expect(encode(defaultState({ filters })).get('notShared')).toBe('wanted:someday')
+    expect(encode(defaultState({ filters })).has('notSharedMatch')).toBe(false)
+
+    filters.notSharedWithMatch = 'printing'
+    expect(encode(defaultState({ filters })).get('notSharedMatch')).toBe('printing')
+  })
+
+  test('clearing the selections deletes previously written keys', () => {
+    const params = new URLSearchParams(
+      'shared=deck:alpha&sharedMode=all&sharedMatch=printing&notShared=deck:beta&notSharedMatch=printing',
+    )
+    writeListViewParams(params, defaultState(), DEFAULTS)
+    expect(params.toString()).toBe('')
+  })
+
+  test('round-trips a fully populated share state', () => {
+    const filters = createDefaultCardFilters()
+    filters.sharedWith = ['deck:alpha', 'collection:binder']
+    filters.sharedWithMode = 'all'
+    filters.sharedWithMatch = 'printing'
+    filters.notSharedWith = ['wanted:someday']
+    filters.notSharedWithMatch = 'printing'
+    const parsed = parseListViewParams(encode(defaultState({ filters })))
+    expect(parsed.filters).toEqual({
+      sharedWith: ['deck:alpha', 'collection:binder'],
+      sharedWithMode: 'all',
+      sharedWithMatch: 'printing',
+      notSharedWith: ['wanted:someday'],
+      notSharedWithMatch: 'printing',
+    })
+  })
+
+  test('garbage tokens are dropped; a param with none usable is ignored whole', () => {
+    const parsed = parseListViewParams(
+      new URLSearchParams('shared=nope,deck:,:x,,deck:alpha,deck:alpha'),
+    )
+    expect(parsed.filters?.sharedWith).toEqual(['deck:alpha'])
+
+    expect(parseListViewParams(new URLSearchParams('shared=nope,:x')).filters).toBeUndefined()
+  })
+
+  test('unknown mode and match values are ignored, keeping the selection', () => {
+    const parsed = parseListViewParams(
+      new URLSearchParams('shared=deck:alpha&sharedMode=weird&sharedMatch=banana'),
+    )
+    expect(parsed.filters).toEqual({ sharedWith: ['deck:alpha'] })
+  })
+
+  test('mode and match params without their list param are ignored', () => {
+    expect(
+      parseListViewParams(new URLSearchParams('sharedMode=all&sharedMatch=printing')).filters,
+    ).toBeUndefined()
+    expect(
+      parseListViewParams(new URLSearchParams('notSharedMatch=printing')).filters,
+    ).toBeUndefined()
+  })
+
+  test('notSharedMatch applies to the exclude row only, never sharedWithMatch', () => {
+    const parsed = parseListViewParams(
+      new URLSearchParams('notShared=deck:a&notSharedMatch=printing'),
+    )
+    // toEqual pins the whole shape: sharedWithMatch must stay absent.
+    expect(parsed.filters).toEqual({
+      notSharedWith: ['deck:a'],
+      notSharedWithMatch: 'printing',
+    })
+  })
+
+  test('sharedMatch applies to the include row only, never notSharedWithMatch', () => {
+    const parsed = parseListViewParams(new URLSearchParams('shared=deck:a&sharedMatch=printing'))
+    expect(parsed.filters).toEqual({
+      sharedWith: ['deck:a'],
+      sharedWithMatch: 'printing',
+    })
+  })
+
+  test('a token in both params survives only in notSharedWith (exclusion wins)', () => {
+    const parsed = parseListViewParams(
+      new URLSearchParams('shared=deck:alpha,deck:beta&notShared=deck:alpha'),
+    )
+    expect(parsed.filters?.sharedWith).toEqual(['deck:beta'])
+    expect(parsed.filters?.notSharedWith).toEqual(['deck:alpha'])
+  })
+
+  test('an include selection fully swallowed by the exclusion is dropped, mode with it', () => {
+    const parsed = parseListViewParams(
+      new URLSearchParams('shared=deck:alpha&sharedMode=all&notShared=deck:alpha'),
+    )
+    expect(parsed.filters).toEqual({ notSharedWith: ['deck:alpha'] })
+  })
+
+  test('hasListViewParams recognizes the share keys', () => {
+    expect(hasListViewParams(new URLSearchParams('shared=deck:alpha'))).toBe(true)
+    expect(hasListViewParams(new URLSearchParams('notShared=deck:alpha'))).toBe(true)
+  })
+})
+
+describe('stripCurrentShareList (a page never filters against itself)', () => {
+  test("removes the page's own refKey from both selections, without mutating the input", () => {
+    const filters: Partial<CardFilters> = {
+      sharedWith: ['deck:alpha', 'deck:beta'],
+      notSharedWith: ['deck:alpha', 'wanted:someday'],
+    }
+    const stripped = stripCurrentShareList(filters, 'deck:alpha')
+    expect(stripped.sharedWith).toEqual(['deck:beta'])
+    expect(stripped.notSharedWith).toEqual(['wanted:someday'])
+    // Pure: the input keeps its original selections.
+    expect(filters.sharedWith).toEqual(['deck:alpha', 'deck:beta'])
+    expect(filters.notSharedWith).toEqual(['deck:alpha', 'wanted:someday'])
+  })
+
+  test('a selection left empty is removed entirely, not applied as empty', () => {
+    const stripped = stripCurrentShareList({ sharedWith: ['deck:alpha'] }, 'deck:alpha')
+    expect('sharedWith' in stripped).toBe(false)
+  })
+
+  test('leaves selections that never named the page untouched', () => {
+    const stripped = stripCurrentShareList(
+      { sharedWith: ['deck:beta'], name: 'bolt' },
+      'deck:alpha',
+    )
+    expect(stripped).toEqual({ sharedWith: ['deck:beta'], name: 'bolt' })
   })
 })
 

@@ -315,6 +315,40 @@ export const siteChromeMeta = {
     maxLen: MODE_MAX_LEN + 6,
   },
   'site.filter.buylistOffTitle': { description: 'Tooltip on the "not on buylist" chip.' },
+  'site.filter.sharedWith': {
+    description:
+      'Heading of the filter keeping only cards that also appear in the other lists the reader selects (e.g. cards of this deck that are also in a collection).',
+  },
+  'site.filter.sharedWithMode': {
+    description:
+      'Accessible name of the "shares cards with" filter\'s Any/All control, which chooses whether a card must appear in at least one selected list or in every one.',
+  },
+  'site.filter.sharedWithMatch': {
+    description:
+      'Accessible name of the "shares cards with" filter\'s Name/Printing control, which chooses what counts as "the same card" across lists.',
+  },
+  'site.filter.notSharedWith': {
+    description:
+      'Heading of the filter hiding every card that appears in any of the other lists the reader selects. It always wins over the "shares cards with" filter.',
+  },
+  'site.filter.notSharedWithMatch': {
+    description:
+      'Accessible name of the exclusion filter\'s Name/Printing control, which chooses what counts as "the same card" across lists.',
+  },
+  'site.filter.shareListsPlaceholder': {
+    description:
+      "Placeholder of both share filters' list fields, inviting the reader to pick other lists by name.",
+  },
+  'site.filter.sharedWithSuggestions': {
+    description: 'Accessible name of the "shares cards with" filter\'s list autocomplete.',
+  },
+  'site.filter.notSharedWithSuggestions': {
+    description: "Accessible name of the exclusion share filter's list autocomplete.",
+  },
+  'site.filter.shareListWithType': {
+    description:
+      "Label of a share-filter list option when two offered lists have the same name. {name} is the list's own name (never translated); {type} is its kind, one of domain.listTypeSingular.*, rendered in parentheses to tell the two apart.",
+  },
   'site.filter.sets': {
     description:
       'Heading of the filter matching on set code — the three-to-five letter code of the release a card was printed in. Set codes themselves are never translated.',
@@ -440,7 +474,22 @@ export const siteChromeMeta = {
   },
   'site.filterMode.name': {
     description:
-      'Copies-filter match-mode button: count every printing of a card name as the same card.',
+      'Match-mode button shared by the copies and share filters: treat every printing of a card name as the same card.',
+    maxLen: MODE_MAX_LEN,
+  },
+  'site.filterMode.any': {
+    description:
+      'Share-filter combination button: a card need only appear in at least one of the selected lists.',
+    maxLen: MODE_MAX_LEN,
+  },
+  'site.filterMode.all': {
+    description:
+      'Share-filter combination button: a card must appear in every one of the selected lists.',
+    maxLen: MODE_MAX_LEN,
+  },
+  'site.filterMode.printing': {
+    description:
+      'Share-filter identity button: cards count as the same only when set code and collector number match — i.e. one specific printing.',
     maxLen: MODE_MAX_LEN,
   },
   'site.filterMode.number': {
@@ -474,6 +523,24 @@ export const siteChromeMeta = {
   'site.filterMode.copiesFinish': {
     description:
       "Tooltip on the copies filter's strictest match-mode button: same printing *and* same finish, so a foil and a non-foil of one printing count separately.",
+  },
+  'site.filterMode.sharedAny': {
+    description: 'Tooltip on the "shares cards with" filter\'s Any button.',
+  },
+  'site.filterMode.sharedAll': {
+    description: 'Tooltip on the "shares cards with" filter\'s All button.',
+  },
+  'site.filterMode.sharedByName': {
+    description: 'Tooltip on the "shares cards with" filter\'s Name identity button.',
+  },
+  'site.filterMode.sharedByPrinting': {
+    description: 'Tooltip on the "shares cards with" filter\'s Printing identity button.',
+  },
+  'site.filterMode.notSharedByName': {
+    description: "Tooltip on the exclusion share filter's Name identity button.",
+  },
+  'site.filterMode.notSharedByPrinting': {
+    description: "Tooltip on the exclusion share filter's Printing identity button.",
   },
 
   // ── Index (the three list-gallery tabs) ───────────────────────────────

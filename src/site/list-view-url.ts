@@ -17,10 +17,17 @@ import {
   parseLabelsParam,
   parseNonNegativeInteger,
   parsePriceAmount,
+  parseShareListParam,
 } from './card-filters'
 import { BUYERS, type BuyerId } from '../buylist'
 import { USD_PRICE_SOURCES, type UsdPriceSource } from '../price-source'
-import { COLOR_MATCH_MODES, FILTER_MATCH_MODES, SET_CODE_FILTER_MODES } from './filter-mode'
+import {
+  COLOR_MATCH_MODES,
+  FILTER_MATCH_MODES,
+  LIST_SHARE_MATCHES,
+  LIST_SHARE_MODES,
+  SET_CODE_FILTER_MODES,
+} from './filter-mode'
 import {
   SORT_BYS,
   type CardSize,
@@ -126,6 +133,11 @@ const KEYS = {
   sellMode: 'sell',
   buyer: 'buyer',
   priceSource: 'prices',
+  sharedWith: 'shared',
+  sharedWithMode: 'sharedMode',
+  sharedWithMatch: 'sharedMatch',
+  notSharedWith: 'notShared',
+  notSharedWithMatch: 'notSharedMatch',
 } as const
 
 function setOrDelete(params: URLSearchParams, key: string, value: string | null): void {
@@ -283,6 +295,29 @@ export function writeListViewParams(
     KEYS.buylistPriceOp,
     hasBuylistPrice && f.buylistPriceOp !== d.buylistPriceOp ? f.buylistPriceOp : null,
   )
+
+  // The share filters' mode/match sub-options only mean something while their
+  // list selection is non-empty, so they ride with it (the sets/setMode pattern).
+  // Tokens are `type:slug` refKeys — the ':' is fine inside a CSV value.
+  const hasShared = f.sharedWith.length > 0
+  setOrDelete(params, KEYS.sharedWith, hasShared ? f.sharedWith.join(',') : null)
+  setOrDelete(
+    params,
+    KEYS.sharedWithMode,
+    hasShared && f.sharedWithMode !== d.sharedWithMode ? f.sharedWithMode : null,
+  )
+  setOrDelete(
+    params,
+    KEYS.sharedWithMatch,
+    hasShared && f.sharedWithMatch !== d.sharedWithMatch ? f.sharedWithMatch : null,
+  )
+  const hasNotShared = f.notSharedWith.length > 0
+  setOrDelete(params, KEYS.notSharedWith, hasNotShared ? f.notSharedWith.join(',') : null)
+  setOrDelete(
+    params,
+    KEYS.notSharedWithMatch,
+    hasNotShared && f.notSharedWithMatch !== d.notSharedWithMatch ? f.notSharedWithMatch : null,
+  )
 }
 
 /**
@@ -433,6 +468,28 @@ export function parseListViewParams(params: URLSearchParams): ListViewOverrides 
     filters.buylistPrice = buylistPrice
     const buylistPriceOp = oneOf(get(KEYS.buylistPriceOp), NUMERIC_OPS)
     if (buylistPriceOp) filters.buylistPriceOp = buylistPriceOp
+  }
+
+  // Exclusion is parsed first so a token present in both share params survives
+  // only in `notSharedWith` — the store keeps the two selections disjoint (see
+  // updateShareSelection), and exclusion winning matches the predicate, where
+  // presence in any excluded list fails the card regardless of inclusion.
+  const notSharedWith = parseShareListParam(get(KEYS.notSharedWith))
+  if (notSharedWith) {
+    filters.notSharedWith = notSharedWith
+    const notSharedWithMatch = oneOf(get(KEYS.notSharedWithMatch), LIST_SHARE_MATCHES)
+    if (notSharedWithMatch) filters.notSharedWithMatch = notSharedWithMatch
+  }
+
+  const sharedRaw = parseShareListParam(get(KEYS.sharedWith))
+  const excluded = new Set(notSharedWith ?? [])
+  const sharedWith = sharedRaw?.filter((key) => !excluded.has(key))
+  if (sharedWith && sharedWith.length > 0) {
+    filters.sharedWith = sharedWith
+    const sharedWithMode = oneOf(get(KEYS.sharedWithMode), LIST_SHARE_MODES)
+    if (sharedWithMode) filters.sharedWithMode = sharedWithMode
+    const sharedWithMatch = oneOf(get(KEYS.sharedWithMatch), LIST_SHARE_MATCHES)
+    if (sharedWithMatch) filters.sharedWithMatch = sharedWithMatch
   }
 
   if (Object.keys(filters).length > 0) overrides.filters = filters

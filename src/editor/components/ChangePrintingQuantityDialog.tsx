@@ -5,6 +5,11 @@ import { useT } from '../../ui/i18n'
 interface ChangePrintingQuantityDialogProps {
   open: boolean
   cardName: string
+  /**
+   * Whether the targeted line already pins a printing. When it does not, the
+   * dialog reads "Set printing" — there is nothing to change yet.
+   */
+  hasPrinting: boolean
   /** Total number of copies the targeted tile represents. */
   total: number
   /** Confirm with the chosen number of copies (1..total). */
@@ -26,7 +31,7 @@ export const ChangePrintingQuantityDialog: Component<ChangePrintingQuantityDialo
   return (
     <QuantityDialog
       open={props.open}
-      title={t('ui.editor.changePrintingTitle')}
+      title={t(props.hasPrinting ? 'ui.editor.changePrintingTitle' : 'ui.editor.setPrintingTitle')}
       message={t('ui.editor.changePrintingPrompt', {
         total: props.total,
         name: props.cardName,

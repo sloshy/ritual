@@ -7,6 +7,7 @@ import type { ListType } from '../list-type'
 import type { SelectionListId } from './useCardSelection'
 import {
   type CombinedCardData,
+  type NamedListRef,
   buildCombinedCards,
   listHref,
   mergeSymbolMaps,
@@ -17,6 +18,11 @@ import { useI18n } from '../ui/i18n'
 interface SearchResultsPageProps {
   currency: PriceCurrency
   useScryfallImgUrls: boolean
+  /**
+   * Every list on the site, for the toolbar's share filters. A synthetic
+   * cross-list view has no "self" to exclude, matching the combined page.
+   */
+  shareLists?: readonly NamedListRef[]
 }
 
 /** A source list contributing matches, for the header line that links back to each. */
@@ -98,6 +104,7 @@ export const SearchResultsPage: Component<SearchResultsPageProps> = (props) => {
         selectionLists={selectionLists()}
         currency={props.currency}
         useScryfallImgUrls={props.useScryfallImgUrls}
+        shareLists={props.shareLists}
         enableTrade
         title={t('site.searchResults.title')}
         emptyMessage={t('site.searchResults.empty')}

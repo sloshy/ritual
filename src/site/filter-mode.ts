@@ -49,6 +49,27 @@ export const COLOR_MATCH_MODES = ['subset', ...FILTER_MATCH_MODES] as const
 export type ColorMatchMode = (typeof COLOR_MATCH_MODES)[number]
 
 /**
+ * How the "shares cards with" selection combines: `any` — the card is present
+ * in at least one selected list; `all` — the card is present in every selected
+ * list. The exclusion filter needs no mode: presence in any selected list
+ * removes the card.
+ */
+export const LIST_SHARE_MODES = ['any', 'all'] as const
+
+export type ListShareMode = (typeof LIST_SHARE_MODES)[number]
+
+/**
+ * What counts as "the same card" across lists for the share filters:
+ * - `name`: the front-face, case/diacritic-folded card name (the Find page's
+ *   identity — see `findMatchKey` in `find-search.ts`).
+ * - `printing`: one exact printing, keyed `set:collectorNumber` via
+ *   `printingKey`.
+ */
+export const LIST_SHARE_MATCHES = ['name', 'printing'] as const
+
+export type ListShareMatch = (typeof LIST_SHARE_MATCHES)[number]
+
+/**
  * Does a card's `values` match `selected` under `mode`? `selected` entries are
  * lowercase. With nothing selected the filter is inactive, so this returns true.
  */

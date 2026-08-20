@@ -3,6 +3,7 @@ import {
   encodeCombinedHash,
   listRefKey,
   parseCombinedQuery,
+  parseListRefKeyCsv,
   buildCombinedCards,
   mergeSymbolMaps,
   mergeBakedBuylists,
@@ -108,6 +109,37 @@ function wantedDetail(): Extract<LoadedListDetail, { kind: 'wanted' }> {
 describe('listRefKey', () => {
   test('is the type and slug joined by a colon', () => {
     expect(listRefKey({ type: 'deck', slug: 'burn' })).toBe('deck:burn')
+  })
+})
+
+// The single CSV-of-refKeys implementation, shared by the combined view's
+// `lists=` param and the share filters' `shared=`/`notShared=` params.
+describe('parseListRefKeyCsv', () => {
+  test('parses tokens in order', () => {
+    expect(parseListRefKeyCsv('deck:alpha,collection:binder')).toEqual([
+      { type: 'deck', slug: 'alpha' },
+      { type: 'collection', slug: 'binder' },
+    ])
+  })
+
+  test('drops malformed tokens and trims whitespace', () => {
+    expect(parseListRefKeyCsv(' deck:alpha , nope, deck:, :x, wanted:wish ')).toEqual([
+      { type: 'deck', slug: 'alpha' },
+      { type: 'wanted', slug: 'wish' },
+    ])
+  })
+
+  test('dedupes repeated tokens, keeping the first', () => {
+    expect(parseListRefKeyCsv('deck:a,deck:a')).toEqual([{ type: 'deck', slug: 'a' }])
+  })
+
+  test('slugs containing a colon keep everything after the first separator', () => {
+    expect(parseListRefKeyCsv('deck:a:b')).toEqual([{ type: 'deck', slug: 'a:b' }])
+  })
+
+  test('an empty or all-garbage CSV parses to an empty list', () => {
+    expect(parseListRefKeyCsv('')).toEqual([])
+    expect(parseListRefKeyCsv('bogus,unknown:slug')).toEqual([])
   })
 })
 

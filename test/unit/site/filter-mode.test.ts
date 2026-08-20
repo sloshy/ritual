@@ -1,5 +1,23 @@
 import { describe, expect, test } from 'bun:test'
-import { FILTER_MATCH_MODES, matchesSelection } from '../../../src/site/filter-mode'
+import {
+  FILTER_MATCH_MODES,
+  LIST_SHARE_MATCHES,
+  LIST_SHARE_MODES,
+  matchesSelection,
+} from '../../../src/site/filter-mode'
+
+// These values are URL tokens (`sharedMode=` / `sharedMatch=` params), so a
+// rename breaks shared links — pinned exactly. The order only fixes the
+// toggle-button order in the UI.
+describe('share filter vocabularies', () => {
+  test('LIST_SHARE_MODES is exactly any/all, in order', () => {
+    expect(LIST_SHARE_MODES).toEqual(['any', 'all'])
+  })
+
+  test('LIST_SHARE_MATCHES is exactly name/printing, in order', () => {
+    expect(LIST_SHARE_MATCHES).toEqual(['name', 'printing'])
+  })
+})
 
 describe('matchesSelection', () => {
   const values = new Set(['mana-rock', 'ramp', 'artifact'])

@@ -11,7 +11,7 @@
  */
 
 import { normalizeForSearch } from '../term-match'
-import type { CombinedCardData } from './combined-list'
+import type { CardData } from './card-sorting'
 
 /** The front face of a possibly double-faced name: text before the first `//`, trimmed. */
 export function frontFaceName(name: string): string {
@@ -27,12 +27,16 @@ export function findMatchKey(name: string): string {
   return normalizeForSearch(frontFaceName(name))
 }
 
+/** The two fields {@link cardMatchKey} reads: the entry name plus the resolved card, if any. */
+export type CardNameSource = Pick<CardData, 'name' | 'card'>
+
 /**
- * The match key for a built combined card, preferring the resolved Scryfall
- * name over the entry name — entry names may differ in punctuation or omit the
- * back face of a double-faced card.
+ * The match key for a built card tile, preferring the resolved Scryfall name
+ * over the entry name — entry names may differ in punctuation or omit the back
+ * face of a double-faced card. Shared by the Find page and the share filters,
+ * so "the same card" cannot mean two different things across them.
  */
-export function cardMatchKey(c: CombinedCardData): string {
+export function cardMatchKey(c: CardNameSource): string {
   return findMatchKey(c.card?.name ?? c.name)
 }
 

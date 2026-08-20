@@ -31,6 +31,14 @@ export type TagsInputProps = {
   scan: (value: string) => TagsInputScan
   /** Fully parse the draft into tags when committing without a highlighted suggestion. */
   parse: (value: string) => string[]
+  /**
+   * Keep the typed draft in the field when Enter's `parse` resolves it to
+   * nothing, instead of clearing it. The share filter rows opt in: their drafts
+   * are whole list names resolved only on commit, so wiping an unresolved
+   * draft would silently discard the user's typing. Default (unset) keeps the
+   * historical clear-on-Enter behavior for the token-style filters.
+   */
+  keepUnresolvedDraft?: boolean
 }
 
 /**
@@ -103,7 +111,11 @@ export const TagsInput: Component<TagsInputProps> = (props) => {
       if (highlighted !== undefined) {
         addValues([highlighted])
       } else {
-        addValues(props.parse(draft()))
+        const parsed = props.parse(draft())
+        if (parsed.length === 0 && props.keepUnresolvedDraft && draft().trim().length > 0) {
+          return
+        }
+        addValues(parsed)
       }
       setDraft('')
     } else if (e.key === 'Escape') {

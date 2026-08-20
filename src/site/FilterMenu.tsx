@@ -1,5 +1,14 @@
 import type { Component, JSX } from 'solid-js'
-import { batch, createEffect, createSignal, For, on, Show, type Accessor } from 'solid-js'
+import {
+  batch,
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  on,
+  Show,
+  type Accessor,
+} from 'solid-js'
 import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { parseSetCodesInput, scanSetCodesInput } from '../set-codes'
@@ -13,6 +22,7 @@ import {
   toggleColorSelection,
   toggleBuylistFilterOption,
   toggleLabelFilterOption,
+  updateShareSelection,
   type BuylistFilterOption,
   type LabelFilterOption,
   type NumericComparator,
@@ -21,16 +31,23 @@ import {
 import { CARD_LABEL_DISPLAY_NAMES, type CardLabelSelection } from '../card-labels'
 import { type PriceCurrency, getCurrencySymbol } from '../price-currency'
 import { pricesEnabled } from './price-view'
-import type { MessageKey } from '../i18n/messages/en'
 import { useT } from '../ui/i18n'
-import type { ParamsOf, TranslateFn } from '../i18n/t'
+import type { ParameterlessKey, TranslateFn } from '../i18n/t'
 import { formatCardTypeForDisplay, parseCardTypesInput, scanCardTypeInput } from './card-types'
 import {
   COLOR_MATCH_MODES,
   FILTER_MATCH_MODES,
+  LIST_SHARE_MATCHES,
+  LIST_SHARE_MODES,
   SET_CODE_FILTER_MODES,
   type FilterMatchMode,
+  type ListShareMatch,
+  type ListShareMode,
 } from './filter-mode'
+import { listRefKey, type ListRefKey, type NamedListRef } from './combined-list'
+import { LIST_TYPE_SINGULAR } from '../list-type'
+import { normalizeForSearch } from '../term-match'
+import { compareDisplay } from '../i18n/collate'
 import { TagsInput } from './TagsInput'
 import type { CardFiltersControl } from './useCardFilters'
 import { useDebouncedInput, type DebouncedInput } from './useDebouncedInput'
@@ -203,27 +220,16 @@ function ChipFilterRow<T extends string>(props: ChipFilterRowProps<T>): JSX.Elem
 }
 
 /**
- * A message key whose message takes no parameters.
- *
- * The label tables below are looked up at runtime, so `t()` cannot see which
- * key it is being handed and would otherwise demand the union of *every*
- * message parameter in the catalog. Narrowing to the parameter-free keys keeps
- * the lookup a checked call: adding a `{placeholder}` to one of these messages
- * becomes a compile error here rather than a `{name}` rendered on screen.
- */
-type PlainMessageKey = {
-  [K in MessageKey]: [ParamsOf<K>] extends [never] ? K : never
-}[MessageKey]
-
-/**
  * The button text and tooltip for one mode, as message *keys*.
  *
  * These tables are built once at module load, so holding rendered strings would
  * leave every filter's segmented control in the boot-time language after a
  * locale switch — the whole menu would go stale while the page around it
- * translated. The keys are resolved by {@link modeOptions} at render time.
+ * translated. The keys are resolved by {@link modeOptions} at render time, and
+ * are {@link ParameterlessKey}s because a runtime lookup can't type-check a
+ * message's parameters — a parameter-free key has none to miss.
  */
-type FilterModeCopy = { labelKey: PlainMessageKey; titleKey: PlainMessageKey }
+type FilterModeCopy = { labelKey: ParameterlessKey; titleKey: ParameterlessKey }
 
 /**
  * Expand per-mode copy into rendered options, in the canonical mode order.
@@ -297,6 +303,30 @@ const COPIES_MODE_COPY = {
   finish: { labelKey: 'site.filterMode.exact', titleKey: 'site.filterMode.copiesFinish' },
 } as const satisfies Record<(typeof COPIES_MATCH_MODES)[number], FilterModeCopy>
 
+/** Any/All combination for the "Shares Cards With" selection. */
+const SHARE_MODE_COPY = {
+  any: { labelKey: 'site.filterMode.any', titleKey: 'site.filterMode.sharedAny' },
+  all: { labelKey: 'site.filterMode.all', titleKey: 'site.filterMode.sharedAll' },
+} as const satisfies Record<ListShareMode, FilterModeCopy>
+
+/** Name/Printing identity for the "Shares Cards With" selection. */
+const SHARE_MATCH_COPY = {
+  name: { labelKey: 'site.filterMode.name', titleKey: 'site.filterMode.sharedByName' },
+  printing: { labelKey: 'site.filterMode.printing', titleKey: 'site.filterMode.sharedByPrinting' },
+} as const satisfies Record<ListShareMatch, FilterModeCopy>
+
+/**
+ * Name/Printing identity for the exclusion row. Same buttons as
+ * {@link SHARE_MATCH_COPY} but the tooltips speak of hiding, not keeping.
+ */
+const NOT_SHARED_MATCH_COPY = {
+  name: { labelKey: 'site.filterMode.name', titleKey: 'site.filterMode.notSharedByName' },
+  printing: {
+    labelKey: 'site.filterMode.printing',
+    titleKey: 'site.filterMode.notSharedByPrinting',
+  },
+} as const satisfies Record<ListShareMatch, FilterModeCopy>
+
 export interface FilterMenuProps {
   filters: CardFiltersControl
   symbolMap: Record<string, string>
@@ -322,10 +352,20 @@ export interface FilterMenuProps {
   availableLabels?: readonly CardLabelSelection[]
   /** Show the Buylist chip row (sell mode only). */
   showBuylistFilter?: boolean
+  /**
+   * The other lists the share filters can compare against (already excluding
+   * the current list on single-list pages). Omitted or empty hides both share
+   * rows — the Labels/Buylist gating precedent.
+   */
+  shareLists?: readonly NamedListRef[]
 }
 
 /** A chip's copy before it is rendered: keys, not text. See {@link FilterModeCopy}. */
-type ChipCopy<T extends string> = { value: T; labelKey: PlainMessageKey; titleKey: PlainMessageKey }
+type ChipCopy<T extends string> = {
+  value: T
+  labelKey: ParameterlessKey
+  titleKey: ParameterlessKey
+}
 
 /**
  * The labels filter's chips, in canonical order. The label wording is shared
@@ -443,6 +483,74 @@ const TagFilterRow: Component<TagFilterRowProps> = (props) => {
         matches={(tag, query) => query.length === 0 || tag.includes(query)}
         scan={scanCardTypeInput}
         parse={parseCardTypesInput}
+      />
+    </div>
+  )
+}
+
+/**
+ * One offered list in a share filter row: its refKey token, rendered label, and
+ * the label's folded form. Folded once here rather than per comparison —
+ * `matches` runs per option per keystroke and `parseShareDraft` scans every
+ * option on each Enter.
+ */
+type ShareListOption = { key: ListRefKey; label: string; folded: string }
+
+type ShareFilterRowProps = {
+  /** Heading for the row (e.g. "Shares Cards With"). */
+  label: string
+  /** id linking the label to the input; also the e2e hook (e.g. "filter-shared-with"). */
+  inputId: string
+  placeholder: string
+  suggestionsLabel: string
+  /** The refKey tokens offered for selection, in display order. */
+  optionKeys: ListRefKey[]
+  /** Render a refKey token as its list's (possibly disambiguated) display name. */
+  labelFor: (key: string) => string
+  /** A refKey token's folded display name, for matching against a folded query. */
+  foldedFor: (key: string) => string
+  selected: ListRefKey[]
+  /** Resolve a typed draft to the tokens whose folded label equals it. */
+  parse: (draft: string) => ListRefKey[]
+  /** Any/All control — the include row only. */
+  modeToggle?: JSX.Element
+  /** Name/Printing identity control. */
+  matchToggle: JSX.Element
+  onChange: (keys: ListRefKey[]) => void
+}
+
+/**
+ * A share filter row ("Shares Cards With" / "Doesn't Share Cards With"): mode
+ * toggles beside the heading and a chip autocomplete over the other lists.
+ * Stored values are `type:slug` refKey tokens; the chips render display names.
+ * Typing never auto-commits (list names may contain commas), so `scan` keeps
+ * the whole draft and Enter/click resolves it through `parse`.
+ */
+const ShareFilterRow: Component<ShareFilterRowProps> = (props) => {
+  return (
+    <div class="filter-row">
+      <div class="filter-type-header">
+        <label class="filter-label" for={props.inputId}>
+          {props.label}
+        </label>
+        {props.modeToggle}
+        {props.matchToggle}
+      </div>
+      <TagsInput
+        selected={props.selected}
+        options={props.optionKeys}
+        // TagsInput is string-typed, but it only ever emits values drawn from
+        // `options` and `parse` — both refKeys here — so the assertion holds.
+        onChange={(values) => props.onChange(values as ListRefKey[])}
+        inputId={props.inputId}
+        placeholder={props.placeholder}
+        suggestionsLabel={props.suggestionsLabel}
+        format={props.labelFor}
+        query={(draft) => normalizeForSearch(draft.trim())}
+        matches={(key, query) => query.length === 0 || props.foldedFor(key).includes(query)}
+        scan={(value) => ({ tags: [], remainder: value })}
+        parse={props.parse}
+        keepUnresolvedDraft
       />
     </div>
   )
@@ -569,6 +677,7 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
           showLabelsFilter={props.showLabelsFilter}
           availableLabels={props.availableLabels}
           showBuylistFilter={props.showBuylistFilter}
+          shareLists={props.shareLists}
         />
       </AdaptiveMenu>
     </div>
@@ -608,6 +717,61 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
     parseCopiesFilter,
     (copies) => props.filters.update({ copies }),
   )
+
+  // The share filters' option list: every offered list as a refKey token plus a
+  // display label. Two offered lists with the same folded name get their list
+  // type appended so the chips stay tellable apart; a selected token with no
+  // matching option (a stale shared URL) renders as the raw token via the
+  // `labelFor` fallback below.
+  const shareListOptions = createMemo<ShareListOption[]>(() => {
+    const lists = props.shareLists ?? []
+    const nameCounts = new Map<string, number>()
+    for (const list of lists) {
+      const folded = normalizeForSearch(list.name)
+      nameCounts.set(folded, (nameCounts.get(folded) ?? 0) + 1)
+    }
+    return lists
+      .map((list) => {
+        const label =
+          (nameCounts.get(normalizeForSearch(list.name)) ?? 0) > 1
+            ? t('site.filter.shareListWithType', {
+                name: list.name,
+                type: t(LIST_TYPE_SINGULAR[list.type]),
+              })
+            : list.name
+        return { key: listRefKey(list), label, folded: normalizeForSearch(label) }
+      })
+      .sort((a, b) => compareDisplay(a.label, b.label))
+  })
+  const shareOptionKeys = createMemo(() => shareListOptions().map((option) => option.key))
+  // Keyed as Map<string, ...> on purpose: `labelFor` renders whatever token is
+  // stored — including a stale shared URL's — so lookups take plain strings.
+  const shareLabelByKey = createMemo(
+    () => new Map<string, string>(shareListOptions().map((option) => [option.key, option.label])),
+  )
+  const shareLabelFor = (key: string): string => shareLabelByKey().get(key) ?? key
+  const shareFoldedByKey = createMemo(
+    () => new Map<string, string>(shareListOptions().map((option) => [option.key, option.folded])),
+  )
+  // The fallback only fires for tokens outside the option list (a stale shared
+  // URL's chip), which `matches` is never asked about — but stay total anyway.
+  const shareFoldedFor = (key: string): string =>
+    shareFoldedByKey().get(key) ?? normalizeForSearch(shareLabelFor(key))
+  /**
+   * Resolve a typed draft: every option whose folded label equals it, else —
+   * so a partial name plus Enter still lands — the single option whose folded
+   * label contains it. An ambiguous partial resolves nothing, and the input
+   * keeps the draft in place (`keepUnresolvedDraft`) instead of wiping it.
+   */
+  const parseShareDraft = (draft: string): ListRefKey[] => {
+    const query = normalizeForSearch(draft.trim())
+    if (query.length === 0) return []
+    const options = shareListOptions()
+    const exact = options.filter((option) => option.folded === query)
+    if (exact.length > 0) return exact.map((option) => option.key)
+    const partial = options.filter((option) => option.folded.includes(query))
+    return partial.length === 1 ? partial.map((option) => option.key) : []
+  }
 
   // The currency lives in the label — "Price ($)" — rather than beside the field,
   // so the three numeric fields stay a uniform width. Currencies with no symbol
@@ -772,6 +936,60 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
             props.filters.update({
               onBuylist: toggleBuylistFilterOption(props.filters.filters.onBuylist, value),
             })
+          }
+        />
+      </Show>
+      <Show when={(props.shareLists?.length ?? 0) > 0}>
+        <ShareFilterRow
+          label={t('site.filter.sharedWith')}
+          inputId="filter-shared-with"
+          placeholder={t('site.filter.shareListsPlaceholder')}
+          suggestionsLabel={t('site.filter.sharedWithSuggestions')}
+          optionKeys={shareOptionKeys()}
+          labelFor={shareLabelFor}
+          foldedFor={shareFoldedFor}
+          selected={props.filters.filters.sharedWith}
+          parse={parseShareDraft}
+          modeToggle={
+            <FilterModeToggle
+              ariaLabel={t('site.filter.sharedWithMode')}
+              options={modeOptions(LIST_SHARE_MODES, SHARE_MODE_COPY, t)}
+              value={props.filters.filters.sharedWithMode}
+              onChange={(sharedWithMode) => props.filters.update({ sharedWithMode })}
+            />
+          }
+          matchToggle={
+            <FilterModeToggle
+              ariaLabel={t('site.filter.sharedWithMatch')}
+              options={modeOptions(LIST_SHARE_MATCHES, SHARE_MATCH_COPY, t)}
+              value={props.filters.filters.sharedWithMatch}
+              onChange={(sharedWithMatch) => props.filters.update({ sharedWithMatch })}
+            />
+          }
+          onChange={(keys) =>
+            props.filters.update(updateShareSelection(props.filters.filters, 'sharedWith', keys))
+          }
+        />
+        <ShareFilterRow
+          label={t('site.filter.notSharedWith')}
+          inputId="filter-not-shared-with"
+          placeholder={t('site.filter.shareListsPlaceholder')}
+          suggestionsLabel={t('site.filter.notSharedWithSuggestions')}
+          optionKeys={shareOptionKeys()}
+          labelFor={shareLabelFor}
+          foldedFor={shareFoldedFor}
+          selected={props.filters.filters.notSharedWith}
+          parse={parseShareDraft}
+          matchToggle={
+            <FilterModeToggle
+              ariaLabel={t('site.filter.notSharedWithMatch')}
+              options={modeOptions(LIST_SHARE_MATCHES, NOT_SHARED_MATCH_COPY, t)}
+              value={props.filters.filters.notSharedWithMatch}
+              onChange={(notSharedWithMatch) => props.filters.update({ notSharedWithMatch })}
+            />
+          }
+          onChange={(keys) =>
+            props.filters.update(updateShareSelection(props.filters.filters, 'notSharedWith', keys))
           }
         />
       </Show>

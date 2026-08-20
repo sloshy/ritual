@@ -25,7 +25,7 @@ import type {
   CollectionCardEntry,
   WantedListCardEntry,
 } from './data-types'
-import { lookupPrintingCard } from '../printing-key'
+import { lookupPrintingCard, printingKey } from '../printing-key'
 import { collectionTradeMaxQty, collectionTradeQtyMap } from './trade-qty'
 import { storedLanguage, type CardLanguage } from '../card-language'
 
@@ -50,6 +50,40 @@ export type ListRefKey = `${ListType}:${string}`
 /** The single spelling of a list ref's `type:slug` identity key. */
 export function listRefKey(ref: CombinedListRef): ListRefKey {
   return `${ref.type}:${ref.slug}`
+}
+
+/**
+ * Parse one `type:slug` token — the inverse of {@link listRefKey} — or
+ * `undefined` when the type is unknown or the slug empty. Slugs may themselves
+ * contain `:`; only the first separator splits.
+ */
+export function parseListRefKeyToken(token: string): CombinedListRef | undefined {
+  const sep = token.indexOf(':')
+  if (sep < 0) return undefined
+  const type = token.slice(0, sep)
+  const slug = token.slice(sep + 1)
+  if (!isListType(type) || !slug) return undefined
+  return { type, slug }
+}
+
+/**
+ * Parse a CSV of `type:slug` refKey tokens: tokens are trimmed, malformed ones
+ * dropped, and duplicates (by canonical key) collapsed to their first
+ * occurrence, preserving order. The single implementation behind the combined
+ * view's `lists=` param and the share filters' `shared=`/`notShared=` params.
+ */
+export function parseListRefKeyCsv(raw: string): CombinedListRef[] {
+  const refs: CombinedListRef[] = []
+  const seen = new Set<ListRefKey>()
+  for (const token of raw.split(',')) {
+    const ref = parseListRefKeyToken(token.trim())
+    if (!ref) continue
+    const key = listRefKey(ref)
+    if (seen.has(key)) continue
+    seen.add(key)
+    refs.push(ref)
+  }
+  return refs
 }
 
 /** The combined-view selection: either every list, or an explicit set of list refs. */
@@ -142,28 +176,45 @@ export function parseCombinedQuery(query: string): CombinedSelection {
     if (type && isListType(type)) return { all: true, allType: type, refs: [] }
     return { all: true, refs: [] }
   }
-  const raw = params.get('lists') ?? ''
-  const refs: CombinedListRef[] = []
-  const seen = new Set<string>()
-  for (const token of raw.split(',')) {
-    const sep = token.indexOf(':')
-    if (sep < 0) continue
-    const type = token.slice(0, sep)
-    const slug = token.slice(sep + 1)
-    if (!isListType(type) || !slug) continue
-    const key = listRefKey({ type, slug })
-    if (seen.has(key)) continue
-    seen.add(key)
-    refs.push({ type, slug })
-  }
-  return { all: false, refs }
+  return { all: false, refs: parseListRefKeyCsv(params.get('lists') ?? '') }
 }
 
 // ----- Detail loading -----
 
+/** One list's loaded detail payload, tagged by type — {@link LoadedListDetail} minus the naming. */
+export type ListDetailResult =
+  | { kind: 'deck'; detail: DeckDetail }
+  | { kind: 'collection'; detail: CollectionDetail }
+  | { kind: 'wanted'; detail: WantedListDetail }
+
+/**
+ * Fetch one list's detail JSON, dispatching on the ref's type. Throws on a
+ * failed fetch — callers own error handling, because they disagree about
+ * reporting: {@link loadCombinedDetails} routes failures through
+ * `reportDataFetchError` (a missing combined-view list is a data problem),
+ * while the share-filter source must not (its refs come from user-editable
+ * URLs, where a missing list is expected input — see `list-shares.ts`).
+ */
+export async function loadListDetail(
+  ref: CombinedListRef,
+  signal?: AbortSignal,
+): Promise<ListDetailResult> {
+  if (ref.type === 'deck') {
+    const detail = await fetchJson<DeckDetail>(detailUrl(ref.type, ref.slug), signal)
+    return { kind: 'deck', detail }
+  }
+  if (ref.type === 'collection') {
+    const detail = await fetchJson<CollectionDetail>(detailUrl(ref.type, ref.slug), signal)
+    return { kind: 'collection', detail }
+  }
+  const detail = await fetchJson<WantedListDetail>(detailUrl(ref.type, ref.slug), signal)
+  return { kind: 'wanted', detail }
+}
+
 /**
  * Fetch every selected list's detail JSON in parallel, preserving selection order.
- * Lists that fail to load are dropped (logged), so the view degrades gracefully.
+ * Lists that fail to load are dropped (logged and reported), so the view degrades
+ * gracefully.
  */
 export async function loadCombinedDetails(
   refs: NamedListRef[],
@@ -171,16 +222,8 @@ export async function loadCombinedDetails(
 ): Promise<LoadedListDetail[]> {
   const tasks = refs.map(async (ref): Promise<LoadedListDetail | null> => {
     try {
-      if (ref.type === 'deck') {
-        const detail = await fetchJson<DeckDetail>(detailUrl(ref.type, ref.slug), signal)
-        return { ref, name: ref.name, kind: 'deck', detail }
-      }
-      if (ref.type === 'collection') {
-        const detail = await fetchJson<CollectionDetail>(detailUrl(ref.type, ref.slug), signal)
-        return { ref, name: ref.name, kind: 'collection', detail }
-      }
-      const detail = await fetchJson<WantedListDetail>(detailUrl(ref.type, ref.slug), signal)
-      return { ref, name: ref.name, kind: 'wanted', detail }
+      const loaded = await loadListDetail(ref, signal)
+      return { ref, name: ref.name, ...loaded }
     } catch (e) {
       if (isAbortError(e)) throw e
       console.error(`Combined view: failed to load ${ref.type}/${ref.slug}:`, e)
@@ -287,6 +330,7 @@ function buildDeckCards(
         setCode: card?.set ?? '',
         colorIdentity: card?.color_identity ?? [],
         hasPrinting: specific,
+        pinnedPrintingKey: specific ? printingKey(entry.set, entry.collectorNumber) : undefined,
         oracleTags: card?.oracleTags ?? [],
         artTags: card?.artTags ?? [],
         labels,
@@ -375,6 +419,7 @@ function buildCollectionCards(
       setCode: entry.set.toLowerCase(),
       colorIdentity: card?.color_identity ?? [],
       hasPrinting: true,
+      pinnedPrintingKey: printingKey(entry.set, entry.collectorNumber),
       oracleTags: card?.oracleTags ?? [],
       artTags: card?.artTags ?? [],
       labels,
@@ -456,6 +501,7 @@ function buildWantedCards(
       setCode: entry.set?.toLowerCase() ?? '',
       colorIdentity: card?.color_identity ?? [],
       hasPrinting: specific,
+      pinnedPrintingKey: specific ? printingKey(entry.set, entry.collectorNumber) : undefined,
       oracleTags: card?.oracleTags ?? [],
       artTags: card?.artTags ?? [],
       labels: [],

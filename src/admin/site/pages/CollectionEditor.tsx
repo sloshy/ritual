@@ -1,4 +1,4 @@
-import { createSignal, type JSX } from 'solid-js'
+import { createMemo, createSignal, type JSX } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
 import type { CardLabel } from '../../../card-labels'
 import type { CardArtRecord } from '../../../card-art'
@@ -18,7 +18,7 @@ import {
 } from '../../../editor/collection-config'
 import { CollectionEditorBody } from '../../../editor/CollectionEditorBody'
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
-import { useAdminLists, moveTargetsExcluding } from '../move-targets'
+import { useAdminLists, listInfosToNamedRefs, moveTargetsExcluding } from '../move-targets'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
 import { useCardArt } from '../hooks/useCardArt'
@@ -121,6 +121,10 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
     moveTargets: (currentSlug) => moveTargetsExcluding(lists(), 'collection', currentSlug),
   })
 
+  // Converted once per lists() change, so the array keeps its identity (and
+  // the filter menu's option memos stay warm) across re-renders.
+  const shareLists = createMemo(() => listInfosToNamedRefs(lists()))
+
   const ctrl = useFlatListEditController<CollectionCardEntry>({
     buildConfig,
     initialSlug: props.initialSlug,
@@ -151,6 +155,7 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
         onEditLabels={() => setLabelsOpen(true)}
         customArt={cardArt.art()}
         onSetCustomArt={cardArt.open}
+        shareLists={shareLists()}
       />
       <ListLabelsModal
         open={labelsOpen()}

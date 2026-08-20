@@ -4,9 +4,11 @@ import { matchesAllTerms } from '../term-match'
 import { getFrontFaceName } from '../scryfall/card-utils'
 import { extractCardTypeTags, matchesCardTypes } from './card-types'
 import { matchesTags } from './card-tags'
-import { printingKey, printingLanguageKey } from '../printing-key'
+import { cardPrintingKey, printingKey, printingLanguageKey } from '../printing-key'
 import { displayLanguage } from '../card-language'
 import { displayFinish } from '../finish-condition'
+import { cardMatchKey } from './find-search'
+import { listRefKey, parseListRefKeyCsv, type ListRefKey } from './combined-list'
 import {
   CARD_LABEL_SELECTION_NONE,
   CARD_LABEL_SELECTIONS,
@@ -15,9 +17,15 @@ import {
   matchesCardLabelSelection,
   type CardLabelSelection,
 } from '../card-labels'
-import type { ColorMatchMode, FilterMatchMode, SetCodeFilterMode } from './filter-mode'
+import type {
+  ColorMatchMode,
+  FilterMatchMode,
+  ListShareMatch,
+  ListShareMode,
+  SetCodeFilterMode,
+} from './filter-mode'
 
-export type { ColorMatchMode, FilterMatchMode, SetCodeFilterMode }
+export type { ColorMatchMode, FilterMatchMode, ListShareMatch, ListShareMode, SetCodeFilterMode }
 
 /**
  * One selectable chip in the labels filter. The alias names the site's
@@ -93,6 +101,46 @@ export type CopiesComparator = NumericComparator
 export const COPIES_MATCH_MODES = ['name', 'printing', 'finish'] as const
 
 export type CopiesMatchMode = (typeof COPIES_MATCH_MODES)[number]
+
+/**
+ * One list's membership keys for the share filters: its folded front-face card
+ * names (the `findMatchKey` identity) and its `set:cn` printing keys
+ * (every printing the list actually holds — pinned printings, or the resolved
+ * display printing of an unpinned line).
+ */
+export interface ListShareKeys {
+  names: ReadonlySet<string>
+  printings: ReadonlySet<string>
+}
+
+/**
+ * One list's load outcome in the {@link ShareIndex}: its key sets, or
+ * `'failed'` when the load did not produce any. A distinct sentinel rather
+ * than empty sets, so a failed list narrows nothing (exactly like one still
+ * loading) instead of silently emptying an include selection.
+ */
+export type ShareLoad = ListShareKeys | 'failed'
+
+/**
+ * Share load outcomes, keyed by `ListRefKey` (`type:slug`). A selected key
+ * absent here is unrequested or still loading; one cached as `'failed'` could
+ * not be loaded. Either way it contributes nothing to the predicate.
+ */
+export type ShareIndex = ReadonlyMap<ListRefKey, ShareLoad>
+
+/**
+ * Cross-cutting data `filterCards` cannot derive from the cards themselves.
+ * Optional everywhere so call sites without any of it keep compiling — with no
+ * context, the filters that need one resolve to "loaded nothing" and pass
+ * every card.
+ */
+export interface CardFilterContext {
+  /** Other lists' membership keys for the share filters. */
+  shares?: ShareIndex
+}
+
+/** The two share-filter selection fields; see {@link updateShareSelection}. */
+export type ShareFilterField = 'sharedWith' | 'notSharedWith'
 
 export interface CardFilters {
   hideLands: boolean
@@ -185,6 +233,24 @@ export interface CardFilters {
    * page never shows.
    */
   onBuylist: BuylistFilterOption[]
+  /**
+   * `ListRefKey` tokens (`type:slug`) of lists a card must ALSO appear in.
+   * Empty = inactive. Disjoint from {@link CardFilters.notSharedWith} by
+   * construction — {@link updateShareSelection} is the only writer.
+   */
+  sharedWith: ListRefKey[]
+  /** 'any': present in at least one selected list. 'all': present in every one. */
+  sharedWithMode: ListShareMode
+  /** 'name': folded front-face name identity. 'printing': `set:cn` identity. */
+  sharedWithMatch: ListShareMatch
+  /**
+   * `ListRefKey` tokens of lists whose presence REMOVES a card. Empty =
+   * inactive. An independent AND-ed predicate, so exclusion always wins over
+   * {@link CardFilters.sharedWith}. Disjoint from it by construction.
+   */
+  notSharedWith: ListRefKey[]
+  /** 'name': folded front-face name identity. 'printing': `set:cn` identity. */
+  notSharedWithMatch: ListShareMatch
 }
 
 export function createDefaultCardFilters(): CardFilters {
@@ -215,6 +281,11 @@ export function createDefaultCardFilters(): CardFilters {
     copiesMode: 'name',
     labels: [],
     onBuylist: [],
+    sharedWith: [],
+    sharedWithMode: 'any',
+    sharedWithMatch: 'name',
+    notSharedWith: [],
+    notSharedWithMatch: 'name',
   }
 }
 
@@ -399,11 +470,85 @@ function resolveCopiesQuery(cards: CardData[], filters: CardFilters): CopiesQuer
   return { totals, mode: copiesMode, op: copiesOp, value: copies }
 }
 
+/**
+ * The share filters resolved once per `filterCards` call: only the LOADED key
+ * sets of the selected lists — a selected list whose keys have not arrived yet,
+ * or whose load failed, is simply absent, contributing nothing.
+ */
+type ShareQuery = {
+  include: ListShareKeys[]
+  includeMode: ListShareMode
+  includeMatch: ListShareMatch
+  exclude: ListShareKeys[]
+  excludeMatch: ListShareMatch
+}
+
+/** The loaded key sets of the selected lists, dropping still-loading and failed ones. */
+function loadedShareKeys(selected: readonly ListRefKey[], shares?: ShareIndex): ListShareKeys[] {
+  const out: ListShareKeys[] = []
+  for (const token of selected) {
+    const keys = shares?.get(token)
+    if (keys !== undefined && keys !== 'failed') out.push(keys)
+  }
+  return out
+}
+
+/** Resolve the share filters, or null when both selections are empty (inactive). */
+function resolveShareQuery(filters: CardFilters, context?: CardFilterContext): ShareQuery | null {
+  if (filters.sharedWith.length === 0 && filters.notSharedWith.length === 0) return null
+  return {
+    include: loadedShareKeys(filters.sharedWith, context?.shares),
+    includeMode: filters.sharedWithMode,
+    includeMatch: filters.sharedWithMatch,
+    exclude: loadedShareKeys(filters.notSharedWith, context?.shares),
+    excludeMatch: filters.notSharedWithMatch,
+  }
+}
+
+/** A card's identity keys for the share filters. `printing` is undefined when none resolved. */
+type ShareCardKeys = { name: string; printing: string | undefined }
+
+function shareCardKeys(card: CardData): ShareCardKeys {
+  return {
+    // The Find page's identity: the resolved Scryfall name preferred over the
+    // entry name, front face only, case/diacritic-folded.
+    name: cardMatchKey(card),
+    // The entry's own pin when it has one — `card.card` is re-targeted by the
+    // Lowest Price toggle and per-store printing picks, and a pinned card must
+    // keep matching its own printing regardless. Unpinned lines follow the
+    // displayed printing; with none resolved there is no printing identity.
+    printing: card.pinnedPrintingKey ?? (card.card ? cardPrintingKey(card.card) : undefined),
+  }
+}
+
+function listHolds(list: ListShareKeys, keys: ShareCardKeys, match: ListShareMatch): boolean {
+  if (match === 'name') return list.names.has(keys.name)
+  return keys.printing !== undefined && list.printings.has(keys.printing)
+}
+
+function matchesShareQuery(card: CardData, q: ShareQuery): boolean {
+  const keys = shareCardKeys(card)
+  // Exclusion first and independently: presence in ANY selected exclude list
+  // fails the card, which is what makes exclusion take precedence over
+  // inclusion automatically.
+  if (q.exclude.some((l) => listHolds(l, keys, q.excludeMatch))) return false
+  // Nothing selected for inclusion, or nothing loaded yet: no narrowing.
+  if (q.include.length === 0) return true
+  return q.includeMode === 'any'
+    ? q.include.some((l) => listHolds(l, keys, q.includeMatch))
+    : q.include.every((l) => listHolds(l, keys, q.includeMatch))
+}
+
 /** Apply every active filter to `cards`, returning the cards that pass all of them. */
-export function filterCards<T extends CardData>(cards: T[], filters: CardFilters): T[] {
+export function filterCards<T extends CardData>(
+  cards: T[],
+  filters: CardFilters,
+  context?: CardFilterContext,
+): T[] {
   const nameQuery = filters.name.trim()
   const setCodes = new Set(filters.setCodes.map((code) => code.toLowerCase()))
   const copiesQuery = resolveCopiesQuery(cards, filters)
+  const shareQuery = resolveShareQuery(filters, context)
   return cards.filter((card) => {
     if (filters.hideLands && isLand(card)) return false
     if (filters.hideUnpriced && card.price <= 0) return false
@@ -449,6 +594,7 @@ export function filterCards<T extends CardData>(cards: T[], filters: CardFilters
     if (!matchesMoneyThreshold(card.buylistPrice, filters.buylistPriceOp, filters.buylistPrice)) {
       return false
     }
+    if (shareQuery !== null && !matchesShareQuery(card, shareQuery)) return false
     return true
   })
 }
@@ -472,6 +618,8 @@ export function countActiveFilters(filters: CardFilters): number {
   if (filters.labels.length > 0) count++
   if (filters.onBuylist.length > 0) count++
   if (filters.buylistPrice !== null) count++
+  if (filters.sharedWith.length > 0) count++
+  if (filters.notSharedWith.length > 0) count++
   return count
 }
 
@@ -682,6 +830,46 @@ export function toggleLabelFilterOption(
   if (isExclusiveLabelOption(option)) return [option]
   const next: readonly LabelFilterOption[] = selected.filter((o) => !isExclusiveLabelOption(o))
   return LABEL_FILTER_OPTIONS.filter((o) => o === option || next.includes(o))
+}
+
+/**
+ * Replace one share filter's selection, keeping the two selections disjoint:
+ * any key entering `field` is removed from the other field (the
+ * {@link toggleLabelFilterOption} precedent — one writer owns the invariant, so
+ * an illegal overlap cannot arise from the UI). Returns the patch to hand to
+ * the filter store's `update`.
+ */
+export function updateShareSelection(
+  current: Pick<CardFilters, 'sharedWith' | 'notSharedWith'>,
+  field: ShareFilterField,
+  next: readonly ListRefKey[],
+): Pick<CardFilters, 'sharedWith' | 'notSharedWith'> {
+  const deduped = [...new Set(next)]
+  const other: ShareFilterField = field === 'sharedWith' ? 'notSharedWith' : 'sharedWith'
+  const chosen = new Set(deduped)
+  const patch: Pick<CardFilters, 'sharedWith' | 'notSharedWith'> = {
+    sharedWith: current.sharedWith,
+    notSharedWith: current.notSharedWith,
+  }
+  patch[field] = deduped
+  // Keep the other field's identity when nothing left it, so a store write
+  // there doesn't ripple to memos keyed on the untouched selection.
+  const kept = current[other].filter((key) => !chosen.has(key))
+  patch[other] = kept.length === current[other].length ? current[other] : kept
+  return patch
+}
+
+/**
+ * Parse a share filter's URL value leniently: a CSV of `type:slug` tokens,
+ * with malformed and duplicate tokens dropped and the canonical `listRefKey`
+ * spelling kept. Returns undefined when nothing usable remains, leaving the
+ * filter at its default. Tokens naming lists that no longer exist are kept —
+ * their loads fail, are cached as `'failed'`, and narrow nothing.
+ */
+export function parseShareListParam(value: string | null): ListRefKey[] | undefined {
+  if (value === null) return undefined
+  const keys = parseListRefKeyCsv(value).map(listRefKey)
+  return keys.length > 0 ? keys : undefined
 }
 
 /**

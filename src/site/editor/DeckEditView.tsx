@@ -3,6 +3,7 @@ import type { DeckDetail } from '../data-types'
 import type { PriceCurrency } from '../../price-currency'
 import type { DeckData } from '../../types'
 import type { ListRef } from '../../change-event'
+import type { NamedListRef } from '../combined-list'
 import type { ListEditorConfig } from '../../editor/useEditor'
 import type { DeckCardDataActions } from '../../editor/useDeckCardData'
 import { collectDeckCardIds } from '../../card-id'
@@ -36,6 +37,8 @@ type DeckEditViewProps = {
   onExit: () => void
   /** Other lists a card can be moved into (excludes this deck). */
   moveTargets?: () => ListRef[]
+  /** Every list on the site, for the toolbar's share filters (the page drops itself). */
+  shareLists?: readonly NamedListRef[]
 }
 
 /**
@@ -143,6 +146,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
           enableSellMode={props.enableSellMode}
           bakedBuylist={() => props.detail.buylist}
           cardsCardKingdom={props.detail.cardsCardKingdom}
+          shareLists={props.shareLists}
         />
       }
       original={
@@ -169,6 +173,9 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
           // without these the view would show prices with nothing to turn off.
           enableSellMode={props.enableSellMode}
           bakedBuylist={() => props.detail.buylist}
+          // Forwarded so the "Original" toolbar offers the same share filters
+          // as the edited side (still excluding this deck itself).
+          shareLists={props.shareLists}
         />
       }
     />

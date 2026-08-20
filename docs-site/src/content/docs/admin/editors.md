@@ -40,8 +40,11 @@ The list toolbar (shared with the public site pages) groups all card filters und
 - **Card Type** / **Oracle Tags** / **Art Tags** — tag inputs sharing the same **Include / Exclude / Exact** match mode, defaulting to **Exact** (a card must carry every selected value)
 - **Labels** — label-carrying pages only; chips for **For Sale** / **For Trade** / **To Keep** / **Proxy** / **Unlabeled**, matched against each card's effective [labels](#card-labels). A deck page shows only the two chips a deck can answer, **Proxy** and **Unlabeled**; a wanted list shows the row not at all (see the public-site [filtering](/public-site/filtering/#available-filters) page for the selection rules)
 - **Mana Value** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against a non-negative value (0 is valid)
+- **Price** — shown while prices are displayed; a comparison (`=`, `<`, `≤`, `>`, `≥`) against the card's price from the selected [price store](/public-site/price-sources/). The label carries the currency (**Price ($)**), and switching the store clears the field
+- **Copies** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against how many total copies of the card the list holds, with a **Name / Number / Exact** toggle picking what counts as the same card (see [what counts as a copy](/public-site/filtering/#what-counts-as-a-copy))
 - **Buylist ($)** — sell mode only; a comparison against the buyer's per-copy offer, always in dollars
 - **Buylist** — sell mode only; chips for **On buylist** / **Not on buylist**, matched against whether the selected buyer is currently buying the card's printing — a paused offer counts as **Not on buylist** (see [sell mode](/public-site/sell/))
+- **Shares Cards With** / **Doesn't Share Cards With** — multi-selects of your other lists, keeping (or hiding) cards that also appear in them, with **Any / All** and **Name / Printing** toggles. Shown only when other lists exist, and compared against their **saved** contents — another list's unsaved editor session is not seen. Each compared list is loaded once per browser session, so saving it in another editor isn't picked up here until you reload. See the public-site [filtering](/public-site/filtering/#filtering-against-other-lists) page for the full rules
 
 Filters combine, and the **Clear** action at the top of the panel resets everything. On deck pages the commander section is never filtered.
 
@@ -164,7 +167,7 @@ Both fields reset for the next card, including after **Add Another Card**.
 
 ### Context Menu
 
-Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil**, **Change Printing…**, [**Set Language…**](#card-language), [**Set Custom Art…**](#custom-art), and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**; the Deck and Collection Editors offer [**Set Label…**](#card-labels) with their type's choices.
+Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil**, **Change Printing…** (**Set Printing…** on a card that pins none), [**Set Language…**](#card-language), [**Set Custom Art…**](#custom-art), and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**; the Deck and Collection Editors offer [**Set Label…**](#card-labels) with their type's choices.
 
 #### Move to Section
 
@@ -189,6 +192,8 @@ On disk, sections are `## Section Name` (H2) headers beneath the list's `# Title
 #### Change Printing
 
 **Change Printing…** reopens the same printing picker used when adding a card — starting directly on the printing-selection step for the card you clicked. Pick a printing (and finish/condition, where applicable) to retarget the card.
+
+On a card whose line pins no printing yet there is nothing to change, so the menu row reads **Set Printing…** instead — as do the picker and its copy-count prompt. It is the same flow either way. (Collection entries always pin a printing, so only the Deck and Wanted List Editors ever show it.)
 
 When the card represents more than one copy (a Deck Editor entry with quantity > 1, or a Collection Editor tile that groups identical copies), a prompt first asks **how many of the N copies** should get the new printing:
 

@@ -303,6 +303,9 @@ export function createCollectionStrategy(
       const entry = findFlatListEntry(list, cardId)
       if (!entry) return
       const action = await promptEditAction(list.renderEntry(entry), [
+        // Always "change", never "set": a collection line cannot exist without a
+        // printing (`CollectionEntry.set`/`collectorNumber` are required, and a
+        // printing-less line is rejected on every write path).
         { title: `🖼️  ${t('cli.editAction.changePrinting')}`, value: 'printing' },
         { title: `✨ ${t('cli.editAction.changeFinish')}`, value: 'finish' },
         { title: `📋 ${t('cli.editAction.changeCondition')}`, value: 'condition' },

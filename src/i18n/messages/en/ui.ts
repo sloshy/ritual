@@ -168,6 +168,7 @@ export const uiMessages = {
 
   // ── Change-printing prompt ────────────────────────────────────────────
   'ui.editor.changePrintingTitle': 'Change printing',
+  'ui.editor.setPrintingTitle': 'Set printing',
   'ui.editor.changePrintingPrompt':
     'How many of the {total} copies of {name} should get the new printing?',
 
@@ -211,6 +212,7 @@ export const uiMessages = {
   'ui.cardMenu.setFoil': 'Set as Foil',
   'ui.cardMenu.setNonfoil': 'Set as Nonfoil',
   'ui.cardMenu.changePrinting': 'Change Printing…',
+  'ui.cardMenu.setPrinting': 'Set Printing…',
   'ui.cardMenu.setLabel': 'Set Label…',
   'ui.cardMenu.setLanguage': 'Set Language…',
   'ui.cardMenu.setCustomArt': 'Set Custom Art…',

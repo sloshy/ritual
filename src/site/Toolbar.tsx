@@ -10,6 +10,7 @@ import type {
 } from './card-sorting'
 import type { PriceCurrency } from '../price-currency'
 import type { CardLabelSelection } from '../card-labels'
+import type { NamedListRef } from './combined-list'
 import { useStuck } from './useStuck'
 import { FilterMenu } from './FilterMenu'
 import { QuickFilter } from './QuickFilter'
@@ -80,6 +81,8 @@ interface ToolbarProps {
   showLabelsFilter?: boolean
   /** Which label chips the row offers; omitted means the whole vocabulary. */
   availableLabels?: readonly CardLabelSelection[]
+  /** Other lists offered by the share filters; omitted or empty hides those rows. */
+  shareLists?: readonly NamedListRef[]
   /** Sell-mode toggle and buyer selector; omitted on pages that do not offer sell mode. */
   sell?: SellModeControl
   extraToggles?: ExtraToggle[]
@@ -259,6 +262,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
       showLabelsFilter={props.showLabelsFilter}
       availableLabels={props.availableLabels}
       showBuylistFilter={Boolean(props.sell?.active)}
+      shareLists={props.shareLists}
     />
   )
 
