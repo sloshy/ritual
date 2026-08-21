@@ -383,6 +383,10 @@ export const domainMeta = {
     description: `${CONFLICT_CONTEXT} The change is meaningless for this kind of list — setting a commander on a collection, for instance.`,
     maxLen: 40,
   },
+  'domain.importConflict.needsPrinting': {
+    description: `${CONFLICT_CONTEXT} The change would set a foil or etched finish on a card line that names no specific printing, which Ritual refuses — the card itself is present.`,
+    maxLen: 40,
+  },
 
   'domain.sidecar.clean': {
     description: `${SIDECAR_CONTEXT} The file matches its sidecar: Ritual wrote every change in it.`,

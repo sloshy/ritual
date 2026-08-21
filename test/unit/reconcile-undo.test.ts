@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { reconcileIdPoolForUndo } from '../../src/editor/reconcile-undo'
+import { reconcileIdPoolForUndo, replayChanges } from '../../src/editor/reconcile-undo'
 import { createMoveFromChange, createRemoveChange, createAddChange } from '../../src/change-event'
 import type { UndoEntry } from '../../src/editor/useCardChanges'
+import type { ChangeEvent } from '../../src/change-event'
+import { applyChangeToDeck } from '../../src/editor/deck-changes'
+import type { DeckData } from '../../src/types'
 
 function track() {
   const released: number[] = []
@@ -86,5 +89,45 @@ describe('reconcileIdPoolForUndo', () => {
     })
     expect(t.claimed).toEqual([])
     expect(t.released).toEqual([])
+  })
+})
+
+describe('replayChanges', () => {
+  /** A deck line that pins no printing, so a foil token has nothing to describe. */
+  const nameOnlyDeck = (): DeckData => ({
+    name: 'Test Deck',
+    sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 9 }] }],
+  })
+
+  const change = (overrides: Partial<ChangeEvent> & { action: string }): ChangeEvent =>
+    ({
+      id: `c-${overrides.action}`,
+      timestamp: 1,
+      cardName: 'Sol Ring',
+      ...overrides,
+    }) as ChangeEvent
+
+  test('reports a change the engine refused, with its reason, and leaves the data without it', () => {
+    // The undo case the refusal exists for: the set-printing that pinned the
+    // card has been taken back, so replaying the set-finish over the on-disk
+    // baseline can no longer apply.
+    const setFoil = change({ action: 'set-finish', cardId: 9, finish: 'foil' })
+    const result = replayChanges(nameOnlyDeck(), [setFoil], applyChangeToDeck)
+
+    expect(result.refused).toEqual([{ change: setFoil, reason: 'needs-printing' }])
+    expect(result.data.sections[0]!.cards[0]!.finish).toBeUndefined()
+  })
+
+  test('applies a change the earlier ones made possible', () => {
+    // Interleaved, not validated up front: the pin lands first, so the finish
+    // that follows it is fine.
+    const changes = [
+      change({ action: 'set-printing', cardId: 9, set: 'c19', collectorNumber: '221' }),
+      change({ action: 'set-finish', cardId: 9, finish: 'foil' }),
+    ]
+    const result = replayChanges(nameOnlyDeck(), changes, applyChangeToDeck)
+
+    expect(result.refused).toEqual([])
+    expect(result.data.sections[0]!.cards[0]!.finish).toBe('foil')
   })
 })

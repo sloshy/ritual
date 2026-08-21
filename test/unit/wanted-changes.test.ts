@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { applyChangeToWantedList } from '../../src/editor/wanted-changes'
 import type { WantedListCardEntry } from '../../src/site/data-types'
 import { runMissMatrix, type MissMatrixCase } from '../test-utils'
+import type { MissReason } from '../../src/editor/apply-batch'
 
 function makeEntry(overrides: Partial<WantedListCardEntry> = {}): WantedListCardEntry {
   return {
@@ -170,10 +171,16 @@ describe('applyChangeToWantedList', () => {
   })
 
   describe('set-finish', () => {
-    test('sets finish on matching entries', () => {
+    test('sets finish on the matching entry only', () => {
       const entries = [
-        makeEntry({ state: 'name-only' }),
-        makeEntry({ name: 'Sol Ring', fileOrder: 1, state: 'name-only' }),
+        makeEntry({ set: 'lea', collectorNumber: '161', state: 'printing' }),
+        makeEntry({
+          name: 'Sol Ring',
+          fileOrder: 1,
+          set: 'c19',
+          collectorNumber: '221',
+          state: 'printing',
+        }),
       ]
       const result = applyChangeToWantedList(entries, {
         action: 'set-finish',
@@ -182,6 +189,20 @@ describe('applyChangeToWantedList', () => {
       })
       expect(result[0]!.finish).toBe('foil')
       expect(result[1]!.finish).toBeUndefined()
+    })
+
+    // The refusal itself is pinned in the miss matrix below; this covers the
+    // other half of the rule — nonfoil clears a token no printing backs.
+    test('still clears a finish back to nonfoil on a name-only entry', () => {
+      const entries = [makeEntry({ finish: 'foil', state: 'name-only' })]
+      const seen: { reason: MissReason | null } = { reason: null }
+      const result = applyChangeToWantedList(
+        entries,
+        { action: 'set-finish', cardName: 'Lightning Bolt', finish: 'nonfoil' },
+        { onMiss: (reason) => (seen.reason = reason) },
+      )
+      expect(seen.reason).toBeNull()
+      expect(result[0]!.finish).toBe('nonfoil')
     })
 
     test('updates state to fully-specified when entry has set and finish', () => {
@@ -370,6 +391,25 @@ describe('applyChangeToWantedList — onMiss reporting', () => {
       'not-applicable',
     ],
     ['add never misses', { action: 'add', cardName: 'Sol Ring' }, null],
+    // makeEntry() is name-only, so there is no printing for a foil token to
+    // describe. Clearing to nonfoil on the same entry applies (tested above).
+    [
+      'set-finish to foil on a name-only entry needs a printing',
+      { action: 'set-finish', cardName: 'Lightning Bolt', finish: 'foil' },
+      'needs-printing',
+    ],
+    [
+      // set-printing writes the finish and the printing together, so it cannot
+      // be used as a back door to the state set-finish is refused for.
+      'set-printing that writes foil without a printing needs a printing',
+      { action: 'set-printing', cardName: 'Lightning Bolt', finish: 'foil' },
+      'needs-printing',
+    ],
+    [
+      'set-printing that clears the printing without a finish applies',
+      { action: 'set-printing', cardName: 'Lightning Bolt' },
+      null,
+    ],
   ]
 
   runMissMatrix(applyChangeToWantedList, () => [makeEntry()], cases)

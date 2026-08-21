@@ -9,6 +9,7 @@ import { useEditorDefaults } from '../../../editor/useEditorDefaults'
 import { createApiCommit } from '../../../editor/commit'
 import { applyChangeToWantedList } from '../../../editor/wanted-changes'
 import { countsBySection, sectionOfTarget } from '../../../editor/section-helpers'
+import { findEntryByIdOrName } from '../../../editor/entry-targeting'
 import { useFlatListEditController } from '../../../editor/flat-list-controller'
 import { applyWantedChangePrinting, wantedPrintingOf } from '../../../editor/wanted-config'
 import { WantedEditorBody } from '../../../editor/WantedEditorBody'
@@ -102,11 +103,10 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
     applyChangePrinting: applyWantedChangePrinting,
     hasData: (entries) => entries.length > 0,
 
-    findCurrentFinish: (entries, cardName) =>
-      entries.find((e) => e.name === cardName)?.finish ?? 'nonfoil',
+    findCurrentFinish: (entries, cardName, cardId) =>
+      findEntryByIdOrName(entries, cardName, cardId)?.finish ?? 'nonfoil',
     findOriginalFinish: (entries, cardName, cardId) =>
-      entries.find((e) => (e.cardId !== undefined && e.cardId === cardId) || e.name === cardName)
-        ?.finish ?? 'nonfoil',
+      findEntryByIdOrName(entries, cardName, cardId)?.finish ?? 'nonfoil',
     findCardId: (entries, cardName) => entries.find((e) => e.name === cardName)?.cardId,
     getOriginalIds: (entries) =>
       entries.map((e) => e.cardId).filter((id): id is number => id !== undefined),

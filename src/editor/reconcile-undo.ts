@@ -1,6 +1,6 @@
 import type { ChangeEvent } from '../change-event'
 import type { UndoEntry } from './useCardChanges.js'
-import type { ApplyChange } from './apply-batch'
+import { applyChangesCollectingMisses, type ApplyChange, type UnmatchedChange } from './apply-batch'
 
 /**
  * Reconcile ID pool state after an undo operation.
@@ -45,11 +45,32 @@ export function reconcileIdPoolForUndo(
   }
 }
 
-/** Rebuild data state by replaying a list of changes on top of original data. */
-export function replayChanges<T, C>(original: T, changes: C[], applyChange: ApplyChange<T, C>): T {
-  let rebuilt = original
-  for (const change of changes) {
-    rebuilt = applyChange(rebuilt, change)
-  }
-  return rebuilt
+/** What a replay produced, and which of its changes the engine would not take. */
+export type ReplayResult<TData, TChange> = {
+  data: TData
+  /**
+   * Changes the engine refused, each with the reason it gave. A replay runs a
+   * change list against the *on-disk baseline*, so a change that applied when
+   * it was recorded can become impossible once an earlier one is undone or
+   * re-targeted — setting a card foil after the `set-printing` that pinned it
+   * has been undone, say. The caller must drop these from the pending list: a
+   * change event kept for an edit the data never took would be written to the
+   * changelog on save, claiming an edit the file does not contain.
+   */
+  refused: UnmatchedChange<TChange>[]
+}
+
+/**
+ * Rebuild data state by replaying a list of changes on top of original data,
+ * reporting the ones the engine would not take. The reasons are carried rather
+ * than collapsed into a boolean: a caller that reports them to the user (the
+ * change-bundle import) has to name the right one.
+ */
+export function replayChanges<TData, TChange>(
+  original: TData,
+  changes: readonly TChange[],
+  applyChange: ApplyChange<TData, TChange>,
+): ReplayResult<TData, TChange> {
+  const { data, unmatched } = applyChangesCollectingMisses(original, changes, applyChange)
+  return { data, refused: unmatched }
 }

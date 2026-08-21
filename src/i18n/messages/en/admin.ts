@@ -260,7 +260,7 @@ export const adminMessages = {
     one: 'applied {count} change',
     other: 'applied {count} changes',
   },
-  'admin.importChanges.skipped': 'Skipped (card not found): {change}',
+  'admin.importChanges.skipped': 'Skipped ({reason}): {change}',
   'admin.importChanges.sourceLabel': 'JSON source',
   'admin.importChanges.fileLabel': 'Change bundle (JSON)',
   'admin.importChanges.fileHint':

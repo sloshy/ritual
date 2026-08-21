@@ -40,9 +40,16 @@ ritual add-card "To Buy" "Mox Ruby" --wanted --name-only
 ritual add-card "To Buy" "Lightning Bolt" --wanted --name-only -f foil   # -f finish (optional)
 ritual add-card "To Buy" "Demonic Tutor" --wanted --set sta --collector-number 90 -f nonfoil
 ritual remove-card "To Buy" "Mox Ruby" --wanted              # one entry
-ritual set-card "To Buy" "Lightning Bolt" --wanted --finish foil
+ritual set-card "To Buy" "Demonic Tutor" --wanted --finish foil   # entry pins STA:90
 ritual note "To Buy" "Mox Ruby" --wanted -n "budget copy only"
 \`\`\`
+
+A finish belongs to a printing, so \`set-card --finish foil|etched\` needs the entry to
+pin one and exits 2 otherwise (pass \`--set\`/\`--collector-number\` in the same call to
+do both). \`--finish nonfoil\` always applies — it clears the token. An \`add-card\`
+that states a finish while creating a \`--name-only\` entry is unaffected: that
+records "any printing, in foil", which is a wanted-list specificity rather than an
+edit to an existing line.
 
 ## Bought a card? Move it to a collection
 

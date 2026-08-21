@@ -282,7 +282,15 @@ const applyChangeSchema = z.discriminatedUnion('action', [
       .optional()
       .describe('Match only entries with this language ("en" matches bare lines).'),
   }),
-  z.object({ action: z.literal('set-finish'), ...changeBase, finish: finishSchema }),
+  z.object({
+    action: z.literal('set-finish'),
+    ...changeBase,
+    finish: finishSchema.describe(
+      'The new finish. "foil"/"etched" require the entry to pin a printing — set the ' +
+        'printing first (a set-printing change earlier in the same batch counts). ' +
+        '"nonfoil" always applies, and is how a finish token is cleared.',
+    ),
+  }),
   z.object({
     action: z.literal('set-printing'),
     ...changeBase,
@@ -503,8 +511,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       description:
         'Apply a change bundle exported from the site editor (format "ritual-change-bundle", ' +
         'one or more lists) to the underlying lists. Changes are re-targeted to current ' +
-        'card IDs; ones whose target card no longer exists, or whose action cannot apply to ' +
-        'the list, are reported as skipped conflicts.',
+        'card IDs; ones whose target card no longer exists, whose action cannot apply to ' +
+        'the list, or which would set a foil/etched finish on a card that pins no printing, ' +
+        'are reported as skipped conflicts naming which of the three it was.',
       inputSchema: z.object({
         json: z.string().min(1).describe('The exported change JSON, verbatim.'),
       }),
@@ -734,7 +743,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'Set the printing (set/collector number/finish/condition/language) of a card in any ' +
         'list. Omit set and collectorNumber to clear the specific printing on a deck or ' +
         'wanted-list card; collections require both together, so omitting them there is ' +
-        'rejected. condition accepts a grade or "NONE" to clear a recorded grade. language ' +
+        'rejected. Clearing the printing while passing a "foil"/"etched" finish is rejected ' +
+        'too — a finish belongs to a printing; clear both together instead. ' +
+        'condition accepts a grade or "NONE" to clear a recorded grade. language ' +
         'sets the card’s language alongside the printing ("en" = English, which clears the ' +
         'line’s token); omitting it leaves the current language alone.',
       inputSchema: z.object({
@@ -821,7 +832,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'fails to match (names are exact and case-sensitive), nothing is saved — but a later ' +
         'change may target a card an earlier change in the same batch added. Change ids and ' +
         'timestamps are stamped by the server. On a collection, add and ' +
-        'set-printing require set + collectorNumber together. For cross-list moves use ' +
+        'set-printing require set + collectorNumber together. A set-finish of "foil"/"etched" ' +
+        'requires the target entry to pin a printing (a set-printing earlier in the same batch ' +
+        'satisfies it); "nonfoil" always applies. For cross-list moves use ' +
         'move_selected_cards. ' +
         'This is also the only way to set or clear a card note (set-note), change a card’s ' +
         'language on its own (set-language — "en" clears the token, since a bare line means ' +

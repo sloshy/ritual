@@ -1,5 +1,7 @@
 import { describe, test, expect } from 'bun:test'
 import {
+  canSetFinish,
+  finishMatchesPrinting,
   dedupePrintingsByKey,
   findPrinting,
   hasSpecificPrinting,
@@ -167,5 +169,47 @@ describe('printingsAreComplete', () => {
     // One printing from a fallback fetch is not "this card has one printing".
     expect(printingsAreComplete({ printings, source: 'partial' })).toBe(false)
     expect(printingsAreComplete({ printings: [], source: 'none' })).toBe(false)
+  })
+})
+
+describe('canSetFinish', () => {
+  const pinned = { set: 'lea', collectorNumber: '161' }
+  const nameOnly = { set: undefined, collectorNumber: undefined }
+
+  test('a foil or etched token needs a printing to describe', () => {
+    expect(canSetFinish(pinned, 'foil')).toBe(true)
+    expect(canSetFinish(pinned, 'etched')).toBe(true)
+    expect(canSetFinish(nameOnly, 'foil')).toBe(false)
+    expect(canSetFinish(nameOnly, 'etched')).toBe(false)
+  })
+
+  test('nonfoil always applies — it clears a token rather than asserting one', () => {
+    expect(canSetFinish(nameOnly, 'nonfoil')).toBe(true)
+    expect(canSetFinish(pinned, 'nonfoil')).toBe(true)
+  })
+
+  test('a half-identified entry is not pinned', () => {
+    // A set alone does not name a printing, so it cannot carry a finish either.
+    expect(canSetFinish({ set: 'lea', collectorNumber: undefined }, 'foil')).toBe(false)
+    expect(canSetFinish({ set: undefined, collectorNumber: '161' }, 'foil')).toBe(false)
+  })
+})
+
+describe('finishMatchesPrinting', () => {
+  test('an absent finish is no claim, so it always holds', () => {
+    expect(finishMatchesPrinting({ set: undefined, collectorNumber: undefined })).toBe(true)
+    expect(finishMatchesPrinting({ set: 'lea', collectorNumber: '161' })).toBe(true)
+  })
+
+  test('a foil claim needs the printing written beside it', () => {
+    // The `set-printing` shape: the finish and the printing land together, so
+    // clearing the printing while stating foil is the state it exists to catch.
+    expect(finishMatchesPrinting({ finish: 'foil' })).toBe(false)
+    expect(finishMatchesPrinting({ set: 'lea', finish: 'foil' })).toBe(false)
+    expect(finishMatchesPrinting({ set: 'lea', collectorNumber: '161', finish: 'foil' })).toBe(true)
+  })
+
+  test('clearing to nonfoil holds with or without a printing', () => {
+    expect(finishMatchesPrinting({ finish: 'nonfoil' })).toBe(true)
   })
 })

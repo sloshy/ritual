@@ -1,4 +1,5 @@
 import type { Finish } from '../types'
+import { hasSpecificPrinting, type FinishedPrintingFields } from '../card-printing'
 import type { CardLanguage } from '../card-language'
 import type { WantedListCardEntry, WantedListEntryState } from '../site/data-types'
 import { DEFAULT_SECTION } from '../types'
@@ -16,8 +17,13 @@ export type ParsedWantedEntry = {
   section?: string
 }
 
-function wantedState(entry: ParsedWantedEntry): WantedListEntryState {
-  if (!entry.set || !entry.collectorNumber) return 'name-only'
+/**
+ * How specific a wanted entry is: no printing at all, a printing, or a printing
+ * in a stated finish. The one rule — the apply engine recomputes the state on
+ * every write and must not reach a different answer than the parser did.
+ */
+export function wantedState(entry: FinishedPrintingFields): WantedListEntryState {
+  if (!hasSpecificPrinting(entry)) return 'name-only'
   return entry.finish ? 'fully-specified' : 'printing'
 }
 

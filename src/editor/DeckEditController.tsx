@@ -22,6 +22,7 @@ import type { SearchProvider } from './search-provider'
 import { useDeckCardData, type DeckCardData, type DeckCardDataActions } from './useDeckCardData'
 import { applyChangeToDeck, findDeckAddMergeTargetId } from './deck-changes'
 import {
+  findDeckCard,
   findDeckCardId,
   findDeckCardIdInSection,
   findDeckCardLabels,
@@ -29,7 +30,7 @@ import {
   findDeckCardSection,
 } from './deck-config'
 import { CardContextMenu } from './components/CardContextMenu'
-import { hasSpecificPrinting } from '../card-printing'
+import { canSetFinish, hasSpecificPrinting } from '../card-printing'
 import { EditorShell } from './components/EditorShell'
 import { withDeckArt, type CardArtRefs } from './card-art-view'
 
@@ -51,6 +52,19 @@ export type DeckBulkEdit = {
   removeAll: (cards: SelectedCard[]) => void
   /** Set the finish on each selected card that supports it; others are skipped. */
   setFinish: (cards: SelectedCard[], finish: Finish) => void
+  /**
+   * Whether {@link setFinish} would apply the finish to *every* selected card
+   * as the list stands now — both halves of the question it asks: the card's
+   * printing publishes that finish, and (for foil/etched) the line pins a
+   * printing at all. A {@link SelectedCard} is a snapshot taken when the tile
+   * was ticked, so its printing can be stale in both directions — pinned since,
+   * or unpinned again by an undo — and the answer comes from live data.
+   *
+   * All-or-nothing on purpose: `setFinish` skips what it cannot apply, so a
+   * partially-applicable selection would look like it worked while quietly
+   * leaving cards behind. The menu greys the action out instead.
+   */
+  canSetFinish: (cards: SelectedCard[], finish: Finish) => boolean
   /** Set the language on each selected card (every copy of the entry). */
   setLanguage: (cards: SelectedCard[], language: CardLanguage) => void
   /**
@@ -319,6 +333,17 @@ export function useDeckEditController(
         editor.handleSetFinishFor(c.name, finish, c.cardIds[0])
       }
     },
+    canSetFinish: (cards, finish) => {
+      const deck = editor.data()
+      return (
+        cards.length > 0 &&
+        cards.every((c) => {
+          if (!c.scryfallCard?.finishes?.includes(finish)) return false
+          const live = deck ? findDeckCard(deck, c.name, c.cardIds[0]) : undefined
+          return canSetFinish(live ?? c, finish)
+        })
+      )
+    },
     setLanguage: (cards, language) => {
       batch(() => {
         for (const c of cards) editor.handleSetLanguageFor(c.name, language, c.cardIds[0])
@@ -455,84 +480,102 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
       enableAddArt={props.onSetCustomArt !== undefined}
       contextMenu={
         <Show when={ctrl.deckContextMenu()}>
-          {(menu) => (
-            <CardContextMenu
-              cardName={menu().cardName}
-              card={menu().card}
-              currentFinish={
-                editor
-                  .data()
-                  ?.sections.flatMap((s) => s.cards)
-                  .find((c) => c.name === menu().cardName)?.finish
-              }
-              onSetFoil={editor.handleSetFoil}
-              printingAction={{
-                onSelect: ctrl.handleChangePrinting,
-                get hasPrinting() {
-                  return hasSpecificPrinting(menu())
-                },
-              }}
-              onSetLabel={() => {
-                const target = menu()
-                ctrl.closeContextMenu()
-                // Deck-only choices: `proxy` and "use list default".
-                promptCardLabels('deck', (labels) =>
-                  ctrl.handleSetLabelFor(target.cardName, labels, target.cardIds[0]),
-                )
-              }}
-              onSetLanguage={() => {
-                const target = menu()
-                const d = editor.data()
-                const current = d
-                  ? findDeckCardLanguage(d, target.cardName, target.cardIds[0])
-                  : undefined
-                ctrl.closeContextMenu()
-                promptCardLanguage(current, (language) =>
-                  editor.handleSetLanguageFor(target.cardName, language, target.cardIds[0]),
-                )
-              }}
-              // Offered for a card added this session too: its art is held
-              // with the pending changes and written by the save that gives the
-              // line its `&N` (see `pending-art.ts`). Only a tile with no id at
-              // all — nothing to key art by — hides the item.
-              onSetCustomArt={
-                props.onSetCustomArt && menu().cardIds[0] !== undefined
-                  ? () => {
-                      const apply = props.onSetCustomArt
-                      if (!apply) return
-                      const target = menu()
-                      ctrl.closeContextMenu()
-                      apply(target)
-                    }
-                  : undefined
-              }
-              onSetCommander={ctrl.handleSetCommander}
-              onUnsetCommander={ctrl.handleUnsetCommander}
-              isCommander={menu().isInCommanderSection}
-              anchorRect={menu().anchorRect}
-              onClose={ctrl.closeContextMenu}
-              onMoveToSection={() => {
-                const target = menu()
-                const current = editor.data()
-                  ? findDeckCardSection(editor.data()!, target)
-                  : undefined
-                ctrl.closeContextMenu()
-                promptSectionMove(
-                  editor.sectionOrder().filter((s) => s !== current),
-                  (section) => editor.handleMoveCardToSection(target, section),
-                  () => editor.promptNewSectionForCard(target),
-                )
-              }}
-              moveTargets={editor.moveTargets()}
-              onMoveToList={() => {
-                const target = menu()
-                ctrl.closeContextMenu()
-                promptListMove(editor.moveTargets(), (dest) =>
-                  ctrl.handleMoveCardToList(target, dest),
-                )
-              }}
-            />
-          )}
+          {(menu) => {
+            // The live deck card behind the tile, resolved by its own `&N`.
+            // The menu's captured snapshot goes stale as soon as an edit lands
+            // while it is open (this menu does not close on every action), and
+            // a name lookup answers for the wrong copy when the deck holds the
+            // same card twice — one pinned, one name-only.
+            // Memoized: three props read it, and `data()` is a whole-value
+            // signal, so every list edit invalidates. Falls back to the menu's
+            // own snapshot only when the card has left the list entirely, so
+            // the finish and the printing always describe the same source.
+            const target = createMemo(() => {
+              const deck = editor.data()
+              const live = deck ? findDeckCard(deck, menu().cardName, menu().cardIds[0]) : undefined
+              return live ?? menu()
+            })
+            return (
+              <CardContextMenu
+                cardName={menu().cardName}
+                card={menu().card}
+                currentFinish={target().finish}
+                // Closed through the controller: `handleSetFoil` clears the
+                // editor's own menu signal, but the deck editor renders from its
+                // second one, which would otherwise leave the row on screen
+                // relabelled and backed by a handler that no longer has a target.
+                onSetFoil={() => {
+                  editor.handleSetFoil()
+                  ctrl.closeContextMenu()
+                }}
+                printingAction={{
+                  onSelect: ctrl.handleChangePrinting,
+                  get hasPrinting() {
+                    return hasSpecificPrinting(target())
+                  },
+                }}
+                onSetLabel={() => {
+                  const target = menu()
+                  ctrl.closeContextMenu()
+                  // Deck-only choices: `proxy` and "use list default".
+                  promptCardLabels('deck', (labels) =>
+                    ctrl.handleSetLabelFor(target.cardName, labels, target.cardIds[0]),
+                  )
+                }}
+                onSetLanguage={() => {
+                  const target = menu()
+                  const d = editor.data()
+                  const current = d
+                    ? findDeckCardLanguage(d, target.cardName, target.cardIds[0])
+                    : undefined
+                  ctrl.closeContextMenu()
+                  promptCardLanguage(current, (language) =>
+                    editor.handleSetLanguageFor(target.cardName, language, target.cardIds[0]),
+                  )
+                }}
+                // Offered for a card added this session too: its art is held
+                // with the pending changes and written by the save that gives the
+                // line its `&N` (see `pending-art.ts`). Only a tile with no id at
+                // all — nothing to key art by — hides the item.
+                onSetCustomArt={
+                  props.onSetCustomArt && menu().cardIds[0] !== undefined
+                    ? () => {
+                        const apply = props.onSetCustomArt
+                        if (!apply) return
+                        const target = menu()
+                        ctrl.closeContextMenu()
+                        apply(target)
+                      }
+                    : undefined
+                }
+                onSetCommander={ctrl.handleSetCommander}
+                onUnsetCommander={ctrl.handleUnsetCommander}
+                isCommander={menu().isInCommanderSection}
+                anchorRect={menu().anchorRect}
+                onClose={ctrl.closeContextMenu}
+                onMoveToSection={() => {
+                  const target = menu()
+                  const current = editor.data()
+                    ? findDeckCardSection(editor.data()!, target)
+                    : undefined
+                  ctrl.closeContextMenu()
+                  promptSectionMove(
+                    editor.sectionOrder().filter((s) => s !== current),
+                    (section) => editor.handleMoveCardToSection(target, section),
+                    () => editor.promptNewSectionForCard(target),
+                  )
+                }}
+                moveTargets={editor.moveTargets()}
+                onMoveToList={() => {
+                  const target = menu()
+                  ctrl.closeContextMenu()
+                  promptListMove(editor.moveTargets(), (dest) =>
+                    ctrl.handleMoveCardToList(target, dest),
+                  )
+                }}
+              />
+            )
+          }}
         </Show>
       }
     >

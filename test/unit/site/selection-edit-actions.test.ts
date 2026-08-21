@@ -8,7 +8,7 @@ import type { Finish } from '../../../src/types'
 
 type Call = { name: string; cards: SelectedCard[]; arg?: unknown }
 
-function harness(withCommander = true) {
+function harness(withCommander = true, canSetFinish = true) {
   const calls: Call[] = []
   let cleared = 0
   const record = (name: string) => (cards: SelectedCard[], arg?: unknown) =>
@@ -19,6 +19,10 @@ function harness(withCommander = true) {
     removeCopy: record('removeCopy'),
     removeAll: record('removeAll'),
     setFinish: (cards, finish: Finish) => calls.push({ name: 'setFinish', cards, arg: finish }),
+    canSetFinish: (cards, finish: Finish) => {
+      calls.push({ name: 'canSetFinish', cards, arg: finish })
+      return canSetFinish
+    },
     setLanguage: (cards, language) => calls.push({ name: 'setLanguage', cards, arg: language }),
     changePrinting: record('changePrinting'),
     setCommander: withCommander ? record('setCommander') : undefined,
@@ -85,6 +89,20 @@ describe('buildSelectionEditActions', () => {
       { name: 'setFinish', cards: h.cards, arg: 'nonfoil' },
     ])
     expect(h.cleared()).toBe(2)
+  })
+
+  test('canSetFoil asks the bundle about the live selection without clearing it', () => {
+    const h = harness()
+    // The menu calls this on every render to decide whether the row is dead;
+    // clearing the selection there would deselect the cards it is describing.
+    expect(h.actions.canSetFoil()).toBe(true)
+    expect(h.calls).toEqual([{ name: 'canSetFinish', cards: h.cards, arg: 'foil' }])
+    expect(h.cleared()).toBe(0)
+  })
+
+  test('canSetFoil reports the bundle’s refusal', () => {
+    const h = harness(true, false)
+    expect(h.actions.canSetFoil()).toBe(false)
   })
 
   test('setLanguage passes the language and clears', () => {

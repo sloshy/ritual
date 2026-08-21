@@ -412,7 +412,7 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
   ImportConflict: obj(
     {
       change: openObject('The change event that was skipped, verbatim from the bundle.'),
-      reason: enumOf(['target-not-found', 'not-applicable']),
+      reason: enumOf(['target-not-found', 'not-applicable', 'needs-printing']),
     },
     ['change', 'reason'],
   ),

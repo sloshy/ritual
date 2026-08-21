@@ -199,14 +199,14 @@ When creating, an **Overwrite if a list with this name exists** checkbox replace
 
 The **Import Changes** page applies a change bundle exported from the public site's [in-browser editor](/commands/build-site/#editing-on-the-public-site) — a `ritual-change-bundle` JSON covering one or more lists (the export panel's **This list** and **All lists** scopes both produce it). Upload the file or paste its contents; the page parses it in the browser and shows a full **preview of every pending change grouped by target list**, with per-list and total counts. Nothing is written until you press **Apply N changes to K lists**.
 
-Applying re-targets each list's changes to its current card IDs (by ID when it still exists, otherwise by card name), writes the list files and their changelogs, and reports a per-list outcome: applied count, changes skipped because their target card no longer exists, and any list that failed entirely (which does not stop the others). This is the same engine as the [`import-changes`](/commands/import-changes/) CLI command and the MCP `import_change_bundle` tool.
+Applying re-targets each list's changes to its current card IDs (by ID when it still exists, otherwise by card name), writes the list files and their changelogs, and reports a per-list outcome: applied count, every skipped change with the reason it was skipped (card not found, not applicable to this list, or the card has no printing for that finish), and any list that failed entirely (which does not stop the others). This is the same engine as the [`import-changes`](/commands/import-changes/) CLI command and the MCP `import_change_bundle` tool.
 
 #### Loading changes into an editor
 
 Alternatively, the deck, collection, and wanted-list editors each have an **Import…** button that loads a change bundle as **pending edits** rather than applying it immediately — useful when you want to adjust the changes before committing them. The dialog picks the bundle entry matching the list being edited (other entries are ignored) and rejects a bundle with no changes for the list's kind:
 
 - Each change is **re-targeted** to the current list's card IDs — added cards get fresh IDs, and other changes match by ID when it still exists, otherwise by card name.
-- Changes whose target can no longer be found are reported as conflicts and skipped, with a count shown after import.
+- Changes that cannot be applied are skipped and listed after the import, each with its reason: the card is not in the list, the action does not apply to this kind of list, or it would set a foil/etched finish on a card that pins no printing.
 - The loaded changes appear in the editor for you to review and then **Save Changes** as a normal edit (recorded in the changelog).
 
 ### Moving Cards While Editing

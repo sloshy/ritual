@@ -65,6 +65,12 @@ export type UseCardChangesResult<T = unknown> = {
   addChange: (change: ChangeInput, removedCardData?: T) => ChangeEvent | null
   /** Replace the entire pending-change stack (e.g. when importing a change file). Clears undo history. */
   loadChanges: (changes: ChangeEvent[]) => void
+  /**
+   * Drop specific pending changes by id — the ones a replay could not apply.
+   * Undo entries naming a dropped change go with it: the edit they would take
+   * back is not in the data any more.
+   */
+  dropChanges: (changeIds: ReadonlySet<string>) => void
   discardAll: () => void
   canUndo: Accessor<boolean>
   undo: () => UndoResult<T> | null
@@ -183,6 +189,25 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     undoStackRef = []
     setChanges([...changesRef])
     setUndoStack([])
+  }
+
+  function dropChanges(changeIds: ReadonlySet<string>) {
+    if (changeIds.size === 0) return
+    changesRef = changesRef.filter((change) => !changeIds.has(change.id))
+    // Both sides: undoing an entry re-adds its `cancelledChange`, so an entry
+    // naming a dropped change on either side would resurrect one the engine
+    // refused.
+    undoStackRef = undoStackRef.filter(
+      (entry) =>
+        (entry.addedChange === null || !changeIds.has(entry.addedChange.id)) &&
+        (entry.cancelledChange === null || !changeIds.has(entry.cancelledChange.id)),
+    )
+    // One update cycle, for the reason `recordChange` gives: the change list and
+    // the undo button both repaint from this.
+    batch(() => {
+      setChanges([...changesRef])
+      setUndoStack([...undoStackRef])
+    })
   }
 
   function discardAll() {
@@ -337,6 +362,7 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     changeCount,
     addChange,
     loadChanges,
+    dropChanges,
     discardAll,
     canUndo,
     undo,

@@ -1867,6 +1867,15 @@ h3 {
   color: var(--error-text);
 }
 
+.selection-menu-item[aria-disabled='true'] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.selection-menu-item[aria-disabled='true']:hover {
+  background: transparent;
+}
+
 .selection-menu-status {
   padding: 0.35rem 0.6rem 0.15rem;
   font-size: 0.75rem;

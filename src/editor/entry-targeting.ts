@@ -38,6 +38,33 @@ export function findEntryPrintingById(
   }
 }
 
+/**
+ * Find one flat entry by card ID, falling back to its name. The id match wins
+ * outright rather than being folded into one `(id || name)` predicate: a
+ * combined predicate returns the *first* same-name entry, so a list holding the
+ * same card twice — say one pinned copy and one name-only line — would answer
+ * for the wrong one. Every per-entry attribute lookup (finish, language,
+ * labels) resolves this way; decks are nested by section and have their own.
+ *
+ * The id must also *agree* with the name. `&N` is released to a reuse pool when
+ * a line is removed, so the same id can name a different card in the on-disk
+ * baseline than it does in the edited data — and these lookups run against both.
+ * Requiring the name costs nothing on a live lookup (the tile's id and name come
+ * from the same entry) and stops a recycled id from answering for the card that
+ * used to hold it.
+ */
+export function findEntryByIdOrName<T extends TargetableEntry>(
+  entries: readonly T[],
+  cardName: string,
+  cardId?: number,
+): T | undefined {
+  if (cardId !== undefined) {
+    const byId = entries.find((e) => e.cardId === cardId && e.name === cardName)
+    if (byId) return byId
+  }
+  return entries.find((e) => e.name === cardName)
+}
+
 export type TargetingChange = {
   cardId?: number
   cardName: string

@@ -66,9 +66,10 @@ export const uiMessages = {
   },
   'ui.editor.importConflicts': {
     $plural: 'count',
-    one: '{count} change could not be matched to a card in this list and was skipped:',
-    other: '{count} changes could not be matched to a card in this list and were skipped:',
+    one: '{count} change could not be applied to this list and was skipped:',
+    other: '{count} changes could not be applied to this list and were skipped:',
   },
+  'ui.editor.importConflictItem': '{change} — {reason}',
   'ui.editor.droppedNotes': {
     $plural: 'count',
     one: 'Note dropped on merge: {items}.',
@@ -211,6 +212,8 @@ export const uiMessages = {
   'ui.cardMenu.options': 'Options for {name}',
   'ui.cardMenu.setFoil': 'Set as Foil',
   'ui.cardMenu.setNonfoil': 'Set as Nonfoil',
+  'ui.cardMenu.foilNeedsPrinting': 'Set a printing first to choose a finish',
+  'ui.cardMenu.finishUnavailable': 'This printing is not published in that finish',
   'ui.cardMenu.changePrinting': 'Change Printing…',
   'ui.cardMenu.setPrinting': 'Set Printing…',
   'ui.cardMenu.setLabel': 'Set Label…',

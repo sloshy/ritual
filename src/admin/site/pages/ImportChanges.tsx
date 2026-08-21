@@ -1,5 +1,6 @@
 import { type JSX, For, Match, Show, Switch, createMemo, createSignal } from 'solid-js'
 import { StatusAlerts } from '../components/StatusAlerts'
+import { IMPORT_CONFLICT_REASON_KEY } from '../../../editor/import-changes'
 import { formatChange } from '../../../change-message'
 import { LIST_TYPE_DISPLAY } from '../../../list-type'
 import {
@@ -137,6 +138,7 @@ export function ImportChanges(): JSX.Element {
                           <li>
                             ⚠{' '}
                             {t('admin.importChanges.skipped', {
+                              reason: t(IMPORT_CONFLICT_REASON_KEY[c.reason]),
                               change: formatChange(c.change),
                             })}
                           </li>

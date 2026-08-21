@@ -746,6 +746,10 @@ export const cliEditMeta = {
     description:
       'Refusal to rewrite a collection line whose labels token the parser will not read, since the rewrite would silently drop it. {token} is the raw token text and never translates.',
   },
+  'cli.lineMutate.finishWithoutPrinting': {
+    description:
+      'Refusal to write a foil or etched finish onto a card line that names no specific printing. {finish} is the finish slug (foil/etched) and never translates, as do the two flag names.',
+  },
 
   'cli.csvUpload.flagAdvice': {
     description:

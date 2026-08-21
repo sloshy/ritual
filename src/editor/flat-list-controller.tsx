@@ -1,4 +1,4 @@
-import { type Accessor, type JSX, Show, batch, createSignal } from 'solid-js'
+import { type Accessor, type JSX, Show, batch, createMemo, createSignal } from 'solid-js'
 import { type Finish, type Condition, DEFAULT_SECTION } from '../types'
 import type { CardLabel } from '../card-labels'
 import type { CardLanguage } from '../card-language'
@@ -18,7 +18,8 @@ import type { SearchProvider } from './search-provider'
 import { useEntryCardData, type EntryCardData, type EntryCardDataActions } from './useEntryCardData'
 import { sectionOfTarget } from './section-helpers'
 import { CardContextMenu } from './components/CardContextMenu'
-import { hasSpecificPrinting } from '../card-printing'
+import { canSetFinish, hasSpecificPrinting } from '../card-printing'
+import { findEntryByIdOrName } from './entry-targeting'
 import { EditorShell } from './components/EditorShell'
 import type { ApplyChange } from './apply-batch'
 
@@ -66,6 +67,19 @@ export type FlatBulkEdit = {
   removeAll: (cards: SelectedCard[]) => void
   /** Set the finish on each selected card that supports it; others are skipped. */
   setFinish: (cards: SelectedCard[], finish: Finish) => void
+  /**
+   * Whether {@link setFinish} would apply the finish to *every* selected card
+   * as the list stands now — both halves of the question it asks: the card's
+   * printing publishes that finish, and (for foil/etched) the line pins a
+   * printing at all. A {@link SelectedCard} is a snapshot taken when the tile
+   * was ticked, so its printing can be stale in both directions — pinned since,
+   * or unpinned again by an undo — and the answer comes from live data.
+   *
+   * All-or-nothing on purpose: `setFinish` skips what it cannot apply, so a
+   * partially-applicable selection would look like it worked while quietly
+   * leaving cards behind. The menu greys the action out instead.
+   */
+  canSetFinish: (cards: SelectedCard[], finish: Finish) => boolean
   /** Set the language on every copy of every selected card. */
   setLanguage: (cards: SelectedCard[], language: CardLanguage) => void
   /**
@@ -130,14 +144,11 @@ export function useFlatListEditController<E extends FlatEntry>(
     {
       // Flat entries carry their language directly, so the controller supplies the
       // set-language original resolver; a page config may still override it.
-      // The cardId match must win outright before any name fallback: a combined
-      // `(id match) || (name match)` predicate would return the *first* same-name
-      // entry, so a [ja] copy behind an English copy of the same card would
-      // resolve `en` and a ja→en change would consolidate into a no-op.
-      findOriginalLanguage: (entries, cardName, cardId) => {
-        const byId = cardId !== undefined ? entries.find((e) => e.cardId === cardId) : undefined
-        return (byId ?? entries.find((e) => e.name === cardName))?.language
-      },
+      // `findEntryByIdOrName` owns the id-then-name rule this needs — including
+      // the name agreement that keeps a recycled `&N` in the on-disk baseline
+      // from answering for the card that used to hold it.
+      findOriginalLanguage: (entries, cardName, cardId) =>
+        findEntryByIdOrName(entries, cardName, cardId)?.language,
       ...params.buildConfig(cardActions),
       copyModel: 'per-entry',
     },
@@ -297,6 +308,23 @@ export function useFlatListEditController<E extends FlatEntry>(
         for (const id of c.cardIds) editor.handleSetFinishFor(c.name, finish, id)
       }
     },
+    canSetFinish: (cards, finish) => {
+      // Read unconditionally rather than through `entryByCardId` inside the
+      // loop: `every` short-circuits, so a first card that fails would leave the
+      // caller's memo subscribed to the selection but not to the list data.
+      const entries = editor.data() ?? []
+      return (
+        cards.length > 0 &&
+        cards.every((c) => {
+          if (!c.scryfallCard?.finishes?.includes(finish)) return false
+          return c.cardIds.length === 0
+            ? canSetFinish(c, finish)
+            : c.cardIds.every((id) =>
+                canSetFinish(entries.find((e) => e.cardId === id) ?? c, finish),
+              )
+        })
+      )
+    },
     setLanguage: (cards, language) => {
       batch(() => {
         for (const c of cards) {
@@ -363,88 +391,100 @@ export function FlatListContextMenu<E extends FlatEntry>(
   const editor = props.ctrl.editor
   return (
     <Show when={editor.contextMenuCard()}>
-      {(menu) => (
-        <CardContextMenu
-          cardName={menu().cardName}
-          card={menu().card}
-          currentFinish={editor.data()?.find((e) => e.name === menu().cardName)?.finish}
-          onSetFoil={editor.handleSetFoil}
-          printingAction={{
-            onSelect: props.ctrl.handleChangePrinting,
-            get hasPrinting() {
-              return hasSpecificPrinting(menu())
-            },
-          }}
-          onSetLabel={
-            props.onSetLabel
-              ? () => {
-                  const apply = props.onSetLabel
-                  if (!apply) return
-                  const target = menu()
-                  props.ctrl.closeContextMenu()
-                  apply(target)
-                }
-              : undefined
-          }
-          // Offered for a card added this session too: its art is held with
-          // the pending changes and written by the save that gives the line its
-          // `&N` (see `pending-art.ts`). Only a tile with no id at all —
-          // nothing to key art by — hides the item.
-          onSetCustomArt={
-            props.onSetCustomArt && menu().cardIds[0] !== undefined
-              ? () => {
-                  const apply = props.onSetCustomArt
-                  if (!apply) return
-                  const target = menu()
-                  props.ctrl.closeContextMenu()
-                  apply(target)
-                }
-              : undefined
-          }
-          onSetLanguage={() => {
-            const target = menu()
-            // The tile's current language, for marking in the picker. The exact
-            // copy (by cardId) must win outright before any name fallback, or a
-            // [ja] copy behind an English copy of the same card would mark
-            // English as current.
-            const entries = editor.data()
-            const firstId = target.cardIds[0]
-            const byId =
-              firstId !== undefined ? entries?.find((e) => e.cardId === firstId) : undefined
-            const current = (byId ?? entries?.find((e) => e.name === target.cardName))?.language
-            props.ctrl.closeContextMenu()
-            promptCardLanguage(current, (language) => {
-              batch(() => {
-                for (const id of target.cardIds) {
-                  editor.handleSetLanguageFor(target.cardName, language, id)
-                }
+      {(menu) => {
+        // The live entry behind the tile, resolved by its own `&N` — the menu's
+        // captured snapshot goes stale the moment an edit lands while it is
+        // open, and a name lookup answers for the wrong copy when the list
+        // holds the same card twice.
+        // Memoized, and falling back to the menu's own snapshot only when the
+        // entry has left the list — see the deck controller's twin.
+        const target = createMemo(
+          () =>
+            findEntryByIdOrName(editor.data() ?? [], menu().cardName, menu().cardIds[0]) ?? menu(),
+        )
+        return (
+          <CardContextMenu
+            cardName={menu().cardName}
+            card={menu().card}
+            currentFinish={target().finish}
+            onSetFoil={editor.handleSetFoil}
+            printingAction={{
+              onSelect: props.ctrl.handleChangePrinting,
+              get hasPrinting() {
+                return hasSpecificPrinting(target())
+              },
+            }}
+            onSetLabel={
+              props.onSetLabel
+                ? () => {
+                    const apply = props.onSetLabel
+                    if (!apply) return
+                    const target = menu()
+                    props.ctrl.closeContextMenu()
+                    apply(target)
+                  }
+                : undefined
+            }
+            // Offered for a card added this session too: its art is held with
+            // the pending changes and written by the save that gives the line its
+            // `&N` (see `pending-art.ts`). Only a tile with no id at all —
+            // nothing to key art by — hides the item.
+            onSetCustomArt={
+              props.onSetCustomArt && menu().cardIds[0] !== undefined
+                ? () => {
+                    const apply = props.onSetCustomArt
+                    if (!apply) return
+                    const target = menu()
+                    props.ctrl.closeContextMenu()
+                    apply(target)
+                  }
+                : undefined
+            }
+            onSetLanguage={() => {
+              const target = menu()
+              // The tile's current language, for marking in the picker. The exact
+              // copy (by cardId) must win outright before any name fallback, or a
+              // [ja] copy behind an English copy of the same card would mark
+              // English as current.
+              const current = findEntryByIdOrName(
+                editor.data() ?? [],
+                target.cardName,
+                target.cardIds[0],
+              )?.language
+              props.ctrl.closeContextMenu()
+              promptCardLanguage(current, (language) => {
+                batch(() => {
+                  for (const id of target.cardIds) {
+                    editor.handleSetLanguageFor(target.cardName, language, id)
+                  }
+                })
               })
-            })
-          }}
-          onUnsetCommander={props.ctrl.closeContextMenu}
-          anchorRect={menu().anchorRect}
-          onClose={props.ctrl.closeContextMenu}
-          hideCommander={true}
-          onMoveToSection={() => {
-            const target = menu()
-            const current = editor.data() ? sectionOfTarget(editor.data()!, target) : undefined
-            props.ctrl.closeContextMenu()
-            promptSectionMove(
-              editor.sectionOrder().filter((s) => s !== current),
-              (section) => editor.handleMoveCardToSection(target, section),
-              () => editor.promptNewSectionForCard(target),
-            )
-          }}
-          moveTargets={editor.moveTargets()}
-          onMoveToList={() => {
-            const target = menu()
-            props.ctrl.closeContextMenu()
-            promptListMove(editor.moveTargets(), (dest) =>
-              props.ctrl.handleMoveCardToList(target, dest),
-            )
-          }}
-        />
-      )}
+            }}
+            onUnsetCommander={props.ctrl.closeContextMenu}
+            anchorRect={menu().anchorRect}
+            onClose={props.ctrl.closeContextMenu}
+            hideCommander={true}
+            onMoveToSection={() => {
+              const target = menu()
+              const current = editor.data() ? sectionOfTarget(editor.data()!, target) : undefined
+              props.ctrl.closeContextMenu()
+              promptSectionMove(
+                editor.sectionOrder().filter((s) => s !== current),
+                (section) => editor.handleMoveCardToSection(target, section),
+                () => editor.promptNewSectionForCard(target),
+              )
+            }}
+            moveTargets={editor.moveTargets()}
+            onMoveToList={() => {
+              const target = menu()
+              props.ctrl.closeContextMenu()
+              promptListMove(editor.moveTargets(), (dest) =>
+                props.ctrl.handleMoveCardToList(target, dest),
+              )
+            }}
+          />
+        )
+      }}
     </Show>
   )
 }

@@ -4,6 +4,7 @@ import { DEFAULT_SECTION } from '../types'
 import { normalizedOverride } from '../card-labels'
 import { noteOrUndefined } from '../note-helpers'
 import { applyConditionUpdate } from '../finish-condition'
+import { canSetFinish, finishMatchesPrinting } from '../card-printing'
 import { findTargetEntryIndex } from './entry-targeting.js'
 import type { ApplyChangeOptions } from './apply-batch'
 
@@ -132,6 +133,12 @@ export function applyChangeToCollection(
         options?.onMiss?.('no-target')
         return entries
       }
+      // A foil/etched token is a claim about a printing, so a name-only entry
+      // cannot take one — the caller must pin a printing first.
+      if (!canSetFinish(entries[idx]!, change.finish)) {
+        options?.onMiss?.('needs-printing')
+        return entries
+      }
       return entries.map((e, i) => (i === idx ? { ...e, finish: change.finish } : e))
     }
 
@@ -139,6 +146,22 @@ export function applyChangeToCollection(
       const idx = findTargetEntryIndex(entries, change)
       if (idx === -1) {
         options?.onMiss?.('no-target')
+        return entries
+      }
+      // Belt and braces beside `findCollectionPrintingError`, which already
+      // requires set + collector number on a collection: the pair a
+      // `set-printing` writes has to hold together on every list type. Checked
+      // against the entry this *writes* — an absent `change.finish` carries the
+      // entry's own forward, so validating the change alone would miss a foil
+      // entry having its printing cleared out from under the token.
+      if (
+        !finishMatchesPrinting({
+          set: change.set,
+          collectorNumber: change.collectorNumber,
+          finish: change.finish ?? entries[idx]!.finish,
+        })
+      ) {
+        options?.onMiss?.('needs-printing')
         return entries
       }
       return entries.map((e, i) =>

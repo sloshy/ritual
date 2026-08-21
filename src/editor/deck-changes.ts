@@ -10,6 +10,7 @@ import {
   resolveDefaultAddSection,
 } from '../deck-format'
 import { normalizedOverride, sameCardLabels } from '../card-labels'
+import { canSetFinish, finishMatchesPrinting } from '../card-printing'
 import { applyConditionUpdate } from '../finish-condition'
 import { noteOrUndefined } from '../note-helpers'
 import { storedLanguage } from '../card-language'
@@ -228,6 +229,12 @@ export function applyChangeToDeck(
     case 'set-finish': {
       const found = findCard(sections)
       if (found) {
+        // A foil/etched token is a claim about a printing, so a name-only line
+        // cannot take one — the caller must pin a printing first.
+        if (!canSetFinish(found.card, change.finish)) {
+          options?.onMiss?.('needs-printing')
+          return { ...deck, sections }
+        }
         found.card.finish = change.finish
         return { ...deck, sections }
       }
@@ -238,6 +245,13 @@ export function applyChangeToDeck(
     case 'set-printing': {
       const found = findCard(sections)
       if (found) {
+        // This action writes the printing and the finish together, so the pair
+        // has to hold together: clearing the printing off a line while writing
+        // `[foil]` would produce exactly what `set-finish` refuses.
+        if (!finishMatchesPrinting(change)) {
+          options?.onMiss?.('needs-printing')
+          return { ...deck, sections }
+        }
         found.card.set = change.set?.toLowerCase()
         found.card.collectorNumber = change.collectorNumber
         found.card.finish = change.finish

@@ -6,6 +6,7 @@ import {
 } from '../../src/editor/collection-changes'
 import type { CollectionCardEntry } from '../../src/site/data-types'
 import { runMissMatrix, type MissMatrixCase } from '../test-utils'
+import type { MissReason } from '../../src/editor/apply-batch'
 
 function makeEntry(overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry {
   return {
@@ -428,6 +429,46 @@ describe('applyChangeToCollection — onMiss reporting', () => {
   ]
 
   runMissMatrix(applyChangeToCollection, () => [makeEntry()], cases)
+
+  // A collection line normally carries a printing, but the engine is shared and
+  // an entry can reach it unpinned (an import that never resolved one).
+  it('set-printing — refuses a finish it would leave without a printing', () => {
+    // The entry keeps its foil token while the printing is cleared out from
+    // under it: the check has to read the entry this writes, not the change.
+    const entries = [makeEntry({ finish: 'foil' })]
+    const seen: { reason: MissReason | null } = { reason: null }
+    const result = applyChangeToCollection(
+      entries,
+      { action: 'set-printing', cardName: 'Lightning Bolt' },
+      { onMiss: (reason) => (seen.reason = reason) },
+    )
+    expect(seen.reason).toBe('needs-printing')
+    expect(result[0]!.set).toBe('lea')
+  })
+
+  it('set-finish — clears a finish back to nonfoil on an entry with no printing', () => {
+    const entries = [makeEntry({ set: '', collectorNumber: '', finish: 'foil' })]
+    const seen: { reason: MissReason | null } = { reason: null }
+    const result = applyChangeToCollection(
+      entries,
+      { action: 'set-finish', cardName: 'Lightning Bolt', finish: 'nonfoil' },
+      { onMiss: (reason) => (seen.reason = reason) },
+    )
+    expect(seen.reason).toBeNull()
+    expect(result[0]!.finish).toBe('nonfoil')
+  })
+
+  it('set-finish — refuses foil on an entry that pins no printing', () => {
+    const entries = [makeEntry({ set: '', collectorNumber: '', finish: undefined })]
+    const seen: { reason: MissReason | null } = { reason: null }
+    const result = applyChangeToCollection(
+      entries,
+      { action: 'set-finish', cardName: 'Lightning Bolt', finish: 'foil' },
+      { onMiss: (reason) => (seen.reason = reason) },
+    )
+    expect(seen.reason).toBe('needs-printing')
+    expect(result[0]!.finish).toBeUndefined()
+  })
 })
 
 describe('toCollectionCardEntries', () => {

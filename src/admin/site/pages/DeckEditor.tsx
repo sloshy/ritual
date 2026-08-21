@@ -12,7 +12,6 @@ import { applyChangeToDeck } from '../../../editor/deck-changes'
 import {
   applyDeckChangePrinting,
   findDeckFinish,
-  findOriginalDeckFinish,
   findDeckCardId,
   getDeckCardIds,
   deckCountsBySection,
@@ -134,7 +133,9 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
     applyChangePrinting: applyDeckChangePrinting,
     hasData: () => true,
     findCurrentFinish: findDeckFinish,
-    findOriginalFinish: findOriginalDeckFinish,
+    // One resolver for both: the "original" side reads the same shape, just
+    // the pristine copy of it.
+    findOriginalFinish: findDeckFinish,
     findCardId: findDeckCardId,
     getOriginalIds: getDeckCardIds,
 

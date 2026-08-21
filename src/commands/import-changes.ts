@@ -1,7 +1,6 @@
 import { Command } from 'commander'
 import fs from 'node:fs/promises'
 import { formatChange } from '../change-message'
-import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 import { LIST_TYPE_DISPLAY, listTypeLabel } from '../list-type'
 import {
@@ -16,7 +15,7 @@ import {
   applyChangeBundle,
   bundleImportMessage,
 } from '../admin/api/import-changes'
-import type { ImportConflict } from '../editor/import-changes'
+import { IMPORT_CONFLICT_REASON_KEY, type ImportConflict } from '../editor/import-changes'
 import { suppressAutoCommit } from '../admin/git'
 import { ask } from './prompts-helpers'
 import {
@@ -70,12 +69,6 @@ function printPreview(bundle: ChangeBundle): void {
   console.log('')
 }
 
-/** Why a change was skipped, in the wording the CLI prints. */
-const CONFLICT_REASON_LABEL = {
-  'target-not-found': 'domain.importConflict.targetNotFound',
-  'not-applicable': 'domain.importConflict.notApplicable',
-} as const satisfies Record<ImportConflict['reason'], MessageKey>
-
 /**
  * The per-reason breakdown for a list's skipped changes — `card not found: 2,
  * not applicable to this list: 1` — so a summary never claims a reason the
@@ -87,7 +80,7 @@ function summarizeConflictReasons(conflicts: readonly ImportConflict[]): string 
     counts.set(conflict.reason, (counts.get(conflict.reason) ?? 0) + 1)
   }
   return [...counts.entries()]
-    .map(([reason, count]) => `${t(CONFLICT_REASON_LABEL[reason])}: ${count}`)
+    .map(([reason, count]) => `${t(IMPORT_CONFLICT_REASON_KEY[reason])}: ${count}`)
     .join(', ')
 }
 
@@ -123,7 +116,7 @@ function printResults(result: BundleImportResult, quiet: boolean): void {
     for (const conflict of list.conflicts) {
       console.error(
         `  ⚠ ${t('cli.importChanges.skippedChange', {
-          reason: t(CONFLICT_REASON_LABEL[conflict.reason]),
+          reason: t(IMPORT_CONFLICT_REASON_KEY[conflict.reason]),
           change: formatChange(conflict.change),
         })}`,
       )

@@ -246,12 +246,12 @@
   color: var(--text-primary);
 }
 
-.card-context-menu-item--disabled {
+.card-context-menu-item[aria-disabled='true'] {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-.card-context-menu-item--disabled:hover {
+.card-context-menu-item[aria-disabled='true']:hover {
   background: none;
   color: var(--text-secondary);
 }

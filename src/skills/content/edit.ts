@@ -134,8 +134,12 @@ ritual set-card "To Buy" "Demonic Tutor" --wanted --finish foil --output json
   listing what exists). Without \`--finish\` alongside, the current finish is kept.
 - \`--finish nonfoil|foil|etched\` — always validated against the printing the line
   will carry (the new one when changing the printing, otherwise the entry's own).
-  The check is cache-only: when the card cache cannot vouch for the printing, or the
-  line has no printing at all, it is skipped rather than guessed.
+  The check is cache-only: when the card cache cannot vouch for the printing it is
+  skipped rather than guessed. A line that names **no** printing cannot take
+  \`foil\`/\`etched\` at all (exit 2) — a finish belongs to a printing; pass
+  \`--set\`/\`--collector-number\` in the same call to pin one and record the finish
+  together. \`--finish nonfoil\` always applies: it clears a token rather than
+  asserting one.
 - \`--condition NM|LP|MP|HP|DMG|NONE\` — decks and collections only (wanted entries
   carry no condition). \`NONE\` clears a recorded grade; note that \`NM\` is the
   unrecorded default and writes an ungraded line, exactly like \`NONE\`.

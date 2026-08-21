@@ -13,6 +13,7 @@ import type { AddChange, ChangeAction, ChangeEvent, ChangeInput } from '../../sr
 import { applyChangeToDeck, findDeckAddMergeTargetId } from '../../src/editor/deck-changes'
 import type { DeckData } from '../../src/types'
 import { runMissMatrix, type MissMatrixCase } from '../test-utils'
+import type { MissReason } from '../../src/editor/apply-batch'
 
 type MakeChangeOverrides = {
   action: ChangeAction
@@ -1212,6 +1213,118 @@ describe('applyChangeToDeck — onMiss reporting', () => {
   ]
 
   runMissMatrix(applyChangeToDeck, makeDeck, cases)
+
+  describe('set-finish needs a printing', () => {
+    const nameOnlyDeck = (): DeckData => ({
+      name: 'Test Deck',
+      sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 9 }] }],
+    })
+
+    test('refuses foil on a line that pins no printing', () => {
+      const deck = nameOnlyDeck()
+      const seen: { reason: MissReason | null } = { reason: null }
+      const result = applyChangeToDeck(
+        deck,
+        makeChange({ action: 'set-finish', cardName: 'Sol Ring', cardId: 9, finish: 'foil' }),
+        { onMiss: (reason) => (seen.reason = reason) },
+      )
+      expect(seen.reason).toBe('needs-printing')
+      expect(result.sections[0]!.cards[0]!.finish).toBeUndefined()
+    })
+
+    test('accepts foil once an earlier change in the batch pinned the printing', () => {
+      let deck = nameOnlyDeck()
+      const misses: MissReason[] = []
+      const onMiss = { onMiss: (reason: MissReason) => misses.push(reason) }
+      deck = applyChangeToDeck(
+        deck,
+        makeChange({
+          action: 'set-printing',
+          cardName: 'Sol Ring',
+          cardId: 9,
+          set: 'c19',
+          collectorNumber: '221',
+        }),
+        onMiss,
+      )
+      deck = applyChangeToDeck(
+        deck,
+        makeChange({ action: 'set-finish', cardName: 'Sol Ring', cardId: 9, finish: 'foil' }),
+        onMiss,
+      )
+      expect(misses).toEqual([])
+      expect(deck.sections[0]!.cards[0]!.finish).toBe('foil')
+    })
+
+    test('refuses a set-printing that writes foil while clearing the printing', () => {
+      // The one-field back door: set-printing writes the finish AND the printing,
+      // so an omitted set/collector number would unpin the line while stamping
+      // `[foil]` — exactly the state set-finish is refused for.
+      const deck: DeckData = {
+        name: 'Test Deck',
+        sections: [
+          {
+            name: 'Main',
+            cards: [
+              { quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 9 },
+            ],
+          },
+        ],
+      }
+      const seen: { reason: MissReason | null } = { reason: null }
+      const result = applyChangeToDeck(
+        deck,
+        makeChange({ action: 'set-printing', cardName: 'Sol Ring', cardId: 9, finish: 'foil' }),
+        { onMiss: (reason) => (seen.reason = reason) },
+      )
+      expect(seen.reason).toBe('needs-printing')
+      expect(result.sections[0]!.cards[0]!.set).toBe('c19')
+      expect(result.sections[0]!.cards[0]!.finish).toBeUndefined()
+    })
+
+    test('allows a set-printing that clears the printing and the finish together', () => {
+      const deck: DeckData = {
+        name: 'Test Deck',
+        sections: [
+          {
+            name: 'Main',
+            cards: [
+              {
+                quantity: 1,
+                name: 'Sol Ring',
+                set: 'c19',
+                collectorNumber: '221',
+                finish: 'foil',
+                cardId: 9,
+              },
+            ],
+          },
+        ],
+      }
+      const seen: { reason: MissReason | null } = { reason: null }
+      const result = applyChangeToDeck(
+        deck,
+        makeChange({ action: 'set-printing', cardName: 'Sol Ring', cardId: 9 }),
+        { onMiss: (reason) => (seen.reason = reason) },
+      )
+      expect(seen.reason).toBeNull()
+      expect(result.sections[0]!.cards[0]!.set).toBeUndefined()
+      expect(result.sections[0]!.cards[0]!.finish).toBeUndefined()
+    })
+
+    test('still clears a name-only line back to nonfoil', () => {
+      const deck = nameOnlyDeck()
+      deck.sections[0]!.cards[0]!.finish = 'foil'
+      const seen: { reason: MissReason | null } = { reason: null }
+      const result = applyChangeToDeck(
+        deck,
+        makeChange({ action: 'set-finish', cardName: 'Sol Ring', cardId: 9, finish: 'nonfoil' }),
+        { onMiss: (reason) => (seen.reason = reason) },
+      )
+      expect(seen.reason).toBeNull()
+      expect(result.sections[0]!.cards[0]!.finish).toBe('nonfoil')
+    })
+  })
 
   test('set-commander on a card already in the commander section is an idempotent success', () => {
     const deck: DeckData = {

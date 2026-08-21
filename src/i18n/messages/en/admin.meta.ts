@@ -660,7 +660,7 @@ export const adminMeta = {
   },
   'admin.importChanges.skipped': {
     description:
-      'Per-change result: the card the change targets is not in the list, so it was not applied. {change} is a rendered change line.',
+      'Per-change result: the change was not applied. {reason} is one of the domain.importConflict.* phrases saying why, and {change} is a rendered change line.',
   },
   'admin.importChanges.sourceLabel': { description: 'Accessible name of the upload/paste tabs.' },
   'admin.importChanges.fileLabel': { description: 'Field label of the bundle file picker.' },

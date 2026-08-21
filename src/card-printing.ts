@@ -1,5 +1,5 @@
 import type { Finish, ScryfallCard } from './types'
-import { printingFinishes } from './finish-condition'
+import { finishRequiresPrinting, printingFinishes } from './finish-condition'
 import {
   displayLanguage,
   scryfallCardLanguage,
@@ -82,6 +82,37 @@ export function hasSpecificPrinting<T extends PrintingFields>(
   entry: T,
 ): entry is T & SpecificPrinting {
   return Boolean(entry.set && entry.collectorNumber)
+}
+
+/**
+ * Whether `finish` may be written onto `entry` as it currently stands: a foil
+ * or etched token is a claim about a specific printing, so only a pinned entry
+ * can carry one. Checked against the entry's *live* state, so a batch that
+ * pins a printing and then sets foil passes on the second change even though
+ * the same change would have been refused before the first.
+ *
+ * The one predicate behind the rule — see {@link finishRequiresPrinting}.
+ */
+export function canSetFinish(entry: PrintingFields, finish: Finish): boolean {
+  return !finishRequiresPrinting(finish) || hasSpecificPrinting(entry)
+}
+
+/** A printing reference that also states (or omits) the finish it is in. */
+export type FinishedPrintingFields = PrintingFields & { finish?: Finish }
+
+/**
+ * Whether an entry (or the change that would produce one) is self-consistent
+ * about its finish: a foil or etched token needs the printing beside it. An
+ * absent finish is no claim at all, and so always consistent.
+ *
+ * The `set-printing` counterpart to {@link canSetFinish} — that action writes a
+ * finish *and* the printing it describes in one step, so it is the resulting
+ * pair that has to hold together. Without this the rule would have a one-field
+ * back door: a `set-printing` carrying `finish: "foil"` and no set/collector
+ * number produces exactly the line a `set-finish` of foil is refused for.
+ */
+export function finishMatchesPrinting(entry: FinishedPrintingFields): boolean {
+  return entry.finish === undefined || canSetFinish(entry, entry.finish)
 }
 
 /**

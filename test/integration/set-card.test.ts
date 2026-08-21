@@ -147,6 +147,43 @@ describe('set-card CLI (Integration)', () => {
     expect(err.error.message).toContain('Available finishes: nonfoil')
   })
 
+  test('accepts the same finish when the call pins a printing alongside it', async () => {
+    await seedCardCache(dir, {
+      'Sol Ring': [
+        makeScryfallCard({
+          name: 'Sol Ring',
+          set: 'c19',
+          collector_number: '221',
+          finishes: ['nonfoil', 'foil'],
+        }),
+      ],
+    })
+    const result = await runCli(
+      [
+        'set-card',
+        '--deck',
+        'test',
+        '--card-id',
+        '1',
+        '--set',
+        'c19',
+        '--collector-number',
+        '221',
+        '--finish',
+        'foil',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual(['printing → C19:221', 'finish → foil'])
+
+    const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+    expect(deckContent).toContain('2 Sol Ring (C19:221) [foil] &1')
+  })
+
   test('treats a printing with no finish data as nonfoil-only', async () => {
     // Cache entries can carry an empty finishes array; the shared finish pin
     // treats them as plain nonfoil instead of rejecting every finish.
@@ -331,13 +368,15 @@ describe('set-card CLI (Integration)', () => {
     ].join('\n')
     await fs.writeFile(deckPath, before)
 
+    // A language edit rather than a finish one: this line pins no printing, and
+    // a finish belongs to a printing.
     const result = await runCli(
-      ['set-card', '--deck', 'prose', 'Sol', 'Ring', '--finish', 'foil'],
+      ['set-card', '--deck', 'prose', 'Sol', 'Ring', '--language', 'ja'],
       dir,
     )
     expect(result.exitCode).toBe(0)
     const after = await fs.readFile(deckPath, 'utf-8')
-    expect(after).toBe(before.replace('1 Sol Ring &1', '1 Sol Ring [foil] &1'))
+    expect(after).toBe(before.replace('1 Sol Ring &1', '1 Sol Ring [ja] &1'))
   })
 
   test('rejects --section on a collection', async () => {
@@ -504,16 +543,65 @@ describe('set-card CLI (Integration)', () => {
       expect(result.stderr).not.toContain('preload-all')
     })
 
-    test('a printing-less deck line is not finish-validated at all', async () => {
+    test('adding --condition does not smuggle the finish past the same refusal', async () => {
+      // `--condition` without `--set` is encoded as a set-printing carrying the
+      // entry's current printing plus the new finish — which writes the same
+      // token by another route, so the same rule has to hold there.
       await seedCardCache(dir, { 'Lightning Bolt': LIGHTNING_BOLT_PRINTINGS })
+      const deckPath = path.join(dir, 'decks', 'test.md')
+      const before = await fs.readFile(deckPath, 'utf-8')
       const result = await runCli(
-        ['set-card', '--deck', 'test', 'Sol', 'Ring', '--finish', 'etched'],
+        [
+          'set-card',
+          '--deck',
+          'test',
+          '--card-id',
+          '1',
+          '--finish',
+          'foil',
+          '--condition',
+          'LP',
+          '--output',
+          'json',
+        ],
         dir,
       )
-      expect(result.exitCode).toBe(0)
-      expect(result.stderr).toBe('')
-      const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
-      expect(deckContent).toContain('2 Sol Ring [etched] &1')
+      expect(result.exitCode).toBe(2)
+      const err = JSON.parse(result.stderr) as ErrorJson
+      expect(err.error.code).toBe('usage_error')
+      expect(err.error.message).toContain('names no printing')
+      expect(await fs.readFile(deckPath, 'utf-8')).toBe(before)
+    })
+
+    test('a dry run previews the refusal rather than a change the real run rejects', async () => {
+      await seedCardCache(dir, { 'Lightning Bolt': LIGHTNING_BOLT_PRINTINGS })
+      const result = await runCli(
+        ['set-card', '--deck', 'test', '--card-id', '1', '--finish', 'foil', '--dry-run'],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('names no printing')
+      // Still a dry run: the refusal comes from an in-memory apply.
+      expect(await fs.exists(path.join(dir, 'decks', 'test.changes.md'))).toBe(false)
+    })
+
+    test('a printing-less deck line is refused a finish outright', async () => {
+      await seedCardCache(dir, { 'Lightning Bolt': LIGHTNING_BOLT_PRINTINGS })
+      const deckPath = path.join(dir, 'decks', 'test.md')
+      const before = await fs.readFile(deckPath, 'utf-8')
+      // There is nothing to validate the finish *against* — and nothing for the
+      // token to describe either, so the edit is rejected rather than skipped.
+      const result = await runCli(
+        ['set-card', '--deck', 'test', 'Sol', 'Ring', '--finish', 'etched', '--output', 'json'],
+        dir,
+      )
+      expect(result.exitCode).toBe(2)
+      const err = JSON.parse(result.stderr) as ErrorJson
+      expect(err.error.code).toBe('usage_error')
+      expect(err.error.message).toContain('names no printing')
+      // Refused before the write: the file and its changelog are untouched.
+      expect(await fs.readFile(deckPath, 'utf-8')).toBe(before)
+      expect(await fs.exists(path.join(dir, 'decks', 'test.changes.md'))).toBe(false)
     })
   })
 

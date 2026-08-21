@@ -370,6 +370,8 @@ export const cliEditMessages = {
     'Card line no longer present in file (it may have been edited concurrently).',
   'cli.lineMutate.conflictingLabels':
     'The target line carries a conflicting labels token [{token}], which a rewrite would drop. Fix the token in the file first.',
+  'cli.lineMutate.finishWithoutPrinting':
+    'Cannot set the finish to {finish}: the card line names no printing, and a finish belongs to one. Pass --set and --collector-number to pin a printing first.',
 
   // ── The Archidekt CSV-upload decision ─────────────────────────────────
   'cli.csvUpload.flagAdvice':

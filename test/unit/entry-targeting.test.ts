@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { TargetableEntry, TargetingChange } from '../../src/editor/entry-targeting'
-import { findTargetEntryIndex } from '../../src/editor/entry-targeting'
+import { findEntryByIdOrName, findTargetEntryIndex } from '../../src/editor/entry-targeting'
 
 function entry(overrides: Partial<TargetableEntry> & { name: string }): TargetableEntry {
   return { ...overrides }
@@ -176,5 +176,42 @@ describe('findTargetEntryIndex', () => {
         1,
       )
     })
+  })
+})
+
+describe('findEntryByIdOrName', () => {
+  // The list holds the same card twice: a pinned copy and a name-only line.
+  const entries: TargetableEntry[] = [
+    { name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 },
+    { name: 'Sol Ring', cardId: 2 },
+  ]
+
+  test('the id match wins outright over the first same-name entry', () => {
+    expect(findEntryByIdOrName(entries, 'Sol Ring', 2)?.cardId).toBe(2)
+    expect(findEntryByIdOrName(entries, 'Sol Ring', 1)?.cardId).toBe(1)
+  })
+
+  test('falls back to the name when no id is given', () => {
+    expect(findEntryByIdOrName(entries, 'Sol Ring')?.cardId).toBe(1)
+  })
+
+  test('falls back to the name when the id matches nothing', () => {
+    // A tile whose entry has not been saved yet carries an id the data lacks.
+    expect(findEntryByIdOrName(entries, 'Sol Ring', 99)?.cardId).toBe(1)
+  })
+
+  test('returns undefined when neither id nor name matches', () => {
+    expect(findEntryByIdOrName(entries, 'Lightning Bolt', 99)).toBeUndefined()
+  })
+
+  test('an id naming a different card does not answer for it', () => {
+    // `&N` is recycled, so the id a change carries can belong to another card in
+    // the on-disk baseline — these lookups run against both that and live data.
+    const recycled: TargetableEntry[] = [
+      { name: 'Sol Ring', cardId: 1 },
+      { name: 'Lightning Bolt', cardId: 2 },
+    ]
+    expect(findEntryByIdOrName(recycled, 'Lightning Bolt', 1)?.cardId).toBe(2)
+    expect(findEntryByIdOrName(recycled, 'Brainstorm', 1)).toBeUndefined()
   })
 })

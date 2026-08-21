@@ -564,13 +564,16 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
   }
 
   // A dry run resolves the list, the target, and every validation above, then
-  // stops before the first write: no list file, no changelog, no sidecar.
-  if (!input.dryRun) {
-    // `--art` alone leaves no line change to apply, and an empty batch would
-    // still rewrite the list file and open a changelog entry for nothing.
-    if (changes.length > 0) await applyTargetedChanges(type, filePath, target, changes)
-    if (artWrite !== undefined) await writeCardArt(filePath, artWrite)
+  // stops before the first write: no list file, no changelog, no sidecar. It
+  // still *runs* the apply and throws the result away, because some refusals
+  // (a foil finish on a line that names no printing) live in the apply itself —
+  // a preview that skipped it would report an edit the real run rejects.
+  // `--art` alone leaves no line change to apply, and an empty batch would
+  // still rewrite the list file and open a changelog entry for nothing.
+  if (changes.length > 0) {
+    await applyTargetedChanges(type, filePath, target, changes, { dryRun: input.dryRun })
   }
+  if (!input.dryRun && artWrite !== undefined) await writeCardArt(filePath, artWrite)
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {

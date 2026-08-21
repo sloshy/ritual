@@ -3,7 +3,9 @@ import type { WantedListCardEntry } from '../site/data-types'
 import { DEFAULT_SECTION } from '../types'
 import { noteOrUndefined } from '../note-helpers'
 import { storedLanguage } from '../card-language'
+import { canSetFinish, finishMatchesPrinting } from '../card-printing'
 import { findTargetEntryIndex } from './entry-targeting.js'
+import { wantedState } from './wanted-entries'
 import type { ApplyChangeOptions } from './apply-batch'
 
 type WantedListChangeInput = ChangeInput & {
@@ -27,9 +29,7 @@ export function applyChangeToWantedList(
 ): WantedListCardEntry[] {
   switch (change.action) {
     case 'add': {
-      const hasSet = Boolean(change.set && change.collectorNumber)
-      const hasFinish = Boolean(change.finish)
-      const state = !hasSet ? 'name-only' : hasFinish ? 'fully-specified' : 'printing'
+      const state = wantedState(change)
       const newEntry: WantedListCardEntry = {
         name: change.cardName,
         // Lowercased at the apply boundary, like the collection engine.
@@ -63,8 +63,17 @@ export function applyChangeToWantedList(
         return entries
       }
       const target = entries[idx]!
+      // A foil/etched token is a claim about a printing, so a name-only entry
+      // cannot take one — the caller must pin a printing first. (A wanted line
+      // can still be cleared back to nonfoil while it names no printing.)
+      if (!canSetFinish(target, change.finish)) {
+        options?.onMiss?.('needs-printing')
+        return entries
+      }
       const finish = change.finish
-      const state = !target.set ? 'name-only' : finish ? 'fully-specified' : 'printing'
+      // Recomputed from the entry the write produces, through the same rule the
+      // parser uses — a set code alone is not a printing.
+      const state = wantedState({ ...target, finish })
       return entries.map((e, i) => (i === idx ? { ...e, finish, state } : e))
     }
 
@@ -74,9 +83,13 @@ export function applyChangeToWantedList(
         options?.onMiss?.('no-target')
         return entries
       }
-      const hasSet = Boolean(change.set && change.collectorNumber)
-      const hasFinish = Boolean(change.finish)
-      const state = !hasSet ? 'name-only' : hasFinish ? 'fully-specified' : 'printing'
+      // The printing and the finish are written together here, so the pair has
+      // to hold together — see the `set-finish` case above.
+      if (!finishMatchesPrinting(change)) {
+        options?.onMiss?.('needs-printing')
+        return entries
+      }
+      const state = wantedState(change)
       return entries.map((e, i) =>
         i === idx
           ? {

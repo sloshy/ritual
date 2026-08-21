@@ -160,6 +160,48 @@ describe('import-changes command (Integration)', () => {
     })
   }, 60_000)
 
+  test('names a finish the target card has no printing for, rather than "card not found"', async () => {
+    await withTempDir(async (dir) => {
+      await seedWorkspace(dir)
+      // `1 Lightning Bolt &1` pins no printing, so a foil token has nothing to
+      // describe — but the card is right there, and saying "not found" would
+      // send the user hunting for it.
+      const bundle = {
+        format: 'ritual-change-bundle',
+        version: 1,
+        exportedAt: '2026-06-04T00:00:00.000Z',
+        lists: [
+          {
+            kind: 'deck',
+            slug: 'test-deck',
+            name: 'Test Deck',
+            changes: [
+              {
+                id: 'f1',
+                timestamp: 1,
+                action: 'set-finish',
+                cardName: 'Lightning Bolt',
+                cardId: 1,
+                finish: 'foil',
+              },
+            ],
+          },
+        ],
+      }
+      await fs.writeFile(path.join(dir, 'edits.json'), JSON.stringify(bundle, null, 2))
+
+      const result = await runCli(['import-changes', 'edits.json', '--yes'], dir)
+      expect(result.exitCode).toBe(0)
+      expect(result.stderr).toContain('Skipped (card has no printing for that finish)')
+      expect(result.stderr).not.toContain('card not found')
+
+      const quiet = await runCli(['import-changes', 'edits.json', '--yes', '--quiet'], dir)
+      expect(quiet.stderr).toContain(
+        'Test Deck: 1 change skipped (card has no printing for that finish: 1)',
+      )
+    })
+  }, 60_000)
+
   test('exits non-zero when a list in the bundle does not exist, still applying the rest', async () => {
     await withTempDir(async (dir) => {
       await seedWorkspace(dir)

@@ -406,7 +406,8 @@ Card targeting is **exact and case-sensitive** on `cardName`, with `cardId` (the
 human (or script) holding an `&N` that was recycled after a removal, while an MCP client is expected
 to read `cardId` and `name` from the same `get_list` snapshot. If you cannot be sure your snapshot is
 current, send `cardName` alone. For the single-list edit tools (`add_card`, `remove_card`,
-`set_card_printing`, `apply_changes`), a change whose target does not exist **fails the whole call**:
+`set_card_printing`, `apply_changes`), a change that does not apply — its target does not exist, or one
+of the refusals described below — **fails the whole call**:
 nothing is saved, no changelog entry is written, and the error names each change that did not apply.
 In an `apply_changes` batch this is atomic — one miss rejects the batch — while a later change may
 still target a card an earlier change in the same batch added. The cross-list batch tools
@@ -444,6 +445,20 @@ Collections track a specific physical printing per entry: `add_card`, `apply_cha
 `set-printing` actions, and `set_card_printing` all require `set` + `collectorNumber` together when
 the target list is a collection — omitting either one is rejected rather than written as a
 printing-less (or cleared) entry. Decks and wanted lists accept a name-only card.
+
+A finish, though, belongs to a printing on **every** list type. `apply_changes`' `set-finish` action
+rejects `foil` or `etched` against an entry that pins no printing, reporting it as an unmatched
+change (`needs-printing`) so the whole batch is refused and nothing is saved. Pin the printing first
+— a `set-printing` earlier in the same batch satisfies it, since a later change sees what the
+earlier ones did. `nonfoil` always applies: it clears a finish token rather than asserting one.
+
+The same check covers `set_card_printing` and `apply_changes`' `set-printing` action, which write a
+printing and a finish together: clearing the printing (omitting `set`/`collectorNumber` on a deck or
+wanted list) while passing `finish: "foil"` is rejected rather than written, since it would produce
+the very line `set-finish` refuses. Clearing the printing _and_ the finish together is fine.
+
+`add` is deliberately exempt: a name-only entry created with a finish records "any printing, in
+foil", which is a wanted-list specificity rather than an edit to a card already on the list.
 
 `move_selected_cards` and `remove_selected_cards` address each card by identity: source `listType` + `slug` +
 `cardName`, plus `cardId` (the persistent `&N` id — required to match whenever the entry has one;

@@ -259,6 +259,7 @@ export const domainMessages = {
   // ── Change-bundle import conflicts ────────────────────────────────────
   'domain.importConflict.targetNotFound': 'card not found',
   'domain.importConflict.notApplicable': 'not applicable to this list',
+  'domain.importConflict.needsPrinting': 'card has no printing for that finish',
 
   // ── Content-hash sidecar states ───────────────────────────────────────
   'domain.sidecar.clean': 'clean',

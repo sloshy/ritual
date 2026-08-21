@@ -16,6 +16,12 @@ export type BulkEditBundle = {
   removeCopy: (cards: SelectedCard[]) => void
   removeAll: (cards: SelectedCard[]) => void
   setFinish: (cards: SelectedCard[], finish: Finish) => void
+  /**
+   * Whether every selected card can take the finish as the list stands now.
+   * Asked of the controller rather than derived from the selection snapshot,
+   * which can be stale in both directions — see the controllers' own doc.
+   */
+  canSetFinish: (cards: SelectedCard[], finish: Finish) => boolean
   /** Set the language on every selected card (`en` clears the line's token). */
   setLanguage: (cards: SelectedCard[], language: CardLanguage) => void
   changePrinting: (cards: SelectedCard[]) => void
@@ -56,6 +62,7 @@ export function buildSelectionEditActions(
     removeCopy: apply(bulk.removeCopy),
     removeAll: apply(bulk.removeAll),
     setFoil: apply((cards) => bulk.setFinish(cards, 'foil')),
+    canSetFoil: () => bulk.canSetFinish(selection.selected(), 'foil'),
     setNonfoil: apply((cards) => bulk.setFinish(cards, 'nonfoil')),
     setLanguage: (language) => {
       bulk.setLanguage(selection.selected(), language)

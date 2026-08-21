@@ -123,3 +123,18 @@ export function displayFinish(
   if (finish !== undefined) return finish
   return printing ? defaultPrintingFinish(printing) : 'nonfoil'
 }
+
+/**
+ * Whether a finish is a claim about a *specific printing*. `nonfoil` is the
+ * absence of such a claim — clearing a line back to plain — so it is the one
+ * finish a name-only line can carry meaningfully.
+ *
+ * The single rule behind "you cannot make a card foil before you say which
+ * card it is": the change-apply engines refuse a `set-finish` that would put a
+ * foil/etched token on a line that pins no printing, the CLI's one-shot
+ * `set-card --finish` refuses the same edit, and the two site menus grey out
+ * the action rather than let a user reach a refusal.
+ */
+export function finishRequiresPrinting(finish: Finish): boolean {
+  return finish !== 'nonfoil'
+}

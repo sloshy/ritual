@@ -124,6 +124,49 @@ test.describe('Public wanted-list editor', () => {
     ).toBeEnabled()
   })
 
+  test('"Set as Foil" is disabled while a name-only card is selected', async ({ page }) => {
+    await enterEditMode(page)
+
+    const selectByName = async (name: string): Promise<void> => {
+      const tile = page.locator(`.card-item[data-name="${name}"]`)
+      await tile.locator('.card-binder').hover()
+      await tile.locator('.card-select-checkbox').click()
+    }
+
+    // Selecting a card closes the open panel, so each state gets a fresh open.
+    const row = (label: string) =>
+      page.locator('.selection-menu-panel .selection-menu-item', { hasText: label })
+    const openMenu = async (): Promise<void> => void (await openSelectionMenu(page))
+
+    // A finish belongs to a printing, and this entry pins none.
+    await selectByName('lightning bolt')
+    await openMenu()
+    await expect(row('Set as Foil')).toBeDisabled()
+
+    // A forced click on the dead row records nothing: the onClick guard, not the
+    // attribute, is what makes it inert.
+    await row('Set as Foil').click({ force: true })
+    await expect(page.locator('.changes-badge')).toHaveCount(0)
+
+    // Clearing the token stays available on the same card — it asserts nothing
+    // about a printing. (That it really clears one is pinned where a name-only
+    // card actually carries a foil token: the admin set-foil spec's Shock case.
+    // Here the entry is already nonfoil, so the action consolidates to a no-op.)
+    await expect(row('Set as Nonfoil')).toBeEnabled()
+
+    // Sol Ring pins C19:221, but a pinned card in the selection does not license
+    // the still-selected name-only one beside it — the gate is per-card, not
+    // "any card will do".
+    await selectByName('sol ring')
+    await openMenu()
+    await expect(row('Set as Foil')).toBeDisabled()
+
+    // On its own, Sol Ring can be foiled.
+    await selectByName('lightning bolt')
+    await openMenu()
+    await expect(row('Set as Foil')).toBeEnabled()
+  })
+
   test('the printing row reads "Set Printing" only for a name-only entry', async ({ page }) => {
     await enterEditMode(page)
 

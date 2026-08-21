@@ -65,12 +65,20 @@ import {
   type PrintingTuple,
 } from '../change-event'
 import { applyConditionUpdate, isCondition, isFinish } from '../finish-condition'
+import { canSetFinish } from '../card-printing'
 import { noteOrUndefined } from '../note-helpers'
 import { ExitCode } from './scripting'
 import { CardCommandError, localizedCommandError } from '../errors'
+import type { Finish } from '../types'
 import type { ListType } from '../list-type'
 import type { CardMutationChange } from '../list-mutate'
 import type { EntryRef } from './card-target'
+
+/** Options for {@link applyTargetedChanges}. */
+export type TargetedMutateOptions = {
+  /** Validate and apply in memory, then stop before any file is touched. */
+  dryRun?: boolean
+}
 
 export type TargetedMutateResult = {
   /**
@@ -86,12 +94,18 @@ export type TargetedMutateResult = {
  * editing only that entry's line, then append one changelog block for the
  * batch. Changes apply in order, so a `set-printing` followed by a
  * `set-section` rewrites the line and then moves the rewritten line.
+ *
+ * `dryRun` runs everything up to the first write and then stops. It is not a
+ * shortcut past the apply: some refusals (a foil finish on a line that names no
+ * printing) are raised by the apply itself, and a preview that skipped it would
+ * report an edit the real run rejects.
  */
 export async function applyTargetedChanges(
   type: ListType,
   filePath: string,
   target: EntryRef,
   changes: CardMutationChange[],
+  options: TargetedMutateOptions = {},
 ): Promise<TargetedMutateResult> {
   const content = await fs.readFile(filePath, 'utf-8')
   // When the target arrived without a cardId, adopt the line's `&N` up front so
@@ -108,6 +122,7 @@ export async function applyTargetedChanges(
       : change,
   )
   const newContent = applyTargetedChangesToContent(content, type, resolved, stamped)
+  if (options.dryRun === true) return { writtenFiles: [] }
   await writeFileWithHash(filePath, newContent)
   const slug = path.basename(filePath, '.md')
   const changelogPath = await appendChangelog(filePath, slug, stamped)
@@ -189,6 +204,20 @@ export function applyTargetedChangesToContent(
     switch (change.action) {
       case 'set-printing':
         rewriteWith(() => {
+          // The printing and the finish are written together, so the pair has
+          // to hold together. `set-card --finish foil --condition X` on a
+          // printing-less line routes here rather than through `set-finish`,
+          // and would otherwise slip past the check below.
+          //
+          // Only a finish this edit *changes* is checked. A condition-only edit
+          // carries the line's existing finish forward, and a line created with
+          // `[foil]` and no printing is legal (see the add exemption) — refusing
+          // there would make such a line uneditable over a field the user never
+          // touched.
+          const finish = change.finish
+          if (finish !== undefined && finish !== entry.finish && !canSetFinish(change, finish)) {
+            throw finishWithoutPrinting(finish)
+          }
           entry.set = change.set?.toLowerCase()
           entry.collectorNumber = change.collectorNumber
           entry.finish = change.finish
@@ -197,6 +226,10 @@ export function applyTargetedChangesToContent(
         break
       case 'set-finish':
         rewriteWith(() => {
+          // A foil/etched token is a claim about a printing. Checked inside the
+          // rewrite so an earlier `set-printing` in the same batch counts: the
+          // entry is whatever the preceding changes have already made it.
+          if (!canSetFinish(entry, change.finish)) throw finishWithoutPrinting(change.finish)
           entry.finish = change.finish
         })
         break
@@ -394,6 +427,20 @@ function tokenLabels(raw: string | undefined, type: ListType): LineLabels {
 function lineLabelsAt(lines: string[], idx: number, type: ListType): LineLabels {
   const m = lines[idx]!.trim().match(cardLineRe(type))
   return tokenLabels(m?.[labelsGroup(type)], type)
+}
+
+/**
+ * Thrown when a finish would be written onto a line that pins no printing.
+ * A usage error, not a runtime one: the fix is to pass `--set`/`--collector-number`
+ * in the same invocation, or to pin the printing first.
+ */
+function finishWithoutPrinting(finish: Finish): CardCommandError {
+  return localizedCommandError(
+    'usage_error',
+    ExitCode.UsageError,
+    'cli.lineMutate.finishWithoutPrinting',
+    { finish },
+  )
 }
 
 /** Thrown when the target line carries a labels token the parser refuses. */

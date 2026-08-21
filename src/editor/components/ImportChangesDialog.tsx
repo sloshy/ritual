@@ -1,6 +1,7 @@
 import { type Component, Show, For, createSignal } from 'solid-js'
 import { type ChangeBundleList, parseChangeBundle } from '../change-bundle'
 import type { ChangeEvent } from '../../change-event'
+import { IMPORT_CONFLICT_REASON_KEY } from '../import-changes'
 import { formatChange } from '../../change-message'
 import { type ListType, listTypeLabel } from '../../list-type'
 import type { ImportResult } from '../useEditor'
@@ -134,7 +135,12 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
                 <For each={r().conflicts}>
                   {(c) => (
                     <div class="change-item change-item--remove">
-                      <span>{formatChange(c.change)}</span>
+                      <span>
+                        {t('ui.editor.importConflictItem', {
+                          change: formatChange(c.change),
+                          reason: t(IMPORT_CONFLICT_REASON_KEY[c.reason]),
+                        })}
+                      </span>
                     </div>
                   )}
                 </For>

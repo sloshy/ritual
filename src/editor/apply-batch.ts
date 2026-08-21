@@ -7,8 +7,10 @@ import type { ListType } from '../list-type'
  * - `no-target` — the card-targeting change matched no entry (wrong name/id).
  * - `not-applicable` — the action can never apply to this list type
  *   (commander actions on a flat list).
+ * - `needs-printing` — a `set-finish` would put a foil/etched token on an entry
+ *   that pins no printing. See `canSetFinish` in `src/card-printing.ts`.
  */
-export type MissReason = 'no-target' | 'not-applicable'
+export type MissReason = 'no-target' | 'not-applicable' | 'needs-printing'
 
 /** Options accepted by the change-apply engines beyond the change itself. */
 export type ApplyChangeOptions = {
@@ -85,26 +87,40 @@ export type UnmatchedTarget = { type: ListType; slug: string }
  * `ApiResult` with a `messageKey`, which is where the split between "what the
  * agent reads" and "what the human reads" is introduced.
  */
+/** One clause per reason, rendered from the changes that carry it. */
+type MissDescriber = (
+  items: readonly UnmatchedChange<ChangeEvent>[],
+  target: UnmatchedTarget,
+) => string
+
+/** The changes in a clause, quoted and comma-joined. */
+const listChanges = (items: readonly UnmatchedChange<ChangeEvent>[]): string =>
+  items.map((item) => `"${formatChange(item.change)}"`).join(', ')
+
+/**
+ * `satisfies Record<MissReason, …>` rather than a chain of ifs: a new refusal
+ * reason cannot be added without deciding how it reads, and the alternative is
+ * a message that ends "Nothing was saved." while naming nothing.
+ */
+const MISS_DESCRIBERS = {
+  'no-target': (items, target) =>
+    `${items.length} change(s) matched no card in ${target.type} "${target.slug}": ` +
+    `${listChanges(items)} — card names match exactly (case-sensitive)`,
+  'not-applicable': (items, target) =>
+    `${items.length} change(s) never apply to a ${target.type} list: ${listChanges(items)}`,
+  'needs-printing': (items) =>
+    `${items.length} change(s) would set a finish on a card with no printing: ` +
+    `${listChanges(items)} — set the printing first, then the finish`,
+} as const satisfies Record<MissReason, MissDescriber>
+
 export function describeUnmatchedChanges(
   unmatched: readonly UnmatchedChange<ChangeEvent>[],
   target: UnmatchedTarget,
 ): string {
-  const list = (items: readonly UnmatchedChange<ChangeEvent>[]): string =>
-    items.map((item) => `"${formatChange(item.change)}"`).join(', ')
-  const noTarget = unmatched.filter((item) => item.reason === 'no-target')
-  const notApplicable = unmatched.filter((item) => item.reason === 'not-applicable')
-
   const parts: string[] = []
-  if (noTarget.length > 0) {
-    parts.push(
-      `${noTarget.length} change(s) matched no card in ${target.type} "${target.slug}": ` +
-        `${list(noTarget)} — card names match exactly (case-sensitive)`,
-    )
-  }
-  if (notApplicable.length > 0) {
-    parts.push(
-      `${notApplicable.length} change(s) never apply to a ${target.type} list: ${list(notApplicable)}`,
-    )
+  for (const reason of Object.keys(MISS_DESCRIBERS) as MissReason[]) {
+    const items = unmatched.filter((item) => item.reason === reason)
+    if (items.length > 0) parts.push(MISS_DESCRIBERS[reason](items, target))
   }
   return `${parts.join('; ')}. Nothing was saved.`
 }

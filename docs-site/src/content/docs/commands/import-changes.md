@@ -47,14 +47,16 @@ Before anything is applied, the command prints every pending change grouped by i
 
 Pass `--yes` to skip the prompt (for scripts and agents). When stdin is not a terminal, prompts are disabled globally (`--no-input` / `RITUAL_NO_INPUT`), or `--output json`/`ndjson` owns stdout, `--yes` is required — instead of prompting, the command exits with code `2`.
 
-`--quiet` suppresses the preview and the per-list applied counts. It never hides **skipped conflicts**: a quiet run that skipped changes prints a one-line `⚠ <list>: N changes skipped (card not found: 2, not applicable to this list: 1)` summary to stderr, because nothing else reports them and they do not affect the exit code. List failures are always reported on stderr too. Even without `--quiet`, the per-change `⚠ Skipped (card not found): …` / `⚠ Skipped (not applicable to this list): …` lines go to stderr, keeping stdout the applied-counts report.
+`--quiet` suppresses the preview and the per-list applied counts. It never hides **skipped conflicts**: a quiet run that skipped changes prints a one-line `⚠ <list>: N changes skipped (card not found: 2, not applicable to this list: 1)` summary to stderr, because nothing else reports them and they do not affect the exit code. List failures are always reported on stderr too. Even without `--quiet`, one `⚠ Skipped (<reason>): …` line per skipped change goes to stderr — naming which of the three reasons applied — keeping stdout the applied-counts report.
+
+A change can be skipped for three reasons, and each names a different fix: `card not found` (no entry of that name or id), `not applicable to this list` (a commander action aimed at a flat list), and `card has no printing for that finish` — the card is present, but the change would set a foil or etched finish on a line that names no printing, which Ritual refuses (see [`set-card`](/commands/set-card/#a-finish-belongs-to-a-printing)).
 
 ## How Changes Are Applied
 
 Lists are applied in file order, each loaded fresh immediately before saving (so a cross-list move applied by an earlier list never conflicts with a later one):
 
 - Changes are **re-targeted** to each list's current `&N` card IDs — added cards draw fresh IDs, and other changes match by ID when it still exists, otherwise by card name.
-- Changes whose target card can no longer be found — or whose action cannot apply to that list, such as a commander change aimed at a collection — are **skipped and reported** as conflicts; the rest still apply. A conflict's `reason` is `"target-not-found"` or `"not-applicable"`.
+- Changes whose target card can no longer be found — or whose action cannot apply to that list, such as a commander change aimed at a collection, or which would set a foil/etched finish on a card that pins no printing — are **skipped and reported** as conflicts; the rest still apply. A conflict's `reason` is `"target-not-found"`, `"not-applicable"`, or `"needs-printing"` (the card is present; it just needs a printing pinned first).
 - `move-from` changes also write the destination list (the card is added there, with a `move-to` changelog entry), exactly like an admin editor save.
 - Every list that received changes gets an entry in its `.changes.md` changelog — the same save path the admin editors use.
 

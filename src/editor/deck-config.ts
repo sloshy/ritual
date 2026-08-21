@@ -1,5 +1,5 @@
 import { batch } from 'solid-js'
-import type { DeckData, Finish } from '../types'
+import type { Card, DeckData, Finish } from '../types'
 import type { CardLabel } from '../card-labels'
 import type { CardLanguage } from '../card-language'
 import { type PrintingTuple, isSamePrinting } from '../change-event'
@@ -13,22 +13,30 @@ import { applyChangeToDeck } from './deck-changes'
  * public deck editor so the two stay behaviorally identical.
  */
 
-/** Find a card's finish by iterating deck sections. */
-export function findDeckFinish(deck: DeckData, cardName: string): Finish {
-  for (const section of deck.sections) {
-    const card = section.cards.find((c) => c.name === cardName)
-    if (card?.finish) return card.finish
+/**
+ * Find one deck card by card ID, falling back to its name. The id match wins
+ * outright for the reason {@link findDeckCardLanguage} spells out: a combined
+ * `(id || name)` predicate answers for the first same-name card, so a deck
+ * holding the card twice resolves the wrong copy — a `[ja]` line behind an
+ * English line of the same card would resolve `en`, and a ja→en change would
+ * consolidate into a no-op. The id must also *agree* with the name, for the
+ * reason `findEntryByIdOrName` (entry-targeting.ts) spells out: `&N` is released
+ * to a reuse pool on removal, so the same id can name a different card in the
+ * on-disk baseline than it does in the edited data — and every one of these
+ * lookups resolves against both.
+ */
+export function findDeckCard(deck: DeckData, cardName: string, cardId?: number): Card | undefined {
+  const allCards = deck.sections.flatMap((s) => s.cards)
+  if (cardId !== undefined) {
+    const byId = allCards.find((c) => c.cardId === cardId && c.name === cardName)
+    if (byId) return byId
   }
-  return 'nonfoil'
+  return allCards.find((c) => c.name === cardName)
 }
 
-/** Find the original finish for a card, falling back to 'nonfoil'. */
-export function findOriginalDeckFinish(deck: DeckData, cardName: string): Finish {
-  for (const section of deck.sections) {
-    const card = section.cards.find((c) => c.name === cardName)
-    if (card !== undefined) return card.finish ?? 'nonfoil'
-  }
-  return 'nonfoil'
+/** Find a targeted card's finish, falling back to 'nonfoil' for a bare line. */
+export function findDeckFinish(deck: DeckData, cardName: string, cardId?: number): Finish {
+  return findDeckCard(deck, cardName, cardId)?.finish ?? 'nonfoil'
 }
 
 /**
@@ -41,16 +49,7 @@ export function findDeckCardLanguage(
   cardName: string,
   cardId?: number,
 ): CardLanguage | undefined {
-  const allCards = deck.sections.flatMap((s) => s.cards)
-  // The cardId match must win outright before any name fallback: a combined
-  // `(id match) || (name match)` predicate would return the *first* same-name
-  // entry, so a [ja] line behind an English line of the same card would
-  // resolve `en` and a ja→en change would consolidate into a no-op.
-  if (cardId !== undefined) {
-    const byId = allCards.find((c) => c.cardId === cardId)
-    if (byId) return byId.language
-  }
-  return allCards.find((c) => c.name === cardName)?.language
+  return findDeckCard(deck, cardName, cardId)?.language
 }
 
 /**
@@ -65,13 +64,7 @@ export function findDeckCardLabels(
   cardName: string,
   cardId?: number,
 ): CardLabel[] | undefined {
-  if (!deck) return undefined
-  const allCards = deck.sections.flatMap((s) => s.cards)
-  if (cardId !== undefined) {
-    const byId = allCards.find((c) => c.cardId === cardId)
-    if (byId) return byId.labels
-  }
-  return allCards.find((c) => c.name === cardName)?.labels
+  return deck ? findDeckCard(deck, cardName, cardId)?.labels : undefined
 }
 
 /** Find a card's on-disk printing by card ID, for change-printing revert detection. */

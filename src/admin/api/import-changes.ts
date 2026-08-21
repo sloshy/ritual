@@ -18,6 +18,7 @@ import {
   parseChangeBundle,
 } from '../../editor/change-bundle'
 import {
+  importConflictReason,
   type ImportConflict,
   type RetargetResult,
   retargetImportedChanges,
@@ -176,9 +177,13 @@ function splitApplicable<TData>(
   return {
     updated,
     applicable: retargeted.filter((change) => !missed.has(change)),
+    // The engine's reason travels through: `no-target` really is "card not
+    // found", but `needs-printing` names a card that is present and only needs
+    // a printing pinned first, and reporting that as "not found" would send the
+    // user hunting for a card they can see.
     missConflicts: unmatched.map((item) => ({
       change: item.change,
-      reason: item.reason === 'not-applicable' ? 'not-applicable' : 'target-not-found',
+      reason: importConflictReason(item.reason),
     })),
   }
 }

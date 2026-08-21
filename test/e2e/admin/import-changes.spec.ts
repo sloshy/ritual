@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
 
-/** A change bundle as the public site would export it: a set-finish on an existing card plus a new add. */
+/** A change bundle as the public site would export it: a set-printing on an existing card plus a new add. */
 const CHANGE_BUNDLE = JSON.stringify({
   format: 'ritual-change-bundle',
   version: 1,
@@ -17,13 +17,34 @@ const CHANGE_BUNDLE = JSON.stringify({
         {
           id: 'a',
           timestamp: 1,
-          action: 'set-finish',
+          action: 'set-printing',
           cardName: 'Sol Ring',
-          finish: 'foil',
+          set: 'c21',
+          collectorNumber: '263',
           cardId: 9999,
         },
         // A brand-new card → gets a fresh ID on import.
         { id: 'b', timestamp: 2, action: 'add', cardName: 'Counterspell' },
+      ],
+    },
+  ],
+})
+
+/**
+ * The deck's `1 Sol Ring &1` names no printing, so a foil finish has nothing to
+ * describe — the engine refuses it and the dialog must say why.
+ */
+const FOIL_ON_NAME_ONLY_BUNDLE = JSON.stringify({
+  format: 'ritual-change-bundle',
+  version: 1,
+  exportedAt: '2026-06-04T00:00:00.000Z',
+  lists: [
+    {
+      kind: 'deck',
+      slug: 'test-unset-commander',
+      name: 'Test',
+      changes: [
+        { id: 'a', timestamp: 1, action: 'set-finish', cardName: 'Sol Ring', finish: 'foil' },
       ],
     },
   ],
@@ -49,12 +70,28 @@ test.describe('Import changes (admin)', () => {
     await dialog.locator('.import-dialog-textarea').fill(CHANGE_BUNDLE)
     await dialog.getByRole('button', { name: 'Import', exact: true }).click()
 
-    // Both changes resolve (set-finish by name, add with a fresh ID) — no conflicts.
+    // Both changes resolve (set-printing by name, add with a fresh ID) — no conflicts.
     await expect(dialog).toContainText('Loaded 2 changes')
     await dialog.getByRole('button', { name: 'Done' }).click()
 
     // The pending changes are now staged in the editor for review + save.
     await expect(page.locator('.changes-badge')).toHaveText('2')
+  })
+
+  test('a finish the list cannot hold is skipped, and named as such', async ({ page }) => {
+    await page.locator('.btn-import').click()
+    const dialog = page.locator('.import-dialog')
+    await dialog.locator('.import-dialog-textarea').fill(FOIL_ON_NAME_ONLY_BUNDLE)
+    await dialog.getByRole('button', { name: 'Import', exact: true }).click()
+
+    // Skipped rather than loaded — and the reason names the real fix, instead of
+    // claiming the card is missing from a list that plainly holds it.
+    await expect(dialog).toContainText('Loaded 0 changes')
+    await expect(dialog).toContainText('card has no printing for that finish')
+    await dialog.getByRole('button', { name: 'Done' }).click()
+
+    // Nothing pending: a change the data never took is not an edit to save.
+    await expect(page.locator('.changes-badge')).toHaveCount(0)
   })
 
   test('rejects bundles that do not match this list', async ({ page }) => {

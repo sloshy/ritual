@@ -62,6 +62,13 @@ export interface SelectionEditActions {
   removeCopy: () => void
   removeAll: () => void
   setFoil: () => void
+  /**
+   * Whether "Set as Foil" applies to the whole selection right now. A finish
+   * belongs to a printing, so a name-only card cannot take one — and the answer
+   * comes from the open editor's live data, not the selection snapshot, which
+   * can be stale in either direction after a printing is pinned or undone.
+   */
+  canSetFoil: () => boolean
   setNonfoil: () => void
   /**
    * Set the language on the selection (`en` clears the token). Absent until the
@@ -223,6 +230,20 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
   const canRemoveCopy = createMemo(() => props.selection.selected().some((c) => c.groupSize > 1))
 
   /**
+   * "Set as Foil" is disabled while any selected card names no printing: a
+   * finish belongs to a printing, so those cards need one pinned first. The
+   * nonfoil direction stays enabled — it clears a token rather than asserting a
+   * finish the line cannot have.
+   */
+  const foilNeedsPrinting = createMemo(() => {
+    const actions = props.editActions
+    // Reading the live selection keeps the memo subscribed to it, so the row
+    // re-evaluates as tiles are ticked as well as when the list data changes.
+    props.selection.selected()
+    return actions !== undefined && !actions.canSetFoil()
+  })
+
+  /**
    * The "Set Label…" action and the list type whose choices it offers, or
    * undefined when the open editor exposes no label handler or the selection
    * spans list types with different vocabularies.
@@ -299,7 +320,13 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
               type="button"
               role="menuitem"
               class="selection-menu-item"
-              onClick={() => runEdit(actions().setFoil)}
+              onClick={() => {
+                if (!foilNeedsPrinting()) runEdit(actions().setFoil)
+              }}
+              // See CardContextMenu: `aria-disabled` keeps the row focusable and
+              // its `title` visible, where a native `disabled` would hide both.
+              aria-disabled={foilNeedsPrinting()}
+              title={foilNeedsPrinting() ? t('ui.cardMenu.foilNeedsPrinting') : undefined}
             >
               {t('site.selection.setFoil')}
             </button>

@@ -24,7 +24,11 @@ import type {
   PrintingTuple,
   ListRef,
 } from '../change-event'
-import { retargetImportedChanges, type ImportConflict } from './import-changes'
+import {
+  importConflictReason,
+  retargetImportedChanges,
+  type ImportConflict,
+} from './import-changes'
 import type { ContextMenuState, CardContextInfo } from './context-menu'
 import { type EditorStatus, type EditorStatusActions, statusMessage } from './useEditorStatus'
 import { type EditorEntity, entityListType } from './entity'
@@ -38,7 +42,8 @@ import { useEditorStatus } from './useEditorStatus'
 import { useDialogState } from './useDialogState'
 import { useCardIdPool } from './useCardIdPool'
 import { useCardChanges } from './useCardChanges'
-import { reconcileIdPoolForUndo, replayChanges } from './reconcile-undo'
+import { reconcileIdPoolForUndo, replayChanges, type ReplayResult } from './reconcile-undo'
+import type { UnmatchedChange } from './apply-batch'
 import { addedCopyArtActions, artIdsResetByUndo } from './pending-art'
 import { useNavigationGuard } from './navigation-guard'
 import { clampQuantity } from '../ui/quantity'
@@ -230,9 +235,14 @@ export type EditorConfig<TData> = {
   /** Whether the loaded data is non-empty (e.g. entries.length > 0) */
   hasData: (data: TData) => boolean
 
-  /** Resolve the current finish for a card in the data */
-  findCurrentFinish: (data: TData, cardName: string) => Finish
-  /** Resolve the original finish for foil toggle comparison */
+  /**
+   * Resolve the current finish of one targeted card. `cardId` identifies the
+   * copy when the caller has one — a list can hold the same card twice (one
+   * pinned, one name-only), and resolving by name alone answers for whichever
+   * comes first.
+   */
+  findCurrentFinish: (data: TData, cardName: string, cardId?: number) => Finish
+  /** Resolve the original finish for foil toggle comparison. `cardId` as above. */
   findOriginalFinish: (original: TData, cardName: string, cardId?: number) => Finish
   /** Find the card ID for a card by name */
   findCardId: (data: TData, cardName: string) => number | undefined
@@ -556,15 +566,23 @@ export function useEditor<TData, TCardEntry = unknown>(
     const d = data()
     if (!d) return
     const id = cardId ?? config.findCardId(d, cardName)
+    // Apply first, and record the change only if it landed. The engine refuses
+    // a foil/etched token on a line that pins no printing, and a change event
+    // for an edit the data never took would save an edit the file cannot hold.
+    // Bulk callers rely on this: a mixed selection foils the pinned cards and
+    // silently skips the name-only ones rather than failing as a whole.
+    let missed = false
+    const next = config.applyChange(
+      d,
+      { action: 'set-finish', cardName, finish, cardId: id },
+      { onMiss: () => (missed = true) },
+    )
+    if (missed) return
     const originalFinish: Finish = original
       ? config.findOriginalFinish(original, cardName, id)
       : 'nonfoil'
     changes.setFinish(cardName, finish, originalFinish, id)
-    setData((prev) =>
-      prev !== null
-        ? config.applyChange(prev, { action: 'set-finish', cardName, finish, cardId: id })
-        : prev,
-    )
+    setData(() => next)
   }
 
   /**
@@ -594,8 +612,11 @@ export function useEditor<TData, TCardEntry = unknown>(
     const menu = contextMenuCard()
     const d = data()
     if (!menu || !d) return
-    const cardId = config.findCardId(d, menu.cardName)
-    const currentFinish = config.findCurrentFinish(d, menu.cardName)
+    // The tile's own id decides which copy toggles — and which copy's finish
+    // decides the direction. Falling back to a name lookup only when the tile
+    // carries no id (a card added this session, before the save assigns one).
+    const cardId = menu.cardIds[0] ?? config.findCardId(d, menu.cardName)
+    const currentFinish = config.findCurrentFinish(d, menu.cardName, cardId)
     const newFinish: Finish =
       currentFinish === 'foil' || currentFinish === 'etched' ? 'nonfoil' : 'foil'
     handleSetFinishFor(menu.cardName, newFinish, cardId)
@@ -918,6 +939,32 @@ export function useEditor<TData, TCardEntry = unknown>(
     })
   }
 
+  /**
+   * Take the changes a replay refused back out of the pending list. The engines
+   * are the authority on what a list can hold, so a change they will not apply
+   * is not a pending edit — and a save that posted it would write a changelog
+   * entry for an edit the file never took.
+   */
+  const dropRefusedChanges = (refused: readonly UnmatchedChange<ChangeEvent>[]) => {
+    if (refused.length === 0) return
+    changes.dropChanges(new Set(refused.map((item) => item.change.id)))
+  }
+
+  /**
+   * Rebuild the data from the baseline, take the refused changes back out of
+   * the pending list, and publish the result. Every replay goes through here so
+   * the drop is part of replaying rather than something each caller remembers.
+   */
+  const replayAndDrop = (
+    baseline: TData,
+    list: readonly ChangeEvent[],
+  ): ReplayResult<TData, ChangeEvent> => {
+    const replayed = replayChanges(baseline, list, config.applyChange)
+    dropRefusedChanges(replayed.refused)
+    setData(() => replayed.data)
+    return replayed
+  }
+
   const handleUndo = () => {
     const result = changes.undo()
     if (!result || !original) return
@@ -929,7 +976,9 @@ export function useEditor<TData, TCardEntry = unknown>(
     for (const cardId of artIdsResetByUndo(entry, remainingChanges)) {
       config.onCardArtReset?.(cardId)
     }
-    setData(() => replayChanges(origData, remainingChanges, config.applyChange))
+    // A change the replay could not take is no longer a pending edit: keeping it
+    // would put an edit in the changelog that the saved file does not contain.
+    replayAndDrop(origData, remainingChanges)
   }
 
   const handleSave = async () => {
@@ -971,7 +1020,7 @@ export function useEditor<TData, TCardEntry = unknown>(
       findIdByName: (name) => config.findCardId(orig, name),
     })
     changes.loadChanges(retargeted)
-    setData(() => replayChanges(orig, retargeted, config.applyChange))
+    const replayed = replayAndDrop(orig, retargeted)
 
     // Load display data (image + price) for cards added by the import that the
     // list did not already contain. Reuses the same per-list hook as adding a card
@@ -985,7 +1034,17 @@ export function useEditor<TData, TCardEntry = unknown>(
     }
     for (const cardName of newlyAdded) void config.onCardAdded?.(cardName)
 
-    return { loaded: retargeted.length, conflicts }
+    // A refused change is reported like any other unapplicable one — under the
+    // reason the engine actually gave — so the import summary never counts an
+    // edit the list did not take, nor names the wrong fix for it.
+    const refusedConflicts: ImportConflict[] = replayed.refused.map((item) => ({
+      change: item.change,
+      reason: importConflictReason(item.reason),
+    }))
+    return {
+      loaded: retargeted.length - replayed.refused.length,
+      conflicts: [...conflicts, ...refusedConflicts],
+    }
   }
 
   /**
@@ -999,7 +1058,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     const orig = original
     if (!orig || restored.length === 0) return
     changes.loadChanges(restored)
-    setData(() => replayChanges(orig, restored, config.applyChange))
+    replayAndDrop(orig, restored)
     // Mark every ID the restored changes reference as in use, so later adds in this
     // resumed session don't reallocate one of them.
     const used = new Set<number>(config.getOriginalIds(orig))

@@ -76,7 +76,11 @@ export const uiMeta = {
   },
   'ui.editor.importConflicts': {
     description:
-      'Warning after importing a change bundle: these edits name a card the list does not hold. Ends in a colon because the skipped edits are listed underneath.',
+      'Warning after importing a change bundle: these edits could not be applied — the card is missing, the action does not apply to this kind of list, or it would set a finish on a card with no printing. Ends in a colon because the skipped edits are listed underneath, each with its own reason.',
+  },
+  'ui.editor.importConflictItem': {
+    description:
+      'One skipped change in the import dialog: {change} is the rendered change line, {reason} one of the domain.importConflict.* phrases saying why it was skipped.',
   },
   'ui.editor.droppedNotes': {
     description:
@@ -327,6 +331,14 @@ export const uiMeta = {
   'ui.cardMenu.setNonfoil': {
     description: 'Menu row switching the card back to its plain, non-foil printing.',
     maxLen: 24,
+  },
+  'ui.cardMenu.foilNeedsPrinting': {
+    description:
+      'Tooltip on the disabled "set as foil" row, in both the single-card menu and the bulk selection menu, explaining that a card with no specific printing has no finish to set until one is chosen.',
+  },
+  'ui.cardMenu.finishUnavailable': {
+    description:
+      'Tooltip on the disabled foil row when the card pins a printing that simply is not sold in that finish — a different reason from the one above.',
   },
   'ui.cardMenu.changePrinting': {
     description:

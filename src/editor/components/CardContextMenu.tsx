@@ -79,9 +79,28 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
   const foilButtonLabel = createMemo(() =>
     isFoilOrEtched() ? t('ui.cardMenu.setNonfoil') : t('ui.cardMenu.setFoil'),
   )
-  const foilButtonDisabled = createMemo(() =>
-    isFoilOrEtched() ? !supportsNonfoil() : !supportsFoil(),
+  /**
+   * A finish belongs to a printing: a name-only line (the common deck and
+   * wanted-list case) has no printing to be foil *of*, so the row is disabled
+   * until one is set. Only the "Set as Foil" direction is gated — clearing an
+   * existing `[foil]` token off a name-only line must stay reachable.
+   */
+  const needsPrinting = createMemo(() => {
+    if (isFoilOrEtched()) return false
+    const action = props.printingAction
+    // Fails closed when the row is absent: the two props are independent in the
+    // type, and an ungated foil row is the worse of the two wrong answers.
+    return action === undefined || !action.hasPrinting
+  })
+  const foilButtonDisabled = createMemo(
+    () => needsPrinting() || (isFoilOrEtched() ? !supportsNonfoil() : !supportsFoil()),
   )
+  /** Why the row is dead, for the tooltip — every dead row explains itself. */
+  const foilDisabledReason = createMemo(() => {
+    if (needsPrinting()) return t('ui.cardMenu.foilNeedsPrinting')
+    if (foilButtonDisabled()) return t('ui.cardMenu.finishUnavailable')
+    return undefined
+  })
 
   return (
     <div
@@ -94,11 +113,16 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
       <Show when={props.onSetFoil}>
         {(setFoil) => (
           <button
-            class={`card-context-menu-item${foilButtonDisabled() ? ' card-context-menu-item--disabled' : ''}`}
+            class="card-context-menu-item"
             onClick={() => {
               if (!foilButtonDisabled()) setFoil()()
             }}
-            disabled={foilButtonDisabled()}
+            // `aria-disabled`, not `disabled`: Chromium and WebKit suppress
+            // mouse events on a natively disabled control, which would hide the
+            // `title` explaining why the row is dead — and keep it out of the
+            // menu's tab order. The onClick guard above is what makes it inert.
+            aria-disabled={foilButtonDisabled()}
+            title={foilDisabledReason()}
           >
             {foilButtonLabel()}
           </button>

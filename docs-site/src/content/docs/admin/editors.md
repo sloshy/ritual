@@ -76,7 +76,7 @@ While a list is open in edit mode, the **Selected (N)** menu also gains an **edi
 
 - **Add a copy** / **Remove a copy** — bump each selected card up or down by one copy
 - **Remove from list** (decks: **Remove from deck**) — remove every copy of each selected card
-- **Set as Foil** / **Set as Nonfoil** — set the finish on each selected card that supports it (others are skipped)
+- **Set as Foil** / **Set as Nonfoil** — set the finish on each selected card that supports it (others are skipped). **Set as Foil** is disabled while any selected card names no printing — a finish belongs to a printing, so those cards need one pinned first ([Change Printing](#change-printing)). **Set as Nonfoil** stays available: it clears a finish token rather than asserting one.
 - **Change Printing…** — runs the printing picker over the selected cards one at a time (cancelling skips that card and continues)
 - **Set Language…** — opens the [language picker](#card-language) and applies the chosen language to every selected card
 - **Set as Commander** — decks only; marks each selected card as a commander
@@ -167,7 +167,7 @@ Both fields reset for the next card, including after **Add Another Card**.
 
 ### Context Menu
 
-Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil**, **Change Printing…** (**Set Printing…** on a card that pins none), [**Set Language…**](#card-language), [**Set Custom Art…**](#custom-art), and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**; the Deck and Collection Editors offer [**Set Label…**](#card-labels) with their type's choices.
+Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil** (disabled until the card pins a printing), **Change Printing…** (**Set Printing…** on a card that pins none), [**Set Language…**](#card-language), [**Set Custom Art…**](#custom-art), and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**; the Deck and Collection Editors offer [**Set Label…**](#card-labels) with their type's choices.
 
 #### Move to Section
 
@@ -304,7 +304,10 @@ Art…**](#custom-art), and **Move to section…** — plus two the Deck Editor 
 - [**Set Label…**](#deck-labels) — Set the line's `proxy` override
 
 **Change Printing…** on an entry with quantity > 1 first asks how many copies to retarget (see
-[Change Printing](#change-printing)); **Set as Foil** is greyed out when the printing has no foil.
+[Change Printing](#change-printing)); **Set as Foil** is greyed out when the printing has no foil, and
+on a card that pins no printing at all — set the printing first, and the row becomes available. The
+same rule holds outside the editors: `ritual set-card --finish foil` and the MCP `apply_changes`
+`set-finish` action both refuse a foil or etched finish on a printing-less line.
 
 ### Deck Labels
 

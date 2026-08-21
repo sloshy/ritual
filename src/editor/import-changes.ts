@@ -1,14 +1,43 @@
 import type { ChangeEvent } from '../change-event'
+import type { MessageKey } from '../i18n/messages/en'
+import type { MissReason } from './apply-batch'
 
 /**
  * A change from an imported file that could not be applied to the current list:
  * its target card could not be resolved, or its action can never apply to the
  * list's type (a commander action aimed at a flat list).
  */
+/**
+ * Why a change from a bundle was skipped. Derived from {@link MissReason} so a
+ * new engine refusal cannot be added without deciding how imports report it;
+ * `no-target` is renamed because the re-targeting step reports it before the
+ * engines ever see the change. Each reason names a different fix, so they are
+ * never collapsed into one: a `needs-printing` change targets a card that is
+ * right there and only needs a printing pinned first.
+ */
+export type ImportConflictReason = Exclude<MissReason, 'no-target'> | 'target-not-found'
+
 export type ImportConflict = {
   change: ChangeEvent
-  reason: 'target-not-found' | 'not-applicable'
+  reason: ImportConflictReason
 }
+
+/** The import-side name for an engine's refusal. */
+export function importConflictReason(reason: MissReason): ImportConflictReason {
+  return reason === 'no-target' ? 'target-not-found' : reason
+}
+
+/**
+ * The message naming each skip reason, shared by every surface that reports a
+ * skipped change (the CLI's per-reason breakdown, the admin Import Changes
+ * page). One table, so no surface can name a reason the engine did not report —
+ * or, as the admin page used to, name one reason for all three.
+ */
+export const IMPORT_CONFLICT_REASON_KEY = {
+  'target-not-found': 'domain.importConflict.targetNotFound',
+  'not-applicable': 'domain.importConflict.notApplicable',
+  'needs-printing': 'domain.importConflict.needsPrinting',
+} as const satisfies Record<ImportConflictReason, MessageKey>
 
 export type RetargetResult = {
   /** The changes re-aimed at the current list's card IDs, in order. */
