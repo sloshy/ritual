@@ -16,6 +16,7 @@ import { PriceSourceSelect } from './PriceSourceSelect'
 import { PrintingPrices } from './PrintingPrices'
 import { usePrintingQuotes } from './printing-quotes'
 import { useT } from '../ui/i18n'
+import { TooltipOverlay } from './TooltipOverlay'
 import { useTooltip } from './useTooltip'
 import { PrintingFilter } from '../ui/PrintingFilter'
 import { filterPrintingsByQuery } from '../collector-query'
@@ -213,19 +214,11 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
       aria-label={t('site.tradePicker.aria', { name: props.cardName })}
       panelClass="trade-picker-modal"
       overlay={
-        <div
-          ref={tip.tooltipRef}
-          class={`list-tooltip ${tip.tooltip() ? 'visible' : ''} ${
-            tip.tooltip()?.sideways ? 'list-tooltip-sideways' : ''
-          }`}
-          style={`left:${tip.tooltipPos().left}px;top:${tip.tooltipPos().top}px;`}
-        >
-          <Show when={tip.tooltip()}>
-            {(preview) => (
-              <img src={preview().src} alt="" class={preview().sideways ? 'tooltip-rotated' : ''} />
-            )}
-          </Show>
-        </div>
+        <TooltipOverlay
+          tooltip={tip.tooltip()}
+          pos={tip.tooltipPos()}
+          tooltipRef={tip.tooltipRef}
+        />
       }
     >
       <div class="trade-picker-header">

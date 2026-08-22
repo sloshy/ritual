@@ -51,7 +51,7 @@ export const ChangesDialog: Component<ChangesDialogProps> = (props) => {
             class={`changes-card-tooltip ${tooltip() ? 'visible' : ''}`}
             style={`left:${tooltipPos().left}px;top:${tooltipPos().top}px;`}
           >
-            <Show when={tooltip()}>{(preview) => <img src={preview().src} alt="" />}</Show>
+            <Show when={tooltip()?.src}>{(src) => <img src={src()} alt="" />}</Show>
           </div>
         }
       >

@@ -134,6 +134,9 @@ export const domainMeta = {
   'domain.count.changes': {
     description: `${COUNT_CONTEXT} Recorded changes to a list (one changelog entry each).`,
   },
+  'domain.count.moves': {
+    description: `${COUNT_CONTEXT} Cross-list moves (one physical copy each) in a change bundle.`,
+  },
   'domain.count.pickedCards': {
     description: `${COUNT_CONTEXT} Cards the user picked by hand in the export wizard, as opposed to whole lists.`,
   },

@@ -11,6 +11,8 @@ import { promptCardLabels } from '../site/label-prompt'
 import type { UseEditorDefaultsResult } from './useEditorDefaults'
 import type { SearchProvider } from './search-provider'
 import { setLabelsForCards } from './collection-labels'
+import { contextInfoFromSelected } from './selected-to-context'
+import type { SwapPrintingsWizardProps } from './components/SwapPrintingsWizard'
 import {
   type FlatBulkEdit,
   type FlatListController,
@@ -44,6 +46,10 @@ type CollectionEditorBodyProps = SellModeProps & {
   onSetCustomArt?: (target: CardContextInfo) => void
   /** Every list, for the toolbar's share filters (the page drops itself). */
   shareLists?: readonly NamedListRef[]
+  /** The "Swap Printings" wizard's props (see `FlatListController.swapWizardProps`). */
+  swap?: SwapPrintingsWizardProps
+  /** Offer the whole-list swap from the action bar (admin editor; the public one uses its edit row). */
+  onSwapPrintings?: () => void
 }
 
 /**
@@ -71,6 +77,7 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
         cards.map((c) => ({ cardName: c.name, cardIds: c.cardIds })),
         labels,
       ),
+    swapPrintings: (cards) => ctrl.openSwapPrintings(cards.map(contextInfoFromSelected)),
   }
 
   return (
@@ -87,6 +94,9 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
       importKind="collection"
       onEditLabels={props.onEditLabels}
       onSetCustomArt={props.onSetCustomArt}
+      swap={props.swap}
+      onSwapPrintings={props.onSwapPrintings}
+      onSwapPrinting={(target) => ctrl.openSwapPrintings([target])}
       onSetLabel={(target) =>
         promptCardLabels('collection', (labels) =>
           setLabelsForCards(

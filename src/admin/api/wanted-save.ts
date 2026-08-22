@@ -8,7 +8,7 @@ import { parseWantedListFile } from '../../commands/wanted-helpers'
 import { assignEntryIds } from '../../card-id'
 import { computeEntrySaveEffects } from '../../editor/save-effects'
 import { changeCardNames, refuseUnknownCardNames } from './card-name-check'
-import { applyOutgoingMoves } from './move-save'
+import { applyCrossListMoves } from './move-save'
 import {
   apiError,
   entryLineQuantities,
@@ -96,9 +96,18 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
     // now-empty sections), falling back to the order discovered in the entries themselves.
     const title = parseTitleFromContent(hashCheck.content) ?? slug
 
-    // Apply the destination side of any cross-list moves first; a bad destination
-    // aborts before the source is rewritten.
-    const outgoing = await applyOutgoingMoves({ type: 'wanted', name: title }, filePath, changes)
+    // Apply the other side of any cross-list moves first — the destination of
+    // each `move-from`, the source of each `move-to` — every one validated in
+    // memory before anything lands, so a bad destination (missing list, or a
+    // printing-less card into a collection) or a source with no copy to take
+    // aborts before this list is written.
+    const previousLineQuantities = entryLineQuantities(previousEntries)
+    const moves = await applyCrossListMoves(
+      { type: 'wanted', name: title },
+      filePath,
+      changes,
+      previousLineQuantities,
+    )
 
     const order = sectionOrder ?? []
     // Ids are assigned here rather than only inside `wantedToMarkdown` (which
@@ -119,13 +128,14 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
         after: idedEntries,
         assignments,
       }),
-      previousLineQuantities: entryLineQuantities(previousEntries),
+      previousLineQuantities,
       continueSession,
-      extraFiles: outgoing.writtenFiles,
+      extraFiles: moves.writtenFiles,
+      adoptedArt: moves.adoptedArt,
     }
     const saved = await finishListSave(tail)
 
-    return Response.json(listSaveResponse(tail, listSaveOutcome(saved, outgoing)))
+    return Response.json(listSaveResponse(tail, listSaveOutcome(saved, moves)))
   } catch (error) {
     return apiError(getErrorMessage(error), 500)
   }

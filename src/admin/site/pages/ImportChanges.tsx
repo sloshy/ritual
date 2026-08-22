@@ -6,6 +6,8 @@ import { LIST_TYPE_DISPLAY } from '../../../list-type'
 import {
   type ChangeBundle,
   bundleChangeCount,
+  bundleListCount,
+  moveFromEventOf,
   parseChangeBundle,
 } from '../../../editor/change-bundle'
 import { useT, useTKey } from '../../../ui/i18n'
@@ -35,8 +37,9 @@ type ApplyResponse = BundleImportResponse | ApiErrorResponse
 /**
  * Admin page to apply a change bundle exported from the public site's
  * edit mode. The JSON is parsed locally for a full per-list preview of every
- * pending change; applying POSTs the raw text to `/api/import-changes`, which
- * re-targets and saves each list's changes and reports per-list outcomes.
+ * pending change (plus the bundle's cross-list moves, which it records once
+ * rather than per list); applying POSTs the raw text to `/api/import-changes`,
+ * which re-targets and saves each list's changes and reports per-list outcomes.
  */
 export function ImportChanges(): JSX.Element {
   const t = useT()
@@ -221,7 +224,7 @@ export function ImportChanges(): JSX.Element {
                 <label class="form-label">
                   {t('admin.importChanges.pendingLabel', {
                     changes: t('ui.count.changes', { count: totalChanges() }),
-                    lists: t('ui.count.lists', { count: b().lists.length }),
+                    lists: t('ui.count.lists', { count: bundleListCount(b()) }),
                   })}
                 </label>
                 <div class="import-changes-preview">
@@ -245,6 +248,28 @@ export function ImportChanges(): JSX.Element {
                       </div>
                     )}
                   </For>
+                  <Show when={b().moves.length > 0}>
+                    <div class="import-changes-preview-group">
+                      <div class="import-changes-preview-list">
+                        {t('admin.importChanges.previewMoves', {
+                          moves: t('domain.count.moves', { count: b().moves.length }),
+                        })}
+                      </div>
+                      <ul class="import-changes-preview-changes">
+                        <For each={b().moves}>
+                          {(move) => (
+                            <li>
+                              {LIST_TYPE_DISPLAY[move.from.kind].icon}{' '}
+                              {t('admin.importChanges.previewMove', {
+                                from: move.from.name,
+                                change: formatChange(moveFromEventOf(move)),
+                              })}
+                            </li>
+                          )}
+                        </For>
+                      </ul>
+                    </div>
+                  </Show>
                 </div>
               </div>
 
@@ -258,7 +283,7 @@ export function ImportChanges(): JSX.Element {
                   ? t('admin.importChanges.applying')
                   : t('admin.importChanges.applyButton', {
                       changes: t('ui.count.changes', { count: totalChanges() }),
-                      lists: t('ui.count.lists', { count: b().lists.length }),
+                      lists: t('ui.count.lists', { count: bundleListCount(b()) }),
                     })}
               </button>
             </>

@@ -1,7 +1,12 @@
 import { createSignal, onMount, onCleanup } from 'solid-js'
 import type { Accessor, Setter } from 'solid-js'
 
-export type TooltipInfo = { src: string; sideways: boolean }
+/**
+ * A hover preview. `src` is the card image; it is absent for an entry whose
+ * printing has no image (or none at all), which the overlay draws as the
+ * card-shaped "no printing" placeholder rather than dropping the preview.
+ */
+export type TooltipInfo = { src: string | null; sideways: boolean }
 export type TooltipPos = { left: number; top: number }
 
 export type UseTooltipResult = {

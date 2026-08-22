@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { execSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -10,7 +10,7 @@ import { cardCache } from '../../src/cache'
 import { getBaseDir, setBaseDir } from '../../src/base-dir'
 import { getDefaultRitualConfig } from '../../src/ritual-config'
 import { applyChangeBundle } from '../../src/admin/api/import-changes'
-import { parseChangeBundle } from '../../src/editor/change-bundle'
+import { parseChangeBundle, type ChangeBundle } from '../../src/editor/change-bundle'
 import { runCli, withTempDir } from './helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'
 import {
@@ -20,12 +20,14 @@ import {
   writeConfig,
   writeDeckFile,
   writeWantedFile,
+  type BoundWorkspace,
 } from './helpers/workspace'
 
 const BUNDLE = {
   format: 'ritual-change-bundle',
-  version: 1,
+  version: 2,
   exportedAt: '2026-06-04T00:00:00.000Z',
+  moves: [],
   lists: [
     {
       kind: 'deck',
@@ -168,8 +170,9 @@ describe('import-changes command (Integration)', () => {
       // send the user hunting for it.
       const bundle = {
         format: 'ritual-change-bundle',
-        version: 1,
+        version: 2,
         exportedAt: '2026-06-04T00:00:00.000Z',
+        moves: [],
         lists: [
           {
             kind: 'deck',
@@ -438,8 +441,9 @@ describe('import-changes command (Integration)', () => {
       const bundle = parseChangeBundle(
         JSON.stringify({
           format: 'ritual-change-bundle',
-          version: 1,
+          version: 2,
           exportedAt: '2026-06-04T00:00:00.000Z',
+          moves: [],
           lists: [
             {
               kind: 'deck',
@@ -504,8 +508,9 @@ describe('import-changes command (Integration)', () => {
       const bundle = parseChangeBundle(
         JSON.stringify({
           format: 'ritual-change-bundle',
-          version: 1,
+          version: 2,
           exportedAt: '2026-06-04T00:00:00.000Z',
+          moves: [],
           lists: [
             {
               kind: 'deck',
@@ -539,6 +544,50 @@ describe('import-changes command (Integration)', () => {
     }
   }, 60_000)
 
+  test('previews the moves block and applies a move to both lists through the CLI', async () => {
+    await withTempDir(async (dir) => {
+      await seedWorkspace(dir)
+      await writeCollectionFile(dir, 'binder', {
+        title: 'Binder',
+        entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 }],
+      })
+      const bundle = {
+        ...BUNDLE,
+        lists: [],
+        moves: [
+          {
+            id: 'm1',
+            timestamp: 1,
+            cardName: 'Sol Ring',
+            from: { kind: 'collection', slug: 'binder', name: 'Binder' },
+            to: { kind: 'deck', slug: 'test-deck', name: 'Test Deck' },
+            set: 'c21',
+            collectorNumber: '263',
+            cardId: 1,
+          },
+        ],
+      }
+      await fs.writeFile(path.join(dir, 'edits.json'), JSON.stringify(bundle))
+
+      const result = await runCli(['import-changes', 'edits.json', '--yes'], dir)
+
+      // Exit 0 (not 3, "no changes"): the move alone counts toward the bundle's total.
+      expect(result.exitCode).toBe(0)
+      // The preview's own block for moves, naming both ends; the count includes it.
+      expect(result.stdout).toContain('Moves between lists — 1 move')
+      expect(result.stdout).toContain(
+        "Move Sol Ring (C21:263) &1 to Deck 'Test Deck' (from Collection 'Binder')",
+      )
+      expect(result.stdout).toContain('Test Deck: applied 1 change')
+
+      const deck = await fs.readFile(path.join(dir, 'decks', 'test-deck.md'), 'utf-8')
+      expect(deck).toMatch(/1 Sol Ring \(C21:263\) &\d+/)
+      // Both sides written; the changelog wording is pinned by the engine tests below.
+      const binder = await fs.readFile(path.join(dir, 'collections', 'binder.md'), 'utf-8')
+      expect(binder).not.toContain('Sol Ring')
+    })
+  }, 60_000)
+
   test('requires --yes when stdin is not a TTY instead of prompting', async () => {
     await withTempDir(async (dir) => {
       // runCli spawns the binary without a terminal on stdin, so the confirm
@@ -553,4 +602,301 @@ describe('import-changes command (Integration)', () => {
       expect(await Bun.file(path.join(dir, 'decks', 'test-deck.md')).exists()).toBeFalse()
     })
   })
+})
+
+/** A v2 bundle from its lists and moves, parsed through the real validator. */
+function bundleOf(lists: unknown[], moves: unknown[]): ChangeBundle {
+  const bundle = parseChangeBundle(
+    JSON.stringify({
+      format: 'ritual-change-bundle',
+      version: 2,
+      exportedAt: '2026-06-04T00:00:00.000Z',
+      lists,
+      moves,
+    }),
+  )
+  if (typeof bundle === 'string') throw new Error(`invalid fixture bundle: ${bundle}`)
+  return bundle
+}
+
+const DECK_REF = { kind: 'deck', slug: 'test-deck', name: 'Test Deck' }
+const BINDER_REF = { kind: 'collection', slug: 'binder', name: 'Binder' }
+
+describe('applyChangeBundle with moves', () => {
+  let ws: BoundWorkspace
+  beforeEach(async () => {
+    ws = await bindWorkspace({ config: false })
+    await cardCache.bulkSet({})
+  })
+  afterEach(async () => {
+    await ws.dispose()
+  })
+
+  const SWAP_MOVES = [
+    {
+      id: 'm1',
+      timestamp: 1,
+      cardName: 'Sol Ring',
+      from: DECK_REF,
+      to: BINDER_REF,
+      set: 'c19',
+      collectorNumber: '221',
+      cardId: 1,
+    },
+    {
+      id: 'm2',
+      timestamp: 2,
+      cardName: 'Sol Ring',
+      from: BINDER_REF,
+      to: DECK_REF,
+      set: 'c21',
+      collectorNumber: '263',
+      cardId: 1,
+    },
+  ]
+
+  test('a two-move swap round-trips both files and both changelogs', async () => {
+    await writeDeckFile(ws.dir, 'test-deck', {
+      frontMatter: { name: 'Test Deck' },
+      cards: [{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+    })
+    await writeCollectionFile(ws.dir, 'binder', {
+      title: 'Binder',
+      entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 }],
+    })
+
+    // The wizard's output: the deck's copy goes to the binder and the
+    // binder's copy comes back — one move per physical copy, each applied
+    // on its destination, whose save takes the copy out of the source.
+    const result = await applyChangeBundle(bundleOf([], SWAP_MOVES))
+    expect(result.failedCount).toBe(0)
+    // Targets appear in move order (each move's source, then destination), not list order.
+    expect(result.lists.map((l) => [l.name, l.applied, l.conflicts.length])).toEqual([
+      ['Test Deck', 1, 0],
+      ['Binder', 1, 0],
+    ])
+
+    const deck = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(deck).toMatch(/1 Sol Ring \(C21:263\) &\d+/)
+    expect(deck).not.toContain('C19:221')
+    const binder = await fs.readFile(path.join(ws.dir, 'collections', 'binder.md'), 'utf-8')
+    expect(binder).toMatch(/Sol Ring \(C19:221\) &\d+/)
+    expect(binder).not.toContain('C21:263')
+
+    const deckLog = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.changes.md'), 'utf-8')
+    expect(deckLog).toMatch(/Moved "Sol Ring" \(C19:221\).*to Collection 'Binder'/)
+    expect(deckLog).toMatch(/Moved "Sol Ring" \(C21:263\).*from Collection 'Binder'/)
+    const binderLog = await fs.readFile(
+      path.join(ws.dir, 'collections', 'binder.changes.md'),
+      'utf-8',
+    )
+    expect(binderLog).toMatch(/Moved "Sol Ring" \(C19:221\).*from Deck 'Test Deck'/)
+    expect(binderLog).toMatch(/Moved "Sol Ring" \(C21:263\).*to Deck 'Test Deck'/)
+  }, 60_000)
+
+  test('a move whose source no longer holds the copy fails its destination’s batch, writing nothing', async () => {
+    await writeDeckFile(ws.dir, 'test-deck', {
+      frontMatter: { name: 'Test Deck' },
+      cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }],
+    })
+    await writeCollectionFile(ws.dir, 'binder', { title: 'Binder', entries: [] })
+    const deckBefore = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.md'), 'utf-8')
+
+    // The second move claims the binder's Sol Ring, which the binder never had.
+    const result = await applyChangeBundle(bundleOf([], [SWAP_MOVES[1]!]))
+    expect(result.failedCount).toBe(1)
+    // The source (binder) is listed with nothing applied; the destination failed.
+    expect(result.lists.map((l) => [l.name, l.applied, l.error === undefined])).toEqual([
+      ['Binder', 0, true],
+      ['Test Deck', 0, false],
+    ])
+    expect(result.lists[1]!.error).toContain('no matching copy')
+
+    expect(await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.md'), 'utf-8')).toBe(deckBefore)
+    expect(await Bun.file(path.join(ws.dir, 'decks', 'test-deck.changes.md')).exists()).toBeFalse()
+  }, 60_000)
+
+  test('an edit in a later batch finds the copy an earlier batch moved in, through the exported destination id', async () => {
+    await writeDeckFile(ws.dir, 'test-deck', {
+      frontMatter: { name: 'Test Deck' },
+      cards: [{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+    })
+    await writeCollectionFile(ws.dir, 'binder', {
+      title: 'Binder',
+      entries: [
+        { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 },
+        { name: 'Counterspell', set: 'lea', collectorNumber: '55', cardId: 2 },
+      ],
+    })
+
+    // Deck batch (the move), binder batch (a removal), deck batch again (the
+    // set-finish on the moved-in copy, by the browser's id for it): the deck
+    // is loaded fresh for the third batch and holds two Sol Rings by then.
+    const result = await applyChangeBundle(
+      bundleOf(
+        [
+          {
+            ...DECK_REF,
+            changes: [
+              {
+                id: 'f1',
+                timestamp: 3,
+                action: 'set-finish',
+                cardName: 'Sol Ring',
+                cardId: 7,
+                finish: 'foil',
+              },
+            ],
+          },
+          {
+            ...BINDER_REF,
+            changes: [
+              { id: 'r1', timestamp: 2, action: 'remove', cardName: 'Counterspell', cardId: 2 },
+            ],
+          },
+        ],
+        [{ ...SWAP_MOVES[1]!, timestamp: 1, toCardId: 7 }],
+      ),
+    )
+    expect(result.failedCount).toBe(0)
+    expect(result.lists).toMatchObject([
+      { name: 'Test Deck', applied: 2, conflicts: [] },
+      { name: 'Binder', applied: 1, conflicts: [] },
+    ])
+    const deck = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(deck).toMatch(/1 Sol Ring \(C19:221\) &1/)
+    expect(deck).toMatch(/1 Sol Ring \(C21:263\) \[foil\] &\d+/)
+  }, 60_000)
+
+  test('same-tuple copies moved into a deck share one line, and its id, in the changelog', async () => {
+    await writeDeckFile(ws.dir, 'test-deck', {
+      frontMatter: { name: 'Test Deck' },
+      cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }],
+    })
+    await writeCollectionFile(ws.dir, 'binder', {
+      title: 'Binder',
+      entries: [
+        { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 },
+        { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 2 },
+      ],
+    })
+    // No destination id on either move: each is allocated a fresh id, and the
+    // deck reducer folds the second onto the first line — the changelog must
+    // name that line, not a phantom `&3`.
+    const result = await applyChangeBundle(
+      bundleOf(
+        [],
+        [
+          { ...SWAP_MOVES[1]!, id: 'm1', timestamp: 1, cardId: 1 },
+          { ...SWAP_MOVES[1]!, id: 'm2', timestamp: 2, cardId: 2 },
+        ],
+      ),
+    )
+    expect(result.failedCount).toBe(0)
+    expect(result.lists.map((l) => [l.name, l.applied])).toEqual([
+      ['Binder', 0],
+      ['Test Deck', 2],
+    ])
+    const deck = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(deck).toMatch(/2 Sol Ring \(C21:263\) &2/)
+    const deckLog = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.changes.md'), 'utf-8')
+    expect(
+      deckLog.match(/Moved "Sol Ring" \(C21:263\) &2 .*from Collection 'Binder'/g),
+    ).toHaveLength(2)
+    expect(deckLog).not.toContain('&3')
+  }, 60_000)
+
+  test('a [proxy] copy added to a deck folds onto the [proxy] line, and the changelog names that line', async () => {
+    await writeDeckFile(ws.dir, 'test-deck', {
+      frontMatter: { name: 'Test Deck' },
+      cards: [
+        {
+          quantity: 1,
+          name: 'Sol Ring',
+          set: 'c21',
+          collectorNumber: '263',
+          labels: ['proxy'],
+          cardId: 7,
+        },
+        { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 9 },
+      ],
+    })
+    const result = await applyChangeBundle(
+      bundleOf(
+        [
+          {
+            ...DECK_REF,
+            changes: [
+              {
+                id: 'a1',
+                timestamp: 1,
+                action: 'add',
+                cardName: 'Sol Ring',
+                set: 'c21',
+                collectorNumber: '263',
+                labels: ['proxy'],
+                cardId: 50,
+              },
+            ],
+          },
+        ],
+        [],
+      ),
+    )
+    expect(result.failedCount).toBe(0)
+    const deck = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(deck).toMatch(/2 Sol Ring \(C21:263\) \[proxy\] &7/)
+    expect(deck).toMatch(/1 Sol Ring \(C21:263\) &9/)
+    const deckLog = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.changes.md'), 'utf-8')
+    // The re-target allocated a phantom id (the pool's smallest free, &1); the
+    // merge probe — labels included — rewrote it to the [proxy] line's &7.
+    expect(deckLog).toMatch(/Added "Sol Ring" \(C21:263\) &7/)
+    expect(deckLog).not.toMatch(/&1\b/)
+    expect(deckLog).not.toMatch(/&9/)
+  }, 60_000)
+
+  test('a move applies before a later edit on the copy it brought in, in timestamp order', async () => {
+    await writeDeckFile(ws.dir, 'test-deck', {
+      frontMatter: { name: 'Test Deck' },
+      cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }],
+    })
+    await writeCollectionFile(ws.dir, 'binder', {
+      title: 'Binder',
+      entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 }],
+    })
+
+    // The set-finish is listed in the deck's own changes and stamped after
+    // the move; the browser's id for the new copy (7) means nothing here, so
+    // it can only resolve by name against the line the move just created.
+    const result = await applyChangeBundle(
+      bundleOf(
+        [
+          {
+            ...DECK_REF,
+            changes: [
+              {
+                id: 'f1',
+                timestamp: 2,
+                action: 'set-finish',
+                cardName: 'Sol Ring',
+                cardId: 7,
+                finish: 'foil',
+              },
+            ],
+          },
+        ],
+        [{ ...SWAP_MOVES[1]!, timestamp: 1 }],
+      ),
+    )
+    expect(result.failedCount).toBe(0)
+    expect(result.lists.map((l) => [l.name, l.applied, l.conflicts.length])).toEqual([
+      ['Test Deck', 2, 0],
+      ['Binder', 0, 0],
+    ])
+
+    const deck = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(deck).toMatch(/1 Sol Ring \(C21:263\) \[foil\] &\d+/)
+    const binder = await fs.readFile(path.join(ws.dir, 'collections', 'binder.md'), 'utf-8')
+    expect(binder).not.toContain('Sol Ring')
+  }, 60_000)
 })

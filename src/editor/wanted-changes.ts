@@ -181,14 +181,19 @@ export function applyChangeToWantedList(
 
     case 'move-to':
       // A move into this list adds the card (e.g. when importing a destination list's changes).
-      return applyChangeToWantedList(entries, {
-        action: 'add',
-        cardName: change.cardName,
-        cardId: change.cardId,
-        set: change.set,
-        collectorNumber: change.collectorNumber,
-        finish: change.finish,
-        language: change.language,
-      })
+      return applyChangeToWantedList(
+        entries,
+        {
+          action: 'add',
+          cardName: change.cardName,
+          cardId: change.cardId,
+          set: change.set,
+          collectorNumber: change.collectorNumber,
+          finish: change.finish,
+          language: change.language,
+          section: change.section,
+        },
+        options,
+      )
   }
 }

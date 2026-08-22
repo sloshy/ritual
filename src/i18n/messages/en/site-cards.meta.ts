@@ -312,6 +312,10 @@ export const siteCardsMeta = {
     description:
       'Bulk action choosing which printing (set and collector number) the cards refer to.',
   },
+  'site.selection.swapPrintings': {
+    description:
+      'Bulk action opening the Swap Printings wizard for the selected cards: re-pick their printings from copies owned in other lists.',
+  },
   'site.selection.setCommander': {
     description: 'Bulk action making the selected cards the deck commander. Decks only.',
   },

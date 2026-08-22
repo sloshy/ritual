@@ -425,7 +425,8 @@ describe('isAdditiveChange', () => {
     ['remove', false],
     ['unset-commander', false],
     ['move-from', false],
-    ['move-to', false],
+    // A move-to lands a copy on this list: it renders as a gain (green/+).
+    ['move-to', true],
   ] as const)('isAdditiveChange(%s) === %s', (action, expected) => {
     expect(isAdditiveChange(action)).toBe(expected)
   })
@@ -1012,6 +1013,21 @@ describe('applyChangeToDeck — additional action coverage', () => {
     expect(added).toBeDefined()
     expect(added!.set).toBe('lea')
     expect(added!.collectorNumber).toBe('54')
+  })
+
+  test('move-to lands in its stated section, leaving the default section untouched', () => {
+    const deck = applyChangeToDeck(makeDeck(), { action: 'add-section', section: 'Sideboard' })
+    const result = applyChangeToDeck(deck, {
+      action: 'move-to',
+      cardName: 'Counterspell',
+      set: 'lea',
+      collectorNumber: '54',
+      from: { type: 'deck', name: 'Other' },
+      section: 'Sideboard',
+    })
+    const sideboard = result.sections.find((s) => s.name === 'Sideboard')
+    expect(sideboard?.cards.map((c) => c.name)).toEqual(['Counterspell'])
+    expect(result.sections[0]!.cards.some((c) => c.name === 'Counterspell')).toBe(false)
   })
 })
 

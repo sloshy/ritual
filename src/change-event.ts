@@ -149,6 +149,18 @@ export type MoveToChange = BaseChange & {
   language?: CardLanguage
   /** The list this card was moved from. */
   from: ListRef
+  /**
+   * Destination section (decks; flat lists place the copy in that section).
+   * Like `AddChange.section`: applied by the reducer when the copy lands,
+   * never rendered in a changelog line.
+   */
+  section?: string
+  /**
+   * The SOURCE list's line id the copy was taken from. A removal hint for the
+   * incoming-move writer (`applyCrossListMoves`); a name + printing match is
+   * the fallback. `cardId` on an in-stack move-to is the destination's own line id.
+   */
+  sourceCardId?: number
 }
 
 /**
@@ -382,6 +394,10 @@ export type MoveToOptions = {
   language?: CardLanguage
   cardId?: number
   from: ListRef
+  /** Destination section (decks; flat lists place the copy in that section); see {@link MoveToChange.section}. */
+  section?: string
+  /** Source line id hint; see {@link MoveToChange.sourceCardId}. */
+  sourceCardId?: number
 }
 
 function makeBase(cardName: string, cardId?: number): BaseChange {
@@ -495,6 +511,8 @@ export function createMoveToChange(cardName: string, options: MoveToOptions): Mo
     condition: options.condition,
     language: options.language,
     from: options.from,
+    section: options.section,
+    sourceCardId: options.sourceCardId,
   }
 }
 
@@ -502,12 +520,19 @@ export function createMoveToChange(cardName: string, options: MoveToOptions): Mo
  * The destination-side `move-to` a saved `move-from` implies. The one place
  * that decides what rides across a cross-list move — every commit path (the
  * editor saves' disk path, the unified editor's open-session path) must derive
- * the mirror event here, so the two halves can never drift apart. The event
- * keeps the *source* list's cardId: the destination allocates its own line id
- * and the changelog id documents which source line left.
+ * the mirror event here, so the two halves can never drift apart. The ids
+ * follow {@link MoveToChange}'s contract: the source line's id becomes
+ * `sourceCardId`, and `cardId` is the DESTINATION line's own `&N` — passed as
+ * `destCardId` once the destination has allocated (or merged onto) its line,
+ * absent when the caller does not know it yet.
  */
-export function mirrorMoveTo(move: MoveFromChange, from: ListRef): MoveToChange {
-  return createMoveToChange(move.cardName, { ...printingOptionsFrom(move), from })
+export function mirrorMoveTo(
+  move: MoveFromChange,
+  from: ListRef,
+  destCardId?: number,
+): MoveToChange {
+  const { cardId: sourceCardId, ...printing } = printingOptionsFrom(move)
+  return createMoveToChange(move.cardName, { ...printing, cardId: destCardId, from, sourceCardId })
 }
 
 /** Whether two list refs name the same list (same type and name). */
@@ -819,21 +844,34 @@ export function replaySectionOrder(originalOrder: string[], changes: ChangeEvent
   return order
 }
 
+/**
+ * Whether each action reads as a gain (green/+) or a loss (red/−) in the
+ * change lists. `unset-commander`, `remove-section` and `move-from` are
+ * destructive like `remove`; a `move-to` lands a copy here, so it is a gain.
+ * The `satisfies` makes a new {@link ChangeAction} a compile error until it
+ * has a row.
+ */
+const ADDITIVE_ACTIONS = {
+  add: true,
+  remove: false,
+  'set-commander': true,
+  'unset-commander': false,
+  'set-finish': true,
+  'set-printing': true,
+  'set-language': true,
+  'set-note': true,
+  'set-label': true,
+  'move-from': false,
+  'move-to': true,
+  'add-section': true,
+  'remove-section': false,
+  'rename-section': true,
+  'set-section': true,
+} as const satisfies Record<ChangeAction, boolean>
+
 /** Check if a change is additive (green) or destructive (red) */
 export function isAdditiveChange(action: ChangeAction): boolean {
-  return (
-    action === 'add' ||
-    action === 'set-commander' ||
-    action === 'set-finish' ||
-    action === 'set-printing' ||
-    action === 'set-language' ||
-    action === 'set-note' ||
-    action === 'set-label' ||
-    action === 'add-section' ||
-    action === 'rename-section' ||
-    action === 'set-section'
-  )
-  // unset-commander and remove-section are treated as destructive (red) like remove
+  return ADDITIVE_ACTIONS[action]
 }
 
 /**

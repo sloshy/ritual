@@ -353,15 +353,20 @@ export function applyChangeToDeck(
 
     case 'move-to':
       // A move into this deck adds the card (e.g. when importing a destination list's changes).
-      return applyChangeToDeck(deck, {
-        action: 'add',
-        cardName: change.cardName,
-        cardId: change.cardId,
-        set: change.set,
-        collectorNumber: change.collectorNumber,
-        finish: change.finish,
-        condition: change.condition,
-        language: change.language,
-      })
+      return applyChangeToDeck(
+        deck,
+        {
+          action: 'add',
+          cardName: change.cardName,
+          cardId: change.cardId,
+          set: change.set,
+          collectorNumber: change.collectorNumber,
+          finish: change.finish,
+          condition: change.condition,
+          language: change.language,
+          section: change.section,
+        },
+        options,
+      )
   }
 }

@@ -29,6 +29,7 @@ export const siteEditorMessages = {
   'site.editor.discard': 'Discard',
   'site.editor.loadChanges': 'Load Changes…',
   'site.editor.export': 'Export…',
+  'site.editor.swapPrintings': 'Swap Printings…',
 
   // ── Leaving edit mode ─────────────────────────────────────────────────
   'site.editor.exitTitle': 'Discard your edits and exit?',

@@ -119,3 +119,20 @@ export function lookupPrintingCard(
   }
   return cards[ref.name] ?? null
 }
+
+/**
+ * {@link lookupPrintingCard} for callers that want *this printing or nothing*:
+ * the by-name representative the map falls back to is a different printing,
+ * and is discarded rather than returned — so an uncached printing reads as
+ * `null` instead of borrowing another printing's art or price. A ref that pins
+ * no printing has no exact answer and is `null` too.
+ */
+export function lookupExactPrintingCard(
+  cards: Record<string, ScryfallCard | null>,
+  ref: PrintingRef,
+): ScryfallCard | null {
+  if (!ref.set || !ref.collectorNumber) return null
+  const card = lookupPrintingCard(cards, ref)
+  if (card === null) return null
+  return cardPrintingKey(card) === printingKey(ref.set, ref.collectorNumber) ? card : null
+}

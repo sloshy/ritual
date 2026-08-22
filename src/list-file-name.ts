@@ -126,3 +126,17 @@ export function normalizeListName(name: string): string {
     .replace(/\s+/g, ' ')
     .trim()
 }
+
+/**
+ * Whether two display names name the same list: equal as written, or equal
+ * once both are folded through {@link normalizeListName} (`Café` and `Cafe`,
+ * `winota-stax` and `Winota Stax`). An empty name — or one that folds to
+ * nothing, like `???` — never matches anything, so two unnamed refs are not
+ * thereby the same list.
+ */
+export function sameListName(a: string, b: string): boolean {
+  if (a === '' || b === '') return false
+  if (a === b) return true
+  const folded = normalizeListName(a)
+  return folded !== '' && folded === normalizeListName(b)
+}

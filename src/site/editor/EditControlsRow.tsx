@@ -57,6 +57,17 @@ export const EditControlsRow: Component<EditControlsRowProps> = (props) => {
           </button>
         </div>
 
+        <Show when={props.chrome.onSwapPrintings}>
+          {(swapPrintings) => (
+            <button
+              type="button"
+              class="btn btn-secondary btn-swap-printings"
+              onClick={() => swapPrintings()()}
+            >
+              {t('site.editor.swapPrintings')}
+            </button>
+          )}
+        </Show>
         <button
           type="button"
           class="btn btn-secondary"

@@ -28,6 +28,13 @@ interface CardContextMenuProps {
    * reads "Set Printing…" — there is nothing to change.
    */
   printingAction?: PrintingAction
+  /**
+   * Open the "Swap Printings" wizard on the targeted card alone. Shown only
+   * when the line pins a printing ({@link PrintingAction.hasPrinting}): a
+   * name-only line has no current printing to swap away from. Deck and
+   * collection editors only — wanted lists hold no physical cards.
+   */
+  onSwapPrinting?: () => void
   onSetCommander?: () => void
   onUnsetCommander?: () => void
   onClose: () => void
@@ -132,6 +139,13 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
         {(action) => (
           <button class="card-context-menu-item" onClick={() => action().onSelect()}>
             {action().hasPrinting ? t('ui.cardMenu.changePrinting') : t('ui.cardMenu.setPrinting')}
+          </button>
+        )}
+      </Show>
+      <Show when={props.printingAction?.hasPrinting ? props.onSwapPrinting : undefined}>
+        {(swapPrinting) => (
+          <button class="card-context-menu-item" onClick={() => swapPrinting()()}>
+            {t('ui.cardMenu.swapPrinting')}
           </button>
         )}
       </Show>

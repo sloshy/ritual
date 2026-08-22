@@ -1,12 +1,15 @@
 import { Command } from 'commander'
 import fs from 'node:fs/promises'
 import { formatChange } from '../change-message'
+import { listRefLabel } from '../change-event'
 import { t } from '../i18n/t'
 import { LIST_TYPE_DISPLAY, listTypeLabel } from '../list-type'
 import {
   type ChangeBundle,
   type ChangeBundleList,
   bundleChangeCount,
+  bundleListCount,
+  moveFromEventOf,
   parseChangeBundle,
 } from '../editor/change-bundle'
 import {
@@ -53,7 +56,11 @@ function listHeading(list: ChangeBundleList): string {
   })}`
 }
 
-/** Print the full change list grouped by target list, for pre-apply review. */
+/**
+ * Print the full change list grouped by target list, then the cross-list moves
+ * (each a physical copy leaving one list for another — the bundle records them
+ * once, apart from either list's own changes), for pre-apply review.
+ */
 function printPreview(bundle: ChangeBundle): void {
   for (const list of bundle.lists) {
     console.log(
@@ -64,6 +71,23 @@ function printPreview(bundle: ChangeBundle): void {
     )
     for (const change of list.changes) {
       console.log(`  • ${formatChange(change)}`)
+    }
+  }
+  if (bundle.moves.length > 0) {
+    console.log(
+      `\n${t('cli.importChanges.movesHeading', {
+        moves: t('domain.count.moves', { count: bundle.moves.length }),
+      })}`,
+    )
+    for (const move of bundle.moves) {
+      // The outgoing half names the destination; the source is added beside it.
+      const from = moveFromEventOf(move)
+      console.log(
+        `  • ${t('cli.importChanges.moveLine', {
+          change: formatChange(from),
+          from: listRefLabel({ type: move.from.kind, name: move.from.name }),
+        })}`,
+      )
     }
   }
   console.log('')
@@ -204,7 +228,7 @@ export function registerImportChangesCommand(program: Command): void {
         type: 'confirm',
         message: t('cli.importChanges.confirmApply', {
           changes: t('domain.count.changes', { count: total }),
-          lists: t('domain.count.lists', { count: bundle.lists.length }),
+          lists: t('domain.count.lists', { count: bundleListCount(bundle) }),
         }),
         initial: false,
       })

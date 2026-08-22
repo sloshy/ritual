@@ -20,6 +20,7 @@ import {
 import { CollectionEditorBody } from '../../../editor/CollectionEditorBody'
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, listInfosToNamedRefs, moveTargetsExcluding } from '../move-targets'
+import { createAdminSwapSourceProvider } from '../swap-sources'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
 import { useCardArt } from '../hooks/useCardArt'
@@ -119,6 +120,7 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
     cardCountsBySection: countsBySection,
     cardSectionOf: sectionOfTarget,
     moveTargets: (currentSlug) => moveTargetsExcluding(lists(), 'collection', currentSlug),
+    swapSources: createAdminSwapSourceProvider(lists),
   })
 
   // Converted once per lists() change, so the array keeps its identity (and
@@ -156,6 +158,8 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
         customArt={cardArt.art()}
         onSetCustomArt={cardArt.open}
         shareLists={shareLists()}
+        swap={ctrl.swapWizardProps({ currency: ctrl.editor.currency() })}
+        onSwapPrintings={() => ctrl.openSwapPrintings('all')}
       />
       <ListLabelsModal
         open={labelsOpen()}

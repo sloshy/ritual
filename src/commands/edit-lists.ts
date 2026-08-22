@@ -440,7 +440,8 @@ export async function saveOpenList(
     const committed = await offline.commit()
     for (const failure of committed.artFailures) warnUnreconciledArt(failure)
     // Deliver to the open destinations (each allocates its own line id; the
-    // pushed move-to keeps the source id for its changelog).
+    // pushed move-to names the source line as `sourceCardId` and carries no
+    // destination id — `receiveMove` does not report the line it landed on).
     for (const plan of plans) {
       for (const { dest, move } of plan.openDest) {
         const moveTo = mirrorMoveTo(move, plan.sourceRef)

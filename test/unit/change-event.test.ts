@@ -10,6 +10,7 @@ import {
   formatPrintingAnnotation,
   isAdditiveChange,
   isSamePrinting,
+  mirrorMoveTo,
   CHANGE_ACTIONS,
 } from '../../src/change-event'
 import { formatChange } from '../../src/change-message'
@@ -159,5 +160,33 @@ describe('consolidateSetLanguage', () => {
     expect(result.cancelledChange).toBe(first)
     expect(result.addedChange).toBeNull()
     expect(result.changes).toHaveLength(0)
+  })
+})
+
+describe('mirrorMoveTo', () => {
+  test('the source line id becomes sourceCardId and cardId is the destination line, when known', () => {
+    const from = { type: 'collection', name: 'Binder' } as const
+    const move = {
+      id: 'm1',
+      timestamp: 1,
+      action: 'move-from',
+      cardName: 'Sol Ring',
+      cardId: 5,
+      set: 'c19',
+      collectorNumber: '221',
+      finish: 'foil',
+      to: { type: 'deck', name: 'My Deck' },
+    } as const
+    expect(mirrorMoveTo(move, from, 12)).toMatchObject({
+      action: 'move-to',
+      cardName: 'Sol Ring',
+      cardId: 12,
+      sourceCardId: 5,
+      set: 'c19',
+      collectorNumber: '221',
+      finish: 'foil',
+      from,
+    })
+    expect(mirrorMoveTo(move, from).cardId).toBeUndefined()
   })
 })

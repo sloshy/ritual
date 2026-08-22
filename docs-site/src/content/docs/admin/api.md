@@ -895,7 +895,7 @@ anything. Backs the admin **Refresh Cache** page's buylist card.
 POST /api/deck/:slug/save
 ```
 
-Save deck changes. Writes the updated deck file and appends to the changelog. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session.
+Save deck changes. Writes the updated deck file and appends to the changelog. Cross-list moves in `changes` write the other list too — a `move-from {to}` adds the copy to its destination, a `move-to {from}` (an incoming move) takes the copy out of its source (by the `sourceCardId` line when it still holds the card, else by printing, else by name for a printing-less source line) — each with its own changelog entry, every one validated in memory before anything is written (a missing list, a source with no copy to take, or a printing-less card headed into a collection fails the save with nothing written). Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session.
 
 `set-label` changes (and label-carrying `add`s and deck cards) are accepted here, validated against what a deck line can carry: `proxy` alone. Any other label — or an illegal combination — is a `400` and nothing is written.
 
@@ -981,8 +981,9 @@ renumbered) — the admin editors' [add-card dialog](/admin/editors/#card-option
 ### `artWarnings`
 
 When that re-filing could not happen — the list's own `.art.json` cannot be read, or neither can
-that of a list this save's cross-list moves ([**Move to list…**](/admin/editors/#custom-art)) are
-sending cards to — the save still succeeds and reports the problem in an **`artWarnings`** array,
+that of a list this save's cross-list moves ([**Move to list…**](/admin/editors/#custom-art),
+[**Swap Printings…**](/admin/editors/#swap-printings)) send cards to or take them from — and when a
+moved copy's art has no destination line to follow onto, that too is reported here — the save still succeeds and reports the problem in an **`artWarnings`** array,
 one message per sidecar it had to leave alone. The field is omitted
 when everything re-filed cleanly, and it carries the same channel name the load routes use for
 [sidecar problems](#load-deck), so a client reads one field on both.
@@ -1044,7 +1045,7 @@ Load a collection with full card data, printings, and mana symbol map. Accepts t
 POST /api/collection/:slug/save
 ```
 
-Save collection changes. Writes the updated collection file and creates a changelog entry. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. Every collection entry must carry a printing: an `add`, `move-to`, or `set-printing` change missing `set` or `collectorNumber` returns `400` and leaves the file untouched. A change whose target entry does not exist (matching is exact and case-sensitive on name, with `cardId` taking priority) also returns `400` naming the unapplied changes, and nothing is written — a save must never report success while dropping changes. The optional [`validateCardNames`](#validatecardnames) flag applies here too. `set-label` changes (and label-carrying `add`s) are accepted here — their `labels` are validated against the label vocabulary, the labels a collection carries, and the `keep`/`proxy` exclusivity rule (`400` on an illegal combination) and normalized to canonical order before the write; the file's front-matter block always rides through a save untouched.
+Save collection changes. Writes the updated collection file and creates a changelog entry. Cross-list moves in `changes` (`move-from {to}` / incoming `move-to {from}`) write the other list and its changelog too, pre-validated before anything is written — see [Save Deck](#save-deck). Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. Every collection entry must carry a printing: an `add`, `move-to`, or `set-printing` change missing `set` or `collectorNumber` returns `400` and leaves the file untouched. A change whose target entry does not exist (matching is exact and case-sensitive on name, with `cardId` taking priority) also returns `400` naming the unapplied changes, and nothing is written — a save must never report success while dropping changes. The optional [`validateCardNames`](#validatecardnames) flag applies here too. `set-label` changes (and label-carrying `add`s) are accepted here — their `labels` are validated against the label vocabulary, the labels a collection carries, and the `keep`/`proxy` exclusivity rule (`400` on an illegal combination) and normalized to canonical order before the write; the file's front-matter block always rides through a save untouched.
 
 **Request Body:**
 
@@ -1204,7 +1205,7 @@ Load a wanted list with full card data, printings, and mana symbol map. Accepts 
 POST /api/wanted/:slug/save
 ```
 
-Save wanted list changes. Writes the updated wanted list file and appends to the changelog. Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. The optional [`validateCardNames`](#validatecardnames) flag applies here too.
+Save wanted list changes. Writes the updated wanted list file and appends to the changelog. Cross-list moves in `changes` (`move-from {to}` / incoming `move-to {from}`) write the other list and its changelog too, pre-validated before anything is written — see [Save Deck](#save-deck). Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. The optional [`validateCardNames`](#validatecardnames) flag applies here too.
 
 **Request Body:**
 
@@ -2186,12 +2187,12 @@ POST /api/import-changes
 
 Apply a change bundle exported from the site editor to the underlying lists. Used by the admin site's **Import Changes** page and exposed as the MCP `import_change_bundle` tool; shares its apply engine with the [`import-changes`](/commands/import-changes/) CLI command.
 
-**Request Body:** the exported JSON, verbatim — a `ritual-change-bundle` covering one or more lists:
+**Request Body:** the exported JSON, verbatim — a version-2 `ritual-change-bundle` covering one or more lists. Each list's own edits sit in `lists[].changes`; cross-list moves are normalized into the top-level `moves` array (one entry per copy, naming its source and destination list by kind + name, with the slug as a best-effort hint; a move may also carry `toCardId`, the destination line's `&N` as the exporting editor allocated it, which the import re-targets like an `add`'s id) and never appear as `move-from`/`move-to` inside a list's `changes`:
 
 ```json
 {
   "format": "ritual-change-bundle",
-  "version": 1,
+  "version": 2,
   "exportedAt": "2026-06-04T00:00:00.000Z",
   "lists": [
     {
@@ -2199,6 +2200,19 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
       "slug": "Winota Stax",
       "name": "Winota Stax",
       "changes": [{ "id": "a1", "timestamp": 1, "action": "add", "cardName": "Counterspell" }]
+    }
+  ],
+  "moves": [
+    {
+      "id": "m1",
+      "timestamp": 2,
+      "cardName": "Sol Ring",
+      "from": { "kind": "deck", "slug": "Winota Stax", "name": "Winota Stax" },
+      "to": { "kind": "collection", "slug": "binder", "name": "Binder" },
+      "set": "c19",
+      "collectorNumber": "221",
+      "cardId": 5,
+      "toCardId": 9
     }
   ]
 }
@@ -2209,7 +2223,7 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
 ```json
 {
   "success": true,
-  "message": "Applied 1 change across 1 list",
+  "message": "Applied 2 changes across 2 lists",
   "failedCount": 0,
   "lists": [
     {
@@ -2218,12 +2232,19 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
       "name": "Winota Stax",
       "applied": 1,
       "conflicts": []
+    },
+    {
+      "kind": "collection",
+      "slug": "binder",
+      "name": "Binder",
+      "applied": 1,
+      "conflicts": []
     }
   ]
 }
 ```
 
-Each list is loaded fresh and its changes re-targeted to the current card IDs (by ID when it still exists, otherwise by card name). Changes whose target card no longer exists — or whose action cannot apply to that list, such as a commander change aimed at a collection, or which would set a foil/etched finish on a card that pins no printing — are skipped and reported in that list's `conflicts` (`{ change, reason }`, where `reason` is `"target-not-found"`, `"not-applicable"`, or `"needs-printing"`). A list that fails to load or save carries an `error` string (and `applied: 0`) without stopping the remaining lists, and is counted in `failedCount`. `success` stays `true` on a partial import — the request was processed, and the per-list report is what says which lists failed. Read `failedCount` (and each list's `error`), not the envelope. `move-from` changes also write their destination lists, and every applied list gets a changelog entry — the same save path as the editors. The response is `400` when the body is not a valid change bundle.
+Every list's changes and every move are merged into one timestamp-ordered stream and applied in batches (consecutive events aimed at the same list); each batch loads its list fresh immediately before saving it. Changes are re-targeted to the list's current card IDs (by ID when it still exists, otherwise by card name — a copy the same import just added first). Changes whose target card no longer exists — or whose action cannot apply to that list, such as a commander change aimed at a collection, or which would set a foil/etched finish on a card that pins no printing — are skipped and reported in that list's `conflicts` (`{ change, reason }`, where `reason` is `"target-not-found"`, `"not-applicable"`, or `"needs-printing"`). Each entry of `moves` is applied on its **destination** list as a `move-to`: that save adds the copy there, takes it out of the source list (by the source line id the move names, else by the exact printing, else by name for a printing-less source line), and writes both changelogs. A destination named only by a move is resolved by its slug, then by its name, and reported as a list of its own (`slug` is the file basename it resolved to). `lists[].applied` counts moves arriving in the list. A list that fails to resolve, load, or save carries an `error` string — the failing batch applied nothing, that list's later batches are skipped, batches already applied stay applied and counted — without stopping the other lists, and is counted in `failedCount`. `success` stays `true` on a partial import — the request was processed, and the per-list report is what says which lists failed. Read `failedCount` (and each list's `error`), not the envelope. Every list that received changes gets a changelog entry — the same save path as the editors. The response is `400` when the body is not a valid change bundle.
 
 ## Export Cards
 

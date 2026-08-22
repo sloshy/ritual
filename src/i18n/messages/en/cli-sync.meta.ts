@@ -403,6 +403,14 @@ export const cliSyncMeta = {
     description:
       'Preview heading for one list: {heading} is cli.importChanges.listHeading, {changes} an already-counted phrase.',
   },
+  'cli.importChanges.movesHeading': {
+    description:
+      'Preview heading for the bundle’s cross-list moves (the copies that leave one list and land in another). {moves} is an already-counted phrase (e.g. "2 moves").',
+  },
+  'cli.importChanges.moveLine': {
+    description:
+      "One cross-list move in the preview. {change} is the rendered outgoing change (\"Move Sol Ring (C19:221) to Deck 'Burn'\"), which already names the destination; {from} is the pre-rendered English label of the source list (e.g. Collection 'Binder') — leave its shape alone.",
+  },
   'cli.importChanges.listFailed': {
     description:
       'One list could not be written at all; {reason} is the failure text. A ✗ is prefixed by the caller.',

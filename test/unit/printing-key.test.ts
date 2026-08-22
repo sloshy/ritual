@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   cardPrintingKey,
   formatPrintingLabel,
+  lookupExactPrintingCard,
   lookupPrintingCard,
   printingKey,
   printingLanguageKey,
@@ -157,5 +158,42 @@ describe('formatPrintingLabel', () => {
     // rendering `MKM:507A` where every other surface shows `MKM:507a`.
     expect(formatPrintingLabel('mkm', '507a')).toBe('MKM:507a')
     expect(formatPrintingLabel('MKM', '507a')).toBe('MKM:507a')
+  })
+})
+
+describe('lookupExactPrintingCard', () => {
+  const lea = makeScryfallCard({
+    id: 'bolt-lea',
+    name: 'Lightning Bolt',
+    set: 'lea',
+    collector_number: '161',
+  })
+  const m10 = makeScryfallCard({
+    id: 'bolt-m10',
+    name: 'Lightning Bolt',
+    set: 'm10',
+    collector_number: '146',
+  })
+  const cards = { 'Lightning Bolt': m10, 'lea:161': lea }
+
+  test('returns the pinned printing when the map holds it, by its folded key', () => {
+    expect(
+      lookupExactPrintingCard(cards, {
+        name: 'Lightning Bolt',
+        set: 'LEA',
+        collectorNumber: '161',
+      }),
+    ).toBe(lea)
+  })
+
+  test('is null — never the by-name representative — when the map holds a DIFFERENT printing of the name', () => {
+    // `lookupPrintingCard` would fall back to the M10 representative here.
+    const ref = { name: 'Lightning Bolt', set: 'sta', collectorNumber: '42' }
+    expect(lookupPrintingCard(cards, ref)).toBe(m10)
+    expect(lookupExactPrintingCard(cards, ref)).toBeNull()
+  })
+
+  test('is null for a ref that pins no printing', () => {
+    expect(lookupExactPrintingCard(cards, { name: 'Lightning Bolt' })).toBeNull()
   })
 })

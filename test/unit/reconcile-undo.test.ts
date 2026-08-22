@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import { reconcileIdPoolForUndo, replayChanges } from '../../src/editor/reconcile-undo'
-import { createMoveFromChange, createRemoveChange, createAddChange } from '../../src/change-event'
+import {
+  createMoveFromChange,
+  createMoveToChange,
+  createRemoveChange,
+  createAddChange,
+} from '../../src/change-event'
 import type { UndoEntry } from '../../src/editor/useCardChanges'
 import type { ChangeEvent } from '../../src/change-event'
 import { applyChangeToDeck } from '../../src/editor/deck-changes'
@@ -79,6 +84,32 @@ describe('reconcileIdPoolForUndo', () => {
       [],
     )
     expect(last.released).toEqual([5])
+  })
+
+  test('undoing a move-to releases its fresh destination id once no sibling still uses it', () => {
+    // A swap that brought two copies in: two move-to events under one fresh id
+    // (decks fold them onto one line), undone one at a time.
+    const from = { type: 'collection' as const, name: 'Binder' }
+    const copies = [1, 2].map(() => createMoveToChange('Bolt', { cardId: 50, from }))
+
+    const guarded = track()
+    reconcileIdPoolForUndo(
+      guarded.release,
+      guarded.claim,
+      { addedChange: copies[1]!, cancelledChange: null },
+      [copies[0]!],
+    )
+    expect(guarded.released).toEqual([])
+
+    const last = track()
+    reconcileIdPoolForUndo(
+      last.release,
+      last.claim,
+      { addedChange: copies[0]!, cancelledChange: null },
+      [],
+    )
+    expect(last.released).toEqual([50])
+    expect(last.claimed).toEqual([])
   })
 
   test('a move-from without a cardId touches neither pool', () => {

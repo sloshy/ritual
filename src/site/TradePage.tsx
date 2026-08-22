@@ -30,6 +30,7 @@ import { apiActive } from './api-base'
 import { cardLookupSourceName } from './card-lookup'
 import { printingKey } from '../printing-key'
 import type { TradeSortBy, TradeSortState } from './trade-sort'
+import { TooltipOverlay } from './TooltipOverlay'
 import { useTooltip } from './useTooltip'
 import type { UseTooltipResult } from './useTooltip'
 import {
@@ -755,20 +756,12 @@ export const TradePage: Component<TradePageProps> = (props) => {
         )}
       </Show>
 
-      <div
-        ref={tooltip.tooltipRef}
-        class={`list-tooltip ${tooltip.tooltip() ? 'visible' : ''} ${tooltip.tooltip()?.sideways ? 'list-tooltip-sideways' : ''}`}
-        style={`left:${tooltip.tooltipPos().left}px;top:${tooltip.tooltipPos().top}px;`}
-      >
-        <Show when={tooltip.tooltip()}>
-          <img
-            src={tooltip.tooltip()!.src}
-            alt=""
-            class={tooltip.tooltip()!.sideways ? 'tooltip-rotated' : ''}
-            onError={() => tooltip.setTooltip(null)}
-          />
-        </Show>
-      </div>
+      <TooltipOverlay
+        tooltip={tooltip.tooltip()}
+        pos={tooltip.tooltipPos()}
+        tooltipRef={tooltip.tooltipRef}
+        onImageError={() => tooltip.setTooltip(null)}
+      />
 
       <Show when={copyToast()}>
         {(toast) => (

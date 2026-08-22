@@ -21,6 +21,7 @@ import {
 } from '../../editor/list-export'
 import { CollectionPage } from '../CollectionPage'
 import { siteSearch } from './site-search'
+import { createPublicSwapSourceProvider } from './swap-sources'
 import { backfillImportedCard } from './backfill-added-card'
 import { EditViewFrame } from './EditViewFrame'
 import { safeFilename } from './safe-filename'
@@ -56,6 +57,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
     commit: () => Promise.resolve(undefined),
     entityLabel: 'collection',
     moveTargets: () => props.moveTargets?.() ?? [],
+    swapSources: createPublicSwapSourceProvider(() => props.shareLists ?? []),
 
     processLoadResponse: () => ({
       data: props.detail.entries,
@@ -114,6 +116,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
       bulkEdit={ctrl.bulkEdit}
       changes={() => ctrl.editor.changes.changes()}
       ready={() => !ctrl.editor.status.loading && ctrl.editor.data() != null}
+      onSwapPrintings={() => ctrl.openSwapPrintings('all')}
       fileExports={[
         {
           label: () => t('site.editor.downloadCollection'),
@@ -150,6 +153,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
           enableSellMode={props.enableSellMode}
           bakedBuylist={() => props.detail.buylist}
           shareLists={props.shareLists}
+          swap={ctrl.swapWizardProps({ currency: props.currency })}
         />
       }
       original={

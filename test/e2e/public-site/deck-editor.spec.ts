@@ -206,7 +206,8 @@ test.describe('Public deck editor', () => {
     // re-targeting matches them and nothing is fetched from Scryfall.
     const changeFile = JSON.stringify({
       format: 'ritual-change-bundle',
-      version: 1,
+      version: 2,
+      moves: [],
       exportedAt: '2026-06-04T00:00:00.000Z',
       lists: [
         {
@@ -265,7 +266,8 @@ test.describe('Public deck editor', () => {
     await dialog.locator('.import-dialog-textarea').fill(
       JSON.stringify({
         format: 'ritual-change-bundle',
-        version: 1,
+        version: 2,
+        moves: [],
         exportedAt: '2026-06-04T00:00:00.000Z',
         lists: [
           {
@@ -308,7 +310,8 @@ test.describe('Public deck editor', () => {
     await dialog.locator('.import-dialog-textarea').fill(
       JSON.stringify({
         format: 'ritual-change-bundle',
-        version: 1,
+        version: 2,
+        moves: [],
         exportedAt: '2026-06-04T00:00:00.000Z',
         lists: [
           {

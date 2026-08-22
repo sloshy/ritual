@@ -78,6 +78,7 @@ While a list is open in edit mode, the **Selected (N)** menu also gains an **edi
 - **Remove from list** (decks: **Remove from deck**) — remove every copy of each selected card
 - **Set as Foil** / **Set as Nonfoil** — set the finish on each selected card that supports it (others are skipped). **Set as Foil** is disabled while any selected card names no printing — a finish belongs to a printing, so those cards need one pinned first ([Change Printing](#change-printing)). **Set as Nonfoil** stays available: it clears a finish token rather than asserting one.
 - **Change Printing…** — runs the printing picker over the selected cards one at a time (cancelling skips that card and continues)
+- **Swap Printings…** — decks and collections; opens the [Swap Printings](#swap-printings) wizard with the selected cards pre-checked; hidden while no selected card pins a printing
 - **Set Language…** — opens the [language picker](#card-language) and applies the chosen language to every selected card
 - **Set as Commander** — decks only; marks each selected card as a commander
 - **Set Label…** — decks and collections; opens the [label picker](#card-labels) for the selection's list type (a deck is offered **Proxy** and **Use list default**) and applies the chosen override to every selected card. The item is hidden when the selection spans several list types, or is on a list type that carries no labels (wanted lists)
@@ -167,7 +168,7 @@ Both fields reset for the next card, including after **Add Another Card**.
 
 ### Context Menu
 
-Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil** (disabled until the card pins a printing), **Change Printing…** (**Set Printing…** on a card that pins none), [**Set Language…**](#card-language), [**Set Custom Art…**](#custom-art), and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**; the Deck and Collection Editors offer [**Set Label…**](#card-labels) with their type's choices.
+Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil** (disabled until the card pins a printing), **Change Printing…** (**Set Printing…** on a card that pins none), [**Set Language…**](#card-language), [**Set Custom Art…**](#custom-art), and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**; the Deck and Collection Editors offer [**Set Label…**](#card-labels) with their type's choices, and — on a card that pins a printing — [**Swap printing…**](#swap-printings), which opens the swap wizard on that one card.
 
 #### Move to Section
 
@@ -203,6 +204,25 @@ When the card represents more than one copy (a Deck Editor entry with quantity >
 
 Every printing change is recorded as a change event tagged with the card ID and the target printing, and appears in the changelog (e.g. `Set "Lightning Bolt" printing to M10:146 [foil] &5`).
 
+### Swap Printings
+
+The Deck and Collection Editors can re-pick printings for many cards at once using copies you already own in your **other** lists — upgrading a deck to the foils sitting in a binder, or downgrading it to the cheapest copies you have — expressing the result as cross-list moves rather than as edits to a single file. There are three entry points, all in edit mode:
+
+- **Swap Printings…** in the [action bar](#editor-action-bar) — every line of the list that pins a printing
+- **Swap Printings…** in the multi-select **Selected (N)** menu — the wizard opens with the selected cards pre-checked
+- **Swap printing…** in a card's **⋯** [context menu](#context-menu) — the wizard opens on that one card and goes straight to its picker (offered only on a card that pins a printing)
+
+The wizard walks through:
+
+1. **Cards** — the eligible (pinned) lines, pre-checked, each with a checkbox to leave it out. Lines that name no printing are listed greyed with a "no printing set" note and cannot be chosen — there is no current printing to swap away from.
+2. **Sources** — which other lists to draw replacements from, with the same per-type / per-list scope control as the Find page. Decks and collections are on by default; wanted lists are **off** by default but selectable. The list being edited is never a source. Only the **saved** contents of the other lists count — their pending, unsaved edits are not overlaid.
+3. **Mode** — **Manual** (choose per card), **Most expensive**, or **Least expensive**. Two controls apply in every mode: a **finish** filter (any / foil / nonfoil) over the candidates, which also seeds the picker's quick-filter; and where **displaced** copies go — back to the list each replacement came from (default), or one chosen deck or collection for every displaced copy. The price modes add one more — what to do with a card that has an **unpriced** candidate (no declared market value, not "worthless"): **Skip** it unchanged and flag it for review (default), **Ignore** unpriced options and rank the rest, or **Ask me** (force a pick by hand in the picker). A displaced copy can never land in a wanted list: if a replacement comes from a wanted list and no override is set, the summary asks for a destination.
+4. **Pick** (manual mode, forced cards, and any card you **Change…**) — per card, the candidate copies across the chosen sources (source list, printing, finish, price, copies available), with the same collector-grammar type-to-filter as the printing picker and a finish quick-filter. Copies are allocated per candidate row, so a card's copies may be filled from several printings; copies left unfilled keep their current printing. A candidate with **no printing** in its source (a wanted line, or a name-only deck line) first asks you to confirm it is that entry, then opens the full printing dialog to say which printing it actually is.
+5. **Review** (price modes only — manual mode goes from picking straight to the summary) — every card: current → chosen printing with prices where known, flags (unpriced candidates, no candidates, partial), and a **Change…** button to override the pick.
+6. **Summary** — the planned moves grouped by list (in / out), the edited list's value before → after with per-card deltas where priced, the displaced-copy destination when one is required, then **Discard** or **Apply**.
+
+**Apply** records the plan into the editor's pending changes: each replacement is a **move in** from its source list, each displaced copy a **move out** to its destination, one change per physical copy (a deck line's copies share its `&N`; a collection tile's copies each carry their own). The edited view updates immediately, the moves appear in the [Changes](#change-tracking) dialog, and undo walks them back one change at a time. Nothing is written until you **Save** — which, as with **Move to list…**, updates **both** sides: the edited list and every source/destination list, each with its own changelog entry. On the public site the moves travel in the exported bundle's top-level `moves` array instead. The Wanted List Editor has no swap entry points.
+
 ### Card Language
 
 Every card entry has a [language](/commands/edit/#card-language) — a Scryfall code written on the line as a lowercase bracket token (`[ja]`) and omitted for English, so a bare line always means `en`.
@@ -227,7 +247,7 @@ See [Custom Card Art](/custom-art/) for the sidecar format and how the image is 
   never part of a save, and never recorded in the changelog. It is also safe to set while card edits
   are pending, since the card lines and the art sidecar are disjoint files. A save still _re-files_
   the sidecar for the ids it changed — a removed card's art goes with it, a renumbered line takes
-  its entry along, and **Move to list…** carries the entry to the destination. See
+  its entry along, and **Move to list…** / **Swap Printings…** carry the entry to the destination, in either direction. See
   [Art follows the card](/custom-art/#art-follows-the-card).
 - The dialog targets a card's `&N` id. A tile that groups identical copies applies the art to the
   **first** copy — the one the tile renders.
@@ -266,6 +286,9 @@ A bar pinned to the bottom of the editor holds all editing controls, from left t
 - **+ Add Card** — opens the card search modal (see [Adding Cards](#adding-cards)); also **Ctrl+Enter**
 - **Add Card Defaults** — expands the [defaults panel](#add-card-defaults) upward
 - **Sections** — opens the [Manage Sections](#sections) dialog
+- **Labels** — opens the [Default Labels](#card-labels) modal (deck and collection editors)
+- **Import…** — loads an exported [change bundle](/commands/admin/#loading-changes-into-an-editor) as pending edits
+- **Swap Printings…** — opens the [Swap Printings](#swap-printings) wizard over the whole list (deck and collection editors)
 - **Changes** — shows the pending-change count and opens the changes dialog
 - **Undo** — reverts the most recent change
 - **Save Changes** / **Discard Changes**
@@ -297,8 +320,9 @@ Open **Edit Lists** (admin sidebar or Dashboard card) and select the **Decks** t
 ### Context Menu
 
 The **⋯** button opens a context menu with the [items every editor shares](#context-menu) —
-**Set as Foil**, **Change Printing…**, [**Set Language…**](#card-language), [**Set Custom
-Art…**](#custom-art), and **Move to section…** — plus two the Deck Editor adds:
+**Set as Foil**, **Change Printing…**, [**Swap printing…**](#swap-printings), [**Set
+Language…**](#card-language), [**Set Custom Art…**](#custom-art), and **Move to section…** — plus
+two the Deck Editor adds:
 
 - **Set as Commander** — Move the card to the Commander section (supports multiple commanders)
 - [**Set Label…**](#deck-labels) — Set the line's `proxy` override
@@ -401,6 +425,7 @@ Wanted lists correspond to `.md` files in the `wanted/` directory.
 | Set as Commander          | ✅                      | ❌                | ❌                 |
 | Change printing           | ✅                      | ✅                | ✅                 |
 | Multi-copy printing split | ✅ Entry                | ✅ Per-entry      | ❌ Single rows     |
+| Swap printings            | ✅                      | ✅                | ❌ Not offered     |
 | No specific printing      | ✅ Allowed              | ❌ Must select    | ✅ Allowed         |
 | Condition field           | ✅ Optional             | ✅ Required       | ❌ Not applicable  |
 | Finish field              | ✅ Optional             | ✅ Required       | ✅ Optional        |

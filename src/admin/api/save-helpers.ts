@@ -6,7 +6,13 @@ import {
 import { cardCache } from '../../cache'
 import { CACHE_REFRESH_REMEDY } from '../../cache/status'
 import { computeHash, hashPath, writeFileWithHash } from '../../content-hash'
-import { reconcileCardArt, reconciledArtPath, type CardArtReconcileInput } from '../../card-art'
+import {
+  reconcileCardArt,
+  reconciledArtPath,
+  type CardArtMap,
+  type CardArtRef,
+  type CardArtReconcileInput,
+} from '../../card-art'
 import { appendChangelog } from '../../changelog-writer'
 import type { EntryWithCardId } from '../../card-id'
 import type { DeckData } from '../../types'
@@ -39,7 +45,7 @@ import type { DroppedNote } from '../../commands/move-io'
 import type { SaveEffect } from '../../editor/save-effects'
 import { t } from '../../i18n/t'
 import { apiMessage, type ApiMessage } from './result'
-import type { ListSaveResponse, OutgoingMovesResult } from './move-save'
+import type { ListSaveResponse, MovesOutcome } from './move-save'
 
 /**
  * The one error body an admin route returns on a refusal, whatever the status.
@@ -474,6 +480,13 @@ export interface ListSaveTail {
    * moves.
    */
   extraFiles?: readonly string[]
+  /**
+   * Custom art arriving with this save's incoming cross-list moves, keyed by
+   * the destination line's `&N` (see `CrossListMovesResult.adoptedArt`). Filed
+   * by this tail's reconcile *after* the ids the save freed are dropped, so a
+   * copy landing on an id the same save drained keeps its arriving art.
+   */
+  adoptedArt?: CardArtMap
 }
 
 /** The list file's new content hash, which the save response returns. */
@@ -501,24 +514,21 @@ export interface ListSaveOutcome extends ListSaveTailResult {
 
 /**
  * The save response's outcome, assembled from the two halves that produce one:
- * this list's own save tail and the destination side of its cross-list moves.
+ * this list's own save tail and the other side of its cross-list moves.
  * Both can leave a sidecar unreconciled, and the response carries one
  * `artWarnings` list, so the merge lives here rather than in each save route.
  */
-export function listSaveOutcome(
-  result: ListSaveTailResult,
-  outgoing: OutgoingMovesResult,
-): ListSaveOutcome {
+export function listSaveOutcome(result: ListSaveTailResult, moves: MovesOutcome): ListSaveOutcome {
   // The move side reports the reconcile's own refusal, so the response's
   // wording is applied here — the same sentence this list's own reconcile
   // failure already carries.
   const artWarnings = [
     ...(result.artWarnings ?? []),
-    ...outgoing.artFailures.map((failure) => unreconciledArtWarning(failure.message)),
+    ...moves.artFailures.map((failure) => unreconciledArtWarning(failure.message)),
   ]
   return {
     contentHash: result.contentHash,
-    droppedNotes: outgoing.droppedNotes,
+    droppedNotes: moves.droppedNotes,
     ...(artWarnings.length > 0 ? { artWarnings } : {}),
   }
 }
@@ -555,6 +565,67 @@ export function entryLineQuantities(entries: readonly EntryWithCardId[]): LineQu
   return quantities
 }
 
+/** The change kinds that add or take a copy on a line of this list. */
+type LineCopyChange = Extract<ChangeEvent, { action: 'add' | 'remove' | 'move-from' | 'move-to' }>
+
+/** One step of {@link replayLineCopies}: the change, the line it touched, and that line's copies before and after. */
+export type LineCopyStep = {
+  change: LineCopyChange
+  cardId: number
+  before: number
+  after: number
+}
+
+/** How {@link replayLineCopies} reads a line the baseline does not know. */
+export type ReplayLineCopiesOptions = {
+  /**
+   * Copies assumed on an id the baseline never had. The art reconcile reads
+   * such an id as a single standing line (`1`: art filed under it belonged to
+   * something already gone, and a removal empties it); the incoming-move
+   * writer reads it as a brand-new line (`0`: the first copy landing on it is
+   * fresh).
+   */
+  unknownIdHolds: number
+}
+
+/**
+ * Replay a save's copy-changing events against the on-disk copy counts, one
+ * line at a time. An `add` or `move-to` is a copy gained on the line its
+ * `cardId` names; a `remove` or `move-from` a copy lost. Copies are replayed
+ * **in order** rather than netted, because the order is the only thing that
+ * tells apart two same-id sequences: a deck line that gains a copy and loses
+ * one again never empties, while a line removed and re-added under the id the
+ * pool handed straight back *does* empty in between. Changes with no `cardId`
+ * say nothing about any line and are skipped. The one ledger behind
+ * {@link removedArtCardIds} and the move writer's `freshMoveToChangeIds`.
+ */
+export function replayLineCopies(
+  changes: readonly ChangeEvent[],
+  baseline: LineQuantities,
+  options: ReplayLineCopiesOptions,
+): LineCopyStep[] {
+  const steps: LineCopyStep[] = []
+  const copies = new Map<number, number>()
+  for (const change of changes) {
+    if (
+      change.action !== 'add' &&
+      change.action !== 'remove' &&
+      change.action !== 'move-from' &&
+      change.action !== 'move-to'
+    ) {
+      continue
+    }
+    const { cardId } = change
+    if (cardId === undefined) continue
+    const before = copies.get(cardId) ?? baseline.get(cardId) ?? options.unknownIdHolds
+    const gain = change.action === 'add' || change.action === 'move-to'
+    const after = gain ? before + 1 : before - 1
+    copies.set(cardId, after)
+    steps.push({ change, cardId, before, after })
+  }
+  return steps
+}
+
 /**
  * The ids whose custom art this save drops, read from the **changes** rather
  * than from the file it produced.
@@ -583,23 +654,10 @@ export function removedArtCardIds(
   baseline: LineQuantities,
 ): Set<number> {
   const removed = new Set<number>()
-  const copies = new Map<number, number>()
-  for (const change of changes) {
-    if (change.action !== 'add' && change.action !== 'remove' && change.action !== 'move-from') {
-      continue
-    }
-    const { cardId } = change
-    if (cardId === undefined) continue
-    // An id the baseline does not know is a line this save created; art filed
-    // under it belonged to something that is already gone.
-    const held = copies.get(cardId) ?? baseline.get(cardId) ?? 1
-    if (change.action === 'add') {
-      copies.set(cardId, held + 1)
-      continue
-    }
-    const left = held - 1
-    copies.set(cardId, left)
-    if (left <= 0) removed.add(cardId)
+  // An id the baseline does not know is a line this save created; art filed
+  // under it belonged to something that is already gone.
+  for (const step of replayLineCopies(changes, baseline, { unknownIdHolds: 1 })) {
+    if (step.after <= 0) removed.add(step.cardId)
   }
   return removed
 }
@@ -618,7 +676,13 @@ function artReconcile(tail: ListSaveTail): CardArtReconcileInput {
     else if (effect.previousCardId !== undefined)
       renumbered.set(effect.previousCardId, effect.cardId)
   }
-  return { removed, renumbered }
+  // Arriving art is keyed by the id the client gave the line; if the write
+  // renumbered that line, the art follows it to the number it actually got.
+  const added = new Map<number, CardArtRef>()
+  for (const [cardId, ref] of tail.adoptedArt ?? []) {
+    added.set(renumbered.get(cardId) ?? cardId, ref)
+  }
+  return { removed, renumbered, added }
 }
 
 /**
@@ -653,7 +717,9 @@ export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailRe
 
   await autoCommitAndPush(
     dirForType(tail.listType),
-    filesToCommit,
+    // A move may already have re-filed this list's own sidecar (an arriving
+    // copy's art), so the path can be in `extraFiles` and here.
+    [...new Set(filesToCommit)],
     `Edit ${listTypeLabel(tail.listType)}: ${tail.changelogName} (${tail.changes.length} changes)`,
   )
 

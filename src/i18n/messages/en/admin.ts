@@ -277,6 +277,8 @@ export const adminMessages = {
     wanted: "{name} (wanted list '{slug}') — {changes}",
     other: "{name} (list '{slug}') — {changes}",
   },
+  'admin.importChanges.previewMoves': 'Moves between lists — {moves}',
+  'admin.importChanges.previewMove': 'From {from}: {change}',
   'admin.importChanges.applying': 'Applying...',
   'admin.importChanges.applyButton': 'Apply {changes} to {lists}',
 

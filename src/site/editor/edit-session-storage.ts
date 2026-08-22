@@ -1,9 +1,11 @@
 import {
   type ChangeBundleList,
-  buildChangeBundle,
+  bundleFromChangeGroups,
+  listChangesFromBundle,
   parseChangeBundle,
   serializeChangeBundle,
 } from '../../editor/change-bundle'
+import { resolveKnownListSlug } from './list-slug-resolver'
 import type { ListType } from '../../list-type'
 
 /**
@@ -40,7 +42,7 @@ export function saveEditSession(list: ChangeBundleList, exportedAt: string): voi
   try {
     store.setItem(
       editSessionKey(list.kind, list.slug),
-      serializeChangeBundle(buildChangeBundle({ lists: [list], exportedAt })),
+      serializeChangeBundle(bundleFromChangeGroups([list], exportedAt, resolveKnownListSlug)),
     )
   } catch {
     // Quota or serialization failure — nothing more we can do; stay ephemeral.
@@ -49,8 +51,9 @@ export function saveEditSession(list: ChangeBundleList, exportedAt: string): voi
 
 /**
  * Load a previously saved session for a list. Returns the stored
- * {@link ChangeBundleList} only when one exists and validates against the
- * expected kind/slug; otherwise null (missing, corrupt, or belonging to a
+ * {@link ChangeBundleList} — with its moves denormalized back into the editor's
+ * `move-from` / `move-to` events — only when one exists and validates against
+ * the expected kind/slug; otherwise null (missing, corrupt, or belonging to a
  * different list).
  */
 export function loadEditSession(kind: ListType, slug: string): ChangeBundleList | null {
@@ -65,8 +68,11 @@ export function loadEditSession(kind: ListType, slug: string): ChangeBundleList 
   if (raw === null) return null
   const parsed = parseChangeBundle(raw)
   if (typeof parsed === 'string') return null
+  // Exact kind + slug on purpose (not `bundleRefMatches`): the storage key IS
+  // the slug, so a saved session can only ever be this list's own.
   const list = parsed.lists.find((l) => l.kind === kind && l.slug === slug)
-  return list ?? null
+  if (!list) return null
+  return { ...list, changes: listChangesFromBundle(parsed, list) ?? [] }
 }
 
 /** Whether a saved session exists for a list (without parsing it fully). */

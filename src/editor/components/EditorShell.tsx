@@ -12,6 +12,7 @@ import { CardSearchModal } from './CardSearchModal'
 import type { AddCardOptionsConfig } from './AddCardOptions'
 import { ChangePrintingQuantityDialog } from './ChangePrintingQuantityDialog'
 import { EditorActionBar, focusActionBar } from './EditorActionBar'
+import { SwapPrintingsWizard, type SwapPrintingsWizardProps } from './SwapPrintingsWizard'
 import { TextPromptDialog } from './TextPromptDialog'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { StatusToast } from '../../ui/StatusToast'
@@ -58,6 +59,14 @@ type EditorShellProps<TData, TCardEntry> = {
    * the public editor's exported changes too.
    */
   enableAddArt?: boolean
+  /**
+   * Open the "Swap Printings" wizard over the whole list from the action bar.
+   * Admin hosts pass it; the public editor reaches the wizard from the navbar's
+   * edit row and leaves this unset.
+   */
+  onSwapPrintings?: () => void
+  /** The swap wizard's props; the wizard is mounted only when present (deck and collection editors). */
+  swap?: SwapPrintingsWizardProps
   contextMenu?: JSX.Element
   children: JSX.Element
 }
@@ -194,10 +203,18 @@ export function EditorShell<TData, TCardEntry>(
             open={editor.dialogs.showImport()}
             onClose={editor.dialogs.closeImport}
             expectedKind={kind()}
+            expectedSlug={editor.slug() ?? undefined}
+            expectedName={editor.list().find((item) => item.slug === editor.slug())?.name}
             onImport={(changes) => editor.importChanges(changes)}
           />
         )}
       </Show>
+
+      {/* Batch "Swap Printings" wizard (deck and collection editors). The
+          host's props object carries getters (see `createSwapController`), and
+          a component spread is reactive — `mergeProps` reads its keys lazily —
+          so `request` keeps updating while the wizard is mounted. */}
+      <Show when={props.swap}>{(swap) => <SwapPrintingsWizard {...swap()} />}</Show>
 
       {/* Keyboard shortcuts reference */}
       <ShortcutsDialog open={showShortcuts()} onClose={() => setShowShortcuts(false)} />
@@ -232,6 +249,7 @@ export function EditorShell<TData, TCardEntry>(
           onRemoveSection={editor.handleRemoveSection}
           onShowShortcuts={() => setShowShortcuts(true)}
           onImport={props.enableImport ? editor.dialogs.openImport : undefined}
+          onSwapPrintings={props.onSwapPrintings}
           onEditLabels={props.onEditLabels}
           showSave={props.showSave}
           showDiscard={props.showDiscard}

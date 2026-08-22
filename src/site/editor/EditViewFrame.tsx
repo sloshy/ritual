@@ -5,9 +5,10 @@ import { useT } from '../../ui/i18n'
 import {
   type ChangeBundleList,
   CHANGE_BUNDLE_FILENAME,
-  buildChangeBundle,
+  bundleFromChangeGroups,
   serializeChangeBundle,
 } from '../../editor/change-bundle'
+import { resolveKnownListSlug } from './list-slug-resolver'
 import type { ListType } from '../../list-type'
 import type { ImportResult } from '../../editor/useEditor'
 import { ImportChangesDialog } from '../../editor/components/ImportChangesDialog'
@@ -63,6 +64,11 @@ type EditViewFrameProps = {
   /** Whether the editor has finished loading its data (so remembered edits can be re-targeted). */
   ready: () => boolean
   fileExports?: ListFileExport[]
+  /**
+   * Open the "Swap Printings" wizard over the whole list, published to the
+   * navbar's edit row. Deck and collection editors only.
+   */
+  onSwapPrintings?: () => void
   /** The editor (edit mode) — shown for the 'edited' view. */
   edited: JSX.Element
   /** The read-only published view — shown for the 'original' view. */
@@ -112,6 +118,9 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
       onDiscard: () => props.onDiscard(),
       onExport: () => setExportOpen(true),
       onLoadChanges: () => setImportOpen(true),
+      // Presence decided at mount like kind/slug/bulkEdit below: whether a
+      // host offers the swap is a property of the list type, fixed per mount.
+      onSwapPrintings: props.onSwapPrintings ? () => props.onSwapPrintings?.() : undefined,
       onExit: requestExit,
     })
     // kind/slug/bulkEdit are stable per mount (one editor per list); remount the
@@ -185,7 +194,9 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
 
   const buildJson = (scope: ExportScope): string => {
     const lists = scope === 'current' ? [currentGroup()] : allEditedGroups()
-    return serializeChangeBundle(buildChangeBundle({ lists, exportedAt: new Date().toISOString() }))
+    return serializeChangeBundle(
+      bundleFromChangeGroups(lists, new Date().toISOString(), resolveKnownListSlug),
+    )
   }
 
   const handleSaveToBrowser = (): void => {
@@ -245,6 +256,7 @@ export function EditViewFrame(props: EditViewFrameProps): JSX.Element {
         onClose={() => setImportOpen(false)}
         expectedKind={props.kind}
         expectedSlug={props.slug}
+        expectedName={props.listName}
         onImport={(changes) => props.onImport(changes)}
       />
 

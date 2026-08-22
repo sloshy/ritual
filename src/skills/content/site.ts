@@ -421,9 +421,18 @@ are auto-committed to git (\`admin.gitAutoPush\` also pushes). CLI commands neve
 auto-commit.
 
 The admin's **Import Changes** page applies a change-list JSON exported from the
-public site's edit mode (a bundle covering one or more lists) with a per-list
-preview before applying — the same operation as \`ritual import-changes\` (see the
+public site's edit mode (a version-2 bundle covering one or more lists, with
+cross-list moves normalized into a top-level \`moves\` array) with a per-list
+preview — moves listed in their own group — before applying; each move is written
+to both its lists. It is the same operation as \`ritual import-changes\` (see the
 **ritual-edit** skill) and the MCP \`import_change_bundle\` tool.
+
+Both web editors (admin and public, decks and collections only) offer a **Swap
+Printings…** wizard that re-picks many lines' printings at once from copies owned in
+the other lists and records the result as cross-list moves — see the **ritual-edit**
+skill for the flow. On the public site it sits in the navbar's edit row (plus the
+**Selected** menu and a pinned card's ⋯ menu), and the moves it plans export in the
+bundle's top-level \`moves\` array like any other move.
 
 The admin's **Sync Decks** page runs \`deck-sync\` in the browser: pick a
 direction, narrow the run to additions or removals only (the \`--only\` flag's

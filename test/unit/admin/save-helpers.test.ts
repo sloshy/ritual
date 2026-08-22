@@ -5,6 +5,7 @@ import {
   normalizeRequestLanguages,
   readJsonObjectBody,
   removedArtCardIds,
+  replayLineCopies,
   type ApiErrorResponse,
 } from '../../../src/admin/api/save-helpers'
 import {
@@ -217,6 +218,35 @@ describe('removedArtCardIds', () => {
 
   test('changes without a card id say nothing about the sidecar', () => {
     expect([...removedArtCardIds([createRemoveChange('Sol Ring')], new Map([[4, 1]]))]).toEqual([])
+  })
+})
+
+describe('replayLineCopies', () => {
+  test('replays gains and losses per line in order, reporting each step', () => {
+    const changes = [
+      createAddChange('Sol Ring', { cardId: 4 }),
+      createRemoveChange('Sol Ring', { cardId: 4 }),
+      createRemoveChange('Sol Ring', { cardId: 4 }),
+      createRemoveChange('Sol Ring'),
+    ]
+    const steps = replayLineCopies(changes, new Map([[4, 1]]), { unknownIdHolds: 1 })
+    expect(steps.map((s) => [s.change.action, s.cardId, s.before, s.after])).toEqual([
+      ['add', 4, 1, 2],
+      ['remove', 4, 2, 1],
+      ['remove', 4, 1, 0],
+    ])
+  })
+
+  test('an id the baseline never had starts at unknownIdHolds', () => {
+    const arrival = [createAddChange('Sol Ring', { cardId: 9 })]
+    expect(replayLineCopies(arrival, new Map(), { unknownIdHolds: 0 })[0]).toMatchObject({
+      before: 0,
+      after: 1,
+    })
+    expect(replayLineCopies(arrival, new Map(), { unknownIdHolds: 1 })[0]).toMatchObject({
+      before: 1,
+      after: 2,
+    })
   })
 })
 

@@ -390,6 +390,10 @@ export const cliCardsMessages = {
     '{file}: could not be read or parsed; its cards are missing from the index.',
   'cli.move.listWarning': '{file}: {warning}',
   'cli.move.destinationNotFound': 'Cannot move "{name}": destination {list} not found',
+  'cli.move.sourceNotFound': 'Cannot move "{name}": source {list} not found',
+  'cli.move.sourceCopyNotFound': 'Cannot move "{name}" from {list}: no matching copy found there',
+  'cli.move.artUnfiled':
+    'the custom art of "{name}" (moved from {list}) has no destination line to follow onto',
   'cli.move.abortDestinationMissing': 'Destination file not found, aborting move: {file}',
   'cli.move.abortSourceUnreadable': 'Source file not readable, aborting move: {file}',
   'cli.move.abortMove': 'Aborting move: {reason}',

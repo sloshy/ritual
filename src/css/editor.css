@@ -936,6 +936,26 @@
   background: var(--btn-hover);
 }
 
+/* Action-bar "Swap Printings…" button — same recipe as .btn-changes. */
+.btn-swap-printings {
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s;
+}
+
+.btn-swap-printings:hover {
+  background: var(--btn-hover);
+}
+
 .btn-undo {
   background: var(--btn-bg);
   color: var(--btn-text);
@@ -980,4 +1000,511 @@
 /* Reuses the shared .form-input; only the compact width is field-specific. */
 .change-printing-qty-field input {
   width: 5rem;
+}
+
+/* ===== Swap Printings wizard (SwapPrintingsWizard.tsx) =====
+   Fixed panel height (like .find-printings-modal) so the steps never resize the
+   dialog; header/body/footer chrome reuses the card-search modal's classes. */
+.swap-wizard-modal {
+  height: min(85vh, 900px);
+}
+
+.swap-wizard-header {
+  flex-wrap: wrap;
+}
+
+/* The wizard's hover preview rides in the dialog's overlay slot, so it needs
+   the same above-the-panel z-index the other in-modal previews use. */
+.swap-wizard-tooltip {
+  z-index: 600;
+}
+
+.swap-wizard-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.swap-wizard-step {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+}
+
+.swap-wizard-step--current {
+  color: var(--btn-on-color-text);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.swap-wizard-body {
+  padding: 16px;
+}
+
+.swap-wizard-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.swap-wizard-step-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.swap-wizard-step-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.swap-wizard-heading {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.swap-wizard-subheading {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.swap-wizard-note {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.swap-wizard-note--warning {
+  color: var(--warning-text);
+}
+
+.swap-wizard-muted {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+/* Rows (Cards step, picker candidates, printing-less prompt) */
+.swap-wizard-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.swap-wizard-row {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.swap-wizard-row--disabled {
+  opacity: 0.55;
+}
+
+.swap-wizard-row--taken {
+  border-color: var(--accent);
+}
+
+.swap-wizard-row--exhausted .swap-wizard-row-text {
+  opacity: 0.6;
+}
+
+.swap-wizard-row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: default;
+}
+
+label.swap-wizard-row-main,
+.swap-wizard-row-button {
+  cursor: pointer;
+}
+
+.swap-wizard-row-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.swap-wizard-row-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.swap-wizard-row-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.swap-wizard-printing {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.swap-wizard-qty {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.swap-wizard-thumb {
+  flex: none;
+  width: 2.25rem;
+  aspect-ratio: 488 / 680;
+  border-radius: 0.2rem;
+  overflow: hidden;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+}
+
+.swap-wizard-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.swap-wizard-list-name {
+  white-space: nowrap;
+}
+
+.swap-wizard-chip {
+  display: inline-block;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+}
+
+.swap-wizard-chip--foil,
+.swap-wizard-chip--etched {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.swap-wizard-chip-button {
+  cursor: pointer;
+}
+
+.swap-wizard-chip-button:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.swap-wizard-flags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-left: 0.4rem;
+}
+
+.swap-wizard-price {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.swap-wizard-price--none {
+  color: var(--text-muted);
+}
+
+.swap-wizard-link {
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* Take-count stepper on a candidate row */
+.swap-wizard-take {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.swap-wizard-take-btn {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.swap-wizard-take-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.swap-wizard-take-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.swap-wizard-take-input {
+  width: 3rem;
+  padding: 0.2rem 0.3rem;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--bg-body);
+  color: var(--text-body);
+  font: inherit;
+}
+
+.swap-wizard-take-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+/* Mode step controls */
+.swap-wizard-fieldset {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.swap-wizard-legend {
+  display: block;
+  margin-bottom: 0.35rem;
+  padding: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.swap-wizard-field {
+  display: flex;
+  flex-direction: column;
+  /* Keep the segmented toggle at its natural width instead of letting the
+     column's default `stretch` blow it out to the modal's full width. */
+  align-items: flex-start;
+}
+
+.swap-wizard-finish-toggle {
+  flex: 0 0 auto;
+}
+
+.swap-wizard-radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.swap-wizard-radio {
+  display: flex;
+  flex: 1 1 14rem;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.swap-wizard-radio--selected {
+  border-color: var(--accent);
+}
+
+.swap-wizard-radio--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.swap-wizard-radio input[type='radio'] {
+  margin-top: 0.2rem;
+}
+
+.swap-wizard-radio-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.swap-wizard-radio-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.swap-wizard-radio-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.swap-wizard-select {
+  max-width: 20rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--bg-body);
+  color: var(--text-body);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  font: inherit;
+}
+
+.swap-wizard-select:disabled {
+  opacity: 0.5;
+}
+
+/* Picker */
+.swap-wizard-pick-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.swap-wizard-pick-filters .printing-filter-row {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.swap-wizard-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.swap-wizard-grid-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.swap-wizard-grid-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.swap-wizard-grid-finishes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+/* Review table */
+.swap-wizard-table-wrap {
+  overflow-x: auto;
+}
+
+.swap-wizard-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.swap-wizard-table th,
+.swap-wizard-table td {
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.swap-wizard-table th {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.swap-wizard-review-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Summary */
+.swap-wizard-summary-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.swap-wizard-summary-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.swap-wizard-move {
+  display: inline-block;
+  width: 1rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.swap-wizard-move--in {
+  color: var(--success-text);
+}
+
+.swap-wizard-move--out {
+  color: var(--error-text);
+}
+
+.swap-wizard-total {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.swap-wizard-fallback {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--bg-subtle);
+}
+
+.swap-wizard-footer {
+  margin-top: 0;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border);
 }

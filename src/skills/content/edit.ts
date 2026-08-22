@@ -247,9 +247,28 @@ same operation is the \`📤 Move to Another List\` action in every type's edit 
 (a deck line moves with all its copies). Either way the card leaves the list you're
 editing, and on save **both** lists are
 written — removed from the source, added to the destination, with a changelog entry on
-each. Moving a printing-less card into a collection prompts for a specific printing
-first. Notes and label overrides never follow an editor/TUI move; the card's
+each. In a public-site export the move is recorded once, in the bundle's top-level
+\`moves\` array (never as a per-list change), and \`ritual import-changes\` applies it
+to both lists the same way. Moving a printing-less card into a collection prompts for
+a specific printing first. Notes and label overrides never follow an editor/TUI move; the card's
 **custom art** does, re-filed under the destination line's new \`&N\`.
+
+The web editors (admin and public) also offer a batch **Swap Printings…** wizard on decks and
+collections, built on the same moves: re-pick the printings of many lines at once using copies
+already owned in the *other* lists. Entry points are the action bar / navbar edit row (whole
+list), the **Selected** menu (pre-checked on the selection), and a pinned card's ⋯ menu (**Swap
+printing…**, that card alone). The steps are: tick cards (name-only lines are greyed and cannot
+be swapped); choose source lists (decks + collections on by default, wanted lists off but
+selectable; the edited list is never a source; only saved contents count); pick **Manual**,
+**Most expensive** or **Least expensive** mode — every mode offers a finish filter (it also
+seeds the picker's quick-filter) and where displaced copies go (back to each replacement's
+source, or one chosen deck/collection — never a wanted list), and the price modes add an
+unpriced-candidate policy (**Skip** / **Ignore** / **Ask me** = force a pick by hand); then
+per-card picking (manual mode goes straight on to the summary) or, in the price modes, a
+review with **Change…** overrides, and a summary with the moves grouped by list and value
+before → after. Applying records one **move in** per replacement
+copy and one **move out** per displaced copy into the editor's pending changes; Save (admin)
+writes both sides like any move, and a public export carries them in the bundle's \`moves\`.
 
 ## Interactive editor
 
@@ -320,9 +339,12 @@ discarded first.
 
 \`ritual import-changes\` applies a change bundle exported from the public site's
 edit mode (or the admin editor's Export panel) to the underlying list files. The
-JSON is a \`ritual-change-bundle\` covering one or more lists — the export panel's
-"This list" and "All lists" scopes both produce it. The full change list is
-previewed grouped by target list, and nothing is written until you confirm:
+JSON is a \`ritual-change-bundle\` (version 2) covering one or more lists — the export
+panel's "This list" and "All lists" scopes both produce it. Each list's own edits sit
+in \`lists[].changes\`; cross-list moves are normalized into one top-level \`moves\`
+array (source list, destination list, one entry per copy) instead of appearing in
+either list's changes. The full change list is previewed grouped by target list, moves
+included, and nothing is written until you confirm:
 
 \`\`\`bash
 ritual import-changes edits.json          # preview, then confirm interactively
@@ -341,8 +363,10 @@ from a partial one.
 
 Changes are re-targeted to each list's current \`&N\` card IDs (by ID when it still
 exists, else by card name); changes whose target card no longer exists are skipped
-and reported. Each list gets a changelog entry, and a failed list (e.g. one that no
-longer exists) is reported without stopping the rest. Exits non-zero when any list
+and reported. A move is applied to both of its lists — removed from the source, added
+to the destination — and a changelog entry is written on each. Every touched list gets
+a changelog entry, and a failed list (e.g. one that no longer exists) is reported
+without stopping the rest. Exits non-zero when any list
 fails. The same JSON can also be applied in the web admin's **Import Changes** page.
 
 ## Export cards (CSV, JSON, text, Markdown)

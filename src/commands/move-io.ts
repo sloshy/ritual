@@ -14,13 +14,20 @@ import {
 } from '../card-id'
 import {
   endsInsideOpenFence,
+  frontMatterBodyStart,
   markFencedLines,
   unreadableContentMessage,
   unreadableLines,
 } from '../markdown-fence'
-import type { DeckData } from '../types'
-import type { ListRef } from '../change-event'
+import type { Card, DeckData } from '../types'
+import type { ListRef, PrintingTuple } from '../change-event'
+import { displayLanguage } from '../card-language'
+import { findMatchKey } from '../site/find-search'
 import { t } from '../i18n/t'
+import { COLLECTION_CARD_LINE_RE, COLLECTION_LINE_LANGUAGE_GROUP } from '../collection-file'
+import { resolvePrinting, type CardPrinting } from '../card-line'
+import { isCondition, isFinish } from '../finish-condition'
+import { isCardLanguage } from '../card-language'
 import type { PhysicalCard } from './move-helpers'
 import {
   normalizedOverride,
@@ -151,61 +158,261 @@ export function applyRemoveFromStaged(staged: StagedFile, card: PhysicalCard): b
 }
 
 function applyRemoveFromDeck(staged: StagedDeckFile, card: PhysicalCard): boolean {
+  const match =
+    card.cardId !== undefined
+      ? (c: Card): boolean => c.cardId === card.cardId
+      : (c: Card): boolean =>
+          c.name === card.name &&
+          (card.set === undefined || c.set?.toLowerCase() === card.set.toLowerCase()) &&
+          (card.collectorNumber === undefined || c.collectorNumber === card.collectorNumber)
+  return removeDeckCopy(staged, match) !== null
+}
+
+/**
+ * Take one copy off the first deck line satisfying `match`: the line's quantity
+ * drops by one and the line (and an emptied section) goes at zero. Returns the
+ * line's id, or `null` when nothing matched.
+ */
+function removeDeckCopy(
+  staged: StagedDeckFile,
+  match: (card: Card) => boolean,
+): RemovedCopy | null {
   const { deck } = staged.data
   for (const section of deck.sections) {
-    const idx =
-      card.cardId !== undefined
-        ? section.cards.findIndex((c) => c.cardId === card.cardId)
-        : section.cards.findIndex(
-            (c) =>
-              c.name === card.name &&
-              (card.set === undefined || c.set?.toLowerCase() === card.set.toLowerCase()) &&
-              (card.collectorNumber === undefined || c.collectorNumber === card.collectorNumber),
-          )
-    if (idx !== -1) {
-      const c = section.cards[idx]!
-      c.quantity -= 1
-      if (c.quantity <= 0) section.cards.splice(idx, 1)
-      deck.sections = deck.sections.filter((s) => s.cards.length > 0)
-      return true
+    const idx = section.cards.findIndex(match)
+    if (idx === -1) continue
+    const c = section.cards[idx]!
+    c.quantity -= 1
+    if (c.quantity <= 0) section.cards.splice(idx, 1)
+    deck.sections = deck.sections.filter((s) => s.cards.length > 0)
+    return {
+      name: c.name,
+      cardId: c.cardId,
+      set: c.set?.toLowerCase(),
+      collectorNumber: c.collectorNumber,
+      finish: c.finish,
+      condition: c.condition,
+      language: c.language,
     }
   }
-  return false
+  return null
+}
+
+/** The `&N` a flat-list line ends with, if any. */
+function textLineCardId(trimmed: string): number | undefined {
+  const match = trimmed.match(/&(\d+)\s*$/)
+  return match ? Number(match[1]) : undefined
+}
+
+/**
+ * What a flat-list bullet says about its card, read through the canonical line
+ * grammar (`COLLECTION_CARD_LINE_RE`, of which a wanted line is a subset: no
+ * condition). Set code lowercased, as every in-memory representation is.
+ */
+type TextLineFields = PrintingTuple & { name: string; cardId?: number }
+
+/** The canonical parse of a flat-list bullet, or `undefined` when the line is not one. */
+function textLineFields(trimmed: string): TextLineFields | undefined {
+  const m = trimmed.match(COLLECTION_CARD_LINE_RE)
+  if (!m) return undefined
+  const language = m[COLLECTION_LINE_LANGUAGE_GROUP]
+  return {
+    name: m[1]!,
+    set: m[2]?.toLowerCase(),
+    collectorNumber: m[3],
+    finish: isFinish(m[4]) ? m[4] : undefined,
+    condition: isCondition(m[5]) ? m[5] : undefined,
+    language: language !== undefined && isCardLanguage(language) ? language : undefined,
+    cardId: m[9] !== undefined ? Number.parseInt(m[9], 10) : undefined,
+  }
+}
+
+/**
+ * Remove the first unfenced bullet line satisfying `match`. Returns the line's
+ * id, or `null` when nothing matched.
+ */
+function removeTextLine(
+  staged: StagedTextFile,
+  match: (trimmed: string) => boolean,
+): RemovedCopy | null {
+  const lines = staged.content.split('\n')
+  // A bullet inside a fenced code block is the user's prose example, never a
+  // card a move may take out of the file — and neither is a `- keep`-style
+  // YAML list item inside the front matter.
+  const fenced = markFencedLines(lines)
+  const bodyStart = frontMatterBodyStart(lines)
+  const targetIdx = lines.findIndex((line, idx) => {
+    if (idx < bodyStart || fenced[idx]) return false
+    const trimmed = line.trim()
+    return trimmed.startsWith('- ') && match(trimmed)
+  })
+  if (targetIdx === -1) return null
+  const trimmed = lines[targetIdx]!.trim()
+  // Precondition: every caller that persists the returned copy (the incoming
+  // matcher, whose `RemovedCopy.name` becomes a changelog line) matches
+  // through `textLineFields`, so a line it removes always parses. Only the
+  // id-only path of `applyRemoveFromText` — which discards the copy — can
+  // remove a line the canonical grammar cannot read; that copy reports its
+  // `&N` and an empty name, never the raw line text, so a future caller
+  // could not write the bullet itself into a changelog.
+  const removed: RemovedCopy = textLineFields(trimmed) ?? {
+    name: '',
+    cardId: textLineCardId(trimmed),
+  }
+  lines.splice(targetIdx, 1)
+  staged.content = collapseBlankRuns(lines)
+  return removed
 }
 
 function applyRemoveFromText(staged: StagedTextFile, card: PhysicalCard): boolean {
-  const lines = staged.content.split('\n')
-  // A bullet inside a fenced code block is the user's prose example, never a
-  // card a move may take out of the file.
-  const fenced = markFencedLines(lines)
-  const targetIdx = lines.findIndex((line, idx) => {
-    if (fenced[idx]) return false
-    const trimmed = line.trim()
-    if (!trimmed.startsWith('- ')) return false
-    // An ID is authoritative (mirrors the deck removal path): falling through
-    // to the name match on an ID miss could remove a sibling line that shares
-    // the printing but differs in finish or condition.
-    if (card.cardId !== undefined) {
-      return new RegExp(`&${card.cardId}\\s*$`).test(trimmed)
-    }
-    // Fallback: match by name, also using set/collectorNumber when available
-    const nameMatch = trimmed.match(/^- (.+?)(?:\s[([{&]|$)/)
-    if (nameMatch?.[1] !== card.name) return false
-    if (card.set !== undefined && card.collectorNumber !== undefined) {
-      const setMatch = trimmed.match(/\(([^:]+):([^)]+)\)/)
-      if (setMatch) {
-        return (
-          setMatch[1]?.toLowerCase() === card.set.toLowerCase() &&
-          setMatch[2] === card.collectorNumber
-        )
-      }
+  // An ID is authoritative (mirrors the deck removal path): falling through
+  // to the name match on an ID miss could remove a sibling line that shares
+  // the printing but differs in finish or condition.
+  if (card.cardId !== undefined) {
+    return removeTextLine(staged, (trimmed) => textLineCardId(trimmed) === card.cardId) !== null
+  }
+  // Fallback: match by name, also using set/collectorNumber when available
+  const removed = removeTextLine(staged, (trimmed) => {
+    const line = textLineFields(trimmed)
+    if (line === undefined || line.name !== card.name) return false
+    if (card.set !== undefined && card.collectorNumber !== undefined && line.set !== undefined) {
+      return (
+        line.set === card.set.toLowerCase() &&
+        line.collectorNumber?.toLowerCase() === card.collectorNumber.toLowerCase()
+      )
     }
     return true
   })
-  if (targetIdx === -1) return false
-  lines.splice(targetIdx, 1)
-  staged.content = collapseBlankRuns(lines)
-  return true
+  return removed !== null
+}
+
+/**
+ * The copy an incoming move takes out of its source list, as the `move-to`
+ * event describes it. `cardId` is the event's `sourceCardId` hint; the printing
+ * tuple is the one the copy arrives with — which a printing-less source line (a
+ * wanted entry, a name-only deck line) never carried.
+ */
+export type IncomingCopy = PrintingTuple & { name: string; cardId?: number }
+
+/**
+ * What a removal took out, as the line was written: its own name spelling,
+ * printing tuple (bare tokens left absent) and `&N`. The source changelog
+ * describes the line, not the event that asked for it.
+ */
+export type RemovedCopy = PrintingTuple & { name: string; cardId?: number }
+
+/** The line-side view the incoming tiers compare against, for a deck card or a flat-list bullet. */
+type LineView = RemovedCopy
+
+/** Whether two lines pin the same `SET:CN` (both lowercased), ignoring finish, condition and language. */
+function sameSetAndNumber(line: PrintingTuple, copy: CardPrinting): boolean {
+  return (
+    line.set?.toLowerCase() === copy.set &&
+    line.collectorNumber?.toLowerCase() === copy.collectorNumber.toLowerCase()
+  )
+}
+
+/**
+ * Whether a written line is the physical copy a `move-to` describes, printing
+ * included. A line with no finish token is "the printing's default finish" —
+ * which is exactly what the planner resolved the copy to (a bare line pinning
+ * a foil-only printing arrives as `finish: 'foil'`), so it matches an event of
+ * any finish; a tokened line still needs the exact finish. Condition and
+ * language fold to their bare-line defaults on both sides.
+ */
+function sameCopy(line: LineView, copy: IncomingCopy, printing: CardPrinting): boolean {
+  return (
+    sameSetAndNumber(line, printing) &&
+    (line.finish === undefined || line.finish === (copy.finish ?? 'nonfoil')) &&
+    (line.condition ?? 'NM') === (copy.condition ?? 'NM') &&
+    displayLanguage(line.language) === displayLanguage(copy.language)
+  )
+}
+
+/**
+ * The ordered matchers of {@link applyRemoveIncomingFromStaged}, shared by the
+ * deck and flat-list halves so both state one rule. Names compare the way the
+ * planner matched them — front face, case- and diacritic-folded — so a
+ * double-faced event finds its front-face line.
+ */
+function incomingTiers(copy: IncomingCopy): ((line: LineView) => boolean)[] {
+  const printing: CardPrinting | undefined = resolvePrinting(copy.set, copy.collectorNumber)
+  const nameKey = findMatchKey(copy.name)
+  const sameName = (line: LineView): boolean => findMatchKey(line.name) === nameKey
+  const printingless = (line: LineView): boolean =>
+    resolvePrinting(line.set, line.collectorNumber) === undefined
+  const tiers: ((line: LineView) => boolean)[] = []
+  if (copy.cardId !== undefined) {
+    // The id disambiguates sibling lines (same tuple, different `&N`) and is
+    // trusted regardless of finish; it is still guarded by name and, when the
+    // line pins a printing, by `SET:CN` — a freed `&N` is handed straight to
+    // the next card added, so a stale hint may sit on a same-named line that
+    // pins another printing.
+    tiers.push(
+      (line) =>
+        line.cardId === copy.cardId &&
+        sameName(line) &&
+        (printing === undefined || printingless(line) || sameSetAndNumber(line, printing)),
+    )
+  }
+  if (printing !== undefined) {
+    // The exact copy first — a line whose finish token states this finish —
+    // and only then a bare line of the printing (the printing's default
+    // finish, which matches any finish the planner resolved the copy to), so
+    // a `[foil]` line is taken for a foil copy however the file orders them.
+    tiers.push(
+      (line) => line.finish !== undefined && sameName(line) && sameCopy(line, copy, printing),
+    )
+    tiers.push(
+      (line) => line.finish === undefined && sameName(line) && sameCopy(line, copy, printing),
+    )
+  }
+  tiers.push((line) => sameName(line) && printingless(line))
+  if (printing === undefined) tiers.push((line) => sameName(line))
+  return tiers
+}
+
+/**
+ * Remove one copy for an incoming move (`move-to {from}` saved on the
+ * destination), resolving the source line in order of confidence:
+ *
+ * 1. the line carrying `cardId`, provided it names the same card and either
+ *    pins no printing or pins this `SET:CN` (finish is not consulted: the id
+ *    already tells sibling lines apart) — the hint is authoritative while it
+ *    is current, and guarded because a stale id (the source list was edited
+ *    since the move was staged) may now sit on an unrelated line;
+ * 2. the line that is this copy — same `SET:CN`, language and condition, and
+ *    the same finish unless the line carries no finish token at all (see
+ *    `sameCopy`);
+ * 3. a printing-less line of that name — the source never had a printing and
+ *    the event carries the one chosen on the way in (the wanted-list flow);
+ * 4. for an event that carries no printing at all, any line of that name.
+ *
+ * A line pinning a *different* printing — or a tokened line in another finish
+ * or language — is never taken: that would move a card the user did not
+ * choose. Returns the removed line as written, or `null` when no tier matched
+ * (the caller treats that as a failed, non-writing save).
+ */
+export function applyRemoveIncomingFromStaged(
+  staged: StagedFile,
+  copy: IncomingCopy,
+): RemovedCopy | null {
+  const tiers = incomingTiers(copy)
+  if (staged.kind === 'deck') {
+    for (const match of tiers) {
+      const removed = removeDeckCopy(staged, match)
+      if (removed !== null) return removed
+    }
+    return null
+  }
+  for (const match of tiers) {
+    const removed = removeTextLine(staged, (trimmed) => {
+      const line = textLineFields(trimmed)
+      return line !== undefined && match(line)
+    })
+    if (removed !== null) return removed
+  }
+  return null
 }
 
 /**
@@ -403,10 +610,7 @@ function applyAddCollectionLine(content: string, card: PhysicalCard): AppendedLi
 function applyAddWantedLine(content: string, card: PhysicalCard): AppendedLine {
   assertAppendable(content, card.name)
   const { nextId: cardId } = allocateNextIdFromContent(content)
-  const printing =
-    card.set && card.collectorNumber
-      ? { set: card.set, collectorNumber: card.collectorNumber }
-      : undefined
+  const printing = resolvePrinting(card.set, card.collectorNumber)
   const line = formatWantedListLine({
     name: card.name,
     printing,

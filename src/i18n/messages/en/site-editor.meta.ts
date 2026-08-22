@@ -38,6 +38,11 @@ export const siteEditorMeta = {
       'Edit-bar button opening the export panel. The ellipsis marks that a dialog follows.',
     maxLen: 14,
   },
+  'site.editor.swapPrintings': {
+    description:
+      'Edit-bar button opening the batch Swap Printings wizard for the whole list being edited. The ellipsis marks that a dialog follows.',
+    maxLen: 20,
+  },
   'site.editor.exitTitle': {
     description:
       'Title of the confirmation shown when leaving edit mode with unsaved edits — including edits to other lists made earlier in the same visit.',

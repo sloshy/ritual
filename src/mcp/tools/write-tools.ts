@@ -510,10 +510,13 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       title: 'Import change bundle',
       description:
         'Apply a change bundle exported from the site editor (format "ritual-change-bundle", ' +
-        'one or more lists) to the underlying lists. Changes are re-targeted to current ' +
-        'card IDs; ones whose target card no longer exists, whose action cannot apply to ' +
-        'the list, or which would set a foil/etched finish on a card that pins no printing, ' +
-        'are reported as skipped conflicts naming which of the three it was.',
+        'version 2: per-list "lists[].changes" plus a top-level normalized "moves" array, ' +
+        'one entry per copy moved between two lists) to the underlying lists. Each move is ' +
+        'applied to both its source and destination list, with a changelog entry on each. ' +
+        'Changes are re-targeted to current card IDs; ones whose target card no longer ' +
+        'exists, whose action cannot apply to the list, or which would set a foil/etched ' +
+        'finish on a card that pins no printing, are reported as skipped conflicts naming ' +
+        'which of the three it was.',
       inputSchema: z.object({
         json: z.string().min(1).describe('The exported change JSON, verbatim.'),
       }),

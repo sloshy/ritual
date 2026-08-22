@@ -1,5 +1,10 @@
 import { describe, test, expect } from 'bun:test'
-import { isUsableFileName, listFileName, sanitizeListFileName } from '../../src/list-file-name'
+import {
+  isUsableFileName,
+  listFileName,
+  sanitizeListFileName,
+  sameListName,
+} from '../../src/list-file-name'
 
 describe('sanitizeListFileName', () => {
   test('keeps the name as entered', () => {
@@ -55,5 +60,19 @@ describe('listFileName', () => {
 
   test('is null for an unusable name, so no file is ever named ".md"', () => {
     expect(listFileName('???')).toBeNull()
+  })
+})
+
+describe('sameListName', () => {
+  test('matches exact names and names that fold to the same form', () => {
+    expect(sameListName('My Deck', 'My Deck')).toBe(true)
+    expect(sameListName('Café', 'Cafe')).toBe(true)
+    expect(sameListName('winota-stax', 'Winota Stax')).toBe(true)
+    expect(sameListName('My Deck', 'Other')).toBe(false)
+  })
+
+  test('an empty or unfoldable name never matches, not even itself', () => {
+    expect(sameListName('', '')).toBe(false)
+    expect(sameListName('???', '!!!')).toBe(false)
   })
 })

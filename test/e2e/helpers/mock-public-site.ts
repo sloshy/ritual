@@ -3066,3 +3066,191 @@ export async function mockPublicSiteCollectionWithLanguages(page: Page): Promise
   await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_WITH_LANG_BINDER)
   await fulfillJson(page, '**/collections/lang-binder.json', MOCK_LANG_BINDER_DETAIL)
 }
+
+// ===== Swap Printings wizard =====
+// A deck being edited (one pinned Sol Ring, a pinned Arcane Signet and Mind
+// Stone nobody else owns, one name-only Lightning Bolt), a binder holding two other Sol Ring
+// printings (one priced well above the deck's, one unpriced), a second deck
+// holding the deck's own printing (never a candidate), and a wanted list with a
+// name-only Sol Ring (the printing-less candidate; wanted sources are off by
+// default). Every list's `printings` carries all three Sol Ring printings so the
+// deck tile can resolve whichever one a swap pins.
+
+/**
+ * Per-printing art for the swap fixture. Every other mock card shares
+ * `TINY_PNG`, which cannot tell one card's preview from another's — these are
+ * distinct 1x1 images so a hover assertion pins *which* card was previewed.
+ */
+export const SWAP_ART: Record<string, string> = {
+  'swap-ring-c21':
+    'data:image/gif;base64,R0lGODlhAQABAIAAAP8AAAAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
+  'swap-ring-lea':
+    'data:image/gif;base64,R0lGODlhAQABAIAAAAD/AAAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
+  'swap-signet-cmr':
+    'data:image/gif;base64,R0lGODlhAQABAIAAAAAA/wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
+}
+
+/** One Sol Ring printing for the swap fixture, priced (or not) as the test needs. */
+function makeSwapRing(set: string, collectorNumber: string, usd: string | null): ScryfallCard {
+  const id = `swap-ring-${set}`
+  return withImage(
+    makeMockScryfallCard({
+      id,
+      name: 'Sol Ring',
+      cmc: 1,
+      type_line: 'Artifact',
+      prices: { usd },
+      set,
+      set_name: `Set ${set.toUpperCase()}`,
+      collector_number: collectorNumber,
+    }),
+    SWAP_ART[id],
+  )
+}
+
+export const SWAP_RING_C21 = makeSwapRing('c21', '263', '1.50')
+export const SWAP_RING_LEA = makeSwapRing('lea', '270', '100.00')
+export const SWAP_RING_C19 = makeSwapRing('c19', '221', null)
+const SWAP_RING_PRINTINGS = [SWAP_RING_C21, SWAP_RING_LEA, SWAP_RING_C19]
+
+const SWAP_SIGNET = withImage(
+  makeMockScryfallCard({
+    id: 'swap-signet-cmr',
+    name: 'Arcane Signet',
+    cmc: 2,
+    type_line: 'Artifact',
+    prices: { usd: '2.00' },
+    set: 'cmr',
+    set_name: 'Commander Legends',
+    collector_number: '329',
+  }),
+  SWAP_ART['swap-signet-cmr'],
+)
+
+const SWAP_STONE = withImage(
+  makeMockScryfallCard({
+    id: 'swap-stone-cmr',
+    name: 'Mind Stone',
+    cmc: 2,
+    type_line: 'Artifact',
+    prices: { usd: '0.50' },
+    set: 'cmr',
+    set_name: 'Commander Legends',
+    collector_number: '318',
+  }),
+)
+
+const SWAP_BOLT = withImage(
+  makeMockScryfallCard({
+    id: 'swap-bolt-m10',
+    name: 'Lightning Bolt',
+    cmc: 1,
+    type_line: 'Instant',
+    prices: { usd: '1.00' },
+    set: 'm10',
+    set_name: 'Magic 2010',
+    collector_number: '146',
+    color_identity: ['R'],
+  }),
+)
+
+const SWAP_DECK = makeDeckDetail({
+  deck: {
+    name: 'Swap Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 },
+          { quantity: 1, name: 'Arcane Signet', set: 'cmr', collectorNumber: '329', cardId: 2 },
+          { quantity: 1, name: 'Mind Stone', set: 'cmr', collectorNumber: '318', cardId: 3 },
+          { quantity: 1, name: 'Lightning Bolt', cardId: 4 },
+        ],
+      },
+    ],
+  },
+  cards: {
+    'Sol Ring': SWAP_RING_C21,
+    'Arcane Signet': SWAP_SIGNET,
+    'Mind Stone': SWAP_STONE,
+    'Lightning Bolt': SWAP_BOLT,
+  },
+  printings: {
+    'Sol Ring': SWAP_RING_PRINTINGS,
+    'Arcane Signet': [SWAP_SIGNET],
+    'Mind Stone': [SWAP_STONE],
+    'Lightning Bolt': [SWAP_BOLT],
+  },
+  useScryfallImgUrls: true,
+})
+
+const SWAP_OTHER_DECK = makeDeckDetail({
+  deck: {
+    name: 'Swap Other',
+    sections: [
+      {
+        name: 'Main',
+        cards: [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 }],
+      },
+    ],
+  },
+  cards: { 'Sol Ring': SWAP_RING_C21 },
+  printings: { 'Sol Ring': SWAP_RING_PRINTINGS },
+  useScryfallImgUrls: true,
+})
+
+const SWAP_BINDER = makeCollectionDetail({
+  name: 'Swap Binder',
+  entries: [
+    makeCollectionEntry({
+      name: 'Sol Ring',
+      set: 'lea',
+      collectorNumber: '270',
+      price: 100,
+      fileOrder: 0,
+      cardId: 1,
+    }),
+    makeCollectionEntry({
+      name: 'Sol Ring',
+      set: 'c19',
+      collectorNumber: '221',
+      price: 0,
+      fileOrder: 1,
+      cardId: 2,
+    }),
+  ],
+  cards: { 'lea:270': SWAP_RING_LEA, 'c19:221': SWAP_RING_C19 },
+  printings: { 'Sol Ring': SWAP_RING_PRINTINGS },
+  useScryfallImgUrls: true,
+  totalPrice: 100,
+})
+
+const SWAP_WANTS = makeWantedDetail({
+  name: 'Swap Wants',
+  entries: [
+    { name: 'Sol Ring', price: 1.5, fileOrder: 0, section: 'Main', state: 'name-only', cardId: 1 },
+  ],
+  cards: { 'Sol Ring': SWAP_RING_C21 },
+  printings: { 'Sol Ring': SWAP_RING_PRINTINGS },
+  useScryfallImgUrls: true,
+  totalPrice: 1.5,
+})
+
+const SWAP_INDEX = makeSiteIndex({
+  decks: [
+    makeDeckSummary({ slug: 'swap-deck', name: 'Swap Deck', cardCount: 4 }),
+    makeDeckSummary({ slug: 'swap-other', name: 'Swap Other', cardCount: 1 }),
+  ],
+  collections: [makeCollectionSummary({ slug: 'swap-binder', name: 'Swap Binder', cardCount: 2 })],
+  wantedLists: [makeWantedListSummary({ slug: 'swap-wants', name: 'Swap Wants' })],
+  useScryfallImgUrls: true,
+})
+
+/** Serve the two decks + binder + wanted list for the Swap Printings wizard tests. */
+export async function mockPublicSiteForSwap(page: Page): Promise<void> {
+  await fulfillJson(page, '**/index.json', SWAP_INDEX)
+  await fulfillJson(page, '**/decks/swap-deck.json', SWAP_DECK)
+  await fulfillJson(page, '**/decks/swap-other.json', SWAP_OTHER_DECK)
+  await fulfillJson(page, '**/collections/swap-binder.json', SWAP_BINDER)
+  await fulfillJson(page, '**/wanted/swap-wants.json', SWAP_WANTS)
+}

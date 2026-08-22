@@ -25,6 +25,11 @@ export type BulkEditBundle = {
   /** Set the language on every selected card (`en` clears the line's token). */
   setLanguage: (cards: SelectedCard[], language: CardLanguage) => void
   changePrinting: (cards: SelectedCard[]) => void
+  /**
+   * Open the "Swap Printings" wizard pre-checked on the selection. Present for
+   * deck and collection editors; wanted lists hold no physical cards to swap.
+   */
+  swapPrintings?: (cards: SelectedCard[]) => void
   setCommander?: (cards: SelectedCard[]) => void
   /**
    * Present where the list type carries labels and its editor wires them —
@@ -69,6 +74,14 @@ export function buildSelectionEditActions(
       selection.clear()
     },
     changePrinting: apply(bulk.changePrinting),
+    // A getter, so the menu's `Show` tracks the live selection: the wizard only
+    // swaps pinned lines, so the item is offered only while at least one
+    // selected tile pins a printing (the per-card menu's `hasPrinting` gate).
+    get swapPrintings() {
+      const swap = bulk.swapPrintings
+      if (!swap || !selection.selected().some((c) => c.set && c.collectorNumber)) return undefined
+      return apply(swap)
+    },
     setCommander: bulk.setCommander ? apply(bulk.setCommander) : undefined,
     setLabel: setLabel
       ? (labels) => {

@@ -7,6 +7,7 @@ import {
   hasSpecificPrinting,
   printingLanguages,
   printingsAreComplete,
+  resolvePrintingCard,
 } from '../../src/card-printing'
 import { makePrintingIn as printing } from '../test-utils'
 
@@ -211,5 +212,34 @@ describe('finishMatchesPrinting', () => {
 
   test('clearing to nonfoil holds with or without a printing', () => {
     expect(finishMatchesPrinting({ finish: 'nonfoil' })).toBe(true)
+  })
+})
+
+describe('resolvePrintingCard', () => {
+  const cards = { 'Lightning Bolt': M10, 'clb:507a': CLB_ETCHED }
+
+  test('prefers the per-name printings, then the exact cards-map key, and never a different printing', () => {
+    expect(
+      resolvePrintingCard(PRINTINGS, cards, {
+        name: 'Lightning Bolt',
+        set: 'lea',
+        collectorNumber: '161',
+      }),
+    ).toBe(LEA)
+    expect(
+      resolvePrintingCard(undefined, cards, {
+        name: 'Lightning Bolt',
+        set: 'CLB',
+        collectorNumber: '507A',
+      }),
+    ).toBe(CLB_ETCHED)
+    // The M10 representative under the name is not this printing.
+    expect(
+      resolvePrintingCard(undefined, cards, {
+        name: 'Lightning Bolt',
+        set: 'sta',
+        collectorNumber: '42',
+      }),
+    ).toBeNull()
   })
 })

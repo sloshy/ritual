@@ -179,6 +179,8 @@ export const cliSyncMessages = {
   'cli.importChanges.confirmApply': 'Apply {changes} to {lists}?',
   'cli.importChanges.listHeading': "{name} ({type} '{slug}')",
   'cli.importChanges.previewHeading': '{heading} — {changes}',
+  'cli.importChanges.movesHeading': '🔀 Moves between lists — {moves}',
+  'cli.importChanges.moveLine': '{change} (from {from})',
   'cli.importChanges.listFailed': '{heading}: {reason}',
   'cli.importChanges.listApplied': '{heading}: applied {changes}',
   'cli.importChanges.listSkipped': '{heading}: {changes} skipped ({reasons})',

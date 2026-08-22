@@ -1,4 +1,4 @@
-import type { ChangeEvent } from '../change-event'
+import type { ChangeAction, ChangeEvent } from '../change-event'
 import type { MessageKey } from '../i18n/messages/en'
 import type { MissReason } from './apply-batch'
 
@@ -46,6 +46,24 @@ export type RetargetResult = {
   conflicts: ImportConflict[]
 }
 
+/**
+ * What a re-target learns about the ids it handed out, kept by the caller
+ * between calls: an import applies a list in several batches (its events
+ * interleave with other lists' in time), and a follow-up edit on a copy an
+ * earlier batch added can only be found through what that batch allocated.
+ */
+export type RetargetState = {
+  /** Exported id → the id this import gave the line it created. */
+  idMap: Map<number, number>
+  /** The id each card name was most recently added under, in this import. */
+  addedByName: Map<string, number>
+}
+
+/** A fresh {@link RetargetState}, for a single-batch caller or a new target. */
+export function createRetargetState(): RetargetState {
+  return { idMap: new Map(), addedByName: new Map() }
+}
+
 type RetargetParams = {
   changes: ChangeEvent[]
   /** Card IDs present in the current list before importing. */
@@ -54,9 +72,11 @@ type RetargetParams = {
   allocateId: () => number
   /** Resolve a card name to its current ID in the list, if present. */
   findIdByName: (name: string) => number | undefined
+  /** Carried across batches of the same list; a fresh state when omitted. */
+  state?: RetargetState
 }
 
-const SECTION_ACTIONS = new Set(['add-section', 'remove-section', 'rename-section'])
+const SECTION_ACTIONS = new Set<ChangeAction>(['add-section', 'remove-section', 'rename-section'])
 
 const withCardId = (change: ChangeEvent, cardId: number): ChangeEvent =>
   ({ ...change, cardId }) as ChangeEvent
@@ -67,24 +87,33 @@ const withCardId = (change: ChangeEvent, cardId: number): ChangeEvent =>
  *
  * - `add` and `move-to` changes get a fresh ID from the pool (both *create* an
  *   entry in this list, so an exported ID is nothing to target), and later
- *   changes that referenced that card by its exported ID are remapped to it.
+ *   changes that referenced that card by its exported ID are remapped to it. A
+ *   second add/move-to naming an exported id already allocated here reuses
+ *   that id: the exporting editor put those copies on one line (a deck merges
+ *   same-tuple copies), so they share the line here too.
  * - other card changes keep their ID when it still exists, otherwise fall back to
- *   matching by card name; when neither resolves, the change is reported as a
- *   conflict rather than silently retargeted or dropped.
+ *   matching by card name — first against a card this same import added (a
+ *   bundle move recorded on its source side carries no destination id, so a
+ *   follow-up edit on the copy it brought in can only be found this way), then
+ *   against the list as loaded;
+ *   when neither resolves, the change is reported as a conflict rather than
+ *   silently retargeted or dropped.
  * - section-structural changes (add/remove/rename-section) pass through unchanged.
  *
  * Pure and deterministic given the same inputs, so it is unit-tested directly.
  */
 export function retargetImportedChanges(params: RetargetParams): RetargetResult {
   const { changes, currentIds, allocateId, findIdByName } = params
-  const idMap = new Map<number, number>()
+  const { idMap, addedByName } = params.state ?? createRetargetState()
   const retargeted: ChangeEvent[] = []
   const conflicts: ImportConflict[] = []
 
   for (const change of changes) {
     if (change.action === 'add' || change.action === 'move-to') {
-      const newId = allocateId()
+      const mapped = change.cardId === undefined ? undefined : idMap.get(change.cardId)
+      const newId = mapped ?? allocateId()
       if (change.cardId !== undefined) idMap.set(change.cardId, newId)
+      addedByName.set(change.cardName, newId)
       retargeted.push(withCardId(change, newId))
       continue
     }
@@ -115,8 +144,9 @@ export function retargetImportedChanges(params: RetargetParams): RetargetResult 
       }
     }
 
-    // Fall back to resolving by card name.
-    const byName = findIdByName(cardName)
+    // Fall back to resolving by card name — a copy this import just added
+    // first, since an unresolved exported id most plausibly named it.
+    const byName = addedByName.get(cardName) ?? findIdByName(cardName)
     if (byName !== undefined) {
       retargeted.push(withCardId(change, byName))
       continue

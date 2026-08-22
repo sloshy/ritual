@@ -264,15 +264,20 @@ export function applyChangeToCollection(
 
     case 'move-to':
       // A move into this list adds the card (e.g. when importing a destination list's changes).
-      return applyChangeToCollection(entries, {
-        action: 'add',
-        cardName: change.cardName,
-        cardId: change.cardId,
-        set: change.set,
-        collectorNumber: change.collectorNumber,
-        finish: change.finish,
-        condition: change.condition,
-        language: change.language,
-      })
+      return applyChangeToCollection(
+        entries,
+        {
+          action: 'add',
+          cardName: change.cardName,
+          cardId: change.cardId,
+          set: change.set,
+          collectorNumber: change.collectorNumber,
+          finish: change.finish,
+          condition: change.condition,
+          language: change.language,
+          section: change.section,
+        },
+        options,
+      )
   }
 }

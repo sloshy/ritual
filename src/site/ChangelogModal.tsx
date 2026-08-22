@@ -80,7 +80,7 @@ export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
             class={`changelog-card-tooltip ${tooltip() ? 'visible' : ''}`}
             style={{ left: `${tooltipPos().left}px`, top: `${tooltipPos().top}px` }}
           >
-            <Show when={tooltip()}>{(tip) => <img src={tip().src} alt="" />}</Show>
+            <Show when={tooltip()?.src}>{(src) => <img src={src()} alt="" />}</Show>
           </div>
         }
       >

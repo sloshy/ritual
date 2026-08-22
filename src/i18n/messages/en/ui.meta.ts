@@ -157,6 +157,11 @@ export const uiMeta = {
       'Action bar button opening the dialog that loads an exported change file. The ellipsis marks that a dialog follows.',
     maxLen: 16,
   },
+  'ui.editor.swapPrintings': {
+    description:
+      'Action-bar button (admin editor) opening the batch Swap Printings wizard for the whole list. The ellipsis marks that a dialog follows.',
+    maxLen: 20,
+  },
   'ui.editor.changes': {
     description:
       'Action bar button listing the edits made but not yet saved. Carries a count badge.',
@@ -380,6 +385,10 @@ export const uiMeta = {
     description: 'Menu row moving the card out of this list and into another one.',
     maxLen: 24,
   },
+  'ui.cardMenu.swapPrinting': {
+    description:
+      'Card menu item opening the Swap Printings wizard for this one card, jumping straight to its printing picker.',
+  },
   'ui.cardMenu.findInLists': {
     description: 'Menu row searching every list for other copies and printings of this card.',
     maxLen: 24,
@@ -544,6 +553,331 @@ export const uiMeta = {
   'ui.hint.addAnother': {
     description: 'Footer key hint: Ctrl+Enter adds the card and starts another.',
     maxLen: 16,
+  },
+  'ui.swap.title': {
+    description:
+      'Heading of the Swap Printings wizard, a multi-step dialog that re-picks printings for cards using copies owned in other lists.',
+    maxLen: 24,
+  },
+  'ui.swap.aria': { description: 'Screen-reader name of the Swap Printings wizard dialog.' },
+  'ui.swap.back': { description: 'Button returning to the previous wizard step.', maxLen: 12 },
+  'ui.swap.next': { description: 'Button advancing to the next wizard step.', maxLen: 12 },
+  'ui.swap.apply': {
+    description:
+      'Final button of the wizard: writes the planned moves into the editor (nothing is saved to disk yet).',
+    maxLen: 12,
+  },
+  'ui.swap.discard': {
+    description: 'Final button of the wizard that closes it without applying anything.',
+    maxLen: 12,
+  },
+  'ui.swap.step.cards': {
+    description: 'Step indicator label: choosing which cards to swap.',
+    maxLen: 12,
+  },
+  'ui.swap.step.sources': {
+    description: 'Step indicator label: choosing which other lists may supply printings.',
+    maxLen: 12,
+  },
+  'ui.swap.step.mode': {
+    description:
+      'Step indicator label: choosing how replacements are picked (manually or by price).',
+    maxLen: 12,
+  },
+  'ui.swap.step.pick': {
+    description: 'Step indicator label: the per-card printing picker.',
+    maxLen: 12,
+  },
+  'ui.swap.step.review': {
+    description: 'Step indicator label: reviewing what the automatic mode chose.',
+    maxLen: 12,
+  },
+  'ui.swap.step.summary': {
+    description: 'Step indicator label: the final summary of planned moves.',
+    maxLen: 12,
+  },
+  'ui.swap.copies': {
+    description: 'A number of physical copies of one card. {count} is a whole number.',
+  },
+  'ui.swap.quantity': {
+    description: 'Compact quantity marker beside a card, like "×4". {count} is a whole number.',
+    maxLen: 8,
+  },
+  'ui.swap.noPrice': {
+    description:
+      'Stand-in shown where a price would go when no market value is known. Keep it a short dash-like placeholder.',
+    maxLen: 4,
+  },
+  'ui.swap.cards.heading': { description: 'Heading of the Cards step.' },
+  'ui.swap.cards.selectAll': { description: 'Button checking every eligible card.', maxLen: 16 },
+  'ui.swap.cards.selectNone': { description: 'Button unchecking every card.', maxLen: 16 },
+  'ui.swap.cards.selected': {
+    description:
+      'Counter under the card list: how many cards are checked out of how many are eligible. Both are whole numbers.',
+    maxLen: 32,
+  },
+  'ui.swap.cards.noPrintingSet': {
+    description:
+      'Note on a greyed-out card row that cannot be chosen because its line names no specific printing.',
+    maxLen: 20,
+  },
+  'ui.swap.cards.none': {
+    description: 'Empty state of the Cards step when no line of the list names a printing.',
+  },
+  'ui.swap.sources.heading': { description: 'Heading of the Sources step.' },
+  'ui.swap.sources.label': {
+    description: 'Caption in front of the list-scope control on the Sources step.',
+    maxLen: 24,
+  },
+  'ui.swap.sources.note': {
+    description:
+      'Explanation under the Sources step: wanted lists start unchecked because their entries are not physical cards.',
+  },
+  'ui.swap.sources.none': {
+    description: 'Empty state of the Sources step when the user has no other list at all.',
+  },
+  'ui.swap.sources.selectedCount': {
+    description: 'Counter of how many lists are currently in scope. {count} is a whole number.',
+  },
+  'ui.swap.sources.loading': {
+    description: 'Status text while the contents of the chosen source lists are being fetched.',
+  },
+  'ui.swap.sources.loadFailed': {
+    description: 'Error text when fetching the chosen source lists failed.',
+  },
+  'ui.swap.sources.someFailed': {
+    description:
+      'Warning shown once the source lists loaded but some could not be read: those lists\u2019 copies are left out of the candidates. {count} is the number of unreadable lists.',
+  },
+  'ui.swap.mode.heading': { description: 'Heading of the Mode step.' },
+  'ui.swap.mode.manual': {
+    description: 'Mode radio: the user picks a printing per card by hand.',
+    maxLen: 16,
+  },
+  'ui.swap.mode.manualHint': { description: 'One-line explanation under the Manual mode radio.' },
+  'ui.swap.mode.mostExpensive': {
+    description: 'Mode radio: automatically prefer the highest-priced owned copies.',
+    maxLen: 20,
+  },
+  'ui.swap.mode.mostExpensiveHint': {
+    description: 'One-line explanation under the Most expensive mode radio.',
+  },
+  'ui.swap.mode.leastExpensive': {
+    description: 'Mode radio: automatically prefer the lowest-priced owned copies.',
+    maxLen: 20,
+  },
+  'ui.swap.mode.leastExpensiveHint': {
+    description: 'One-line explanation under the Least expensive mode radio.',
+  },
+  'ui.swap.unpriced.label': {
+    description:
+      'Label of the three-way control deciding what an automatic mode does with a card that has a candidate (or current printing) with no known price.',
+  },
+  'ui.swap.unpriced.skip': {
+    description: 'Unpriced policy radio: leave such a card unchanged.',
+    maxLen: 12,
+  },
+  'ui.swap.unpriced.skipHint': { description: 'One-line explanation of the Skip policy.' },
+  'ui.swap.unpriced.ignore': {
+    description: 'Unpriced policy radio: rank only the options that have a price.',
+    maxLen: 12,
+  },
+  'ui.swap.unpriced.ignoreHint': { description: 'One-line explanation of the Ignore policy.' },
+  'ui.swap.unpriced.force': {
+    description: 'Unpriced policy radio: hand such a card to the manual picker.',
+    maxLen: 12,
+  },
+  'ui.swap.unpriced.forceHint': { description: 'One-line explanation of the Ask-me policy.' },
+  'ui.swap.unpriced.note': {
+    description:
+      'Reassurance under the unpriced control: a missing price is missing data, not a zero value.',
+  },
+  'ui.swap.finish.label': {
+    description:
+      'Label of the finish filter (any / foil / nonfoil) restricting which owned copies are offered.',
+    maxLen: 16,
+  },
+  'ui.swap.finish.any': { description: 'Finish filter option: no restriction.', maxLen: 10 },
+  'ui.swap.finish.foil': {
+    description: 'Finish filter option: foil treatments only (foil or etched).',
+    maxLen: 10,
+  },
+  'ui.swap.finish.nonfoil': { description: 'Finish filter option: plain copies only.', maxLen: 10 },
+  'ui.swap.displaced.label': {
+    description: 'Label of the control deciding where the copies being replaced go.',
+    maxLen: 20,
+  },
+  'ui.swap.displaced.swap': {
+    description:
+      'Displaced-copies radio: each replaced copy goes back to the list its replacement came from.',
+  },
+  'ui.swap.displaced.swapHint': { description: 'One-line explanation of the swap policy.' },
+  'ui.swap.displaced.override': {
+    description:
+      'Displaced-copies radio: every replaced copy goes to one chosen list (a select follows).',
+  },
+  'ui.swap.displaced.choose': {
+    description: 'Placeholder option of the destination-list select.',
+    maxLen: 16,
+  },
+  'ui.swap.pick.heading': {
+    description: 'Heading of the per-card picker. {name} is the card name.',
+  },
+  'ui.swap.pick.progress': {
+    description: 'Position counter in the picker, e.g. "2 of 5". Both are whole numbers.',
+    maxLen: 24,
+  },
+  'ui.swap.pick.prev': {
+    description: 'Button moving to the previous card in the picker.',
+    maxLen: 16,
+  },
+  'ui.swap.pick.next': { description: 'Button moving to the next card in the picker.', maxLen: 16 },
+  'ui.swap.pick.keep': {
+    description:
+      "Label of the picker row standing for the card's current printing (copies not reassigned stay as they are).",
+    maxLen: 16,
+  },
+  'ui.swap.pick.assigned': {
+    description:
+      "Footer of the picker: how many of the card's copies have been given a new printing. Both are whole numbers.",
+  },
+  'ui.swap.pick.available': {
+    description: 'How many copies a candidate row can supply. {count} is a whole number.',
+    maxLen: 24,
+  },
+  'ui.swap.pick.take': {
+    description: 'Screen-reader name of the number input on a candidate row.',
+  },
+  'ui.swap.pick.noCandidates': {
+    description:
+      'Empty state of the picker when the chosen source lists hold no other copy of the card.',
+  },
+  'ui.swap.pick.printingless': {
+    description:
+      'Printing label of a candidate row that stands for name-only entries (no set/collector number yet).',
+    maxLen: 20,
+  },
+  'ui.swap.pick.printinglessPrompt': {
+    description:
+      'Question shown when the user clicks a printing-less candidate row: it lists the name-only entries and asks the user to pick one.',
+  },
+  'ui.swap.pick.printinglessHint': {
+    description:
+      'Explanation under the printing-less prompt: picking one opens the full printing chooser and removes the entry from its list when applied.',
+  },
+  'ui.swap.pick.printinglessNo': {
+    description: 'Button dismissing the printing-less prompt and returning to the candidate rows.',
+  },
+  'ui.swap.pick.choosePrinting': {
+    description:
+      'Heading of the full printing grid opened for a printing-less entry. {name} is the card name.',
+  },
+  'ui.swap.pick.chosen': {
+    description:
+      'Shown on a printing-less row once a printing was picked for it. {printing} is a SET:number label.',
+    maxLen: 24,
+  },
+  'ui.swap.pick.changePrinting': {
+    description:
+      'Button on a printing-less row reopening the printing grid to pick a different printing.',
+    maxLen: 20,
+  },
+  'ui.swap.pick.backToRows': {
+    description: 'Button leaving the printing grid and returning to the candidate rows.',
+    maxLen: 20,
+  },
+  'ui.swap.pick.printingsFailed': {
+    description: "Error text in the printing grid when fetching the card's printings failed.",
+  },
+  'ui.swap.review.heading': {
+    description: 'Heading of the Review step after an automatic mode ran.',
+  },
+  'ui.swap.review.card': { description: 'Review table column: the card name.', maxLen: 12 },
+  'ui.swap.review.current': {
+    description: 'Review table column: the printing the card has now.',
+    maxLen: 12,
+  },
+  'ui.swap.review.chosen': {
+    description: 'Review table column: the printing(s) chosen to replace it.',
+    maxLen: 12,
+  },
+  'ui.swap.review.value': {
+    description: 'Review table column: the price before and after the swap.',
+    maxLen: 12,
+  },
+  'ui.swap.review.keep': {
+    description:
+      'Review line for copies that stay on the current printing. {count} is a whole number.',
+  },
+  'ui.swap.review.unchanged': {
+    description: 'Review line when no copy of a card is being swapped.',
+    maxLen: 16,
+  },
+  'ui.swap.review.change': {
+    description: 'Button on a review row opening the manual picker for that card.',
+    maxLen: 12,
+  },
+  'ui.swap.flag.noCandidates': {
+    description: 'Review chip: no other copy of the card exists in the chosen lists.',
+    maxLen: 20,
+  },
+  'ui.swap.flag.unpriced': {
+    description: 'Review chip: an option with no known price took part (or was skipped).',
+    maxLen: 20,
+  },
+  'ui.swap.flag.needsManual': {
+    description: 'Review chip: the automatic mode left this card for the user to pick by hand.',
+    maxLen: 24,
+  },
+  'ui.swap.flag.partial': {
+    description: 'Review chip: only some copies could be swapped before the supply ran out.',
+    maxLen: 12,
+  },
+  'ui.swap.flag.needsDisplaced': {
+    description:
+      'Review/summary chip: a replaced copy would go to a wanted list, so a real destination must be chosen.',
+    maxLen: 32,
+  },
+  'ui.swap.summary.heading': { description: 'Heading of the final Summary step.', maxLen: 16 },
+  'ui.swap.summary.noMoves': {
+    description:
+      'Empty state of the Summary step: no card was given a new printing, so there is nothing to apply.',
+  },
+  'ui.swap.summary.fallbackLabel': {
+    description:
+      'Label of the required select on the Summary step choosing which real list receives copies displaced by replacements taken from a wanted list.',
+  },
+  'ui.swap.summary.fallbackRequired': {
+    description: 'Validation hint under the fallback select while it is still empty.',
+  },
+  'ui.swap.summary.takes': {
+    description:
+      "Summary group heading for copies the edited list takes from another list. {list} is that list's name.",
+  },
+  'ui.swap.summary.sends': {
+    description:
+      "Summary group heading for copies the edited list sends to another list. {list} is that list's name.",
+  },
+  'ui.swap.summary.moveLine': {
+    description:
+      'One move in the summary: a count, the card name and its SET:number printing label.',
+  },
+  'ui.swap.summary.valueHeading': {
+    description: 'Heading of the price-totals block on the Summary step.',
+    maxLen: 12,
+  },
+  'ui.swap.summary.listTotal': {
+    description:
+      'Total value of the edited list before and after the swap. {before}/{after} are formatted prices or the "unknown" word.',
+  },
+  'ui.swap.summary.cardDelta': {
+    description:
+      'One card\'s value before and after the swap. {before}/{after} are formatted prices or the "unknown" word.',
+  },
+  'ui.swap.summary.unknown': {
+    description:
+      'Stand-in for a price total that cannot be computed because some copy has no known price.',
+    maxLen: 12,
   },
   'ui.shortcuts.title': { description: 'Title of the keyboard shortcuts reference dialog.' },
   'ui.shortcuts.macNote': {

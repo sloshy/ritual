@@ -65,6 +65,7 @@ export const domainMessages = {
   },
   'domain.count.sources': { $plural: 'count', one: '{count} source', other: '{count} sources' },
   'domain.count.changes': { $plural: 'count', one: '{count} change', other: '{count} changes' },
+  'domain.count.moves': { $plural: 'count', one: '{count} move', other: '{count} moves' },
   'domain.count.pickedCards': {
     $plural: 'count',
     one: '{count} picked card',

@@ -48,6 +48,7 @@ import { addedCopyArtActions, artIdsResetByUndo } from './pending-art'
 import { useNavigationGuard } from './navigation-guard'
 import { clampQuantity } from '../ui/quantity'
 import type { ApplyChange } from './apply-batch'
+import type { SwapSourceProvider } from './swap-printings'
 
 export type ListItem = { slug: string; name: string }
 
@@ -282,6 +283,13 @@ export type EditorConfig<TData> = {
   moveTargets?: (currentSlug: string | null) => ListRef[]
 
   /**
+   * The other lists the "Swap Printings" wizard may draw replacement copies
+   * from, and how to load them. Omit to leave the wizard out of this editor
+   * (wanted lists, which hold no physical cards).
+   */
+  swapSources?: SwapSourceProvider
+
+  /**
    * The currency price displays should use, as a reactive accessor. The admin
    * editors pass the configured default currency (from `/api/config`); the
    * public editors pass the site's active currency. Defaults to USD.
@@ -392,6 +400,8 @@ export type UseEditorResult<TData, TCardEntry> = {
 
   /** The other lists a card here can be moved to (excludes the current list). */
   moveTargets: () => ListRef[]
+  /** The swap wizard's source provider, when the config supplies one. */
+  swapSources: () => SwapSourceProvider | undefined
 
   /** The active in-app text prompt (section naming), or null when none is open. */
   textPrompt: Accessor<TextPromptState | null>
@@ -1159,6 +1169,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     handleMoveCardToSection,
     handleMoveCardsToSection,
     moveTargets: () => config.moveTargets?.(slug()) ?? [],
+    swapSources: () => config.swapSources,
 
     textPrompt,
     closeTextPrompt,

@@ -38,9 +38,10 @@ import { ExportPanel, type ExportListGroup, type ExportScope } from './editor/Ex
 import {
   CHANGE_BUNDLE_FILENAME,
   COMBINED_BUNDLE_FILENAME,
-  buildChangeBundle,
+  bundleFromChangeGroups,
   serializeChangeBundle,
 } from '../editor/change-bundle'
+import { resolveKnownListSlug, setKnownLists } from './editor/list-slug-resolver'
 import { QuickSwitch, useQuickSwitchShortcut } from './QuickSwitch'
 import { routeIdentity, useRouting } from './useRouting'
 import { useSiteData } from './useSiteData'
@@ -254,6 +255,8 @@ function App() {
     for (const w of wantedListList() ?? []) out.push({ type: 'wanted', slug: w.slug, name: w.name })
     return out
   })
+  // Register the roster so change-bundle exports can stamp slugs onto moves.
+  createEffect(() => setKnownLists(allNamedLists()))
 
   // Every list as a move destination (all are offered; per-card self-moves are skipped).
   const moveAllTargets = (): NamedListRef[] => allNamedLists()
@@ -323,7 +326,9 @@ function App() {
 
   const buildOffListJson = (scope: ExportScope): string => {
     const lists = scope === 'combined' ? (combinedEditedGroups() ?? []) : allEditedGroups()
-    return serializeChangeBundle(buildChangeBundle({ lists, exportedAt: new Date().toISOString() }))
+    return serializeChangeBundle(
+      bundleFromChangeGroups(lists, new Date().toISOString(), resolveKnownListSlug),
+    )
   }
 
   const activeTab = createMemo(() => {

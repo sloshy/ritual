@@ -21,6 +21,7 @@ import { createSellSummary, useSellMode, type QuoteSource } from './useSellMode'
 import { sellableFromCardData } from './sell-value'
 import type { SellModeProps } from './sell-mode'
 import { finishName, rarityName } from './printing-display'
+import { TooltipOverlay } from './TooltipOverlay'
 import { useTooltip } from './useTooltip'
 import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
@@ -452,15 +453,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
       </div>
 
       {/* List-view hover tooltip */}
-      <div
-        ref={tooltipRef}
-        class={`list-tooltip ${tooltip() ? 'visible' : ''} ${tooltip()?.sideways ? 'list-tooltip-sideways' : ''}`}
-        style={`left:${tooltipPos().left}px;top:${tooltipPos().top}px;`}
-      >
-        <Show when={tooltip()}>
-          <img src={tooltip()!.src} alt="" class={tooltip()!.sideways ? 'tooltip-rotated' : ''} />
-        </Show>
-      </div>
+      <TooltipOverlay tooltip={tooltip()} pos={tooltipPos()} tooltipRef={tooltipRef} />
 
       {/* Card detail modal */}
       <CardModal

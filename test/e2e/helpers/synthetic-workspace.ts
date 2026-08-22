@@ -18,6 +18,13 @@ import { localeTag } from '../../../src/i18n/locale-tag'
 export const SYNTHETIC_DECK_SLUG = 'test-unset-commander'
 /** Collection slug (public site + admin) that specs may navigate to directly. */
 export const SYNTHETIC_COLLECTION_SLUG = 'test-binder'
+/**
+ * Deck + collection reserved for the admin Swap Printings spec, which saves
+ * through the real server: the deck pins Sol Ring C21:263, the binder holds the
+ * LEA:270 copy a swap pulls in. No other spec reads or writes these two.
+ */
+export const SYNTHETIC_SWAP_DECK_SLUG = 'test-swap-deck'
+export const SYNTHETIC_SWAP_COLLECTION_SLUG = 'test-swap-binder'
 
 type SeedPrinting = {
   id: string
@@ -412,6 +419,23 @@ tags: []
 1 Serra Angel &4
 `
 
+const DECK_TEST_SWAP = `---
+name: "Test Swap Deck"
+tags: []
+---
+
+## Main
+1 Sol Ring (C21:263) &1
+1 Counterspell &2
+`
+
+const COLLECTION_TEST_SWAP_BINDER = `# Test Swap Binder
+
+## Main
+- Sol Ring (LEA:270) &1
+- Dark Ritual (LEA:98) &2
+`
+
 const COLLECTION_TEST_BINDER = `# Test Binder
 
 ## Main
@@ -477,9 +501,14 @@ export function createSyntheticWorkspace(dir: string): void {
 
   fs.writeFileSync(path.join(decksDir, `${SYNTHETIC_DECK_SLUG}.md`), DECK_TEST_UNSET_COMMANDER)
   fs.writeFileSync(path.join(decksDir, 'emberwild-aggro.md'), DECK_EMBERWILD_AGGRO)
+  fs.writeFileSync(path.join(decksDir, `${SYNTHETIC_SWAP_DECK_SLUG}.md`), DECK_TEST_SWAP)
   fs.writeFileSync(
     path.join(collectionsDir, `${SYNTHETIC_COLLECTION_SLUG}.md`),
     COLLECTION_TEST_BINDER,
+  )
+  fs.writeFileSync(
+    path.join(collectionsDir, `${SYNTHETIC_SWAP_COLLECTION_SLUG}.md`),
+    COLLECTION_TEST_SWAP_BINDER,
   )
   fs.writeFileSync(path.join(wantedDir, 'test-wants.md'), WANTED_TEST_WANTS)
 

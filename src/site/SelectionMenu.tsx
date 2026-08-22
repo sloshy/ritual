@@ -76,6 +76,8 @@ export interface SelectionEditActions {
    */
   setLanguage?: (language: CardLanguage) => void
   changePrinting: () => void
+  /** Open the swap wizard on the selection. Present for deck and collection editors only. */
+  swapPrintings?: () => void
   /** Present for decks only. */
   setCommander?: () => void
   /**
@@ -366,6 +368,18 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
             >
               {t('site.selection.changePrinting')}
             </button>
+            <Show when={actions().swapPrintings}>
+              {(swapPrintings) => (
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="selection-menu-item"
+                  onClick={() => runEdit(swapPrintings())}
+                >
+                  {t('site.selection.swapPrintings')}
+                </button>
+              )}
+            </Show>
             <Show when={actions().setCommander}>
               {(setCommander) => (
                 <button

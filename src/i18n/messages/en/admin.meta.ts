@@ -680,6 +680,14 @@ export const adminMeta = {
     description:
       'One list’s preview heading. {slug} is the file name (never translated) and {changes} an already-rendered counted phrase. One branch per list type.',
   },
+  'admin.importChanges.previewMoves': {
+    description:
+      'Heading over the preview group of cross-list moves (a bundle records each move once, with a source and a destination list). {moves} is an already-rendered counted phrase such as "2 moves".',
+  },
+  'admin.importChanges.previewMove': {
+    description:
+      'One move in the preview. {from} is the source list’s name and {change} a rendered change line such as "Move Sol Ring (C19:221) to collection ‘Binder’".',
+  },
   'admin.importChanges.applying': {
     description: 'Button label while the bundle is being applied.',
   },

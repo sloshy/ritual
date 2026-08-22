@@ -137,6 +137,7 @@ export const siteCardsMessages = {
   'site.selection.setNonfoil': 'Set as Nonfoil',
   'site.selection.setLanguage': 'Set Language…',
   'site.selection.changePrinting': 'Change Printing…',
+  'site.selection.swapPrintings': 'Swap Printings…',
   'site.selection.setCommander': 'Set as Commander',
   'site.selection.setLabel': 'Set Label…',
   'site.selection.moveToSection': 'Move to section…',

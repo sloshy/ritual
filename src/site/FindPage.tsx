@@ -7,7 +7,7 @@ import { seedBuylistQuotes } from './buylist-quotes'
 import { sellModeActive } from './sell-mode'
 import { cardPriceText, cardPricelessReason } from './priceless'
 import { useT } from '../ui/i18n'
-import { LIST_TYPES, LIST_TYPE_DISPLAY, listTypeTitle, type ListType } from '../list-type'
+import { LIST_TYPE_DISPLAY, listTypeTitle, type ListType } from '../list-type'
 import { CardItem } from './CardItem'
 import { CardModal } from './CardModal'
 import { finishName, rarityName } from './printing-display'
@@ -33,14 +33,8 @@ import {
   mergeSymbolMaps,
 } from './combined-list'
 import { cardMatchKey, findMatchKey, parseSearchLines, partitionSearch } from './find-search'
-import {
-  enabledScopeRefs,
-  refsOfType,
-  toggleListExclusion,
-  toggleTypeExclusion,
-  typeScopeState,
-} from './find-scope'
-import { indeterminateRef } from '../ui/indeterminate'
+import { enabledScopeRefs } from './find-scope'
+import { ListScopePicker } from './ListScopePicker'
 import { setSearchResultsData } from './search-results-state'
 import { isAbortError } from './utils'
 
@@ -80,7 +74,6 @@ export const FindPage: Component<FindPageProps> = (props) => {
   // is searched by default. Applied at search time — results from an earlier
   // search stay visible if their list is excluded afterwards.
   const [excluded, setExcluded] = createSignal<Set<ListRefKey>>(new Set<ListRefKey>())
-  const [expandedTypes, setExpandedTypes] = createSignal<Set<ListType>>(new Set<ListType>())
 
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
 
@@ -326,81 +319,12 @@ export const FindPage: Component<FindPageProps> = (props) => {
         spellcheck={false}
       />
 
-      <div class="find-scope">
-        <span class="find-scope-label">{t('site.find.scopeLabel')}</span>
-        <For each={LIST_TYPES}>
-          {(type) => {
-            const ofType = createMemo<NamedListRef[]>(() => refsOfType(props.lists(), type))
-            const state = createMemo<SelectionState>(() =>
-              typeScopeState(excluded(), props.lists(), type),
-            )
-            const enabledCount = createMemo<number>(
-              () => enabledScopeRefs(excluded(), ofType()).length,
-            )
-            const isOpen = (): boolean => expandedTypes().has(type)
-            const toggleOpen = (): void => {
-              setExpandedTypes((prev) => {
-                const next = new Set(prev)
-                if (next.has(type)) next.delete(type)
-                else next.add(type)
-                return next
-              })
-            }
-            return (
-              <Show when={ofType().length > 0}>
-                <div class="find-scope-group">
-                  <div class="find-scope-head">
-                    <label class="find-scope-type">
-                      <input
-                        type="checkbox"
-                        checked={state() === 'all'}
-                        ref={indeterminateRef(() => state() === 'partial')}
-                        onChange={() => {
-                          const refs = props.lists()
-                          setExcluded((prev) => toggleTypeExclusion(prev, refs, type))
-                        }}
-                      />
-                      <span aria-hidden="true">{LIST_TYPE_DISPLAY[type].icon}</span>
-                      <span>{listTypeTitle(type)}</span>
-                      <span class="find-scope-count">
-                        {t('site.find.scopeCount', {
-                          enabled: enabledCount(),
-                          total: ofType().length,
-                        })}
-                      </span>
-                    </label>
-                    <button
-                      type="button"
-                      class="find-scope-expand"
-                      aria-expanded={isOpen()}
-                      aria-label={t('site.find.scopeExpandAria', { type: listTypeTitle(type) })}
-                      onClick={toggleOpen}
-                    >
-                      {isOpen() ? '▾' : '▸'}
-                    </button>
-                  </div>
-                  <Show when={isOpen()}>
-                    <div class="find-scope-lists">
-                      <For each={ofType()}>
-                        {(ref) => (
-                          <label class="find-scope-list">
-                            <input
-                              type="checkbox"
-                              checked={!excluded().has(listRefKey(ref))}
-                              onChange={() => setExcluded((prev) => toggleListExclusion(prev, ref))}
-                            />
-                            <span>{ref.name}</span>
-                          </label>
-                        )}
-                      </For>
-                    </div>
-                  </Show>
-                </div>
-              </Show>
-            )
-          }}
-        </For>
-      </div>
+      <ListScopePicker
+        lists={props.lists}
+        excluded={excluded}
+        setExcluded={setExcluded}
+        label={t('site.find.scopeLabel')}
+      />
 
       <div class="find-controls">
         <button

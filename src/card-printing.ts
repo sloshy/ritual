@@ -6,7 +6,7 @@ import {
   sortLanguages,
   type CardLanguage,
 } from './card-language'
-import { cardPrintingKey } from './printing-key'
+import { cardPrintingKey, lookupExactPrintingCard, type PrintingRef } from './printing-key'
 
 /** One printing at one of the finishes it is published in. */
 export type PrintingFinish = {
@@ -155,6 +155,26 @@ export function findPrinting(
     candidates.find((p) => scryfallCardLanguage(p) === wanted) ??
     candidates.find((p) => scryfallCardLanguage(p) === 'en') ??
     candidates[0]
+  )
+}
+
+/**
+ * Resolve a pinned line's card object from the two places a list's card data
+ * holds it: the per-name printings first ({@link findPrinting},
+ * language-aware), then the printing-keyed `cards` map — exactly, never the
+ * by-name representative ({@link lookupExactPrintingCard}). `null` when the
+ * printing is in neither: the line is then unpriced and unpictured rather than
+ * shown as another printing. The one lookup the swap wizard's target builder
+ * and candidate collector share.
+ */
+export function resolvePrintingCard(
+  printings: ScryfallCard[] | undefined,
+  cards: Record<string, ScryfallCard | null>,
+  ref: PrintingRef,
+): ScryfallCard | null {
+  return (
+    findPrinting(printings, ref.set, ref.collectorNumber, ref.language) ??
+    lookupExactPrintingCard(cards, ref)
   )
 }
 

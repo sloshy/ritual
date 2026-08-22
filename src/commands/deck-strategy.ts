@@ -277,8 +277,9 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
       promptDeckConfigUpdate(state.deck, sessionConfig, excludeDigital),
     applyChange: (change: ChangeEvent) => applyDeckChange(state, change),
     receiveMove: (change, art?: CardArtRef): void => {
-      // The event's cardId is the source list's (kept for its changelog); the
-      // arriving line gets a deck id of its own via assignMissingDeckCardIds.
+      // The event carries no destination id (`sourceCardId` names the source
+      // line); the arriving line gets a deck id of its own via
+      // assignMissingDeckCardIds.
       if (art === undefined) {
         applyDeckChange(state, { ...change, cardId: undefined })
         return

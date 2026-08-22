@@ -21,6 +21,7 @@ import { useDeckEditController, DeckEditorBody } from '../../editor/DeckEditCont
 import { deckToExportText } from '../../deck-text'
 import { DeckPage } from '../DeckPage'
 import { siteSearch } from './site-search'
+import { createPublicSwapSourceProvider } from './swap-sources'
 import { backfillImportedCard } from './backfill-added-card'
 import { EditViewFrame } from './EditViewFrame'
 import { safeFilename } from './safe-filename'
@@ -64,6 +65,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
     commit: () => Promise.resolve(undefined),
     entityLabel: 'deck',
     moveTargets: () => props.moveTargets?.() ?? [],
+    swapSources: createPublicSwapSourceProvider(() => props.shareLists ?? []),
 
     // `applyChangeToDeck` clones on edit, so handing the editor the baked deck
     // directly is safe — the original is never mutated and a discard reloads it.
@@ -118,6 +120,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
       bulkEdit={ctrl.bulkEdit}
       changes={() => ctrl.editor.changes.changes()}
       ready={() => !ctrl.editor.status.loading && ctrl.editor.data() != null}
+      onSwapPrintings={() => ctrl.openSwapPrintings('all')}
       fileExports={[
         {
           label: () => t('site.editor.downloadDeck'),
@@ -148,6 +151,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
           bakedBuylist={() => props.detail.buylist}
           cardsCardKingdom={props.detail.cardsCardKingdom}
           shareLists={props.shareLists}
+          swap={ctrl.swapWizardProps({ currency: props.currency })}
         />
       }
       original={

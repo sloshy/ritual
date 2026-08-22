@@ -2,7 +2,7 @@
 title: 'import-changes'
 ---
 
-Apply a change bundle exported from the public site's [in-browser editor](/commands/build-site/#editing-on-the-public-site) (or the admin editor's Export panel) to your list files. The full change list is previewed grouped by target list, and nothing is written until you confirm.
+Apply a change bundle exported from the public site's [in-browser editor](/commands/build-site/#editing-on-the-public-site) (or the admin editor's Export panel) to your list files. The full change list is previewed grouped by target list, with the bundle's cross-list moves listed after them, and nothing is written until you confirm.
 
 The same JSON can also be applied in the [admin site](/commands/admin/#import-changes) (**Import Changes** page) and via the [MCP](/commands/mcp/) `import_change_bundle` tool, all backed by the same engine.
 
@@ -28,22 +28,69 @@ The same JSON can also be applied in the [admin site](/commands/admin/#import-ch
 
 ## Format
 
-The file is a **`ritual-change-bundle`** JSON covering one or more lists — the Export panel's **This list** scope produces a one-list bundle, and its **All lists** scope (available when edit mode accumulated changes across several lists) covers every edited list in the same envelope.
+The file is a **`ritual-change-bundle`** JSON (format version **2**) covering one or more lists — the Export panel's **This list** scope produces a one-list bundle, and its **All lists** scope (available when edit mode accumulated changes across several lists) covers every edited list in the same envelope.
+
+```json
+{
+  "format": "ritual-change-bundle",
+  "version": 2,
+  "exportedAt": "2026-06-04T00:00:00.000Z",
+  "lists": [
+    {
+      "kind": "deck",
+      "slug": "winota-stax",
+      "name": "Winota Stax",
+      "changes": [
+        { "id": "a1", "timestamp": 1, "action": "add", "cardName": "Counterspell" },
+        {
+          "id": "r1",
+          "timestamp": 2,
+          "action": "remove",
+          "cardName": "Lightning Bolt",
+          "cardId": 2
+        }
+      ]
+    }
+  ],
+  "moves": [
+    {
+      "id": "m1",
+      "timestamp": 3,
+      "cardName": "Sol Ring",
+      "from": { "kind": "collection", "slug": "main-binder", "name": "Main Binder" },
+      "to": { "kind": "deck", "slug": "winota-stax", "name": "Winota Stax" },
+      "set": "c19",
+      "collectorNumber": "221",
+      "cardId": 7,
+      "toCardId": 12,
+      "section": "Main"
+    }
+  ]
+}
+```
+
+- **`lists[]`** — one entry per edited list: its `kind` (`deck`, `collection`, or `wanted`), `slug`, display `name`, an optional `baseContentHash`, and the ordered `changes` to replay. A list's `changes` **never** contain `move-from` or `move-to` events — a bundle that does is rejected ("moves belong in the top-level moves array").
+- **`moves[]`** — every cross-list move, **one entry per physical copy**, in timestamp order. Each names its source and destination list as `{ kind, slug?, name }` (`slug` is a best-effort hint; `name` is what the import resolves by when the slug is absent or stale), the copy's printing fields (`set`, `collectorNumber`, `finish`, `condition`, `language`), an optional `cardId` — the **source** list's `&N` line id the copy was taken from, a removal hint the importer falls back from to a printing/name match — an optional `toCardId` — the **destination** line id the exporting editor gave the arriving copy, re-targeted on import exactly like an `add`'s id so a later edit of that copy in the same export still finds it — and, for deck destinations, an optional `section`. A move is recorded once, here, rather than as a `move-from` in one list and a `move-to` in the other; the changelog files still get both halves when it is applied.
 
 ## Preview and Confirmation
 
 Before anything is applied, the command prints every pending change grouped by its target list:
 
 ```text
-🎴 Winota Stax (deck 'Winota Stax') — 2 changes
+🎴 Winota Stax (deck 'winota-stax') — 2 changes
   • Add Counterspell
   • Remove Lightning Bolt (LEA:161) &2
 
 📦 Main Binder (collection 'main-binder') — 1 change
   • Add Sol Ring (C19:221)
 
-? Apply 3 changes to 2 lists? › (y/N)
+🔀 Moves between lists — 1 move
+  • Move Sol Ring (C19:221) &7 to Deck 'Winota Stax' (from Collection 'Main Binder')
+
+? Apply 4 changes to 2 lists? › (y/N)
 ```
+
+Each move is listed once, after the per-list changes, naming both ends; the confirmation count includes the moves.
 
 Pass `--yes` to skip the prompt (for scripts and agents). When stdin is not a terminal, prompts are disabled globally (`--no-input` / `RITUAL_NO_INPUT`), or `--output json`/`ndjson` owns stdout, `--yes` is required — instead of prompting, the command exits with code `2`.
 
@@ -53,14 +100,14 @@ A change can be skipped for three reasons, and each names a different fix: `card
 
 ## How Changes Are Applied
 
-Lists are applied in file order, each loaded fresh immediately before saving (so a cross-list move applied by an earlier list never conflicts with a later one):
+Every list's changes and every move are merged into **one timestamp-ordered stream** — the order you made the edits in — and applied in batches: consecutive events aimed at the same list form a batch, and each batch loads its list fresh immediately before saving it (necessary because an earlier batch's cross-list move may have rewritten the file since). So add-then-move-out, or swap-a-printing-then-set-the-new-copy-foil, replay exactly as you did them rather than one list wholesale before the next.
 
-- Changes are **re-targeted** to each list's current `&N` card IDs — added cards draw fresh IDs, and other changes match by ID when it still exists, otherwise by card name.
+- Changes are **re-targeted** to each list's current `&N` card IDs — added cards (and arriving moves) draw fresh IDs, and other changes match by ID when it still exists, otherwise by card name (a copy the same import just added first, then the list as loaded).
 - Changes whose target card can no longer be found — or whose action cannot apply to that list, such as a commander change aimed at a collection, or which would set a foil/etched finish on a card that pins no printing — are **skipped and reported** as conflicts; the rest still apply. A conflict's `reason` is `"target-not-found"`, `"not-applicable"`, or `"needs-printing"` (the card is present; it just needs a printing pinned first).
-- `move-from` changes also write the destination list (the card is added there, with a `move-to` changelog entry), exactly like an admin editor save.
+- A **move** is applied on its **destination** list as a `move-to`: the destination's save adds the copy there and, in the same step, takes it out of the source list — by the source line id the move names when that line still holds the card, otherwise by the exact printing, otherwise (for a source line that pinned no printing, such as a wanted entry) by name — and writes **both** changelogs (`Moved … from …` on the destination, `Moved … to …` on the source). Every removal is validated before anything is written; a source with no copy left to take fails that batch with nothing written. A destination named only by a move (its source list being the one you exported) is resolved by its slug, then by its name, exactly like a list entry, and reported as a list of its own. A list named only as a move **source** is reported too, with `0` applied — its copy left through the destination's save — so the report names every list the import touched.
 - Every list that received changes gets an entry in its `.changes.md` changelog — the same save path the admin editors use.
 
-A list that fails entirely (for example, one that no longer exists) is reported without stopping the remaining lists.
+A batch that fails (for example, a list that no longer exists, or a move whose source no longer holds the copy) is reported on that list's result: the failing batch applied nothing, that list's remaining batches are skipped (they would replay onto a file the earlier batch left unchanged), and the other lists' batches continue. Batches that already applied stay applied and are counted.
 
 The CLI command never creates git commits — applied changes are left in the working tree for you to review. The admin **Import Changes** page and the MCP `import_change_bundle` tool apply the same engine to the same bundle, and those surfaces auto-commit each saved list when `admin.gitEnabled` and `admin.gitAutoCommit` are set (see [Git integration](/configuration/#git-integration)).
 
@@ -96,7 +143,7 @@ With `--output json` (or `ndjson`), the preview and glyph lines are replaced by 
 }
 ```
 
-A list that failed to load or save carries an `error` string instead of applying anything and is counted in `failedCount`. `success` stays `true` — it is the envelope flag, and the run _was_ processed; `failedCount` (and each list's own `error`) is what reports the failures. The exit code is still `1`, the same as text mode.
+`lists` carries one entry per list the bundle touched — the bundle's own entries plus any list named only as a move destination (whose `slug` is the file basename it resolved to). Moves count toward `applied` on their destination list. A list that failed to resolve, load, or save carries an `error` string (its later batches skipped; anything already applied is still counted) and is counted in `failedCount`. `success` stays `true` — it is the envelope flag, and the run _was_ processed; `failedCount` (and each list's own `error`) is what reports the failures. The exit code is still `1`, the same as text mode.
 
 ## Exit Codes
 

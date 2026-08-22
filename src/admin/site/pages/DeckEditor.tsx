@@ -20,6 +20,7 @@ import {
 import { useDeckEditController, DeckEditorBody } from '../../../editor/DeckEditController'
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, listInfosToNamedRefs, moveTargetsExcluding } from '../move-targets'
+import { createAdminSwapSourceProvider } from '../swap-sources'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
 import { useCardArt } from '../hooks/useCardArt'
@@ -143,6 +144,7 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
     cardCountsBySection: deckCountsBySection,
     cardSectionOf: findDeckCardSection,
     moveTargets: (currentSlug) => moveTargetsExcluding(lists(), 'deck', currentSlug),
+    swapSources: createAdminSwapSourceProvider(lists),
   })
 
   // Converted once per lists() change, so the array keeps its identity (and
@@ -172,6 +174,8 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
         customArt={cardArt.art()}
         onSetCustomArt={cardArt.open}
         shareLists={shareLists()}
+        swap={ctrl.swapWizardProps({ currency: ctrl.editor.currency() })}
+        onSwapPrintings={() => ctrl.openSwapPrintings('all')}
       />
       <ListLabelsModal
         open={labelsOpen()}

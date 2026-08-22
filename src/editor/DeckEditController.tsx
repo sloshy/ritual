@@ -32,6 +32,9 @@ import {
 import { CardContextMenu } from './components/CardContextMenu'
 import { canSetFinish, hasSpecificPrinting } from '../card-printing'
 import { EditorShell } from './components/EditorShell'
+import type { SwapPrintingsWizardProps } from './components/SwapPrintingsWizard'
+import { createSwapController, type SwapController } from './swap-controller'
+import { deckSwapMergeTargetId, deckSwapTargets } from './swap-targets'
 import { withDeckArt, type CardArtRefs } from './card-art-view'
 
 /** Deck context-menu state plus whether the targeted card is currently a commander. */
@@ -74,6 +77,8 @@ export type DeckBulkEdit = {
   setLabel: (cards: SelectedCard[], labels: CardLabel[]) => void
   /** Run the change-printing flow over the selection one card at a time. */
   changePrinting: (cards: SelectedCard[]) => void
+  /** Open the "Swap Printings" wizard pre-checked on the selection. */
+  swapPrintings: (cards: SelectedCard[]) => void
   /** Mark each selected card as a commander. */
   setCommander: (cards: SelectedCard[]) => void
   /** Move every selected card into an existing section. */
@@ -95,7 +100,7 @@ export type DeckBulkEdit = {
  * the public deck editor build a config and drive their UI from this, so the two
  * stay behaviorally identical.
  */
-export type DeckEditController = {
+export type DeckEditController = SwapController & {
   editor: UseEditorResult<DeckData, Card>
   cardData: DeckCardData
   cardActions: DeckCardDataActions
@@ -314,6 +319,17 @@ export function useDeckEditController(
 
   const closeModal = () => setModalCardName(null)
 
+  const swap = createSwapController({
+    editor,
+    listType: 'deck',
+    kind: 'deck',
+    targetsOf: (deck) => deckSwapTargets(deck, cardData),
+    applyChange: applyChangeToDeck,
+    quantityOf: (deck, cardId) =>
+      deck.sections.flatMap((s) => s.cards).find((c) => c.cardId === cardId)?.quantity ?? 0,
+    mergeTargetId: deckSwapMergeTargetId,
+  })
+
   const bulkEdit: DeckBulkEdit = {
     addCopy: (cards) => {
       for (const c of cards) handleIncrement(c.name)
@@ -355,6 +371,7 @@ export function useDeckEditController(
       })
     },
     changePrinting: (cards) => editor.startBulkChangePrinting(cards.map(contextInfoFromSelected)),
+    swapPrintings: (cards) => swap.openSwapPrintings(cards.map(contextInfoFromSelected)),
     setCommander: (cards) => {
       for (const c of cards) setCommanderFor(c.name)
     },
@@ -402,6 +419,7 @@ export function useDeckEditController(
     closeModal,
     closeContextMenu,
     bulkEdit,
+    ...swap,
   }
 }
 
@@ -445,6 +463,10 @@ type DeckEditorBodyProps = SellModeProps & {
   onSetCustomArt?: (target: CardContextInfo) => void
   /** Every list, for the toolbar's share filters (the page drops itself). */
   shareLists?: readonly NamedListRef[]
+  /** The "Swap Printings" wizard's props (see `DeckEditController.swapWizardProps`). */
+  swap?: SwapPrintingsWizardProps
+  /** Offer the whole-list swap from the action bar (admin editor; the public one uses its edit row). */
+  onSwapPrintings?: () => void
 }
 
 /**
@@ -478,6 +500,8 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
       importKind="deck"
       onEditLabels={props.onEditLabels}
       enableAddArt={props.onSetCustomArt !== undefined}
+      swap={props.swap}
+      onSwapPrintings={props.onSwapPrintings}
       contextMenu={
         <Show when={ctrl.deckContextMenu()}>
           {(menu) => {
@@ -513,6 +537,13 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
                   get hasPrinting() {
                     return hasSpecificPrinting(target())
                   },
+                }}
+                onSwapPrinting={() => {
+                  // The menu's snapshot, captured before the close unmounts it
+                  // (and its props); the wizard re-resolves the line by its `&N`.
+                  const info = menu()
+                  ctrl.closeContextMenu()
+                  ctrl.openSwapPrintings([info])
                 }}
                 onSetLabel={() => {
                   const target = menu()

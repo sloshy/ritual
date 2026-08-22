@@ -1,5 +1,10 @@
 import { type Component, Show, For, createSignal } from 'solid-js'
-import { type ChangeBundleList, parseChangeBundle } from '../change-bundle'
+import {
+  type ChangeBundle,
+  type ChangeBundleListRef,
+  listChangesFromBundle,
+  parseChangeBundle,
+} from '../change-bundle'
 import type { ChangeEvent } from '../../change-event'
 import { IMPORT_CONFLICT_REASON_KEY } from '../import-changes'
 import { formatChange } from '../../change-message'
@@ -15,6 +20,8 @@ type ImportChangesDialogProps = {
   expectedKind: ListType
   /** Slug of the list being edited, to pick the right entry out of a multi-list bundle. */
   expectedSlug?: string
+  /** Display name of the list being edited — the other key a bundle may name it by. */
+  expectedName?: string
   /** Apply the matched change list's events; returns the import outcome. */
   onImport: (changes: ChangeEvent[]) => ImportResult
 }
@@ -40,23 +47,34 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
     setError(null)
   }
 
-  /** Pick the bundle entry for the list being edited, or an error message. */
-  const matchList = (lists: ChangeBundleList[]): ChangeBundleList | string => {
-    const kindMatches = lists.filter((l) => l.kind === props.expectedKind)
-    if (kindMatches.length === 0) {
+  /**
+   * Pick the changes for the list being edited out of the bundle — its own
+   * entry plus the moves leaving or arriving at it, denormalized back into
+   * `move-from` / `move-to` events — or an error message. A bundle that names
+   * exactly one list of this kind is taken to mean this one even when its slug
+   * differs (the public site slugifies names; the admin keys by basename).
+   */
+  const matchList = (bundle: ChangeBundle): ChangeEvent[] | string => {
+    const self: ChangeBundleListRef = {
+      kind: props.expectedKind,
+      slug: props.expectedSlug,
+      name: props.expectedName ?? '',
+    }
+    const own = listChangesFromBundle(bundle, self)
+    if (own) return own
+    const [only, ...rest] = bundle.lists.filter((l) => l.kind === props.expectedKind)
+    if (only && rest.length === 0) return listChangesFromBundle(bundle, only) ?? []
+    if (!only) {
       // `listTypeLabel` is the lowercase file-format vocabulary, not a display
       // name: it has no localized counterpart yet (the `domain.*` list-type
       // messages are capitalized titles, wrong mid-sentence), so this enumeration
       // stays English until one exists.
-      const kinds = [...new Set(lists.map((l) => listTypeLabel(l.kind)))].join(', ')
+      const kinds = [...new Set(bundle.lists.map((l) => listTypeLabel(l.kind)))].join(', ')
       return t('ui.editor.importWrongKind', { listType: props.expectedKind, kinds })
     }
-    const slugMatch = kindMatches.find((l) => l.slug === props.expectedSlug)
-    if (slugMatch) return slugMatch
-    if (kindMatches.length === 1) return kindMatches[0]!
     return t('ui.editor.importAmbiguous', {
       listType: props.expectedKind,
-      count: kindMatches.length,
+      count: rest.length + 1,
       command: '`ritual import-changes`',
     })
   }
@@ -69,12 +87,12 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
       setError(parsed)
       return
     }
-    const matched = matchList(parsed.lists)
+    const matched = matchList(parsed)
     if (typeof matched === 'string') {
       setError(matched)
       return
     }
-    setResult(props.onImport(matched.changes))
+    setResult(props.onImport(matched))
   }
 
   return (

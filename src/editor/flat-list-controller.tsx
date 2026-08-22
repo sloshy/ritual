@@ -22,6 +22,10 @@ import { canSetFinish, hasSpecificPrinting } from '../card-printing'
 import { findEntryByIdOrName } from './entry-targeting'
 import { EditorShell } from './components/EditorShell'
 import type { ApplyChange } from './apply-batch'
+import type { SwapPrintingsWizardProps } from './components/SwapPrintingsWizard'
+import { entityListType } from './entity'
+import { createSwapController, type SwapController } from './swap-controller'
+import { flatSwapTargets } from './swap-targets'
 
 /** Minimal flat-list entry shape the shared controller and context menu rely on. */
 export type FlatEntry = {
@@ -89,6 +93,12 @@ export type FlatBulkEdit = {
   setLabel?: (cards: SelectedCard[], labels: CardLabel[]) => void
   /** Run the change-printing flow over the selection one card at a time. */
   changePrinting: (cards: SelectedCard[]) => void
+  /**
+   * Open the "Swap Printings" wizard pre-checked on the selection. Collection
+   * editors only — supplied by the collection layer, absent elsewhere (a
+   * wanted list holds no physical cards to swap).
+   */
+  swapPrintings?: (cards: SelectedCard[]) => void
   /** Move every selected card into an existing section. */
   moveToSection: (cards: SelectedCard[], section: string) => void
   /** Prompt for a new section name and move every selected card into it. */
@@ -108,7 +118,7 @@ export type FlatBulkEdit = {
  * wanted lists differ only in their entry shape and `applyChange`, so both drive
  * their UI from this generic controller.
  */
-export type FlatListController<E extends FlatEntry> = {
+export type FlatListController<E extends FlatEntry> = SwapController & {
   editor: UseEditorResult<E[], E>
   cardData: EntryCardData
   cardActions: EntryCardDataActions
@@ -140,6 +150,7 @@ export function useFlatListEditController<E extends FlatEntry>(
   const [cardData, cardActions] = useEntryCardData()
   const [modalCardKey, setModalCardKey] = createSignal<string | null>(null)
 
+  const pageConfig = params.buildConfig(cardActions)
   const editor = useEditor<E[], E>(
     {
       // Flat entries carry their language directly, so the controller supplies the
@@ -149,11 +160,23 @@ export function useFlatListEditController<E extends FlatEntry>(
       // from answering for the card that used to hold it.
       findOriginalLanguage: (entries, cardName, cardId) =>
         findEntryByIdOrName(entries, cardName, cardId)?.language,
-      ...params.buildConfig(cardActions),
+      ...pageConfig,
       copyModel: 'per-entry',
     },
     params.initialSlug,
   )
+
+  const swap = createSwapController({
+    editor,
+    listType: entityListType(pageConfig.entityLabel),
+    kind: 'flat',
+    targetsOf: (entries) => flatSwapTargets(entries, cardData),
+    applyChange: params.applyChange,
+    // One entry per copy: a flat line always holds exactly one, and an
+    // arriving copy never merges onto a standing line.
+    quantityOf: () => 1,
+    mergeTargetId: () => undefined,
+  })
 
   const handleIncrement = (entry: E) => {
     const cardId = editor.pool.allocate()
@@ -373,11 +396,14 @@ export function useFlatListEditController<E extends FlatEntry>(
     closeModal,
     bulkEdit,
     closeContextMenu,
+    ...swap,
   }
 }
 
 type FlatListContextMenuProps<E extends FlatEntry> = {
   ctrl: FlatListController<E>
+  /** Open the "Swap Printings" wizard on the targeted card. Collection editors only. */
+  onSwapPrinting?: (target: CardContextInfo) => void
   /** Open the label picker for the targeted card. Collection editors only. */
   onSetLabel?: (target: CardContextInfo) => void
   /** Open the custom-art dialog for the targeted card. Admin editors only. */
@@ -414,6 +440,19 @@ export function FlatListContextMenu<E extends FlatEntry>(
                 return hasSpecificPrinting(target())
               },
             }}
+            onSwapPrinting={
+              props.onSwapPrinting
+                ? () => {
+                    const apply = props.onSwapPrinting
+                    if (!apply) return
+                    // The menu's snapshot, captured before the close unmounts it
+                    // (and its props); the wizard re-resolves the copies by `&N`.
+                    const info = menu()
+                    props.ctrl.closeContextMenu()
+                    apply(info)
+                  }
+                : undefined
+            }
             onSetLabel={
               props.onSetLabel
                 ? () => {
@@ -506,6 +545,12 @@ type FlatListEditorShellProps<E extends FlatEntry> = {
   onSetCustomArt?: (target: CardContextInfo) => void
   /** Open the list-default label editor (admin collection editor only). */
   onEditLabels?: () => void
+  /** The "Swap Printings" wizard's props; mounts the wizard (collection editors only). */
+  swap?: SwapPrintingsWizardProps
+  /** Offer the whole-list swap from the action bar (admin collection editor). */
+  onSwapPrintings?: () => void
+  /** Open the wizard on one context-menu card (collection editors only). */
+  onSwapPrinting?: (target: CardContextInfo) => void
   children: JSX.Element
 }
 
@@ -530,9 +575,12 @@ export function FlatListEditorShell<E extends FlatEntry>(
       // Art is offered at add time exactly where a card's art can be written:
       // the same authed route behind the context menu's "Set Custom Art…".
       enableAddArt={props.onSetCustomArt !== undefined}
+      swap={props.swap}
+      onSwapPrintings={props.onSwapPrintings}
       contextMenu={
         <FlatListContextMenu
           ctrl={props.ctrl}
+          onSwapPrinting={props.onSwapPrinting}
           onSetLabel={props.onSetLabel}
           onSetCustomArt={props.onSetCustomArt}
         />

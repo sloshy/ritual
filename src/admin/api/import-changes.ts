@@ -13,19 +13,22 @@ import { isPathWithinDir } from '../../path-validation'
 import { allocateId, collectDeckCardIds, collectExistingIds, createIdPool } from '../../card-id'
 import {
   type ChangeBundle,
-  type ChangeBundleList,
+  type ChangeBundleListRef,
   countLabel,
   parseChangeBundle,
 } from '../../editor/change-bundle'
+import { planImportBatches, type ImportBatch } from './import-batches'
 import {
+  createRetargetState,
   importConflictReason,
   type ImportConflict,
   type RetargetResult,
+  type RetargetState,
   retargetImportedChanges,
 } from '../../editor/import-changes'
 import { applyChangesCollectingMisses, type ApplyChange } from '../../editor/apply-batch'
 import { applyChangeToCollection, toCollectionCardEntries } from '../../editor/collection-changes'
-import { applyChangeToDeck } from '../../editor/deck-changes'
+import { applyChangeToDeck, findDeckAddMergeTargetId } from '../../editor/deck-changes'
 import { applyChangeToWantedList } from '../../editor/wanted-changes'
 import { toWantedCardEntries } from '../../editor/wanted-entries'
 import { buildSyntheticRequest } from '../../synthetic-request'
@@ -44,16 +47,36 @@ import { MAX_LIST_BODY_SIZE } from '../validation'
 /** Origin for synthetic in-process request URLs; nothing leaves the process. */
 const SYNTHETIC_ORIGIN = 'http://ritual-import'
 
-/** The outcome of applying one bundle list's changes to its file. */
+/**
+ * The outcome of applying a bundle's changes to one list — its own entry's
+ * changes plus every move arriving in it — aggregated across the batches the
+ * timestamp order split them into.
+ */
 export type ListImportResult = {
   kind: ListType
+  /**
+   * The bundle's slug for the list, or the file basename it resolved to when
+   * the bundle only named the list as a move destination (no entry, no slug).
+   * Empty when neither is known — the list could not be resolved, or was
+   * named only as a move *source* and so never needed resolving.
+   */
   slug: string
   name: string
-  /** Changes applied to the list (after dropping conflicts). */
+  /**
+   * Changes applied to the list (after dropping conflicts), moves included. A
+   * list the bundle names only as a move source reports `0`: its copy leaves
+   * through the destination's save, so it has no batch of its own — it is
+   * listed so the report names every list the import touched.
+   */
   applied: number
   /** Changes skipped: target card no longer exists, or the action cannot apply to the list. */
   conflicts: ImportConflict[]
-  /** Human-readable failure when the list could not be loaded or saved; nothing was applied. */
+  /**
+   * Human-readable failure when the list could not be resolved, loaded, or
+   * saved. The failing batch applied nothing and the list's later batches were
+   * skipped (they would replay onto a file the earlier batch left unchanged);
+   * batches already applied stay applied and are counted.
+   */
   error?: string
 }
 
@@ -120,6 +143,7 @@ function retarget(
   changes: ChangeEvent[],
   currentIds: number[],
   findIdByName: (name: string) => number | undefined,
+  state: RetargetState,
 ): RetargetResult {
   const pool = createIdPool(currentIds)
   return retargetImportedChanges({
@@ -127,6 +151,7 @@ function retarget(
     currentIds: new Set(currentIds),
     allocateId: () => allocateId(pool),
     findIdByName,
+    state,
   })
 }
 
@@ -188,7 +213,53 @@ function splitApplicable<TData>(
   }
 }
 
-async function applyToDeck(slug: string, changes: ChangeEvent[]): Promise<ApplyOutcome> {
+/**
+ * Re-aim a deck batch's `add`/`move-to` copies that the deck reducer folded
+ * onto a line it already had. Each such copy was allocated a fresh id by the
+ * re-target, but the reducer merges same-tuple copies onto one line, so the
+ * fresh id names no line in the written deck — and would end up in the
+ * changelog and the art plan as a phantom `&N`. The change is rewritten to the
+ * line's real id (the one the exporting editor would have used), and the
+ * re-target state follows, so a later reference to that copy resolves.
+ */
+function rewriteMergedDeckIds(
+  deck: DeckData,
+  changes: ChangeEvent[],
+  state: RetargetState,
+): ChangeEvent[] {
+  const present = new Set(collectDeckCardIds(deck))
+  return changes.map((change) => {
+    if (change.action !== 'add' && change.action !== 'move-to') return change
+    if (change.cardId === undefined || present.has(change.cardId)) return change
+    // Labels are part of the merge identity (`mergesOntoCard`): a `[proxy]`
+    // arrival folds onto the `[proxy]` line, never its plain sibling. A
+    // `move-to` carries none (the copy lands under the list default).
+    const merged = findDeckAddMergeTargetId(deck, {
+      action: 'add',
+      cardName: change.cardName,
+      set: change.set,
+      collectorNumber: change.collectorNumber,
+      finish: change.finish,
+      condition: change.condition,
+      language: change.language,
+      labels: 'labels' in change ? change.labels : undefined,
+    })
+    if (merged === undefined) return change
+    for (const [exported, allocated] of state.idMap) {
+      if (allocated === change.cardId) state.idMap.set(exported, merged)
+    }
+    if (state.addedByName.get(change.cardName) === change.cardId) {
+      state.addedByName.set(change.cardName, merged)
+    }
+    return { ...change, cardId: merged }
+  })
+}
+
+async function applyToDeck(
+  slug: string,
+  changes: ChangeEvent[],
+  state: RetargetState,
+): Promise<ApplyOutcome> {
   const encoded = encodeURIComponent(slug)
   // `view=cards` for the same reason the MCP mutations use it: this reads only
   // the deck lines, front matter, and content hash, never the Scryfall payload.
@@ -200,16 +271,17 @@ async function applyToDeck(slug: string, changes: ChangeEvent[]): Promise<ApplyO
   if (!loaded.ok) return { retargeted: [], conflicts: [], error: loaded.error }
   const { deck, frontMatter, contentHash } = loaded.data
 
-  const { retargeted, conflicts } = retarget(changes, collectDeckCardIds(deck), (name) =>
-    findDeckCardIdByName(deck, name),
+  const { retargeted, conflicts } = retarget(
+    changes,
+    collectDeckCardIds(deck),
+    (name) => findDeckCardIdByName(deck, name),
+    state,
   )
   if (retargeted.length === 0) return { retargeted, conflicts }
 
-  const { updated, applicable, missConflicts } = splitApplicable(
-    deck,
-    retargeted,
-    applyChangeToDeck,
-  )
+  const split = splitApplicable(deck, retargeted, applyChangeToDeck)
+  const { updated, missConflicts } = split
+  const applicable = rewriteMergedDeckIds(updated, split.applicable, state)
   const allConflicts = [...conflicts, ...missConflicts]
   if (applicable.length === 0) return { retargeted: applicable, conflicts: allConflicts }
 
@@ -223,7 +295,11 @@ async function applyToDeck(slug: string, changes: ChangeEvent[]): Promise<ApplyO
   return { retargeted: applicable, conflicts: allConflicts }
 }
 
-async function applyToCollection(slug: string, changes: ChangeEvent[]): Promise<ApplyOutcome> {
+async function applyToCollection(
+  slug: string,
+  changes: ChangeEvent[],
+  state: RetargetState,
+): Promise<ApplyOutcome> {
   const encoded = encodeURIComponent(slug)
   const loaded = await call<CollectionLoadResult>(
     handleCollectionLoad,
@@ -233,8 +309,11 @@ async function applyToCollection(slug: string, changes: ChangeEvent[]): Promise<
   if (!loaded.ok) return { retargeted: [], conflicts: [], error: loaded.error }
   const { entries, sectionOrder, contentHash } = loaded.data
 
-  const { retargeted, conflicts } = retarget(changes, collectExistingIds(entries), (name) =>
-    findEntryIdByName(entries, name),
+  const { retargeted, conflicts } = retarget(
+    changes,
+    collectExistingIds(entries),
+    (name) => findEntryIdByName(entries, name),
+    state,
   )
   if (retargeted.length === 0) return { retargeted, conflicts }
 
@@ -259,7 +338,11 @@ async function applyToCollection(slug: string, changes: ChangeEvent[]): Promise<
   return { retargeted: applicable, conflicts: allConflicts }
 }
 
-async function applyToWanted(slug: string, changes: ChangeEvent[]): Promise<ApplyOutcome> {
+async function applyToWanted(
+  slug: string,
+  changes: ChangeEvent[],
+  state: RetargetState,
+): Promise<ApplyOutcome> {
   const encoded = encodeURIComponent(slug)
   const loaded = await call<WantedLoadResult>(
     handleWantedListLoad,
@@ -270,8 +353,11 @@ async function applyToWanted(slug: string, changes: ChangeEvent[]): Promise<Appl
   const { contentHash, sectionOrder } = loaded.data
   const entries = toWantedCardEntries(loaded.data.entries)
 
-  const { retargeted, conflicts } = retarget(changes, collectExistingIds(entries), (name) =>
-    findEntryIdByName(entries, name),
+  const { retargeted, conflicts } = retarget(
+    changes,
+    collectExistingIds(entries),
+    (name) => findEntryIdByName(entries, name),
+    state,
   )
   if (retargeted.length === 0) return { retargeted, conflicts }
 
@@ -295,14 +381,19 @@ async function applyToWanted(slug: string, changes: ChangeEvent[]): Promise<Appl
   return { retargeted: applicable, conflicts: allConflicts }
 }
 
-function applyByKind(kind: ListType, slug: string, changes: ChangeEvent[]): Promise<ApplyOutcome> {
+function applyByKind(
+  kind: ListType,
+  slug: string,
+  changes: ChangeEvent[],
+  state: RetargetState,
+): Promise<ApplyOutcome> {
   switch (kind) {
     case 'deck':
-      return applyToDeck(slug, changes)
+      return applyToDeck(slug, changes, state)
     case 'collection':
-      return applyToCollection(slug, changes)
+      return applyToCollection(slug, changes, state)
     case 'wanted':
-      return applyToWanted(slug, changes)
+      return applyToWanted(slug, changes, state)
     default: {
       kind satisfies never
       throw new Error('Unhandled list kind (this is a bug)')
@@ -311,19 +402,23 @@ function applyByKind(kind: ListType, slug: string, changes: ChangeEvent[]): Prom
 }
 
 /**
- * Resolve a bundle list to the file basename the load/save handlers key on. Two
- * export surfaces produce different slugs: the admin editor and MCP server use the
- * file basename verbatim (e.g. `Red Binder`), while the public site slugifies the
- * display name for its URLs (e.g. `red-binder`). A basename that exists on disk is
- * used directly (admin/MCP round-trip); otherwise the bundle's display `name` is
- * resolved against the on-disk files via the shared list resolver, which reverses
- * the public site's slugging by matching case- and diacritic-insensitively.
+ * Resolve a bundle list ref to the file basename the load/save handlers key on.
+ * Two export surfaces produce different slugs: the admin editor and MCP server
+ * use the file basename verbatim (e.g. `Red Binder`), while the public site
+ * slugifies the display name for its URLs (e.g. `red-binder`). A basename that
+ * exists on disk is used directly (admin/MCP round-trip); otherwise — or when
+ * the ref carries no slug at all, as a move endpoint may — the display `name`
+ * is resolved against the on-disk files via the shared list resolver, which
+ * reverses the public site's slugging by matching case- and
+ * diacritic-insensitively.
  */
-async function resolveListBasename(list: ChangeBundleList): Promise<ApiCallResult<string>> {
+async function resolveListBasename(list: ChangeBundleListRef): Promise<ApiCallResult<string>> {
   const dir = dirForType(list.kind)
-  const direct = path.join(dir, `${list.slug}.md`)
-  if (isPathWithinDir(direct, dir) && (await Bun.file(direct).exists())) {
-    return { ok: true, data: list.slug }
+  if (list.slug !== undefined) {
+    const direct = path.join(dir, `${list.slug}.md`)
+    if (isPathWithinDir(direct, dir) && (await Bun.file(direct).exists())) {
+      return { ok: true, data: list.slug }
+    }
   }
 
   const resolved = await resolveList(list.name, list.kind)
@@ -332,40 +427,75 @@ async function resolveListBasename(list: ChangeBundleList): Promise<ApiCallResul
   return { ok: true, data: resolved.name }
 }
 
-async function applyList(list: ChangeBundleList): Promise<ListImportResult> {
-  const base: Pick<ListImportResult, 'kind' | 'slug' | 'name'> = {
-    kind: list.kind,
-    slug: list.slug,
-    name: list.name,
-  }
-  if (list.changes.length === 0) return { ...base, applied: 0, conflicts: [] }
-
-  const resolved = await resolveListBasename(list)
-  if (!resolved.ok) return { ...base, applied: 0, conflicts: [], error: resolved.error }
-
-  const outcome = await applyByKind(list.kind, resolved.data, list.changes)
-
-  return {
-    ...base,
-    applied: outcome.error ? 0 : outcome.retargeted.length,
-    conflicts: outcome.conflicts,
-    error: outcome.error,
-  }
+/** A target's running result while its batches are applied. */
+type TargetProgress = {
+  /** The bundle's ref for the list — `slug` absent, not empty, when unknown. */
+  ref: ChangeBundleListRef
+  result: ListImportResult
+  /** Resolved once per target: the basename, or the resolution failure. */
+  basename?: ApiCallResult<string>
+  /**
+   * The re-target's memory across this target's batches: a copy added in an
+   * earlier batch is what a later batch's edit may name, and the list loaded
+   * fresh for that batch cannot say which exported id it was.
+   */
+  retarget: RetargetState
 }
 
 /**
- * Apply every list's changes in a change bundle to the underlying list files,
- * sequentially and in bundle order. Each list is loaded fresh immediately before
- * it is saved — necessary because an earlier list's cross-list moves may have
- * already rewritten a later list's file. A list that fails to load or save is
- * reported in its result and does not stop the remaining lists. Shared by the
- * admin `POST /api/import-changes` route and the `ritual import-changes` CLI.
+ * Apply one batch onto its target, folding the outcome into the target's
+ * running result. Resolution happens on the target's first batch and is
+ * remembered; a failure (resolution, load, or save) marks the target and stops
+ * its later batches.
+ */
+async function applyBatch(progress: TargetProgress, batch: ImportBatch): Promise<void> {
+  const { result } = progress
+  if (result.error !== undefined) return
+  progress.basename ??= await resolveListBasename(progress.ref)
+  const resolved = progress.basename
+  if (!resolved.ok) {
+    result.error = resolved.error
+    return
+  }
+  if (result.slug === '') result.slug = resolved.data
+
+  const outcome = await applyByKind(result.kind, resolved.data, batch.changes, progress.retarget)
+  result.applied += outcome.error ? 0 : outcome.retargeted.length
+  result.conflicts.push(...outcome.conflicts)
+  if (outcome.error) result.error = outcome.error
+}
+
+/**
+ * Apply a change bundle to the underlying list files: every list's changes and
+ * every move, merged into one timestamp-ordered stream and applied batch by
+ * batch (see {@link planImportBatches}). Each batch loads its list fresh
+ * immediately before saving it — necessary because an earlier batch's
+ * cross-list move may have rewritten the file since (a move lands as a
+ * `move-to` on its destination, whose save takes the copy out of the source).
+ * A batch that fails to load or save is reported on its list's result, stops
+ * that list's remaining batches, and does not stop the other lists'. Shared by
+ * the admin `POST /api/import-changes` route and the `ritual import-changes`
+ * CLI.
  */
 export async function applyChangeBundle(bundle: ChangeBundle): Promise<BundleImportResult> {
-  const lists: ListImportResult[] = []
-  for (const list of bundle.lists) {
-    lists.push(await applyList(list))
+  const plan = planImportBatches(bundle)
+  const progress: TargetProgress[] = plan.targets.map(
+    (target): TargetProgress => ({
+      ref: target,
+      retarget: createRetargetState(),
+      result: {
+        kind: target.kind,
+        slug: target.slug ?? '',
+        name: target.name,
+        applied: 0,
+        conflicts: [],
+      },
+    }),
+  )
+  for (const batch of plan.batches) {
+    await applyBatch(progress[batch.target]!, batch)
   }
+  const lists = progress.map((p) => p.result)
   return { failedCount: lists.filter((l) => l.error !== undefined).length, lists }
 }
 

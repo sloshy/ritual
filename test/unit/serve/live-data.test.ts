@@ -71,9 +71,10 @@ describe('createLiveSiteData', () => {
     expect(index.useScryfallImgUrls).toBeTrue()
     expect(index.decks.map((d) => d.slug).sort()).toEqual([
       'emberwild-aggro',
+      'test-swap-deck',
       'test-unset-commander',
     ])
-    expect(index.collections.map((c) => c.slug)).toEqual(['test-binder'])
+    expect(index.collections.map((c) => c.slug).sort()).toEqual(['test-binder', 'test-swap-binder'])
     expect(index.wantedLists?.map((w) => w.slug)).toEqual(['test-wants'])
     expect(result.etag).toMatch(/^"[0-9a-f]+"$/)
   })
@@ -319,6 +320,9 @@ describe('createLiveSiteData', () => {
 
     expect(await live.getDetail('deck', 'emberwild-aggro')).toBeNull()
     const index = JSON.parse((await live.getIndex()).body) as SiteIndex
-    expect(index.decks.map((d) => d.slug)).toEqual(['test-unset-commander'])
+    expect(index.decks.map((d) => d.slug).sort()).toEqual([
+      'test-swap-deck',
+      'test-unset-commander',
+    ])
   })
 })

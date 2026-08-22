@@ -25,6 +25,12 @@ export type EditChrome = {
   onExport: () => void
   /** Open the dialog to load a change-list JSON into the current edits. */
   onLoadChanges: () => void
+  /**
+   * Open the "Swap Printings" wizard over the whole list. Registered by the
+   * deck and collection editors only — a wanted list holds no physical cards
+   * to swap — so the row shows the button only when present.
+   */
+  onSwapPrintings?: () => void
   /** Leave edit mode (confirming first if there are unsaved changes). */
   onExit: () => void
 }

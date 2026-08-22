@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test'
 import type { ChangeBundleList } from '../../src/editor/change-bundle'
-import type { ChangeEvent } from '../../src/change-event'
+import type { ChangeEvent, MoveFromChange } from '../../src/change-event'
 import {
   saveEditSession,
   loadEditSession,
@@ -32,6 +32,19 @@ describe('edit-session-storage', () => {
     expect(loaded).not.toBeNull()
     expect(loaded!.changes).toEqual(CHANGES)
     expect(loaded!.name).toBe('My Deck')
+  })
+
+  it('round-trips a move: normalized into the bundle, denormalized back on load', () => {
+    const moveOut: MoveFromChange = {
+      id: 'm1',
+      timestamp: 2,
+      action: 'move-from',
+      cardName: 'Sol Ring',
+      cardId: 5,
+      to: { type: 'collection', name: 'Binder' },
+    }
+    saveEditSession({ ...deckList(), changes: [...CHANGES, moveOut] }, EXPORTED_AT)
+    expect(loadEditSession('deck', 'my-deck')?.changes).toEqual([...CHANGES, moveOut])
   })
 
   it('keys sessions by kind and slug independently', () => {

@@ -685,6 +685,18 @@ export const cliCardsMeta = {
     description:
       "A cross-list move aborted before writing: the destination list does not exist (deleted or renamed since the move was queued). {name} is the card name; {list} is a pre-rendered English list label (e.g. Deck 'Burn') matching the changelog vocabulary — leave its shape alone.",
   },
+  'cli.move.sourceNotFound': {
+    description:
+      "An incoming cross-list move (a `move-to` saved on its destination) aborted before writing: the source list it names does not exist (deleted or renamed since the move was staged). {name} is the card name; {list} is a pre-rendered English list label (e.g. Collection 'Binder') matching the changelog vocabulary — leave its shape alone.",
+  },
+  'cli.move.sourceCopyNotFound': {
+    description:
+      'An incoming cross-list move aborted before writing: the source list exists but holds no copy of the card (by line id, printing, or name) to take out — it was already removed or moved. {name} is the card name; {list} is a pre-rendered English list label.',
+  },
+  'cli.move.artUnfiled': {
+    description:
+      "The reason an incoming move's custom art was dropped from the source list but could not be re-filed on the destination (the destination line has no id yet, or its file could not be read). Rendered as the {reason} of admin.api.save.artUnreconciled, so it reads as a clause, lowercase. {name} is the card name; {list} is a pre-rendered English list label.",
+  },
   'cli.move.abortDestinationMissing': {
     description: 'The move aborted before writing: a destination file is gone.',
   },

@@ -444,6 +444,28 @@ h3 {
   z-index: 300;
 }
 
+/* A preview with no art — the entry has no printing, or its printing is not
+   cached. Same footprint as a card image, drawn as a dotted accent outline
+   around a question mark so the hover still answers "which card?". */
+.list-tooltip-missing {
+  aspect-ratio: 488 / 680;
+  background: var(--bg-panel);
+  border: 2px dotted var(--accent);
+  align-items: center;
+  justify-content: center;
+}
+
+.list-tooltip-missing.visible {
+  display: flex;
+}
+
+.list-tooltip-missing-mark {
+  font-size: 6rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent);
+}
+
 /* Sideways card tooltip (e.g. Battles, Rooms) — a landscape box, so it needs
    the swapped aspect correction to keep its clipped corners circular. */
 .list-tooltip-sideways {

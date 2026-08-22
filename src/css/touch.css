@@ -267,10 +267,17 @@
 
   /* ----- Touch-target sizing: trade rows and the add-card quantity ticker ----- */
 
-  .qty-stepper button {
+  .qty-stepper button,
+  .swap-wizard-take-btn {
     width: 34px;
     height: 38px;
     font-size: 1rem;
+  }
+
+  /* Finish chips under the swap wizard's printing grid are tap targets. */
+  .swap-wizard-chip-button {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8125rem;
   }
 
   .trade-row-edit,

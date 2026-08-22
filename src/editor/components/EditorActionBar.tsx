@@ -24,6 +24,12 @@ type EditorActionBarProps = {
   /** When provided, shows an "Import…" button (admin only) to load an exported change file. */
   onImport?: () => void
   /**
+   * When provided, shows a "Swap Printings…" button opening the batch swap
+   * wizard over the whole list (admin deck/collection editors; the public
+   * editor offers it from the navbar's edit row instead).
+   */
+  onSwapPrintings?: () => void
+  /**
    * When provided, shows a "Labels" button opening the list-default label
    * editor (admin collection editor only).
    */
@@ -152,6 +158,11 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
         <Show when={props.onImport}>
           <button type="button" class="btn-import" onClick={() => props.onImport!()}>
             {t('ui.editor.import')}
+          </button>
+        </Show>
+        <Show when={props.onSwapPrintings}>
+          <button type="button" class="btn-swap-printings" onClick={() => props.onSwapPrintings!()}>
+            {t('ui.editor.swapPrintings')}
           </button>
         </Show>
         <button type="button" class="btn-changes" onClick={props.onShowChanges}>

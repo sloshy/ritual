@@ -4,6 +4,7 @@ import { useT } from '../../../ui/i18n'
 import { formatPrintingAnnotation } from '../../../change-event'
 import type { ScryfallCard } from '../../../types'
 import { resolveCardImageSources, isCardSideways } from '../../../site/image-sources'
+import { TooltipOverlay } from '../../../site/TooltipOverlay'
 import { useTooltip } from '../../../site/useTooltip'
 import type { CardGroup } from '../move-overlay'
 import { lookupPrintingCard } from '../../../printing-key'
@@ -95,15 +96,7 @@ export const MoveSearchResults: Component<MoveSearchResultsProps> = (props) => {
       </Show>
 
       {/* Hover card-image preview, matching the list views on other pages. */}
-      <div
-        ref={tooltipRef}
-        class={`list-tooltip ${tooltip() ? 'visible' : ''} ${tooltip()?.sideways ? 'list-tooltip-sideways' : ''}`}
-        style={`left:${tooltipPos().left}px;top:${tooltipPos().top}px;`}
-      >
-        <Show when={tooltip()}>
-          <img src={tooltip()!.src} alt="" class={tooltip()!.sideways ? 'tooltip-rotated' : ''} />
-        </Show>
-      </div>
+      <TooltipOverlay tooltip={tooltip()} pos={tooltipPos()} tooltipRef={tooltipRef} />
     </div>
   )
 }

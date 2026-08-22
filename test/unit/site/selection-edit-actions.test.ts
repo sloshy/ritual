@@ -8,7 +8,7 @@ import type { Finish } from '../../../src/types'
 
 type Call = { name: string; cards: SelectedCard[]; arg?: unknown }
 
-function harness(withCommander = true, canSetFinish = true) {
+function harness(withCommander = true, canSetFinish = true, withSwap = true, pinned = true) {
   const calls: Call[] = []
   let cleared = 0
   const record = (name: string) => (cards: SelectedCard[], arg?: unknown) =>
@@ -25,6 +25,7 @@ function harness(withCommander = true, canSetFinish = true) {
     },
     setLanguage: (cards, language) => calls.push({ name: 'setLanguage', cards, arg: language }),
     changePrinting: record('changePrinting'),
+    swapPrintings: withSwap ? record('swapPrintings') : undefined,
     setCommander: withCommander ? record('setCommander') : undefined,
     moveToSection: (cards, section) => calls.push({ name: 'moveToSection', cards, arg: section }),
     promptNewSection: record('promptNewSection'),
@@ -44,6 +45,7 @@ function harness(withCommander = true, canSetFinish = true) {
       sourceKind: 'deck',
       maxQty: 1,
       cardIds: [1],
+      ...(pinned ? { set: 'c21', collectorNumber: '263' } : {}),
     },
   ]
   const selection = {
@@ -129,6 +131,26 @@ describe('buildSelectionEditActions', () => {
   test('omits setCommander when the bundle has none (flat lists)', () => {
     const h = harness(false)
     expect(h.actions.setCommander).toBeUndefined()
+  })
+
+  test('swapPrintings forwards the selection and clears when the bundle has one', () => {
+    const h = harness()
+    h.actions.swapPrintings!()
+    expect(h.calls).toEqual([{ name: 'swapPrintings', cards: h.cards, arg: undefined }])
+    expect(h.cleared()).toBe(1)
+  })
+
+  test('omits swapPrintings when the bundle has none (wanted lists)', () => {
+    const h = harness(true, true, false)
+    expect(h.actions.swapPrintings).toBeUndefined()
+  })
+
+  test('omits swapPrintings while no selected tile pins a printing', () => {
+    // Read per render: only pinned lines can be swapped, so a name-only
+    // selection gets no item rather than a wizard with nothing to check.
+    const h = harness(true, true, true, false)
+    expect(h.actions.swapPrintings).toBeUndefined()
+    expect(h.cleared()).toBe(0)
   })
 
   test('exposes the bundle sections accessor', () => {

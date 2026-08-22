@@ -419,11 +419,18 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
   ListImportResult: obj(
     {
       kind: LIST_TYPE,
-      slug: str(),
+      slug: str(
+        "The bundle's slug for the list, or the file basename it resolved to when the bundle " +
+          'named it only as a move destination; empty when the list could not be resolved.',
+      ),
       name: str(),
-      applied: int('Changes applied after dropping conflicts.'),
+      applied: int(
+        'Changes applied after dropping conflicts, moves arriving in the list included.',
+      ),
       conflicts: arr(ref('ImportConflict')),
-      error: str('Present when the list could not be loaded or saved; nothing was applied.'),
+      error: str(
+        "Present when the list could not be resolved, loaded, or saved. The failing batch applied nothing and the list's later batches were skipped; batches already applied stay applied and are counted in `applied`.",
+      ),
     },
     ['kind', 'slug', 'name', 'applied', 'conflicts'],
   ),
@@ -1219,7 +1226,9 @@ export const IMPORT_CHANGE_BUNDLE_OUTPUT: JsonSchemaType = withDefs(
     {
       message: str(),
       lists: arr(ref('ListImportResult')),
-      failedCount: int('Lists that could not be loaded or saved; the rest still applied.'),
+      failedCount: int(
+        'Lists with an `error` (could not be resolved, loaded, or saved); the other lists still applied.',
+      ),
     },
     ['message', 'lists', 'failedCount'],
   ),

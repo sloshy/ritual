@@ -756,6 +756,9 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
   }
 
   for (const { listEntry, adds } of byDest.values()) {
+    // `cardId` is the DESTINATION line the copy landed on (merged-onto or
+    // fresh); the source line it left is `sourceCardId` — `MoveToChange`'s
+    // contract, the same one the editor saves' mirror follows.
     const changes = adds
       .filter((vc) => removedKeys.has(vc.physicalKey))
       .map((vc) =>
@@ -765,8 +768,9 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
           finish: vc.card.finish,
           condition: vc.card.condition,
           language: vc.card.language,
-          cardId: vc.card.cardId,
+          cardId: landed.get(vc.physicalKey)?.cardId,
           from: vc.card.listEntry.ref,
+          sourceCardId: vc.card.cardId,
         }),
       )
     if (changes.length > 0) {
