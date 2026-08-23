@@ -275,7 +275,8 @@ writes both sides like any move, and a public export carries them in the bundle'
 \`ritual edit\` is **the** interactive TUI (requires a terminal) for editing decks,
 collections, and wanted lists: a selection menu covers all lists (plus create-new
 items). Sessions support name/collector entry modes, per-type edit modes over
-existing entries, and undo. Collector mode is a \`SET:CN\` search over **every
+existing entries (with nothing typed the whole list is listed below the menu
+rows, so it can be scrolled as well as searched), and undo. Collector mode is a \`SET:CN\` search over **every
 printing in the local Scryfall cache** (\`mkm:123\`, \`mkm 123\`, or a bare token
 matched against set codes and collector numbers) — nothing is preloaded, and
 \`--sets\` is only an optional filter narrowing that pool. A collector-mode row

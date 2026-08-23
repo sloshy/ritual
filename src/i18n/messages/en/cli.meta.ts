@@ -5,7 +5,7 @@ import type { cliMessages } from './cli'
 
 /**
  * The interactive card session renders its menu inside a hard row budget
- * (`SESSION_MENU_LIMIT = 17`), so every `cli.menu.*` entry carries a length
+ * (`SESSION_MENU_LIMIT = 18`), so every `cli.menu.*` entry carries a length
  * budget the catalog validator enforces. A menu row that wraps costs a second
  * terminal line, which pushes Save and Exit — the items at the menu's foot —
  * below the fold. German and Finnish labels run 30–50% longer than English, so
@@ -381,8 +381,9 @@ export const cliMeta = {
       'Parenthetical appended to the card prompt while the same card is being added repeatedly. {count} is how many in a row, {name} the card name. Keep the leading space: it is what separates this from the prompt text.',
   },
 
-  'cli.session.promptSearchToEdit': {
-    description: 'Card prompt while the session is in edit mode.',
+  'cli.session.promptPickToEdit': {
+    description:
+      'Card prompt while the session is in edit mode, where the whole list is listed below the menu rows and can be scrolled or narrowed by typing.',
   },
   'cli.session.promptCardName': {
     description:

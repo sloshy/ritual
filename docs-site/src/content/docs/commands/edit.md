@@ -204,7 +204,7 @@ those lists at once, each labelled with the list it belongs to, and each entry o
 of its own list type. Searching matches the list name too, so typing `binder` narrows to one list:
 
 ```text
-? Search for a card to edit › o
+? Select a card to edit (type to search) › o
 ❯   🎴 Test Deck: 1 Sol Ring (LEA:161) — Commander &1
     📦 Main Binder: - Lightning Bolt (LEA:161) &1
     🎯 To Buy: - Mox Ruby &1
@@ -261,7 +261,8 @@ the suggestions entirely and leave the list to the card matches.
 [Edit mode](#edit-mode) pares this down: the undo shortcuts lead, followed by `➕ Switch to Add Mode`,
 then the review, save, and exit items. Its menu rows are narrowed by what you type but never step
 aside — the entry lines it searches are full card lines with colons in them, so no input length means
-"stop offering the menu" there.
+"stop offering the menu" there. And with nothing typed the entries follow the menu rows rather than
+being held back, so the list can be scrolled.
 
 ## Saving
 
@@ -432,8 +433,10 @@ Prices come from the local card cache, so they are as fresh as your last
 ## Edit Mode
 
 `🛠️ Switch to Edit Mode` repurposes the search prompt: instead of the card database, it
-autocompletes over the list's **existing entries** (rendered as their canonical lines). Selecting
-an entry opens an action menu that depends on the list type.
+autocompletes over the list's **existing entries** (rendered as their canonical lines). With nothing
+typed, the whole list is listed below the menu rows, so you can scroll it with the arrow keys instead
+of searching; typing narrows it. Selecting an entry opens an action menu that depends on the list
+type.
 
 For a **deck** line:
 

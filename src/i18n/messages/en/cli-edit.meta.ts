@@ -5,7 +5,7 @@ import type { cliEditMessages } from './cli-edit'
 
 /**
  * The interactive session menu renders inside a hard row budget
- * (`SESSION_MENU_LIMIT = 17`), and the per-strategy rows below sit in the same
+ * (`SESSION_MENU_LIMIT = 18`), and the per-strategy rows below sit in the same
  * list as the shared `cli.menu.*` items — so they carry the same length budget
  * (`MENU_MAX_LEN` in `cli.meta.ts`). A row that wraps costs a second terminal
  * line and pushes Save and Exit below the fold.

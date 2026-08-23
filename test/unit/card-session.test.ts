@@ -682,14 +682,31 @@ describe('suggestEditMode', () => {
     { title: '- Lightning Bolt (LEA:161) &2', value: { type: 'entry', cardId: 2 } },
   ]
 
-  test('empty input shows only menu items', () => {
-    expect(suggestEditMode('', choices).map((c) => c.value)).toEqual(['__EXIT__'])
+  test('empty input lists the menu items and then every entry, so the list can be scrolled', () => {
+    // The menu-rows-before-entries order this relies on is pinned where it is
+    // built — see the `buildMenuChoices` edit-mode ordering test above.
+    expect(suggestEditMode('', choices).map((c) => c.value)).toEqual([
+      '__EXIT__',
+      { type: 'entry', cardId: 1 },
+      { type: 'entry', cardId: 2 },
+    ])
+  })
+
+  test('a whitespace-only input still lists everything, like an empty one', () => {
+    expect(suggestEditMode(' ', choices)).toEqual(choices)
+  })
+
+  test('menu rows survive an input past the length that hides them in the add modes', () => {
+    // Unlike name and collector mode, edit mode never drops the menu rows: its
+    // entry lines and the menu labels share one prompt, and there is no card
+    // database behind it for a longer query to be searching instead.
+    expect(suggestEditMode('exit', choices).map((c) => c.value)).toEqual(['__EXIT__'])
   })
 
   test('term-matches the rendered entry lines', () => {
-    const result = suggestEditMode('bolt lea', choices)
-    expect(result).toHaveLength(1)
-    expect(result[0]!.title).toContain('Lightning Bolt')
+    expect(suggestEditMode('bolt lea', choices).map((c) => c.value)).toEqual([
+      { type: 'entry', cardId: 2 },
+    ])
   })
 
   test('a trailing ! never becomes a force marker', () => {

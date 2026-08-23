@@ -169,8 +169,10 @@ export function sessionSemantics(options: SessionSemanticsOptions): string {
   const saving = sessionSavingSemantics({ fileNoun: options.fileNoun })
   const editMode = wrapProse(
     `**Edit mode:** \`🛠️ Switch to Edit Mode\` turns the search prompt into a ` +
-      `picker over ${options.editScope} — ${options.editFields} — and ` +
-      `\`↩️ Undo Last Edit\` reverts the latest edit.` +
+      `picker over ${options.editScope} — ${options.editFields}. With nothing ` +
+      `typed it lists every entry below the menu rows, so the list can be ` +
+      `scrolled as well as searched, and \`↩️ Undo Last Edit\` reverts the ` +
+      `latest edit.` +
       (options.editModeNote === undefined ? '' : ` ${options.editModeNote}`),
   )
   const undo = wrapProse(

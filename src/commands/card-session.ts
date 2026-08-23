@@ -729,6 +729,10 @@ function buildSaveAndSwitchItems(input: MenuBuildInput): Choice[] {
  * every shortcut), or Save and Exit — the items at its foot — would sit below
  * the fold. A new conditional menu item therefore has to be raised here and in
  * the maximal input of the "tallest possible menu" test that guards it.
+ *
+ * In edit mode it is also the browsing window: with nothing typed the prompt
+ * lists every entry under the menu, so this limit less the (short) edit-mode
+ * menu is how many card lines are visible before the list scrolls.
  */
 export const SESSION_MENU_LIMIT = 18
 
@@ -862,7 +866,7 @@ export async function ensureCollectorChoices(
  * or, for a translated menu row, in the English terms it carries alongside it.
  * See `menu-search.ts` for why both are matched.
  */
-function filterByTerms(input: string, choices: Choice[]): Choice[] {
+function filterByTerms(input: string, choices: readonly Choice[]): Choice[] {
   return choices.filter((choice) => matchesChoiceTerms(choice, input))
 }
 
@@ -939,12 +943,23 @@ export function suggestNameMode(input: string, choices: Choice[]): Choice[] {
 }
 
 /**
- * Edit-mode suggestion filter: empty input shows the menu shortcuts; otherwise
- * term-matches the rendered entry lines. Unlike name mode there is no `!` force
- * marker — entry values are objects, not strings, so they cannot carry a suffix.
+ * Edit-mode suggestion filter: empty input shows the menu shortcuts followed by
+ * every entry in the list, so the list can be scrolled without typing a search;
+ * otherwise it term-matches the rendered entry lines. Unlike name mode there is
+ * no `!` force marker — entry values are objects, not strings, so they cannot
+ * carry a suffix.
+ *
+ * `move`'s batch mode makes the same empty-input choice through
+ * `suggestCardsWithMenu`'s `emptyShows: 'all'` (see `prompts-helpers.ts`), but
+ * that helper keeps every menu row while typing; here the menu rows are
+ * term-matched like the entries, because the entry lines carry colons and there
+ * is no input length at which the menu should stop being offered.
+ *
+ * The choice list is read-only: `prompts` owns the array it passes in, so a
+ * filter must never sort or splice it in place.
  */
-export function suggestEditMode(input: string, choices: Choice[]): Choice[] {
-  if (!input) return choices.filter(isMenuChoice)
+export function suggestEditMode(input: string, choices: readonly Choice[]): Choice[] {
+  if (!input) return [...choices]
   return filterByTerms(input, choices)
 }
 
@@ -1224,7 +1239,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
         : ''
     const promptMessage: string =
       sessionMode === 'edit'
-        ? t('cli.session.promptSearchToEdit')
+        ? t('cli.session.promptPickToEdit')
         : sessionConfig.entryMode === 'name'
           ? t('cli.session.promptCardName', { streak })
           : t('cli.session.promptCollectorSearch', { streak })

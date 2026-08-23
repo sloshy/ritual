@@ -116,7 +116,7 @@ export const cliMessages = {
   'cli.session.streakHint': ' ({count}x {name})',
 
   // ── The interactive card session's prompts ────────────────────────────
-  'cli.session.promptSearchToEdit': 'Search for a card to edit',
+  'cli.session.promptPickToEdit': 'Select a card to edit (type to search)',
   'cli.session.promptCardName': 'Enter card name to add{streak}',
   'cli.session.promptCollectorSearch': 'Enter set and/or collector # (e.g. MKM:123){streak}',
   'cli.session.promptNote': 'Enter note:',
