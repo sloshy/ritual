@@ -251,7 +251,7 @@ A `full` deck load also carries `lowestPriceCards`, `lowestPriceCardsEur` and `l
 }
 ```
 
-Front matter travels with the deck's `cards` view because the save route re-sends it; a collection or wanted list returns `entries` + `sectionOrder` instead. A deck and a collection additionally carry a top-level `labels` — the list's [front-matter default](/commands/edit/#card-labels), a deck's being `proxy` alone — and each of their cards may carry its own `labels` override. A narrowed request replaces `contentHash` with `"partial": true`.
+Front matter travels with the deck's `cards` view because the save route re-sends it; a collection or wanted list returns `entries` + `sectionOrder` instead, plus a top-level `description` — the list's front-matter blurb, absent when it declares none (a deck's rides inside `deck.description`). A deck and a collection additionally carry a top-level `labels` — the list's [front-matter default](/commands/edit/#card-labels), a deck's being `proxy` alone — and each of their cards may carry its own `labels` override. A narrowed request replaces `contentHash` with `"partial": true`.
 
 Every non-summary load also carries `customArt` when the list has any: a `{ "<cardId>": { "file": … } | { "url": … } }` record of the **raw** [custom art](/custom-art/) references for the cards in the body (clients derive display URLs themselves, since an editor needs the path the user typed). It is omitted when none of the returned cards has art.
 
@@ -1016,7 +1016,7 @@ Returns the list of available collections.
 GET /api/collection/:slug
 ```
 
-Load a collection with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck. The top-level `labels` is the collection's [default card labels](/commands/edit/#collection-front-matter) (absent when none are declared), and an entry's own `labels` is its per-card override — effective labels are the override when present, else the default.
+Load a collection with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck. The top-level `description` is the collection's front-matter blurb (absent when it declares none), and the top-level `labels` is its [default card labels](/commands/edit/#collection-front-matter) (absent when none are declared), and an entry's own `labels` is its per-card override — effective labels are the override when present, else the default.
 
 **Response:**
 
@@ -1028,6 +1028,7 @@ Load a collection with full card data, printings, and mana symbol map. Accepts t
     { "name": "Sol Ring", "set": "2xm", "collectorNumber": "270", "labels": ["keep"], "cardId": 1 }
   ],
   "sectionOrder": ["Main"],
+  "description": "Everything I will trade away.",
   "labels": ["sale", "trade"],
   "totalCount": 42,
   "cards": { "Sol Ring": {} },
@@ -1179,7 +1180,7 @@ Returns the list of available wanted lists.
 GET /api/wanted/:slug
 ```
 
-Load a wanted list with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck.
+Load a wanted list with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck, plus the top-level `description` when the list declares one.
 
 **Response:**
 
@@ -1189,6 +1190,7 @@ Load a wanted list with full card data, printings, and mana symbol map. Accepts 
   "view": "full",
   "entries": [{ "name": "Sol Ring", "set": "2xm", "collectorNumber": "270", "cardId": 1 }],
   "sectionOrder": ["Main"],
+  "description": "Cards I still need.",
   "totalCount": 42,
   "cards": { "Sol Ring": {} },
   "printings": { "Sol Ring": [] },
@@ -1630,7 +1632,7 @@ Overwrite the list's change log with the supplied change sets. Each set needs a 
 PUT /api/metadata/:type/:slug
 ```
 
-Write a list's YAML front matter. Decks take the deck vocabulary below; both decks and collections take `labels` (their [default card labels](/commands/edit/#card-labels)); **all three types** take `image` (the list's [cover image](/list-images/)), which is the only field a wanted list accepts — a `labels` key on a wanted body is a `400` naming the field. Shares its engine with the [`metadata`](/commands/metadata/) CLI command (which covers decks and collections and does not write `image`) and with [`set-list-image`](/commands/set-list-image/) and the MCP `set_list_metadata` tool.
+Write a list's YAML front matter. Decks take the deck vocabulary below; both decks and collections take `labels` (their [default card labels](/commands/edit/#card-labels)); **all three types** take `description` (the blurb the built site prints above the cards) and `image` (the list's [cover image](/list-images/)), which are the only two fields a wanted list accepts — a `labels` key on a wanted body is a `400` naming the field. Shares its engine with the [`metadata`](/commands/metadata/) CLI command (which covers all three types and does not write `image`) and with [`set-list-image`](/commands/set-list-image/) and the MCP `set_list_metadata` tool.
 
 Only the fields present in the body are written; every other front-matter key (including user-authored ones) round-trips untouched. A field sent as `null` is deleted, as is a `description` sent as an empty string. The markdown body below the front matter is left byte for byte as it was — card lines are never re-serialized and no card IDs are assigned. **No changelog entry is written**: the change log is card-level, and metadata is not a card change.
 
@@ -1652,6 +1654,7 @@ Only the fields present in the body are written; every other front-matter key (i
 
 ```json
 {
+  "description": "Everything I will trade away.",
   "labels": ["sale", "trade"],
   "image": { "card": 12 },
   "contentHash": "abc123..."
@@ -1662,6 +1665,7 @@ Only the fields present in the body are written; every other front-matter key (i
 
 ```json
 {
+  "description": "Cards I still need.",
   "image": { "url": "https://example.com/cover.jpg" },
   "contentHash": "abc123..."
 }
@@ -1669,7 +1673,7 @@ Only the fields present in the body are written; every other front-matter key (i
 
 | Field         | Validation                                                                                                                                                                                                                                |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `description` | Deck only. String (trimmed) or `null`; an empty string clears it                                                                                                                                                                          |
+| `description` | All three types. String (trimmed) or `null`; an empty (or blank) string clears it                                                                                                                                                         |
 | `tags`        | Deck only. Array of non-empty strings (trimmed, deduplicated, order preserved); `null` or `[]` clears the key                                                                                                                             |
 | `format`      | Deck only. A [deck format](/commands/new/#deck-format) name, canonicalized (`EDH` → `commander`); `null` clears it and the deck falls back to section inference                                                                           |
 | `sourceId`    | Deck only. Non-empty string or `null`                                                                                                                                                                                                     |

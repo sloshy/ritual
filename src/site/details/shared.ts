@@ -11,7 +11,14 @@ import { getErrorMessage } from '../../errors'
 import { t } from '../../i18n/t'
 import { buylistRequestFor, quoteKey, type BuylistQuote } from '../../buylist'
 import { loadCardArt, type CardArtMap, type CardArtRef } from '../../card-art'
-import { isListImageCardRef, isListImageUrlRef, type ListImageRef } from '../../list-image'
+import {
+  isListImageCardRef,
+  isListImageUrlRef,
+  readListImage,
+  type ListImageRef,
+} from '../../list-image'
+import { readListDescription } from '../../list-description'
+import { readFrontMatterMapping } from '../../front-matter-write'
 import { printingFinishPairs } from '../../card-printing'
 import { siteArtUrl } from '../art-url'
 import { resolveCardImageSources } from '../image-sources'
@@ -33,6 +40,68 @@ export function listReadErrorMessage(error: unknown, filePath: string): string {
     return t('site.detail.fileNotFound', { path: filePath })
   }
   return getErrorMessage(error)
+}
+
+/** The front-matter keys a flat list's detail bakes, and what their bad values cost. */
+export type ListFrontMatterRead = {
+  /** The list's prose blurb, when it declares a usable one. */
+  description?: string
+  /** The list's cover override, when it declares a usable one. */
+  image?: ListImageRef
+  /**
+   * Localized build warnings for the values the grammars refused. Advisories by
+   * nature — the block round-trips verbatim, so the list still loads — but the
+   * user hears about every one of them through the same channel.
+   */
+  warnings: string[]
+}
+
+/**
+ * Read the keys a flat list's detail interprets out of its already-parsed
+ * front-matter mapping. One reader for both flat list types, so a key added
+ * here reaches a collection and a wanted list at once — the drift the per-loader
+ * copies of this block invited.
+ *
+ * Deliberately *not* the deck path: a deck's front matter is validated into a
+ * typed shape by `parseDeckFrontMatter`, which drops what it cannot read before
+ * a loader ever sees it (see {@link readDroppedFrontMatterAdvisories}).
+ */
+export function readListFrontMatter(data: Record<string, unknown>): ListFrontMatterRead {
+  const description = readListDescription(data)
+  const image = readListImage(data)
+  return {
+    ...(description.description ? { description: description.description } : {}),
+    ...(image.image ? { image: image.image } : {}),
+    warnings: [
+      ...(description.advisory
+        ? [t('site.detail.listDescriptionInvalid', { reason: description.advisory })]
+        : []),
+      ...(image.advisory ? [t('site.detail.listImageInvalid', { reason: image.advisory })] : []),
+    ],
+  }
+}
+
+/**
+ * The deck counterpart of {@link readListFrontMatter}'s warnings: `description`
+ * and `image` values `validateDeckFrontMatter` dropped, read back off the raw
+ * block so the drop is audible. A deck's next whole-file save deletes the key
+ * outright, so silence here would lose a user's value without a word.
+ *
+ * Paid only by a deck that ended up with neither key — which is every deck that
+ * set neither, so the read is cheap and the file is already warm.
+ */
+export async function readDroppedFrontMatterAdvisories(filePath: string): Promise<string[]> {
+  let content: string
+  try {
+    content = await fs.readFile(filePath, 'utf-8')
+  } catch {
+    // The deck itself loaded, so an unreadable file here is a race, not a
+    // condition the user can act on.
+    return []
+  }
+  const mapping = readFrontMatterMapping(content)
+  if (!mapping.ok) return []
+  return readListFrontMatter(mapping.data).warnings
 }
 
 /** URL-safe slug for a list's display name (also the detail JSON's basename). */

@@ -569,15 +569,20 @@ body {
   color: var(--text-muted);
 }
 
-/* ===== Deck Description / Primer ===== */
-.deck-description-section {
+/* ===== List Description / Deck Primer ===== */
+.list-description-section {
   margin-bottom: 1.5rem;
 }
 
-.deck-description {
-  margin-bottom: 1rem;
+.list-description {
   font-size: 0.875rem;
   color: var(--text-body);
+
+  /* Only a blurb with a primer under it needs separating from it; on every
+     other page the section wrapper's own margin is the whole spacing. */
+  &:has(+ .deck-primer) {
+    margin-bottom: 1rem;
+  }
 }
 
 .deck-primer {

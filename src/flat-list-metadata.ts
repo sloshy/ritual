@@ -10,16 +10,17 @@
  * writable keys and how a patch merges. Unknown keys a user hand-authored into
  * the block round-trip untouched.
  *
- * The vocabulary is **per list type**: a collection carries default card labels
- * and a cover image, a wanted list carries the cover alone (labels say nothing
- * about cards nobody owns yet). That is why the key table is a map rather than a
- * flat union — a union would let the compiler accept `'labels'` for a wanted
- * list that refuses it at runtime.
+ * The vocabulary is **per list type**: both carry a description and a cover
+ * image, and a collection carries default card labels on top (labels say
+ * nothing about cards nobody owns yet). That is why the key table is a map
+ * rather than a flat union — a union would let the compiler accept `'labels'`
+ * for a wanted list that refuses it at runtime.
  */
 
 import fs from 'node:fs/promises'
 import { readFrontMatterMapping, writeListFrontMatter } from './front-matter-write'
 import { normalizeCardLabels, type CardLabel } from './card-labels'
+import { isListDescriptionError, parseListDescription } from './list-description'
 import { serializeListImageRef, type ListImageRef } from './list-image'
 import type { ListType } from './list-type'
 
@@ -33,8 +34,8 @@ export type FlatListType = Extract<ListType, 'collection' | 'wanted'>
  * flat list types.
  */
 export const FLAT_LIST_METADATA_KEYS = {
-  collection: ['labels', 'image'],
-  wanted: ['image'],
+  collection: ['description', 'labels', 'image'],
+  wanted: ['description', 'image'],
 } as const satisfies Record<FlatListType, readonly string[]>
 
 /**
@@ -50,6 +51,27 @@ export function applyLabelsPatch(
   const merged = { ...data }
   if (labels === null || labels.length === 0) delete merged.labels
   else merged.labels = normalizeCardLabels(labels)
+  return merged
+}
+
+/**
+ * Merge a description into a front-matter mapping, returning a new mapping:
+ * `null` — or text that is blank once trimmed — deletes the key, anything else
+ * is written trimmed. The counterpart of {@link applyLabelsPatch} for the one
+ * key every list type carries, and the owner of the blank-clears rule: the HTTP
+ * parser normalizes too, but a value reaching this writer from anywhere else
+ * must obey the same rule rather than persist a `description: ""`.
+ */
+export function applyDescriptionPatch(
+  data: Record<string, unknown>,
+  description: string | null,
+): Record<string, unknown> {
+  const merged = { ...data }
+  const parsed = parseListDescription(description)
+  // The error branch cannot occur — the argument is `string | null` — but a
+  // grammar that later refuses some text must clear rather than write it.
+  if (parsed === null || isListDescriptionError(parsed)) delete merged.description
+  else merged.description = parsed
   return merged
 }
 
@@ -77,6 +99,8 @@ export function applyImagePatch(
  * a `labels` key.
  */
 export type FlatListMetadataPatch = {
+  /** The list's prose blurb; `null` (or a blank string) clears it. */
+  description?: string | null
   labels?: CardLabel[] | null
   image?: ListImageRef | null
 }
@@ -117,6 +141,7 @@ export async function applyFlatListMetadata(
     return `The file's front matter ${problem}, so a metadata write would overwrite it. Fix the block by hand first.`
   }
   let data = mapping.data
+  if (patch.description !== undefined) data = applyDescriptionPatch(data, patch.description)
   if (patch.labels !== undefined) data = applyLabelsPatch(data, patch.labels)
   if (patch.image !== undefined) data = applyImagePatch(data, patch.image)
 

@@ -48,8 +48,10 @@ section means Oathbreaker (checked first), and a command-zone section such as
 its next save, so do not add a \`format:\` by hand to "fix" a deck that displays
 correctly.
 
-The rest of the deck's front matter (\`description\`, \`tags\`, \`format\`, the
-default card \`labels\`, and the \`sourceId\`/\`sourceUrl\` sync link) is scripted
+The rest of the deck's front matter (\`description\` — the blurb the published
+site prints above the cards, and the one key every list type carries — plus
+\`tags\`, \`format\`, the default card \`labels\`, and the
+\`sourceId\`/\`sourceUrl\` sync link) is scripted
 with \`ritual metadata\` — a
 front-matter-only write that never touches card lines and records no changelog:
 

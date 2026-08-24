@@ -29,6 +29,7 @@ type WantedListDataResponse = {
   success: boolean
   entries: WantedListCardEntry[]
   sectionOrder?: string[]
+  description?: string
   image?: ListImageRef
   customArt?: CardArtRecord
   cards: Record<string, ScryfallCard | null>
@@ -46,10 +47,15 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
   const cardArt = useCardArt('wanted')
   const [ckCards, setCkCards] = createSignal<CardKingdomCards | undefined>(undefined)
   // The list's cover image, seeded from each load and updated by the Cover
-  // Image modal's save — the one front-matter key a wanted list carries. The
-  // picker's rows come from the same load body, so a card added in this session
-  // — whose `&N` exists only client-side until the next save — is never offered.
+  // Image modal's save — one of the two front-matter keys a wanted list carries
+  // (the other is its description, below). The picker's rows come from the same
+  // load body, so a card added in this session — whose `&N` exists only
+  // client-side until the next save — is never offered.
   const [listImage, setListImage] = createSignal<ListImageRef | undefined>(undefined)
+  // The list's blurb, seeded from each load. Read-only here: the description is
+  // written by `ritual metadata`, the API and the MCP tool, and the editor shows
+  // it so the page reads like the public one.
+  const [description, setDescription] = createSignal<string | undefined>(undefined)
   const [imageCards, setImageCards] = createSignal<readonly ListImageCardOption[]>([])
   const [imageOpen, setImageOpen] = createSignal(false)
 
@@ -78,6 +84,7 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
       // state, so a failed load must clear the previous list's rather than
       // leave them decorating whatever is on screen.
       setListImage(r.image)
+      setDescription(r.description)
       setImageCards(r.success ? flatListImageCardOptions(r.entries, r.cards) : [])
       // The ids the *saved* list holds: an art edit on any other card has to
       // wait for the save that gives its line an `&N`.
@@ -158,6 +165,7 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
         currency={ctrl.editor.currency()}
         useScryfallImgUrls={true}
         name={name()}
+        description={description()}
         enableImport={true}
         customArt={cardArt.art()}
         onSetCustomArt={cardArt.open}

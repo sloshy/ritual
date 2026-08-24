@@ -438,6 +438,10 @@ Wanted lists correspond to `.md` files in the `wanted/` directory.
 
 ---
 
+## List description
+
+A list's front-matter [`description:`](/commands/metadata/) — the blurb the built site prints above the cards — is shown at the top of every editor, exactly as the public site renders it (collapsed behind **Read more** past 200 characters). It is **display-only here**: write it with [`ritual metadata set <list> description …`](/commands/metadata/), the [List Metadata](/admin/api/#list-metadata) route, or the MCP `set_list_metadata` tool. Unlike the card lines, it is not part of the deferred change batch — an edit made elsewhere shows up on the editor's next load.
+
 ## Feature Comparison
 
 | Feature                   | Deck Editor             | Collection Editor | Wanted List Editor |
@@ -452,6 +456,7 @@ Wanted lists correspond to `.md` files in the `wanted/` directory.
 | Card labels               | ✅ Proxy + list default | ✅ + list default | ❌                 |
 | Custom art                | ✅                      | ✅                | ✅                 |
 | Cover image               | ✅                      | ✅                | ✅                 |
+| Description               | 👁️ Read-only            | 👁️ Read-only      | 👁️ Read-only       |
 | Sections                  | ✅ + reserved Commander | ✅ User-named     | ✅ User-named      |
 | Add/rename/delete section | ✅                      | ✅                | ✅                 |
 | Move card to section      | ✅                      | ✅                | ✅                 |

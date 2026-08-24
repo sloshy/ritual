@@ -232,7 +232,7 @@ export const helpCardsMeta = {
   },
   'help.metadata.property': {
     description:
-      'Help for the metadata <property> argument. {keys} is the comma-joined list of deck front-matter keys; "labels" is the collection key. Both are machine names.',
+      'Help for the metadata <property> argument. {keys} is the comma-joined list of deck front-matter keys; "description" and "labels" are the flat-list keys. All are machine names.',
   },
   'help.metadata.value': { description: 'Help for the metadata set <value...> argument.' },
   'help.metadata.add': {

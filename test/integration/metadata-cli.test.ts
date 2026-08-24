@@ -241,18 +241,68 @@ describe('metadata CLI (Integration)', () => {
     }
   })
 
-  test('wanted lists are refused on every subcommand', async () => {
+  test('set/get/unset round-trip a wanted list description, card lines untouched', async () => {
+    const filePath = await writeWantedFile(dir, 'wants', {
+      entries: [{ name: 'Mana Crypt', cardId: 1 }],
+    })
+
+    // Multiple values join with spaces, exactly as a deck's description does.
+    const set = await runCli(
+      ['metadata', 'set', 'wants', 'description', 'Cards', 'I', 'still', 'need'],
+      dir,
+    )
+    expect(set.exitCode).toBe(0)
+    expect(set.stdout).toContain(`on wanted list 'wants'`)
+
+    const content = await fs.readFile(filePath, 'utf-8')
+    expect(content).toContain('description: Cards I still need')
+    expect(content).toContain('- Mana Crypt &1')
+
+    const get = await runCli(['metadata', 'get', 'wants', 'description', '--output', 'json'], dir)
+    expect(JSON.parse(get.stdout)).toBe('Cards I still need')
+
+    // `list` prints the wanted vocabulary, which is these two keys and nothing else.
+    const listed = await runCli(['metadata', 'list', 'wants'], dir)
+    expect(listed.exitCode).toBe(0)
+    expect(listed.stdout).toContain('description = Cards I still need')
+    expect(listed.stdout).toContain('image = (unset)')
+    expect(listed.stdout).not.toContain('labels')
+
+    const unset = await runCli(['metadata', 'unset', 'wants', 'description'], dir)
+    expect(unset.exitCode).toBe(0)
+    expect((await fs.readFile(filePath, 'utf-8')).startsWith('# ')).toBeTrue()
+  })
+
+  test('a label key on a wanted list is an unknown field (exit 2)', async () => {
     await writeWantedFile(dir, 'wants', { entries: [{ name: 'Mana Crypt', cardId: 1 }] })
-    for (const args of [
-      ['metadata', 'set', 'wants', 'labels', 'keep'],
-      ['metadata', 'get', 'wants', 'labels'],
-      ['metadata', 'list', 'wants'],
-      ['metadata', 'unset', 'wants', 'labels'],
-    ]) {
-      const result = await runCli(args, dir)
-      expect(result.exitCode).toBe(2)
-      expect(result.stderr).toContain('does not cover wanted lists')
-    }
+    const result = await runCli(['metadata', 'set', 'wants', 'labels', 'keep'], dir)
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain('Accepted fields for a wanted list: description')
+  })
+
+  test('a collection description writes beside its labels', async () => {
+    const filePath = await writeCollectionFile(dir, 'binder', {
+      entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 }],
+    })
+    await runCli(['metadata', 'set', 'binder', 'labels', 'sale'], dir)
+    const set = await runCli(['metadata', 'set', 'binder', 'description', 'My trade binder'], dir)
+    expect(set.exitCode).toBe(0)
+
+    expect(set.stdout).toContain(`on collection 'binder'`)
+    const content = await fs.readFile(filePath, 'utf-8')
+    expect(content).toContain('description: My trade binder')
+    expect(content).toContain('labels:')
+    expect(content).toContain('- Sol Ring (C21:263) &1')
+  })
+
+  test('an unusable stored description is reported, not answered as unset', async () => {
+    await fs.writeFile(
+      path.join(dir, 'wanted', 'wants.md'),
+      '---\ndescription:\n  text: nope\n---\n\n# Wants\n\n- Mana Crypt &1\n',
+    )
+    const result = await runCli(['metadata', 'get', 'wants', 'description'], dir)
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain("The stored 'description' value is invalid")
   })
 
   test('a metadata write never stamps ids onto id-less card lines', async () => {

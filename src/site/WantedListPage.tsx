@@ -15,6 +15,7 @@ import { storedLanguage } from '../card-language'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
+import { ListDescriptionSection } from './ListDescription'
 import { ListPageStats, PageCountAndTotal, SellModeNotice } from './PageStats'
 import type { ScryfallCard, Finish } from '../types'
 import type { CardContextInfo } from './card-context'
@@ -122,6 +123,8 @@ interface WantedListPageProps extends SellModeProps {
   entries: WantedListCardEntry[]
   /** Section names in display order, including empty sections. Falls back to entry order. */
   sectionOrder?: string[]
+  /** The list's front-matter blurb, printed above the cards. */
+  description?: string
   /** The list's cover image override, re-emitted by the `.md` download. */
   listImage?: ListImageRef
   cards: Record<string, ScryfallCard | null>
@@ -702,7 +705,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
           props.name,
           props.entries,
           sectionOrder(),
-          frontMatterFor({ image: props.listImage }),
+          frontMatterFor({ description: props.description, image: props.listImage }),
         )
       case 'csv':
         return wantedToCsv(props.entries)
@@ -815,6 +818,8 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         <PriceStalenessNotice outdatedNames={prices.outdatedNames()} />
       </Show>
       <TagFilterWarning untaggedCardNames={untaggedAddedNames()} />
+
+      <ListDescriptionSection description={props.description} symbolMap={props.symbolMap} />
 
       {/* Card sections */}
       <div

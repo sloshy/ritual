@@ -122,7 +122,11 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
               props.detail.name,
               ctrl.editor.data() ?? [],
               ctrl.editor.sectionOrder(),
-              frontMatterFor({ labels: props.detail.labels, image: props.detail.listImage }),
+              frontMatterFor({
+                description: props.detail.description,
+                labels: props.detail.labels,
+                image: props.detail.listImage,
+              }),
             ),
         },
         {
@@ -140,6 +144,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
           currency={props.currency}
           useScryfallImgUrls={props.detail.useScryfallImgUrls}
           name={props.detail.name}
+          description={props.detail.description}
           listLabels={props.detail.labels}
           showSave={false}
           showDiscard={false}
@@ -155,6 +160,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
       original={
         <CollectionPage
           name={props.detail.name}
+          description={props.detail.description}
           entries={props.detail.entries}
           sectionOrder={props.detail.sectionOrder}
           listLabels={props.detail.labels}

@@ -658,6 +658,23 @@ describe('Ritual MCP server (in-memory transport)', () => {
     )
   })
 
+  test('set_list_metadata writes a wanted list description, and get_list reports it', async () => {
+    const set = await callTool(client, 'set_list_metadata', {
+      listType: 'wanted',
+      slug: 'wishlist',
+      description: 'Cards I still need',
+    })
+    expect(set.isError).toBeFalsy()
+    expect(await fs.readFile(path.join(env.dir, 'wanted', 'wishlist.md'), 'utf-8')).toContain(
+      'description: Cards I still need',
+    )
+
+    const read = toolData<{ description?: string }>(
+      await callTool(client, 'get_list', { listType: 'wanted', slug: 'wishlist' }),
+    )
+    expect(read.description).toBe('Cards I still need')
+  })
+
   test('export_cards write mode returns a file path instead of the content', async () => {
     const result = await callTool(client, 'export_cards', {
       lists: [{ listType: 'deck', name: 'test-deck' }],

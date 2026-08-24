@@ -203,6 +203,7 @@ describe('MCP output schemas, as authored', () => {
         'warnings',
         'entries',
         'sectionOrder',
+        'description',
         'labels',
         'image',
         'customArt',

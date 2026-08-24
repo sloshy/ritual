@@ -33,6 +33,13 @@ test.describe('Collection Editor – Hide Unpriced', () => {
     await page.waitForSelector('.card-list', { timeout: 10_000 })
   })
 
+  test("the collection's front-matter description is printed above the cards", async ({ page }) => {
+    // The editor is a consumer of the load body's `description`, which reaches
+    // the page through the editor body — the admin half of the same blurb the
+    // public site prints.
+    await expect(page.locator('.list-description')).toHaveText('Everything I will trade away.')
+  })
+
   test('unpriced cards render "N/A" in the price column, priced cards render a price', async ({
     page,
   }) => {

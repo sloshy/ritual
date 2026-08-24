@@ -112,15 +112,21 @@ ${sessionSemantics({
 
 ## Front matter
 
-A wanted list carries exactly one front-matter key of its own: \`image:\`, the
-cover the published site shows for it (a mapping — \`{card: N}\`, \`{file: …}\`
-or \`{url: …}\`; see the **ritual** skill's *List cover images* section). It
-carries no card labels, and \`ritual metadata\` refuses wanted lists entirely, so
-\`set-list-image\` (or the MCP \`set_list_metadata\` tool's \`image\` field, or
-the admin editor's **Cover Image** button) is how it is written. Any other block
-a file already has is preserved verbatim through every save.
+A wanted list carries two front-matter keys of its own. \`description:\` is the
+prose blurb the published site prints above the cards, written with
+\`ritual metadata\` (or the MCP \`set_list_metadata\` tool). \`image:\` is the
+cover the site shows for it (a mapping — \`{card: N}\`, \`{file: …}\` or
+\`{url: …}\`; see the **ritual** skill's *List cover images* section), written
+with \`set-list-image\` (or the same MCP tool's \`image\` field, or the admin
+editor's **Cover Image** button) — \`metadata\` cannot spell a mapping. A wanted
+list carries no card labels. Any other block a file already has is preserved
+verbatim through every save.
 
 \`\`\`bash
+ritual metadata set "To Buy" description "Cards I still need" --wanted
+ritual metadata get "To Buy" description --wanted
+ritual metadata unset "To Buy" description --wanted
+
 ritual set-list-image "To Buy" --wanted --card 3
 ritual set-list-image "To Buy" --wanted --default
 \`\`\`

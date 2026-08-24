@@ -807,10 +807,12 @@ keeps none. The editors' **Move to list…** / `📤 Move to Another List` flow 
 
 ### Collection Front Matter
 
-A collection file may open with a YAML front-matter block declaring the list's **default labels**:
+A collection file may open with a YAML front-matter block declaring the list's **default labels**
+and its **description**, the blurb the built site prints above the cards:
 
 ```markdown
 ---
+description: Everything I will trade away.
 labels: [sale, trade]
 ---
 
@@ -830,9 +832,11 @@ which, like any session save, rewrites the whole file in canonical form), the ad
 **Labels** button, by hand-editing the file, or via the MCP `set_list_metadata` tool.
 The editor action refuses to run when the existing block's YAML cannot be read — a merge over
 keys it cannot see would clobber them; fix the block by hand (every other session edit still
-carries it verbatim). A wanted list carries exactly one front-matter key of its own — the cover
-[`image:`](/list-images/), which [`set-list-image`](/commands/set-list-image/) writes — and any
-other block on one is preserved. Note that a cover written from outside while a session is open is
+carries it verbatim). `description:` is written the same way — with
+[`ritual metadata`](/commands/metadata/), the admin/HTTP route or `set_list_metadata` — and is the
+one key **every** list type carries. A wanted list carries `description:` and the cover
+[`image:`](/list-images/) (which [`set-list-image`](/commands/set-list-image/) writes) and nothing
+else of its own; any other block on one is preserved. Note that a cover written from outside while a session is open is
 dropped by that session's next save, since the session re-emits the block it snapshotted when it
 opened.
 

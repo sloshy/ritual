@@ -92,6 +92,14 @@ ritual metadata get "Main Binder" labels
 ritual metadata unset "Main Binder" labels            # no default
 \`\`\`
 
+The collection's \`description\` — the blurb the published site prints above the
+cards — is written the same way, on any list type:
+
+\`\`\`bash
+ritual metadata set "Main Binder" description "Everything I will trade away"
+ritual metadata unset "Main Binder" description
+\`\`\`
+
 The collection's **cover image** on the published site is front matter too, but a
 mapping rather than a scalar, so it has its own command instead of a
 \`metadata\` property (see the **ritual** skill's *List cover images* section):

@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
+  applyDescriptionPatch,
   applyFlatListMetadata,
   applyImagePatch,
   applyLabelsPatch,
@@ -43,9 +44,9 @@ afterEach(async () => {
 })
 
 describe('FLAT_LIST_METADATA_KEYS', () => {
-  test('a wanted list carries the cover image and nothing else', () => {
-    expect(FLAT_LIST_METADATA_KEYS.wanted).toEqual(['image'])
-    expect(FLAT_LIST_METADATA_KEYS.collection).toEqual(['labels', 'image'])
+  test('a wanted list carries the description and cover image, a collection labels too', () => {
+    expect(FLAT_LIST_METADATA_KEYS.wanted).toEqual(['description', 'image'])
+    expect(FLAT_LIST_METADATA_KEYS.collection).toEqual(['description', 'labels', 'image'])
   })
 })
 
@@ -64,7 +65,35 @@ describe('applyImagePatch', () => {
   })
 })
 
+describe('applyDescriptionPatch', () => {
+  test('writes the text and clears the key on null', () => {
+    expect(applyDescriptionPatch({}, 'Cards I want')).toEqual({ description: 'Cards I want' })
+    expect(applyDescriptionPatch({ description: 'old', labels: ['sale'] }, null)).toEqual({
+      labels: ['sale'],
+    })
+  })
+})
+
 describe('applyFlatListMetadata', () => {
+  test('writes a description and leaves the card lines byte-identical', async () => {
+    await writeList()
+    await applyFlatListMetadata(listPath, { description: 'Everything I own.' })
+    expect(await fs.readFile(listPath, 'utf-8')).toContain(BODY)
+    expect(await readMapping()).toEqual({ description: 'Everything I own.' })
+  })
+
+  test('a description write leaves labels and image alone, and null clears only it', async () => {
+    await writeList('labels:\n  - sale\nimage:\n  card: 2\n')
+    await applyFlatListMetadata(listPath, { description: 'My binder' })
+    expect(await readMapping()).toEqual({
+      labels: ['sale'],
+      image: { card: 2 },
+      description: 'My binder',
+    })
+    await applyFlatListMetadata(listPath, { description: null })
+    expect(await readMapping()).toEqual({ labels: ['sale'], image: { card: 2 } })
+  })
+
   test('writes an image and leaves the card lines byte-identical', async () => {
     await writeList()
     const write = await applyFlatListMetadata(listPath, { image: { file: 'alters/x.png' } })

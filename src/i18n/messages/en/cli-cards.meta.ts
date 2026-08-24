@@ -820,10 +820,6 @@ export const cliCardsMeta = {
     description:
       'Refusal when `image` is passed to metadata set/unset. `ritual set-list-image` is a command name and never translates.',
   },
-  'cli.metadata.wantedNoMetadata': {
-    description:
-      'Refusal when a metadata subcommand targets a wanted list: this command covers decks and collections only. `ritual set-list-image` and `ritual rename` are command names and never translate.',
-  },
   'cli.metadata.frontMatterUnreadable': {
     description:
       "The file's YAML front matter cannot be merged over safely. One sentence per reason rather than a spliced clause.",
@@ -832,13 +828,13 @@ export const cliCardsMeta = {
     description:
       "The stored `labels` value failed validation. {reason} is the parser's own sentence.",
   },
-  'cli.metadata.arrayOnlyDeck': {
+  'cli.metadata.storedDescriptionInvalid': {
     description:
-      "--add/--remove were used on a deck property that is not a list. 'tags' is a key name.",
+      'The stored `description` value is not text, so `metadata get` reports it rather than answering "unset". {reason} is the parser\'s own English sentence.',
   },
-  'cli.metadata.arrayOnlyCollection': {
+  'cli.metadata.arrayOnly': {
     description:
-      "--add/--remove were used on a collection property that is not a list. 'labels' is a key name.",
+      "--add/--remove were used on a property that is not a list. {type} selects the list type (machine value: deck, collection or wanted); 'tags' and 'labels' are key names.",
   },
   'cli.metadata.singleValue': { description: 'The named property accepts exactly one value.' },
   'cli.metadata.invalidLabel': {

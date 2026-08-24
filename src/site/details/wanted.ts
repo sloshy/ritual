@@ -10,7 +10,7 @@ import { displayLanguage, scryfallCardLanguage } from '../../card-language'
 import { defaultPrintingFinish } from '../../finish-condition'
 import { getCardPrice, getCardPriceForFinish } from '../../price-currency'
 import type { CardArtMap } from '../../card-art'
-import { isListImageCardRef, readListImage, type ListImageRef } from '../../list-image'
+import { isListImageCardRef, type ListImageRef } from '../../list-image'
 import type { ScryfallCard } from '../../types'
 import type {
   CardKingdomCards,
@@ -26,6 +26,7 @@ import {
   includeChangelogCards,
   listReadErrorMessage,
   loadListSidecars,
+  readListFrontMatter,
   reportListCoverIssue,
   resolveListCover,
   slugifyListName,
@@ -44,10 +45,12 @@ export type LoadedWanted = {
   entries: WantedListEntry[]
   /** Section names in file order, including empty sections. */
   sectionOrder: string[]
+  /** The list's prose blurb from its front matter, when it declares one. */
+  description?: string
   /**
    * The list's cover image override from its front matter, when it declares a
-   * usable one — the only front-matter key a wanted list interprets. An
-   * unreadable value is reported as one of {@link LoadedWanted.warnings}.
+   * usable one. An unreadable value is reported as one of
+   * {@link LoadedWanted.warnings}.
    */
   image?: ListImageRef
   /** Custom art from the `.art.json` sidecar, keyed by card id. */
@@ -79,10 +82,12 @@ export async function loadWantedSource(
 
   const { entries, sectionOrder, warnings, advisories, frontMatter } = parseWantedListFile(content)
   const displayName = parseTitleFromContent(content) ?? name
-  // The block is carried verbatim by the flat parser, so the cover is read off
-  // its mapping here rather than being interpreted during the parse. A value
-  // the grammar cannot read degrades to an advisory — the list still loads.
-  const { image, advisory } = readListImage(frontMatter?.data ?? {})
+  // Read exactly as a collection's is — see `collection.ts`.
+  const {
+    description,
+    image,
+    warnings: frontMatterWarnings,
+  } = readListFrontMatter(frontMatter?.data ?? {})
 
   const baseName = name.endsWith('.md') ? name.slice(0, -3) : name
   const { changelog, fileMtime, art, artWarnings } = await loadListSidecars(
@@ -96,17 +101,13 @@ export async function loadWantedSource(
     displayName,
     entries,
     sectionOrder,
+    description,
     image,
     art,
     // The parser's own advisories ride the same channel as its warnings and the
     // sidecar's, so nothing the user should hear about is reported by one
     // channel and swallowed by another.
-    warnings: [
-      ...warnings,
-      ...advisories,
-      ...(advisory ? [t('site.detail.listImageInvalid', { reason: advisory })] : []),
-      ...artWarnings,
-    ],
+    warnings: [...warnings, ...advisories, ...frontMatterWarnings, ...artWarnings],
     changelog,
     fileMtime,
   }
@@ -385,6 +386,7 @@ export async function buildWantedArtifacts(
     name: displayName,
     entries: cardEntries,
     sectionOrder,
+    ...(loaded.description ? { description: loaded.description } : {}),
     // Baked so a `.md` downloaded from the site re-emits `image:` rather than
     // dropping it — the front matter a browser can rebuild is only what is here.
     ...(loaded.image ? { listImage: loaded.image } : {}),

@@ -545,12 +545,13 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
     {
       title: 'Set list metadata',
       description:
-        'Write a list’s front matter. Decks: description, tags, format, the Archidekt source ' +
-        'link, labels ("proxy" alone), and image. Collections: labels over the whole vocabulary ' +
+        'Write a list’s front matter. Every list type takes description — the blurb the built ' +
+        'site prints above the cards — and image. Decks add tags, format, the Archidekt source ' +
+        'link, and labels ("proxy" alone). Collections add labels over the whole vocabulary ' +
         '("sale"/"trade" combine; "keep" and "proxy" each stand alone) — the default every ' +
-        'entry without its own override inherits — and image. Wanted lists carry image and ' +
-        'nothing else (use rename_list to change their display name). Only the fields you send ' +
-        'are touched; null (or "" for description) clears one. Setting sourceId together with an ' +
+        'entry without its own override inherits. A wanted list carries description and image ' +
+        'and nothing else (use rename_list to change its display name). Only the fields you ' +
+        'send are touched; null (or "" for description) clears one. Setting sourceId together with an ' +
         'archidekt.com sourceUrl is what makes a deck sync-linked, so it is what sync_decks then ' +
         'operates on; the two must name the SAME Archidekt deck once merged over what the file ' +
         'already carries, or the call is rejected. image is the cover the built site shows for ' +
@@ -565,10 +566,15 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       inputSchema: z
         .object({
           listType: listTypeSchema.describe(
-            'Deck fields for decks; labels for decks and collections; image for all three.',
+            'Deck fields for decks; labels for decks and collections; description and image for ' +
+              'all three.',
           ),
           slug: slugField,
-          description: z.string().nullable().optional().describe('null or "" clears it.'),
+          description: z
+            .string()
+            .nullable()
+            .optional()
+            .describe('The list’s prose blurb; null or "" clears it. Every list type takes it.'),
           tags: z.array(z.string().min(1)).nullable().optional().describe('null clears every tag.'),
           format: deckFormatSchema.nullable().optional(),
           sourceId: z

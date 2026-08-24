@@ -13,6 +13,7 @@ import type { MessageKey } from '../i18n/messages/en'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
+import { ListDescriptionSection } from './ListDescription'
 import { ListPageStats, PageCountAndTotal, SellModeNotice } from './PageStats'
 import type { ScryfallCard } from '../types'
 import type { CardContextInfo } from './card-context'
@@ -141,6 +142,8 @@ interface CollectionPageProps extends SellModeProps {
   entries: CollectionCardEntry[]
   /** Section names in display order, including empty sections. Falls back to entry order. */
   sectionOrder?: string[]
+  /** The list's front-matter blurb, printed above the cards. */
+  description?: string
   /** The list's default card labels; entries without an override inherit these. */
   listLabels?: CardLabel[]
   /** The list's cover image override, re-emitted by the `.md` download. */
@@ -745,7 +748,11 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
           props.name,
           props.entries,
           sectionOrder(),
-          frontMatterFor({ labels: props.listLabels, image: props.listImage }),
+          frontMatterFor({
+            description: props.description,
+            labels: props.listLabels,
+            image: props.listImage,
+          }),
         )
       case 'csv':
         return collectionToCsv(props.entries)
@@ -867,6 +874,8 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         <PriceStalenessNotice outdatedNames={prices.outdatedNames()} />
       </Show>
       <TagFilterWarning untaggedCardNames={untaggedAddedNames()} />
+
+      <ListDescriptionSection description={props.description} symbolMap={props.symbolMap} />
 
       {/* Card sections */}
       <div

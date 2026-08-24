@@ -223,6 +223,11 @@ export interface CollectionSummary {
 export interface CollectionDetail {
   name: string
   entries: CollectionCardEntry[]
+  /**
+   * The collection's prose blurb from its front matter, when it declares one —
+   * printed above the cards exactly as a deck's `description` is.
+   */
+  description?: string
   /** Section names in file order, including empty sections. Used to order/render section groups. */
   sectionOrder?: string[]
   /** The collection's default card labels from its front matter, when declared. */
@@ -292,6 +297,8 @@ export interface WantedListSummary {
 export interface WantedListDetail {
   name: string
   entries: WantedListCardEntry[]
+  /** The wanted list's prose blurb; see {@link CollectionDetail.description}. */
+  description?: string
   /** Section names in file order, including empty sections. Used to order/render section groups. */
   sectionOrder?: string[]
   /** The wanted list's cover image override; see {@link CollectionDetail.listImage}. */

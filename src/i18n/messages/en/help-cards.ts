@@ -158,13 +158,14 @@ export const helpCardsMessages = {
 
   // ── metadata ──────────────────────────────────────────────────────────
   'help.metadata.description':
-    "Inspect and modify a list's front-matter metadata (deck description/tags/format/source link, collection default labels)",
-  'help.metadata.set': 'Set or update a metadata property on a deck or collection',
+    "Inspect and modify a list's front-matter metadata (any list's description, a deck's tags/format/source link, a deck's or collection's default labels)",
+  'help.metadata.set': 'Set or update a metadata property on any list',
   'help.metadata.get': 'Print the value of a single metadata property',
   'help.metadata.list': "Print a list's full front-matter metadata",
-  'help.metadata.unset': 'Remove a metadata property from a deck or collection',
-  'help.metadata.listName': 'Name of the deck or collection (prompted when omitted)',
-  'help.metadata.property': 'Deck: {keys}. Collection: labels.',
+  'help.metadata.unset': 'Remove a metadata property from any list',
+  'help.metadata.listName': 'Name of the list (prompted when omitted)',
+  'help.metadata.property':
+    'Deck: {keys}. Collection: description, labels. Wanted list: description.',
   'help.metadata.value': 'Value(s) to set',
   'help.metadata.add': 'Add value(s) to an array property (tags, labels) instead of replacing it',
   'help.metadata.remove': 'Remove value(s) from an array property',

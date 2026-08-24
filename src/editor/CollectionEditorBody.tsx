@@ -27,6 +27,8 @@ type CollectionEditorBodyProps = SellModeProps & {
   useScryfallImgUrls: boolean
   /** Display name for the list page header. */
   name: string
+  /** Forwarded to the page: the list's front-matter blurb. */
+  description?: string
   /** The collection's default card labels; entries without an override inherit these. */
   listLabels?: CardLabel[]
   showSave?: boolean
@@ -112,6 +114,7 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
     >
       <CollectionPage
         name={props.name}
+        description={props.description}
         slug={ctrl.editor.slug() ?? undefined}
         entries={entriesWithArt()!}
         sectionOrder={ctrl.editor.sectionOrder()}

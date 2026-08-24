@@ -152,10 +152,11 @@ has a \`## Commander\` section, and the tools write that down on the next save.
 A **collection's** YAML front matter carries its default card labels
 (\`labels: [sale, trade]\` or \`labels: [keep]\`), and a **deck's** carries
 \`labels: [proxy]\` — the same key, restricted to the labels that type takes;
-wanted lists carry no labels. All three types carry \`image:\`, the list's
-cover on the published site (see **List cover images** below) — the only
-front-matter key a wanted list defines. A flat list's block round-trips
-byte-for-byte through every save.
+wanted lists carry no labels. All three types carry \`description:\`, the prose
+blurb the published site prints above the cards (\`ritual metadata set <list>
+description "…"\`), and \`image:\`, the list's cover on the published site (see
+**List cover images** below) — between them, the only front-matter keys a wanted
+list defines. A flat list's block round-trips byte-for-byte through every save.
 
 ## Custom art
 
@@ -374,8 +375,8 @@ ritual locale --detect            # opt-in: also run the OS probes (a subprocess
                                   #   yes; --no-input and --output json print the finding and
                                   #   write nothing (json carries it as suggestedUiLocale)
 ritual metadata set <list> <prop> <value...>  # list front matter, same shape as config:
-                                  #   deck description/tags/format/sourceId/sourceUrl/labels,
-                                  #   collection labels
+                                  #   any list's description; deck tags/format/sourceId/
+                                  #   sourceUrl/labels; collection labels
 ritual metadata get|list|unset <list> [prop]  # read or clear it (get exits 3 when unset)
 ritual cache status               # report cache size/freshness/source without refreshing
 ritual cache preload-all          # warm the Scryfall card cache + tags (bulk download); also

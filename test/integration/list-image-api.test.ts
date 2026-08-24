@@ -175,7 +175,7 @@ describe('refusals', () => {
     const { status, body } = await put('wanted/wishlist', { labels: ['sale'] })
     expect(status).toBe(400)
     expect(JSON.stringify(body)).toContain("Unknown metadata field 'labels'")
-    expect(JSON.stringify(body)).toContain('Accepted fields: image')
+    expect(JSON.stringify(body)).toContain('Accepted fields: description, image')
   })
 
   test('an unknown wanted list is a 404 named as a wanted list', async () => {

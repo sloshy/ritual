@@ -125,6 +125,28 @@ describe('frontMatterFor', () => {
       image: { url: 'https://e.test/a.png' },
     })
   })
+
+  test('a description round-trips even when the prose looks like YAML', () => {
+    // Free prose is the one field here that could open a mapping, a comment or
+    // a block scalar, which is why it is written double-quoted.
+    for (const description of [
+      'Trades: only #1 picks - see below',
+      'She said "hi" \\ then left',
+      '{W}{U} control, on a budget',
+      // Emitted as an escaped \n on one physical line, decoded back by YAML.
+      'Line one\n\nLine two',
+    ]) {
+      expect(roundTrip({ description })).toEqual({ description })
+    }
+  })
+
+  test('a description is emitted beside the labels and the cover', () => {
+    expect(roundTrip({ description: 'My binder', labels: ['sale'], image: { card: 12 } })).toEqual({
+      description: 'My binder',
+      labels: ['sale'],
+      image: { card: 12 },
+    })
+  })
 })
 
 describe('collectionToText', () => {

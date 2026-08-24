@@ -4,7 +4,7 @@ title: 'List Cover Images'
 
 Every list gets a **cover image** on the published site: the picture on its tile on the index page, and the one it shows in Quick Switch. Ritual chooses one for you — a commander deck shows its commander, every other list its most expensive printing — and any list can override that choice with the `image:` key in its YAML front matter.
 
-The override is a deck, collection, **or wanted list** setting. For a wanted list it is the only front-matter key there is.
+The override is a deck, collection, **or wanted list** setting. For a wanted list it is one of only two front-matter keys, alongside the [`description:`](/commands/metadata/) blurb.
 
 ## The key
 
@@ -88,7 +88,7 @@ A `url` cover is never validated — not when written, not at build time. A brok
 
 ## Public-site downloads
 
-The public site's edit mode can download an edited collection or wanted list as Markdown. That file is synthesized from the published data, which carries the list's `labels:` and its `image:` — both are re-emitted, so the cover survives a download-and-replace. Every _other_ hand-authored key, along with comments and quoting style, is still lost: only what the site bakes can be rebuilt in a browser.
+The public site's edit mode can download an edited collection or wanted list as Markdown. That file is synthesized from the published data, which carries the list's `description:`, its `labels:` and its `image:` — all three are re-emitted, so the cover survives a download-and-replace. Every _other_ hand-authored key, along with comments and quoting style, is still lost: only what the site bakes can be rebuilt in a browser.
 
 ## Known gap: the CLI edit session
 

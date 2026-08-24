@@ -9,6 +9,13 @@ export const sitePagesMeta = {
     description:
       'Header button on a deck/collection/wanted page that opens the "view several lists together" picker. The ellipsis marks it as opening a dialog.',
   },
+  'site.list.readMore': {
+    description:
+      "Link that expands a truncated list description (any list type) or a deck's collapsed primer.",
+  },
+  'site.list.showLess': {
+    description: 'Link that collapses an expanded list description or a deck primer.',
+  },
   'site.page.viewChanges': {
     description:
       'Header button on a list page that opens the change history (changelog) modal for that list.',
@@ -186,12 +193,6 @@ export const sitePagesMeta = {
   'site.deck.hasPrimer': {
     description:
       'Teaser shown when a deck has a long-form primer that is currently collapsed. A "primer" is a written deck guide.',
-  },
-  'site.deck.readMore': {
-    description: 'Link that expands a truncated deck description or a collapsed primer.',
-  },
-  'site.deck.showLess': {
-    description: 'Link that collapses an expanded deck description or primer.',
   },
   'site.deck.primerContents': {
     description: 'Heading of the primer sidebar listing its section links — a table of contents.',
@@ -535,6 +536,10 @@ export const sitePagesMeta = {
   'site.detail.artUnknownCards': {
     description:
       'Build warning: the custom-art sidecar names card ids that the list no longer contains. {ids} is a comma-separated list of those raw numeric ids.',
+  },
+  'site.detail.listDescriptionInvalid': {
+    description:
+      "Build warning: a list's front-matter 'description' key holds a value that is not text, so no blurb is shown. {reason} is the parser's own English explanation and is not translated.",
   },
   'site.detail.listImageInvalid': {
     description:

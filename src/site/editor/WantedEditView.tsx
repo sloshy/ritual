@@ -119,7 +119,10 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
               props.detail.name,
               ctrl.editor.data() ?? [],
               ctrl.editor.sectionOrder(),
-              frontMatterFor({ image: props.detail.listImage }),
+              frontMatterFor({
+                description: props.detail.description,
+                image: props.detail.listImage,
+              }),
             ),
         },
       ]}
@@ -131,6 +134,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
           currency={props.currency}
           useScryfallImgUrls={props.detail.useScryfallImgUrls}
           name={props.detail.name}
+          description={props.detail.description}
           showSave={false}
           showDiscard={false}
           fullWidth={false}
@@ -145,6 +149,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
       original={
         <WantedListPage
           name={props.detail.name}
+          description={props.detail.description}
           entries={props.detail.entries}
           sectionOrder={props.detail.sectionOrder}
           cards={props.detail.cards}

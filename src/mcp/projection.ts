@@ -100,6 +100,12 @@ export type FlatListProjection = {
   slug: string
   entries: CollectionEntry[] | ParsedWantedEntry[]
   sectionOrder?: string[]
+  /**
+   * The list's prose blurb from its front matter, absent when it declares none.
+   * A deck's rides in `DeckProjection.deck.description` instead. Write it with
+   * `set_list_metadata`.
+   */
+  description?: string
   /** The list's default card labels from its front matter — collections only. */
   labels?: CardLabel[]
   /** See {@link DeckProjection.image}. Carried by both flat list types. */
@@ -187,6 +193,7 @@ export async function loadProjectedList(
     slug,
     entries: data.entries,
     sectionOrder: data.sectionOrder,
+    description: data.description,
     labels: data.labels,
     image: data.image,
     customArt: data.customArt,

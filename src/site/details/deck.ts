@@ -6,7 +6,6 @@ import type { ChangelogPage } from '../../changelog-parser'
 import { effectiveLabels, isPriceless, type CardLabel } from '../../card-labels'
 import type { CardArtMap } from '../../card-art'
 import { isListImageCardRef, type ListImageRef } from '../../list-image'
-import { readListImageFile } from '../../list-image-file'
 import { extractPrimerCardNames } from '../../primer-parser'
 import { resolveDeckFormat, getMainDeckSize, isCommanderSection } from '../../deck-format'
 import { findPrinting, hasSpecificPrinting } from '../../card-printing'
@@ -14,7 +13,6 @@ import { formatPrintingLabel, printingKey } from '../../printing-key'
 import { getCardPrice } from '../../price-currency'
 import type { PriceCurrency } from '../../price-currency'
 import { getErrorMessage } from '../../errors'
-import { t } from '../../i18n/t'
 import type { Card, DeckData, ScryfallCard } from '../../types'
 import type { BakedDeckData, CardKingdomCards, DeckDetail, DeckSummary } from '../data-types'
 import {
@@ -22,6 +20,7 @@ import {
   cardIdsOf,
   customArtLookup,
   loadListSidecars,
+  readDroppedFrontMatterAdvisories,
   reportListCoverIssue,
   resolveListCover,
   slugifyListName,
@@ -62,7 +61,7 @@ export async function loadDeckSource(
   let warnings: string[]
   let labels: CardLabel[] | undefined
   let image: ListImageRef | undefined
-  let imageAdvisory: string | undefined
+  let droppedAdvisories: string[] = []
   try {
     const parsed = await loadDeckFile(filePath)
     data = parsed.deck
@@ -74,12 +73,14 @@ export async function loadDeckSource(
     const frontMatter = await parseDeckFrontMatter(filePath)
     labels = frontMatter.labels
     image = frontMatter.image
-    // `validateDeckFrontMatter` drops an `image:` the cover grammar cannot
-    // read, and the deck's next whole-file save then deletes it outright — so
-    // the raw value is read back and reported here, exactly as the flat-list
-    // parsers report theirs. Paid only by a deck that ended up with no usable
-    // cover, which is every deck that never set one.
-    if (image === undefined) imageAdvisory = (await readListImageFile(filePath)).advisory
+    // `validateDeckFrontMatter` drops an `image:` or a `description:` its
+    // grammar cannot read, and the deck's next whole-file save then deletes the
+    // key outright — so the raw values are read back and reported here, exactly
+    // as the flat-list loaders report theirs. Paid only by a deck missing one of
+    // them, which is every deck that set neither.
+    if (image === undefined || frontMatter.description === undefined) {
+      droppedAdvisories = await readDroppedFrontMatterAdvisories(filePath)
+    }
   } catch (e) {
     return getErrorMessage(e)
   }
@@ -99,12 +100,9 @@ export async function loadDeckSource(
     image,
     art,
     // One channel for everything the user must hear about, in the order it was
-    // discovered: unreadable lines, an ignored `image:`, then the art sidecar's.
-    warnings: [
-      ...warnings,
-      ...(imageAdvisory ? [t('site.detail.listImageInvalid', { reason: imageAdvisory })] : []),
-      ...artWarnings,
-    ],
+    // discovered: unreadable lines, an ignored front-matter key, then the art
+    // sidecar's.
+    warnings: [...warnings, ...droppedAdvisories, ...artWarnings],
     fileMtime,
   }
 }

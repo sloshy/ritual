@@ -143,6 +143,11 @@ export const MOCK_WANTED_LIST_CARD_FOIL_ONLY = makeMockScryfallCard({
 /** Wanted-list payload served by both the public wanted page and the admin load API. */
 export const MOCK_WANTED_LIST_DETAIL = {
   name: 'Test Wanted List',
+  // Past the 200-character collapse threshold, so the toggle appears.
+  description:
+    'This wanted list has a long description that runs past the 200-character truncation ' +
+    'threshold the shared list-description component uses, so the page collapses it behind ' +
+    'a Read more link exactly as a deck description is collapsed.',
   entries: [
     { name: 'Lightning Bolt', price: 2.0, fileOrder: 0, section: 'Main', state: 'name-only' },
     {
@@ -225,6 +230,8 @@ export const MOCK_COLLECTION_CARD_UNPRICED = makeMockScryfallCard({
  */
 export const MOCK_COLLECTION_DETAIL = {
   name: 'Test Collection',
+  // Short enough to render whole: the page shows it with no Read more toggle.
+  description: 'Everything I will trade away.',
   entries: [
     {
       name: 'Priced Card',

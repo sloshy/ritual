@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  buildCollectionSetBody,
   buildDeckSetBody,
+  buildFlatListSetBody,
   type DeckArrayValues,
 } from '../../src/commands/metadata'
 import { mergeArrayValues, splitCommaTokens } from '../../src/config-fields'
@@ -73,32 +73,50 @@ describe('buildDeckSetBody', () => {
   })
 })
 
-describe('buildCollectionSetBody', () => {
+describe('buildFlatListSetBody', () => {
   test('labels accept separate and comma-joined values alike, case-insensitively', () => {
-    expect(buildCollectionSetBody('labels', ['sale,trade'], [], 'replace')).toEqual({
+    expect(buildFlatListSetBody('collection', 'labels', ['sale,trade'], [], 'replace')).toEqual({
       labels: ['sale', 'trade'],
     })
-    expect(buildCollectionSetBody('labels', ['Sale', 'TRADE'], [], 'replace')).toEqual({
+    expect(buildFlatListSetBody('collection', 'labels', ['Sale', 'TRADE'], [], 'replace')).toEqual({
       labels: ['sale', 'trade'],
     })
   })
 
   test('a token outside the vocabulary errors even under --remove', () => {
-    expect(buildCollectionSetBody('labels', ['bogus'], ['sale'], 'remove')).toContain(
+    expect(buildFlatListSetBody('collection', 'labels', ['bogus'], ['sale'], 'remove')).toContain(
       "Invalid label 'bogus'",
     )
   })
 
   test('remove can empty the set (the parser then clears the key)', () => {
-    expect(buildCollectionSetBody('labels', ['sale'], ['sale'], 'remove')).toEqual({ labels: [] })
+    expect(buildFlatListSetBody('collection', 'labels', ['sale'], ['sale'], 'remove')).toEqual({
+      labels: [],
+    })
   })
 
   test('an empty replace is refused — clearing is unset, not an accidental empty set', () => {
-    expect(buildCollectionSetBody('labels', [''], [], 'replace')).toContain('No labels given')
+    expect(buildFlatListSetBody('collection', 'labels', [''], [], 'replace')).toContain(
+      'No labels given',
+    )
+  })
+
+  test('description joins its values with spaces, on either flat list type', () => {
+    expect(
+      buildFlatListSetBody('wanted', 'description', ['Cards', 'I', 'need'], [], 'replace'),
+    ).toEqual({ description: 'Cards I need' })
+    expect(
+      buildFlatListSetBody('collection', 'description', ['My', 'binder'], [], 'replace'),
+    ).toEqual({ description: 'My binder' })
   })
 
   test('--add on a non-array key is an error', () => {
-    expect(buildCollectionSetBody('bogus', ['x'], [], 'add')).toContain('--add/--remove')
+    expect(buildFlatListSetBody('collection', 'description', ['x'], [], 'add')).toContain(
+      '--add/--remove',
+    )
+    expect(buildFlatListSetBody('wanted', 'description', ['x'], [], 'add')).toContain(
+      'a wanted list has none',
+    )
   })
 })
 

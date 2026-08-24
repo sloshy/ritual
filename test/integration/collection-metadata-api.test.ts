@@ -9,8 +9,8 @@ import { callJson } from './helpers/request'
 import { computeHash } from '../../src/content-hash'
 
 /**
- * `PUT /api/metadata/collection/:slug` — `labels` front-matter writes against
- * real collection files. The body validator and the label vocabulary are
+ * `PUT /api/metadata/collection/:slug` — `labels` and `description` front-matter
+ * writes against real collection files. The body validator and the label vocabulary are
  * unit-tested; what matters here is the file side effect: the block is created,
  * replaced, or removed while the card lines survive byte for byte.
  */
@@ -103,6 +103,40 @@ describe('handleMetadataSave — collections', () => {
     const { status, body } = await put({ tags: ['x'] })
     expect(status).toBe(400)
     expect(JSON.stringify(body)).toContain("Unknown metadata field 'tags'")
+  })
+
+  test('writes a description beside the labels, card lines untouched', async () => {
+    await put({ labels: ['sale'] })
+    const { status, body } = await put({ description: '  Cards I am happy to move.  ' })
+    expect(status).toBe(200)
+    // Stored trimmed, and the labels written before it survive.
+    expect(expectSuccess(body).frontMatter).toEqual({
+      labels: ['sale'],
+      description: 'Cards I am happy to move.',
+    })
+
+    const content = await fs.readFile(filePath, 'utf-8')
+    expect(content).toContain('- Sol Ring (C21:263) &1')
+    expect(parseCollectionFile(content).warnings).toHaveLength(0)
+  })
+
+  test('an empty description clears the key, exactly as null does', async () => {
+    await put({ description: 'Temporary.' })
+    const empty = await put({ description: '' })
+    expect('description' in expectSuccess(empty.body).frontMatter).toBeFalse()
+    expect((await fs.readFile(filePath, 'utf-8')).startsWith('# Binder')).toBeTrue()
+
+    await put({ description: 'Back again.' })
+    const nulled = await put({ description: null })
+    expect('description' in expectSuccess(nulled.body).frontMatter).toBeFalse()
+  })
+
+  test('a non-string description is a 400 and writes nothing', async () => {
+    const before = await fs.readFile(filePath, 'utf-8')
+    const { status, body } = await put({ description: ['a'] })
+    expect(status).toBe(400)
+    expect(JSON.stringify(body)).toContain('a list description must be text')
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
   })
 
   test('a stale contentHash is a 409', async () => {

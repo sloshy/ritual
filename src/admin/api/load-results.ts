@@ -141,6 +141,12 @@ export interface FlatCardsLoadResult<T> extends ListLoadBase {
   view: 'cards'
   entries: T[]
   sectionOrder?: string[]
+  /**
+   * The list's prose blurb from its front matter, absent when it declares none.
+   * Projected out of the block for the same reason `labels` and `image` are, and
+   * carried by both flat list types.
+   */
+  description?: string
   /** The list's default card labels from its front matter — collections only. */
   labels?: CardLabel[]
   /** See {@link DeckCardsLoadResult.image}. Carried by both flat list types. */
@@ -152,6 +158,8 @@ export interface FlatFullLoadResult<T> extends ListLoadBase, EntryCardLoadResult
   view: 'full'
   entries: T[]
   sectionOrder?: string[]
+  /** See {@link FlatCardsLoadResult.description}. */
+  description?: string
   /** The list's default card labels from its front matter — collections only. */
   labels?: CardLabel[]
   /** See {@link DeckCardsLoadResult.image}. Carried by both flat list types. */

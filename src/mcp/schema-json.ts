@@ -697,6 +697,7 @@ export const GET_LIST_OUTPUT: JsonSchemaType = withDefs(
           ...GET_LIST_COMMON_PROPS,
           entries: arr({ anyOf: [ref('CollectionEntry'), ref('WantedEntry')] }),
           sectionOrder: arr(str(), 'Section names in file order.'),
+          description: str('The list’s front-matter description, the blurb the site prints.'),
           labels: arr(
             CARD_LABEL,
             'The list’s default card labels from front matter (never on a wanted list).',

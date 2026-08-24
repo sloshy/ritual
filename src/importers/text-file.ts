@@ -15,6 +15,7 @@ import {
   unsupportedLabelsFor,
   type CardLabel,
 } from '../card-labels'
+import { listDescriptionOrUndefined } from '../list-description'
 import { readListImage } from '../list-image'
 import { isDroppedEmptySection, parseDeckFormat } from '../deck-format'
 import { createFenceTracker } from '../markdown-fence'
@@ -294,7 +295,10 @@ export function parseDeckText(
   const frontMatterName = getString(parsed.data.name)
   let name = resolveDeckName(parsed.data.name, fallbackName)
 
-  const description = getString(parsed.data.description)
+  // Through the shared grammar after the `\n` unescape: a blank or non-text
+  // `description:` says nothing on every list type, and one renderer prints all
+  // three (a whitespace-only value would otherwise render an empty blurb block).
+  const description = listDescriptionOrUndefined(getString(parsed.data.description))
   const sourceUrl = getString(parsed.data.sourceUrl)
   const sourceId = getString(parsed.data.sourceId)
   // An unrecognized `format:` is dropped, not carried: the deck then falls back

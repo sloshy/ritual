@@ -12,6 +12,8 @@ import type { MessageCatalogShape } from '../../types'
 export const sitePagesMessages = {
   // ── Shared list-page chrome ───────────────────────────────────────────
   'site.page.combineWithList': 'Combine with list…',
+  'site.list.readMore': 'Read more',
+  'site.list.showLess': 'Show less',
   'site.page.viewChanges': 'View Changes',
   'site.stats.total': 'Total: {amount}',
   'site.stats.cardsAndTotal': '{count} cards · Total: {amount}',
@@ -72,8 +74,6 @@ export const sitePagesMessages = {
   'site.deck.lowestPriceEditDisabled':
     'Unavailable while editing — the deck shows its own printings.',
   'site.deck.hasPrimer': 'This deck has a primer.',
-  'site.deck.readMore': 'Read more',
-  'site.deck.showLess': 'Show less',
   'site.deck.primerContents': 'Contents',
 
   // ── Collection page ───────────────────────────────────────────────────
@@ -212,6 +212,7 @@ export const sitePagesMessages = {
     "No {language} card object for '{name}' ({printing}); using the default-language object",
   'site.detail.artUnreadable': 'Custom art sidecar ignored: {reason}',
   'site.detail.artUnknownCards': 'Custom art is set for cards no longer in this list: {ids}',
+  'site.detail.listDescriptionInvalid': "Front matter 'description' ignored: {reason}",
   'site.detail.listImageInvalid': "Front matter 'image' ignored: {reason}",
   'site.detail.listImageUnknownCard': {
     $select: 'kind',

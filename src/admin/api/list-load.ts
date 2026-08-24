@@ -101,6 +101,11 @@ export function stampLoadBody<T extends ListLoadStamp>(
 export interface FlatListParseResult<T> {
   entries: T[]
   sectionOrder: string[]
+  /**
+   * The list's prose blurb from its front matter, when it declares one. Read
+   * here for the same reason {@link FlatListParseResult.image} is.
+   */
+  description?: string
   /** The list's default card labels from its front matter — collections only. */
   labels?: CardLabel[]
   /**
@@ -163,7 +168,14 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
     const { slug, filePath, params } = prologue.value
 
     const content = await Bun.file(filePath).text()
-    const { entries: allEntries, sectionOrder, labels, image, warnings } = cfg.parse(content)
+    const {
+      entries: allEntries,
+      sectionOrder,
+      description,
+      labels,
+      image,
+      warnings,
+    } = cfg.parse(content)
     // Hashed from the content itself, never the sidecar — see deck-load.ts.
     const contentHash = computeHash(content)
 
@@ -203,6 +215,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
         view: 'cards',
         entries,
         sectionOrder,
+        description,
         labels,
         image,
         totalCount,
@@ -230,6 +243,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
       entries,
       totalCount,
       sectionOrder,
+      description,
       labels,
       image,
       ...cardData,

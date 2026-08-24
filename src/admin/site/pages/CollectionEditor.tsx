@@ -35,6 +35,7 @@ type CollectionDataResponse = {
   success: boolean
   entries: CollectionCardEntry[]
   sectionOrder?: string[]
+  description?: string
   labels?: CardLabel[]
   image?: ListImageRef
   customArt?: CardArtRecord
@@ -58,6 +59,9 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
   // card added in this session — whose `&N` exists only client-side until the
   // next save — is never offered as a cover.
   const [listImage, setListImage] = createSignal<ListImageRef | undefined>(undefined)
+  // The list's blurb, seeded from each load. Read-only here — see the wanted
+  // list editor for why.
+  const [description, setDescription] = createSignal<string | undefined>(undefined)
   const [imageCards, setImageCards] = createSignal<readonly ListImageCardOption[]>([])
   const [imageOpen, setImageOpen] = createSignal(false)
   const cardArt = useCardArt('collection')
@@ -87,6 +91,7 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
       // them decorating whatever is on screen.
       setListLabels(r.labels)
       setListImage(r.image)
+      setDescription(r.description)
       setImageCards(r.success ? flatListImageCardOptions(r.entries, r.cards) : [])
       // The ids the *saved* list holds: an art edit on any other card has to
       // wait for the save that gives its line an `&N`.
@@ -165,6 +170,7 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
         currency={ctrl.editor.currency()}
         useScryfallImgUrls={true}
         name={name()}
+        description={description()}
         listLabels={listLabels()}
         enableImport={true}
         onEditLabels={() => setLabelsOpen(true)}

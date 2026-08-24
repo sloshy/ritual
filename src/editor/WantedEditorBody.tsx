@@ -25,6 +25,8 @@ type WantedEditorBodyProps = SellModeProps & {
   cardsCardKingdom?: CardKingdomCards
   /** Display name for the list page header. */
   name: string
+  /** Forwarded to the page: the list's front-matter blurb. */
+  description?: string
   showSave?: boolean
   showDiscard?: boolean
   enableImport?: boolean
@@ -75,6 +77,7 @@ export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
     >
       <WantedListPage
         name={props.name}
+        description={props.description}
         slug={ctrl.editor.slug() ?? undefined}
         entries={entriesWithArt()!}
         sectionOrder={ctrl.editor.sectionOrder()}

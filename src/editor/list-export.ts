@@ -67,6 +67,8 @@ export function withFrontMatter(
 
 /** The front-matter fields a list detail bakes, and so a download can re-emit. */
 export type ListFrontMatterFields = {
+  /** The list's prose blurb, when it declares one. */
+  description?: string
   /** The list's default card labels, when it declares any. */
   labels?: readonly CardLabel[]
   /** The list's cover image override, when it declares one. */
@@ -88,6 +90,13 @@ export type ListFrontMatterFields = {
 export function frontMatterFor(fields: ListFrontMatterFields): FlatListFrontMatter | undefined {
   const data: Record<string, unknown> = {}
   const lines: string[] = []
+  const description = fields.description
+  if (description) {
+    data.description = description
+    // Always double-quoted: a description is free prose, so an unquoted scalar
+    // could open a YAML mapping, a comment, or a multi-line block.
+    lines.push(`description: ${JSON.stringify(description)}`)
+  }
   const labels = fields.labels
   if (labels && labels.length > 0) {
     const normalized = normalizeCardLabels(labels)

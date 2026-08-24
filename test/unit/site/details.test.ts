@@ -376,6 +376,24 @@ describe('buildCollectionArtifacts', () => {
     expect(warnings[0]).toContain("'Lightning Bolt' (BAD:999)")
   })
 
+  test('bakes the front-matter description, and omits the key without one', async () => {
+    // The browser rebuilds a downloaded `.md`'s front matter from the baked
+    // detail alone, and the page prints the blurb from it.
+    const { ctx } = makeContext({
+      printingsByName: { 'Serra Angel': [angel], 'Lightning Bolt': [bolt, boltCheap] },
+    })
+    const { detail } = await buildCollectionArtifacts(
+      { ...loaded, description: 'Everything I will trade away.' },
+      ctx,
+    )
+    expect(detail.description).toBe('Everything I will trade away.')
+
+    // The key must be *absent*, not present-and-undefined: a downloaded `.md`
+    // re-emits exactly what the detail carries.
+    const plain = await buildCollectionArtifacts(loaded, ctx)
+    expect('description' in plain.detail).toBeFalse()
+  })
+
   test('includes changelog-referenced cards under their canonical name', async () => {
     const changelog: ChangelogPage[] = [
       {
@@ -446,6 +464,18 @@ describe('buildWantedArtifacts', () => {
     expect(detail.cards['m10:146']).toBe(boltCheap)
     expect(detail.cards['Lightning Bolt']).toBe(boltCheap)
     expect(detail.cards['fdn:35']).toBe(angel)
+  })
+
+  test('bakes the front-matter description like a collection does', async () => {
+    const { ctx } = makeContext({ printingsByName: { 'Lightning Bolt': [bolt] } })
+    const { detail } = await buildWantedArtifacts(
+      { ...loaded, description: 'Cards I still need.' },
+      ctx,
+    )
+    expect(detail.description).toBe('Cards I still need.')
+
+    const plain = await buildWantedArtifacts(loaded, ctx)
+    expect('description' in plain.detail).toBeFalse()
   })
 
   test('warns and counts missing prices when a printing cannot be found', async () => {

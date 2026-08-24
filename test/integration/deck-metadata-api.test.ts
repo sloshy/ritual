@@ -3,7 +3,12 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import matter from 'gray-matter'
 import { handleMetadataSave, type MetadataResponse } from '../../src/admin/api/metadata'
-import { bindWorkspace, writeCollectionFile, writeDeckFile } from './helpers/workspace'
+import {
+  bindWorkspace,
+  writeCollectionFile,
+  writeDeckFile,
+  writeWantedFile,
+} from './helpers/workspace'
 import type { BoundWorkspace } from './helpers/workspace'
 import { callJson } from './helpers/request'
 import { computeHash } from '../../src/content-hash'
@@ -146,17 +151,31 @@ describe('handleMetadataSave', () => {
 
   test('a deck-only field on a collection is an unknown field, not silence', async () => {
     await writeCollectionFile(ws.dir, 'binder', { title: 'Binder', entries: [] })
-    const { status, body } = await put('collection/binder', { description: 'nope' })
+    const { status, body } = await put('collection/binder', { tags: ['nope'] })
     expect(status).toBe(400)
     expect(body).toMatchObject({ success: false })
-    expect(JSON.stringify(body)).toContain("Unknown metadata field 'description'")
+    expect(JSON.stringify(body)).toContain("Unknown metadata field 'tags'")
   })
 
-  test('a wanted list takes image alone, so labels there are an unknown field', async () => {
+  test('a wanted list takes description and image, so labels there are unknown', async () => {
     const { status, body } = await put('wanted/anything', { labels: ['sale'] })
     expect(status).toBe(400)
     expect(body).toMatchObject({ success: false })
     expect(JSON.stringify(body)).toContain("Unknown metadata field 'labels'")
+  })
+
+  test('a wanted list accepts a description write, card lines untouched', async () => {
+    const wantedPath = await writeWantedFile(ws.dir, 'needs', {
+      title: 'Needs',
+      entries: [{ name: 'Sol Ring', cardId: 1 }],
+    })
+    const { status, body } = await put('wanted/needs', { description: 'Cards I still need.' })
+    expect(status).toBe(200)
+    expect(body).toMatchObject({ frontMatter: { description: 'Cards I still need.' } })
+
+    const content = await fs.readFile(wantedPath, 'utf-8')
+    expect(content).toContain('- Sol Ring &1')
+    expect(matter(content).data).toEqual({ description: 'Cards I still need.' })
   })
 
   test('an unknown field is a 400 and writes nothing', async () => {

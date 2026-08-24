@@ -36,7 +36,7 @@ import { rarityName } from './printing-display'
 import type { ChangelogPage } from '../changelog-parser'
 import { findPrinting, hasSpecificPrinting } from '../card-printing'
 import { storedLanguage } from '../card-language'
-import { SymbolText } from './symbols'
+import { ListDescription } from './ListDescription'
 import type { PriceCurrency } from '../price-currency'
 import { formatPrice } from '../price-currency'
 import { pricesEnabled, sitePrice } from './price-view'
@@ -1013,21 +1013,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
 
       {/* Description / Primer */}
       <Show when={props.deck.description || props.deck.primer}>
-        <div class="deck-description-section">
-          <Show when={props.deck.description}>
-            <div class="deck-description">
-              <Show
-                when={props.deck.description!.length > 200}
-                fallback={
-                  <div class="text-preformatted">
-                    <SymbolText text={props.deck.description!} symbolMap={props.symbolMap} />
-                  </div>
-                }
-              >
-                <ExpandableText text={props.deck.description!} symbolMap={props.symbolMap} />
-              </Show>
-            </div>
-          </Show>
+        <div class="list-description-section">
+          <ListDescription description={props.deck.description} symbolMap={props.symbolMap} />
           <Show when={props.deck.primer}>
             <div class="deck-primer">
               <ExpandablePrimer
@@ -1185,31 +1172,6 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   )
 }
 
-// Expandable text component for long plain-text descriptions
-type ExpandableTextProps = {
-  text: string
-  symbolMap: Record<string, string>
-}
-
-function ExpandableText(props: ExpandableTextProps) {
-  const t = useT()
-  const [expanded, setExpanded] = createSignal(false)
-
-  return (
-    <div>
-      <div class="text-preformatted">
-        <SymbolText
-          text={expanded() ? props.text : props.text.slice(0, 200) + '…'}
-          symbolMap={props.symbolMap}
-        />
-      </div>
-      <button class="link-action" onClick={() => setExpanded((prev) => !prev)}>
-        {expanded() ? t('site.deck.showLess') : t('site.deck.readMore')}
-      </button>
-    </div>
-  )
-}
-
 // Expandable primer component with Markdown rendering and an optional TOC sidebar
 type ExpandablePrimerProps = {
   primer: string
@@ -1254,7 +1216,7 @@ function ExpandablePrimer(props: ExpandablePrimerProps) {
                 history.replaceState(null, '', deckPrimerHash(props.slug, true))
               }}
             >
-              {t('site.deck.readMore')}
+              {t('site.list.readMore')}
             </button>
           </div>
         }
@@ -1291,7 +1253,7 @@ function ExpandablePrimer(props: ExpandablePrimerProps) {
               history.replaceState(null, '', deckPrimerHash(props.slug, false))
             }}
           >
-            {t('site.deck.showLess')}
+            {t('site.list.showLess')}
           </button>
         </div>
       </Show>

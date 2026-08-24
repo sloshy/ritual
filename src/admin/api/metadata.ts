@@ -8,6 +8,7 @@ import {
   type FlatListType,
 } from '../../flat-list-metadata'
 import { isListImageRefError, parseListImage, type ListImageRef } from '../../list-image'
+import { isListDescriptionError, parseListDescription } from '../../list-description'
 import { checkListImageCardId } from '../../list-image-file'
 import {
   LIST_TYPE_LABELS,
@@ -31,11 +32,11 @@ import { MAX_LIST_BODY_SIZE } from '../validation'
 /**
  * `PUT /api/metadata/:type/:slug` — write a list's front matter.
  *
- * Decks accept the deck vocabulary (description/tags/format/source link) plus
- * `labels` (their default card labels, `proxy` alone); collections accept
- * `labels` over the whole label vocabulary. **All three list types** accept
- * `image`, a list's cover override — a wanted list's only writable key, which is
- * why it is no longer refused outright.
+ * Decks accept the deck vocabulary (tags/format/source link) plus `labels`
+ * (their default card labels, `proxy` alone); collections accept `labels` over
+ * the whole label vocabulary. **All three list types** accept `description`, the
+ * prose blurb the site prints above the cards, and `image`, a list's cover
+ * override — the two keys that make a wanted list worth writing to at all.
  *
  * `image` speaks exactly the front matter's own grammar (`{card}`/`{file}`/`{url}`,
  * `null` to clear), so a body, a hand-edited file, an MCP call and the admin
@@ -73,10 +74,13 @@ export type ParsedDeckMetadataBody = {
 /**
  * The flat-list (collection | wanted) front-matter fields this route may write.
  * `null` clears a field. The vocabulary is per type — a wanted list takes
- * `image` alone, and a `labels` key on one is refused by name — so this shape is
- * the union of both and {@link parseFlatListMetadataBody} narrows it.
+ * `description` and `image`, and a `labels` key on one is refused by name — so
+ * this shape is the union of both and {@link parseFlatListMetadataBody} narrows
+ * it.
  */
 export type FlatListMetadataRequest = {
+  /** The list's prose blurb; `null` or `''` clears it. */
+  description?: string | null
   labels?: string[] | null
   /** The list's cover image override; see {@link DeckMetadataRequest.image}. */
   image?: ListImageRef | null
@@ -174,6 +178,27 @@ function parseListDefaultLabels(raw: unknown, type: ListType): CardLabel[] | nul
 }
 
 /**
+ * A validated `description` field: the value to store (`null` clears the key),
+ * or the message explaining the refusal. A discriminated pair rather than
+ * `string | null | string` because the value and the refusal are both strings.
+ */
+type DescriptionField = { ok: true; value: string | null } | { ok: false; error: string }
+
+/**
+ * Validate a request body's `description` value: `null` — or a string that is
+ * blank once trimmed, since an empty description says nothing — clears the key,
+ * any other string is stored trimmed. The refusal is `list-description.ts`'s own
+ * wording, forwarded verbatim for the reason {@link parseListImageField} states:
+ * a hand-edited file's bad `description:` reports the same sentence, so a user
+ * reading either sees one wording.
+ */
+function parseDescriptionField(raw: unknown): DescriptionField {
+  const parsed = parseListDescription(raw)
+  if (isListDescriptionError(parsed)) return { ok: false, error: parsed.error }
+  return { ok: true, value: parsed }
+}
+
+/**
  * Validate a request body's `image` value as a list's cover override: `null`
  * clears the key, anything else must be the front matter's own single-key
  * mapping. Returns the patch value, or the message explaining the refusal —
@@ -205,14 +230,9 @@ export function parseDeckMetadataBody(
   const { contentHash } = envelope
 
   if ('description' in raw) {
-    if (raw.description === null) {
-      patch.description = null
-    } else {
-      if (typeof raw.description !== 'string') return 'description must be a string or null.'
-      const trimmed = raw.description.trim()
-      // An empty description says nothing; clear the key rather than writing `''`.
-      patch.description = trimmed === '' ? null : trimmed
-    }
+    const description = parseDescriptionField(raw.description)
+    if (!description.ok) return description.error
+    patch.description = description.value
   }
 
   if ('tags' in raw) {
@@ -300,6 +320,7 @@ export function parseDeckMetadataBody(
  * is refused **by name** ("Unknown metadata field 'labels'") rather than being
  * accepted into a patch the writer would then have to drop — a wanted list's
  * cards belong to nobody yet, so a default label says nothing about them.
+ * `description` is not narrowed that way: both flat types print a blurb.
  */
 export function parseFlatListMetadataBody(
   raw: Record<string, unknown>,
@@ -310,6 +331,12 @@ export function parseFlatListMetadataBody(
   const envelope = parseMetadataEnvelope(raw, FLAT_LIST_METADATA_KEYS[type])
   if (typeof envelope === 'string') return envelope
   const { contentHash } = envelope
+
+  if ('description' in raw) {
+    const description = parseDescriptionField(raw.description)
+    if (!description.ok) return description.error
+    patch.description = description.value
+  }
 
   if ('labels' in raw) {
     const labels = parseListDefaultLabels(raw.labels, type)
@@ -331,9 +358,9 @@ export function parseFlatListMetadataBody(
  * list, leaving the card lines untouched. Decks take the deck vocabulary below;
  * decks and collections take `labels` (cleared by `null` or `[]`), validated
  * against the label vocabulary, the exclusivity rule, and what the list type
- * carries — a deck accepts `proxy` alone. All three types take `image`, and a
- * wanted list takes nothing else: it is served by the same flat-list branch as a
- * collection rather than refused, because it now has one key worth writing.
+ * carries — a deck accepts `proxy` alone. All three types take `description` and
+ * `image`, and a wanted list takes nothing else: it is served by the same
+ * flat-list branch as a collection rather than refused.
  *
  * A `card`-mode `image` is verified against the file it is being written to and
  * refused with a 400 when no line carries that `&N` (see

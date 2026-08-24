@@ -5,7 +5,7 @@ import { parseCollectionFile } from '../../collection-file'
 import type { CollectionEntry } from '../../collection-file'
 import { effectiveLabels, isPriceless, type CardLabel } from '../../card-labels'
 import type { CardArtMap } from '../../card-art'
-import { isListImageCardRef, readListImage, type ListImageRef } from '../../list-image'
+import { isListImageCardRef, type ListImageRef } from '../../list-image'
 import { parseTitleFromContent } from '../../section-format'
 import type { ChangelogPage } from '../../changelog-parser'
 import { findPrinting } from '../../card-printing'
@@ -21,6 +21,7 @@ import {
   includeChangelogCards,
   listReadErrorMessage,
   loadListSidecars,
+  readListFrontMatter,
   reportListCoverIssue,
   resolveListCover,
   slugifyListName,
@@ -36,6 +37,8 @@ export type LoadedCollection = {
   sectionOrder: string[]
   /** The list's default card labels from its front matter, when declared. */
   labels?: CardLabel[]
+  /** The list's prose blurb from its front matter, when it declares one. */
+  description?: string
   /**
    * The list's cover image override from its front matter, when it declares a
    * usable one. An unreadable `image:` value is reported as one of
@@ -72,10 +75,14 @@ export async function loadCollectionSource(
   const { entries, sectionOrder, labels, warnings, advisories, frontMatter } =
     parseCollectionFile(content)
   const displayName = parseTitleFromContent(content) ?? name
-  // The block is carried verbatim by the flat parser, so the cover is read off
-  // its mapping here rather than being interpreted during the parse. A value
-  // the grammar cannot read degrades to an advisory — the list still loads.
-  const { image, advisory } = readListImage(frontMatter?.data ?? {})
+  // The block is carried verbatim by the flat parser, so the keys the site
+  // interprets are read off its mapping here rather than during the parse. A
+  // value a grammar cannot read degrades to a warning — the list still loads.
+  const {
+    description,
+    image,
+    warnings: frontMatterWarnings,
+  } = readListFrontMatter(frontMatter?.data ?? {})
 
   const baseName = name.endsWith('.md') ? name.slice(0, -3) : name
   const { changelog, fileMtime, art, artWarnings } = await loadListSidecars(
@@ -90,18 +97,14 @@ export async function loadCollectionSource(
     entries,
     sectionOrder,
     labels,
+    description,
     image,
     art,
     // The parser's own advisories ride the same channel as its warnings and the
     // sidecar's: an ignored `labels:` and an ignored `image:` are both things
     // the user must hear about, and reporting one but not the other would be an
     // inconsistency with no reason behind it.
-    warnings: [
-      ...warnings,
-      ...advisories,
-      ...(advisory ? [t('site.detail.listImageInvalid', { reason: advisory })] : []),
-      ...artWarnings,
-    ],
+    warnings: [...warnings, ...advisories, ...frontMatterWarnings, ...artWarnings],
     changelog,
     fileMtime,
   }
@@ -270,6 +273,7 @@ export async function buildCollectionArtifacts(
     entries: cardEntries,
     sectionOrder,
     labels: loaded.labels,
+    ...(loaded.description ? { description: loaded.description } : {}),
     // Baked so a `.md` downloaded from the site re-emits `image:` rather than
     // dropping it — the front matter a browser can rebuild is only what is here.
     ...(loaded.image ? { listImage: loaded.image } : {}),

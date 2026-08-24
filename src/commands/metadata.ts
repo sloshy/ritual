@@ -5,13 +5,16 @@ import {
   applyDeckMetadata,
   DECK_METADATA_KEYS,
   isDeckMetadataKey,
+  type DeckMetadataKey,
   type DeckMetadataPatch,
 } from '../deck-metadata'
 import {
   applyFlatListMetadata,
   FLAT_LIST_METADATA_KEYS,
   type FlatListMetadataPatch,
+  type FlatListType,
 } from '../flat-list-metadata'
+import { readListDescription } from '../list-description'
 import { parseDeckFrontMatter } from '../deck-file'
 import { readFrontMatterMapping } from '../front-matter-write'
 import { isCardLabel, LIST_TYPE_LABELS, parseCardLabelsValue, type CardLabel } from '../card-labels'
@@ -47,13 +50,14 @@ import {
 /**
  * `ritual metadata` — inspect and modify a list's front-matter metadata from
  * scripts, mirroring `ritual config`'s subcommand shape (`set`/`get`/`list`/
- * `unset`). Decks take `description`/`tags`/`format`/`sourceId`/`sourceUrl` plus
- * `labels` (their default card labels, `proxy` alone) — every one of them minus
- * `image`, which only `list` reports (see {@link settableKeys});
- * collections take `labels` over the whole vocabulary; wanted lists carry only
- * `image`, which this command does not write, so they are refused here. Writes go through the same engines as the admin
- * route and the MCP `set_list_metadata` tool ({@link applyDeckMetadata} /
- * {@link applyFlatListMetadata}), so validation and the body-preserving,
+ * `unset`). Every list type takes `description`, the blurb the site prints above
+ * the cards. Decks add `tags`/`format`/`sourceId`/`sourceUrl` plus `labels`
+ * (their default card labels, `proxy` alone); collections add `labels` over the
+ * whole vocabulary; a wanted list carries the description alone. `image` is the
+ * one key of every type's vocabulary this command does not write — only `list`
+ * reports it (see {@link settableKeys}). Writes go through the same engines as
+ * the admin route and the MCP `set_list_metadata` tool ({@link applyDeckMetadata}
+ * / {@link applyFlatListMetadata}), so validation and the body-preserving,
  * sidecar-aware write live exactly once.
  */
 
@@ -85,9 +89,9 @@ type MetadataListResult = {
   frontMatter: Record<string, unknown>
 }
 
-/** A resolved non-wanted target: the list plus its display slug. */
+/** A resolved target: the list, its type, and its display slug. */
 type MetadataTarget = {
-  type: 'deck' | 'collection'
+  type: ListType
   filePath: string
   list: string
 }
@@ -100,7 +104,18 @@ type MetadataTarget = {
  */
 type MetadataApply =
   | { type: 'deck'; filePath: string; patch: DeckMetadataPatch }
-  | { type: 'collection'; filePath: string; patch: FlatListMetadataPatch }
+  | { type: FlatListType; filePath: string; patch: FlatListMetadataPatch }
+
+/**
+ * A key `set`/`unset` may write on *some* list type — the union of all three
+ * vocabularies minus `image`. Derived from the same `as const` tables the
+ * engines validate against, so a key added there reaches the guard below rather
+ * than drifting into a `string` nobody checks.
+ */
+type SettableMetadataKey = Exclude<
+  DeckMetadataKey | (typeof FLAT_LIST_METADATA_KEYS)[FlatListType][number],
+  'image'
+>
 
 /**
  * The keys `set`/`unset` may write, per list type: the metadata vocabulary minus
@@ -109,10 +124,10 @@ type MetadataApply =
  * own command and is out of scope here: `list` reports the stored mapping, while
  * `set`, `unset` and `get` alike refuse the key and name `ritual set-list-image`.
  */
-function settableKeys(type: 'deck' | 'collection'): readonly string[] {
+function settableKeys(type: ListType): readonly SettableMetadataKey[] {
   const keys: readonly string[] =
-    type === 'deck' ? DECK_METADATA_KEYS : FLAT_LIST_METADATA_KEYS.collection
-  return keys.filter((key) => key !== 'image')
+    type === 'deck' ? DECK_METADATA_KEYS : FLAT_LIST_METADATA_KEYS[type]
+  return keys.filter((key): key is SettableMetadataKey => key !== 'image')
 }
 
 /** The `<property>` argument's help, naming each type's settable keys. */
@@ -121,7 +136,7 @@ function metadataPropertyHelp(): string {
 }
 
 /** The accepted-keys listing for error messages, per list type. */
-function acceptedKeys(type: 'deck' | 'collection'): string {
+function acceptedKeys(type: ListType): string {
   return settableKeys(type).join(', ')
 }
 
@@ -146,7 +161,7 @@ const REJECTED_KEY_MESSAGES: Record<string, RejectedKeyMessage> = {
  */
 type RejectedKeyMessage = Extract<MessageKey, `cli.metadata.rejected${string}`>
 
-function unknownKeyError(type: 'deck' | 'collection', property: string): CardCommandError {
+function unknownKeyError(type: ListType, property: string): CardCommandError {
   // `image` is a real metadata key on both types — it is only unsettable *here*,
   // because a cover is a mapping this command's scalar `<value>…` arguments
   // cannot spell. Point at the command that can rather than claiming the key
@@ -165,19 +180,24 @@ function unknownKeyError(type: 'deck' | 'collection', property: string): CardCom
   })
 }
 
-/** Throw unless `property` is settable on the target's type. */
-function requireKnownProperty(type: 'deck' | 'collection', property: string): void {
-  if (!settableKeys(type).includes(property)) throw unknownKeyError(type, property)
+/**
+ * Throw unless `property` is settable on the target's type — an assertion
+ * rather than a `void` check, so the key narrows for every write that follows:
+ * a patch built as `{ [property]: null }` is then checked against the patch type
+ * instead of typing as an unchecked index signature.
+ */
+function requireKnownProperty(
+  type: ListType,
+  property: string,
+): asserts property is SettableMetadataKey {
+  const keys: readonly string[] = settableKeys(type)
+  if (!keys.includes(property)) throw unknownKeyError(type, property)
 }
 
 /**
- * Resolve the target list for a metadata subcommand, refusing wanted lists —
- * the one front-matter key they define is the cover `image:`, which is a
- * mapping this command's scalar `<value>…` arguments cannot spell and which
- * `ritual set-list-image` owns instead. The refusal fires up front for
- * `--wanted`, and the interactive picker only offers decks and collections; a
- * wanted list named explicitly still resolves first, so the refusal names what
- * actually matched.
+ * Resolve the target list for a metadata subcommand. Every list type is offered:
+ * a wanted list carries `description` like the others, so the picker lists all
+ * three and a `--wanted` flag resolves normally.
  */
 async function resolveMetadataTarget(
   listName: string | undefined,
@@ -186,21 +206,12 @@ async function resolveMetadataTarget(
 ): Promise<MetadataTarget | 'conflict'> {
   const type = resolveListTypeFlag(flags, scripting)
   if (type === 'conflict') return 'conflict'
-  if (type === 'wanted') throw metadataSkipsWantedLists()
-  const resolved: ResolvedList = await resolveListSelection(listName, type, {
-    pickerTypes: ['deck', 'collection'],
-  })
-  if (resolved.type === 'wanted') throw metadataSkipsWantedLists()
+  const resolved: ResolvedList = await resolveListSelection(listName, type)
   return {
     type: resolved.type,
     filePath: resolved.filePath,
     list: path.basename(resolved.filePath, '.md'),
   }
-}
-
-/** The refusal: this command's vocabulary has nothing a wanted list carries. */
-function metadataSkipsWantedLists(): CardCommandError {
-  return localizedCommandError('usage_error', ExitCode.UsageError, 'cli.metadata.wantedNoMetadata')
 }
 
 /**
@@ -253,7 +264,7 @@ export function buildDeckSetBody(
   mode: ArrayMode,
 ): Record<string, unknown> | string {
   if (mode !== 'replace' && property !== 'tags' && property !== 'labels') {
-    return t('cli.metadata.arrayOnlyDeck')
+    return t('cli.metadata.arrayOnly', { type: 'deck' })
   }
   if (property === 'tags') {
     return { tags: mergeArrayValues(current.tags, splitCommaTokens(values), mode) }
@@ -271,19 +282,22 @@ export type DeckArrayValues = {
 }
 
 /**
- * Coerce `metadata set`'s raw string values for a collection. Label tokens are
- * lowercased and validated against the vocabulary up front, so a typo'd
- * `--remove` errors instead of silently removing nothing; an empty replace is
- * refused (clearing is `unset`'s job), while `--remove` down to nothing clears.
+ * Coerce `metadata set`'s raw string values for a flat list. `description` joins
+ * its values with spaces, exactly as a deck's does. Label tokens are lowercased
+ * and validated against the vocabulary up front, so a typo'd `--remove` errors
+ * instead of silently removing nothing; an empty replace is refused (clearing is
+ * `unset`'s job), while `--remove` down to nothing clears.
  */
-export function buildCollectionSetBody(
+export function buildFlatListSetBody(
+  type: FlatListType,
   property: string,
   values: readonly string[],
   currentLabels: readonly string[],
   mode: ArrayMode,
 ): Record<string, unknown> | string {
-  if (mode !== 'replace' && property !== 'labels') return t('cli.metadata.arrayOnlyCollection')
-  return buildLabelsSetBody('collection', values, currentLabels, mode)
+  if (mode !== 'replace' && property !== 'labels') return t('cli.metadata.arrayOnly', { type })
+  if (property === 'description') return { description: values.join(' ') }
+  return buildLabelsSetBody(type, values, currentLabels, mode)
 }
 
 /**
@@ -411,18 +425,22 @@ function registerSetSubcommand(metadata: Command): void {
           return
         }
 
-        // The current value is only an input to `--add`/`--remove`; a replace
-        // must not read it, so an invalid stored value can be repaired.
-        const current = mode === 'replace' ? [] : currentCollectionLabels(data)
-        const body = buildCollectionSetBody(property, values, current, mode)
+        // The current value is only an input to `--add`/`--remove` on `labels`;
+        // a replace must not read it, so an invalid stored value can be
+        // repaired — and a description edit must not read it at all, or a stray
+        // hand-authored `labels:` would answer for a key it has nothing to do
+        // with (a wanted list carries no labels in the first place).
+        const current =
+          mode === 'replace' || property !== 'labels' ? [] : currentCollectionLabels(data)
+        const body = buildFlatListSetBody(target.type, property, values, current, mode)
         if (typeof body === 'string') {
           throw new CardCommandError('usage_error', body, ExitCode.UsageError)
         }
-        const parsed = parseFlatListMetadataBody(body, 'collection')
+        const parsed = parseFlatListMetadataBody(body, target.type)
         if (typeof parsed === 'string') {
           throw new CardCommandError('usage_error', parsed, ExitCode.UsageError)
         }
-        await applyPatch({ type: 'collection', filePath: target.filePath, patch: parsed.patch })
+        await applyPatch({ type: target.type, filePath: target.filePath, patch: parsed.patch })
         emitSetResult(target, property, patchValue(parsed.patch, property), scripting)
       })
     },
@@ -477,6 +495,20 @@ async function readMetadataValue(target: MetadataTarget, property: string): Prom
   if (target.type === 'deck') {
     const frontMatter = await parseDeckFrontMatter(target.filePath)
     value = isDeckMetadataKey(property) ? frontMatter[property] : undefined
+  } else if (property === 'description') {
+    // An unusable stored value is reported, never answered as "unset": that is
+    // the rule `currentCollectionLabels` follows for the sibling key, and a
+    // silent `not_found` would send the user looking for a key that is there.
+    const read = readListDescription(data)
+    if (read.advisory !== undefined) {
+      throw localizedCommandError(
+        'runtime_error',
+        ExitCode.RuntimeError,
+        'cli.metadata.storedDescriptionInvalid',
+        { reason: read.advisory },
+      )
+    }
+    value = read.description
   } else {
     const labels = currentCollectionLabels(data)
     value = data.labels === undefined ? undefined : labels
@@ -506,8 +538,8 @@ function registerListSubcommand(metadata: Command): void {
         target.type === 'deck' ? await parseDeckFrontMatter(target.filePath) : data
 
       if (scripting.output === 'text') {
-        const keys =
-          target.type === 'deck' ? DECK_METADATA_KEYS : FLAT_LIST_METADATA_KEYS.collection
+        const keys: readonly string[] =
+          target.type === 'deck' ? DECK_METADATA_KEYS : FLAT_LIST_METADATA_KEYS[target.type]
         const lines = keys.map((key) => {
           const value = frontMatter[key]
           return value === undefined
@@ -529,6 +561,25 @@ function registerListSubcommand(metadata: Command): void {
   })
 }
 
+/**
+ * The patch that clears one flat-list key. Exhaustive over the flat vocabulary
+ * minus `image` (which `unset` refuses by name), so a key added to
+ * `FLAT_LIST_METADATA_KEYS` without a clear rule is a compile error rather than
+ * a silent `labels: null` written to a list that carries no labels.
+ */
+function flatUnsetPatch(property: SettableMetadataKey): FlatListMetadataPatch {
+  switch (property) {
+    case 'description':
+      return { description: null }
+    case 'labels':
+      return { labels: null }
+    default:
+      // Deck-only keys cannot reach here: the guard checked `property` against
+      // the flat vocabulary before the branch that calls this.
+      throw unknownKeyError('collection', property)
+  }
+}
+
 function registerUnsetSubcommand(metadata: Command): void {
   addScriptingOptions(
     addListTypeFlags(
@@ -548,14 +599,16 @@ function registerUnsetSubcommand(metadata: Command): void {
       // block they cannot safely merge over.
       await readFrontMatterData(target)
 
+      // `requireKnownProperty` narrowed `property` to a key of the type's own
+      // vocabulary, so both patches below are checked rather than typed as an
+      // unchecked index signature — and the flat branch's `never` catches a
+      // third flat key added without a clear rule here.
       if (target.type === 'deck') {
         const patch: DeckMetadataPatch = { [property]: null }
         await applyPatch({ type: 'deck', filePath: target.filePath, patch })
       } else {
-        // `property` is validated above; a collection's only settable key is
-        // `labels`, so the patch names it directly.
-        const patch: FlatListMetadataPatch = { labels: null }
-        await applyPatch({ type: 'collection', filePath: target.filePath, patch })
+        const patch = flatUnsetPatch(property)
+        await applyPatch({ type: target.type, filePath: target.filePath, patch })
       }
 
       if (scripting.output === 'text') {

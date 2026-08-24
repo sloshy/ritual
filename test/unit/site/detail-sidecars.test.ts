@@ -141,7 +141,51 @@ describe('detail loaders: list image', () => {
     expect(loaded.warnings).toHaveLength(0)
   })
 
-  test('a wanted list carries its cover override — its one front-matter key', async () => {
+  test('both flat list types carry their description', async () => {
+    await write(
+      'binder',
+      '---\ndescription: Everything I will trade away.\n---\n\n# Binder\n\n- Arcane Signet (ECC:55) &1\n',
+    )
+    const binder = await loadCollectionSource(dir, 'binder')
+    if (typeof binder === 'string') throw new Error(binder)
+    expect(binder.description).toBe('Everything I will trade away.')
+    expect(binder.warnings).toHaveLength(0)
+
+    await write('wants', '---\ndescription: Cards I need.\n---\n\n# Wants\n\n- Arcane Signet &1\n')
+    const wants = await loadWantedSource(dir, 'wants')
+    if (typeof wants === 'string') throw new Error(wants)
+    expect(wants.description).toBe('Cards I need.')
+    expect(wants.warnings).toHaveLength(0)
+  })
+
+  test('a description that is not text warns and leaves the list without one', async () => {
+    await write('bad', '---\ndescription:\n  text: nope\n---\n\n# Bad\n\n- Arcane Signet &1\n')
+
+    const bad = await loadWantedSource(dir, 'bad')
+
+    if (typeof bad === 'string') throw new Error(bad)
+    expect(bad.description).toBeUndefined()
+    expect(bad.warnings.some((warning) => warning.includes("'description' ignored"))).toBeTrue()
+  })
+
+  test('a deck reports a dropped description too, and drops a blank one silently', async () => {
+    // The deck path validates front matter into a typed shape, so the drop is
+    // read back off the raw block — the same audibility the flat lists have.
+    await write('burn', '---\nname: Burn\ndescription:\n  text: nope\n---\n\n4 Lightning Bolt &1\n')
+    const bad = await loadDeckSource(dir, 'burn')
+    if (typeof bad === 'string') throw new Error(bad)
+    expect(bad.data.description).toBeUndefined()
+    expect(bad.warnings.some((warning) => warning.includes("'description' ignored"))).toBeTrue()
+
+    // Blank says nothing on every list type, so it reads as absent with no word.
+    await write('blank', '---\nname: Blank\ndescription: "   "\n---\n\n4 Lightning Bolt &1\n')
+    const blank = await loadDeckSource(dir, 'blank')
+    if (typeof blank === 'string') throw new Error(blank)
+    expect(blank.data.description).toBeUndefined()
+    expect(blank.warnings).toHaveLength(0)
+  })
+
+  test('a wanted list carries its cover override — one of its two front-matter keys', async () => {
     await write(
       'wants',
       '---\nimage:\n  url: https://example.com/cover.jpg\n---\n\n# Wants\n\n- Arcane Signet &1\n',

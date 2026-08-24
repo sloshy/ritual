@@ -1,5 +1,6 @@
 import { unreadableLines } from '../../markdown-fence'
 import { parseCollectionFile } from '../../collection-file'
+import { readListDescription } from '../../list-description'
 import { readListImage } from '../../list-image'
 import { getCollectionsDir } from '../../ritual-config'
 import { handleFlatListLoad, type FlatListLoadConfig, type FlatListParseResult } from './list-load'
@@ -16,10 +17,13 @@ const COLLECTION_LOAD_CFG: FlatListLoadConfig<CollectionEntry> = {
       entries: entries.map((entry) => ({ ...entry, set: entry.set.toLowerCase() })),
       sectionOrder,
       labels,
-      // The block round-trips verbatim, so its cover is read out of the parsed
-      // mapping here rather than being interpreted by the parser itself. An
-      // unusable value reads as no override — the site build is where a user
-      // hears about it.
+      // The block round-trips verbatim, so its blurb and cover are read out of
+      // the parsed mapping here rather than being interpreted by the parser
+      // itself. Both readers' advisories are deliberately dropped: an unusable
+      // value reads as no blurb / no override, and the site build is where the
+      // user hears about it (a load body's `warnings` means "lines a save would
+      // eat", which this is not).
+      description: readListDescription(frontMatter?.data ?? {}).description,
       image: readListImage(frontMatter?.data ?? {}).image,
       // Fenced code blocks join the parse warnings — see `deck-load.ts`.
       warnings: unreadableLines(parsed),

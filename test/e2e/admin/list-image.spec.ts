@@ -194,7 +194,7 @@ test.describe('collection cover image', () => {
   })
 })
 
-test('a wanted list can set its cover — its one front-matter key', async ({ page }) => {
+test('a wanted list can set its cover — one of its two front-matter keys', async ({ page }) => {
   const bodies = await captureMetadata(page, 'wanted/cover-wants')
   await openFlatListEditor(page, 'wanted', 'cover-wants', 'Cover Wants')
 

@@ -1,5 +1,6 @@
 import { unreadableLines } from '../../markdown-fence'
 import { parseWantedListFile } from '../../commands/wanted-helpers'
+import { readListDescription } from '../../list-description'
 import { readListImage } from '../../list-image'
 import type { ParsedWantedEntry } from '../../editor/wanted-entries'
 import { getWantedDir } from '../../ritual-config'
@@ -16,8 +17,10 @@ const WANTED_LOAD_CFG: FlatListLoadConfig<ParsedWantedEntry> = {
     return {
       entries: parsed.entries,
       sectionOrder: parsed.sectionOrder,
-      // A wanted list's one front-matter key — see `collection-load.ts` for why
-      // it is read here rather than in the parser.
+      // A wanted list's two front-matter keys — see `collection-load.ts` for why
+      // they are read here rather than in the parser, and why an unusable value
+      // is dropped without an advisory.
+      description: readListDescription(parsed.frontMatter?.data ?? {}).description,
       image: readListImage(parsed.frontMatter?.data ?? {}).image,
       // Fenced code blocks join the parse warnings — see `deck-load.ts`.
       warnings: unreadableLines(parsed),

@@ -13,6 +13,7 @@ import { isResolveListError, matchList, type ListLocation } from './resolve-list
 import { isPathWithinDir } from './path-validation'
 import { assignMissingDeckCardIds } from './card-id'
 import { readListDefaultLabels, type CardLabel } from './card-labels'
+import { listDescriptionOrUndefined } from './list-description'
 import { writeListFrontMatter, type ListFrontMatterWrite } from './front-matter-write'
 import { isListImageRefError, parseListImage, type ListImageRef } from './list-image'
 import { serializeCardLine } from './deck-text'
@@ -175,17 +176,16 @@ export function validateDeckFrontMatter(raw: Record<string, unknown>): DeckFront
   // the same `data` object back on a repeat parse, so mutating it would leak.
   const frontMatter: DeckFrontMatter = { ...raw }
 
-  for (const key of [
-    'name',
-    'description',
-    'sourceId',
-    'sourceUrl',
-    'created',
-    'lastSynced',
-    'sourceUpdatedAt',
-  ]) {
+  for (const key of ['name', 'sourceId', 'sourceUrl', 'created', 'lastSynced', 'sourceUpdatedAt']) {
     if (key in frontMatter && typeof frontMatter[key] !== 'string') delete frontMatter[key]
   }
+
+  // `description` goes through the shared grammar rather than the string filter
+  // above, so a deck's blurb answers "is this text, and is it blank?" exactly as
+  // a collection's or a wanted list's does — one renderer prints all three.
+  const description = listDescriptionOrUndefined(frontMatter.description)
+  if (description === undefined) delete frontMatter.description
+  else frontMatter.description = description
 
   const tags = frontMatter.tags
   if (tags !== undefined) {
