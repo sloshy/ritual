@@ -235,3 +235,49 @@ describe('retargetImportedChanges', () => {
     expect(retargeted).toEqual(changes)
   })
 })
+
+describe('retargetImportedChanges — pinning move-to', () => {
+  const pinning = (cardId: number, replacesCardId: number): ChangeEvent => ({
+    id: 'p',
+    timestamp: 1,
+    action: 'move-to',
+    cardName: 'Lightning Bolt',
+    cardId,
+    replacesCardId,
+    set: 'lea',
+    collectorNumber: '161',
+    from: { type: 'collection', name: 'Binder' },
+  })
+
+  it('resolves the pinned line like an edit and keeps the copy on it when it converts in place', () => {
+    const { retargeted, conflicts } = retargetImportedChanges({
+      changes: [pinning(4, 4)],
+      currentIds: new Set([1]),
+      allocateId: allocator(2),
+      findIdByName: (name) => (name === 'Lightning Bolt' ? 1 : undefined),
+    })
+    expect(conflicts).toHaveLength(0)
+    expect(retargeted[0]).toMatchObject({ cardId: 1, replacesCardId: 1 })
+  })
+
+  it('a split copy takes a fresh id while the pinned line resolves by its exported id', () => {
+    const { retargeted } = retargetImportedChanges({
+      changes: [pinning(9, 4)],
+      currentIds: new Set([4]),
+      allocateId: allocator(10),
+      findIdByName: () => undefined,
+    })
+    expect(retargeted[0]).toMatchObject({ cardId: 10, replacesCardId: 4 })
+  })
+
+  it('an unresolvable pinned line is a conflict', () => {
+    const { retargeted, conflicts } = retargetImportedChanges({
+      changes: [pinning(4, 4)],
+      currentIds: new Set([1]),
+      allocateId: allocator(2),
+      findIdByName: () => undefined,
+    })
+    expect(retargeted).toHaveLength(0)
+    expect(conflicts).toMatchObject([{ reason: 'target-not-found' }])
+  })
+})

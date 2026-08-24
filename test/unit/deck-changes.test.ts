@@ -1377,3 +1377,119 @@ describe('applyChangeToDeck — onMiss reporting', () => {
     expect(result.sections).toEqual(deck.sections)
   })
 })
+
+describe('applyChangeToDeck — move-to pinning a name-only line', () => {
+  function nameOnlyDeck(quantity: number): DeckData {
+    return {
+      name: 'Test Deck',
+      sections: [
+        {
+          name: 'Main',
+          cards: [
+            { quantity, name: 'Lightning Bolt', cardId: 4 },
+            { quantity: 1, name: 'Counterspell', cardId: 5 },
+          ],
+        },
+      ],
+    }
+  }
+  type PinInput = Extract<ChangeInput, { action: 'move-to' }>
+  const pin = (cardId: number, extra: Partial<PinInput> = {}): PinInput => ({
+    action: 'move-to',
+    cardName: 'Lightning Bolt',
+    cardId,
+    replacesCardId: 4,
+    set: 'LEA',
+    collectorNumber: '161',
+    finish: 'foil',
+    from: { type: 'collection', name: 'Binder' },
+    ...extra,
+  })
+
+  test('in place (cardId = replacesCardId): the line takes the printing, keeps its id, quantity and tokens; later copies change nothing', () => {
+    const base = nameOnlyDeck(2)
+    base.sections[0]!.cards[0]!.language = 'ja'
+    base.sections[0]!.cards[0]!.condition = 'LP'
+    let deck = applyChangeToDeck(base, pin(4))
+    // The input is not mutated (undo replays the stack over the baseline).
+    expect(base.sections[0]!.cards[0]!.set).toBeUndefined()
+    // A second copy of the fill, even spelled with another printing, is a no-op.
+    deck = applyChangeToDeck(
+      deck,
+      pin(4, { set: 'm10', collectorNumber: '146', finish: undefined }),
+    )
+    expect(deck.sections[0]!.cards[0]).toEqual({
+      quantity: 2,
+      name: 'Lightning Bolt',
+      cardId: 4,
+      set: 'lea',
+      collectorNumber: '161',
+      finish: 'foil',
+      condition: 'LP',
+      language: 'ja',
+    })
+    expect(deck.sections[0]!.cards[1]).toEqual({ quantity: 1, name: 'Counterspell', cardId: 5 })
+  })
+
+  test('a pinned id that resolved to a line of another printing is a miss, not a silent success', () => {
+    const misses: MissReason[] = []
+    const deck = applyChangeToDeck(nameOnlyDeck(1), pin(4), {})
+    applyChangeToDeck(deck, pin(4, { set: 'm10', collectorNumber: '146', finish: undefined }), {
+      onMiss: (reason) => misses.push(reason),
+    })
+    expect(misses).toEqual(['no-target'])
+  })
+
+  test('a split without a landing id is a miss', () => {
+    const misses: MissReason[] = []
+    applyChangeToDeck(nameOnlyDeck(2), pin(4, { cardId: undefined }), {
+      onMiss: (reason) => misses.push(reason),
+    })
+    expect(misses).toEqual(['no-target'])
+  })
+
+  test('split: one copy leaves the name-only line and lands on a fresh line right after it', () => {
+    const deck = applyChangeToDeck(nameOnlyDeck(3), pin(9))
+    expect(deck.sections[0]!.cards.map((c) => [c.name, c.quantity, c.cardId, c.set])).toEqual([
+      ['Lightning Bolt', 2, 4, undefined],
+      ['Lightning Bolt', 1, 9, 'lea'],
+      ['Counterspell', 1, 5, undefined],
+    ])
+  })
+
+  test('split: the last copy off the line removes it, and a copy merges onto the line its id names', () => {
+    let deck = applyChangeToDeck(nameOnlyDeck(2), pin(9))
+    deck = applyChangeToDeck(deck, pin(9))
+    expect(deck.sections[0]!.cards.map((c) => [c.name, c.quantity, c.cardId])).toEqual([
+      ['Lightning Bolt', 2, 9],
+      ['Counterspell', 1, 5],
+    ])
+  })
+
+  test('split: a copy of a printing the deck already holds folds onto that line', () => {
+    const deck = nameOnlyDeck(2)
+    deck.sections[0]!.cards.push({
+      quantity: 1,
+      name: 'Lightning Bolt',
+      set: 'lea',
+      collectorNumber: '161',
+      finish: 'foil',
+      cardId: 8,
+    })
+    const result = applyChangeToDeck(deck, pin(50))
+    expect(result.sections[0]!.cards.map((c) => [c.quantity, c.cardId])).toEqual([
+      [1, 4],
+      [1, 5],
+      [2, 8],
+    ])
+  })
+
+  test('a pinned line that no longer exists is a miss, not an add', () => {
+    const misses: MissReason[] = []
+    const deck = applyChangeToDeck(nameOnlyDeck(1), pin(7, { replacesCardId: 99 }), {
+      onMiss: (reason) => misses.push(reason),
+    })
+    expect(misses).toEqual(['no-target'])
+    expect(deck.sections[0]!.cards).toHaveLength(2)
+  })
+})

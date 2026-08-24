@@ -4,7 +4,7 @@ import { formatPrice } from '../../../price-currency'
 import { formatPrintingLabel } from '../../../printing-key'
 import { listRefKey, type ListRefKey, type NamedListRef } from '../../../site/combined-list'
 import { useT } from '../../../ui/i18n'
-import type { SwapCardDelta, SwapMove, SwapSummary } from '../../swap-printings'
+import type { ChosenPrinting, SwapCardDelta, SwapMove, SwapSummary } from '../../swap-printings'
 import { groupMovesByList, type SwapListGroup } from '../../swap-printings/wizard-state'
 import { FinishChip, LanguageChip, useCardPreviewHandlers } from './shared'
 
@@ -80,7 +80,18 @@ export const SummaryStep: Component<SummaryStepProps> = (props) => {
                     {t('ui.swap.summary.takes', { list: group.list.name })}
                   </h5>
                   <ul class="swap-wizard-review-lines">
-                    <For each={group.incoming}>{(move) => <MoveLine move={move} />}</For>
+                    <For each={group.incoming}>
+                      {(move) => (
+                        <>
+                          <MoveLine move={move} />
+                          <Show when={move.replacement}>
+                            {(replacement) => (
+                              <ReplacementLine move={move} replacement={replacement()} />
+                            )}
+                          </Show>
+                        </>
+                      )}
+                    </For>
                   </ul>
                 </Show>
                 <Show when={group.outgoing.length > 0}>
@@ -119,6 +130,29 @@ export const SummaryStep: Component<SummaryStepProps> = (props) => {
         </section>
       </Show>
     </div>
+  )
+}
+
+type ReplacementLineProps = { move: SwapMove; replacement: ChosenPrinting }
+
+/** The printing a source list gets back for a pinning move's copies. */
+const ReplacementLine: Component<ReplacementLineProps> = (props) => {
+  const t = useT()
+  return (
+    <li
+      class="swap-wizard-replacement-line"
+      {...useCardPreviewHandlers(() => props.replacement.card)}
+    >
+      <span class="swap-wizard-move swap-wizard-move--replacement">↩</span>{' '}
+      {t('ui.swap.summary.replacementLine', {
+        count: props.move.count,
+        name: props.move.cardName,
+        printing: formatPrintingLabel(props.replacement.set, props.replacement.collectorNumber),
+        list: props.move.from.name,
+      })}
+      <FinishChip finish={props.replacement.finish} />
+      <LanguageChip language={props.replacement.language} />
+    </li>
   )
 }
 

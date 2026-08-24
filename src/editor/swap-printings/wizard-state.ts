@@ -11,6 +11,7 @@ import { listRefKey, type ListRefKey, type NamedListRef } from '../../site/combi
 import { filterPrintingsByQuery, type FilterablePrinting } from '../../collector-query'
 import { applyFinishFilter } from './candidates'
 import { autoAllocate } from './auto'
+import { targetPinsPrinting } from './printing-fields'
 import type {
   CardSwapPlan,
   ChosenPrinting,
@@ -38,14 +39,19 @@ const PLANNER_VERDICT_FLAGS: ReadonlySet<SwapFlag> = new Set<SwapFlag>([
 ])
 
 /** The wizard's steps, in their natural order. */
-export type SwapWizardStep = 'cards' | 'sources' | 'mode' | 'pick' | 'review' | 'summary'
-
-/** A name-only line of the edited list: shown greyed in the Cards step, never selectable. */
-export type SwapNameOnlyLine = { cardName: string; quantity: number }
+export type SwapWizardStep =
+  | 'cards'
+  | 'sources'
+  | 'mode'
+  | 'pick'
+  | 'review'
+  | 'replacements'
+  | 'summary'
 
 /** Stable identity of a wizard target across steps. */
 export function swapTargetKey(target: SwapTarget): string {
-  return `${target.cardName}|${target.cardIds.join(',')}|${target.set}:${target.collectorNumber}`
+  const printing = targetPinsPrinting(target) ? `${target.set}:${target.collectorNumber}` : ''
+  return `${target.cardName}|${target.cardIds.join(',')}|${printing}`
 }
 
 /** List types left out of the source scope until the user opts in. */
@@ -82,17 +88,38 @@ export type StepContext = {
   pickFromReview: boolean
   /** There are cards to pick (manual mode with checked cards, or auto-mode hand-offs). */
   hasPickQueue: boolean
+  /**
+   * The Replacements step is on the route: the "replace taken copies" option
+   * is on and at least one planned move pins a name-only card.
+   */
+  hasReplacements: boolean
 }
 
-/** Which steps the indicator shows for a run: Cards is skipped for a single-card entry, Pick/Review follow the mode. */
+/**
+ * Which steps the indicator shows for a run: Cards is skipped for a
+ * single-card entry, Pick/Review follow the mode, Replacements appears when
+ * a replacement can be chosen.
+ */
 export function visibleSteps(ctx: StepContext): SwapWizardStep[] {
   const steps: SwapWizardStep[] = []
   if (!ctx.singleCard) steps.push('cards')
   steps.push('sources', 'mode')
   if (ctx.mode === 'manual' || ctx.hasPickQueue) steps.push('pick')
   if (ctx.mode !== 'manual') steps.push('review')
+  if (ctx.hasReplacements) steps.push('replacements')
   steps.push('summary')
   return steps
+}
+
+/** The step before Summary: the planning step the mode ends on. */
+function planningEnd(ctx: StepContext): SwapWizardStep {
+  if (ctx.mode !== 'manual') return 'review'
+  return ctx.hasPickQueue ? 'pick' : 'mode'
+}
+
+/** The step after planning: Replacements when it is on the route, else Summary. */
+export function afterPlanning(ctx: StepContext): SwapWizardStep {
+  return ctx.hasReplacements ? 'replacements' : 'summary'
 }
 
 /** Where Back leads from `step`. Pick returns to Review when it was opened from there ("Change…"). */
@@ -108,9 +135,10 @@ export function previousStep(step: SwapWizardStep, ctx: StepContext): SwapWizard
       return ctx.pickFromReview ? 'review' : 'mode'
     case 'review':
       return 'mode'
+    case 'replacements':
+      return planningEnd(ctx)
     case 'summary':
-      if (ctx.mode !== 'manual') return 'review'
-      return ctx.hasPickQueue ? 'pick' : 'mode'
+      return ctx.hasReplacements ? 'replacements' : planningEnd(ctx)
   }
 }
 

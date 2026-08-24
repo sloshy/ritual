@@ -441,7 +441,7 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
       ),
       name: str(),
       applied: int(
-        'Changes applied after dropping conflicts, moves arriving in the list included.',
+        'Changes applied after dropping conflicts, moves arriving in the list included (a replacement printing written back to a move source is not counted).',
       ),
       conflicts: arr(ref('ImportConflict')),
       error: str(

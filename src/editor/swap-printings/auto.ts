@@ -5,6 +5,7 @@
 
 import { displayFinish } from '../../finish-condition'
 import { applyFinishFilter } from './candidates'
+import { targetPinsPrinting } from './printing-fields'
 import type {
   CardSwapPlan,
   PriceOf,
@@ -20,8 +21,9 @@ import type {
 /** A ranking row: a priced option with its position in the input. */
 type PricedOption = { option: SwapRankedOption; order: number; price: number }
 
-/** The market value of the target's current printing at its displayed finish. */
+/** The market value of the target's current printing at its displayed finish; null for a name-only line. */
 export function currentPrintingPrice(target: SwapTarget, priceOf: PriceOf): number | null {
+  if (!targetPinsPrinting(target)) return null
   return priceOf(target.card, displayFinish(target.card, target.finish), target.language)
 }
 
@@ -101,7 +103,13 @@ export function autoAllocate(
     ),
   ]
   const flags: SwapFlag[] = []
-  if (options.some((option) => option.price === null)) {
+  // A name-only target's keep option is "no printing", not an unpriced
+  // printing: it never trips the unpriced policy (it is unranked either way,
+  // so copies the candidates cannot fill simply stay name-only).
+  const unpricedOptions = options.filter(
+    (option) => option.price === null && (option.candidate !== null || targetPinsPrinting(target)),
+  )
+  if (unpricedOptions.length > 0) {
     if (opts.unpriced === 'skip') return unchanged(['unpriced-candidates'])
     if (opts.unpriced === 'force') return unchanged(['needs-manual', 'unpriced-candidates'])
     flags.push('unpriced-candidates')

@@ -44,8 +44,8 @@ function deck(sections: DeckData['sections']): DeckData {
 }
 
 describe('deckSwapTargets', () => {
-  test('pinned lines become targets in section order; name-only lines are listed greyed', () => {
-    const { targets, nameOnly } = deckSwapTargets(
+  test('every line becomes a target in section order; a name-only line pins no printing', () => {
+    const targets = deckSwapTargets(
       deck([
         {
           name: 'Main',
@@ -76,6 +76,7 @@ describe('deckSwapTargets', () => {
       {
         cardName: 'Lightning Bolt',
         cardIds: [1],
+        sharedLine: true,
         quantity: 4,
         set: 'm10',
         collectorNumber: '146',
@@ -83,8 +84,17 @@ describe('deckSwapTargets', () => {
         card: boltM10,
       },
       {
+        cardName: 'Counterspell',
+        cardIds: [2],
+        sharedLine: true,
+        quantity: 1,
+        section: 'Main',
+        card: null,
+      },
+      {
         cardName: 'Lightning Bolt',
         cardIds: [3],
+        sharedLine: true,
         quantity: 2,
         set: 'lea',
         collectorNumber: '161',
@@ -95,11 +105,10 @@ describe('deckSwapTargets', () => {
         card: boltLea,
       },
     ])
-    expect(nameOnly).toEqual([{ cardName: 'Counterspell', quantity: 1 }])
   })
 
   test('a legacy line without an id has no cardIds; an uncached printing resolves to null', () => {
-    const { targets } = deckSwapTargets(
+    const targets = deckSwapTargets(
       deck([
         {
           name: 'Main',
@@ -113,7 +122,7 @@ describe('deckSwapTargets', () => {
   })
 
   test('falls back to the printing-keyed cards map, but never to a different printing', () => {
-    const { targets } = deckSwapTargets(
+    const targets = deckSwapTargets(
       deck([
         {
           name: 'Main',
@@ -182,22 +191,29 @@ describe('flatSwapTargets', () => {
     { name: 'Counterspell', cardId: 7 },
   ]
 
-  test('identical copies fold into one target carrying every id; finish/section split them', () => {
-    const { targets, nameOnly } = flatSwapTargets(entries, cardData)
+  test('identical copies fold into one target carrying every id; finish/section split them; name-only copies fold per name', () => {
+    const targets = flatSwapTargets(entries, cardData)
     expect(targets.map((t) => [t.cardIds, t.quantity, t.finish, t.section])).toEqual([
       [[1, 2, 5], 3, 'nonfoil', 'Main'],
       [[3], 1, 'foil', 'Main'],
       [[4], 1, 'nonfoil', 'Binder B'],
+      [[6, 7], 2, undefined, undefined],
     ])
     expect(targets[0]?.set).toBe('m10')
     expect(targets[0]?.card).toBe(boltM10)
-    expect(nameOnly).toEqual([{ cardName: 'Counterspell', quantity: 2 }])
+    expect(targets[3]).toEqual({
+      cardName: 'Counterspell',
+      cardIds: [6, 7],
+      sharedLine: false,
+      quantity: 2,
+      card: null,
+    })
   })
 
   test('a bare line pinning a foil-only printing and its explicit [foil] twin are one card', () => {
     // The grouping key resolves the display finish, as the candidate collector
     // does on the other side: the bare line IS the foil copy.
-    const { targets } = flatSwapTargets(
+    const targets = flatSwapTargets(
       [
         { name: 'Lightning Bolt', set: 'plst', collectorNumber: 'M10-146', cardId: 1 },
         {
@@ -214,7 +230,7 @@ describe('flatSwapTargets', () => {
   })
 
   test('a bare line and its explicit nonfoil/NM twin are one card', () => {
-    const { targets } = flatSwapTargets(
+    const targets = flatSwapTargets(
       [
         { name: 'Lightning Bolt', set: 'm10', collectorNumber: '146', cardId: 1 },
         {
@@ -232,7 +248,7 @@ describe('flatSwapTargets', () => {
   })
 
   test('a language token is part of the copy identity', () => {
-    const { targets } = flatSwapTargets(
+    const targets = flatSwapTargets(
       [
         { name: 'Lightning Bolt', set: 'm10', collectorNumber: '146', cardId: 1 },
         { name: 'Lightning Bolt', set: 'm10', collectorNumber: '146', language: 'ja', cardId: 2 },
@@ -252,6 +268,7 @@ describe('preselectedKeysFor', () => {
     {
       cardName: 'Lightning Bolt',
       cardIds: [1, 2],
+      sharedLine: true,
       quantity: 2,
       set: 'm10',
       collectorNumber: '146',
@@ -260,6 +277,7 @@ describe('preselectedKeysFor', () => {
     {
       cardName: 'Lightning Bolt',
       cardIds: [3],
+      sharedLine: true,
       quantity: 1,
       set: 'lea',
       collectorNumber: '161',
@@ -268,6 +286,7 @@ describe('preselectedKeysFor', () => {
     {
       cardName: 'Sol Ring',
       cardIds: [],
+      sharedLine: true,
       quantity: 1,
       set: 'c21',
       collectorNumber: '263',
@@ -310,6 +329,7 @@ describe('buildSwapRequest', () => {
     {
       cardName: 'Lightning Bolt',
       cardIds: [1],
+      sharedLine: true,
       quantity: 1,
       set: 'm10',
       collectorNumber: '146',
@@ -318,13 +338,13 @@ describe('buildSwapRequest', () => {
     {
       cardName: 'Lightning Bolt',
       cardIds: [2],
+      sharedLine: true,
       quantity: 1,
       set: 'lea',
       collectorNumber: '161',
       card: boltLea,
     },
   ]
-  const nameOnly = [{ cardName: 'Counterspell', quantity: 1 }]
   const info = (overrides: Partial<CardContextInfo>): CardContextInfo => ({
     cardName: 'Lightning Bolt',
     card: null,
@@ -334,28 +354,33 @@ describe('buildSwapRequest', () => {
   })
 
   test("'all' opens on the Cards step with nothing pre-checked and no single-card entry", () => {
-    expect(buildSwapRequest({ targets, nameOnly }, 'all')).toEqual({ targets, nameOnly })
+    expect(buildSwapRequest(targets, 'all')).toEqual({ targets })
   })
 
   test('a selection resolving to exactly one target takes the single-card entry', () => {
-    const request = buildSwapRequest({ targets, nameOnly }, [info({ cardIds: [2] })])
+    const request = buildSwapRequest(targets, [info({ cardIds: [2] })])
     expect([...request.preselected!]).toEqual([swapTargetKey(targets[1]!)])
     expect(request.singleCard).toBe(true)
   })
 
-  test('a lone name-only tile pre-checks nothing and never takes the single-card entry', () => {
-    // The Selected menu is not gated per card: a name-only line can be the one
-    // selected tile. It matches no target, so the wizard must open on the Cards
-    // step (where the greyed row explains itself), not on an empty picker.
-    const request = buildSwapRequest({ targets, nameOnly }, [
-      info({ cardName: 'Counterspell', cardIds: [9] }),
-    ])
-    expect(request.preselected?.size).toBe(0)
-    expect(request.singleCard).toBeUndefined()
+  test('a lone name-only tile is a target too and takes the single-card entry', () => {
+    const nameOnly: SwapTarget = {
+      cardName: 'Counterspell',
+      cardIds: [9],
+      sharedLine: true,
+      quantity: 1,
+      card: null,
+    }
+    const request = buildSwapRequest(
+      [...targets, nameOnly],
+      [info({ cardName: 'Counterspell', cardIds: [9] })],
+    )
+    expect([...request.preselected!]).toEqual([swapTargetKey(nameOnly)])
+    expect(request.singleCard).toBe(true)
   })
 
   test('a selection covering several targets pre-checks them without the single-card entry', () => {
-    const request = buildSwapRequest({ targets, nameOnly }, [info({ cardIds: [1, 2] })])
+    const request = buildSwapRequest(targets, [info({ cardIds: [1, 2] })])
     expect(request.preselected?.size).toBe(2)
     expect(request.singleCard).toBeUndefined()
   })
@@ -551,6 +576,108 @@ describe('swapMovesToChanges', () => {
     expect(ops[0]?.change).not.toHaveProperty('cardId')
     expect(ops[0]?.release).toBeUndefined()
     expect(ops[1]?.change).not.toHaveProperty('sourceCardId')
+  })
+
+  test('deck: a name-only line filled whole by one printing converts in place — cardId is the line, nothing released', () => {
+    const ops = opsOf(
+      [inMove({ pinsCardIds: [4, 4], sourceCardIds: [100, 101] })],
+      context('deck', { 4: 2 }),
+    )
+    expect(ops.map((op) => [cardIdOf(op.change), op.release])).toEqual([
+      [4, undefined],
+      [4, undefined],
+    ])
+    expect(ops[0]?.change).toMatchObject({
+      action: 'move-to',
+      replacesCardId: 4,
+      sourceCardId: 100,
+      section: 'Main',
+    })
+  })
+
+  test('deck: a partial fill of a name-only line splits — the copy lands on a fresh id, the line keeps its id', () => {
+    const ops = opsOf(
+      [inMove({ count: 1, pinsCardIds: [4], sourceCardIds: [100] })],
+      context('deck', { 4: 3 }),
+    )
+    expect(ops.map((op) => [cardIdOf(op.change), op.release])).toEqual([[50, undefined]])
+    expect(ops[0]?.change).toMatchObject({ replacesCardId: 4 })
+  })
+
+  test('deck: a name-only line filled from two printings splits both ways and releases its id with the last copy', () => {
+    const ops = opsOf(
+      [
+        inMove({ count: 1, pinsCardIds: [4], sourceCardIds: [100] }),
+        inMove({
+          count: 1,
+          set: 'm10',
+          collectorNumber: '146',
+          card: boltM10,
+          pinsCardIds: [4],
+          sourceCardIds: [200],
+        }),
+      ],
+      context('deck', { 4: 2 }),
+    )
+    expect(ops.map((op) => [cardIdOf(op.change), op.release])).toEqual([
+      [50, undefined],
+      [51, 4],
+    ])
+  })
+
+  test('deck: a split copy merges onto a standing line of its printing rather than allocating', () => {
+    const ops = opsOf(
+      [inMove({ count: 1, pinsCardIds: [4], sourceCardIds: [100] })],
+      context('deck', { 4: 3 }, () => 9),
+    )
+    expect(cardIdOf(ops[0]!.change)).toBe(9)
+  })
+
+  test('flat: every name-only copy converts in place under its own id', () => {
+    const ops = opsOf(
+      [inMove({ pinsCardIds: [6, 7], sourceCardIds: [100, 101] })],
+      context('flat', { 6: 1, 7: 1 }),
+    )
+    expect(ops.map((op) => [cardIdOf(op.change), op.release])).toEqual([
+      [6, undefined],
+      [7, undefined],
+    ])
+    expect(ops.map((op) => 'replacesCardId' in op.change && op.change.replacesCardId)).toEqual([
+      6, 7,
+    ])
+  })
+
+  test('a chosen replacement rides on every copy of the move, spelled for the event vocabulary', () => {
+    const ops = opsOf(
+      [
+        inMove({
+          pinsCardIds: [4, 4],
+          replacement: {
+            card: boltM10,
+            set: 'M10',
+            collectorNumber: '146',
+            finish: 'foil',
+            language: 'en',
+          },
+        }),
+      ],
+      context('deck', { 4: 2 }),
+    )
+    for (const op of ops) {
+      expect(op.change).toMatchObject({
+        replacement: { set: 'm10', collectorNumber: '146', finish: 'foil' },
+      })
+      expect('replacement' in op.change && op.change.replacement).not.toHaveProperty('language')
+    }
+  })
+
+  test('a name-only line without an id cannot be pinned: the copy arrives as a plain move-to', () => {
+    const ops = opsOf(
+      [inMove({ count: 1, pinsCardIds: [undefined], sourceCardIds: [100] })],
+      context('deck', {}),
+    )
+    expect(ops[0]?.change).not.toHaveProperty('replacesCardId')
+    expect(cardIdOf(ops[0]!.change)).toBe(50)
   })
 
   test('optional printing details are present only when set (no undefined keys)', () => {

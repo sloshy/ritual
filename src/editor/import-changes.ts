@@ -108,7 +108,43 @@ export function retargetImportedChanges(params: RetargetParams): RetargetResult 
   const retargeted: ChangeEvent[] = []
   const conflicts: ImportConflict[] = []
 
+  /** Where an exported id that names an EXISTING line resolves here, or undefined. */
+  const resolveExisting = (
+    cardName: string,
+    exportedId: number | undefined,
+  ): number | undefined => {
+    if (exportedId !== undefined) {
+      // Remap a reference to a card added earlier in this same import.
+      const mapped = idMap.get(exportedId)
+      if (mapped !== undefined) return mapped
+      // The exported ID still exists in the current list — keep it.
+      if (currentIds.has(exportedId)) return exportedId
+    }
+    // Fall back to resolving by card name — a copy this import just added
+    // first, since an unresolved exported id most plausibly named it.
+    return addedByName.get(cardName) ?? findIdByName(cardName)
+  }
+
   for (const change of changes) {
+    if (change.action === 'move-to' && change.replacesCardId !== undefined) {
+      // A copy pinning a name-only line targets an existing line, so the
+      // pinned id resolves like an edit's; the landing id is the pinned line
+      // itself when the copy converts it in place, else a fresh one as for an add.
+      const pinned = resolveExisting(change.cardName, change.replacesCardId)
+      if (pinned === undefined) {
+        conflicts.push({ change, reason: 'target-not-found' })
+        continue
+      }
+      const inPlace = change.cardId === change.replacesCardId
+      const mapped = change.cardId === undefined ? undefined : idMap.get(change.cardId)
+      const newId = inPlace ? pinned : (mapped ?? allocateId())
+      if (change.cardId !== undefined) idMap.set(change.cardId, newId)
+      idMap.set(change.replacesCardId, pinned)
+      addedByName.set(change.cardName, newId)
+      retargeted.push({ ...change, cardId: newId, replacesCardId: pinned })
+      continue
+    }
+
     if (change.action === 'add' || change.action === 'move-to') {
       const mapped = change.cardId === undefined ? undefined : idMap.get(change.cardId)
       const newId = mapped ?? allocateId()
@@ -130,25 +166,9 @@ export function retargetImportedChanges(params: RetargetParams): RetargetResult 
       continue
     }
 
-    // Remap a reference to a card added earlier in this same import.
-    if (exportedId !== undefined) {
-      const mapped = idMap.get(exportedId)
-      if (mapped !== undefined) {
-        retargeted.push(withCardId(change, mapped))
-        continue
-      }
-      // The exported ID still exists in the current list — keep it.
-      if (currentIds.has(exportedId)) {
-        retargeted.push(change)
-        continue
-      }
-    }
-
-    // Fall back to resolving by card name — a copy this import just added
-    // first, since an unresolved exported id most plausibly named it.
-    const byName = addedByName.get(cardName) ?? findIdByName(cardName)
-    if (byName !== undefined) {
-      retargeted.push(withCardId(change, byName))
+    const resolved = resolveExisting(cardName, exportedId)
+    if (resolved !== undefined) {
+      retargeted.push(resolved === exportedId ? change : withCardId(change, resolved))
       continue
     }
 

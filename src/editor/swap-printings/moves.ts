@@ -6,9 +6,10 @@
 import { displayFinish } from '../../finish-condition'
 import { listRefKey, type ListRefKey, type NamedListRef } from '../../site/combined-list'
 import { currentPrintingPrice } from './auto'
-import { definedPrintingDetails } from './printing-fields'
+import { definedPrintingDetails, targetPinsPrinting } from './printing-fields'
 import type {
   CardSwapPlan,
+  ChosenPrinting,
   DisplacedPolicy,
   PlannedMoves,
   PriceOf,
@@ -20,6 +21,7 @@ import type {
   SwapListTotals,
   SwapMove,
   SwapSummary,
+  SwapTarget,
 } from './types'
 
 /** The printing fields an allocation supplies: the candidate's own, or the chosen one for printingless. */
@@ -81,17 +83,17 @@ export function candidatePrice(candidate: SwapCandidate, priceOf: PriceOf): numb
 }
 
 /**
- * Hands out the target's line ids to displaced copies in order: a deck line
- * has one id shared by every copy (repeated), a flat list one id per copy
- * (taken in sequence, `undefined` past the end for legacy lines).
+ * Hands out the target's line ids to its copies in order: a deck line has one
+ * id shared by every copy (repeated), a flat list one id per copy (taken in
+ * sequence, `undefined` past the end for legacy lines — never another copy's).
  */
 function takeTargetIds(
-  cardIds: readonly number[],
+  target: Pick<SwapTarget, 'cardIds' | 'sharedLine'>,
   cursor: number,
   count: number,
 ): Array<number | undefined> {
-  if (cardIds.length === 1) return Array.from({ length: count }, () => cardIds[0])
-  return Array.from({ length: count }, (_, i) => cardIds[cursor + i])
+  if (target.sharedLine) return Array.from({ length: count }, () => target.cardIds[0])
+  return Array.from({ length: count }, (_, i) => target.cardIds[cursor + i])
 }
 
 /**
@@ -152,8 +154,14 @@ export function planMoves(
     if (target.section !== undefined) inMove.section = target.section
     inMoves.push(inMove)
 
-    const sourceCardIds = takeTargetIds(target.cardIds, idCursor, count)
+    const targetIds = takeTargetIds(target, idCursor, count)
     idCursor += count
+    // A name-only target's copies are pinned where they stand: nothing leaves.
+    if (!targetPinsPrinting(target)) {
+      inMove.pinsCardIds = targetIds
+      continue
+    }
+    const sourceCardIds = targetIds
     let destination = displaced.kind === 'override' ? displaced.to : candidate.source
     if (destination.type === 'wanted') {
       if (!wantedFallback) {
@@ -184,6 +192,50 @@ export function planMoves(
   }
 
   return { moves: [...inMoves, ...outMoves.values()], flags }
+}
+
+/**
+ * The identity of a replacement pick: the source list and the printing taken
+ * from it. One pick covers every pinning `in` move that takes that printing
+ * from that list, whichever target cards they fill.
+ */
+export function replacementKey(
+  move: Pick<SwapMove, 'from' | 'set' | 'collectorNumber' | 'finish' | 'language' | 'condition'>,
+): string {
+  return [
+    listRefKey(move.from),
+    move.set.toLowerCase(),
+    move.collectorNumber,
+    move.finish ?? '',
+    move.language ?? '',
+    move.condition ?? '',
+  ].join('|')
+}
+
+/** The `in` moves that pin a name-only target's copies — the ones a replacement can be chosen for. */
+export function pinningMoves(moves: readonly SwapMove[]): SwapMove[] {
+  return moves.filter((move) => move.direction === 'in' && move.pinsCardIds !== undefined)
+}
+
+/**
+ * The moves with each pinning `in` move's replacement attached from `picks`
+ * (keyed by {@link replacementKey}); a move with no pick gets none, and every
+ * other move passes through as is. Returns new move objects.
+ */
+export function attachReplacements(
+  moves: readonly SwapMove[],
+  picks: ReadonlyMap<string, ChosenPrinting>,
+): SwapMove[] {
+  return moves.map((move) => {
+    if (move.direction !== 'in' || move.pinsCardIds === undefined) return move
+    const pick = picks.get(replacementKey(move))
+    if (!pick) {
+      if (move.replacement === undefined) return move
+      const { replacement: _dropped, ...rest } = move
+      return rest
+    }
+    return { ...move, replacement: pick }
+  })
 }
 
 /**

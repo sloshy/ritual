@@ -181,6 +181,7 @@ export const cliSyncMessages = {
   'cli.importChanges.previewHeading': '{heading} — {changes}',
   'cli.importChanges.movesHeading': '🔀 Moves between lists — {moves}',
   'cli.importChanges.moveLine': '{change} (from {from})',
+  'cli.importChanges.replacementLine': '{change} in {list}, replacing the copy taken',
   'cli.importChanges.listFailed': '{heading}: {reason}',
   'cli.importChanges.listApplied': '{heading}: applied {changes}',
   'cli.importChanges.listSkipped': '{heading}: {changes} skipped ({reasons})',

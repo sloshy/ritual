@@ -277,6 +277,51 @@ describe('import-changes command (Integration)', () => {
     })
   }, 60_000)
 
+  test('a pinning move converts the name-only line and writes the replacement back to the source', async () => {
+    await withTempDir(async (dir) => {
+      await seedWorkspace(dir)
+      await writeCollectionFile(dir, 'binder', {
+        entries: [{ name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 }],
+      })
+      const bundle = {
+        ...BUNDLE,
+        lists: [{ kind: 'deck', slug: 'test-deck', name: 'Test Deck', changes: [] }],
+        moves: [
+          {
+            id: 'pin',
+            timestamp: 1,
+            cardName: 'Lightning Bolt',
+            from: { kind: 'collection', slug: 'binder', name: 'binder' },
+            to: { kind: 'deck', slug: 'test-deck', name: 'Test Deck' },
+            set: 'lea',
+            collectorNumber: '161',
+            cardId: 1,
+            toCardId: 1,
+            pinsCardId: 1,
+            replacement: { set: 'm10', collectorNumber: '146' },
+          },
+        ],
+      }
+      await fs.writeFile(path.join(dir, 'edits.json'), JSON.stringify(bundle))
+
+      const result = await runCli(['import-changes', 'edits.json', '--yes'], dir)
+      expect(result.exitCode).toBe(0)
+      // The preview names the replacement going back to the source.
+      expect(result.stdout).toContain('replacing the copy taken')
+
+      const deck = await fs.readFile(path.join(dir, 'decks', 'test-deck.md'), 'utf-8')
+      expect(deck).toMatch(/1 Lightning Bolt \(LEA:161\) &1/)
+      const binder = await fs.readFile(path.join(dir, 'collections', 'binder.md'), 'utf-8')
+      expect(binder).not.toContain('LEA:161')
+      expect(binder).toMatch(/Lightning Bolt \(M10:146\) &1/)
+      const binderLog = await fs.readFile(
+        path.join(dir, 'collections', 'binder.changes.md'),
+        'utf-8',
+      )
+      expect(binderLog).toMatch(/Added "Lightning Bolt" \(M10:146\) &1/)
+    })
+  }, 60_000)
+
   test('rejects a file that is not a change bundle with a usage error', async () => {
     await withTempDir(async (dir) => {
       await fs.writeFile(path.join(dir, 'nope.json'), '{"format":"other"}')

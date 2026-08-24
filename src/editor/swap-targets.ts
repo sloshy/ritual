@@ -6,7 +6,12 @@
  */
 
 import type { DeckData, ScryfallCard } from '../types'
-import { type ChangeInput, type ListRef, isSamePrinting } from '../change-event'
+import {
+  type ChangeInput,
+  type ListRef,
+  type MoveReplacement,
+  isSamePrinting,
+} from '../change-event'
 import type { CardContextInfo } from '../site/card-context'
 import type { NamedListRef } from '../site/combined-list'
 import { hasSpecificPrinting, resolvePrintingCard } from '../card-printing'
@@ -14,14 +19,11 @@ import { displayFinish } from '../finish-condition'
 import { printingKey } from '../printing-key'
 import { displayLanguage } from '../card-language'
 import { findDeckAddMergeTargetId } from './deck-changes'
-import { definedPrintingDetails } from './swap-printings/printing-fields'
-import type { SwapMove, SwapTarget } from './swap-printings'
+import { definedPrintingDetails, targetPinsPrinting } from './swap-printings/printing-fields'
+import type { ChosenPrinting, SwapMove, SwapTarget } from './swap-printings'
 import type { SwapFlatLine } from './swap-sources'
-import {
-  swapTargetKey,
-  type SwapNameOnlyLine,
-  type SwapWizardRequest,
-} from './components/SwapPrintingsWizard'
+import type { SwapWizardRequest } from './components/SwapPrintingsWizard'
+import { swapTargetKey } from './swap-printings/wizard-state'
 
 /** The card data a target's current printing is resolved from (an editor's card store). */
 export type SwapTargetCardData = {
@@ -29,63 +31,57 @@ export type SwapTargetCardData = {
   printings: Record<string, ScryfallCard[]>
 }
 
-/** What the wizard is opened with: the pinned lines as targets, the name-only lines greyed. */
-export type SwapTargetSet = { targets: SwapTarget[]; nameOnly: SwapNameOnlyLine[] }
-
-/** A pinned line's printing half, normalized (set codes lowercase in memory). */
-type PinnedLine = SwapFlatLine & { set: string; collectorNumber: string }
-
-/** Resolve a pinned line's card from the editor's card store (`resolvePrintingCard`). */
-function resolveTargetCard(cardData: SwapTargetCardData, line: PinnedLine): ScryfallCard | null {
+/** Resolve a line's card from the editor's card store (`resolvePrintingCard`); null for a name-only line. */
+function resolveTargetCard(cardData: SwapTargetCardData, line: SwapFlatLine): ScryfallCard | null {
+  if (!hasSpecificPrinting(line)) return null
   return resolvePrintingCard(cardData.printings[line.name], cardData.cards, line)
 }
 
 function targetFromLine(
-  line: PinnedLine,
+  line: SwapFlatLine,
   cardIds: number[],
+  sharedLine: boolean,
   quantity: number,
   card: ScryfallCard | null,
 ): SwapTarget {
   const target: SwapTarget = {
     cardName: line.name,
     cardIds,
+    sharedLine,
     quantity,
-    set: line.set.toLowerCase(),
-    collectorNumber: line.collectorNumber,
     ...definedPrintingDetails(line),
     card,
+  }
+  if (hasSpecificPrinting(line)) {
+    target.set = line.set.toLowerCase()
+    target.collectorNumber = line.collectorNumber
   }
   if (line.section !== undefined) target.section = line.section
   return target
 }
 
 /**
- * A deck's lines as wizard targets: every line that pins a printing becomes one
- * target (its single `&N` shared by all its copies), in section then line
- * order; name-only lines are listed for the greyed rows.
+ * A deck's lines as wizard targets: every line becomes one target (its single
+ * `&N` shared by all its copies), in section then line order. A line that
+ * pins a printing can have it re-picked; a name-only line can be given one.
  */
-export function deckSwapTargets(deck: DeckData, cardData: SwapTargetCardData): SwapTargetSet {
+export function deckSwapTargets(deck: DeckData, cardData: SwapTargetCardData): SwapTarget[] {
   const targets: SwapTarget[] = []
-  const nameOnly: SwapNameOnlyLine[] = []
   for (const section of deck.sections) {
     for (const card of section.cards) {
-      if (hasSpecificPrinting(card)) {
-        const cardIds = card.cardId !== undefined ? [card.cardId] : []
-        const line: PinnedLine = { ...card, section: section.name }
-        targets.push(
-          targetFromLine(line, cardIds, card.quantity, resolveTargetCard(cardData, line)),
-        )
-      } else {
-        nameOnly.push({ cardName: card.name, quantity: card.quantity })
-      }
+      const cardIds = card.cardId !== undefined ? [card.cardId] : []
+      const line: SwapFlatLine = { ...card, section: section.name }
+      targets.push(
+        targetFromLine(line, cardIds, true, card.quantity, resolveTargetCard(cardData, line)),
+      )
     }
   }
-  return { targets, nameOnly }
+  return targets
 }
 
 /** Identical flat-list copies being folded into one target: the first line seen, its card, every copy's id, the count. */
 type FlatTargetGroup = {
-  line: PinnedLine
+  line: SwapFlatLine
   card: ScryfallCard | null
   cardIds: number[]
   quantity: number
@@ -98,12 +94,12 @@ type FlatTargetGroup = {
  * bare line pinning a foil-only printing and its explicit `[foil]` twin are
  * one card — the same physical copy the planner would match on the other
  * side; language and condition fold to English and NM. Grouping thus does not
- * depend on which host spelled the line.
+ * depend on which host spelled the line. Name-only copies group per name.
  */
-function flatGroupKey(entry: PinnedLine, card: ScryfallCard | null): string {
+function flatGroupKey(entry: SwapFlatLine, card: ScryfallCard | null): string {
   return [
     entry.name,
-    printingKey(entry.set, entry.collectorNumber),
+    hasSpecificPrinting(entry) ? printingKey(entry.set, entry.collectorNumber) : '',
     displayFinish(card, entry.finish),
     displayLanguage(entry.language),
     entry.condition ?? 'NM',
@@ -115,22 +111,15 @@ function flatGroupKey(entry: PinnedLine, card: ScryfallCard | null): string {
  * A flat list's entries as wizard targets. Flat lists hold one entry per copy,
  * so identical copies — same name, printing, finish, language, condition and
  * section — fold into one target carrying every copy's `&N` (`quantity` is the
- * copy count), in first-occurrence order. Name-only entries (possible on a
- * wanted list) collapse per name into the greyed rows.
+ * copy count), in first-occurrence order. Name-only entries fold per name the
+ * same way.
  */
 export function flatSwapTargets(
   entries: readonly SwapFlatLine[],
   cardData: SwapTargetCardData,
-): SwapTargetSet {
+): SwapTarget[] {
   const groups = new Map<string, FlatTargetGroup>()
-  const nameOnlyByName = new Map<string, SwapNameOnlyLine>()
   for (const entry of entries) {
-    if (!hasSpecificPrinting(entry)) {
-      const existing = nameOnlyByName.get(entry.name)
-      if (existing) existing.quantity += 1
-      else nameOnlyByName.set(entry.name, { cardName: entry.name, quantity: 1 })
-      continue
-    }
     const card = resolveTargetCard(cardData, entry)
     const key = flatGroupKey(entry, card)
     let group = groups.get(key)
@@ -141,12 +130,9 @@ export function flatSwapTargets(
     group.quantity += 1
     if (entry.cardId !== undefined) group.cardIds.push(entry.cardId)
   }
-  return {
-    targets: [...groups.values()].map((group) =>
-      targetFromLine(group.line, group.cardIds, group.quantity, group.card),
-    ),
-    nameOnly: [...nameOnlyByName.values()],
-  }
+  return [...groups.values()].map((group) =>
+    targetFromLine(group.line, group.cardIds, false, group.quantity, group.card),
+  )
 }
 
 /**
@@ -171,6 +157,7 @@ export function preselectedKeysFor(
     const byId = target.cardIds.some((id) => selectedIds.has(id))
     const byPrinting =
       target.cardIds.length === 0 &&
+      targetPinsPrinting(target) &&
       selectedPrintings.has(namePrintingKey(target.cardName, target.set, target.collectorNumber))
     if (byId || byPrinting) keys.add(swapTargetKey(target))
   }
@@ -189,14 +176,12 @@ export type SwapScope = 'all' | readonly CardContextInfo[]
  * The wizard request for a scope. `'all'` opens on the Cards step with every
  * target checked; a selection pre-checks the targets it covers. The single-card
  * entry (straight to that card's picker) is taken only when the selection
- * resolves to exactly one target — a lone name-only tile matches none, and
- * then the wizard opens on the Cards step with nothing checked, where the
- * greyed row explains itself.
+ * resolves to exactly one target.
  */
-export function buildSwapRequest(set: SwapTargetSet, scope: SwapScope): SwapWizardRequest {
-  const request: SwapWizardRequest = { targets: set.targets, nameOnly: set.nameOnly }
+export function buildSwapRequest(targets: SwapTarget[], scope: SwapScope): SwapWizardRequest {
+  const request: SwapWizardRequest = { targets }
   if (scope === 'all') return request
-  request.preselected = preselectedKeysFor(set.targets, scope)
+  request.preselected = preselectedKeysFor(targets, scope)
   if (request.preselected.size === 1) request.singleCard = true
   return request
 }
@@ -255,6 +240,18 @@ function toListRef(ref: NamedListRef): ListRef {
 type MoveFromInput = Extract<ChangeInput, { action: 'move-from' }>
 type MoveToInput = Extract<ChangeInput, { action: 'move-to' }>
 
+/** The `replacement` a pinning move's events carry: the chosen printing as the event vocabulary spells it. */
+function moveReplacementOf(chosen: ChosenPrinting): MoveReplacement {
+  return {
+    set: chosen.set.toLowerCase(),
+    collectorNumber: chosen.collectorNumber,
+    ...definedPrintingDetails(chosen),
+  }
+}
+
+/** What the pinning `in` moves do to one name-only line: copies arriving, and from how many moves. */
+type PinnedLineFill = { arriving: number; moves: number }
+
 /** A fresh destination line id already handed to one merge group of arriving copies. */
 type SharedDestinationId = { move: SwapMove; id: number }
 
@@ -274,6 +271,14 @@ type SharedDestinationId = { move: SwapMove; id: number }
  * and only otherwise takes a fresh id; a flat list gives every copy its own.
  * (The reducer merges across sections too: copies headed for a section that
  * already holds the printing elsewhere land on that line.)
+ *
+ * An `in` move that PINS a name-only target (`pinsCardIds`) yields one
+ * `move-to` per copy carrying `replacesCardId`: on a flat list — or a deck
+ * line filled whole by one printing — the copy converts the line in place
+ * (`cardId` is the line's own id); otherwise it is a split, one copy off the
+ * name-only line landing where an add would, and the name-only id is released
+ * with the last copy taken. The move's `replacement`, when chosen, rides on
+ * every copy's event.
  *
  * Out before in so the quantities `quantityOf` reports (read before anything
  * applies) still describe the lines the out moves drain: an in move may merge
@@ -299,6 +304,32 @@ export function* swapMovesToChanges(
   }
   const remaining = new Map<number, number>()
   for (const id of leaving.keys()) remaining.set(id, ctx.quantityOf(id))
+
+  // What the pinning moves do to each name-only line, so an in-place fill (a
+  // deck line filled whole by one printing) can be told from a split. Read
+  // here, before any op applies, like `remaining`.
+  const fills = new Map<number, PinnedLineFill>()
+  for (const move of moves) {
+    if (move.direction !== 'in' || move.pinsCardIds === undefined) continue
+    const seen = new Set<number>()
+    for (const id of move.pinsCardIds) {
+      if (id === undefined) continue
+      const fill = fills.get(id) ?? { arriving: 0, moves: 0 }
+      fill.arriving += 1
+      if (!seen.has(id)) {
+        seen.add(id)
+        fill.moves += 1
+      }
+      fills.set(id, fill)
+    }
+  }
+  const pinnedRemaining = new Map<number, number>()
+  for (const id of fills.keys()) pinnedRemaining.set(id, ctx.quantityOf(id))
+  const inPlace = (id: number): boolean => {
+    if (ctx.kind === 'flat') return true
+    const fill = fills.get(id)
+    return fill !== undefined && fill.moves === 1 && fill.arriving === pinnedRemaining.get(id)
+  }
 
   for (const move of moves) {
     if (move.direction !== 'out') continue
@@ -348,7 +379,13 @@ export function* swapMovesToChanges(
   for (const move of moves) {
     if (move.direction !== 'in') continue
     const from = toListRef(move.from)
-    for (const sourceCardId of move.sourceCardIds) {
+    const replacement = move.replacement ? moveReplacementOf(move.replacement) : undefined
+    for (const [i, sourceCardId] of move.sourceCardIds.entries()) {
+      const pinned = move.pinsCardIds?.[i]
+      // A name-only line without an `&N` (a hand edit the backfill has not
+      // seen) cannot be pinned by id: the copy arrives as a plain add and the
+      // name-only line stays for the user to remove.
+      const converts = pinned !== undefined && inPlace(pinned)
       const change: MoveToInput = {
         action: 'move-to',
         cardName: move.cardName,
@@ -356,11 +393,20 @@ export function* swapMovesToChanges(
         collectorNumber: move.collectorNumber,
         ...definedPrintingDetails(move),
         from,
-        cardId: destinationId(move),
+        cardId: converts ? pinned : destinationId(move),
         ...(move.section !== undefined ? { section: move.section } : {}),
         ...(sourceCardId !== undefined ? { sourceCardId } : {}),
+        ...(pinned !== undefined ? { replacesCardId: pinned } : {}),
+        ...(replacement !== undefined ? { replacement } : {}),
       }
-      yield { change }
+      // A split takes one copy off the name-only line; its id goes with the last.
+      let release: number | undefined
+      if (pinned !== undefined && !converts) {
+        const left = (pinnedRemaining.get(pinned) ?? 0) - 1
+        pinnedRemaining.set(pinned, left)
+        if (left === 0) release = pinned
+      }
+      yield release === undefined ? { change } : { change, release }
     }
   }
 }

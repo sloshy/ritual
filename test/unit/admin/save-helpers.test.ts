@@ -11,6 +11,7 @@ import {
 import {
   createAddChange,
   createMoveFromChange,
+  createMoveToChange,
   createRemoveChange,
   createSetLabelChange,
   createSetLanguageChange,
@@ -235,6 +236,27 @@ describe('replayLineCopies', () => {
       ['remove', 4, 2, 1],
       ['remove', 4, 1, 0],
     ])
+  })
+
+  test('a move-to pinning a line in place moves no copies; a split takes one off the pinned line first', () => {
+    const inPlace = createMoveToChange('Sol Ring', {
+      cardId: 4,
+      replacesCardId: 4,
+      from: { type: 'collection', name: 'Binder' },
+    })
+    const split = createMoveToChange('Sol Ring', {
+      cardId: 9,
+      replacesCardId: 4,
+      from: { type: 'collection', name: 'Binder' },
+    })
+    const steps = replayLineCopies([inPlace, split], new Map([[4, 1]]), { unknownIdHolds: 0 })
+    expect(steps.map((s) => [s.cardId, s.before, s.after])).toEqual([
+      [4, 1, 0],
+      [9, 0, 1],
+    ])
+    // So an in-place pin keeps the line's art, and a split that drains it drops it.
+    expect([...removedArtCardIds([inPlace], new Map([[4, 1]]))]).toEqual([])
+    expect([...removedArtCardIds([split], new Map([[4, 1]]))]).toEqual([4])
   })
 
   test('an id the baseline never had starts at unknownIdHolds', () => {

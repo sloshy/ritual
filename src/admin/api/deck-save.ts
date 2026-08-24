@@ -20,6 +20,7 @@ import {
   listSaveResponse,
   normalizeRequestLabels,
   normalizeRequestLanguages,
+  normalizeRequestReplacements,
   normalizeRequestNotes,
   refuseUnreadableBaseline,
   type ListSaveTail,
@@ -70,6 +71,9 @@ export async function handleDeckSave(req: Request): Promise<Response> {
 
     const languageError = normalizeRequestLanguages(changes, allDeckCards)
     if (languageError) return languageError
+
+    const replacementError = normalizeRequestReplacements(changes)
+    if (replacementError) return replacementError
 
     const decksDir = getDecksDir()
     const resolved = await resolveListFileOrRefuse(resolveDeckFile, {

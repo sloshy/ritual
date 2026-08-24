@@ -444,7 +444,7 @@ Both web editors (admin and public, decks and collections only) offer a **Swap
 Printings…** wizard that re-picks many lines' printings at once from copies owned in
 the other lists and records the result as cross-list moves — see the **ritual-edit**
 skill for the flow. On the public site it sits in the navbar's edit row (plus the
-**Selected** menu and a pinned card's ⋯ menu), and the moves it plans export in the
+**Selected** menu and a card's ⋯ menu — name-only lines take part too, and a copy given to one exports as a move carrying \`pinsCardId\` (plus its \`replacement\`)), and the moves it plans export in the
 bundle's top-level \`moves\` array like any other move.
 
 The admin's **Sync Decks** page runs \`deck-sync\` in the browser: pick a

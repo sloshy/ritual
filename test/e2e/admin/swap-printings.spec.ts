@@ -62,9 +62,12 @@ test.describe('Swap Printings (admin deck editor)', () => {
     const wizard = wizardOf(page)
     await expect(wizard).toBeVisible()
 
-    // Cards (Sol Ring pre-checked, Counterspell greyed) → Sources → Mode (manual) → Pick.
+    // Cards (both pre-checked; the name-only Counterspell is left out of this
+    // run so the picker covers Sol Ring alone) → Sources → Mode (manual) → Pick.
     await expect(cardRow(wizard, 'Sol Ring').locator('input')).toBeChecked()
-    await expect(cardRow(wizard, 'Counterspell').locator('input')).toBeDisabled()
+    const counterspellRow = cardRow(wizard, 'Counterspell')
+    await expect(counterspellRow).toContainText('no printing set')
+    await counterspellRow.locator('input').uncheck()
     await goNext(wizard, 'Sources')
     await goNext(wizard, 'Mode')
     await goNext(wizard, 'Pick')

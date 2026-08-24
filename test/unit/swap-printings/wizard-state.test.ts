@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { listRefKey } from '../../../src/site/combined-list'
 import type { CardSwapPlan, SwapMove } from '../../../src/editor/swap-printings'
 import {
+  afterPlanning,
   assignedCount,
   autoPlanAll,
   clampTakeCount,
@@ -55,10 +56,19 @@ describe('step routing', () => {
     singleCard: false,
     pickFromReview: false,
     hasPickQueue: true,
+    hasReplacements: false,
   } as const
 
   test('visibleSteps follows the mode and the single-card entry', () => {
     expect(visibleSteps(manual)).toEqual(['cards', 'sources', 'mode', 'pick', 'summary'])
+    expect(visibleSteps({ ...manual, hasReplacements: true })).toEqual([
+      'cards',
+      'sources',
+      'mode',
+      'pick',
+      'replacements',
+      'summary',
+    ])
     expect(visibleSteps({ ...manual, mode: 'most-expensive', hasPickQueue: false })).toEqual([
       'cards',
       'sources',
@@ -86,6 +96,18 @@ describe('step routing', () => {
     expect(previousStep('summary', { ...manual, hasPickQueue: false })).toBe('mode')
     expect(previousStep('summary', { ...manual, mode: 'most-expensive' })).toBe('review')
     expect(previousStep('review', { ...manual, mode: 'most-expensive' })).toBe('mode')
+  })
+
+  test('the Replacements step sits between planning and the summary when on the route', () => {
+    const withReplacements = { ...manual, hasReplacements: true } as const
+    expect(afterPlanning(manual)).toBe('summary')
+    expect(afterPlanning(withReplacements)).toBe('replacements')
+    expect(previousStep('summary', withReplacements)).toBe('replacements')
+    expect(previousStep('replacements', withReplacements)).toBe('pick')
+    expect(previousStep('replacements', { ...withReplacements, hasPickQueue: false })).toBe('mode')
+    expect(previousStep('replacements', { ...withReplacements, mode: 'least-expensive' })).toBe(
+      'review',
+    )
   })
 })
 

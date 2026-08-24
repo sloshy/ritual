@@ -27,11 +27,14 @@ import { isAbortError } from '../../site/utils'
 import { Modal } from '../../ui/Modal'
 import { useT } from '../../ui/i18n'
 import {
+  attachReplacements,
   candidatePrice,
   collectSwapCandidates,
   displacedDestinationRequired,
+  pinningMoves,
   planAllMoves,
   summarize,
+  targetPinsPrinting,
 } from '../swap-printings'
 import type {
   CardSwapPlan,
@@ -50,6 +53,7 @@ import type {
   UnpricedPolicy,
 } from '../swap-printings'
 import {
+  afterPlanning,
   autoPlanAll,
   consumedByOthers,
   defaultSourceExclusion,
@@ -61,13 +65,13 @@ import {
   swapTargetKey,
   visibleSteps,
   type StepContext,
-  type SwapNameOnlyLine,
   type SwapWizardStep,
 } from '../swap-printings/wizard-state'
 import { CardsStep } from './swap-printings/CardsStep'
 import { SourcesStep } from './swap-printings/SourcesStep'
 import { ModeStep } from './swap-printings/ModeStep'
 import { PickStep } from './swap-printings/PickStep'
+import { ReplacementsStep } from './swap-printings/ReplacementsStep'
 import { ReviewStep } from './swap-printings/ReviewStep'
 import { SummaryStep } from './swap-printings/SummaryStep'
 import {
@@ -76,14 +80,12 @@ import {
   type CardPreviewControl,
 } from './swap-printings/shared'
 
-export { swapTargetKey, type SwapNameOnlyLine }
+export { swapTargetKey }
 
-/** What the wizard is opened with (see the design record, §7.1). */
+/** What the wizard is opened with (see the design record, §7.1 and §9). */
 export type SwapWizardRequest = {
-  /** Eligible (pinned) lines of the edited list, in list order. */
+  /** The lines of the edited list, pinned and name-only alike, in list order. */
   targets: SwapTarget[]
-  /** Name-only lines, shown greyed with a "no printing set" note; never selectable. */
-  nameOnly: SwapNameOnlyLine[]
   /** Keys ({@link swapTargetKey}) pre-checked on the Cards step; undefined = all. */
   preselected?: ReadonlySet<string>
   /** Single-card entry: skip straight to that card's picker (sources/mode at their defaults). */
@@ -105,6 +107,9 @@ export type SwapPrintingsWizardProps = {
   currency: PriceCurrency
 }
 
+/** No replacement picks: what Apply reads while the option is off. */
+const NO_PICKS: ReadonlyMap<string, ChosenPrinting> = new Map()
+
 /** The step-indicator caption of each step. */
 const STEP_LABELS = {
   cards: 'ui.swap.step.cards',
@@ -112,6 +117,7 @@ const STEP_LABELS = {
   mode: 'ui.swap.step.mode',
   pick: 'ui.swap.step.pick',
   review: 'ui.swap.step.review',
+  replacements: 'ui.swap.step.replacements',
   summary: 'ui.swap.step.summary',
 } as const satisfies Record<SwapWizardStep, string>
 
@@ -147,6 +153,10 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
   const [pickFinish, setPickFinish] = createSignal<FinishFilter>('any')
   const [query, setQuery] = createSignal('')
   const [fallback, setFallback] = createSignal<NamedListRef | undefined>(undefined)
+  /** The "replace taken copies" option: offer a replacement pick per source list and printing taken for a name-only card. */
+  const [replaceTaken, setReplaceTaken] = createSignal(false)
+  /** The replacement chosen per `replacementKey`. */
+  const [picks, setPicks] = createSignal<Map<string, ChosenPrinting>>(new Map())
 
   let loadController: AbortController | null = null
   let loadedScope = ''
@@ -223,6 +233,7 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
         if (allocation.printing) cards.push(allocation.printing.card)
       }
     }
+    for (const pick of picks().values()) cards.push(pick.card)
     return cards
   })
   usePrintingQuotes(quoteCards)
@@ -261,7 +272,21 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
   const planned = createMemo<PlannedMoves>(() =>
     planAllMoves(activePlans(), props.editedRef, displaced(), fallback()),
   )
-  const summary = createMemo<SwapSummary>(() => summarize(activePlans(), planned().moves, priceOf))
+  /** The planned moves with the chosen replacements attached — what Apply hands over. */
+  const hasNameOnly = createMemo<boolean>(() =>
+    checkedKeys().some((key) => {
+      const target = targetByKey().get(key)
+      return target !== undefined && !targetPinsPrinting(target)
+    }),
+  )
+  const pinning = createMemo<SwapMove[]>(() => pinningMoves(planned().moves))
+  const hasReplacements = (): boolean => replaceTaken() && pinning().length > 0
+  // Picks made and then switched off (the option unticked on the way back)
+  // must not ride out on Apply.
+  const finalMoves = createMemo<SwapMove[]>(() =>
+    attachReplacements(planned().moves, hasReplacements() ? picks() : NO_PICKS),
+  )
+  const summary = createMemo<SwapSummary>(() => summarize(activePlans(), finalMoves(), priceOf))
   const canApply = (): boolean =>
     planned().moves.length > 0 &&
     !(needsFallback() && !fallback()) &&
@@ -330,6 +355,8 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
       setPickFinish('any')
       setQuery('')
       setFallback(undefined)
+      setReplaceTaken(false)
+      setPicks(new Map())
       if (request.singleCard) {
         // The pick queue is always a subset of the checked cards.
         setPickQueue(active)
@@ -351,7 +378,9 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
         if (!request) {
           abortLoad()
           setReady(false)
-        } else if (previous) {
+        } else if (previous && previous !== request) {
+          // The same request re-read (the host rebuilt its props, e.g. on a
+          // currency change) is not a new run.
           reset()
         }
       },
@@ -371,7 +400,7 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
       const current = mode()
       if (current === 'manual') {
         setPickQueue(keys)
-        setStep(keys.length > 0 ? 'pick' : 'summary')
+        setStep(keys.length > 0 ? 'pick' : afterPlanning(stepContext()))
         return
       }
       const targetsToPlan = keys.flatMap((key) => {
@@ -400,7 +429,7 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
       })
       return
     }
-    setStep(pickFromReview() || mode() !== 'manual' ? 'review' : 'summary')
+    setStep(pickFromReview() || mode() !== 'manual' ? 'review' : afterPlanning(stepContext()))
   }
 
   const goNext = (): void => {
@@ -419,6 +448,9 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
         advancePick()
         return
       case 'review':
+        setStep(afterPlanning(stepContext()))
+        return
+      case 'replacements':
         setStep('summary')
         return
       case 'summary':
@@ -431,6 +463,7 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
     singleCard: singleCard(),
     pickFromReview: pickFromReview(),
     hasPickQueue: pickQueue().length > 0,
+    hasReplacements: hasReplacements(),
   })
 
   const goBack = (): void => {
@@ -467,9 +500,18 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
     })
   }
 
+  const setPick = (key: string, printing: ChosenPrinting | undefined): void => {
+    setPicks((prev) => {
+      const next = new Map(prev)
+      if (printing) next.set(key, printing)
+      else next.delete(key)
+      return next
+    })
+  }
+
   const apply = (): void => {
     if (!canApply()) return
-    props.onApply(planned().moves)
+    props.onApply(finalMoves())
     close()
   }
 
@@ -483,6 +525,9 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
         return loading() || loadFailed() || sources() === null || quotesSettling()
       case 'pick':
         return sources() === null
+      // Rows left without a pick are a deliberate "no replacement".
+      case 'replacements':
+        return false
       default:
         return false
     }
@@ -544,7 +589,6 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
               <Match when={step() === 'cards'}>
                 <CardsStep
                   targets={targets()}
-                  nameOnly={props.request?.nameOnly ?? []}
                   targetKey={swapTargetKey}
                   checked={checked}
                   onToggle={(key) =>
@@ -579,6 +623,9 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
                   displaced={displaced}
                   setDisplaced={setDisplaced}
                   displacedTargets={displacedTargets}
+                  hasNameOnly={hasNameOnly}
+                  replaceTaken={replaceTaken}
+                  setReplaceTaken={setReplaceTaken}
                 />
                 <LoadStatus
                   loading={loading() || quotesSettling()}
@@ -637,9 +684,22 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
                   onChange={changeFromReview}
                 />
               </Match>
+              <Match when={step() === 'replacements'}>
+                <ReplacementsStep
+                  moves={pinning}
+                  picks={picks}
+                  onPick={setPick}
+                  query={query}
+                  setQuery={setQuery}
+                  active={() => props.request !== null && step() === 'replacements'}
+                  printings={props.provider.printings}
+                  priceOf={priceOf}
+                  currency={props.currency}
+                />
+              </Match>
               <Match when={step() === 'summary'}>
                 <SummaryStep
-                  moves={() => planned().moves}
+                  moves={finalMoves}
                   summary={summary}
                   needsFallback={needsFallback}
                   fallback={fallback}

@@ -481,3 +481,54 @@ describe('toCollectionCardEntries', () => {
     expect(entries[1]!.language).toBe('ja')
   })
 })
+
+describe('applyChangeToCollection — move-to pinning a name-only entry', () => {
+  const nameOnly: CollectionCardEntry = {
+    name: 'Sol Ring',
+    set: '',
+    collectorNumber: '',
+    finish: 'nonfoil',
+    condition: 'LP',
+    language: 'en',
+    price: 0,
+    fileOrder: 0,
+    section: 'Main',
+    cardId: 3,
+  }
+
+  it('sets the printing on the entry the change pins, keeping its id and grade', () => {
+    const result = applyChangeToCollection([nameOnly], {
+      action: 'move-to',
+      cardName: 'Sol Ring',
+      cardId: 3,
+      replacesCardId: 3,
+      set: 'C21',
+      collectorNumber: '263',
+      finish: 'foil',
+      language: 'ja',
+      from: { type: 'deck', name: 'Jund' },
+    })
+    expect(result).toEqual([
+      { ...nameOnly, set: 'c21', collectorNumber: '263', finish: 'foil', language: 'ja' },
+    ])
+  })
+
+  it('a pinned entry that no longer exists is a miss, not an add', () => {
+    const misses: MissReason[] = []
+    const result = applyChangeToCollection(
+      [nameOnly],
+      {
+        action: 'move-to',
+        cardName: 'Sol Ring',
+        cardId: 9,
+        replacesCardId: 9,
+        set: 'c21',
+        collectorNumber: '263',
+        from: { type: 'deck', name: 'Jund' },
+      },
+      { onMiss: (reason) => misses.push(reason) },
+    )
+    expect(misses).toEqual(['no-target'])
+    expect(result).toEqual([nameOnly])
+  })
+})

@@ -513,7 +513,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'Apply a change bundle exported from the site editor (format "ritual-change-bundle", ' +
         'version 2: per-list "lists[].changes" plus a top-level normalized "moves" array, ' +
         'one entry per copy moved between two lists) to the underlying lists. Each move is ' +
-        'applied to both its source and destination list, with a changelog entry on each. ' +
+        'applied to both its source and destination list, with a changelog entry on each; a ' +
+        'move with "pinsCardId" pins a name-only line of the destination instead of adding a ' +
+        'copy, and one with "replacement" adds that printing back to the source. ' +
         'Changes are re-targeted to current card IDs; ones whose target card no longer ' +
         'exists, whose action cannot apply to the list, or which would set a foil/etched ' +
         'finish on a card that pins no printing, are reported as skipped conflicts naming ' +

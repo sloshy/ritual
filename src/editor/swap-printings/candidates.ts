@@ -20,7 +20,7 @@ import type {
   SwapSourceList,
   SwapTarget,
 } from './types'
-import { definedPrintingDetails } from './printing-fields'
+import { definedPrintingDetails, targetPinsPrinting } from './printing-fields'
 
 /** A source entry that pins a printing (the narrowing `hasSpecificPrinting` produces). */
 type PinnedSourceEntry = SwapSourceEntry & { set: string; collectorNumber: string }
@@ -71,6 +71,8 @@ function isCurrentPrinting(
   entry: PinnedSourceEntry,
   entryCard: ScryfallCard | null,
 ): boolean {
+  // A name-only target has no current printing: every copy is a candidate.
+  if (!targetPinsPrinting(target)) return false
   return (
     printingKey(entry.set, entry.collectorNumber) ===
       printingKey(target.set, target.collectorNumber) &&

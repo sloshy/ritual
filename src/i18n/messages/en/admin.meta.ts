@@ -730,6 +730,10 @@ export const adminMeta = {
     description:
       'One move in the preview. {from} is the source list’s name and {change} a rendered change line such as "Move Sol Ring (C19:221) to collection ‘Binder’".',
   },
+  'admin.importChanges.previewReplacement': {
+    description:
+      'Appended to a move’s preview line when the source list gets a printing back for the copy taken (the swap wizard’s "replace taken copies"). {list} is the source list’s name and {change} a rendered add line such as "Add Sol Ring (C21:263)".',
+  },
   'admin.importChanges.applying': {
     description: 'Button label while the bundle is being applied.',
   },

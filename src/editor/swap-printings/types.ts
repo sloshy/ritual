@@ -88,17 +88,25 @@ export type SwapSourceProvider = {
 }
 
 /**
- * A line of the edited list the wizard may swap. Only lines that pin a
- * printing are targets. `cardIds` is the line's ids: one for a deck line
- * (shared by all its copies), one per copy for a flat list.
+ * A line of the edited list the wizard may swap: one that pins a printing (re-
+ * picked from copies owned elsewhere), or a name-only line (given a printing
+ * from a copy owned elsewhere — nothing is displaced). `cardIds` is the line's
+ * ids: one for a deck line (shared by all its copies), one per copy for a flat
+ * list.
  */
 export type SwapTarget = {
   cardName: string
   cardIds: number[]
+  /**
+   * Whether every copy shares one line (a deck line: `cardIds` holds its
+   * single id, repeated for each copy) or each copy is its own line (a flat
+   * list: one id per copy, in order; a copy past the end has none).
+   */
+  sharedLine: boolean
   quantity: number
-  /** Lowercase, as every in-memory set code is. */
-  set: string
-  collectorNumber: string
+  /** Lowercase, as every in-memory set code is. Absent (with `collectorNumber`) on a name-only line. */
+  set?: string
+  collectorNumber?: string
   finish?: Finish
   /** Omitted means English (the bare-line default). */
   language?: CardLanguage
@@ -191,6 +199,9 @@ export type CardSwapPlan = {
 /** `in`: replacement copies arriving in the edited list; `out`: displaced copies leaving it. */
 export type SwapMoveDirection = 'in' | 'out'
 
+/** A target that pins a printing — the narrowing `targetPinsPrinting` (printing-fields.ts) produces. */
+export type PinnedSwapTarget = SwapTarget & { set: string; collectorNumber: string }
+
 /** One planned cross-list move of `count` copies of one printing. */
 export type SwapMove = {
   direction: SwapMoveDirection
@@ -212,6 +223,19 @@ export type SwapMove = {
   sourceCardIds: Array<number | undefined>
   /** Destination deck section (set on `in` moves from the target's section). */
   section?: string
+  /**
+   * On an `in` move filling a NAME-ONLY target: the edited list's line id each
+   * arriving copy pins (`count` long, like `sourceCardIds`) — a deck line's id
+   * repeated, a flat copy's own. Such a move displaces nothing, so no `out`
+   * move accompanies it.
+   */
+  pinsCardIds?: Array<number | undefined>
+  /**
+   * On an `in` move filling a name-only target: the printing the source list
+   * receives back for the copies taken (the "replace taken copies" option),
+   * `count` copies of it. Chosen after planning, per source list and printing.
+   */
+  replacement?: ChosenPrinting
   card: ScryfallCard | null
 }
 

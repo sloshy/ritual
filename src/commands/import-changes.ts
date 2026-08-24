@@ -10,6 +10,7 @@ import {
   bundleChangeCount,
   bundleListCount,
   moveFromEventOf,
+  replacementAddEventOf,
   parseChangeBundle,
 } from '../editor/change-bundle'
 import {
@@ -88,6 +89,16 @@ function printPreview(bundle: ChangeBundle): void {
           from: listRefLabel({ type: move.from.kind, name: move.from.name }),
         })}`,
       )
+      // The printing the source gets back for the copy, when the move carries one.
+      const replacement = replacementAddEventOf(move)
+      if (replacement) {
+        console.log(
+          `    ↩ ${t('cli.importChanges.replacementLine', {
+            change: formatChange(replacement),
+            list: listRefLabel({ type: move.from.kind, name: move.from.name }),
+          })}`,
+        )
+      }
     }
   }
   console.log('')

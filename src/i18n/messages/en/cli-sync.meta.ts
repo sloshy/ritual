@@ -411,6 +411,10 @@ export const cliSyncMeta = {
     description:
       "One cross-list move in the preview. {change} is the rendered outgoing change (\"Move Sol Ring (C19:221) to Deck 'Burn'\"), which already names the destination; {from} is the pre-rendered English label of the source list (e.g. Collection 'Binder') — leave its shape alone.",
   },
+  'cli.importChanges.replacementLine': {
+    description:
+      'Preview line under a move whose source list gets a printing back for the copy taken (the swap wizard’s "replace taken copies"). {change} is the rendered add ("Add Sol Ring (C21:263)"); {list} is the pre-rendered English label of the source list (e.g. Collection \'Binder\') — leave its shape alone.',
+  },
   'cli.importChanges.listFailed': {
     description:
       'One list could not be written at all; {reason} is the failure text. A ✗ is prefixed by the caller.',

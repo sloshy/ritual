@@ -1,7 +1,6 @@
 import { createMemo, For, Show, type Accessor, type Component } from 'solid-js'
 import type { PriceCurrency } from '../../../price-currency'
 import type { ParameterlessKey } from '../../../i18n/t'
-import { displayFinish } from '../../../finish-condition'
 import { formatPrintingLabel } from '../../../printing-key'
 import { useT } from '../../../ui/i18n'
 import { allocationPrice, allocationPrinting, currentPrintingPrice } from '../../swap-printings'
@@ -11,8 +10,8 @@ import {
   LanguageChip,
   ListName,
   PriceText,
+  TargetPrinting,
   useCardPreviewHandlers,
-  targetPrintingLabel,
 } from './shared'
 
 export type ReviewStepProps = {
@@ -112,9 +111,7 @@ const ReviewRow: Component<ReviewRowProps> = (props) => {
         <FlagChips flags={plan().flags} />
       </td>
       <td {...useCardPreviewHandlers(() => target().card)}>
-        <span class="swap-wizard-printing">{targetPrintingLabel(target())}</span>
-        <FinishChip finish={displayFinish(target().card, target().finish)} />
-        <LanguageChip language={target().language} />
+        <TargetPrinting target={target()} />
       </td>
       <td>
         <Show

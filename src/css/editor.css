@@ -1510,3 +1510,11 @@ label.swap-wizard-row-main,
   padding: 0.75rem 1rem;
   border-top: 1px solid var(--border);
 }
+
+.swap-wizard-move--replacement {
+  color: var(--text-muted);
+}
+
+.swap-wizard-replacement-line {
+  padding-left: 1.25rem;
+}

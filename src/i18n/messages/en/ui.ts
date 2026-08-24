@@ -290,6 +290,7 @@ export const uiMessages = {
   'ui.swap.step.mode': 'Mode',
   'ui.swap.step.pick': 'Pick',
   'ui.swap.step.review': 'Review',
+  'ui.swap.step.replacements': 'Replacements',
   'ui.swap.step.summary': 'Summary',
   'ui.swap.copies': {
     $plural: 'count',
@@ -303,7 +304,7 @@ export const uiMessages = {
   'ui.swap.cards.selectNone': 'Select none',
   'ui.swap.cards.selected': '{count} of {total} selected',
   'ui.swap.cards.noPrintingSet': 'no printing set',
-  'ui.swap.cards.none': 'No card in this list pins a printing, so there is nothing to swap.',
+  'ui.swap.cards.none': 'This list has no cards, so there is nothing to swap.',
   'ui.swap.sources.heading': 'Which lists may supply replacement printings?',
   'ui.swap.sources.label': 'Take printings from:',
   'ui.swap.sources.note':
@@ -346,6 +347,20 @@ export const uiMessages = {
   'ui.swap.displaced.swapHint': 'Each displaced copy goes to the list its replacement came from.',
   'ui.swap.displaced.override': 'Send all displaced copies to…',
   'ui.swap.displaced.choose': 'Choose a list',
+  'ui.swap.replaceTaken.label': 'Cards without a printing',
+  'ui.swap.replaceTaken.option': 'Replace the copies taken from other lists',
+  'ui.swap.replaceTaken.hint':
+    'A card with no printing set takes its printing from a copy owned elsewhere, and that list loses the copy. Turn this on to choose a printing each list gets back instead.',
+  'ui.swap.replacements.heading': 'What do the source lists get back?',
+  'ui.swap.replacements.hint':
+    'Each line names copies taken from a list to set a printing here. Choose the printing that list now runs instead, or leave it one copy short.',
+  'ui.swap.replacements.taken': '{count}× {name} ({printing}) taken from',
+  'ui.swap.replacements.none': 'No replacement — the list loses the copies',
+  'ui.swap.replacements.chosen': 'Gets back {count}× {printing}',
+  'ui.swap.replacements.choose': 'Choose replacement…',
+  'ui.swap.replacements.clear': 'No replacement',
+  'ui.swap.replacements.backToRows': '← Back to the list',
+  'ui.swap.summary.replacementLine': '{count}× {name} ({printing}) added back to {list}',
   'ui.swap.pick.heading': 'Pick printings for {name}',
   'ui.swap.pick.progress': '{index} of {total}',
   'ui.swap.pick.prev': 'Previous card',

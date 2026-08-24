@@ -74,14 +74,7 @@ export function buildSelectionEditActions(
       selection.clear()
     },
     changePrinting: apply(bulk.changePrinting),
-    // A getter, so the menu's `Show` tracks the live selection: the wizard only
-    // swaps pinned lines, so the item is offered only while at least one
-    // selected tile pins a printing (the per-card menu's `hasPrinting` gate).
-    get swapPrintings() {
-      const swap = bulk.swapPrintings
-      if (!swap || !selection.selected().some((c) => c.set && c.collectorNumber)) return undefined
-      return apply(swap)
-    },
+    swapPrintings: bulk.swapPrintings ? apply(bulk.swapPrintings) : undefined,
     setCommander: bulk.setCommander ? apply(bulk.setCommander) : undefined,
     setLabel: setLabel
       ? (labels) => {

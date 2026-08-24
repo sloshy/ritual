@@ -865,3 +865,40 @@ describe('GET /api/lists', () => {
     expect(body.lists).toContainEqual({ type: 'wanted', slug: 'wishlist', name: 'Wishlist' })
   })
 })
+
+describe('incoming moves pinning a name-only line', () => {
+  test('a deck save converts the line in place, takes the copy from the source, and adds the replacement there', async () => {
+    await writeDeckFile(tmpDir, 'my-deck', {
+      frontMatter: { name: 'My Deck' },
+      cards: [SOL_RING, { quantity: 1, name: 'Lightning Bolt', cardId: 2 }],
+    })
+    const change = createMoveToChange('Lightning Bolt', {
+      set: 'lea',
+      collectorNumber: '161',
+      cardId: 2,
+      replacesCardId: 2,
+      sourceCardId: 1,
+      from: BINDER,
+      replacement: { set: 'm10', collectorNumber: '146', finish: 'foil' },
+    })
+    const resp = await saveDeck(
+      [change],
+      deckWith([
+        SOL_RING,
+        { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 2 },
+      ]),
+    )
+    expect(resp.status).toBe(200)
+
+    // The binder swapped its LEA copy for the replacement, which took the freed &1.
+    const binder = await fs.readFile(binderPath(), 'utf-8')
+    expect(binder).not.toContain('LEA:161')
+    expect(binder).toMatch(/Lightning Bolt \(M10:146\) \[foil\] &1$/m)
+    const binderLog = await changelogOf(binderPath())
+    expect(binderLog).toMatch(/Moved "Lightning Bolt" \(LEA:161\).*to Deck 'My Deck'/)
+    expect(binderLog).toMatch(/Added "Lightning Bolt" \(M10:146\) \[foil\] &\d+/)
+    expect(await changelogOf(deckPath())).toMatch(
+      /Moved "Lightning Bolt" \(LEA:161\).*from Collection 'Binder'/,
+    )
+  })
+})

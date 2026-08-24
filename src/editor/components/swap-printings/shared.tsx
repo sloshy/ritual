@@ -17,7 +17,8 @@ import { finishChipName } from '../../../site/printing-display'
 import { printingPriceText } from '../../../site/printing-prices'
 import { useT } from '../../../ui/i18n'
 import type { NamedListRef } from '../../../site/combined-list'
-import type { SwapCandidate, SwapTarget } from '../../swap-printings'
+import { displayFinish } from '../../../finish-condition'
+import { targetPinsPrinting, type SwapCandidate, type SwapTarget } from '../../swap-printings'
 
 /** Raises and clears the wizard's cursor-following card preview. */
 export type CardPreviewControl = {
@@ -134,9 +135,27 @@ export const PriceText: Component<PriceTextProps> = (props) => {
   )
 }
 
-/** `SET:CN` for a target's current printing. */
-export function targetPrintingLabel(target: SwapTarget): string {
-  return formatPrintingLabel(target.set, target.collectorNumber)
+export type TargetPrintingProps = { target: SwapTarget }
+
+/** A target's current printing — `SET:CN` with its finish and language chips — or the "no printing set" note. */
+export const TargetPrinting: Component<TargetPrintingProps> = (props) => {
+  const t = useT()
+  return (
+    <Show
+      when={targetPinsPrinting(props.target) ? props.target : null}
+      fallback={<span class="swap-wizard-muted">{t('ui.swap.cards.noPrintingSet')}</span>}
+    >
+      {(target) => (
+        <>
+          <span class="swap-wizard-printing">
+            {formatPrintingLabel(target().set, target().collectorNumber)}
+          </span>
+          <FinishChip finish={displayFinish(target().card, target().finish)} />
+          <LanguageChip language={target().language} />
+        </>
+      )}
+    </Show>
+  )
 }
 
 /** `SET:CN` for a printing candidate; null for a printingless one. */

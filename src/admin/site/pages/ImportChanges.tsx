@@ -8,6 +8,7 @@ import {
   bundleChangeCount,
   bundleListCount,
   moveFromEventOf,
+  replacementAddEventOf,
   parseChangeBundle,
 } from '../../../editor/change-bundle'
 import { useT, useTKey } from '../../../ui/i18n'
@@ -264,6 +265,17 @@ export function ImportChanges(): JSX.Element {
                                 from: move.from.name,
                                 change: formatChange(moveFromEventOf(move)),
                               })}
+                              <Show when={replacementAddEventOf(move)}>
+                                {(replacement) => (
+                                  <span class="import-changes-preview-replacement">
+                                    {' — '}
+                                    {t('admin.importChanges.previewReplacement', {
+                                      list: move.from.name,
+                                      change: formatChange(replacement()),
+                                    })}
+                                  </span>
+                                )}
+                              </Show>
                             </li>
                           )}
                         </For>

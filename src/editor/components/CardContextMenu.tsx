@@ -142,7 +142,7 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
           </button>
         )}
       </Show>
-      <Show when={props.printingAction?.hasPrinting ? props.onSwapPrinting : undefined}>
+      <Show when={props.onSwapPrinting}>
         {(swapPrinting) => (
           <button class="card-context-menu-item" onClick={() => swapPrinting()()}>
             {t('ui.cardMenu.swapPrinting')}

@@ -3154,6 +3154,22 @@ const SWAP_BOLT = withImage(
   }),
 )
 
+/** A second Lightning Bolt printing, priced apart from M10:146 so pinning it shows on the deck tile. */
+export const SWAP_BOLT_LEA = withImage(
+  makeMockScryfallCard({
+    id: 'swap-bolt-lea',
+    name: 'Lightning Bolt',
+    cmc: 1,
+    type_line: 'Instant',
+    prices: { usd: '5.00' },
+    set: 'lea',
+    set_name: 'Limited Edition Alpha',
+    collector_number: '161',
+    color_identity: ['R'],
+  }),
+)
+export const SWAP_BOLT_PRINTINGS = [SWAP_BOLT, SWAP_BOLT_LEA]
+
 const SWAP_DECK = makeDeckDetail({
   deck: {
     name: 'Swap Deck',
@@ -3179,7 +3195,7 @@ const SWAP_DECK = makeDeckDetail({
     'Sol Ring': SWAP_RING_PRINTINGS,
     'Arcane Signet': [SWAP_SIGNET],
     'Mind Stone': [SWAP_STONE],
-    'Lightning Bolt': [SWAP_BOLT],
+    'Lightning Bolt': SWAP_BOLT_PRINTINGS,
   },
   useScryfallImgUrls: true,
 })
@@ -3218,11 +3234,20 @@ const SWAP_BINDER = makeCollectionDetail({
       fileOrder: 1,
       cardId: 2,
     }),
+    // The copy the deck's name-only Lightning Bolt can take its printing from.
+    makeCollectionEntry({
+      name: 'Lightning Bolt',
+      set: 'lea',
+      collectorNumber: '161',
+      price: 5,
+      fileOrder: 2,
+      cardId: 3,
+    }),
   ],
-  cards: { 'lea:270': SWAP_RING_LEA, 'c19:221': SWAP_RING_C19 },
-  printings: { 'Sol Ring': SWAP_RING_PRINTINGS },
+  cards: { 'lea:270': SWAP_RING_LEA, 'c19:221': SWAP_RING_C19, 'lea:161': SWAP_BOLT_LEA },
+  printings: { 'Sol Ring': SWAP_RING_PRINTINGS, 'Lightning Bolt': SWAP_BOLT_PRINTINGS },
   useScryfallImgUrls: true,
-  totalPrice: 100,
+  totalPrice: 105,
 })
 
 const SWAP_WANTS = makeWantedDetail({
@@ -3241,7 +3266,7 @@ const SWAP_INDEX = makeSiteIndex({
     makeDeckSummary({ slug: 'swap-deck', name: 'Swap Deck', cardCount: 4 }),
     makeDeckSummary({ slug: 'swap-other', name: 'Swap Other', cardCount: 1 }),
   ],
-  collections: [makeCollectionSummary({ slug: 'swap-binder', name: 'Swap Binder', cardCount: 2 })],
+  collections: [makeCollectionSummary({ slug: 'swap-binder', name: 'Swap Binder', cardCount: 3 })],
   wantedLists: [makeWantedListSummary({ slug: 'swap-wants', name: 'Swap Wants' })],
   useScryfallImgUrls: true,
 })

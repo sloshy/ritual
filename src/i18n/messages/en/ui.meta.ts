@@ -597,6 +597,11 @@ export const uiMeta = {
     description: 'Step indicator label: reviewing what the automatic mode chose.',
     maxLen: 12,
   },
+  'ui.swap.step.replacements': {
+    description:
+      'Step-indicator caption of the wizard step where the user picks the printing each source list gets back for the copies taken from it.',
+    maxLen: 16,
+  },
   'ui.swap.step.summary': {
     description: 'Step indicator label: the final summary of planned moves.',
     maxLen: 12,
@@ -627,7 +632,7 @@ export const uiMeta = {
     maxLen: 20,
   },
   'ui.swap.cards.none': {
-    description: 'Empty state of the Cards step when no line of the list names a printing.',
+    description: 'Empty state of the Cards step when the edited list holds no cards at all.',
   },
   'ui.swap.sources.heading': { description: 'Heading of the Sources step.' },
   'ui.swap.sources.label': {
@@ -717,6 +722,55 @@ export const uiMeta = {
       'Displaced-copies radio: each replaced copy goes back to the list its replacement came from.',
   },
   'ui.swap.displaced.swapHint': { description: 'One-line explanation of the swap policy.' },
+  'ui.swap.replaceTaken.label': {
+    description:
+      'Legend of the Mode-step option group shown when a checked card has no printing set (a name-only line).',
+    maxLen: 40,
+  },
+  'ui.swap.replaceTaken.option': {
+    description:
+      'Checkbox label: when on, the wizard adds a Replacements step asking which printing each source list gets back for the copies taken from it.',
+    maxLen: 60,
+  },
+  'ui.swap.replaceTaken.hint': {
+    description:
+      'Explanation under the replace-taken-copies checkbox: a name-only card takes its printing from a copy owned in another list, which loses that copy unless a replacement is chosen.',
+  },
+  'ui.swap.replacements.heading': {
+    description: 'Heading of the Replacements step.',
+    maxLen: 60,
+  },
+  'ui.swap.replacements.hint': {
+    description:
+      'Explanation under the Replacements step heading: one row per source list and printing taken; choosing a printing adds it back to that list, leaving it unset means the list loses the copies.',
+  },
+  'ui.swap.replacements.taken': {
+    description:
+      'Row title on the Replacements step, followed by the source list name: how many copies of which card and printing were taken. {count} is a whole number, {printing} a SET:CN label.',
+  },
+  'ui.swap.replacements.none': {
+    description: 'Sub-line of a Replacements row while no replacement printing is chosen.',
+    maxLen: 60,
+  },
+  'ui.swap.replacements.chosen': {
+    description:
+      'Sub-line of a Replacements row once a printing is chosen: how many copies of it the source list gets back. {count} is a whole number, {printing} a SET:CN label.',
+    maxLen: 40,
+  },
+  'ui.swap.replacements.choose': {
+    description:
+      'Button on a Replacements row opening the full printing grid to choose the replacement printing.',
+    maxLen: 28,
+  },
+  'ui.swap.replacements.clear': {
+    description:
+      'Button on a Replacements row dropping the chosen replacement (the source list loses the copies).',
+    maxLen: 20,
+  },
+  'ui.swap.replacements.backToRows': {
+    description: 'Button returning from the replacement printing grid to the Replacements rows.',
+    maxLen: 24,
+  },
   'ui.swap.displaced.override': {
     description:
       'Displaced-copies radio: every replaced copy goes to one chosen list (a select follows).',
@@ -862,6 +916,10 @@ export const uiMeta = {
   'ui.swap.summary.sends': {
     description:
       "Summary group heading for copies the edited list sends to another list. {list} is that list's name.",
+  },
+  'ui.swap.summary.replacementLine': {
+    description:
+      'Summary line under a "Taken from {list}" group: the replacement printing that list gets back. {count} is a whole number, {name} the card, {printing} a SET:CN label, {list} the source list name.',
   },
   'ui.swap.summary.moveLine': {
     description:

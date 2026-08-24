@@ -161,6 +161,33 @@ export type MoveToChange = BaseChange & {
    * the fallback. `cardId` on an in-stack move-to is the destination's own line id.
    */
   sourceCardId?: number
+  /**
+   * The destination's own name-only line this copy PINS instead of adding a
+   * copy to the list (the swap wizard setting a printing from a copy owned
+   * elsewhere). Equal to `cardId`: the line is converted in place — it takes
+   * the event's printing and keeps its `&N` and quantity (every copy of a deck
+   * line's fill repeats the event, the later ones changing nothing). Different
+   * from `cardId`: one copy is taken off that line (the line goes when empty)
+   * and lands on `cardId` as an add would — a deck line filled partially or
+   * from several printings. Never rendered in a changelog line.
+   */
+  replacesCardId?: number
+  /**
+   * A printing added to the SOURCE list in place of the copy taken — the swap
+   * wizard's "replace taken copies" option. Applied by the incoming-move
+   * writer (a plain `add` on the source, logged there); the destination's own
+   * reducer ignores it.
+   */
+  replacement?: MoveReplacement
+}
+
+/** The printing a source list receives back for a copy a `move-to` took (see {@link MoveToChange.replacement}). */
+export type MoveReplacement = {
+  set: string
+  collectorNumber: string
+  finish?: Finish
+  /** Omitted means English (the bare-line default). */
+  language?: CardLanguage
 }
 
 /**
@@ -398,6 +425,10 @@ export type MoveToOptions = {
   section?: string
   /** Source line id hint; see {@link MoveToChange.sourceCardId}. */
   sourceCardId?: number
+  /** The destination line this copy pins; see {@link MoveToChange.replacesCardId}. */
+  replacesCardId?: number
+  /** The printing the source receives back; see {@link MoveToChange.replacement}. */
+  replacement?: MoveReplacement
 }
 
 function makeBase(cardName: string, cardId?: number): BaseChange {
@@ -513,6 +544,8 @@ export function createMoveToChange(cardName: string, options: MoveToOptions): Mo
     from: options.from,
     section: options.section,
     sourceCardId: options.sourceCardId,
+    replacesCardId: options.replacesCardId,
+    replacement: options.replacement,
   }
 }
 

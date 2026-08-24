@@ -193,6 +193,7 @@ function removeDeckCopy(
       finish: c.finish,
       condition: c.condition,
       language: c.language,
+      section: section.name,
     }
   }
   return null
@@ -299,7 +300,12 @@ export type IncomingCopy = PrintingTuple & { name: string; cardId?: number }
  * printing tuple (bare tokens left absent) and `&N`. The source changelog
  * describes the line, not the event that asked for it.
  */
-export type RemovedCopy = PrintingTuple & { name: string; cardId?: number }
+export type RemovedCopy = PrintingTuple & {
+  name: string
+  cardId?: number
+  /** The deck section the line sat in (absent for a flat-list bullet). */
+  section?: string
+}
 
 /** The line-side view the incoming tiers compare against, for a deck card or a flat-list bullet. */
 type LineView = RemovedCopy

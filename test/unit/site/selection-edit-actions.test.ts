@@ -145,12 +145,10 @@ describe('buildSelectionEditActions', () => {
     expect(h.actions.swapPrintings).toBeUndefined()
   })
 
-  test('omits swapPrintings while no selected tile pins a printing', () => {
-    // Read per render: only pinned lines can be swapped, so a name-only
-    // selection gets no item rather than a wizard with nothing to check.
+  test('offers swapPrintings for a name-only selection (the wizard sets its printing)', () => {
     const h = harness(true, true, true, false)
-    expect(h.actions.swapPrintings).toBeUndefined()
-    expect(h.cleared()).toBe(0)
+    h.actions.swapPrintings!()
+    expect(h.calls).toEqual([{ name: 'swapPrintings', cards: h.cards, arg: undefined }])
   })
 
   test('exposes the bundle sections accessor', () => {

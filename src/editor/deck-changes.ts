@@ -1,5 +1,5 @@
 import type { Card, DeckData } from '../types'
-import type { ChangeInput, PrintingTuple } from '../change-event'
+import type { ChangeInput, PrintingTuple, SetPrintingChange } from '../change-event'
 import type { CardLabel } from '../card-labels'
 import type { ApplyChangeOptions } from './apply-batch'
 import { isSamePrinting } from '../change-event'
@@ -10,7 +10,7 @@ import {
   resolveDefaultAddSection,
 } from '../deck-format'
 import { normalizedOverride, sameCardLabels } from '../card-labels'
-import { canSetFinish, finishMatchesPrinting } from '../card-printing'
+import { canSetFinish, finishMatchesPrinting, hasSpecificPrinting } from '../card-printing'
 import { applyConditionUpdate } from '../finish-condition'
 import { noteOrUndefined } from '../note-helpers'
 import { storedLanguage } from '../card-language'
@@ -252,13 +252,7 @@ export function applyChangeToDeck(
           options?.onMiss?.('needs-printing')
           return { ...deck, sections }
         }
-        found.card.set = change.set?.toLowerCase()
-        found.card.collectorNumber = change.collectorNumber
-        found.card.finish = change.finish
-        found.card.condition = applyConditionUpdate(change.condition, found.card.condition)
-        // Unlike finish, an absent language leaves the card's alone — language
-        // changes have their own set-language event.
-        if (change.language !== undefined) found.card.language = change.language
+        writePrinting(found.card, change)
         return { ...deck, sections }
       }
       options?.onMiss?.('no-target')
@@ -351,7 +345,14 @@ export function applyChangeToDeck(
         options,
       )
 
-    case 'move-to':
+    case 'move-to': {
+      // A copy pinning a name-only line the deck already holds (the swap
+      // wizard's "set printing from another list"): see `pinDeckLine`.
+      if (change.replacesCardId !== undefined) {
+        if (pinDeckLine(sections, change, change.replacesCardId)) return { ...deck, sections }
+        options?.onMiss?.('no-target')
+        return { ...deck, sections }
+      }
       // A move into this deck adds the card (e.g. when importing a destination list's changes).
       return applyChangeToDeck(
         deck,
@@ -368,5 +369,91 @@ export function applyChangeToDeck(
         },
         options,
       )
+    }
   }
+}
+
+/** Where a line sits: its section and index within it. */
+type DeckLinePosition = { section: DeckData['sections'][number]; idx: number }
+
+/** A `move-to` change input (the pinning variant carries `replacesCardId`, see `MoveToChange`). */
+type PinningMoveTo = Extract<ChangeInput, { action: 'move-to' }>
+
+/**
+ * Apply a `move-to` that pins the name-only line `replacesCardId` (mutates
+ * `sections`; returns false when no line carries that id).
+ *
+ * In place (`change.cardId === replacesCardId`): the line takes the event's
+ * printing and keeps its `&N` and quantity. A deck line's fill is one event
+ * per copy, all naming the same line, so only the first changes anything —
+ * a later copy finds the line already pinned and leaves it alone.
+ *
+ * Split (`change.cardId` names another line): one copy comes off the
+ * name-only line (the line goes at zero) and lands as an add would — on the
+ * line `cardId` names, else on the line the merge rule folds it onto, else on
+ * a fresh line inserted right after the one it came from, so a partially
+ * filled card stays next to its unpinned remainder.
+ */
+function pinDeckLine(
+  sections: DeckData['sections'],
+  change: PinningMoveTo,
+  replacesCardId: number,
+): boolean {
+  let found: DeckLinePosition | null = null
+  for (const section of sections) {
+    const idx = section.cards.findIndex((c) => c.cardId === replacesCardId)
+    if (idx !== -1) {
+      found = { section, idx }
+      break
+    }
+  }
+  if (!found) return false
+  const line = found.section.cards[found.idx]!
+  // The pair has to hold together, exactly as `set-printing` requires.
+  if (!finishMatchesPrinting(change)) return false
+
+  if (change.cardId === replacesCardId) {
+    // Copies 2..n of a deck line's fill find it already pinned by the first
+    // and change nothing — but only when it is THIS printing: a pinned id
+    // that resolved to some other line (an import's name fallback) is a miss.
+    if (hasSpecificPrinting(line)) return isSamePrinting(line, change)
+    writePrinting(line, change)
+    return true
+  }
+  // A split needs the id the copy lands on: an id-less line would be one the
+  // art/effects plan never allocated.
+  if (change.cardId === undefined) return false
+
+  line.quantity -= 1
+  if (line.quantity <= 0) found.section.cards.splice(found.idx, 1)
+  const cards = sections.flatMap((s) => s.cards)
+  const landing =
+    cards.find((c) => c.cardId === change.cardId) ??
+    cards.find((c) => mergesOntoCard(c, change.cardName, change, undefined))
+  if (landing) {
+    landing.quantity += 1
+    return true
+  }
+  const insertAt = line.quantity <= 0 ? found.idx : found.idx + 1
+  const fresh: Card = { quantity: 1, name: change.cardName, cardId: change.cardId }
+  writePrinting(fresh, change)
+  found.section.cards.splice(insertAt, 0, fresh)
+  return true
+}
+
+/**
+ * Write a change's printing onto a line — the one rule `set-printing` and a
+ * pinning `move-to` share: set/collector number/finish are written wholesale,
+ * the condition through `applyConditionUpdate`, and an absent language leaves
+ * the line's alone (language changes have their own event).
+ */
+function writePrinting(
+  card: Card,
+  change: Pick<SetPrintingChange, 'set' | 'collectorNumber' | 'finish' | 'condition' | 'language'>,
+): void {
+  card.set = change.set?.toLowerCase()
+  card.collectorNumber = change.collectorNumber
+  card.finish = change.finish
+  card.condition = applyConditionUpdate(change.condition, card.condition)
+  if (change.language !== undefined) card.language = change.language
 }

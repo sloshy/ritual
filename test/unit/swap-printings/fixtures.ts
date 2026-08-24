@@ -67,6 +67,7 @@ export function makeTarget(overrides: Partial<SwapTarget> = {}): SwapTarget {
   return {
     cardName: 'Lightning Bolt',
     cardIds: [7],
+    sharedLine: true,
     quantity: 1,
     set: 'm10',
     collectorNumber: '146',

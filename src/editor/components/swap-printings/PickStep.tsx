@@ -1,23 +1,8 @@
-import {
-  createMemo,
-  createResource,
-  createSignal,
-  For,
-  Show,
-  type Accessor,
-  type Component,
-} from 'solid-js'
+import { batch, createMemo, createSignal, For, Show, type Accessor, type Component } from 'solid-js'
 import type { Finish, ScryfallCard } from '../../../types'
 import type { PriceCurrency } from '../../../price-currency'
-import { scryfallCardLanguage, storedLanguage } from '../../../card-language'
-import { dedupePrintingsByKey, type CardPrintingsLookup } from '../../../card-printing'
-import { filterPrintingsByQuery } from '../../../collector-query'
-import { getCardImageUrl } from '../../../card-image'
-import { defaultPrintingFinish, displayFinish, printingFinishes } from '../../../finish-condition'
+import type { CardPrintingsLookup } from '../../../card-printing'
 import { formatPrintingLabel } from '../../../printing-key'
-import { PrintingPrices } from '../../../site/PrintingPrices'
-import { usePrintingQuotes } from '../../../site/printing-quotes'
-import { finishChipName } from '../../../site/printing-display'
 import { useT } from '../../../ui/i18n'
 import { PrintingFilter } from '../../../ui/PrintingFilter'
 import { candidatePrice, currentPrintingPrice } from '../../swap-printings'
@@ -37,15 +22,15 @@ import {
   type TakeCountBounds,
 } from '../../swap-printings/wizard-state'
 import { FinishFilterToggle } from './ModeStep'
+import { PrintingGrid, chosenFromGrid } from './PrintingGrid'
 import {
   CardThumb,
   FinishChip,
   LanguageChip,
   ListName,
   PriceText,
-  useCardPreviewHandlers,
+  TargetPrinting,
   candidatePrintingLabel,
-  targetPrintingLabel,
 } from './shared'
 
 export type PickStepProps = {
@@ -113,13 +98,19 @@ export const PickStep: Component<PickStepProps> = (props) => {
     quantity: target().quantity,
     assignedElsewhere: assigned() - countFor(candidate),
   })
-  // The full printing list for the printing-less grid, fetched once per card:
-  // the name is latched when the grid first opens so closing and reopening the
-  // grid shows the same list without a refetch.
-  const [gridName, setGridName] = createSignal<string | undefined>(undefined)
+  // The candidate rows and the printing grid filter different things, so a
+  // query typed for one never carries into the other.
   const enterGrid = (candidate: SwapCandidate, requested: number): void => {
-    setGridName(target().cardName)
-    setView({ kind: 'grid', candidate, requested })
+    batch(() => {
+      props.setQuery('')
+      setView({ kind: 'grid', candidate, requested })
+    })
+  }
+  const backToRows = (): void => {
+    batch(() => {
+      props.setQuery('')
+      setView({ kind: 'rows' })
+    })
   }
   const setCount = (candidate: SwapCandidate, requested: number): void => {
     const count = clampTakeCount(requested, boundsFor(candidate))
@@ -139,29 +130,13 @@ export const PickStep: Component<PickStepProps> = (props) => {
     const current = view()
     return current.kind === 'grid' ? current : null
   }
-  const [allPrintings] = createResource<ScryfallCard[], string>(gridName, async (name) =>
-    dedupePrintingsByKey(await props.printings(name)),
-  )
-  const gridPrintings = createMemo<ScryfallCard[]>(() =>
-    allPrintings.error ? [] : filterPrintingsByQuery(props.query(), allPrintings.latest ?? []),
-  )
-  // The grid prices printings no list displays, so under the Card Kingdom
-  // source their quotes must be requested here — gated on the grid being
-  // shown, like the add-card dialog's printing step.
-  usePrintingQuotes(() => (gridView() ? (allPrintings.latest ?? []) : []))
 
   const choosePrinting = (grid: GridView, card: ScryfallCard, finish: Finish): void => {
-    const printing: ChosenPrinting = {
-      card,
-      set: card.set.toLowerCase(),
-      collectorNumber: card.collector_number,
-      finish,
-    }
-    const language = storedLanguage(scryfallCardLanguage(card))
-    if (language !== undefined) printing.language = language
     const count = clampTakeCount(Math.max(1, grid.requested), boundsFor(grid.candidate))
-    props.onSetCount(grid.candidate, count, printing)
-    setView({ kind: 'rows' })
+    batch(() => {
+      props.onSetCount(grid.candidate, count, chosenFromGrid(card, finish))
+      backToRows()
+    })
   }
 
   return (
@@ -209,9 +184,7 @@ export const PickStep: Component<PickStepProps> = (props) => {
               <span class="swap-wizard-row-text">
                 <span class="swap-wizard-row-title">{t('ui.swap.pick.keep')}</span>
                 <span class="swap-wizard-row-sub">
-                  <span class="swap-wizard-printing">{targetPrintingLabel(target())}</span>
-                  <FinishChip finish={displayFinish(target().card, target().finish)} />
-                  <LanguageChip language={target().language} />
+                  <TargetPrinting target={target()} />
                   <PriceText price={currentPrice()} currency={props.currency} />
                 </span>
               </span>
@@ -323,85 +296,22 @@ export const PickStep: Component<PickStepProps> = (props) => {
         {(grid) => (
           <div class="swap-wizard-grid-view">
             <div class="swap-wizard-step-tools">
-              <button
-                type="button"
-                class="search-tab-btn"
-                onClick={() => setView({ kind: 'rows' })}
-              >
+              <button type="button" class="search-tab-btn" onClick={backToRows}>
                 {t('ui.swap.pick.backToRows')}
               </button>
               <h5 class="swap-wizard-subheading">
                 {t('ui.swap.pick.choosePrinting', { name: target().cardName })}
               </h5>
             </div>
-            <PrintingFilter
-              value={props.query()}
-              onChange={props.setQuery}
-              active={props.active()}
+            <PrintingGrid
+              cardName={() => target().cardName}
+              printings={props.printings}
+              query={props.query}
+              setQuery={props.setQuery}
+              active={() => props.active() && gridView() !== null}
+              currency={props.currency}
+              onChoose={(card, finish) => choosePrinting(grid(), card, finish)}
             />
-            <Show when={allPrintings.error}>
-              <p class="swap-wizard-note swap-wizard-note--warning" role="status">
-                {t('ui.swap.pick.printingsFailed')}
-              </p>
-            </Show>
-            <Show
-              when={!allPrintings.loading}
-              fallback={<div class="empty-state">{t('ui.addCard.loadingPrintings')}</div>}
-            >
-              <Show when={!allPrintings.error && gridPrintings().length === 0}>
-                <div class="empty-state">{t('ui.printingFilter.noMatches')}</div>
-              </Show>
-              <div class="printing-select-grid">
-                <For each={gridPrintings()}>
-                  {(printing) => {
-                    const imageUrl = getCardImageUrl(printing)
-                    const finishes = printingFinishes(printing)
-                    return (
-                      <div class="swap-wizard-grid-tile">
-                        <button
-                          type="button"
-                          class="printing-select-card btn-unstyled"
-                          {...useCardPreviewHandlers(() => printing)}
-                          onClick={() =>
-                            choosePrinting(grid(), printing, defaultPrintingFinish(printing))
-                          }
-                        >
-                          <Show when={imageUrl}>
-                            {(url) => <img src={url()} alt={printing.name} loading="lazy" />}
-                          </Show>
-                          <div class="printing-label">
-                            <span class="printing-label-set">
-                              {formatPrintingLabel(printing.set, printing.collector_number)}
-                            </span>
-                            {' · '}
-                            <PrintingPrices
-                              printing={printing}
-                              currency={props.currency}
-                              class="printing-label-price"
-                            />
-                          </div>
-                        </button>
-                        <Show when={finishes.length > 1}>
-                          <div class="swap-wizard-grid-finishes">
-                            <For each={finishes}>
-                              {(finish) => (
-                                <button
-                                  type="button"
-                                  class="swap-wizard-chip swap-wizard-chip-button"
-                                  onClick={() => choosePrinting(grid(), printing, finish)}
-                                >
-                                  {finishChipName(t, finish)}
-                                </button>
-                              )}
-                            </For>
-                          </div>
-                        </Show>
-                      </div>
-                    )
-                  }}
-                </For>
-              </div>
-            </Show>
           </div>
         )}
       </Show>

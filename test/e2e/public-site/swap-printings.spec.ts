@@ -4,6 +4,7 @@ import type { ChangeBundle } from '../../../src/editor/change-bundle'
 import { enterEditMode, openSelectionMenu } from '../helpers/list-ui'
 import {
   SWAP_ART,
+  SWAP_BOLT_PRINTINGS,
   SWAP_RING_C19,
   SWAP_RING_C21,
   SWAP_RING_LEA,
@@ -25,10 +26,11 @@ import {
  * The "Swap Printings" wizard on the public deck editor. The fixture edits
  * `swap-deck` (Sol Ring C21:263 pinned, Arcane Signet and Mind Stone pinned,
  * Lightning Bolt name-only) against a binder holding a priced LEA:270 and an unpriced C19:221
- * Sol Ring, a second deck holding the deck's own C21:263 (never a candidate),
- * and a wanted list with a name-only Sol Ring (off by default). Applying a swap
- * records a pair of cross-list moves in the edited deck's change stack, which
- * the export panel serializes into the bundle's top-level `moves`.
+ * Sol Ring plus a LEA:161 Lightning Bolt, a second deck holding the deck's own
+ * C21:263 (never a candidate), and a wanted list with a name-only Sol Ring (off
+ * by default). Applying a swap records a pair of cross-list moves in the edited
+ * deck's change stack, which the export panel serializes into the bundle's
+ * top-level `moves`; giving the name-only Bolt a printing records one pinning move.
  */
 
 const scopeTypeCheckbox = (wizard: Locator, type: string): Locator =>
@@ -62,7 +64,7 @@ type AdvanceOptions = {
 async function advanceToMode(wizard: Locator, options: AdvanceOptions = {}): Promise<void> {
   await wizard.locator('button', { hasText: 'Select none' }).click()
   await cardRow(wizard, 'Sol Ring').locator('input').check()
-  await expect(selectedCount(wizard)).toHaveText('1 of 3 selected')
+  await expect(selectedCount(wizard)).toHaveText('1 of 4 selected')
   await goNext(wizard, 'Sources')
   if (options.includeWanted) await scopeTypeCheckbox(wizard, 'Wanted').check()
   await goNext(wizard, 'Mode')
@@ -96,20 +98,19 @@ test.describe('Swap Printings wizard (public deck editor)', () => {
   }) => {
     const wizard = await openForWholeList(page)
 
-    // Cards: the pinned lines are pre-checked; the name-only line is greyed out.
+    // Cards: every line is pre-checked, the name-only one noted as such.
     await expect(cardRow(wizard, 'Sol Ring').locator('input')).toBeChecked()
     await expect(cardRow(wizard, 'Arcane Signet').locator('input')).toBeChecked()
     await expect(cardRow(wizard, 'Mind Stone').locator('input')).toBeChecked()
     const boltRow = cardRow(wizard, 'Lightning Bolt')
-    await expect(boltRow).toHaveClass(/swap-wizard-row--disabled/)
-    await expect(boltRow.locator('input')).toBeDisabled()
+    await expect(boltRow.locator('input')).toBeChecked()
     await expect(boltRow).toContainText('no printing set')
     // Nothing checked gates Next; checking one card back opens it.
     await wizard.locator('button', { hasText: 'Select none' }).click()
-    await expect(selectedCount(wizard)).toHaveText('0 of 3 selected')
+    await expect(selectedCount(wizard)).toHaveText('0 of 4 selected')
     await expect(footerButton(wizard, 'Next')).toBeDisabled()
     await cardRow(wizard, 'Sol Ring').locator('input').check()
-    await expect(selectedCount(wizard)).toHaveText('1 of 3 selected')
+    await expect(selectedCount(wizard)).toHaveText('1 of 4 selected')
     await goNext(wizard, 'Sources')
 
     // Sources: decks and collections are on, wanted lists off by default.
@@ -118,8 +119,10 @@ test.describe('Swap Printings wizard (public deck editor)', () => {
     await expect(scopeTypeCheckbox(wizard, 'Wanted')).not.toBeChecked()
     await goNext(wizard, 'Mode')
 
-    // Mode: manual is the default.
+    // Mode: manual is the default; no name-only card is checked, so the
+    // replace-taken option is not offered.
     await expect(wizard.locator('input[name="swap-mode"][value="manual"]')).toBeChecked()
+    await expect(wizard.locator('input[name="swap-replace-taken"]')).toHaveCount(0)
     await goNext(wizard, 'Pick')
 
     // Pick: only the binder's two other printings — the other deck's identical
@@ -294,15 +297,13 @@ test.describe('Swap Printings wizard (public deck editor)', () => {
     await expect(cardRow(wizard, 'Sol Ring').locator('input')).toBeChecked()
     await expect(cardRow(wizard, 'Arcane Signet').locator('input')).toBeChecked()
     await expect(cardRow(wizard, 'Mind Stone').locator('input')).not.toBeChecked()
-    await expect(cardRow(wizard, 'Lightning Bolt').locator('input')).toBeDisabled()
-    await expect(selectedCount(wizard)).toHaveText('2 of 3 selected')
+    await expect(cardRow(wizard, 'Lightning Bolt').locator('input')).not.toBeChecked()
+    await expect(selectedCount(wizard)).toHaveText('2 of 4 selected')
   })
 
-  test('a selection that resolves to one pinned card jumps straight to its picker', async ({
+  test('a selection that resolves to one card — name-only included — jumps straight to its picker', async ({
     page,
   }) => {
-    // The name-only Lightning Bolt contributes no target, so Sol Ring is the only card.
-    await selectTile(page, 'sol ring')
     await selectTile(page, 'lightning bolt')
     const panel = await openSelectionMenu(page)
     await panel.locator('.selection-menu-item', { hasText: 'Swap Printings…' }).click()
@@ -310,7 +311,94 @@ test.describe('Swap Printings wizard (public deck editor)', () => {
     const wizard = wizardOf(page)
     await expect(wizard).toBeVisible()
     await expect(currentStep(wizard)).toHaveText('Pick')
-    await expect(wizard).toContainText('Pick printings for Sol Ring')
+    await expect(wizard).toContainText('Pick printings for Lightning Bolt')
+  })
+
+  test('a name-only card takes its printing from a binder copy, and the toggle asks what the binder gets back', async ({
+    page,
+  }) => {
+    await mockPickerPrintings(page, SWAP_BOLT_PRINTINGS)
+    const boltTile = page.locator('.card-item[data-name="lightning bolt"]')
+    await expect(boltTile).toHaveAttribute('data-price', '1')
+    const wizard = await openForWholeList(page)
+    await wizard.locator('button', { hasText: 'Select none' }).click()
+    await cardRow(wizard, 'Lightning Bolt').locator('input').check()
+    await goNext(wizard, 'Sources')
+    await goNext(wizard, 'Mode')
+
+    // The replace-taken option is offered because a name-only card is checked; off by default.
+    const replaceToggle = wizard.locator('input[name="swap-replace-taken"]')
+    await expect(replaceToggle).not.toBeChecked()
+    await replaceToggle.check()
+    await goNext(wizard, 'Pick')
+
+    // The keep row has no printing; the binder's LEA copy is the one candidate.
+    await expect(wizard).toContainText('Pick printings for Lightning Bolt')
+    await expect(wizard.locator('.swap-wizard-keep-row')).toContainText('no printing set')
+    await expect(candidateRows(wizard)).toHaveCount(1)
+    const leaRow = candidateRows(wizard).filter({ hasText: 'LEA:161' })
+    await expect(leaRow).toContainText('Swap Binder')
+    await takeOneButton(leaRow).click()
+    await goNext(wizard, 'Replacements')
+
+    // One row per source list and printing taken; a replacement is chosen from the full grid.
+    const row = wizard.locator('.swap-wizard-replacement-row')
+    await expect(row).toHaveCount(1)
+    await expect(row).toContainText('1× Lightning Bolt (LEA:161) taken from')
+    await expect(row).toContainText('Swap Binder')
+    await expect(row).toContainText('No replacement')
+    await row.locator('button', { hasText: 'Choose replacement…' }).click()
+    await wizard.locator('.printing-select-card', { hasText: 'M10:146' }).click()
+    await expect(row).toContainText('Gets back 1× M10:146')
+    await goNext(wizard, 'Summary')
+
+    // Summary: the copy taken and the replacement going back; nothing is displaced.
+    const groups = wizard.locator('.swap-wizard-summary-groups')
+    await expect(groups).toContainText('Taken from Swap Binder')
+    await expect(groups).toContainText('1× Lightning Bolt (LEA:161)')
+    await expect(groups).toContainText('1× Lightning Bolt (M10:146) added back to Swap Binder')
+    await expect(groups).not.toContainText('Sent to')
+    await footerButton(wizard, 'Apply').click()
+    await expect(wizard).toBeHidden()
+
+    // The deck line now pins LEA:161 (its price) under a single pending change:
+    // the line was converted in place, so no displaced copy leaves.
+    await expect(boltTile).toHaveAttribute('data-price', '5')
+    await expect(page.locator('.changes-badge')).toHaveText('1')
+
+    const bundle = await downloadBundle(page)
+    expect(bundle.moves).toHaveLength(1)
+    expect(bundle.moves[0]).toMatchObject({
+      cardName: 'Lightning Bolt',
+      from: { kind: 'collection', slug: 'swap-binder' },
+      to: { kind: 'deck', slug: 'swap-deck' },
+      set: 'lea',
+      collectorNumber: '161',
+      cardId: 3,
+      toCardId: 4,
+      pinsCardId: 4,
+      replacement: { set: 'm10', collectorNumber: '146' },
+    })
+  })
+
+  test('without the toggle the pinning move carries no replacement and skips the Replacements step', async ({
+    page,
+  }) => {
+    const wizard = await openForWholeList(page)
+    await wizard.locator('button', { hasText: 'Select none' }).click()
+    await cardRow(wizard, 'Lightning Bolt').locator('input').check()
+    await goNext(wizard, 'Sources')
+    await goNext(wizard, 'Mode')
+    await goNext(wizard, 'Pick')
+    await takeOneButton(candidateRows(wizard).filter({ hasText: 'LEA:161' })).click()
+    await expect(wizard.locator('.swap-wizard-step', { hasText: 'Replacements' })).toHaveCount(0)
+    await goNext(wizard, 'Summary')
+    await footerButton(wizard, 'Apply').click()
+    await expect(wizard).toBeHidden()
+    const bundle = await downloadBundle(page)
+    expect(bundle.moves).toHaveLength(1)
+    expect(bundle.moves[0]).toMatchObject({ pinsCardId: 4, toCardId: 4 })
+    expect(bundle.moves[0]).not.toHaveProperty('replacement')
   })
 
   test('the card ⋯ menu jumps straight to that card’s picker', async ({ page }) => {

@@ -1,8 +1,12 @@
 import { describe, expect, test } from 'bun:test'
+import { listRefKey } from '../../../src/site/combined-list'
 import {
+  attachReplacements,
   displacedDestinationRequired,
+  pinningMoves,
   planAllMoves,
   planMoves,
+  replacementKey,
   summarize,
   type CardSwapPlan,
   type ChosenPrinting,
@@ -122,6 +126,7 @@ describe('planMoves', () => {
     const target = makeTarget({
       quantity: 3,
       cardIds: [11, 12, 13],
+      sharedLine: false,
       section: undefined,
       set: 'M10',
       language: 'ja',
@@ -152,7 +157,7 @@ describe('planMoves', () => {
   test('a flat-list target short of ids yields undefined slots past the end', () => {
     const { moves } = planMoves(
       plan({
-        target: makeTarget({ quantity: 3, cardIds: [11, 12] }),
+        target: makeTarget({ quantity: 3, cardIds: [11, 12], sharedLine: false }),
         allocations: [{ candidate: leaCube, count: 3 }],
       }),
       DECK,
@@ -415,5 +420,123 @@ describe('summarize', () => {
       keep: 0,
     })
     expect(summarize([swapped], [], priceOf).after).toBe(50)
+  })
+})
+
+describe('planMoves — name-only targets', () => {
+  const nameOnly = makeTarget({
+    quantity: 2,
+    cardIds: [4],
+    set: undefined,
+    collectorNumber: undefined,
+    card: null,
+  })
+
+  test('a name-only target yields in-moves that pin its line ids and no out-move', () => {
+    const { moves, flags } = planMoves(
+      plan({ target: nameOnly, allocations: [{ candidate: lea, count: 2 }], keep: 0 }),
+      DECK,
+      { kind: 'swap' },
+    )
+    expect(flags).toEqual([])
+    expect(moves.map(shape)).toEqual([
+      {
+        direction: 'in',
+        cardName: 'Lightning Bolt',
+        count: 2,
+        set: 'lea',
+        collectorNumber: '161',
+        finish: 'nonfoil',
+        from: BINDER,
+        to: DECK,
+        sourceCardIds: [100, 101],
+        section: 'Main',
+        pinsCardIds: [4, 4],
+      },
+    ])
+  })
+
+  test('a flat name-only target hands out one pinned id per copy; a wanted source needs no fallback', () => {
+    const flat = makeTarget({
+      quantity: 2,
+      cardIds: [6, 7],
+      sharedLine: false,
+      section: undefined,
+      set: undefined,
+      collectorNumber: undefined,
+      card: null,
+    })
+    const wanted = printinglessCandidate(WANTS, 2)
+    const { moves, flags } = planMoves(
+      plan({
+        target: flat,
+        allocations: [{ candidate: wanted, count: 2, printing: chosenSta }],
+        keep: 0,
+      }),
+      DECK,
+      { kind: 'swap' },
+    )
+    expect(flags).toEqual([])
+    expect(moves).toHaveLength(1)
+    expect(moves[0]).toMatchObject({ direction: 'in', set: 'sta', pinsCardIds: [6, 7] })
+  })
+})
+
+describe('replacements', () => {
+  const pinIn: SwapMove = {
+    direction: 'in',
+    cardName: 'Lightning Bolt',
+    count: 1,
+    set: 'lea',
+    collectorNumber: '161',
+    finish: 'nonfoil',
+    from: BINDER,
+    to: DECK,
+    sourceCardIds: [100],
+    pinsCardIds: [4],
+    card: boltLea,
+  }
+  const plainIn: SwapMove = { ...pinIn, pinsCardIds: undefined, sourceCardIds: [101] }
+  const out: SwapMove = {
+    direction: 'out',
+    cardName: 'Lightning Bolt',
+    count: 1,
+    set: 'm10',
+    collectorNumber: '146',
+    from: DECK,
+    to: BINDER,
+    sourceCardIds: [7],
+    card: boltM10,
+  }
+
+  test('replacementKey folds the source list with the printing tuple taken from it', () => {
+    expect(replacementKey(pinIn)).toBe(`${listRefKey(BINDER)}|lea|161|nonfoil||`)
+    expect(replacementKey({ ...pinIn, from: CUBE })).not.toBe(replacementKey(pinIn))
+    expect(replacementKey({ ...pinIn, set: 'LEA', language: 'ja', condition: 'LP' })).toBe(
+      `${listRefKey(BINDER)}|lea|161|nonfoil|ja|LP`,
+    )
+  })
+
+  test('pinningMoves keeps only the in-moves that pin a name-only line', () => {
+    expect(pinningMoves([out, { ...out, pinsCardIds: [4] }, plainIn, pinIn])).toEqual([pinIn])
+  })
+
+  test('attachReplacements stamps the pick onto every pinning move with that key and drops stale ones', () => {
+    const picks = new Map([[replacementKey(pinIn), chosenSta]])
+    const attached = attachReplacements(
+      [out, plainIn, pinIn, { ...pinIn, sourceCardIds: [102] }],
+      picks,
+    )
+    expect(attached.map((move) => move.replacement)).toEqual([
+      undefined,
+      undefined,
+      chosenSta,
+      chosenSta,
+    ])
+    expect(attached[0]).toBe(out)
+    expect(attached[1]).toBe(plainIn)
+    expect(attached[2]).not.toBe(pinIn)
+    const cleared = attachReplacements(attached, new Map())
+    expect(cleared[2]).not.toHaveProperty('replacement')
   })
 })

@@ -1,9 +1,11 @@
 import type { Condition, Finish } from '../types'
 import type {
+  AddChange,
   ChangeAction,
   ChangeEvent,
   ListRef,
   MoveFromChange,
+  MoveReplacement,
   MoveToChange,
 } from '../change-event'
 import { CHANGE_ACTIONS } from '../change-event'
@@ -87,6 +89,15 @@ export type ChangeBundleMove = {
   toCardId?: number
   /** Destination section (decks). */
   section?: string
+  /**
+   * The DESTINATION's name-only line this copy pins instead of adding a copy
+   * (see `MoveToChange.replacesCardId`): equal to `toCardId` when the line is
+   * converted in place, otherwise the line one copy is taken off before it
+   * lands on `toCardId`. Re-targeted on import like any edit's id.
+   */
+  pinsCardId?: number
+  /** The printing the SOURCE list receives back for the copy (see `MoveToChange.replacement`). */
+  replacement?: MoveReplacement
 }
 
 /**
@@ -187,6 +198,8 @@ function moveFromIncoming(
     cardId: change.sourceCardId,
     toCardId: change.cardId,
     section: change.section,
+    pinsCardId: change.replacesCardId,
+    replacement: change.replacement,
   }
 }
 
@@ -226,6 +239,9 @@ function mergeMoveHalves(earlier: ChangeBundleMove, later: ChangeBundleMove): Ch
   }
 }
 
+/** A group with its moves lifted out, awaiting the replacement-add fold. */
+type PendingGroup = { group: ChangeGroup; changes: ChangeEvent[] }
+
 /**
  * Split the browser's per-list change stacks into the bundle's normalized
  * halves: every `move-from` in list L becomes a move `L → to`, every `move-to`
@@ -248,6 +264,7 @@ export function normalizeChangeGroups(
     const existing = byId.get(move.id)
     byId.set(move.id, existing ? mergeMoveHalves(existing, move) : move)
   }
+  const pending: PendingGroup[] = []
   for (const group of groups) {
     const changes: ChangeEvent[] = []
     for (const change of group.changes) {
@@ -255,7 +272,20 @@ export function normalizeChangeGroups(
       else if (change.action === 'move-to') put(moveFromIncoming(group, change, resolveSlug))
       else changes.push(change)
     }
-    lists.push({ ...group, changes })
+    pending.push({ group, changes })
+  }
+  // The `add` a source editor showed for a move's replacement folds back into
+  // the move when the destination half (which carries the replacement) is
+  // present too; on its own it stays a real add, so the source still gets it.
+  for (const { group, changes } of pending) {
+    lists.push({
+      ...group,
+      changes: changes.filter((change) => {
+        if (change.action !== 'add' || !change.id.endsWith(REPLACEMENT_ADD_SUFFIX)) return true
+        const move = byId.get(change.id.slice(0, -REPLACEMENT_ADD_SUFFIX.length))
+        return move?.replacement === undefined
+      }),
+    })
   }
   const moves = [...byId.values()].sort((a, b) => a.timestamp - b.timestamp)
   return { lists, moves }
@@ -366,6 +396,35 @@ export function moveToEventOf(move: ChangeBundleMove): MoveToChange {
     from: listRefOf(move.from),
     section: move.section,
     sourceCardId: move.cardId,
+    replacesCardId: move.pinsCardId,
+    replacement: move.replacement,
+  }
+}
+
+/**
+ * The id of the `add` a source list's editor shows for a move's replacement
+ * (see {@link ChangeBundleMove.replacement}): the move's own id with a marker
+ * suffix, so a re-export can tell it from a real add and fold it back into the
+ * move rather than doubling it.
+ */
+export function replacementAddId(moveId: string): string {
+  return `${moveId}${REPLACEMENT_ADD_SUFFIX}`
+}
+
+const REPLACEMENT_ADD_SUFFIX = '#replacement'
+
+/** The `add` a source list's editor stack shows for the replacement a move brings it. */
+export function replacementAddEventOf(move: ChangeBundleMove): AddChange | null {
+  if (!move.replacement) return null
+  return {
+    id: replacementAddId(move.id),
+    timestamp: move.timestamp,
+    action: 'add',
+    cardName: move.cardName,
+    set: move.replacement.set,
+    collectorNumber: move.replacement.collectorNumber,
+    finish: move.replacement.finish,
+    language: move.replacement.language,
   }
 }
 
@@ -386,6 +445,8 @@ export function listChangesFromBundle(
   for (const move of bundle.moves) {
     if (bundleRefMatches(move.from, list)) {
       events.push(moveFromEventOf(move))
+      const replacement = replacementAddEventOf(move)
+      if (replacement) events.push(replacement)
       touched = true
     }
     if (bundleRefMatches(move.to, list)) {
@@ -410,9 +471,14 @@ export const CHANGE_BUNDLE_FILENAME = 'ritual-all-edits.json'
 /** Filename for a bundle scoped to the current combined view's member lists. */
 export const COMBINED_BUNDLE_FILENAME = 'ritual-combined-edits.json'
 
-/** Total change count across every list in a bundle, moves included. */
+/** Total change count across every list in a bundle: its moves, and the replacement adds they carry, included. */
 export function bundleChangeCount(bundle: ChangeBundle): number {
-  return bundle.lists.reduce((sum, list) => sum + list.changes.length, 0) + bundle.moves.length
+  const replacements = bundle.moves.filter((move) => move.replacement !== undefined).length
+  return (
+    bundle.lists.reduce((sum, list) => sum + list.changes.length, 0) +
+    bundle.moves.length +
+    replacements
+  )
 }
 
 /**
@@ -685,6 +751,28 @@ function validateMoveRef(raw: unknown, where: string): ChangeBundleListRef | str
     : { kind, slug: obj.slug, name: obj.name }
 }
 
+/** Validate a move's optional `replacement`: a full printing (set + collector number, optional finish/language). */
+function validateReplacement(raw: unknown, where: string): MoveReplacement | undefined | string {
+  if (raw === undefined) return undefined
+  if (typeof raw !== 'object' || raw === null) return `${where}has an invalid "replacement".`
+  const here = `${where}"replacement" `
+  if ((raw as Record<string, unknown>).condition !== undefined) {
+    return `${here}must not name a "condition" (a replacement carries no grade).`
+  }
+  const printing = validatePrintingFields(raw as Record<string, unknown>, here, {
+    conditionClearAllowed: false,
+  })
+  if (!printing.ok) return printing.error
+  const { set, collectorNumber, finish, language } = printing.fields
+  if (set === undefined || collectorNumber === undefined) {
+    return `${here}must name a printing ("set" and "collectorNumber").`
+  }
+  const replacement: MoveReplacement = { set, collectorNumber }
+  if (finish !== undefined) replacement.finish = finish
+  if (language !== undefined) replacement.language = language
+  return replacement
+}
+
 /** Validate a raw `moves` value as an ordered {@link ChangeBundleMove} array, or return an error string. */
 function validateMoves(raw: unknown): ChangeBundleMove[] | string {
   if (!Array.isArray(raw)) return 'Missing or invalid "moves" array.'
@@ -712,8 +800,23 @@ function validateMoves(raw: unknown): ChangeBundleMove[] | string {
     if (obj.section !== undefined && typeof obj.section !== 'string') {
       return `${where}has an invalid "section".`
     }
+    if (obj.pinsCardId !== undefined && typeof obj.pinsCardId !== 'number') {
+      return `${where}has an invalid "pinsCardId".`
+    }
+    // Without the landing id a pin would read as a split (a copy off the line
+    // onto a fresh id) rather than the in-place conversion it may have been.
+    if (obj.pinsCardId !== undefined && obj.toCardId === undefined) {
+      return `${where}has a "pinsCardId" but no "toCardId"; a pinning move must name the line the copy lands on.`
+    }
+    // A replacement is the pinning move's option: any other move handing a
+    // source list a printing would be a free card.
+    if (obj.replacement !== undefined && obj.pinsCardId === undefined) {
+      return `${where}has a "replacement" but no "pinsCardId"; only a pinning move carries one.`
+    }
     const printing = validatePrintingFields(obj, where, { conditionClearAllowed: false })
     if (!printing.ok) return printing.error
+    const replacement = validateReplacement(obj.replacement, where)
+    if (typeof replacement === 'string') return replacement
     moves.push({
       id: obj.id,
       timestamp: obj.timestamp,
@@ -724,6 +827,8 @@ function validateMoves(raw: unknown): ChangeBundleMove[] | string {
       cardId: obj.cardId,
       toCardId: obj.toCardId,
       section: obj.section,
+      pinsCardId: obj.pinsCardId,
+      replacement,
     })
   }
   return moves

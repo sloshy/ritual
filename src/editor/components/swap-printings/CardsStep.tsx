@@ -1,20 +1,17 @@
 import { For, Show, type Accessor, type Component } from 'solid-js'
-import { displayFinish } from '../../../finish-condition'
 import { useT } from '../../../ui/i18n'
 import type { SwapTarget } from '../../swap-printings'
-import type { SwapNameOnlyLine } from '../SwapPrintingsWizard'
-import { CardThumb, FinishChip, LanguageChip, targetPrintingLabel } from './shared'
+import { CardThumb, TargetPrinting } from './shared'
 
 export type CardsStepProps = {
   targets: readonly SwapTarget[]
-  nameOnly: readonly SwapNameOnlyLine[]
   targetKey: (target: SwapTarget) => string
   checked: Accessor<ReadonlySet<string>>
   onToggle: (key: string) => void
   onSetAll: (checked: boolean) => void
 }
 
-/** Step 1: which pinned lines of the edited list to re-pick printings for. */
+/** Step 1: which lines of the edited list to re-pick (or, for name-only lines, set) printings for. */
 export const CardsStep: Component<CardsStepProps> = (props) => {
   const t = useT()
   return (
@@ -63,9 +60,7 @@ export const CardsStep: Component<CardsStepProps> = (props) => {
                   <span class="swap-wizard-row-text">
                     <span class="swap-wizard-row-title">{target.cardName}</span>
                     <span class="swap-wizard-row-sub">
-                      <span class="swap-wizard-printing">{targetPrintingLabel(target)}</span>
-                      <FinishChip finish={displayFinish(target.card, target.finish)} />
-                      <LanguageChip language={target.language} />
+                      <TargetPrinting target={target} />
                     </span>
                   </span>
                   <span class="swap-wizard-qty">
@@ -75,25 +70,6 @@ export const CardsStep: Component<CardsStepProps> = (props) => {
               </li>
             )
           }}
-        </For>
-        <For each={props.nameOnly}>
-          {(line) => (
-            <li class="swap-wizard-row swap-wizard-card-row swap-wizard-row--disabled">
-              <span class="swap-wizard-row-main">
-                <input type="checkbox" disabled />
-                <CardThumb card={null} name={line.cardName} />
-                <span class="swap-wizard-row-text">
-                  <span class="swap-wizard-row-title">{line.cardName}</span>
-                  <span class="swap-wizard-row-sub swap-wizard-muted">
-                    {t('ui.swap.cards.noPrintingSet')}
-                  </span>
-                </span>
-                <span class="swap-wizard-qty">
-                  {t('ui.swap.quantity', { count: line.quantity })}
-                </span>
-              </span>
-            </li>
-          )}
         </For>
       </ul>
     </div>

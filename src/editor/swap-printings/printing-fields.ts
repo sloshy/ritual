@@ -10,6 +10,12 @@
 
 import { storedLanguage } from '../../card-language'
 import type { PrintingTuple } from '../../change-event'
+import type { PinnedSwapTarget, SwapTarget } from './types'
+
+/** Whether a target's line pins a printing (a name-only line does not). */
+export function targetPinsPrinting(target: SwapTarget): target is PinnedSwapTarget {
+  return target.set !== undefined && target.collectorNumber !== undefined
+}
 
 /** The optional half of a printing tuple: everything but set and collector number. */
 export type PrintingDetails = Pick<PrintingTuple, 'finish' | 'condition' | 'language'>

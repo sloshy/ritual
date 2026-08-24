@@ -256,19 +256,26 @@ a specific printing first. Notes and label overrides never follow an editor/TUI 
 The web editors (admin and public) also offer a batch **Swap Printings…** wizard on decks and
 collections, built on the same moves: re-pick the printings of many lines at once using copies
 already owned in the *other* lists. Entry points are the action bar / navbar edit row (whole
-list), the **Selected** menu (pre-checked on the selection), and a pinned card's ⋯ menu (**Swap
-printing…**, that card alone). The steps are: tick cards (name-only lines are greyed and cannot
-be swapped); choose source lists (decks + collections on by default, wanted lists off but
+list), the **Selected** menu (pre-checked on the selection), and a card's ⋯ menu (**Swap
+printing…**, that card alone). Name-only lines take part too — the wizard is also how a deck's
+unpinned lines get printings in bulk from the copies the collections hold. The steps are: tick
+cards; choose source lists (decks + collections on by default, wanted lists off but
 selectable; the edited list is never a source; only saved contents count); pick **Manual**,
 **Most expensive** or **Least expensive** mode — every mode offers a finish filter (it also
 seeds the picker's quick-filter) and where displaced copies go (back to each replacement's
-source, or one chosen deck/collection — never a wanted list), and the price modes add an
-unpriced-candidate policy (**Skip** / **Ignore** / **Ask me** = force a pick by hand); then
-per-card picking (manual mode goes straight on to the summary) or, in the price modes, a
-review with **Change…** overrides, and a summary with the moves grouped by list and value
+source, or one chosen deck/collection — never a wanted list), the price modes add an
+unpriced-candidate policy (**Skip** / **Ignore** / **Ask me** = force a pick by hand), and when
+a checked card has no printing, a **Replace the copies taken from other lists** option (off by
+default); then per-card picking or, in the price modes, a review with **Change…** overrides;
+with the replace option on, a **Replacements** step asking which printing each source list gets
+back per printing taken; and a summary with the moves grouped by list and value
 before → after. Applying records one **move in** per replacement
-copy and one **move out** per displaced copy into the editor's pending changes; Save (admin)
-writes both sides like any move, and a public export carries them in the bundle's \`moves\`.
+copy and one **move out** per displaced copy into the editor's pending changes. A copy given to
+a name-only line pins that line instead (\`move-to\` with \`replacesCardId\`; the line keeps its
+\`&N\` when filled whole, a deck line filled partially or from several printings is split), so
+nothing is displaced; a chosen replacement rides on the event and is added to the source list
+on save. Save (admin) writes both sides like any move, and a public export carries them in the
+bundle's \`moves\` (\`pinsCardId\` / \`replacement\`).
 
 ## Interactive editor
 

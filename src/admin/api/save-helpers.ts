@@ -35,7 +35,8 @@ import {
   storedLanguage,
   type CardLanguage,
 } from '../../card-language'
-import type { ChangeEvent } from '../../change-event'
+import type { ChangeEvent, MoveReplacement } from '../../change-event'
+import { isFinish } from '../../finish-condition'
 import type { DroppedNote } from '../../commands/move-io'
 import type { SaveEffect } from '../../editor/save-effects'
 import { t } from '../../i18n/t'
@@ -435,6 +436,49 @@ export function normalizeRequestLanguages(
   return null
 }
 
+/**
+ * Validate and lowercase-normalize the `replacement` on every incoming
+ * `move-to` change (the printing a source list gets back for the copy a swap
+ * took), mutating in place like {@link normalizeRequestLanguages}. The value
+ * arrives from an unvalidated request body and is written to the source
+ * list's card line, so half a printing — which the line writer would fold to
+ * a name-only line — is refused here. Returns a 400 Response naming the first
+ * offender, or null when all are legal.
+ */
+export function normalizeRequestReplacements(changes: ChangeEvent[]): Response | null {
+  for (const change of changes) {
+    if (change.action !== 'move-to' || change.replacement === undefined) continue
+    const raw: unknown = change.replacement
+    const where = `move-to change for "${change.cardName}"`
+    if (change.replacesCardId === undefined) {
+      return badRequest(`The ${where} carries a replacement but pins no line ("replacesCardId").`)
+    }
+    if (typeof raw !== 'object' || raw === null) {
+      return badRequest(`The replacement on the ${where} must be an object.`)
+    }
+    const fields = raw as Record<string, unknown>
+    if (typeof fields.set !== 'string' || typeof fields.collectorNumber !== 'string') {
+      return badRequest(`The replacement on the ${where} needs a "set" and "collectorNumber".`)
+    }
+    if (
+      fields.finish !== undefined &&
+      (typeof fields.finish !== 'string' || !isFinish(fields.finish))
+    ) {
+      return badRequest(`The replacement on the ${where} has an unknown finish.`)
+    }
+    const language = normalizeLanguageField(fields.language, `the replacement on the ${where}`)
+    if (!language.ok) return language.response
+    const replacement: MoveReplacement = {
+      set: fields.set.toLowerCase(),
+      collectorNumber: fields.collectorNumber,
+    }
+    if (fields.finish !== undefined) replacement.finish = fields.finish
+    if (language.language !== undefined) replacement.language = language.language
+    change.replacement = replacement
+  }
+  return null
+}
+
 /** Everything the shared save tail needs; see {@link finishListSave}. */
 export interface ListSaveTail {
   /**
@@ -612,11 +656,19 @@ export function replayLineCopies(
     }
     const { cardId } = change
     if (cardId === undefined) continue
-    const before = copies.get(cardId) ?? baseline.get(cardId) ?? options.unknownIdHolds
-    const gain = change.action === 'add' || change.action === 'move-to'
-    const after = gain ? before + 1 : before - 1
-    copies.set(cardId, after)
-    steps.push({ change, cardId, before, after })
+    const step = (id: number, gain: boolean): void => {
+      const before = copies.get(id) ?? baseline.get(id) ?? options.unknownIdHolds
+      const after = gain ? before + 1 : before - 1
+      copies.set(id, after)
+      steps.push({ change, cardId: id, before, after })
+    }
+    if (change.action === 'move-to' && change.replacesCardId !== undefined) {
+      // A copy pinning a name-only line in place changes no line's copy count;
+      // a split takes one off the name-only line before it lands on `cardId`.
+      if (change.replacesCardId === cardId) continue
+      step(change.replacesCardId, false)
+    }
+    step(cardId, change.action === 'add' || change.action === 'move-to')
   }
   return steps
 }

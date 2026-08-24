@@ -717,3 +717,138 @@ describe('countLabel', () => {
     expect(countLabel(2, 'list')).toBe('2 lists')
   })
 })
+
+describe('pinning moves and replacements', () => {
+  const PINNING: MoveToChange = {
+    id: 'pin',
+    timestamp: 5,
+    action: 'move-to',
+    cardName: 'Lightning Bolt',
+    cardId: 4,
+    replacesCardId: 4,
+    sourceCardId: 12,
+    set: 'lea',
+    collectorNumber: '161',
+    from: { type: 'collection', name: 'Binder' },
+    replacement: { set: 'm10', collectorNumber: '146', finish: 'foil' },
+  }
+
+  it('normalizes the pinned line as pinsCardId and carries the replacement', () => {
+    const { moves } = normalizeChangeGroups([group(DECK, [PINNING])])
+    expect(moves).toEqual([
+      {
+        id: 'pin',
+        timestamp: 5,
+        cardName: 'Lightning Bolt',
+        from: { kind: 'collection', name: 'Binder' },
+        to: DECK,
+        set: 'lea',
+        collectorNumber: '161',
+        cardId: 12,
+        toCardId: 4,
+        pinsCardId: 4,
+        replacement: { set: 'm10', collectorNumber: '146', finish: 'foil' },
+      },
+    ])
+  })
+
+  it('a split keeps the landing id and the pinned line apart (toCardId ≠ pinsCardId)', () => {
+    const split: MoveToChange = { ...PINNING, id: 'split', cardId: 9, replacesCardId: 4 }
+    const { moves } = normalizeChangeGroups([group(DECK, [split])])
+    expect(moves[0]).toMatchObject({ toCardId: 9, pinsCardId: 4 })
+    const b = bundle([{ ...DECK, changes: [] }], moves)
+    expect(listChangesFromBundle(b, DECK)?.[0]).toMatchObject({ cardId: 9, replacesCardId: 4 })
+  })
+
+  it('round-trips through the parser and denormalizes both fields onto the destination move-to', () => {
+    const b = bundle(
+      [{ ...DECK, changes: [] }],
+      normalizeChangeGroups([group(DECK, [PINNING])]).moves,
+    )
+    const parsed = parseOk(JSON.parse(serializeChangeBundle(b)))
+    expect(parsed.moves[0]).toMatchObject({
+      pinsCardId: 4,
+      replacement: { set: 'm10', collectorNumber: '146', finish: 'foil' },
+    })
+    expect(listChangesFromBundle(parsed, DECK)?.[0]).toMatchObject({
+      action: 'move-to',
+      cardId: 4,
+      replacesCardId: 4,
+      replacement: { set: 'm10', collectorNumber: '146', finish: 'foil' },
+    })
+  })
+
+  it('shows the source list the replacement as an add, which folds back into the move on re-export', () => {
+    const b = bundle(
+      [{ ...DECK, changes: [] }],
+      normalizeChangeGroups([group(DECK, [PINNING])]).moves,
+    )
+    const sourceEvents = listChangesFromBundle(b, BINDER)
+    expect(sourceEvents?.map((c) => [c.id, c.action])).toEqual([
+      ['pin', 'move-from'],
+      ['pin#replacement', 'add'],
+    ])
+    expect(sourceEvents?.[1]).toMatchObject({ set: 'm10', collectorNumber: '146', finish: 'foil' })
+    // Both sides loaded and re-exported: one move, one replacement, no extra add.
+    const reexport = normalizeChangeGroups([
+      group(DECK, listChangesFromBundle(b, DECK)!),
+      group(BINDER, sourceEvents!),
+    ])
+    expect(reexport.moves).toHaveLength(1)
+    expect(reexport.moves[0]?.replacement).toEqual({
+      set: 'm10',
+      collectorNumber: '146',
+      finish: 'foil',
+    })
+    expect(reexport.lists.find((l) => l.slug === BINDER.slug)?.changes).toEqual([])
+    // Only the source side loaded: the add is the only record of the replacement and stays.
+    const sourceOnly = normalizeChangeGroups([group(BINDER, sourceEvents!)])
+    expect(sourceOnly.lists[0]?.changes.map((c) => c.id)).toEqual(['pin#replacement'])
+  })
+
+  it('rejects a malformed pinsCardId or a replacement that names no printing', () => {
+    const base = sampleBundle()
+    const withMove = (extra: Record<string, unknown>) => ({
+      ...base,
+      moves: [{ ...SAMPLE_MOVE, pinsCardId: 4, toCardId: 4, ...extra }],
+    })
+    expect(parseRaw(withMove({ pinsCardId: '4' }))).toBe('Move #1 has an invalid "pinsCardId".')
+    expect(parseRaw(withMove({ pinsCardId: 4, toCardId: undefined }))).toBe(
+      'Move #1 has a "pinsCardId" but no "toCardId"; a pinning move must name the line the copy lands on.',
+    )
+    expect(
+      parseRaw(
+        withMove({
+          pinsCardId: undefined,
+          toCardId: undefined,
+          replacement: { set: 'm10', collectorNumber: '146' },
+        }),
+      ),
+    ).toBe('Move #1 has a "replacement" but no "pinsCardId"; only a pinning move carries one.')
+    expect(
+      parseRaw(
+        withMove({
+          pinsCardId: 4,
+          toCardId: 4,
+          replacement: { set: 'm10', collectorNumber: '146', condition: 'LP' },
+        }),
+      ),
+    ).toBe('Move #1 "replacement" must not name a "condition" (a replacement carries no grade).')
+    expect(parseRaw(withMove({ replacement: { set: 'm10' } }))).toBe(
+      'Move #1 "replacement" names half a printing; "set" and "collectorNumber" must both be present or both absent.',
+    )
+    expect(parseRaw(withMove({ replacement: {} }))).toBe(
+      'Move #1 "replacement" must name a printing ("set" and "collectorNumber").',
+    )
+    expect(
+      parseRaw(withMove({ replacement: { set: 'M10', collectorNumber: '146', finish: 'shiny' } })),
+    ).toBe('Move #1 "replacement" has an unknown finish: "shiny".')
+    expect(
+      parseOk(withMove({ replacement: { set: 'M10', collectorNumber: '146' } })).moves[0]
+        ?.replacement,
+    ).toEqual({
+      set: 'm10',
+      collectorNumber: '146',
+    })
+  })
+})

@@ -10,12 +10,11 @@ import type { ChangeInput } from '../change-event'
 import type { ListType } from '../list-type'
 import type { PriceCurrency } from '../price-currency'
 import { listRefKey, type NamedListRef } from '../site/combined-list'
-import type { SwapMove, SwapSourceProvider } from './swap-printings'
+import type { SwapMove, SwapSourceProvider, SwapTarget } from './swap-printings'
 import type { UseEditorResult } from './useEditor'
 import {
   type SwapListKind,
   type SwapScope,
-  type SwapTargetSet,
   buildSwapRequest,
   swapMovesToChanges,
 } from './swap-targets'
@@ -32,7 +31,7 @@ export type SwapControllerDeps<TData, TCardEntry> = {
   listType: ListType
   kind: SwapListKind
   /** The live list as wizard targets (see `deckSwapTargets` / `flatSwapTargets`). */
-  targetsOf: (data: TData) => SwapTargetSet
+  targetsOf: (data: TData) => SwapTarget[]
   /** The editor's reducer, applied per operation. */
   applyChange: (data: TData, change: ChangeInput) => TData
   /** Copies the line with this id holds (a deck line's quantity; 1 on a flat list). */
@@ -49,7 +48,7 @@ export type SwapControllerDeps<TData, TCardEntry> = {
 export type SwapController = {
   /** The open wizard request; null while closed. */
   swapRequest: Accessor<SwapWizardRequest | null>
-  /** Open the wizard on every pinned line, or on the lines a selection names (one = single-card entry). */
+  /** Open the wizard on every line, or on the lines a selection names (one = single-card entry). */
   openSwapPrintings: (scope: SwapScope) => void
   closeSwapPrintings: () => void
   /** Record and apply the wizard's planned moves as change events, in one batch. */

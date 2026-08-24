@@ -1,4 +1,4 @@
-import type { ChangeInput } from '../change-event'
+import type { ChangeInput, SetPrintingChange } from '../change-event'
 import type { CollectionCardEntry } from '../site/data-types'
 import { DEFAULT_SECTION } from '../types'
 import { normalizedOverride } from '../card-labels'
@@ -83,6 +83,30 @@ export function toCollectionCardEntries(
   }))
 }
 
+/** The printing half a `set-printing` or pinning `move-to` writes. */
+type PrintingWrite = Pick<
+  SetPrintingChange,
+  'set' | 'collectorNumber' | 'finish' | 'condition' | 'language'
+>
+
+/**
+ * An entry with a change's printing written onto it — the one rule
+ * `set-printing` and a pinning `move-to` share. A collection entry always
+ * carries a grade in memory; clearing means NM, which the serializer writes
+ * without an annotation. An absent finish or language leaves the entry's
+ * alone (language changes have their own set-language event).
+ */
+function withPrinting(entry: CollectionCardEntry, change: PrintingWrite): CollectionCardEntry {
+  return {
+    ...entry,
+    set: change.set?.toLowerCase() ?? '',
+    collectorNumber: change.collectorNumber ?? '',
+    finish: change.finish ?? entry.finish,
+    condition: applyConditionUpdate(change.condition, entry.condition) ?? 'NM',
+    language: change.language ?? entry.language,
+  }
+}
+
 /**
  * Apply a single change to a collection entries array, returning a new array.
  * Does not mutate the input.
@@ -164,22 +188,7 @@ export function applyChangeToCollection(
         options?.onMiss?.('needs-printing')
         return entries
       }
-      return entries.map((e, i) =>
-        i === idx
-          ? {
-              ...e,
-              set: change.set?.toLowerCase() ?? '',
-              collectorNumber: change.collectorNumber ?? '',
-              finish: change.finish ?? e.finish,
-              // A collection entry always carries a grade in memory; clearing
-              // means NM, which the serializer writes without an annotation.
-              condition: applyConditionUpdate(change.condition, e.condition) ?? 'NM',
-              // Unlike finish, an absent language leaves the entry's alone —
-              // language changes have their own set-language event.
-              language: change.language ?? e.language,
-            }
-          : e,
-      )
+      return entries.map((e, i) => (i === idx ? withPrinting(e, change) : e))
     }
 
     case 'set-language': {
@@ -262,7 +271,19 @@ export function applyChangeToCollection(
         options,
       )
 
-    case 'move-to':
+    case 'move-to': {
+      // A copy pinning a name-only entry this list already holds (the swap
+      // wizard's "set printing from another list"): a flat list holds one
+      // entry per copy, so the entry just takes the printing and keeps its
+      // `&N` (see `MoveToChange.replacesCardId`).
+      if (change.replacesCardId !== undefined) {
+        const idx = entries.findIndex((e) => e.cardId === change.replacesCardId)
+        if (idx === -1) {
+          options?.onMiss?.('no-target')
+          return entries
+        }
+        return entries.map((e, i) => (i === idx ? withPrinting(e, change) : e))
+      }
       // A move into this list adds the card (e.g. when importing a destination list's changes).
       return applyChangeToCollection(
         entries,
@@ -279,5 +300,6 @@ export function applyChangeToCollection(
         },
         options,
       )
+    }
   }
 }

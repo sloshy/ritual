@@ -1,14 +1,17 @@
 import { hashPath } from '../../content-hash'
 import { appendChangelog } from '../../changelog-writer'
 import {
+  createAddChange,
   createMoveFromChange,
   listRefLabel,
   mirrorMoveTo,
   printingOptionsFrom,
+  type AddChange,
   type ChangeEvent,
   type ListRef,
   type MoveFromChange,
   type MoveToChange,
+  type PrintingTuple,
 } from '../../change-event'
 import {
   createCardArtCache,
@@ -108,20 +111,24 @@ type IncomingStage = {
   surviving: Set<number>
 }
 
-/** Build the movable-card shape `applyAddToStaged` consumes from a move-from event. */
-function physicalFromMove(mv: MoveFromChange, listEntry: ListEntry): PhysicalCard {
-  // No cardId: the destination allocates a fresh id when the line is added.
-  // The set code is normalized here because this is where the event stops
-  // being an event and becomes in-memory card state — admin clients may send
-  // uppercase codes in the request body.
+/**
+ * The movable-card shape `applyAddToStaged` consumes, from a printing tuple
+ * the save carries: a move-from event (the copy leaving a saved list) or an
+ * incoming move's `replacement` (the printing its source gets back). No
+ * cardId: the destination allocates a fresh id when the line is added. The
+ * set code is normalized here because this is where the event stops being an
+ * event and becomes in-memory card state — admin clients may send uppercase
+ * codes in the request body.
+ */
+function movedPhysicalCard(name: string, tuple: PrintingTuple, listEntry: ListEntry): PhysicalCard {
   return {
     key: '',
-    name: mv.cardName,
-    set: mv.set?.toLowerCase(),
-    collectorNumber: mv.collectorNumber,
-    finish: mv.finish,
-    condition: mv.condition,
-    language: mv.language,
+    name,
+    set: tuple.set?.toLowerCase(),
+    collectorNumber: tuple.collectorNumber,
+    finish: tuple.finish,
+    condition: tuple.condition,
+    language: tuple.language,
     listEntry,
   }
 }
@@ -410,6 +417,34 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
     incomingByFile.set(listEntry.filePath, { removed, surviving: stagedCardIds(file) })
   }
 
+  // APPLY: replacements — the printing a source gets back for each copy an
+  // incoming move took with `replacement` set (the swap wizard's "replace
+  // taken copies"). A plain add on the source, logged there as one; it lands
+  // in the section the departed line left, so the deck reads as before.
+  const replacementAdds = new Map<string, AddChange[]>()
+  for (const { listEntry, file } of prepared) {
+    const stage = incomingByFile.get(listEntry.filePath)
+    if (stage === undefined) continue
+    for (const { move, line } of stage.removed) {
+      if (!move.replacement) continue
+      const added = applyAddToStaged(
+        file,
+        movedPhysicalCard(move.cardName, move.replacement, listEntry),
+        listEntry.ref.type,
+        line.section,
+      )
+      const adds = replacementAdds.get(listEntry.filePath) ?? []
+      adds.push(
+        createAddChange(move.cardName, {
+          ...move.replacement,
+          cardId: added.cardId,
+          section: line.section,
+        }),
+      )
+      replacementAdds.set(listEntry.filePath, adds)
+    }
+  }
+
   // APPLY: in-memory adds (a bad add — e.g. a printing-less card into a collection — throws here).
   const droppedNotes: DroppedNote[] = []
   const artByFile = new Map<string, ArtPlan>()
@@ -423,7 +458,11 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
   const landedOn = new Map<string, number>()
   for (const { listEntry, outgoing: departures, file } of prepared) {
     for (const { move, source } of departures) {
-      const added = applyAddToStaged(file, physicalFromMove(move, listEntry), listEntry.ref.type)
+      const added = applyAddToStaged(
+        file,
+        movedPhysicalCard(move.cardName, move, listEntry),
+        listEntry.ref.type,
+      )
       if (added.droppedNote) droppedNotes.push(added.droppedNote)
       if (added.cardId !== undefined) landedOn.set(move.id, added.cardId)
       const adopted = adoptedCardId(added)
@@ -507,6 +546,7 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
           mirrorMoveTo(move, source.ref, landedOn.get(move.id)),
         ),
         ...arrivals.map(({ dest, line }) => mirrorMoveFrom(line, dest.ref)),
+        ...(replacementAdds.get(listEntry.filePath) ?? []),
       ].sort((a, b) => a.timestamp - b.timestamp)
       written.push(await appendChangelog(listEntry.filePath, listEntry.ref.name, events))
     }

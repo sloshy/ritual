@@ -113,6 +113,10 @@ export type ModeStepProps = {
   displaced: Accessor<DisplacedPolicy>
   setDisplaced: (policy: DisplacedPolicy) => void
   displacedTargets: Accessor<NamedListRef[]>
+  /** Whether a checked card is name-only, so the replace-taken-copies option applies. */
+  hasNameOnly: Accessor<boolean>
+  replaceTaken: Accessor<boolean>
+  setReplaceTaken: (on: boolean) => void
 }
 
 /** Step 3: how replacements are chosen, and where the displaced copies go. */
@@ -214,6 +218,26 @@ export const ModeStep: Component<ModeStepProps> = (props) => {
           </label>
         </div>
       </fieldset>
+      <Show when={props.hasNameOnly()}>
+        <fieldset class="swap-wizard-fieldset">
+          <legend class="swap-wizard-legend">{t('ui.swap.replaceTaken.label')}</legend>
+          <label
+            class="swap-wizard-radio"
+            classList={{ 'swap-wizard-radio--selected': props.replaceTaken() }}
+          >
+            <input
+              type="checkbox"
+              name="swap-replace-taken"
+              checked={props.replaceTaken()}
+              onChange={(e) => props.setReplaceTaken(e.currentTarget.checked)}
+            />
+            <span class="swap-wizard-radio-text">
+              <span class="swap-wizard-radio-label">{t('ui.swap.replaceTaken.option')}</span>
+              <span class="swap-wizard-radio-hint">{t('ui.swap.replaceTaken.hint')}</span>
+            </span>
+          </label>
+        </fieldset>
+      </Show>
     </div>
   )
 }

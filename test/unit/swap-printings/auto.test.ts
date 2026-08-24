@@ -13,6 +13,7 @@ import {
   bolt,
   boltFoilOnly,
   boltLea,
+  boltM10,
   boltSta,
   makeCandidate,
   makeTarget,
@@ -206,5 +207,40 @@ describe('autoAllocate', () => {
         expect(plan.flags).toEqual([])
       }
     })
+  })
+})
+
+describe('autoAllocate — name-only targets', () => {
+  const nameOnly = makeTarget({
+    quantity: 2,
+    set: undefined,
+    collectorNumber: undefined,
+    card: null,
+  })
+  const opts = { mode: 'most-expensive', unpriced: 'skip', finish: 'any' } as const
+
+  test('the missing current printing is not an unpriced option: the card is planned under skip', () => {
+    const planned = autoAllocate(nameOnly, [makeCandidate(BINDER, boltLea, 2, 400)], opts, priceOf)
+    expect(planned.allocations.map((a) => [a.candidate.key, a.count])).toEqual([
+      [makeCandidate(BINDER, boltLea, 2, 400).key, 2],
+    ])
+    expect(planned.keep).toBe(0)
+    expect(planned.flags).toEqual([])
+  })
+
+  test('copies the candidates cannot fill stay name-only and read as partial', () => {
+    const planned = autoAllocate(nameOnly, [makeCandidate(BINDER, boltLea, 1, 400)], opts, priceOf)
+    expect(planned.keep).toBe(1)
+    expect(planned.flags).toEqual(['partial'])
+  })
+
+  test('a genuinely unpriced candidate still trips the policy', () => {
+    const planned = autoAllocate(nameOnly, [makeCandidate(BINDER, boltLea, 2, null)], opts, priceOf)
+    expect(planned.allocations).toEqual([])
+    expect(planned.flags).toEqual(['unpriced-candidates'])
+  })
+
+  test('currentPrintingPrice is null for a name-only target even with a resolvable card', () => {
+    expect(currentPrintingPrice({ ...nameOnly, card: boltM10 }, priceOf)).toBeNull()
   })
 })
