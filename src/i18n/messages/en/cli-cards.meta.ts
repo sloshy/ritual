@@ -340,6 +340,48 @@ export const cliCardsMeta = {
     description: 'Refusal: an empty note is not how a note is removed. --clear never translates.',
   },
 
+  // ── set-list-image ────────────────────────────────────────────────────
+  'cli.setListImage.set': {
+    description:
+      "Success line for set-list-image. {type} is a capitalized list-type word ('Deck', 'Collection', 'Wanted list') and opens the sentence, {list} is the list's file name. {value} is the card's '&N' id, an art path, or a URL — never translated.",
+  },
+  'cli.setListImage.setPreview': {
+    description: 'The --dry-run form of cli.setListImage.set; same parameters.',
+  },
+  'cli.setListImage.cleared': {
+    description:
+      "Success line for --default, which removes the front-matter key. {type} is a list-type word, {list} the list's file name.",
+  },
+  'cli.setListImage.clearedPreview': {
+    description: 'The --dry-run form of cli.setListImage.cleared; same parameters.',
+  },
+  'cli.setListImage.invalid': {
+    description:
+      "Refusal when a path or URL is not a usable image reference. {reason} is the parser's own untranslated sentence.",
+  },
+  'cli.setListImage.noCards': {
+    description:
+      'Refusal when the card mode was chosen for a list with no card lines. {type} is a list-type word.',
+  },
+  'cli.setListImage.current': {
+    description:
+      "Names what a list's cover image is set to now, spliced into cli.setListImage.modePrompt. {value} is a raw id, path or URL and is empty in the 'default' branch.",
+  },
+  'cli.setListImage.modePrompt': {
+    description:
+      'Header of the wizard menu asking how the cover image should be chosen. {current} is cli.setListImage.current.',
+  },
+  'cli.setListImage.modeDefault': {
+    description:
+      "Menu row: let Ritual choose (the commander of a commander deck, otherwise the list's most expensive printing).",
+  },
+  'cli.setListImage.modeCard': {
+    description: "Menu row: choose one of the list's own cards as the cover.",
+  },
+  'cli.setListImage.cardPrompt': {
+    description: 'Prompt above the card picker in the cover-image wizard.',
+  },
+
   // ── card ──────────────────────────────────────────────────────────────
   'cli.card.stdinOrFile': { description: 'Refusal when both batch input flags were passed.' },
   'cli.card.readFailed': { description: 'The --from-file path could not be read.' },
@@ -774,8 +816,13 @@ export const cliCardsMeta = {
     description:
       'The named property is not a metadata key of that list type. {keys} is the comma-joined list of accepted key names, which never translate.',
   },
+  'cli.metadata.useSetListImage': {
+    description:
+      'Refusal when `image` is passed to metadata set/unset. `ritual set-list-image` is a command name and never translates.',
+  },
   'cli.metadata.wantedNoMetadata': {
-    description: 'Wanted lists define no front-matter keys. `ritual rename` never translates.',
+    description:
+      'Refusal when a metadata subcommand targets a wanted list: this command covers decks and collections only. `ritual set-list-image` and `ritual rename` are command names and never translate.',
   },
   'cli.metadata.frontMatterUnreadable': {
     description:

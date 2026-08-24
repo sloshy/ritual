@@ -6,7 +6,7 @@ description: All available commands in the Ritual CLI.
 All available commands in the Ritual CLI, grouped by area. Use the sidebar to browse, or
 jump to a category:
 
-- **Lists** — [lists](/commands/lists/), [new](/commands/new/), [rename](/commands/rename/), [delete](/commands/delete/), [edit](/commands/edit/), [metadata](/commands/metadata/), [history](/commands/history/), [diff](/commands/diff/), [get-primer](/commands/get-primer/)
+- **Lists** — [lists](/commands/lists/), [new](/commands/new/), [rename](/commands/rename/), [delete](/commands/delete/), [edit](/commands/edit/), [metadata](/commands/metadata/), [set-list-image](/commands/set-list-image/), [history](/commands/history/), [diff](/commands/diff/), [get-primer](/commands/get-primer/)
 - **Cards** — [add-card](/commands/add-card/), [remove-card](/commands/remove-card/), [set-card](/commands/set-card/), [note](/commands/note/), [move](/commands/move/)
 - **Import & Export** — [import](/commands/import/), [import-account](/commands/import-account/), [import-changes](/commands/import-changes/), [export](/commands/export/)
 - **Lookup & Pricing** — [card](/commands/card/), [scry](/commands/scry/), [price](/commands/price/), [sell](/commands/sell/)

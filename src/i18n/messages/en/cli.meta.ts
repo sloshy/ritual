@@ -154,6 +154,13 @@ export const cliMeta = {
   'cli.prompt.subject.artFile': {
     description: 'Noun phrase for the custom-art file browser over the configured art directory.',
   },
+  'cli.prompt.subject.listImageMode': {
+    description:
+      "Noun phrase for set-list-image's menu asking which of the four cover-image modes to use.",
+  },
+  'cli.prompt.subject.listImageCard': {
+    description: "Noun phrase for set-list-image's picker over the list's own cards.",
+  },
   'cli.prompt.noMatches': {
     description:
       "Override for the `prompts` library's autocomplete empty state. Shown in place of a choice row, so keep it short and lowercase like the library's own default.",

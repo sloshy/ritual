@@ -38,8 +38,10 @@ export type WantedListParseResult = {
   sectionOrder: string[]
   /**
    * The file's front-matter block, when it opens with one. Round-trips verbatim
-   * on save. Wanted lists define no front-matter keys of their own (card labels
-   * are a collection concept), so the block is carried, never interpreted.
+   * on save. The one key a wanted list defines is the cover `image:` (card
+   * labels are a collection concept), and it is read out of this block by the
+   * loaders rather than here — so this parser carries the block, never
+   * interprets it.
    */
   frontMatter?: FlatListFrontMatter
   warnings: string[]

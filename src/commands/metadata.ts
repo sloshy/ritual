@@ -8,15 +8,14 @@ import {
   type DeckMetadataPatch,
 } from '../deck-metadata'
 import {
-  applyCollectionMetadata,
-  COLLECTION_METADATA_KEYS,
-  isCollectionMetadataKey,
-  type CollectionMetadataPatch,
+  applyFlatListMetadata,
+  FLAT_LIST_METADATA_KEYS,
+  type FlatListMetadataPatch,
 } from '../flat-list-metadata'
 import { parseDeckFrontMatter } from '../deck-file'
 import { readFrontMatterMapping } from '../front-matter-write'
 import { isCardLabel, LIST_TYPE_LABELS, parseCardLabelsValue, type CardLabel } from '../card-labels'
-import { parseCollectionMetadataBody, parseDeckMetadataBody } from '../admin/api/metadata'
+import { parseDeckMetadataBody, parseFlatListMetadataBody } from '../admin/api/metadata'
 import { checkArchidektLink } from '../deck-sync/link'
 import { CardCommandError, localizedCommandError } from '../errors'
 import type { MessageKey } from '../i18n/messages/en'
@@ -49,11 +48,12 @@ import {
  * `ritual metadata` — inspect and modify a list's front-matter metadata from
  * scripts, mirroring `ritual config`'s subcommand shape (`set`/`get`/`list`/
  * `unset`). Decks take `description`/`tags`/`format`/`sourceId`/`sourceUrl` plus
- * `labels` (their default card labels, `proxy` alone);
- * collections take `labels` over the whole vocabulary; wanted lists carry no
- * metadata and are refused. Writes go through the same engines as the admin
+ * `labels` (their default card labels, `proxy` alone) — every one of them minus
+ * `image`, which only `list` reports (see {@link settableKeys});
+ * collections take `labels` over the whole vocabulary; wanted lists carry only
+ * `image`, which this command does not write, so they are refused here. Writes go through the same engines as the admin
  * route and the MCP `set_list_metadata` tool ({@link applyDeckMetadata} /
- * {@link applyCollectionMetadata}), so validation and the body-preserving,
+ * {@link applyFlatListMetadata}), so validation and the body-preserving,
  * sidecar-aware write live exactly once.
  */
 
@@ -100,17 +100,29 @@ type MetadataTarget = {
  */
 type MetadataApply =
   | { type: 'deck'; filePath: string; patch: DeckMetadataPatch }
-  | { type: 'collection'; filePath: string; patch: CollectionMetadataPatch }
+  | { type: 'collection'; filePath: string; patch: FlatListMetadataPatch }
+
+/**
+ * The keys `set`/`unset` may write, per list type: the metadata vocabulary minus
+ * `image`. A list's cover image is a mapping (`{card: 12}`, `{file: …}`), not
+ * something this command's scalar `<value>…` arguments can spell, so it has its
+ * own command and is out of scope here: `list` reports the stored mapping, while
+ * `set`, `unset` and `get` alike refuse the key and name `ritual set-list-image`.
+ */
+function settableKeys(type: 'deck' | 'collection'): readonly string[] {
+  const keys: readonly string[] =
+    type === 'deck' ? DECK_METADATA_KEYS : FLAT_LIST_METADATA_KEYS.collection
+  return keys.filter((key) => key !== 'image')
+}
 
 /** The `<property>` argument's help, naming each type's settable keys. */
 function metadataPropertyHelp(): string {
-  return t('help.metadata.property', { keys: DECK_METADATA_KEYS.join(', ') })
+  return t('help.metadata.property', { keys: settableKeys('deck').join(', ') })
 }
 
 /** The accepted-keys listing for error messages, per list type. */
 function acceptedKeys(type: 'deck' | 'collection'): string {
-  const keys = type === 'deck' ? DECK_METADATA_KEYS : COLLECTION_METADATA_KEYS
-  return keys.join(', ')
+  return settableKeys(type).join(', ')
 }
 
 /**
@@ -135,6 +147,13 @@ const REJECTED_KEY_MESSAGES: Record<string, RejectedKeyMessage> = {
 type RejectedKeyMessage = Extract<MessageKey, `cli.metadata.rejected${string}`>
 
 function unknownKeyError(type: 'deck' | 'collection', property: string): CardCommandError {
+  // `image` is a real metadata key on both types — it is only unsettable *here*,
+  // because a cover is a mapping this command's scalar `<value>…` arguments
+  // cannot spell. Point at the command that can rather than claiming the key
+  // does not exist; `list`/`get` still show what is stored.
+  if (property === 'image') {
+    return localizedCommandError('usage_error', ExitCode.UsageError, 'cli.metadata.useSetListImage')
+  }
   const rejected = REJECTED_KEY_MESSAGES[property]
   if (rejected !== undefined) {
     return localizedCommandError('usage_error', ExitCode.UsageError, rejected)
@@ -148,16 +167,17 @@ function unknownKeyError(type: 'deck' | 'collection', property: string): CardCom
 
 /** Throw unless `property` is settable on the target's type. */
 function requireKnownProperty(type: 'deck' | 'collection', property: string): void {
-  const known = type === 'deck' ? isDeckMetadataKey(property) : isCollectionMetadataKey(property)
-  if (!known) throw unknownKeyError(type, property)
+  if (!settableKeys(type).includes(property)) throw unknownKeyError(type, property)
 }
 
 /**
  * Resolve the target list for a metadata subcommand, refusing wanted lists —
- * they define no front-matter keys, so there is nothing to read or write. The
- * refusal fires up front for `--wanted`, and the interactive picker only
- * offers decks and collections; a wanted list named explicitly still resolves
- * first, so the refusal names what actually matched.
+ * the one front-matter key they define is the cover `image:`, which is a
+ * mapping this command's scalar `<value>…` arguments cannot spell and which
+ * `ritual set-list-image` owns instead. The refusal fires up front for
+ * `--wanted`, and the interactive picker only offers decks and collections; a
+ * wanted list named explicitly still resolves first, so the refusal names what
+ * actually matched.
  */
 async function resolveMetadataTarget(
   listName: string | undefined,
@@ -166,11 +186,11 @@ async function resolveMetadataTarget(
 ): Promise<MetadataTarget | 'conflict'> {
   const type = resolveListTypeFlag(flags, scripting)
   if (type === 'conflict') return 'conflict'
-  if (type === 'wanted') throw wantedListsCarryNoMetadata()
+  if (type === 'wanted') throw metadataSkipsWantedLists()
   const resolved: ResolvedList = await resolveListSelection(listName, type, {
     pickerTypes: ['deck', 'collection'],
   })
-  if (resolved.type === 'wanted') throw wantedListsCarryNoMetadata()
+  if (resolved.type === 'wanted') throw metadataSkipsWantedLists()
   return {
     type: resolved.type,
     filePath: resolved.filePath,
@@ -178,7 +198,8 @@ async function resolveMetadataTarget(
   }
 }
 
-function wantedListsCarryNoMetadata(): CardCommandError {
+/** The refusal: this command's vocabulary has nothing a wanted list carries. */
+function metadataSkipsWantedLists(): CardCommandError {
   return localizedCommandError('usage_error', ExitCode.UsageError, 'cli.metadata.wantedNoMetadata')
 }
 
@@ -328,7 +349,7 @@ async function applyPatch(apply: MetadataApply): Promise<void> {
   const outcome =
     apply.type === 'deck'
       ? await applyDeckMetadata(apply.filePath, apply.patch, checkArchidektLink)
-      : await applyCollectionMetadata(apply.filePath, apply.patch)
+      : await applyFlatListMetadata(apply.filePath, apply.patch)
   if (typeof outcome === 'string') {
     throw new CardCommandError('usage_error', outcome, ExitCode.UsageError)
   }
@@ -397,7 +418,7 @@ function registerSetSubcommand(metadata: Command): void {
         if (typeof body === 'string') {
           throw new CardCommandError('usage_error', body, ExitCode.UsageError)
         }
-        const parsed = parseCollectionMetadataBody(body)
+        const parsed = parseFlatListMetadataBody(body, 'collection')
         if (typeof parsed === 'string') {
           throw new CardCommandError('usage_error', parsed, ExitCode.UsageError)
         }
@@ -485,7 +506,8 @@ function registerListSubcommand(metadata: Command): void {
         target.type === 'deck' ? await parseDeckFrontMatter(target.filePath) : data
 
       if (scripting.output === 'text') {
-        const keys = target.type === 'deck' ? DECK_METADATA_KEYS : COLLECTION_METADATA_KEYS
+        const keys =
+          target.type === 'deck' ? DECK_METADATA_KEYS : FLAT_LIST_METADATA_KEYS.collection
         const lines = keys.map((key) => {
           const value = frontMatter[key]
           return value === undefined
@@ -532,7 +554,7 @@ function registerUnsetSubcommand(metadata: Command): void {
       } else {
         // `property` is validated above; a collection's only settable key is
         // `labels`, so the patch names it directly.
-        const patch: CollectionMetadataPatch = { labels: null }
+        const patch: FlatListMetadataPatch = { labels: null }
         await applyPatch({ type: 'collection', filePath: target.filePath, patch })
       }
 

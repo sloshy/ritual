@@ -17,6 +17,7 @@ import { quoteKey } from '../../../src/buylist'
 import type { ScryfallCard } from '../../../src/types'
 import type { CardArtMap, CardArtRef } from '../../../src/card-art'
 import type { CollectionEntry } from '../../../src/collection-file'
+import type { ListImageRef } from '../../../src/list-image'
 import { cardPricelessReason } from '../../../src/site/priceless'
 import type { ChangelogPage } from '../../../src/changelog-parser'
 
@@ -101,6 +102,10 @@ const angel = makeScryfallCard({
   prices: { usd: '0.50', usd_foil: '1.20', eur: '0.40', tix: '0.02' },
   image_uris: imageUris('https://img/angel.jpg'),
 })
+
+/** A `<list>.art.json` map from a plain `{cardId: ref}` literal. */
+const artMap = (entries: Record<number, CardArtRef>): CardArtMap =>
+  new Map(Object.entries(entries).map(([id, ref]) => [Number(id), ref]))
 
 describe('slugifyListName', () => {
   test('lowercases and collapses punctuation runs to single dashes', () => {
@@ -1101,9 +1106,6 @@ describe('by-rule priceless baking', () => {
 })
 
 describe('custom art baking', () => {
-  const artMap = (entries: Record<number, CardArtRef>): CardArtMap =>
-    new Map(Object.entries(entries).map(([id, ref]) => [Number(id), ref]))
-
   test('a collection bakes file refs as site paths and URLs verbatim', async () => {
     const { ctx } = makeContext({ printingsByName: { 'Serra Angel': [angel] } })
     const loaded: LoadedCollection = {
@@ -1729,5 +1731,207 @@ describe('Card Kingdom printing selection', () => {
     const { detail } = await buildWantedArtifacts(loaded, ctx)
 
     expect(detail.cardsCardKingdom).toEqual({ 'Lightning Bolt': boltCheap })
+  })
+})
+
+/**
+ * A list's `image:` front-matter override — the cover the index tile shows
+ * instead of the built-in pick (a deck's commander, a flat list's most
+ * expensive printing). The grammar itself is pinned in
+ * test/unit/list-image.test.ts; these are the site's *resolution* rules: which
+ * image is baked, and which failures warn.
+ */
+describe('list cover overrides', () => {
+  /** Commander Angel (the built-in cover) plus a cheaper mainboard Bolt. */
+  const coverDeck = (image: ListImageRef | undefined, art?: CardArtMap): LoadedDeck => ({
+    data: {
+      name: 'Cover Deck',
+      sections: [
+        { name: 'Commander', cards: [{ name: 'Serra Angel', quantity: 1, cardId: 1 }] },
+        { name: 'Mainboard', cards: [{ name: 'Lightning Bolt', quantity: 4, cardId: 2 }] },
+      ],
+    },
+    ...(image ? { image } : {}),
+    ...(art ? { art } : {}),
+    changelog: [],
+    warnings: [],
+  })
+
+  const deckContext = (options: StubContextOptions = {}): StubContext =>
+    makeContext({
+      cardData: {
+        cards: { 'Lightning Bolt': bolt, 'Serra Angel': angel },
+        printings: { 'Serra Angel': [angel], 'Lightning Bolt': [bolt] },
+      },
+      ...options,
+    })
+
+  /** The Bolt is the priciest line, so the built-in cover; the Angel is cheaper. */
+  const coverEntries: CollectionEntry[] = [
+    {
+      name: 'Lightning Bolt',
+      quantity: 1,
+      set: 'lea',
+      collectorNumber: '161',
+      section: 'Main',
+      cardId: 4,
+    },
+    {
+      name: 'Serra Angel',
+      quantity: 1,
+      set: 'fdn',
+      collectorNumber: '35',
+      section: 'Main',
+      cardId: 5,
+    },
+  ]
+
+  const coverCollection = (
+    image: ListImageRef | undefined,
+    art?: CardArtMap,
+  ): LoadedCollection => ({
+    displayName: 'Cover Binder',
+    entries: coverEntries,
+    sectionOrder: ['Main'],
+    ...(image ? { image } : {}),
+    ...(art ? { art } : {}),
+    warnings: [],
+    changelog: [],
+  })
+
+  const flatContext = (options: StubContextOptions = {}): StubContext =>
+    makeContext({
+      printingsByName: { 'Lightning Bolt': [bolt], 'Serra Angel': [angel] },
+      ...options,
+    })
+
+  test('a url cover is baked verbatim and never validated', async () => {
+    const { ctx, warnings } = deckContext()
+    const { summary } = await buildDeckArtifacts(
+      coverDeck({ url: 'https://example.com/cover.jpg' }),
+      ctx,
+    )
+
+    expect(summary.featuredCardImage).toBe('https://example.com/cover.jpg')
+    expect(warnings).toEqual([])
+  })
+
+  test('a file cover is baked as the site art path', async () => {
+    const { ctx } = deckContext()
+    const { summary } = await buildDeckArtifacts(coverDeck({ file: 'covers/atraxa.png' }), ctx)
+
+    expect(summary.featuredCardImage).toBe('art/covers/atraxa.png')
+  })
+
+  test('a file cover the build could not deploy falls back with no detail-level warning', async () => {
+    // `build-site` already prints one art-missing line for the path, so a
+    // second message from the detail builder would be a duplicate.
+    const { ctx, warnings } = deckContext({ missingArtFiles: new Set(['covers/gone.png']) })
+    const { summary } = await buildDeckArtifacts(coverDeck({ file: 'covers/gone.png' }), ctx)
+
+    expect(summary.featuredCardImage).toBe('https://img/angel.jpg')
+    expect(warnings).toEqual([])
+  })
+
+  test('a card cover features that line, not the built-in pick', async () => {
+    const { ctx, warnings } = deckContext()
+    // The Bolt, while the commander Angel is what the deck would feature.
+    const { summary } = await buildDeckArtifacts(coverDeck({ card: 2 }), ctx)
+
+    expect(summary.featuredCardImage).toBe('https://img/bolt.jpg')
+    expect(warnings).toEqual([])
+    // The commander fact is the deck's own and is untouched by the cover.
+    expect(summary.commander).toBe('Serra Angel')
+  })
+
+  test('a card cover on a line wearing custom art shows the custom art', async () => {
+    const { ctx } = deckContext()
+    const { summary } = await buildDeckArtifacts(
+      coverDeck({ card: 2 }, artMap({ 2: { file: 'bolt.png' } })),
+      ctx,
+    )
+
+    expect(summary.featuredCardImage).toBe('art/bolt.png')
+  })
+
+  test('a card cover naming an id the list no longer has warns once and falls back', async () => {
+    const { ctx, warnings } = deckContext()
+    const { summary } = await buildDeckArtifacts(coverDeck({ card: 99 }), ctx)
+
+    expect(summary.featuredCardImage).toBe('https://img/angel.jpg')
+    expect(warnings).toHaveLength(1)
+    // The raw id, deliberately not resolved to a card name.
+    expect(warnings[0]).toContain('&99')
+    expect(warnings[0]).toContain('Cover Deck')
+  })
+
+  test('a card cover whose printing does not resolve falls back silently', async () => {
+    // Deliberate: the unresolvable-printing warning already fired on that
+    // entry, and warning again here would double-warn every list holding a pin
+    // the cache cannot satisfy.
+    const { ctx, warnings } = flatContext({ printingsByName: { 'Serra Angel': [angel] } })
+    const { summary } = await buildCollectionArtifacts(coverCollection({ card: 4 }), ctx)
+
+    expect(summary.featuredCardImage).toBe('https://img/angel.jpg')
+    // Exactly one warning — the entry's own unresolvable printing, not a second
+    // one about the cover.
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('Could not find printing')
+  })
+
+  test('a collection card cover features that entry', async () => {
+    const { ctx, warnings } = flatContext()
+    // The Angel, which the price-ranked built-in pick would pass over.
+    const { summary } = await buildCollectionArtifacts(coverCollection({ card: 5 }), ctx)
+
+    expect(summary.featuredCardImage).toBe('https://img/angel.jpg')
+    expect(warnings).toEqual([])
+  })
+
+  test('the detail bakes the cover reference itself, so a download re-emits it', async () => {
+    // The browser rebuilds the front matter of a downloaded `.md` from the
+    // baked detail alone: a cover absent from it is a cover the download loses.
+    const { ctx } = flatContext()
+    const { detail } = await buildCollectionArtifacts(
+      coverCollection({ file: 'covers/binder.png' }),
+      ctx,
+    )
+
+    expect(detail.listImage).toEqual({ file: 'covers/binder.png' })
+    const plain = await buildCollectionArtifacts(coverCollection(undefined), ctx)
+    expect(plain.detail.listImage).toBeUndefined()
+  })
+
+  test('a wanted list honours every mode the same way a collection does', async () => {
+    const loaded = (image: ListImageRef): LoadedWanted => ({
+      displayName: 'Cover Wants',
+      entries: coverEntries,
+      sectionOrder: ['Main'],
+      image,
+      warnings: [],
+      changelog: [],
+    })
+
+    const byCard = await buildWantedArtifacts(loaded({ card: 5 }), flatContext().ctx)
+    expect(byCard.summary.featuredCardImage).toBe('https://img/angel.jpg')
+
+    const byFile = await buildWantedArtifacts(loaded({ file: 'covers/x.png' }), flatContext().ctx)
+    expect(byFile.summary.featuredCardImage).toBe('art/covers/x.png')
+
+    const stale = flatContext()
+    const byStaleCard = await buildWantedArtifacts(loaded({ card: 99 }), stale.ctx)
+    expect(byStaleCard.summary.featuredCardImage).toBe('https://img/bolt.jpg')
+    expect(stale.warnings.filter((w) => w.includes('&99'))).toHaveLength(1)
+  })
+
+  test('no override leaves every list on the built-in cover', async () => {
+    const { summary: deck } = await buildDeckArtifacts(coverDeck(undefined), deckContext().ctx)
+    expect(deck.featuredCardImage).toBe('https://img/angel.jpg')
+
+    const { summary: collection } = await buildCollectionArtifacts(
+      coverCollection(undefined),
+      flatContext().ctx,
+    )
+    expect(collection.featuredCardImage).toBe('https://img/bolt.jpg')
   })
 })

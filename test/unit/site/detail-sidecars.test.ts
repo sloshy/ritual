@@ -4,6 +4,7 @@ import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { loadCollectionSource } from '../../../src/site/details/collection'
 import { loadDeckSource } from '../../../src/site/details/deck'
+import { loadWantedSource } from '../../../src/site/details/wanted'
 
 /**
  * What the detail loaders read beside a list file: the custom-art sidecar and
@@ -90,5 +91,111 @@ describe('detail loaders: art sidecar', () => {
     if (typeof loaded === 'string') throw new Error(loaded)
     expect(loaded.labels).toEqual(['proxy'])
     expect(loaded.art?.get(1)).toEqual({ url: 'https://example.com/bolt.png' })
+  })
+})
+
+/**
+ * The other thing the loaders read off a list file: its `image:` cover
+ * override. The grammar lives in test/unit/list-image.test.ts; what is pinned
+ * here is that all three loaders surface a usable value on `image` and report an
+ * unusable one through the same warning channel the art sidecar uses — the
+ * channel build-site prints and the live server logs.
+ */
+describe('detail loaders: list image', () => {
+  let dir: string
+
+  beforeEach(async () => {
+    dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-detail-image-'))
+  })
+
+  afterEach(async () => {
+    await fs.rm(dir, { recursive: true, force: true })
+  })
+
+  const write = (name: string, content: string): Promise<void> =>
+    fs.writeFile(path.join(dir, `${name}.md`), content)
+
+  test('a deck carries its cover override', async () => {
+    await write(
+      'burn',
+      '---\nname: Burn\nimage:\n  card: 1\n---\n\n## Mainboard\n\n4 Lightning Bolt &1\n',
+    )
+
+    const loaded = await loadDeckSource(dir, 'burn')
+
+    if (typeof loaded === 'string') throw new Error(loaded)
+    expect(loaded.image).toEqual({ card: 1 })
+    expect(loaded.warnings).toHaveLength(0)
+  })
+
+  test('a collection carries its cover override', async () => {
+    await write(
+      'binder',
+      '---\nimage:\n  file: covers/binder.png\n---\n\n# Binder\n\n- Arcane Signet (ECC:55) &1\n',
+    )
+
+    const loaded = await loadCollectionSource(dir, 'binder')
+
+    if (typeof loaded === 'string') throw new Error(loaded)
+    expect(loaded.image).toEqual({ file: 'covers/binder.png' })
+    expect(loaded.warnings).toHaveLength(0)
+  })
+
+  test('a wanted list carries its cover override — its one front-matter key', async () => {
+    await write(
+      'wants',
+      '---\nimage:\n  url: https://example.com/cover.jpg\n---\n\n# Wants\n\n- Arcane Signet &1\n',
+    )
+
+    const loaded = await loadWantedSource(dir, 'wants')
+
+    if (typeof loaded === 'string') throw new Error(loaded)
+    expect(loaded.image).toEqual({ url: 'https://example.com/cover.jpg' })
+    expect(loaded.warnings).toHaveLength(0)
+  })
+
+  test('an unusable cover value warns and leaves the list on the built-in cover', async () => {
+    // A scalar is not the grammar: `image: alters/x.png` has no mapping key, so
+    // it is reported rather than guessed at.
+    await write(
+      'binder',
+      '---\nimage: alters/x.png\n---\n\n# Binder\n\n- Arcane Signet (ECC:55) &1\n',
+    )
+
+    const loaded = await loadCollectionSource(dir, 'binder')
+
+    if (typeof loaded === 'string') throw new Error(loaded)
+    expect(loaded.image).toBeUndefined()
+    expect(loaded.warnings).toHaveLength(1)
+    expect(loaded.warnings[0]).toContain("'image' ignored")
+  })
+
+  test('a deck reports an unusable cover too, rather than dropping it silently', async () => {
+    // The deck path is the asymmetric one: `validateDeckFrontMatter` drops the
+    // key, and the deck's next whole-file save would delete it from the user's
+    // file — so the drop has to be audible here, as it is on a flat list.
+    await write(
+      'burn',
+      '---\nname: Burn\nimage:\n  card: 0\n---\n\n## Mainboard\n\n4 Lightning Bolt &1\n',
+    )
+
+    const loaded = await loadDeckSource(dir, 'burn')
+
+    if (typeof loaded === 'string') throw new Error(loaded)
+    expect(loaded.image).toBeUndefined()
+    expect(loaded.warnings.some((warning) => warning.includes("'image' ignored"))).toBeTrue()
+  })
+
+  test("a flat list's own front-matter advisories reach the same channel", async () => {
+    // Unreadable YAML: the block round-trips verbatim, so this is an advisory —
+    // but it is one the user must hear, exactly like an ignored cover.
+    await write('binder', '---\nlabels: [\n---\n\n# Binder\n\n- Arcane Signet (ECC:55) &1\n')
+
+    const loaded = await loadCollectionSource(dir, 'binder')
+
+    if (typeof loaded === 'string') throw new Error(loaded)
+    expect(
+      loaded.warnings.some((warning) => warning.includes('could not be read as YAML')),
+    ).toBeTrue()
   })
 })

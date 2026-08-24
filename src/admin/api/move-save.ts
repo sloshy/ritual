@@ -12,12 +12,11 @@ import {
 } from '../../change-event'
 import {
   createCardArtCache,
-  reconcileCardArt,
-  reconciledArtPath,
   type CardArtMap,
   type CardArtRef,
   type CardArtReconcileFailure,
 } from '../../card-art'
+import { reconcileListRefs } from '../../list-refs'
 import { loadAllLists, type ListEntry, type PhysicalCard } from '../../commands/move-helpers'
 import { t } from '../../i18n/t'
 import type { SaveEffect } from '../../editor/save-effects'
@@ -448,12 +447,14 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
     if (stage === undefined) continue
     for (const { move, dest, line } of stage.removed) {
       if (line.cardId === undefined) continue
-      const ref = await art.lookup(listEntry.filePath, line.cardId)
-      if (ref === undefined) continue
-      // A line that still has copies left keeps its id — and its art.
+      // A line that still has copies left keeps its id — and its art. Recorded
+      // before the art lookup because the freed id is also what re-points the
+      // list's cover image, and that is filed whether or not the line wore art.
       if (!stage.surviving.has(line.cardId)) {
         artPlanFor(artByFile, listEntry.filePath).removed.add(line.cardId)
       }
+      const ref = await art.lookup(listEntry.filePath, line.cardId)
+      if (ref === undefined) continue
       if (move.cardId === undefined) {
         unfiled.push({
           ok: false,
@@ -492,11 +493,11 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
     }
     for (const [filePath, plan] of artByFile) {
       // A sidecar this could not read keeps its own art, and the moving
-      // cards' art is what is lost — reported, never swallowed.
-      const reconciled = await reconcileCardArt(filePath, plan)
-      if (!reconciled.ok) artFailures.push(reconciled)
-      const artPath = reconciledArtPath(reconciled)
-      if (artPath !== undefined) written.push(artPath)
+      // cards' art is what is lost — reported, never swallowed. The list's
+      // cover follows the same ids and is re-pointed in the same step.
+      const reconciled = await reconcileListRefs(filePath, plan)
+      if (!reconciled.art.ok) artFailures.push(reconciled.art)
+      written.push(...reconciled.writtenFiles)
     }
     for (const { listEntry, outgoing: departures } of prepared) {
       const arrivals = incomingByFile.get(listEntry.filePath)?.removed ?? []

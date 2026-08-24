@@ -23,7 +23,7 @@ function patchOf(body: Record<string, unknown>): DeckMetadataPatch {
 describe('parseDeckMetadataBody', () => {
   test('an unknown field names the fields that are accepted', () => {
     expect(parseDeckMetadataBody({ colour: 'blue' })).toBe(
-      "Unknown metadata field 'colour'. Accepted fields: description, tags, format, labels, sourceId, sourceUrl.",
+      "Unknown metadata field 'colour'. Accepted fields: description, tags, format, labels, image, sourceId, sourceUrl.",
     )
   })
 

@@ -9,7 +9,10 @@ import {
   deckToCsv,
   selectionToText,
   selectionToCsv,
+  frontMatterFor,
+  withFrontMatter,
 } from '../../src/editor/list-export'
+import { readFrontMatterMapping } from '../../src/front-matter-write'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/site/data-types'
 import type { SelectedCard } from '../../src/site/useCardSelection'
 import type { DeckData } from '../../src/types'
@@ -84,6 +87,43 @@ describe('collectionToMarkdown', () => {
     )
     expect(markdown.match(/&5\b/g)).toHaveLength(1)
     expect(markdown).toContain('Sol Ring')
+  })
+})
+
+describe('frontMatterFor', () => {
+  // The browser rebuilds this block by hand — there is no YAML dumper on the
+  // download path — so what it emits has to parse back to what it was given, or
+  // a downloaded list re-imports with a cover it never had.
+  const roundTrip = (
+    fields: Parameters<typeof frontMatterFor>[0],
+  ): Record<string, unknown> | undefined => {
+    const block = frontMatterFor(fields)
+    if (!block) return undefined
+    const parsed = readFrontMatterMapping(withFrontMatter(block, '# Binder\n'))
+    if (!parsed.ok) throw new Error(`front matter unreadable: ${parsed.reason}`)
+    return parsed.data
+  }
+
+  test('nothing to write is no block at all', () => {
+    expect(frontMatterFor({})).toBeUndefined()
+    expect(frontMatterFor({ labels: [] })).toBeUndefined()
+  })
+
+  test('a card cover round-trips as the mapping form', () => {
+    expect(roundTrip({ image: { card: 12 } })).toEqual({ image: { card: 12 } })
+  })
+
+  test('a file cover round-trips with its path quoted', () => {
+    expect(roundTrip({ image: { file: "alters/it's here.png" } })).toEqual({
+      image: { file: "alters/it's here.png" },
+    })
+  })
+
+  test('labels and a url cover are emitted together', () => {
+    expect(roundTrip({ labels: ['sale'], image: { url: 'https://e.test/a.png' } })).toEqual({
+      labels: ['sale'],
+      image: { url: 'https://e.test/a.png' },
+    })
   })
 })
 

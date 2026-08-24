@@ -1630,7 +1630,7 @@ Overwrite the list's change log with the supplied change sets. Each set needs a 
 PUT /api/metadata/:type/:slug
 ```
 
-Write a list's YAML front matter. Decks take the deck vocabulary below; both decks and collections take `labels` (their [default card labels](/commands/edit/#card-labels)). Wanted lists define no front-matter keys, so `:type` of `wanted` is a `400`. Shares its engine with the [`metadata`](/commands/metadata/) CLI command.
+Write a list's YAML front matter. Decks take the deck vocabulary below; both decks and collections take `labels` (their [default card labels](/commands/edit/#card-labels)); **all three types** take `image` (the list's [cover image](/list-images/)), which is the only field a wanted list accepts — a `labels` key on a wanted body is a `400` naming the field. Shares its engine with the [`metadata`](/commands/metadata/) CLI command (which covers decks and collections and does not write `image`) and with [`set-list-image`](/commands/set-list-image/) and the MCP `set_list_metadata` tool.
 
 Only the fields present in the body are written; every other front-matter key (including user-authored ones) round-trips untouched. A field sent as `null` is deleted, as is a `description` sent as an empty string. The markdown body below the front matter is left byte for byte as it was — card lines are never re-serialized and no card IDs are assigned. **No changelog entry is written**: the change log is card-level, and metadata is not a card change.
 
@@ -1641,6 +1641,7 @@ Only the fields present in the body are written; every other front-matter key (i
   "description": "A ramp deck.",
   "tags": ["ramp", "budget"],
   "format": "commander",
+  "image": { "card": 12 },
   "sourceId": "123456",
   "sourceUrl": "https://archidekt.com/decks/123456",
   "contentHash": "abc123..."
@@ -1652,6 +1653,16 @@ Only the fields present in the body are written; every other front-matter key (i
 ```json
 {
   "labels": ["sale", "trade"],
+  "image": { "card": 12 },
+  "contentHash": "abc123..."
+}
+```
+
+**Request Body (wanted list):**
+
+```json
+{
+  "image": { "url": "https://example.com/cover.jpg" },
   "contentHash": "abc123..."
 }
 ```
@@ -1664,9 +1675,12 @@ Only the fields present in the body are written; every other front-matter key (i
 | `sourceId`    | Deck only. Non-empty string or `null`                                                                                                                                                                                                     |
 | `sourceUrl`   | Deck only. An `http`/`https` URL or `null`                                                                                                                                                                                                |
 | `labels`      | Deck and collection. Array of `sale`/`trade` (combinable) or `keep`/`proxy` (each alone), case-insensitive, normalized to canonical order — a **deck** accepts `proxy` alone; `null` or `[]` clears the default (removing an empty block) |
+| `image`       | All three types. A single-key mapping — `{"card": N}`, `{"file": "rel/path"}` or `{"url": "https://…"}` — or `null` to clear it. Scalars are rejected: there is no string spelling of a cover. See below                                  |
 | `contentHash` | Optional concurrency token from the list's load endpoint; a non-string value is a `400`                                                                                                                                                   |
 
-`name` is rejected with a `400` pointing at [`POST /api/deck/:slug/rename`](#rename-deck), which also renames the file and its sidecars. `created` and `lastSynced` are stamped by Ritual (deck creation and [deck sync](/commands/deck-sync/) respectively) and are likewise rejected, as is any unknown field — a deck-only field on a collection (and vice versa) is an unknown field. A collection write refuses (`400`) when the file's existing front matter cannot be read as a YAML mapping, since merging over keys it cannot see would clobber them.
+`name` is rejected with a `400` pointing at [`POST /api/deck/:slug/rename`](#rename-deck), which also renames the file and its sidecars. `created` and `lastSynced` are stamped by Ritual (deck creation and [deck sync](/commands/deck-sync/) respectively) and are likewise rejected, as is any unknown field — a deck-only field on a collection (and vice versa) is an unknown field. A flat-list (collection or wanted) write refuses (`400`) when the file's existing front matter cannot be read as a YAML mapping, since merging over keys it cannot see would clobber them.
+
+`image` is validated exactly as the front-matter grammar is (see [List cover images](/list-images/)), with one addition the route alone can make: a `{"card": N}` reference is checked against the very file being written, so an `&N` the list does not carry is a `400` naming the raw id and nothing is written. A `{"file": …}` path is checked for shape only — the image need not exist yet, and a missing one is a build-time warning — and a `{"url": …}` is never fetched. This is where that check lives for every client: the CLI, the MCP tool, and the admin editors all inherit it rather than re-implementing it.
 
 Setting `sourceId` together with an `archidekt.com` `sourceUrl` is what makes a deck sync-linked, so these fields change which decks [`POST /api/deck-sync`](#sync-decks) operates on.
 
@@ -1689,7 +1703,8 @@ When `contentHash` is supplied and no longer matches the file, the response is `
     "format": "commander",
     "created": "2026-01-01T00:00:00.000Z",
     "description": "A ramp deck.",
-    "tags": ["ramp", "budget"]
+    "tags": ["ramp", "budget"],
+    "image": { "card": 12 }
   },
   "contentHash": "def456..."
 }

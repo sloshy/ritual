@@ -493,11 +493,53 @@ export const adminMeta = {
   'admin.labels.groupLabel': {
     description: 'Accessible name of the radio group of label choices.',
   },
-  'admin.labels.saveFailed': {
-    description: 'Error when the labels could not be saved. {status} is an HTTP status code.',
-  },
   'admin.labels.saving': { description: 'Button label while the labels are being saved.' },
   'admin.labels.save': { description: 'Button that saves the chosen default labels.' },
+
+  // ── Front-matter writes (shared by every metadata dialog) ─────────────
+  'admin.metadata.saveFailed': {
+    description:
+      'Error shown by any dialog that writes a list’s front matter (default labels, cover image) when the write failed. {status} is an HTTP status code.',
+  },
+
+  // ── List cover-image dialog ───────────────────────────────────────────
+  'admin.listImage.title': {
+    description:
+      'Title of the dialog choosing the image a deck, collection or wanted list shows as its cover on the site.',
+  },
+  'admin.listImage.desc': {
+    description:
+      'Explains the four choices the dialog offers. The "art directory" is the configurable folder (artDir) the user keeps local images in.',
+  },
+  'admin.listImage.modeLabel': {
+    description: 'Accessible name of the radio group choosing where the cover image comes from.',
+  },
+  'admin.listImage.modeDefault': {
+    description:
+      'Radio choice: no override — the cover is picked by the built-in rule, described by admin.listImage.modeDefaultNote.',
+  },
+  'admin.listImage.modeDefaultNote': {
+    description: 'The built-in rule, shown under the "Automatic" choice.',
+  },
+  'admin.listImage.modeCard': {
+    description: 'Radio choice: the cover is one of the cards the list itself holds.',
+  },
+  'admin.listImage.cardLabel': {
+    description: 'Label of the dropdown choosing which of the list’s cards is the cover.',
+  },
+  'admin.listImage.noCards': {
+    description:
+      'Shown in place of the card dropdown when the list, as last saved, holds no cards to choose from. Cards added in the current editing session are deliberately not offered — they have no saved line yet.',
+  },
+  'admin.listImage.previewAlt': {
+    description: 'Alt text of the preview image in the dialog.',
+  },
+  'admin.listImage.invalid': {
+    description:
+      'Shown under the field when what was typed is not a usable image reference, so Save stays disabled. {reason} is untranslated engine prose from the image parser (e.g. \'"../x.png" escapes the art directory\').',
+  },
+  'admin.listImage.saving': { description: 'Button label while the cover image is being saved.' },
+  'admin.listImage.save': { description: 'Button that saves the chosen cover image.' },
 
   // ── Custom art dialog ─────────────────────────────────────────────────
   'admin.art.title': {

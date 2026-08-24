@@ -90,7 +90,7 @@ The sidecar is keyed by the card line's `&N`, and removing a line **releases tha
 - **A save that renumbers a line** (an incoming card claiming an `&N` that is already taken) re-files the entry under the line's new id.
 - **A sync that pulls removals in** — [`deck-sync pull`](/commands/deck-sync/) and [`collection-sync`](/commands/collection-sync/) — drops the entries of the cards it removed. A `deck-sync push` writes the deck back unchanged apart from its sync stamp, so it never touches the sidecar.
 
-Everything here writes the sidecar directly, with no changelog entry, exactly like setting art in the first place.
+Everything here writes the sidecar directly, with no changelog entry, exactly like setting art in the first place. A list's [cover image](/list-images/) is filed under an `&N` the same way and is reconciled in the very same step, by the same rules.
 
 ## Custom art carries no price
 
@@ -134,8 +134,11 @@ Under [`serve --api`](/commands/serve/#live-api-mode---api) nothing is copied: t
 
 Only `.avif`, `.gif`, `.jpeg`, `.jpg`, `.png`, and `.webp` are served — the same allowlist a `file` reference is validated against, so a reference that parses is a reference the route will answer. SVG is deliberately excluded — it can carry script, and the route is same-origin with the admin UI. Anything else in the art directory answers `404`, as does any attempt to step outside it.
 
+A list's [cover image](/list-images/) shares all of this: a `file` cover is copied into `dist/art/` by the same pass, obeys the same reference rules and the same allowlist, and falls back to the list's default cover with the same `Custom art file not found` warning. It differs only in where it is stored — the list's own front matter, not the sidecar — and in what it names, which may also be a card in the list or a URL.
+
 ## See also
 
+- [List cover images](/list-images/) — the same reference rules, applied to a whole list's cover
 - [`set-card --art`](/commands/set-card/#custom-art) — the CLI writer
 - [`edit` → Custom Art](/commands/edit/#custom-art) — the interactive editor's action and its art-directory file browser
 - [Admin editors → Custom Art](/admin/editors/#custom-art) — the dialog

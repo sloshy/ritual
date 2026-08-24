@@ -14,6 +14,7 @@ import { isPathWithinDir } from './path-validation'
 import { assignMissingDeckCardIds } from './card-id'
 import { readListDefaultLabels, type CardLabel } from './card-labels'
 import { writeListFrontMatter, type ListFrontMatterWrite } from './front-matter-write'
+import { isListImageRefError, parseListImage, type ListImageRef } from './list-image'
 import { serializeCardLine } from './deck-text'
 
 // Re-exported from `deck-text` (a browser-safe, type-only module) so existing
@@ -73,6 +74,13 @@ export type DeckFrontMatter = {
    */
   labels?: CardLabel[]
   description?: string
+  /**
+   * The deck's cover image override. Absent means the built-in rule (the
+   * commander, or the priciest printing). See `list-image.ts` for the grammar —
+   * a value that is not a legal cover mapping is dropped by
+   * {@link validateDeckFrontMatter} and warned about by `parseDeckText`.
+   */
+  image?: ListImageRef
   sourceId?: string
   sourceUrl?: string
   /**
@@ -201,6 +209,17 @@ export function validateDeckFrontMatter(raw: Record<string, unknown>): DeckFront
     const read = readListDefaultLabels('deck', frontMatter.labels)
     if (read.labels) frontMatter.labels = read.labels
     else delete frontMatter.labels
+  }
+
+  // Same treatment, same reason: an `image:` the grammar cannot read is dropped
+  // whole rather than half-kept, and `parseDeckText` warns about the identical
+  // value so the drop is visible before a whole-deck save performs it. `null`
+  // (the explicit "use the built-in rule") is dropped too — the key carries no
+  // information once it says nothing.
+  if ('image' in frontMatter) {
+    const parsed = parseListImage(frontMatter.image)
+    if (parsed === null || isListImageRefError(parsed)) delete frontMatter.image
+    else frontMatter.image = parsed
   }
 
   return frontMatter

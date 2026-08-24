@@ -3,6 +3,7 @@ import type { DeckData, ScryfallCard } from '../../../types'
 import type { CardLabel } from '../../../card-labels'
 import type { CardKingdomCards } from '../../../site/data-types'
 import type { CardArtRecord } from '../../../card-art'
+import type { ListImageRef } from '../../../list-image'
 import type { ListEditorConfig } from '../../../editor/useEditor'
 import type { DeckCardDataActions } from '../../../editor/useDeckCardData'
 import { collectDeckCardIds } from '../../../card-id'
@@ -25,6 +26,8 @@ import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
 import { useCardArt } from '../hooks/useCardArt'
 import { ListLabelsModal } from '../components/ListLabelsModal'
+import { ListImageModal } from '../components/ListImageModal'
+import { deckImageCardOptions, type ListImageCardOption } from '../list-image-cards'
 import { sellModeEnabled } from '../sell-enabled'
 
 type DeckListResponse = { decks?: { slug: string; name: string }[] }
@@ -41,6 +44,7 @@ type DeckDataResponse = {
   symbolMap: Record<string, string>
   frontMatter: Record<string, unknown>
   labels?: CardLabel[]
+  image?: ListImageRef
   customArt?: CardArtRecord
   slug: string
   contentHash: string
@@ -65,6 +69,13 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
   // because a stale badge reads as this deck's own metadata.)
   const [ckCards, setCkCards] = createSignal<CardKingdomCards | undefined>(undefined)
   const [labelsOpen, setLabelsOpen] = createSignal(false)
+  // The deck's cover image, seeded from each load and updated by the Cover
+  // Image modal's save. The picker's rows come from the same load body, so a
+  // card added in this session — whose `&N` exists only client-side until the
+  // next save — is never offered as a cover.
+  const [listImage, setListImage] = createSignal<ListImageRef | undefined>(undefined)
+  const [imageCards, setImageCards] = createSignal<readonly ListImageCardOption[]>([])
+  const [imageOpen, setImageOpen] = createSignal(false)
 
   const buildConfig = (cardActions: DeckCardDataActions): ListEditorConfig<DeckData> => ({
     currency: defaultCurrency,
@@ -89,6 +100,8 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
       // load must clear the previous deck's labels and art rather than leave
       // them decorating whatever is on screen.
       setListLabels(r.labels)
+      setListImage(r.image)
+      setImageCards(r.success ? deckImageCardOptions(r.deck, r.cards) : [])
       // The ids the *saved* deck holds: an art edit on any other card has to
       // wait for the save that gives its line an `&N`.
       cardArt.adopt(r.slug, r.customArt, r.success ? collectDeckCardIds(r.deck) : [])
@@ -171,11 +184,28 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
         listLabels={listLabels()}
         cardsCardKingdom={ckCards()}
         onEditLabels={() => setLabelsOpen(true)}
+        onEditImage={() => setImageOpen(true)}
         customArt={cardArt.art()}
         onSetCustomArt={cardArt.open}
         shareLists={shareLists()}
         swap={ctrl.swapWizardProps({ currency: ctrl.editor.currency() })}
         onSwapPrintings={() => ctrl.openSwapPrintings('all')}
+      />
+      <ListImageModal
+        open={imageOpen()}
+        onClose={() => setImageOpen(false)}
+        type="deck"
+        slug={ctrl.editor.slug()}
+        image={listImage()}
+        cards={imageCards()}
+        contentHash={ctrl.editor.contentHash()}
+        onSaved={(image, contentHash, frontMatter) => {
+          setListImage(image)
+          ctrl.editor.setContentHash(contentHash)
+          // The deck save re-sends this snapshot, so it has to carry the write
+          // this dialog just made rather than the block captured at load.
+          ctrl.editor.setExtra({ ...ctrl.editor.extra(), frontMatter })
+        }}
       />
       <ListLabelsModal
         open={labelsOpen()}
@@ -184,9 +214,10 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
         slug={ctrl.editor.slug()}
         labels={listLabels()}
         contentHash={ctrl.editor.contentHash()}
-        onSaved={(labels, contentHash) => {
+        onSaved={(labels, contentHash, frontMatter) => {
           setListLabels(labels)
           ctrl.editor.setContentHash(contentHash)
+          ctrl.editor.setExtra({ ...ctrl.editor.extra(), frontMatter })
         }}
       />
     </>

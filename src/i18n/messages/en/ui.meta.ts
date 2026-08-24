@@ -152,6 +152,11 @@ export const uiMeta = {
       'Action bar button opening the collection\'s default card labels ("for sale", "for trade", …).',
     maxLen: 16,
   },
+  'ui.editor.coverImage': {
+    description:
+      'Action bar button opening the dialog that chooses the image the list shows as its cover on the site. The ellipsis marks that a dialog follows.',
+    maxLen: 16,
+  },
   'ui.editor.import': {
     description:
       'Action bar button opening the dialog that loads an exported change file. The ellipsis marks that a dialog follows.',

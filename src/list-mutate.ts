@@ -35,7 +35,7 @@ import { parseTitleFromContent } from './section-format'
 import { writeFileWithHash, hashPath } from './content-hash'
 import { appendChangelog } from './changelog-writer'
 import { allocateId, collectExistingIds, createIdPool, type EntryWithCardId } from './card-id'
-import { reconcileCardArt, reconciledArtPath } from './card-art'
+import { reconcileListRefs } from './list-refs'
 import { CardCommandError, ExitCode } from './errors'
 import type { ChangeEvent, MoveFromChange, MoveToChange } from './change-event'
 import {
@@ -85,11 +85,11 @@ export async function applyChangesToCollectionFile(
   const changelogPath = await appendChangelog(filePath, slug, applied)
   const writtenFiles = [filePath, hashPath(filePath), changelogPath]
 
-  // A removed line releases its `&N` to the reuse pool, so custom art left filed
-  // under it would surface on whichever card takes the id next.
-  const artPath = reconciledArtPath(await reconcileCardArt(filePath, { removed: removedCardIds }))
-  if (artPath !== undefined) writtenFiles.push(artPath)
-  return { writtenFiles }
+  // A removed line releases its `&N` to the reuse pool, so custom art — or a
+  // cover image — left filed under it would surface on whichever card takes the
+  // id next.
+  const refs = await reconcileListRefs(filePath, { removed: removedCardIds })
+  return { writtenFiles: [...new Set([...writtenFiles, ...refs.writtenFiles])] }
 }
 
 /**

@@ -122,7 +122,9 @@ Deck card lines start with a quantity; collection and wanted lines start with \`
   Commands that add or edit card lines (editors, card mutations, imports, syncs \`deck-sync pull\`/\`push\`
   and \`collection-sync\` — not \`deck-sync status\`/\`link\` — \`cleanup\`,
   the site build, and the admin/MCP servers) backfill missing IDs on startup and persist
-  them to the files. Read-only commands (\`lists\`, \`diff\`, \`price\`, \`sell\`, \`export\`,
+  them to the files. \`set-list-image\` backfills **conditionally**: only when the run names a
+  card (\`--card\`, or the wizard's card picker), since \`--file\`/\`--url\`/\`--default\` never
+  read an \`&N\` at all. Read-only commands (\`lists\`, \`diff\`, \`price\`, \`sell\`, \`export\`,
   \`list-all-cards\`, \`history --show\`, ...) and the \`new\`/\`rename\`/\`delete\` lifecycle
   never touch card lines, and \`-n\`/\`--dry-run\` writes nothing, including that backfill.
 
@@ -150,7 +152,9 @@ has a \`## Commander\` section, and the tools write that down on the next save.
 A **collection's** YAML front matter carries its default card labels
 (\`labels: [sale, trade]\` or \`labels: [keep]\`), and a **deck's** carries
 \`labels: [proxy]\` — the same key, restricted to the labels that type takes;
-wanted lists define no front-matter keys. A flat list's block round-trips
+wanted lists carry no labels. All three types carry \`image:\`, the list's
+cover on the published site (see **List cover images** below) — the only
+front-matter key a wanted list defines. A flat list's block round-trips
 byte-for-byte through every save.
 
 ## Custom art
@@ -203,6 +207,63 @@ its own only by *undoing* the removal (the \`edit\` TUI's \`↩️ Undo Last Edi
 the web editors' undo, which reclaim the original id). Only a hand edit —
 or another tool deleting a card line — can leave art behind pointing at an id the
 list no longer has; that shows up as a load/build warning naming the raw ids.
+
+## List cover images
+
+Every list shows one **cover image** on the published site — the picture on its
+tile on the index page and in Quick Switch. By default that is chosen for
+you: a commander deck shows its commander, every other list its most expensive
+printing. A list overrides it with an \`image:\` key in its front matter, which
+decks, collections and wanted lists all carry (it is the *only* key a wanted list
+carries):
+
+\`\`\`yaml
+image:
+  card: 12                            # the &N of a line in THIS list
+image:
+  file: alters/atraxa.png             # art-dir-relative, same rules as custom art
+image:
+  url: https://example.com/cover.jpg  # absolute http(s), used verbatim
+\`\`\`
+
+**The mapping is the only spelling.** A scalar \`image: &12\` is a YAML *anchor*
+that parses to \`null\`, not to the string \`&12\`, so scalars are rejected
+outright rather than half-understood; there is likewise no \`image: default\` —
+removing the key (or writing \`null\` through an API) is how a list goes back to
+the built-in rule. \`file\` obeys the custom-art rules exactly (forward slashes,
+inside the art directory, one of the servable extensions), and \`url\` is never
+validated at all — a broken one is the browser's problem.
+
+Set it with \`ritual set-list-image\` (\`--card\`, \`--file\`, \`--url\`,
+\`--default\`, or no flag at all for a wizard), the admin editors' **Cover
+Image** button, the MCP \`set_list_metadata\` tool's \`image\` field, or by hand.
+\`ritual metadata\` deliberately does **not** write it — a cover is a mapping,
+which that command's scalar values cannot spell — though \`metadata list\`
+still reports what is stored (\`get\`, like \`set\`, points you here instead).
+
+\`\`\`bash
+ritual set-list-image "Winota Stax" --card 12       # &12 in this deck; &12 also works
+ritual set-list-image "Main Binder" --file alters/binder.png
+ritual set-list-image "To Buy" --wanted --url https://example.com/cover.jpg
+ritual set-list-image "Winota Stax" --default      # remove the key
+ritual set-list-image                              # wizard: pick list, mode, then the image
+\`\`\`
+
+The three modes fail differently, on purpose:
+
+- **\`card\`** is verified against the list *as it is written*: a write naming an
+  \`&N\` the list does not carry is rejected (CLI exit 2, HTTP/MCP 400) rather than
+  stored. The reference then **follows the card lines** the way custom art does —
+  removing that card clears the key, and a save that renumbers the line rewrites
+  it — because an \`&N\` freed by a removal is handed to the next card added, and a
+  stale cover would silently show an unrelated card. A card whose printing cannot
+  be resolved falls back to the default cover silently.
+- **\`file\`** has only its *shape* checked when written — unlike a card's custom
+  art, which is refused when the file is not there, a cover may name an image you
+  add later. The site build warns about a path with nothing behind it (the same
+  \`Custom art file not found\` line a card's missing art produces) and falls back to
+  the default cover.
+- **\`url\`** is never checked at all, at write time or build time.
 
 **Prefer the CLI (or the web admin / MCP server) over hand-editing files**, so the
 \`&N\` IDs and \`.changes.md\` changelog stay correct. Reading files directly for

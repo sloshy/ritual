@@ -2,6 +2,7 @@ import type { DeckData } from '../types'
 import type { CollectionCardEntry, WantedListCardEntry } from '../site/data-types'
 import type { SelectedCard } from '../site/useCardSelection'
 import { normalizeCardLabels, type CardLabel } from '../card-labels'
+import { serializeListImageRef, type ListImageRef } from '../list-image'
 import type { FlatListFrontMatter } from '../flat-list-front-matter'
 import { serializeSectionedList } from '../section-format'
 import {
@@ -64,18 +65,44 @@ export function withFrontMatter(
   return `${frontMatter.raw}\n${body}`
 }
 
+/** The front-matter fields a list detail bakes, and so a download can re-emit. */
+export type ListFrontMatterFields = {
+  /** The list's default card labels, when it declares any. */
+  labels?: readonly CardLabel[]
+  /** The list's cover image override, when it declares one. */
+  image?: ListImageRef
+}
+
 /**
- * Synthesize a front-matter block from a collection's default labels — for the
- * browser-side .md downloads, where only the baked `CollectionDetail.labels`
- * is available. Any *other* hand-authored front-matter keys are not baked into
- * site data, so they cannot appear in a downloaded file.
+ * Synthesize a front-matter block from the metadata a list detail bakes — for
+ * the browser-side .md downloads, where only `CollectionDetail.labels` and
+ * `CollectionDetail.listImage` are available. Any *other* hand-authored
+ * front-matter key is not baked into site data, so it cannot appear in a
+ * downloaded file.
+ *
+ * Emitted by hand rather than dumped: this module runs in the browser, where a
+ * YAML dumper has no place. String scalars go through `JSON.stringify` — a
+ * double-quoted YAML scalar and a JSON string agree on escaping — and `card` is
+ * a plain integer.
  */
-export function frontMatterFromLabels(
-  labels: readonly CardLabel[] | undefined,
-): FlatListFrontMatter | undefined {
-  if (!labels || labels.length === 0) return undefined
-  const normalized = normalizeCardLabels(labels)
-  return { raw: `---\nlabels: [${normalized.join(', ')}]\n---\n`, data: { labels: normalized } }
+export function frontMatterFor(fields: ListFrontMatterFields): FlatListFrontMatter | undefined {
+  const data: Record<string, unknown> = {}
+  const lines: string[] = []
+  const labels = fields.labels
+  if (labels && labels.length > 0) {
+    const normalized = normalizeCardLabels(labels)
+    data.labels = normalized
+    lines.push(`labels: [${normalized.join(', ')}]`)
+  }
+  const image = fields.image
+  if (image) {
+    const serialized = serializeListImageRef(image)
+    data.image = serialized
+    const [key, value] = Object.entries(serialized)[0] as [string, string | number]
+    lines.push(`image:\n  ${key}: ${typeof value === 'number' ? value : JSON.stringify(value)}`)
+  }
+  if (lines.length === 0) return undefined
+  return { raw: `---\n${lines.join('\n')}\n---\n`, data }
 }
 
 /** Serialize one wanted-list entry to its canonical markdown line. */

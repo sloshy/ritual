@@ -1,6 +1,7 @@
 import type { Condition, DeckData, Finish } from '../../types'
 import type { CardArtRecord } from '../../card-art'
 import type { CardLabel } from '../../card-labels'
+import type { ListImageRef } from '../../list-image'
 import type { CardLanguage } from '../../card-language'
 import type { ParsedWantedEntry } from '../../editor/wanted-entries'
 import type { DeckCardLoadResult, EntryCardLoadResult } from './card-data-loader'
@@ -107,6 +108,13 @@ export interface DeckCardsLoadResult extends ListLoadBase {
    * default the same way; a card's own `labels` override it.
    */
   labels?: CardLabel[]
+  /**
+   * The list's cover image override from its front matter, absent when the
+   * built-in rule chooses the cover. Projected out of `frontMatter` for the same
+   * reason `labels` is: every list type reports it the same way, and a flat list
+   * has no `frontMatter` field to read it out of.
+   */
+  image?: ListImageRef
 }
 
 /** `GET /api/deck/:slug` (`view=full`) — the editor payload: the cards view plus Scryfall data. */
@@ -116,6 +124,8 @@ export interface DeckFullLoadResult extends ListLoadBase, DeckCardLoadResult {
   frontMatter: Record<string, unknown>
   /** See {@link DeckCardsLoadResult.labels}. */
   labels?: CardLabel[]
+  /** See {@link DeckCardsLoadResult.image}. */
+  image?: ListImageRef
   symbolMap: Record<string, string>
 }
 
@@ -133,6 +143,8 @@ export interface FlatCardsLoadResult<T> extends ListLoadBase {
   sectionOrder?: string[]
   /** The list's default card labels from its front matter — collections only. */
   labels?: CardLabel[]
+  /** See {@link DeckCardsLoadResult.image}. Carried by both flat list types. */
+  image?: ListImageRef
 }
 
 /** `view=full` body for a flat list — the cards view plus Scryfall data. */
@@ -142,6 +154,8 @@ export interface FlatFullLoadResult<T> extends ListLoadBase, EntryCardLoadResult
   sectionOrder?: string[]
   /** The list's default card labels from its front matter — collections only. */
   labels?: CardLabel[]
+  /** See {@link DeckCardsLoadResult.image}. Carried by both flat list types. */
+  image?: ListImageRef
   symbolMap: Record<string, string>
 }
 

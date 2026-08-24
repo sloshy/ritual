@@ -10,6 +10,7 @@ import { displayLanguage, scryfallCardLanguage } from '../../card-language'
 import { defaultPrintingFinish } from '../../finish-condition'
 import { getCardPrice, getCardPriceForFinish } from '../../price-currency'
 import type { CardArtMap } from '../../card-art'
+import { isListImageCardRef, readListImage, type ListImageRef } from '../../list-image'
 import type { ScryfallCard } from '../../types'
 import type {
   CardKingdomCards,
@@ -21,14 +22,15 @@ import type {
 import {
   bakeBuylistQuotes,
   cardIdsOf,
-  coverImage,
   customArtLookup,
   includeChangelogCards,
   listReadErrorMessage,
   loadListSidecars,
+  reportListCoverIssue,
+  resolveListCover,
   slugifyListName,
 } from './shared'
-import type { BuylistBakeSource } from './shared'
+import type { BuylistBakeSource, ListCoverOverrideEntry } from './shared'
 import type { SiteDetailContext } from './types'
 import {
   cardPrintingKey,
@@ -42,6 +44,12 @@ export type LoadedWanted = {
   entries: WantedListEntry[]
   /** Section names in file order, including empty sections. */
   sectionOrder: string[]
+  /**
+   * The list's cover image override from its front matter, when it declares a
+   * usable one — the only front-matter key a wanted list interprets. An
+   * unreadable value is reported as one of {@link LoadedWanted.warnings}.
+   */
+  image?: ListImageRef
   /** Custom art from the `.art.json` sidecar, keyed by card id. */
   art?: CardArtMap
   warnings: string[]
@@ -69,8 +77,12 @@ export async function loadWantedSource(
     return listReadErrorMessage(error, filePath)
   }
 
-  const { entries, sectionOrder, warnings } = parseWantedListFile(content)
+  const { entries, sectionOrder, warnings, advisories, frontMatter } = parseWantedListFile(content)
   const displayName = parseTitleFromContent(content) ?? name
+  // The block is carried verbatim by the flat parser, so the cover is read off
+  // its mapping here rather than being interpreted during the parse. A value
+  // the grammar cannot read degrades to an advisory — the list still loads.
+  const { image, advisory } = readListImage(frontMatter?.data ?? {})
 
   const baseName = name.endsWith('.md') ? name.slice(0, -3) : name
   const { changelog, fileMtime, art, artWarnings } = await loadListSidecars(
@@ -84,8 +96,17 @@ export async function loadWantedSource(
     displayName,
     entries,
     sectionOrder,
+    image,
     art,
-    warnings: [...warnings, ...artWarnings],
+    // The parser's own advisories ride the same channel as its warnings and the
+    // sidecar's, so nothing the user should hear about is reported by one
+    // channel and swallowed by another.
+    warnings: [
+      ...warnings,
+      ...advisories,
+      ...(advisory ? [t('site.detail.listImageInvalid', { reason: advisory })] : []),
+      ...artWarnings,
+    ],
     changelog,
     fileMtime,
   }
@@ -133,6 +154,15 @@ export async function buildWantedArtifacts(
   /** Every entry's displayed printing, for the buylist bake (empty when not baking). */
   const buylistSources: BuylistBakeSource[] = []
   const customArtFor = customArtLookup(loaded.art, ctx)
+  /**
+   * The `&N` the list's `image:` override names, when it names one. Captured
+   * from the walk below rather than by a second pass: the entry's printing is
+   * resolved there once, and the cover has to be the very printing the list
+   * page shows for that line.
+   */
+  const coverCardId =
+    loaded.image && isListImageCardRef(loaded.image) ? loaded.image.card : undefined
+  let coverOverride: ListCoverOverrideEntry | undefined
 
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i]!
@@ -326,6 +356,10 @@ export async function buildWantedArtifacts(
       featuredCardId = entry.cardId
     }
 
+    if (entry.cardId !== undefined && entry.cardId === coverCardId) {
+      coverOverride = { card, ...(art.customArt ? { customArt: art.customArt } : {}) }
+    }
+
     cardEntries.push({
       name: entry.name,
       set: entry.set,
@@ -351,6 +385,9 @@ export async function buildWantedArtifacts(
     name: displayName,
     entries: cardEntries,
     sectionOrder,
+    // Baked so a `.md` downloaded from the site re-emits `image:` rather than
+    // dropping it — the front matter a browser can rebuild is only what is here.
+    ...(loaded.image ? { listImage: loaded.image } : {}),
     cards: cardMap,
     ...(Object.keys(cardMapCardKingdom).length > 0 ? { cardsCardKingdom: cardMapCardKingdom } : {}),
     printings: printingsMap,
@@ -363,11 +400,17 @@ export async function buildWantedArtifacts(
     buylist: bakeBuylistQuotes(ctx, buylistSources, printingsMap),
   }
 
-  const featuredImage = coverImage(
+  const featuredCustomArt = customArtFor(featuredCardId).customArt
+  const cover = resolveListCover({
+    ...(loaded.image ? { image: loaded.image } : {}),
+    ...(coverOverride ? { override: coverOverride } : {}),
     featured,
-    ctx.useScryfallImgUrls,
-    customArtFor(featuredCardId).customArt,
-  )
+    ...(featuredCustomArt ? { featuredCustomArt } : {}),
+    useScryfallImgUrls: ctx.useScryfallImgUrls,
+    ...(ctx.missingArtFiles ? { missingArtFiles: ctx.missingArtFiles } : {}),
+  })
+  reportListCoverIssue(cover, 'wanted', displayName, ctx)
+  const featuredImage = cover.url
 
   const summary: WantedListSummary = {
     slug,

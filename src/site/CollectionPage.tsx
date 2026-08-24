@@ -27,6 +27,7 @@ import {
   type CardLabelSelection,
   type PricelessReason,
 } from '../card-labels'
+import type { ListImageRef } from '../list-image'
 import { cardPriceText, cardPricelessReason, pricelessFacts } from './priceless'
 import type { ChangelogPage } from '../changelog-parser'
 import type { PriceCurrency } from '../price-currency'
@@ -86,7 +87,7 @@ import {
   collectionToText,
   collectionToMarkdown,
   collectionToCsv,
-  frontMatterFromLabels,
+  frontMatterFor,
 } from '../editor/list-export'
 import { lookupPrintingCard, printingKey } from '../printing-key'
 import {
@@ -142,6 +143,8 @@ interface CollectionPageProps extends SellModeProps {
   sectionOrder?: string[]
   /** The list's default card labels; entries without an override inherit these. */
   listLabels?: CardLabel[]
+  /** The list's cover image override, re-emitted by the `.md` download. */
+  listImage?: ListImageRef
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
@@ -742,7 +745,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
           props.name,
           props.entries,
           sectionOrder(),
-          frontMatterFromLabels(props.listLabels),
+          frontMatterFor({ labels: props.listLabels, image: props.listImage }),
         )
       case 'csv':
         return collectionToCsv(props.entries)

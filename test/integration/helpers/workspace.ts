@@ -10,7 +10,7 @@ import { serializeSectionedList } from '../../../src/section-format'
 import { formatCollectionLine, formatWantedListLine } from '../../../src/card-line'
 import type { CardLabel } from '../../../src/card-labels'
 import type { CardLanguage } from '../../../src/card-language'
-import { frontMatterFromLabels, withFrontMatter } from '../../../src/editor/list-export'
+import { frontMatterFor, withFrontMatter } from '../../../src/editor/list-export'
 import {
   DEFAULT_SECTION,
   type Card,
@@ -274,7 +274,7 @@ export function collectionMarkdown(fixture: CollectionFixture & { title: string 
         cardId: entry.cardId,
       }),
   )
-  return withFrontMatter(frontMatterFromLabels(fixture.labels), body)
+  return withFrontMatter(frontMatterFor({ labels: fixture.labels }), body)
 }
 
 /** Write `<dir>/collections/<fileName>.md` from a collection fixture; returns the file path. */

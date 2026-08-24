@@ -545,6 +545,8 @@ type FlatListEditorShellProps<E extends FlatEntry> = {
   onSetCustomArt?: (target: CardContextInfo) => void
   /** Open the list-default label editor (admin collection editor only). */
   onEditLabels?: () => void
+  /** Open the list's cover-image editor (admin editors only). */
+  onEditImage?: () => void
   /** The "Swap Printings" wizard's props; mounts the wizard (collection editors only). */
   swap?: SwapPrintingsWizardProps
   /** Offer the whole-list swap from the action bar (admin collection editor). */
@@ -572,6 +574,7 @@ export function FlatListEditorShell<E extends FlatEntry>(
       enableImport={props.enableImport}
       importKind={props.importKind}
       onEditLabels={props.onEditLabels}
+      onEditImage={props.onEditImage}
       // Art is offered at add time exactly where a card's art can be written:
       // the same authed route behind the context menu's "Set Custom Art…".
       enableAddArt={props.onSetCustomArt !== undefined}

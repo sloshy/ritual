@@ -188,6 +188,22 @@ const CARD_ART_REF: JsonSchemaType = {
 }
 
 /**
+ * A list's cover-image override: exactly one of a card line in that list (by its
+ * `&N` id), an art-directory-relative file path, or a URL. Absent means the
+ * built-in rule chooses the cover — a commander deck shows its commander, every
+ * other list its most expensive printing — and `set_list_metadata` restores that
+ * rule with `null`, never with a value.
+ */
+const LIST_IMAGE_REF: JsonSchemaType = {
+  description: 'The list’s cover image override; absent means the built-in cover rule applies.',
+  anyOf: [
+    obj({ card: int('The &N id of a card line in this list.') }, ['card']),
+    obj({ file: str('Image path relative to the configured art directory.') }, ['file']),
+    obj({ url: str('Image URL, referenced verbatim.') }, ['url']),
+  ],
+}
+
+/**
  * A list's custom art, keyed by the `&N` id of the card it belongs to (a decimal
  * string, since JSON object keys are strings). Open by construction: the key set
  * is whichever cards have art.
@@ -668,6 +684,7 @@ export const GET_LIST_OUTPUT: JsonSchemaType = withDefs(
             CARD_LABEL,
             'The deck’s default card labels from front matter ("proxy" alone); a card’s own labels override them.',
           ),
+          image: LIST_IMAGE_REF,
           customArt: CUSTOM_ART_MAP,
           ...GET_LIST_CARDS_PROPS,
         },
@@ -684,6 +701,7 @@ export const GET_LIST_OUTPUT: JsonSchemaType = withDefs(
             CARD_LABEL,
             'The list’s default card labels from front matter (never on a wanted list).',
           ),
+          image: LIST_IMAGE_REF,
           customArt: CUSTOM_ART_MAP,
           ...GET_LIST_CARDS_PROPS,
         },
@@ -1255,6 +1273,7 @@ export const SET_LIST_METADATA_OUTPUT: JsonSchemaType = obj(
         sourceUrl: str('The deck’s URL on the source service.'),
         lastSynced: str('ISO-8601 time of the last successful source sync.'),
         labels: arr(CARD_LABEL, 'The list’s default card labels (decks carry "proxy" alone).'),
+        image: LIST_IMAGE_REF,
       },
     },
   },

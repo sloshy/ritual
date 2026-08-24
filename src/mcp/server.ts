@@ -40,6 +40,9 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   counts, sell reports, and buylist quotes entirely — its absence there is the rule, not a lookup
   failure. In a price report such an entry carries unpricedReason "proxy" or "custom-art"
   ("custom-art" wins when both apply).
+- A list's cover image is list front matter, not a card property: get_list reports it as "image"
+  and set_list_metadata's image field overrides it for any list type; null there restores the
+  built-in rule (a commander deck shows its commander, every other list its priciest printing).
 - Card language: an entry without a language field is English ("en" — a bare card line always
   means English). Adds never prompt for one — the defaultLanguage config key stamps new cards;
   set-language / the language fields change it afterwards. Non-English copies are not quotable

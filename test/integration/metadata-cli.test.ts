@@ -251,7 +251,7 @@ describe('metadata CLI (Integration)', () => {
     ]) {
       const result = await runCli(args, dir)
       expect(result.exitCode).toBe(2)
-      expect(result.stderr).toContain('Wanted lists carry no metadata')
+      expect(result.stderr).toContain('does not cover wanted lists')
     }
   })
 

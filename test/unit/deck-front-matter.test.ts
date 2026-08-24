@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'bun:test'
 import { validateDeckFrontMatter } from '../../src/deck-file'
+import { parseDeckText } from '../../src/importers/text-file'
 
 /**
  * Deck front matter is arbitrary user-authored YAML that ships out over the API
@@ -69,5 +70,43 @@ describe('validateDeckFrontMatter', () => {
     validateDeckFrontMatter(raw)
     expect(raw.description).toBe(7)
     expect(raw.tags).toBe('aggro')
+  })
+})
+
+/**
+ * `image:` is a key users are told to hand-edit, and a whole-deck save re-dumps
+ * the block — so a value the grammar cannot read is dropped *and* warned about
+ * through the same channel a dropped `labels:` uses. A silent delete would erase
+ * the user's line on their next `add-card`.
+ */
+describe('validateDeckFrontMatter and the image key', () => {
+  test('keeps a legal cover mapping, parsed', () => {
+    expect(validateDeckFrontMatter({ image: { card: 12 } }).image).toEqual({ card: 12 })
+    expect(validateDeckFrontMatter({ image: { file: 'alters/x.png' } }).image).toEqual({
+      file: 'alters/x.png',
+    })
+  })
+
+  test('drops a value the grammar cannot read, including every scalar form', () => {
+    expect(validateDeckFrontMatter({ image: 'alters/x.png' })).not.toHaveProperty('image')
+    expect(validateDeckFrontMatter({ image: 12 })).not.toHaveProperty('image')
+    expect(validateDeckFrontMatter({ image: { card: 0 } })).not.toHaveProperty('image')
+    // `image: &12` is a YAML anchor, so the parser sees null — the built-in rule.
+    expect(validateDeckFrontMatter({ image: null })).not.toHaveProperty('image')
+  })
+
+  test('parseDeckText warns about the same value the drop would delete', () => {
+    const deck = ['---', 'image: alters/x.png', '---', '', '## Main', '1 Sol Ring &1', ''].join(
+      '\n',
+    )
+    const parsed = parseDeckText(deck, 'Burn')
+    expect(parsed.warnings.some((warning) => warning.includes("'image' ignored"))).toBe(true)
+  })
+
+  test('parseDeckText is silent about a legal cover', () => {
+    const deck = ['---', 'image:', '  card: 1', '---', '', '## Main', '1 Sol Ring &1', ''].join(
+      '\n',
+    )
+    expect(parseDeckText(deck, 'Burn').warnings).toEqual([])
   })
 })

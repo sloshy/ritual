@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { readCardArtValue } from '../../../src/admin/site/components/CardArtModal'
+import { readCardArtValue } from '../../../src/admin/site/components/ArtRefField'
 
 /**
- * The custom-art dialog's field, minus its markup: what the typed value means
- * under each of the two source modes.
+ * The shared art-reference field, minus its markup: what the typed value means
+ * under each of the two source modes. Both dialogs built on it — a card's
+ * custom art and a list's cover image — refuse a value here on the same terms.
  *
  * The grammar itself belongs to `card-art.ts` (unit-tested there). What is
  * pinned here is that the dialog runs it at all — a card the session added

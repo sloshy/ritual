@@ -38,6 +38,8 @@ type WantedEditorBodyProps = SellModeProps & {
   customArt?: CardArtRefs
   /** Open the custom-art dialog for a card (admin editor only — needs the authed art route). */
   onSetCustomArt?: (target: CardContextInfo) => void
+  /** Open the cover-image editor (admin editor only — needs the authed metadata route). */
+  onEditImage?: () => void
   /** Every list, for the toolbar's share filters (the page drops itself). */
   shareLists?: readonly NamedListRef[]
 }
@@ -69,6 +71,7 @@ export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
       enableImport={props.enableImport}
       importKind="wanted"
       onSetCustomArt={props.onSetCustomArt}
+      onEditImage={props.onEditImage}
     >
       <WantedListPage
         name={props.name}

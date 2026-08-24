@@ -86,6 +86,15 @@ export const helpCardsMessages = {
   'help.note.clear': 'Remove the note from the card',
   'help.note.dryRun': 'Report what the note would become without writing anything',
 
+  // ── set-list-image ────────────────────────────────────────────────────
+  'help.setListImage.description':
+    "Choose a list's cover image: a card in the list, an art file, a URL, or the built-in rule",
+  'help.setListImage.card': 'Use the card with this ID (the &N suffix in list files) as the cover',
+  'help.setListImage.file': 'Use this image as the cover: a path relative to the art directory',
+  'help.setListImage.url': 'Use this http(s) URL as the cover, exactly as given',
+  'help.setListImage.default': "Remove the cover override and fall back to Ritual's own choice",
+  'help.setListImage.dryRun': 'Report what the cover would become without writing anything',
+
   // ── move ──────────────────────────────────────────────────────────────
   'help.move.description':
     'Move cards between decks, collections, and wanted lists — interactively, or scripted with --from/--to',

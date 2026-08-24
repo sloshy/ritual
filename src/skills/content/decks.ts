@@ -61,6 +61,15 @@ ritual metadata list my-deck                      # every field, (unset) include
 ritual metadata unset my-deck description
 \`\`\`
 
+The one front-matter key \`metadata\` does not write is the deck's cover
+\`image:\` — a mapping, not a scalar — which has its own command (see the
+**ritual** skill's *List cover images* section):
+
+\`\`\`bash
+ritual set-list-image my-deck --card 12          # the &N of a line in this deck
+ritual set-list-image my-deck --default          # back to the commander/priciest rule
+\`\`\`
+
 ## One-shot edits (non-interactive — best for agents)
 
 Use the one-shot commands (covered in full by the **ritual-edit** skill) to edit an

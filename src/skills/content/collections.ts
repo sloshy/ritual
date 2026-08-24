@@ -92,6 +92,16 @@ ritual metadata get "Main Binder" labels
 ritual metadata unset "Main Binder" labels            # no default
 \`\`\`
 
+The collection's **cover image** on the published site is front matter too, but a
+mapping rather than a scalar, so it has its own command instead of a
+\`metadata\` property (see the **ritual** skill's *List cover images* section):
+
+\`\`\`bash
+ritual set-list-image "Main Binder" --card 12                 # a line in this collection
+ritual set-list-image "Main Binder" --file alters/binder.png  # art-dir-relative
+ritual set-list-image "Main Binder" --default                 # priciest printing again
+\`\`\`
+
 ## Interactive management
 
 ${interactiveEditIntro({

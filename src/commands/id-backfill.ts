@@ -2,6 +2,7 @@ import type { Command } from 'commander'
 import type { HistoryOptions } from './history'
 import type { ServeCliOptions } from './serve'
 import type { DryRunOptions } from './scripting'
+import type { SetListImageOptions } from './set-list-image'
 
 /**
  * Commands whose action writes list files or consumes persisted `&N` card IDs —
@@ -18,6 +19,11 @@ import type { DryRunOptions } from './scripting'
  * listed themselves. `deck-sync` spells its directions as subcommands, so the
  * two that write list files are listed as `deck-sync pull` / `deck-sync push`;
  * its read-only `status` and its front-matter-only `link` are not.
+ *
+ * `set-list-image` is the third conditional member, alongside `serve` and
+ * `history`: it writes front matter only, so `--file`/`--url`/`--default` have
+ * no business rewriting every list file in the workspace — but `--card` and the
+ * wizard's card picker consume persisted `&N` ids, so those two do.
  *
  * `detect-changes` is deliberately absent even though it reads `&N`: it must
  * see the working tree exactly as the user committed it, so IDs it has no way
@@ -52,6 +58,10 @@ export const COMMANDS_WITH_ID_BACKFILL = [
   'collection-sync',
   // Rewrites every list file into canonical form.
   'cleanup',
+  // Writes only front matter, but its `--card` mode and its wizard's card
+  // picker both name a line by its `&N`; the modes that cannot are skipped in
+  // shouldBackfillCardIds.
+  'set-list-image',
   // The site build and the admin/MCP servers rely on every card line having a
   // persisted ID (trade page, admin editors). Plain `serve` (no --build/--api)
   // is skipped in shouldBackfillCardIds.
@@ -66,6 +76,7 @@ export type BackfillCommandName = (typeof COMMANDS_WITH_ID_BACKFILL)[number]
 const BACKFILL_COMMAND_NAMES: ReadonlySet<string> = new Set(COMMANDS_WITH_ID_BACKFILL)
 
 type ServeModeOptions = Pick<ServeCliOptions, 'build' | 'api'>
+type SetListImageModeOptions = Pick<SetListImageOptions, 'card' | 'file' | 'url' | 'default'>
 type HistoryShowOptions = Pick<HistoryOptions, 'show'>
 
 /**
@@ -89,6 +100,18 @@ export function shouldBackfillCardIds(actionCommand: Command): boolean {
     if (serveOptions.build !== true && serveOptions.api !== true) {
       return false
     }
+  }
+  // `set-list-image` consumes `&N` only when a card is what it is naming: with
+  // `--card` (the id must match a line) or with no mode flag at all, since the
+  // wizard offers the list's cards by id. `--file`/`--url`/`--default` name no
+  // card, and a front-matter-only write must not rewrite every list file.
+  // Commander's `.conflicts()` has already refused two modes at once, so a
+  // non-card mode being named is enough — `--card` cannot also be present.
+  if (leaf === 'set-list-image') {
+    const options = actionCommand.opts<SetListImageModeOptions>()
+    const namesNoCard =
+      options.file !== undefined || options.url !== undefined || options.default === true
+    if (namesNoCard) return false
   }
   // `history --show` is the documented read-only path — it must write nothing.
   if (leaf === 'history' && actionCommand.opts<HistoryShowOptions>().show === true) {

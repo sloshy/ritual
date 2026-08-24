@@ -131,6 +131,7 @@ export const uiMessages = {
   'ui.editor.defaultsActive': 'defaults active',
   'ui.editor.sections': 'Sections',
   'ui.editor.labels': 'Labels',
+  'ui.editor.coverImage': 'Cover Image…',
   'ui.editor.import': 'Import…',
   'ui.editor.swapPrintings': 'Swap Printings…',
   'ui.editor.changes': 'Changes',

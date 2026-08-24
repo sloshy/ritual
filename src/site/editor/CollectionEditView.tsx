@@ -14,11 +14,7 @@ import { findEntryByIdOrName } from '../../editor/entry-targeting'
 import { useFlatListEditController } from '../../editor/flat-list-controller'
 import { applyCollectionChangePrinting, collectionPrintingOf } from '../../editor/collection-config'
 import { CollectionEditorBody } from '../../editor/CollectionEditorBody'
-import {
-  collectionToMarkdown,
-  collectionToCsv,
-  frontMatterFromLabels,
-} from '../../editor/list-export'
+import { collectionToMarkdown, collectionToCsv, frontMatterFor } from '../../editor/list-export'
 import { CollectionPage } from '../CollectionPage'
 import { siteSearch } from './site-search'
 import { createPublicSwapSourceProvider } from './swap-sources'
@@ -126,7 +122,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
               props.detail.name,
               ctrl.editor.data() ?? [],
               ctrl.editor.sectionOrder(),
-              frontMatterFromLabels(props.detail.labels),
+              frontMatterFor({ labels: props.detail.labels, image: props.detail.listImage }),
             ),
         },
         {

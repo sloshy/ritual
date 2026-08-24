@@ -34,6 +34,12 @@ type EditorActionBarProps = {
    * editor (admin collection editor only).
    */
   onEditLabels?: () => void
+  /**
+   * When provided, shows a "Cover Image…" button opening the list's cover-image
+   * editor (admin editors only — the public editor has no metadata route to
+   * write it through).
+   */
+  onEditImage?: () => void
   /** Show the primary Save button. Defaults to true; the public editor exports via its banner instead. */
   showSave?: boolean
   /** Show the Discard button. Defaults to true; the public editor discards via its banner instead. */
@@ -153,6 +159,11 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
         <Show when={props.onEditLabels}>
           <button type="button" class="btn-labels" onClick={() => props.onEditLabels!()}>
             {t('ui.editor.labels')}
+          </button>
+        </Show>
+        <Show when={props.onEditImage}>
+          <button type="button" class="btn-cover-image" onClick={() => props.onEditImage!()}>
+            {t('ui.editor.coverImage')}
           </button>
         </Show>
         <Show when={props.onImport}>

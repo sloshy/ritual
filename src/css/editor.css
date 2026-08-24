@@ -729,9 +729,10 @@
   background: var(--accent);
 }
 
-/* Sections and labels share the defaults button styling. */
+/* Sections, labels and the cover image share the defaults button styling. */
 .btn-sections,
-.btn-labels {
+.btn-labels,
+.btn-cover-image {
   background: var(--btn-bg);
   color: var(--btn-text);
   border: 1px solid var(--border);
@@ -747,7 +748,8 @@
 }
 
 .btn-sections:hover,
-.btn-labels:hover {
+.btn-labels:hover,
+.btn-cover-image:hover {
   background: var(--btn-hover);
 }
 

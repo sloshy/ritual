@@ -181,9 +181,27 @@ export const adminMessages = {
   'admin.labels.desc':
     'The default for every card in this list. Individual cards can override it with their own label.',
   'admin.labels.groupLabel': 'Default labels',
-  'admin.labels.saveFailed': 'Save failed ({status})',
   'admin.labels.saving': 'Saving…',
   'admin.labels.save': 'Save',
+
+  // ── Front-matter writes (shared by every metadata dialog) ─────────────
+  'admin.metadata.saveFailed': 'Save failed ({status})',
+
+  // ── List cover-image dialog ───────────────────────────────────────────
+  'admin.listImage.title': 'Cover Image',
+  'admin.listImage.desc':
+    'The image this list shows on the site. Leave it automatic, or point it at one of its cards, a file in your art directory, or an image on the web.',
+  'admin.listImage.modeLabel': 'Cover image source',
+  'admin.listImage.modeDefault': 'Automatic',
+  'admin.listImage.modeDefaultNote':
+    'A deck shows its commander, and every other list its most expensive card.',
+  'admin.listImage.modeCard': 'A card in this list',
+  'admin.listImage.cardLabel': 'Card',
+  'admin.listImage.noCards': 'This list has no saved cards to choose from yet.',
+  'admin.listImage.previewAlt': 'Cover image preview',
+  'admin.listImage.invalid': 'That cover image is not usable: {reason}',
+  'admin.listImage.saving': 'Saving…',
+  'admin.listImage.save': 'Save',
 
   // ── Custom art dialog ─────────────────────────────────────────────────
   'admin.art.title': 'Custom Art',

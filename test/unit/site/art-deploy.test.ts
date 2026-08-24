@@ -160,6 +160,78 @@ describe('deployCardArt', () => {
     expect(result).toEqual({ copied: [], missing: [], warnings: [] })
   })
 
+  /**
+   * A list's `image:` cover is the second kind of local reference the build has
+   * to deploy — it lives in the list's own front matter, not in any sidecar.
+   */
+  describe('list cover images', () => {
+    /** Write a list file whose front matter carries the given `image:` block. */
+    async function writeCoverList(name: string, imageYaml: string): Promise<string> {
+      const listFilePath = path.join(listsDir, `${name}.md`)
+      await fs.writeFile(listFilePath, `---\nimage:\n${imageYaml}---\n\n# ${name}\n`)
+      return listFilePath
+    }
+
+    test('a cover file is copied like any other art reference', async () => {
+      await writeArt('covers/atraxa.png', 'cover')
+      const list = await writeCoverList('praetors', '  file: covers/atraxa.png\n')
+
+      const result = await deploy([list])
+
+      expect(result.copied.map((f) => f.relPath)).toEqual(['covers/atraxa.png'])
+      expect(await fs.readFile(path.join(buildDir, 'art', 'covers', 'atraxa.png'), 'utf-8')).toBe(
+        'cover',
+      )
+    })
+
+    test('a cover file that is not on disk is reported as missing, not silently baked', async () => {
+      const list = await writeCoverList('praetors', '  file: covers/gone.png\n')
+
+      const result = await deploy([list])
+
+      expect(result.missing).toEqual(['covers/gone.png'])
+      expect(undeployedArtFiles(result)).toEqual(new Set(['covers/gone.png']))
+    })
+
+    test("a cover is deployed even when the list's art sidecar is unreadable", async () => {
+      // The ordering this whole feature depends on: the sidecar guard abandons
+      // the list, so a cover handled after it would be neither copied nor
+      // reported — and the detail would bake a path with no file behind it.
+      await writeArt('covers/atraxa.png', 'cover')
+      const list = await writeCoverList('praetors', '  file: covers/atraxa.png\n')
+      await fs.writeFile(path.join(listsDir, 'praetors.art.json'), '{ not json')
+
+      const result = await deploy([list])
+
+      expect(result.copied.map((f) => f.relPath)).toEqual(['covers/atraxa.png'])
+      expect(result.warnings).toHaveLength(1)
+      expect(result.warnings[0]?.kind).toBe('sidecar-unreadable')
+    })
+
+    test('a cover a card sidecar also names is copied exactly once', async () => {
+      await writeArt('shared.png', 'shared')
+      const listFilePath = path.join(listsDir, 'shared.md')
+      await fs.writeFile(listFilePath, '---\nimage:\n  file: shared.png\n---\n\n# shared\n')
+      await fs.writeFile(
+        path.join(listsDir, 'shared.art.json'),
+        JSON.stringify({ '1': { file: 'shared.png' } }),
+      )
+
+      const result = await deploy([listFilePath])
+
+      expect(result.copied.map((f) => f.relPath)).toEqual(['shared.png'])
+    })
+
+    test('card and url covers name no local file and contribute nothing', async () => {
+      const byCard = await writeCoverList('bycard', '  card: 5\n')
+      const byUrl = await writeCoverList('byurl', '  url: https://example.com/a.jpg\n')
+
+      const result = await deploy([byCard, byUrl])
+
+      expect(result).toEqual({ copied: [], missing: [], warnings: [] })
+    })
+  })
+
   test('undeployedArtFiles collects every path the build did not deploy', async () => {
     const result: CardArtDeployResult = {
       copied: [{ relPath: 'ok.png', sourcePath: 'a', destPath: 'b' }],

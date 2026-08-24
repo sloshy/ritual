@@ -52,6 +52,8 @@ type EditorShellProps<TData, TCardEntry> = {
   importKind?: ListType
   /** Open the list-default label editor (admin collection editor only). */
   onEditLabels?: () => void
+  /** Open the list's cover-image editor (admin editors only). */
+  onEditImage?: () => void
   /**
    * Offer custom art in the add dialog. Set by the hosts that can actually write
    * it — the admin editors, whose art route the staged reference is flushed to.
@@ -251,6 +253,7 @@ export function EditorShell<TData, TCardEntry>(
           onImport={props.enableImport ? editor.dialogs.openImport : undefined}
           onSwapPrintings={props.onSwapPrintings}
           onEditLabels={props.onEditLabels}
+          onEditImage={props.onEditImage}
           showSave={props.showSave}
           showDiscard={props.showDiscard}
           barRef={(el) => (actionBarEl = el)}

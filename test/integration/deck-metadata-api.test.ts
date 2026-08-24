@@ -152,11 +152,11 @@ describe('handleMetadataSave', () => {
     expect(JSON.stringify(body)).toContain("Unknown metadata field 'description'")
   })
 
-  test('wanted lists carry no metadata, so they are refused with a pointer at rename', async () => {
+  test('a wanted list takes image alone, so labels there are an unknown field', async () => {
     const { status, body } = await put('wanted/anything', { labels: ['sale'] })
     expect(status).toBe(400)
     expect(body).toMatchObject({ success: false })
-    expect(JSON.stringify(body)).toContain('rename')
+    expect(JSON.stringify(body)).toContain("Unknown metadata field 'labels'")
   })
 
   test('an unknown field is a 400 and writes nothing', async () => {

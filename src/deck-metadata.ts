@@ -1,6 +1,6 @@
 /**
  * Writing a deck's front-matter metadata — the one path every surface that
- * edits `description`/`tags`/`format`/`labels`/`sourceId`/`sourceUrl` goes through: the
+ * edits `description`/`tags`/`format`/`labels`/`image`/`sourceId`/`sourceUrl` goes through: the
  * admin route `PUT /api/metadata/:type/:slug` (and therefore the MCP
  * `set_list_metadata` tool), and the `deck-sync link` CLI command.
  *
@@ -11,6 +11,7 @@
  */
 
 import type { CardLabel } from './card-labels'
+import { serializeListImageRef, type ListImageRef } from './list-image'
 import { parseDeckFrontMatter, writeDeckFrontMatter, type DeckFrontMatter } from './deck-file'
 import type { DeckFormatKey } from './deck-format'
 
@@ -20,6 +21,7 @@ export const DECK_METADATA_KEYS = [
   'tags',
   'format',
   'labels',
+  'image',
   'sourceId',
   'sourceUrl',
 ] as const
@@ -44,6 +46,8 @@ export type DeckMetadataPatch = {
   format?: DeckFormatKey | null
   /** The deck's default card labels; `null` (or an empty set) clears them. */
   labels?: CardLabel[] | null
+  /** The deck's cover image override; `null` restores the built-in rule. */
+  image?: ListImageRef | null
   sourceId?: string | null
   sourceUrl?: string | null
 }
@@ -59,10 +63,18 @@ function applyField<K extends DeckMetadataKey>(
   value: DeckMetadataPatch[K],
 ): void {
   if (value === undefined) return
-  if (value === null) delete target[key]
+  if (value === null) {
+    delete target[key]
+    return
+  }
+  // A cover is re-built from its reference rather than stored as handed over,
+  // the same rule the flat-list writer states: `ListImageRef` is structural, so
+  // a value carrying extra keys would otherwise reach the YAML dump intact here
+  // while the identical value on a collection is normalized.
+  const stored = key === 'image' ? serializeListImageRef(value as ListImageRef) : value
   // The patch's value type for `key` is exactly the front matter's, but TS cannot
   // relate two indexed accesses through an unresolved `K`.
-  else (target as Record<DeckMetadataKey, unknown>)[key] = value
+  ;(target as Record<DeckMetadataKey, unknown>)[key] = stored
 }
 
 /** Merge a validated patch over existing front matter. */

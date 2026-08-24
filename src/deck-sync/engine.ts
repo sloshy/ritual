@@ -62,7 +62,7 @@ import {
   type UnreadableSource,
 } from '../sync-common'
 import { assignMissingDeckCardIds, collectDeckCardIds } from '../card-id'
-import { reconcileCardArt, reconciledArtPath } from '../card-art'
+import { reconcileListRefs } from '../list-refs'
 import { checkDeckDivergence, describeDivergence } from './divergence'
 import { hashPath, writeFileWithHash } from '../content-hash'
 import { getDecksDir } from '../ritual-config'
@@ -1248,13 +1248,17 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     // propagates while a gap does not.
     writtenFiles.push(...(await saveDeckWithSyncTimestamp(target, updatedDeck, remoteUpdatedAt)))
 
-    // The deck's custom art is filed under its card lines' `&N`, so a pull that
-    // dropped lines must drop their art with them. Only pulls need this: a push
-    // writes the local deck back unchanged apart from its sync stamp.
-    const artPath = reconciledArtPath(
-      await reconcileCardArt(target.filePath, { removed: removedCardIds }),
-    )
-    if (artPath !== undefined) writtenFiles.push(artPath)
+    // The deck's custom art and its cover image are filed under its card lines'
+    // `&N`, so a pull that dropped lines must drop them with those lines. Only
+    // pulls need this: a push writes the local deck back unchanged apart from
+    // its sync stamp.
+    // A cover rewrite touches the deck file a second time, so its paths are
+    // deduplicated against the save's — staging the same path twice would make
+    // the auto-commit's `git add` list lie about what changed.
+    const refs = await reconcileListRefs(target.filePath, { removed: removedCardIds })
+    for (const file of refs.writtenFiles) {
+      if (!writtenFiles.includes(file)) writtenFiles.push(file)
+    }
 
     // Changes are stamped with their card ID. Added and quantity-changed cards
     // resolve against the post-sync deck; removed cards (no longer present)

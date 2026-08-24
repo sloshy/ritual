@@ -5,6 +5,11 @@ import type { CardArtRef } from '../../card-art'
 import type { ListType } from '../../list-type'
 import { t } from '../../i18n/t'
 import type { CardArtSaveResponse } from '../api/art'
+import type {
+  DeckMetadataRequest,
+  FlatListMetadataRequest,
+  MetadataResponse,
+} from '../api/metadata'
 import type { ApiErrorResponse } from '../api/save-helpers'
 
 /**
@@ -65,6 +70,60 @@ export async function putCardArt(
       }
     }
     return { ok: true }
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/**
+ * What a front-matter write did: the file's new front matter and content hash,
+ * or the server's own sentence about why it refused.
+ */
+export type ListMetadataWriteResult =
+  | { ok: true; frontMatter: Record<string, unknown>; contentHash: string }
+  | { ok: false; message: string }
+
+/**
+ * The body a metadata write sends, typed as the route's own request shapes so a
+ * misspelled key — or `labels` on a wanted list — is a compile error here rather
+ * than a 400 at runtime.
+ */
+export type ListMetadataBody = DeckMetadataRequest | FlatListMetadataRequest
+
+/**
+ * `PUT /api/metadata/:type/:slug` — write one or more front-matter keys of a
+ * list (its default labels, its cover image) without touching a card line.
+ *
+ * Every admin dialog that edits front matter goes through here rather than
+ * fetching for itself, so they share one refusal wording and one place the
+ * request shape is stated. `body` carries the keys being written plus the
+ * editor session's `contentHash`; the returned hash **must** be adopted into
+ * that session, or the next card save 409s against the file this write just
+ * rewrote.
+ */
+export async function putListMetadata(
+  listType: ListType,
+  slug: string,
+  body: ListMetadataBody,
+): Promise<ListMetadataWriteResult> {
+  try {
+    const resp = await fetch(`/api/metadata/${listType}/${encodeURIComponent(slug)}`, {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const parsed = (await resp.json()) as MetadataResponse | ApiErrorResponse
+    if (!resp.ok || !parsed.success) {
+      return {
+        ok: false,
+        message:
+          parsed.success === false
+            ? parsed.message
+            : t('admin.metadata.saveFailed', { status: resp.status }),
+      }
+    }
+    return { ok: true, frontMatter: parsed.frontMatter, contentHash: parsed.contentHash }
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) }
   }

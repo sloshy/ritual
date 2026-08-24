@@ -117,6 +117,27 @@ export const helpCardsMeta = {
   'help.note.clear': { description: 'Help for note --clear, which removes an existing note.' },
   'help.note.dryRun': { description: 'Help for note --dry-run.' },
 
+  'help.setListImage.description': {
+    description: 'One-line summary of the `set-list-image` command.',
+  },
+  'help.setListImage.card': {
+    description:
+      'Help for set-list-image --card. "&N" is the literal id syntax used in list files and never translates.',
+  },
+  'help.setListImage.file': {
+    description:
+      'Help for set-list-image --file. The art directory is the configured artDir; the path is relative to it.',
+  },
+  'help.setListImage.url': {
+    description:
+      'Help for set-list-image --url. The build never validates it — the browser is what fetches it.',
+  },
+  'help.setListImage.default': {
+    description:
+      "Help for set-list-image --default, which removes the front-matter key. Ritual's own choice is the commander of a commander deck, otherwise the most expensive printing.",
+  },
+  'help.setListImage.dryRun': { description: 'Help for set-list-image --dry-run.' },
+
   'help.move.description': { description: 'One-line summary of the `move` command.' },
   'help.move.cardName': { description: "Help for move's card-name argument." },
   'help.move.from': {

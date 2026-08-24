@@ -339,7 +339,8 @@ export function registerReadTools(server: McpServer): void {
         'offset page the cards view and are ignored by summary, whose counts always describe the ' +
         'whole filtered set. totalCount reports how many entries matched before limit and offset ' +
         'applied, so you can page. A cards view also carries the list’s default card labels ' +
-        '(labels) and, when any returned card has custom art, customArt keyed by &N id. ' +
+        '(labels), its cover image override (image, absent when the built-in cover rule ' +
+        'applies) and, when any returned card has custom art, customArt keyed by &N id. ' +
         'warnings holds lines the parser could not read (a mutation refuses a list that has any); ' +
         'artWarnings holds custom-art sidecar problems, which block nothing.',
       inputSchema: z.object({

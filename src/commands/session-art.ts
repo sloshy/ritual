@@ -1,12 +1,12 @@
 import {
   loadCardArt,
-  reconcileCardArt,
   type CardArtMap,
   type CardArtReconcileInput,
   type CardArtReconcileResult,
   type CardArtRef,
 } from '../card-art'
 import { t } from '../i18n/t'
+import { reconcileListRefs } from '../list-refs'
 
 /**
  * A CLI edit session's pending custom-art bookkeeping.
@@ -247,6 +247,9 @@ export async function currentSessionArt(
 /**
  * Re-file a saved session's art sidecar and reset the bookkeeping.
  *
+ * The list's cover image is re-pointed in the same step ({@link reconcileListRefs}):
+ * it is filed under an `&N` exactly as the sidecar's entries are.
+ *
  * The pending sets are cleared however the reconcile went — including when it
  * throws — because replaying the same removals against the *next* save would
  * target ids the list has since handed to other cards. The remembered baseline
@@ -268,7 +271,7 @@ export async function commitSessionArt(
     return { ok: true, changed: false }
   }
   try {
-    return await reconcileCardArt(listFilePath, pendingSessionArt(art))
+    return (await reconcileListRefs(listFilePath, pendingSessionArt(art))).art
   } finally {
     art.removed.clear()
     art.added.clear()

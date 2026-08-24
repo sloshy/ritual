@@ -10,13 +10,15 @@ import { computeRepresentativePrints } from '../../scryfall'
 import { getErrorMessage } from '../../errors'
 import { t } from '../../i18n/t'
 import { buylistRequestFor, quoteKey, type BuylistQuote } from '../../buylist'
-import { loadCardArt, type CardArtMap } from '../../card-art'
+import { loadCardArt, type CardArtMap, type CardArtRef } from '../../card-art'
+import { isListImageCardRef, isListImageUrlRef, type ListImageRef } from '../../list-image'
 import { printingFinishPairs } from '../../card-printing'
 import { siteArtUrl } from '../art-url'
 import { resolveCardImageSources } from '../image-sources'
 import type { CardLanguage } from '../../card-language'
 import type { Finish, ScryfallCard } from '../../types'
 import type { BakedBuylist } from '../data-types'
+import type { ListType } from '../../list-type'
 import type { SiteDetailContext } from './types'
 
 /**
@@ -148,18 +150,41 @@ export type CustomArtLookup = (cardId: number | undefined) => BakedCardArt
 const NO_CARD_ART: BakedCardArt = {}
 
 /**
- * Resolve a list's custom art into the fields baked onto each entry: a file
- * reference becomes the site-relative `art/<relpath>` that both the built site
- * and `serve --api`'s `/art/*` route answer for; a URL is carried verbatim.
+ * The display URL one art reference bakes to: a URL verbatim, a file as the
+ * site-relative `art/<relpath>` that both the built site and `serve --api`'s
+ * `/art/*` route answer for — and `undefined` for a file the build referenced
+ * but could not deploy, which is what makes the caller fall back rather than
+ * point at a 404.
+ *
+ * `missing` is the build's undeployed set; passing `undefined` (the live
+ * server, which deploys nothing and serves the art directory itself) bakes
+ * every reference and lets the art route answer for the file. That is
+ * deliberate: a live `file` reference naming a path that is not there 404s in
+ * the browser rather than falling back, exactly as a card's custom art does,
+ * and no `stat()` is added to the request path to "fix" it.
+ *
+ * Shared by {@link customArtLookup} (a card's art) and {@link resolveListCover}
+ * (a list's cover), so the deploy-awareness rule is stated exactly once.
+ */
+export function artRefUrl(
+  ref: CardArtRef,
+  missing: ReadonlySet<string> | undefined,
+): string | undefined {
+  if ('url' in ref) return ref.url
+  if (missing?.has(ref.file)) return undefined
+  return siteArtUrl(ref.file)
+}
+
+/**
+ * Resolve a list's custom art into the fields baked onto each entry: the
+ * display URL from {@link artRefUrl}, and whether the sidecar names the card.
  *
  * References whose file the build could not deploy bake no display URL, so the
  * card falls back to its real art — the build already warned about each of
  * those (`deployCardArt`), so nothing is said here. They still report
  * `hasCustomArt`, which is what keeps the site's pricing in step with
  * `ritual price`: both judge the copy by the *reference* the list wrote, never
- * by whether an image happened to make it into `dist/`. A context with no
- * {@link SiteDetailContext.missingArtFiles} (the live server) bakes every
- * reference and lets the art route answer for the file.
+ * by whether an image happened to make it into `dist/`.
  */
 export function customArtLookup(
   art: CardArtMap | undefined,
@@ -171,9 +196,8 @@ export function customArtLookup(
     if (cardId === undefined) return NO_CARD_ART
     const ref = art.get(cardId)
     if (!ref) return NO_CARD_ART
-    if ('url' in ref) return { customArt: ref.url, hasCustomArt: true }
-    if (missing?.has(ref.file)) return { hasCustomArt: true }
-    return { customArt: siteArtUrl(ref.file), hasCustomArt: true }
+    const url = artRefUrl(ref, missing)
+    return url === undefined ? { hasCustomArt: true } : { customArt: url, hasCustomArt: true }
   }
 }
 
@@ -194,6 +218,100 @@ export function coverImage(
 ): string {
   if (!card) return customArt ?? ''
   return resolveCardImageSources(card, useScryfallImgUrls, customArt).frontImage
+}
+
+/**
+ * The card a `card:` cover names, as the list's own walk found it: the printing
+ * that line displays, plus the custom art the line wears (which wins over the
+ * printing, exactly as it does on the list page).
+ */
+export type ListCoverOverrideEntry = {
+  /** The line's displayed printing; null when the build could not resolve one. */
+  card: ScryfallCard | null
+  /** The line's custom-art display URL, when it has one the build deployed. */
+  customArt?: string
+}
+
+/**
+ * Why a cover override could not be honoured. Returned rather than warned about
+ * so each builder reports it through its own channel — the same split
+ * {@link loadListSidecars} makes with `artWarnings`.
+ */
+export type ListCoverIssue =
+  /** The `&N` the cover names is not on the list any more. */
+  | { kind: 'unknown-card'; id: number }
+  /** The cover's file was referenced but not deployed into the build. */
+  | { kind: 'undeployed-file'; path: string }
+
+export type ListCoverInput = {
+  /** The list's `image:` front-matter override, when it declares one. */
+  image?: ListImageRef
+  /** Present iff `image` is a card reference whose `&N` the entry walk found. */
+  override?: ListCoverOverrideEntry
+  /** The built-in pick: the commander, or the list's most expensive printing. */
+  featured: ScryfallCard | null
+  /** The built-in pick's own custom art, when its line wears some. */
+  featuredCustomArt?: string
+  useScryfallImgUrls: boolean
+  /** The build's undeployed art paths; absent means every reference is baked. */
+  missingArtFiles?: ReadonlySet<string>
+}
+
+/** A resolved cover: the URL to bake, and what went wrong on the way if anything. */
+export type ListCoverResult = {
+  /** The image to bake; empty when there is nothing to show at all. */
+  url: string
+  /** Set when an override was declared but not used; the cover fell back. */
+  issue?: ListCoverIssue
+}
+
+/**
+ * Pick the image a list's index tile shows: its `image:` override when it
+ * declares a usable one, the built-in rule otherwise.
+ *
+ * Pure by design — no context, no list name, no `t()`. Every failure falls back
+ * to the built-in cover and is *reported* rather than logged, so the three
+ * builders (and the live server, which runs the same builders) share one
+ * decision and each one words its own warning.
+ *
+ * The order, and why each branch degrades the way it does:
+ *
+ * 1. No override — today's behaviour byte for byte.
+ * 2. `url` — carried verbatim, never validated. A URL names a resource on
+ *    somebody else's server; whether it loads is the browser's problem, and a
+ *    build-time fetch to find out would be a network call per list.
+ * 3. `file` — deployed like a card's custom art. A file the build could not
+ *    deploy has no URL to bake, so the cover falls back and the caller is told;
+ *    `build-site` already prints one warning per undeployed path, so that
+ *    branch deliberately says nothing more.
+ * 4. `card` whose `&N` no entry carried — the reference is stale (the line was
+ *    removed outside the reconcile), so the caller warns and the cover falls
+ *    back.
+ * 5. `card` the walk found — that line's image, custom art included. A line
+ *    whose printing did not resolve and which wears no art yields an empty
+ *    string and falls back **silently**: the unresolvable-printing warning
+ *    already fired on that entry, and a second message here would double-warn
+ *    every list holding a pin the cache cannot satisfy.
+ */
+export function resolveListCover(input: ListCoverInput): ListCoverResult {
+  const { image, featured, featuredCustomArt, useScryfallImgUrls } = input
+  const fallback = (): string => coverImage(featured, useScryfallImgUrls, featuredCustomArt)
+  if (!image) return { url: fallback() }
+
+  if (isListImageCardRef(image)) {
+    const override = input.override
+    if (!override) return { url: fallback(), issue: { kind: 'unknown-card', id: image.card } }
+    const url = coverImage(override.card, useScryfallImgUrls, override.customArt)
+    return { url: url === '' ? fallback() : url }
+  }
+
+  // A URL is carried verbatim and cannot fail here; only a file reference can
+  // come back undefined, and only because the build did not deploy it — so the
+  // URL branch is settled first and the issue always names a real path.
+  if (isListImageUrlRef(image)) return { url: image.url }
+  const url = artRefUrl(image, input.missingArtFiles)
+  if (url !== undefined) return { url }
+  return { url: fallback(), issue: { kind: 'undeployed-file', path: image.file } }
 }
 
 /**
@@ -300,6 +418,44 @@ export async function includeChangelogCards(
         )
         cardMap[canonical] = repPrints.usd?.representative ?? sorted[0]!
       }
+    }
+  }
+}
+
+/**
+ * Report what {@link resolveListCover} could not honour, through the same
+ * warning sink the builders use for an unresolvable printing.
+ *
+ * Exhaustive on purpose: `undeployed-file` deliberately says **nothing**.
+ * `build-site` already prints its art-missing warning once for every path in
+ * `undeployedArtFiles` — which also covers an unreadable source and a failed
+ * copy — so a second "not found in the art directory" line here would be both a
+ * duplicate and, for a permission error, wrong about the cause.
+ */
+export function reportListCoverIssue(
+  cover: ListCoverResult,
+  listType: ListType,
+  listName: string,
+  ctx: SiteDetailContext,
+): void {
+  const issue = cover.issue
+  if (!issue) return
+  switch (issue.kind) {
+    case 'unknown-card':
+      ctx.warn?.(
+        `  ⚠️  ${t('site.detail.listImageUnknownCard', {
+          kind: listType,
+          name: listName,
+          id: issue.id,
+        })}`,
+      )
+      return
+    case 'undeployed-file':
+      // Intentionally silent — see this function's doc comment.
+      return
+    default: {
+      const unreachable: never = issue
+      throw new Error(`unhandled cover issue: ${JSON.stringify(unreachable)}`)
     }
   }
 }

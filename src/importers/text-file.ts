@@ -15,6 +15,7 @@ import {
   unsupportedLabelsFor,
   type CardLabel,
 } from '../card-labels'
+import { readListImage } from '../list-image'
 import { isDroppedEmptySection, parseDeckFormat } from '../deck-format'
 import { createFenceTracker } from '../markdown-fence'
 import { isListMarkdownFile } from '../list-file-name'
@@ -322,6 +323,15 @@ export function parseDeckText(
   if ('labels' in parsed.data) {
     const defaultLabels = readListDefaultLabels('deck', parsed.data.labels)
     if (defaultLabels.warning) warnings.push(defaultLabels.warning)
+  }
+  // And the same for an unreadable `image:` cover, for the same reason: users
+  // are told to hand-edit this key, so a save that silently deletes it would be
+  // the worst possible outcome.
+  const listImage = readListImage(parsed.data)
+  if (listImage.advisory) {
+    warnings.push(
+      `Front matter 'image' ignored: ${listImage.advisory} A rewrite would drop the key.`,
+    )
   }
   // Fenced code blocks are prose: a card-looking line or a `## Heading` inside
   // one is an example, not deck data, and must not warn either.

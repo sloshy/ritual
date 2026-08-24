@@ -457,6 +457,8 @@ type DeckEditorBodyProps = SellModeProps & {
   cardsCardKingdom?: CardKingdomCards
   /** Open the list-default label editor (admin editor only — needs the authed metadata route). */
   onEditLabels?: () => void
+  /** Open the cover-image editor (admin editor only — needs the authed metadata route). */
+  onEditImage?: () => void
   /** The deck's custom art, resolved onto the card lines the page renders. */
   customArt?: CardArtRefs
   /** Open the custom-art dialog for a card (admin editor only — needs the authed art route). */
@@ -499,6 +501,7 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
       enableImport={props.enableImport}
       importKind="deck"
       onEditLabels={props.onEditLabels}
+      onEditImage={props.onEditImage}
       enableAddArt={props.onSetCustomArt !== undefined}
       swap={props.swap}
       onSwapPrintings={props.onSwapPrintings}

@@ -31,6 +31,8 @@ export const cliMessages = {
   'cli.prompt.subject.artChoice': "a choice of what to do with the card's custom art",
   'cli.prompt.subject.artUrl': 'an image URL',
   'cli.prompt.subject.artFile': 'an image file from the art directory',
+  'cli.prompt.subject.listImageMode': "a choice of how the list's cover image is chosen",
+  'cli.prompt.subject.listImageCard': 'a card from the list to use as its cover image',
 
   // ── `prompts` library strings Ritual overrides ────────────────────────
   //

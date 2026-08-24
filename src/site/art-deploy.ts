@@ -1,16 +1,19 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { cardArtFilePath, loadCardArt } from '../card-art'
+import { isListImageFileRef } from '../list-image'
+import { readListImageFile } from '../list-image-file'
 import { SITE_ART_DIR } from './art-url'
 import { getErrorMessage, hasErrorCode } from '../errors'
 
 /**
  * Copies the local images a build's lists reference into the site tree.
  *
- * A `<list>.art.json` sidecar names its files by their art-dir-relative path,
- * and the built site serves them under that same path below `art/` — so two
- * lists pointing at one image copy it once, and `serve --api`'s `/art/*` route
- * (`src/api/art.ts`) answers for the identical URL without a build at all.
+ * A `<list>.art.json` sidecar — and a list's own `image:` cover — names its
+ * files by their art-dir-relative path, and the built site serves them under
+ * that same path below `art/`, so two lists pointing at one image copy it once
+ * and `serve --api`'s `/art/*` route (`src/api/art.ts`) answers for the
+ * identical URL without a build at all.
  *
  * The URL half of that agreement lives in `art-url.ts`, which the browser
  * bundles can import; this module is node-only.
@@ -75,9 +78,21 @@ async function checkArtSource(filePath: string): Promise<ArtSourceCheck> {
 /**
  * Copy every local image the build's lists reference into `<buildDir>/art/`.
  *
+ * Two kinds of reference are deployed, and both land in the same `copied` /
+ * `missing` accounting so a caller cannot tell them apart or treat them
+ * differently: the file references in a list's `.art.json` sidecar, and the
+ * `image: {file: …}` cover in a list's own front matter.
+ *
  * Sidecars are read without a card-id set: which cards still exist is the
  * detail builder's business, and a stale entry must not stop the file it points
  * at from being deployed for the lists that do use it.
+ *
+ * The cover is read **before** the sidecar, on purpose. An unreadable
+ * `.art.json` abandons the list, and a cover handled after that guard would
+ * never be copied and never enter `missing` — so the detail builder would bake
+ * `art/<relpath>` for a file that is not in `dist/`, a 404 with no warning
+ * anywhere. Reading it here costs one small extra read per list, at build time
+ * only; nothing on a request path does this.
  */
 export async function deployCardArt(options: CardArtDeployOptions): Promise<CardArtDeployResult> {
   const { listFilePaths, artDir, buildDir } = options
@@ -86,7 +101,44 @@ export async function deployCardArt(options: CardArtDeployOptions): Promise<Card
   const warnings: CardArtDeployWarning[] = []
   const seen = new Set<string>()
 
+  /**
+   * Deploy one art-dir-relative path, deduplicated across every list and every
+   * kind of reference. Shared by the covers and the sidecar entries so the two
+   * cannot drift on the dedupe, the source classification, or the warning a
+   * failed copy produces.
+   */
+  const deployRef = async (relPath: string): Promise<void> => {
+    if (seen.has(relPath)) return
+    seen.add(relPath)
+
+    const sourcePath = cardArtFilePath(artDir, { file: relPath })
+    const source = await checkArtSource(sourcePath)
+    if (source.kind === 'missing') {
+      missing.push(relPath)
+      return
+    }
+    if (source.kind === 'unreadable') {
+      warnings.push({ kind: 'source-unreadable', relPath, message: source.message })
+      return
+    }
+    const destPath = path.join(buildDir, SITE_ART_DIR, ...relPath.split('/'))
+    try {
+      await fs.mkdir(path.dirname(destPath), { recursive: true })
+      await fs.copyFile(sourcePath, destPath)
+    } catch (error) {
+      warnings.push({ kind: 'copy-failed', relPath, message: getErrorMessage(error) })
+      return
+    }
+    copied.push({ relPath, sourcePath, destPath })
+  }
+
   for (const listFilePath of listFilePaths) {
+    // A `card:` or `url:` cover names no local file and contributes nothing
+    // here; an unreadable `image:` value is the detail loader's advisory, not a
+    // deploy warning, so it is silently nothing to copy.
+    const cover = await readListImageFile(listFilePath)
+    if (cover.image && isListImageFileRef(cover.image)) await deployRef(cover.image.file)
+
     const loaded = await loadCardArt(listFilePath)
     if (!loaded.ok) {
       warnings.push({ kind: 'sidecar-unreadable', listFilePath, message: loaded.message })
@@ -94,29 +146,7 @@ export async function deployCardArt(options: CardArtDeployOptions): Promise<Card
     }
     for (const ref of loaded.art.values()) {
       if (!('file' in ref)) continue
-      const relPath = ref.file
-      if (seen.has(relPath)) continue
-      seen.add(relPath)
-
-      const sourcePath = cardArtFilePath(artDir, ref)
-      const source = await checkArtSource(sourcePath)
-      if (source.kind === 'missing') {
-        missing.push(relPath)
-        continue
-      }
-      if (source.kind === 'unreadable') {
-        warnings.push({ kind: 'source-unreadable', relPath, message: source.message })
-        continue
-      }
-      const destPath = path.join(buildDir, SITE_ART_DIR, ...relPath.split('/'))
-      try {
-        await fs.mkdir(path.dirname(destPath), { recursive: true })
-        await fs.copyFile(sourcePath, destPath)
-      } catch (error) {
-        warnings.push({ kind: 'copy-failed', relPath, message: getErrorMessage(error) })
-        continue
-      }
-      copied.push({ relPath, sourcePath, destPath })
+      await deployRef(ref.file)
     }
   }
 

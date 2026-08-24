@@ -41,6 +41,7 @@ import { registerExportCommand } from './src/commands/export'
 import { registerCleanupCommand } from './src/commands/cleanup'
 import { registerConfigCommand } from './src/commands/config'
 import { registerMetadataCommand } from './src/commands/metadata'
+import { registerSetListImageCommand } from './src/commands/set-list-image'
 import { registerListAllCardsCommand } from './src/commands/list-all-cards'
 import { registerMcpCommand } from './src/commands/mcp'
 import { registerSkillsCommand } from './src/commands/skills'
@@ -375,6 +376,7 @@ function buildProgram(): Command {
   registerDeleteCommand(program)
   registerEditCommand(program)
   registerMetadataCommand(program)
+  registerSetListImageCommand(program)
   registerHistoryCommand(program)
   registerDiffCommand(program)
   registerGetPrimerCommand(program)

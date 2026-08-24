@@ -2,8 +2,11 @@ import { createMemo, createSignal, type JSX } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
 import type { CardLabel } from '../../../card-labels'
 import type { CardArtRecord } from '../../../card-art'
+import type { ListImageRef } from '../../../list-image'
 import type { CollectionCardEntry } from '../../../site/data-types'
 import { ListLabelsModal } from '../components/ListLabelsModal'
+import { ListImageModal } from '../components/ListImageModal'
+import { flatListImageCardOptions, type ListImageCardOption } from '../list-image-cards'
 import type { ListEditorConfig } from '../../../editor/useEditor'
 import type { EntryCardDataActions } from '../../../editor/useEntryCardData'
 import { collectExistingIds } from '../../../card-id'
@@ -33,6 +36,7 @@ type CollectionDataResponse = {
   entries: CollectionCardEntry[]
   sectionOrder?: string[]
   labels?: CardLabel[]
+  image?: ListImageRef
   customArt?: CardArtRecord
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
@@ -49,6 +53,13 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
   // modal's save (front matter is not part of the card-change pipeline).
   const [listLabels, setListLabels] = createSignal<CardLabel[] | undefined>(undefined)
   const [labelsOpen, setLabelsOpen] = createSignal(false)
+  // The list's cover image, seeded from each load and updated by the Cover
+  // Image modal's save. The picker's rows come from the same load body, so a
+  // card added in this session — whose `&N` exists only client-side until the
+  // next save — is never offered as a cover.
+  const [listImage, setListImage] = createSignal<ListImageRef | undefined>(undefined)
+  const [imageCards, setImageCards] = createSignal<readonly ListImageCardOption[]>([])
+  const [imageOpen, setImageOpen] = createSignal(false)
   const cardArt = useCardArt('collection')
 
   const buildConfig = (
@@ -75,6 +86,8 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
       // load must clear the previous list's labels and art rather than leave
       // them decorating whatever is on screen.
       setListLabels(r.labels)
+      setListImage(r.image)
+      setImageCards(r.success ? flatListImageCardOptions(r.entries, r.cards) : [])
       // The ids the *saved* list holds: an art edit on any other card has to
       // wait for the save that gives its line an `&N`.
       cardArt.adopt(r.slug, r.customArt, r.success ? collectExistingIds(r.entries) : [])
@@ -155,11 +168,25 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
         listLabels={listLabels()}
         enableImport={true}
         onEditLabels={() => setLabelsOpen(true)}
+        onEditImage={() => setImageOpen(true)}
         customArt={cardArt.art()}
         onSetCustomArt={cardArt.open}
         shareLists={shareLists()}
         swap={ctrl.swapWizardProps({ currency: ctrl.editor.currency() })}
         onSwapPrintings={() => ctrl.openSwapPrintings('all')}
+      />
+      <ListImageModal
+        open={imageOpen()}
+        onClose={() => setImageOpen(false)}
+        type="collection"
+        slug={ctrl.editor.slug()}
+        image={listImage()}
+        cards={imageCards()}
+        contentHash={ctrl.editor.contentHash()}
+        onSaved={(image, contentHash) => {
+          setListImage(image)
+          ctrl.editor.setContentHash(contentHash)
+        }}
       />
       <ListLabelsModal
         open={labelsOpen()}

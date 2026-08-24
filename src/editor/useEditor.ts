@@ -334,6 +334,14 @@ export type UseEditorResult<TData, TCardEntry> = {
    */
   setContentHash: (hash: string) => void
   extra: Accessor<Record<string, unknown>>
+  /**
+   * Replace the load-time extras mid-session — for an out-of-band write to the
+   * same file that returns a fresher copy of what they snapshot (the deck
+   * editor's `frontMatter`, rewritten by the labels and cover dialogs). Without
+   * it the next card save would re-send the snapshot taken at load and delete
+   * the key that write just added.
+   */
+  setExtra: (extra: Record<string, unknown>) => void
   /** The currency price displays use (the config's accessor, or a USD constant). */
   currency: Accessor<PriceCurrency>
   getOriginal: () => TData | null
@@ -1128,6 +1136,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     contentHash,
     setContentHash: (hash: string) => setContentHash(hash),
     extra,
+    setExtra: (next: Record<string, unknown>) => setExtra(next),
     currency,
     getOriginal: () => original,
     isDataReady,

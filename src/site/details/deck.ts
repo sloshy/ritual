@@ -5,6 +5,8 @@ import { extractChangelogCardNames } from '../../changelog-parser'
 import type { ChangelogPage } from '../../changelog-parser'
 import { effectiveLabels, isPriceless, type CardLabel } from '../../card-labels'
 import type { CardArtMap } from '../../card-art'
+import { isListImageCardRef, type ListImageRef } from '../../list-image'
+import { readListImageFile } from '../../list-image-file'
 import { extractPrimerCardNames } from '../../primer-parser'
 import { resolveDeckFormat, getMainDeckSize, isCommanderSection } from '../../deck-format'
 import { findPrinting, hasSpecificPrinting } from '../../card-printing'
@@ -12,17 +14,19 @@ import { formatPrintingLabel, printingKey } from '../../printing-key'
 import { getCardPrice } from '../../price-currency'
 import type { PriceCurrency } from '../../price-currency'
 import { getErrorMessage } from '../../errors'
+import { t } from '../../i18n/t'
 import type { Card, DeckData, ScryfallCard } from '../../types'
 import type { BakedDeckData, CardKingdomCards, DeckDetail, DeckSummary } from '../data-types'
 import {
   bakeBuylistQuotes,
   cardIdsOf,
-  coverImage,
   customArtLookup,
   loadListSidecars,
+  reportListCoverIssue,
+  resolveListCover,
   slugifyListName,
 } from './shared'
-import type { BuylistBakeSource, CustomArtLookup } from './shared'
+import type { BuylistBakeSource, CustomArtLookup, ListCoverOverrideEntry } from './shared'
 import type { SiteDetailContext } from './types'
 
 export type LoadedDeck = {
@@ -30,6 +34,12 @@ export type LoadedDeck = {
   changelog: ChangelogPage[]
   /** The deck's default card labels from its front matter, when declared. */
   labels?: CardLabel[]
+  /**
+   * The deck's cover image override from its front matter, when it declares a
+   * usable one. An unreadable `image:` value is already reported as one of
+   * {@link LoadedDeck.warnings} by the deck parser.
+   */
+  image?: ListImageRef
   /** Custom art from the `.art.json` sidecar, keyed by card id. */
   art?: CardArtMap
   /** Lines the deck parser could not read — reported by callers, never fatal. */
@@ -51,13 +61,25 @@ export async function loadDeckSource(
   let data: DeckData
   let warnings: string[]
   let labels: CardLabel[] | undefined
+  let image: ListImageRef | undefined
+  let imageAdvisory: string | undefined
   try {
     const parsed = await loadDeckFile(filePath)
     data = parsed.deck
     warnings = parsed.warnings
-    // The deck's label default lives in front matter, which the deck parser
-    // does not project onto DeckData; the site resolves each line against it.
-    labels = (await parseDeckFrontMatter(filePath)).labels
+    // The deck's label default and its cover override both live in front
+    // matter, which the deck parser does not project onto DeckData; the site
+    // resolves each line against the labels and picks the cover below. Read
+    // once — the file is already on disk and validated by the same call.
+    const frontMatter = await parseDeckFrontMatter(filePath)
+    labels = frontMatter.labels
+    image = frontMatter.image
+    // `validateDeckFrontMatter` drops an `image:` the cover grammar cannot
+    // read, and the deck's next whole-file save then deletes it outright — so
+    // the raw value is read back and reported here, exactly as the flat-list
+    // parsers report theirs. Paid only by a deck that ended up with no usable
+    // cover, which is every deck that never set one.
+    if (image === undefined) imageAdvisory = (await readListImageFile(filePath)).advisory
   } catch (e) {
     return getErrorMessage(e)
   }
@@ -70,7 +92,21 @@ export async function loadDeckSource(
     { knownCardIds: cardIdsOf(data.sections.flatMap((section) => section.cards)) },
   )
 
-  return { data, changelog, labels, art, warnings: [...warnings, ...artWarnings], fileMtime }
+  return {
+    data,
+    changelog,
+    labels,
+    image,
+    art,
+    // One channel for everything the user must hear about, in the order it was
+    // discovered: unreadable lines, an ignored `image:`, then the art sidecar's.
+    warnings: [
+      ...warnings,
+      ...(imageAdvisory ? [t('site.detail.listImageInvalid', { reason: imageAdvisory })] : []),
+      ...artWarnings,
+    ],
+    fileMtime,
+  }
 }
 
 /**
@@ -352,11 +388,34 @@ export async function buildDeckArtifacts(
   const format = resolveDeckFormat(deckData)
   const latestChangelog = changelog[0]?.timestamp
   const lastUpdatedAt = latestChangelog ?? fileMtime
-  const featuredImage = coverImage(
+  // The deck's `image:` override, when it names one of its own card lines. A
+  // deck has no flat entry list to piggyback on (its cards live in sections and
+  // are baked through `withDeckCustomArt`), so the line is found by an explicit
+  // walk and resolved through the same `entryCard` the rest of the build uses —
+  // a pinned cover is that printing here exactly as it is on the deck page.
+  const coverCardId =
+    loaded.image && isListImageCardRef(loaded.image) ? loaded.image.card : undefined
+  let coverOverride: ListCoverOverrideEntry | undefined
+  if (coverCardId !== undefined) {
+    const coverEntry = deckData.sections
+      .flatMap((section) => section.cards)
+      .find((card) => card.cardId === coverCardId)
+    if (coverEntry) {
+      const art = customArtFor(coverEntry.cardId).customArt
+      coverOverride = { card: entryCard(coverEntry), ...(art ? { customArt: art } : {}) }
+    }
+  }
+  const featuredCustomArt = customArtFor(featuredEntry?.cardId).customArt
+  const cover = resolveListCover({
+    ...(loaded.image ? { image: loaded.image } : {}),
+    ...(coverOverride ? { override: coverOverride } : {}),
     featured,
+    ...(featuredCustomArt ? { featuredCustomArt } : {}),
     useScryfallImgUrls,
-    customArtFor(featuredEntry?.cardId).customArt,
-  )
+    ...(ctx.missingArtFiles ? { missingArtFiles: ctx.missingArtFiles } : {}),
+  })
+  reportListCoverIssue(cover, 'deck', deckData.name, ctx)
+  const featuredImage = cover.url
 
   // Compute deck prices (mainboard + sideboard + commander, not extras)
   let deckTotalPrice = 0

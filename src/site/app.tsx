@@ -672,6 +672,7 @@ function App() {
                           slug={wantedListSlug() ?? undefined}
                           entries={wantedListDetail()!.entries}
                           sectionOrder={wantedListDetail()!.sectionOrder}
+                          listImage={wantedListDetail()!.listImage}
                           cards={wantedListDetail()!.cards}
                           cardsCardKingdom={wantedListDetail()!.cardsCardKingdom}
                           printings={wantedListDetail()!.printings ?? {}}
@@ -734,6 +735,7 @@ function App() {
                           entries={collectionDetail()!.entries}
                           sectionOrder={collectionDetail()!.sectionOrder}
                           listLabels={collectionDetail()!.labels}
+                          listImage={collectionDetail()!.listImage}
                           cards={collectionDetail()!.cards}
                           printings={collectionDetail()!.printings ?? {}}
                           symbolMap={collectionDetail()!.symbolMap}

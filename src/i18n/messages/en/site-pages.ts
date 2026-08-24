@@ -212,4 +212,13 @@ export const sitePagesMessages = {
     "No {language} card object for '{name}' ({printing}); using the default-language object",
   'site.detail.artUnreadable': 'Custom art sidecar ignored: {reason}',
   'site.detail.artUnknownCards': 'Custom art is set for cards no longer in this list: {ids}',
+  'site.detail.listImageInvalid': "Front matter 'image' ignored: {reason}",
+  'site.detail.listImageUnknownCard': {
+    $select: 'kind',
+    deck: "List image for deck '{name}' references card &{id}, which is no longer in the list — using the default cover",
+    collection:
+      "List image for collection '{name}' references card &{id}, which is no longer in the list — using the default cover",
+    wanted:
+      "List image for wanted list '{name}' references card &{id}, which is no longer in the list — using the default cover",
+  },
 } as const satisfies MessageCatalogShape

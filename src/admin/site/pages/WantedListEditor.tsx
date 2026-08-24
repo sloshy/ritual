@@ -2,6 +2,7 @@ import { createMemo, createSignal, type JSX } from 'solid-js'
 import type { ScryfallCard } from '../../../types'
 import type { CardKingdomCards, WantedListCardEntry } from '../../../site/data-types'
 import type { CardArtRecord } from '../../../card-art'
+import type { ListImageRef } from '../../../list-image'
 import type { ListEditorConfig } from '../../../editor/useEditor'
 import type { EntryCardDataActions } from '../../../editor/useEntryCardData'
 import { collectExistingIds } from '../../../card-id'
@@ -18,6 +19,8 @@ import { useAdminLists, listInfosToNamedRefs, moveTargetsExcluding } from '../mo
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
 import { useCardArt } from '../hooks/useCardArt'
+import { ListImageModal } from '../components/ListImageModal'
+import { flatListImageCardOptions, type ListImageCardOption } from '../list-image-cards'
 import { sellModeEnabled } from '../sell-enabled'
 
 type WantedListListResponse = { wantedLists?: { slug: string; name: string }[] }
@@ -26,6 +29,7 @@ type WantedListDataResponse = {
   success: boolean
   entries: WantedListCardEntry[]
   sectionOrder?: string[]
+  image?: ListImageRef
   customArt?: CardArtRecord
   cards: Record<string, ScryfallCard | null>
   cardsCardKingdom?: CardKingdomCards
@@ -41,6 +45,13 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
   const defaultCurrency = useDefaultCurrency()
   const cardArt = useCardArt('wanted')
   const [ckCards, setCkCards] = createSignal<CardKingdomCards | undefined>(undefined)
+  // The list's cover image, seeded from each load and updated by the Cover
+  // Image modal's save — the one front-matter key a wanted list carries. The
+  // picker's rows come from the same load body, so a card added in this session
+  // — whose `&N` exists only client-side until the next save — is never offered.
+  const [listImage, setListImage] = createSignal<ListImageRef | undefined>(undefined)
+  const [imageCards, setImageCards] = createSignal<readonly ListImageCardOption[]>([])
+  const [imageOpen, setImageOpen] = createSignal(false)
 
   const buildConfig = (
     cardActions: EntryCardDataActions,
@@ -63,9 +74,11 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
 
     processLoadResponse: (response) => {
       const r = response as WantedListDataResponse
-      // Adopted before the failure check: art is per-list state, so a failed
-      // load must clear the previous list's rather than leave it decorating
-      // whatever is on screen.
+      // Adopted before the failure check: the cover and the art are per-list
+      // state, so a failed load must clear the previous list's rather than
+      // leave them decorating whatever is on screen.
+      setListImage(r.image)
+      setImageCards(r.success ? flatListImageCardOptions(r.entries, r.cards) : [])
       // The ids the *saved* list holds: an art edit on any other card has to
       // wait for the save that gives its line an `&N`.
       cardArt.adopt(r.slug, r.customArt, r.success ? collectExistingIds(r.entries) : [])
@@ -136,19 +149,35 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
     ctrl.editor.list().find((c) => c.slug === ctrl.editor.slug())?.name ?? ctrl.editor.slug() ?? ''
 
   return (
-    <WantedEditorBody
-      enableSellMode={sellModeEnabled()}
-      ctrl={ctrl}
-      defaults={defaults}
-      search={adminSearch}
-      currency={ctrl.editor.currency()}
-      useScryfallImgUrls={true}
-      name={name()}
-      enableImport={true}
-      customArt={cardArt.art()}
-      onSetCustomArt={cardArt.open}
-      cardsCardKingdom={ckCards()}
-      shareLists={shareLists()}
-    />
+    <>
+      <WantedEditorBody
+        enableSellMode={sellModeEnabled()}
+        ctrl={ctrl}
+        defaults={defaults}
+        search={adminSearch}
+        currency={ctrl.editor.currency()}
+        useScryfallImgUrls={true}
+        name={name()}
+        enableImport={true}
+        customArt={cardArt.art()}
+        onSetCustomArt={cardArt.open}
+        cardsCardKingdom={ckCards()}
+        shareLists={shareLists()}
+        onEditImage={() => setImageOpen(true)}
+      />
+      <ListImageModal
+        open={imageOpen()}
+        onClose={() => setImageOpen(false)}
+        type="wanted"
+        slug={ctrl.editor.slug()}
+        image={listImage()}
+        cards={imageCards()}
+        contentHash={ctrl.editor.contentHash()}
+        onSaved={(image, contentHash) => {
+          setListImage(image)
+          ctrl.editor.setContentHash(contentHash)
+        }}
+      />
+    </>
   )
 }

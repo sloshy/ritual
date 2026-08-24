@@ -6,13 +6,8 @@ import {
 import { cardCache } from '../../cache'
 import { CACHE_REFRESH_REMEDY } from '../../cache/status'
 import { computeHash, hashPath, writeFileWithHash } from '../../content-hash'
-import {
-  reconcileCardArt,
-  reconciledArtPath,
-  type CardArtMap,
-  type CardArtRef,
-  type CardArtReconcileInput,
-} from '../../card-art'
+import { type CardArtMap, type CardArtRef, type CardArtReconcileInput } from '../../card-art'
+import { reconcileListRefs } from '../../list-refs'
 import { appendChangelog } from '../../changelog-writer'
 import type { EntryWithCardId } from '../../card-id'
 import type { DeckData } from '../../types'
@@ -698,16 +693,20 @@ function artReconcile(tail: ListSaveTail): CardArtReconcileInput {
  * first and now matches the other two (as does the deck-sync engine).
  */
 export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailResult> {
-  const contentHash = await writeFileWithHash(tail.filePath, tail.content)
+  const written = await writeFileWithHash(tail.filePath, tail.content)
 
   const filesToCommit = [tail.filePath, hashPath(tail.filePath), ...(tail.extraFiles ?? [])]
-  // Custom art is filed under a card line's `&N`, and this save may have freed
-  // ids (a removed or moved-out line, whose number the pool hands to the next
-  // card added) or renumbered them. Re-file before the commit, so the sidecar
-  // travels with the list file it describes.
-  const art = await reconcileCardArt(tail.filePath, artReconcile(tail))
-  const artPath = reconciledArtPath(art)
-  if (artPath !== undefined) filesToCommit.push(artPath)
+  // Custom art and the list's cover image are both filed under a card line's
+  // `&N`, and this save may have freed ids (a removed or moved-out line, whose
+  // number the pool hands to the next card added) or renumbered them. Re-file
+  // before the commit, so both travel with the list file they describe.
+  const refs = await reconcileListRefs(tail.filePath, artReconcile(tail))
+  const art = refs.art
+  filesToCommit.push(...refs.writtenFiles)
+  // A cover rewrite re-serializes the front matter, so the hash the client is
+  // handed has to be the one *after* it — otherwise the session's next save
+  // 409s against a write this save itself performed.
+  const contentHash = refs.contentHash ?? written
   if (tail.changes.length > 0) {
     const changelogPath = await appendChangelog(tail.filePath, tail.changelogName, tail.changes, {
       continueSession: tail.continueSession,
@@ -718,7 +717,8 @@ export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailRe
   await autoCommitAndPush(
     dirForType(tail.listType),
     // A move may already have re-filed this list's own sidecar (an arriving
-    // copy's art), so the path can be in `extraFiles` and here.
+    // copy's art), so the path can be in `extraFiles` and here — as can the
+    // list file itself, which a cover rewrite touches a second time.
     [...new Set(filesToCommit)],
     `Edit ${listTypeLabel(tail.listType)}: ${tail.changelogName} (${tail.changes.length} changes)`,
   )

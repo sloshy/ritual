@@ -830,8 +830,11 @@ which, like any session save, rewrites the whole file in canonical form), the ad
 **Labels** button, by hand-editing the file, or via the MCP `set_list_metadata` tool.
 The editor action refuses to run when the existing block's YAML cannot be read — a merge over
 keys it cannot see would clobber them; fix the block by hand (every other session edit still
-carries it verbatim). Wanted lists carry no front-matter keys of their own, though a block on one
-is preserved.
+carries it verbatim). A wanted list carries exactly one front-matter key of its own — the cover
+[`image:`](/list-images/), which [`set-list-image`](/commands/set-list-image/) writes — and any
+other block on one is preserved. Note that a cover written from outside while a session is open is
+dropped by that session's next save, since the session re-emits the block it snapshotted when it
+opened.
 
 ## Wanted Lists
 

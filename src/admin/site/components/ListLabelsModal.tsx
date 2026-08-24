@@ -4,8 +4,7 @@ import type { CardLabel, CardLabelChoice } from '../../../card-labels'
 import { cardLabelDefaultChoicesFor, sameCardLabels } from '../../../card-labels'
 import type { ListType } from '../../../list-type'
 import { useT, useTKey } from '../../../ui/i18n'
-import type { MetadataResponse } from '../../api/metadata'
-import type { ApiErrorResponse } from '../../api/save-helpers'
+import { putListMetadata } from '../editor-backend'
 
 type ListLabelsModalProps = {
   open: boolean
@@ -18,8 +17,17 @@ type ListLabelsModalProps = {
   labels: CardLabel[] | undefined
   /** The editor session's content hash — the metadata write's concurrency token. */
   contentHash: string
-  /** Adopt the write: the new default labels and the file's new content hash. */
-  onSaved: (labels: CardLabel[] | undefined, contentHash: string) => void
+  /**
+   * Adopt the write: the new default labels, the file's new content hash, and
+   * the full front matter the write produced — the deck editor holds a snapshot
+   * of that block and re-sends it with every card save, so a stale one would
+   * delete the very key this dialog just wrote.
+   */
+  onSaved: (
+    labels: CardLabel[] | undefined,
+    contentHash: string,
+    frontMatter: Record<string, unknown>,
+  ) => void
 }
 
 /**
@@ -56,33 +64,18 @@ export const ListLabelsModal: Component<ListLabelsModalProps> = (props) => {
     if (!slug) return
     setSaving(true)
     setError(null)
-    try {
-      const labels = selected()
-      const resp = await fetch(`/api/metadata/${props.type}/${encodeURIComponent(slug)}`, {
-        method: 'PUT',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          labels: labels.length > 0 ? labels : null,
-          contentHash: props.contentHash,
-        }),
-      })
-      const body = (await resp.json()) as MetadataResponse | ApiErrorResponse
-      if (!resp.ok || !body.success) {
-        setError(
-          body.success === false
-            ? body.message
-            : t('admin.labels.saveFailed', { status: resp.status }),
-        )
-        return
-      }
-      props.onSaved(labels.length > 0 ? labels : undefined, body.contentHash)
-      props.onClose()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setSaving(false)
+    const labels = selected()
+    const result = await putListMetadata(props.type, slug, {
+      labels: labels.length > 0 ? labels : null,
+      contentHash: props.contentHash,
+    })
+    setSaving(false)
+    if (!result.ok) {
+      setError(result.message)
+      return
     }
+    props.onSaved(labels.length > 0 ? labels : undefined, result.contentHash, result.frontMatter)
+    props.onClose()
   }
 
   return (

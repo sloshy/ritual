@@ -10,6 +10,7 @@ import { CARD_LANGUAGES } from '../card-language'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
 import { isListType } from '../list-type'
 import { VALID_CURRENCIES } from '../price-currency'
+import type { ListImageRef } from '../list-image'
 
 /**
  * Shared zod field schemas composed into each tool's `inputSchema` object.
@@ -150,6 +151,44 @@ export const cardIdTargetField = cardIdNumber.describe(
   'The card line’s persistent card ID (the &N suffix; get_list reports it). Ids are recycled ' +
     'after removals, so take one from a current get_list read.',
 )
+
+/**
+ * A list's cover image override, in exactly the value space the front matter,
+ * the `PUT /api/metadata/:type/:slug` body and the editors all speak: a
+ * single-key mapping naming a card line in the list (`&N`), a file under the
+ * configured art directory, or an absolute URL. There is deliberately no scalar
+ * spelling and no `"default"` — a cover reverts to the built-in rule (commander,
+ * else the most expensive printing) by sending `null`, which is the same
+ * null-clears encoding every other metadata field uses.
+ *
+ * The three arms are `.strict()` so a typo'd key (`{ crd: 3 }`) is refused here
+ * with the field named rather than reaching the route as a mapping with no
+ * recognized key. Everything the schema cannot know — whether the `&N` is a line
+ * this list actually has, whether the path has a servable extension — is the
+ * route's own 400, since validation lives once, in the handler.
+ */
+export const listImageSchema = z.union([
+  z.object({ card: cardIdNumber.describe('The &N id of a card line in this list.') }).strict(),
+  z
+    .object({ file: z.string().min(1).describe('Image path relative to the art directory.') })
+    .strict(),
+  z
+    .object({
+      url: z
+        .string()
+        .url()
+        // http(s) only, the same rule `parseCardArtRef` enforces: advertising a
+        // bare `z.url()` would accept `mailto:` here and have the route refuse
+        // it with a 400 the schema said was fine.
+        .refine((value) => /^https?:\/\//i.test(value), {
+          message: 'must be an absolute http(s) URL',
+        })
+        .describe('Absolute http(s) image URL, used verbatim.'),
+    })
+    .strict(),
+  // Pinned to the engine union: a fourth mode, or a renamed key, is a compile
+  // error here rather than a schema that silently stopped describing the value.
+]) satisfies z.ZodType<ListImageRef>
 
 /**
  * A required set code — the array-element form: `z.array(setCodeField)`.

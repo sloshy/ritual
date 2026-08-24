@@ -328,7 +328,7 @@ export const cliInfraMeta = {
   },
   'cli.buildSite.artMissing': {
     description:
-      'Warning: a card points at a custom-art image that is not in the art directory, so the card keeps its normal art. {path} is the path as written in the sidecar; {dir} is the art directory. Keep the indentation.',
+      "Warning: a local image is referenced but is not in the art directory, so whatever referenced it falls back — a card to its normal art, a list's cover to the built-in one. {path} is the path as written in the sidecar or in the list's 'image' front matter; {dir} is the art directory. Keep the indentation.",
   },
   'cli.buildSite.artSidecarFailed': {
     description:

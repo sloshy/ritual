@@ -53,7 +53,7 @@ import { serializeCardLine } from '../deck-file'
 import { COMMANDER_SECTION, isCommanderSection, isSideboardSection } from '../deck-format'
 import { DEFAULT_SECTION } from '../types'
 import { hashPath, writeFileWithHash } from '../content-hash'
-import { reconcileCardArt, reconciledArtPath } from '../card-art'
+import { reconcileListRefs } from '../list-refs'
 import { endsInsideOpenFence, frontMatterBodyStart, markFencedLines } from '../markdown-fence'
 import { appendChangelog } from '../changelog-writer'
 import { allocateNextIdFromContent } from '../card-id'
@@ -128,14 +128,13 @@ export async function applyTargetedChanges(
   const changelogPath = await appendChangelog(filePath, slug, stamped)
   const writtenFiles = [filePath, hashPath(filePath), changelogPath]
 
-  // A deleted line releases its `&N` to the reuse pool, so custom art left
-  // filed under it would surface on whichever card takes the id next.
+  // A deleted line releases its `&N` to the reuse pool, so custom art — or a
+  // cover image — left filed under it would surface on whichever card takes the
+  // id next.
   const gone = removedLineCardId(newContent, type, resolved, stamped)
-  if (gone !== undefined) {
-    const artPath = reconciledArtPath(await reconcileCardArt(filePath, { removed: [gone] }))
-    if (artPath !== undefined) writtenFiles.push(artPath)
-  }
-  return { writtenFiles }
+  if (gone === undefined) return { writtenFiles }
+  const refs = await reconcileListRefs(filePath, { removed: [gone] })
+  return { writtenFiles: [...new Set([...writtenFiles, ...refs.writtenFiles])] }
 }
 
 /**

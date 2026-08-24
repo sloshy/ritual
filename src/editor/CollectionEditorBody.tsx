@@ -40,6 +40,8 @@ type CollectionEditorBodyProps = SellModeProps & {
   enableTrade?: boolean
   /** Open the list-default label editor (admin editor only — needs the authed metadata route). */
   onEditLabels?: () => void
+  /** Open the cover-image editor (admin editor only — needs the authed metadata route). */
+  onEditImage?: () => void
   /** The list's custom art, resolved onto the entries the page renders. */
   customArt?: CardArtRefs
   /** Open the custom-art dialog for a card (admin editor only — needs the authed art route). */
@@ -93,6 +95,7 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
       enableImport={props.enableImport}
       importKind="collection"
       onEditLabels={props.onEditLabels}
+      onEditImage={props.onEditImage}
       onSetCustomArt={props.onSetCustomArt}
       swap={props.swap}
       onSwapPrintings={props.onSwapPrintings}

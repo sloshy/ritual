@@ -130,7 +130,7 @@ const ART_BROWSE_LIMIT = 15
  * pickers use). Returns the art-dir-relative path, or null when the user backs
  * out or there is nothing to pick.
  */
-async function browseArtFile(): Promise<string | null> {
+export async function browseArtFile(): Promise<string | null> {
   const artDir = getArtDir()
   let dir = ''
   while (true) {
@@ -228,6 +228,28 @@ function acceptedArt(ref: CardArtRef | CardArtRefError): CardArtEdit | null {
 }
 
 /**
+ * Ask for an image URL, returning the raw text or null when the user backs out.
+ *
+ * A blank submit is a way out, not a value: the URL parser would report it as
+ * `"" is not a valid URL`, which reads as a typo rather than as the "never mind"
+ * it was. Clearing what is stored is a menu row's job, not an empty answer's.
+ *
+ * The text is deliberately returned unparsed — `set-list-image` shares this
+ * prompt but refuses a bad value in its own words ("Cover image unchanged"),
+ * which it could not do if the parse and the report happened here.
+ */
+export async function promptArtUrl(initial: string): Promise<string | null> {
+  const value = await ask<string>({
+    type: 'text',
+    message: t('cli.art.promptUrl'),
+    subjectKey: 'cli.prompt.subject.artUrl',
+    initial,
+  })
+  if (value === undefined || value.trim() === '') return null
+  return value
+}
+
+/**
  * The Set Custom Art prompt: enter a URL, pick a local file, or clear what is
  * there. Returns null when the user backs out at any step, including when the
  * value they gave is not a usable reference — the parsers in `card-art.ts` are
@@ -247,16 +269,8 @@ export async function promptCardArt(current: CardArtRef | null): Promise<CardArt
   if (action === 'clear') return { ref: null }
 
   if (action === 'url') {
-    const value = await ask<string>({
-      type: 'text',
-      message: t('cli.art.promptUrl'),
-      subjectKey: 'cli.prompt.subject.artUrl',
-      initial: current !== null && 'url' in current ? current.url : '',
-    })
-    // A blank submit is a way out, not a value: the URL parser would report it
-    // as `"" is not a valid URL`, which reads as a typo rather than as the
-    // "never mind" it was. Dropping the card's art is the Clear row's job.
-    if (value === undefined || value.trim() === '') return null
+    const value = await promptArtUrl(current !== null && 'url' in current ? current.url : '')
+    if (value === null) return null
     return acceptedArt(parseCardArtRef({ url: value }))
   }
 

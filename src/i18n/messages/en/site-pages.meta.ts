@@ -536,4 +536,12 @@ export const sitePagesMeta = {
     description:
       'Build warning: the custom-art sidecar names card ids that the list no longer contains. {ids} is a comma-separated list of those raw numeric ids.',
   },
+  'site.detail.listImageInvalid': {
+    description:
+      "Build warning: a list's front-matter 'image' key holds a value the cover grammar cannot read, so the built-in cover is used. {reason} is the parser's own English explanation of the shape problem and is not translated.",
+  },
+  'site.detail.listImageUnknownCard': {
+    description:
+      "Build warning: a list's front-matter 'image' key names a card line that the list no longer contains, so the built-in cover is used instead. {kind} selects the list type (machine value: deck, collection or wanted); {name} is the list's own name, never translated; {id} is the raw numeric card id, deliberately not resolved to a card name. Keep the leading '&' — it is how ids are written in the list files.",
+  },
 } as const satisfies MetaFor<typeof sitePagesMessages>

@@ -191,6 +191,7 @@ describe('MCP output schemas, as authored', () => {
         'deck',
         'frontMatter',
         'labels',
+        'image',
         'customArt',
         'totalCount',
         'artWarnings',
@@ -203,6 +204,7 @@ describe('MCP output schemas, as authored', () => {
         'entries',
         'sectionOrder',
         'labels',
+        'image',
         'customArt',
         'totalCount',
         'artWarnings',
@@ -218,6 +220,18 @@ describe('MCP output schemas, as authored', () => {
       expect(artArms.map((arm) => Object.keys(arm.properties ?? {}))).toEqual([['file'], ['url']])
       // Never required: a list whose cards have no art omits the key entirely.
       expect(branch.required ?? []).not.toContain('customArt')
+    }
+    // The cover override is the same three-arm reference on both cards arms, and
+    // never required: a list with no `image:` key omits it, which is how an agent
+    // tells "the built-in cover rule applies" from "a cover is set".
+    for (const branch of listBranches.slice(0, 2)) {
+      const imageArms = branch.properties?.image?.anyOf ?? []
+      expect(imageArms.map((arm) => Object.keys(arm.properties ?? {}))).toEqual([
+        ['card'],
+        ['file'],
+        ['url'],
+      ])
+      expect(branch.required ?? []).not.toContain('image')
     }
     // `warnings` is required on all three arms, not merely present: a client
     // that never sees the key is a client that reads a truncated list as whole.

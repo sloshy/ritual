@@ -110,6 +110,21 @@ ${sessionSemantics({
     "Discarding an add frees that card's `&N` id and keeps the remaining session ids dense (each later card slides down one).",
 })}
 
+## Front matter
+
+A wanted list carries exactly one front-matter key of its own: \`image:\`, the
+cover the published site shows for it (a mapping — \`{card: N}\`, \`{file: …}\`
+or \`{url: …}\`; see the **ritual** skill's *List cover images* section). It
+carries no card labels, and \`ritual metadata\` refuses wanted lists entirely, so
+\`set-list-image\` (or the MCP \`set_list_metadata\` tool's \`image\` field, or
+the admin editor's **Cover Image** button) is how it is written. Any other block
+a file already has is preserved verbatim through every save.
+
+\`\`\`bash
+ritual set-list-image "To Buy" --wanted --card 3
+ritual set-list-image "To Buy" --wanted --default
+\`\`\`
+
 ## Import from a text file
 
 ${textImportSection({

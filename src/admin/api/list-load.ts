@@ -17,6 +17,7 @@ import {
   type ListLoadParams,
 } from './list-load-params'
 import type { CardLabel } from '../../card-labels'
+import type { ListImageRef } from '../../list-image'
 import type {
   FlatCardsLoadResult,
   FlatFullLoadResult,
@@ -103,6 +104,12 @@ export interface FlatListParseResult<T> {
   /** The list's default card labels from its front matter — collections only. */
   labels?: CardLabel[]
   /**
+   * The list's cover image override from its front matter, when it declares a
+   * usable one. Read here rather than in the handler because only the per-type
+   * parser hands back the front-matter block it came from.
+   */
+  image?: ListImageRef
+  /**
    * Lines the parser could not read. Carried through to every load body, so a
    * list holding an unreadable line no longer loads as merely shorter.
    */
@@ -156,7 +163,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
     const { slug, filePath, params } = prologue.value
 
     const content = await Bun.file(filePath).text()
-    const { entries: allEntries, sectionOrder, labels, warnings } = cfg.parse(content)
+    const { entries: allEntries, sectionOrder, labels, image, warnings } = cfg.parse(content)
     // Hashed from the content itself, never the sidecar — see deck-load.ts.
     const contentHash = computeHash(content)
 
@@ -197,6 +204,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
         entries,
         sectionOrder,
         labels,
+        image,
         totalCount,
         warnings,
         ...art,
@@ -223,6 +231,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
       totalCount,
       sectionOrder,
       labels,
+      image,
       ...cardData,
       symbolMap,
       slug,

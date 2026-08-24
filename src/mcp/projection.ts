@@ -1,6 +1,7 @@
 import type { ListCounts, ListSummaryLoadResult } from '../admin/api/load-results'
 import type { CardArtRecord } from '../card-art'
 import type { CardLabel } from '../card-labels'
+import type { ListImageRef } from '../list-image'
 import type { ListType } from '../list-type'
 import type { DeckData } from '../types'
 import { callApi } from './dispatch'
@@ -62,6 +63,14 @@ export type DeckProjection = {
    * card's own `labels` override it.
    */
   labels?: CardLabel[]
+  /**
+   * The list's cover image override from its front matter, absent when the
+   * built-in rule (commander, else the most expensive printing) chooses the
+   * cover. Projected out beside `labels` for the same reason: every list type
+   * reports its list-level settings the same way, and a flat list has no
+   * `frontMatter` field to read one out of. Write it with `set_list_metadata`.
+   */
+  image?: ListImageRef
   /** See the module comment: custom art by `&N`, absent when no card has any. */
   customArt?: CardArtRecord
   /**
@@ -93,6 +102,8 @@ export type FlatListProjection = {
   sectionOrder?: string[]
   /** The list's default card labels from its front matter — collections only. */
   labels?: CardLabel[]
+  /** See {@link DeckProjection.image}. Carried by both flat list types. */
+  image?: ListImageRef
   /** See {@link DeckProjection.customArt}. */
   customArt?: CardArtRecord
   /** See {@link DeckProjection.totalCount}. */
@@ -161,6 +172,7 @@ export async function loadProjectedList(
       deck: data.deck,
       frontMatter: data.frontMatter,
       labels: data.labels,
+      image: data.image,
       customArt: data.customArt,
       totalCount: data.totalCount,
       warnings: data.warnings,
@@ -176,6 +188,7 @@ export async function loadProjectedList(
     entries: data.entries,
     sectionOrder: data.sectionOrder,
     labels: data.labels,
+    image: data.image,
     customArt: data.customArt,
     totalCount: data.totalCount,
     warnings: data.warnings,

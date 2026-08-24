@@ -229,6 +229,19 @@ ${wrapProse(
   'Headless builds (e.g. CI) should pass `--refresh auto` or `--refresh never` explicitly.',
 )}
 
+## List cover images
+
+Each published list shows a cover: its commander when it is a commander deck,
+otherwise its most expensive printing. A list overrides that with the \`image:\`
+key in its own front matter — see the **ritual** skill's *List cover images*
+section for the grammar and \`ritual set-list-image\`. Two things the **build**
+does with it: a \`file\` cover is copied into \`dist/art/\` alongside the
+per-card custom art (a path with nothing behind it prints the same
+\`Custom art file not found\` warning and falls back to the default cover), and a
+\`card\` cover naming an \`&N\` the list no longer carries prints a warning naming
+the raw id and falls back too. A \`url\` cover is baked verbatim and never
+checked.
+
 ## Banning default printings
 
 Ritual auto-selects each card's featured printing (the most recent non-outlier among its

@@ -29,8 +29,8 @@ import type { ImportCsvRequest, ImportCsvResponse } from '../../admin/api/import
 import type { ImportDeckResponse } from '../../admin/api/import-deck'
 import type { ListCreateResponse } from '../../admin/api/list-lifecycle'
 import type {
-  CollectionMetadataRequest,
   DeckMetadataRequest,
+  FlatListMetadataRequest,
   MetadataResponse,
 } from '../../admin/api/metadata'
 import type { MoveCommitResponse, RemoveCommitResponse } from '../../admin/api/move'
@@ -69,6 +69,7 @@ import {
   labelsUpdateField,
   languageField,
   languageSchema,
+  listImageSchema,
   listTypeSchema,
   quantityField,
   refineDeckOnlyFormat,
@@ -545,19 +546,26 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       title: 'Set list metadata',
       description:
         'Write a list’s front matter. Decks: description, tags, format, the Archidekt source ' +
-        'link, and labels ("proxy" alone). Collections: labels over the whole vocabulary ' +
+        'link, labels ("proxy" alone), and image. Collections: labels over the whole vocabulary ' +
         '("sale"/"trade" combine; "keep" and "proxy" each stand alone) — the default every ' +
-        'entry without its own override inherits. Only the fields you send ' +
+        'entry without its own override inherits — and image. Wanted lists carry image and ' +
+        'nothing else (use rename_list to change their display name). Only the fields you send ' +
         'are touched; null (or "" for description) clears one. Setting sourceId together with an ' +
         'archidekt.com sourceUrl is what makes a deck sync-linked, so it is what sync_decks then ' +
         'operates on; the two must name the SAME Archidekt deck once merged over what the file ' +
-        'already carries, or the call is rejected. Wanted lists carry no front matter — use ' +
-        'rename_list to change their display name. No changelog entry is recorded: the changelog ' +
-        'is card-level, and metadata is not a card change.',
+        'already carries, or the call is rejected. image is the cover the built site shows for ' +
+        'the list, overriding the built-in rule (a commander deck shows its commander, every ' +
+        'other list its most expensive printing): {"card": N} names a line in THIS list by its ' +
+        '&N id and is rejected outright when the list has no such line; {"file": "path"} names an ' +
+        'image relative to the configured art directory, which — unlike set_card_art\u2019s file, ' +
+        'which must already be there — need NOT exist yet (a missing one is only a build-time ' +
+        'warning, so the art can be added later); {"url": "https://..."} is ' +
+        'used verbatim and never validated. null restores the built-in rule. No changelog entry ' +
+        'is recorded: the changelog is card-level, and metadata is not a card change.',
       inputSchema: z
         .object({
           listType: listTypeSchema.describe(
-            'Deck fields for decks; labels for decks and collections; wanted lists carry no front matter.',
+            'Deck fields for decks; labels for decks and collections; image for all three.',
           ),
           slug: slugField,
           description: z.string().nullable().optional().describe('null or "" clears it.'),
@@ -587,6 +595,13 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
                 'Collections take the whole vocabulary, decks "proxy" alone; wanted lists ' +
                 'carry no labels.',
             ),
+          image: listImageSchema
+            .nullable()
+            .optional()
+            .describe(
+              'The list’s cover image: {"card": N} (an &N on this list), {"file": "art/rel/path"} ' +
+                'or {"url": "https://..."}; null restores the built-in cover rule.',
+            ),
         })
         .superRefine((val, ctx) => {
           // `null` is the clear, which every label-carrying type accepts, so
@@ -599,7 +614,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       runTool(async (): Promise<ListMetadataResult> => {
         // Deck-field-on-collection misuse (and vice versa) is left to the
         // route's own 400 — validation lives once, in the handler.
-        const body: DeckMetadataRequest | CollectionMetadataRequest = patch
+        const body: DeckMetadataRequest | FlatListMetadataRequest = patch
         const data = (await callApi(
           'PUT',
           `/api/metadata/${listType}/${encodeURIComponent(slug)}`,

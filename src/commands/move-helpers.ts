@@ -31,12 +31,8 @@ import {
   type StagedAddResult,
   type StagedFile,
 } from './move-io'
-import {
-  createCardArtCache,
-  reconcileCardArt,
-  reconciledArtPath,
-  type CardArtRef,
-} from '../card-art'
+import { createCardArtCache, type CardArtRef } from '../card-art'
+import { reconcileListRefs } from '../list-refs'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
 import { isListMarkdownFile } from '../list-file-name'
 
@@ -539,17 +535,16 @@ function artReconcileFor(byFile: Map<string, ArtReconcile>, filePath: string): A
 }
 
 /**
- * Write every reconciled art sidecar, returning the paths written so the caller
- * can stage them. A sidecar Ritual cannot read is left exactly as it is — see
- * {@link reconcileCardArt}.
+ * Write every reconciled art sidecar and cover image, returning the paths
+ * written so the caller can stage them. A sidecar Ritual cannot read is left
+ * exactly as it is — see {@link reconcileListRefs}.
  */
 async function commitArtReconciles(byFile: Map<string, ArtReconcile>): Promise<string[]> {
   const written: string[] = []
   for (const [filePath, entry] of byFile) {
-    const artPath = reconciledArtPath(await reconcileCardArt(filePath, entry))
-    if (artPath !== undefined) written.push(artPath)
+    written.push(...(await reconcileListRefs(filePath, entry)).writtenFiles)
   }
-  return written
+  return [...new Set(written)]
 }
 
 /**
@@ -598,15 +593,16 @@ async function planMovedArt(
     // An unreadable sidecar reads as no art and is left untouched rather than
     // rewritten from a partial read; every read path already reports it.
     const art = await cache.load(listEntry.filePath)
-    if (art.size === 0) continue
     const stillHeld = surviving.get(listEntry.filePath) ?? new Set<number>()
     for (const vc of departed) {
       const cardId = vc.card.cardId
       if (cardId === undefined) continue
+      // A line that still has copies left keeps its id — and its art. Recorded
+      // before the art lookup because the freed id is also what re-points the
+      // list's cover image, and that is filed whether or not the line wore art.
+      if (!stillHeld.has(cardId)) artReconcileFor(byFile, listEntry.filePath).removed.add(cardId)
       const ref = art.get(cardId)
       if (ref === undefined) continue
-      // A line that still has copies left keeps its id — and its art.
-      if (!stillHeld.has(cardId)) artReconcileFor(byFile, listEntry.filePath).removed.add(cardId)
       const arrival = landed.get(vc.physicalKey)
       const adopted = arrival === undefined ? undefined : adoptedCardId(arrival)
       if (adopted !== undefined) {

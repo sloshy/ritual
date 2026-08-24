@@ -279,6 +279,25 @@ All edits are tracked as in-memory change events until explicitly saved.
 - Card names in the changes dialog are clickable links that open the card detail modal
 - Hovering a card name shows a preview image of the card
 
+### Cover Image
+
+- The action bar's **Cover Image…** button opens a modal that writes the list's front-matter
+  [`image:`](/list-images/) key through the [List Metadata](/admin/api/#list-metadata) route
+  immediately — like the labels modal, this is front matter rather than a card change, so it needs
+  no save, and the editor adopts the returned content hash so pending card edits still save cleanly
+  afterward.
+- Four modes: **Ritual's own choice** (removes the key), **a card from this list**, **an art file**,
+  and **a URL**. The file and URL fields are the same control (and the same preview) the
+  [Custom Art](#custom-art) dialog uses, and a value that does not parse is refused in the dialog
+  with the same sentence the API would return.
+- The card picker offers only cards that are already **on disk**: a card added in the current
+  session has no `&N` in the file yet, and a cover naming one would be rejected by the route. Save
+  the session first, then pick it. Rows that would otherwise read identically (several copies of one
+  printing) are suffixed with the `&N` a pick would write, since which copy the cover names decides
+  whether removing one clears it.
+- Saving the dialog without changing anything writes nothing — the file already says what the form
+  says, and a write would rotate its content hash to state it again.
+
 ### Editor Action Bar
 
 A bar pinned to the bottom of the editor holds all editing controls, from left to right:
@@ -287,6 +306,7 @@ A bar pinned to the bottom of the editor holds all editing controls, from left t
 - **Add Card Defaults** — expands the [defaults panel](#add-card-defaults) upward
 - **Sections** — opens the [Manage Sections](#sections) dialog
 - **Labels** — opens the [Default Labels](#card-labels) modal (deck and collection editors)
+- **Cover Image…** — opens the [Cover Image](#cover-image) modal (all three editors)
 - **Import…** — loads an exported [change bundle](/commands/admin/#loading-changes-into-an-editor) as pending edits
 - **Swap Printings…** — opens the [Swap Printings](#swap-printings) wizard over the whole list (deck and collection editors)
 - **Changes** — shows the pending-change count and opens the changes dialog
@@ -431,6 +451,7 @@ Wanted lists correspond to `.md` files in the `wanted/` directory.
 | Finish field              | ✅ Optional             | ✅ Required       | ✅ Optional        |
 | Card labels               | ✅ Proxy + list default | ✅ + list default | ❌                 |
 | Custom art                | ✅                      | ✅                | ✅                 |
+| Cover image               | ✅                      | ✅                | ✅                 |
 | Sections                  | ✅ + reserved Commander | ✅ User-named     | ✅ User-named      |
 | Add/rename/delete section | ✅                      | ✅                | ✅                 |
 | Move card to section      | ✅                      | ✅                | ✅                 |

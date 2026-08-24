@@ -14,7 +14,7 @@ import { findEntryByIdOrName } from '../../editor/entry-targeting'
 import { useFlatListEditController } from '../../editor/flat-list-controller'
 import { applyWantedChangePrinting, wantedPrintingOf } from '../../editor/wanted-config'
 import { WantedEditorBody } from '../../editor/WantedEditorBody'
-import { wantedToMarkdown } from '../../editor/list-export'
+import { frontMatterFor, wantedToMarkdown } from '../../editor/list-export'
 import { WantedListPage } from '../WantedListPage'
 import { siteSearch } from './site-search'
 import { backfillImportedCard } from './backfill-added-card'
@@ -119,6 +119,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
               props.detail.name,
               ctrl.editor.data() ?? [],
               ctrl.editor.sectionOrder(),
+              frontMatterFor({ image: props.detail.listImage }),
             ),
         },
       ]}

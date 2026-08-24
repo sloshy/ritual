@@ -218,6 +218,36 @@ export const cliCardsMessages = {
   'cli.note.promptText': 'Note text:',
   'cli.note.emptyNote': 'Note text cannot be empty. Use --clear to remove a note.',
 
+  // ── set-list-image ────────────────────────────────────────────────────
+  'cli.setListImage.set': {
+    $select: 'mode',
+    card: "{type} '{list}': cover image is now the card {value}",
+    file: "{type} '{list}': cover image is now the art file {value}",
+    url: "{type} '{list}': cover image is now {value}",
+  },
+  'cli.setListImage.setPreview': {
+    $select: 'mode',
+    card: "[dry-run] {type} '{list}': cover image would become the card {value}",
+    file: "[dry-run] {type} '{list}': cover image would become the art file {value}",
+    url: "[dry-run] {type} '{list}': cover image would become {value}",
+  },
+  'cli.setListImage.cleared':
+    "{type} '{list}': cover image cleared; the built-in choice applies again",
+  'cli.setListImage.clearedPreview': "[dry-run] {type} '{list}': cover image would be cleared",
+  'cli.setListImage.invalid': 'Cover image unchanged — {reason}.',
+  'cli.setListImage.noCards': "{type} '{list}' has no cards to use as a cover image.",
+  'cli.setListImage.current': {
+    $select: 'mode',
+    default: 'not set',
+    card: 'the card {value}',
+    file: 'the art file {value}',
+    url: '{value}',
+  },
+  'cli.setListImage.modePrompt': "{type} '{list}' — cover image (currently {current}):",
+  'cli.setListImage.modeDefault': "Use Ritual's Own Choice",
+  'cli.setListImage.modeCard': 'Pick a Card from This List',
+  'cli.setListImage.cardPrompt': 'Which card should the cover image show?',
+
   // ── card ──────────────────────────────────────────────────────────────
   'cli.card.stdinOrFile': 'Use either --stdin or --from-file, not both.',
   'cli.card.readFailed': "Could not read file '{file}': {reason}",
@@ -453,8 +483,10 @@ export const cliCardsMessages = {
     deck: "Unknown metadata field '{property}'. Accepted fields for a deck: {keys}.",
     collection: "Unknown metadata field '{property}'. Accepted fields for a collection: {keys}.",
   },
+  'cli.metadata.useSetListImage':
+    "A list's cover image is a mapping, not a scalar; set it with ritual set-list-image.",
   'cli.metadata.wantedNoMetadata':
-    'Wanted lists carry no metadata. Use ritual rename to change the display name.',
+    'This command does not cover wanted lists. Their one front-matter key is the cover image — use ritual set-list-image; ritual rename changes the display name.',
   'cli.metadata.frontMatterUnreadable': {
     $select: 'reason',
     notAMapping: "The file's front matter is not a key/value mapping. Fix the block by hand first.",

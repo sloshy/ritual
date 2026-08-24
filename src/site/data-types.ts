@@ -1,6 +1,7 @@
 import type { Card, Condition, DeckData, Finish, ScryfallCard } from '../types'
 import type { BuyerId, BuylistFeedProvenance, BuylistQuote } from '../buylist'
 import type { CardLabel } from '../card-labels'
+import type { ListImageRef } from '../list-image'
 import type { CardLanguage } from '../card-language'
 import type { PriceCurrency } from '../price-currency'
 import type { PriceSource } from '../price-source'
@@ -226,6 +227,12 @@ export interface CollectionDetail {
   sectionOrder?: string[]
   /** The collection's default card labels from its front matter, when declared. */
   labels?: CardLabel[]
+  /**
+   * The collection's cover image override, exactly as its front matter spells
+   * it. Baked so a `.md` downloaded from the site re-emits the key rather than
+   * silently losing it.
+   */
+  listImage?: ListImageRef
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
@@ -287,6 +294,8 @@ export interface WantedListDetail {
   entries: WantedListCardEntry[]
   /** Section names in file order, including empty sections. Used to order/render section groups. */
   sectionOrder?: string[]
+  /** The wanted list's cover image override; see {@link CollectionDetail.listImage}. */
+  listImage?: ListImageRef
   cards: Record<string, ScryfallCard | null>
   /**
    * Card Kingdom's pick for the name-only entries, read instead of

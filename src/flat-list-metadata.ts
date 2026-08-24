@@ -1,30 +1,41 @@
 /**
- * Writing a collection's front-matter metadata — the one path every surface
- * that edits a collection's `labels:` default goes through: the admin route
- * `PUT /api/metadata/:type/:slug` (and therefore the MCP `set_list_metadata`
- * tool). Mirrors `deck-metadata.ts` for decks.
+ * Writing a flat list's front-matter metadata — the one path every surface that
+ * edits a collection's or wanted list's front matter goes through: the admin
+ * route `PUT /api/metadata/:type/:slug` (and therefore the MCP
+ * `set_list_metadata` tool) and the CLI. Mirrors `deck-metadata.ts` for decks.
  *
  * The write is front-matter only ({@link writeListFrontMatter}), so the card
  * lines — `&N` ids, label overrides, notes — survive byte for byte. Request
  * validation is the HTTP layer's job; what lives here is the vocabulary of
  * writable keys and how a patch merges. Unknown keys a user hand-authored into
  * the block round-trip untouched.
+ *
+ * The vocabulary is **per list type**: a collection carries default card labels
+ * and a cover image, a wanted list carries the cover alone (labels say nothing
+ * about cards nobody owns yet). That is why the key table is a map rather than a
+ * flat union — a union would let the compiler accept `'labels'` for a wanted
+ * list that refuses it at runtime.
  */
 
 import fs from 'node:fs/promises'
 import { readFrontMatterMapping, writeListFrontMatter } from './front-matter-write'
 import { normalizeCardLabels, type CardLabel } from './card-labels'
+import { serializeListImageRef, type ListImageRef } from './list-image'
+import type { ListType } from './list-type'
 
-/** The keys a collection metadata write accepts, in the order error messages list them. */
-export const COLLECTION_METADATA_KEYS = ['labels'] as const
+/** The list types whose files carry a flat card list rather than deck sections. */
+export type FlatListType = Extract<ListType, 'collection' | 'wanted'>
 
-/** A key a collection metadata write accepts. */
-export type CollectionMetadataKey = (typeof COLLECTION_METADATA_KEYS)[number]
-
-/** True when `value` names a writable collection metadata field. */
-export function isCollectionMetadataKey(value: string): value is CollectionMetadataKey {
-  return (COLLECTION_METADATA_KEYS as readonly string[]).includes(value)
-}
+/**
+ * The keys a metadata write accepts per flat list type, in the order error
+ * messages list them. Declared `as const satisfies …` so the literals survive
+ * for the "Accepted fields" message while the map stays exhaustive over the
+ * flat list types.
+ */
+export const FLAT_LIST_METADATA_KEYS = {
+  collection: ['labels', 'image'],
+  wanted: ['image'],
+} as const satisfies Record<FlatListType, readonly string[]>
 
 /**
  * Merge a labels value into a front-matter mapping, returning a new mapping:
@@ -43,15 +54,35 @@ export function applyLabelsPatch(
 }
 
 /**
- * A validated patch. An absent key is left alone; `null` (or an empty array)
- * deletes the key from the front matter; a non-empty array is written.
+ * Merge a cover image into a front-matter mapping, returning a new mapping:
+ * `null` deletes the key, a reference is written in its canonical single-key
+ * mapping form. The counterpart of {@link applyLabelsPatch}, and the only place
+ * a flat list's `image:` value is constructed.
  */
-export type CollectionMetadataPatch = {
-  labels?: CardLabel[] | null
+export function applyImagePatch(
+  data: Record<string, unknown>,
+  image: ListImageRef | null,
+): Record<string, unknown> {
+  const merged = { ...data }
+  if (image === null) delete merged.image
+  else merged.image = serializeListImageRef(image)
+  return merged
 }
 
-/** What a collection metadata write produced. */
-export type CollectionMetadataWrite = {
+/**
+ * A validated patch. An absent key is left alone; `null` (or, for labels, an
+ * empty array) deletes the key from the front matter; any other value is
+ * written. Typed over both flat list types at once — the per-type vocabulary is
+ * enforced where the request is parsed, so a wanted list never reaches here with
+ * a `labels` key.
+ */
+export type FlatListMetadataPatch = {
+  labels?: CardLabel[] | null
+  image?: ListImageRef | null
+}
+
+/** What a flat list metadata write produced. */
+export type FlatListMetadataWrite = {
   /** The full front matter after the write, unknown keys included. */
   frontMatter: Record<string, unknown>
   contentHash: string
@@ -60,15 +91,19 @@ export type CollectionMetadataWrite = {
 }
 
 /**
- * Merge `patch` into the collection file's front matter and write it back,
- * leaving the body untouched. Returns an error string — and writes nothing —
- * when the file's existing front matter cannot be read as a YAML mapping: a
- * merge over keys we cannot see would clobber them.
+ * Merge `patch` into the list file's front matter and write it back, leaving the
+ * body untouched. Returns an error string — and writes nothing — when the file's
+ * existing front matter cannot be read as a YAML mapping: a merge over keys we
+ * cannot see would clobber them.
+ *
+ * Fields are folded in sequence rather than assembled in one literal, so a patch
+ * naming several keys applies each key's own merge rule (an empty label set
+ * clears, a `null` image deletes) instead of a shared one that fits neither.
  */
-export async function applyCollectionMetadata(
+export async function applyFlatListMetadata(
   filePath: string,
-  patch: CollectionMetadataPatch,
-): Promise<CollectionMetadataWrite | string> {
+  patch: FlatListMetadataPatch,
+): Promise<FlatListMetadataWrite | string> {
   const original = await fs.readFile(filePath, 'utf-8')
 
   // A merge over keys we cannot see would clobber them, so both read failures
@@ -81,8 +116,9 @@ export async function applyCollectionMetadata(
         : 'could not be read as YAML'
     return `The file's front matter ${problem}, so a metadata write would overwrite it. Fix the block by hand first.`
   }
-  const data =
-    patch.labels !== undefined ? applyLabelsPatch(mapping.data, patch.labels) : mapping.data
+  let data = mapping.data
+  if (patch.labels !== undefined) data = applyLabelsPatch(data, patch.labels)
+  if (patch.image !== undefined) data = applyImagePatch(data, patch.image)
 
   const write = await writeListFrontMatter(filePath, data, { blankLineAfterBlock: true })
   return { frontMatter: data, ...write }

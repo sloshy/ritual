@@ -1,5 +1,6 @@
 import { assignDeckCardIds } from '../../card-id'
-import { serializeDeckToMarkdown } from '../../deck-file'
+import { serializeDeckToMarkdown, validateDeckFrontMatter } from '../../deck-file'
+import { readFrontMatterMapping } from '../../front-matter-write'
 import { computeDeckSaveEffects } from '../../editor/save-effects'
 import { getErrorMessage } from '../../errors'
 import type { DeckData } from '../../types'
@@ -117,7 +118,16 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     // (which re-runs the assigner idempotently) so the response can report the
     // ids the save allocated.
     const { deck: idedDeck, assignments } = assignDeckCardIds(deck)
-    const markdown = serializeDeckToMarkdown(idedDeck, frontMatter)
+    // Front matter is read back off disk and the request's keys layered over it,
+    // rather than trusting the client's snapshot wholesale: an editor session
+    // takes that snapshot at load and never refreshes it for keys it does not
+    // own, so a cover image (or a default label set) written out of band by the
+    // metadata route mid-session would be deleted by the next card save.
+    const onDisk = readFrontMatterMapping(hashCheck.content)
+    const markdown = serializeDeckToMarkdown(idedDeck, {
+      ...(onDisk.ok ? validateDeckFrontMatter(onDisk.data) : {}),
+      ...frontMatter,
+    })
 
     const tail: ListSaveTail = {
       listType: 'deck',

@@ -47,6 +47,7 @@ import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
 import { useListViewUrlSync } from './useListViewUrlSync'
 import { labelFiltersFor } from '../card-labels'
+import type { ListImageRef } from '../list-image'
 import { useCardFilters } from './useCardFilters'
 import {
   pruneOwnShareSelections,
@@ -79,7 +80,7 @@ import { SelectionMenu } from './SelectionMenu'
 import { buildSelectionEditActions } from './selection-edit-actions'
 import type { FlatBulkEdit } from '../editor/flat-list-controller'
 import { ExportMenu, type ExportFormat, type ExtraExportFormat } from './ExportMenu'
-import { wantedToText, wantedToMarkdown, wantedToCsv } from '../editor/list-export'
+import { frontMatterFor, wantedToText, wantedToMarkdown, wantedToCsv } from '../editor/list-export'
 import type { MetaEntry } from './meta-entry'
 
 type WantedListGroupBy = GroupBy
@@ -121,6 +122,8 @@ interface WantedListPageProps extends SellModeProps {
   entries: WantedListCardEntry[]
   /** Section names in display order, including empty sections. Falls back to entry order. */
   sectionOrder?: string[]
+  /** The list's cover image override, re-emitted by the `.md` download. */
+  listImage?: ListImageRef
   cards: Record<string, ScryfallCard | null>
   /** Card Kingdom's picks for the name-only entries, read under the CK source. */
   cardsCardKingdom?: CardKingdomCards
@@ -695,7 +698,12 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
       case 'txt':
         return wantedToText(props.entries)
       case 'md':
-        return wantedToMarkdown(props.name, props.entries, sectionOrder())
+        return wantedToMarkdown(
+          props.name,
+          props.entries,
+          sectionOrder(),
+          frontMatterFor({ image: props.listImage }),
+        )
       case 'csv':
         return wantedToCsv(props.entries)
     }

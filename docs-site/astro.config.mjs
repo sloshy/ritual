@@ -35,6 +35,7 @@ export default defineConfig({
         { slug: 'configuration' },
         { slug: 'localization' },
         { slug: 'custom-art' },
+        { slug: 'list-images' },
         { slug: 'docker' },
         {
           label: 'Commands',
@@ -49,6 +50,7 @@ export default defineConfig({
                 'commands/delete',
                 'commands/edit',
                 'commands/metadata',
+                'commands/set-list-image',
                 'commands/history',
                 'commands/diff',
                 'commands/get-primer',

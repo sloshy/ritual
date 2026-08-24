@@ -2,10 +2,13 @@ import { getErrorMessage } from '../../errors'
 import { getBaseDir } from '../../base-dir'
 import { applyDeckMetadata, DECK_METADATA_KEYS, type DeckMetadataPatch } from '../../deck-metadata'
 import {
-  applyCollectionMetadata,
-  COLLECTION_METADATA_KEYS,
-  type CollectionMetadataPatch,
+  applyFlatListMetadata,
+  FLAT_LIST_METADATA_KEYS,
+  type FlatListMetadataPatch,
+  type FlatListType,
 } from '../../flat-list-metadata'
+import { isListImageRefError, parseListImage, type ListImageRef } from '../../list-image'
+import { checkListImageCardId } from '../../list-image-file'
 import {
   LIST_TYPE_LABELS,
   parseCardLabelsValue,
@@ -30,9 +33,16 @@ import { MAX_LIST_BODY_SIZE } from '../validation'
  *
  * Decks accept the deck vocabulary (description/tags/format/source link) plus
  * `labels` (their default card labels, `proxy` alone); collections accept
- * `labels` over the whole label vocabulary. Wanted lists define
- * no front-matter keys, so they are refused with a 400 rather than silently
- * accepting a write with nothing to say.
+ * `labels` over the whole label vocabulary. **All three list types** accept
+ * `image`, a list's cover override — a wanted list's only writable key, which is
+ * why it is no longer refused outright.
+ *
+ * `image` speaks exactly the front matter's own grammar (`{card}`/`{file}`/`{url}`,
+ * `null` to clear), so a body, a hand-edited file, an MCP call and the admin
+ * modal all share one value space with no second spelling to keep in step. A
+ * `card` reference is verified against the very file being written — that is the
+ * one existence check this route performs, and it lives here so every client
+ * inherits the same 400 rather than re-implementing it.
  */
 
 /** The deck front-matter fields this route may write. `null` clears a field. */
@@ -42,6 +52,12 @@ export type DeckMetadataRequest = {
   format?: string | null
   /** The deck's default card labels; `null` or `[]` clears them. Decks accept `proxy` only. */
   labels?: string[] | null
+  /**
+   * The deck's cover image override, in the front matter's own mapping form;
+   * `null` clears it and restores the built-in rule. There is no scalar
+   * spelling — see `list-image.ts`.
+   */
+  image?: ListImageRef | null
   sourceId?: string | null
   sourceUrl?: string | null
   /** Optional optimistic-concurrency token from `GET /api/deck/:slug`. */
@@ -54,16 +70,23 @@ export type ParsedDeckMetadataBody = {
   contentHash?: string
 }
 
-/** The collection front-matter fields this route may write. `null` clears a field. */
-export type CollectionMetadataRequest = {
+/**
+ * The flat-list (collection | wanted) front-matter fields this route may write.
+ * `null` clears a field. The vocabulary is per type — a wanted list takes
+ * `image` alone, and a `labels` key on one is refused by name — so this shape is
+ * the union of both and {@link parseFlatListMetadataBody} narrows it.
+ */
+export type FlatListMetadataRequest = {
   labels?: string[] | null
-  /** Optional optimistic-concurrency token from `GET /api/collection/:slug`. */
+  /** The list's cover image override; see {@link DeckMetadataRequest.image}. */
+  image?: ListImageRef | null
+  /** Optional optimistic-concurrency token from `GET /api/{collection,wanted}/:slug`. */
   contentHash?: string
 }
 
-/** The validated collection body: the field patch plus the optional concurrency token. */
-export type ParsedCollectionMetadataBody = {
-  patch: CollectionMetadataPatch
+/** The validated flat-list body: the field patch plus the optional concurrency token. */
+export type ParsedFlatListMetadataBody = {
+  patch: FlatListMetadataPatch
   contentHash?: string
 }
 
@@ -89,6 +112,16 @@ const REJECTED_KEYS: Record<string, string> = {
   name: NAME_REJECTED_MESSAGE,
   created: 'created is stamped when the deck is created and cannot be edited.',
   lastSynced: 'lastSynced is stamped by deck sync and cannot be edited.',
+}
+
+/**
+ * How each flat list type is named in this route's refusals — capitalized
+ * English, the same labels the collection and wanted save routes hand
+ * {@link validateContentHash}, so a 404 and a 409 on the same list agree.
+ */
+const FLAT_LIST_LABELS: Record<FlatListType, string> = {
+  collection: 'Collection',
+  wanted: 'Wanted list',
 }
 
 /** The envelope every metadata body shares: the optional concurrency token. */
@@ -138,6 +171,22 @@ function parseListDefaultLabels(raw: unknown, type: ListType): CardLabel[] | nul
   }
   // An empty array says "no default"; clear the key rather than writing `[]`.
   return labels.labels.length === 0 ? null : labels.labels
+}
+
+/**
+ * Validate a request body's `image` value as a list's cover override: `null`
+ * clears the key, anything else must be the front matter's own single-key
+ * mapping. Returns the patch value, or the message explaining the refusal —
+ * verbatim from `list-image.ts`, which is the same text a hand-edited file's bad
+ * `image:` reports, so a user reading either sees one wording.
+ *
+ * The reference's *validity* is checked here; whether a `card` id exists is
+ * checked in the handler, which is the only place holding the file it names.
+ */
+function parseListImageField(raw: unknown): ListImageRef | null | string {
+  const parsed = parseListImage(raw)
+  if (parsed !== null && isListImageRefError(parsed)) return parsed.error
+  return parsed
 }
 
 /**
@@ -202,6 +251,12 @@ export function parseDeckMetadataBody(
     patch.labels = labels
   }
 
+  if ('image' in raw) {
+    const image = parseListImageField(raw.image)
+    if (typeof image === 'string') return image
+    patch.image = image
+  }
+
   if ('sourceId' in raw) {
     if (raw.sourceId === null) {
       patch.sourceId = null
@@ -237,23 +292,35 @@ export function parseDeckMetadataBody(
 
 /**
  * Validate an untrusted request body object into a
- * {@link ParsedCollectionMetadataBody}, or return the error message explaining
- * why it is not usable. Same contract as {@link parseDeckMetadataBody}: unknown
- * keys are refused outright, and `contentHash` is validated here.
+ * {@link ParsedFlatListMetadataBody}, or return the error message explaining why
+ * it is not usable. Same contract as {@link parseDeckMetadataBody}: unknown keys
+ * are refused outright, and `contentHash` is validated here.
+ *
+ * The accepted vocabulary comes from `type`, so a `labels` key on a wanted list
+ * is refused **by name** ("Unknown metadata field 'labels'") rather than being
+ * accepted into a patch the writer would then have to drop — a wanted list's
+ * cards belong to nobody yet, so a default label says nothing about them.
  */
-export function parseCollectionMetadataBody(
+export function parseFlatListMetadataBody(
   raw: Record<string, unknown>,
-): ParsedCollectionMetadataBody | string {
-  const patch: CollectionMetadataPatch = {}
+  type: FlatListType,
+): ParsedFlatListMetadataBody | string {
+  const patch: FlatListMetadataPatch = {}
 
-  const envelope = parseMetadataEnvelope(raw, COLLECTION_METADATA_KEYS)
+  const envelope = parseMetadataEnvelope(raw, FLAT_LIST_METADATA_KEYS[type])
   if (typeof envelope === 'string') return envelope
   const { contentHash } = envelope
 
   if ('labels' in raw) {
-    const labels = parseListDefaultLabels(raw.labels, 'collection')
+    const labels = parseListDefaultLabels(raw.labels, type)
     if (typeof labels === 'string') return labels
     patch.labels = labels
+  }
+
+  if ('image' in raw) {
+    const image = parseListImageField(raw.image)
+    if (typeof image === 'string') return image
+    patch.image = image
   }
 
   return contentHash === undefined ? { patch } : { patch, contentHash }
@@ -262,9 +329,16 @@ export function parseCollectionMetadataBody(
 /**
  * `PUT /api/metadata/:type/:slug` — replace the given front-matter fields on a
  * list, leaving the card lines untouched. Decks take the deck vocabulary below;
- * both types take `labels` (cleared by `null` or `[]`), validated against the
- * label vocabulary, the exclusivity rule, and what the list type carries — a
- * deck accepts `proxy` alone.
+ * decks and collections take `labels` (cleared by `null` or `[]`), validated
+ * against the label vocabulary, the exclusivity rule, and what the list type
+ * carries — a deck accepts `proxy` alone. All three types take `image`, and a
+ * wanted list takes nothing else: it is served by the same flat-list branch as a
+ * collection rather than refused, because it now has one key worth writing.
+ *
+ * A `card`-mode `image` is verified against the file it is being written to and
+ * refused with a 400 when no line carries that `&N` (see
+ * {@link checkListImageCardId}); a `file`-mode path is deliberately not checked,
+ * so the art may be added later.
  *
  * Only the fields present in the body are written; a field sent as `null` (or an
  * empty string, for `description`) is deleted. Every other key round-trips,
@@ -280,35 +354,40 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
   try {
     const target = parseListTarget(req)
     if (typeof target === 'string') return apiError(target, 400)
-    if (target.type === 'wanted') {
-      return apiError(
-        'Wanted lists carry no metadata. Use POST /api/wanted/:slug/rename to change the display name.',
-        400,
-      )
-    }
 
     const read = await readJsonObjectBody(req, MAX_LIST_BODY_SIZE)
     if (!read.ok) return read.response
 
-    if (target.type === 'collection') {
-      const parsed = parseCollectionMetadataBody(read.body)
+    if (target.type !== 'deck') {
+      // One branch for both flat list types: they differ only in which keys
+      // their vocabulary admits, which `parseFlatListMetadataBody` already knows.
+      const parsed = parseFlatListMetadataBody(read.body, target.type)
       if (typeof parsed === 'string') return apiError(parsed, 400)
 
-      const filePath = await resolveListFile('collection', target.slug)
-      if (!filePath) return apiError(`Collection '${target.slug}' not found`, 404)
+      const filePath = await resolveListFile(target.type, target.slug)
+      if (!filePath) {
+        return apiError(`${FLAT_LIST_LABELS[target.type]} '${target.slug}' not found`, 404)
+      }
 
       if (parsed.contentHash !== undefined) {
-        const validation = await validateContentHash(filePath, parsed.contentHash, 'Collection')
+        const validation = await validateContentHash(
+          filePath,
+          parsed.contentHash,
+          FLAT_LIST_LABELS[target.type],
+        )
         if (!validation.valid) return validation.response
       }
 
-      const write = await applyCollectionMetadata(filePath, parsed.patch)
+      const badCardRef = await checkListImageCardId(filePath, parsed.patch.image)
+      if (badCardRef !== null) return apiError(badCardRef, 400)
+
+      const write = await applyFlatListMetadata(filePath, parsed.patch)
       if (typeof write === 'string') return apiError(write, 400)
 
       await autoCommitAndPush(
         getBaseDir(),
         write.writtenFiles,
-        `Update metadata for collection ${target.slug}`,
+        `Update metadata for ${target.type} ${target.slug}`,
       )
 
       const response: MetadataResponse = {
@@ -330,6 +409,9 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
       const validation = await validateContentHash(filePath, parsed.contentHash, 'Deck')
       if (!validation.valid) return validation.response
     }
+
+    const badCardRef = await checkListImageCardId(filePath, parsed.patch.image)
+    if (badCardRef !== null) return apiError(badCardRef, 400)
 
     // The merged result is what is validated, not the patch: a body that sets
     // only `sourceId` still has to agree with the `sourceUrl` already on the file.
