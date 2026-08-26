@@ -1,7 +1,7 @@
 import * as appSvgTextModule from '../../app.svg' with { type: 'text' }
 import * as stylesCssTextModule from './styles.compiled.css' with { type: 'text' }
 import * as appJsTextModule from './app.compiled.js' with { type: 'text' }
-import { readTextModule } from '../bundled-text'
+import { readTextModule } from '../util/bundled-text'
 
 type BundledSiteAssets = {
   appSvg: string

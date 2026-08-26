@@ -227,11 +227,12 @@ export interface CardGroup<T extends CardData = CardData> {
 }
 
 import { BUYLIST_CURRENCY } from '../buylist'
-import type { Finish, ScryfallCard } from '../types'
-import type { CardLabel } from '../card-labels'
-import type { CardLanguage } from '../card-language'
-import type { PriceCurrency } from '../price-currency'
-import { getCurrencySymbol, getCurrencySuffix } from '../price-currency'
+import type { Finish } from '../card/finish-condition'
+import type { ScryfallCard } from '../scryfall/types'
+import type { CardLabel } from '../card/card-labels'
+import type { CardLanguage } from '../card/card-language'
+import type { PriceCurrency } from '../pricing/price-currency'
+import { getCurrencySymbol, getCurrencySuffix } from '../pricing/price-currency'
 
 export { BUYLIST_CURRENCY }
 

@@ -1,12 +1,12 @@
 import { describe, test, expect } from 'bun:test'
-import type { DeckData } from '../../src/types'
+import type { DeckData } from '../../src/list/deck'
 import {
   getDeckCountLabel,
   getMainDeckSize,
   isMainDeckSection,
   parseDeckFormat,
   resolveDeckFormat,
-} from '../../src/deck-format'
+} from '../../src/list/deck-format'
 
 function makeDeck(partial: Partial<DeckData> = {}): DeckData {
   return {

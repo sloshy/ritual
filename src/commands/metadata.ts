@@ -7,20 +7,25 @@ import {
   isDeckMetadataKey,
   type DeckMetadataKey,
   type DeckMetadataPatch,
-} from '../deck-metadata'
+} from '../list/deck-metadata'
 import {
   applyFlatListMetadata,
   FLAT_LIST_METADATA_KEYS,
   type FlatListMetadataPatch,
   type FlatListType,
-} from '../flat-list-metadata'
-import { readListDescription } from '../list-description'
-import { parseDeckFrontMatter } from '../deck-file'
-import { readFrontMatterMapping } from '../front-matter-write'
-import { isCardLabel, LIST_TYPE_LABELS, parseCardLabelsValue, type CardLabel } from '../card-labels'
+} from '../list/flat-list-metadata'
+import { readListDescription } from '../list/list-description'
+import { parseDeckFrontMatter } from '../list/deck-file'
+import { readFrontMatterMapping } from '../list/front-matter-write'
+import {
+  isCardLabel,
+  LIST_TYPE_LABELS,
+  parseCardLabelsValue,
+  type CardLabel,
+} from '../card/card-labels'
 import { parseDeckMetadataBody, parseFlatListMetadataBody } from '../admin/api/metadata'
 import { checkArchidektLink } from '../deck-sync/link'
-import { CardCommandError, localizedCommandError } from '../errors'
+import { CardCommandError, localizedCommandError } from '../util/errors'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 import {
@@ -28,7 +33,7 @@ import {
   mergeArrayValues,
   splitCommaTokens,
   type ArrayMode,
-} from '../config-fields'
+} from '../config/config-fields'
 import {
   addListTypeFlags,
   resolveListSelection,
@@ -36,8 +41,8 @@ import {
   runCommandAction,
   type ResolvedList,
 } from './card-target'
-import type { ListType } from '../list-type'
-import type { ListTypeFlags } from '../resolve-list'
+import type { ListType } from '../list/list-type'
+import type { ListTypeFlags } from '../list/resolve-list'
 import {
   addScriptingOptions,
   emitError,

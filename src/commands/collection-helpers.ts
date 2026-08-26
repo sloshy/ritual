@@ -1,16 +1,27 @@
 import prompts, { type Choice } from 'prompts'
 import type { PromptState } from './prompts-types'
 import { getCardPrintings, isDigitalOnlySet } from '../scryfall'
-import type { ScryfallCard, Finish, Condition } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
+import {
+  type Finish,
+  type Condition,
+  VALID_FINISHES,
+  VALID_CONDITIONS,
+  applyConditionUpdate,
+  conditionLabel,
+  isFinish,
+  isCondition,
+  printingFinishes,
+} from '../card/finish-condition'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
-import type { ConditionUpdate } from '../change-event'
+import type { ConditionUpdate } from '../changes/change-event'
 import {
   dedupePrintingsByKey,
   findPrinting,
   hasSpecificPrinting,
   printingLanguages,
-} from '../card-printing'
+} from '../card/card-printing'
 import {
   CARD_LANGUAGES,
   displayLanguage,
@@ -19,25 +30,16 @@ import {
   languageDisplayName,
   storedLanguage,
   type CardLanguage,
-} from '../card-language'
+} from '../card/card-language'
 import {
   cardLabelChoicesFor,
   cardLabelDefaultChoicesFor,
   formatCardLabels,
   type CardLabel,
   type CardLabelChoice,
-} from '../card-labels'
-import type { ListType } from '../list-type'
-import { resolvePrintingLanguage } from '../printing-language'
-import {
-  VALID_FINISHES,
-  VALID_CONDITIONS,
-  applyConditionUpdate,
-  conditionLabel,
-  isFinish,
-  isCondition,
-  printingFinishes,
-} from '../finish-condition'
+} from '../card/card-labels'
+import type { ListType } from '../list/list-type'
+import { resolvePrintingLanguage } from '../card/printing-language'
 import {
   formatFinishPriceCell,
   formatPriceColumn,
@@ -45,11 +47,11 @@ import {
   printingFinishColumns,
   type PriceColumnChoice,
   type PriceCurrency,
-} from '../price-currency'
-import { getCollectionsDir, getDefaultCurrency, getDefaultLanguage } from '../ritual-config'
-import { listFileName, unusableFileNameMessage } from '../list-file-name'
+} from '../pricing/price-currency'
+import { getCollectionsDir, getDefaultCurrency, getDefaultLanguage } from '../config/ritual-config'
+import { listFileName, unusableFileNameMessage } from '../list/list-file-name'
 import { ensureListFile } from './card-session'
-import { requireInteractive } from '../no-input'
+import { requireInteractive } from '../util/no-input'
 
 export { VALID_FINISHES, VALID_CONDITIONS, conditionLabel, isFinish, isCondition, printingFinishes }
 
@@ -644,4 +646,4 @@ export async function promptFinishAndCondition(
   return { finish: selectedFinish, condition: selectedCondition }
 }
 
-export { formatCollectionLine } from '../card-line'
+export { formatCollectionLine } from '../card/card-line'

@@ -12,18 +12,18 @@
 
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { unreadableLines } from '../markdown-fence'
-import { parseCollectionFile, type CollectionEntry } from '../collection-file'
-import { getErrorMessage } from '../errors'
-import { createList, isListLifecycleError } from '../list-lifecycle'
-import { applyChangesToCollectionFile, type CardMutationChange } from '../list-mutate'
+import { unreadableLines } from '../list/markdown-fence'
+import { parseCollectionFile, type CollectionEntry } from '../list/collection-file'
+import { getErrorMessage } from '../util/errors'
+import { createList, isListLifecycleError } from '../list/list-lifecycle'
+import { applyChangesToCollectionFile, type CardMutationChange } from '../list/list-mutate'
 import {
   isResolveListError,
   listLocations,
   matchList,
   type ListLocation,
   type ResolveListError,
-} from '../resolve-list'
+} from '../list/resolve-list'
 
 /** A collection list the sync can address, identified by its file basename. */
 export type ResolvedCollectionList = { name: string }

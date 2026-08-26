@@ -1,9 +1,9 @@
 import type { Component } from 'solid-js'
 import { createMemo, For, Show } from 'solid-js'
-import type { PriceCurrency } from '../price-currency'
+import type { PriceCurrency } from '../pricing/price-currency'
 import { sessionCacheVersion } from './session-cache'
 import { CombinedCardsView } from './CombinedCardsView'
-import type { ListType } from '../list-type'
+import type { ListType } from '../list/list-type'
 import type { SelectionListId } from './useCardSelection'
 import {
   type CombinedCardData,

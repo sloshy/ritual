@@ -1,6 +1,6 @@
 import { describe, expect, test, mock } from 'bun:test'
 import { fetchMtgGoldfishDeck } from '../../../src/importers/mtggoldfish'
-import { type HttpClient } from '../../../src/interfaces'
+import { type HttpClient } from '../../../src/util/interfaces'
 
 describe('MTGGoldfish Importer', () => {
   test('fetches and parses a deck correctly', async () => {

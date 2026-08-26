@@ -76,7 +76,7 @@ describe('the source scan', () => {
   test('actually sees the tree', () => {
     const files = sourceFiles()
     expect(files.length).toBeGreaterThan(100)
-    expect(files).toContain('src/change-event.ts')
+    expect(files).toContain('src/changes/change-event.ts')
     expect(files).toContain('index.ts')
   })
 })
@@ -89,10 +89,10 @@ describe('i18n persistence fence', () => {
    */
   test('changelog, CSV, and export modules never import src/i18n', async () => {
     const fenced = [
-      'src/change-event.ts',
-      'src/changelog-writer.ts',
-      'src/changelog-parser.ts',
-      'src/csv.ts',
+      'src/changes/change-event.ts',
+      'src/changes/changelog-writer.ts',
+      'src/changes/changelog-parser.ts',
+      'src/changes/csv.ts',
       'src/buylist/cart-csv.ts',
       ...[...new Glob('src/export/**/*.ts').scanSync(ROOT)].map((file) => file.replace(/\\/g, '/')),
     ]
@@ -110,13 +110,13 @@ describe('i18n persistence fence', () => {
    */
   test('card-line serializers never import src/i18n', async () => {
     const lineFenced = [
-      'src/deck-file.ts',
-      'src/card-line.ts',
-      'src/collection-file.ts',
-      'src/set-codes.ts',
-      'src/card-id.ts',
-      'src/printing-key.ts',
-      'src/list-file-name.ts',
+      'src/list/deck-file.ts',
+      'src/card/card-line.ts',
+      'src/list/collection-file.ts',
+      'src/card/set-codes.ts',
+      'src/card/card-id.ts',
+      'src/card/printing-key.ts',
+      'src/list/list-file-name.ts',
     ]
     expect(await scan(/from\s+['"][^'"]*\bi18n\b/, { files: lineFenced })).toEqual([])
   })
@@ -130,7 +130,11 @@ describe('i18n persistence fence', () => {
   test('the changelog writer never reaches the display renderer', async () => {
     expect(
       await scan(/from\s+['"][^'"]*\bchange-message\b/, {
-        files: ['src/change-event.ts', 'src/changelog-writer.ts', 'src/changelog-parser.ts'],
+        files: [
+          'src/changes/change-event.ts',
+          'src/changes/changelog-writer.ts',
+          'src/changes/changelog-parser.ts',
+        ],
       }),
     ).toEqual([])
   })
@@ -337,7 +341,7 @@ describe('changelog display rendering', () => {
    */
   test('changeMessage has exactly one implementation', async () => {
     const declarations = await scan(/export\s+(?:function|const)\s+changeMessage\b/)
-    expect(declarations.map((entry) => entry.file)).toEqual(['src/change-message.ts'])
+    expect(declarations.map((entry) => entry.file)).toEqual(['src/changes/change-message.ts'])
   })
 
   /**

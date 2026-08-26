@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parsePositiveInteger } from '../../src/parse-number'
+import { parsePositiveInteger } from '../../src/util/parse-number'
 
 /**
  * The one positive-integer rule every surface shares: `--card-id`, `--limit`,

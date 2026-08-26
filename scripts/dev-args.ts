@@ -10,7 +10,7 @@
  * prompting) — and fails fast otherwise.
  */
 
-import { REFRESH_MODES } from '../src/refresh'
+import { REFRESH_MODES } from '../src/cache/refresh'
 /** `--refresh` modes that resolve without prompting. `ask` is deliberately absent. */
 const ANSWERED_REFRESH_MODES: readonly string[] = REFRESH_MODES.filter((mode) => mode !== 'ask')
 

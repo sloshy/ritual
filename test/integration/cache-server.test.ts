@@ -2,13 +2,14 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { setBaseDir } from '../../src/base-dir'
+import { setBaseDir } from '../../src/config/base-dir'
 import { defaultCache } from '../../src/cache'
 import {
   clearCacheServerAddressOverride,
   setCacheServerAddressOverride,
 } from '../../src/cache/config'
-import { type PriceData, type ScryfallCard } from '../../src/types'
+import type { PriceData } from '../../src/pricing/price-data'
+import type { ScryfallCard } from '../../src/scryfall/types'
 import { binaryPath, ensureBinary } from './helpers/cli'
 
 interface RunningServer {

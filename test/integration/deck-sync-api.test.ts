@@ -16,7 +16,7 @@ import type {
   ArchidektRawDeckResponse,
 } from '../../src/importers/archidekt-types'
 import { signIn as storeLogin } from './helpers/archidekt'
-import type { RouteProgress, RouteProgressSink } from '../../src/progress'
+import type { RouteProgress, RouteProgressSink } from '../../src/util/progress'
 import { stubFetch } from './helpers/stub-fetch'
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
 import { expectMonotonicProgress } from '../test-utils'

@@ -1,6 +1,6 @@
-import { printingSuffix } from '../card-line'
-import { findPrinting, hasSpecificPrinting, type CardPrintingsLookup } from '../card-printing'
-import type { ScryfallCard } from '../types'
+import { printingSuffix } from '../card/card-line'
+import { findPrinting, hasSpecificPrinting, type CardPrintingsLookup } from '../card/card-printing'
+import type { ScryfallCard } from '../scryfall/types'
 import type { ExportEntry } from './entries'
 import type { ExportProperty } from './render'
 

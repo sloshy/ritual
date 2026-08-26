@@ -1,15 +1,15 @@
 import { buylistFeedIsStale } from '../buylist'
-import { defaultHttpClient } from '../http'
-import type { HttpClient } from '../interfaces'
-import { getLogger } from '../logger'
+import { defaultHttpClient } from '../util/http'
+import type { HttpClient } from '../util/interfaces'
+import { getLogger } from '../util/logger'
 import {
   bulkAllowed,
   shouldBulkRefresh,
   type BulkRefreshPrompt,
   type RefreshMode,
-} from '../refresh'
-import { loadRitualConfig, wantsCardKingdomFeed } from '../ritual-config'
-import { formatDuration } from '../utils'
+} from '../cache/refresh'
+import { loadRitualConfig, wantsCardKingdomFeed } from '../config/ritual-config'
+import { formatDuration } from '../util/duration'
 import { loadCardKingdomCache, saveCardKingdomCache, type CardKingdomCacheFile } from './cache'
 import { fetchCardKingdomFeed } from './client'
 import { loadEnsuredFeed } from './memo'

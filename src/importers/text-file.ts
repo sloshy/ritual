@@ -1,4 +1,5 @@
-import { type DeckData, type DeckSection, type Finish } from '../types'
+import type { DeckData, DeckSection } from '../list/deck'
+import type { Finish } from '../card/finish-condition'
 import path from 'node:path'
 import { readdir } from 'node:fs/promises'
 import matter from 'gray-matter'
@@ -7,19 +8,19 @@ import {
   isCardLanguage,
   LANGUAGE_TOKEN_PATTERN,
   malformedLanguageTokenHint,
-} from '../card-language'
+} from '../card/card-language'
 import {
   LABEL_TOKEN_PATTERN,
   parseCardLabelsToken,
   readListDefaultLabels,
   unsupportedLabelsFor,
   type CardLabel,
-} from '../card-labels'
-import { listDescriptionOrUndefined } from '../list-description'
-import { readListImage } from '../list-image'
-import { isDroppedEmptySection, parseDeckFormat } from '../deck-format'
-import { createFenceTracker } from '../markdown-fence'
-import { isListMarkdownFile } from '../list-file-name'
+} from '../card/card-labels'
+import { listDescriptionOrUndefined } from '../list/list-description'
+import { readListImage } from '../list/list-image'
+import { isDroppedEmptySection, parseDeckFormat } from '../list/deck-format'
+import { createFenceTracker } from '../list/markdown-fence'
+import { isListMarkdownFile } from '../list/list-file-name'
 
 /** A deck directory entry that is a deck's own file. Decks share the one list-file predicate. */
 export const isDeckFile = isListMarkdownFile

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { confirmUnreadableDecks } from '../../src/commands/deck-sync'
 import type { UnreadableDeck } from '../../src/deck-sync/engine'
-import { MemoryLogger } from '../../src/logger'
-import { setNoInputOverride } from '../../src/no-input'
+import { MemoryLogger } from '../../src/util/logger'
+import { setNoInputOverride } from '../../src/util/no-input'
 import type { ScriptingOptions } from '../../src/commands/scripting'
 
 /**

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { ensureLoginsDir, getLoginsDir } from '../logins-dir'
+import { ensureLoginsDir, getLoginsDir } from '../auth/logins-dir'
 
 export interface AuditEntry {
   timestamp: string

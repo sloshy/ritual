@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { adminUserExists, isTotpEnabled } from '../auth'
-import { parseDeckFrontMatter } from '../../deck-file'
-import { getDecksDir, getSiteSellMode, loadRitualConfig } from '../../ritual-config'
-import { isListMarkdownFile } from '../../list-file-name'
+import { parseDeckFrontMatter } from '../../list/deck-file'
+import { getDecksDir, getSiteSellMode, loadRitualConfig } from '../../config/ritual-config'
+import { isListMarkdownFile } from '../../list/list-file-name'
 
 /**
  * `GET /api/status` — what a client needs before it has a session: whether this

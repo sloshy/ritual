@@ -19,13 +19,14 @@ import {
 import type { MoveDestination } from '../../src/commands/edit-move'
 import { findCardById } from '../../src/commands/deck-helpers'
 import type { CardSessionContext } from '../../src/commands/card-session'
-import type { Card, DeckData } from '../../src/types'
+import type { Card } from '../../src/card/card'
+import type { DeckData } from '../../src/list/deck'
 import {
   consolidateSetPrinting,
   createAddChange,
   createSetPrintingChange,
   type PrintingTuple,
-} from '../../src/change-event'
+} from '../../src/changes/change-event'
 import { createSessionArtChanges, pendingSessionArt } from '../../src/commands/session-art'
 import { scratchListPath, stubTty } from '../test-utils'
 

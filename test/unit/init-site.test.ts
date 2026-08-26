@@ -16,7 +16,7 @@ import {
   servePreviewCommand,
   updateGitignore,
 } from '../../src/commands/init-site'
-import { setBaseDir } from '../../src/base-dir'
+import { setBaseDir } from '../../src/config/base-dir'
 
 type WorkflowStep = {
   name?: string

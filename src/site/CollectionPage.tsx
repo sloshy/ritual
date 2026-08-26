@@ -7,7 +7,7 @@ import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, on, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
-import { normalizeCardName } from '../term-match'
+import { normalizeCardName } from '../card/term-match'
 import { useT } from '../ui/i18n'
 import type { MessageKey } from '../i18n/messages/en'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
@@ -15,7 +15,7 @@ import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
 import { ListDescriptionSection } from './ListDescription'
 import { ListPageStats, PageCountAndTotal, SellModeNotice } from './PageStats'
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 import type { CardContextInfo } from './card-context'
 import type { CollectionCardEntry } from './data-types'
 import type { MetaEntry } from './meta-entry'
@@ -27,11 +27,11 @@ import {
   type CardLabel,
   type CardLabelSelection,
   type PricelessReason,
-} from '../card-labels'
-import type { ListImageRef } from '../list-image'
+} from '../card/card-labels'
+import type { ListImageRef } from '../list/list-image'
 import { cardPriceText, cardPricelessReason, pricelessFacts } from './priceless'
-import type { ChangelogPage } from '../changelog-parser'
-import type { PriceCurrency } from '../price-currency'
+import type { ChangelogPage } from '../changes/changelog-parser'
+import type { PriceCurrency } from '../pricing/price-currency'
 import { pricesEnabled, sitePriceForFinish } from './price-view'
 import {
   type CardData,
@@ -75,7 +75,7 @@ import {
   isTagFilterActive,
   untaggedAddedCardNames,
 } from './card-filters'
-import { deriveSectionOrder, sectionDefaultGroupBy } from '../section-format'
+import { deriveSectionOrder, sectionDefaultGroupBy } from '../list/section-format'
 import { addEntryToLeftGuarded, canAddMoreToLeft, showTradeToast } from './useTradeState'
 import type { TradeSearchEntry } from './useTradeData'
 import { resolveCardThumbnailUrl, resolveCardPreview } from './image-sources'
@@ -90,13 +90,13 @@ import {
   collectionToCsv,
   frontMatterFor,
 } from '../editor/list-export'
-import { lookupPrintingCard, printingKey } from '../printing-key'
+import { lookupPrintingCard, printingKey } from '../card/printing-key'
 import {
   displayLanguage,
   languageDisplayName,
   storedLanguage,
   type CardLanguage,
-} from '../card-language'
+} from '../card/card-language'
 
 // Collections always have a specific printing, so 'printing' grouping does not apply.
 type CollectionGroupBy = Exclude<GroupBy, 'printing'>

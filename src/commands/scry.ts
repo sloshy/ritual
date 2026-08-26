@@ -1,7 +1,7 @@
 import { Command, InvalidArgumentError } from 'commander'
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 import { classifyFetchCard, fetchRandomCard, fetchSearchPage } from '../scryfall'
-import { isNoInput } from '../no-input'
+import { isNoInput } from '../util/no-input'
 import {
   addFieldsOption,
   addOutputOption,
@@ -19,8 +19,8 @@ import {
   type CsvOutputFormat,
   type ScriptingOptions,
 } from './scripting'
-import { getErrorMessage } from '../errors'
-import { parsePositiveInteger } from '../parse-number'
+import { getErrorMessage } from '../util/errors'
+import { parsePositiveInteger } from '../util/parse-number'
 import { ask } from './prompts-helpers'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'

@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import type { ScryfallCard } from '../../../src/types'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import type { ScryfallSymbol } from '../../../src/scryfall'
 import type { CachedItem, CacheSchema } from '../../../src/cache/file-cache'
-import type { RitualConfig } from '../../../src/ritual-config'
+import type { RitualConfig } from '../../../src/config/ritual-config'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
 import { localeTag } from '../../../src/i18n/locale-tag'
 

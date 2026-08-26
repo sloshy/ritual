@@ -1,6 +1,6 @@
 import { createSignal } from 'solid-js'
 import type { Accessor } from 'solid-js'
-import type { ListType } from '../list-type'
+import type { ListType } from '../list/list-type'
 import { isAbortError } from './utils'
 
 /**

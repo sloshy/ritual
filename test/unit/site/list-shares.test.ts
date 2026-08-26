@@ -24,7 +24,7 @@ import {
   type ListRefKey,
   type NamedListRef,
 } from '../../../src/site/combined-list'
-import type { ScryfallCard } from '../../../src/types'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import { makeScryfallCard } from '../../test-utils'
 
 describe('buildListShareKeys', () => {

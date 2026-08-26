@@ -1,7 +1,7 @@
 import type { TokenStore } from './interfaces'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { ensureLoginsDir, getLoginsDir } from '../logins-dir'
+import { ensureLoginsDir, getLoginsDir } from './logins-dir'
 
 export class FileTokenStore implements TokenStore {
   private getFilePath(site: string): string {

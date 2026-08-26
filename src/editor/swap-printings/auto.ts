@@ -3,7 +3,7 @@
  * candidates by price, with the current printing competing as a "keep" option.
  */
 
-import { displayFinish } from '../../finish-condition'
+import { displayFinish } from '../../card/finish-condition'
 import { applyFinishFilter } from './candidates'
 import { targetPinsPrinting } from './printing-fields'
 import type {

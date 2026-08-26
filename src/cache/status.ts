@@ -7,8 +7,8 @@ import { PRICE_MAX_AGE_MS } from './constants'
 import { getConfiguredCacheServerAddress } from './config'
 import { readRecordedCardBulkType } from './bulk-provenance'
 import { configuredCardBulkType, type CardBulkType } from '../scryfall/bulk-manifest'
-import { getDefaultLanguage } from '../ritual-config'
-import type { CardLanguage } from '../card-language'
+import { getDefaultLanguage } from '../config/ritual-config'
+import type { CardLanguage } from '../card/card-language'
 
 /**
  * The card cache's diagnostic report, collected once and rendered by whoever

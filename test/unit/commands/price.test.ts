@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { shouldRunInteractive, type InteractiveTerminal } from '../../../src/commands/price'
-import { resolveRefreshMode } from '../../../src/refresh'
+import { resolveRefreshMode } from '../../../src/cache/refresh'
 import type { ScriptingOptions } from '../../../src/commands/scripting'
 
 const FULL_TERMINAL: InteractiveTerminal = { stdinIsTTY: true, stdoutIsTTY: true, noInput: false }

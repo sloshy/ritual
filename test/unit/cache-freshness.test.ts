@@ -18,7 +18,7 @@ import {
   PRICE_MAX_AGE_MS,
 } from '../../src/cache/constants'
 import type { TagIndex } from '../../src/scryfall/tags'
-import type { BulkRefreshPrompt } from '../../src/refresh'
+import type { BulkRefreshPrompt } from '../../src/cache/refresh'
 
 type Harness = {
   preloadCalls: number

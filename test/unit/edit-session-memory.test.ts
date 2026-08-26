@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'bun:test'
-import type { ChangeEvent } from '../../src/change-event'
+import type { ChangeEvent } from '../../src/changes/change-event'
 import {
   rememberEditSession,
   recallEditSession,

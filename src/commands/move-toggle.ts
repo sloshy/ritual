@@ -8,7 +8,7 @@
 import prompts, { type Choice } from 'prompts'
 import type { ListEntry } from './move-helpers'
 import { getToggleState, toggleItemTitle, toggleSetAll, toggleStateChar } from './move-helpers'
-import { LIST_TYPES, listTypeTitle, type ListType } from '../list-type'
+import { LIST_TYPES, listTypeTitle, type ListType } from '../list/list-type'
 import type { EnglishCatalog, MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 

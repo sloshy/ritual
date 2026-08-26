@@ -1,7 +1,7 @@
 import type { Choice } from 'prompts'
-import type { ChangeEvent } from '../change-event'
+import type { ChangeEvent } from '../changes/change-event'
 import { t } from '../i18n/t'
-import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from '../list-type'
+import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from '../list/list-type'
 import {
   createCardSessionContext,
   promptSessionConfigUpdate,

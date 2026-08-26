@@ -1,8 +1,12 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { applyDeckMetadata, DECK_METADATA_KEYS, mergeDeckMetadata } from '../../src/deck-metadata'
-import { parseDeckFrontMatter } from '../../src/deck-file'
+import {
+  applyDeckMetadata,
+  DECK_METADATA_KEYS,
+  mergeDeckMetadata,
+} from '../../src/list/deck-metadata'
+import { parseDeckFrontMatter } from '../../src/list/deck-file'
 
 /**
  * The deck metadata write is front-matter only, so a cover image lands in the

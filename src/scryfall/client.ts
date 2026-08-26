@@ -1,4 +1,4 @@
-import { type ScryfallCard, type ScryfallList } from '../types'
+import type { ScryfallCard, ScryfallList } from './types'
 import { getCacheDir, getImageCacheDir } from '../cache'
 import {
   type HttpClient,
@@ -6,15 +6,15 @@ import {
   type PricingBackend,
   type FileSystemClient,
   createDefaultFileSystemClient,
-} from '../interfaces'
-import { dedupePrintingsByKey, type CardPrintingsResult } from '../card-printing'
-import type { PriceCurrency } from '../price-currency'
-import { getPriceField } from '../price-currency'
-import { getBannedPrintings, getDefaultLanguage } from '../ritual-config'
-import { displayLanguage, type CardLanguage } from '../card-language'
-import { promptsUnavailable } from '../no-input'
-import { getLogger } from '../logger'
-import { getErrorMessage, throwHttpError } from '../errors'
+} from '../util/interfaces'
+import { dedupePrintingsByKey, type CardPrintingsResult } from '../card/card-printing'
+import type { PriceCurrency } from '../pricing/price-currency'
+import { getPriceField } from '../pricing/price-currency'
+import { getBannedPrintings, getDefaultLanguage } from '../config/ritual-config'
+import { displayLanguage, type CardLanguage } from '../card/card-language'
+import { promptsUnavailable } from '../util/no-input'
+import { getLogger } from '../util/logger'
+import { getErrorMessage, throwHttpError } from '../util/errors'
 import path from 'node:path'
 import prompts from 'prompts'
 import {
@@ -52,7 +52,7 @@ import {
   selectCheapestPrinting,
   selectRepresentativePrinting,
   type PrintingPriceFn,
-} from '../printing-select'
+} from '../card/printing-select'
 
 const RATE_LIMIT_MS = 150
 const SCRYFALL_CARDS_PER_PAGE = 175

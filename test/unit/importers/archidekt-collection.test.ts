@@ -22,8 +22,8 @@ import {
   CARD_LANGUAGES,
   normalizeLanguageValue,
   type CardLanguage,
-} from '../../../src/card-language'
-import type { Condition, Finish } from '../../../src/types'
+} from '../../../src/card/card-language'
+import type { Condition, Finish } from '../../../src/card/finish-condition'
 
 describe('Archidekt collection enums', () => {
   test.each<[number, Condition]>([

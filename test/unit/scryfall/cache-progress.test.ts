@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeEach } from 'bun:test'
 import { ScryfallClient } from '../../../src/scryfall'
 import type { CacheRefreshEvent } from '../../../src/scryfall'
-import type { ScryfallCard } from '../../../src/types'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import {
   ART_TAGS_URI,
   BULK_META_URL,

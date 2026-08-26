@@ -5,8 +5,8 @@ import { cardCache } from '../../src/cache'
 import { scryfallIdIndex } from '../../src/cache/scryfall-id-index'
 import { registerCollectionSyncCommand } from '../../src/commands/collection-sync'
 import type { ArchidektCollectionRecord } from '../../src/importers/archidekt-collection'
-import { MemoryLogger, resetLogger, setLogger } from '../../src/logger'
-import { refreshRitualConfig } from '../../src/ritual-config'
+import { MemoryLogger, resetLogger, setLogger } from '../../src/util/logger'
+import { refreshRitualConfig } from '../../src/config/ritual-config'
 import { collectionPage, record } from '../unit/collection-sync/fixtures'
 import {
   BOLT,

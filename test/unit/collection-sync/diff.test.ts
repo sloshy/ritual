@@ -21,7 +21,7 @@ import {
   type PushUpdate,
   type RemoteCollectionIndex,
 } from '../../../src/collection-sync/diff'
-import type { AddChange, RemoveChange } from '../../../src/change-event'
+import type { AddChange, RemoveChange } from '../../../src/changes/change-event'
 import { entry, noPrintings, printing, printingsLookup, record } from './fixtures'
 
 /** The local index for one list of entries, with no cache behind it. */

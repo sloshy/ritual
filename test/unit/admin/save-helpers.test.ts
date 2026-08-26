@@ -16,8 +16,8 @@ import {
   createSetLabelChange,
   createSetLanguageChange,
   type ChangeEvent,
-} from '../../../src/change-event'
-import type { DeckData } from '../../../src/types'
+} from '../../../src/changes/change-event'
+import type { DeckData } from '../../../src/list/deck'
 
 /**
  * The shared JSON-body route prologue. Its two refusal messages are pinned here

@@ -8,7 +8,7 @@ import {
   flameStopVars,
   flameTransform,
   type FlameStops,
-} from '../../src/flame'
+} from '../../src/theme/flame'
 import { themeVarMetadata } from '../../src/site/theme-vars-metadata'
 
 const stops: FlameStops = {

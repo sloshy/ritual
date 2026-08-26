@@ -13,8 +13,8 @@
  */
 
 import path from 'node:path'
-import { getBaseDir } from '../base-dir'
-import { isRunningFromSource } from '../runtime'
+import { getBaseDir } from '../config/base-dir'
+import { isRunningFromSource } from '../config/runtime'
 
 /** The directory a build publishes to when `--out-dir` is not given. */
 export function defaultDistDir(): string {

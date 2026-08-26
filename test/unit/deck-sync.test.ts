@@ -12,10 +12,11 @@ import {
   type CardSummary,
   type QuantityChange,
 } from '../../src/deck-sync/diff'
-import { assignMissingDeckCardIds } from '../../src/card-id'
-import { serializeDeckToMarkdown } from '../../src/deck-file'
-import type { AddChange, RemoveChange } from '../../src/change-event'
-import type { Card, DeckData, DeckSection } from '../../src/types'
+import { assignMissingDeckCardIds } from '../../src/card/card-id'
+import { serializeDeckToMarkdown } from '../../src/list/deck-file'
+import type { AddChange, RemoveChange } from '../../src/changes/change-event'
+import type { Card } from '../../src/card/card'
+import type { DeckData, DeckSection } from '../../src/list/deck'
 
 /**
  * A name-keyed diff (the shape a sync without `--sync-printings` produces),

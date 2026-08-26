@@ -7,7 +7,7 @@ import { Command } from 'commander'
 import { registerScryCommand } from '../../src/commands/scry'
 import { makeScryfallCard } from '../test-utils'
 import { stubFetch, type StubbedFetch } from './helpers/stub-fetch'
-import type { ScryfallCard } from '../../src/types'
+import type { ScryfallCard } from '../../src/scryfall/types'
 
 /**
  * In-process scry runs against a stubbed Scryfall random endpoint: the

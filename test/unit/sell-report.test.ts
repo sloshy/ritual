@@ -18,8 +18,8 @@ import {
   type SellListEntry,
   type SellListInput,
   type SellReportEntry,
-} from '../../src/sell-report'
-import type { ScryfallCard } from '../../src/types'
+} from '../../src/pricing/sell-report'
+import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeCardKingdomProduct, makeScryfallCard } from '../test-utils'
 
 /** Assert an entry matched a product, narrowing to the matched arm. */

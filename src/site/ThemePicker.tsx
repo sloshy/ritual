@@ -20,7 +20,7 @@ import {
   createSignal,
   onCleanup,
 } from 'solid-js'
-import { paletteToVars, themeNames, themes, type ThemeName } from '../themes'
+import { paletteToVars, themeNames, themes, type ThemeName } from '../theme/themes'
 import { useI18n } from '../ui/i18n'
 import { useTheme } from './useTheme'
 

@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'bun:test'
-import { serializeDeckToMarkdown } from '../../src/deck-file'
+import { serializeDeckToMarkdown } from '../../src/list/deck-file'
 import { parseDeckText } from '../../src/importers/text-file'
-import type { DeckData } from '../../src/types'
+import type { DeckData } from '../../src/list/deck'
 
 describe('serializeDeckToMarkdown', () => {
   test('serializes deck with frontmatter and sections', () => {

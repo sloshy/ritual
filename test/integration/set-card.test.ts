@@ -12,7 +12,7 @@ import {
   writeBulkProvenance,
 } from './helpers/workspace'
 import { makeScryfallCard } from '../test-utils'
-import type { ScryfallCard } from '../../src/types'
+import type { ScryfallCard } from '../../src/scryfall/types'
 
 type SetCardJson = {
   type: string

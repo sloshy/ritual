@@ -7,9 +7,9 @@ import {
   applyImagePatch,
   applyLabelsPatch,
   FLAT_LIST_METADATA_KEYS,
-} from '../../src/flat-list-metadata'
-import { readFrontMatterMapping } from '../../src/front-matter-write'
-import { readListImageFile, writeListImage } from '../../src/list-image-file'
+} from '../../src/list/flat-list-metadata'
+import { readFrontMatterMapping } from '../../src/list/front-matter-write'
+import { readListImageFile, writeListImage } from '../../src/list/list-image-file'
 
 /**
  * The flat-list metadata writer is front-matter only: card lines, `&N` ids and

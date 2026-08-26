@@ -13,7 +13,7 @@ import {
   displayLanguage,
   languageDisplayName,
   type CardLanguage,
-} from '../card-language'
+} from '../card/card-language'
 
 /**
  * Open the language picker for a card. `current` is the entry's stored language

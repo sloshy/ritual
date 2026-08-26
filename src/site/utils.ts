@@ -1,6 +1,6 @@
-import type { PriceCurrency } from '../price-currency'
+import type { PriceCurrency } from '../pricing/price-currency'
 
-export { capitalize } from '../utils'
+export { capitalize } from '../util/strings'
 
 /**
  * Whether a caught error is a `fetch` cancelled through its `AbortSignal`.

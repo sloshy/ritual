@@ -6,9 +6,9 @@
  * can be unit-tested.
  */
 
-import type { ListType } from '../../list-type'
+import type { ListType } from '../../list/list-type'
 import { listRefKey, type ListRefKey, type NamedListRef } from '../../site/combined-list'
-import { filterPrintingsByQuery, type FilterablePrinting } from '../../collector-query'
+import { filterPrintingsByQuery, type FilterablePrinting } from '../../card/collector-query'
 import { applyFinishFilter } from './candidates'
 import { autoAllocate } from './auto'
 import { targetPinsPrinting } from './printing-fields'

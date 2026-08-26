@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { isConfigParseError } from '../../src/ritual-config'
+import { isConfigParseError } from '../../src/config/ritual-config'
 import {
   DEFAULT_PRICE_SOURCES,
   isPriceSource,
@@ -7,7 +7,7 @@ import {
   sourceCurrency,
   sourcesForCurrency,
   VALID_PRICE_SOURCES,
-} from '../../src/price-source'
+} from '../../src/pricing/price-source'
 
 describe('parsePriceSources', () => {
   test('absent falls back to the default (tcgplayer only)', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { isAdditiveAction } from '../../../src/site/changelog-format'
-import type { ChangelogAction } from '../../../src/changelog-parser'
+import type { ChangelogAction } from '../../../src/changes/changelog-parser'
 
 // The wording that used to live beside this categorization now has exactly one
 // implementation, `changeMessage` — see `test/unit/change-message.test.ts`.

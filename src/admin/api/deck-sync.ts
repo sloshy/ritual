@@ -1,8 +1,8 @@
 import { ArchidektAuth } from '../../auth/ArchidektAuth'
 import { FileTokenStore } from '../../auth/FileTokenStore'
 import type { ArchidektLoginStatus } from '../../auth/interfaces'
-import { getErrorMessage } from '../../errors'
-import { getDecksDir } from '../../ritual-config'
+import { getErrorMessage } from '../../util/errors'
+import { getDecksDir } from '../../config/ritual-config'
 import {
   listSyncableDecks,
   runDeckSync,
@@ -12,9 +12,9 @@ import {
   type DeckSyncStatus,
   type SyncableDeck,
 } from '../../deck-sync/engine'
-import type { SyncDirection } from '../../sync-common'
-import { sseResponse } from '../../sse'
-import { itemStartProgress, itemsDoneProgress, type RouteProgressSink } from '../../progress'
+import type { SyncDirection } from '../../sync/common'
+import { sseResponse } from '../../util/sse'
+import { itemStartProgress, itemsDoneProgress, type RouteProgressSink } from '../../util/progress'
 import { apiHandler } from '../utils'
 import { apiMessage, pickMessage, type ApiMessage } from './result'
 import { renderSyncSummaryEnglish, type SyncSummary, type SyncSummaryClause } from './sync-summary'

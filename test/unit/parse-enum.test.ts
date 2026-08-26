@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { parseEnumField } from '../../src/parse-enum'
+import { parseEnumField } from '../../src/util/parse-enum'
 
 /**
  * The layer-neutral enum matcher. It backs the CLI's `parseEnumFlag` and every

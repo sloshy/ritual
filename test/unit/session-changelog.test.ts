@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'bun:test'
-import type { ChangeEvent, AddChange } from '../../src/change-event'
-import { trackAdd, trackEdit, trackAnotherCopy } from '../../src/session-changelog'
+import type { ChangeEvent, AddChange } from '../../src/changes/change-event'
+import { trackAdd, trackEdit, trackAnotherCopy } from '../../src/changes/session-changelog'
 
 function makeEvent(overrides: Partial<AddChange> = {}): AddChange {
   return {

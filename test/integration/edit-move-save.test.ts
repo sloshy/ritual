@@ -6,9 +6,9 @@ import {
   createMoveFromChange,
   createRemoveChange,
   type ListRef,
-} from '../../src/change-event'
-import type { ListType } from '../../src/list-type'
-import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/card-art'
+} from '../../src/changes/change-event'
+import type { ListType } from '../../src/list/list-type'
+import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/list/card-art'
 import { openListSession, saveOpenList, type OpenList } from '../../src/commands/edit-lists'
 import { buildInitialSessionConfig } from '../../src/commands/card-session'
 import type { DeckSessionConfig } from '../../src/commands/deck-helpers'

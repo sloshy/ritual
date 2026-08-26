@@ -6,9 +6,9 @@
  */
 
 import { type Accessor, batch, createSignal } from 'solid-js'
-import type { ChangeInput } from '../change-event'
-import type { ListType } from '../list-type'
-import type { PriceCurrency } from '../price-currency'
+import type { ChangeInput } from '../changes/change-event'
+import type { ListType } from '../list/list-type'
+import type { PriceCurrency } from '../pricing/price-currency'
 import { listRefKey, type NamedListRef } from '../site/combined-list'
 import type { SwapMove, SwapSourceProvider, SwapTarget } from './swap-printings'
 import type { UseEditorResult } from './useEditor'

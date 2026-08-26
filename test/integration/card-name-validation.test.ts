@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { computeHash } from '../../src/content-hash'
+import { computeHash } from '../../src/changes/content-hash'
 import { handleCollectionSave } from '../../src/admin/api/collection-save'
 import { handleDeckSave } from '../../src/admin/api/deck-save'
 import { handleRemoveCommit, handleSelectedMove } from '../../src/admin/api/move'
 import { handleWantedListSave } from '../../src/admin/api/wanted-save'
-import { createAddChange } from '../../src/change-event'
+import { createAddChange } from '../../src/changes/change-event'
 import { callJson } from './helpers/request'
 import {
   bindWorkspace,

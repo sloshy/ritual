@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { discardDeckCopy, type DeckDiscardState } from '../../src/commands/deck-helpers'
-import { createAddChange, type ChangeEvent } from '../../src/change-event'
-import type { Card, DeckData } from '../../src/types'
+import { createAddChange, type ChangeEvent } from '../../src/changes/change-event'
+import type { Card } from '../../src/card/card'
+import type { DeckData } from '../../src/list/deck'
 
 /** A Main-section deck built from the given cards. */
 function deckOf(cards: Card[]): DeckData {

@@ -1,4 +1,4 @@
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 import type { AutocompleteResponse } from '../api/autocomplete'
 import type { CardPrintingsResponse } from '../api/card-printings'
 import type { MessageKey } from '../i18n/messages/en'

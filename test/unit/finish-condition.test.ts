@@ -4,8 +4,8 @@ import {
   defaultPrintingFinish,
   displayFinish,
   printingFinishes,
-} from '../../src/finish-condition'
-import type { ConditionUpdate } from '../../src/change-event'
+} from '../../src/card/finish-condition'
+import type { ConditionUpdate } from '../../src/changes/change-event'
 import { makeScryfallCard } from '../test-utils'
 
 describe('printingFinishes', () => {

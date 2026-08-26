@@ -2,19 +2,19 @@ import {
   unreadableContentMessage,
   unreadableLines,
   type ParsedListContent,
-} from '../../markdown-fence'
+} from '../../list/markdown-fence'
 import { cardCache } from '../../cache'
 import { CACHE_REFRESH_REMEDY } from '../../cache/status'
-import { computeHash, hashPath, writeFileWithHash } from '../../content-hash'
-import { type CardArtMap, type CardArtRef, type CardArtReconcileInput } from '../../card-art'
-import { reconcileListRefs } from '../../list-refs'
-import { appendChangelog } from '../../changelog-writer'
-import type { EntryWithCardId } from '../../card-id'
-import type { DeckData } from '../../types'
-import { isRecord } from '../../json'
-import { listTypeLabel, type ListType } from '../../list-type'
-import { dirForType } from '../../resolve-list'
-import { loadRitualConfig } from '../../ritual-config'
+import { computeHash, hashPath, writeFileWithHash } from '../../changes/content-hash'
+import { type CardArtMap, type CardArtRef, type CardArtReconcileInput } from '../../list/card-art'
+import { reconcileListRefs } from '../../list/list-refs'
+import { appendChangelog } from '../../changes/changelog-writer'
+import type { EntryWithCardId } from '../../card/card-id'
+import type { DeckData } from '../../list/deck'
+import { isRecord } from '../../util/json'
+import { listTypeLabel, type ListType } from '../../list/list-type'
+import { dirForType } from '../../list/resolve-list'
+import { loadRitualConfig } from '../../config/ritual-config'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { MAX_BODY_SIZE } from '../validation'
 import {
@@ -22,21 +22,21 @@ import {
   missingFeedApiAdvice,
   type LoadedCardKingdomFeed,
 } from '../../cardkingdom'
-import { normalizeNote } from '../../note-helpers'
+import { normalizeNote } from '../../card/note-helpers'
 import {
   checkLabelsForListType,
   parseCardLabelsValue,
   unsupportedLabelsMessage,
   type CardLabel,
-} from '../../card-labels'
+} from '../../card/card-labels'
 import {
   invalidLanguageMessage,
   isCardLanguage,
   storedLanguage,
   type CardLanguage,
-} from '../../card-language'
-import type { ChangeEvent, MoveReplacement } from '../../change-event'
-import { isFinish } from '../../finish-condition'
+} from '../../card/card-language'
+import type { ChangeEvent, MoveReplacement } from '../../changes/change-event'
+import { isFinish } from '../../card/finish-condition'
 import type { DroppedNote } from '../../commands/move-io'
 import type { SaveEffect } from '../../editor/save-effects'
 import { t } from '../../i18n/t'

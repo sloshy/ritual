@@ -1,5 +1,7 @@
-import type { Card, Condition, DeckData, Finish } from '../types'
-import { displayLanguage, storedLanguage, type CardLanguage } from '../card-language'
+import type { Card } from '../card/card'
+import type { Condition, Finish } from '../card/finish-condition'
+import type { DeckData } from '../list/deck'
+import { displayLanguage, storedLanguage, type CardLanguage } from '../card/card-language'
 
 /**
  * What a save did to individual card lines, computed by diffing the list as it

@@ -1,7 +1,7 @@
-import type { ScryfallCard } from '../../types'
+import type { ScryfallCard } from '../../scryfall/types'
 import type { BuyerId, BuylistFeedProvenance } from '../../buylist'
 import type { PrintingQuoteFn } from '../../cardkingdom/quote'
-import type { PriceCurrency } from '../../price-currency'
+import type { PriceCurrency } from '../../pricing/price-currency'
 import type { CardKingdomCards } from '../data-types'
 
 /**

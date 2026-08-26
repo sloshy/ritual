@@ -6,10 +6,10 @@ import {
   type CollectionSyncEvent,
   type CollectionSyncReport,
 } from '../collection-sync/engine'
-import type { Logger } from '../logger'
-import { addRefreshOption, type RefreshMode } from '../refresh'
-import { getCollectionSyncPullTarget } from '../ritual-config'
-import { unreadableConsequence, type SyncChangeFilter, type SyncDirection } from '../sync-common'
+import type { Logger } from '../util/logger'
+import { addRefreshOption, type RefreshMode } from '../cache/refresh'
+import { getCollectionSyncPullTarget } from '../config/ritual-config'
+import { unreadableConsequence, type SyncChangeFilter, type SyncDirection } from '../sync/common'
 import { decideCsvUpload } from './decide-csv'
 import { resolveAmbiguousRemovals } from './resolve-ambiguity'
 import {

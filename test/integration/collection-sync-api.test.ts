@@ -13,7 +13,7 @@ import {
 } from '../../src/admin/api/collection-sync'
 import { dispatchRoute } from '../../src/admin/server'
 import { compareData } from '../../src/i18n/collate'
-import type { RouteProgress, RouteProgressSink } from '../../src/progress'
+import type { RouteProgress, RouteProgressSink } from '../../src/util/progress'
 import type { ArchidektToken } from '../../src/auth/interfaces'
 import type { CollectionSyncEvent } from '../../src/collection-sync/engine'
 import type { ArchidektCollectionRecord } from '../../src/importers/archidekt-collection'

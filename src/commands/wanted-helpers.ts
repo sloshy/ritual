@@ -1,22 +1,24 @@
 import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
-import { DEFAULT_SECTION, type Finish, type ScryfallCard } from '../types'
-import { matchSectionHeader } from '../section-format'
-import { createFenceTracker } from '../markdown-fence'
-import { quantityPrefixAdvisory } from '../card-line'
+import { DEFAULT_SECTION } from '../list/deck'
+import type { Finish } from '../card/finish-condition'
+import type { ScryfallCard } from '../scryfall/types'
+import { matchSectionHeader } from '../list/section-format'
+import { createFenceTracker } from '../list/markdown-fence'
+import { quantityPrefixAdvisory } from '../card/card-line'
 import {
   isCardLanguage,
   LANGUAGE_TOKEN_PATTERN,
   malformedLanguageTokenHint,
   type CardLanguage,
-} from '../card-language'
+} from '../card/card-language'
 import { finishChoices, finishRows, isFinish } from './collection-helpers'
 import { t } from '../i18n/t'
-import { parseFlatListFrontMatter, type FlatListFrontMatter } from '../flat-list-front-matter'
-import { getWantedDir } from '../ritual-config'
-import { listFileName, unusableFileNameMessage } from '../list-file-name'
+import { parseFlatListFrontMatter, type FlatListFrontMatter } from '../list/flat-list-front-matter'
+import { getWantedDir } from '../config/ritual-config'
+import { listFileName, unusableFileNameMessage } from '../list/list-file-name'
 import { ensureListFile, type SessionConfig } from './card-session'
-import { requireInteractive } from '../no-input'
+import { requireInteractive } from '../util/no-input'
 
 export type WantedListEntry = {
   name: string
@@ -252,4 +254,4 @@ export async function promptWantedFinish(
 
 export { isFinish }
 
-export { formatWantedListLine, type CardPrinting } from '../card-line'
+export { formatWantedListLine, type CardPrinting } from '../card/card-line'

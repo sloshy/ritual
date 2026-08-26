@@ -6,7 +6,7 @@ import {
   readRecordedCardBulkType,
   recordCardBulkType,
 } from '../../../src/cache/bulk-provenance'
-import { setBaseDir } from '../../../src/base-dir'
+import { setBaseDir } from '../../../src/config/base-dir'
 
 const testDir = path.join(import.meta.dir, '../../.test-bulk-provenance')
 const originalCwd = process.cwd()

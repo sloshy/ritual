@@ -21,10 +21,10 @@
  * calling one re-runs when the reader flips the toolbar's source selector.
  */
 
-import type { PriceCurrency } from '../price-currency'
+import type { PriceCurrency } from '../pricing/price-currency'
 import type { CardKingdomCards } from './data-types'
 import { activeUsdSource } from './price-view'
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 
 /**
  * A Scryfall-picked card map, the Card Kingdom overrides for it, and the

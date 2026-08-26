@@ -1,6 +1,6 @@
 import { type JSX, For } from 'solid-js'
 import { useT, useTKey } from '../../../ui/i18n'
-import type { SyncChangeFilter } from '../../../sync-common'
+import type { SyncChangeFilter } from '../../../sync/common'
 import type { ParameterlessKey } from '../../../i18n/t'
 
 /**

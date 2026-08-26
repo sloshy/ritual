@@ -25,13 +25,13 @@
  */
 
 import { ArchidektClient, createPacedArchidektClient } from '../clients/ArchidektClient'
-import { getErrorMessage } from '../errors'
+import { getErrorMessage } from '../util/errors'
 import { t } from '../i18n/t'
 import type {
   ArchidektCollectionRecord,
   CollectionCsvUploadResult,
 } from '../importers/archidekt-collection'
-import { formatResolveListError, normalizeListName } from '../resolve-list'
+import { formatResolveListError, normalizeListName } from '../list/resolve-list'
 import { scryfallIdIndex } from '../cache/scryfall-id-index'
 import { getCachedCardPrintings } from '../scryfall'
 import {
@@ -42,10 +42,10 @@ import {
   type SyncItemStatus,
   type SyncLogLevel,
   type UnreadableSource,
-} from '../sync-common'
-import type { ScryfallCard } from '../types'
-import type { CardPrintingsLookup } from '../card-printing'
-import { formatElapsed } from '../utils'
+} from '../sync/common'
+import type { ScryfallCard } from '../scryfall/types'
+import type { CardPrintingsLookup } from '../card/card-printing'
+import { formatElapsed } from '../util/duration'
 import {
   describeAmbiguousRemoval,
   describeCollectionKey,

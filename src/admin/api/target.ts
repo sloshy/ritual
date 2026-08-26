@@ -1,4 +1,4 @@
-import { isListType, type ListType } from '../../list-type'
+import { isListType, type ListType } from '../../list/list-type'
 
 /** The validated `:type` / `:slug` path target of a `/api/<area>/:type/:slug` route. */
 export type ListTarget = { type: ListType; slug: string }

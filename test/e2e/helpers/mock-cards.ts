@@ -1,4 +1,4 @@
-import type { ScryfallCard } from '../../../src/types'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import type { CollectionDetail, WantedListDetail } from '../../../src/site/data-types'
 
 // A dedicated e2e card factory (rather than reusing test/test-utils.ts's

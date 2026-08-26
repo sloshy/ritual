@@ -6,7 +6,7 @@ import {
   serializeChangeBundle,
 } from '../../editor/change-bundle'
 import { resolveKnownListSlug } from './list-slug-resolver'
-import type { ListType } from '../../list-type'
+import type { ListType } from '../../list/list-type'
 
 /**
  * Opt-in persistence of a public edit session in the browser's localStorage.

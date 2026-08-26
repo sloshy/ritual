@@ -1,9 +1,9 @@
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { InvalidArgumentError, type Command } from 'commander'
-import { getBaseDir } from '../base-dir'
-import type { ErrorCode } from '../types'
+import { getBaseDir } from '../config/base-dir'
 import {
+  type ErrorCode,
   CardCommandError,
   ExitCode,
   getErrorMessage,
@@ -11,16 +11,20 @@ import {
   isBrokenPipeError,
   type ErrorMessageRef,
   type ExitCodeValue,
-} from '../errors'
+} from '../util/errors'
 import type { MessageKey } from '../i18n/messages/en'
 import { t, type RenderParams } from '../i18n/t'
-import { parseEnumField } from '../parse-enum'
-import { formatResolveListError, type ResolveHint, type ResolveListError } from '../resolve-list'
-import { getAtPath } from '../utils'
-import { promptsUnavailable } from '../no-input'
-import { QUIET_STDERR_LOGGER, setLogger, STDERR_LOGGER } from '../logger'
+import { parseEnumField } from '../util/parse-enum'
+import {
+  formatResolveListError,
+  type ResolveHint,
+  type ResolveListError,
+} from '../list/resolve-list'
+import { getAtPath } from '../util/object'
+import { promptsUnavailable } from '../util/no-input'
+import { QUIET_STDERR_LOGGER, setLogger, STDERR_LOGGER } from '../util/logger'
 
-// The exit-code vocabulary lives in src/errors.ts (the dependency-free leaf so
+// The exit-code vocabulary lives in src/util/errors.ts (the dependency-free leaf so
 // CardCommandError can carry an ExitCodeValue); command modules keep importing
 // it from here.
 export { ExitCode }

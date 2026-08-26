@@ -1,7 +1,8 @@
-import type { DeckData, ScryfallCard } from '../../types'
-import { formatPrintingAnnotation } from '../../change-event'
-import { getCardImageUrl } from '../../card-image'
-import { printingKey } from '../../printing-key'
+import type { DeckData } from '../../list/deck'
+import type { ScryfallCard } from '../../scryfall/types'
+import { formatPrintingAnnotation } from '../../changes/change-event'
+import { getCardImageUrl } from '../../card/card-image'
+import { printingKey } from '../../card/printing-key'
 
 /**
  * The rows the cover-image dialog's card picker offers, built from an editor's

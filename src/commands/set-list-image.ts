@@ -8,10 +8,10 @@ import {
   serializeListImageRef,
   type ListImageMode,
   type ListImageRef,
-} from '../list-image'
-import { checkListImageCardId, readListImageFile } from '../list-image-file'
-import { applyDeckMetadata } from '../deck-metadata'
-import { applyFlatListMetadata } from '../flat-list-metadata'
+} from '../list/list-image'
+import { checkListImageCardId, readListImageFile } from '../list/list-image-file'
+import { applyDeckMetadata } from '../list/deck-metadata'
+import { applyFlatListMetadata } from '../list/flat-list-metadata'
 import {
   parseDeckMetadataBody,
   parseFlatListMetadataBody,
@@ -19,10 +19,10 @@ import {
   type FlatListMetadataRequest,
 } from '../admin/api/metadata'
 import { checkArchidektLink } from '../deck-sync/link'
-import { CardCommandError, localizedCommandError } from '../errors'
+import { CardCommandError, localizedCommandError } from '../util/errors'
 import { t } from '../i18n/t'
-import type { ListType } from '../list-type'
-import type { ListTypeFlags } from '../resolve-list'
+import type { ListType } from '../list/list-type'
+import type { ListTypeFlags } from '../list/resolve-list'
 import { browseArtFile, promptArtUrl } from './edit-art'
 import { ask, suggestByTitleTerms } from './prompts-helpers'
 import {

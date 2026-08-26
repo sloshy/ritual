@@ -10,7 +10,10 @@ import {
   makeCardKingdomProduct,
 } from '../../test-utils'
 import { expectSchemaRejection, toolData, toolError } from '../../mcp-test-utils'
-import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../../src/ritual-config'
+import {
+  clearSiteSellModeOverride,
+  setSiteSellModeOverride,
+} from '../../../src/config/ritual-config'
 
 /**
  * Wiring-only coverage per the test layering policy: the tools are registered

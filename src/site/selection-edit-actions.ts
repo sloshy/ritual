@@ -1,7 +1,7 @@
-import type { Finish } from '../types'
-import type { CardLabel } from '../card-labels'
-import type { CardLanguage } from '../card-language'
-import type { ListRef } from '../change-event'
+import type { Finish } from '../card/finish-condition'
+import type { CardLabel } from '../card/card-labels'
+import type { CardLanguage } from '../card/card-language'
+import type { ListRef } from '../changes/change-event'
 import type { SelectionEditActions } from './SelectionMenu'
 import type { CardSelectionControl, SelectedCard } from './useCardSelection'
 

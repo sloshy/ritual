@@ -15,7 +15,7 @@
  * plain string.
  */
 
-import { themeBootstrapScript } from '../themes'
+import { themeBootstrapScript } from '../theme/themes'
 import type { LocaleTag } from '../i18n/types'
 
 /** Writing direction of the shell's document. */

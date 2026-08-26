@@ -1,4 +1,4 @@
-import type { ChangeEvent, ConsolidateResult } from '../change-event'
+import type { ChangeEvent, ConsolidateResult } from '../changes/change-event'
 import type { CardArtEdit } from './edit-art'
 import { t } from '../i18n/t'
 import type { CardSessionContext, SessionAddItem, SessionChangeItem } from './card-session'

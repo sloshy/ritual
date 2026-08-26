@@ -40,11 +40,11 @@ import {
   saveRitualConfig,
   type RitualConfig,
   type SiteConfig,
-} from '../../src/ritual-config'
+} from '../../src/config/ritual-config'
 import { defaultSiteSelection } from '../../src/site/list-selection'
-import { setBaseDir } from '../../src/base-dir'
+import { setBaseDir } from '../../src/config/base-dir'
 import { localeTag } from '../../src/i18n/locale-tag'
-import type { PriceSource } from '../../src/price-source'
+import type { PriceSource } from '../../src/pricing/price-source'
 
 const testDir = path.join(import.meta.dir, '../.test-ritual-config')
 const configPath = path.join(testDir, 'ritual.config.json')

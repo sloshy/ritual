@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { cardArtFilePath, loadCardArt } from '../card-art'
-import { isListImageFileRef } from '../list-image'
-import { readListImageFile } from '../list-image-file'
+import { cardArtFilePath, loadCardArt } from '../list/card-art'
+import { isListImageFileRef } from '../list/list-image'
+import { readListImageFile } from '../list/list-image-file'
 import { SITE_ART_DIR } from './art-url'
-import { getErrorMessage, hasErrorCode } from '../errors'
+import { getErrorMessage, hasErrorCode } from '../util/errors'
 
 /**
  * Copies the local images a build's lists reference into the site tree.

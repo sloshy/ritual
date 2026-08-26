@@ -1,8 +1,8 @@
 import { createApiSearchProvider } from '../../editor/search-provider'
 import { createBuylistFetcher, type BuylistFetcher } from '../../site/buylist-quotes'
 import type { CardPriceResponse } from '../../api/card-price'
-import type { CardArtRef } from '../../card-art'
-import type { ListType } from '../../list-type'
+import type { CardArtRef } from '../../list/card-art'
+import type { ListType } from '../../list/list-type'
 import { t } from '../../i18n/t'
 import type { CardArtSaveResponse } from '../api/art'
 import type {

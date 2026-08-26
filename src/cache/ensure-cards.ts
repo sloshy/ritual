@@ -1,9 +1,9 @@
 import { cardCache } from './index'
 import { refreshCardCache } from './refresh-source'
-import { getLogger } from '../logger'
+import { getLogger } from '../util/logger'
 import { BULK_CACHE_MAX_AGE_MS, BULK_FETCH_THRESHOLD } from './constants'
-import type { CacheManager } from '../interfaces'
-import type { ScryfallCard } from '../types'
+import type { CacheManager } from '../util/interfaces'
+import type { ScryfallCard } from '../scryfall/types'
 
 let preloadInProgress: Promise<void> | null = null
 

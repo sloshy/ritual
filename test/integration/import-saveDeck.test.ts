@@ -2,9 +2,9 @@ import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { saveDeck } from '../../src/commands/import'
-import { parseDeckFrontMatter } from '../../src/deck-file'
-import { sanitizeListFileName } from '../../src/list-file-name'
-import { type DeckData } from '../../src/types'
+import { parseDeckFrontMatter } from '../../src/list/deck-file'
+import { sanitizeListFileName } from '../../src/list/list-file-name'
+import type { DeckData } from '../../src/list/deck'
 import {
   parseArchidektDeckResponse,
   type ArchidektDeckResponse,

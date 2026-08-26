@@ -4,28 +4,29 @@ import { t } from '../i18n/t'
 import path from 'node:path'
 import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
-import type { Card, DeckData, DeckSection } from '../types'
+import type { Card } from '../card/card'
+import type { DeckData, DeckSection } from '../list/deck'
 import {
   createRemoveChange,
   isSamePrinting,
   type ChangeEvent,
   type PrintingTuple,
-} from '../change-event'
-import { getDecksDir } from '../ritual-config'
-import { listFilePath } from '../resolve-list'
-import { unusableFileNameMessage } from '../list-file-name'
-import { DECK_FORMAT_KEYS, getDeckFormatLabel, type DeckFormatKey } from '../deck-format'
+} from '../changes/change-event'
+import { getDecksDir } from '../config/ritual-config'
+import { listFilePath } from '../list/resolve-list'
+import { unusableFileNameMessage } from '../list/list-file-name'
+import { DECK_FORMAT_KEYS, getDeckFormatLabel, type DeckFormatKey } from '../list/deck-format'
 import { ask } from './prompts-helpers'
-import { writeFileWithHash } from '../content-hash'
+import { writeFileWithHash } from '../changes/content-hash'
 import {
   newDeckMarkdown,
   parseDeckFrontMatter,
   serializeDeckToMarkdown,
   type DeckFrontMatter,
-} from '../deck-file'
+} from '../list/deck-file'
 import { listDeckFiles, loadDeckFile, readDeckName } from '../importers/text-file'
-import { assignMissingDeckCardIds, repackSessionIds } from '../card-id'
-import { unreadableLines } from '../markdown-fence'
+import { assignMissingDeckCardIds, repackSessionIds } from '../card/card-id'
+import { unreadableLines } from '../list/markdown-fence'
 import { applyChangeToDeck } from '../editor/deck-changes'
 import {
   applySessionConfigAnswers,

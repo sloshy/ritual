@@ -16,7 +16,7 @@ import {
   flameOuterStopOffsets,
   flameStopVars,
   flameTransform,
-} from '../flame'
+} from '../theme/flame'
 
 type FlameIconProps = {
   class?: string

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor, SELECTOR_ID } from '../helpers/editor-nav'
-import { LIST_TYPES, listTypeLabel } from '../../../src/list-type'
+import { LIST_TYPES, listTypeLabel } from '../../../src/list/list-type'
 
 test.describe('Edit Lists page', () => {
   test.beforeEach(async ({ page }) => {

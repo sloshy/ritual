@@ -31,11 +31,11 @@ export {
   type SearchAllPagesResult,
 } from './client'
 
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from './types'
 import { cardCache } from '../cache/instances'
-import { defaultHttpClient } from '../http'
+import { defaultHttpClient } from '../util/http'
 import { ScryfallClient, type BulkCacheFiles } from './client'
-import type { CardPrintingsResult } from '../card-printing'
+import type { CardPrintingsResult } from '../card/card-printing'
 import type {
   ScryfallSymbol,
   RepresentativePrintsResult,
@@ -48,8 +48,8 @@ import type {
   SearchAllPagesResult,
 } from './client'
 import { comparePrintings, type CardNameFilter } from './card-utils'
-import type { CardLanguage } from '../card-language'
-import type { PriceCurrency } from '../price-currency'
+import type { CardLanguage } from '../card/card-language'
+import type { PriceCurrency } from '../pricing/price-currency'
 import type { TagIndex } from './tags'
 
 export { attachTags, type TagIndex } from './tags'

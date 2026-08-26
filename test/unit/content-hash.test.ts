@@ -12,7 +12,7 @@ import {
   saveHash,
   writeFileWithHash,
   appendFileWithHash,
-} from '../../src/content-hash'
+} from '../../src/changes/content-hash'
 
 const tmpDir = path.join(import.meta.dir, '..', 'temp', 'content-hash-test')
 

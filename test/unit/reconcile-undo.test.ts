@@ -5,11 +5,11 @@ import {
   createMoveToChange,
   createRemoveChange,
   createAddChange,
-} from '../../src/change-event'
+} from '../../src/changes/change-event'
 import type { UndoEntry } from '../../src/editor/useCardChanges'
-import type { ChangeEvent } from '../../src/change-event'
+import type { ChangeEvent } from '../../src/changes/change-event'
 import { applyChangeToDeck } from '../../src/editor/deck-changes'
-import type { DeckData } from '../../src/types'
+import type { DeckData } from '../../src/list/deck'
 
 function track() {
   const released: number[] = []

@@ -5,7 +5,7 @@ import {
   setDefaultLanguage,
   type DefaultLanguageOverride,
 } from '../../src/editor/default-language'
-import { DEFAULT_CARD_LANGUAGE } from '../../src/card-language'
+import { DEFAULT_CARD_LANGUAGE } from '../../src/card/card-language'
 
 const overrideHost = globalThis as unknown as DefaultLanguageOverride
 

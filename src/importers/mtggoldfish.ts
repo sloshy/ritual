@@ -1,7 +1,7 @@
-import { type DeckData, type DeckSection } from '../types'
-import { type HttpClient } from '../interfaces'
-import { defaultHttpClient } from '../http'
-import { throwHttpError } from '../errors'
+import type { DeckData, DeckSection } from '../list/deck'
+import { type HttpClient } from '../util/interfaces'
+import { defaultHttpClient } from '../util/http'
+import { throwHttpError } from '../util/errors'
 
 export async function fetchMtgGoldfishDeck(
   url: string,

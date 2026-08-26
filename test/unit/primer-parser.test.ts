@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parseMoxfieldPrimer, extractPrimerCardNames } from '../../src/primer-parser'
+import { parseMoxfieldPrimer, extractPrimerCardNames } from '../../src/list/primer-parser'
 
 describe('parseMoxfieldPrimer', () => {
   test('passes through non-directive lines unchanged, preserving markdown and [[...]] tokens', () => {

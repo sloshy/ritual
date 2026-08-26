@@ -4,8 +4,9 @@ import {
   deckFormatKeysForSignal,
   detectDeckFormatSignal,
   formatHasCommandZone,
-} from '../../src/deck-format'
-import type { Card, DeckData, DeckSection } from '../../src/types'
+} from '../../src/list/deck-format'
+import type { Card } from '../../src/card/card'
+import type { DeckData, DeckSection } from '../../src/list/deck'
 
 function island(quantity: number): Card {
   return { quantity, name: 'Island' }

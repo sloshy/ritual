@@ -1,5 +1,5 @@
 import { Command, InvalidArgumentError } from 'commander'
-import { languageToken } from '../card-language'
+import { languageToken } from '../card/card-language'
 import { loadExportEntries } from '../export/entries'
 import {
   diffLists,
@@ -12,13 +12,13 @@ import {
   type DiffOnly,
   type DiffPrinting,
   type ListDiffResult,
-} from '../list-diff'
+} from '../changes/list-diff'
 import {
   isResolveListError,
   parseListArgument,
   resolveList,
   type ListLocation,
-} from '../resolve-list'
+} from '../list/resolve-list'
 import { t } from '../i18n/t'
 import {
   addOutputOption,

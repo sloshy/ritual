@@ -2,11 +2,11 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { getBaseDir, setBaseDir } from '../../../src/base-dir'
+import { getBaseDir, setBaseDir } from '../../../src/config/base-dir'
 import { cardCache } from '../../../src/cache'
 import { createCacheCardSource } from '../../../src/serve/card-source'
 import { makeScryfallCard } from '../../../test/test-utils'
-import type { PriceCurrency } from '../../../src/price-currency'
+import type { PriceCurrency } from '../../../src/pricing/price-currency'
 
 const CURRENCIES: PriceCurrency[] = ['usd', 'eur', 'tix']
 

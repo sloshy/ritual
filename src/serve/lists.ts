@@ -1,8 +1,8 @@
-import { getSiteSelectionConfig, type RitualConfig } from '../ritual-config'
-import { dirForType } from '../resolve-list'
+import { getSiteSelectionConfig, type RitualConfig } from '../config/ritual-config'
+import { dirForType } from '../list/resolve-list'
 import { resolveDeckSources, resolveListSources } from '../site/list-sources'
-import { getErrorMessage } from '../errors'
-import type { ListType } from '../list-type'
+import { getErrorMessage } from '../util/errors'
+import type { ListType } from '../list/list-type'
 
 /**
  * The basenames the site's selection config includes for one list kind — the

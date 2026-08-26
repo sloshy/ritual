@@ -10,7 +10,7 @@
  */
 
 import type { Command } from 'commander'
-import { setSiteSellModeOverride } from '../ritual-config'
+import { setSiteSellModeOverride } from '../config/ritual-config'
 
 /**
  * The flag's commander attribute name. Exported so `serve`'s build-only-flags

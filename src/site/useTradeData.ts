@@ -1,6 +1,7 @@
 import { createSignal, createMemo, createEffect, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
-import type { ScryfallCard, Finish, Condition } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
+import type { Finish, Condition } from '../card/finish-condition'
 import type {
   CollectionDetail,
   DeckDetail,
@@ -17,12 +18,12 @@ import {
   normalizeCardName,
   promoteFullNameMatches,
   splitNameTerms,
-} from '../term-match'
+} from '../card/term-match'
 import type { SelectionSourceKind } from './useCardSelection'
-import { effectiveLabels, type CardLabel } from '../card-labels'
+import { effectiveLabels, type CardLabel } from '../card/card-labels'
 import { cardPricelessReason, pricelessFacts } from './priceless'
-import { displayLanguage, storedLanguage, type CardLanguage } from '../card-language'
-import { lookupPrintingCard } from '../printing-key'
+import { displayLanguage, storedLanguage, type CardLanguage } from '../card/card-language'
+import { lookupPrintingCard } from '../card/printing-key'
 
 /** A single searchable card entry derived from a collection, deck, or wanted list. */
 export interface TradeSearchEntry {

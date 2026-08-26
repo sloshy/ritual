@@ -1,12 +1,17 @@
 import { type JSX, createSignal, onMount, For, Show } from 'solid-js'
-import type { AdminConfig, CacheSource, RitualConfig, SiteConfig } from '../../../ritual-config'
+import type {
+  AdminConfig,
+  CacheSource,
+  RitualConfig,
+  SiteConfig,
+} from '../../../config/ritual-config'
 // Value imports here must stay browser-safe: ritual-config pulls in node:fs,
 // so only its types may be imported into the admin SPA bundle.
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../../../cache/constants'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../editor/search-debounce'
-import { CARD_LANGUAGES, isCardLanguage, languageDisplayName } from '../../../card-language'
-import type { PriceCurrency } from '../../../price-currency'
-import { VALID_PRICE_SOURCES } from '../../../price-source'
+import { CARD_LANGUAGES, isCardLanguage, languageDisplayName } from '../../../card/card-language'
+import type { PriceCurrency } from '../../../pricing/price-currency'
+import { VALID_PRICE_SOURCES } from '../../../pricing/price-source'
 import { PRICE_SOURCE_LABELS, setEnabledPriceSources } from '../../../site/price-view'
 import {
   INCLUDE_ALL,

@@ -1,5 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/server'
-import { version } from '../version'
+import { version } from '../config/version'
 import { NEVER_CACHE, STATIC_CATALOG_CACHE } from './cache-hints'
 import { createListChangeNotifier } from './notify'
 import { registerResources } from './resources'

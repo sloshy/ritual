@@ -3,7 +3,7 @@ import {
   type ListRef,
   createMoveFromChange,
   createRemoveChange,
-} from '../change-event'
+} from '../changes/change-event'
 import { activeEditSession } from './editor/active-edit-session'
 import { appendEditSession } from './editor/edit-session-memory'
 import { printingForMove } from './printing-prompt'

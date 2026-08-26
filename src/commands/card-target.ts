@@ -13,11 +13,11 @@ import { InvalidArgumentError, type Command } from 'commander'
 import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
 import { importFromTextFile } from '../importers/text-file'
-import { parseCollectionFile } from '../collection-file'
+import { parseCollectionFile } from '../list/collection-file'
 import { parseWantedListFile } from './wanted-helpers'
 import { emitError, ExitCode, type ScriptingOptions } from './scripting'
-import { matchByNormalizedName } from '../term-match'
-import { type ListType } from '../list-type'
+import { matchByNormalizedName } from '../card/term-match'
+import { type ListType } from '../list/list-type'
 import {
   formatResolveListError,
   isListArgumentConflict,
@@ -29,9 +29,9 @@ import {
   type ListArgumentConflict,
   type ListTypeFlags,
   type ResolveListError,
-} from '../resolve-list'
-import { formatPrintingAnnotation } from '../change-event'
-import { requireInteractive } from '../no-input'
+} from '../list/resolve-list'
+import { formatPrintingAnnotation } from '../changes/change-event'
+import { requireInteractive } from '../util/no-input'
 import { matchFinishPin, matchPrintingPin } from './collection-helpers'
 import {
   fetchPrintingByCollectorNumber,
@@ -45,12 +45,12 @@ import {
   printingsAreComplete,
   type CardPrintingsResult,
   type PrintingFields,
-} from '../card-printing'
+} from '../card/card-printing'
 import { readRecordedCardBulkType } from '../cache/bulk-provenance'
-import { CardCommandError, getErrorMessage, localizedCommandError } from '../errors'
+import { CardCommandError, getErrorMessage, localizedCommandError } from '../util/errors'
 import { t, type MessageParams } from '../i18n/t'
-import { parsePositiveInteger } from '../parse-number'
-import { checkLabelsForListType, LIST_TYPE_LABELS, type CardLabel } from '../card-labels'
+import { parsePositiveInteger } from '../util/parse-number'
+import { checkLabelsForListType, LIST_TYPE_LABELS, type CardLabel } from '../card/card-labels'
 import {
   displayLanguage,
   formatLanguageList,
@@ -58,8 +58,9 @@ import {
   languageDisplayName,
   normalizeLanguageValue,
   type CardLanguage,
-} from '../card-language'
-import type { Condition, Finish, ScryfallCard } from '../types'
+} from '../card/card-language'
+import type { Condition, Finish } from '../card/finish-condition'
+import type { ScryfallCard } from '../scryfall/types'
 
 /** Unified summary for a card entry across all list types. */
 export type EntryRef = {

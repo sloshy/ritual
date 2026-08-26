@@ -13,8 +13,8 @@ import {
   allocateNextIdFromContent,
   assignMissingDeckCardIds,
   repackSessionIds,
-} from '../../src/card-id'
-import type { DeckData } from '../../src/types'
+} from '../../src/card/card-id'
+import type { DeckData } from '../../src/list/deck'
 
 describe('createIdPool', () => {
   test('empty input creates pool starting at 1', () => {

@@ -3,9 +3,9 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { isPriceStale, PRICE_STALENESS_THRESHOLD_MS } from '../../../src/api/card-price'
-import { getBaseDir, setBaseDir } from '../../../src/base-dir'
+import { getBaseDir, setBaseDir } from '../../../src/config/base-dir'
 import { cardCache } from '../../../src/cache'
-import { MemoryLogger, resetLogger, setLogger } from '../../../src/logger'
+import { MemoryLogger, resetLogger, setLogger } from '../../../src/util/logger'
 
 describe('isPriceStale', () => {
   test('returns true for null timestamp (never cached)', () => {

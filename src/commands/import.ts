@@ -1,8 +1,8 @@
 import { Command } from 'commander'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
-import { promptUser } from '../utils'
-import { listFileName, unusableFileNameMessage } from '../list-file-name'
+import { promptUser } from '../util/prompt'
+import { listFileName, unusableFileNameMessage } from '../list/list-file-name'
 import { IMPORT_TEXT_PARSE_OPTIONS, listDeckFiles, loadDeckFile } from '../importers/text-file'
 import {
   deckStatesPrintings,
@@ -39,10 +39,10 @@ import {
   invalidDeckFormatMessage,
   parseDeckFormat,
   type DeckFormatKey,
-} from '../deck-format'
-import { type DeckData } from '../types'
-import { serializeDeckToMarkdown, type DeckFrontMatter } from '../deck-file'
-import { parseMoxfieldPrimer } from '../primer-parser'
+} from '../list/deck-format'
+import type { DeckData } from '../list/deck'
+import { serializeDeckToMarkdown, type DeckFrontMatter } from '../list/deck-file'
+import { parseMoxfieldPrimer } from '../list/primer-parser'
 import {
   addDryRunOption,
   addScriptingOptions,
@@ -56,26 +56,26 @@ import {
   type OutputFormat,
   type ScriptingOptions,
 } from './scripting'
-import { getLogger } from '../logger'
-import { writeFileWithHash } from '../content-hash'
-import { isPathWithinDir } from '../path-validation'
-import { getDecksDir } from '../ritual-config'
-import { listFilePath, normalizeListName } from '../resolve-list'
-import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list-type'
+import { getLogger } from '../util/logger'
+import { writeFileWithHash } from '../changes/content-hash'
+import { isPathWithinDir } from '../util/path-validation'
+import { getDecksDir } from '../config/ritual-config'
+import { listFilePath, normalizeListName } from '../list/resolve-list'
+import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list/list-type'
 import { ask, promptListType, resolveImportPrintings } from './prompts-helpers'
 import {
   addSyncPrintingsOptions,
   readSyncPrintingsFlag,
   type SyncPrintingsOptions,
 } from './sync-printings-flag'
-import { isNoInput, promptsUnavailable } from '../no-input'
+import { isNoInput, promptsUnavailable } from '../util/no-input'
 import {
   CardCommandError,
   getErrorMessage,
   hasErrorCode,
   isBrokenPipeError,
   localizedCommandError,
-} from '../errors'
+} from '../util/errors'
 import { t, type MessageParams } from '../i18n/t'
 
 interface SaveListOptions {

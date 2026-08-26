@@ -4,8 +4,8 @@ import type { PrintingQuoteFn } from '../cardkingdom/quote'
 import { computeRepresentativePrints } from '../scryfall'
 import { sortPrintingsByRelease } from '../site/details/shared'
 import type { CardKingdomCardData, SiteCardData } from '../site/details/types'
-import type { ScryfallCard } from '../types'
-import type { PriceCurrency } from '../price-currency'
+import type { ScryfallCard } from '../scryfall/types'
+import type { PriceCurrency } from '../pricing/price-currency'
 
 /** The Card Kingdom half of a pass: the lookup, and the maps it fills. */
 type CardKingdomPass = {

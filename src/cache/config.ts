@@ -1,4 +1,4 @@
-import { resolveStringOverride } from '../env-override'
+import { resolveStringOverride } from '../config/env-override'
 
 const CACHE_SERVER_PROTOCOL_RE = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//
 

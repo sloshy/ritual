@@ -51,7 +51,8 @@ import {
 } from './flat-list-edit'
 import type { MoveTargetsProvider } from './edit-move'
 import type { WantedListCardEntry } from '../site/data-types'
-import type { Finish, ScryfallCard } from '../types'
+import type { Finish } from '../card/finish-condition'
+import type { ScryfallCard } from '../scryfall/types'
 import {
   consolidateSetLanguage,
   consolidateSetPrinting,
@@ -59,10 +60,10 @@ import {
   createSetPrintingChange,
   type ChangeEvent,
   type PrintingTuple,
-} from '../change-event'
-import { displayLanguage, type CardLanguage } from '../card-language'
+} from '../changes/change-event'
+import { displayLanguage, type CardLanguage } from '../card/card-language'
 import { t } from '../i18n/t'
-import { hasSpecificPrinting } from '../card-printing'
+import { hasSpecificPrinting } from '../card/card-printing'
 
 type SpecificityPromptResponse = { specificity?: 'name-only' | 'specific' }
 type FinishPromptResponse = { finish?: string }

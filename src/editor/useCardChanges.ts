@@ -1,6 +1,6 @@
 import { type Accessor, batch, createSignal, createMemo } from 'solid-js'
-import type { Finish } from '../types'
-import type { ChangeInput } from '../change-event'
+import type { Finish } from '../card/finish-condition'
+import type { ChangeInput } from '../changes/change-event'
 import {
   type ChangeEvent,
   type CardPrintingOptions,
@@ -14,9 +14,9 @@ import {
   consolidateSetLanguage,
   consolidateSetPrinting,
   consolidateSetSection,
-} from '../change-event'
-import type { CardLabel } from '../card-labels'
-import type { CardLanguage } from '../card-language'
+} from '../changes/change-event'
+import type { CardLabel } from '../card/card-labels'
+import type { CardLanguage } from '../card/card-language'
 
 /**
  * What an add (or the record of what a remove took away) may carry beyond the

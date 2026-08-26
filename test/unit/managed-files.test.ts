@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import type { ActiveManagedFile, HistoricalManagedFile } from '../../src/managed-files'
-import { computeMigrations, isActiveManagedFile } from '../../src/managed-files'
+import type { ActiveManagedFile, HistoricalManagedFile } from '../../src/list/managed-files'
+import { computeMigrations, isActiveManagedFile } from '../../src/list/managed-files'
 import { MANAGED_FILES } from '../../src/commands/init-site'
-import { version as ritualVersion } from '../../src/version'
-import type { InitSiteConfig } from '../../src/ritual-config'
+import { version as ritualVersion } from '../../src/config/version'
+import type { InitSiteConfig } from '../../src/config/ritual-config'
 
 const config: InitSiteConfig = {
   ciSystem: 'github-actions',

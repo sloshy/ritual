@@ -3,8 +3,8 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { handleWantedListSave } from '../../src/admin/api/wanted-save'
 import type { ListSaveResponse } from '../../src/admin/api/move-save'
-import { createAddChange, createSetLanguageChange } from '../../src/change-event'
-import { computeHash } from '../../src/content-hash'
+import { createAddChange, createSetLanguageChange } from '../../src/changes/change-event'
+import { computeHash } from '../../src/changes/content-hash'
 import {
   bindWorkspace,
   writeWantedFile,

@@ -11,7 +11,7 @@ import {
   parseLabelFilterValues,
   type ExportEntry,
 } from '../../src/export/entries'
-import type { ListLocation } from '../../src/resolve-list'
+import type { ListLocation } from '../../src/list/resolve-list'
 
 function entry(overrides: Partial<ExportEntry> = {}): ExportEntry {
   return {

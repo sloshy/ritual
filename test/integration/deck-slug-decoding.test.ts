@@ -4,7 +4,7 @@ import { handleDeckLoad } from '../../src/admin/api/deck-load'
 import { handleListRename, type ListLifecycleConfig } from '../../src/admin/api/list-lifecycle'
 import { resolveDeckFile } from '../../src/admin/api/list-file'
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
-import { getDecksDir } from '../../src/ritual-config'
+import { getDecksDir } from '../../src/config/ritual-config'
 
 const DECK_CFG: ListLifecycleConfig = {
   kind: 'deck',

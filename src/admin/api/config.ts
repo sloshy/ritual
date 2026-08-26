@@ -19,13 +19,13 @@ import {
   type ConfigParseError,
   type RitualConfig,
   type SessionOverrides,
-} from '../../ritual-config'
+} from '../../config/ritual-config'
 import { parseExportPresets } from '../../export/presets'
-import { parsePriceSources } from '../../price-source'
+import { parsePriceSources } from '../../pricing/price-source'
 import { shouldAutoCommit, commitFiles } from '../git'
 import { apiHandler } from '../utils'
 import { badRequest, readJsonObjectBody } from './save-helpers'
-import { getBaseDir } from '../../base-dir'
+import { getBaseDir } from '../../config/base-dir'
 
 /**
  * `GET /api/config` and `PUT /api/config` — the effective configuration:

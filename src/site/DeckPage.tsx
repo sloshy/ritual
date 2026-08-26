@@ -7,14 +7,16 @@ import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, on, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, overlayCard, sessionCacheVersion } from './session-cache'
-import { normalizeCardName } from '../term-match'
+import { normalizeCardName } from '../card/term-match'
 import { useT } from '../ui/i18n'
 import type { MessageKey } from '../i18n/messages/en'
 import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { TagFilterWarning } from './TagFilterWarning'
 import { ListPageStats, SellModeNotice } from './PageStats'
-import type { Card, ScryfallCard, Finish } from '../types'
+import type { Card } from '../card/card'
+import type { ScryfallCard } from '../scryfall/types'
+import type { Finish } from '../card/finish-condition'
 import type { CardContextInfo } from './card-context'
 import type { BakedDeckCard, BakedDeckData, CardKingdomCards } from './data-types'
 import { sourceCards } from './source-cards'
@@ -24,7 +26,7 @@ import {
   labelFiltersFor,
   type CardLabel,
   type CardLabelSelection,
-} from '../card-labels'
+} from '../card/card-labels'
 import {
   cardPricelessReason,
   isPricelessCard,
@@ -33,12 +35,12 @@ import {
 } from './priceless'
 import type { MetaEntry } from './meta-entry'
 import { rarityName } from './printing-display'
-import type { ChangelogPage } from '../changelog-parser'
-import { findPrinting, hasSpecificPrinting } from '../card-printing'
-import { storedLanguage } from '../card-language'
+import type { ChangelogPage } from '../changes/changelog-parser'
+import { findPrinting, hasSpecificPrinting } from '../card/card-printing'
+import { storedLanguage } from '../card/card-language'
 import { ListDescription } from './ListDescription'
-import type { PriceCurrency } from '../price-currency'
-import { formatPrice } from '../price-currency'
+import type { PriceCurrency } from '../pricing/price-currency'
+import { formatPrice } from '../pricing/price-currency'
 import { pricesEnabled, sitePrice } from './price-view'
 import {
   type GroupBy,
@@ -75,7 +77,7 @@ import {
   type ShareListsForPage,
 } from './list-shares'
 import type { NamedListRef } from './combined-list'
-import { printingKey } from '../printing-key'
+import { printingKey } from '../card/printing-key'
 import {
   collectArtTags,
   collectCardTypes,
@@ -91,7 +93,7 @@ import { SelectionMenu } from './SelectionMenu'
 import { buildSelectionEditActions } from './selection-edit-actions'
 import type { DeckBulkEdit } from '../editor/DeckEditController'
 import { ExportMenu, type ExportFormat, type ExtraExportFormat } from './ExportMenu'
-import { deckToExportText, deckToMarkdown } from '../deck-text'
+import { deckToExportText, deckToMarkdown } from '../list/deck-text'
 import { deckToCsv } from '../editor/list-export'
 
 type DeckTradePicker = { cardName: string; printings: ScryfallCard[]; deckEntry: Card }

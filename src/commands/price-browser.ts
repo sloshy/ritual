@@ -12,15 +12,15 @@
 import type { Choice } from 'prompts'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
-import { LIST_TYPE_DISPLAY, LIST_TYPES, listTypeTitle, type ListType } from '../list-type'
-import { printingFinishes } from '../finish-condition'
+import { LIST_TYPE_DISPLAY, LIST_TYPES, listTypeTitle, type ListType } from '../list/list-type'
+import { printingFinishes } from '../card/finish-condition'
 import {
   formatPrice,
   formatPriceOrNA,
   getCardPriceForFinish,
   VALID_CURRENCIES,
   type PriceCurrency,
-} from '../price-currency'
+} from '../pricing/price-currency'
 import {
   comparePricedEntries,
   filterPricedEntries,
@@ -38,12 +38,12 @@ import {
   type ByRuleUnpricedReason,
   type PriceTotals,
   type UnpricedReason,
-} from '../price-report'
-import type { ListLocation } from '../resolve-list'
+} from '../pricing/price-report'
+import type { ListLocation } from '../list/resolve-list'
 import { comparePrintings } from '../scryfall'
-import { formatDuration } from '../utils'
-import { matchesAllTerms } from '../term-match'
-import type { ScryfallCard } from '../types'
+import { formatDuration } from '../util/duration'
+import { matchesAllTerms } from '../card/term-match'
+import type { ScryfallCard } from '../scryfall/types'
 import { ask, promptTextFilter } from './prompts-helpers'
 import { dateTimeFormat } from '../i18n/format'
 import { currentLocale } from '../i18n/runtime'

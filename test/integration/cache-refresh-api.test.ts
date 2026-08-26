@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { handleCacheRefresh, type CacheRefreshResponse } from '../../src/admin/api/cache'
 import { cardCache } from '../../src/cache'
-import type { RouteProgress } from '../../src/progress'
+import type { RouteProgress } from '../../src/util/progress'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 import { stubScryfallBulk } from './helpers/scryfall-bulk'
 import type { StubbedFetch } from './helpers/stub-fetch'

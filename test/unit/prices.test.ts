@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parsePriceCacheKey } from '../../src/prices'
+import { parsePriceCacheKey } from '../../src/pricing/prices'
 
 describe('parsePriceCacheKey', () => {
   test('parses currency-keyed cache key', () => {

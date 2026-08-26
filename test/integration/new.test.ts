@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { parseDeckFrontMatter } from '../../src/deck-file'
+import { parseDeckFrontMatter } from '../../src/list/deck-file'
 import { runCli } from './helpers/cli'
 import { withWorkspace } from './helpers/workspace'
 

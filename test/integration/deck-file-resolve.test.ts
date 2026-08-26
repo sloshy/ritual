@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { resolveDeckFilePath } from '../../src/deck-file'
+import { resolveDeckFilePath } from '../../src/list/deck-file'
 import { withTempDir } from './helpers/cli'
 
 /**

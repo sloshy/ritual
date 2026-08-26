@@ -1,6 +1,7 @@
 import prompts from 'prompts'
 import type { PromptState } from './prompts-types'
-import type { Card, DeckData } from '../types'
+import type { Card } from '../card/card'
+import type { DeckData } from '../list/deck'
 import {
   consolidateSetLabel,
   consolidateSetLanguage,
@@ -19,7 +20,7 @@ import {
   type ChangeEvent,
   type ConsolidateResult,
   type PrintingTuple,
-} from '../change-event'
+} from '../changes/change-event'
 import {
   listRefTitle,
   moveFromOptionsFor,
@@ -27,7 +28,7 @@ import {
   type MoveDeps,
   type MoveDestination,
 } from './edit-move'
-import { sameCardLabels, type CardLabel } from '../card-labels'
+import { sameCardLabels, type CardLabel } from '../card/card-labels'
 import {
   noteArtLineRemoved,
   noteArtLineRestored,
@@ -36,9 +37,14 @@ import {
   type SessionArtChanges,
 } from './session-art'
 import { editCardArt } from './edit-art'
-import { displayLanguage, type CardLanguage } from '../card-language'
+import { displayLanguage, type CardLanguage } from '../card/card-language'
 import { t } from '../i18n/t'
-import { allocateId, assignMissingDeckCardIds, collectDeckCardIds, createIdPool } from '../card-id'
+import {
+  allocateId,
+  assignMissingDeckCardIds,
+  collectDeckCardIds,
+  createIdPool,
+} from '../card/card-id'
 import { applyChangeToDeck } from '../editor/deck-changes'
 import { normalizeBoard } from '../deck-sync/diff'
 import {
@@ -74,7 +80,7 @@ import {
   targetedUndoBlocker,
   type EditUndoEntry,
 } from './edit-undo'
-import { hasSpecificPrinting } from '../card-printing'
+import { hasSpecificPrinting } from '../card/card-printing'
 
 /**
  * Edit-mode operations for the deck session: changing a line's printing,

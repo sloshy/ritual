@@ -4,7 +4,7 @@
  * sell value are documented to agree, and that only holds if they round alike.
  */
 
-import type { PriceCurrency } from '../price-currency'
+import type { PriceCurrency } from '../pricing/price-currency'
 
 /**
  * The currency every buylist figure is in: buyers quote cash in their own

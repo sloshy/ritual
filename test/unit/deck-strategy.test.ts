@@ -6,9 +6,9 @@ import {
   createCardSessionContext,
 } from '../../src/commands/card-session'
 import { deckFormatChoices, type DeckSessionConfig } from '../../src/commands/deck-helpers'
-import { DECK_FORMAT_KEYS } from '../../src/deck-format'
-import type { DeckFrontMatter } from '../../src/deck-file'
-import type { DeckData } from '../../src/types'
+import { DECK_FORMAT_KEYS } from '../../src/list/deck-format'
+import type { DeckFrontMatter } from '../../src/list/deck-file'
+import type { DeckData } from '../../src/list/deck'
 import { scratchListPath, stubTty } from '../test-utils'
 
 // The Set Custom Art prompts go through `ask`, which refuses to open without a

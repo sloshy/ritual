@@ -3,30 +3,37 @@ import { compareData } from '../i18n/collate'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { compareCollectorNumbers, getAllCardNames, getAllPrintings } from '../scryfall'
-import { formatPrintingLabel } from '../printing-key'
+import { formatPrintingLabel } from '../card/printing-key'
 import {
   matchesCollectorQuery,
   parseCollectorQuery,
   type PrintingSearchTerms,
-} from '../collector-query'
+} from '../card/collector-query'
 import { emptyCacheAdvice, refreshCardCacheForSession } from '../cache/freshness'
-import type { RefreshMode } from '../refresh'
-import type { Condition, Finish, ScryfallCard } from '../types'
-import { conditionLabel, isCondition, isFinish, VALID_CONDITIONS } from '../finish-condition'
+import type { RefreshMode } from '../cache/refresh'
+import {
+  type Condition,
+  type Finish,
+  conditionLabel,
+  isCondition,
+  isFinish,
+  VALID_CONDITIONS,
+} from '../card/finish-condition'
+import type { ScryfallCard } from '../scryfall/types'
 import type { PromptState } from './prompts-types'
-import { appendChangelog } from '../changelog-writer'
-import { createSetNoteChange, type ChangeEvent, type MoveToChange } from '../change-event'
-import type { CardArtRef } from '../card-art'
-import { writeFileWithHash } from '../content-hash'
-import { formatSetCodesForDisplay, parseSetCodesInput } from '../set-codes'
-import { rankNameMatches } from '../term-match'
+import { appendChangelog } from '../changes/changelog-writer'
+import { createSetNoteChange, type ChangeEvent, type MoveToChange } from '../changes/change-event'
+import type { CardArtRef } from '../list/card-art'
+import { writeFileWithHash } from '../changes/content-hash'
+import { formatSetCodesForDisplay, parseSetCodesInput } from '../card/set-codes'
+import { rankNameMatches } from '../card/term-match'
 import type { MessageKey } from '../i18n/messages/en'
 import { DEFAULT_LOCALE } from '../i18n/runtime'
 import { t, tIn, type TranslateArgs } from '../i18n/t'
 import { matchesChoiceTerms } from './menu-search'
 import { promptExitMenu } from './prompts-helpers'
 import { ExitCode } from './scripting'
-import { isListMarkdownFile } from '../list-file-name'
+import { isListMarkdownFile } from '../list/list-file-name'
 
 /**
  * Shared engine for the unified `edit` command's interactive card-entry

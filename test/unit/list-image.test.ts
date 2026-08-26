@@ -11,7 +11,7 @@ import {
   reconcileListImageRef,
   serializeListImageRef,
   type ListImageRef,
-} from '../../src/list-image'
+} from '../../src/list/list-image'
 
 /**
  * The `image:` grammar is the one value space every surface speaks — front

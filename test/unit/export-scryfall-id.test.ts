@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { CardPrintingsLookup } from '../../src/card-printing'
+import type { CardPrintingsLookup } from '../../src/card/card-printing'
 import type { ExportEntry } from '../../src/export/entries'
 import { columnsNeedScryfallIds, resolveExportScryfallIds } from '../../src/export/scryfall-id'
 import { makeScryfallCard } from '../test-utils'

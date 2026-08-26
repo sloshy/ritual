@@ -7,13 +7,13 @@ import {
   listConfigEntries,
   type ArrayMode,
   type SettableValue,
-} from '../config-fields'
+} from '../config/config-fields'
 import {
   loadRitualConfig,
   savePartialRitualConfig,
   saveRitualConfig,
   type RitualConfig,
-} from '../ritual-config'
+} from '../config/ritual-config'
 import { t } from '../i18n/t'
 import {
   addScriptingOptions,

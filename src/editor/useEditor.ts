@@ -9,21 +9,23 @@ import {
   onMount,
   onCleanup,
 } from 'solid-js'
-import { replaySectionOrder } from '../change-event'
-import { DEFAULT_SECTION, type Finish, type ScryfallCard } from '../types'
-import type { CardLanguage } from '../card-language'
-import type { CardLabel } from '../card-labels'
-import type { CardArtRef } from '../card-art'
+import { replaySectionOrder } from '../changes/change-event'
+import { DEFAULT_SECTION } from '../list/deck'
+import type { Finish } from '../card/finish-condition'
+import type { ScryfallCard } from '../scryfall/types'
+import type { CardLanguage } from '../card/card-language'
+import type { CardLabel } from '../card/card-labels'
+import type { CardArtRef } from '../list/card-art'
 import type { SaveEffect } from './save-effects'
-import type { PriceCurrency } from '../price-currency'
-import { DEFAULT_CURRENCY } from '../price-currency'
+import type { PriceCurrency } from '../pricing/price-currency'
+import { DEFAULT_CURRENCY } from '../pricing/price-currency'
 import type {
   ChangeEvent,
   ChangeInput,
   CardPrintingOptions,
   PrintingTuple,
   ListRef,
-} from '../change-event'
+} from '../changes/change-event'
 import {
   importConflictReason,
   retargetImportedChanges,
@@ -32,7 +34,7 @@ import {
 import type { ContextMenuState, CardContextInfo } from './context-menu'
 import { type EditorStatus, type EditorStatusActions, statusMessage } from './useEditorStatus'
 import { type EditorEntity, entityListType } from './entity'
-import type { ListType } from '../list-type'
+import type { ListType } from '../list/list-type'
 import { useT } from '../ui/i18n'
 import type { DialogState } from './useDialogState'
 import type { UseCardIdPoolResult } from './useCardIdPool'

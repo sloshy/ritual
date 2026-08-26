@@ -19,8 +19,8 @@ import {
   type ListPriceSummary,
   type PricedEntry,
   type PriceReport,
-} from '../../src/price-report'
-import type { ScryfallCard } from '../../src/types'
+} from '../../src/pricing/price-report'
+import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeScryfallCard } from '../test-utils'
 
 function entry(overrides: Partial<PricedEntry> = {}): PricedEntry {

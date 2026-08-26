@@ -11,7 +11,7 @@ import {
   RESOLVE_HINTS,
   type ListLocation,
   type ResolveListError,
-} from '../../src/resolve-list'
+} from '../../src/list/resolve-list'
 
 function loc(type: ListLocation['type'], name: string): ListLocation {
   return { type, name, filePath: `/${type}/${name}.md` }

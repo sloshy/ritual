@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js'
-import { DEFAULT_CURRENCY, type PriceCurrency } from '../../../price-currency'
+import { DEFAULT_CURRENCY, type PriceCurrency } from '../../../pricing/price-currency'
 import { setEnabledPriceSources } from '../../../site/price-view'
 import { fetchRitualConfig } from '../config-api'
 

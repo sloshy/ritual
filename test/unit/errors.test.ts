@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { hasErrorCode } from '../../src/errors'
+import { hasErrorCode } from '../../src/util/errors'
 
 describe('hasErrorCode', () => {
   test('matches a Node errno error carrying the code', () => {

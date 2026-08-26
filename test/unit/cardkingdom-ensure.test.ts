@@ -10,9 +10,9 @@ import {
   type WarmCardKingdomFeedDeps,
 } from '../../src/cardkingdom'
 import { BUYLIST_FEED_MAX_AGE_MS } from '../../src/buylist'
-import type { RefreshMode } from '../../src/refresh'
-import type { HttpClient } from '../../src/interfaces'
-import { MemoryLogger, resetLogger, setLogger } from '../../src/logger'
+import type { RefreshMode } from '../../src/cache/refresh'
+import type { HttpClient } from '../../src/util/interfaces'
+import { MemoryLogger, resetLogger, setLogger } from '../../src/util/logger'
 import {
   cardKingdomFeedBody,
   makeCardKingdomCacheFile,

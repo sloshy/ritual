@@ -14,7 +14,7 @@
  */
 
 import { createSignal, type Accessor } from 'solid-js'
-import type { ListType } from '../list-type'
+import type { ListType } from '../list/list-type'
 import { listRefKey, type CombinedCardData, type CombinedListRef } from './combined-list'
 import { cardMatchKey, findMatchKey } from './find-search'
 

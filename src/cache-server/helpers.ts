@@ -1,5 +1,5 @@
 import { type CacheSection } from '../cache'
-import { createDefaultFileSystemClient, type FileSystemClient } from '../interfaces'
+import { createDefaultFileSystemClient, type FileSystemClient } from '../util/interfaces'
 import { CACHE_SERVER_LOG_PREFIX, DAY_REFRESH_MS, PRICE_REFRESH_STAGGER_MS } from './constants'
 
 const textEncoder = new TextEncoder()

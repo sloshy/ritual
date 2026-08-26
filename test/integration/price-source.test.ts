@@ -5,8 +5,8 @@ import path from 'node:path'
 // scryfall/index, which reads `cardCache` at module top level — importing the
 // cache first leaves that binding in its temporal dead zone.
 import '../../src/scryfall'
-import type { PriceSummaryPayload } from '../../src/price-report'
-import type { ScryfallCard } from '../../src/types'
+import type { PriceSummaryPayload } from '../../src/pricing/price-report'
+import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeCardKingdomProduct, makeScryfallCard } from '../test-utils'
 import { runCli } from './helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'

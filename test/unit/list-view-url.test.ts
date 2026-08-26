@@ -9,7 +9,7 @@ import {
 } from '../../src/site/list-view-url'
 import { type CardFilters, createDefaultCardFilters } from '../../src/site/card-filters'
 import { offeredLabels, stripCurrentShareList } from '../../src/site/useListViewUrlSync'
-import { labelFiltersFor } from '../../src/card-labels'
+import { labelFiltersFor } from '../../src/card/card-labels'
 
 const DEFAULTS: ListViewDefaults = { groupBy: 'type', sortBy: 'name' }
 

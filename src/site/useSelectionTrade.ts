@@ -1,8 +1,8 @@
-import type { ScryfallCard } from '../types'
-import type { PriceCurrency } from '../price-currency'
+import type { ScryfallCard } from '../scryfall/types'
+import type { PriceCurrency } from '../pricing/price-currency'
 import type { SelectedCard, SelectionSourceKind } from './useCardSelection'
 import type { TradeSearchEntry } from './useTradeData'
-import { normalizeCardName } from '../term-match'
+import { normalizeCardName } from '../card/term-match'
 import { t } from '../i18n/t'
 import {
   addEntryToLeft,

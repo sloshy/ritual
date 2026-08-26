@@ -8,7 +8,7 @@
  */
 
 import type { BuylistQuote, BuylistQuoteBase, BuylistQuoteRequest } from '../buylist'
-import { displayLanguage } from '../card-language'
+import { displayLanguage } from '../card/card-language'
 import {
   lookupSkuPrinting,
   productUrl,

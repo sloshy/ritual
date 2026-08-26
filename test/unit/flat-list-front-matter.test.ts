@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { parseFlatListFrontMatter } from '../../src/flat-list-front-matter'
+import { parseFlatListFrontMatter } from '../../src/list/flat-list-front-matter'
 import {
   collectionToMarkdown,
   wantedToMarkdown,
   withFrontMatter,
 } from '../../src/editor/list-export'
-import { parseCollectionFile } from '../../src/collection-file'
+import { parseCollectionFile } from '../../src/list/collection-file'
 import { parseWantedListFile } from '../../src/commands/wanted-helpers'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/site/data-types'
 

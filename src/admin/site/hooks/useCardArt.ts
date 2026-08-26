@@ -1,5 +1,5 @@
 import { batch, createMemo, createSignal, type Accessor } from 'solid-js'
-import type { CardArtRecord, CardArtRef } from '../../../card-art'
+import type { CardArtRecord, CardArtRef } from '../../../list/card-art'
 import { cardArtRefsFrom, type CardArtRefs } from '../../../editor/card-art-view'
 import type { CardContextInfo } from '../../../editor/context-menu'
 import {
@@ -12,7 +12,7 @@ import {
 } from '../../../editor/pending-art'
 import type { SaveEffect } from '../../../editor/save-effects'
 import { statusMessage, type EditorStatusActions } from '../../../editor/useEditorStatus'
-import type { ListType } from '../../../list-type'
+import type { ListType } from '../../../list/list-type'
 import { promptCardArt } from '../card-art-prompt'
 import { putCardArt } from '../editor-backend'
 

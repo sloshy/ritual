@@ -1,6 +1,6 @@
 import type { Component } from 'solid-js'
 import { createMemo, Show, For } from 'solid-js'
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 
 type SymbolTextProps = {
   text: string

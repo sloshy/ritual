@@ -39,9 +39,9 @@
 
 import path from 'node:path'
 import { Option, type Command } from 'commander'
-import { getBaseDir } from '../base-dir'
-import { applyConfigSet } from '../config-fields'
-import { resolveStringOverride } from '../env-override'
+import { getBaseDir } from '../config/base-dir'
+import { applyConfigSet } from '../config/config-fields'
+import { resolveStringOverride } from '../config/env-override'
 import { prescanArgs } from '../i18n/argv-prescan'
 import { prereadUiLocale } from '../i18n/config-preread'
 import {
@@ -56,14 +56,14 @@ import { DEFAULT_LOCALE, loadDictionary, loadedLocales, setLocale } from '../i18
 import { t } from '../i18n/t'
 import type { LocaleTag } from '../i18n/types'
 import { bakedDictionaries } from '../generated/locales'
-import { promptsUnavailableReason } from '../no-input'
+import { promptsUnavailableReason } from '../util/no-input'
 import {
   isConfigParseError,
   loadRitualConfig,
   parseUiLocale,
   saveRitualConfig,
-} from '../ritual-config'
-import type { CardLanguage } from '../card-language'
+} from '../config/ritual-config'
+import type { CardLanguage } from '../card/card-language'
 import { ask } from './prompts-helpers'
 import {
   addScriptingOptions,

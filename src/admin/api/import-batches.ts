@@ -1,4 +1,4 @@
-import type { ChangeEvent } from '../../change-event'
+import type { ChangeEvent } from '../../changes/change-event'
 import {
   bundleRefMatches,
   bundleTargets,

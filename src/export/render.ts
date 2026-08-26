@@ -1,4 +1,4 @@
-import { csvCell } from '../csv'
+import { csvCell } from '../changes/csv'
 import {
   aggregateQuantities,
   formatCollectionLine,
@@ -6,15 +6,15 @@ import {
   printingSuffix,
   variantKey,
   type CardPrinting,
-} from '../card-line'
-import { serializeCardLine } from '../deck-text'
-import { storedLanguage } from '../card-language'
+} from '../card/card-line'
+import { serializeCardLine } from '../list/deck-text'
+import { storedLanguage } from '../card/card-language'
 import {
   archidektCsvCondition,
   archidektCsvLanguage,
   archidektModifier,
 } from '../importers/archidekt-collection'
-import type { Card } from '../types'
+import type { Card } from '../card/card'
 import type { ExportEntry } from './entries'
 
 /**

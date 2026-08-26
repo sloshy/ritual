@@ -18,7 +18,7 @@ import {
   writeStdout,
 } from '../../../src/commands/scripting'
 import type { ScriptingOptions } from '../../../src/commands/scripting'
-import { setNoInputOverride } from '../../../src/no-input'
+import { setNoInputOverride } from '../../../src/util/no-input'
 import { stubTty } from '../../test-utils'
 
 type WritableTarget = {

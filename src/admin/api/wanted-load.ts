@@ -1,9 +1,9 @@
-import { unreadableLines } from '../../markdown-fence'
+import { unreadableLines } from '../../list/markdown-fence'
 import { parseWantedListFile } from '../../commands/wanted-helpers'
-import { readListDescription } from '../../list-description'
-import { readListImage } from '../../list-image'
+import { readListDescription } from '../../list/list-description'
+import { readListImage } from '../../list/list-image'
 import type { ParsedWantedEntry } from '../../editor/wanted-entries'
-import { getWantedDir } from '../../ritual-config'
+import { getWantedDir } from '../../config/ritual-config'
 import { handleFlatListLoad, type FlatListLoadConfig, type FlatListParseResult } from './list-load'
 
 const WANTED_LOAD_CFG: FlatListLoadConfig<ParsedWantedEntry> = {

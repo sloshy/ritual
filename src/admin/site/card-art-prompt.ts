@@ -1,6 +1,6 @@
 import { createSignal, type Accessor } from 'solid-js'
-import type { CardArtRef } from '../../card-art'
-import type { ListType } from '../../list-type'
+import type { CardArtRef } from '../../list/card-art'
+import type { ListType } from '../../list/list-type'
 
 /**
  * The "Set Custom Art…" dialog, opened from a card's context menu.

@@ -11,10 +11,10 @@ import {
   type DeleteListSuccess,
   type ListLifecycleError,
   type RenameListSuccess,
-} from '../../src/list-lifecycle'
-import { parseDeckFrontMatter } from '../../src/deck-file'
-import { computeHash } from '../../src/content-hash'
-import { setBaseDir } from '../../src/base-dir'
+} from '../../src/list/list-lifecycle'
+import { parseDeckFrontMatter } from '../../src/list/deck-file'
+import { computeHash } from '../../src/changes/content-hash'
+import { setBaseDir } from '../../src/config/base-dir'
 
 const testDir = path.join(import.meta.dir, '../.test-list-lifecycle')
 const decksDir = path.join(testDir, 'decks')

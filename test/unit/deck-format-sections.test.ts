@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { findOrCreateSection, resolveDefaultAddSection } from '../../src/deck-format'
-import type { DeckSection } from '../../src/types'
+import { findOrCreateSection, resolveDefaultAddSection } from '../../src/list/deck-format'
+import type { DeckSection } from '../../src/list/deck'
 
 function section(name: string, cardNames: string[] = []): DeckSection {
   return { name, cards: cardNames.map((n) => ({ quantity: 1, name: n })) }

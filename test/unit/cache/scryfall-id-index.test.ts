@@ -4,7 +4,7 @@ import {
   type CardPrintingsSource,
 } from '../../../src/cache/scryfall-id-index'
 import { makeScryfallCard } from '../../test-utils'
-import type { ScryfallCard } from '../../../src/types'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 
 /**
  * The cache is keyed by card name, so ID lookups run off a memoized index. What

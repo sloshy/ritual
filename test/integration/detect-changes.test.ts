@@ -2,8 +2,8 @@ import { describe, test, expect, afterEach } from 'bun:test'
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { cleanGitEnv } from '../../src/git-diff'
-import { computeHash, loadHash, writeFileWithHash } from '../../src/content-hash'
+import { cleanGitEnv } from '../../src/changes/git-diff'
+import { computeHash, loadHash, writeFileWithHash } from '../../src/changes/content-hash'
 import {
   detectChanges,
   applyDetectedChanges,

@@ -7,7 +7,7 @@ import {
   pricelessMarkerKey,
   pricelessMarkerText,
 } from '../../../src/site/priceless'
-import { PRICELESS_REASONS } from '../../../src/card-labels'
+import { PRICELESS_REASONS } from '../../../src/card/card-labels'
 import { t } from '../../../src/i18n/t'
 
 // The site's adapter over the one "no price, no quote, no sale" rule. What

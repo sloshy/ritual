@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { validateDeckFrontMatter } from '../../src/deck-file'
+import { validateDeckFrontMatter } from '../../src/list/deck-file'
 import { parseDeckText } from '../../src/importers/text-file'
 
 /**

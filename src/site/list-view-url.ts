@@ -20,7 +20,7 @@ import {
   parseShareListParam,
 } from './card-filters'
 import { BUYERS, type BuyerId } from '../buylist'
-import { USD_PRICE_SOURCES, type UsdPriceSource } from '../price-source'
+import { USD_PRICE_SOURCES, type UsdPriceSource } from '../pricing/price-source'
 import {
   COLOR_MATCH_MODES,
   FILTER_MATCH_MODES,

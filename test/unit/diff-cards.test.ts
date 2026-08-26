@@ -1,7 +1,11 @@
 import { describe, test, expect } from 'bun:test'
-import { diffDeckCards, diffCollectionEntries, diffWantedEntries } from '../../src/diff-cards'
-import type { DeckSection } from '../../src/types'
-import type { CollectionEntry } from '../../src/collection-file'
+import {
+  diffDeckCards,
+  diffCollectionEntries,
+  diffWantedEntries,
+} from '../../src/changes/diff-cards'
+import type { DeckSection } from '../../src/list/deck'
+import type { CollectionEntry } from '../../src/list/collection-file'
 import type { WantedListEntry } from '../../src/commands/wanted-helpers'
 
 // ── Deck diffing ─────────────────────────────────────────────────────

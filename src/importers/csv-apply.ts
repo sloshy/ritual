@@ -1,52 +1,46 @@
 import * as fs from 'node:fs/promises'
 import matter from 'gray-matter'
-import {
-  BOARDS,
-  type Board,
-  type Card,
-  type Condition,
-  type DeckData,
-  type DeckSection,
-  type Finish,
-  type ScryfallCard,
-} from '../types'
-import type { ListType } from '../list-type'
-import type { DeckFormatKey } from '../deck-format'
+import { BOARDS, type Board, type DeckData, type DeckSection } from '../list/deck'
+import type { Card } from '../card/card'
+import type { Condition, Finish } from '../card/finish-condition'
+import type { ScryfallCard } from '../scryfall/types'
+import type { ListType } from '../list/list-type'
+import type { DeckFormatKey } from '../list/deck-format'
 import type { CsvCardEntry } from './csv'
 import { parseDeckText } from './text-file'
-import { serializeDeckToMarkdown } from '../deck-file'
-import { parseCollectionFile, type CollectionEntry } from '../collection-file'
+import { serializeDeckToMarkdown } from '../list/deck-file'
+import { parseCollectionFile, type CollectionEntry } from '../list/collection-file'
 import { parseWantedListFile, type WantedListEntry } from '../commands/wanted-helpers'
-import { formatCollectionLine, formatWantedListLine } from '../card-line'
-import type { CardLanguage } from '../card-language'
-import type { CardPrintingsLookup } from '../card-printing'
-import { resolvePrintingLanguage } from '../printing-language'
-import { getDefaultLanguage } from '../ritual-config'
+import { formatCollectionLine, formatWantedListLine } from '../card/card-line'
+import type { CardLanguage } from '../card/card-language'
+import type { CardPrintingsLookup } from '../card/card-printing'
+import { resolvePrintingLanguage } from '../card/printing-language'
+import { getDefaultLanguage } from '../config/ritual-config'
 import { getCachedCardPrintings } from '../scryfall'
 import { withFrontMatter } from '../editor/list-export'
-import { parseFlatListFrontMatter } from '../flat-list-front-matter'
-import type { CardLabel } from '../card-labels'
-import { parseTitleFromContent, serializeSectionedList } from '../section-format'
+import { parseFlatListFrontMatter } from '../list/flat-list-front-matter'
+import type { CardLabel } from '../card/card-labels'
+import { parseTitleFromContent, serializeSectionedList } from '../list/section-format'
 import {
   allocateId,
   collectDeckCardIds,
   collectExistingIds,
   createIdPool,
   type CardIdPool,
-} from '../card-id'
-import { writeFileWithHash } from '../content-hash'
-import { unreadableContentMessage, unreadableLines } from '../markdown-fence'
-import { unusableFileNameMessage } from '../list-file-name'
-import { listNameCollision } from '../list-lifecycle'
-import { createAddChange, isSamePrinting, type ChangeEvent } from '../change-event'
-import { appendChangelog } from '../changelog-writer'
+} from '../card/card-id'
+import { writeFileWithHash } from '../changes/content-hash'
+import { unreadableContentMessage, unreadableLines } from '../list/markdown-fence'
+import { unusableFileNameMessage } from '../list/list-file-name'
+import { listNameCollision } from '../list/list-lifecycle'
+import { createAddChange, isSamePrinting, type ChangeEvent } from '../changes/change-event'
+import { appendChangelog } from '../changes/changelog-writer'
 import {
   dirForType,
   listFilePath,
   formatResolveListError,
   isResolveListError,
   resolveList,
-} from '../resolve-list'
+} from '../list/resolve-list'
 
 /**
  * Applies converted card entries to a list on disk: creating a new list file,

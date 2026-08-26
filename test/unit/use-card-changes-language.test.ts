@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { useCardChanges } from '../../src/editor/useCardChanges'
-import { createSetLanguageChange, type ChangeEvent } from '../../src/change-event'
+import { createSetLanguageChange, type ChangeEvent } from '../../src/changes/change-event'
 
 /**
  * The set-language wiring of the card-changes hook: the pending event, its

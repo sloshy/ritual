@@ -5,7 +5,7 @@ import {
   displayChangeFromLine,
   formatChange,
   renderChange,
-} from '../../src/change-message'
+} from '../../src/changes/change-message'
 import {
   CHANGE_ACTIONS,
   createAddChange,
@@ -26,8 +26,8 @@ import {
   formatChangeCore,
   type ChangeEvent,
   type ListRef,
-} from '../../src/change-event'
-import type { ChangelogAction, ChangelogChange } from '../../src/changelog-parser'
+} from '../../src/changes/change-event'
+import type { ChangelogAction, ChangelogChange } from '../../src/changes/changelog-parser'
 import { loadDictionary, resetI18nRuntime, setLocale } from '../../src/i18n/runtime'
 import { localeTag } from '../../src/i18n/locale-tag'
 

@@ -1,4 +1,4 @@
-import { type CacheManager, type CacheStreamEntryMeta } from '../interfaces'
+import { type CacheManager, type CacheStreamEntryMeta } from '../util/interfaces'
 import { type CacheSection, type DataType } from './file-cache'
 
 interface CacheServerGetResponse<T> {

@@ -1,4 +1,4 @@
-import type { ChangelogAction } from '../changelog-parser'
+import type { ChangelogAction } from '../changes/changelog-parser'
 
 /**
  * Whether a change renders as additive (green `+`) rather than destructive (red `−`).

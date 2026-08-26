@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import type { ChangeEvent } from '../../src/change-event'
+import type { ChangeEvent } from '../../src/changes/change-event'
 import { createRetargetState, retargetImportedChanges } from '../../src/editor/import-changes'
 
 /** A counting allocator starting after the current IDs, mirroring the editor's pool. */

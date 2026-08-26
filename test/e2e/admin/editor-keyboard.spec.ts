@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import type { ScryfallCard } from '../../../src/types'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'

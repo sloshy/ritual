@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import licenseText from '../../LICENSE' with { type: 'text' }
 import { t } from '../i18n/t'
-import { displayWithPager, resolvePagerMode } from '../pager'
+import { displayWithPager, resolvePagerMode } from '../util/pager'
 
 type LicenseOptions = {
   plain: boolean

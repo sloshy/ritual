@@ -16,8 +16,8 @@ import {
   isCurrencyAvailableForCard,
   isFinishPricelessInCurrency,
   parseCurrenciesFlag,
-} from '../../src/price-currency'
-import type { ScryfallCard } from '../../src/types'
+} from '../../src/pricing/price-currency'
+import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeScryfallCard } from '../test-utils'
 
 function makeCard(prices: Partial<ScryfallCard['prices']> = {}): ScryfallCard {

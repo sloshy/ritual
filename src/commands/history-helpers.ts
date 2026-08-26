@@ -6,11 +6,12 @@
 
 import * as fs from 'node:fs/promises'
 import { importFromTextFile } from '../importers/text-file'
-import { parseCollectionFile } from '../collection-file'
+import { parseCollectionFile } from '../list/collection-file'
 import { parseWantedListFile } from './wanted-helpers'
-import { DEFAULT_SECTION, type Condition, type Finish } from '../types'
-import type { CardLanguage } from '../card-language'
-import type { ListType } from '../list-type'
+import { DEFAULT_SECTION } from '../list/deck'
+import type { Condition, Finish } from '../card/finish-condition'
+import type { CardLanguage } from '../card/card-language'
+import type { ListType } from '../list/list-type'
 import {
   createAddChange,
   createAddSectionChange,
@@ -21,8 +22,8 @@ import {
   formatChangeCore,
   printingOptionsFrom,
   type ChangeEvent,
-} from '../change-event'
-import type { CardLabel } from '../card-labels'
+} from '../changes/change-event'
+import type { CardLabel } from '../card/card-labels'
 
 /** A single list entry, normalized across decks, collections, and wanted lists. */
 export type SnapshotEntry = {

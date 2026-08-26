@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { createAddChange } from '../../src/change-event'
+import { createAddChange } from '../../src/changes/change-event'
 import {
   buildInitialSessionConfig,
   resetCardSessionTracking,
   saveCardSession,
 } from '../../src/commands/card-session'
 import { newListSession, pendingListCollision, type OpenList } from '../../src/commands/edit-lists'
-import { listFilePath } from '../../src/resolve-list'
+import { listFilePath } from '../../src/list/resolve-list'
 import type { DeckSessionConfig } from '../../src/commands/deck-helpers'
-import type { ListType } from '../../src/list-type'
+import type { ListType } from '../../src/list/list-type'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
 /**

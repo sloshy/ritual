@@ -15,11 +15,11 @@ import { appendAuditLog, createAuditEntry } from '../admin/audit-log'
 import { MAX_PASSWORD_LENGTH, MAX_USERNAME_LENGTH, MIN_PASSWORD_LENGTH } from '../admin/validation'
 import { runHttpServer } from '../mcp/run'
 import { resolveMcpToken } from '../mcp/token'
-import { getBaseDir } from '../base-dir'
+import { getBaseDir } from '../config/base-dir'
 import { ensureFreshCardCache } from '../cache/freshness'
 import { sellModeWarning, warmCardKingdomFeed } from '../cardkingdom'
-import { addRefreshOption, type RefreshMode } from '../refresh'
-import { isRunningFromSource } from '../runtime'
+import { addRefreshOption, type RefreshMode } from '../cache/refresh'
+import { isRunningFromSource } from '../config/runtime'
 import {
   generateAllThemesCss,
   isThemeName,
@@ -27,19 +27,19 @@ import {
   themeFlameStops,
   themeNames,
   type ThemeName,
-} from '../themes'
+} from '../theme/themes'
 import { appBootScript, BOOT_SCRIPT_FILE, renderAppShell } from '../site/html-shell'
 import { bakedDictionaries } from '../generated/locales'
 import { en } from '../i18n/messages/en'
 import { DEFAULT_LOCALE } from '../i18n/runtime'
 import { t } from '../i18n/t'
 import type { LocaleTag } from '../i18n/types'
-import { getUiLocale } from '../ritual-config'
+import { getUiLocale } from '../config/ritual-config'
 import { addSellModeOption, applySellModeOverride } from './sell-mode-flag'
-import { buildFlameSvg } from '../flame'
-import { localizedCommandError } from '../errors'
+import { buildFlameSvg } from '../theme/flame'
+import { localizedCommandError } from '../util/errors'
 import { runCommandAction } from './card-target'
-import { requireInteractive } from '../no-input'
+import { requireInteractive } from '../util/no-input'
 import { readPasswordFromStdin } from './prompts-helpers'
 import {
   addScriptingOptions,

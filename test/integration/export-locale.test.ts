@@ -7,7 +7,11 @@ import { EXPORT_PROPERTIES, type ExportProperty } from '../../src/export/render'
 import type { ExportEntry } from '../../src/export/entries'
 import { CSV_HEADER } from '../../src/editor/list-export'
 import { buildCkCartCsv } from '../../src/buylist/cart-csv'
-import { formatPrice, formatPriceInvariant, VALID_CURRENCIES } from '../../src/price-currency'
+import {
+  formatPrice,
+  formatPriceInvariant,
+  VALID_CURRENCIES,
+} from '../../src/pricing/price-currency'
 import { en } from '../../src/i18n/messages/en'
 import { enMeta } from '../../src/i18n/messages/en.meta'
 import { loadDictionary, resetI18nRuntime, setLocale } from '../../src/i18n/runtime'

@@ -4,9 +4,9 @@ import {
   formatCardLabels,
   supportsAnyLabels,
   type CardLabel,
-} from '../../card-labels'
-import { isCardArtRefError, parseCardArtInput, type CardArtRef } from '../../card-art'
-import type { ListType } from '../../list-type'
+} from '../../card/card-labels'
+import { isCardArtRefError, parseCardArtInput, type CardArtRef } from '../../list/card-art'
+import type { ListType } from '../../list/list-type'
 import { useT } from '../../ui/i18n'
 
 /**

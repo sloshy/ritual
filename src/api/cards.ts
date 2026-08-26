@@ -1,6 +1,6 @@
 import { scryfallIdIndex } from '../cache/scryfall-id-index'
-import { getErrorMessage } from '../errors'
-import type { ScryfallCard } from '../types'
+import { getErrorMessage } from '../util/errors'
+import type { ScryfallCard } from '../scryfall/types'
 
 /** Upper bound on IDs per request, so one call can't ask for the whole cache. */
 export const MAX_CARD_IDS = 200

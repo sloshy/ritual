@@ -12,9 +12,9 @@ import {
   on,
 } from 'solid-js'
 import { StatusAlerts } from '../components/StatusAlerts'
-import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from '../../../list-type'
+import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from '../../../list/list-type'
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
-import { DECK_FORMAT_KEYS, getDeckFormatLabel } from '../../../deck-format'
+import { DECK_FORMAT_KEYS, getDeckFormatLabel } from '../../../list/deck-format'
 import {
   CSV_FIELDS,
   CSV_FIELD_LABELS,

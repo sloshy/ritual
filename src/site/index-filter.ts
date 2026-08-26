@@ -1,9 +1,9 @@
 import type { DeckSummary } from './data-types'
 import { compareDisplayBase } from '../i18n/collate'
 import type { MessageKey } from '../i18n/messages/en'
-import type { PriceCurrency } from '../price-currency'
+import type { PriceCurrency } from '../pricing/price-currency'
 import { getSummaryLowestPrice, getSummaryTotalPrice } from './utils'
-import { getDeckFormatLabel } from '../deck-format'
+import { getDeckFormatLabel } from '../list/deck-format'
 
 export type IndexSort = 'alpha' | 'recent' | 'price' | 'lowestPrice'
 export type IndexGroup = 'none' | 'format'

@@ -1,9 +1,11 @@
-import { BOARDS, type Card, type DeckData, type DeckSection, type Finish } from '../types'
+import { BOARDS, type DeckData, type DeckSection } from '../list/deck'
+import type { Card } from '../card/card'
+import type { Finish } from '../card/finish-condition'
 import { compareData } from '../i18n/collate'
 import { t } from '../i18n/t'
-import { getDeckFormatLabel, parseDeckFormat, type DeckFormatKey } from '../deck-format'
-import { resolvePrinting } from '../card-line'
-import { getLogger } from '../logger'
+import { getDeckFormatLabel, parseDeckFormat, type DeckFormatKey } from '../list/deck-format'
+import { resolvePrinting } from '../card/card-line'
+import { getLogger } from '../util/logger'
 
 export interface ArchidektCategory {
   id: number

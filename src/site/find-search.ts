@@ -10,7 +10,7 @@
  * also matches double-art printings named `Steam Vents // Steam Vents`.
  */
 
-import { normalizeForSearch } from '../term-match'
+import { normalizeForSearch } from '../card/term-match'
 import type { CardData } from './card-sorting'
 
 /** The front face of a possibly double-faced name: text before the first `//`, trimmed. */

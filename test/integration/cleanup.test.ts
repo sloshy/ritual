@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { cleanupAllLists, cleanupList, type CleanupResult } from '../../src/commands/cleanup'
-import { parseDeckFrontMatter } from '../../src/deck-file'
-import type { DeckFormatSignal } from '../../src/deck-format'
-import { computeHash, hashPath, writeFileWithHash } from '../../src/content-hash'
+import { parseDeckFrontMatter } from '../../src/list/deck-file'
+import type { DeckFormatSignal } from '../../src/list/deck-format'
+import { computeHash, hashPath, writeFileWithHash } from '../../src/changes/content-hash'
 import { runCli } from './helpers/cli'
 import {
   bindWorkspace,

@@ -1,6 +1,6 @@
-import type { ChangeEvent } from '../../change-event'
+import type { ChangeEvent } from '../../changes/change-event'
 import { t } from '../../i18n/t'
-import type { ListType } from '../../list-type'
+import type { ListType } from '../../list/list-type'
 
 /** One list's remembered pending edits (plus its display name, for export labels). */
 type EditSession = {

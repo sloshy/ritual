@@ -8,10 +8,10 @@
  * thing and the browser bundle can use them.
  */
 
-import type { CardLanguage } from '../card-language'
-import { formatPrintingAnnotation } from '../change-event'
+import type { CardLanguage } from '../card/card-language'
+import { formatPrintingAnnotation } from '../changes/change-event'
 import { t } from '../i18n/t'
-import type { Condition, Finish } from '../types'
+import type { Condition, Finish } from '../card/finish-condition'
 
 /**
  * The five dimensions a local copy and a remote record must agree on to be the

@@ -21,7 +21,7 @@ import {
   useContext,
 } from 'solid-js'
 import type { JSX } from 'solid-js'
-import type { ThemeCssVars, ThemeName } from '../themes'
+import type { ThemeCssVars, ThemeName } from '../theme/themes'
 
 // Keep these key names in sync with `themeBootstrapScript` in `src/themes.ts`.
 const LS_THEME = 'ritual:theme'

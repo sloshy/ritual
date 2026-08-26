@@ -1,6 +1,6 @@
 import { cardCache } from '../../cache'
-import { extractChangelogCardNames, type ChangelogPage } from '../../changelog-parser'
-import { extractPrimerCardNames } from '../../primer-parser'
+import { extractChangelogCardNames, type ChangelogPage } from '../../changes/changelog-parser'
+import { extractPrimerCardNames } from '../../list/primer-parser'
 import type { LoadedCollection } from './collection'
 import type { LoadedDeck } from './deck'
 import type { LoadedWanted } from './wanted'

@@ -4,7 +4,7 @@ import {
   matchesCollectorQuery,
   parseCollectorQuery,
   type FilterablePrinting,
-} from '../../src/collector-query'
+} from '../../src/card/collector-query'
 
 describe('parseCollectorQuery', () => {
   test('a colon splits the input into its set and number halves', () => {

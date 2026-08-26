@@ -1,6 +1,7 @@
-import { DEFAULT_SECTION, type Condition, type Finish } from '../types'
-import { normalizeLanguageValue, storedLanguage, type CardLanguage } from '../card-language'
-import type { ListType } from '../list-type'
+import { DEFAULT_SECTION } from '../list/deck'
+import type { Condition, Finish } from '../card/finish-condition'
+import { normalizeLanguageValue, storedLanguage, type CardLanguage } from '../card/card-language'
+import type { ListType } from '../list/list-type'
 
 /**
  * CSV import support: a validating CSV parser plus the column-mapping and

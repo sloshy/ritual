@@ -1,26 +1,30 @@
 import { Command, Option } from 'commander'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { getBaseDir } from '../base-dir'
-import { isRitualClean, writeFileWithHash } from '../content-hash'
-import { listFileName, unusableFileNameMessage } from '../list-file-name'
-import { listLocations, type ListLocation } from '../resolve-list'
-import type { ListType } from '../list-type'
+import { getBaseDir } from '../config/base-dir'
+import { isRitualClean, writeFileWithHash } from '../changes/content-hash'
+import { listFileName, unusableFileNameMessage } from '../list/list-file-name'
+import { listLocations, type ListLocation } from '../list/resolve-list'
+import type { ListType } from '../list/list-type'
 import {
   deckFormatKeysForSignal,
   detectDeckFormatSignal,
   type DeckFormatKey,
   type DeckFormatSignal,
-} from '../deck-format'
-import { parseDeckFrontMatter, serializeDeckToMarkdown, type DeckFrontMatter } from '../deck-file'
-import type { DeckData } from '../types'
-import { unreadableLines } from '../markdown-fence'
+} from '../list/deck-format'
+import {
+  parseDeckFrontMatter,
+  serializeDeckToMarkdown,
+  type DeckFrontMatter,
+} from '../list/deck-file'
+import type { DeckData } from '../list/deck'
+import { unreadableLines } from '../list/markdown-fence'
 import { parseDeckText } from '../importers/text-file'
-import { listNameCollision } from '../list-lifecycle'
-import { moveListFileAndSidecars, renameListThroughTemp } from '../list-sidecars'
-import { isSameFile as statSameFile, type SameFileCheck } from '../same-file'
+import { listNameCollision } from '../list/list-lifecycle'
+import { moveListFileAndSidecars, renameListThroughTemp } from '../list/list-sidecars'
+import { isSameFile as statSameFile, type SameFileCheck } from '../util/same-file'
 import { collectionToMarkdown, wantedToMarkdown } from '../editor/list-export'
-import { getErrorMessage, localizedCommandError } from '../errors'
+import { getErrorMessage, localizedCommandError } from '../util/errors'
 import { runCommandAction } from './card-target'
 import { promptDeckFormat } from './deck-helpers'
 import { readCollectionFile, readWantedFile } from './flat-list-session'

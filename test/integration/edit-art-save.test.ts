@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import prompts from 'prompts'
-import { loadCardArt, saveCardArt, type CardArtRef } from '../../src/card-art'
+import { loadCardArt, saveCardArt, type CardArtRef } from '../../src/list/card-art'
 import { buildInitialSessionConfig } from '../../src/commands/card-session'
 import type { DeckSessionConfig } from '../../src/commands/deck-helpers'
 import { openListSession, saveOpenList, type OpenList } from '../../src/commands/edit-lists'
-import type { ListType } from '../../src/list-type'
+import type { ListType } from '../../src/list/list-type'
 import { stubTty } from '../test-utils'
 import {
   bindWorkspace,

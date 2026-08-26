@@ -1,6 +1,6 @@
-import { parseCardIdKey, type CardArtRecord, type CardArtRef } from '../card-art'
+import { parseCardIdKey, type CardArtRecord, type CardArtRef } from '../list/card-art'
 import type { BakedDeckData } from '../site/data-types'
-import type { DeckData } from '../types'
+import type { DeckData } from '../list/deck'
 import { cardArtDisplayUrl } from '../site/art-url'
 
 /**

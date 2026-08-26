@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { fetchRitualConfig } from '../../../src/admin/site/config-api'
-import { getDefaultRitualConfig } from '../../../src/ritual-config'
+import { getDefaultRitualConfig } from '../../../src/config/ritual-config'
 
 const originalFetch = globalThis.fetch
 

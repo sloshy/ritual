@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js'
-import type { ListType } from '../../list-type'
+import type { ListType } from '../../list/list-type'
 import type { BulkEditBundle } from '../selection-edit-actions'
 
 /**

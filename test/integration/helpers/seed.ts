@@ -1,10 +1,10 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { cardCache } from '../../../src/cache'
-import { getBaseDir, setBaseDir } from '../../../src/base-dir'
+import { getBaseDir, setBaseDir } from '../../../src/config/base-dir'
 import type { CardKingdomProduct } from '../../../src/cardkingdom/feed'
 import { makeCardKingdomCacheFile } from '../../test-utils'
-import type { ScryfallCard } from '../../../src/types'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 
 /**
  * Seed a workspace's card cache through the real writer, so its on-disk format

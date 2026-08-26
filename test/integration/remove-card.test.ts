@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
-import { artSidecarPath, loadCardArt, saveCardArt } from '../../src/card-art'
+import { artSidecarPath, loadCardArt, saveCardArt } from '../../src/list/card-art'
 import {
   createWorkspace,
   removeWorkspace,

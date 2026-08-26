@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
-import type { Finish, ScryfallCard } from '../../../src/types'
+import type { Finish } from '../../../src/card/finish-condition'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openDeckWithCards } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'

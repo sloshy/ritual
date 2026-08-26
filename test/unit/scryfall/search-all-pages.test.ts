@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test'
 import { ScryfallClient } from '../../../src/scryfall'
-import type { ScryfallCard } from '../../../src/types'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import {
   InMemoryCacheManager,
   MemoryFileSystemClient,

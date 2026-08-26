@@ -1,14 +1,15 @@
 import path from 'node:path'
 import { mkdir } from 'node:fs/promises'
-import { type PriceData, type ScryfallCard } from '../types'
+import type { PriceData } from '../pricing/price-data'
+import type { ScryfallCard } from '../scryfall/types'
 import {
   createDefaultFileSystemClient,
   type CacheManager,
   type CacheStreamEntryMeta,
-} from '../interfaces'
+} from '../util/interfaces'
 import { writeFileAtomic } from './atomic-write'
-import { getLogger } from '../logger'
-import { getBaseDir } from '../base-dir'
+import { getLogger } from '../util/logger'
+import { getBaseDir } from '../config/base-dir'
 
 export function getCacheDir(): string {
   return path.join(getBaseDir(), 'cache')

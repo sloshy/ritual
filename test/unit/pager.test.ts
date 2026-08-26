@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { resolvePagerMode } from '../../src/pager'
-import { setNoInputOverride } from '../../src/no-input'
+import { resolvePagerMode } from '../../src/util/pager'
+import { setNoInputOverride } from '../../src/util/no-input'
 import { stubTty } from '../test-utils'
 
 // `less` is only ever spawned when both ends are a terminal, so the stubs have

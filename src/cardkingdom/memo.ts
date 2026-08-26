@@ -15,7 +15,7 @@
 
 import { stat } from 'node:fs/promises'
 import { buylistFeedIsStale, type BuylistFeedStamp } from '../buylist'
-import { hasErrorCode } from '../errors'
+import { hasErrorCode } from '../util/errors'
 import { buildCardKingdomIndex, type CardKingdomIndex } from './feed'
 import { getCardKingdomCachePath, loadCardKingdomCache, type CardKingdomCacheFile } from './cache'
 // Type-only, so the `ensure.ts` → `memo.ts` value import stays the single

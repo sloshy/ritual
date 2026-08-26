@@ -6,9 +6,9 @@
  */
 
 import type { Choice } from 'prompts'
-import { listRefLabel } from '../change-event'
+import { listRefLabel } from '../changes/change-event'
 import { t } from '../i18n/t'
-import type { CardLanguage } from '../card-language'
+import type { CardLanguage } from '../card/card-language'
 import { resolveCardPrinting } from './collection-helpers'
 import { ask, suggestByTitleTerms } from './prompts-helpers'
 import { deckSectionChoices, type ListEntry, type PhysicalCard } from './move-helpers'

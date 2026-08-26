@@ -11,8 +11,9 @@ import {
   resolveAddedLanguage,
   suggestPrintings,
 } from '../../src/commands/collection-helpers'
-import type { Finish, Condition, ScryfallCard } from '../../src/types'
-import { parseCollectionFile } from '../../src/collection-file'
+import type { Finish, Condition } from '../../src/card/finish-condition'
+import type { ScryfallCard } from '../../src/scryfall/types'
+import { parseCollectionFile } from '../../src/list/collection-file'
 import { makeScryfallCard } from '../test-utils'
 
 // Minimal card data for testing formatCollectionLine

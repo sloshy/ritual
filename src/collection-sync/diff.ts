@@ -30,12 +30,12 @@ import {
   languageDisplayName,
   storedLanguage,
   type CardLanguage,
-} from '../card-language'
-import { printingSuffix } from '../card-line'
-import { findPrinting, type CardPrintingsLookup } from '../card-printing'
-import { createAddChange, createRemoveChange } from '../change-event'
-import { type CollectionEntry } from '../collection-file'
-import { defaultPrintingFinish } from '../finish-condition'
+} from '../card/card-language'
+import { printingSuffix } from '../card/card-line'
+import { findPrinting, type CardPrintingsLookup } from '../card/card-printing'
+import { createAddChange, createRemoveChange } from '../changes/change-event'
+import { type CollectionEntry } from '../list/collection-file'
+import { defaultPrintingFinish } from '../card/finish-condition'
 import {
   ARCHIDEKT_GAME_PAPER,
   ARCHIDEKT_LANGUAGE_ENGLISH,
@@ -48,9 +48,9 @@ import {
   type ArchidektCollectionRecord,
   type CollectionUpsertBody,
 } from '../importers/archidekt-collection'
-import type { CardMutationChange } from '../list-mutate'
-import type { SyncChangeFilter } from '../sync-common'
-import type { ScryfallCard } from '../types'
+import type { CardMutationChange } from '../list/list-mutate'
+import type { SyncChangeFilter } from '../sync/common'
+import type { ScryfallCard } from '../scryfall/types'
 // Deliberately imported rather than re-exported: `describe.ts` is the leaf with
 // no filesystem or network imports, and it stays the one place the browser
 // bundle reaches for these — a re-export here would put this module (and the

@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import { parseChangelog, extractChangelogCardNames } from '../../src/changelog-parser'
+import { parseChangelog, extractChangelogCardNames } from '../../src/changes/changelog-parser'
 
 describe('parseChangelog', () => {
   test('parses a simple changelog with one entry', () => {

@@ -5,7 +5,7 @@ import {
   type ArchidektDeckSimple,
   getArchidektFormat,
 } from '../clients/ArchidektClient'
-import { getLogger } from '../logger'
+import { getLogger } from '../util/logger'
 import { FileTokenStore } from '../auth/FileTokenStore'
 import { ArchidektAuth } from '../auth/ArchidektAuth'
 import { saveDeck, type SaveListAction } from './import'
@@ -19,9 +19,9 @@ import {
   normalizeScriptingOptions,
   type OutputFormat,
 } from './scripting'
-import { CardCommandError, getErrorMessage } from '../errors'
+import { CardCommandError, getErrorMessage } from '../util/errors'
 import { promptForLoginOutcome } from '../auth/login-helper'
-import { getDecksDir } from '../ritual-config'
+import { getDecksDir } from '../config/ritual-config'
 import { ask, resolveImportPrintings } from './prompts-helpers'
 import { stripDeckPrintings } from '../importers/url-dispatch'
 import {
@@ -29,7 +29,7 @@ import {
   readSyncPrintingsFlag,
   type SyncPrintingsOptions,
 } from './sync-printings-flag'
-import { promptsUnavailable, promptsUnavailableReason } from '../no-input'
+import { promptsUnavailable, promptsUnavailableReason } from '../util/no-input'
 import { t } from '../i18n/t'
 
 type ImportAccountOptions = {

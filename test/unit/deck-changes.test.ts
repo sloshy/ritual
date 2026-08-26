@@ -7,11 +7,16 @@ import {
   isAdditiveChange,
   isSamePrinting,
   createChangeId,
-} from '../../src/change-event'
-import { formatChange } from '../../src/change-message'
-import type { AddChange, ChangeAction, ChangeEvent, ChangeInput } from '../../src/change-event'
+} from '../../src/changes/change-event'
+import { formatChange } from '../../src/changes/change-message'
+import type {
+  AddChange,
+  ChangeAction,
+  ChangeEvent,
+  ChangeInput,
+} from '../../src/changes/change-event'
 import { applyChangeToDeck, findDeckAddMergeTargetId } from '../../src/editor/deck-changes'
-import type { DeckData } from '../../src/types'
+import type { DeckData } from '../../src/list/deck'
 import { runMissMatrix, type MissMatrixCase } from '../test-utils'
 import type { MissReason } from '../../src/editor/apply-batch'
 

@@ -1,4 +1,4 @@
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 import type { CardPricesResponse } from '../api/card-prices'
 import { apiUrl } from './api-base'
 

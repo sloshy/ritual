@@ -6,8 +6,8 @@ import {
   createMoveToChange,
   type ChangeEvent,
   type ListRef,
-} from '../../src/change-event'
-import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/card-art'
+} from '../../src/changes/change-event'
+import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/list/card-art'
 import {
   applyCrossListMoves,
   applyOutgoingMoves,
@@ -17,8 +17,8 @@ import { handleSelectedMove } from '../../src/admin/api/move'
 import { handleLists } from '../../src/admin/api/lists'
 import { handleDeckSave } from '../../src/admin/api/deck-save'
 import { handleCollectionSave } from '../../src/admin/api/collection-save'
-import { computeHash } from '../../src/content-hash'
-import type { DeckData } from '../../src/types'
+import { computeHash } from '../../src/changes/content-hash'
+import type { DeckData } from '../../src/list/deck'
 import {
   bindWorkspace,
   writeCollectionFile,

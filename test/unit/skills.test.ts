@@ -12,7 +12,7 @@ import {
 import { classifyInstalledSkill } from '../../src/skills/install'
 import { MCP_TOOL_NAMES, RETIRED_MCP_TOOL_NAMES } from '../../src/mcp/tools/names'
 import type { RitualSkill } from '../../src/skills/types'
-import { version } from '../../src/version'
+import { version } from '../../src/config/version'
 
 describe('skill catalog invariants', () => {
   test('every skill is structurally valid and renders without throwing', () => {

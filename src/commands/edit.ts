@@ -1,8 +1,8 @@
 import { Command } from 'commander'
 import type { Choice } from 'prompts'
 import { t } from '../i18n/t'
-import { LIST_TYPES, type ListType } from '../list-type'
-import { parseSetCodesInput } from '../set-codes'
+import { LIST_TYPES, type ListType } from '../list/list-type'
+import { parseSetCodesInput } from '../card/set-codes'
 import {
   buildInitialSessionConfig,
   confirmMultiListExit,
@@ -10,7 +10,7 @@ import {
   runCardSession,
   type MultiListSessionControls,
 } from './card-session'
-import { addRefreshOption, type RefreshMode } from '../refresh'
+import { addRefreshOption, type RefreshMode } from '../cache/refresh'
 import { ask, suggestByTitleTerms } from './prompts-helpers'
 import { promptDeckFormat, type DeckSessionConfig } from './deck-helpers'
 import {
@@ -24,8 +24,8 @@ import {
   type OpenList,
   type UnifiedListRef,
 } from './edit-lists'
-import { isUsableFileName, unusableFileNameMessage } from '../list-file-name'
-import { listNameCollision } from '../list-lifecycle'
+import { isUsableFileName, unusableFileNameMessage } from '../list/list-file-name'
+import { listNameCollision } from '../list/list-lifecycle'
 import {
   isListArgumentConflict,
   isResolveListError,
@@ -34,10 +34,10 @@ import {
   resolveListArgument,
   type ListLocation,
   type ListTypeFlags,
-} from '../resolve-list'
+} from '../list/resolve-list'
 import { resolveListTypeFlag } from './card-target'
-import { inputRequiredError, promptsUnavailable } from '../no-input'
-import { sameListRef, type ListRef } from '../change-event'
+import { inputRequiredError, promptsUnavailable } from '../util/no-input'
+import { sameListRef, type ListRef } from '../changes/change-event'
 import { listRefTitle } from './edit-move'
 import { readDeckName } from '../importers/text-file'
 import { emitError, emitResolveListError, ExitCode, type ScriptingOptions } from './scripting'

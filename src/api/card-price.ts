@@ -5,11 +5,11 @@ import {
   computeRepresentativePrints,
   getCardPrintings,
 } from '../scryfall'
-import { getErrorMessage } from '../errors'
-import { getBannedPrintings } from '../ritual-config'
-import type { ScryfallCard } from '../types'
-import { VALID_CURRENCIES } from '../price-currency'
-import type { PriceCurrency } from '../price-currency'
+import { getErrorMessage } from '../util/errors'
+import { getBannedPrintings } from '../config/ritual-config'
+import type { ScryfallCard } from '../scryfall/types'
+import { VALID_CURRENCIES } from '../pricing/price-currency'
+import type { PriceCurrency } from '../pricing/price-currency'
 
 const ALL_CURRENCIES: PriceCurrency[] = [...VALID_CURRENCIES]
 

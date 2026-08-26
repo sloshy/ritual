@@ -1,6 +1,6 @@
 import { type JSX, For } from 'solid-js'
 import { useT } from '../../../ui/i18n'
-import type { UnreadableSource } from '../../../sync-common'
+import type { UnreadableSource } from '../../../sync/common'
 
 /**
  * The lead sentence, which names the kind of file the run refused. A message

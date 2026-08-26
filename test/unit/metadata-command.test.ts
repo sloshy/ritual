@@ -4,8 +4,8 @@ import {
   buildFlatListSetBody,
   type DeckArrayValues,
 } from '../../src/commands/metadata'
-import { mergeArrayValues, splitCommaTokens } from '../../src/config-fields'
-import { dumpFrontMatterBlock, readFrontMatterMapping } from '../../src/front-matter-write'
+import { mergeArrayValues, splitCommaTokens } from '../../src/config/config-fields'
+import { dumpFrontMatterBlock, readFrontMatterMapping } from '../../src/list/front-matter-write'
 
 describe('mergeArrayValues', () => {
   test('replace dedupes the new values', () => {

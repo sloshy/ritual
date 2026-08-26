@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { isBaseDirError, parseBaseDir, resolveBaseDir, type BaseDirError } from '../../src/base-dir'
+import {
+  isBaseDirError,
+  parseBaseDir,
+  resolveBaseDir,
+  type BaseDirError,
+} from '../../src/config/base-dir'
 
 /** The error message of a {@link parseBaseDir} result, or a failing marker. */
 function errorOf(result: string | BaseDirError): string {

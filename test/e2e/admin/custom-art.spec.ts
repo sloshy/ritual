@@ -1,6 +1,6 @@
 import { test, expect, type Locator, type Page, type Route } from '@playwright/test'
-import type { CardArtRef } from '../../../src/card-art'
-import type { ScryfallCard } from '../../../src/types'
+import type { CardArtRef } from '../../../src/list/card-art'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor, selectList } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'

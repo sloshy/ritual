@@ -1,5 +1,5 @@
 import type { ProgressNotification, ServerContext } from '@modelcontextprotocol/server'
-import type { RouteProgress, RouteProgressSink } from '../progress'
+import type { RouteProgress, RouteProgressSink } from '../util/progress'
 
 /**
  * Bridge a tool call's in-process progress reports onto `notifications/progress`.

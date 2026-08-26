@@ -1,5 +1,5 @@
 import { Command } from 'commander'
-import type { Logger } from '../logger'
+import type { Logger } from '../util/logger'
 import {
   listSyncableDecks,
   runDeckSync,
@@ -14,8 +14,8 @@ import {
   unreadableConsequence,
   type SyncChangeFilter,
   type SyncDirection,
-} from '../sync-common'
-import { formatResolveListError, isResolveListError, resolveList } from '../resolve-list'
+} from '../sync/common'
+import { formatResolveListError, isResolveListError, resolveList } from '../list/resolve-list'
 import {
   addSyncOptions,
   confirmUnreadableSync,

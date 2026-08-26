@@ -13,7 +13,10 @@ import { NEVER_CACHE, STATIC_CATALOG_CACHE } from '../../../src/mcp/cache-hints'
 import { DECK_ONLY_FORMAT_MESSAGE } from '../../../src/mcp/schemas'
 import { buildMcpServer } from '../../../src/mcp/server'
 import { MCP_TOOL_NAMES } from '../../../src/mcp/tools/names'
-import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../../src/ritual-config'
+import {
+  clearSiteSellModeOverride,
+  setSiteSellModeOverride,
+} from '../../../src/config/ritual-config'
 import {
   expectSchemaRejection,
   expectStructuredOnly,

@@ -4,7 +4,7 @@ import {
   describeSkippedChanges,
   unreadableConsequence,
   type SyncChangeFilter,
-} from '../../src/sync-common'
+} from '../../src/sync/common'
 
 /**
  * The vocabulary every sync speaks. The change filter is destination-relative: a

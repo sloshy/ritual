@@ -8,7 +8,7 @@ import {
   printingLanguages,
   printingsAreComplete,
   resolvePrintingCard,
-} from '../../src/card-printing'
+} from '../../src/card/card-printing'
 import { makePrintingIn as printing } from '../test-utils'
 
 const LEA = printing('lea', '161')

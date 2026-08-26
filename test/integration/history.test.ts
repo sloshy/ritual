@@ -12,7 +12,7 @@ import {
   changesPathFor,
   loadListSnapshot,
 } from '../../src/commands/history-helpers'
-import type { ChangeSet } from '../../src/changelog-blocks'
+import type { ChangeSet } from '../../src/changes/changelog-blocks'
 
 describe('loadListSnapshot + buildDefaultChangeLines (Integration)', () => {
   test('reconstructs a deck snapshot with sections, commander, note, and quantities', async () => {

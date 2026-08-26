@@ -3,8 +3,8 @@ import {
   indexPhysicalCards,
   moveCardKey,
   type KeyablePhysicalCard,
-} from '../../src/card-index-types'
-import type { ListType } from '../../src/list-type'
+} from '../../src/card/card-index-types'
+import type { ListType } from '../../src/list/list-type'
 
 /**
  * The physical-card key scheme, which the index route *produces* and the three

@@ -1,9 +1,9 @@
 import { dispatchRoute, type RequestContext } from '../admin/server'
-import type { HttpMethod } from '../routing'
-import { buildSyntheticRequest } from '../synthetic-request'
+import type { HttpMethod } from '../util/routing'
+import { buildSyntheticRequest } from '../util/synthetic-request'
 import { apiErrorToMcp, type ApiErrorBody } from './errors'
 import type { OmitSuccess } from './types'
-import type { RouteProgressSink } from '../progress'
+import type { RouteProgressSink } from '../util/progress'
 
 /**
  * Synthetic request context for in-process calls. The MCP server is a local,

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { artSidecarPath } from '../card-art'
+import { artSidecarPath } from '../list/card-art'
 import { cardCache } from '../cache'
 import { getCacheFile } from '../cache/file-cache'
 import { getCacheServerBaseUrl } from '../cache/config'
@@ -19,7 +19,7 @@ import {
   loadRitualConfig,
   wantsCardKingdomFeed,
   type RitualConfig,
-} from '../ritual-config'
+} from '../config/ritual-config'
 import {
   detailBuylistContext,
   getCardKingdomFeed,
@@ -29,7 +29,7 @@ import { compareData } from '../i18n/collate'
 import { isLocaleTagError, parseLocaleTag } from '../i18n/locale-tag'
 import { DEFAULT_LOCALE } from '../i18n/runtime'
 import type { LocaleTag } from '../i18n/types'
-import { dirForType } from '../resolve-list'
+import { dirForType } from '../list/resolve-list'
 import { enumerateSources } from './lists'
 import { deckCardNames, flatListCardNames } from '../site/details/card-names'
 import { loadDeckSource, buildDeckArtifacts } from '../site/details/deck'
@@ -43,9 +43,9 @@ import type {
   SiteIndex,
   WantedListSummary,
 } from '../site/data-types'
-import type { ListType } from '../list-type'
-import { VALID_CURRENCIES } from '../price-currency'
-import type { PriceCurrency } from '../price-currency'
+import type { ListType } from '../list/list-type'
+import { VALID_CURRENCIES } from '../pricing/price-currency'
+import type { PriceCurrency } from '../pricing/price-currency'
 
 /** A ready-to-serve JSON payload with its HTTP caching metadata. */
 export type LiveJson = {

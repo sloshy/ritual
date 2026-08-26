@@ -2,8 +2,8 @@ import path from 'node:path'
 import { Command, InvalidArgumentError } from 'commander'
 import { getCacheDir } from '../cache'
 import { configuredCardBulkType } from '../scryfall/bulk-manifest'
-import { defaultHttpClient } from '../http'
-import { getErrorMessage } from '../errors'
+import { defaultHttpClient } from '../util/http'
+import { getErrorMessage } from '../util/errors'
 import {
   addFeedUrlOption,
   addTorrentPortOption,

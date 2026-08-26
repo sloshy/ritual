@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import type { CardPrintingsLookup } from '../../../src/card-printing'
+import type { CardPrintingsLookup } from '../../../src/card/card-printing'
 import { ArchidektClient } from '../../../src/clients/ArchidektClient'
-import type { CollectionEntry } from '../../../src/collection-file'
+import type { CollectionEntry } from '../../../src/list/collection-file'
 import { CSV_UPLOAD_THRESHOLD, type CsvFileWriter } from '../../../src/collection-sync/csv'
 import {
   runCollectionSync,
@@ -20,7 +20,7 @@ import type {
   CollectionSyncState,
   CollectionSyncStateStore,
 } from '../../../src/collection-sync/state'
-import type { CardMutationChange } from '../../../src/list-mutate'
+import type { CardMutationChange } from '../../../src/list/list-mutate'
 import type { ArchidektCollectionRecord } from '../../../src/importers/archidekt-collection'
 import {
   collectionPage,

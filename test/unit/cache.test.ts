@@ -3,9 +3,10 @@ import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs/promises'
 import { FileCacheManager } from '../../src/cache/file-cache'
-import { MemoryLogger, setLogger, resetLogger } from '../../src/logger'
+import { MemoryLogger, setLogger, resetLogger } from '../../src/util/logger'
 import { makeScryfallCard } from '../test-utils'
-import type { PriceData, ScryfallCard } from '../../src/types'
+import type { PriceData } from '../../src/pricing/price-data'
+import type { ScryfallCard } from '../../src/scryfall/types'
 
 function makeTempPath(): string {
   return path.join(os.tmpdir(), `ritual-test-cache-${Math.random().toString(36).slice(2)}.json`)

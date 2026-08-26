@@ -1,19 +1,20 @@
-import type { Card, DeckData } from '../types'
-import type { ChangeInput, PrintingTuple, SetPrintingChange } from '../change-event'
-import type { CardLabel } from '../card-labels'
+import type { Card } from '../card/card'
+import type { DeckData } from '../list/deck'
+import type { ChangeInput, PrintingTuple, SetPrintingChange } from '../changes/change-event'
+import type { CardLabel } from '../card/card-labels'
 import type { ApplyChangeOptions } from './apply-batch'
-import { isSamePrinting } from '../change-event'
+import { isSamePrinting } from '../changes/change-event'
 import {
   COMMANDER_SECTION,
   findOrCreateSection,
   isCommanderSection,
   resolveDefaultAddSection,
-} from '../deck-format'
-import { normalizedOverride, sameCardLabels } from '../card-labels'
-import { canSetFinish, finishMatchesPrinting, hasSpecificPrinting } from '../card-printing'
-import { applyConditionUpdate } from '../finish-condition'
-import { noteOrUndefined } from '../note-helpers'
-import { storedLanguage } from '../card-language'
+} from '../list/deck-format'
+import { normalizedOverride, sameCardLabels } from '../card/card-labels'
+import { canSetFinish, finishMatchesPrinting, hasSpecificPrinting } from '../card/card-printing'
+import { applyConditionUpdate } from '../card/finish-condition'
+import { noteOrUndefined } from '../card/note-helpers'
+import { storedLanguage } from '../card/card-language'
 
 /** The card fields commander targeting matches on. */
 type CommanderTarget = { cardId?: number; name: string }

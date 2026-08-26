@@ -1,4 +1,4 @@
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 
 export interface CardImageSources {
   frontImage: string

@@ -7,10 +7,10 @@ import {
   createSetLabelChange,
   createSetLanguageChange,
   type ChangeEvent,
-} from '../../src/change-event'
+} from '../../src/changes/change-event'
 import { handleCollectionSave } from '../../src/admin/api/collection-save'
 import type { ListSaveResponse } from '../../src/admin/api/move-save'
-import { computeHash } from '../../src/content-hash'
+import { computeHash } from '../../src/changes/content-hash'
 import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from './helpers/workspace'
 
 /**

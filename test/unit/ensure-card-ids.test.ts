@@ -3,7 +3,7 @@ import {
   ensureDeckIdsInContent,
   ensureCollectionIdsInContent,
   ensureWantedIdsInContent,
-} from '../../src/ensure-card-ids'
+} from '../../src/list/ensure-card-ids'
 
 describe('ensureDeckIdsInContent', () => {
   test('appends &N to card lines that lack one, leaving lines with IDs alone', () => {

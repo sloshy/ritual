@@ -12,10 +12,10 @@ import {
   frontMatterFor,
   withFrontMatter,
 } from '../../src/editor/list-export'
-import { readFrontMatterMapping } from '../../src/front-matter-write'
+import { readFrontMatterMapping } from '../../src/list/front-matter-write'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/site/data-types'
 import type { SelectedCard } from '../../src/site/useCardSelection'
-import type { DeckData } from '../../src/types'
+import type { DeckData } from '../../src/list/deck'
 
 function collectionEntry(overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry {
   return {

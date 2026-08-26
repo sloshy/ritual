@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { getLogger, MemoryLogger, resetLogger, setLogger } from '../../src/logger'
+import { getLogger, MemoryLogger, resetLogger, setLogger } from '../../src/util/logger'
 
 describe('logger facade', () => {
   afterEach(() => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { itemStartProgress, itemsDoneProgress } from '../../src/progress'
+import { itemStartProgress, itemsDoneProgress } from '../../src/util/progress'
 
 describe('itemStartProgress', () => {
   test('counts finished items in progress and 1-based positions in the message', () => {

@@ -1,7 +1,12 @@
 import { createEffect, createSignal, untrack, type Accessor } from 'solid-js'
-import type { ScryfallCard } from '../types'
-import { cardPrintingKey, lookupPrintingCard, printingKey, type PrintingRef } from '../printing-key'
-import { hasSpecificPrinting } from '../card-printing'
+import type { ScryfallCard } from '../scryfall/types'
+import {
+  cardPrintingKey,
+  lookupPrintingCard,
+  printingKey,
+  type PrintingRef,
+} from '../card/printing-key'
+import { hasSpecificPrinting } from '../card/card-printing'
 import { findMatchKey } from './find-search'
 import {
   listRefKey,

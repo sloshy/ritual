@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { matchRoute } from '../../src/routing'
+import { matchRoute } from '../../src/util/routing'
 
 describe('matchRoute', () => {
   test.each([

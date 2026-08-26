@@ -3,7 +3,7 @@
  * body (`GET /api/{type}/{slug}`), mapped to the planner's shape.
  */
 
-import type { ListInfo } from '../../list-info'
+import type { ListInfo } from '../../list/list-info'
 import type { NamedListRef } from '../../site/combined-list'
 import { isAbortError } from '../../site/utils'
 import type {

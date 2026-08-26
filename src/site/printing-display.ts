@@ -17,7 +17,7 @@
 
 import type { MessageKey } from '../i18n/messages/en'
 import type { TranslateFn } from '../i18n/t'
-import type { Finish } from '../types'
+import type { Finish } from '../card/finish-condition'
 import { capitalize } from './utils'
 
 /** Message keys naming a finish in title case. Narrowed so `t()` needs no params. */

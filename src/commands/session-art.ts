@@ -4,9 +4,9 @@ import {
   type CardArtReconcileInput,
   type CardArtReconcileResult,
   type CardArtRef,
-} from '../card-art'
+} from '../list/card-art'
 import { t } from '../i18n/t'
-import { reconcileListRefs } from '../list-refs'
+import { reconcileListRefs } from '../list/list-refs'
 
 /**
  * A CLI edit session's pending custom-art bookkeeping.

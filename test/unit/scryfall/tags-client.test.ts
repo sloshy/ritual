@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeEach } from 'bun:test'
 import { ScryfallClient } from '../../../src/scryfall'
 import type { TagIndex } from '../../../src/scryfall/tags'
-import type { ScryfallCard } from '../../../src/types'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import {
   MockHttpClient,
   InMemoryCacheManager,

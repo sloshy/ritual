@@ -1,4 +1,4 @@
-import type { FileSystemClient } from '../interfaces'
+import type { FileSystemClient } from '../util/interfaces'
 
 /**
  * Write `data` to `filePath` via a temp file + rename so concurrent readers

@@ -3,15 +3,15 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { parseWantedListFile } from '../../commands/wanted-helpers'
 import type { WantedListEntry } from '../../commands/wanted-helpers'
-import { parseTitleFromContent } from '../../section-format'
-import type { ChangelogPage } from '../../changelog-parser'
-import { findPrinting, hasSpecificPrinting } from '../../card-printing'
-import { displayLanguage, scryfallCardLanguage } from '../../card-language'
-import { defaultPrintingFinish } from '../../finish-condition'
-import { getCardPrice, getCardPriceForFinish } from '../../price-currency'
-import type { CardArtMap } from '../../card-art'
-import { isListImageCardRef, type ListImageRef } from '../../list-image'
-import type { ScryfallCard } from '../../types'
+import { parseTitleFromContent } from '../../list/section-format'
+import type { ChangelogPage } from '../../changes/changelog-parser'
+import { findPrinting, hasSpecificPrinting } from '../../card/card-printing'
+import { displayLanguage, scryfallCardLanguage } from '../../card/card-language'
+import { defaultPrintingFinish } from '../../card/finish-condition'
+import { getCardPrice, getCardPriceForFinish } from '../../pricing/price-currency'
+import type { CardArtMap } from '../../list/card-art'
+import { isListImageCardRef, type ListImageRef } from '../../list/list-image'
+import type { ScryfallCard } from '../../scryfall/types'
 import type {
   CardKingdomCards,
   WantedListCardEntry,
@@ -38,7 +38,7 @@ import {
   formatPrintingLabel,
   printingKey,
   printingLanguageKey,
-} from '../../printing-key'
+} from '../../card/printing-key'
 
 export type LoadedWanted = {
   displayName: string

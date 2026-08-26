@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { normalizeNote, noteOrUndefined } from '../../src/note-helpers'
+import { normalizeNote, noteOrUndefined } from '../../src/card/note-helpers'
 
 describe('normalizeNote', () => {
   test('returns the trimmed text for a clean note', () => {

@@ -1,6 +1,6 @@
 import path from 'node:path'
 import type { Command, Option } from 'commander'
-import { getErrorMessage } from '../errors'
+import { getErrorMessage } from '../util/errors'
 import { startSiteServer } from '../serve/server'
 import { sellModeWarning, warmCardKingdomFeed } from '../cardkingdom'
 import { cardCacheReady, warmSiteCache } from '../serve/warm'

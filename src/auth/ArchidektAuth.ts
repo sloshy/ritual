@@ -6,8 +6,8 @@ import type {
   ArchidektLoginStatus,
 } from './interfaces'
 import { getJwtExpiration } from './jwt'
-import { getLogger } from '../logger'
-import { throwHttpError } from '../errors'
+import { getLogger } from '../util/logger'
+import { throwHttpError } from '../util/errors'
 
 // Refresh slightly before actual expiry so a token isn't used mid-request.
 const EXPIRY_BUFFER_MS = 30_000

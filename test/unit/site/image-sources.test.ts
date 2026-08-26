@@ -4,7 +4,7 @@ import {
   resolveCardPreview,
   resolveCardThumbnailUrl,
 } from '../../../src/site/image-sources'
-import type { ScryfallCard } from '../../../src/types'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import { makeScryfallCard } from '../../test-utils'
 
 type CardImageUris = NonNullable<ScryfallCard['image_uris']>

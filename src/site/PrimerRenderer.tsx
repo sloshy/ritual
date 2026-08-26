@@ -1,6 +1,6 @@
 import type { Component, JSX } from 'solid-js'
-import type { ScryfallCard } from '../types'
-import type { PrimerHeading } from '../primer-parser'
+import type { ScryfallCard } from '../scryfall/types'
+import type { PrimerHeading } from '../list/primer-parser'
 import { useT } from '../ui/i18n'
 
 // ---------------------------------------------------------------------------

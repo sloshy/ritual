@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js'
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 
 /**
  * In-memory, per-tab Scryfall cache for the serverless public site.

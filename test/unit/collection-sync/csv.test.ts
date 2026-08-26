@@ -15,8 +15,8 @@ import {
 import type { PushCreate } from '../../../src/collection-sync/diff'
 import { validateArchidektCsvColumns } from '../../../src/importers/archidekt-collection'
 import type { CollectionCsvUploadResult } from '../../../src/importers/archidekt-collection'
-import type { CardLanguage } from '../../../src/card-language'
-import type { Condition, Finish } from '../../../src/types'
+import type { CardLanguage } from '../../../src/card/card-language'
+import type { Condition, Finish } from '../../../src/card/finish-condition'
 import { noPrintings, printing, printingId, printingsLookup } from './fixtures'
 
 /**

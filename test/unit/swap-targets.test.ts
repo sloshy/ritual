@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { DeckData } from '../../src/types'
-import type { ChangeInput } from '../../src/change-event'
+import type { DeckData } from '../../src/list/deck'
+import type { ChangeInput } from '../../src/changes/change-event'
 import type { CardContextInfo } from '../../src/site/card-context'
 import type { SwapMove, SwapTarget } from '../../src/editor/swap-printings'
 import {

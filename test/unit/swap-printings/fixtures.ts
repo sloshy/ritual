@@ -1,6 +1,7 @@
-import type { Finish, ScryfallCard } from '../../../src/types'
-import { displayLanguage } from '../../../src/card-language'
-import { cardPrintingKey, printingKey } from '../../../src/printing-key'
+import type { Finish } from '../../../src/card/finish-condition'
+import type { ScryfallCard } from '../../../src/scryfall/types'
+import { displayLanguage } from '../../../src/card/card-language'
+import { cardPrintingKey, printingKey } from '../../../src/card/printing-key'
 import { listRefKey, type NamedListRef } from '../../../src/site/combined-list'
 import type {
   PriceOf,

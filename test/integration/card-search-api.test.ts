@@ -11,7 +11,7 @@ import { cardCache } from '../../src/cache'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 import { stubFetch, type StubbedFetch } from './helpers/stub-fetch'
 import { makeScryfallCard, seedCardNames } from '../test-utils'
-import type { ScryfallCard, ScryfallList } from '../../src/types'
+import type { ScryfallCard, ScryfallList } from '../../src/scryfall/types'
 
 /**
  * The card-lookup endpoints behind the admin editor's search modal and the MCP

@@ -1,8 +1,10 @@
 import { MoxfieldClient, type MoxfieldFinish } from './moxfield-client'
-import { type Card, type DeckData, type DeckSection, type Finish } from '../types'
-import { parseDeckFormat } from '../deck-format'
-import { getLogger } from '../logger'
-import { resolvePrinting } from '../card-line'
+import type { Card } from '../card/card'
+import type { DeckData, DeckSection } from '../list/deck'
+import type { Finish } from '../card/finish-condition'
+import { parseDeckFormat } from '../list/deck-format'
+import { getLogger } from '../util/logger'
+import { resolvePrinting } from '../card/card-line'
 
 /**
  * Map a Moxfield finish slug onto Ritual's finish. `nonFoil` and `glossy` (which

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test'
-import type { ChangeEvent, MoveFromChange, MoveToChange } from '../../src/change-event'
-import type { ListType } from '../../src/list-type'
+import type { ChangeEvent, MoveFromChange, MoveToChange } from '../../src/changes/change-event'
+import type { ListType } from '../../src/list/list-type'
 import {
   CHANGE_BUNDLE_FORMAT,
   CHANGE_BUNDLE_VERSION,

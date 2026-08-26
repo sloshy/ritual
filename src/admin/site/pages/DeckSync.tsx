@@ -8,7 +8,7 @@ import type {
   DeckSyncStatusResponse,
 } from '../../api/deck-sync'
 import type { DeckSyncEvent, SyncableDeck, UnreadableDeck } from '../../../deck-sync/engine'
-import { unreadableConsequence, type SyncDirection } from '../../../sync-common'
+import { unreadableConsequence, type SyncDirection } from '../../../sync/common'
 import { useT } from '../../../ui/i18n'
 import { indeterminateRef } from '../../../ui/indeterminate'
 import type { TranslateFn } from '../../../i18n/t'

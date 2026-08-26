@@ -26,10 +26,10 @@ import {
   type BuylistStatusResponse,
 } from '../buylist'
 import { feedStamp, quoteForPrinting } from '../cardkingdom'
-import { getErrorMessage } from '../errors'
-import { invalidLanguageMessage, isCardLanguage } from '../card-language'
-import { isFinish } from '../finish-condition'
-import { loadRitualConfig, wantsCardKingdomFeed } from '../ritual-config'
+import { getErrorMessage } from '../util/errors'
+import { invalidLanguageMessage, isCardLanguage } from '../card/card-language'
+import { isFinish } from '../card/finish-condition'
+import { loadRitualConfig, wantsCardKingdomFeed } from '../config/ritual-config'
 
 /**
  * Upper bound on printings per request. A list page asks for every card at

@@ -17,8 +17,8 @@ import {
   type CsvRow,
 } from '../../src/importers/csv'
 import { formatScriptingCommand } from '../../src/commands/import'
-import type { CardLanguage } from '../../src/card-language'
-import type { Condition, Finish } from '../../src/types'
+import type { CardLanguage } from '../../src/card/card-language'
+import type { Condition, Finish } from '../../src/card/finish-condition'
 
 function rowsOf(result: ReturnType<typeof parseCsv>): CsvRow[] {
   if ('error' in result) throw new Error(`Unexpected parse error: ${result.error}`)

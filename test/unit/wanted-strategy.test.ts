@@ -4,7 +4,7 @@ import { createWantedStrategy } from '../../src/commands/wanted-strategy'
 import { newWantedSession, type WantedSession } from '../../src/commands/flat-list-session'
 import { buildInitialSessionConfig, type CardSessionContext } from '../../src/commands/card-session'
 import type { WantedListSessionConfig } from '../../src/commands/wanted-helpers'
-import type { CardLanguage } from '../../src/card-language'
+import type { CardLanguage } from '../../src/card/card-language'
 import { scratchListPath, stubTty } from '../test-utils'
 
 // The Set Custom Art prompts go through `ask`, which refuses to open without a

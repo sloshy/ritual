@@ -1,4 +1,5 @@
-import type { Finish, ScryfallCard } from '../types'
+import type { Finish } from '../card/finish-condition'
+import type { ScryfallCard } from '../scryfall/types'
 
 export const FINISH_PRIORITY: readonly Finish[] = ['nonfoil', 'foil', 'etched']
 

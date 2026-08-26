@@ -1,5 +1,10 @@
 import * as fs from 'node:fs/promises'
-import { isCondition, VALID_CONDITIONS } from '../finish-condition'
+import {
+  isCondition,
+  VALID_CONDITIONS,
+  type Condition,
+  type Finish,
+} from '../card/finish-condition'
 import {
   CARD_LABEL_SELECTIONS,
   effectiveLabels,
@@ -8,16 +13,15 @@ import {
   supportsAnyLabels,
   type CardLabel,
   type CardLabelSelection,
-} from '../card-labels'
-import type { Condition, Finish } from '../types'
-import type { CardLanguage } from '../card-language'
-import type { ListType } from '../list-type'
-import type { ListLocation } from '../resolve-list'
+} from '../card/card-labels'
+import type { CardLanguage } from '../card/card-language'
+import type { ListType } from '../list/list-type'
+import type { ListLocation } from '../list/resolve-list'
 import { loadDeckFile } from '../importers/text-file'
-import { parseDeckFrontMatter } from '../deck-file'
-import { parseCollectionFile, type CollectionEntry } from '../collection-file'
+import { parseDeckFrontMatter } from '../list/deck-file'
+import { parseCollectionFile, type CollectionEntry } from '../list/collection-file'
 import { parseWantedListFile, type WantedListEntry } from '../commands/wanted-helpers'
-import { matchesAllTerms } from '../term-match'
+import { matchesAllTerms } from '../card/term-match'
 
 /**
  * One flattened card entry assembled for export, unified across deck,

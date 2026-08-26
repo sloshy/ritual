@@ -7,7 +7,12 @@
 // against a theme that omits a var.
 
 import { createEffect } from 'solid-js'
-import { buildFlameDataUri, defaultFlameStops, flameStopVars, type FlameStops } from '../flame'
+import {
+  buildFlameDataUri,
+  defaultFlameStops,
+  flameStopVars,
+  type FlameStops,
+} from '../theme/flame'
 import type { ThemeStore } from './useTheme'
 
 function resolveFlameStops(): FlameStops {

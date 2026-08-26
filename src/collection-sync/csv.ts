@@ -20,7 +20,7 @@
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import type { CollectionCsvUploadOptions } from '../clients/ArchidektClient'
-import type { CardPrintingsLookup } from '../card-printing'
+import type { CardPrintingsLookup } from '../card/card-printing'
 import type { ExportEntry } from '../export/entries'
 import { ARCHIDEKT_EXPORT_SETTINGS } from '../export/presets'
 import { exportPropertyLabel, renderCsvExport, type ExportProperty } from '../export/render'
@@ -34,7 +34,7 @@ import {
   type CollectionCsvUploadResult,
 } from '../importers/archidekt-collection'
 import { parseCsv } from '../importers/csv'
-import { DEFAULT_SECTION } from '../types'
+import { DEFAULT_SECTION } from '../list/deck'
 // The row-failure type and its describers live in `describe.ts`: the admin page
 // renders a finished report's CSV outcome, and this module reaches for the
 // filesystem, so it cannot be part of the browser bundle.

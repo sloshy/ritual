@@ -1,16 +1,17 @@
 import { type Accessor, batch, createSignal, createMemo, createEffect, on, onMount } from 'solid-js'
 import { createStore, type SetStoreFunction, type Store } from 'solid-js/store'
-import type { DeckData, ScryfallCard } from '../../../types'
+import type { DeckData } from '../../../list/deck'
+import type { ScryfallCard } from '../../../scryfall/types'
 import { compareData, compareDisplay } from '../../../i18n/collate'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../../site/data-types'
-import { createChangeId } from '../../../change-event'
+import { createChangeId } from '../../../changes/change-event'
 import { formatDroppedNotesSuffix } from '../../../editor/dropped-notes'
 import { t } from '../../../i18n/t'
 import type { MoveCommitResponse } from '../../api/move'
-import type { MovePhysicalCard } from '../../../card-index-types'
+import type { MovePhysicalCard } from '../../../card/card-index-types'
 import type { CardIndexResponse } from '../../api/card-index'
 import type { ApiErrorResponse } from '../../api/save-helpers'
-import type { ListInfo } from '../../../list-info'
+import type { ListInfo } from '../../../list/list-info'
 import {
   type PendingMove,
   type MoveDestPrinting,
@@ -31,7 +32,7 @@ import {
   normalizeForSearch,
   rankNameMatches,
   splitNameTerms,
-} from '../../../term-match'
+} from '../../../card/term-match'
 import { indexPrintingCard } from '../../../editor/card-data-utils'
 
 /** Merged Scryfall display data, accumulated across every list fetched this session. */

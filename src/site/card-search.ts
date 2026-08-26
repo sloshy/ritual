@@ -1,8 +1,8 @@
-import type { ScryfallCard, ScryfallList } from '../types'
+import type { ScryfallCard, ScryfallList } from '../scryfall/types'
 import type { AutocompleteResponse } from '../api/autocomplete'
 import type { CardPrintingsResponse } from '../api/card-printings'
 import { getPrintingsByName, putFetchedPrintings } from './session-cache'
-import { promoteFullNameMatches } from '../term-match'
+import { promoteFullNameMatches } from '../card/term-match'
 import { apiActive, apiUrl } from './api-base'
 import { isAbortError } from './utils'
 

@@ -1,12 +1,12 @@
 import type { CardData } from './card-sorting'
 import { WUBRG } from './card-sorting'
-import { matchesAllTerms } from '../term-match'
+import { matchesAllTerms } from '../card/term-match'
 import { getFrontFaceName } from '../scryfall/card-utils'
 import { extractCardTypeTags, matchesCardTypes } from './card-types'
 import { matchesTags } from './card-tags'
-import { cardPrintingKey, printingKey, printingLanguageKey } from '../printing-key'
-import { displayLanguage } from '../card-language'
-import { displayFinish } from '../finish-condition'
+import { cardPrintingKey, printingKey, printingLanguageKey } from '../card/printing-key'
+import { displayLanguage } from '../card/card-language'
+import { displayFinish } from '../card/finish-condition'
 import { cardMatchKey } from './find-search'
 import { listRefKey, parseListRefKeyCsv, type ListRefKey } from './combined-list'
 import {
@@ -16,7 +16,7 @@ import {
   isCardLabelSelection,
   matchesCardLabelSelection,
   type CardLabelSelection,
-} from '../card-labels'
+} from '../card/card-labels'
 import type {
   ColorMatchMode,
   FilterMatchMode,

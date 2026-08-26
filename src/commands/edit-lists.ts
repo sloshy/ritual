@@ -1,10 +1,10 @@
 import path from 'node:path'
-import type { DeckFormatKey } from '../deck-format'
+import type { DeckFormatKey } from '../list/deck-format'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
-import type { ListType } from '../list-type'
-import { dirForType, normalizeListName } from '../resolve-list'
-import type { DeckData } from '../types'
+import type { ListType } from '../list/list-type'
+import { dirForType, normalizeListName } from '../list/resolve-list'
+import type { DeckData } from '../list/deck'
 import {
   createCardSessionContext,
   listMarkdownNames,
@@ -14,19 +14,24 @@ import {
   type CardSessionStrategy,
   type SessionChangeItem,
 } from './card-session'
-import { mirrorMoveTo, sameListRef, type ListRef, type MoveFromChange } from '../change-event'
+import {
+  mirrorMoveTo,
+  sameListRef,
+  type ListRef,
+  type MoveFromChange,
+} from '../changes/change-event'
 import {
   prepareOutgoingMoves,
   type OutgoingMoveBatch,
   type PreparedOutgoingMoves,
 } from '../admin/api/move-save'
-import { getErrorMessage } from '../errors'
-import { createCardArtCache } from '../card-art'
+import { getErrorMessage } from '../util/errors'
+import { createCardArtCache } from '../list/card-art'
 import type { MoveTargetsProvider } from './edit-move'
 import { createCollectionStrategy } from './collection-strategy'
 import { createDeckStrategy } from './deck-strategy'
 import { listExistingDecks, loadDeck, type DeckSessionConfig } from './deck-helpers'
-import { newDeckFrontMatter } from '../deck-file'
+import { newDeckFrontMatter } from '../list/deck-file'
 import {
   loadCollectionSession,
   loadWantedSession,

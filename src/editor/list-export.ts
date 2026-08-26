@@ -1,10 +1,10 @@
-import type { DeckData } from '../types'
+import type { DeckData } from '../list/deck'
 import type { CollectionCardEntry, WantedListCardEntry } from '../site/data-types'
 import type { SelectedCard } from '../site/useCardSelection'
-import { normalizeCardLabels, type CardLabel } from '../card-labels'
-import { serializeListImageRef, type ListImageRef } from '../list-image'
-import type { FlatListFrontMatter } from '../flat-list-front-matter'
-import { serializeSectionedList } from '../section-format'
+import { normalizeCardLabels, type CardLabel } from '../card/card-labels'
+import { serializeListImageRef, type ListImageRef } from '../list/list-image'
+import type { FlatListFrontMatter } from '../list/flat-list-front-matter'
+import { serializeSectionedList } from '../list/section-format'
 import {
   aggregateQuantities,
   formatCollectionLine,
@@ -12,10 +12,10 @@ import {
   printingSuffix,
   variantKey,
   type Aggregated,
-} from '../card-line'
-import { assignMissingEntryIds } from '../card-id'
-import { storedLanguage, type CardLanguage } from '../card-language'
-import { csvCell } from '../csv'
+} from '../card/card-line'
+import { assignMissingEntryIds } from '../card/card-id'
+import { storedLanguage, type CardLanguage } from '../card/card-language'
+import { csvCell } from '../changes/csv'
 import { DEFAULT_EXPORT_COLUMNS, EXPORT_PROPERTY_LABELS } from '../export/render'
 
 /**

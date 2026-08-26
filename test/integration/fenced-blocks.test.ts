@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
 import { createWorkspace, removeWorkspace } from './helpers/workspace'
-import type { ScryfallCard } from '../../src/types'
+import type { ScryfallCard } from '../../src/scryfall/types'
 import type { CachedItem, CacheSchema } from '../../src/cache/file-cache'
 
 // End-to-end proof that a fenced code block in a list file is prose: the

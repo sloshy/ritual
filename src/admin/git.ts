@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process'
 import path from 'node:path'
-import type { RitualConfig } from '../ritual-config'
-import { getBaseDir } from '../base-dir'
+import type { RitualConfig } from '../config/ritual-config'
+import { getBaseDir } from '../config/base-dir'
 
 export function isGitRepo(dir: string): boolean {
   try {

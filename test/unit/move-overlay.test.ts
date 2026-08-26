@@ -16,8 +16,8 @@ import {
 } from '../../src/admin/site/move-overlay'
 import { listId, listInfoId } from '../../src/admin/site/list-grouping'
 import type { MovePhysicalCard } from '../../src/admin/api/move'
-import type { ListInfo } from '../../src/list-info'
-import type { DeckData } from '../../src/types'
+import type { ListInfo } from '../../src/list/list-info'
+import type { DeckData } from '../../src/list/deck'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/site/data-types'
 
 const deckList: ListInfo = { type: 'deck', slug: 'my-deck', name: 'My Deck' }

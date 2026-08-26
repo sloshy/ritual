@@ -1,13 +1,13 @@
 import prompts from 'prompts'
-import type { DeckData } from '../types'
+import type { DeckData } from '../list/deck'
 import {
   promptDefaultLabelsChoice,
   promptFinishAndCondition,
   resolveAddedLanguage,
   resolveCardPrinting,
 } from './collection-helpers'
-import { formatCardLabels, sameCardLabels } from '../card-labels'
-import { languageToken, type CardLanguage } from '../card-language'
+import { formatCardLabels, sameCardLabels } from '../card/card-labels'
+import { languageToken, type CardLanguage } from '../card/card-language'
 import {
   type DeckSessionConfig,
   findCardById,
@@ -23,8 +23,8 @@ import type { MessageKey } from '../i18n/messages/en'
 import type { MoveTargetsProvider } from './edit-move'
 import { DEFAULT_LOCALE } from '../i18n/runtime'
 import { t, tIn, type TranslateArgs } from '../i18n/t'
-import { getDeckFormatLabel, resolveDeckFormat, type DeckFormatKey } from '../deck-format'
-import type { DeckFrontMatter } from '../deck-file'
+import { getDeckFormatLabel, resolveDeckFormat, type DeckFormatKey } from '../list/deck-format'
+import type { DeckFrontMatter } from '../list/deck-file'
 import {
   applyDeckChange,
   discardDeckSessionAdd,
@@ -46,8 +46,8 @@ import {
   type SessionAddItem,
 } from './card-session'
 import { normalizeBoard } from '../deck-sync/diff'
-import { assignMissingDeckCardIds, collectDeckCardIds } from '../card-id'
-import type { CardArtRef } from '../card-art'
+import { assignMissingDeckCardIds, collectDeckCardIds } from '../card/card-id'
+import type { CardArtRef } from '../list/card-art'
 import {
   commitSessionArt,
   createSessionArtChanges,
@@ -59,11 +59,11 @@ import {
   createSetPrintingChange,
   type ChangeEvent,
   type PrintingTuple,
-} from '../change-event'
-import { trackAdd, trackAnotherCopy, trackEdit } from '../session-changelog'
-import { splitCommaTokens } from '../config-fields'
-import { formatSpecificPrintingPrice } from '../price-currency'
-import { getDefaultCurrency } from '../ritual-config'
+} from '../changes/change-event'
+import { trackAdd, trackAnotherCopy, trackEdit } from '../changes/session-changelog'
+import { splitCommaTokens } from '../config/config-fields'
+import { formatSpecificPrintingPrice } from '../pricing/price-currency'
+import { getDefaultCurrency } from '../config/ritual-config'
 
 type TagsPromptResponse = { value?: string }
 

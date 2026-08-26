@@ -8,7 +8,7 @@
  * can edit, and the English it produced for a wanted list read "wanted list list".
  */
 
-import type { ListType } from '../list-type'
+import type { ListType } from '../list/list-type'
 
 /** The three entity nouns an editor config may name itself with. */
 export type EditorEntity = 'deck' | 'collection' | 'wanted list'

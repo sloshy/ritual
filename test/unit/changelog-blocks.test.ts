@@ -9,7 +9,7 @@ import {
   combineSetsInto,
   isValidIso8601,
   type ChangeSet,
-} from '../../src/changelog-blocks'
+} from '../../src/changes/changelog-blocks'
 
 const SAMPLE = `# Changelog for My Deck
 

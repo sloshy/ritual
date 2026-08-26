@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'bun:test'
-import type { Card, DeckData } from '../../src/types'
-import { deckToExportText, deckToMarkdown, serializeCardLine } from '../../src/deck-text'
+import type { Card } from '../../src/card/card'
+import type { DeckData } from '../../src/list/deck'
+import { deckToExportText, deckToMarkdown, serializeCardLine } from '../../src/list/deck-text'
 
 const deck = (sections: DeckData['sections']): DeckData => ({ name: 'Test', sections })
 

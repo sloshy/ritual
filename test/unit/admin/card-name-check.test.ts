@@ -7,7 +7,11 @@ import {
   parseValidateCardNames,
 } from '../../../src/admin/api/card-name-check'
 import { cardCache } from '../../../src/cache'
-import { createAddChange, createRemoveChange, createSetNoteChange } from '../../../src/change-event'
+import {
+  createAddChange,
+  createRemoveChange,
+  createSetNoteChange,
+} from '../../../src/changes/change-event'
 import { bindWorkspace, type BoundWorkspace } from '../../integration/helpers/workspace'
 import { makeScryfallCard, seedCardNames } from '../../test-utils'
 

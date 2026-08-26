@@ -8,7 +8,7 @@ import {
   type CardArtRefs,
 } from '../../src/editor/card-art-view'
 import { cardArtDisplayUrl } from '../../src/site/art-url'
-import type { DeckData } from '../../src/types'
+import type { DeckData } from '../../src/list/deck'
 
 /**
  * The editor's view of custom art: load-body references in, display URLs on the

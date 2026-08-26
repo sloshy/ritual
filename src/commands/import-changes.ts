@@ -1,9 +1,9 @@
 import { Command } from 'commander'
 import fs from 'node:fs/promises'
-import { formatChange } from '../change-message'
-import { listRefLabel } from '../change-event'
+import { formatChange } from '../changes/change-message'
+import { listRefLabel } from '../changes/change-event'
 import { t } from '../i18n/t'
-import { LIST_TYPE_DISPLAY, listTypeLabel } from '../list-type'
+import { LIST_TYPE_DISPLAY, listTypeLabel } from '../list/list-type'
 import {
   type ChangeBundle,
   type ChangeBundleList,

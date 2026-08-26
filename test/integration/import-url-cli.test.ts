@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { registerImportCommand } from '../../src/commands/import'
-import { MemoryLogger, resetLogger, setLogger } from '../../src/logger'
+import { MemoryLogger, resetLogger, setLogger } from '../../src/util/logger'
 import { captureStream } from './helpers/capture'
 import { runInProcess } from './helpers/cli'
 import {

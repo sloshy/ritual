@@ -1,5 +1,5 @@
 import { type JSX, Show, batch, createEffect, createSignal, onMount, onCleanup } from 'solid-js'
-import type { ChangeEvent } from '../../change-event'
+import type { ChangeEvent } from '../../changes/change-event'
 import { ConfirmDialog } from '../../ui/ConfirmDialog'
 import { useT } from '../../ui/i18n'
 import {
@@ -9,7 +9,7 @@ import {
   serializeChangeBundle,
 } from '../../editor/change-bundle'
 import { resolveKnownListSlug } from './list-slug-resolver'
-import type { ListType } from '../../list-type'
+import type { ListType } from '../../list/list-type'
 import type { ImportResult } from '../../editor/useEditor'
 import { ImportChangesDialog } from '../../editor/components/ImportChangesDialog'
 import type { BulkEditBundle } from '../selection-edit-actions'

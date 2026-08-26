@@ -16,7 +16,7 @@
  */
 
 import { createSignal, type Accessor } from 'solid-js'
-import type { CardLabel } from '../card-labels'
+import type { CardLabel } from '../card/card-labels'
 
 const STORAGE_KEY = 'ritual:site:keep-trade-ack'
 

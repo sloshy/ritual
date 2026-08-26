@@ -1,16 +1,16 @@
 import { Command } from 'commander'
 import { importFromTextFile } from '../importers/text-file'
 import { MoxfieldClient } from '../importers/moxfield-client'
-import { parseMoxfieldPrimer } from '../primer-parser'
+import { parseMoxfieldPrimer } from '../list/primer-parser'
 import { classifyFileReadError, ExitCode, writeStdout } from './scripting'
-import { getLogger } from '../logger'
+import { getLogger } from '../util/logger'
 import {
   matchDeckUrl,
   resolveMoxfieldUserAgent,
   withMoxfieldUserAgent,
 } from '../importers/url-dispatch'
-import type { DeckData } from '../types'
-import { formatResolveListError, isResolveListError, resolveList } from '../resolve-list'
+import type { DeckData } from '../list/deck'
+import { formatResolveListError, isResolveListError, resolveList } from '../list/resolve-list'
 import { t } from '../i18n/t'
 
 type GetPrimerOptions = {

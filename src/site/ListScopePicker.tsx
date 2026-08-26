@@ -1,7 +1,7 @@
 import type { Accessor, Component } from 'solid-js'
 import { createMemo, createSignal, For, Show } from 'solid-js'
 import { useT } from '../ui/i18n'
-import { LIST_TYPES, LIST_TYPE_DISPLAY, listTypeTitle, type ListType } from '../list-type'
+import { LIST_TYPES, LIST_TYPE_DISPLAY, listTypeTitle, type ListType } from '../list/list-type'
 import { indeterminateRef } from '../ui/indeterminate'
 import type { SelectionState } from './useCardSelection'
 import { listRefKey, type ListRefKey, type NamedListRef } from './combined-list'

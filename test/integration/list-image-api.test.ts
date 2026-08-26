@@ -10,7 +10,7 @@ import type {
   DeckLoadResult,
   WantedLoadResult,
 } from '../../src/admin/api/load-results'
-import { computeHash } from '../../src/content-hash'
+import { computeHash } from '../../src/changes/content-hash'
 import { callJson } from './helpers/request'
 import {
   bindWorkspace,

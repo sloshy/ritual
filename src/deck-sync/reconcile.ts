@@ -14,11 +14,11 @@
  * answer rather than each re-deriving it.
  */
 
-import { resolvePrinting } from '../card-line'
-import { hasSpecificPrinting, type PrintingFields } from '../card-printing'
-import { printingKey } from '../printing-key'
-import type { PrintingTuple } from '../change-event'
-import type { Finish } from '../types'
+import { resolvePrinting } from '../card/card-line'
+import { hasSpecificPrinting, type PrintingFields } from '../card/card-printing'
+import { printingKey } from '../card/printing-key'
+import type { PrintingTuple } from '../changes/change-event'
+import type { Finish } from '../card/finish-condition'
 
 /**
  * The set/collector-number/finish a card line states — the canonical

@@ -10,11 +10,11 @@ import {
   Match,
   type JSX,
 } from 'solid-js'
-import type { ScryfallCard } from '../../types'
-import type { PriceCurrency } from '../../price-currency'
-import { displayLanguage, scryfallCardLanguage } from '../../card-language'
-import { displayFinish } from '../../finish-condition'
-import { getCardImageUrl } from '../../card-image'
+import type { ScryfallCard } from '../../scryfall/types'
+import type { PriceCurrency } from '../../pricing/price-currency'
+import { displayLanguage, scryfallCardLanguage } from '../../card/card-language'
+import { displayFinish } from '../../card/finish-condition'
+import { getCardImageUrl } from '../../card/card-image'
 import { enabledScopeRefs } from '../../site/find-scope'
 import type { ListRefKey, NamedListRef } from '../../site/combined-list'
 import { activeUsdSource, sitePriceForFinish } from '../../site/price-view'

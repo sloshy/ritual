@@ -5,7 +5,7 @@
  */
 
 import type prompts from 'prompts'
-import type { PromptSubjectKey } from '../no-input'
+import type { PromptSubjectKey } from '../util/no-input'
 
 /** Shared type for the `onState` callback parameter used with the `prompts` library. */
 export type PromptState = { exited: boolean }

@@ -1,8 +1,8 @@
 import { Command } from 'commander'
 import path from 'node:path'
-import { isListLifecycleError, renameList } from '../list-lifecycle'
-import { type ListType } from '../list-type'
-import { type ListTypeFlags } from '../resolve-list'
+import { isListLifecycleError, renameList } from '../list/list-lifecycle'
+import { type ListType } from '../list/list-type'
+import { type ListTypeFlags } from '../list/resolve-list'
 import { t } from '../i18n/t'
 import {
   addListTypeFlags,

@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test'
-import type { RitualConfig } from '../../../src/ritual-config'
+import type { RitualConfig } from '../../../src/config/ritual-config'
 import type { ConfigResponse } from '../../../src/admin/site/config-api'
 import type { StatusResponse } from '../../../src/admin/api/status'
 import { defaultSiteSelection } from '../../../src/site/list-selection'

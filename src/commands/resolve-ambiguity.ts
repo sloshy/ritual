@@ -24,7 +24,7 @@ import {
 } from '../collection-sync/describe'
 import type { AmbiguityResolutionOutcome } from '../collection-sync/engine'
 import type { RemovalAssignment, RemovalChoice } from '../collection-sync/diff'
-import type { Logger } from '../logger'
+import type { Logger } from '../util/logger'
 import { ask } from './prompts-helpers'
 import { t } from '../i18n/t'
 

@@ -25,7 +25,7 @@ import {
   COLLECTION_CARD_LINE_RE,
   COLLECTION_LINE_LABELS_GROUP,
   COLLECTION_LINE_LANGUAGE_GROUP,
-} from '../collection-file'
+} from '../list/collection-file'
 import {
   checkLabelsForListType,
   parseCardLabelsToken,
@@ -34,7 +34,7 @@ import {
   unsupportedLabelsFor,
   unsupportedLabelsMessage,
   type CardLabel,
-} from '../card-labels'
+} from '../card/card-labels'
 import {
   formatWantedListLine,
   WANTED_CARD_LINE_RE,
@@ -48,30 +48,29 @@ import {
   DECK_LINE_LANGUAGE_GROUP,
   DECK_LINE_NOTE_GROUP,
 } from '../importers/text-file'
-import { isCardLanguage, storedLanguage, type CardLanguage } from '../card-language'
-import { serializeCardLine } from '../deck-file'
-import { COMMANDER_SECTION, isCommanderSection, isSideboardSection } from '../deck-format'
-import { DEFAULT_SECTION } from '../types'
-import { hashPath, writeFileWithHash } from '../content-hash'
-import { reconcileListRefs } from '../list-refs'
-import { endsInsideOpenFence, frontMatterBodyStart, markFencedLines } from '../markdown-fence'
-import { appendChangelog } from '../changelog-writer'
-import { allocateNextIdFromContent } from '../card-id'
+import { isCardLanguage, storedLanguage, type CardLanguage } from '../card/card-language'
+import { serializeCardLine } from '../list/deck-file'
+import { COMMANDER_SECTION, isCommanderSection, isSideboardSection } from '../list/deck-format'
+import { DEFAULT_SECTION } from '../list/deck'
+import { hashPath, writeFileWithHash } from '../changes/content-hash'
+import { reconcileListRefs } from '../list/list-refs'
+import { endsInsideOpenFence, frontMatterBodyStart, markFencedLines } from '../list/markdown-fence'
+import { appendChangelog } from '../changes/changelog-writer'
+import { allocateNextIdFromContent } from '../card/card-id'
 import {
   createAddChange,
   createSetCommanderChange,
   isSamePrinting,
   printingOptionsFrom,
   type PrintingTuple,
-} from '../change-event'
-import { applyConditionUpdate, isCondition, isFinish } from '../finish-condition'
-import { canSetFinish } from '../card-printing'
-import { noteOrUndefined } from '../note-helpers'
+} from '../changes/change-event'
+import { applyConditionUpdate, isCondition, isFinish, type Finish } from '../card/finish-condition'
+import { canSetFinish } from '../card/card-printing'
+import { noteOrUndefined } from '../card/note-helpers'
 import { ExitCode } from './scripting'
-import { CardCommandError, localizedCommandError } from '../errors'
-import type { Finish } from '../types'
-import type { ListType } from '../list-type'
-import type { CardMutationChange } from '../list-mutate'
+import { CardCommandError, localizedCommandError } from '../util/errors'
+import type { ListType } from '../list/list-type'
+import type { CardMutationChange } from '../list/list-mutate'
 import type { EntryRef } from './card-target'
 
 /** Options for {@link applyTargetedChanges}. */

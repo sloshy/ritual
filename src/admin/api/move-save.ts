@@ -1,5 +1,5 @@
-import { hashPath } from '../../content-hash'
-import { appendChangelog } from '../../changelog-writer'
+import { hashPath } from '../../changes/content-hash'
+import { appendChangelog } from '../../changes/changelog-writer'
 import {
   createAddChange,
   createMoveFromChange,
@@ -12,14 +12,14 @@ import {
   type MoveFromChange,
   type MoveToChange,
   type PrintingTuple,
-} from '../../change-event'
+} from '../../changes/change-event'
 import {
   createCardArtCache,
   type CardArtMap,
   type CardArtRef,
   type CardArtReconcileFailure,
-} from '../../card-art'
-import { reconcileListRefs } from '../../list-refs'
+} from '../../list/card-art'
+import { reconcileListRefs } from '../../list/list-refs'
 import { loadAllLists, type ListEntry, type PhysicalCard } from '../../commands/move-helpers'
 import { t } from '../../i18n/t'
 import type { SaveEffect } from '../../editor/save-effects'

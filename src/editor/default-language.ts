@@ -18,7 +18,7 @@
  * node-side config loader can share the default.
  */
 
-import { DEFAULT_CARD_LANGUAGE, isCardLanguage, type CardLanguage } from '../card-language'
+import { DEFAULT_CARD_LANGUAGE, isCardLanguage, type CardLanguage } from '../card/card-language'
 
 /**
  * Test-seam override for the default language, set on the global object.

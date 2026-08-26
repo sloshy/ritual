@@ -2,8 +2,8 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { appendChangelog } from '../../src/changelog-writer'
-import { parseChangelog } from '../../src/changelog-parser'
+import { appendChangelog } from '../../src/changes/changelog-writer'
+import { parseChangelog } from '../../src/changes/changelog-parser'
 import {
   createAddChange,
   createAddSectionChange,
@@ -15,8 +15,8 @@ import {
   createSetPrintingChange,
   createSetSectionChange,
   type ChangeEvent,
-} from '../../src/change-event'
-import { formatChange } from '../../src/change-message'
+} from '../../src/changes/change-event'
+import { formatChange } from '../../src/changes/change-message'
 import { buildDefaultChangeLines } from '../../src/commands/history-helpers'
 import { en } from '../../src/i18n/messages/en'
 import { enMeta } from '../../src/i18n/messages/en.meta'

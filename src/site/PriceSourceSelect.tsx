@@ -19,7 +19,7 @@
 
 import { For, Show, type Component } from 'solid-js'
 import { useT } from '../ui/i18n'
-import type { PriceCurrency } from '../price-currency'
+import type { PriceCurrency } from '../pricing/price-currency'
 import { notifyCurrencyChanged } from './currency-epoch'
 import {
   PRICE_SOURCE_LABELS,

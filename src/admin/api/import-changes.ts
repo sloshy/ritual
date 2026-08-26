@@ -1,16 +1,21 @@
 import path from 'node:path'
-import type { ChangeEvent } from '../../change-event'
-import { replaySectionOrder } from '../../change-event'
-import type { DeckData } from '../../types'
-import type { ListType } from '../../list-type'
+import type { ChangeEvent } from '../../changes/change-event'
+import { replaySectionOrder } from '../../changes/change-event'
+import type { DeckData } from '../../list/deck'
+import type { ListType } from '../../list/list-type'
 import {
   dirForType,
   formatResolveListError,
   isResolveListError,
   resolveList,
-} from '../../resolve-list'
-import { isPathWithinDir } from '../../path-validation'
-import { allocateId, collectDeckCardIds, collectExistingIds, createIdPool } from '../../card-id'
+} from '../../list/resolve-list'
+import { isPathWithinDir } from '../../util/path-validation'
+import {
+  allocateId,
+  collectDeckCardIds,
+  collectExistingIds,
+  createIdPool,
+} from '../../card/card-id'
 import {
   type ChangeBundle,
   type ChangeBundleListRef,
@@ -31,7 +36,7 @@ import { applyChangeToCollection, toCollectionCardEntries } from '../../editor/c
 import { applyChangeToDeck, findDeckAddMergeTargetId } from '../../editor/deck-changes'
 import { applyChangeToWantedList } from '../../editor/wanted-changes'
 import { toWantedCardEntries } from '../../editor/wanted-entries'
-import { buildSyntheticRequest } from '../../synthetic-request'
+import { buildSyntheticRequest } from '../../util/synthetic-request'
 import type { CollectionLoadResult, DeckLoadResult, WantedLoadResult } from './load-results'
 import type { ApiMessage } from './result'
 import { apiHandler } from '../utils'

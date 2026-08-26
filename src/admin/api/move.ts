@@ -1,9 +1,9 @@
-import { getErrorMessage } from '../../errors'
-import { getBaseDir } from '../../base-dir'
-import type { Finish, Condition } from '../../types'
-import { isCardLanguage, storedLanguage, type CardLanguage } from '../../card-language'
-import type { ListType } from '../../list-type'
-import { isListType } from '../../list-type'
+import { getErrorMessage } from '../../util/errors'
+import { getBaseDir } from '../../config/base-dir'
+import type { Finish, Condition } from '../../card/finish-condition'
+import { isCardLanguage, storedLanguage, type CardLanguage } from '../../card/card-language'
+import type { ListType } from '../../list/list-type'
+import { isListType } from '../../list/list-type'
 import {
   loadAllLists,
   loadPhysicalCards,
@@ -16,8 +16,8 @@ import {
   type VirtualCard,
 } from '../../commands/move-helpers'
 import type { DroppedNote } from '../../commands/move-io'
-import { listSlug } from '../../list-info'
-import { indexPhysicalCards, moveCardKey, type MovePhysicalCard } from '../../card-index-types'
+import { listSlug } from '../../list/list-info'
+import { indexPhysicalCards, moveCardKey, type MovePhysicalCard } from '../../card/card-index-types'
 import { refuseUnknownCardNames } from './card-name-check'
 import { apiMessage, type ApiMessage } from './result'
 import { DEFAULT_LOCALE } from '../../i18n/runtime'

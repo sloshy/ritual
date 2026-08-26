@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { Client } from '@modelcontextprotocol/client'
-import type { CardArtRef } from '../../../src/card-art'
+import type { CardArtRef } from '../../../src/list/card-art'
 import { setupMcpClient, type McpTestSession } from './harness'
 import { expectSchemaRejection, toolData, toolError } from '../../mcp-test-utils'
 

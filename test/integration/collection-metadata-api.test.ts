@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { handleMetadataSave, type MetadataResponse } from '../../src/admin/api/metadata'
-import { parseCollectionFile } from '../../src/collection-file'
+import { parseCollectionFile } from '../../src/list/collection-file'
 import { bindWorkspace, writeCollectionFile } from './helpers/workspace'
 import type { BoundWorkspace } from './helpers/workspace'
 import { callJson } from './helpers/request'
-import { computeHash } from '../../src/content-hash'
+import { computeHash } from '../../src/changes/content-hash'
 
 /**
  * `PUT /api/metadata/collection/:slug` — `labels` and `description` front-matter

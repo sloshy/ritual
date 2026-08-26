@@ -34,12 +34,12 @@ import {
 } from '../buylist'
 import type { BakedBuylist } from './data-types'
 import { apiUrl } from './api-base'
-import { displayFinish } from '../finish-condition'
+import { displayFinish, type Finish } from '../card/finish-condition'
 import { isPricelessCard, type PricelessCard } from './priceless'
-import { scryfallCardLanguage, type CardLanguage } from '../card-language'
+import { scryfallCardLanguage, type CardLanguage } from '../card/card-language'
 import { sitePriceForFinish } from './price-view'
 import { sellModeActive } from './sell-mode'
-import type { Finish, ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 
 /**
  * Whether a displayed card object is a non-English printing. The buyer's feed

@@ -1,10 +1,10 @@
 import path from 'node:path'
-import { getCollectionsDir, getDecksDir, getWantedDir } from '../../ritual-config'
-import { resolveDeckFilePath } from '../../deck-file'
-import { isPathWithinDir } from '../../path-validation'
-import { listSlug } from '../../list-info'
-import type { ListType } from '../../list-type'
-import type { ListLocation } from '../../resolve-list'
+import { getCollectionsDir, getDecksDir, getWantedDir } from '../../config/ritual-config'
+import { resolveDeckFilePath } from '../../list/deck-file'
+import { isPathWithinDir } from '../../util/path-validation'
+import { listSlug } from '../../list/list-info'
+import type { ListType } from '../../list/list-type'
+import type { ListLocation } from '../../list/resolve-list'
 
 /**
  * Resolve a `type` + `slug` pair to a concrete list file path, or null when no

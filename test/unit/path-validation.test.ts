@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import path from 'node:path'
-import { isPathWithinDir } from '../../src/path-validation'
+import { isPathWithinDir } from '../../src/util/path-validation'
 
 describe('isPathWithinDir', () => {
   const baseDir = '/home/user/decks'

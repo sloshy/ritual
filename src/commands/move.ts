@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import prompts, { type Choice } from 'prompts'
 import { promptExitMenu } from './prompts-helpers'
-import { listRefLabel } from '../change-event'
+import { listRefLabel } from '../changes/change-event'
 import type { ListEntry, MoveSessionConfig, PhysicalCard, VirtualCard } from './move-helpers'
 import type { DroppedNote } from './move-io'
 import {
@@ -30,7 +30,7 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from './scripting'
-import { CardCommandError, localizedCommandError } from '../errors'
+import { CardCommandError, localizedCommandError } from '../util/errors'
 import {
   describeEntry,
   ensureCardIdMatchesName,
@@ -38,17 +38,21 @@ import {
   resolvePinnedPrinting,
   runCommandAction,
 } from './card-target'
-import { parsePositiveInteger } from '../parse-number'
-import { requireInteractive } from '../no-input'
-import { isResolveListError, parseListArgument, resolveList } from '../resolve-list'
-import { matchByNormalizedName } from '../term-match'
+import { parsePositiveInteger } from '../util/parse-number'
+import { requireInteractive } from '../util/no-input'
+import { isResolveListError, parseListArgument, resolveList } from '../list/resolve-list'
+import { matchByNormalizedName } from '../card/term-match'
 import { getCardPrintingsResult } from '../scryfall'
-import { printingsAreComplete } from '../card-printing'
-import { isFinish, normalizeFinishValue, VALID_FINISHES } from '../finish-condition'
-import { parseSetCode } from '../set-codes'
-import { languageToken, type CardLanguage } from '../card-language'
-import type { Finish } from '../types'
-import type { ListType } from '../list-type'
+import { printingsAreComplete } from '../card/card-printing'
+import {
+  isFinish,
+  normalizeFinishValue,
+  VALID_FINISHES,
+  type Finish,
+} from '../card/finish-condition'
+import { parseSetCode } from '../card/set-codes'
+import { languageToken, type CardLanguage } from '../card/card-language'
+import type { ListType } from '../list/list-type'
 import { t } from '../i18n/t'
 
 /**

@@ -1,8 +1,8 @@
 import { createResource, type Resource } from 'solid-js'
-import type { ListRef } from '../../change-event'
+import type { ListRef } from '../../changes/change-event'
 import type { NamedListRef } from '../../site/combined-list'
-import type { ListType } from '../../list-type'
-import type { ListInfo } from '../../list-info'
+import type { ListType } from '../../list/list-type'
+import type { ListInfo } from '../../list/list-info'
 import { fetchAdminJson } from './editor-backend'
 
 type ListsResponse = { lists?: ListInfo[] }

@@ -3,11 +3,11 @@
  * could replace a target card's current printing.
  */
 
-import type { Finish, ScryfallCard } from '../../types'
-import { displayLanguage } from '../../card-language'
-import { hasSpecificPrinting, resolvePrintingCard } from '../../card-printing'
-import { displayFinish } from '../../finish-condition'
-import { printingKey } from '../../printing-key'
+import { type Finish, displayFinish } from '../../card/finish-condition'
+import type { ScryfallCard } from '../../scryfall/types'
+import { displayLanguage } from '../../card/card-language'
+import { hasSpecificPrinting, resolvePrintingCard } from '../../card/card-printing'
+import { printingKey } from '../../card/printing-key'
 import { compareCollectorNumbers } from '../../scryfall/card-utils'
 import { listRefKey, type NamedListRef } from '../../site/combined-list'
 import { findMatchKey } from '../../site/find-search'

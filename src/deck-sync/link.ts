@@ -12,9 +12,9 @@
  * first.
  */
 
-import { applyDeckMetadata } from '../deck-metadata'
+import { applyDeckMetadata } from '../list/deck-metadata'
 import { matchDeckUrl, resolveImportSourceUrl } from '../importers/url-dispatch'
-import { parseDeckFrontMatter } from '../deck-file'
+import { parseDeckFrontMatter } from '../list/deck-file'
 
 /** An Archidekt deck reference, as deck front matter records one. */
 export type ArchidektDeckLink = {

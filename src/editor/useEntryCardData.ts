@@ -1,5 +1,5 @@
 import { createStore, produce, reconcile } from 'solid-js/store'
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 import {
   type AddCardToStore,
   buildPrintingKeys,

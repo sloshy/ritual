@@ -1,12 +1,12 @@
 import { BUYERS } from '../buylist'
 import { buylistFieldsFor } from './buylist-quotes'
-import type { ScryfallCard } from '../types'
-import type { PriceCurrency } from '../price-currency'
+import type { ScryfallCard } from '../scryfall/types'
+import type { PriceCurrency } from '../pricing/price-currency'
 import { sitePrice, sitePriceForFinish } from './price-view'
-import { displayFinish } from '../finish-condition'
-import { type ListType, isListType } from '../list-type'
-import { hasSpecificPrinting, findPrinting } from '../card-printing'
-import { effectiveLabels } from '../card-labels'
+import { displayFinish } from '../card/finish-condition'
+import { type ListType, isListType } from '../list/list-type'
+import { hasSpecificPrinting, findPrinting } from '../card/card-printing'
+import { effectiveLabels } from '../card/card-labels'
 import { isPricelessCard, pricelessFacts } from './priceless'
 import { overlayCard } from './session-cache'
 import { resolveCardPreview } from './image-sources'
@@ -25,13 +25,13 @@ import type {
   CollectionCardEntry,
   WantedListCardEntry,
 } from './data-types'
-import { lookupPrintingCard, printingKey } from '../printing-key'
+import { lookupPrintingCard, printingKey } from '../card/printing-key'
 import { collectionTradeMaxQty, collectionTradeQtyMap } from './trade-qty'
-import { storedLanguage, type CardLanguage } from '../card-language'
+import { storedLanguage, type CardLanguage } from '../card/card-language'
 
 /**
  * A reference to a single list by its type and slug. Encoded into the combined-view
- * URL. Distinct from {@link import('../change-event').ListRef}, which is keyed by
+ * URL. Distinct from {@link import('../changes/change-event').ListRef}, which is keyed by
  * display name rather than slug.
  */
 export interface CombinedListRef {

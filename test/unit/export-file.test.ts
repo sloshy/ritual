@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { buildExportFileName, type ExportFileNameInput } from '../../src/export/file'
-import type { ListLocation } from '../../src/resolve-list'
+import type { ListLocation } from '../../src/list/resolve-list'
 
 /**
  * The server-chosen filename for `POST /api/export` with `write: true`. Pure by

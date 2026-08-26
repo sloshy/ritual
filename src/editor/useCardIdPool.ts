@@ -6,7 +6,7 @@ import {
   releaseId,
   claimId,
   clonePool,
-} from '../card-id'
+} from '../card/card-id'
 
 export type UseCardIdPoolResult = {
   pool: Accessor<CardIdPool>

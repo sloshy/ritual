@@ -1,7 +1,7 @@
 import path from 'node:path'
-import { isArtImageExtension, type ArtImageExtension } from '../card-art'
-import { getArtDir } from '../ritual-config'
-import { isPathWithinDir } from '../path-validation'
+import { isArtImageExtension, type ArtImageExtension } from '../list/card-art'
+import { getArtDir } from '../config/ritual-config'
+import { isPathWithinDir } from '../util/path-validation'
 
 /**
  * Serves the custom-art directory read-only at `/art/<relpath>` — the same path

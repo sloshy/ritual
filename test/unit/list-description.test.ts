@@ -3,7 +3,7 @@ import {
   isListDescriptionError,
   parseListDescription,
   readListDescription,
-} from '../../src/list-description'
+} from '../../src/list/list-description'
 
 /**
  * The `description:` grammar every list type shares: text in, `null` for the

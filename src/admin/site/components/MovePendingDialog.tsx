@@ -1,6 +1,6 @@
 import { type Component, For, Show } from 'solid-js'
-import { formatPrintingAnnotation } from '../../../change-event'
-import { LIST_TYPE_DISPLAY } from '../../../list-type'
+import { formatPrintingAnnotation } from '../../../changes/change-event'
+import { LIST_TYPE_DISPLAY } from '../../../list/list-type'
 import type { PendingMove } from '../move-overlay'
 import { Modal } from '../../../ui/Modal'
 import { useT } from '../../../ui/i18n'

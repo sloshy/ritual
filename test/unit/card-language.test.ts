@@ -15,7 +15,7 @@ import {
   scryfallCardLanguage,
   sortLanguages,
   storedLanguage,
-} from '../../src/card-language'
+} from '../../src/card/card-language'
 import { makeScryfallCard } from '../test-utils'
 
 describe('card language vocabulary', () => {

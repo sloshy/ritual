@@ -2,7 +2,7 @@ import { fromJsonSchema, type McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { callApi, callApiData } from '../dispatch'
 import { loadProjectedList, type ListProjection } from '../projection'
-import { VALID_PRICE_SOURCES, resolveSourceCurrency } from '../../price-source'
+import { VALID_PRICE_SOURCES, resolveSourceCurrency } from '../../pricing/price-source'
 import { runTool } from '../result'
 import {
   AUTOCOMPLETE_CARD_OUTPUT,
@@ -55,17 +55,17 @@ import type {
 import type { DeckSyncStatusResponse } from '../../admin/api/deck-sync'
 import type { ExportRequestBody, ExportResponseBody } from '../../admin/api/export'
 import type { ArchidektLoginStatus } from '../../auth/interfaces'
-import type { MovePhysicalCard } from '../../card-index-types'
+import type { MovePhysicalCard } from '../../card/card-index-types'
 import type { SyncableDeck } from '../../deck-sync/engine'
 import { EXPORT_FORMATS } from '../../export/presets'
 import { EXPORT_DIALECTS, EXPORT_PROPERTIES } from '../../export/render'
-import { VALID_CONDITIONS, VALID_FINISHES } from '../../finish-condition'
-import { CARD_LABELS } from '../../card-labels'
+import { VALID_CONDITIONS, VALID_FINISHES } from '../../card/finish-condition'
+import { CARD_LABELS } from '../../card/card-labels'
 import { BUYERS, type BuylistQuotesResponse } from '../../buylist'
 import { MAX_BUYLIST_PRINTINGS } from '../../api/buylist'
-import { DIFF_BY_MODES } from '../../list-diff'
-import type { ListInfo } from '../../list-info'
-import type { ListType } from '../../list-type'
+import { DIFF_BY_MODES } from '../../changes/list-diff'
+import type { ListInfo } from '../../list/list-info'
+import type { ListType } from '../../list/list-type'
 import type {
   CacheStatusResult,
   CardDetails,

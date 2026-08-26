@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { applyChangesToCollectionFile } from '../../src/list-mutate'
-import { createAddChange, createRemoveChange } from '../../src/change-event'
+import { applyChangesToCollectionFile } from '../../src/list/list-mutate'
+import { createAddChange, createRemoveChange } from '../../src/changes/change-event'
 import { withTempDir } from './helpers/cli'
-import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/card-art'
+import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/list/card-art'
 
 async function writeList(dir: string, relative: string, content: string): Promise<string> {
   const filePath = path.join(dir, relative)

@@ -1,5 +1,5 @@
 import { type JSX, batch, createSignal, untrack, Switch, Match, For } from 'solid-js'
-import { type ListType, LIST_TYPES, LIST_TYPE_DISPLAY } from '../../../list-type'
+import { type ListType, LIST_TYPES, LIST_TYPE_DISPLAY } from '../../../list/list-type'
 import { useTKey } from '../../../ui/i18n'
 import { useNavigationGuard } from '../../../editor/navigation-guard'
 import { useRouting } from '../routing'

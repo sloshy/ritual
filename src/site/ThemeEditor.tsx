@@ -29,7 +29,7 @@ import {
   parseCustomTheme,
   type ThemeCssVars,
   type CustomTheme,
-} from '../themes'
+} from '../theme/themes'
 import { useTheme, readCssVar } from './useTheme'
 import {
   themeVarGroups,

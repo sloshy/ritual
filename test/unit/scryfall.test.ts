@@ -13,7 +13,7 @@ import {
   isToken,
 } from '../../src/scryfall'
 import { normalizeSetFilter } from '../../src/scryfall/card-utils'
-import type { FileSystemClient } from '../../src/interfaces'
+import type { FileSystemClient } from '../../src/util/interfaces'
 import {
   MockHttpClient,
   InMemoryCacheManager,
@@ -22,7 +22,7 @@ import {
   resetLogger,
   setLogger,
 } from '../test-utils'
-import { type ScryfallCard } from '../../src/types'
+import type { ScryfallCard } from '../../src/scryfall/types'
 
 const readFileMock = mock(async (_path: string, _encoding: BufferEncoding) => '[]')
 const writeFileMock = mock(async (_path: string, _data: string | Uint8Array) => {})

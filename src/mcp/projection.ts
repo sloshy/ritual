@@ -1,9 +1,9 @@
 import type { ListCounts, ListSummaryLoadResult } from '../admin/api/load-results'
-import type { CardArtRecord } from '../card-art'
-import type { CardLabel } from '../card-labels'
-import type { ListImageRef } from '../list-image'
-import type { ListType } from '../list-type'
-import type { DeckData } from '../types'
+import type { CardArtRecord } from '../list/card-art'
+import type { CardLabel } from '../card/card-labels'
+import type { ListImageRef } from '../list/list-image'
+import type { ListType } from '../list/list-type'
+import type { DeckData } from '../list/deck'
 import { callApi } from './dispatch'
 import type {
   CollectionEntry,

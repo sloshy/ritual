@@ -6,7 +6,7 @@ import {
   type StagedFile,
 } from '../../src/commands/move-io'
 import type { PhysicalCard } from '../../src/commands/move-helpers'
-import type { DeckData } from '../../src/types'
+import type { DeckData } from '../../src/list/deck'
 
 function deckStaged(deck: DeckData): StagedFile {
   return { kind: 'deck', data: { deck, frontMatter: {} } }

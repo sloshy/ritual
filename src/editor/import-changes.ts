@@ -1,4 +1,4 @@
-import type { ChangeAction, ChangeEvent } from '../change-event'
+import type { ChangeAction, ChangeEvent } from '../changes/change-event'
 import type { MessageKey } from '../i18n/messages/en'
 import type { MissReason } from './apply-batch'
 

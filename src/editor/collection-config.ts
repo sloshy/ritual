@@ -1,11 +1,11 @@
 import { batch } from 'solid-js'
 import type { CollectionCardEntry } from '../site/data-types'
-import { type PrintingTuple, isSamePrinting } from '../change-event'
+import { type PrintingTuple, isSamePrinting } from '../changes/change-event'
 import type { ChangePrintingContext } from './useEditor'
 import { applyChangeToCollection } from './collection-changes'
 import { findEntryPrintingById } from './entry-targeting'
 import type { FlatPrinting } from './flat-list-controller'
-import { storedLanguage } from '../card-language'
+import { storedLanguage } from '../card/card-language'
 
 /** Printing fields logged when a collection entry is added/removed (includes condition). */
 export function collectionPrintingOf(entry: CollectionCardEntry): FlatPrinting {

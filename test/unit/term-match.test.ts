@@ -9,7 +9,7 @@ import {
   promoteFullNameMatches,
   rankNameMatches,
   splitNameTerms,
-} from '../../src/term-match'
+} from '../../src/card/term-match'
 
 describe('normalizeForSearch', () => {
   test('lowercases ASCII', () => {

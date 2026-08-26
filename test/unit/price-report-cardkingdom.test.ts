@@ -3,10 +3,10 @@ import {
   buildPriceReport,
   type CardKingdomPricing,
   type PriceListInput,
-} from '../../src/price-report'
-import type { CardPrintingsLookup } from '../../src/card-printing'
+} from '../../src/pricing/price-report'
+import type { CardPrintingsLookup } from '../../src/card/card-printing'
 import type { QuotePrinting } from '../../src/cardkingdom/quote'
-import type { ScryfallCard } from '../../src/types'
+import type { ScryfallCard } from '../../src/scryfall/types'
 import { ckRetailQuote, makeBuylistQuote, makeScryfallCard } from '../test-utils'
 
 function lookupFor(printings: Record<string, ScryfallCard[]>): CardPrintingsLookup {

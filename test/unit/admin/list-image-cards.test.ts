@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { DeckData, ScryfallCard } from '../../../src/types'
+import type { DeckData } from '../../../src/list/deck'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import { makeScryfallCard } from '../../test-utils'
 import {
   deckImageCardOptions,

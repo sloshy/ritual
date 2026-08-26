@@ -1,13 +1,13 @@
-import { getErrorMessage } from '../../errors'
-import { parseEnumField } from '../../parse-enum'
-import { LIST_TYPES, type ListType } from '../../list-type'
+import { getErrorMessage } from '../../util/errors'
+import { parseEnumField } from '../../util/parse-enum'
+import { LIST_TYPES, type ListType } from '../../list/list-type'
 import { loadAllLists, loadPhysicalCards } from '../../commands/move-helpers'
-import { listSlug, type ListInfo } from '../../list-info'
-import { matchesNameTerms, normalizeCardName, splitNameTerms } from '../../term-match'
-import { moveCardKey, type MovePhysicalCard } from '../../card-index-types'
+import { listSlug, type ListInfo } from '../../list/list-info'
+import { matchesNameTerms, normalizeCardName, splitNameTerms } from '../../card/term-match'
+import { moveCardKey, type MovePhysicalCard } from '../../card/card-index-types'
 import { isValidListSlug } from './target'
 import { apiError, badRequest } from './save-helpers'
-import { parseSetCode } from '../../set-codes'
+import { parseSetCode } from '../../card/set-codes'
 
 /**
  * `GET /api/card-index` — every list plus every physical card across them, with

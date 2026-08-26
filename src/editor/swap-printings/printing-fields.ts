@@ -8,8 +8,8 @@
  * tuple — a new printing dimension is one edit, not a silent drop at each site.
  */
 
-import { storedLanguage } from '../../card-language'
-import type { PrintingTuple } from '../../change-event'
+import { storedLanguage } from '../../card/card-language'
+import type { PrintingTuple } from '../../changes/change-event'
 import type { PinnedSwapTarget, SwapTarget } from './types'
 
 /** Whether a target's line pins a printing (a name-only line does not). */

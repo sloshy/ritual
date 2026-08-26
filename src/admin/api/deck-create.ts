@@ -1,5 +1,5 @@
-import { getDecksDir } from '../../ritual-config'
-import { createList, isListLifecycleError } from '../../list-lifecycle'
+import { getDecksDir } from '../../config/ritual-config'
+import { createList, isListLifecycleError } from '../../list/list-lifecycle'
 import { apiHandler } from '../utils'
 import { lifecycleErrorResponse, type ListCreateResponse } from './list-lifecycle'
 import { apiError, autoCommitAndPush, readJsonObjectBody } from './save-helpers'

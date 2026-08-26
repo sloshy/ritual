@@ -2,9 +2,9 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { getBaseDir, setBaseDir } from '../../../src/base-dir'
+import { getBaseDir, setBaseDir } from '../../../src/config/base-dir'
 import { cardCache } from '../../../src/cache'
-import { resetRitualConfigCache } from '../../../src/ritual-config'
+import { resetRitualConfigCache } from '../../../src/config/ritual-config'
 import {
   handlePriceList,
   handlePriceSummary,

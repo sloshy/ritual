@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli, withTempDir } from './helpers/cli'
-import { version as ritualVersion } from '../../src/version'
+import { version as ritualVersion } from '../../src/config/version'
 
 /**
  * Headless `init-site` runs in synthetic directories. runCli's stdin is not a

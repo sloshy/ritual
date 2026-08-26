@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { appendChangelog } from '../../src/changelog-writer'
-import type { ChangeEvent } from '../../src/change-event'
+import { appendChangelog } from '../../src/changes/changelog-writer'
+import type { ChangeEvent } from '../../src/changes/change-event'
 
 /** Test helper — builds a ChangeEvent with add-change defaults.
  *  Uses assertion since overrides may switch to a different union branch. */

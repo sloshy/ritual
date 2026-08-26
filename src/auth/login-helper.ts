@@ -1,8 +1,8 @@
 import prompts from 'prompts'
 import { ArchidektAuth } from './ArchidektAuth'
 import type { ArchidektCredentials } from './interfaces'
-import { getErrorMessage } from '../errors'
-import { inputRequiredError, promptsUnavailable } from '../no-input'
+import { getErrorMessage } from '../util/errors'
+import { inputRequiredError, promptsUnavailable } from '../util/no-input'
 
 /** How a credentialed login attempt ended (credentials already in hand). */
 export type LoginOutcome = 'success' | 'failed'

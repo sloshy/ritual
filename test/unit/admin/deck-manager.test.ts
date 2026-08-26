@@ -8,8 +8,8 @@ import {
   type ListLifecycleConfig,
 } from '../../../src/admin/api/list-lifecycle'
 import { resolveDeckFile } from '../../../src/admin/api/list-file'
-import { parseDeckFrontMatter, type DeckFrontMatter } from '../../../src/deck-file'
-import { setBaseDir } from '../../../src/base-dir'
+import { parseDeckFrontMatter, type DeckFrontMatter } from '../../../src/list/deck-file'
+import { setBaseDir } from '../../../src/config/base-dir'
 
 const testDir = path.join(import.meta.dir, '../../.test-deck-manager')
 const decksDir = path.join(testDir, 'decks')

@@ -1,4 +1,4 @@
-import { loadListInfos, type ListInfo } from '../../list-info'
+import { loadListInfos, type ListInfo } from '../../list/list-info'
 import { apiHandler } from '../utils'
 
 export type ListsResponse = { success: true; lists: ListInfo[] }

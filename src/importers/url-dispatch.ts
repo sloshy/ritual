@@ -1,9 +1,10 @@
 import { ArchidektClient } from '../clients/ArchidektClient'
 import { fetchMtgGoldfishDeck } from './mtggoldfish'
 import { fetchMoxfieldDeck } from './moxfield-lib'
-import { aggregateQuantities } from '../card-line'
-import { displayLanguage } from '../card-language'
-import { type Card, type DeckData, type DeckSection } from '../types'
+import { aggregateQuantities } from '../card/card-line'
+import { displayLanguage } from '../card/card-language'
+import type { Card } from '../card/card'
+import type { DeckData, DeckSection } from '../list/deck'
 
 /**
  * Whether any card in the deck states a printing or finish — what a URL import

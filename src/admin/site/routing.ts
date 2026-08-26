@@ -16,7 +16,7 @@
  */
 import { batch, createContext, createSignal, onCleanup, useContext } from 'solid-js'
 import type { Accessor } from 'solid-js'
-import { isListType, type ListType } from '../../list-type'
+import { isListType, type ListType } from '../../list/list-type'
 import type { MessageKey } from '../../i18n/messages/en'
 import type { NavigationAttempt } from '../../editor/navigation-guard'
 

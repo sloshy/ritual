@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { execSync } from 'node:child_process'
 import * as fs from 'node:fs/promises'
-import { getDefaultRitualConfig } from '../../src/ritual-config'
+import { getDefaultRitualConfig } from '../../src/config/ritual-config'
 import { handleMoveCommit } from '../../src/admin/api/move'
 import type { MovePhysicalCard } from '../../src/admin/api/move'
 import { handleCardIndex, type CardIndexResponse } from '../../src/admin/api/card-index'

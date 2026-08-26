@@ -1,7 +1,8 @@
 import { createSignal, type Accessor } from 'solid-js'
-import type { Finish, ScryfallCard } from '../types'
-import type { ListRef, PrintingTuple } from '../change-event'
-import { scryfallCardLanguage, storedLanguage, type CardLanguage } from '../card-language'
+import type { Finish } from '../card/finish-condition'
+import type { ScryfallCard } from '../scryfall/types'
+import type { ListRef, PrintingTuple } from '../changes/change-event'
+import { scryfallCardLanguage, storedLanguage, type CardLanguage } from '../card/card-language'
 
 /**
  * A sequential, one-at-a-time printing chooser shared by every flow that needs the

@@ -2,10 +2,10 @@
 // server owns", not "handlers both servers mount". This one is currently mounted
 // on the admin server only.
 import { cacheRealPrintings, fetchSearchPage } from '../scryfall'
-import { getErrorMessage } from '../errors'
-import { parseEnumField } from '../parse-enum'
-import { invalidLimitMessage, parsePositiveInteger } from '../parse-number'
-import { promoteFullNameMatches } from '../term-match'
+import { getErrorMessage } from '../util/errors'
+import { parseEnumField } from '../util/parse-enum'
+import { invalidLimitMessage, parsePositiveInteger } from '../util/parse-number'
+import { promoteFullNameMatches } from '../card/term-match'
 import { summarizeCard, type CardSummary } from './card-summary'
 
 /** The largest page Scryfall serves, and therefore the largest `limit` worth asking for. */

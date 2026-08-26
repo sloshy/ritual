@@ -5,27 +5,28 @@ import {
   extractChangelogCardNames,
   parseChangelog,
   type ChangelogPage,
-} from '../../changelog-parser'
+} from '../../changes/changelog-parser'
 import { computeRepresentativePrints } from '../../scryfall'
-import { getErrorMessage } from '../../errors'
+import { getErrorMessage } from '../../util/errors'
 import { t } from '../../i18n/t'
 import { buylistRequestFor, quoteKey, type BuylistQuote } from '../../buylist'
-import { loadCardArt, type CardArtMap, type CardArtRef } from '../../card-art'
+import { loadCardArt, type CardArtMap, type CardArtRef } from '../../list/card-art'
 import {
   isListImageCardRef,
   isListImageUrlRef,
   readListImage,
   type ListImageRef,
-} from '../../list-image'
-import { readListDescription } from '../../list-description'
-import { readFrontMatterMapping } from '../../front-matter-write'
-import { printingFinishPairs } from '../../card-printing'
+} from '../../list/list-image'
+import { readListDescription } from '../../list/list-description'
+import { readFrontMatterMapping } from '../../list/front-matter-write'
+import { printingFinishPairs } from '../../card/card-printing'
 import { siteArtUrl } from '../art-url'
 import { resolveCardImageSources } from '../image-sources'
-import type { CardLanguage } from '../../card-language'
-import type { Finish, ScryfallCard } from '../../types'
+import type { CardLanguage } from '../../card/card-language'
+import type { Finish } from '../../card/finish-condition'
+import type { ScryfallCard } from '../../scryfall/types'
 import type { BakedBuylist } from '../data-types'
-import type { ListType } from '../../list-type'
+import type { ListType } from '../../list/list-type'
 import type { SiteDetailContext } from './types'
 
 /**

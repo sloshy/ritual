@@ -5,8 +5,8 @@ import {
   applyConfigUnset,
   deleteAtPath,
   listConfigEntries,
-} from '../../../src/config-fields'
-import { getDefaultRitualConfig } from '../../../src/ritual-config'
+} from '../../../src/config/config-fields'
+import { getDefaultRitualConfig } from '../../../src/config/ritual-config'
 
 const base = getDefaultRitualConfig()
 

@@ -10,11 +10,11 @@ import {
   on,
   onCleanup,
 } from 'solid-js'
-import type { ChangeEvent } from '../../change-event'
-import { formatChange } from '../../change-message'
+import type { ChangeEvent } from '../../changes/change-event'
+import { formatChange } from '../../changes/change-message'
 import { useT, useTSegments } from '../../ui/i18n'
-import type { ListType } from '../../list-type'
-import { LIST_TYPE_DISPLAY } from '../../list-type'
+import type { ListType } from '../../list/list-type'
+import { LIST_TYPE_DISPLAY } from '../../list/list-type'
 import { downloadTextFile } from './download'
 
 /**

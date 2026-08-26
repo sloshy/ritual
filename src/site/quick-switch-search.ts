@@ -6,7 +6,7 @@
  * matching all terms gets a positive score; non-matches return -1.
  */
 
-import { normalizeForSearch } from '../term-match'
+import { normalizeForSearch } from '../card/term-match'
 
 export function scoreMatch(name: string, query: string): number {
   const trimmed = query.trim()

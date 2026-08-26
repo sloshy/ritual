@@ -7,8 +7,8 @@ import {
   requireInteractive,
   resolveNoInput,
   setNoInputOverride,
-} from '../../src/no-input'
-import { CardCommandError } from '../../src/errors'
+} from '../../src/util/no-input'
+import { CardCommandError } from '../../src/util/errors'
 import { stubTty } from '../test-utils'
 
 // The integration harness always spawns the CLI without a TTY, so the !isTTY

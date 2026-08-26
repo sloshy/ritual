@@ -1,8 +1,13 @@
 import { cardCache } from '../cache'
 import { compareData } from '../i18n/collate'
 import { apiError } from '../admin/api/save-helpers'
-import { getErrorMessage } from '../errors'
-import { matchesNameTerms, normalizeCardName, rankNameMatches, splitNameTerms } from '../term-match'
+import { getErrorMessage } from '../util/errors'
+import {
+  matchesNameTerms,
+  normalizeCardName,
+  rankNameMatches,
+  splitNameTerms,
+} from '../card/term-match'
 
 /** How many suggestions the editor's search box is offered. */
 const MAX_SUGGESTIONS = 20

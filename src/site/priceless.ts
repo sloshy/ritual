@@ -17,10 +17,10 @@
  * translator from `useT()`, exactly as `printing-display.ts` does.
  */
 
-import { pricelessReason, type CardLabel, type PricelessReason } from '../card-labels'
+import { pricelessReason, type CardLabel, type PricelessReason } from '../card/card-labels'
 import type { MessageKey } from '../i18n/messages/en'
 import type { TranslateFn } from '../i18n/t'
-import { formatPriceOrNA, type PriceCurrency } from '../price-currency'
+import { formatPriceOrNA, type PriceCurrency } from '../pricing/price-currency'
 
 /**
  * The art half of the rule, as every baked shape carries it: the image to show,

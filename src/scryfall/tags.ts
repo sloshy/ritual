@@ -1,4 +1,4 @@
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from './types'
 
 /** Confidence weight Scryfall Tagger assigns to a tagging. */
 export type ScryfallTaggingWeight = 'very_strong' | 'strong' | 'median'

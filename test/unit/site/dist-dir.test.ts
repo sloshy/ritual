@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import path from 'node:path'
-import { getBaseDir, setBaseDir } from '../../../src/base-dir'
+import { getBaseDir, setBaseDir } from '../../../src/config/base-dir'
 import {
   defaultDistDir,
   resolveOutDir,

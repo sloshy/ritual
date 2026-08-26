@@ -1,11 +1,11 @@
 import path from 'node:path'
 import os from 'node:os'
-import type { FileSystemClient } from '../interfaces'
+import type { FileSystemClient } from '../util/interfaces'
 import { getCacheDir } from './file-cache'
-import { getCacheLockTimeoutSeconds } from '../ritual-config'
-import { hasErrorCode } from '../errors'
-import { getLogger } from '../logger'
-import { formatDuration } from '../utils'
+import { getCacheLockTimeoutSeconds } from '../config/ritual-config'
+import { hasErrorCode } from '../util/errors'
+import { getLogger } from '../util/logger'
+import { formatDuration } from '../util/duration'
 
 export const CACHE_LOCK_FILENAME = '.ritual-cache-lock'
 

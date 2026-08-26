@@ -14,12 +14,12 @@ import type {
 } from '../../../src/site/details/types'
 import type { BuylistQuote, BuylistQuoteRequest } from '../../../src/buylist'
 import { quoteKey } from '../../../src/buylist'
-import type { ScryfallCard } from '../../../src/types'
-import type { CardArtMap, CardArtRef } from '../../../src/card-art'
-import type { CollectionEntry } from '../../../src/collection-file'
-import type { ListImageRef } from '../../../src/list-image'
+import type { ScryfallCard } from '../../../src/scryfall/types'
+import type { CardArtMap, CardArtRef } from '../../../src/list/card-art'
+import type { CollectionEntry } from '../../../src/list/collection-file'
+import type { ListImageRef } from '../../../src/list/list-image'
 import { cardPricelessReason } from '../../../src/site/priceless'
-import type { ChangelogPage } from '../../../src/changelog-parser'
+import type { ChangelogPage } from '../../../src/changes/changelog-parser'
 
 type StubContextOptions = {
   cardData?: Partial<SiteCardData>

@@ -15,11 +15,11 @@ import {
   createRemoveChange,
   createSetLabelChange,
   type ChangeEvent,
-} from '../../src/change-event'
-import type { CardLabel } from '../../src/card-labels'
-import { DEFAULT_SECTION, type DeckData } from '../../src/types'
-import { computeHash } from '../../src/content-hash'
-import { artSidecarPath, saveCardArt } from '../../src/card-art'
+} from '../../src/changes/change-event'
+import type { CardLabel } from '../../src/card/card-labels'
+import { DEFAULT_SECTION, type DeckData } from '../../src/list/deck'
+import { computeHash } from '../../src/changes/content-hash'
+import { artSidecarPath, saveCardArt } from '../../src/list/card-art'
 import {
   bindWorkspace,
   writeCollectionFile,

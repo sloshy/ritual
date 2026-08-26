@@ -8,7 +8,7 @@ import {
   writeCollectionFile,
   writeDeckFile,
 } from './helpers/workspace'
-import type { ListImageRef } from '../../src/list-image'
+import type { ListImageRef } from '../../src/list/list-image'
 
 /**
  * A `card`-mode cover is filed under a card line's `&N`, and those ids are

@@ -12,7 +12,7 @@ import {
   createSetPrintingChange,
   type CardChange,
   type ChangeEvent,
-} from '../../change-event'
+} from '../../changes/change-event'
 import { parseChangeBundle } from '../../editor/change-bundle'
 import {
   isToSectionInvalid,
@@ -49,7 +49,7 @@ import {
   SET_CARD_ART_OUTPUT,
   SET_LIST_METADATA_OUTPUT,
 } from '../schema-json'
-import type { ListType } from '../../list-type'
+import type { ListType } from '../../list/list-type'
 import type { OmitSuccess } from '../types'
 import {
   cardIdField,

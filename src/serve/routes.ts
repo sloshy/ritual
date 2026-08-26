@@ -6,8 +6,8 @@ import { handleCards } from '../api/cards'
 import { handleCardPrintings } from '../api/card-printings'
 import { handleCardPrice } from '../api/card-price'
 import { handleCardPrices } from '../api/card-prices'
-import type { HttpMethod } from '../routing'
-import type { ListType } from '../list-type'
+import type { HttpMethod } from '../util/routing'
+import type { ListType } from '../list/list-type'
 import type { LiveJson, LiveSiteData } from './live-data'
 
 export type SiteRouteHandler = (req: Request) => Promise<Response>

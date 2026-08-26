@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { handleGetConfig, handleUpdateConfig } from '../../src/admin/api/config'
-import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../src/ritual-config'
+import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../src/config/ritual-config'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
 /**

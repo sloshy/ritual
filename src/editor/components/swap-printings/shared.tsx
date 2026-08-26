@@ -6,18 +6,18 @@
  */
 
 import { createContext, onCleanup, useContext, For, Show, type Component, type JSX } from 'solid-js'
-import type { Finish, ScryfallCard } from '../../../types'
-import type { CardLanguage } from '../../../card-language'
-import type { PriceCurrency } from '../../../price-currency'
-import { getCardImageUrl } from '../../../card-image'
-import { languageBadge } from '../../../card-language'
-import { formatPrintingLabel } from '../../../printing-key'
-import { LIST_TYPE_DISPLAY } from '../../../list-type'
+import { type Finish, displayFinish } from '../../../card/finish-condition'
+import type { ScryfallCard } from '../../../scryfall/types'
+import type { CardLanguage } from '../../../card/card-language'
+import type { PriceCurrency } from '../../../pricing/price-currency'
+import { getCardImageUrl } from '../../../card/card-image'
+import { languageBadge } from '../../../card/card-language'
+import { formatPrintingLabel } from '../../../card/printing-key'
+import { LIST_TYPE_DISPLAY } from '../../../list/list-type'
 import { finishChipName } from '../../../site/printing-display'
 import { printingPriceText } from '../../../site/printing-prices'
 import { useT } from '../../../ui/i18n'
 import type { NamedListRef } from '../../../site/combined-list'
-import { displayFinish } from '../../../finish-condition'
 import { targetPinsPrinting, type SwapCandidate, type SwapTarget } from '../../swap-printings'
 
 /** Raises and clears the wizard's cursor-following card preview. */

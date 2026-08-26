@@ -2,7 +2,7 @@ import { Command, Option } from 'commander'
 import prompts from 'prompts'
 import path from 'node:path'
 import type { PromptState } from './prompts-types'
-import { createSetNoteChange } from '../change-event'
+import { createSetNoteChange } from '../changes/change-event'
 import { applyTargetedChanges } from './line-mutate'
 import {
   addScriptingOptions,
@@ -12,9 +12,9 @@ import {
   type DryRunOptions,
   type ScriptingOptions,
 } from './scripting'
-import { normalizeNote } from '../note-helpers'
-import { requireInteractive } from '../no-input'
-import { CardCommandError, localizedCommandError } from '../errors'
+import { normalizeNote } from '../card/note-helpers'
+import { requireInteractive } from '../util/no-input'
+import { CardCommandError, localizedCommandError } from '../util/errors'
 import { t } from '../i18n/t'
 import {
   addListTypeFlags,
@@ -27,8 +27,8 @@ import {
   type CardCommandResultBase,
   type EntryRef,
 } from './card-target'
-import { type ListTypeFlags } from '../resolve-list'
-import type { ListType } from '../list-type'
+import { type ListTypeFlags } from '../list/resolve-list'
+import type { ListType } from '../list/list-type'
 
 type NoteOptions = {
   note?: string

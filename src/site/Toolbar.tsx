@@ -8,8 +8,8 @@ import type {
   SelectOption,
   PriceGroupStrategy,
 } from './card-sorting'
-import type { PriceCurrency } from '../price-currency'
-import type { CardLabelSelection } from '../card-labels'
+import type { PriceCurrency } from '../pricing/price-currency'
+import type { CardLabelSelection } from '../card/card-labels'
 import type { NamedListRef } from './combined-list'
 import { useStuck } from './useStuck'
 import { FilterMenu } from './FilterMenu'

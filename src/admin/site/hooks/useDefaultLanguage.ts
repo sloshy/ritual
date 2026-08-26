@@ -1,5 +1,5 @@
 import { batch, createSignal, onMount, type Accessor } from 'solid-js'
-import { DEFAULT_CARD_LANGUAGE, type CardLanguage } from '../../../card-language'
+import { DEFAULT_CARD_LANGUAGE, type CardLanguage } from '../../../card/card-language'
 import { setDefaultLanguage as setRuntimeDefaultLanguage } from '../../../editor/default-language'
 import { fetchRitualConfig } from '../config-api'
 

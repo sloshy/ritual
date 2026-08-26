@@ -1,4 +1,4 @@
-import type { ScryfallCard } from '../../types'
+import type { ScryfallCard } from '../../scryfall/types'
 import type { AddCardToStore } from '../../editor/card-data-utils'
 import type { SearchProvider } from '../../editor/search-provider'
 

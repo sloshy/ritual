@@ -1,7 +1,7 @@
 import { type Component, createSignal, Show } from 'solid-js'
 import { Modal } from '../../../ui/Modal'
 import { useT } from '../../../ui/i18n'
-import type { CardArtRef } from '../../../card-art'
+import type { CardArtRef } from '../../../list/card-art'
 import type { CardArtPrompt } from '../card-art-prompt'
 import { putCardArt } from '../editor-backend'
 import { ArtRefField, createArtRefField, type CardArtMode } from './ArtRefField'

@@ -1,4 +1,4 @@
-import type { RitualConfig } from '../../ritual-config'
+import type { RitualConfig } from '../../config/ritual-config'
 import type { ApiErrorResponse } from '../api/save-helpers'
 import type { ConfigResponse } from '../api/config'
 

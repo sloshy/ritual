@@ -2,13 +2,13 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { getBaseDir, setBaseDir } from '../../src/base-dir'
+import { getBaseDir, setBaseDir } from '../../src/config/base-dir'
 import { cardCache } from '../../src/cache'
 import {
   getRitualConfigPath,
   refreshRitualConfig,
   resetRitualConfigCache,
-} from '../../src/ritual-config'
+} from '../../src/config/ritual-config'
 import { runBuildSite, type BuildSiteOptions } from '../../src/commands/build-site'
 import { ExitCode } from '../../src/commands/scripting'
 import { startSiteServer } from '../../src/serve/server'

@@ -29,7 +29,7 @@ import {
 import { listTypeSchema, slugField } from '../schemas'
 import type { OmitSuccess, UpdateConfigResult } from '../types'
 import { CSV_UPLOAD_THRESHOLD } from '../../collection-sync/csv'
-import { SYNC_CHANGE_FILTERS, SYNC_DIRECTIONS } from '../../sync-common'
+import { SYNC_CHANGE_FILTERS, SYNC_DIRECTIONS } from '../../sync/common'
 
 /** `rename_list` result: the slug the list moved to. */
 export type RenameListResult = OmitSuccess<ListRenameResponse>

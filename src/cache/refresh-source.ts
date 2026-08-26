@@ -1,12 +1,12 @@
 import path from 'node:path'
 import { getCacheDir } from './file-cache'
 import { cardCache } from './instances'
-import { getCacheFeedUrl, getCacheSource, type CacheSource } from '../ritual-config'
+import { getCacheFeedUrl, getCacheSource, type CacheSource } from '../config/ritual-config'
 import { preloadCache, preloadCacheFromFiles } from '../scryfall'
 import { CacheFeedClient, DEFAULT_FEED_URL } from '../cache-feed/fetch'
-import { defaultHttpClient } from '../http'
-import { getLogger } from '../logger'
-import { getErrorMessage } from '../errors'
+import { defaultHttpClient } from '../util/http'
+import { getLogger } from '../util/logger'
+import { getErrorMessage } from '../util/errors'
 
 /** Resolve the feed URL: explicit flag > `cacheFeedUrl` config > built-in default. */
 export function resolveFeedUrl(explicit?: string): string {

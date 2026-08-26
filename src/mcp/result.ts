@@ -1,5 +1,5 @@
 import { ProtocolError, ProtocolErrorCode, type CallToolResult } from '@modelcontextprotocol/server'
-import { getErrorMessage } from '../errors'
+import { getErrorMessage } from '../util/errors'
 import { isConflictError, mcpErrorDetail } from './errors'
 
 /**

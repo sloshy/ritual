@@ -13,7 +13,7 @@ import {
   createSetPrintingChange,
   createSetSectionChange,
   createUnsetCommanderChange,
-} from '../../src/change-event'
+} from '../../src/changes/change-event'
 import type { EntryRef } from '../../src/commands/card-target'
 
 /**

@@ -1,12 +1,12 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { isSameFile } from '../../src/same-file'
+import { isSameFile } from '../../src/util/same-file'
 import {
   moveListFileAndSidecars,
   renameListThroughTemp,
   type KindedSidecarMove,
-} from '../../src/list-sidecars'
+} from '../../src/list/list-sidecars'
 
 const testDir = path.join(import.meta.dir, '../.test-list-sidecars')
 

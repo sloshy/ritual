@@ -13,7 +13,7 @@ import {
   pendingSessionArt,
   type SessionArtChanges,
 } from '../../src/commands/session-art'
-import type { CardArtRef } from '../../src/card-art'
+import type { CardArtRef } from '../../src/list/card-art'
 
 const proxy: CardArtRef = { file: 'proxies/sol-ring.jpg' }
 const alter: CardArtRef = { file: 'alters/island.webp' }

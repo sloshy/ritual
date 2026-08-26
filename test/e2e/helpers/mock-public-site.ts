@@ -9,7 +9,8 @@ import type {
   WantedListDetail,
   WantedListSummary,
 } from '../../../src/site/data-types'
-import type { Finish, ScryfallCard } from '../../../src/types'
+import type { Finish } from '../../../src/card/finish-condition'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import type { BuylistQuote } from '../../../src/buylist'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
 import { DEFAULT_LOCALE } from '../../../src/i18n/runtime'

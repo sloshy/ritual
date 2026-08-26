@@ -1,4 +1,4 @@
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 
 /**
  * The one home for every agent-facing projection of a Scryfall card.

@@ -1,8 +1,8 @@
 import { Command } from 'commander'
 import prompts, { type Choice } from 'prompts'
 import { depLicenses, type DepLicenseEntry } from '../generated/dep-licenses'
-import { displayWithPager, resolvePagerMode } from '../pager'
-import { promptsUnavailable, promptsUnavailableReason } from '../no-input'
+import { displayWithPager, resolvePagerMode } from '../util/pager'
+import { promptsUnavailable, promptsUnavailableReason } from '../util/no-input'
 import { t } from '../i18n/t'
 import {
   addOutputOption,

@@ -1,7 +1,7 @@
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 import type { WantedListCardEntry } from './data-types'
 import { overlayCard } from './session-cache'
-import { lookupPrintingCard } from '../printing-key'
+import { lookupPrintingCard } from '../card/printing-key'
 import { usingCardKingdomPrintings, type SourceCardMaps } from './source-cards'
 
 /**

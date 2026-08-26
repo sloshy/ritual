@@ -1,5 +1,5 @@
-import { getErrorMessage } from '../../errors'
-import { getBaseDir } from '../../base-dir'
+import { getErrorMessage } from '../../util/errors'
+import { getBaseDir } from '../../config/base-dir'
 import {
   isChangeLine,
   isSetHeaderLine,
@@ -8,15 +8,15 @@ import {
   serializeChangeSets,
   sortNewestFirst,
   type ChangeSet,
-} from '../../changelog-blocks'
-import { isStringArray } from '../../json'
+} from '../../changes/changelog-blocks'
+import { isStringArray } from '../../util/json'
 import {
   buildDefaultChangeLines,
   changesPathFor,
   loadListSnapshot,
 } from '../../commands/history-helpers'
 import { resolveListFile } from './list-info'
-import { listSlug } from '../../list-info'
+import { listSlug } from '../../list/list-info'
 import { apiMessage, type ApiMessage } from './result'
 import { autoCommitAndPush, apiError, badRequest, readJsonObjectBody } from './save-helpers'
 import { parseListTarget } from './target'

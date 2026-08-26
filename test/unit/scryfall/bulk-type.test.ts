@@ -14,8 +14,8 @@ import {
   FEED_KINDS,
   TAG_FEED_KINDS,
 } from '../../../src/cache-feed/feed'
-import { refreshRitualConfig, resetRitualConfigCache } from '../../../src/ritual-config'
-import { setBaseDir } from '../../../src/base-dir'
+import { refreshRitualConfig, resetRitualConfigCache } from '../../../src/config/ritual-config'
+import { setBaseDir } from '../../../src/config/base-dir'
 
 const testDir = path.join(import.meta.dir, '../../.test-bulk-type')
 const configPath = path.join(testDir, 'ritual.config.json')

@@ -23,7 +23,7 @@ import {
   supportsAnyLabels,
   unsupportedLabelsFor,
   unsupportedLabelsMessage,
-} from '../../src/card-labels'
+} from '../../src/card/card-labels'
 
 describe('isCardLabel', () => {
   test('accepts exactly the pinned vocabulary and rejects everything else', () => {

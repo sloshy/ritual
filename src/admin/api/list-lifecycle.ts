@@ -1,5 +1,5 @@
-import { capitalize } from '../../utils'
-import type { ListType } from '../../list-type'
+import { capitalize } from '../../util/strings'
+import type { ListType } from '../../list/list-type'
 import {
   createList,
   deleteList,
@@ -9,7 +9,7 @@ import {
   renameList,
   requireDeleteConfirmation,
   type ListLifecycleError,
-} from '../../list-lifecycle'
+} from '../../list/list-lifecycle'
 import { apiHandler } from '../utils'
 import { resolveListFileOrRefuse, type ListFileResult, type ResolveListFile } from './list-file'
 import { apiMessage, type ApiMessage } from './result'

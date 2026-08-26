@@ -8,9 +8,9 @@
  * lives here so the site bundle never reaches for them.
  */
 
-import type { CardLanguage } from '../card-language'
-import type { Finish } from '../types'
-import { printingKey } from '../printing-key'
+import type { CardLanguage } from '../card/card-language'
+import type { Finish } from '../card/finish-condition'
+import { printingKey } from '../card/printing-key'
 import type { BuyerId } from './buyers'
 
 /** Which join key located the buyer's product for a card. */

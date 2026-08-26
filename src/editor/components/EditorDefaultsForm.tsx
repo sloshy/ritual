@@ -1,6 +1,10 @@
 import { type Component, createSignal, For, Show } from 'solid-js'
-import type { Finish, Condition } from '../../types'
-import { VALID_FINISHES, VALID_CONDITIONS } from '../../finish-condition'
+import {
+  type Finish,
+  type Condition,
+  VALID_FINISHES,
+  VALID_CONDITIONS,
+} from '../../card/finish-condition'
 import { useT, useTKey } from '../../ui/i18n'
 import type { ParameterlessKey } from '../../i18n/t'
 import {

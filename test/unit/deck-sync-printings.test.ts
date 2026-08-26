@@ -9,7 +9,8 @@ import {
   printingUpdatesToChangeEvents,
   type PrintingUpdate,
 } from '../../src/deck-sync/diff'
-import type { Card, DeckSection } from '../../src/types'
+import type { Card } from '../../src/card/card'
+import type { DeckSection } from '../../src/list/deck'
 
 /**
  * The printing-aware half of the deck-sync diff (`--sync-printings`): how a

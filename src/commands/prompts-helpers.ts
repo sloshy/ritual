@@ -1,9 +1,9 @@
 import prompts, { type Choice } from 'prompts'
 import type { AskQuestion, PromptLibraryStrings, PromptState } from './prompts-types'
-import { LIST_TYPES, type ListType } from '../list-type'
-import { inputRequiredError, isNoInput, promptsUnavailable } from '../no-input'
+import { LIST_TYPES, type ListType } from '../list/list-type'
+import { inputRequiredError, isNoInput, promptsUnavailable } from '../util/no-input'
 import { t } from '../i18n/t'
-import { getLogger } from '../logger'
+import { getLogger } from '../util/logger'
 import { canPromptWithOutput, type ScriptingOptions } from './scripting'
 import { matchesChoiceTerms, matchesChoiceTitleTerms } from './menu-search'
 

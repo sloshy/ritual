@@ -11,10 +11,11 @@
  * unit-tested and re-run as the user changes options.
  */
 
-import type { ScryfallCard, Finish, Condition } from '../../types'
-import type { CardLanguage } from '../../card-language'
-import type { CardPrintingsLookup } from '../../card-printing'
-import type { PrintingRef } from '../../printing-key'
+import type { ScryfallCard } from '../../scryfall/types'
+import type { Finish, Condition } from '../../card/finish-condition'
+import type { CardLanguage } from '../../card/card-language'
+import type { CardPrintingsLookup } from '../../card/card-printing'
+import type { PrintingRef } from '../../card/printing-key'
 import type { NamedListRef } from '../../site/combined-list'
 
 /** How the wizard chooses replacements: by hand per card, or by price. */

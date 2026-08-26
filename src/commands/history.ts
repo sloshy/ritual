@@ -9,8 +9,8 @@ import {
   resolveList,
   type ListLocation,
   type ListTypeFlags,
-} from '../resolve-list'
-import { listTypeSingularTitle, type ListType } from '../list-type'
+} from '../list/resolve-list'
+import { listTypeSingularTitle, type ListType } from '../list/list-type'
 import {
   cloneSets,
   combineSetsInto,
@@ -21,7 +21,7 @@ import {
   serializeChangeSets,
   sortNewestFirst,
   type ChangeSet,
-} from '../changelog-blocks'
+} from '../changes/changelog-blocks'
 import { buildDefaultChangeLines, changesPathFor, loadListSnapshot } from './history-helpers'
 import {
   addOutputOption,
@@ -33,9 +33,9 @@ import {
   type ScriptingOptions,
 } from './scripting'
 import { promptExitMenu } from './prompts-helpers'
-import { inputRequiredError, promptsUnavailable, requireInteractive } from '../no-input'
+import { inputRequiredError, promptsUnavailable, requireInteractive } from '../util/no-input'
 import { runCommandAction } from './card-target'
-import { parsePositiveInteger } from '../parse-number'
+import { parsePositiveInteger } from '../util/parse-number'
 import { t } from '../i18n/t'
 
 export type HistoryOptions = ListTypeFlags &

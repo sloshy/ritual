@@ -1,7 +1,7 @@
-import { defaultHttpClient } from '../http'
-import type { HttpClient } from '../interfaces'
-import type { DeckData } from '../types'
-import { throwHttpError } from '../errors'
+import { defaultHttpClient } from '../util/http'
+import type { HttpClient } from '../util/interfaces'
+import type { DeckData } from '../list/deck'
+import { throwHttpError } from '../util/errors'
 import {
   type ArchidektDeckResponse,
   type ArchidektDeckSimple,
@@ -30,8 +30,8 @@ import {
 } from '../importers/archidekt-collection'
 import { parseCsv } from '../importers/csv'
 
-import { describeRateLimitWait, type RateLimitWait } from '../sync-common'
-import { getLogger } from '../logger'
+import { describeRateLimitWait, type RateLimitWait } from '../sync/common'
+import { getLogger } from '../util/logger'
 
 export { type ArchidektDeckSimple, getArchidektFormat } from '../importers/archidekt-types'
 

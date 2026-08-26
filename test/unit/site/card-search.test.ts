@@ -8,7 +8,7 @@ import {
 } from '../../../src/site/session-cache'
 import { resetApiBase, setApiBase } from '../../../src/site/api-base'
 import { makeScryfallCard } from '../../test-utils'
-import type { ScryfallCard } from '../../../src/types'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 
 /**
  * The public site's browser card-search client, shared by the trade page's

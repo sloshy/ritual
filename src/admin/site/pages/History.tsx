@@ -1,5 +1,5 @@
 import { type JSX, Show, For, createSignal, createMemo, onCleanup } from 'solid-js'
-import { isValidIso8601 } from '../../../changelog-blocks'
+import { isValidIso8601 } from '../../../changes/changelog-blocks'
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
 import { groupListsByType, listInfoId, type ListId } from '../list-grouping'
 import { useHistorySession } from '../hooks/useHistorySession'

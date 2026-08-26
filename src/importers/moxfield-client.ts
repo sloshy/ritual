@@ -1,6 +1,6 @@
-import { type HttpClient } from '../interfaces'
-import { defaultHttpClient } from '../http'
-import { throwHttpError } from '../errors'
+import { type HttpClient } from '../util/interfaces'
+import { defaultHttpClient } from '../util/http'
+import { throwHttpError } from '../util/errors'
 
 const MOXFIELD_BASE_URL = 'https://api2.moxfield.com'
 

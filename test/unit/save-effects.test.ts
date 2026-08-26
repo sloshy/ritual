@@ -4,7 +4,8 @@ import {
   computeEntrySaveEffects,
   type EffectEntry,
 } from '../../src/editor/save-effects'
-import type { Card, DeckData } from '../../src/types'
+import type { Card } from '../../src/card/card'
+import type { DeckData } from '../../src/list/deck'
 
 type SectionSpec = [name: string, cards: Card[]]
 

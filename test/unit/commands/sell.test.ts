@@ -14,7 +14,7 @@ import type {
   SellListSummary,
   SellReportEntry,
   SellReportTotals,
-} from '../../../src/sell-report'
+} from '../../../src/pricing/sell-report'
 
 function entry(overrides: Partial<Omit<BuyingSellEntry, 'status'>> = {}): BuyingSellEntry {
   return {

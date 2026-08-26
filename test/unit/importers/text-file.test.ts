@@ -2,7 +2,7 @@ import { describe, expect, test, afterAll } from 'bun:test'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { unlink, writeFile } from 'node:fs/promises'
-import { serializeCardLine } from '../../../src/deck-text'
+import { serializeCardLine } from '../../../src/list/deck-text'
 import {
   DECK_CARD_LINE_RE,
   DECK_LINE_ID_GROUP,
@@ -14,7 +14,7 @@ import {
   matchArenaSuffix,
   parseDeckText,
 } from '../../../src/importers/text-file'
-import { unreadableLines } from '../../../src/markdown-fence'
+import { unreadableLines } from '../../../src/list/markdown-fence'
 
 const tempFiles: string[] = []
 

@@ -14,12 +14,12 @@ import {
   getDeckFormatLabel,
   parseDeckFormat,
   type DeckFormatKey,
-} from '../../../deck-format'
-import { listFileName } from '../../../list-file-name'
-import { type ListType, LIST_TYPE_DISPLAY } from '../../../list-type'
+} from '../../../list/deck-format'
+import { listFileName } from '../../../list/list-file-name'
+import { type ListType, LIST_TYPE_DISPLAY } from '../../../list/list-type'
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
 import { apiMessage } from '../../api/result'
-import type { RitualConfig, SiteConfig } from '../../../ritual-config'
+import type { RitualConfig, SiteConfig } from '../../../config/ritual-config'
 import { type SiteSelectionConfig, defaultSiteSelection } from '../../../site/list-selection'
 import { fetchRitualConfig } from '../config-api'
 import { StatusAlerts } from '../components/StatusAlerts'

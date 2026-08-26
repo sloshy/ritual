@@ -6,8 +6,8 @@ import {
   lookupPrintingCard,
   printingKey,
   printingLanguageKey,
-} from '../../src/printing-key'
-import { findPrinting } from '../../src/card-printing'
+} from '../../src/card/printing-key'
+import { findPrinting } from '../../src/card/card-printing'
 import { makeScryfallCard } from '../test-utils'
 
 describe('printingKey', () => {

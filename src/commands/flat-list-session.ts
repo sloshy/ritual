@@ -8,12 +8,13 @@ import {
   type AddRemoveOptions,
   type ChangeEvent,
   type MoveToChange,
-} from '../change-event'
+} from '../changes/change-event'
 import type { CollectionCardEntry, WantedListCardEntry } from '../site/data-types'
-import { DEFAULT_SECTION, type ScryfallCard } from '../types'
-import { parseTitleFromContent } from '../section-format'
-import { unreadableLines } from '../markdown-fence'
-import { writeFileWithHash } from '../content-hash'
+import { DEFAULT_SECTION } from '../list/deck'
+import type { ScryfallCard } from '../scryfall/types'
+import { parseTitleFromContent } from '../list/section-format'
+import { unreadableLines } from '../list/markdown-fence'
+import { writeFileWithHash } from '../changes/content-hash'
 import {
   allocateId,
   collectExistingIds,
@@ -21,7 +22,7 @@ import {
   releaseId,
   repackSessionIds,
   type CardIdPool,
-} from '../card-id'
+} from '../card/card-id'
 import { applyChangeToCollection } from '../editor/collection-changes'
 import { applyChangeToWantedList } from '../editor/wanted-changes'
 import { collectionToMarkdown, wantedToMarkdown } from '../editor/list-export'
@@ -30,14 +31,14 @@ import {
   findCheapestPrinting,
   formatCheapestPrintingDisplay,
   formatSpecificPrintingPrice,
-} from '../price-currency'
-import { getDefaultCurrency } from '../ritual-config'
+} from '../pricing/price-currency'
+import { getDefaultCurrency } from '../config/ritual-config'
 import { t } from '../i18n/t'
-import { trackAdd, trackAnotherCopy, trackEdit } from '../session-changelog'
-import { parseCollectionFile, type CollectionEntry } from '../collection-file'
+import { trackAdd, trackAnotherCopy, trackEdit } from '../changes/session-changelog'
+import { parseCollectionFile, type CollectionEntry } from '../list/collection-file'
 import { parseWantedListFile, type WantedListEntry } from './wanted-helpers'
-import type { FlatListFrontMatter } from '../flat-list-front-matter'
-import type { CardArtRef } from '../card-art'
+import type { FlatListFrontMatter } from '../list/flat-list-front-matter'
+import type { CardArtRef } from '../list/card-art'
 import {
   commitSessionArt,
   createSessionArtChanges,

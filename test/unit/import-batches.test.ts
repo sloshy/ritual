@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { ChangeEvent } from '../../src/change-event'
+import type { ChangeEvent } from '../../src/changes/change-event'
 import type { ChangeBundle, ChangeBundleMove } from '../../src/editor/change-bundle'
 import { planImportBatches } from '../../src/admin/api/import-batches'
 

@@ -1,5 +1,5 @@
-import type { ListRef } from '../../change-event'
-import { sameListName } from '../../list-file-name'
+import type { ListRef } from '../../changes/change-event'
+import { sameListName } from '../../list/list-file-name'
 import type { NamedListRef } from '../combined-list'
 
 /**

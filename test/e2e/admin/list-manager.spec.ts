@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test'
-import { DECK_FORMAT_KEYS } from '../../../src/deck-format'
+import { DECK_FORMAT_KEYS } from '../../../src/list/deck-format'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { fulfillJsonRoute } from '../helpers/fulfill'
 

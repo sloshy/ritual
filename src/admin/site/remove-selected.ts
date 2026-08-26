@@ -1,5 +1,5 @@
 import type { SelectedCard } from '../../site/useCardSelection'
-import type { PrintingTuple } from '../../change-event'
+import type { PrintingTuple } from '../../changes/change-event'
 import type { NamedListRef } from '../../site/combined-list'
 import { promptForPrinting } from '../../site/printing-prompt'
 import { t } from '../../i18n/t'

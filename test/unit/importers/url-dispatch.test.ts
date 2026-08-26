@@ -7,7 +7,7 @@ import {
   stripDeckPrintings,
   withMoxfieldUserAgent,
 } from '../../../src/importers/url-dispatch'
-import type { DeckData } from '../../../src/types'
+import type { DeckData } from '../../../src/list/deck'
 
 describe('deckStatesPrintings / stripDeckPrintings', () => {
   const deck: DeckData = {

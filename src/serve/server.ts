@@ -1,4 +1,4 @@
-import { matchRoute } from '../routing'
+import { matchRoute } from '../util/routing'
 import { serveSpaFallback, serveStaticFile, type StaticSiteServer } from '../commands/serve-helpers'
 import { createLiveSiteData } from './live-data'
 import { buildSiteRoutes } from './routes'

@@ -1,7 +1,7 @@
 import { type JSX, createSignal, onMount, Show } from 'solid-js'
 import type { ArchidektLoginStatus } from '../../../auth/interfaces'
 import { ArchidektLoginForm, ArchidektSessionAlert } from '../components/ArchidektSession'
-import { formatDuration } from '../../../utils'
+import { formatDuration } from '../../../util/duration'
 import { formatDateTime } from '../../../ui/format'
 import { useT } from '../../../ui/i18n'
 import type { TranslateFn } from '../../../i18n/t'

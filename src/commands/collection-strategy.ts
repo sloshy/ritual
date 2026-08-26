@@ -57,7 +57,8 @@ import {
 } from './flat-list-edit'
 import type { MoveTargetsProvider } from './edit-move'
 import type { CollectionCardEntry } from '../site/data-types'
-import type { Condition, Finish, ScryfallCard } from '../types'
+import type { Condition, Finish } from '../card/finish-condition'
+import type { ScryfallCard } from '../scryfall/types'
 import {
   consolidateSetFinish,
   consolidateSetLabel,
@@ -69,16 +70,16 @@ import {
   createSetPrintingChange,
   type ChangeEvent,
   type PrintingTuple,
-} from '../change-event'
-import { displayLanguage, type CardLanguage } from '../card-language'
+} from '../changes/change-event'
+import { displayLanguage, type CardLanguage } from '../card/card-language'
 import {
   formatCardLabels,
   parseCardLabelsValue,
   sameCardLabels,
   type CardLabel,
-} from '../card-labels'
-import { dumpFrontMatterBlock, readFrontMatterMapping } from '../front-matter-write'
-import { applyLabelsPatch } from '../flat-list-metadata'
+} from '../card/card-labels'
+import { dumpFrontMatterBlock, readFrontMatterMapping } from '../list/front-matter-write'
+import { applyLabelsPatch } from '../list/flat-list-metadata'
 
 type ValuePromptResponse = { value?: string }
 

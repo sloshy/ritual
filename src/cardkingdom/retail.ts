@@ -15,8 +15,8 @@
  * the CK view price whole lists instead of half of them.
  */
 
-import { displayFinish } from '../finish-condition'
-import { displayLanguage, type CardLanguage } from '../card-language'
+import { displayFinish, type Finish } from '../card/finish-condition'
+import { displayLanguage, type CardLanguage } from '../card/card-language'
 import {
   NO_BANNED_PRINTINGS,
   selectCheapestPrinting,
@@ -24,8 +24,8 @@ import {
   selectRepresentativePrinting,
   type CheapestPrintingResult,
   type PrintingPriceFn,
-} from '../printing-select'
-import type { Finish, ScryfallCard } from '../types'
+} from '../card/printing-select'
+import type { ScryfallCard } from '../scryfall/types'
 import type { PrintingQuoteFn } from './quote'
 
 /**

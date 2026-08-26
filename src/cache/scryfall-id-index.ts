@@ -1,5 +1,5 @@
-import type { ScryfallCard } from '../types'
-import type { CacheManager } from '../interfaces'
+import type { ScryfallCard } from '../scryfall/types'
+import type { CacheManager } from '../util/interfaces'
 import { cardCache } from './instances'
 
 /**

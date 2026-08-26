@@ -5,8 +5,8 @@ import {
   shouldAutoPush,
   suppressAutoCommit,
 } from '../../src/admin/git'
-import { getDefaultRitualConfig } from '../../src/ritual-config'
-import type { RitualConfig } from '../../src/ritual-config'
+import { getDefaultRitualConfig } from '../../src/config/ritual-config'
+import type { RitualConfig } from '../../src/config/ritual-config'
 import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'

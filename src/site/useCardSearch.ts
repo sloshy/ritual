@@ -1,6 +1,6 @@
 import { createSignal, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 import { autocompleteCardNames, fetchCardPrintings } from './card-search'
 import { isAbortError } from './utils'
 

@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
 import { fetchMoxfieldDeck } from '../../../src/importers/moxfield-lib'
 import { MoxfieldClient } from '../../../src/importers/moxfield-client'
-import { type HttpClient } from '../../../src/interfaces'
+import { type HttpClient } from '../../../src/util/interfaces'
 import { MemoryLogger, resetLogger, setLogger } from '../../test-utils'
 
 const deckResponse = {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { compareVersions, isValidSemver } from '../../src/semver'
+import { compareVersions, isValidSemver } from '../../src/config/semver'
 
 describe('compareVersions', () => {
   describe('major/minor/patch ordering', () => {

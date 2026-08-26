@@ -1,11 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { getErrorMessage } from '../errors'
-import { parseTitleFromContent } from '../section-format'
+import { getErrorMessage } from '../util/errors'
+import { parseTitleFromContent } from '../list/section-format'
 import { listDeckFiles, readDeckName } from '../importers/text-file'
-import { normalizeListName } from '../resolve-list'
+import { normalizeListName } from '../list/resolve-list'
 import { filterBySelection, includesAllLists } from './list-selection'
-import { isListMarkdownFile } from '../list-file-name'
+import { isListMarkdownFile } from '../list/list-file-name'
 
 /** A list file discovered on disk, with both names a selection can match on. */
 export type ListSourceEntry = {

@@ -1,8 +1,8 @@
 import { type Component, createEffect, createSignal, For, Show, on } from 'solid-js'
 import { Modal } from '../../../ui/Modal'
-import type { CardLabel, CardLabelChoice } from '../../../card-labels'
-import { cardLabelDefaultChoicesFor, sameCardLabels } from '../../../card-labels'
-import type { ListType } from '../../../list-type'
+import type { CardLabel, CardLabelChoice } from '../../../card/card-labels'
+import { cardLabelDefaultChoicesFor, sameCardLabels } from '../../../card/card-labels'
+import type { ListType } from '../../../list/list-type'
 import { useT, useTKey } from '../../../ui/i18n'
 import { putListMetadata } from '../editor-backend'
 

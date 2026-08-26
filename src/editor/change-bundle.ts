@@ -1,4 +1,4 @@
-import type { Condition, Finish } from '../types'
+import { type Condition, type Finish, isCondition, isFinish } from '../card/finish-condition'
 import type {
   AddChange,
   ChangeAction,
@@ -7,18 +7,17 @@ import type {
   MoveFromChange,
   MoveReplacement,
   MoveToChange,
-} from '../change-event'
-import { CHANGE_ACTIONS } from '../change-event'
+} from '../changes/change-event'
+import { CHANGE_ACTIONS } from '../changes/change-event'
 import {
   checkLabelsForListType,
   parseCardLabelsValue,
   unsupportedLabelsMessage,
-} from '../card-labels'
-import { isCardLanguage, type CardLanguage } from '../card-language'
-import { isCondition, isFinish } from '../finish-condition'
-import { sameListName } from '../list-file-name'
-import type { ListType } from '../list-type'
-import { LIST_TYPES } from '../list-type'
+} from '../card/card-labels'
+import { isCardLanguage, type CardLanguage } from '../card/card-language'
+import { sameListName } from '../list/list-file-name'
+import type { ListType } from '../list/list-type'
+import { LIST_TYPES } from '../list/list-type'
 
 /** The `format` marker every change bundle carries — what tells it from unrelated JSON. */
 export const CHANGE_BUNDLE_FORMAT = 'ritual-change-bundle'

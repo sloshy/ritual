@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { COLLECTION_CARD_LINE_RE, parseCollectionFile } from '../../src/collection-file'
-import { CARD_LABELS } from '../../src/card-labels'
+import { COLLECTION_CARD_LINE_RE, parseCollectionFile } from '../../src/list/collection-file'
+import { CARD_LABELS } from '../../src/card/card-labels'
 
 describe('parseCollectionFile', () => {
   test('parses card with set and collector number', () => {

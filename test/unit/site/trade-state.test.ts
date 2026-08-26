@@ -9,7 +9,7 @@ import {
   setRightCards,
 } from '../../../src/site/useTradeState'
 import type { TradeSearchEntry } from '../../../src/site/useTradeData'
-import { normalizeCardName } from '../../../src/term-match'
+import { normalizeCardName } from '../../../src/card/term-match'
 import { makeScryfallCard } from '../../test-utils'
 
 function makeEntry(overrides: Partial<TradeSearchEntry> = {}): TradeSearchEntry {

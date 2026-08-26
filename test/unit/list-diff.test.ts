@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { ExportEntry } from '../../src/export/entries'
-import { diffLists, isDiffBy, isListDiffEmpty } from '../../src/list-diff'
-import type { Finish } from '../../src/types'
+import { diffLists, isDiffBy, isListDiffEmpty } from '../../src/changes/list-diff'
+import type { Finish } from '../../src/card/finish-condition'
 
 /** Build an ExportEntry with the diff-relevant fields; list identity is noise here. */
 type EntrySpec = {

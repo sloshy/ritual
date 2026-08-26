@@ -3,8 +3,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { refreshCardCache, resolveFeedUrl } from '../../src/cache/refresh-source'
 import { DEFAULT_FEED_URL } from '../../src/cache-feed/fetch'
-import { refreshRitualConfig, resetRitualConfigCache } from '../../src/ritual-config'
-import { setBaseDir } from '../../src/base-dir'
+import { refreshRitualConfig, resetRitualConfigCache } from '../../src/config/ritual-config'
+import { setBaseDir } from '../../src/config/base-dir'
 import { MemoryLogger, resetLogger, setLogger } from '../test-utils'
 
 const testDir = path.join(import.meta.dir, '../.test-cache-refresh-source')

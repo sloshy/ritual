@@ -3,14 +3,14 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { prereadUiLocale } from '../../../src/i18n/config-preread'
-import { setBaseDir } from '../../../src/base-dir'
+import { setBaseDir } from '../../../src/config/base-dir'
 import {
   isConfigParseError,
   loadRitualConfig,
   parseUiLocale,
   resetRitualConfigCache,
   RitualConfigParseError,
-} from '../../../src/ritual-config'
+} from '../../../src/config/ritual-config'
 import { DEFAULT_LOCALE } from '../../../src/i18n/runtime'
 
 // Scratch space lives in the OS temp dir, never inside the repo: a directory

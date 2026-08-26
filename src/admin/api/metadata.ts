@@ -1,24 +1,28 @@
-import { getErrorMessage } from '../../errors'
-import { getBaseDir } from '../../base-dir'
-import { applyDeckMetadata, DECK_METADATA_KEYS, type DeckMetadataPatch } from '../../deck-metadata'
+import { getErrorMessage } from '../../util/errors'
+import { getBaseDir } from '../../config/base-dir'
+import {
+  applyDeckMetadata,
+  DECK_METADATA_KEYS,
+  type DeckMetadataPatch,
+} from '../../list/deck-metadata'
 import {
   applyFlatListMetadata,
   FLAT_LIST_METADATA_KEYS,
   type FlatListMetadataPatch,
   type FlatListType,
-} from '../../flat-list-metadata'
-import { isListImageRefError, parseListImage, type ListImageRef } from '../../list-image'
-import { isListDescriptionError, parseListDescription } from '../../list-description'
-import { checkListImageCardId } from '../../list-image-file'
+} from '../../list/flat-list-metadata'
+import { isListImageRefError, parseListImage, type ListImageRef } from '../../list/list-image'
+import { isListDescriptionError, parseListDescription } from '../../list/list-description'
+import { checkListImageCardId } from '../../list/list-image-file'
 import {
   LIST_TYPE_LABELS,
   parseCardLabelsValue,
   unsupportedLabelsFor,
   type CardLabel,
-} from '../../card-labels'
-import type { ListType } from '../../list-type'
+} from '../../card/card-labels'
+import type { ListType } from '../../list/list-type'
 import { checkArchidektLink } from '../../deck-sync/link'
-import { invalidDeckFormatMessage, parseDeckFormat } from '../../deck-format'
+import { invalidDeckFormatMessage, parseDeckFormat } from '../../list/deck-format'
 import { parseListTarget } from './target'
 import { resolveListFile } from './list-info'
 import {

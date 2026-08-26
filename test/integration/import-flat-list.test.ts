@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { saveFlatList } from '../../src/commands/import'
 import { importFromTextFile } from '../../src/importers/text-file'
-import { ExitCode } from '../../src/errors'
+import { ExitCode } from '../../src/util/errors'
 import { MemoryLogger, resetLogger, setLogger } from '../test-utils'
 import { bindWorkspace, writeWantedFile, type BoundWorkspace } from './helpers/workspace'
 

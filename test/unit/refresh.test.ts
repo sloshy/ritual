@@ -7,8 +7,8 @@ import {
   parseRefreshFlag,
   refreshStaleAllowed,
   shouldBulkRefresh,
-} from '../../src/refresh'
-import { setNoInputOverride } from '../../src/no-input'
+} from '../../src/cache/refresh'
+import { setNoInputOverride } from '../../src/util/no-input'
 
 describe('parseRefreshFlag', () => {
   test('accepts the four modes', () => {

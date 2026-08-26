@@ -14,10 +14,10 @@ import {
   UNRANKED_EDHREC,
   type PriceListInput,
   type PricedEntry,
-} from '../../src/price-report'
-import type { CardArtMap } from '../../src/card-art'
-import type { CardPrintingsLookup } from '../../src/card-printing'
-import type { ScryfallCard } from '../../src/types'
+} from '../../src/pricing/price-report'
+import type { CardArtMap } from '../../src/list/card-art'
+import type { CardPrintingsLookup } from '../../src/card/card-printing'
+import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeScryfallCard } from '../test-utils'
 
 type PriceOverrides = Partial<ScryfallCard['prices']>

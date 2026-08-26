@@ -7,7 +7,7 @@
  * list of that type at once; toggling a single list flips just that one.
  */
 
-import type { ListType } from '../list-type'
+import type { ListType } from '../list/list-type'
 import {
   listRefKey,
   type CombinedListRef,

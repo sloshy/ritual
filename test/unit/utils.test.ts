@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { formatDuration, formatElapsed, getAtPath } from '../../src/utils'
+import { formatDuration, formatElapsed } from '../../src/util/duration'
+import { getAtPath } from '../../src/util/object'
 
 describe('formatDuration', () => {
   test('formats sub-minute, minutes, hours, and day durations', () => {

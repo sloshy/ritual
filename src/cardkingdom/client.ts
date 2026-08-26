@@ -1,5 +1,5 @@
-import { getErrorMessage } from '../errors'
-import type { HttpClient } from '../interfaces'
+import { getErrorMessage } from '../util/errors'
+import type { HttpClient } from '../util/interfaces'
 import { parseCardKingdomFeed, type ParsedCardKingdomFeed } from './feed'
 
 /** Card Kingdom's public MTG-singles pricelist (retail + buylist), ~70 MB JSON. */

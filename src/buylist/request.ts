@@ -10,9 +10,9 @@
  * never find. One function, no restatements.
  */
 
-import { displayFinish } from '../finish-condition'
-import { displayLanguage, scryfallCardLanguage, type CardLanguage } from '../card-language'
-import type { Finish, ScryfallCard } from '../types'
+import { displayFinish, type Finish } from '../card/finish-condition'
+import { displayLanguage, scryfallCardLanguage, type CardLanguage } from '../card/card-language'
+import type { ScryfallCard } from '../scryfall/types'
 import type { BuylistQuoteRequest } from './types'
 
 /**

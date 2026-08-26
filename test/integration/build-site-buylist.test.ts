@@ -2,13 +2,13 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { getBaseDir, setBaseDir } from '../../src/base-dir'
+import { getBaseDir, setBaseDir } from '../../src/config/base-dir'
 import { cardCache } from '../../src/cache'
 import {
   clearSiteSellModeOverride,
   refreshRitualConfig,
   resetRitualConfigCache,
-} from '../../src/ritual-config'
+} from '../../src/config/ritual-config'
 import { invalidateCardKingdomIndex, saveCardKingdomCache } from '../../src/cardkingdom'
 import { runBuildSite } from '../../src/commands/build-site'
 import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'

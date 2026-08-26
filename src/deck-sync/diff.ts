@@ -4,17 +4,18 @@ import {
   createSetPrintingChange,
   type AddRemoveOptions,
   type CardChange,
-} from '../change-event'
-import { hasSpecificPrinting } from '../card-printing'
-import type { SyncChangeFilter } from '../sync-common'
-import { BOARDS, type Board, type Card, type DeckData, type DeckSection } from '../types'
+} from '../changes/change-event'
+import { hasSpecificPrinting } from '../card/card-printing'
+import type { SyncChangeFilter } from '../sync/common'
+import { BOARDS, type Board, type DeckData, type DeckSection } from '../list/deck'
+import type { Card } from '../card/card'
 import {
   isCommanderSection,
   isSideboardSection,
   isExtraSection,
   resolveDeckFormat,
   type DeckFormatKey,
-} from '../deck-format'
+} from '../list/deck-format'
 import {
   distributeQuantity,
   holdingsAt,
@@ -26,8 +27,6 @@ import {
   type DeckPrintingRef,
   type PrintingHolder,
 } from './reconcile'
-
-export type { Board }
 
 /**
  * One card the diff reports, at one printing when the diff is printing-aware.

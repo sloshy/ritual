@@ -2,13 +2,13 @@ import { Command } from 'commander'
 import { compareData, compareDataNumeric } from '../i18n/collate'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { getBaseDir } from '../base-dir'
-import { printingSuffix } from '../card-line'
-import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
+import { getBaseDir } from '../config/base-dir'
+import { printingSuffix } from '../card/card-line'
+import { getCollectionsDir, getDecksDir, getWantedDir } from '../config/ritual-config'
 import { listDeckFiles, loadDeckFile } from '../importers/text-file'
-import { parseCollectionFile } from '../collection-file'
+import { parseCollectionFile } from '../list/collection-file'
 import { parseWantedListFile } from './wanted-helpers'
-import { getErrorMessage, hasErrorCode, localizedCommandError } from '../errors'
+import { getErrorMessage, hasErrorCode, localizedCommandError } from '../util/errors'
 import { t } from '../i18n/t'
 import { runCommandAction } from './card-target'
 import {
@@ -20,8 +20,8 @@ import {
   type OutputFormat,
   type ScriptingOptions,
 } from './scripting'
-import type { DeckData } from '../types'
-import { isListMarkdownFile } from '../list-file-name'
+import type { DeckData } from '../list/deck'
+import { isListMarkdownFile } from '../list/list-file-name'
 
 export type UniqueCardEntry = {
   name: string

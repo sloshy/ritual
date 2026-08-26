@@ -4,7 +4,7 @@ import {
   listFileName,
   sanitizeListFileName,
   sameListName,
-} from '../../src/list-file-name'
+} from '../../src/list/list-file-name'
 
 describe('sanitizeListFileName', () => {
   test('keeps the name as entered', () => {

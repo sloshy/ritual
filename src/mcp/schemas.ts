@@ -1,16 +1,16 @@
 import { z } from 'zod'
-import { DECK_FORMAT_KEYS } from '../deck-format'
+import { DECK_FORMAT_KEYS } from '../list/deck-format'
 import {
   CARD_LABELS,
   checkLabelsForListType,
   isCardLabel,
   unsupportedLabelsMessage,
-} from '../card-labels'
-import { CARD_LANGUAGES } from '../card-language'
-import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
-import { isListType } from '../list-type'
-import { VALID_CURRENCIES } from '../price-currency'
-import type { ListImageRef } from '../list-image'
+} from '../card/card-labels'
+import { CARD_LANGUAGES } from '../card/card-language'
+import { VALID_CONDITIONS, VALID_FINISHES } from '../card/finish-condition'
+import { isListType } from '../list/list-type'
+import { VALID_CURRENCIES } from '../pricing/price-currency'
+import type { ListImageRef } from '../list/list-image'
 
 /**
  * Shared zod field schemas composed into each tool's `inputSchema` object.

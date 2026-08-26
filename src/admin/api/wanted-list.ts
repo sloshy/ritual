@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { getWantedDir } from '../../ritual-config'
-import { parseTitleFromContent } from '../../section-format'
-import { isListMarkdownFile } from '../../list-file-name'
+import { getWantedDir } from '../../config/ritual-config'
+import { parseTitleFromContent } from '../../list/section-format'
+import { isListMarkdownFile } from '../../list/list-file-name'
 
 type WantedListItem = { slug: string; name: string }
 

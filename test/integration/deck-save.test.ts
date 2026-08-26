@@ -1,11 +1,12 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import type { Card, DeckData } from '../../src/types'
-import { createSetLanguageChange, type ChangeEvent } from '../../src/change-event'
+import type { Card } from '../../src/card/card'
+import type { DeckData } from '../../src/list/deck'
+import { createSetLanguageChange, type ChangeEvent } from '../../src/changes/change-event'
 import { handleDeckSave } from '../../src/admin/api/deck-save'
 import type { ListSaveResponse } from '../../src/admin/api/move-save'
-import { computeHash } from '../../src/content-hash'
+import { computeHash } from '../../src/changes/content-hash'
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
 
 /**

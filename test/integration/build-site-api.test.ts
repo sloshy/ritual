@@ -17,8 +17,8 @@ import {
   STALE_BUILD_DIR_MAX_AGE_MS,
   type BuildSiteResponse,
 } from '../../src/admin/api/build-site'
-import type { RouteProgress } from '../../src/progress'
-import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../src/ritual-config'
+import type { RouteProgress } from '../../src/util/progress'
+import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../src/config/ritual-config'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
 let ws: BoundWorkspace

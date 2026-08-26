@@ -17,7 +17,7 @@ import {
   serializeCardArtSidecar,
   type CardArtMap,
   type CardArtRef,
-} from '../../src/card-art'
+} from '../../src/list/card-art'
 
 const testDir = path.join(import.meta.dir, '../.test-card-art')
 

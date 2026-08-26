@@ -4,9 +4,9 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { registerImportAccountCommand } from '../../src/commands/import-account'
 import type { ArchidektClient, ArchidektDeckSimple } from '../../src/clients/ArchidektClient'
-import type { DeckData } from '../../src/types'
+import type { DeckData } from '../../src/list/deck'
 import { ExitCode } from '../../src/commands/scripting'
-import { setNoInputOverride } from '../../src/no-input'
+import { setNoInputOverride } from '../../src/util/no-input'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
 /**

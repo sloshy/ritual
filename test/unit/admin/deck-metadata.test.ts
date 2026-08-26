@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { parseDeckMetadataBody, type ParsedDeckMetadataBody } from '../../../src/admin/api/metadata'
-import type { DeckMetadataPatch } from '../../../src/deck-metadata'
-import { invalidDeckFormatMessage } from '../../../src/deck-format'
+import type { DeckMetadataPatch } from '../../../src/list/deck-metadata'
+import { invalidDeckFormatMessage } from '../../../src/list/deck-format'
 
 /**
  * `PUT /api/metadata/:type/:slug`'s body validator. It returns a message rather

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { registerDeckSyncCommand } from '../../src/commands/deck-sync'
-import { MemoryLogger, resetLogger, setLogger } from '../../src/logger'
+import { MemoryLogger, resetLogger, setLogger } from '../../src/util/logger'
 import {
   SEARCH_URL,
   signIn,
@@ -14,9 +14,10 @@ import {
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
 import { captureStream } from './helpers/capture'
 import { runInProcess } from './helpers/cli'
-import type { Card, DeckSection } from '../../src/types'
+import type { Card } from '../../src/card/card'
+import type { DeckSection } from '../../src/list/deck'
 import type { ArchidektCardModifier } from '../../src/importers/archidekt-types'
-import { loadCardArt, saveCardArt, type CardArtRef } from '../../src/card-art'
+import { loadCardArt, saveCardArt, type CardArtRef } from '../../src/list/card-art'
 
 /**
  * End-to-end coverage for the `deck-sync` behaviors only the command and engine

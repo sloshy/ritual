@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { appendAuditLog, createAuditEntry, readAuditLog } from '../../../src/admin/audit-log'
-import { setBaseDir } from '../../../src/base-dir'
+import { setBaseDir } from '../../../src/config/base-dir'
 
 const testDir = path.join(import.meta.dir, '../../.test-admin-audit-log')
 

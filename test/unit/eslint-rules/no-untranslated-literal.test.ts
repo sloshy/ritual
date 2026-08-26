@@ -23,8 +23,11 @@ ruleTester.run('no-untranslated-literal', rule as never, {
     // English-by-contract carve-outs (plan §4.9, §11).
     { code: `const tool = { description: 'Add a card to a list.' }`, filename: 'src/mcp/tools.ts' },
     { code: `const skill = { description: 'Drive the ritual CLI.' }`, filename: 'src/skills/x.ts' },
-    { code: `const c = { message: 'Added Sol Ring.' }`, filename: 'src/change-event.ts' },
-    { code: `const c = { message: 'Added Sol Ring.' }`, filename: 'src/changelog-writer.ts' },
+    { code: `const c = { message: 'Added Sol Ring.' }`, filename: 'src/changes/change-event.ts' },
+    {
+      code: `const c = { message: 'Added Sol Ring.' }`,
+      filename: 'src/changes/changelog-writer.ts',
+    },
     { code: `const c = { description: 'Quantity' }`, filename: 'src/export/properties.ts' },
     // Catalog-sourced text is the whole point.
     { code: `const o = { message: t('cli.addCard.added', { count: 1 }) }`, filename: COMMAND_FILE },

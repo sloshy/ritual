@@ -2,12 +2,12 @@
 // server owns", not "handlers both servers mount". This one is mounted on both
 // the admin server and the public/hosted site server.
 import { getCardPrintingsResult } from '../scryfall'
-import { printingsAreComplete } from '../card-printing'
-import { getErrorMessage } from '../errors'
-import { invalidLimitMessage, parsePositiveInteger } from '../parse-number'
-import { printingKey } from '../printing-key'
-import { scryfallCardLanguage, sortLanguages } from '../card-language'
-import type { ScryfallCard } from '../types'
+import { printingsAreComplete } from '../card/card-printing'
+import { getErrorMessage } from '../util/errors'
+import { invalidLimitMessage, parsePositiveInteger } from '../util/parse-number'
+import { printingKey } from '../card/printing-key'
+import { scryfallCardLanguage, sortLanguages } from '../card/card-language'
+import type { ScryfallCard } from '../scryfall/types'
 
 /**
  * The card resolved; `printings` holds at least the newest printing.

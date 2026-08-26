@@ -1,4 +1,4 @@
-import type { ListType } from '../list-type'
+import type { ListType } from '../list/list-type'
 import {
   isListArgumentConflict,
   isResolveListError,
@@ -6,7 +6,7 @@ import {
   resolveListArgument,
   type ListLocation,
   type ResolveListError,
-} from '../resolve-list'
+} from '../list/resolve-list'
 
 /** Why a list-argument batch failed to resolve. */
 export type ListArgumentsFailure =

@@ -1,5 +1,5 @@
-import { type ListType, LIST_TYPES, LIST_TYPE_DISPLAY } from '../../list-type'
-import type { ListInfo } from '../../list-info'
+import { type ListType, LIST_TYPES, LIST_TYPE_DISPLAY } from '../../list/list-type'
+import type { ListInfo } from '../../list/list-info'
 import type { ParameterlessKey } from '../../i18n/t'
 
 /** Opaque `${type}:${slug}` identifier for a list in the admin UI. */

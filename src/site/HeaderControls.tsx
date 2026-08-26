@@ -8,7 +8,7 @@
 // control without duplicating its markup.
 
 import { type Component, Show, createEffect, createSignal, onCleanup } from 'solid-js'
-import { type PriceCurrency, isPriceCurrency } from '../price-currency'
+import { type PriceCurrency, isPriceCurrency } from '../pricing/price-currency'
 import { offeredCurrencies } from './price-view'
 import { useT } from '../ui/i18n'
 import { ThemePicker } from './ThemePicker'

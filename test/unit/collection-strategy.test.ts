@@ -9,7 +9,7 @@ import {
 } from '../../src/commands/card-session'
 import { currentSessionArt } from '../../src/commands/session-art'
 import { scratchListPath, stubTty } from '../test-utils'
-import type { CardLanguage } from '../../src/card-language'
+import type { CardLanguage } from '../../src/card/card-language'
 
 // The Set Custom Art prompts go through `ask`, which refuses to open without a
 // terminal; these tests answer them with prompts.inject instead.

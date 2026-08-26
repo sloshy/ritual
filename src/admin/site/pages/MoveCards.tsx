@@ -4,12 +4,12 @@ import { useT, useTKey } from '../../../ui/i18n'
 import { ConfirmDialog } from '../../../ui/ConfirmDialog'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
 import { useSearchDebounce } from '../hooks/useSearchDebounce'
-import type { CardPrintingOptions } from '../../../change-event'
+import type { CardPrintingOptions } from '../../../changes/change-event'
 import type { CardContextInfo } from '../../../site/card-context'
 import { DeckPage } from '../../../site/DeckPage'
 import { CollectionPage } from '../../../site/CollectionPage'
 import { WantedListPage } from '../../../site/WantedListPage'
-import type { ListInfo } from '../../../list-info'
+import type { ListInfo } from '../../../list/list-info'
 import {
   type TileTarget,
   type MoveDestPrinting,

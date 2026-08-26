@@ -19,14 +19,14 @@
  * project's parser convention.
  */
 
-import { isRecord } from '../../json'
-import { parseEnumField, type EnumFieldResult } from '../../parse-enum'
+import { isRecord } from '../../util/json'
+import { parseEnumField, type EnumFieldResult } from '../../util/parse-enum'
 import {
   SYNC_CHANGE_FILTERS,
   SYNC_DIRECTIONS,
   type SyncChangeFilter,
   type SyncDirection,
-} from '../../sync-common'
+} from '../../sync/common'
 
 // The only shape a request body may take. Re-exported rather than restated so
 // this module and the wire parsers narrow unknown JSON the same way.

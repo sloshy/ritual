@@ -11,10 +11,10 @@ import {
   createSetSectionChange,
   createUnsetCommanderChange,
   type ConditionUpdate,
-} from '../change-event'
-import { languageDisplayName, type CardLanguage } from '../card-language'
-import type { PrintingFields } from '../card-printing'
-import { parseCardLabelsToken, type CardLabel } from '../card-labels'
+} from '../changes/change-event'
+import { languageDisplayName, type CardLanguage } from '../card/card-language'
+import type { PrintingFields } from '../card/card-printing'
+import { parseCardLabelsToken, type CardLabel } from '../card/card-labels'
 import {
   cardArtFilePath,
   isCardArtRefError,
@@ -23,9 +23,9 @@ import {
   saveCardArt,
   type CardArtFileRef,
   type CardArtRef,
-} from '../card-art'
-import { getArtDir } from '../ritual-config'
-import type { CardMutationChange } from '../list-mutate'
+} from '../list/card-art'
+import { getArtDir } from '../config/ritual-config'
+import type { CardMutationChange } from '../list/list-mutate'
 import { applyTargetedChanges } from './line-mutate'
 import {
   addDryRunOption,
@@ -38,7 +38,7 @@ import {
   type DryRunOptions,
   type ScriptingOptions,
 } from './scripting'
-import { getErrorMessage, localizedCommandError } from '../errors'
+import { getErrorMessage, localizedCommandError } from '../util/errors'
 import { t } from '../i18n/t'
 import {
   addListTypeFlags,
@@ -58,17 +58,17 @@ import {
   type EntryRef,
   type FinishCheckSkip,
 } from './card-target'
-import { type ListTypeFlags } from '../resolve-list'
+import { type ListTypeFlags } from '../list/resolve-list'
 import {
   isCondition,
   isFinish,
   normalizeFinishValue,
   VALID_CONDITIONS,
   VALID_FINISHES,
-} from '../finish-condition'
-import { parseSetCode } from '../set-codes'
-import type { ListType } from '../list-type'
-import type { Finish } from '../types'
+  type Finish,
+} from '../card/finish-condition'
+import { parseSetCode } from '../card/set-codes'
+import type { ListType } from '../list/list-type'
 
 /**
  * `--art none`: remove whatever custom art the card carries. Spelled as an

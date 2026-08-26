@@ -1,7 +1,7 @@
 import { describe, expect, test, mock, afterEach } from 'bun:test'
 import { batchFetchScryfall } from '../../../src/site/scryfall-collection'
 import { makeScryfallCard } from '../../test-utils'
-import type { ScryfallCard } from '../../../src/types'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 
 type CollectionRequest = { identifiers: { id: string }[] }
 

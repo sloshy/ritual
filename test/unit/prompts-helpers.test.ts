@@ -7,7 +7,7 @@ import {
   suggestByTitleTerms,
 } from '../../src/commands/prompts-helpers'
 import { normalizeScriptingOptions } from '../../src/commands/scripting'
-import { setNoInputOverride } from '../../src/no-input'
+import { setNoInputOverride } from '../../src/util/no-input'
 import { stubTty } from '../test-utils'
 
 // `ask` refuses to prompt without a terminal; these tests simulate an

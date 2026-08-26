@@ -1,4 +1,4 @@
-import { displayLanguage } from '../card-language'
+import { displayLanguage } from '../card/card-language'
 import type { TradeCardEntry } from './data-types'
 import { defaultFinishForCard, resolveTradeFinish } from './trade-finish'
 

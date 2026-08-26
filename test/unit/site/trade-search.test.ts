@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'bun:test'
 import { searchTradeEntries, type TradeSearchEntry } from '../../../src/site/useTradeData'
-import { normalizeCardName } from '../../../src/term-match'
+import { normalizeCardName } from '../../../src/card/term-match'
 import { makeScryfallCard } from '../../test-utils'
 
 /**

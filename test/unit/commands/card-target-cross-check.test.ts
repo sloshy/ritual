@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { ensureCardIdMatchesName } from '../../../src/commands/card-target'
-import { CardCommandError } from '../../../src/errors'
+import { CardCommandError } from '../../../src/util/errors'
 
 /**
  * The `--card-id` + card-name cross-check. IDs are reused from a pool after a

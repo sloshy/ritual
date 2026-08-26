@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import prompts from 'prompts'
 import { deleteConfirmationText, runDelete } from '../../../src/commands/delete'
-import { setBaseDir } from '../../../src/base-dir'
+import { setBaseDir } from '../../../src/config/base-dir'
 import { stubTty } from '../../test-utils'
 
 // The confirmation refuses to prompt without a terminal; these tests simulate an

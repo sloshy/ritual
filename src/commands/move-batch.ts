@@ -9,7 +9,7 @@
  */
 
 import prompts, { type Choice } from 'prompts'
-import { listRefLabel } from '../change-event'
+import { listRefLabel } from '../changes/change-event'
 import { t } from '../i18n/t'
 import {
   applyVirtualMove,

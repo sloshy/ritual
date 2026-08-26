@@ -7,15 +7,15 @@ import {
   type DiffListRef,
   type DiffMatch,
   type DiffOnly,
-} from '../../list-diff'
+} from '../../changes/list-diff'
 import {
   formatResolveListError,
   isResolveListError,
   parseListArgument,
   resolveList,
   type ListLocation,
-} from '../../resolve-list'
-import { parseEnumField } from '../../parse-enum'
+} from '../../list/resolve-list'
+import { parseEnumField } from '../../util/parse-enum'
 import { apiHandler } from '../utils'
 import { badRequest } from './save-helpers'
 

@@ -12,7 +12,7 @@ import {
 } from './helpers/workspace'
 import { makeScryfallCard } from '../test-utils'
 import { deckSectionChoices } from '../../src/commands/move-helpers'
-import type { ScryfallCard } from '../../src/types'
+import type { ScryfallCard } from '../../src/scryfall/types'
 
 /**
  * Seed the workspace's on-disk Scryfall card cache with synthetic printings so

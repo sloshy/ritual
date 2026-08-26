@@ -17,7 +17,7 @@ import { cartBuyer } from './sell-mode'
 import { BUYLIST_CURRENCY } from './card-sorting'
 import { sellShortfallNote } from './sell-value'
 import { createSellSummary } from './useSellMode'
-import { DEFAULT_CURRENCY, formatPrice, type PriceCurrency } from '../price-currency'
+import { DEFAULT_CURRENCY, formatPrice, type PriceCurrency } from '../pricing/price-currency'
 
 // Module-level open state so the modal can live at the app root (a proper
 // full-screen overlay) while the navbar menu button toggles it.

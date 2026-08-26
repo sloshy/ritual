@@ -9,11 +9,11 @@ import {
   type ChangeEvent,
   type ConsolidateResult,
   type PrintingTuple,
-} from '../change-event'
-import type { Condition, Finish } from '../types'
-import type { CardLabel } from '../card-labels'
-import { displayLanguage, type CardLanguage } from '../card-language'
-import { allocateId, claimId, releaseId } from '../card-id'
+} from '../changes/change-event'
+import type { Condition, Finish } from '../card/finish-condition'
+import type { CardLabel } from '../card/card-labels'
+import { displayLanguage, type CardLanguage } from '../card/card-language'
+import { allocateId, claimId, releaseId } from '../card/card-id'
 import { t } from '../i18n/t'
 import {
   promptNoteEdit,
@@ -45,7 +45,7 @@ import {
 } from './edit-move'
 import { noteArtLineRemoved, noteArtLineRestored, noteArtSet } from './session-art'
 import { editCardArt } from './edit-art'
-import { hasSpecificPrinting } from '../card-printing'
+import { hasSpecificPrinting } from '../card/card-printing'
 
 /**
  * Edit-mode operations shared by the collection and wanted sessions: targeting

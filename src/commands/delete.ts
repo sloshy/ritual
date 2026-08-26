@@ -6,10 +6,10 @@ import {
   isListLifecycleError,
   listDisplayName,
   requireDeleteConfirmation,
-} from '../list-lifecycle'
-import { type ListType } from '../list-type'
-import { type ListTypeFlags } from '../resolve-list'
-import { CardCommandError } from '../errors'
+} from '../list/list-lifecycle'
+import { type ListType } from '../list/list-type'
+import { type ListTypeFlags } from '../list/resolve-list'
+import { CardCommandError } from '../util/errors'
 import { t } from '../i18n/t'
 import {
   addListTypeFlags,
@@ -18,7 +18,7 @@ import {
   resolveListTypeFlag,
   runCommandAction,
 } from './card-target'
-import { requireInteractive } from '../no-input'
+import { requireInteractive } from '../util/no-input'
 import { lifecycleErrorToCommandError } from './lifecycle'
 import type { PromptState } from './prompts-types'
 import {

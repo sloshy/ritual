@@ -26,8 +26,8 @@ import { scratchListPath } from '../test-utils'
 import type { CollectionCardEntry } from '../../src/site/data-types'
 import { applyChangeToCollection } from '../../src/editor/collection-changes'
 import { collectionToMarkdown } from '../../src/editor/list-export'
-import { formatCollectionLine } from '../../src/card-line'
-import { allocateId, collectExistingIds, createIdPool } from '../../src/card-id'
+import { formatCollectionLine } from '../../src/card/card-line'
+import { allocateId, collectExistingIds, createIdPool } from '../../src/card/card-id'
 import {
   consolidateSetNote,
   consolidateSetPrinting,
@@ -36,7 +36,7 @@ import {
   createSetPrintingChange,
   type ChangeEvent,
   type PrintingTuple,
-} from '../../src/change-event'
+} from '../../src/changes/change-event'
 
 function entry(
   name: string,

@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'bun:test'
-import { setupGlobalFetch } from '../../src/http'
-import { version } from '../../src/version'
+import { setupGlobalFetch } from '../../src/util/http'
+import { version } from '../../src/config/version'
 
 describe('HTTP Integration', () => {
   // Apply the patch

@@ -1,4 +1,4 @@
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 import type { CardsResponse } from '../api/cards'
 import { apiActive, apiUrl, reportDataFetchError } from './api-base'
 import { batchFetchScryfall } from './scryfall-collection'

@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import fs from 'node:fs/promises'
 import { classifyFetchCard, scryfallClient } from '../scryfall'
-import { getErrorMessage } from '../errors'
+import { getErrorMessage } from '../util/errors'
 import { t } from '../i18n/t'
 import {
   addFieldsOption,

@@ -1,7 +1,7 @@
 import { type Component, createEffect, createSignal, For, on, Show } from 'solid-js'
 import { Modal } from '../../../ui/Modal'
 import { useT } from '../../../ui/i18n'
-import type { ListType } from '../../../list-type'
+import type { ListType } from '../../../list/list-type'
 import {
   isListImageRefError,
   isSameListImageRef,
@@ -9,7 +9,7 @@ import {
   parseListImage,
   type ListImageMode,
   type ListImageRef,
-} from '../../../list-image'
+} from '../../../list/list-image'
 import type { ListImageCardOption } from '../list-image-cards'
 import { putListMetadata } from '../editor-backend'
 import { ArtRefField, createArtRefField, type CardArtMode } from './ArtRefField'

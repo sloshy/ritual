@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { csvCell } from '../../src/csv'
+import { csvCell } from '../../src/changes/csv'
 import type { ExportEntry } from '../../src/export/entries'
 import { ARCHIDEKT_EXPORT_SETTINGS } from '../../src/export/presets'
 import {

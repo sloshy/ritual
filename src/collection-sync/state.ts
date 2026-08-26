@@ -10,7 +10,7 @@
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { ensureLoginsDir, getLoginsDir } from '../logins-dir'
+import { ensureLoginsDir, getLoginsDir } from '../auth/logins-dir'
 
 export type CollectionSyncState = {
   /** ISO timestamp of the last completed (non-dry) sync. */

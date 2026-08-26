@@ -19,7 +19,7 @@ import type {
   CollectionDetail,
   WantedListDetail,
 } from '../../../src/site/data-types'
-import type { ScryfallCard } from '../../../src/types'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import { makeBuylistQuote, makeScryfallCard } from '../../test-utils'
 
 const solRing = makeScryfallCard({

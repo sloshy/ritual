@@ -1,8 +1,8 @@
 import { Command } from 'commander'
 import { compareData } from '../i18n/collate'
-import { loadListInfos, type ListInfo } from '../list-info'
-import { LIST_TYPES } from '../list-type'
-import { type ListTypeFlags } from '../resolve-list'
+import { loadListInfos, type ListInfo } from '../list/list-info'
+import { LIST_TYPES } from '../list/list-type'
+import { type ListTypeFlags } from '../list/resolve-list'
 import { resolveListTypeFlag } from './card-target'
 import {
   addScriptingOptions,

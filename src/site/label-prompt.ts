@@ -6,8 +6,8 @@
  */
 
 import { promptMoveTarget } from './move-prompt'
-import { cardLabelChoicesFor, type CardLabel } from '../card-labels'
-import type { ListType } from '../list-type'
+import { cardLabelChoicesFor, type CardLabel } from '../card/card-labels'
+import type { ListType } from '../list/list-type'
 import { t } from '../i18n/t'
 
 /**

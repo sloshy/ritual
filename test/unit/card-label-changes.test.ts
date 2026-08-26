@@ -5,14 +5,14 @@ import {
   formatChangeCore,
   isAdditiveChange,
   type ChangeEvent,
-} from '../../src/change-event'
+} from '../../src/changes/change-event'
 import { applyChangeToCollection } from '../../src/editor/collection-changes'
 import { applyChangeToWantedList } from '../../src/editor/wanted-changes'
 import { applyChangeToDeck } from '../../src/editor/deck-changes'
-import { parseChangeLine } from '../../src/changelog-parser'
-import { CARD_LABELS } from '../../src/card-labels'
+import { parseChangeLine } from '../../src/changes/changelog-parser'
+import { CARD_LABELS } from '../../src/card/card-labels'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/site/data-types'
-import type { DeckData } from '../../src/types'
+import type { DeckData } from '../../src/list/deck'
 
 function makeEntry(overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry {
   return {

@@ -9,7 +9,7 @@ import {
   toCountParams,
   type ListLoadParams,
 } from '../../../src/admin/api/list-load-params'
-import type { DeckData } from '../../../src/types'
+import type { DeckData } from '../../../src/list/deck'
 
 /**
  * The list load routes' query parameters and the filtering they drive. Pure, so

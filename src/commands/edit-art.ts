@@ -8,11 +8,11 @@ import {
   ART_IMAGE_EXTENSIONS,
   type CardArtRef,
   type CardArtRefError,
-} from '../card-art'
-import { getErrorMessage, hasErrorCode } from '../errors'
+} from '../list/card-art'
+import { getErrorMessage, hasErrorCode } from '../util/errors'
 import { compareData } from '../i18n/collate'
 import { t } from '../i18n/t'
-import { getArtDir } from '../ritual-config'
+import { getArtDir } from '../config/ritual-config'
 import { ask, suggestByTitleTerms } from './prompts-helpers'
 import { currentSessionArt, noteArtSet, type SessionArtChanges } from './session-art'
 import type { EditUndoEntry } from './edit-undo'

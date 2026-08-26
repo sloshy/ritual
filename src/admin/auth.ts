@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import { timingSafeEqual } from 'node:crypto'
 import path from 'node:path'
-import { ensureLoginsDir, getLoginsDir } from '../logins-dir'
+import { ensureLoginsDir, getLoginsDir } from '../auth/logins-dir'
 import { MIN_PASSWORD_LENGTH } from './validation'
 
 interface AdminCredentials {

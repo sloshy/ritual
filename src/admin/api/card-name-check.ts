@@ -18,14 +18,14 @@
 
 import { cardCache } from '../../cache'
 import { CACHE_REFRESH_REMEDY } from '../../cache/status'
-import type { ChangeEvent } from '../../change-event'
+import type { ChangeEvent } from '../../changes/change-event'
 import { getFrontFaceName } from '../../scryfall/card-utils'
 import {
   matchesNameTerms,
   normalizeCardName,
   rankNameMatches,
   splitNameTerms,
-} from '../../term-match'
+} from '../../card/term-match'
 import { apiError } from './save-helpers'
 
 /** How many close cached names a refusal offers per rejected name. */

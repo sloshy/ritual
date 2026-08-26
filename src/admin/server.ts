@@ -1,7 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { isRunningFromSource } from '../runtime'
-import { matchRoute, type HttpMethod } from '../routing'
+import { isRunningFromSource } from '../config/runtime'
+import { matchRoute, type HttpMethod } from '../util/routing'
 import { adminUserExists } from './auth'
 import {
   loadRitualConfig,
@@ -10,7 +10,7 @@ import {
   getWantedDir,
   RitualConfigParseError,
   type RitualConfig,
-} from '../ritual-config'
+} from '../config/ritual-config'
 import { parseSessionCookie, validateSession } from './session'
 import { handleStatus, handleListDecks } from './api/status'
 import { handleImportDeck } from './api/import-deck'
@@ -28,8 +28,8 @@ import {
 import { handleArchidektLogin, handleArchidektStatus } from './api/login'
 import { handleGetConfig, handleUpdateConfig } from './api/config'
 import { handleSetup } from './api/setup'
-import { getBaseDir } from '../base-dir'
-import type { RouteProgressSink } from '../progress'
+import { getBaseDir } from '../config/base-dir'
+import type { RouteProgressSink } from '../util/progress'
 import {
   handleTotpSetup,
   handleTotpVerifySetup,

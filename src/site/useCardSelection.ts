@@ -1,9 +1,10 @@
 import { createSignal, type Accessor } from 'solid-js'
-import type { Finish, Condition, ScryfallCard } from '../types'
-import type { CardLabel } from '../card-labels'
+import type { Finish, Condition } from '../card/finish-condition'
+import type { ScryfallCard } from '../scryfall/types'
+import type { CardLabel } from '../card/card-labels'
 import { isPricelessCard } from './priceless'
-import type { CardLanguage } from '../card-language'
-import { getCardPriceForFinish, type PriceCurrency } from '../price-currency'
+import type { CardLanguage } from '../card/card-language'
+import { getCardPriceForFinish, type PriceCurrency } from '../pricing/price-currency'
 
 /**
  * A single card chosen via the list-page multi-select. Carries everything the

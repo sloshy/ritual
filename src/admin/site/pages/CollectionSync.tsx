@@ -16,11 +16,11 @@ import type {
   UnreadableList,
 } from '../../../collection-sync/engine'
 import { describeAmbiguousRemoval, type AmbiguousRemoval } from '../../../collection-sync/describe'
-import { normalizeListName } from '../../../list-file-name'
+import { normalizeListName } from '../../../list/list-file-name'
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
 import { t as tStatic, type TranslateFn } from '../../../i18n/t'
 import { PAGE_DISPLAY } from '../routing'
-import { unreadableConsequence, type SyncDirection } from '../../../sync-common'
+import { unreadableConsequence, type SyncDirection } from '../../../sync/common'
 import { AmbiguousRemovalsPanel, RemovalPriorityPicker } from '../components/AmbiguousRemovals'
 import { ArchidektLoginForm, ArchidektSessionAlert } from '../components/ArchidektSession'
 import { NavLink } from '../components/NavLink'

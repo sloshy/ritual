@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { getBaseDir } from '../base-dir'
-import { hasErrorCode } from '../errors'
-import { sanitizeListFileName } from '../list-file-name'
-import type { ListLocation } from '../resolve-list'
+import { getBaseDir } from '../config/base-dir'
+import { hasErrorCode } from '../util/errors'
+import { sanitizeListFileName } from '../list/list-file-name'
+import type { ListLocation } from '../list/resolve-list'
 import { EXPORT_FORMAT_EXTENSIONS, type ExportFormat } from './presets'
 
 /**

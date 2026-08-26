@@ -5,19 +5,20 @@
  * Design record: `research/swap-printings-plan-2026-08-21.md` §3 and §7.2.
  */
 
-import type { DeckData, ScryfallCard } from '../types'
+import type { DeckData } from '../list/deck'
+import type { ScryfallCard } from '../scryfall/types'
 import {
   type ChangeInput,
   type ListRef,
   type MoveReplacement,
   isSamePrinting,
-} from '../change-event'
+} from '../changes/change-event'
 import type { CardContextInfo } from '../site/card-context'
 import type { NamedListRef } from '../site/combined-list'
-import { hasSpecificPrinting, resolvePrintingCard } from '../card-printing'
-import { displayFinish } from '../finish-condition'
-import { printingKey } from '../printing-key'
-import { displayLanguage } from '../card-language'
+import { hasSpecificPrinting, resolvePrintingCard } from '../card/card-printing'
+import { displayFinish } from '../card/finish-condition'
+import { printingKey } from '../card/printing-key'
+import { displayLanguage } from '../card/card-language'
 import { findDeckAddMergeTargetId } from './deck-changes'
 import { definedPrintingDetails, targetPinsPrinting } from './swap-printings/printing-fields'
 import type { ChosenPrinting, SwapMove, SwapTarget } from './swap-printings'

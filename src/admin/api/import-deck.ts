@@ -1,12 +1,12 @@
 import { IMPORT_TEXT_PARSE_OPTIONS, parseDeckText } from '../../importers/text-file'
 import { fetchDeckFromUrl, stripDeckPrintings } from '../../importers/url-dispatch'
 import { saveDeck } from '../../commands/import'
-import { listFilePath } from '../../resolve-list'
+import { listFilePath } from '../../list/resolve-list'
 import { autoCommitAndPush, badRequest, readJsonObjectBody } from './save-helpers'
 import { apiHandler } from '../utils'
 import type { ApiMessage } from './result'
-import type { DeckData } from '../../types'
-import { getDecksDir } from '../../ritual-config'
+import type { DeckData } from '../../list/deck'
+import { getDecksDir } from '../../config/ritual-config'
 import { MAX_LIST_BODY_SIZE } from '../validation'
 
 /**

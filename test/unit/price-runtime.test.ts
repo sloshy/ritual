@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { priceLookupFor } from '../../src/price-runtime'
-import { REFRESH_MODES, type RefreshMode } from '../../src/refresh'
+import { priceLookupFor } from '../../src/pricing/price-runtime'
+import { REFRESH_MODES, type RefreshMode } from '../../src/cache/refresh'
 import { getCachedCardPrintings, getCardPrintings } from '../../src/scryfall'
 
 /**

@@ -1,25 +1,25 @@
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { hashPath } from '../content-hash'
+import { hashPath } from '../changes/content-hash'
 import { compareDisplay } from '../i18n/collate'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
-import { appendChangelog } from '../changelog-writer'
+import { appendChangelog } from '../changes/changelog-writer'
 import {
   createMoveFromChange,
   createMoveToChange,
   createRemoveChange,
   listRefLabel,
   type ListRef,
-} from '../change-event'
-import type { Finish, Condition } from '../types'
-import type { CardLabel } from '../card-labels'
-import { languageToken, type CardLanguage } from '../card-language'
+} from '../changes/change-event'
+import type { Finish, Condition } from '../card/finish-condition'
+import type { CardLabel } from '../card/card-labels'
+import { languageToken, type CardLanguage } from '../card/card-language'
 import { listDeckFiles, importFromTextFile } from '../importers/text-file'
-import { resolveDefaultAddSection } from '../deck-format'
-import { parseCollectionFile } from '../collection-file'
+import { resolveDefaultAddSection } from '../list/deck-format'
+import { parseCollectionFile } from '../list/collection-file'
 import { parseWantedListFile } from './wanted-helpers'
-import { listDisplayName } from '../list-lifecycle'
+import { listDisplayName } from '../list/list-lifecycle'
 import {
   loadStagedFile,
   applyRemoveFromStaged,
@@ -31,10 +31,10 @@ import {
   type StagedAddResult,
   type StagedFile,
 } from './move-io'
-import { createCardArtCache, type CardArtRef } from '../card-art'
-import { reconcileListRefs } from '../list-refs'
-import { getCollectionsDir, getDecksDir, getWantedDir } from '../ritual-config'
-import { isListMarkdownFile } from '../list-file-name'
+import { createCardArtCache, type CardArtRef } from '../list/card-art'
+import { reconcileListRefs } from '../list/list-refs'
+import { getCollectionsDir, getDecksDir, getWantedDir } from '../config/ritual-config'
+import { isListMarkdownFile } from '../list/list-file-name'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

@@ -1,9 +1,9 @@
 import { type JSX, Show, For, createMemo, createSignal } from 'solid-js'
-import type { ScryfallCard } from '../../types'
+import type { ScryfallCard } from '../../scryfall/types'
 import type { UseEditorResult, ListItem } from '../useEditor'
 import type { UseEditorDefaultsResult } from '../useEditorDefaults'
 import type { SearchProvider } from '../search-provider'
-import type { ListType } from '../../list-type'
+import type { ListType } from '../../list/list-type'
 
 import { ChangesDialog } from './ChangesDialog'
 import { ImportChangesDialog } from './ImportChangesDialog'
@@ -19,7 +19,7 @@ import { StatusToast } from '../../ui/StatusToast'
 import { useEditorShortcuts } from '../useEditorShortcuts'
 import { type EditorEntity, entityListType } from '../entity'
 import { renderStatus } from '../useEditorStatus'
-import { hasSpecificPrinting } from '../../card-printing'
+import { hasSpecificPrinting } from '../../card/card-printing'
 import { useT, useTDynamic } from '../../ui/i18n'
 
 type BaseCardData = {

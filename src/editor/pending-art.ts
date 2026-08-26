@@ -1,5 +1,5 @@
-import type { CardArtRef } from '../card-art'
-import type { ChangeEvent } from '../change-event'
+import type { CardArtRef } from '../list/card-art'
+import type { ChangeEvent } from '../changes/change-event'
 import type { CardArtRefs } from './card-art-view'
 import { reconcileIdPoolForUndo } from './reconcile-undo'
 import type { SaveEffect } from './save-effects'

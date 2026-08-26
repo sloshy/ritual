@@ -8,8 +8,8 @@ import {
   serializeChangeSets,
   sortNewestFirst,
   type ChangeSet,
-} from '../../../changelog-blocks'
-import type { ListInfo } from '../../../list-info'
+} from '../../../changes/changelog-blocks'
+import type { ListInfo } from '../../../list/list-info'
 import type { HistoryLoadResponse, HistorySaveResponse } from '../../api/history'
 import type { ApiErrorResponse } from '../../api/save-helpers'
 import type { ListsResponse } from '../../api/lists'

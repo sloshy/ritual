@@ -17,11 +17,11 @@
  * switched or quotes arrive.
  */
 
-import { defaultPrintingFinish, printingFinishes } from '../finish-condition'
+import { defaultPrintingFinish, printingFinishes, type Finish } from '../card/finish-condition'
 import type { TranslateFn } from '../i18n/t'
-import { formatPrice, type PriceCurrency } from '../price-currency'
+import { formatPrice, type PriceCurrency } from '../pricing/price-currency'
 import { sitePriceForFinish } from './price-view'
-import type { Finish, ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 
 /**
  * How a printing's price is written wherever one is shown: the formatted amount,

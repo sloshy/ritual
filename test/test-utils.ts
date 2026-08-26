@@ -13,15 +13,15 @@ import {
   type CacheManager,
   type FileSystemClient,
   type ExclusiveWriteResult,
-} from '../src/interfaces'
+} from '../src/util/interfaces'
 import { cardCache, streamFromBatchResults } from '../src/cache'
-import { MemoryLogger, resetLogger, setLogger } from '../src/logger'
+import { MemoryLogger, resetLogger, setLogger } from '../src/util/logger'
 import { quoteKey, type BuylistQuote } from '../src/buylist'
 import { setBuylistFetcher } from '../src/site/buylist-quotes'
 import type { CardKingdomCacheFile, CardKingdomProduct } from '../src/cardkingdom'
 import type { PrintingQuoteFn, QuotePrinting } from '../src/cardkingdom/quote'
-import { displayLanguage } from '../src/card-language'
-import type { ScryfallCard } from '../src/types'
+import { displayLanguage } from '../src/card/card-language'
+import type { ScryfallCard } from '../src/scryfall/types'
 import type { CardData } from '../src/site/card-sorting'
 
 /**

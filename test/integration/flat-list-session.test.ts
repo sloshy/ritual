@@ -9,13 +9,13 @@ import {
   loadWantedSession,
   persistFlatListSession,
 } from '../../src/commands/flat-list-session'
-import { allocateId } from '../../src/card-id'
+import { allocateId } from '../../src/card/card-id'
 import {
   createAddChange,
   createSetNoteChange,
   createSetPrintingChange,
-} from '../../src/change-event'
-import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/card-art'
+} from '../../src/changes/change-event'
+import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/list/card-art'
 import { createCardSessionContext } from '../../src/commands/card-session'
 import {
   performFlatListMove,

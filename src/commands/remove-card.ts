@@ -1,7 +1,7 @@
 import { Command, InvalidArgumentError } from 'commander'
 import path from 'node:path'
-import { createRemoveChange, printingOptionsFrom } from '../change-event'
-import type { CardMutationChange } from '../list-mutate'
+import { createRemoveChange, printingOptionsFrom } from '../changes/change-event'
+import type { CardMutationChange } from '../list/list-mutate'
 import { applyTargetedChanges } from './line-mutate'
 import {
   addDryRunOption,
@@ -12,7 +12,7 @@ import {
   type DryRunOptions,
   type ScriptingOptions,
 } from './scripting'
-import { CardCommandError, localizedCommandError } from '../errors'
+import { CardCommandError, localizedCommandError } from '../util/errors'
 import { t, type MessageParams } from '../i18n/t'
 import {
   addListTypeFlags,
@@ -24,9 +24,9 @@ import {
   runCommandAction,
   type CardCommandResultBase,
 } from './card-target'
-import { parsePositiveInteger } from '../parse-number'
-import { type ListTypeFlags } from '../resolve-list'
-import type { ListType } from '../list-type'
+import { parsePositiveInteger } from '../util/parse-number'
+import { type ListTypeFlags } from '../list/resolve-list'
+import type { ListType } from '../list/list-type'
 
 type RemoveCardOptions = {
   cardId?: string

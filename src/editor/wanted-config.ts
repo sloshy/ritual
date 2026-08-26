@@ -1,5 +1,5 @@
 import type { WantedListCardEntry } from '../site/data-types'
-import { type PrintingTuple, isSamePrinting } from '../change-event'
+import { type PrintingTuple, isSamePrinting } from '../changes/change-event'
 import type { ChangePrintingContext } from './useEditor'
 import { applyChangeToWantedList } from './wanted-changes'
 import { findEntryPrintingById } from './entry-targeting'

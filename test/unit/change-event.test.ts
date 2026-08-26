@@ -12,8 +12,8 @@ import {
   isSamePrinting,
   mirrorMoveTo,
   CHANGE_ACTIONS,
-} from '../../src/change-event'
-import { formatChange } from '../../src/change-message'
+} from '../../src/changes/change-event'
+import { formatChange } from '../../src/changes/change-message'
 
 describe('set-language change events', () => {
   test('createSetLanguageChange carries the language and targeting fields', () => {

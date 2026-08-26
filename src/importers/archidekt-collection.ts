@@ -1,7 +1,11 @@
-import { displayLanguage, type CardLanguage } from '../card-language'
-import { VALID_CONDITIONS, VALID_FINISHES } from '../finish-condition'
-import { isRecord } from '../json'
-import type { Condition, Finish } from '../types'
+import { displayLanguage, type CardLanguage } from '../card/card-language'
+import {
+  VALID_CONDITIONS,
+  VALID_FINISHES,
+  type Condition,
+  type Finish,
+} from '../card/finish-condition'
+import { isRecord } from '../util/json'
 import type { ArchidektCard, ArchidektCardModifier } from './archidekt-types'
 
 /**

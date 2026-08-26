@@ -2,23 +2,19 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { execSync } from 'node:child_process'
-import { getBaseDir, setBaseDir } from '../../../src/base-dir'
+import { getBaseDir, setBaseDir } from '../../../src/config/base-dir'
 import { cardCache } from '../../../src/cache/instances'
-import { refreshRitualConfig, resetRitualConfigCache } from '../../../src/ritual-config'
-import { serializeDeckToMarkdown, type DeckFrontMatter } from '../../../src/deck-file'
-import { serializeSectionedList } from '../../../src/section-format'
-import { formatCollectionLine, formatWantedListLine } from '../../../src/card-line'
-import type { CardLabel } from '../../../src/card-labels'
-import type { CardLanguage } from '../../../src/card-language'
+import { refreshRitualConfig, resetRitualConfigCache } from '../../../src/config/ritual-config'
+import { serializeDeckToMarkdown, type DeckFrontMatter } from '../../../src/list/deck-file'
+import { serializeSectionedList } from '../../../src/list/section-format'
+import { formatCollectionLine, formatWantedListLine } from '../../../src/card/card-line'
+import type { CardLabel } from '../../../src/card/card-labels'
+import type { CardLanguage } from '../../../src/card/card-language'
 import { frontMatterFor, withFrontMatter } from '../../../src/editor/list-export'
-import {
-  DEFAULT_SECTION,
-  type Card,
-  type Condition,
-  type DeckSection,
-  type Finish,
-  type ScryfallCard,
-} from '../../../src/types'
+import { DEFAULT_SECTION, type DeckSection } from '../../../src/list/deck'
+import type { Card } from '../../../src/card/card'
+import type { Condition, Finish } from '../../../src/card/finish-condition'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 
 /**
  * Shared temp-workspace setup and list-file fixture builders for the

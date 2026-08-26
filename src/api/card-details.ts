@@ -2,8 +2,8 @@
 // server owns", not "handlers both servers mount". This one is currently mounted
 // on the admin server only.
 import { getCardPrintingsResult } from '../scryfall'
-import { printingsAreComplete } from '../card-printing'
-import { getErrorMessage } from '../errors'
+import { printingsAreComplete } from '../card/card-printing'
+import { getErrorMessage } from '../util/errors'
 import { detailCard, type CardDetails } from './card-summary'
 
 /** The card was found. */

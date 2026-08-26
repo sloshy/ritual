@@ -1,5 +1,5 @@
 import { createEffect, on } from 'solid-js'
-import type { CardLabelSelection } from '../card-labels'
+import type { CardLabelSelection } from '../card/card-labels'
 import type { GroupBy, SortBy } from './card-sorting'
 import { SELL_MODE_FILTER_KEYS, type CardFilters } from './card-filters'
 import type { CardFiltersControl } from './useCardFilters'

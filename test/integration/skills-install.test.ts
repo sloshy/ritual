@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { getBaseDir, setBaseDir } from '../../src/base-dir'
+import { getBaseDir, setBaseDir } from '../../src/config/base-dir'
 import { maybeInstallSkills, refreshSkillsOnUpgrade } from '../../src/commands/init-site'
 import { SKILLS, renderSkillFile } from '../../src/skills/catalog'
 import { installSkills, refreshInstalledSkills, resolveSkillsDir } from '../../src/skills/install'
-import { fileExists } from '../../src/utils'
+import { fileExists } from '../../src/util/fs'
 import { runCli, withTempDir } from './helpers/cli'
 
 /**

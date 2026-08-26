@@ -18,12 +18,12 @@
  */
 
 import { Index, Show, createMemo, type Component } from 'solid-js'
-import type { PriceCurrency } from '../price-currency'
+import type { PriceCurrency } from '../pricing/price-currency'
 import { useT } from '../ui/i18n'
 import { pricesEnabled } from './price-view'
 import { finishChipName } from './printing-display'
 import { printingFinishPrices, printingPriceText } from './printing-prices'
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 
 export type PrintingPricesProps = {
   printing: ScryfallCard

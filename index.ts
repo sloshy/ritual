@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
-import { setupGlobalFetch } from './src/http'
-import { version } from './src/version'
+import { setupGlobalFetch } from './src/util/http'
+import { version } from './src/config/version'
 // Apply global fetch patch immediately
 setupGlobalFetch()
 
@@ -55,13 +55,13 @@ import {
   resolveCacheServerAddress,
   setCacheServerAddressOverride,
 } from './src/cache/config'
-import { isBaseDirError, parseBaseDir, resolveBaseDir, setBaseDir } from './src/base-dir'
-import { resolveNoInput, setNoInputOverride } from './src/no-input'
-import { ensureCardIdsForAllLists } from './src/ensure-card-ids'
+import { isBaseDirError, parseBaseDir, resolveBaseDir, setBaseDir } from './src/config/base-dir'
+import { resolveNoInput, setNoInputOverride } from './src/util/no-input'
+import { ensureCardIdsForAllLists } from './src/list/ensure-card-ids'
 import { shouldBackfillCardIds } from './src/commands/id-backfill'
-import { isConfigParseError, parseUiLocale, refreshRitualConfig } from './src/ritual-config'
+import { isConfigParseError, parseUiLocale, refreshRitualConfig } from './src/config/ritual-config'
 import { ExitCode, markStdoutClosed } from './src/commands/scripting'
-import { CardCommandError, getErrorMessage, isBrokenPipeError } from './src/errors'
+import { CardCommandError, getErrorMessage, isBrokenPipeError } from './src/util/errors'
 
 /**
  * Commander argParser for `--cache-server`: a malformed address is a bad flag

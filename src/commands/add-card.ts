@@ -9,7 +9,7 @@ import {
   getCardPrintingsResult,
   isDigitalOnlySet,
 } from '../scryfall'
-import { printingsAreComplete } from '../card-printing'
+import { printingsAreComplete } from '../card/card-printing'
 import {
   appendIntoOpenFence,
   applyDeckAdd,
@@ -24,41 +24,43 @@ import {
   ensureCollectionFile,
   resolveAddedLanguage,
 } from './collection-helpers'
-import { dedupePrintingsByKey } from '../card-printing'
-import { resolvePrintingLanguage } from '../printing-language'
-import type { CardLanguage } from '../card-language'
+import { dedupePrintingsByKey } from '../card/card-printing'
+import { resolvePrintingLanguage } from '../card/printing-language'
+import type { CardLanguage } from '../card/card-language'
 import {
   applyConditionUpdate,
   isCondition,
   isFinish,
   normalizeFinishValue,
   VALID_CONDITIONS,
-} from '../finish-condition'
-import { parseSetCode } from '../set-codes'
+  type Condition,
+  type Finish,
+} from '../card/finish-condition'
+import { parseSetCode } from '../card/set-codes'
 import { ensureWantedListFile, formatWantedListLine, promptWantedFinish } from './wanted-helpers'
-import { isUsableFileName, unusableFileNameMessage } from '../list-file-name'
+import { isUsableFileName, unusableFileNameMessage } from '../list/list-file-name'
 import { emptyCacheAdvice, ensureFreshCardCache } from '../cache/freshness'
-import { addRefreshOption, type RefreshMode } from '../refresh'
-import { appendChangelog } from '../changelog-writer'
-import { createAddChange, type ConditionUpdate } from '../change-event'
-import { parseCardLabelsToken, type CardLabel } from '../card-labels'
-import { allocateNextIdFromContent } from '../card-id'
-import { endsInsideOpenFence } from '../markdown-fence'
-import { appendFileWithHash } from '../content-hash'
+import { addRefreshOption, type RefreshMode } from '../cache/refresh'
+import { appendChangelog } from '../changes/changelog-writer'
+import { createAddChange, type ConditionUpdate } from '../changes/change-event'
+import { parseCardLabelsToken, type CardLabel } from '../card/card-labels'
+import { allocateNextIdFromContent } from '../card/card-id'
+import { endsInsideOpenFence } from '../list/markdown-fence'
+import { appendFileWithHash } from '../changes/content-hash'
 import {
   findCheapestPrinting,
   formatSpecificPrintingPrice,
   formatCheapestPrintingDisplay,
-} from '../price-currency'
-import type { Condition, Finish, ScryfallCard } from '../types'
-import type { ListType } from '../list-type'
+} from '../pricing/price-currency'
+import type { ScryfallCard } from '../scryfall/types'
+import type { ListType } from '../list/list-type'
 import {
   matchesAllNameTerms,
   matchesNameTerms,
   normalizeCardName,
   rankNameMatches,
   splitNameTerms,
-} from '../term-match'
+} from '../card/term-match'
 import {
   formatResolveListError,
   isListArgumentConflict,
@@ -66,7 +68,7 @@ import {
   resolveList,
   resolveListArgument,
   type ListTypeFlags,
-} from '../resolve-list'
+} from '../list/resolve-list'
 import {
   cancelledError,
   ensureFinishAvailable,
@@ -79,8 +81,8 @@ import {
   type EntryRef,
   type PrintingPin,
 } from './card-target'
-import { parsePositiveInteger } from '../parse-number'
-import { inputRequiredError, promptsUnavailable } from '../no-input'
+import { parsePositiveInteger } from '../util/parse-number'
+import { inputRequiredError, promptsUnavailable } from '../util/no-input'
 import {
   addDryRunOption,
   addScriptingOptions,
@@ -91,14 +93,14 @@ import {
   type ScriptingOptions,
 } from './scripting'
 import { divertConsoleLogToStderr } from '../mcp/stdout-guard'
-import { CardCommandError, localizedCommandError } from '../errors'
+import { CardCommandError, localizedCommandError } from '../util/errors'
 import {
   getCollectionsDir,
   getDefaultCurrency,
   getDefaultLanguage,
   getWantedDir,
-} from '../ritual-config'
-import { listFileName } from '../list-file-name'
+} from '../config/ritual-config'
+import { listFileName } from '../list/list-file-name'
 import { t } from '../i18n/t'
 
 /**

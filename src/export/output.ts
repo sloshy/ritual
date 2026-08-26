@@ -1,10 +1,10 @@
-import type { CardPrintingsLookup } from '../card-printing'
+import type { CardPrintingsLookup } from '../card/card-printing'
 import { getCardPrintings } from '../scryfall'
 import type { ExportEntry } from './entries'
 import { renderCsvExport, renderJsonExport, renderMarkdownExport, renderTextExport } from './render'
 import { columnsNeedScryfallIds, resolveExportScryfallIds } from './scryfall-id'
 import { exportFormatUsesColumns, type ExportPreset, type ResolvedExportSettings } from './presets'
-import { loadRitualConfig, saveRitualConfig } from '../ritual-config'
+import { loadRitualConfig, saveRitualConfig } from '../config/ritual-config'
 
 /**
  * Shared output helpers for the `export` command, its interactive wizard, and

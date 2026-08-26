@@ -8,8 +8,8 @@ import {
   parseCsv,
   type CsvConversionResult,
 } from '../../src/importers/csv'
-import type { CardPrintingsLookup } from '../../src/card-printing'
-import type { ListType } from '../../src/list-type'
+import type { CardPrintingsLookup } from '../../src/card/card-printing'
+import type { ListType } from '../../src/list/list-type'
 import { makeScryfallCard } from '../test-utils'
 import {
   bindWorkspace,

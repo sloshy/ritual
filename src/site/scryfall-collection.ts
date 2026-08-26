@@ -1,4 +1,4 @@
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 
 const SCRYFALL_API = 'https://api.scryfall.com'
 const COLLECTION_BATCH_SIZE = 75

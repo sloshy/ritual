@@ -1,13 +1,14 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import * as fs from 'node:fs/promises'
-import type { Card, DeckData } from '../../src/types'
-import { createSetPrintingChange, type ChangeEvent } from '../../src/change-event'
+import type { Card } from '../../src/card/card'
+import type { DeckData } from '../../src/list/deck'
+import { createSetPrintingChange, type ChangeEvent } from '../../src/changes/change-event'
 import { handleDeckSave } from '../../src/admin/api/deck-save'
 import { handleCollectionSave } from '../../src/admin/api/collection-save'
 import { handleWantedListSave } from '../../src/admin/api/wanted-save'
 import { handleLogin } from '../../src/admin/api/auth-login'
 import { validateBodySize } from '../../src/admin/api/save-helpers'
-import { computeHash } from '../../src/content-hash'
+import { computeHash } from '../../src/changes/content-hash'
 import { MAX_BODY_SIZE, MAX_LIST_BODY_SIZE } from '../../src/admin/validation'
 import {
   bindWorkspace,

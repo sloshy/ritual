@@ -14,7 +14,7 @@ import {
   ARCHIDEKT_BULK_BATCH_SIZE,
   ARCHIDEKT_CSV_CHUNK_SIZE,
 } from '../../../src/importers/archidekt-collection'
-import type { RateLimitWait } from '../../../src/sync-common'
+import type { RateLimitWait } from '../../../src/sync/common'
 
 /**
  * The client's rate limiting: request pacing (`minRequestIntervalMs`) and the

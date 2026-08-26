@@ -1,5 +1,5 @@
 import { ResourceTemplate, type McpServer } from '@modelcontextprotocol/server'
-import { isListType, LIST_TYPES } from '../list-type'
+import { isListType, LIST_TYPES } from '../list/list-type'
 import { NEVER_CACHE } from './cache-hints'
 import { callApi } from './dispatch'
 import { apiErrorToMcp } from './errors'

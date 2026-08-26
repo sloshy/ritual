@@ -1,6 +1,6 @@
-import type { ScryfallCard } from '../types'
-import { scryfallCardLanguage } from '../card-language'
-import { cardPrintingKey, printingLanguageKey } from '../printing-key'
+import type { ScryfallCard } from '../scryfall/types'
+import { scryfallCardLanguage } from '../card/card-language'
+import { cardPrintingKey, printingLanguageKey } from '../card/printing-key'
 
 /**
  * Index one card object into a printing-keyed `cards` map. English objects own

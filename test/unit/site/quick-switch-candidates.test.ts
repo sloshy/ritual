@@ -5,7 +5,8 @@ import type {
   CollectionCardEntry,
   DeckDetail,
 } from '../../../src/site/data-types'
-import type { DeckSection, ScryfallCard } from '../../../src/types'
+import type { DeckSection } from '../../../src/list/deck'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import { makeScryfallCard } from '../../test-utils'
 
 function makeCollectionDetail(

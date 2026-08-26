@@ -1,6 +1,6 @@
-import type { HttpClient } from '../interfaces'
-import { throwHttpError } from '../errors'
-import { getDefaultLanguage } from '../ritual-config'
+import type { HttpClient } from '../util/interfaces'
+import { throwHttpError } from '../util/errors'
+import { getDefaultLanguage } from '../config/ritual-config'
 
 export const SCRYFALL_BULK_API_URL = 'https://api.scryfall.com/bulk-data'
 

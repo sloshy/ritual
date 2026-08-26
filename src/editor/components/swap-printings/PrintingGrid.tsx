@@ -1,12 +1,16 @@
 import { createMemo, createResource, For, Show, type Accessor, type Component } from 'solid-js'
-import type { Finish, ScryfallCard } from '../../../types'
-import type { PriceCurrency } from '../../../price-currency'
-import { dedupePrintingsByKey, type CardPrintingsLookup } from '../../../card-printing'
-import { filterPrintingsByQuery } from '../../../collector-query'
-import { getCardImageUrl } from '../../../card-image'
-import { scryfallCardLanguage, storedLanguage } from '../../../card-language'
-import { defaultPrintingFinish, printingFinishes } from '../../../finish-condition'
-import { formatPrintingLabel } from '../../../printing-key'
+import {
+  type Finish,
+  defaultPrintingFinish,
+  printingFinishes,
+} from '../../../card/finish-condition'
+import type { ScryfallCard } from '../../../scryfall/types'
+import type { PriceCurrency } from '../../../pricing/price-currency'
+import { dedupePrintingsByKey, type CardPrintingsLookup } from '../../../card/card-printing'
+import { filterPrintingsByQuery } from '../../../card/collector-query'
+import { getCardImageUrl } from '../../../card/card-image'
+import { scryfallCardLanguage, storedLanguage } from '../../../card/card-language'
+import { formatPrintingLabel } from '../../../card/printing-key'
 import { PrintingPrices } from '../../../site/PrintingPrices'
 import { usePrintingQuotes } from '../../../site/printing-quotes'
 import { finishChipName } from '../../../site/printing-display'

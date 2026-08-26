@@ -4,8 +4,8 @@ import {
   cardKingdomPrints,
   cardKingdomRetail,
 } from '../../src/cardkingdom/retail'
-import { cardPrintingKey } from '../../src/printing-key'
-import type { ScryfallCard } from '../../src/types'
+import { cardPrintingKey } from '../../src/card/printing-key'
+import type { ScryfallCard } from '../../src/scryfall/types'
 import { ckRetailQuote as ckQuote, makeScryfallCard } from '../test-utils'
 
 /**

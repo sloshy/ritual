@@ -1,7 +1,7 @@
 import type { Component, JSX } from 'solid-js'
 import { createSignal, createMemo, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
-import type { PriceCurrency } from '../price-currency'
+import type { PriceCurrency } from '../pricing/price-currency'
 import { cardPriceText, cardPricelessReason } from './priceless'
 import {
   type GroupBy,
@@ -50,7 +50,7 @@ import {
   cardLabelName,
   labelFiltersFor,
   type CardLabelSelection,
-} from '../card-labels'
+} from '../card/card-labels'
 import { useT } from '../ui/i18n'
 import type { MessageKey } from '../i18n/messages/en'
 

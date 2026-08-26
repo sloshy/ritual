@@ -1,6 +1,5 @@
 import { type Accessor, createSignal, createEffect, createMemo } from 'solid-js'
-import type { Finish, Condition } from '../types'
-import { isFinish, isCondition } from '../finish-condition'
+import { type Finish, type Condition, isFinish, isCondition } from '../card/finish-condition'
 
 export type EditorListKind = 'deck' | 'collection' | 'wanted'
 
@@ -147,4 +146,4 @@ export function useEditorDefaults(
 }
 
 // Re-export the canonical set-code helpers so existing call sites keep working.
-export { parseSetCodesInput, formatSetCodesForDisplay } from '../set-codes'
+export { parseSetCodesInput, formatSetCodesForDisplay } from '../card/set-codes'

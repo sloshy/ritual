@@ -7,7 +7,7 @@ import {
 } from '../../../src/site/keep-trade-prompt'
 import { addEntryToLeftGuarded, leftCards, setLeftCards } from '../../../src/site/useTradeState'
 import type { TradeSearchEntry } from '../../../src/site/useTradeData'
-import { normalizeCardName } from '../../../src/term-match'
+import { normalizeCardName } from '../../../src/card/term-match'
 import { denyLocalStorage, makeScryfallCard, stubLocalStorage } from '../../test-utils'
 
 stubLocalStorage()

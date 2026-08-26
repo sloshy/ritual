@@ -11,19 +11,21 @@
 import path from 'node:path'
 import { ArchidektClient, createPacedArchidektClient } from '../clients/ArchidektClient'
 import { listDeckFiles, parseDeckText, type DeckParseResult } from '../importers/text-file'
-import { unreadableLines } from '../markdown-fence'
-import { getErrorMessage } from '../errors'
+import { unreadableLines } from '../list/markdown-fence'
+import { getErrorMessage } from '../util/errors'
 import { t } from '../i18n/t'
 import {
   parseDeckFrontMatter,
   serializeDeckToMarkdown,
   writeDeckFrontMatter,
   type DeckFrontMatter,
-} from '../deck-file'
-import { getDeckFormatLabel } from '../deck-format'
-import { formatResolveListError, isResolveListError, resolveList } from '../resolve-list'
-import { appendChangelog } from '../changelog-writer'
-import type { Card, DeckData, DeckSection, Finish } from '../types'
+} from '../list/deck-file'
+import { getDeckFormatLabel } from '../list/deck-format'
+import { formatResolveListError, isResolveListError, resolveList } from '../list/resolve-list'
+import { appendChangelog } from '../changes/changelog-writer'
+import type { Card } from '../card/card'
+import type { DeckData, DeckSection } from '../list/deck'
+import type { Finish } from '../card/finish-condition'
 import { archidektEntryPrinting } from '../importers/archidekt-types'
 import type {
   ArchidektCardModifier,
@@ -49,8 +51,8 @@ import {
   type PrintingUpdate,
 } from './diff'
 import { distributeQuantity, holdingsAt, samePrintingRef, type DeckPrintingRef } from './reconcile'
-import { printingSuffix } from '../card-line'
-import { hasSpecificPrinting } from '../card-printing'
+import { printingSuffix } from '../card/card-line'
+import { hasSpecificPrinting } from '../card/card-printing'
 import { archidektModifier } from '../importers/archidekt-collection'
 import {
   describeSkippedChanges,
@@ -60,12 +62,12 @@ import {
   type SyncItemStatus,
   type SyncLogLevel,
   type UnreadableSource,
-} from '../sync-common'
-import { assignMissingDeckCardIds, collectDeckCardIds } from '../card-id'
-import { reconcileListRefs } from '../list-refs'
+} from '../sync/common'
+import { assignMissingDeckCardIds, collectDeckCardIds } from '../card/card-id'
+import { reconcileListRefs } from '../list/list-refs'
 import { checkDeckDivergence, describeDivergence } from './divergence'
-import { hashPath, writeFileWithHash } from '../content-hash'
-import { getDecksDir } from '../ritual-config'
+import { hashPath, writeFileWithHash } from '../changes/content-hash'
+import { getDecksDir } from '../config/ritual-config'
 
 // ── Public surface ────────────────────────────────────────────────────
 

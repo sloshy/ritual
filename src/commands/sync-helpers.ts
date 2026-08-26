@@ -12,14 +12,14 @@
 
 import { ArchidektAuth } from '../auth/ArchidektAuth'
 import { FileTokenStore } from '../auth/FileTokenStore'
-import { getLogger, STDERR_LOGGER, type Logger } from '../logger'
+import { getLogger, STDERR_LOGGER, type Logger } from '../util/logger'
 import {
   SYNC_CHANGE_FILTERS,
   SYNC_DIRECTIONS,
   type SyncChangeFilter,
   type SyncDirection,
   type UnreadableSource,
-} from '../sync-common'
+} from '../sync/common'
 import { ask } from './prompts-helpers'
 import {
   canPromptWithOutput,

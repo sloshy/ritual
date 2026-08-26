@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js'
-import { type ListRef, listRefLabel } from '../change-event'
+import { type ListRef, listRefLabel } from '../changes/change-event'
 import { t } from '../i18n/t'
 
 /**

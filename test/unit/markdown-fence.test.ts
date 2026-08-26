@@ -6,7 +6,7 @@ import {
   markFencedLines,
   unreadableContentMessage,
   unreadableLines,
-} from '../../src/markdown-fence'
+} from '../../src/list/markdown-fence'
 
 /** Feed every line of `text` and return the opaque flag for each, in order. */
 function opaqueFlags(text: string): boolean[] {

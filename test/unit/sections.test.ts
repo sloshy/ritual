@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parseCollectionFile, type CollectionEntry } from '../../src/collection-file'
+import { parseCollectionFile, type CollectionEntry } from '../../src/list/collection-file'
 import {
   parseWantedListFile,
   formatWantedListLine,
@@ -11,7 +11,7 @@ import {
   parseTitleFromContent,
   serializeSectionedList,
   matchSectionHeader,
-} from '../../src/section-format'
+} from '../../src/list/section-format'
 import {
   replaySectionOrder,
   consolidateSetSection,
@@ -19,15 +19,18 @@ import {
   createSetSectionChange,
   createAddSectionChange,
   type ChangeEvent,
-} from '../../src/change-event'
-import { formatChange } from '../../src/change-message'
+} from '../../src/changes/change-event'
+import { formatChange } from '../../src/changes/change-message'
 import { applyChangeToCollection } from '../../src/editor/collection-changes'
 import { applyChangeToWantedList } from '../../src/editor/wanted-changes'
 import { applyChangeToDeck } from '../../src/editor/deck-changes'
-import { ensureCollectionIdsInContent, ensureWantedIdsInContent } from '../../src/ensure-card-ids'
-import { parseChangelog } from '../../src/changelog-parser'
+import {
+  ensureCollectionIdsInContent,
+  ensureWantedIdsInContent,
+} from '../../src/list/ensure-card-ids'
+import { parseChangelog } from '../../src/changes/changelog-parser'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/site/data-types'
-import type { DeckData } from '../../src/types'
+import type { DeckData } from '../../src/list/deck'
 
 // ── Parser: section assignment ───────────────────────────────────────
 

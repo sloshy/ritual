@@ -4,11 +4,11 @@
  * carrying the copy count each row should display.
  */
 
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 import type { CollectionCardEntry, ListDetail, WantedListCardEntry } from './data-types'
-import type { PrintingRef } from '../printing-key'
-import { lookupPrintingCard, printingKey } from '../printing-key'
-import { hasSpecificPrinting } from '../card-printing'
+import type { PrintingRef } from '../card/printing-key'
+import { lookupPrintingCard, printingKey } from '../card/printing-key'
+import { hasSpecificPrinting } from '../card/card-printing'
 
 // A single owned/wanted/deck card line, normalized across list kinds.
 type ListCardRef = PrintingRef & {

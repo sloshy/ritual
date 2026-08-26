@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { normalizeVersion } from '../../src/version'
+import { normalizeVersion } from '../../src/config/version'
 
 describe('normalizeVersion', () => {
   describe('exact tags', () => {

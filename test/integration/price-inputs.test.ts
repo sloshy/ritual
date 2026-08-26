@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
-import { artSidecarPath, saveCardArt, type CardArtRef } from '../../src/card-art'
-import { loadPriceListInputs, type PriceListInput } from '../../src/price-report'
-import { loadSellListInputs } from '../../src/sell-report'
-import type { ListLocation } from '../../src/resolve-list'
+import { artSidecarPath, saveCardArt, type CardArtRef } from '../../src/list/card-art'
+import { loadPriceListInputs, type PriceListInput } from '../../src/pricing/price-report'
+import { loadSellListInputs } from '../../src/pricing/sell-report'
+import type { ListLocation } from '../../src/list/resolve-list'
 import {
   bindWorkspace,
   writeCollectionFile,

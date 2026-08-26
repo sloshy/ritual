@@ -9,7 +9,7 @@ import {
   resolveThemeName,
   themeNames,
   themes,
-} from '../../src/themes'
+} from '../../src/theme/themes'
 
 const REQUIRED_VARS = [
   '--bg-body',

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import type { ScryfallCard } from '../../../src/types'
+import type { ScryfallCard } from '../../../src/scryfall/types'
 import { fulfillJson } from '../helpers/fulfill'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
 import { mockPublicSiteDeckWithMultipleSections } from '../helpers/mock-public-site'

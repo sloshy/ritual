@@ -7,8 +7,8 @@ import {
   type UnreadableSource,
   type UnreadableSubject,
 } from '../../../src/commands/sync-helpers'
-import { MemoryLogger, getLogger, resetLogger, setLogger } from '../../../src/logger'
-import { setNoInputOverride } from '../../../src/no-input'
+import { MemoryLogger, getLogger, resetLogger, setLogger } from '../../../src/util/logger'
+import { setNoInputOverride } from '../../../src/util/no-input'
 import type { ScriptingOptions } from '../../../src/commands/scripting'
 
 /**

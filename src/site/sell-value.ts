@@ -17,12 +17,12 @@ import {
   type SellCartCsv,
 } from '../buylist'
 import type { BuylistQuote } from '../buylist'
-import type { Finish, ScryfallCard } from '../types'
+import { type Finish, displayFinish } from '../card/finish-condition'
+import type { ScryfallCard } from '../scryfall/types'
 import { isNonEnglishCard, quoteFor } from './buylist-quotes'
-import { displayFinish } from '../finish-condition'
-import { displayLanguage, type CardLanguage } from '../card-language'
+import { displayLanguage, type CardLanguage } from '../card/card-language'
 import type { CardData } from './card-sorting'
-import type { CardLabel } from '../card-labels'
+import type { CardLabel } from '../card/card-labels'
 import { isPricelessCard } from './priceless'
 import { t } from '../i18n/t'
 

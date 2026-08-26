@@ -1,4 +1,4 @@
-import { isRecord } from '../../json'
+import { isRecord } from '../../util/json'
 import type { StatusResponse } from '../api/status'
 
 /**

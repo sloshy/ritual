@@ -1,7 +1,7 @@
 import { batch, createEffect, createSignal, onMount, onCleanup } from 'solid-js'
 import type { Accessor, Setter } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary, SiteIndex } from './data-types'
-import type { PriceCurrency } from '../price-currency'
+import type { PriceCurrency } from '../pricing/price-currency'
 import { setSearchDebounceMs } from '../editor/search-debounce'
 import { setDefaultLanguage } from '../editor/default-language'
 import { apiActive, apiBase, dataUrl, reportDataFetchError, setApiBase } from './api-base'

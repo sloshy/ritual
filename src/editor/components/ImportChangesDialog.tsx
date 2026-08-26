@@ -5,10 +5,10 @@ import {
   listChangesFromBundle,
   parseChangeBundle,
 } from '../change-bundle'
-import type { ChangeEvent } from '../../change-event'
+import type { ChangeEvent } from '../../changes/change-event'
 import { IMPORT_CONFLICT_REASON_KEY } from '../import-changes'
-import { formatChange } from '../../change-message'
-import { type ListType, listTypeLabel } from '../../list-type'
+import { formatChange } from '../../changes/change-message'
+import { type ListType, listTypeLabel } from '../../list/list-type'
 import type { ImportResult } from '../useEditor'
 import { Modal } from '../../ui/Modal'
 import { useT } from '../../ui/i18n'

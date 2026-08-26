@@ -1,4 +1,4 @@
-import type { Finish } from '../types'
+import type { Finish } from '../card/finish-condition'
 
 /**
  * Card Kingdom's public bulk pricelist feed (`api.cardkingdom.com/api/v2/pricelist`),

@@ -7,7 +7,7 @@ import {
   buildExpiredSessionCookie,
 } from '../session'
 import { appendAuditLog, createAuditEntry } from '../audit-log'
-import { loadRitualConfig } from '../../ritual-config'
+import { loadRitualConfig } from '../../config/ritual-config'
 import { globalRateLimiter } from '../rate-limit'
 import { MAX_BODY_SIZE, MAX_USERNAME_LENGTH, MAX_PASSWORD_LENGTH } from '../validation'
 

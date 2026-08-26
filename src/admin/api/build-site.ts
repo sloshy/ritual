@@ -18,15 +18,15 @@ import fs from 'node:fs/promises'
 import { apiHandler } from '../utils'
 import { apiMessage, type ApiMessage } from './result'
 import { apiError } from './save-helpers'
-import { getBaseDir } from '../../base-dir'
-import { getSiteSellMode } from '../../ritual-config'
+import { getBaseDir } from '../../config/base-dir'
+import { getSiteSellMode } from '../../config/ritual-config'
 import { defaultDistDir, ritualArgv } from '../../site/dist-dir'
 import {
   createBuildScratchDir,
   publishAtomically,
   STALE_BUILD_DIR_MAX_AGE_MS,
 } from '../../site/publish'
-import type { RouteProgressSink } from '../../progress'
+import type { RouteProgressSink } from '../../util/progress'
 
 // Re-exported: the sweep's age rule is shared with the CLI builder now, but this
 // route is where its tests and callers have always addressed it.

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { resolvePrintingLanguage } from '../../src/printing-language'
+import { resolvePrintingLanguage } from '../../src/card/printing-language'
 import { makePrintingIn as printing } from '../test-utils'
 
 describe('resolvePrintingLanguage', () => {

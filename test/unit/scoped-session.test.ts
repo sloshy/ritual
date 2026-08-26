@@ -9,7 +9,7 @@ import {
   type ScopedSessionState,
   type ListScope,
 } from '../../src/commands/scoped-session'
-import type { ListType } from '../../src/list-type'
+import type { ListType } from '../../src/list/list-type'
 import {
   createCardSessionContext,
   buildInitialSessionConfig,
@@ -29,7 +29,7 @@ import {
   type OpenList,
   type UnifiedListRef,
 } from '../../src/commands/edit-lists'
-import { createAddChange, type ChangeEvent } from '../../src/change-event'
+import { createAddChange, type ChangeEvent } from '../../src/changes/change-event'
 import { stubTty } from '../test-utils'
 
 // The add flow's list picker goes through `ask`, which refuses to prompt

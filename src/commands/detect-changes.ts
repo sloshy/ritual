@@ -4,7 +4,7 @@ import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { parseTitleFromContent } from '../section-format'
+import { parseTitleFromContent } from '../list/section-format'
 import {
   getChangedFiles,
   getFileAtCommit,
@@ -15,15 +15,15 @@ import {
   GitCommandError,
   type FileChange,
   type ListKind,
-} from '../git-diff'
-import { diffDeckCards, diffCollectionEntries, diffWantedEntries } from '../diff-cards'
+} from '../changes/git-diff'
+import { diffDeckCards, diffCollectionEntries, diffWantedEntries } from '../changes/diff-cards'
 import { loadDeckFile } from '../importers/text-file'
-import { parseCollectionFile } from '../collection-file'
+import { parseCollectionFile } from '../list/collection-file'
 import { parseWantedListFile } from './wanted-helpers'
-import { appendChangelog } from '../changelog-writer'
-import type { ChangeEvent } from '../change-event'
-import { formatChange } from '../change-message'
-import { getBaseDir } from '../base-dir'
+import { appendChangelog } from '../changes/changelog-writer'
+import type { ChangeEvent } from '../changes/change-event'
+import { formatChange } from '../changes/change-message'
+import { getBaseDir } from '../config/base-dir'
 import {
   classifySidecarWithHash,
   computeHash,
@@ -31,10 +31,10 @@ import {
   loadHash,
   saveHash,
   type SidecarState,
-} from '../content-hash'
-import { listLocations } from '../resolve-list'
-import { getErrorMessage, hasErrorCode } from '../errors'
-import type { DeckSection } from '../types'
+} from '../changes/content-hash'
+import { listLocations } from '../list/resolve-list'
+import { getErrorMessage, hasErrorCode } from '../util/errors'
+import type { DeckSection } from '../list/deck'
 import {
   addDryRunOption,
   addScriptingOptions,

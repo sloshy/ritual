@@ -26,7 +26,7 @@
 import type { Choice } from 'prompts'
 import { segmenter } from '../i18n/format'
 import { currentLocale } from '../i18n/runtime'
-import { matchesAllNameTerms, matchesAllTerms, normalizeForSearch } from '../term-match'
+import { matchesAllNameTerms, matchesAllTerms, normalizeForSearch } from '../card/term-match'
 
 /**
  * A menu row's English search terms. Rides on the `prompts` `Choice` object,

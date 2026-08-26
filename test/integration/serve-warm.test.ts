@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { cardCache } from '../../src/cache/instances'
 import { warmCardKingdomFeed } from '../../src/cardkingdom'
-import { primerSidecarPath } from '../../src/list-sidecars'
+import { primerSidecarPath } from '../../src/list/list-sidecars'
 import { warmSiteCache, type SiteCacheWarmth, type WarmDeps } from '../../src/serve/warm'
 import { DenyHttpClient, makeScryfallCard } from '../test-utils'
 import {

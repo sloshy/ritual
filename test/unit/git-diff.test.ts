@@ -5,7 +5,7 @@ import {
   changesPath,
   gitStderrSummary,
   GitCommandError,
-} from '../../src/git-diff'
+} from '../../src/changes/git-diff'
 import { describeGitFailure } from '../../src/commands/detect-changes'
 
 describe('parseNameStatus', () => {

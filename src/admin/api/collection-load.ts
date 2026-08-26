@@ -1,8 +1,8 @@
-import { unreadableLines } from '../../markdown-fence'
-import { parseCollectionFile } from '../../collection-file'
-import { readListDescription } from '../../list-description'
-import { readListImage } from '../../list-image'
-import { getCollectionsDir } from '../../ritual-config'
+import { unreadableLines } from '../../list/markdown-fence'
+import { parseCollectionFile } from '../../list/collection-file'
+import { readListDescription } from '../../list/list-description'
+import { readListImage } from '../../list/list-image'
+import { getCollectionsDir } from '../../config/ritual-config'
 import { handleFlatListLoad, type FlatListLoadConfig, type FlatListParseResult } from './list-load'
 import type { CollectionEntry } from './load-results'
 

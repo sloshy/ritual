@@ -12,7 +12,7 @@
  */
 
 import { createEffect, createSignal, type Accessor } from 'solid-js'
-import type { ListType } from '../list-type'
+import type { ListType } from '../list/list-type'
 
 export interface CardNavTarget {
   type: ListType

@@ -1,6 +1,6 @@
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from './types'
 import { compareData, compareDataNumeric } from '../i18n/collate'
-import { scryfallCardLanguage } from '../card-language'
+import { scryfallCardLanguage } from '../card/card-language'
 
 export type CardNameFilter = {
   sets?: string[]

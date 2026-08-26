@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test'
 import type { ChangeBundleList } from '../../src/editor/change-bundle'
-import type { ChangeEvent, MoveFromChange } from '../../src/change-event'
+import type { ChangeEvent, MoveFromChange } from '../../src/changes/change-event'
 import {
   saveEditSession,
   loadEditSession,

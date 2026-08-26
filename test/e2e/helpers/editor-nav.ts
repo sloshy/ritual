@@ -1,5 +1,5 @@
 import { type Page, expect } from '@playwright/test'
-import { type ListType, listTypeTitle } from '../../../src/list-type'
+import { type ListType, listTypeTitle } from '../../../src/list/list-type'
 
 /**
  * Open an admin page from the sidebar and wait for its heading.

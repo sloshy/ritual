@@ -1,8 +1,8 @@
 import { type JSX, For, Match, Show, Switch, createMemo, createSignal } from 'solid-js'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { IMPORT_CONFLICT_REASON_KEY } from '../../../editor/import-changes'
-import { formatChange } from '../../../change-message'
-import { LIST_TYPE_DISPLAY } from '../../../list-type'
+import { formatChange } from '../../../changes/change-message'
+import { LIST_TYPE_DISPLAY } from '../../../list/list-type'
 import {
   type ChangeBundle,
   bundleChangeCount,

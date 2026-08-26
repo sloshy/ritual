@@ -23,10 +23,10 @@
 
 import { createEffect, untrack, type Accessor } from 'solid-js'
 import { buylistQuotesOnline, buylistRequestFor, requestBuylistQuotes } from './buylist-quotes'
-import { printingFinishPairs } from '../card-printing'
+import { printingFinishPairs } from '../card/card-printing'
 import { activeUsdSource } from './price-view'
 import type { BuylistQuoteRequest } from '../buylist'
-import type { ScryfallCard } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
 
 /**
  * The quote requests for every finish of every printing, skipping the ones no

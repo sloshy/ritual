@@ -5,7 +5,7 @@ import { en, type MessageKey } from '../../src/i18n/messages/en'
 import { enMeta } from '../../src/i18n/messages/en.meta'
 import { loadDictionary, resetI18nRuntime, setLocale } from '../../src/i18n/runtime'
 import { displayWidth } from '../../src/i18n/width'
-import type { ScryfallCard } from '../../src/types'
+import type { ScryfallCard } from '../../src/scryfall/types'
 import { localeTag } from '../../src/i18n/locale-tag'
 import {
   applySessionConfigAnswers,

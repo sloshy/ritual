@@ -14,14 +14,14 @@
  * message explaining it, per the project's parser convention.
  */
 
-import { DEFAULT_SECTION, type DeckData, type DeckSection } from '../../types'
-import { parseEnumField } from '../../parse-enum'
+import { DEFAULT_SECTION, type DeckData, type DeckSection } from '../../list/deck'
+import { parseEnumField } from '../../util/parse-enum'
 import {
   invalidLimitMessage,
   parseNonNegativeInteger,
   parsePositiveInteger,
-} from '../../parse-number'
-import { matchesNameTerms, normalizeCardName, splitNameTerms } from '../../term-match'
+} from '../../util/parse-number'
+import { matchesNameTerms, normalizeCardName, splitNameTerms } from '../../card/term-match'
 
 /** The accepted `view` values, in the order an error message lists them. */
 export const LIST_LOAD_VIEWS = ['full', 'cards', 'summary'] as const

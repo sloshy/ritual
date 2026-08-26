@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { finishChipName, finishName, rarityName } from '../../../src/site/printing-display'
 import { t } from '../../../src/i18n/t'
-import type { Finish } from '../../../src/types'
+import type { Finish } from '../../../src/card/finish-condition'
 
 // These replaced `capitalize(token)` on the site's card surfaces, which left the
 // visible text with no string a translator could reach. What matters here is

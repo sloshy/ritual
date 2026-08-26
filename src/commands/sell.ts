@@ -1,11 +1,11 @@
 import { Command, InvalidArgumentError } from 'commander'
 import { ensureCardCachePresent, emptyCacheAdvice } from '../cache/freshness'
 import { adoptCardKingdomFeed, ensureCardKingdomFeed } from '../cardkingdom'
-import { formatPrintingAnnotation } from '../change-event'
+import { formatPrintingAnnotation } from '../changes/change-event'
 import { compareData } from '../i18n/collate'
-import { formatPrice } from '../price-currency'
-import { addRefreshOption, resolveRefreshMode, type RefreshMode } from '../refresh'
-import { listTypeFromFlags, type ListLocation } from '../resolve-list'
+import { formatPrice } from '../pricing/price-currency'
+import { addRefreshOption, resolveRefreshMode, type RefreshMode } from '../cache/refresh'
+import { listTypeFromFlags, type ListLocation } from '../list/resolve-list'
 import {
   applySellFilters,
   buildSellCartCsv,
@@ -18,10 +18,10 @@ import {
   type SellReportPayload,
   type SellReportTotals,
   type SellReportView,
-} from '../sell-report'
-import { loadAndBuildSellReport } from '../sell-runtime'
-import { parseSetCodesInput } from '../set-codes'
-import { formatDuration } from '../utils'
+} from '../pricing/sell-report'
+import { loadAndBuildSellReport } from '../pricing/sell-runtime'
+import { parseSetCodesInput } from '../card/set-codes'
+import { formatDuration } from '../util/duration'
 import { isListArgumentsFailure, resolveListArguments } from './list-arguments'
 import {
   addOutputOption,

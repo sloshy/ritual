@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import type { ScryfallCard } from '../../src/types'
+import type { ScryfallCard } from '../../src/scryfall/types'
 import { makePrintingIn as printing } from '../test-utils'
 import {
   buildPrintingKeys,

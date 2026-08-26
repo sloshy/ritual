@@ -1,5 +1,5 @@
-import { computeHash } from '../../content-hash'
-import { collectExistingIds } from '../../card-id'
+import { computeHash } from '../../changes/content-hash'
+import { collectExistingIds } from '../../card/card-id'
 import { apiHandler } from '../utils'
 import { addChangelogCardNames, fetchSymbolMap, loadEntryCardData } from './card-data-loader'
 import {
@@ -16,8 +16,8 @@ import {
   toCountParams,
   type ListLoadParams,
 } from './list-load-params'
-import type { CardLabel } from '../../card-labels'
-import type { ListImageRef } from '../../list-image'
+import type { CardLabel } from '../../card/card-labels'
+import type { ListImageRef } from '../../list/list-image'
 import type {
   FlatCardsLoadResult,
   FlatFullLoadResult,

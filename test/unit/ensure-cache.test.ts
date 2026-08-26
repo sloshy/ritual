@@ -8,7 +8,7 @@ import {
   setLogger,
   resetLogger,
 } from '../test-utils'
-import type { ScryfallCard } from '../../src/types'
+import type { ScryfallCard } from '../../src/scryfall/types'
 
 type CardCache = InMemoryCacheManager<ScryfallCard[]> & {
   _lastRefreshedAt: number | null

@@ -1,7 +1,7 @@
 import { loadDeckFile } from '../../importers/text-file'
-import { parseCollectionFile } from '../../collection-file'
+import { parseCollectionFile } from '../../list/collection-file'
 import { parseWantedListFile } from '../../commands/wanted-helpers'
-import { collectDeckCardIds, collectExistingIds } from '../../card-id'
+import { collectDeckCardIds, collectExistingIds } from '../../card/card-id'
 import {
   artSidecarPath,
   cardArtFilePath,
@@ -12,10 +12,10 @@ import {
   saveCardArt,
   type CardArtRecord,
   type CardArtRef,
-} from '../../card-art'
-import { getArtDir } from '../../ritual-config'
-import { listTypeLabel, type ListType } from '../../list-type'
-import { dirForType } from '../../resolve-list'
+} from '../../list/card-art'
+import { getArtDir } from '../../config/ritual-config'
+import { listTypeLabel, type ListType } from '../../list/list-type'
+import { dirForType } from '../../list/resolve-list'
 import { apiHandler } from '../utils'
 import { resolveListFile } from './list-info'
 import { apiMessage, type ApiMessage } from './result'

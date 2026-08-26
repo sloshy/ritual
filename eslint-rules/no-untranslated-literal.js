@@ -19,7 +19,7 @@
  * lines. It runs only inside the surfaces that get localized (`src/commands`,
  * `src/site`, `src/admin/site`, `src/ui`, `src/editor`) and never inside the
  * surfaces that are English by contract (`src/mcp`, `src/skills`, the changelog
- * persistence modules, `src/export`, `src/types.ts`, generated code, tests,
+ * persistence modules, `src/export`, generated code, tests,
  * docs). Both lists are options so the ratchet in §12 can widen or narrow them
  * per directory as each surface converts.
  *
@@ -37,10 +37,9 @@ const DEFAULT_INCLUDE = ['src/commands/', 'src/site/', 'src/admin/site/', 'src/u
 const DEFAULT_EXCLUDE = [
   'src/mcp/',
   'src/skills/',
-  'src/change-event.ts',
-  'src/changelog-',
+  'src/changes/change-event.ts',
+  'src/changes/changelog-',
   'src/export/',
-  'src/types.ts',
   'src/generated/',
   'test/',
   'docs-site/',

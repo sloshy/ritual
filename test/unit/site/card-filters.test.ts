@@ -30,7 +30,7 @@ import {
 } from '../../../src/site/card-filters'
 import type { ListRefKey } from '../../../src/site/combined-list'
 import type { CardData } from '../../../src/site/card-sorting'
-import type { Finish } from '../../../src/types'
+import type { Finish } from '../../../src/card/finish-condition'
 import { makeCardData as makeCard, makeScryfallCard } from '../../test-utils'
 
 function makeFilters(overrides: Partial<CardFilters> = {}): CardFilters {

@@ -3,7 +3,7 @@
  * totals.
  */
 
-import { displayFinish } from '../../finish-condition'
+import { displayFinish } from '../../card/finish-condition'
 import { listRefKey, type ListRefKey, type NamedListRef } from '../../site/combined-list'
 import { currentPrintingPrice } from './auto'
 import { definedPrintingDetails, targetPinsPrinting } from './printing-fields'

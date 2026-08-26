@@ -1,4 +1,4 @@
-import type { ChangeEvent } from '../change-event'
+import type { ChangeEvent } from '../changes/change-event'
 import type { EditorStatusActions } from './useEditorStatus'
 import type { SaveEffect } from './save-effects'
 import { saveEditorChanges } from './saveEditorChanges'

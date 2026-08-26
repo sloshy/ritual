@@ -1,7 +1,7 @@
 import type { Component } from 'solid-js'
 import { For } from 'solid-js'
-import { type ChangeEvent, isAdditiveChange } from '../../change-event'
-import { formatChange } from '../../change-message'
+import { type ChangeEvent, isAdditiveChange } from '../../changes/change-event'
+import { formatChange } from '../../changes/change-message'
 import { Modal } from '../../ui/Modal'
 import { useT } from '../../ui/i18n'
 

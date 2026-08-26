@@ -9,7 +9,7 @@
 import { batch } from 'solid-js'
 import type { UseEditorResult } from './useEditor'
 import type { CollectionCardEntry } from '../site/data-types'
-import type { CardLabel } from '../card-labels'
+import type { CardLabel } from '../card/card-labels'
 import { applyChangeToCollection } from './collection-changes'
 
 /** The card identity a label edit targets: the tile's name and every copy's id. */

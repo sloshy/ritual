@@ -1,13 +1,13 @@
 import { type Component, For, Show } from 'solid-js'
-import { LIST_TYPE_DISPLAY } from '../../../list-type'
+import { LIST_TYPE_DISPLAY } from '../../../list/list-type'
 import { useT } from '../../../ui/i18n'
-import { formatPrintingAnnotation } from '../../../change-event'
-import type { ScryfallCard } from '../../../types'
+import { formatPrintingAnnotation } from '../../../changes/change-event'
+import type { ScryfallCard } from '../../../scryfall/types'
 import { resolveCardImageSources, isCardSideways } from '../../../site/image-sources'
 import { TooltipOverlay } from '../../../site/TooltipOverlay'
 import { useTooltip } from '../../../site/useTooltip'
 import type { CardGroup } from '../move-overlay'
-import { lookupPrintingCard } from '../../../printing-key'
+import { lookupPrintingCard } from '../../../card/printing-key'
 
 interface MoveSearchResultsProps {
   query: string

@@ -1,4 +1,5 @@
-import type { ScryfallCard, Finish, Condition } from '../types'
+import type { ScryfallCard } from '../scryfall/types'
+import type { Finish, Condition } from '../card/finish-condition'
 
 /**
  * Identity and current printing of the card a context menu was opened for.

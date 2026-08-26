@@ -10,7 +10,7 @@
  * pages themselves can only be exercised through Playwright.
  */
 
-import { formatDuration } from '../../utils'
+import { formatDuration } from '../../util/duration'
 import { t } from '../../i18n/t'
 
 /** How far a run has progressed; drives the button state and the result panel. */

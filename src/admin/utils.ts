@@ -1,4 +1,4 @@
-import { CardCommandError, ExitCode, getErrorMessage } from '../errors'
+import { CardCommandError, ExitCode, getErrorMessage } from '../util/errors'
 
 /**
  * HTTP status for an error that reached the top of a handler. A

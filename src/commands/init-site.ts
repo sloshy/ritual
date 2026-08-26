@@ -8,28 +8,28 @@ import type {
   GitHubActionsSiteConfig,
   InitSiteConfig,
   SiteDeployConfig,
-} from '../ritual-config'
+} from '../config/ritual-config'
 import {
   getSiteDeployConfig,
   getSiteSelectionConfig,
   loadRitualConfig,
   refreshRitualConfig,
   saveRitualConfig,
-} from '../ritual-config'
-import { VALID_CURRENCIES, type PriceCurrency } from '../price-currency'
-import type { ActiveManagedFile, ManagedFile, Migration } from '../managed-files'
-import { computeMigrations, isActiveManagedFile } from '../managed-files'
-import { compareVersions } from '../semver'
-import { getBaseDir } from '../base-dir'
-import { fileExists } from '../utils'
-import { promptsUnavailable } from '../no-input'
+} from '../config/ritual-config'
+import { VALID_CURRENCIES, type PriceCurrency } from '../pricing/price-currency'
+import type { ActiveManagedFile, ManagedFile, Migration } from '../list/managed-files'
+import { computeMigrations, isActiveManagedFile } from '../list/managed-files'
+import { compareVersions } from '../config/semver'
+import { getBaseDir } from '../config/base-dir'
+import { fileExists } from '../util/fs'
+import { promptsUnavailable } from '../util/no-input'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
-import { version as ritualVersion } from '../version'
+import { version as ritualVersion } from '../config/version'
 import { SKILLS } from '../skills/catalog'
 import { installSkills, refreshInstalledSkills, resolveSkillsDir } from '../skills/install'
 import { printSkillsWriteSummary } from './skills'
-import { CardCommandError, localizedCommandError } from '../errors'
+import { CardCommandError, localizedCommandError } from '../util/errors'
 import { runCommandAction } from './card-target'
 import { ExitCode, normalizeScriptingOptions, parseEnumFlag } from './scripting'
 

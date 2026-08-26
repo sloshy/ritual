@@ -5,7 +5,7 @@ import {
   findDeckCardLanguage,
   findDeckFinish,
 } from '../../src/editor/deck-config'
-import type { DeckData } from '../../src/types'
+import type { DeckData } from '../../src/list/deck'
 
 /**
  * A deck holding the same card twice — one copy pinned and foil, one name-only

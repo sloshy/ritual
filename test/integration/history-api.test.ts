@@ -2,9 +2,9 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { execSync } from 'node:child_process'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { resetRitualConfigCache, getDefaultRitualConfig } from '../../src/ritual-config'
+import { resetRitualConfigCache, getDefaultRitualConfig } from '../../src/config/ritual-config'
 import { handleHistoryLoad, handleHistorySave } from '../../src/admin/api/history'
-import type { ChangeSet } from '../../src/changelog-blocks'
+import type { ChangeSet } from '../../src/changes/changelog-blocks'
 import {
   bindWorkspace,
   collectionMarkdown,

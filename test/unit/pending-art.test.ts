@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { createAddChange, createRemoveChange } from '../../src/change-event'
-import type { CardArtRef } from '../../src/card-art'
+import { createAddChange, createRemoveChange } from '../../src/changes/change-event'
+import type { CardArtRef } from '../../src/list/card-art'
 import type { CardArtRefs } from '../../src/editor/card-art-view'
 import {
   addedCopyArtActions,

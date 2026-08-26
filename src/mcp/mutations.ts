@@ -1,6 +1,6 @@
 import { pickMessage, type ApiMessage } from '../admin/api/result'
-import type { ChangeEvent } from '../change-event'
-import type { ListType } from '../list-type'
+import type { ChangeEvent } from '../changes/change-event'
+import type { ListType } from '../list/list-type'
 import {
   applyChangesCollectingMisses,
   describeUnmatchedChanges,

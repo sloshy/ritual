@@ -10,9 +10,9 @@
  * Browser-safe: imports only `csv.ts` and `card-line.ts`.
  */
 
-import { aggregateQuantities } from '../card-line'
-import { csvCell } from '../csv'
-import type { Finish } from '../types'
+import { aggregateQuantities } from '../card/card-line'
+import { csvCell } from '../changes/csv'
+import type { Finish } from '../card/finish-condition'
 
 /** Card Kingdom's sell-cart CSV import caps (per upload). */
 export const CK_CSV_MAX_TITLES = 500
