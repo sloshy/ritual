@@ -60,6 +60,21 @@ const XM2_BOLT = boltPrinting({
   finishes: ['nonfoil', 'foil'],
 })
 
+/**
+ * Open the printing flow from the Lightning Bolt tile's context menu. A line
+ * that pins nothing offers "Set Printing" instead — same flow, different label.
+ */
+const openChangePrinting = async (
+  page: import('@playwright/test').Page,
+  label: 'Change Printing' | 'Set Printing' = 'Change Printing',
+) => {
+  const tile = page.locator('.card-item').filter({ hasText: 'Lightning Bolt' }).first()
+  await tile.locator('.edit-btn-context').click()
+  const menu = page.locator('.card-context-menu')
+  await expect(menu).toBeVisible()
+  await menu.locator('button', { hasText: label }).click()
+}
+
 test.describe('Deck Editor — change printing', () => {
   test.beforeEach(async ({ page }) => {
     await disableSearchDebounce(page)
@@ -109,14 +124,6 @@ test.describe('Deck Editor — change printing', () => {
 
     await openDeckWithCards(page, 'test-change-printing')
   })
-
-  const openChangePrinting = async (page: import('@playwright/test').Page) => {
-    const tile = page.locator('.card-item').filter({ hasText: 'Lightning Bolt' }).first()
-    await tile.locator('.edit-btn-context').click()
-    const menu = page.locator('.card-context-menu')
-    await expect(menu).toBeVisible()
-    await menu.locator('button', { hasText: 'Change Printing' }).click()
-  }
 
   test('changing all copies records a single set-printing change and keeps one tile', async ({
     page,
@@ -421,5 +428,74 @@ test.describe('Deck Editor — a line with no printing pinned', () => {
     await tile.locator('.edit-btn-context').click()
     await expect(menu.locator('button', { hasText: 'Change Printing' })).toBeVisible()
     await expect(menu.locator('button', { hasText: 'Set Printing' })).toHaveCount(0)
+  })
+})
+
+test.describe('Deck Editor — change printing on a name-only entry', () => {
+  test.beforeEach(async ({ page }) => {
+    await disableSearchDebounce(page)
+    await gotoAdminDashboard(page)
+
+    await fulfillJson(
+      page,
+      '**/api/decks',
+      { decks: [{ slug: 'test-name-only-printing', name: 'Name Only Deck' }] },
+      { method: 'GET' },
+    )
+
+    await fulfillJson(page, '**/api/deck/test-name-only-printing', {
+      success: true,
+      slug: 'test-name-only-printing',
+      contentHash: 'hash-1',
+      deck: {
+        name: 'Name Only Deck',
+        // Pins no printing: every copy renders the by-name representative (LEA).
+        sections: [{ name: 'Main', cards: [{ quantity: 4, name: 'Lightning Bolt', cardId: 5 }] }],
+      },
+      cards: { 'Lightning Bolt': LEA_BOLT },
+      printings: { 'Lightning Bolt': [LEA_BOLT, M10_BOLT, XM2_BOLT] },
+      lowestPriceCards: { 'Lightning Bolt': LEA_BOLT },
+      lowestPriceCardsEur: { 'Lightning Bolt': LEA_BOLT },
+      lowestPriceCardsTix: {},
+      symbolMap: {},
+      frontMatter: {},
+    })
+
+    await fulfillJson(page, '**/api/card-printings*', {
+      success: true,
+      printings: [LEA_BOLT, M10_BOLT, XM2_BOLT],
+    })
+
+    await openDeckWithCards(page, 'test-name-only-printing')
+  })
+
+  test("pinning some copies leaves the rest on the representative's price", async ({ page }) => {
+    const tiles = page.locator('.card-item').filter({ hasText: 'Lightning Bolt' })
+    await expect(tiles).toHaveCount(1)
+    await expect(tiles.first()).toContainText('1.00')
+
+    await openChangePrinting(page, 'Set Printing')
+
+    const qtyInput = page.locator('#change-printing-qty')
+    await expect(qtyInput).toBeFocused()
+    await page.keyboard.type('2')
+    await expect(qtyInput).toHaveValue('2')
+    await page.keyboard.press('Enter')
+    await page.locator('.printing-select-card', { hasText: 'M10' }).click()
+
+    // The 2 pinned copies move to M10; the 2 that still pin nothing must keep
+    // rendering the by-name representative rather than borrowing the printing
+    // just chosen for their siblings.
+    await expect(tiles).toHaveCount(2)
+    await expect(tiles.filter({ hasText: '2.50' })).toHaveCount(1)
+    await expect(tiles.filter({ hasText: '1.00' })).toHaveCount(1)
+
+    // Pinning part of a name-only line is a split, not a re-target: 2 copies
+    // leave the unpinned line and 2 arrive on the M10 one.
+    await expect(page.locator('.changes-badge')).toHaveText('4')
+    await page.locator('.btn-changes').click()
+    const changes = page.locator('.changes-modal .changes-dialog')
+    await expect(changes).toContainText('Remove Lightning Bolt')
+    await expect(changes).toContainText('Add Lightning Bolt (M10:146)')
   })
 })

@@ -98,12 +98,22 @@ export type PrintingRef = {
  * holding the alternate-language card object), then falls through the plain
  * `set:cn` key — which still holds the printing's default-language object, the
  * right fallback for prices and images when no per-language object was baked.
- * The explicit-`null` contract applies to **both** key forms: an `@lang` key
- * written as `null` records "looked for, not in the cache" and is returned
- * as-is rather than falling through to a different object.
+ * The explicit-`null` contract *applies* to both key forms — an `@lang` key
+ * written as `null` would be returned as-is rather than falling through to a
+ * different object — but nothing writes one today: the builders leave a language
+ * miss unkeyed on purpose, so it falls through to the plain key's
+ * default-language object (see `site/details/collection.ts`).
  *
  * Callers apply their own session-cache overlay to the result; this returns the
  * raw map value.
+ *
+ * Read, never `Object.hasOwn`, even though the two are equivalent here (no own
+ * key ever holds `undefined`: a Solid store deletes such a key and the builders
+ * record `null`). The maps the editors pass are `createStore` proxies, whose
+ * `getOwnPropertyDescriptor` trap does **not** track — so a probe would
+ * subscribe a reader to a printing key only while that key already exists, and
+ * a tile whose lookup key just flipped from the name to `set:cn` would never
+ * re-run when the key arrived. An indexed read tracks the absent key too.
  */
 export function lookupPrintingCard(
   cards: Record<string, ScryfallCard | null>,
@@ -111,11 +121,11 @@ export function lookupPrintingCard(
 ): ScryfallCard | null {
   if (ref.set && ref.collectorNumber) {
     if (ref.language !== undefined && ref.language !== 'en') {
-      const langKey = printingLanguageKey(ref.set, ref.collectorNumber, ref.language)
-      if (Object.hasOwn(cards, langKey)) return cards[langKey] ?? null
+      const inLanguage = cards[printingLanguageKey(ref.set, ref.collectorNumber, ref.language)]
+      if (inLanguage !== undefined) return inLanguage
     }
-    const key = printingKey(ref.set, ref.collectorNumber)
-    if (Object.hasOwn(cards, key)) return cards[key] ?? null
+    const pinned = cards[printingKey(ref.set, ref.collectorNumber)]
+    if (pinned !== undefined) return pinned
   }
   return cards[ref.name] ?? null
 }

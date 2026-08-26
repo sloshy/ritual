@@ -1,6 +1,11 @@
 import { createStore, produce, reconcile } from 'solid-js/store'
 import type { ScryfallCard } from '../types'
-import { buildPrintingKeys, indexPrintingCard } from './card-data-utils'
+import {
+  type AddCardToStore,
+  buildPrintingKeys,
+  indexPrintingCard,
+  seedNameRepresentative,
+} from './card-data-utils'
 
 export type EntryCardData = {
   cards: Record<string, ScryfallCard | null>
@@ -8,20 +13,16 @@ export type EntryCardData = {
   symbolMap: Record<string, string>
 }
 
-export const initialEntryCardData: EntryCardData = {
-  cards: {},
-  printings: {},
-  symbolMap: {},
-}
-
 export type EntryCardDataActions = {
   load: (data: EntryCardData) => void
-  addCard: (cardName: string, card?: ScryfallCard, printings?: ScryfallCard[]) => void
+  addCard: AddCardToStore
   setPrices: (cardName: string, representative?: ScryfallCard, printings?: ScryfallCard[]) => void
 }
 
 export function useEntryCardData(): [EntryCardData, EntryCardDataActions] {
-  const [state, setState] = createStore<EntryCardData>({ ...initialEntryCardData })
+  // Literal, not a spread of a shared constant: the maps are mutated in place,
+  // so two stores built from one object would share their contents.
+  const [state, setState] = createStore<EntryCardData>({ cards: {}, printings: {}, symbolMap: {} })
 
   const actions: EntryCardDataActions = {
     load: (data) => setState(reconcile(data)),
@@ -29,7 +30,10 @@ export function useEntryCardData(): [EntryCardData, EntryCardDataActions] {
       setState(
         produce((draft) => {
           if (card) {
-            draft.cards[cardName] = card
+            // Fill the by-name slot only when nothing holds it: this card may be
+            // one specific printing chosen for *some* copies, and the copies that
+            // pin no printing read that slot.
+            seedNameRepresentative(draft.cards, cardName, card)
             // Foreign-language objects key under `set:cn@lang`; the plain slot
             // keeps (or falls back to) the default-language object.
             indexPrintingCard(draft.cards, card)

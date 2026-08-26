@@ -1,4 +1,5 @@
 import type { ScryfallCard } from '../../types'
+import type { AddCardToStore } from '../../editor/card-data-utils'
 import type { SearchProvider } from '../../editor/search-provider'
 
 /**
@@ -14,7 +15,7 @@ export async function backfillImportedCard(
   search: SearchProvider,
   cardName: string,
   scryfallCard: ScryfallCard | undefined,
-  addCard: (cardName: string, card?: ScryfallCard, printings?: ScryfallCard[]) => void,
+  addCard: AddCardToStore,
 ): Promise<void> {
   if (scryfallCard) return
   try {

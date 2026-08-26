@@ -1,7 +1,11 @@
 import { describe, test, expect } from 'bun:test'
 import type { ScryfallCard } from '../../src/types'
 import { makePrintingIn as printing } from '../test-utils'
-import { buildPrintingKeys, indexPrintingCard } from '../../src/editor/card-data-utils'
+import {
+  buildPrintingKeys,
+  indexPrintingCard,
+  seedNameRepresentative,
+} from '../../src/editor/card-data-utils'
 
 /**
  * The editors' dual keying of printing card maps under an `all_cards` cache:
@@ -38,5 +42,37 @@ describe('indexPrintingCard / buildPrintingKeys', () => {
     indexPrintingCard(map, STA_EN)
     indexPrintingCard(map, STA_JA)
     expect(map['sta:42']).toBe(STA_EN)
+  })
+})
+
+describe('seedNameRepresentative', () => {
+  test('fills the by-name slot when the name holds no card yet', () => {
+    const map: Record<string, ScryfallCard | null> = {}
+    seedNameRepresentative(map, 'Lightning Bolt', STA_EN)
+    expect(map['Lightning Bolt']).toBe(STA_EN)
+  })
+
+  test('a recorded null is an empty slot, unlike a printing key', () => {
+    const map: Record<string, ScryfallCard | null> = { 'Lightning Bolt': null }
+    seedNameRepresentative(map, 'Lightning Bolt', STA_EN)
+    expect(map['Lightning Bolt']).toBe(STA_EN)
+  })
+
+  test('leaves a held representative alone so name-only copies keep their printing', () => {
+    const map: Record<string, ScryfallCard | null> = { 'Lightning Bolt': STA_EN }
+    seedNameRepresentative(map, 'Lightning Bolt', printing('m10', '146'))
+    expect(map['Lightning Bolt']).toBe(STA_EN)
+  })
+
+  test('an English object reclaims the slot from a foreign-language one', () => {
+    const map: Record<string, ScryfallCard | null> = { 'Lightning Bolt': STA_JA }
+    seedNameRepresentative(map, 'Lightning Bolt', STA_EN)
+    expect(map['Lightning Bolt']).toBe(STA_EN)
+  })
+
+  test('a foreign-language object never displaces an English representative', () => {
+    const map: Record<string, ScryfallCard | null> = { 'Lightning Bolt': STA_EN }
+    seedNameRepresentative(map, 'Lightning Bolt', WAR_JA_ONLY)
+    expect(map['Lightning Bolt']).toBe(STA_EN)
   })
 })
