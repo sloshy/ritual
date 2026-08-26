@@ -2,26 +2,25 @@ import { Command, InvalidArgumentError } from 'commander'
 import type { ScryfallCard } from '../scryfall/types'
 import { classifyFetchCard, fetchRandomCard, fetchSearchPage } from '../scryfall'
 import { isNoInput } from '../util/no-input'
+import { addFieldsOption, addOutputOption } from '../cli/options'
 import {
-  addFieldsOption,
-  addOutputOption,
   CSV_OUTPUT_FORMATS,
   csvScriptingOptions,
   emitError,
   emitOutput,
-  ExitCode,
   projectFields,
   projectFieldsArray,
   rejectFieldsWithTextOutput,
-  renderCardSummary,
   writeStderr,
   writeStdout,
   type CsvOutputFormat,
   type ScriptingOptions,
-} from './scripting'
-import { getErrorMessage } from '../util/errors'
+} from '../cli/output'
+import { fail } from '../cli/action'
+import { ExitCode, getErrorMessage } from '../util/errors'
+import { renderCardSummary } from './card'
 import { parsePositiveInteger } from '../util/parse-number'
-import { ask } from './prompts-helpers'
+import { ask } from '../cli/prompts'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 
@@ -146,14 +145,7 @@ export function registerScryCommand(program: Command): void {
       return
     }
     if (options.fields && options.fields.length > 0 && format === 'csv') {
-      emitError(
-        'usage_error',
-        t('cli.scry.fieldsWithCsv'),
-        scriptingOptions,
-        undefined,
-        'cli.scry.fieldsWithCsv',
-      )
-      process.exitCode = ExitCode.UsageError
+      fail(scriptingOptions, 'usage_error', 'cli.scry.fieldsWithCsv')
       return
     }
     if (rejectFieldsWithTextOutput(options.fields, scriptingOptions)) {
@@ -204,14 +196,10 @@ export function registerScryCommand(program: Command): void {
 
     /** Report a page that could not be fetched, and set the runtime exit code. */
     const failPage = (message: string): void => {
-      emitError(
-        'runtime_error',
-        t('cli.scry.pageFetchFailed', { page, reason: message }),
-        scriptingOptions,
-        undefined,
-        'cli.scry.pageFetchFailed',
-      )
-      process.exitCode = ExitCode.RuntimeError
+      fail(scriptingOptions, 'runtime_error', 'cli.scry.pageFetchFailed', {
+        page,
+        reason: message,
+      })
     }
 
     /** Cards emitted so far and the run's total, for the truncation notice. */
@@ -234,14 +222,7 @@ export function registerScryCommand(program: Command): void {
         if (!raw || raw.length === 0) {
           // Empty result or 404
           if (page === 1) {
-            emitError(
-              'not_found',
-              t('cli.scry.noResults'),
-              scriptingOptions,
-              undefined,
-              'cli.scry.noResults',
-            )
-            process.exitCode = ExitCode.NotFound
+            fail(scriptingOptions, 'not_found', 'cli.scry.noResults')
           }
           break
         }
@@ -361,26 +342,14 @@ async function runRandom(
     const outcome = classifyFetchCard(await fetchRandomCard(filter))
 
     if (outcome.kind === 'failed') {
-      emitError(
-        'runtime_error',
-        t('cli.scry.randomFailed', { reason: outcome.message }),
-        scriptingOptions,
-        undefined,
-        'cli.scry.randomFailed',
-      )
-      process.exitCode = ExitCode.RuntimeError
+      fail(scriptingOptions, 'runtime_error', 'cli.scry.randomFailed', {
+        reason: outcome.message,
+      })
       return
     }
 
     if (outcome.kind === 'not-found') {
-      emitError(
-        'not_found',
-        t('cli.scry.randomNotFound'),
-        scriptingOptions,
-        undefined,
-        'cli.scry.randomNotFound',
-      )
-      process.exitCode = ExitCode.NotFound
+      fail(scriptingOptions, 'not_found', 'cli.scry.randomNotFound')
       return
     }
 

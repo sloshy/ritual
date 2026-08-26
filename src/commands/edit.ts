@@ -10,8 +10,9 @@ import {
   runCardSession,
   type MultiListSessionControls,
 } from './card-session'
-import { addRefreshOption, type RefreshMode } from '../cache/refresh'
-import { ask, suggestByTitleTerms } from './prompts-helpers'
+import { addRefreshOption } from '../cli/options'
+import type { RefreshMode } from '../cache/refresh'
+import { ask, suggestByTitleTerms } from '../cli/prompts'
 import { promptDeckFormat, type DeckSessionConfig } from './deck-helpers'
 import {
   collectListRefs,
@@ -40,7 +41,8 @@ import { inputRequiredError, promptsUnavailable } from '../util/no-input'
 import { sameListRef, type ListRef } from '../changes/change-event'
 import { listRefTitle } from './edit-move'
 import { readDeckName } from '../importers/text-file'
-import { emitError, emitResolveListError, ExitCode, type ScriptingOptions } from './scripting'
+import { emitError, emitResolveListError, TEXT_ONLY } from '../cli/output'
+import { ExitCode } from '../util/errors'
 import {
   createScopedSession,
   createScopedSessionState,
@@ -189,7 +191,6 @@ async function directOpenRef(location: ListLocation): Promise<UnifiedListRef> {
 }
 
 /** The edit command has no --output flag; resolution errors go to stderr as plain text. */
-const PLAIN_TEXT_OUTPUT: ScriptingOptions = { output: 'text', quiet: false }
 
 export function registerEditCommand(program: Command): void {
   const editCommand = program
@@ -209,7 +210,7 @@ export function registerEditCommand(program: Command): void {
   editCommand.action(async (listNameArg: string | undefined, options: EditCommandOptions) => {
     // Conflicting type flags are a usage error with or without a [listName] —
     // `ritual edit --deck --collection` must not silently open the menu.
-    const flagType = resolveListTypeFlag(options, PLAIN_TEXT_OUTPUT)
+    const flagType = resolveListTypeFlag(options, TEXT_ONLY)
     if (flagType === 'conflict') return
 
     // Resolve the direct-open argument before any cache work, so a bad list
@@ -220,13 +221,13 @@ export function registerEditCommand(program: Command): void {
       // contradicts the type flag is a usage error, not a silent override.
       const query = resolveListArgument(listNameArg, flagType)
       if (isListArgumentConflict(query)) {
-        emitError('usage_error', query.message, PLAIN_TEXT_OUTPUT)
+        emitError('usage_error', query.message, TEXT_ONLY)
         process.exitCode = ExitCode.UsageError
         return
       }
       const resolved = await resolveList(query.name, query.type)
       if (isResolveListError(resolved)) {
-        emitResolveListError(resolved, PLAIN_TEXT_OUTPUT, 'type-flags')
+        emitResolveListError(resolved, TEXT_ONLY, 'type-flags')
         return
       }
       directRef = await directOpenRef(resolved)
@@ -240,7 +241,7 @@ export function registerEditCommand(program: Command): void {
       emitError(
         'usage_error',
         inputRequiredError(t('cli.edit.noInteractiveEditor')).message,
-        PLAIN_TEXT_OUTPUT,
+        TEXT_ONLY,
       )
       process.exitCode = ExitCode.UsageError
       return

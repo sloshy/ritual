@@ -28,23 +28,25 @@ import {
   type ExportPreset,
 } from '../export/presets'
 import { renderExport, saveExportPreset } from '../export/output'
-import { listLocations, listTypeFromFlags, type ListLocation } from '../list/resolve-list'
-import { isListArgumentsFailure, resolveListArguments } from './list-arguments'
+import {
+  isListArgumentsFailure,
+  listLocations,
+  listTypeFromFlags,
+  resolveListArguments,
+  type ListLocation,
+} from '../list/resolve-list'
 import { getExportPresets } from '../config/ritual-config'
 import { promptsUnavailable } from '../util/no-input'
+import { addQuietOption, parseEnumFlag } from '../cli/options'
 import {
-  addQuietOption,
   emitActionError,
-  emitError,
   emitResolveListError,
   emitToFileOrStdout,
   emitWarnings,
-  ExitCode,
-  parseEnumFlag,
-  type ScriptingOptions,
-} from './scripting'
+  TEXT_ONLY,
+} from '../cli/output'
+import { fail, failWith } from '../cli/action'
 import { runExportWizard } from './export-wizard'
-import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 
 /** Raw commander option values; format/columns/finish/condition are validated in the action. */
@@ -117,20 +119,15 @@ export function shouldRunExportInteractive(
   return interactiveAvailable && !hasExportRunSignal(flags, listArgs)
 }
 
-const textOptions: ScriptingOptions = { output: 'text', quiet: false }
-
-function usageError(message: string, messageKey?: MessageKey): void {
-  emitError('usage_error', message, textOptions, undefined, messageKey)
-  process.exitCode = ExitCode.UsageError
-}
-
 /** Validate the raw filter/format/column flag strings, or report and return undefined. */
 function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | undefined {
   const filters: ExportFilters = { name: options.name, set: options.set }
   if (options.finish !== undefined) {
     const finish = options.finish.toLowerCase()
     if (!isFinish(finish)) {
-      usageError(
+      failWith(
+        TEXT_ONLY,
+        'usage_error',
         t('errors.enum.invalid', {
           field: 'finish',
           value: options.finish,
@@ -150,7 +147,7 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
         .filter((value) => value.length > 0),
     )
     if (typeof conditions === 'string') {
-      usageError(conditions)
+      failWith(TEXT_ONLY, 'usage_error', conditions)
       return undefined
     }
     filters.conditions = conditions
@@ -163,7 +160,7 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
         .filter((value) => value.length > 0),
     )
     if (typeof labels === 'string') {
-      usageError(labels)
+      failWith(TEXT_ONLY, 'usage_error', labels)
       return undefined
     }
     filters.labels = labels
@@ -173,7 +170,7 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
   if (options.columns !== undefined) {
     const parsed = parseColumnsFlag(options.columns)
     if (typeof parsed === 'string') {
-      usageError(parsed)
+      failWith(TEXT_ONLY, 'usage_error', parsed)
       return undefined
     }
     columns = parsed
@@ -183,7 +180,9 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
   if (options.dialect !== undefined) {
     const lower = options.dialect.toLowerCase()
     if (!isExportDialect(lower)) {
-      usageError(
+      failWith(
+        TEXT_ONLY,
+        'usage_error',
         t('errors.enum.invalid', {
           field: 'dialect',
           value: options.dialect,
@@ -208,7 +207,9 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
     if (options.quoteAll) conflicting.push('--quote-all')
     if (options.dialect !== undefined) conflicting.push('--dialect')
     if (conflicting.length > 0) {
-      usageError(
+      failWith(
+        TEXT_ONLY,
+        'usage_error',
         t('cli.export.formatFlagConflict', { flags: conflicting.join(' and '), format }),
         'cli.export.formatFlagConflict',
       )
@@ -269,17 +270,10 @@ async function runFlagExport(
     const saved = getExportPresets()
     preset = findExportPreset(flags.preset, saved)
     if (!preset) {
-      emitError(
-        'not_found',
-        t('cli.export.unknownPreset', {
-          name: flags.preset,
-          available: exportPresetNames(saved).join(', '),
-        }),
-        textOptions,
-        undefined,
-        'cli.export.unknownPreset',
-      )
-      process.exitCode = ExitCode.NotFound
+      fail(TEXT_ONLY, 'not_found', 'cli.export.unknownPreset', {
+        name: flags.preset,
+        available: exportPresetNames(saved).join(', '),
+      })
       return
     }
   }
@@ -299,10 +293,9 @@ async function runFlagExport(
   const resolvedArgs = await resolveListArguments(listArgs, type)
   if (isListArgumentsFailure(resolvedArgs)) {
     if (resolvedArgs.kind === 'conflict') {
-      emitError('usage_error', resolvedArgs.message, textOptions)
-      process.exitCode = ExitCode.UsageError
+      failWith(TEXT_ONLY, 'usage_error', resolvedArgs.message)
     } else {
-      emitResolveListError(resolvedArgs.error, textOptions, 'type-prefix')
+      emitResolveListError(resolvedArgs.error, TEXT_ONLY, 'type-prefix')
     }
     return
   }
@@ -402,7 +395,7 @@ export function registerExportCommand(program: Command): void {
   ).action(async (listArgs: string[], options: ExportCommandOptions) => {
     const type = listTypeFromFlags(options)
     if (type === 'conflict') {
-      usageError(t('cli.export.oneTypeFlag'), 'cli.export.oneTypeFlag')
+      failWith(TEXT_ONLY, 'usage_error', t('cli.export.oneTypeFlag'), 'cli.export.oneTypeFlag')
       return
     }
 
@@ -416,12 +409,17 @@ export function registerExportCommand(program: Command): void {
         return
       }
       if (!hasExportRunSignal(flags, listArgs)) {
-        usageError(t('cli.export.wizardNeedsTerminal'), 'cli.export.wizardNeedsTerminal')
+        failWith(
+          TEXT_ONLY,
+          'usage_error',
+          t('cli.export.wizardNeedsTerminal'),
+          'cli.export.wizardNeedsTerminal',
+        )
         return
       }
       await runFlagExport(listArgs, type, flags)
     } catch (e) {
-      emitActionError(e, textOptions)
+      emitActionError(e, TEXT_ONLY)
     }
   })
 }

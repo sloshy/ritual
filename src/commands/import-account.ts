@@ -8,27 +8,27 @@ import {
 import { getLogger } from '../util/logger'
 import { FileTokenStore } from '../auth/FileTokenStore'
 import { ArchidektAuth } from '../auth/ArchidektAuth'
-import { saveDeck, type SaveListAction } from './import'
+import { saveDeck, type SaveListAction } from '../importers/save-list'
 import {
   addDryRunOption,
   addScriptingOptions,
-  emitError,
-  emitOutput,
-  ExitCode,
-  installScriptingLogger,
-  normalizeScriptingOptions,
-  type OutputFormat,
-} from './scripting'
-import { CardCommandError, getErrorMessage } from '../util/errors'
-import { promptForLoginOutcome } from '../auth/login-helper'
-import { getDecksDir } from '../config/ritual-config'
-import { ask, resolveImportPrintings } from './prompts-helpers'
-import { stripDeckPrintings } from '../importers/url-dispatch'
-import {
   addSyncPrintingsOptions,
   readSyncPrintingsFlag,
   type SyncPrintingsOptions,
-} from './sync-printings-flag'
+} from '../cli/options'
+import {
+  emitError,
+  emitOutput,
+  installScriptingLogger,
+  normalizeScriptingOptions,
+  type OutputFormat,
+} from '../cli/output'
+import { fail } from '../cli/action'
+import { ExitCode, CardCommandError, getErrorMessage } from '../util/errors'
+import { promptForLoginOutcome } from '../auth/login-helper'
+import { getDecksDir } from '../config/ritual-config'
+import { ask, resolveImportPrintings } from '../cli/prompts'
+import { stripDeckPrintings } from '../importers/url-dispatch'
 import { promptsUnavailable, promptsUnavailableReason } from '../util/no-input'
 import { t } from '../i18n/t'
 
@@ -140,14 +140,9 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
         // Deck selection is a prompt; with prompts disabled the run must say
         // which decks it wants up front. Fail before any network work.
         if (options.all !== true && promptsUnavailable()) {
-          emitError(
-            'usage_error',
-            t('cli.importAccount.selectionNeedsPrompt', { reason: promptsUnavailableReason() }),
-            scripting,
-            undefined,
-            'cli.importAccount.selectionNeedsPrompt',
-          )
-          process.exitCode = ExitCode.UsageError
+          fail(scripting, 'usage_error', 'cli.importAccount.selectionNeedsPrompt', {
+            reason: promptsUnavailableReason(),
+          })
           return
         }
 
@@ -161,14 +156,7 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
           scripting,
         })
         if (keepPrintings === undefined) {
-          emitError(
-            'usage_error',
-            t('cli.import.cancelled'),
-            scripting,
-            undefined,
-            'cli.import.cancelled',
-          )
-          process.exitCode = ExitCode.UsageError
+          fail(scripting, 'usage_error', 'cli.import.cancelled')
           return
         }
 
@@ -204,14 +192,7 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
 
         if (!username) {
           if (!currentUser) {
-            emitError(
-              'usage_error',
-              t('cli.importAccount.needUsernameOrLogin'),
-              scripting,
-              undefined,
-              'cli.importAccount.needUsernameOrLogin',
-            )
-            process.exitCode = ExitCode.UsageError
+            fail(scripting, 'usage_error', 'cli.importAccount.needUsernameOrLogin')
             return
           }
           info(t('cli.importAccount.fetchingOwn', { username: currentUser.username }))
@@ -221,14 +202,7 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
           }
 
           if (!token) {
-            emitError(
-              'runtime_error',
-              t('cli.importAccount.noToken'),
-              scripting,
-              undefined,
-              'cli.importAccount.noToken',
-            )
-            process.exitCode = ExitCode.RuntimeError
+            fail(scripting, 'runtime_error', 'cli.importAccount.noToken')
             return
           }
           decks = await client.fetchOwnDecks(token)
@@ -283,14 +257,7 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
           if (selection === undefined) {
             // Matches `import` / `import-changes`: a cancelled prompt is a usage
             // error, so a script can tell it from a successful no-op.
-            emitError(
-              'usage_error',
-              t('cli.import.cancelled'),
-              scripting,
-              undefined,
-              'cli.import.cancelled',
-            )
-            process.exitCode = ExitCode.UsageError
+            fail(scripting, 'usage_error', 'cli.import.cancelled')
             return
           }
           selectedDecks = selection

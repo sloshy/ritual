@@ -7,7 +7,7 @@
  *
  * This fragment holds the *shared* half: the program's own description, the
  * four global options, the scripting flags every command inherits through
- * `src/commands/scripting.ts`, the command-group headings, and the strings
+ * `src/cli/options.ts`, the command-group headings, and the strings
  * Commander itself owns. Per-command help lives in the `help-cards`,
  * `help-edit`, `help-sync` and `help-infra` fragments.
  *
@@ -40,6 +40,8 @@ export const helpMessages = {
   'help.global.output': 'Output format: {formats}',
   'help.global.quiet': 'Suppress progress and status messages (never the data payload)',
   'help.global.fields': 'Comma-separated fields for json/ndjson output',
+  'help.option.refresh':
+    'Card cache refresh policy: ask (prompt; skip when prompts are unavailable), auto, no-bulk, never',
 
   // ── Command-group headings (`program.commandsGroup(…)`) ───────────────
   'help.group.lists': 'Lists',

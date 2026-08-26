@@ -3,8 +3,8 @@ import { isLoopbackHost } from '../mcp/host'
 import { runHttpServer, runStdioServer } from '../mcp/run'
 import { resolveMcpToken } from '../mcp/token'
 import { t } from '../i18n/t'
-import { addSellModeOption, applySellModeOverride } from './sell-mode-flag'
-import { ExitCode, parsePort } from './scripting'
+import { addSellModeOption, applySellModeOverride, parsePort } from '../cli/options'
+import { ExitCode } from '../util/errors'
 
 type McpTransport = 'stdio' | 'http'
 

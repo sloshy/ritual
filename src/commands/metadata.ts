@@ -25,7 +25,7 @@ import {
 } from '../card/card-labels'
 import { parseDeckMetadataBody, parseFlatListMetadataBody } from '../admin/api/metadata'
 import { checkArchidektLink } from '../deck-sync/link'
-import { CardCommandError, localizedCommandError } from '../util/errors'
+import { CardCommandError, localizedCommandError, ExitCode } from '../util/errors'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 import {
@@ -38,19 +38,13 @@ import {
   addListTypeFlags,
   resolveListSelection,
   resolveListTypeFlag,
-  runCommandAction,
   type ResolvedList,
 } from './card-target'
+import { fail, runCommandAction } from '../cli/action'
 import type { ListType } from '../list/list-type'
 import type { ListTypeFlags } from '../list/resolve-list'
-import {
-  addScriptingOptions,
-  emitError,
-  emitOutput,
-  ExitCode,
-  normalizeScriptingOptions,
-  type ScriptingOptions,
-} from './scripting'
+import { addScriptingOptions } from '../cli/options'
+import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 
 /**
  * `ritual metadata` — inspect and modify a list's front-matter metadata from
@@ -469,14 +463,11 @@ function registerGetSubcommand(metadata: Command): void {
       requireKnownProperty(target.type, property)
       const value = await readMetadataValue(target, property)
       if (value === undefined) {
-        emitError(
-          'not_found',
-          t('cli.metadata.notSet', { type: target.type, property, list: target.list }),
-          scripting,
-          undefined,
-          'cli.metadata.notSet',
-        )
-        process.exitCode = ExitCode.NotFound
+        fail(scripting, 'not_found', 'cli.metadata.notSet', {
+          type: target.type,
+          property,
+          list: target.list,
+        })
         return
       }
       // The value is the command's entire point, so it prints even under --quiet.

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { ExitCode } from '../../src/commands/scripting'
+import { ExitCode } from '../../src/util/errors'
 import { runCli } from './helpers/cli'
 import { withWorkspace } from './helpers/workspace'
 

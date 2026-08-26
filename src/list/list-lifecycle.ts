@@ -17,8 +17,7 @@ import { artSidecarPath } from './card-art'
 import { hashPath, isRitualClean, writeFileWithHash } from '../changes/content-hash'
 import { newDeckMarkdown, parseDeckFrontMatter } from './deck-file'
 import { invalidDeckFormatMessage, parseDeckFormat } from './deck-format'
-import { sanitizeListFileName, unusableFileNameMessage } from './list-file-name'
-import { listSlug } from './list-info'
+import { sanitizeListFileName, unusableFileNameMessage, listSlug } from './list-file-name'
 import {
   changelogSidecarPath,
   moveListSidecars,

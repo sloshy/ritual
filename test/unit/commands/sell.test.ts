@@ -8,7 +8,7 @@ import {
   renderSellReportText,
   sellDisclaimer,
 } from '../../../src/commands/sell'
-import { csvScriptingOptions } from '../../../src/commands/scripting'
+import { csvScriptingOptions } from '../../../src/cli/output'
 import type {
   BuyingSellEntry,
   SellListSummary,

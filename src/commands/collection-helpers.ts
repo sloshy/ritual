@@ -1,5 +1,5 @@
 import prompts, { type Choice } from 'prompts'
-import type { PromptState } from './prompts-types'
+import type { PromptState } from '../cli/prompts'
 import { getCardPrintings, isDigitalOnlySet } from '../scryfall'
 import type { ScryfallCard } from '../scryfall/types'
 import {

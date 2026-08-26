@@ -3,7 +3,7 @@ import { writeFileWithHash } from '../changes/content-hash'
 import { findOrCreateSection, resolveDefaultAddSection } from '../list/deck-format'
 import { loadDeckFile } from '../importers/text-file'
 import { formatCollectionLine } from './collection-helpers'
-import { formatWantedListLine } from './wanted-helpers'
+import { formatWantedListLine } from '../list/wanted-file'
 import { serializeDeckToMarkdown, parseDeckFrontMatter } from '../list/deck-file'
 import {
   allocateId,
@@ -22,13 +22,12 @@ import {
 import type { Card } from '../card/card'
 import type { DeckData } from '../list/deck'
 import type { ListRef, PrintingTuple } from '../changes/change-event'
-import { displayLanguage } from '../card/card-language'
+import { displayLanguage, isCardLanguage } from '../card/card-language'
 import { findMatchKey } from '../card/find-search'
 import { t } from '../i18n/t'
 import { COLLECTION_CARD_LINE_RE, COLLECTION_LINE_LANGUAGE_GROUP } from '../list/collection-file'
 import { resolvePrinting, type CardPrinting } from '../card/card-line'
 import { isCondition, isFinish } from '../card/finish-condition'
-import { isCardLanguage } from '../card/card-language'
 import type { PhysicalCard } from './move-helpers'
 import {
   normalizedOverride,

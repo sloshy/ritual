@@ -20,8 +20,8 @@ import {
   type ListLocation,
 } from '../list/resolve-list'
 import { t } from '../i18n/t'
+import { addOutputOption } from '../cli/options'
 import {
-  addOutputOption,
   emitActionError,
   emitOutput,
   emitWarnings,
@@ -29,7 +29,7 @@ import {
   normalizeScriptingOptions,
   type OutputFormat,
   type ScriptingOptions,
-} from './scripting'
+} from '../cli/output'
 
 type DiffCommandOptions = {
   by: DiffBy

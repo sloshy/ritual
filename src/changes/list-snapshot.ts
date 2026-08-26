@@ -1,5 +1,5 @@
 /**
- * Helpers for the `history` command's "rewrite with defaults" action: load any
+ * List snapshots for the `history` command's "rewrite with defaults" action: load any
  * list type into a uniform snapshot, then derive a single change set's worth of
  * raw changelog lines describing that current state.
  */
@@ -7,7 +7,7 @@
 import * as fs from 'node:fs/promises'
 import { importFromTextFile } from '../importers/text-file'
 import { parseCollectionFile } from '../list/collection-file'
-import { parseWantedListFile } from './wanted-helpers'
+import { parseWantedListFile } from '../list/wanted-file'
 import { DEFAULT_SECTION } from '../list/deck'
 import type { Condition, Finish } from '../card/finish-condition'
 import type { CardLanguage } from '../card/card-language'
@@ -22,7 +22,7 @@ import {
   formatChangeCore,
   printingOptionsFrom,
   type ChangeEvent,
-} from '../changes/change-event'
+} from './change-event'
 import type { CardLabel } from '../card/card-labels'
 
 /** A single list entry, normalized across decks, collections, and wanted lists. */
@@ -52,11 +52,6 @@ export type ListSnapshot = {
 
 function isCommanderSection(name: string): boolean {
   return name.toLowerCase() === 'commander'
-}
-
-/** Derive the `.changes.md` changelog path that sits alongside a list's `.md`/`.txt` file. */
-export function changesPathFor(filePath: string): string {
-  return filePath.replace(/\.(md|txt)$/i, '') + '.changes.md'
 }
 
 /** Load a list of any type into a uniform {@link ListSnapshot}. */

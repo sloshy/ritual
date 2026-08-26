@@ -58,7 +58,7 @@ import {
 import type { PriceSource } from './price-source'
 import { listLocations, type ListLocation } from '../list/resolve-list'
 import { comparePrintings, computeRepresentativePrints, getCardGames } from '../scryfall'
-import { parseWantedListFile } from '../commands/wanted-helpers'
+import { parseWantedListFile } from '../list/wanted-file'
 import { matchesAllTerms } from '../card/term-match'
 import type { DeckData } from '../list/deck'
 import type { ScryfallCard } from '../scryfall/types'

@@ -1,7 +1,7 @@
 import { Command, InvalidArgumentError } from 'commander'
 import prompts from 'prompts'
 import * as fs from 'node:fs/promises'
-import type { PromptState } from './prompts-types'
+import type { PromptState } from '../cli/prompts'
 import {
   isResolveListError,
   listLocations,
@@ -22,19 +22,20 @@ import {
   sortNewestFirst,
   type ChangeSet,
 } from '../changes/changelog-blocks'
-import { buildDefaultChangeLines, changesPathFor, loadListSnapshot } from './history-helpers'
+import { buildDefaultChangeLines, loadListSnapshot } from '../changes/list-snapshot'
+import { changelogSidecarPath } from '../list/list-sidecars'
+import { addOutputOption } from '../cli/options'
 import {
-  addOutputOption,
   emitError,
   emitOutput,
   emitResolveListError,
-  ExitCode,
   normalizeScriptingOptions,
   type ScriptingOptions,
-} from './scripting'
-import { promptExitMenu } from './prompts-helpers'
+} from '../cli/output'
+import { ExitCode } from '../util/errors'
+import { promptExitMenu } from '../cli/prompts'
 import { inputRequiredError, promptsUnavailable, requireInteractive } from '../util/no-input'
-import { runCommandAction } from './card-target'
+import { fail, runCommandAction } from '../cli/action'
 import { parsePositiveInteger } from '../util/parse-number'
 import { t } from '../i18n/t'
 
@@ -139,26 +140,12 @@ export function registerHistoryCommand(program: Command): void {
     const scripting = normalizeScriptingOptions(options, 'text')
     const type = listTypeFromFlags(options)
     if (type === 'conflict') {
-      emitError(
-        'usage_error',
-        t('cli.history.typeFlagConflict'),
-        scripting,
-        undefined,
-        'cli.history.typeFlagConflict',
-      )
-      process.exitCode = ExitCode.UsageError
+      fail(scripting, 'usage_error', 'cli.history.typeFlagConflict')
       return
     }
 
     if (options.limit !== undefined && !options.show) {
-      emitError(
-        'usage_error',
-        t('cli.history.limitRequiresShow'),
-        scripting,
-        undefined,
-        'cli.history.limitRequiresShow',
-      )
-      process.exitCode = ExitCode.UsageError
+      fail(scripting, 'usage_error', 'cli.history.limitRequiresShow')
       return
     }
 
@@ -166,14 +153,9 @@ export function registerHistoryCommand(program: Command): void {
     // UI to stdout, so `history <list> --output json` without --show could only
     // ever produce ANSI noise where a payload was expected.
     if (options.output !== undefined && options.output !== 'text' && !options.show) {
-      emitError(
-        'usage_error',
-        t('cli.history.outputRequiresShow', { output: options.output }),
-        scripting,
-        undefined,
-        'cli.history.outputRequiresShow',
-      )
-      process.exitCode = ExitCode.UsageError
+      fail(scripting, 'usage_error', 'cli.history.outputRequiresShow', {
+        output: options.output,
+      })
       return
     }
 
@@ -217,7 +199,7 @@ async function runHistoryShow(
   limit: number | undefined,
   scripting: ScriptingOptions,
 ): Promise<void> {
-  const changesPath = changesPathFor(location.filePath)
+  const changesPath = changelogSidecarPath(location.filePath)
   let content = ''
   try {
     content = await fs.readFile(changesPath, 'utf-8')
@@ -308,7 +290,7 @@ export type EditorState = {
 }
 
 async function runHistoryEditor(location: ListLocation): Promise<void> {
-  const changesPath = changesPathFor(location.filePath)
+  const changesPath = changelogSidecarPath(location.filePath)
   let content = ''
   try {
     content = await fs.readFile(changesPath, 'utf-8')

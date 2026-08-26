@@ -16,12 +16,8 @@ import {
   pruneSelection,
 } from '../../src/commands/move-batch'
 import { buildMoveMenuChoices, isMoveMenuChoice } from '../../src/commands/move'
-import type {
-  PhysicalCard,
-  ListEntry,
-  MoveSessionConfig,
-  VirtualCard,
-} from '../../src/commands/move-helpers'
+import type { PhysicalCard, MoveSessionConfig, VirtualCard } from '../../src/commands/move-helpers'
+import type { ListEntry } from '../../src/list/list-info'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

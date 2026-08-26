@@ -1,11 +1,12 @@
 import { Command } from 'commander'
 import prompts, { type Choice } from 'prompts'
-import { promptExitMenu } from './prompts-helpers'
+import { promptExitMenu, ask, suggestCardsWithMenu } from '../cli/prompts'
 import { listRefLabel } from '../changes/change-event'
-import type { ListEntry, MoveSessionConfig, PhysicalCard, VirtualCard } from './move-helpers'
+import type { ListEntry } from '../list/list-info'
+import type { MoveSessionConfig, PhysicalCard, VirtualCard } from './move-helpers'
 import type { DroppedNote } from './move-io'
+import { loadAllLists } from '../list/list-info'
 import {
-  loadAllLists,
   loadPhysicalCards,
   buildVirtualState,
   applyVirtualMove,
@@ -20,24 +21,22 @@ import {
   promptMoveDestination,
   resolveMovePrinting,
 } from './move-prompts'
-import { ask, suggestCardsWithMenu } from './prompts-helpers'
 import { createBatchSession, runBatchRound, type BatchSession } from './move-batch'
+import { addScriptingOptions } from '../cli/options'
 import {
-  addScriptingOptions,
   emitOutput,
   emitResolveListError,
-  ExitCode,
   normalizeScriptingOptions,
   type ScriptingOptions,
-} from './scripting'
-import { CardCommandError, localizedCommandError } from '../util/errors'
+} from '../cli/output'
+import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
 import {
   describeEntry,
   ensureCardIdMatchesName,
   parseCardIdFlag,
   resolvePinnedPrinting,
-  runCommandAction,
 } from './card-target'
+import { runCommandAction } from '../cli/action'
 import { parsePositiveInteger } from '../util/parse-number'
 import { requireInteractive } from '../util/no-input'
 import { isResolveListError, parseListArgument, resolveList } from '../list/resolve-list'

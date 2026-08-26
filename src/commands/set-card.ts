@@ -27,18 +27,15 @@ import {
 import { getArtDir } from '../config/ritual-config'
 import type { CardMutationChange } from '../list/list-mutate'
 import { applyTargetedChanges } from './line-mutate'
+import { addDryRunOption, addScriptingOptions, type DryRunOptions } from '../cli/options'
 import {
-  addDryRunOption,
-  addScriptingOptions,
   classifyFileReadError,
   emitOutput,
   emitWarnings,
-  ExitCode,
   normalizeScriptingOptions,
-  type DryRunOptions,
   type ScriptingOptions,
-} from './scripting'
-import { getErrorMessage, localizedCommandError } from '../util/errors'
+} from '../cli/output'
+import { ExitCode, getErrorMessage, localizedCommandError } from '../util/errors'
 import { t } from '../i18n/t'
 import {
   addListTypeFlags,
@@ -53,11 +50,11 @@ import {
   resolveListTypeFlag,
   resolvePinnedPrinting,
   resolveTarget,
-  runCommandAction,
   type CardCommandResultBase,
   type EntryRef,
   type FinishCheckSkip,
 } from './card-target'
+import { runCommandAction } from '../cli/action'
 import { type ListTypeFlags } from '../list/resolve-list'
 import {
   isCondition,

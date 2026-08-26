@@ -3,16 +3,9 @@ import path from 'node:path'
 import { createRemoveChange, printingOptionsFrom } from '../changes/change-event'
 import type { CardMutationChange } from '../list/list-mutate'
 import { applyTargetedChanges } from './line-mutate'
-import {
-  addDryRunOption,
-  addScriptingOptions,
-  emitOutput,
-  ExitCode,
-  normalizeScriptingOptions,
-  type DryRunOptions,
-  type ScriptingOptions,
-} from './scripting'
-import { CardCommandError, localizedCommandError } from '../util/errors'
+import { addDryRunOption, addScriptingOptions, type DryRunOptions } from '../cli/options'
+import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
+import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
 import { t, type MessageParams } from '../i18n/t'
 import {
   addListTypeFlags,
@@ -21,9 +14,9 @@ import {
   resolveListSelection,
   resolveListTypeFlag,
   resolveTarget,
-  runCommandAction,
   type CardCommandResultBase,
 } from './card-target'
+import { runCommandAction } from '../cli/action'
 import { parsePositiveInteger } from '../util/parse-number'
 import { type ListTypeFlags } from '../list/resolve-list'
 import type { ListType } from '../list/list-type'

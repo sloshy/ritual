@@ -26,17 +26,15 @@ import {
   type UnreadableSource,
   type UnreadableSubject,
 } from './sync-helpers'
-import { runCommandAction } from './card-target'
+import { runCommandAction } from '../cli/action'
+import { addDryRunOption, addOutputOption, addScriptingOptions } from '../cli/options'
 import {
-  addDryRunOption,
-  addOutputOption,
-  addScriptingOptions,
   emitError,
   emitOutput,
-  ExitCode,
   normalizeScriptingOptions,
   type ScriptingOptions,
-} from './scripting'
+} from '../cli/output'
+import { ExitCode } from '../util/errors'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 

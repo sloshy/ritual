@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { parseFlatListFrontMatter } from '../../src/list/flat-list-front-matter'
 import { collectionToMarkdown, wantedToMarkdown, withFrontMatter } from '../../src/list/list-export'
 import { parseCollectionFile } from '../../src/list/collection-file'
-import { parseWantedListFile } from '../../src/commands/wanted-helpers'
+import { parseWantedListFile } from '../../src/list/wanted-file'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/list/site-data'
 
 describe('parseFlatListFrontMatter', () => {

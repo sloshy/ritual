@@ -17,7 +17,7 @@
  *
  * Browser-safe: no `node:` imports, no filesystem, no `Intl` construction.
  * Dictionaries arrive from whoever loaded them — the CLI hands over the
- * generated locale module (`src/commands/locale.ts`), and the browser fetches
+ * generated locale module (`src/cli/locale.ts`), and the browser fetches
  * `locales/<tag>.json` same-origin through {@link ensureLocaleLoaded} below.
  *
  * **English arrives the same way.** This module does not import the English

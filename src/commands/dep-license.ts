@@ -4,14 +4,9 @@ import { depLicenses, type DepLicenseEntry } from '../generated/dep-licenses'
 import { displayWithPager, resolvePagerMode } from '../util/pager'
 import { promptsUnavailable, promptsUnavailableReason } from '../util/no-input'
 import { t } from '../i18n/t'
-import {
-  addOutputOption,
-  emitError,
-  emitOutput,
-  normalizeScriptingOptions,
-  ExitCode,
-  type ScriptingOptions,
-} from './scripting'
+import { addOutputOption } from '../cli/options'
+import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
+import { fail } from '../cli/action'
 
 type DepLicenseOptions = {
   plain: boolean
@@ -86,14 +81,7 @@ export function registerDepLicenseCommand(program: Command): void {
 
     if (options.list) {
       if (packageArg) {
-        emitError(
-          'usage_error',
-          t('cli.depLicense.listWithPackage'),
-          scripting,
-          undefined,
-          'cli.depLicense.listWithPackage',
-        )
-        process.exitCode = ExitCode.UsageError
+        fail(scripting, 'usage_error', 'cli.depLicense.listWithPackage')
         return
       }
       if (scripting.output === 'text') {
@@ -107,14 +95,9 @@ export function registerDepLicenseCommand(program: Command): void {
     if (packageArg) {
       const entry = depLicenses.find((e) => e.name === packageArg)
       if (!entry) {
-        emitError(
-          'not_found',
-          t('cli.depLicense.packageNotFound', { name: packageArg }),
-          scripting,
-          undefined,
-          'cli.depLicense.packageNotFound',
-        )
-        process.exitCode = ExitCode.NotFound
+        fail(scripting, 'not_found', 'cli.depLicense.packageNotFound', {
+          name: packageArg,
+        })
         return
       }
       await displayWithPager(formatEntry(entry), mode)
@@ -124,14 +107,9 @@ export function registerDepLicenseCommand(program: Command): void {
     // The dependency picker is a prompt: it needs a terminal on both ends —
     // stdin to read the selection, stdout so its UI does not land in a pipe.
     if (promptsUnavailable() || !process.stdout.isTTY) {
-      emitError(
-        'usage_error',
-        t('cli.depLicense.needsPackage', { reason: promptsUnavailableReason() }),
-        scripting,
-        undefined,
-        'cli.depLicense.needsPackage',
-      )
-      process.exitCode = ExitCode.UsageError
+      fail(scripting, 'usage_error', 'cli.depLicense.needsPackage', {
+        reason: promptsUnavailableReason(),
+      })
       return
     }
 

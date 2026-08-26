@@ -4,18 +4,17 @@ import { ArchidektAuth } from '../auth/ArchidektAuth'
 import type { ArchidektLoginStatus } from '../auth/interfaces'
 import { FileTokenStore } from '../auth/FileTokenStore'
 import { loginWithCredentials, promptForLoginOutcome } from '../auth/login-helper'
-import { localizedCommandError } from '../util/errors'
+import { localizedCommandError, ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
-import { runCommandAction } from './card-target'
-import { readPasswordFromStdin } from './prompts-helpers'
+import { runCommandAction } from '../cli/action'
+import { readPasswordFromStdin } from '../cli/prompts'
+import { addOutputOption, addScriptingOptions } from '../cli/options'
 import {
-  addOutputOption,
-  addScriptingOptions,
   emitOutput,
-  ExitCode,
   normalizeScriptingOptions,
+  TEXT_ONLY,
   type ScriptingOptions,
-} from './scripting'
+} from '../cli/output'
 
 type LoginArchidektOptions = {
   forceLogin?: boolean
@@ -40,8 +39,6 @@ type LoginLogoutOutput = {
   loggedOut: boolean
   username?: string
 }
-
-const TEXT_SCRIPTING: ScriptingOptions = { output: 'text', quiet: false }
 
 function makeAuth(): ArchidektAuth {
   return new ArchidektAuth(new FileTokenStore())
@@ -181,7 +178,7 @@ export function registerLoginCommand(program: Command): void {
     .option('--username <username>', t('help.login.username'))
     .option('--password-stdin', t('help.login.passwordStdin'), false)
     .action(async (options: LoginArchidektOptions) => {
-      await runCommandAction(TEXT_SCRIPTING, () => runArchidektLogin(options))
+      await runCommandAction(TEXT_ONLY, () => runArchidektLogin(options))
     })
 
   // `--output` only: the status line is the whole payload, so there is no

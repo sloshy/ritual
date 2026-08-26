@@ -11,11 +11,13 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { InvalidArgumentError, type Command } from 'commander'
 import prompts from 'prompts'
-import type { PromptState } from './prompts-types'
+import type { PromptState } from '../cli/prompts'
 import { importFromTextFile } from '../importers/text-file'
 import { parseCollectionFile } from '../list/collection-file'
-import { parseWantedListFile } from './wanted-helpers'
-import { emitError, ExitCode, type ScriptingOptions } from './scripting'
+import { parseWantedListFile } from '../list/wanted-file'
+import type { ScriptingOptions } from '../cli/output'
+import { fail, cancelledError, listArgumentConflictError } from '../cli/action'
+import { ExitCode, CardCommandError, getErrorMessage, localizedCommandError } from '../util/errors'
 import { matchByNormalizedName } from '../card/term-match'
 import { type ListType } from '../list/list-type'
 import {
@@ -26,7 +28,6 @@ import {
   listTypeFromFlags,
   resolveList,
   resolveListArgument,
-  type ListArgumentConflict,
   type ListTypeFlags,
   type ResolveListError,
 } from '../list/resolve-list'
@@ -47,7 +48,6 @@ import {
   type PrintingFields,
 } from '../card/card-printing'
 import { readRecordedCardBulkType } from '../cache/bulk-provenance'
-import { CardCommandError, getErrorMessage, localizedCommandError } from '../util/errors'
 import { t, type MessageParams } from '../i18n/t'
 import { parsePositiveInteger } from '../util/parse-number'
 import { checkLabelsForListType, LIST_TYPE_LABELS, type CardLabel } from '../card/card-labels'
@@ -77,51 +77,6 @@ export type EntryRef = {
   cardId?: number
   /** Line quantity — decks only; flat-list entries are one physical card each. */
   quantity?: number
-}
-
-/**
- * Run a one-shot command's action body, mapping a thrown
- * {@link CardCommandError} to the scripting error channel and process exit
- * code — the standard action-handler shell shared by every one-shot command.
- * Anything else propagates untouched.
- */
-export async function runCommandAction(
-  scripting: ScriptingOptions,
-  run: () => Promise<void>,
-): Promise<void> {
-  try {
-    await run()
-  } catch (err) {
-    if (err instanceof CardCommandError) {
-      // The catalog key travels beside the rendered prose, so `--output json`
-      // carries a locale-invariant discriminator alongside `error.code`.
-      emitError(err.code, err.message, scripting, err.details, err.messageRef)
-      process.exitCode = err.exitCode
-      return
-    }
-    throw err
-  }
-}
-
-/**
- * The shared "the user cancelled a prompt" refusal. Every interactive selector
- * in the one-shot commands ends here, so the wording and the exit code cannot
- * drift between them.
- */
-export function cancelledError(): CardCommandError {
-  return localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.cancelled')
-}
-
-/**
- * The shared refusal for a `deck:`/`collection:`/`wanted:` prefix that
- * contradicts the command's type flag. The prose is rendered by the resolver
- * itself; this only attaches the exit code and the resolver's catalog key.
- */
-export function listArgumentConflictError(conflict: ListArgumentConflict): CardCommandError {
-  return new CardCommandError('usage_error', conflict.message, ExitCode.UsageError, undefined, {
-    key: 'errors.resolveList.typeConflict',
-    params: conflict.params,
-  })
 }
 
 export type ResolveTargetInput = {
@@ -224,14 +179,7 @@ export function resolveListTypeFlag(
 ): ListType | undefined | 'conflict' {
   const type = listTypeFromFlags(flags)
   if (type === 'conflict') {
-    emitError(
-      'usage_error',
-      t('cli.cardOps.oneTypeFlag'),
-      scripting,
-      undefined,
-      'cli.cardOps.oneTypeFlag',
-    )
-    process.exitCode = ExitCode.UsageError
+    fail(scripting, 'usage_error', 'cli.cardOps.oneTypeFlag')
   }
   return type
 }

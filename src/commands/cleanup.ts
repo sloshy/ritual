@@ -24,19 +24,17 @@ import { listNameCollision } from '../list/list-lifecycle'
 import { moveListFileAndSidecars, renameListThroughTemp } from '../list/list-sidecars'
 import { isSameFile as statSameFile, type SameFileCheck } from '../util/same-file'
 import { collectionToMarkdown, wantedToMarkdown } from '../list/list-export'
-import { getErrorMessage, localizedCommandError } from '../util/errors'
-import { runCommandAction } from './card-target'
+import { getErrorMessage, localizedCommandError, ExitCode } from '../util/errors'
+import { runCommandAction } from '../cli/action'
 import { promptDeckFormat } from './deck-helpers'
 import { readCollectionFile, readWantedFile } from './flat-list-session'
 import {
   canPromptWithOutput,
-  addDryRunOption,
-  addScriptingOptions,
   emitOutput,
-  ExitCode,
   normalizeScriptingOptions,
   type ScriptingOptions,
-} from './scripting'
+} from '../cli/output'
+import { addDryRunOption, addScriptingOptions } from '../cli/options'
 import { t } from '../i18n/t'
 
 /**

@@ -44,12 +44,8 @@ export async function serveStaticFile(
 }
 
 /** Serve the SPA's `index.html` fallback, or null if the site isn't built. */
-export async function serveSpaFallback(distDir: string): Promise<StaticFileResult> {
-  const indexFile = Bun.file(path.join(distDir, 'index.html'))
-  if (await indexFile.exists()) {
-    return new Response(indexFile)
-  }
-  return null
+export function serveSpaFallback(distDir: string): Promise<StaticFileResult> {
+  return serveStaticFile(distDir, 'index.html')
 }
 
 /**

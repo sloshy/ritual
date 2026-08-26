@@ -20,7 +20,7 @@ import {
   VALID_CONDITIONS,
 } from '../card/finish-condition'
 import type { ScryfallCard } from '../scryfall/types'
-import type { PromptState } from './prompts-types'
+import type { PromptState } from '../cli/prompts'
 import { appendChangelog } from '../changes/changelog-writer'
 import { createSetNoteChange, type ChangeEvent, type MoveToChange } from '../changes/change-event'
 import type { CardArtRef } from '../list/card-art'
@@ -30,9 +30,9 @@ import { rankNameMatches } from '../card/term-match'
 import type { MessageKey } from '../i18n/messages/en'
 import { DEFAULT_LOCALE } from '../i18n/runtime'
 import { t, tIn, type TranslateArgs } from '../i18n/t'
-import { matchesChoiceTerms } from './menu-search'
-import { promptExitMenu } from './prompts-helpers'
-import { ExitCode } from './scripting'
+import { matchesChoiceTerms } from '../cli/menu-search'
+import { promptExitMenu } from '../cli/prompts'
+import { ExitCode } from '../util/errors'
 import { isListMarkdownFile } from '../list/list-file-name'
 
 /**
@@ -957,7 +957,7 @@ export function suggestNameMode(input: string, choices: Choice[]): Choice[] {
  * carry a suffix.
  *
  * `move`'s batch mode makes the same empty-input choice through
- * `suggestCardsWithMenu`'s `emptyShows: 'all'` (see `prompts-helpers.ts`), but
+ * `suggestCardsWithMenu`'s `emptyShows: 'all'` (see `src/cli/prompts.ts`), but
  * that helper keeps every menu row while typing; here the menu rows are
  * term-matched like the entries, because the entry lines carry colons and there
  * is no input length at which the menu should stop being offered.

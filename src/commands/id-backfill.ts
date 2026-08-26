@@ -1,7 +1,7 @@
 import type { Command } from 'commander'
 import type { HistoryOptions } from './history'
 import type { ServeCliOptions } from './serve'
-import type { DryRunOptions } from './scripting'
+import type { DryRunOptions } from '../cli/options'
 import type { SetListImageOptions } from './set-list-image'
 
 /**

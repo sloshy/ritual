@@ -25,11 +25,8 @@ import {
 import type { AmbiguityResolutionOutcome } from '../collection-sync/engine'
 import type { RemovalAssignment, RemovalChoice } from '../collection-sync/diff'
 import type { Logger } from '../util/logger'
-import { ask } from './prompts-helpers'
+import { ask, type AskPrompt } from '../cli/prompts'
 import { t } from '../i18n/t'
-
-/** The prompt seam: the shared {@link ask} helper in production, a stub in tests. */
-export type AskPrompt = typeof ask
 
 export type AmbiguityResolutionRequest = {
   /** The removals the engine could not place, in plan order. */

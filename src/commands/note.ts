@@ -1,32 +1,25 @@
 import { Command, Option } from 'commander'
 import prompts from 'prompts'
 import path from 'node:path'
-import type { PromptState } from './prompts-types'
+import type { PromptState } from '../cli/prompts'
 import { createSetNoteChange } from '../changes/change-event'
 import { applyTargetedChanges } from './line-mutate'
-import {
-  addScriptingOptions,
-  emitOutput,
-  ExitCode,
-  normalizeScriptingOptions,
-  type DryRunOptions,
-  type ScriptingOptions,
-} from './scripting'
+import { addDryRunOption, addScriptingOptions, type DryRunOptions } from '../cli/options'
+import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
+import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
 import { normalizeNote } from '../card/note-helpers'
 import { requireInteractive } from '../util/no-input'
-import { CardCommandError, localizedCommandError } from '../util/errors'
 import { t } from '../i18n/t'
 import {
   addListTypeFlags,
-  cancelledError,
   parseCardIdFlag,
   resolveListSelection,
   resolveListTypeFlag,
   resolveTarget,
-  runCommandAction,
   type CardCommandResultBase,
   type EntryRef,
 } from './card-target'
+import { cancelledError, runCommandAction } from '../cli/action'
 import { type ListTypeFlags } from '../list/resolve-list'
 import type { ListType } from '../list/list-type'
 
@@ -40,19 +33,21 @@ type NoteOptions = {
 
 export function registerNoteCommand(program: Command): void {
   addScriptingOptions(
-    addListTypeFlags(
-      program
-        .command('note')
-        .description(t('help.note.description'))
-        .argument('[listName]', t('help.listArg.crossType'))
-        .argument('[cardName...]', t('help.note.cardName')),
-    )
-      .addOption(new Option('-n, --note <text>', t('help.note.note')).conflicts('clear'))
-      .addOption(new Option('--clear', t('help.note.clear')).conflicts('note'))
-      .option('--card-id <id>', t('help.cardId.disambiguate'))
-      // Long form only: `-n` is already this command's `--note`, and the shared
-      // `addDryRunOption` would claim it.
-      .option('--dry-run', t('help.note.dryRun')),
+    // Long form only: `-n` is already this command's `--note`.
+    addDryRunOption(
+      addListTypeFlags(
+        program
+          .command('note')
+          .description(t('help.note.description'))
+          .argument('[listName]', t('help.listArg.crossType'))
+          .argument('[cardName...]', t('help.note.cardName')),
+      )
+        .addOption(new Option('-n, --note <text>', t('help.note.note')).conflicts('clear'))
+        .addOption(new Option('--clear', t('help.note.clear')).conflicts('note'))
+        .option('--card-id <id>', t('help.cardId.disambiguate')),
+      t('help.note.dryRun'),
+      { short: false },
+    ),
     'text',
   ).action(
     async (listNameArg: string | undefined, cardNameParts: string[], options: NoteOptions) => {

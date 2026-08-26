@@ -3,7 +3,7 @@ import type { Finish } from '../card/finish-condition'
 import path from 'node:path'
 import { readdir } from 'node:fs/promises'
 import matter from 'gray-matter'
-import { isFinish, isCondition } from '../commands/collection-helpers'
+import { isFinish, isCondition } from '../card/finish-condition'
 import {
   isCardLanguage,
   LANGUAGE_TOKEN_PATTERN,

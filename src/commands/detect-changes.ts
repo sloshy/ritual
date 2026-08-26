@@ -19,7 +19,7 @@ import {
 import { diffDeckCards, diffCollectionEntries, diffWantedEntries } from '../changes/diff-cards'
 import { loadDeckFile } from '../importers/text-file'
 import { parseCollectionFile } from '../list/collection-file'
-import { parseWantedListFile } from './wanted-helpers'
+import { parseWantedListFile } from '../list/wanted-file'
 import { appendChangelog } from '../changes/changelog-writer'
 import type { ChangeEvent } from '../changes/change-event'
 import { formatChange } from '../changes/change-message'
@@ -33,18 +33,16 @@ import {
   type SidecarState,
 } from '../changes/content-hash'
 import { listLocations } from '../list/resolve-list'
-import { getErrorMessage, hasErrorCode } from '../util/errors'
+import { getErrorMessage, hasErrorCode, ExitCode } from '../util/errors'
 import type { DeckSection } from '../list/deck'
+import { addDryRunOption, addScriptingOptions } from '../cli/options'
 import {
-  addDryRunOption,
-  addScriptingOptions,
-  emitError,
   emitOutput,
   emitWarnings,
-  ExitCode,
   normalizeScriptingOptions,
   type ScriptingOptions,
-} from './scripting'
+} from '../cli/output'
+import { fail, failWith } from '../cli/action'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -673,31 +671,34 @@ async function runDetect(
   // progress chatter only exists in non-quiet text mode.
   const chatty = text && !scripting.quiet
 
-  const fail = (message: string): void => {
-    emitError('runtime_error', message, scripting)
-    process.exitCode = ExitCode.RuntimeError
-  }
-
   const repoProbe = probeGitRepository(cwd)
   if (!repoProbe.ok) {
     // git could not answer at all — reporting "not a git repository" here would
     // send the user to --hash-only, which forfeits changelog entries, for a
     // repository that is fine.
-    fail(describeGitFailure(repoProbe.error, t('cli.detectChanges.gitProbeFailed')))
+    failWith(
+      scripting,
+      'runtime_error',
+      describeGitFailure(repoProbe.error, t('cli.detectChanges.gitProbeFailed')),
+    )
     return
   }
   if (!repoProbe.present) {
-    fail(t('cli.detectChanges.notGitRepo', { path: cwd }))
+    failWith(scripting, 'runtime_error', t('cli.detectChanges.notGitRepo', { path: cwd }))
     return
   }
 
   const refProbe = probeGitRef(commit, cwd)
   if (!refProbe.ok) {
-    fail(describeGitFailure(refProbe.error, t('cli.detectChanges.resolveRefFailed', { commit })))
+    failWith(
+      scripting,
+      'runtime_error',
+      describeGitFailure(refProbe.error, t('cli.detectChanges.resolveRefFailed', { commit })),
+    )
     return
   }
   if (!refProbe.present) {
-    fail(t('cli.detectChanges.unknownRef', { commit, path: cwd }))
+    failWith(scripting, 'runtime_error', t('cli.detectChanges.unknownRef', { commit, path: cwd }))
     return
   }
 
@@ -710,7 +711,11 @@ async function runDetect(
   try {
     output = await detectChanges(commit, cwd)
   } catch (err) {
-    fail(describeGitFailure(err, t('cli.detectChanges.detectFailed')))
+    failWith(
+      scripting,
+      'runtime_error',
+      describeGitFailure(err, t('cli.detectChanges.detectFailed')),
+    )
     return
   }
 
@@ -737,7 +742,11 @@ async function runDetect(
   try {
     updated = await applyDetectedChanges(output, cwd, { dryRun, quiet: !chatty })
   } catch (err) {
-    fail(t('cli.detectChanges.applyFailed', { reason: getErrorMessage(err) }))
+    failWith(
+      scripting,
+      'runtime_error',
+      t('cli.detectChanges.applyFailed', { reason: getErrorMessage(err) }),
+    )
     return
   }
 
@@ -829,8 +838,7 @@ export function registerDetectChangesCommand(program: Command): void {
 
     const selection = selectDetectChangesMode(commit, options)
     if (!selection.ok) {
-      emitError('usage_error', selection.message, scripting)
-      process.exitCode = ExitCode.UsageError
+      failWith(scripting, 'usage_error', selection.message)
       return
     }
 
@@ -850,14 +858,9 @@ export function registerDetectChangesCommand(program: Command): void {
           return
       }
     } catch (error) {
-      emitError(
-        'runtime_error',
-        t('cli.detectChanges.failed', { reason: getErrorMessage(error) }),
-        scripting,
-        undefined,
-        'cli.detectChanges.failed',
-      )
-      process.exitCode = ExitCode.RuntimeError
+      fail(scripting, 'runtime_error', 'cli.detectChanges.failed', {
+        reason: getErrorMessage(error),
+      })
     }
   })
 }

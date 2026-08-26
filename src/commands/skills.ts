@@ -10,16 +10,15 @@ import {
   type SkillWriteOptions,
 } from '../skills/install'
 import type { RitualSkill } from '../skills/types'
+import { addOutputOption, addScriptingOptions } from '../cli/options'
 import {
-  addOutputOption,
-  addScriptingOptions,
   emitError,
   emitOutput,
   normalizeScriptingOptions,
-  ExitCode,
   type OutputFormat,
   type ScriptingOptions,
-} from './scripting'
+} from '../cli/output'
+import { ExitCode } from '../util/errors'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 

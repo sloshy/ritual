@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { cadenceToMs, parseRefreshCadence, scheduleRecurringTask } from '../../../src/cache/cadence'
+import {
+  cadenceToMs,
+  parseRefreshCadence,
+  scheduleRecurringTask,
+} from '../../../src/cache-server/cadence'
 import {
   getInitialPriceRefreshAt,
   isOlderThan,

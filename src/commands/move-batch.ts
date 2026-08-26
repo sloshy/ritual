@@ -17,11 +17,11 @@ import {
   buildCardSearchChoices,
   toggleItemTitle,
   type CardSearchChoice,
-  type ListEntry,
   type MoveSessionConfig,
   type VirtualCard,
 } from './move-helpers'
-import { ask, suggestCardsWithMenu } from './prompts-helpers'
+import type { ListEntry } from '../list/list-info'
+import { ask, suggestCardsWithMenu } from '../cli/prompts'
 import { promptListToggle } from './move-toggle'
 import {
   promptDestinationSection,

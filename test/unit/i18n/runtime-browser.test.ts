@@ -12,7 +12,7 @@ import {
 /**
  * Browser-side delivery: the precedence chain a page resolves its locale
  * through, and the one same-origin fetch that backs it. The CLI's chain lives
- * in `src/commands/locale.ts` and is tested separately — the two share the
+ * in `src/cli/locale.ts` and is tested separately — the two share the
  * runtime but not their tiers.
  */
 

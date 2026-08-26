@@ -1,7 +1,6 @@
 import { type Component, createSignal } from 'solid-js'
-import type { CollectionDetail } from '../../list/site-data'
+import type { CollectionDetail, CollectionCardEntry } from '../../list/site-data'
 import type { PriceCurrency } from '../../pricing/price-currency'
-import type { CollectionCardEntry } from '../../list/site-data'
 import type { ListRef } from '../../changes/change-event'
 import type { NamedListRef } from '../../list-view/combined-list'
 import type { ListEditorConfig } from '../../editor/useEditor'

@@ -33,7 +33,13 @@ import {
 } from '../list/resolve-list'
 import { getDefaultCurrency } from '../config/ritual-config'
 import { refreshCardCache } from '../cache/refresh-source'
-import { addRefreshOption, resolveRefreshMode, type RefreshMode } from '../cache/refresh'
+import {
+  addRefreshOption,
+  resolveRefreshMode,
+  addScriptingOptions,
+  parseEnumFlag,
+} from '../cli/options'
+import type { RefreshMode } from '../cache/refresh'
 import { isNoInput } from '../util/no-input'
 import {
   formatEntryChoiceTitle,
@@ -44,18 +50,17 @@ import {
   type PriceListRef,
 } from './price-browser'
 import {
-  addScriptingOptions,
   emitActionError,
   emitError,
   emitOutput,
   emitResolveListError,
   emitWarnings,
-  ExitCode,
   installScriptingLogger,
   normalizeScriptingOptions,
-  parseEnumFlag,
   type ScriptingOptions,
-} from './scripting'
+} from '../cli/output'
+import { fail } from '../cli/action'
+import { ExitCode } from '../util/errors'
 
 type PriceCommandOptions = Partial<ScriptingOptions> & {
   deck?: boolean
@@ -317,14 +322,7 @@ export function registerPriceCommand(program: Command): void {
 
     const type = listTypeFromFlags(options)
     if (type === 'conflict') {
-      emitError(
-        'usage_error',
-        t('cli.listScope.oneTypeFlag'),
-        scriptingOptions,
-        undefined,
-        'cli.listScope.oneTypeFlag',
-      )
-      process.exitCode = ExitCode.UsageError
+      fail(scriptingOptions, 'usage_error', 'cli.listScope.oneTypeFlag')
       return
     }
 

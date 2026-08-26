@@ -1,6 +1,11 @@
+/**
+ * The scripting output channel: `--output` formats, the stdout latch, and the
+ * structured error / warning envelopes every command speaks through.
+ */
+
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { InvalidArgumentError, type Command } from 'commander'
+import { InvalidArgumentError } from 'commander'
 import { getBaseDir } from '../config/base-dir'
 import {
   type ErrorCode,
@@ -14,7 +19,6 @@ import {
 } from '../util/errors'
 import type { MessageKey } from '../i18n/messages/en'
 import { t, type RenderParams } from '../i18n/t'
-import { parseEnumField } from '../util/parse-enum'
 import {
   formatResolveListError,
   type ResolveHint,
@@ -23,12 +27,6 @@ import {
 import { getAtPath } from '../util/object'
 import { promptsUnavailable } from '../util/no-input'
 import { QUIET_STDERR_LOGGER, setLogger, STDERR_LOGGER } from '../util/logger'
-
-// The exit-code vocabulary lives in src/util/errors.ts (the dependency-free leaf so
-// CardCommandError can carry an ExitCodeValue); command modules keep importing
-// it from here.
-export { ExitCode }
-export type { ExitCodeValue }
 
 export const OUTPUT_FORMATS = ['text', 'json', 'ndjson'] as const
 
@@ -114,6 +112,13 @@ export interface ScriptingOptions {
 }
 
 /**
+ * The envelope for a command that only ever speaks plain text — no `--output`
+ * or `--quiet` of its own — so its prompts, errors and confirmations go through
+ * the same channels as everyone else's.
+ */
+export const TEXT_ONLY: Readonly<ScriptingOptions> = Object.freeze({ output: 'text', quiet: false })
+
+/**
  * Whether a command may open a prompt while producing this output: prompting
  * has to be possible at all ({@link promptsUnavailable}) *and* the command must
  * own stdout — JSON/NDJSON output cannot share it with prompt UI. Every command
@@ -123,85 +128,6 @@ export interface ScriptingOptions {
  */
 export function canPromptWithOutput(scripting: ScriptingOptions): boolean {
   return scripting.output === 'text' && !promptsUnavailable()
-}
-
-/**
- * Commander argParser body for an enum-valued flag: match the value against
- * `values` case-insensitively and reject anything else with the shared
- * `Invalid <label> '<value>'. Use one of: ...` message.
- *
- * The rule itself lives in `src/parse-enum.ts` so the HTTP handlers accept
- * exactly the same spellings; this wrapper only converts the refusal into the
- * exception commander expects from an argParser.
- */
-export function parseEnumFlag<T extends string>(
-  value: string,
-  values: readonly T[],
-  label: string,
-): T {
-  const parsed = parseEnumField(value, values, label)
-  if (!parsed.ok) throw new InvalidArgumentError(parsed.message)
-  return parsed.value
-}
-
-export function parseOutputFormat(value: string): OutputFormat {
-  return parseEnumFlag(value, OUTPUT_FORMATS, 'output format')
-}
-
-/** Register the shared `--output` and `--quiet` pair. */
-export function addScriptingOptions(
-  command: Command,
-  defaultOutput: OutputFormat = 'text',
-): Command {
-  return addQuietOption(addOutputOption(command, OUTPUT_FORMATS, defaultOutput))
-}
-
-/**
- * Register `--output` alone, for a command whose entire output *is* its payload
- * (plus warnings that must survive anyway) and therefore has no non-essential
- * chatter for `--quiet` to suppress — `card`, `diff`, `scry`, `skills list`,
- * `cache status`, `dep-license`, `history`. Registering an inert `--quiet`
- * there would advertise a behavior the command does not have.
- *
- * The overloads keep the widened vocabulary honest: a command with an extra
- * `--output` value (`scry --output csv`) passes its own value list and default,
- * and everything else gets the shared `text|json|ndjson` set.
- */
-export function addOutputOption(command: Command): Command
-export function addOutputOption<T extends string>(
-  command: Command,
-  formats: readonly T[],
-  defaultOutput: T,
-): Command
-export function addOutputOption(
-  command: Command,
-  formats: readonly string[] = OUTPUT_FORMATS,
-  defaultOutput: string = 'text',
-): Command {
-  return command.option(
-    '--output <format>',
-    t('help.global.output', { formats: formats.join(', ') }),
-    (value) => parseEnumFlag(value, formats, 'output format'),
-    defaultOutput,
-  )
-}
-
-/** Register the shared `--quiet` flag with the repo-wide convention's wording. */
-export function addQuietOption(command: Command): Command {
-  return command.option('--quiet', t('help.global.quiet'), false)
-}
-
-/** The option attribute {@link addDryRunOption} registers. */
-export type DryRunOptions = { dryRun?: boolean }
-
-/** Register the shared `-n, --dry-run` flag with a command-specific description. */
-export function addDryRunOption(command: Command, description: string): Command {
-  return command.option('-n, --dry-run', description)
-}
-
-/** Register the shared `--fields <list>` projection flag for json/ndjson output. */
-export function addFieldsOption(command: Command): Command {
-  return command.option('--fields <list>', t('help.global.fields'), parseFields)
 }
 
 export function normalizeScriptingOptions(
@@ -283,7 +209,7 @@ export function installScriptingLogger(options: ScriptingOptions): void {
  * by `JSON.stringify` when the failure has no catalog key behind it, so an
  * envelope that has always been English stays byte-identical.
  */
-type ErrorEnvelope = {
+export type ErrorEnvelope = {
   code: ErrorCode
   messageKey: MessageKey | undefined
   /**
@@ -365,14 +291,6 @@ export function rejectFieldsWithTextOutput(
     return true
   }
   return false
-}
-
-/** The card fields {@link renderCardSummary} needs for its one-line summary. */
-export type CardSummary = { name: string; set: string }
-
-/** The shared one-line text rendering for a fetched card: `Name (SET)`. */
-export function renderCardSummary(card: CardSummary): string {
-  return t('cli.card.summary', { name: card.name, set: card.set.toUpperCase() })
 }
 
 /**
@@ -502,15 +420,6 @@ export function classifyFileReadError(error: unknown): FileReadFailure {
   return missing
     ? { errorCode: 'not_found', exitCode: ExitCode.NotFound }
     : { errorCode: 'runtime_error', exitCode: ExitCode.RuntimeError }
-}
-
-/** Commander argParser for port options: reject non-numeric and out-of-range values at parse time. */
-export function parsePort(value: string): number {
-  const port = Number.parseInt(value, 10)
-  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
-    throw new InvalidArgumentError(t('errors.scripting.portRange'))
-  }
-  return port
 }
 
 export function parseFields(value: string): string[] {

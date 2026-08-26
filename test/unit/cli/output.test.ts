@@ -1,23 +1,19 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { Command } from 'commander'
 import {
-  addDryRunOption,
   canPromptWithOutput,
   classifyFileReadError,
   emitError,
   emitOutput,
   emitWarnings,
-  ExitCode,
   markStdoutClosed,
   resetStdoutClosed,
   normalizeScriptingOptions,
-  parseEnumFlag,
   parseFields,
-  parseOutputFormat,
   projectFields,
   writeStdout,
-} from '../../../src/commands/scripting'
-import type { ScriptingOptions } from '../../../src/commands/scripting'
+} from '../../../src/cli/output'
+import { ExitCode } from '../../../src/util/errors'
+import type { ScriptingOptions } from '../../../src/cli/output'
 import { setNoInputOverride } from '../../../src/util/no-input'
 import { stubTty } from '../../test-utils'
 
@@ -49,41 +45,7 @@ async function captureOutput(
   return output
 }
 
-describe('scripting command helpers', () => {
-  test('parseOutputFormat accepts text, json, and ndjson', () => {
-    expect(parseOutputFormat('text')).toBe('text')
-    expect(parseOutputFormat('json')).toBe('json')
-    expect(parseOutputFormat('ndjson')).toBe('ndjson')
-    expect(parseOutputFormat('JSON')).toBe('json')
-  })
-
-  test('parseOutputFormat rejects unsupported formats', () => {
-    expect(() => parseOutputFormat('yaml')).toThrow(
-      "Invalid output format 'yaml'. Use one of: text, json, ndjson.",
-    )
-  })
-
-  test('parseEnumFlag lowercases and returns a member', () => {
-    expect(parseEnumFlag('PUSH', ['push', 'pull'], 'direction')).toBe('push')
-    expect(parseEnumFlag('pull', ['push', 'pull'], 'direction')).toBe('pull')
-  })
-
-  test('parseEnumFlag rejects non-members with the unified message', () => {
-    expect(() => parseEnumFlag('sideways', ['push', 'pull'], 'direction')).toThrow(
-      "Invalid direction 'sideways'. Use one of: push, pull.",
-    )
-  })
-
-  test('addDryRunOption registers -n/--dry-run', () => {
-    const command = addDryRunOption(new Command('x'), 'Preview only')
-    command.parse(['-n'], { from: 'user' })
-    expect(command.opts().dryRun).toBe(true)
-
-    const long = addDryRunOption(new Command('y'), 'Preview only')
-    long.parse([], { from: 'user' })
-    expect(long.opts().dryRun).toBeUndefined()
-  })
-
+describe('scripting output helpers', () => {
   test('normalizeScriptingOptions applies defaults', () => {
     expect(normalizeScriptingOptions({})).toEqual({ output: 'text', quiet: false })
     expect(normalizeScriptingOptions({ quiet: true }, 'json')).toEqual({

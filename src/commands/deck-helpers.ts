@@ -3,7 +3,7 @@ import { compareData } from '../i18n/collate'
 import { t } from '../i18n/t'
 import path from 'node:path'
 import prompts from 'prompts'
-import type { PromptState } from './prompts-types'
+import type { PromptState } from '../cli/prompts'
 import type { Card } from '../card/card'
 import type { DeckData, DeckSection } from '../list/deck'
 import {
@@ -16,7 +16,7 @@ import { getDecksDir } from '../config/ritual-config'
 import { listFilePath } from '../list/resolve-list'
 import { unusableFileNameMessage } from '../list/list-file-name'
 import { DECK_FORMAT_KEYS, getDeckFormatLabel, type DeckFormatKey } from '../list/deck-format'
-import { ask } from './prompts-helpers'
+import { ask } from '../cli/prompts'
 import { writeFileWithHash } from '../changes/content-hash'
 import {
   newDeckMarkdown,

@@ -1,17 +1,11 @@
 import { Command } from 'commander'
 import { createList, isListLifecycleError } from '../list/list-lifecycle'
 import { isListType, type ListType } from '../list/list-type'
-import { localizedCommandError } from '../util/errors'
+import { localizedCommandError, ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
-import { runCommandAction } from './card-target'
-import { lifecycleErrorToCommandError } from './lifecycle'
-import {
-  addScriptingOptions,
-  emitOutput,
-  ExitCode,
-  normalizeScriptingOptions,
-  type ScriptingOptions,
-} from './scripting'
+import { runCommandAction, lifecycleErrorToCommandError } from '../cli/action'
+import { addScriptingOptions } from '../cli/options'
+import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 
 type NewOptions = { format?: string } & Partial<ScriptingOptions>
 

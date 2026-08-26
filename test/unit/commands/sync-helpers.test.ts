@@ -9,7 +9,7 @@ import {
 } from '../../../src/commands/sync-helpers'
 import { MemoryLogger, getLogger, resetLogger, setLogger } from '../../../src/util/logger'
 import { setNoInputOverride } from '../../../src/util/no-input'
-import type { ScriptingOptions } from '../../../src/commands/scripting'
+import type { ScriptingOptions } from '../../../src/cli/output'
 
 /**
  * The CLI plumbing both sync commands share. The gate matrix of

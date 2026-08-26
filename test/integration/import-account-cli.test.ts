@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { ExitCode } from '../../src/commands/scripting'
+import { ExitCode } from '../../src/util/errors'
 import { runCli } from './helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'
 import { withWorkspace } from './helpers/workspace'

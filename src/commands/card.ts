@@ -1,22 +1,28 @@
 import { Command } from 'commander'
 import fs from 'node:fs/promises'
 import { classifyFetchCard, scryfallClient } from '../scryfall'
-import { getErrorMessage } from '../util/errors'
+import { getErrorMessage, ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
+import { addFieldsOption, addOutputOption } from '../cli/options'
 import {
-  addFieldsOption,
-  addOutputOption,
   classifyFileReadError,
   emitError,
   emitOutput,
-  ExitCode,
   normalizeScriptingOptions,
   OUTPUT_FORMATS,
   projectFields,
   rejectFieldsWithTextOutput,
-  renderCardSummary,
   type OutputFormat,
-} from './scripting'
+} from '../cli/output'
+import { fail } from '../cli/action'
+
+/** The card fields {@link renderCardSummary} needs for its one-line summary. */
+export type CardSummary = { name: string; set: string }
+
+/** The shared one-line text rendering for a fetched card: `Name (SET)`. */
+export function renderCardSummary(card: CardSummary): string {
+  return t('cli.card.summary', { name: card.name, set: card.set.toUpperCase() })
+}
 
 type CardCommandOptions = {
   fuzzy: boolean
@@ -69,14 +75,7 @@ export function registerCardCommand(program: Command): void {
       return
     }
     if (options.stdin && options.fromFile) {
-      emitError(
-        'usage_error',
-        t('cli.card.stdinOrFile'),
-        scriptingOptions,
-        undefined,
-        'cli.card.stdinOrFile',
-      )
-      process.exitCode = ExitCode.UsageError
+      fail(scriptingOptions, 'usage_error', 'cli.card.stdinOrFile')
       return
     }
 
@@ -105,14 +104,7 @@ export function registerCardCommand(program: Command): void {
     }
 
     if (names.length === 0) {
-      emitError(
-        'usage_error',
-        t('cli.card.nameRequired'),
-        scriptingOptions,
-        undefined,
-        'cli.card.nameRequired',
-      )
-      process.exitCode = ExitCode.UsageError
+      fail(scriptingOptions, 'usage_error', 'cli.card.nameRequired')
       return
     }
 

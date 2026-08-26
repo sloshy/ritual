@@ -28,7 +28,7 @@ import { cardCache, ensureCacheForCards } from '../cache'
 import { isRunningFromSource } from '../config/runtime'
 import type { ScryfallCard } from '../scryfall/types'
 import { resolveOutDir } from '../site/dist-dir'
-import { addSellModeOption, applySellModeOverride } from './sell-mode-flag'
+import { addSellModeOption, applySellModeOverride, addRefreshOption } from '../cli/options'
 import { buildAndPublish } from '../site/publish'
 import { deployCardArt, undeployedArtFiles } from '../site/art-deploy'
 import {
@@ -74,7 +74,7 @@ import { sortPrintingsByRelease } from '../site/details/shared'
 import type { SiteCardData, SiteDetailContext } from '../site/details/types'
 import { parseCurrenciesFlag } from '../pricing/price-currency'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { getErrorMessage } from '../util/errors'
+import { getErrorMessage, ExitCode } from '../util/errors'
 import { PRICE_MAX_AGE_MS } from '../cache/constants'
 import { emptyCacheAdvice, offerBulkPriceRefresh, offerTagDownload } from '../cache/freshness'
 import {
@@ -87,13 +87,7 @@ import {
   type CustomTheme,
 } from '../theme/themes'
 import { appBootScript, BOOT_SCRIPT_FILE, renderAppShell } from '../site/html-shell'
-import { ExitCode } from './scripting'
-import {
-  addRefreshOption,
-  bulkAllowed,
-  refreshStaleAllowed,
-  type RefreshMode,
-} from '../cache/refresh'
+import { bulkAllowed, refreshStaleAllowed, type RefreshMode } from '../cache/refresh'
 
 export interface BuildSiteOptions {
   verbose?: boolean

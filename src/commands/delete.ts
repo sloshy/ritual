@@ -9,26 +9,19 @@ import {
 } from '../list/list-lifecycle'
 import { type ListType } from '../list/list-type'
 import { type ListTypeFlags } from '../list/resolve-list'
-import { CardCommandError } from '../util/errors'
+import { CardCommandError, ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
-import {
-  addListTypeFlags,
-  cancelledError,
-  resolveListSelection,
-  resolveListTypeFlag,
-  runCommandAction,
-} from './card-target'
+import { addListTypeFlags, resolveListSelection, resolveListTypeFlag } from './card-target'
+import { cancelledError, runCommandAction, lifecycleErrorToCommandError } from '../cli/action'
 import { requireInteractive } from '../util/no-input'
-import { lifecycleErrorToCommandError } from './lifecycle'
-import type { PromptState } from './prompts-types'
+import type { PromptState } from '../cli/prompts'
+import { addScriptingOptions } from '../cli/options'
 import {
-  addScriptingOptions,
   emitOutput,
   emitWarnings,
-  ExitCode,
   normalizeScriptingOptions,
   type ScriptingOptions,
-} from './scripting'
+} from '../cli/output'
 
 type DeleteOptions = ListTypeFlags & { confirm?: string } & Partial<ScriptingOptions>
 

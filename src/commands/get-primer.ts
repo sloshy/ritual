@@ -2,7 +2,8 @@ import { Command } from 'commander'
 import { importFromTextFile } from '../importers/text-file'
 import { MoxfieldClient } from '../importers/moxfield-client'
 import { parseMoxfieldPrimer } from '../list/primer-parser'
-import { classifyFileReadError, ExitCode, writeStdout } from './scripting'
+import { classifyFileReadError, writeStdout } from '../cli/output'
+import { ExitCode } from '../util/errors'
 import { getLogger } from '../util/logger'
 import {
   matchDeckUrl,

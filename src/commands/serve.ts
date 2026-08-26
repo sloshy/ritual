@@ -1,6 +1,6 @@
 import path from 'node:path'
 import type { Command, Option } from 'commander'
-import { getErrorMessage } from '../util/errors'
+import { getErrorMessage, ExitCode } from '../util/errors'
 import { startSiteServer } from '../serve/server'
 import { sellModeWarning, warmCardKingdomFeed } from '../cardkingdom'
 import { cardCacheReady, warmSiteCache } from '../serve/warm'
@@ -11,9 +11,13 @@ import {
   runBuildSite,
   type BuildSiteOptions,
 } from './build-site'
-import { applySellModeOverride, SELL_MODE_OPTION_NAME } from './sell-mode-flag'
-import { ExitCode, parsePort } from './scripting'
-import { serveStaticSite, serveUrl } from './serve-helpers'
+import {
+  applySellModeOverride,
+  REFRESH_OPTION_NAME,
+  SELL_MODE_OPTION_NAME,
+  parsePort,
+} from '../cli/options'
+import { serveStaticSite, serveUrl } from '../serve/static'
 import { t } from '../i18n/t'
 
 export type ServeCliOptions = BuildSiteOptions & {
@@ -74,7 +78,7 @@ export function registerServeCommand(program: Command): void {
           (option) =>
             !(
               options.api === true &&
-              (option.attributeName() === 'refresh' ||
+              (option.attributeName() === REFRESH_OPTION_NAME ||
                 option.attributeName() === SELL_MODE_OPTION_NAME)
             ),
         )

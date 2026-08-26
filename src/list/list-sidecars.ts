@@ -12,9 +12,14 @@ import { hashPath } from '../changes/content-hash'
  * silently left behind at one call site.
  */
 
-/** The path of a list's `.changes.md` changelog sidecar. */
+/**
+ * The path of a list's `.changes.md` changelog sidecar. List files are always
+ * lowercase `.md` (`isListMarkdownFile`); anything else is a caller bug, and
+ * throwing beats silently handing back the list path as its own sidecar.
+ */
 export function changelogSidecarPath(mdPath: string): string {
-  return mdPath.replace(/\.md$/, '.changes.md')
+  if (!mdPath.endsWith('.md')) throw new Error(`Not a list markdown path: ${mdPath}`)
+  return mdPath.slice(0, -'.md'.length) + '.changes.md'
 }
 
 /** The path of a deck's `.primer.md` primer sidecar. */

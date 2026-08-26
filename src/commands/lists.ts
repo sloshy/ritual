@@ -4,12 +4,8 @@ import { loadListInfos, type ListInfo } from '../list/list-info'
 import { LIST_TYPES } from '../list/list-type'
 import { type ListTypeFlags } from '../list/resolve-list'
 import { resolveListTypeFlag } from './card-target'
-import {
-  addScriptingOptions,
-  emitOutput,
-  normalizeScriptingOptions,
-  type ScriptingOptions,
-} from './scripting'
+import { addScriptingOptions } from '../cli/options'
+import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 import { displayWidth, padEndDisplay } from '../i18n/width'
 import { t } from '../i18n/t'
 

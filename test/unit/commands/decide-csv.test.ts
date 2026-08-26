@@ -1,11 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { CSV_UPLOAD_THRESHOLD } from '../../../src/collection-sync/csv'
 import type { CsvUploadQuestion } from '../../../src/collection-sync/engine'
-import {
-  decideCsvUpload,
-  defaultCsvFileName,
-  type AskPrompt,
-} from '../../../src/commands/decide-csv'
+import { decideCsvUpload, defaultCsvFileName } from '../../../src/commands/decide-csv'
+import type { AskPrompt } from '../../../src/cli/prompts'
 
 /**
  * The CLI's interactive answer to "how should these new cards reach Archidekt?".

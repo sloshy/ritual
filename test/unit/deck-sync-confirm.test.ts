@@ -3,7 +3,7 @@ import { confirmUnreadableDecks } from '../../src/commands/deck-sync'
 import type { UnreadableDeck } from '../../src/deck-sync/engine'
 import { MemoryLogger } from '../../src/util/logger'
 import { setNoInputOverride } from '../../src/util/no-input'
-import type { ScriptingOptions } from '../../src/commands/scripting'
+import type { ScriptingOptions } from '../../src/cli/output'
 
 /**
  * The CLI's answer to "may these decks sync even though the save would delete

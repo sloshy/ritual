@@ -32,7 +32,12 @@ import {
   type ImportConflict,
 } from './import-changes'
 import type { ContextMenuState, CardContextInfo } from '../list-view/card-context'
-import { type EditorStatus, type EditorStatusActions, statusMessage } from './useEditorStatus'
+import {
+  type EditorStatus,
+  type EditorStatusActions,
+  statusMessage,
+  useEditorStatus,
+} from './useEditorStatus'
 import { type EditorEntity, entityListType } from './entity'
 import type { ListType } from '../list/list-type'
 import { useT } from '../ui/i18n'
@@ -40,16 +45,14 @@ import type { DialogState } from './useDialogState'
 import type { UseCardIdPoolResult } from './useCardIdPool'
 import type { UseCardChangesResult } from './useCardChanges'
 import type { CommitSink } from './commit'
-import { useEditorStatus } from './useEditorStatus'
 import { useDialogState } from './useDialogState'
 import { useCardIdPool } from './useCardIdPool'
 import { useCardChanges } from './useCardChanges'
 import { reconcileIdPoolForUndo, replayChanges, type ReplayResult } from './reconcile-undo'
-import type { UnmatchedChange } from '../changes/apply-batch'
+import type { UnmatchedChange, ApplyChange } from '../changes/apply-batch'
 import { addedCopyArtActions, artIdsResetByUndo } from './pending-art'
 import { useNavigationGuard } from './navigation-guard'
 import { clampQuantity } from '../ui/quantity'
-import type { ApplyChange } from '../changes/apply-batch'
 import type { SwapSourceProvider } from './swap-printings'
 
 export type ListItem = { slug: string; name: string }

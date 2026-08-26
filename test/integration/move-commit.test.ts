@@ -10,7 +10,8 @@ import {
   commitAllRemovals,
 } from '../../src/commands/move-helpers'
 import { artSidecarPath, loadCardArt, saveCardArt } from '../../src/list/card-art'
-import type { PhysicalCard, ListEntry } from '../../src/commands/move-helpers'
+import type { PhysicalCard } from '../../src/commands/move-helpers'
+import type { ListEntry } from '../../src/list/list-info'
 import { collectionMarkdown, deckMarkdown, wantedMarkdown } from './helpers/workspace'
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────

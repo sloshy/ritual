@@ -1,5 +1,5 @@
 import { unreadableLines } from '../../list/markdown-fence'
-import { parseWantedListFile } from '../../commands/wanted-helpers'
+import { parseWantedListFile } from '../../list/wanted-file'
 import { readListDescription } from '../../list/list-description'
 import { readListImage } from '../../list/list-image'
 import type { ParsedWantedEntry } from '../../list/wanted-entries'

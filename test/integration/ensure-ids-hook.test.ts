@@ -3,14 +3,14 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { computeHash, hashPath } from '../../src/changes/content-hash'
 import { ensureCardIdsForAllLists } from '../../src/list/ensure-card-ids'
-import { ExitCode } from '../../src/commands/scripting'
+import { ExitCode } from '../../src/util/errors'
 import { runCli } from './helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'
 import { bindWorkspace, withWorkspace } from './helpers/workspace'
 
 /**
- * Pins the root preAction hook's wiring: index.ts consults
- * `shouldBackfillCardIds` (whose full decision matrix lives in
+ * Pins the root preAction hook's wiring: index.ts hands `buildProgram` (src/cli/program.ts)
+ * `shouldBackfillCardIds` as its backfill predicate (whose full decision matrix lives in
  * test/unit/id-backfill.test.ts) before running the file-writing card-ID
  * backfill, and the backfill never stamps a hand-edited file's `.sha256`
  * sidecar as Ritual-clean. The `--dry-run` skip is additionally pinned via

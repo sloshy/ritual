@@ -7,11 +7,8 @@ import {
   writeDeckFile,
   writeWantedFile,
 } from './helpers/workspace'
-import {
-  buildDefaultChangeLines,
-  changesPathFor,
-  loadListSnapshot,
-} from '../../src/commands/history-helpers'
+import { buildDefaultChangeLines, loadListSnapshot } from '../../src/changes/list-snapshot'
+import { changelogSidecarPath } from '../../src/list/list-sidecars'
 import type { ChangeSet } from '../../src/changes/changelog-blocks'
 
 describe('loadListSnapshot + buildDefaultChangeLines (Integration)', () => {
@@ -117,7 +114,7 @@ describe('history --show (Integration)', () => {
       frontMatter: { name: 'Test' },
       cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
     })
-    if (changelog !== undefined) await fs.writeFile(changesPathFor(filePath), changelog)
+    if (changelog !== undefined) await fs.writeFile(changelogSidecarPath(filePath), changelog)
   }
 
   test('prints the change sets newest first with verbatim lines', async () => {

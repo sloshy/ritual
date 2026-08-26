@@ -20,7 +20,7 @@ import type { ListLocation } from '../list/resolve-list'
 import { loadDeckFile } from '../importers/text-file'
 import { parseDeckFrontMatter } from '../list/deck-file'
 import { parseCollectionFile, type CollectionEntry } from '../list/collection-file'
-import { parseWantedListFile, type WantedListEntry } from '../commands/wanted-helpers'
+import { parseWantedListFile, type WantedListEntry } from '../list/wanted-file'
 import { matchesAllTerms } from '../card/term-match'
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { buildDefaultChangeLines, type ListSnapshot } from '../../src/commands/history-helpers'
+import { buildDefaultChangeLines, type ListSnapshot } from '../../src/changes/list-snapshot'
 import { buildMainChoices, type EditorState } from '../../src/commands/history'
 
 describe('buildDefaultChangeLines', () => {

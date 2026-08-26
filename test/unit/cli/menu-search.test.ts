@@ -5,7 +5,7 @@ import {
   matchesChoiceTerms,
   matchesChoiceTitleTerms,
   type SearchableChoice,
-} from '../../../src/commands/menu-search'
+} from '../../../src/cli/menu-search'
 import { resetI18nRuntime, setLocale } from '../../../src/i18n/runtime'
 import { localeTag } from '../../../src/i18n/locale-tag'
 

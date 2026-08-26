@@ -15,11 +15,8 @@
 
 import { ARCHIDEKT_IMPORT_URL } from '../collection-sync/csv'
 import type { CsvUploadDecision, CsvUploadQuestion } from '../collection-sync/engine'
-import { ask } from './prompts-helpers'
+import { ask, type AskPrompt } from '../cli/prompts'
 import { t } from '../i18n/t'
-
-/** The prompt seam: the shared {@link ask} helper in production, a stub in tests. */
-export type AskPrompt = typeof ask
 
 export type CsvUploadRequest = {
   /** What the engine is asking about: how many additions, and the threshold they passed. */

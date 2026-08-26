@@ -3,7 +3,7 @@ import {
   parseWantedListFile,
   formatWantedListLine,
   WANTED_CARD_LINE_RE,
-} from '../../src/commands/wanted-helpers'
+} from '../../src/list/wanted-file'
 
 describe('parseWantedListFile', () => {
   test('parses a name-only entry (state 1)', () => {

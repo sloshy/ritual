@@ -7,7 +7,7 @@
  *
  * These strings are *registered*, not called: Commander evaluates them while
  * `buildProgram()` constructs the tree, which is why the locale is resolved from
- * the tolerant argv pre-scan before registration (see `src/commands/locale.ts`).
+ * the tolerant argv pre-scan before registration (see `src/cli/locale.ts`).
  *
  * Flag spellings (`--refresh`, `--out-dir`), config keys (`cacheSource`,
  * `site.includeDecks`), enum values (`'scryfall'`, `'daily'`) and environment

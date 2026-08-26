@@ -21,18 +21,19 @@ import {
 } from '../admin/api/import-changes'
 import { IMPORT_CONFLICT_REASON_KEY, type ImportConflict } from '../editor/import-changes'
 import { suppressAutoCommit } from '../admin/git'
-import { ask } from './prompts-helpers'
+import { ask } from '../cli/prompts'
 import {
   canPromptWithOutput,
   type ScriptingOptions,
-  addScriptingOptions,
   installScriptingLogger,
   classifyFileReadError,
   emitError,
   emitOutput,
-  ExitCode,
   normalizeScriptingOptions,
-} from './scripting'
+} from '../cli/output'
+import { fail } from '../cli/action'
+import { addScriptingOptions } from '../cli/options'
+import { ExitCode } from '../util/errors'
 
 type ImportChangesOptions = {
   yes?: boolean
@@ -194,27 +195,15 @@ export function registerImportChangesCommand(program: Command): void {
 
     const bundle = parseChangeBundle(text)
     if (typeof bundle === 'string') {
-      emitError(
-        'usage_error',
-        t('cli.importChanges.invalidBundle', { reason: bundle }),
-        scripting,
-        undefined,
-        'cli.importChanges.invalidBundle',
-      )
-      process.exitCode = ExitCode.UsageError
+      fail(scripting, 'usage_error', 'cli.importChanges.invalidBundle', {
+        reason: bundle,
+      })
       return
     }
 
     const total = bundleChangeCount(bundle)
     if (total === 0) {
-      emitError(
-        'not_found',
-        t('cli.importChanges.empty'),
-        scripting,
-        undefined,
-        'cli.importChanges.empty',
-      )
-      process.exitCode = ExitCode.NotFound
+      fail(scripting, 'not_found', 'cli.importChanges.empty')
       return
     }
 
@@ -225,14 +214,7 @@ export function registerImportChangesCommand(program: Command): void {
     if (!options.yes) {
       // Without this guard a piped stdin would silently resolve false or hang.
       if (!canPromptWithOutput(scripting)) {
-        emitError(
-          'usage_error',
-          t('cli.importChanges.confirmationRequired'),
-          scripting,
-          undefined,
-          'cli.importChanges.confirmationRequired',
-        )
-        process.exitCode = ExitCode.UsageError
+        fail(scripting, 'usage_error', 'cli.importChanges.confirmationRequired')
         return
       }
       const confirmed = await ask<boolean>({
@@ -244,14 +226,7 @@ export function registerImportChangesCommand(program: Command): void {
         initial: false,
       })
       if (!confirmed) {
-        emitError(
-          'usage_error',
-          t('cli.import.cancelled'),
-          scripting,
-          undefined,
-          'cli.import.cancelled',
-        )
-        process.exitCode = ExitCode.UsageError
+        fail(scripting, 'usage_error', 'cli.import.cancelled')
         return
       }
     }

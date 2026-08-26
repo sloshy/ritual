@@ -5,11 +5,12 @@ import {
   feedUrlSourceConflict,
   parseCacheSourceFlag,
   parseRefreshCadence,
-} from '../cache/cadence'
+} from '../cache-server/cadence'
 import { runCacheServer } from '../cache-server/server'
 import { type CacheServerCommandOptions } from '../cache-server/types'
 import { t } from '../i18n/t'
-import { ExitCode, parsePort } from './scripting'
+import { ExitCode } from '../util/errors'
+import { parsePort } from '../cli/options'
 
 /** Wire `cache server` under the parent `cache` command. */
 export function registerCacheServerSubcommand(cache: Command): void {

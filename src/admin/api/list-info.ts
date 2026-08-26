@@ -2,7 +2,7 @@ import path from 'node:path'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../../config/ritual-config'
 import { resolveDeckFilePath } from '../../list/deck-file'
 import { isPathWithinDir } from '../../util/path-validation'
-import { listSlug } from '../../list/list-info'
+import { listSlug } from '../../list/list-file-name'
 import type { ListType } from '../../list/list-type'
 import type { ListLocation } from '../../list/resolve-list'
 

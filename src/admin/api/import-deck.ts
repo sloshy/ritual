@@ -1,6 +1,6 @@
 import { IMPORT_TEXT_PARSE_OPTIONS, parseDeckText } from '../../importers/text-file'
 import { fetchDeckFromUrl, stripDeckPrintings } from '../../importers/url-dispatch'
-import { saveDeck } from '../../commands/import'
+import { saveDeck } from '../../importers/save-list'
 import { listFilePath } from '../../list/resolve-list'
 import { autoCommitAndPush, badRequest, readJsonObjectBody } from './save-helpers'
 import { apiHandler } from '../utils'

@@ -123,15 +123,18 @@ bun run test:it
 ritual-cli/
 ├── index.ts              # CLI entry point
 ├── src/
-│   ├── commands/         # CLI command implementations
-│   ├── auth/             # Authentication modules
-│   ├── clients/          # API clients
+│   ├── cli/              # CLI framework: program, options, output, prompts
+│   ├── commands/         # CLI command implementations (registry.ts is the command table)
+│   ├── card/             # Card-line grammar, printings, finishes, labels
+│   ├── list/             # Deck / collection / wanted list files and sidecars
+│   ├── changes/          # Change events and the .changes.md changelog
+│   ├── pricing/          # Price and sell reports
+│   ├── config/           # ritual.config.json schema and base directory
+│   ├── scryfall/, cache/ # Scryfall API integration and the card cache
 │   ├── importers/        # Deck importers
-│   ├── site/             # Static site components
-│   ├── scryfall.ts       # Scryfall API integration
-│   ├── prices.ts         # Price fetching logic
-│   ├── cache.ts          # Caching system
-│   └── types.ts          # TypeScript types
+│   ├── list-view/, editor/, ui/  # Shared SPA model, editor, and component kit
+│   ├── site/, admin/     # Public site and admin site (+ HTTP API)
+│   └── mcp/, skills/     # Agent-facing surfaces
 ├── test/
 │   ├── unit/             # Unit tests
 │   └── integration/      # Integration tests

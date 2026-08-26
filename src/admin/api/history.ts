@@ -10,13 +10,10 @@ import {
   type ChangeSet,
 } from '../../changes/changelog-blocks'
 import { isStringArray } from '../../util/json'
-import {
-  buildDefaultChangeLines,
-  changesPathFor,
-  loadListSnapshot,
-} from '../../commands/history-helpers'
+import { buildDefaultChangeLines, loadListSnapshot } from '../../changes/list-snapshot'
+import { changelogSidecarPath } from '../../list/list-sidecars'
 import { resolveListFile } from './list-info'
-import { listSlug } from '../../list/list-info'
+import { listSlug } from '../../list/list-file-name'
 import { apiMessage, type ApiMessage } from './result'
 import { autoCommitAndPush, apiError, badRequest, readJsonObjectBody } from './save-helpers'
 import { parseListTarget } from './target'
@@ -58,7 +55,7 @@ export async function handleHistoryLoad(req: Request): Promise<Response> {
     const filePath = await resolveListFile(target.type, target.slug)
     if (!filePath) return apiError(`List '${target.slug}' not found`, 404)
 
-    const changesPath = changesPathFor(filePath)
+    const changesPath = changelogSidecarPath(filePath)
     let content = ''
     const changesFile = Bun.file(changesPath)
     if (await changesFile.exists()) content = await changesFile.text()
@@ -146,7 +143,7 @@ export async function handleHistorySave(req: Request): Promise<Response> {
     const filePath = await resolveListFile(target.type, target.slug)
     if (!filePath) return apiError(`List '${target.slug}' not found`, 404)
 
-    const changesPath = changesPathFor(filePath)
+    const changesPath = changelogSidecarPath(filePath)
     let existing = ''
     const changesFile = Bun.file(changesPath)
     if (await changesFile.exists()) existing = await changesFile.text()

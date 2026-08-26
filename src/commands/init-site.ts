@@ -29,9 +29,10 @@ import { version as ritualVersion } from '../config/version'
 import { SKILLS } from '../skills/catalog'
 import { installSkills, refreshInstalledSkills, resolveSkillsDir } from '../skills/install'
 import { printSkillsWriteSummary } from './skills'
-import { CardCommandError, localizedCommandError } from '../util/errors'
-import { runCommandAction } from './card-target'
-import { ExitCode, normalizeScriptingOptions, parseEnumFlag } from './scripting'
+import { CardCommandError, localizedCommandError, ExitCode } from '../util/errors'
+import { runCommandAction } from '../cli/action'
+import { TEXT_ONLY } from '../cli/output'
+import { parseEnumFlag } from '../cli/options'
 
 /**
  * The `if:` guard stamped on every build/deploy step of the detect-changes
@@ -695,7 +696,7 @@ export function registerInitSiteCommand(program: Command): void {
     .option('--skills', t('help.initSite.skills'))
     .option('--no-skills', t('help.initSite.noSkills'))
     .action(async (options: InitSiteCommandOptions) => {
-      await runCommandAction(normalizeScriptingOptions({}), () => runInitSite(options))
+      await runCommandAction(TEXT_ONLY, () => runInitSite(options))
     })
 }
 

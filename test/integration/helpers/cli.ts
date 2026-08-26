@@ -2,12 +2,12 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { Command } from 'commander'
+import type { CommandRegistrar } from '../../../src/cli/program'
+
+export type { CommandRegistrar }
 
 export const repoRoot = path.resolve(import.meta.dir, '../../..')
 export const binaryPath = path.join(repoRoot, 'ritual')
-
-/** Registers one command tree onto a program, e.g. `registerImportCommand`. */
-export type CommandRegistrar = (program: Command) => void
 
 /**
  * Run one CLI command in-process and return the exit code it set — the driver

@@ -13,7 +13,7 @@ import { getErrorMessage, hasErrorCode } from '../util/errors'
 import { compareData } from '../i18n/collate'
 import { t } from '../i18n/t'
 import { getArtDir } from '../config/ritual-config'
-import { ask, suggestByTitleTerms } from './prompts-helpers'
+import { ask, suggestByTitleTerms } from '../cli/prompts'
 import { currentSessionArt, noteArtSet, type SessionArtChanges } from './session-art'
 import type { EditUndoEntry } from './edit-undo'
 

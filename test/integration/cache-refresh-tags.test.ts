@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 // scryfall/index, which reads `cardCache` at module top level.
 import '../../src/scryfall'
 import { registerCacheCommand } from '../../src/commands/cache'
-import { ExitCode } from '../../src/commands/scripting'
+import { ExitCode } from '../../src/util/errors'
 import { runInProcess } from './helpers/cli'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 

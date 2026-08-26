@@ -36,6 +36,10 @@ export const helpMeta = {
     description:
       'Help text for the shared --fields flag, which projects a subset of properties out of structured output. "json"/"ndjson" are format names and never translate.',
   },
+  'help.option.refresh': {
+    description:
+      'Default help text for the shared --refresh flag. "ask", "auto", "no-bulk" and "never" are the flag\'s literal values and never translate; the parenthetical explains what "ask" does when no prompt can be shown.',
+  },
 
   'help.group.lists': {
     description:

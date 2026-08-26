@@ -8,7 +8,7 @@ import { cardCache } from '../../src/cache'
 import { runInProcess } from './helpers/cli'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 import { makeScryfallCard } from '../test-utils'
-import { ExitCode } from '../../src/commands/scripting'
+import { ExitCode } from '../../src/util/errors'
 
 /**
  * `ritual cache preload-set` is the one caller that walks a whole Scryfall

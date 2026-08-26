@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
-import { initI18n, LOCALE_ENV_VAR, resetUiLocaleResolution } from '../../../src/commands/locale'
+import { initI18n, LOCALE_ENV_VAR, resetUiLocaleResolution } from '../../../src/cli/locale'
 import { en } from '../../../src/i18n/messages/en'
 import { enMeta } from '../../../src/i18n/messages/en.meta'
 import { loadDictionary, resetI18nRuntime } from '../../../src/i18n/runtime'

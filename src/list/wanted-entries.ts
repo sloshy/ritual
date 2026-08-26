@@ -1,3 +1,4 @@
+// The on-disk grammar (parseWantedListFile / WantedListEntry) lives in `wanted-file.ts`.
 import type { Finish } from '../card/finish-condition'
 import { hasSpecificPrinting, type FinishedPrintingFields } from '../card/card-printing'
 import type { CardLanguage } from '../card/card-language'

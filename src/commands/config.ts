@@ -15,14 +15,15 @@ import {
   type RitualConfig,
 } from '../config/ritual-config'
 import { t } from '../i18n/t'
+import { addScriptingOptions } from '../cli/options'
 import {
-  addScriptingOptions,
   emitError,
   emitOutput,
-  ExitCode,
   normalizeScriptingOptions,
   type ScriptingOptions,
-} from './scripting'
+} from '../cli/output'
+import { fail } from '../cli/action'
+import { ExitCode } from '../util/errors'
 
 type ConfigSetOptions = {
   add?: boolean
@@ -113,14 +114,7 @@ function registerGetSubcommand(config: Command): void {
       return
     }
     if (outcome.kind === 'unset') {
-      emitError(
-        'not_found',
-        t('cli.config.notSet', { property }),
-        scripting,
-        undefined,
-        'cli.config.notSet',
-      )
-      process.exitCode = ExitCode.NotFound
+      fail(scripting, 'not_found', 'cli.config.notSet', { property })
       return
     }
 

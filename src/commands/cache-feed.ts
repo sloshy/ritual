@@ -3,16 +3,16 @@ import { Command, InvalidArgumentError } from 'commander'
 import { getCacheDir } from '../cache'
 import { configuredCardBulkType } from '../scryfall/bulk-manifest'
 import { defaultHttpClient } from '../util/http'
-import { getErrorMessage } from '../util/errors'
+import { getErrorMessage, ExitCode } from '../util/errors'
 import {
   addFeedUrlOption,
   addTorrentPortOption,
   parseRefreshCadence,
   resolveRefreshMs,
   scheduleRecurringTask,
-} from '../cache/cadence'
+} from '../cache-server/cadence'
 import { t } from '../i18n/t'
-import { ExitCode, parsePort } from './scripting'
+import { parsePort } from '../cli/options'
 import { DAY_REFRESH_MS } from '../cache-server/constants'
 import type { RefreshCadence } from '../cache-server/types'
 import { CACHE_FEED_LOG_PREFIX, CacheFeedHost, DEFAULT_BULK_API_URL } from '../cache-feed/host'

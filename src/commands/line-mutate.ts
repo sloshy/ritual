@@ -39,7 +39,7 @@ import {
   formatWantedListLine,
   WANTED_CARD_LINE_RE,
   WANTED_LINE_LANGUAGE_GROUP,
-} from './wanted-helpers'
+} from '../list/wanted-file'
 import { formatCollectionLine } from './collection-helpers'
 import {
   DECK_CARD_LINE_RE,
@@ -67,8 +67,7 @@ import {
 import { applyConditionUpdate, isCondition, isFinish, type Finish } from '../card/finish-condition'
 import { canSetFinish } from '../card/card-printing'
 import { noteOrUndefined } from '../card/note-helpers'
-import { ExitCode } from './scripting'
-import { CardCommandError, localizedCommandError } from '../util/errors'
+import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
 import type { ListType } from '../list/list-type'
 import type { CardMutationChange } from '../list/list-mutate'
 import type { EntryRef } from './card-target'

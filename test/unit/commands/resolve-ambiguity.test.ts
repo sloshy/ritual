@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { resolveAmbiguousRemovals, type AskPrompt } from '../../../src/commands/resolve-ambiguity'
+import { resolveAmbiguousRemovals } from '../../../src/commands/resolve-ambiguity'
+import type { AskPrompt } from '../../../src/cli/prompts'
 import type { AmbiguousRemoval, AmbiguousList } from '../../../src/collection-sync/describe'
 import { MemoryLogger } from '../../../src/util/logger'
 

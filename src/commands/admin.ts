@@ -18,7 +18,14 @@ import { resolveMcpToken } from '../mcp/token'
 import { getBaseDir } from '../config/base-dir'
 import { ensureFreshCardCache } from '../cache/freshness'
 import { sellModeWarning, warmCardKingdomFeed } from '../cardkingdom'
-import { addRefreshOption, type RefreshMode } from '../cache/refresh'
+import {
+  addRefreshOption,
+  addSellModeOption,
+  applySellModeOverride,
+  addScriptingOptions,
+  parsePort,
+} from '../cli/options'
+import type { RefreshMode } from '../cache/refresh'
 import { isRunningFromSource } from '../config/runtime'
 import {
   generateAllThemesCss,
@@ -35,20 +42,12 @@ import { DEFAULT_LOCALE } from '../i18n/runtime'
 import { t } from '../i18n/t'
 import type { LocaleTag } from '../i18n/types'
 import { getUiLocale } from '../config/ritual-config'
-import { addSellModeOption, applySellModeOverride } from './sell-mode-flag'
 import { buildFlameSvg } from '../theme/flame'
-import { localizedCommandError } from '../util/errors'
-import { runCommandAction } from './card-target'
+import { localizedCommandError, ExitCode } from '../util/errors'
+import { runCommandAction } from '../cli/action'
 import { requireInteractive } from '../util/no-input'
-import { readPasswordFromStdin } from './prompts-helpers'
-import {
-  addScriptingOptions,
-  emitOutput,
-  ExitCode,
-  normalizeScriptingOptions,
-  parsePort,
-  type ScriptingOptions,
-} from './scripting'
+import { readPasswordFromStdin } from '../cli/prompts'
+import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 
 type AdminCommandOptions = {
   port: number

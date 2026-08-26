@@ -140,3 +140,9 @@ export function sameListName(a: string, b: string): boolean {
   const folded = normalizeListName(a)
   return folded !== '' && folded === normalizeListName(b)
 }
+
+/** The file basename (without extension) used as a list's slug, matching the load endpoints. */
+export function listSlug(filePath: string): string {
+  const base = filePath.split(/[\\/]/).pop() ?? filePath
+  return base.replace(/\.md$/, '')
+}

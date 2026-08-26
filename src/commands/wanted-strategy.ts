@@ -9,8 +9,8 @@ import {
   resolveCardPrinting,
   VALID_FINISHES,
 } from './collection-helpers'
+import { formatWantedListLine } from '../list/wanted-file'
 import {
-  formatWantedListLine,
   promptWantedFinish,
   NO_PREFERENCE,
   type WantedFinishChoiceValue,

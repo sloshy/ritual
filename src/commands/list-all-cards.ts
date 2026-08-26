@@ -7,19 +7,18 @@ import { printingSuffix } from '../card/card-line'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../config/ritual-config'
 import { listDeckFiles, loadDeckFile } from '../importers/text-file'
 import { parseCollectionFile } from '../list/collection-file'
-import { parseWantedListFile } from './wanted-helpers'
-import { getErrorMessage, hasErrorCode, localizedCommandError } from '../util/errors'
+import { parseWantedListFile } from '../list/wanted-file'
+import { getErrorMessage, hasErrorCode, localizedCommandError, ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
-import { runCommandAction } from './card-target'
+import { runCommandAction } from '../cli/action'
+import { addScriptingOptions } from '../cli/options'
 import {
-  addScriptingOptions,
   emitToFileOrStdout,
-  ExitCode,
   normalizeScriptingOptions,
   type OutputConfirmation,
   type OutputFormat,
   type ScriptingOptions,
-} from './scripting'
+} from '../cli/output'
 import type { DeckData } from '../list/deck'
 import { isListMarkdownFile } from '../list/list-file-name'
 

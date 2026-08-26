@@ -7,20 +7,20 @@ import {
   type CollectionSyncReport,
 } from '../collection-sync/engine'
 import type { Logger } from '../util/logger'
-import { addRefreshOption, type RefreshMode } from '../cache/refresh'
+import { addRefreshOption, addScriptingOptions } from '../cli/options'
+import type { RefreshMode } from '../cache/refresh'
 import { getCollectionSyncPullTarget } from '../config/ritual-config'
 import { unreadableConsequence, type SyncChangeFilter, type SyncDirection } from '../sync/common'
 import { decideCsvUpload } from './decide-csv'
 import { resolveAmbiguousRemovals } from './resolve-ambiguity'
 import {
   canPromptWithOutput,
-  addScriptingOptions,
-  emitError,
   emitOutput,
-  ExitCode,
   normalizeScriptingOptions,
   type ScriptingOptions,
-} from './scripting'
+} from '../cli/output'
+import { fail } from '../cli/action'
+import { ExitCode } from '../util/errors'
 import {
   addSyncDirectionArgument,
   addSyncOptions,
@@ -225,14 +225,7 @@ export function registerCollectionSyncCommand(program: Command): void {
       // at all" — there is no reading of the two together, so it is a usage
       // error rather than a precedence rule.
       if (options.csv === true && options.csvFile !== undefined) {
-        emitError(
-          'usage_error',
-          t('cli.collectionSync.csvFlagsExclusive'),
-          scripting,
-          undefined,
-          'cli.collectionSync.csvFlagsExclusive',
-        )
-        process.exitCode = ExitCode.UsageError
+        fail(scripting, 'usage_error', 'cli.collectionSync.csvFlagsExclusive')
         return
       }
 

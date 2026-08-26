@@ -4,19 +4,18 @@ import type { Finish, Condition } from '../../card/finish-condition'
 import { isCardLanguage, storedLanguage, type CardLanguage } from '../../card/card-language'
 import type { ListType } from '../../list/list-type'
 import { isListType } from '../../list/list-type'
+import { loadAllLists, type ListEntry } from '../../list/list-info'
 import {
-  loadAllLists,
   loadPhysicalCards,
   buildVirtualState,
   applyVirtualMove,
   applyVirtualRemove,
   commitAllMoves,
   commitAllRemovals,
-  type ListEntry,
   type VirtualCard,
 } from '../../commands/move-helpers'
 import type { DroppedNote } from '../../commands/move-io'
-import { listSlug } from '../../list/list-info'
+import { listSlug } from '../../list/list-file-name'
 import { indexPhysicalCards, moveCardKey, type MovePhysicalCard } from '../../card/card-index-types'
 import { refuseUnknownCardNames } from './card-name-check'
 import { apiMessage, type ApiMessage } from './result'

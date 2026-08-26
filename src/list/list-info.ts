@@ -1,6 +1,14 @@
-import path from 'node:path'
-import { loadAllLists } from '../commands/move-helpers'
+import type { ListRef } from '../changes/change-event'
+import { listSlug } from './list-file-name'
+import { listLocations } from './resolve-list'
+import { listDisplayName } from './list-lifecycle'
 import type { ListType } from './list-type'
+
+/** A list on disk: its type + display name, and where the file lives. */
+export type ListEntry = {
+  ref: ListRef
+  filePath: string
+}
 
 /**
  * Lightweight summary of a list (deck, collection, or wanted list): a slug (the
@@ -14,9 +22,25 @@ export type ListInfo = {
   name: string
 }
 
-/** The file basename (without extension) used as a list's slug, matching the load endpoints. */
-export function listSlug(filePath: string): string {
-  return path.basename(filePath).replace(/\.(md|txt)$/i, '')
+/**
+ * Enumerate every list file across all three types, paired with its display
+ * name. One walk ({@link listLocations}) so the directory rules live in one
+ * place; per-file tolerance so an unreadable list still appears, named by its
+ * slug, rather than hiding every list after it.
+ */
+export async function loadAllLists(): Promise<ListEntry[]> {
+  const locations = await listLocations()
+  return Promise.all(
+    locations.map(
+      async (location): Promise<ListEntry> => ({
+        ref: {
+          type: location.type,
+          name: await listDisplayName(location.type, location.filePath).catch(() => location.name),
+        },
+        filePath: location.filePath,
+      }),
+    ),
+  )
 }
 
 /** Enumerate every list across all three types as slug-keyed {@link ListInfo} summaries. */

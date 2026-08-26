@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { serveUrl } from '../../../src/commands/serve-helpers'
+import { serveUrl } from '../../../src/serve/static'
 
 /**
  * The startup line used to say `http://localhost:<port>` whatever `--host` was,

@@ -4,7 +4,7 @@ import {
   parseWantedListFile,
   formatWantedListLine,
   type WantedListEntry,
-} from '../../src/commands/wanted-helpers'
+} from '../../src/list/wanted-file'
 import { formatCollectionLine } from '../../src/commands/collection-helpers'
 import {
   orderedSections,

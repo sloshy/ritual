@@ -2,7 +2,7 @@ import type { MoveFromOptions, PrintingTupleWithId } from '../changes/change-eve
 import { LIST_TYPE_DISPLAY } from '../list/list-type'
 import { t } from '../i18n/t'
 import { resolveCardPrinting, type PrintingFilterConfig } from './collection-helpers'
-import { ask, suggestByTitleTerms } from './prompts-helpers'
+import { ask, suggestByTitleTerms } from '../cli/prompts'
 import type { UnifiedListRef } from './edit-lists'
 
 /**

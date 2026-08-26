@@ -70,10 +70,15 @@ ruleTester.run('no-untranslated-literal', rule as never, {
   ],
 
   invalid: [
-    // Scope: the shared list-view layer and the admin SPA are localized surfaces…
+    // Scope: the shared list-view layer, the CLI helpers and the admin SPA are localized surfaces…
     {
       code: `const el = <span>Nothing selected</span>`,
       filename: 'src/list-view/CardModal.tsx',
+      errors: [{ messageId: 'untranslated' }],
+    },
+    {
+      code: `command.option('--refresh <mode>', 'Card cache refresh policy')`,
+      filename: 'src/cli/options.ts',
       errors: [{ messageId: 'untranslated' }],
     },
     {

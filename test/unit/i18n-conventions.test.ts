@@ -97,6 +97,7 @@ describe('i18n persistence fence', () => {
       'src/changes/changelog-parser.ts',
       'src/changes/csv.ts',
       'src/changes/change-bundle.ts',
+      'src/changes/list-snapshot.ts',
       'src/buylist/cart-csv.ts',
       ...[...new Glob('src/export/**/*.ts').scanSync(ROOT)].map((file) => file.replace(/\\/g, '/')),
     ]
@@ -117,6 +118,7 @@ describe('i18n persistence fence', () => {
       'src/list/deck-file.ts',
       'src/card/card-line.ts',
       'src/list/collection-file.ts',
+      'src/list/wanted-file.ts',
       'src/card/set-codes.ts',
       'src/card/card-id.ts',
       'src/card/printing-key.ts',

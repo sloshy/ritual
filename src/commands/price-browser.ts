@@ -44,7 +44,7 @@ import { comparePrintings } from '../scryfall'
 import { formatDuration } from '../util/duration'
 import { matchesAllTerms } from '../card/term-match'
 import type { ScryfallCard } from '../scryfall/types'
-import { ask, promptTextFilter } from './prompts-helpers'
+import { ask, promptTextFilter } from '../cli/prompts'
 import { dateTimeFormat } from '../i18n/format'
 import { currentLocale } from '../i18n/runtime'
 

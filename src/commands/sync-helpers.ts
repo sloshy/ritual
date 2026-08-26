@@ -20,15 +20,10 @@ import {
   type SyncDirection,
   type UnreadableSource,
 } from '../sync/common'
-import { ask } from './prompts-helpers'
-import {
-  canPromptWithOutput,
-  addDryRunOption,
-  emitError,
-  ExitCode,
-  parseEnumFlag,
-  type ScriptingOptions,
-} from './scripting'
+import { ask } from '../cli/prompts'
+import { canPromptWithOutput, emitError, type ScriptingOptions } from '../cli/output'
+import { addDryRunOption, parseEnumFlag } from '../cli/options'
+import { ExitCode } from '../util/errors'
 import type { Command } from 'commander'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'

@@ -16,7 +16,7 @@
  *                                     .argument('<name>', '…')
  *
  * **Scope is mandatory, not decorative.** Unscoped, this rule fires on ~20,000
- * lines. It runs only inside the surfaces that get localized (`src/commands`,
+ * lines. It runs only inside the surfaces that get localized (`src/cli`, `src/commands`,
  * `src/site`, `src/admin/site`, `src/ui`, `src/editor`) and never inside the
  * surfaces that are English by contract (`src/mcp`, `src/skills`, the changelog
  * persistence modules, `src/export`, generated code, tests,
@@ -32,6 +32,7 @@ import { matchesAny } from './path-match.js'
 
 /** Directories whose strings are localized. */
 const DEFAULT_INCLUDE = [
+  'src/cli/',
   'src/commands/',
   'src/site/',
   'src/admin/site/',

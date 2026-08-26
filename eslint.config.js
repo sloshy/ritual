@@ -146,6 +146,7 @@ export default [
             {
               name: 'entry',
               dirs: [
+                'src/cli',
                 'src/commands',
                 'src/mcp',
                 'src/serve',
@@ -158,22 +159,17 @@ export default [
           allow: [
             // Zone 5c — the bake types live under site/details.
             { from: 'src/cardkingdom/bake', to: 'src/site/details' },
-            // Zone 3 — engine helpers still living in src/commands/ (move-helpers, move-io,
-            // wanted-helpers, collection-helpers, history-helpers, scripting, import).
-            { from: 'src/admin/api', to: 'src/commands' },
+            // Zone 3 — engine helpers still living in src/commands/ (move-helpers, move-io).
             { from: 'src/editor/dropped-notes', to: 'src/commands/move-io' },
             { from: 'src/editor/saveEditorChanges', to: 'src/commands/move-io' },
-            { from: 'src/export/entries', to: 'src/commands/wanted-helpers' },
-            { from: 'src/importers/csv-apply', to: 'src/commands/wanted-helpers' },
-            { from: 'src/importers/text-file', to: 'src/commands/collection-helpers' },
-            { from: 'src/list/ensure-card-ids', to: 'src/commands/wanted-helpers' },
-            { from: 'src/list/list-info', to: 'src/commands/move-helpers' },
-            { from: 'src/pricing/price-report', to: 'src/commands/wanted-helpers' },
-            { from: 'src/cache/cadence', to: 'src/commands/scripting' },
-            { from: 'src/cache/refresh', to: 'src/commands/scripting' },
-            { from: 'src/site/details/wanted', to: 'src/commands' },
-            // Zone 10/11 — cache/ reaches into the two long-running servers.
-            { from: 'src/cache/cadence', to: 'src/cache-server' },
+            // Zone 5b — the move/save admin routes still drive the CLI's move engine.
+            { from: 'src/admin/api/move', to: 'src/commands/move-helpers' },
+            { from: 'src/admin/api/move', to: 'src/commands/move-io' },
+            { from: 'src/admin/api/move-save', to: 'src/commands/move-helpers' },
+            { from: 'src/admin/api/move-save', to: 'src/commands/move-io' },
+            { from: 'src/admin/api/card-index', to: 'src/commands/move-helpers' },
+            { from: 'src/admin/api/save-helpers', to: 'src/commands/move-io' },
+            // Zone 10/11 — cache/ reaches into the feed server.
             { from: 'src/cache/refresh-source', to: 'src/cache-feed/fetch' },
             // Zone 10 — the client-neutral card routes borrow admin's HTTP helpers.
             { from: 'src/api', to: 'src/admin/api/save-helpers' },

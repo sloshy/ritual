@@ -2,19 +2,18 @@ import { Command } from 'commander'
 import { searchAllPages, refreshTags } from '../scryfall'
 import { refreshCardCache } from '../cache/refresh-source'
 import { collectCacheStatus, type CacheStatusResult } from '../cache/status'
-import { addFeedUrlOption, feedUrlSourceConflict, parseCacheSourceFlag } from '../cache/cadence'
+import {
+  addFeedUrlOption,
+  feedUrlSourceConflict,
+  parseCacheSourceFlag,
+} from '../cache-server/cadence'
 import { ensureCardKingdomFeed } from '../cardkingdom'
-import { getErrorMessage } from '../util/errors'
+import { getErrorMessage, ExitCode } from '../util/errors'
 import { getSiteSellMode, type CacheSource as ConfiguredCacheSource } from '../config/ritual-config'
 import { registerCacheFeedSubcommand } from './cache-feed'
 import { registerCacheServerSubcommand } from './cache-server'
-import {
-  addOutputOption,
-  emitOutput,
-  ExitCode,
-  normalizeScriptingOptions,
-  type ScriptingOptions,
-} from './scripting'
+import { addOutputOption } from '../cli/options'
+import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 import { t } from '../i18n/t'
 import { displayWidth, padEndDisplay } from '../i18n/width'
 

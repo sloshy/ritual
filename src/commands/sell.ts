@@ -4,8 +4,19 @@ import { adoptCardKingdomFeed, ensureCardKingdomFeed } from '../cardkingdom'
 import { formatPrintingAnnotation } from '../changes/change-event'
 import { compareData } from '../i18n/collate'
 import { formatPrice } from '../pricing/price-currency'
-import { addRefreshOption, resolveRefreshMode, type RefreshMode } from '../cache/refresh'
-import { listTypeFromFlags, type ListLocation } from '../list/resolve-list'
+import {
+  addRefreshOption,
+  resolveRefreshMode,
+  addOutputOption,
+  addQuietOption,
+} from '../cli/options'
+import type { RefreshMode } from '../cache/refresh'
+import {
+  isListArgumentsFailure,
+  listTypeFromFlags,
+  resolveListArguments,
+  type ListLocation,
+} from '../list/resolve-list'
 import {
   applySellFilters,
   buildSellCartCsv,
@@ -22,10 +33,7 @@ import {
 import { loadAndBuildSellReport } from '../pricing/sell-runtime'
 import { parseSetCodesInput } from '../card/set-codes'
 import { formatDuration } from '../util/duration'
-import { isListArgumentsFailure, resolveListArguments } from './list-arguments'
 import {
-  addOutputOption,
-  addQuietOption,
   CSV_OUTPUT_FORMATS,
   csvScriptingOptions,
   emitActionError,
@@ -33,12 +41,13 @@ import {
   emitResolveListError,
   emitToFileOrStdout,
   emitWarnings,
-  ExitCode,
   installScriptingLogger,
   resolveOutPath,
   type CsvOutputFormat,
   type ScriptingOptions,
-} from './scripting'
+} from '../cli/output'
+import { fail } from '../cli/action'
+import { ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
 
 /** The footer every text report ends with, unless `--quiet` drops it. */
@@ -235,14 +244,7 @@ export function registerSellCommand(program: Command): void {
 
     const type = listTypeFromFlags(options)
     if (type === 'conflict') {
-      emitError(
-        'usage_error',
-        t('cli.listScope.oneTypeFlag'),
-        scripting,
-        undefined,
-        'cli.listScope.oneTypeFlag',
-      )
-      process.exitCode = ExitCode.UsageError
+      fail(scripting, 'usage_error', 'cli.listScope.oneTypeFlag')
       return
     }
 

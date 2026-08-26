@@ -17,7 +17,7 @@ import {
 } from './card-session'
 import { hasUnsavedChanges, newListTitle, type OpenList, type UnifiedListRef } from './edit-lists'
 import { listRefTitle } from './edit-move'
-import { ask, suggestByTitleTerms } from './prompts-helpers'
+import { ask, suggestByTitleTerms } from '../cli/prompts'
 
 /**
  * The multi-list modes of the unified `edit` command: one card session spanning

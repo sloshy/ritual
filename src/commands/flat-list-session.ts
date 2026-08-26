@@ -36,7 +36,7 @@ import { getDefaultCurrency } from '../config/ritual-config'
 import { t } from '../i18n/t'
 import { trackAdd, trackAnotherCopy, trackEdit } from '../changes/session-changelog'
 import { parseCollectionFile, type CollectionEntry } from '../list/collection-file'
-import { parseWantedListFile, type WantedListEntry } from './wanted-helpers'
+import { parseWantedListFile, type WantedListEntry } from '../list/wanted-file'
 import type { FlatListFrontMatter } from '../list/flat-list-front-matter'
 import type { CardArtRef } from '../list/card-art'
 import {

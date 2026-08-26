@@ -20,7 +20,8 @@ import {
   type CardArtReconcileFailure,
 } from '../../list/card-art'
 import { reconcileListRefs } from '../../list/list-refs'
-import { loadAllLists, type ListEntry, type PhysicalCard } from '../../commands/move-helpers'
+import { loadAllLists, type ListEntry } from '../../list/list-info'
+import type { PhysicalCard } from '../../commands/move-helpers'
 import { t } from '../../i18n/t'
 import type { SaveEffect } from '../../editor/save-effects'
 import type { ApiMessage } from './result'

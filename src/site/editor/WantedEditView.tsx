@@ -1,7 +1,6 @@
 import { type Component, createSignal } from 'solid-js'
-import type { WantedListDetail } from '../../list/site-data'
+import type { WantedListDetail, WantedListCardEntry } from '../../list/site-data'
 import type { PriceCurrency } from '../../pricing/price-currency'
-import type { WantedListCardEntry } from '../../list/site-data'
 import type { ListRef } from '../../changes/change-event'
 import type { NamedListRef } from '../../list-view/combined-list'
 import type { ListEditorConfig } from '../../editor/useEditor'

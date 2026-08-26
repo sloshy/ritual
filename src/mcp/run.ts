@@ -16,7 +16,7 @@ import {
 } from './error-codes'
 import { isLoopbackHost } from './host'
 import { buildMcpServer } from './server'
-import { divertConsoleLogToStderr } from './stdout-guard'
+import { divertConsoleLogToStderr } from '../util/stdout-guard'
 
 /**
  * Run the MCP server over stdio (the default transport for local agent clients).

@@ -1,5 +1,5 @@
 import prompts from 'prompts'
-import type { PromptState } from './prompts-types'
+import type { PromptState } from '../cli/prompts'
 import type { Card } from '../card/card'
 import type { DeckData } from '../list/deck'
 import {

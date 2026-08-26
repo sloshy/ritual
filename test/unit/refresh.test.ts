@@ -1,47 +1,7 @@
 import { describe, test, expect, afterEach } from 'bun:test'
-import { Command } from 'commander'
 import prompts from 'prompts'
-import {
-  addRefreshOption,
-  bulkAllowed,
-  parseRefreshFlag,
-  refreshStaleAllowed,
-  shouldBulkRefresh,
-} from '../../src/cache/refresh'
+import { bulkAllowed, refreshStaleAllowed, shouldBulkRefresh } from '../../src/cache/refresh'
 import { setNoInputOverride } from '../../src/util/no-input'
-
-describe('parseRefreshFlag', () => {
-  test('accepts the four modes', () => {
-    expect(parseRefreshFlag('ask')).toBe('ask')
-    expect(parseRefreshFlag('auto')).toBe('auto')
-    expect(parseRefreshFlag('no-bulk')).toBe('no-bulk')
-    expect(parseRefreshFlag('never')).toBe('never')
-  })
-
-  test('is case-insensitive', () => {
-    expect(parseRefreshFlag('AUTO')).toBe('auto')
-    expect(parseRefreshFlag('Never')).toBe('never')
-  })
-
-  test('rejects anything else, listing the valid modes', () => {
-    expect(() => parseRefreshFlag('allow')).toThrow('ask, auto, no-bulk, never')
-    expect(() => parseRefreshFlag('')).toThrow("Invalid refresh mode ''")
-  })
-})
-
-describe('addRefreshOption', () => {
-  test('registers --refresh <mode> defaulting to ask', () => {
-    const command = addRefreshOption(new Command('x'))
-    command.parse([], { from: 'user' })
-    expect(command.opts().refresh).toBe('ask')
-  })
-
-  test('parses an explicit mode through parseRefreshFlag', () => {
-    const command = addRefreshOption(new Command('x'))
-    command.parse(['--refresh', 'no-bulk'], { from: 'user' })
-    expect(command.opts().refresh).toBe('no-bulk')
-  })
-})
 
 describe('bulkAllowed', () => {
   test('permits bulk only for ask and auto', () => {

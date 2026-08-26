@@ -10,9 +10,9 @@ import {
   resetRitualConfigCache,
 } from '../../src/config/ritual-config'
 import { runBuildSite, type BuildSiteOptions } from '../../src/commands/build-site'
-import { ExitCode } from '../../src/commands/scripting'
+import { ExitCode } from '../../src/util/errors'
 import { startSiteServer } from '../../src/serve/server'
-import type { StaticSiteServer } from '../../src/commands/serve-helpers'
+import type { StaticSiteServer } from '../../src/serve/static'
 import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
 import type { SiteIndex } from '../../src/list/site-data'
 import { localeTag } from '../../src/i18n/locale-tag'

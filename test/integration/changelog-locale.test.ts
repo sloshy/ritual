@@ -17,7 +17,7 @@ import {
   type ChangeEvent,
 } from '../../src/changes/change-event'
 import { formatChange } from '../../src/changes/change-message'
-import { buildDefaultChangeLines } from '../../src/commands/history-helpers'
+import { buildDefaultChangeLines } from '../../src/changes/list-snapshot'
 import { en } from '../../src/i18n/messages/en'
 import { enMeta } from '../../src/i18n/messages/en.meta'
 import { loadDictionary, resetI18nRuntime, setLocale } from '../../src/i18n/runtime'

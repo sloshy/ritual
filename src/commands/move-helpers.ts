@@ -10,16 +10,14 @@ import {
   createMoveToChange,
   createRemoveChange,
   listRefLabel,
-  type ListRef,
 } from '../changes/change-event'
 import type { Finish, Condition } from '../card/finish-condition'
 import type { CardLabel } from '../card/card-labels'
 import { languageToken, type CardLanguage } from '../card/card-language'
-import { listDeckFiles, importFromTextFile } from '../importers/text-file'
+import { importFromTextFile } from '../importers/text-file'
 import { resolveDefaultAddSection } from '../list/deck-format'
 import { parseCollectionFile } from '../list/collection-file'
-import { parseWantedListFile } from './wanted-helpers'
-import { listDisplayName } from '../list/list-lifecycle'
+import { parseWantedListFile } from '../list/wanted-file'
 import {
   loadStagedFile,
   applyRemoveFromStaged,
@@ -33,15 +31,9 @@ import {
 } from './move-io'
 import { createCardArtCache, type CardArtRef } from '../list/card-art'
 import { reconcileListRefs } from '../list/list-refs'
-import { getCollectionsDir, getDecksDir, getWantedDir } from '../config/ritual-config'
-import { isListMarkdownFile } from '../list/list-file-name'
+import type { ListEntry } from '../list/list-info'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-export type ListEntry = {
-  ref: ListRef
-  filePath: string
-}
 
 /**
  * A single movable card. For deck entries with quantity > 1, multiple PhysicalCards
@@ -102,51 +94,6 @@ export type MoveSessionConfig = {
 }
 
 // ── Loading ───────────────────────────────────────────────────────────────────
-
-export async function loadAllLists(): Promise<ListEntry[]> {
-  const lists: ListEntry[] = []
-
-  const decksDir = getDecksDir()
-  try {
-    const deckFiles = await listDeckFiles(decksDir)
-    for (const fileName of deckFiles) {
-      const filePath = path.join(decksDir, fileName)
-      // Per-file tolerance: an unparsable deck still appears, named by its slug.
-      const name = await listDisplayName('deck', filePath).catch(() =>
-        path.basename(fileName, '.md'),
-      )
-      lists.push({ ref: { type: 'deck', name }, filePath })
-    }
-  } catch {
-    // decks directory may not exist
-  }
-
-  const collectionsDir = getCollectionsDir()
-  try {
-    const files = await fs.readdir(collectionsDir)
-    for (const fileName of files.filter(isListMarkdownFile)) {
-      const filePath = path.join(collectionsDir, fileName)
-      const name = await listDisplayName('collection', filePath)
-      lists.push({ ref: { type: 'collection', name }, filePath })
-    }
-  } catch {
-    // collections directory may not exist
-  }
-
-  const wantedDir = getWantedDir()
-  try {
-    const files = await fs.readdir(wantedDir)
-    for (const fileName of files.filter(isListMarkdownFile)) {
-      const filePath = path.join(wantedDir, fileName)
-      const name = await listDisplayName('wanted', filePath)
-      lists.push({ ref: { type: 'wanted', name }, filePath })
-    }
-  } catch {
-    // wanted directory may not exist
-  }
-
-  return lists
-}
 
 /** Physical cards plus every read/parse problem encountered building them. */
 export interface PhysicalCardLoad {

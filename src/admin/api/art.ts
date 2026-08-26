@@ -1,6 +1,6 @@
 import { loadDeckFile } from '../../importers/text-file'
 import { parseCollectionFile } from '../../list/collection-file'
-import { parseWantedListFile } from '../../commands/wanted-helpers'
+import { parseWantedListFile } from '../../list/wanted-file'
 import { collectDeckCardIds, collectExistingIds } from '../../card/card-id'
 import {
   artSidecarPath,

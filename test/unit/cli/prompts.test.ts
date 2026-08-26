@@ -5,10 +5,14 @@ import {
   promptExitMenu,
   resolveImportPrintings,
   suggestByTitleTerms,
-} from '../../src/commands/prompts-helpers'
-import { normalizeScriptingOptions } from '../../src/commands/scripting'
-import { setNoInputOverride } from '../../src/util/no-input'
-import { stubTty } from '../test-utils'
+} from '../../../src/cli/prompts'
+import { normalizeScriptingOptions } from '../../../src/cli/output'
+import { setNoInputOverride } from '../../../src/util/no-input'
+import { registerCliMessages } from '../../../src/i18n/register/cli'
+import { stubTty } from '../../test-utils'
+
+// The refusal prose asserted below only exists once the CLI catalog is registered.
+registerCliMessages()
 
 // `ask` refuses to prompt without a terminal; these tests simulate an
 // interactive session via prompts.inject, so pretend stdin is a TTY.

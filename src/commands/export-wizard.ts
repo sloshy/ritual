@@ -55,7 +55,7 @@ import { t } from '../i18n/t'
 import { LIST_TYPE_DISPLAY } from '../list/list-type'
 import { listLocations, type ListLocation } from '../list/resolve-list'
 import { getExportPresets } from '../config/ritual-config'
-import { ask, promptTextFilter } from './prompts-helpers'
+import { ask, promptTextFilter } from '../cli/prompts'
 import { suggestBrowserChoices } from './price-browser'
 
 /** Everything the wizard tracks between screens. */

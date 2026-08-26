@@ -6,7 +6,7 @@ import {
 } from '../../src/changes/diff-cards'
 import type { DeckSection } from '../../src/list/deck'
 import type { CollectionEntry } from '../../src/list/collection-file'
-import type { WantedListEntry } from '../../src/commands/wanted-helpers'
+import type { WantedListEntry } from '../../src/list/wanted-file'
 
 // ── Deck diffing ─────────────────────────────────────────────────────
 

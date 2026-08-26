@@ -9,7 +9,7 @@ import { ScryfallClient } from '../scryfall'
 import type { PriceData } from '../pricing/price-data'
 import type { ScryfallCard } from '../scryfall/types'
 import { ExitCode, getErrorMessage } from '../util/errors'
-import { resolveRefreshCadence, resolveRefreshMs, scheduleRecurringTask } from '../cache/cadence'
+import { resolveRefreshCadence, resolveRefreshMs, scheduleRecurringTask } from './cadence'
 import { CACHE_SERVER_LOG_PREFIX, PRICE_REFRESH_STAGGER_MS, WEEKLY_REFRESH_MS } from './constants'
 import {
   createFileSystemClient,

@@ -19,32 +19,25 @@ import {
   type FlatListMetadataRequest,
 } from '../admin/api/metadata'
 import { checkArchidektLink } from '../deck-sync/link'
-import { CardCommandError, localizedCommandError } from '../util/errors'
+import { CardCommandError, localizedCommandError, ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
 import type { ListType } from '../list/list-type'
 import type { ListTypeFlags } from '../list/resolve-list'
 import { browseArtFile, promptArtUrl } from './edit-art'
-import { ask, suggestByTitleTerms } from './prompts-helpers'
+import { ask, suggestByTitleTerms } from '../cli/prompts'
 import {
   addListTypeFlags,
-  cancelledError,
   describeEntry,
   loadEntryRefs,
   listTypeLabel,
   parseCardIdFlag,
   resolveListSelection,
   resolveListTypeFlag,
-  runCommandAction,
   type EntryRef,
 } from './card-target'
-import {
-  addScriptingOptions,
-  emitOutput,
-  ExitCode,
-  normalizeScriptingOptions,
-  type DryRunOptions,
-  type ScriptingOptions,
-} from './scripting'
+import { cancelledError, runCommandAction } from '../cli/action'
+import { addDryRunOption, addScriptingOptions, type DryRunOptions } from '../cli/options'
+import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 
 /**
  * `ritual set-list-image` — choose the cover image a deck, collection or wanted
@@ -106,39 +99,45 @@ export type SetListImageResult = {
 
 export function registerSetListImageCommand(program: Command): void {
   addScriptingOptions(
-    addListTypeFlags(
-      program
-        .command('set-list-image')
-        .description(t('help.setListImage.description'))
-        .argument('[listName]', t('help.listArg.crossType')),
-    )
-      .addOption(
-        new Option('--card <id>', t('help.setListImage.card')).conflicts([
-          'file',
-          'url',
-          'default',
-        ]),
+    // Long form only: `-n` would be this command's `--name`-shaped territory.
+    addDryRunOption(
+      addListTypeFlags(
+        program
+          .command('set-list-image')
+          .description(t('help.setListImage.description'))
+          .argument('[listName]', t('help.listArg.crossType')),
       )
-      .addOption(
-        new Option('--file <path>', t('help.setListImage.file')).conflicts([
-          'card',
-          'url',
-          'default',
-        ]),
-      )
-      .addOption(
-        new Option('--url <url>', t('help.setListImage.url')).conflicts([
-          'card',
-          'file',
-          'default',
-        ]),
-      )
-      .addOption(
-        new Option('--default', t('help.setListImage.default')).conflicts(['card', 'file', 'url']),
-      )
-      // Long form only: `-n` would be this command's `--name`-shaped territory
-      // and the shared `addDryRunOption` claims it for every command alike.
-      .option('--dry-run', t('help.setListImage.dryRun')),
+        .addOption(
+          new Option('--card <id>', t('help.setListImage.card')).conflicts([
+            'file',
+            'url',
+            'default',
+          ]),
+        )
+        .addOption(
+          new Option('--file <path>', t('help.setListImage.file')).conflicts([
+            'card',
+            'url',
+            'default',
+          ]),
+        )
+        .addOption(
+          new Option('--url <url>', t('help.setListImage.url')).conflicts([
+            'card',
+            'file',
+            'default',
+          ]),
+        )
+        .addOption(
+          new Option('--default', t('help.setListImage.default')).conflicts([
+            'card',
+            'file',
+            'url',
+          ]),
+        ),
+      t('help.setListImage.dryRun'),
+      { short: false },
+    ),
     'text',
   ).action(async (listNameArg: string | undefined, options: SetListImageOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')

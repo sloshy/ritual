@@ -2,9 +2,8 @@ import { expect, type Locator, type Page } from '@playwright/test'
 import { pseudoLocalize } from '../../../scripts/generate-locales'
 import { en } from '../../../src/i18n/messages/en'
 import { enMeta } from '../../../src/i18n/messages/en.meta'
-import type { LocaleCatalog } from '../../../src/i18n/types'
+import type { LocaleCatalog, LocaleTag } from '../../../src/i18n/types'
 import type { LocaleOverride } from '../../../src/i18n/runtime'
-import type { LocaleTag } from '../../../src/i18n/types'
 import { localeTag } from '../../../src/i18n/locale-tag'
 
 /**

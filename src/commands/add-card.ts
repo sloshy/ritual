@@ -1,6 +1,6 @@
 import { Command, InvalidArgumentError, Option } from 'commander'
 import prompts from 'prompts'
-import type { PromptState } from './prompts-types'
+import type { PromptState } from '../cli/prompts'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
 import {
@@ -9,7 +9,7 @@ import {
   getCardPrintingsResult,
   isDigitalOnlySet,
 } from '../scryfall'
-import { printingsAreComplete } from '../card/card-printing'
+import { printingsAreComplete, dedupePrintingsByKey } from '../card/card-printing'
 import {
   appendIntoOpenFence,
   applyDeckAdd,
@@ -24,7 +24,6 @@ import {
   ensureCollectionFile,
   resolveAddedLanguage,
 } from './collection-helpers'
-import { dedupePrintingsByKey } from '../card/card-printing'
 import { resolvePrintingLanguage } from '../card/printing-language'
 import type { CardLanguage } from '../card/card-language'
 import {
@@ -37,10 +36,17 @@ import {
   type Finish,
 } from '../card/finish-condition'
 import { parseSetCode } from '../card/set-codes'
-import { ensureWantedListFile, formatWantedListLine, promptWantedFinish } from './wanted-helpers'
-import { isUsableFileName, unusableFileNameMessage } from '../list/list-file-name'
+import { ensureWantedListFile, promptWantedFinish } from './wanted-helpers'
+import { formatWantedListLine } from '../list/wanted-file'
+import { isUsableFileName, unusableFileNameMessage, listFileName } from '../list/list-file-name'
 import { emptyCacheAdvice, ensureFreshCardCache } from '../cache/freshness'
-import { addRefreshOption, type RefreshMode } from '../cache/refresh'
+import {
+  addRefreshOption,
+  addDryRunOption,
+  addScriptingOptions,
+  type DryRunOptions,
+} from '../cli/options'
+import type { RefreshMode } from '../cache/refresh'
 import { appendChangelog } from '../changes/changelog-writer'
 import { createAddChange, type ConditionUpdate } from '../changes/change-event'
 import { parseCardLabelsToken, type CardLabel } from '../card/card-labels'
@@ -69,38 +75,27 @@ import {
   resolveListArgument,
   type ListTypeFlags,
 } from '../list/resolve-list'
+import { cancelledError, listArgumentConflictError, runCommandAction } from '../cli/action'
 import {
-  cancelledError,
   ensureFinishAvailable,
   ensureLabelsSupported,
-  listArgumentConflictError,
   parseLanguageFlag,
   resolveListTypeFlag,
   resolvePinnedPrinting,
-  runCommandAction,
   type EntryRef,
   type PrintingPin,
 } from './card-target'
 import { parsePositiveInteger } from '../util/parse-number'
 import { inputRequiredError, promptsUnavailable } from '../util/no-input'
-import {
-  addDryRunOption,
-  addScriptingOptions,
-  emitOutput,
-  ExitCode,
-  normalizeScriptingOptions,
-  type DryRunOptions,
-  type ScriptingOptions,
-} from './scripting'
-import { divertConsoleLogToStderr } from '../mcp/stdout-guard'
-import { CardCommandError, localizedCommandError } from '../util/errors'
+import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
+import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
+import { divertConsoleLogToStderr } from '../util/stdout-guard'
 import {
   getCollectionsDir,
   getDefaultCurrency,
   getDefaultLanguage,
   getWantedDir,
 } from '../config/ritual-config'
-import { listFileName } from '../list/list-file-name'
 import { t } from '../i18n/t'
 
 /**

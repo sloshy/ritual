@@ -1,11 +1,71 @@
+/**
+ * Interactive prompts. `ask` is the one gate every CLI prompt passes through —
+ * the `--no-input` refusal, the library-string overrides, and the exit tracking
+ * live here once.
+ */
+
 import prompts, { type Choice } from 'prompts'
-import type { AskQuestion, PromptLibraryStrings, PromptState } from './prompts-types'
 import { LIST_TYPES, type ListType } from '../list/list-type'
-import { inputRequiredError, isNoInput, promptsUnavailable } from '../util/no-input'
+import {
+  inputRequiredError,
+  isNoInput,
+  promptsUnavailable,
+  type PromptSubjectKey,
+} from '../util/no-input'
 import { t } from '../i18n/t'
 import { getLogger } from '../util/logger'
-import { canPromptWithOutput, type ScriptingOptions } from './scripting'
+import { canPromptWithOutput, type ScriptingOptions } from './output'
 import { matchesChoiceTerms, matchesChoiceTitleTerms } from './menu-search'
+
+/** Shared type for the `onState` callback parameter used with the `prompts` library. */
+export type PromptState = { exited: boolean }
+
+/**
+ * Options the `prompts` library reads but does not declare in its published
+ * types. `noMatches` is real (`lib/elements/autocomplete.js` defaults it to
+ * `'no matches found'`) and is one of the few English strings the library lets
+ * a caller replace; `@types/prompts` simply never listed it.
+ *
+ * Its multiselect `\nInstructions:\n` block has no such hook and cannot be
+ * overridden without vendoring the library — an accepted, documented gap, since
+ * the CLI contains exactly one multiselect.
+ */
+export type UndeclaredPromptOptions = {
+  /** Row shown in place of the choice list when an autocomplete matches nothing. */
+  noMatches?: string
+}
+
+/**
+ * Every English string the `prompts` library will let a caller replace, filled
+ * in on every prompt so a session never speaks two languages. `active` and
+ * `inactive` are the toggle prompt's labels; `noMatches` is the autocomplete's
+ * empty state. Options the prompt itself sets always win over these.
+ */
+export type PromptLibraryStrings = {
+  noMatches: string
+  active: string
+  inactive: string
+}
+
+/**
+ * A question for {@link ask}: everything the
+ * `prompts` library accepts (minus the `name`, which the helper owns), plus the
+ * undeclared options above and Ritual's own `subjectKey`.
+ */
+export type AskQuestion = Omit<prompts.PromptObject<'value'>, 'name'> &
+  UndeclaredPromptOptions & {
+    /**
+     * A short **noun phrase** naming what this prompt is for, used when
+     * `--no-input` refuses to open it: "Input required: {subject} (…)".
+     *
+     * Not the prompt's own `message`. A question spliced into that declarative
+     * frame is ungrammatical in most languages once translated — and often in
+     * English too ("Input required: Which printing? (…)"). A prompt without a
+     * `subjectKey` still falls back to its `message`, which is what every
+     * unconverted prompt does today.
+     */
+    subjectKey?: PromptSubjectKey
+  }
 
 type PromptAnswer = { value?: unknown }
 
@@ -97,6 +157,9 @@ export async function ask<T>(question: AskQuestion): Promise<T | undefined> {
   if (exited || response.value === undefined) return undefined
   return response.value as T
 }
+
+/** The injectable shape of {@link ask}, for flows that are tested without a TTY. */
+export type AskPrompt = typeof ask
 
 /**
  * Read the password from stdin, draining it fully and stripping exactly one
