@@ -10,8 +10,8 @@
  * also matches double-art printings named `Steam Vents // Steam Vents`.
  */
 
-import { normalizeForSearch } from '../card/term-match'
-import type { CardData } from './card-sorting'
+import { normalizeForSearch } from './term-match'
+import type { ScryfallCard } from '../scryfall/types'
 
 /** The front face of a possibly double-faced name: text before the first `//`, trimmed. */
 export function frontFaceName(name: string): string {
@@ -28,7 +28,7 @@ export function findMatchKey(name: string): string {
 }
 
 /** The two fields {@link cardMatchKey} reads: the entry name plus the resolved card, if any. */
-export type CardNameSource = Pick<CardData, 'name' | 'card'>
+export type CardNameSource = { name: string; card: ScryfallCard | null }
 
 /**
  * The match key for a built card tile, preferring the resolved Scryfall name

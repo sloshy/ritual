@@ -7,7 +7,7 @@ import {
   undeployedArtFiles,
   type CardArtDeployResult,
 } from '../../../src/site/art-deploy'
-import { siteArtUrl } from '../../../src/site/art-url'
+import { siteArtUrl } from '../../../src/list/art-url'
 
 /**
  * The copy half of build-site's custom-art support: which files land in the

@@ -16,7 +16,7 @@ import { getErrorMessage } from '../../util/errors'
 import type { Card } from '../../card/card'
 import type { DeckData } from '../../list/deck'
 import type { ScryfallCard } from '../../scryfall/types'
-import type { BakedDeckData, CardKingdomCards, DeckDetail, DeckSummary } from '../data-types'
+import type { BakedDeckData, CardKingdomCards, DeckDetail, DeckSummary } from '../../list/site-data'
 import {
   bakeBuylistQuotes,
   cardIdsOf,

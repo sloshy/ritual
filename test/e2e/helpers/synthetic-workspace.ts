@@ -4,7 +4,7 @@ import type { ScryfallCard } from '../../../src/scryfall/types'
 import type { ScryfallSymbol } from '../../../src/scryfall'
 import type { CachedItem, CacheSchema } from '../../../src/cache/file-cache'
 import type { RitualConfig } from '../../../src/config/ritual-config'
-import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
+import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/config/search-debounce'
 import { localeTag } from '../../../src/i18n/locale-tag'
 
 /**

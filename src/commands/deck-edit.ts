@@ -45,7 +45,7 @@ import {
   collectDeckCardIds,
   createIdPool,
 } from '../card/card-id'
-import { applyChangeToDeck } from '../editor/deck-changes'
+import { applyChangeToDeck } from '../changes/deck-changes'
 import { normalizeBoard } from '../deck-sync/diff'
 import {
   deckSectionNames,

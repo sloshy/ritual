@@ -1,5 +1,5 @@
 import type { ScryfallCard } from '../../../src/scryfall/types'
-import type { CollectionDetail, WantedListDetail } from '../../../src/site/data-types'
+import type { CollectionDetail, WantedListDetail } from '../../../src/list/site-data'
 
 // A dedicated e2e card factory (rather than reusing test/test-utils.ts's
 // makeScryfallCard) because the site payload mocks share a richer default

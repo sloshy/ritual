@@ -7,7 +7,7 @@ import { cardCache } from '../../src/cache'
 import { refreshRitualConfig, resetRitualConfigCache } from '../../src/config/ritual-config'
 import { runBuildSite } from '../../src/commands/build-site'
 import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
-import type { SiteIndex } from '../../src/site/data-types'
+import type { SiteIndex } from '../../src/list/site-data'
 
 /**
  * Wiring pin: a configured `site.apiBaseUrl` is baked into the built

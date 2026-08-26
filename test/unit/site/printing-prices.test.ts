@@ -1,16 +1,16 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { resetBuylistQuotes, seedBuylistQuotes } from '../../../src/site/buylist-quotes'
+import { resetBuylistQuotes, seedBuylistQuotes } from '../../../src/list-view/buylist-quotes'
 import {
   printingFinishPrices,
   printingPriceText,
   printingSortPrice,
-} from '../../../src/site/printing-prices'
-import { printingQuoteRequests } from '../../../src/site/printing-quotes'
+} from '../../../src/list-view/printing-prices'
+import { printingQuoteRequests } from '../../../src/list-view/printing-quotes'
 import {
   resetPriceView,
   selectUsdSource,
   setEnabledPriceSources,
-} from '../../../src/site/price-view'
+} from '../../../src/list-view/price-view'
 import { t } from '../../../src/i18n/t'
 import { makeBuylistQuote, makeScryfallCard } from '../../test-utils'
 

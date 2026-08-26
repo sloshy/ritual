@@ -7,7 +7,7 @@ import {
   type PrintingRef,
 } from '../card/printing-key'
 import { hasSpecificPrinting } from '../card/card-printing'
-import { findMatchKey } from './find-search'
+import { findMatchKey } from '../card/find-search'
 import {
   listRefKey,
   loadListDetail,
@@ -15,7 +15,7 @@ import {
   type CombinedListRef,
   type ListRefKey,
   type NamedListRef,
-} from './combined-list'
+} from '../list-view/combined-list'
 import {
   updateShareSelection,
   type CardFilterContext,

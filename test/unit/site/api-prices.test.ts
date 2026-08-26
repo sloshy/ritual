@@ -1,6 +1,6 @@
 import { describe, test, expect, afterEach, beforeEach } from 'bun:test'
 import { batchFetchApiPrices } from '../../../src/site/api-prices'
-import { resetApiBase, setApiBase } from '../../../src/site/api-base'
+import { resetApiBase, setApiBase } from '../../../src/list-view/api-base'
 import { makeScryfallCard } from '../../test-utils'
 
 const originalFetch = globalThis.fetch

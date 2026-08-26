@@ -1,13 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import { parseFlatListFrontMatter } from '../../src/list/flat-list-front-matter'
-import {
-  collectionToMarkdown,
-  wantedToMarkdown,
-  withFrontMatter,
-} from '../../src/editor/list-export'
+import { collectionToMarkdown, wantedToMarkdown, withFrontMatter } from '../../src/list/list-export'
 import { parseCollectionFile } from '../../src/list/collection-file'
 import { parseWantedListFile } from '../../src/commands/wanted-helpers'
-import type { CollectionCardEntry, WantedListCardEntry } from '../../src/site/data-types'
+import type { CollectionCardEntry, WantedListCardEntry } from '../../src/list/site-data'
 
 describe('parseFlatListFrontMatter', () => {
   test('no block: bodyStart 0, nothing captured', () => {

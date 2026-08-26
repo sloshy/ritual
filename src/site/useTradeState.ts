@@ -1,12 +1,12 @@
 import { createSignal } from 'solid-js'
-import type { TradeCardEntry } from './data-types'
+import type { TradeCardEntry } from '../list/site-data'
 import type { PriceCurrency } from '../pricing/price-currency'
 import type { TradeSearchEntry } from './useTradeData'
 import { getCardPriceForFinish } from '../pricing/price-currency'
 import { resolveTradeFinish } from './trade-finish'
 import { displayLanguage } from '../card/card-language'
 import { confirmKeepAdd } from './keep-trade-prompt'
-import { cardPricelessReason, isPricelessCard, type PricelessCard } from './priceless'
+import { cardPricelessReason, isPricelessCard, type PricelessCard } from '../list-view/priceless'
 import { sameCardLabels } from '../card/card-labels'
 
 // Module-level signals survive page navigation within the same tab.

@@ -5,13 +5,13 @@ import {
   sellModeEnabled,
   setSellModeEnabled,
 } from '../../../src/admin/site/sell-enabled'
-import { sellModeActive, setSellModeActive } from '../../../src/site/sell-mode'
+import { sellModeActive, setSellModeActive } from '../../../src/list-view/sell-mode'
 import {
   quoteFor,
   requestBuylistQuotes,
   resetBuylistFetcher,
   resetBuylistQuotes,
-} from '../../../src/site/buylist-quotes'
+} from '../../../src/list-view/buylist-quotes'
 import { stubBuylistFetcher } from '../../test-utils'
 
 /**

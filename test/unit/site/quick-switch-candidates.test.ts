@@ -1,10 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { buildCandidates, totalQuantityByName } from '../../../src/site/quick-switch-candidates'
-import type {
-  CollectionDetail,
-  CollectionCardEntry,
-  DeckDetail,
-} from '../../../src/site/data-types'
+import type { CollectionDetail, CollectionCardEntry, DeckDetail } from '../../../src/list/site-data'
 import type { DeckSection } from '../../../src/list/deck'
 import type { ScryfallCard } from '../../../src/scryfall/types'
 import { makeScryfallCard } from '../../test-utils'

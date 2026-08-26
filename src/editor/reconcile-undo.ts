@@ -1,6 +1,10 @@
 import type { ChangeEvent } from '../changes/change-event'
 import type { UndoEntry } from './useCardChanges.js'
-import { applyChangesCollectingMisses, type ApplyChange, type UnmatchedChange } from './apply-batch'
+import {
+  applyChangesCollectingMisses,
+  type ApplyChange,
+  type UnmatchedChange,
+} from '../changes/apply-batch'
 
 /**
  * Reconcile ID pool state after an undo operation.

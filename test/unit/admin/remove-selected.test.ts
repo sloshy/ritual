@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { selectionToRemoveItems } from '../../../src/admin/site/remove-selected'
-import type { SelectedCard } from '../../../src/site/useCardSelection'
+import type { SelectedCard } from '../../../src/list-view/useCardSelection'
 
 function selected(over: Partial<SelectedCard>): SelectedCard {
   return {

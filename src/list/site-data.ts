@@ -1,15 +1,15 @@
 import type { Card } from '../card/card'
 import type { Condition, Finish } from '../card/finish-condition'
-import type { DeckData } from '../list/deck'
+import type { DeckData } from './deck'
 import type { ScryfallCard } from '../scryfall/types'
 import type { BuyerId, BuylistFeedProvenance, BuylistQuote } from '../buylist'
 import type { CardLabel } from '../card/card-labels'
-import type { ListImageRef } from '../list/list-image'
+import type { ListImageRef } from './list-image'
 import type { CardLanguage } from '../card/card-language'
 import type { PriceCurrency } from '../pricing/price-currency'
 import type { PriceSource } from '../pricing/price-source'
 import type { ChangelogPage } from '../changes/changelog-parser'
-import type { DeckFormatKey } from '../list/deck-format'
+import type { DeckFormatKey } from './deck-format'
 import type { LocaleTag } from '../i18n/types'
 
 /**

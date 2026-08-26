@@ -10,7 +10,7 @@ import {
   reportDataFetchError,
   resetApiBase,
   setApiBase,
-} from '../../../src/site/api-base'
+} from '../../../src/list-view/api-base'
 
 describe('api-base', () => {
   beforeEach(() => {

@@ -10,7 +10,7 @@ import {
   sortByOptions,
   type SortBy,
   type SortLayer,
-} from '../../../src/site/card-sorting'
+} from '../../../src/list-view/card-sorting'
 import { makeCardData as makeCard } from '../../test-utils'
 
 /** Build a single-layer sort, the common case in these tests. */

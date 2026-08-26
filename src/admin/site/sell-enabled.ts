@@ -21,8 +21,8 @@
  */
 
 import { createSignal, type Accessor } from 'solid-js'
-import { resetBuylistQuotes } from '../../site/buylist-quotes'
-import { setSellModeActive } from '../../site/sell-mode'
+import { resetBuylistQuotes } from '../../list-view/buylist-quotes'
+import { setSellModeActive } from '../../list-view/sell-mode'
 import { fetchStatus } from './status-api'
 
 // Named apart from the setter's parameter below so neither shadows the other.

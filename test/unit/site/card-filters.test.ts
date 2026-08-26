@@ -28,8 +28,8 @@ import {
   type ListShareKeys,
   type ShareLoad,
 } from '../../../src/site/card-filters'
-import type { ListRefKey } from '../../../src/site/combined-list'
-import type { CardData } from '../../../src/site/card-sorting'
+import type { ListRefKey } from '../../../src/list-view/combined-list'
+import type { CardData } from '../../../src/list-view/card-sorting'
 import type { Finish } from '../../../src/card/finish-condition'
 import { makeCardData as makeCard, makeScryfallCard } from '../../test-utils'
 

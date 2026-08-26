@@ -1,4 +1,4 @@
-import type { PrintingTuple } from '../changes/change-event'
+import type { PrintingTuple } from './change-event'
 
 /**
  * Targeting is deliberately name/set/collector-number/cardId-based — an

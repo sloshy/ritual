@@ -1,5 +1,5 @@
 import { createApiSearchProvider } from '../../editor/search-provider'
-import { createBuylistFetcher, type BuylistFetcher } from '../../site/buylist-quotes'
+import { createBuylistFetcher, type BuylistFetcher } from '../../list-view/buylist-quotes'
 import type { CardPriceResponse } from '../../api/card-price'
 import type { CardArtRef } from '../../list/card-art'
 import type { ListType } from '../../list/list-type'

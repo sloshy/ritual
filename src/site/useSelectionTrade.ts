@@ -1,6 +1,6 @@
 import type { ScryfallCard } from '../scryfall/types'
 import type { PriceCurrency } from '../pricing/price-currency'
-import type { SelectedCard, SelectionSourceKind } from './useCardSelection'
+import type { SelectedCard, SelectionSourceKind } from '../list-view/useCardSelection'
 import type { TradeSearchEntry } from './useTradeData'
 import { normalizeCardName } from '../card/term-match'
 import { t } from '../i18n/t'
@@ -11,8 +11,8 @@ import {
   canAddMoreToRight,
   showTradeToast,
 } from './useTradeState'
-import { resolveCardThumbnailUrl } from './image-sources'
-import { pickedPrintingLanguage, promptForPrinting } from './printing-prompt'
+import { resolveCardThumbnailUrl } from '../card/image-sources'
+import { pickedPrintingLanguage, promptForPrinting } from '../list-view/printing-prompt'
 import { confirmKeepAdd } from './keep-trade-prompt'
 
 /**

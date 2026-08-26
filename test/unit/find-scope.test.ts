@@ -5,9 +5,9 @@ import {
   toggleListExclusion,
   toggleTypeExclusion,
   typeScopeState,
-} from '../../src/site/find-scope'
-import { listRefKey, type ListRefKey } from '../../src/site/combined-list'
-import type { CombinedListRef, NamedListRef } from '../../src/site/combined-list'
+} from '../../src/list-view/find-scope'
+import { listRefKey, type ListRefKey } from '../../src/list-view/combined-list'
+import type { CombinedListRef, NamedListRef } from '../../src/list-view/combined-list'
 
 const REFS: NamedListRef[] = [
   { type: 'deck', slug: 'burn', name: 'Burn' },

@@ -4,7 +4,7 @@
  */
 
 import { displayFinish } from '../../card/finish-condition'
-import { listRefKey, type ListRefKey, type NamedListRef } from '../../site/combined-list'
+import { listRefKey, type ListRefKey, type NamedListRef } from '../../list-view/combined-list'
 import { currentPrintingPrice } from './auto'
 import { definedPrintingDetails, targetPinsPrinting } from './printing-fields'
 import type {

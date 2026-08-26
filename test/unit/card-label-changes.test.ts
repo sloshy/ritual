@@ -6,12 +6,12 @@ import {
   isAdditiveChange,
   type ChangeEvent,
 } from '../../src/changes/change-event'
-import { applyChangeToCollection } from '../../src/editor/collection-changes'
-import { applyChangeToWantedList } from '../../src/editor/wanted-changes'
-import { applyChangeToDeck } from '../../src/editor/deck-changes'
+import { applyChangeToCollection } from '../../src/changes/collection-changes'
+import { applyChangeToWantedList } from '../../src/changes/wanted-changes'
+import { applyChangeToDeck } from '../../src/changes/deck-changes'
 import { parseChangeLine } from '../../src/changes/changelog-parser'
 import { CARD_LABELS } from '../../src/card/card-labels'
-import type { CollectionCardEntry, WantedListCardEntry } from '../../src/site/data-types'
+import type { CollectionCardEntry, WantedListCardEntry } from '../../src/list/site-data'
 import type { DeckData } from '../../src/list/deck'
 
 function makeEntry(overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry {

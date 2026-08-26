@@ -8,16 +8,16 @@ import type {
 // Value imports here must stay browser-safe: ritual-config pulls in node:fs,
 // so only its types may be imported into the admin SPA bundle.
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../../../cache/constants'
-import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../editor/search-debounce'
+import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../config/search-debounce'
 import { CARD_LANGUAGES, isCardLanguage, languageDisplayName } from '../../../card/card-language'
 import type { PriceCurrency } from '../../../pricing/price-currency'
 import { VALID_PRICE_SOURCES } from '../../../pricing/price-source'
-import { PRICE_SOURCE_LABELS, setEnabledPriceSources } from '../../../site/price-view'
+import { PRICE_SOURCE_LABELS, setEnabledPriceSources } from '../../../list-view/price-view'
 import {
   INCLUDE_ALL,
   defaultSiteSelection,
   type SiteSelectionConfig,
-} from '../../../site/list-selection'
+} from '../../../config/list-selection'
 import { fetchRitualConfig } from '../config-api'
 import { refreshSellModeEnabled } from '../sell-enabled'
 import { applyDefaultLanguage } from '../hooks/useDefaultLanguage'

@@ -31,7 +31,7 @@ import {
   retargetImportedChanges,
   type ImportConflict,
 } from './import-changes'
-import type { ContextMenuState, CardContextInfo } from './context-menu'
+import type { ContextMenuState, CardContextInfo } from '../list-view/card-context'
 import { type EditorStatus, type EditorStatusActions, statusMessage } from './useEditorStatus'
 import { type EditorEntity, entityListType } from './entity'
 import type { ListType } from '../list/list-type'
@@ -45,11 +45,11 @@ import { useDialogState } from './useDialogState'
 import { useCardIdPool } from './useCardIdPool'
 import { useCardChanges } from './useCardChanges'
 import { reconcileIdPoolForUndo, replayChanges, type ReplayResult } from './reconcile-undo'
-import type { UnmatchedChange } from './apply-batch'
+import type { UnmatchedChange } from '../changes/apply-batch'
 import { addedCopyArtActions, artIdsResetByUndo } from './pending-art'
 import { useNavigationGuard } from './navigation-guard'
 import { clampQuantity } from '../ui/quantity'
-import type { ApplyChange } from './apply-batch'
+import type { ApplyChange } from '../changes/apply-batch'
 import type { SwapSourceProvider } from './swap-printings'
 
 export type ListItem = { slug: string; name: string }

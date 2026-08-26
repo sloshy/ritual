@@ -18,7 +18,7 @@ import type {
   DeckDetail,
   SiteIndex,
   WantedListDetail,
-} from '../../src/site/data-types'
+} from '../../src/list/site-data'
 
 /**
  * The build's half of baked sell mode: `--sell-mode` turns the buylist on for

@@ -7,8 +7,8 @@ import type {
   MoveFromChange,
   MoveReplacement,
   MoveToChange,
-} from '../changes/change-event'
-import { CHANGE_ACTIONS } from '../changes/change-event'
+} from './change-event'
+import { CHANGE_ACTIONS } from './change-event'
 import {
   checkLabelsForListType,
   parseCardLabelsValue,

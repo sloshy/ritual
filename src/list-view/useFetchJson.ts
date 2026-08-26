@@ -1,7 +1,7 @@
 import { createSignal, createEffect, createMemo, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import { reportDataFetchError } from './api-base'
-import { isAbortError } from './utils'
+import { isAbortError } from '../util/errors'
 
 export type UseFetchJsonResult<T> = {
   data: Accessor<T | null>

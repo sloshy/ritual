@@ -2,7 +2,7 @@ import type { Finish } from '../../../src/card/finish-condition'
 import type { ScryfallCard } from '../../../src/scryfall/types'
 import { displayLanguage } from '../../../src/card/card-language'
 import { cardPrintingKey, printingKey } from '../../../src/card/printing-key'
-import { listRefKey, type NamedListRef } from '../../../src/site/combined-list'
+import { listRefKey, type NamedListRef } from '../../../src/list-view/combined-list'
 import type {
   PriceOf,
   SwapCandidate,

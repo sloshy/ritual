@@ -1,6 +1,6 @@
 import { createSignal, type Accessor } from 'solid-js'
 import { DEFAULT_CURRENCY, type PriceCurrency } from '../../../pricing/price-currency'
-import { setEnabledPriceSources } from '../../../site/price-view'
+import { setEnabledPriceSources } from '../../../list-view/price-view'
 import { fetchRitualConfig } from '../config-api'
 
 // Module-level so every admin page shares one value and a fetch kicked off by

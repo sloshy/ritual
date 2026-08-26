@@ -1,6 +1,6 @@
 import type { SearchProvider, SearchSourceNote } from '../../editor/search-provider'
 import { autocompleteCardNames, fetchCardPrintings } from '../card-search'
-import { apiActive } from '../api-base'
+import { apiActive } from '../../list-view/api-base'
 import { t } from '../../i18n/t'
 
 const SCRYFALL_NOTE: SearchSourceNote = {

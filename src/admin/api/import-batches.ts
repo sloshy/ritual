@@ -6,7 +6,7 @@ import {
   sameBundleList,
   type ChangeBundle,
   type ChangeBundleListRef,
-} from '../../editor/change-bundle'
+} from '../../changes/change-bundle'
 
 /**
  * One run of consecutive bundle events aimed at the same list, in timestamp

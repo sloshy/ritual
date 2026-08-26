@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import type { DeckSummary } from '../../../src/site/data-types'
+import type { DeckSummary } from '../../../src/list/site-data'
 import {
   groupDecksByFormat,
   LIST_SORT_OPTIONS,

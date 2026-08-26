@@ -1,5 +1,5 @@
 import type { ScryfallCard } from '../scryfall/types'
-import type { WantedListCardEntry } from './data-types'
+import type { WantedListCardEntry } from '../list/site-data'
 import { overlayCard } from './session-cache'
 import { lookupPrintingCard } from '../card/printing-key'
 import { usingCardKingdomPrintings, type SourceCardMaps } from './source-cards'

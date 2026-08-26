@@ -1,28 +1,31 @@
 import { type Accessor, type JSX, Show, batch, createMemo, createSignal } from 'solid-js'
-import type { SellModeProps } from '../site/sell-mode'
-import type { CardKingdomCards } from '../site/data-types'
-import type { DeckData } from '../list/deck'
-import type { Card } from '../card/card'
-import type { Finish } from '../card/finish-condition'
-import type { CardLabel } from '../card/card-labels'
-import type { CardLanguage } from '../card/card-language'
-import { DeckPage } from '../site/DeckPage'
-import type { PriceCurrency } from '../pricing/price-currency'
-import type { ListRef, PrintingTuple } from '../changes/change-event'
-import type { NamedListRef } from '../site/combined-list'
-import type { SelectedCard } from '../site/useCardSelection'
-import type { CardContextInfo, ContextMenuState } from './context-menu'
-import type { ListEditorConfig, UseEditorResult } from './useEditor'
-import { contextInfoFromSelected } from './selected-to-context'
-import { printingForMove } from '../site/printing-prompt'
-import { promptListMove, promptSectionMove } from '../site/move-prompt'
-import { promptCardLabels } from '../site/label-prompt'
-import { promptCardLanguage } from './language-prompt'
-import { useEditor } from './useEditor'
-import type { UseEditorDefaultsResult } from './useEditorDefaults'
-import type { SearchProvider } from './search-provider'
-import { useDeckCardData, type DeckCardData, type DeckCardDataActions } from './useDeckCardData'
-import { applyChangeToDeck, findDeckAddMergeTargetId } from './deck-changes'
+import type { SellModeProps } from '../../list-view/sell-mode'
+import type { CardKingdomCards } from '../../list/site-data'
+import type { DeckData } from '../../list/deck'
+import type { Card } from '../../card/card'
+import type { Finish } from '../../card/finish-condition'
+import type { CardLabel } from '../../card/card-labels'
+import type { CardLanguage } from '../../card/card-language'
+import { DeckPage } from '../DeckPage'
+import type { PriceCurrency } from '../../pricing/price-currency'
+import type { ListRef, PrintingTuple } from '../../changes/change-event'
+import type { NamedListRef } from '../../list-view/combined-list'
+import type { SelectedCard } from '../../list-view/useCardSelection'
+import type { CardContextInfo, ContextMenuState } from '../../list-view/card-context'
+import { contextInfoFromSelected } from '../../list-view/selected-to-context'
+import { printingForMove } from '../../list-view/printing-prompt'
+import { promptListMove, promptSectionMove } from '../../list-view/move-prompt'
+import { promptCardLabels } from '../../list-view/label-prompt'
+import { promptCardLanguage } from '../../editor/language-prompt'
+import { useEditor, type ListEditorConfig, type UseEditorResult } from '../../editor/useEditor'
+import type { UseEditorDefaultsResult } from '../../editor/useEditorDefaults'
+import type { SearchProvider } from '../../editor/search-provider'
+import {
+  useDeckCardData,
+  type DeckCardData,
+  type DeckCardDataActions,
+} from '../../editor/useDeckCardData'
+import { applyChangeToDeck, findDeckAddMergeTargetId } from '../../changes/deck-changes'
 import {
   findDeckCard,
   findDeckCardId,
@@ -30,14 +33,14 @@ import {
   findDeckCardLabels,
   findDeckCardLanguage,
   findDeckCardSection,
-} from './deck-config'
-import { CardContextMenu } from './components/CardContextMenu'
-import { canSetFinish, hasSpecificPrinting } from '../card/card-printing'
-import { EditorShell } from './components/EditorShell'
-import type { SwapPrintingsWizardProps } from './components/SwapPrintingsWizard'
-import { createSwapController, type SwapController } from './swap-controller'
-import { deckSwapMergeTargetId, deckSwapTargets } from './swap-targets'
-import { withDeckArt, type CardArtRefs } from './card-art-view'
+} from '../../editor/deck-config'
+import { CardContextMenu } from '../../editor/components/CardContextMenu'
+import { canSetFinish, hasSpecificPrinting } from '../../card/card-printing'
+import { EditorShell } from '../../editor/components/EditorShell'
+import type { SwapPrintingsWizardProps } from '../../editor/components/SwapPrintingsWizard'
+import { createSwapController, type SwapController } from '../../editor/swap-controller'
+import { deckSwapMergeTargetId, deckSwapTargets } from '../../editor/swap-targets'
+import { withDeckArt, type CardArtRefs } from '../../editor/card-art-view'
 
 /** Deck context-menu state plus whether the targeted card is currently a commander. */
 export type DeckContextMenuState = ContextMenuState & { isInCommanderSection: boolean }

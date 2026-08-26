@@ -32,7 +32,7 @@ import {
   BUYLIST_CURRENCY,
   roundCents,
 } from '../buylist'
-import type { BakedBuylist } from './data-types'
+import type { BakedBuylist } from '../list/site-data'
 import { apiUrl } from './api-base'
 import { displayFinish, type Finish } from '../card/finish-condition'
 import { isPricelessCard, type PricelessCard } from './priceless'

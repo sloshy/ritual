@@ -41,7 +41,7 @@ import {
   type RitualConfig,
   type SiteConfig,
 } from '../../src/config/ritual-config'
-import { defaultSiteSelection } from '../../src/site/list-selection'
+import { defaultSiteSelection } from '../../src/config/list-selection'
 import { setBaseDir } from '../../src/config/base-dir'
 import { localeTag } from '../../src/i18n/locale-tag'
 import type { PriceSource } from '../../src/pricing/price-source'

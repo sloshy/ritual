@@ -4,7 +4,7 @@ import { getErrorMessage } from '../util/errors'
 import { parseTitleFromContent } from '../list/section-format'
 import { listDeckFiles, readDeckName } from '../importers/text-file'
 import { normalizeListName } from '../list/resolve-list'
-import { filterBySelection, includesAllLists } from './list-selection'
+import { filterBySelection, includesAllLists } from '../config/list-selection'
 import { isListMarkdownFile } from '../list/list-file-name'
 
 /** A list file discovered on disk, with both names a selection can match on. */

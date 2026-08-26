@@ -1,4 +1,4 @@
-import type { TradeCardEntry } from './data-types'
+import type { TradeCardEntry } from '../list/site-data'
 import { compareDisplay } from '../i18n/collate'
 
 export type TradeSortBy = 'name' | 'price'

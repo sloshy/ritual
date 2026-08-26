@@ -8,7 +8,7 @@ import {
 } from '../../src/changes/change-event'
 import type { UndoEntry } from '../../src/editor/useCardChanges'
 import type { ChangeEvent } from '../../src/changes/change-event'
-import { applyChangeToDeck } from '../../src/editor/deck-changes'
+import { applyChangeToDeck } from '../../src/changes/deck-changes'
 import type { DeckData } from '../../src/list/deck'
 
 function track() {

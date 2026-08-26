@@ -4,7 +4,7 @@ import type { ScryfallCard } from '../../scryfall/types'
 import type { ListRef } from '../../changes/change-event'
 import { useAnchoredMenu } from '../../ui/useAnchoredMenu'
 import { useT } from '../../ui/i18n'
-import { findPrintingsAvailable, openFindPrintings } from '../../site/find-printings'
+import { findPrintingsAvailable, openFindPrintings } from '../../list-view/find-printings'
 
 const MENU_WIDTH = 180
 

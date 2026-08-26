@@ -23,9 +23,9 @@ import {
 } from '../../src/commands/flat-list-session'
 import type { CardSessionContext } from '../../src/commands/card-session'
 import { scratchListPath } from '../test-utils'
-import type { CollectionCardEntry } from '../../src/site/data-types'
-import { applyChangeToCollection } from '../../src/editor/collection-changes'
-import { collectionToMarkdown } from '../../src/editor/list-export'
+import type { CollectionCardEntry } from '../../src/list/site-data'
+import { applyChangeToCollection } from '../../src/changes/collection-changes'
+import { collectionToMarkdown } from '../../src/list/list-export'
 import { formatCollectionLine } from '../../src/card/card-line'
 import { allocateId, collectExistingIds, createIdPool } from '../../src/card/card-id'
 import {

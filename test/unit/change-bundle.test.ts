@@ -24,7 +24,7 @@ import {
   type ChangeBundleListRef,
   type ChangeBundleMove,
   type ChangeGroup,
-} from '../../src/editor/change-bundle'
+} from '../../src/changes/change-bundle'
 
 // ── Builders ──────────────────────────────────────────────────────────
 

@@ -5,7 +5,7 @@
  */
 
 import type { ScryfallCard } from '../scryfall/types'
-import type { CollectionCardEntry, ListDetail, WantedListCardEntry } from './data-types'
+import type { CollectionCardEntry, ListDetail, WantedListCardEntry } from '../list/site-data'
 import type { PrintingRef } from '../card/printing-key'
 import { lookupPrintingCard, printingKey } from '../card/printing-key'
 import { hasSpecificPrinting } from '../card/card-printing'

@@ -24,6 +24,8 @@ ruleTester.run('no-untranslated-literal', rule as never, {
     { code: `const tool = { description: 'Add a card to a list.' }`, filename: 'src/mcp/tools.ts' },
     { code: `const skill = { description: 'Drive the ritual CLI.' }`, filename: 'src/skills/x.ts' },
     { code: `const c = { message: 'Added Sol Ring.' }`, filename: 'src/changes/change-event.ts' },
+    // …while the admin HTTP API (machine contract) is out of scope.
+    { code: `const o = { message: 'Deck saved.' }`, filename: 'src/admin/api/save.ts' },
     {
       code: `const c = { message: 'Added Sol Ring.' }`,
       filename: 'src/changes/changelog-writer.ts',
@@ -68,6 +70,17 @@ ruleTester.run('no-untranslated-literal', rule as never, {
   ],
 
   invalid: [
+    // Scope: the shared list-view layer and the admin SPA are localized surfaces…
+    {
+      code: `const el = <span>Nothing selected</span>`,
+      filename: 'src/list-view/CardModal.tsx',
+      errors: [{ messageId: 'untranslated' }],
+    },
+    {
+      code: `const el = <span>Nothing selected</span>`,
+      filename: 'src/admin/site/pages/DeckEditor.tsx',
+      errors: [{ messageId: 'untranslated' }],
+    },
     // JSX text node.
     {
       code: `const el = <span>Save and exit</span>`,

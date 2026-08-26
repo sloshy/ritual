@@ -16,8 +16,8 @@ import {
   isSelectionViewOpen,
   closeSelectionView,
 } from '../../../site/SelectionModal'
-import type { NamedListRef } from '../../../site/combined-list'
-import { useAllSelections, type RemoveAllTarget } from '../../../site/useCardSelection'
+import type { NamedListRef } from '../../../list-view/combined-list'
+import { useAllSelections, type RemoveAllTarget } from '../../../list-view/useCardSelection'
 import { moveSelectedAdmin, removeSelectedAdmin } from '../remove-selected'
 import { useAdminLists, listInfosToNamedRefs } from '../move-targets'
 

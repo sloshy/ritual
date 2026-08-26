@@ -7,7 +7,7 @@ import {
   type ArtDisplayEntry,
   type CardArtRefs,
 } from '../../src/editor/card-art-view'
-import { cardArtDisplayUrl } from '../../src/site/art-url'
+import { cardArtDisplayUrl } from '../../src/list/art-url'
 import type { DeckData } from '../../src/list/deck'
 
 /**

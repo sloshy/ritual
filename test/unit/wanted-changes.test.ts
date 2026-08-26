@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { applyChangeToWantedList } from '../../src/editor/wanted-changes'
-import type { WantedListCardEntry } from '../../src/site/data-types'
+import { applyChangeToWantedList } from '../../src/changes/wanted-changes'
+import type { WantedListCardEntry } from '../../src/list/site-data'
 import { runMissMatrix, type MissMatrixCase } from '../test-utils'
-import type { MissReason } from '../../src/editor/apply-batch'
+import type { MissReason } from '../../src/changes/apply-batch'
 
 function makeEntry(overrides: Partial<WantedListCardEntry> = {}): WantedListCardEntry {
   return {

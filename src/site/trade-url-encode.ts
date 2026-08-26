@@ -1,5 +1,5 @@
 import { displayLanguage } from '../card/card-language'
-import type { TradeCardEntry } from './data-types'
+import type { TradeCardEntry } from '../list/site-data'
 import { defaultFinishForCard, resolveTradeFinish } from './trade-finish'
 
 /**

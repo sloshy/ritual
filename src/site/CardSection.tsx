@@ -1,10 +1,10 @@
 import type { JSX } from 'solid-js'
 import { Show, For } from 'solid-js'
-import type { CardData } from './card-sorting'
+import type { CardData } from '../list-view/card-sorting'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { formatPrice } from '../pricing/price-currency'
-import { groupTotalPrice } from './card-sorting'
-import { pricesEnabled } from './price-view'
+import { groupTotalPrice } from '../list-view/card-sorting'
+import { pricesEnabled } from '../list-view/price-view'
 
 interface CardSectionProps<T extends CardData = CardData> {
   label: string

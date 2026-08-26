@@ -1,8 +1,8 @@
-import type { DeckSummary } from './data-types'
+import type { DeckSummary } from '../list/site-data'
 import { compareDisplayBase } from '../i18n/collate'
 import type { MessageKey } from '../i18n/messages/en'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { getSummaryLowestPrice, getSummaryTotalPrice } from './utils'
+import { getSummaryLowestPrice, getSummaryTotalPrice } from '../pricing/price-summary'
 import { getDeckFormatLabel } from '../list/deck-format'
 
 export type IndexSort = 'alpha' | 'recent' | 'price' | 'lowestPrice'

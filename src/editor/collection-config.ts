@@ -1,9 +1,9 @@
 import { batch } from 'solid-js'
-import type { CollectionCardEntry } from '../site/data-types'
+import type { CollectionCardEntry } from '../list/site-data'
 import { type PrintingTuple, isSamePrinting } from '../changes/change-event'
 import type { ChangePrintingContext } from './useEditor'
-import { applyChangeToCollection } from './collection-changes'
-import { findEntryPrintingById } from './entry-targeting'
+import { applyChangeToCollection } from '../changes/collection-changes'
+import { findEntryPrintingById } from '../changes/entry-targeting'
 import type { FlatPrinting } from './flat-list-controller'
 import { storedLanguage } from '../card/card-language'
 

@@ -2,11 +2,11 @@ import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, on, For, Show } from 'solid-js'
 import { Modal } from '../ui/Modal'
 import { compareDisplay } from '../i18n/collate'
-import type { DeckSummary, CollectionSummary, WantedListSummary } from './data-types'
+import type { DeckSummary, CollectionSummary, WantedListSummary } from '../list/site-data'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { pricesEnabled } from './price-view'
+import { pricesEnabled } from '../list-view/price-view'
 import { formatPriceWithMissing } from '../pricing/price-currency'
-import { getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
+import { getSummaryMissingPriceCount, getSummaryTotalPrice } from '../pricing/price-summary'
 import { LIST_TYPE_DISPLAY, listTypeTitle, type ListType } from '../list/list-type'
 import type { MessageKey } from '../i18n/messages/en'
 import { useI18n } from '../ui/i18n'
@@ -15,7 +15,7 @@ import {
   type CombinedSelection,
   type CombinedListRef,
   type NamedListRef,
-} from './combined-list'
+} from '../list-view/combined-list'
 
 /** A single selectable list in the modal, flattened from the per-type summaries. */
 interface ListChoice {

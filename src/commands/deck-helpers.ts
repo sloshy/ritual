@@ -27,7 +27,7 @@ import {
 import { listDeckFiles, loadDeckFile, readDeckName } from '../importers/text-file'
 import { assignMissingDeckCardIds, repackSessionIds } from '../card/card-id'
 import { unreadableLines } from '../list/markdown-fence'
-import { applyChangeToDeck } from '../editor/deck-changes'
+import { applyChangeToDeck } from '../changes/deck-changes'
 import {
   applySessionConfigAnswers,
   buildSessionConfigQuestions,

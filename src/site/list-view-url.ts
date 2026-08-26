@@ -37,7 +37,7 @@ import {
   type SortLayer,
   type ViewMode,
   WUBRG,
-} from './card-sorting'
+} from '../list-view/card-sorting'
 
 /** The per-page defaults that determine which group/sort values are omitted from the URL. */
 export type ListViewDefaults = {

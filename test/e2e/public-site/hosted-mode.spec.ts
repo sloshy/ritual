@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import type { DeckDetail } from '../../../src/site/data-types'
+import type { DeckDetail } from '../../../src/list/site-data'
 import { fulfillJson } from '../helpers/fulfill'
 import { makeMockScryfallCard, withImage } from '../helpers/mock-cards'
 import { makeSiteIndex, makeDeckSummary, mockPublicSiteForTrade } from '../helpers/mock-public-site'

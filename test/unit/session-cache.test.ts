@@ -11,7 +11,7 @@ import {
   putFetchedPrintings,
   sessionCacheVersion,
   resetSessionCache,
-} from '../../src/site/session-cache'
+} from '../../src/list-view/session-cache'
 
 /** Build a minimal ScryfallCard; only id/name/prices.usd matter for these tests. */
 function card(id: string, name: string, usd: string | null): ScryfallCard {

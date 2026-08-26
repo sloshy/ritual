@@ -31,7 +31,14 @@
 import { matchesAny } from './path-match.js'
 
 /** Directories whose strings are localized. */
-const DEFAULT_INCLUDE = ['src/commands/', 'src/site/', 'src/admin/site/', 'src/ui/', 'src/editor/']
+const DEFAULT_INCLUDE = [
+  'src/commands/',
+  'src/site/',
+  'src/admin/site/',
+  'src/ui/',
+  'src/editor/',
+  'src/list-view/',
+]
 
 /** Files and directories that are English by contract (plan §4.9, §11). */
 const DEFAULT_EXCLUDE = [

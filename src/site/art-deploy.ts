@@ -3,7 +3,7 @@ import path from 'node:path'
 import { cardArtFilePath, loadCardArt } from '../list/card-art'
 import { isListImageFileRef } from '../list/list-image'
 import { readListImageFile } from '../list/list-image-file'
-import { SITE_ART_DIR } from './art-url'
+import { SITE_ART_DIR } from '../list/art-url'
 import { getErrorMessage, hasErrorCode } from '../util/errors'
 
 /**

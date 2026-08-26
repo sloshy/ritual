@@ -10,15 +10,15 @@ import {
   mergeCardMaps,
   mergePrintingMaps,
   type LoadedListDetail,
-} from '../../../src/site/combined-list'
-import { groupAndSortCards } from '../../../src/site/card-sorting'
+} from '../../../src/list-view/combined-list'
+import { groupAndSortCards } from '../../../src/list-view/card-sorting'
 import type {
   BakedBuylist,
   BakedBuylistQuotes,
   DeckDetail,
   CollectionDetail,
   WantedListDetail,
-} from '../../../src/site/data-types'
+} from '../../../src/list/site-data'
 import type { ScryfallCard } from '../../../src/scryfall/types'
 import { makeBuylistQuote, makeScryfallCard } from '../../test-utils'
 

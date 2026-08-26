@@ -4,8 +4,8 @@
  */
 
 import type { ListInfo } from '../../list/list-info'
-import type { NamedListRef } from '../../site/combined-list'
-import { isAbortError } from '../../site/utils'
+import type { NamedListRef } from '../../list-view/combined-list'
+import { isAbortError } from '../../util/errors'
 import type {
   SwapSourceList,
   SwapSourceLoad,

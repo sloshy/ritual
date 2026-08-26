@@ -29,7 +29,7 @@ import {
 } from '../printing-pagination'
 import { stepQuantity } from '../../ui/quantity'
 import { useT, useTKey, useTSegments } from '../../ui/i18n'
-import { searchDebounceMs } from '../search-debounce'
+import { searchDebounceMs } from '../../config/search-debounce'
 import {
   displayLanguage,
   formatLanguageList,
@@ -44,11 +44,11 @@ import { dedupePrintingsByKey, printingLanguages } from '../../card/card-printin
 import { resolvePrintingLanguage } from '../../card/printing-language'
 import { getCardPriceForFinish, type PriceCurrency } from '../../pricing/price-currency'
 import type { TranslateFn } from '../../i18n/t'
-import { PriceSourceSelect } from '../../site/PriceSourceSelect'
-import { PrintingPrices } from '../../site/PrintingPrices'
-import { printingPriceText } from '../../site/printing-prices'
-import { usePrintingQuotes } from '../../site/printing-quotes'
-import { pricesEnabled, sitePriceForFinish } from '../../site/price-view'
+import { PriceSourceSelect } from '../../list-view/PriceSourceSelect'
+import { PrintingPrices } from '../../list-view/PrintingPrices'
+import { printingPriceText } from '../../list-view/printing-prices'
+import { usePrintingQuotes } from '../../list-view/printing-quotes'
+import { pricesEnabled, sitePriceForFinish } from '../../list-view/price-view'
 
 /** Shared so the gated-off accessor keeps one identity instead of a fresh array. */
 const NO_PRINTINGS: readonly ScryfallCard[] = []

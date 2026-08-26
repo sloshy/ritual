@@ -21,3 +21,8 @@ export type CardContextInfo = {
   finish?: Finish
   condition?: Condition
 }
+
+/** A context menu's target plus where on screen it was opened. */
+export type ContextMenuState = CardContextInfo & {
+  anchorRect: DOMRect
+}

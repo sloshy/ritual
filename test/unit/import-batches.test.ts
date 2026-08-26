@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { ChangeEvent } from '../../src/changes/change-event'
-import type { ChangeBundle, ChangeBundleMove } from '../../src/editor/change-bundle'
+import type { ChangeBundle, ChangeBundleMove } from '../../src/changes/change-bundle'
 import { planImportBatches } from '../../src/admin/api/import-batches'
 
 const DECK = { kind: 'deck', slug: 'burn', name: 'Burn' } as const

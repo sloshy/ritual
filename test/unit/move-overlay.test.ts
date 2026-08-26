@@ -18,7 +18,7 @@ import { listId, listInfoId } from '../../src/admin/site/list-grouping'
 import type { MovePhysicalCard } from '../../src/admin/api/move'
 import type { ListInfo } from '../../src/list/list-info'
 import type { DeckData } from '../../src/list/deck'
-import type { CollectionCardEntry, WantedListCardEntry } from '../../src/site/data-types'
+import type { CollectionCardEntry, WantedListCardEntry } from '../../src/list/site-data'
 
 const deckList: ListInfo = { type: 'deck', slug: 'my-deck', name: 'My Deck' }
 const collList: ListInfo = { type: 'collection', slug: 'binder', name: 'Binder' }

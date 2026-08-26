@@ -1,5 +1,5 @@
 import type { ConfigResponse } from '../admin/api/config'
-import type { ParsedWantedEntry } from '../editor/wanted-entries'
+import type { ParsedWantedEntry } from '../list/wanted-entries'
 
 /**
  * Named result shapes for the subset of admin API responses the MCP layer reads.

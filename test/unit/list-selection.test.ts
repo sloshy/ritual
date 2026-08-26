@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { filterBySelection, includesAllLists } from '../../src/site/list-selection'
+import { filterBySelection, includesAllLists } from '../../src/config/list-selection'
 
 type Entry = { name: string }
 const entry = (name: string): Entry => ({ name })

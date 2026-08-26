@@ -2,7 +2,7 @@ import { createMemo, createSignal, type JSX } from 'solid-js'
 import type { DeckData } from '../../../list/deck'
 import type { ScryfallCard } from '../../../scryfall/types'
 import type { CardLabel } from '../../../card/card-labels'
-import type { CardKingdomCards } from '../../../site/data-types'
+import type { CardKingdomCards } from '../../../list/site-data'
 import type { CardArtRecord } from '../../../list/card-art'
 import type { ListImageRef } from '../../../list/list-image'
 import type { ListEditorConfig } from '../../../editor/useEditor'
@@ -10,7 +10,7 @@ import type { DeckCardDataActions } from '../../../editor/useDeckCardData'
 import { collectDeckCardIds } from '../../../card/card-id'
 import { useEditorDefaults } from '../../../editor/useEditorDefaults'
 import { createApiCommit } from '../../../editor/commit'
-import { applyChangeToDeck } from '../../../editor/deck-changes'
+import { applyChangeToDeck } from '../../../changes/deck-changes'
 import {
   applyDeckChangePrinting,
   findDeckFinish,
@@ -19,7 +19,7 @@ import {
   deckCountsBySection,
   findDeckCardSection,
 } from '../../../editor/deck-config'
-import { useDeckEditController, DeckEditorBody } from '../../../editor/DeckEditController'
+import { useDeckEditController, DeckEditorBody } from '../../../site/editor/DeckEditController'
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, listInfosToNamedRefs, moveTargetsExcluding } from '../move-targets'
 import { createAdminSwapSourceProvider } from '../swap-sources'

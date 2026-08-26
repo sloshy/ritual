@@ -1,5 +1,5 @@
-import type { ChangeEvent } from '../changes/change-event'
-import { formatChange } from '../changes/change-message'
+import type { ChangeEvent } from './change-event'
+import { formatChange } from './change-message'
 import type { ListType } from '../list/list-type'
 
 /**

@@ -7,7 +7,7 @@
  */
 
 import type { ListType } from '../../list/list-type'
-import { listRefKey, type ListRefKey, type NamedListRef } from '../../site/combined-list'
+import { listRefKey, type ListRefKey, type NamedListRef } from '../../list-view/combined-list'
 import { filterPrintingsByQuery, type FilterablePrinting } from '../../card/collector-query'
 import { applyFinishFilter } from './candidates'
 import { autoAllocate } from './auto'

@@ -2,10 +2,10 @@ import { describe, expect, test } from 'bun:test'
 import {
   buildFindPrintingsGroups,
   countFindPrintingsCopies,
-} from '../../../src/site/find-printings'
+} from '../../../src/list-view/find-printings'
 import { cardNavMatchesList } from '../../../src/site/card-nav'
-import { buildCombinedCards, type LoadedListDetail } from '../../../src/site/combined-list'
-import type { DeckDetail, CollectionDetail, WantedListDetail } from '../../../src/site/data-types'
+import { buildCombinedCards, type LoadedListDetail } from '../../../src/list-view/combined-list'
+import type { DeckDetail, CollectionDetail, WantedListDetail } from '../../../src/list/site-data'
 import { makeScryfallCard } from '../../test-utils'
 
 const ventsRtr = makeScryfallCard({

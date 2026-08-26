@@ -1,4 +1,4 @@
-import type { TradeCardEntry } from './data-types'
+import type { TradeCardEntry } from '../list/site-data'
 import type { TradeSearchEntry } from './useTradeData'
 import { isCardLanguage, storedLanguage, type CardLanguage } from '../card/card-language'
 import type { ScryfallCard } from '../scryfall/types'

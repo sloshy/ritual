@@ -1,6 +1,6 @@
 import type { ListRef } from '../../changes/change-event'
 import { sameListName } from '../../list/list-file-name'
-import type { NamedListRef } from '../combined-list'
+import type { NamedListRef } from '../../list-view/combined-list'
 
 /**
  * The lists the app currently knows (from `index.json`), so a change bundle can

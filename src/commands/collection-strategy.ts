@@ -56,7 +56,7 @@ import {
   undoFlatListEdit,
 } from './flat-list-edit'
 import type { MoveTargetsProvider } from './edit-move'
-import type { CollectionCardEntry } from '../site/data-types'
+import type { CollectionCardEntry } from '../list/site-data'
 import type { Condition, Finish } from '../card/finish-condition'
 import type { ScryfallCard } from '../scryfall/types'
 import {

@@ -14,7 +14,7 @@ import { ExitCode } from '../../src/commands/scripting'
 import { startSiteServer } from '../../src/serve/server'
 import type { StaticSiteServer } from '../../src/commands/serve-helpers'
 import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
-import type { SiteIndex } from '../../src/site/data-types'
+import type { SiteIndex } from '../../src/list/site-data'
 import { localeTag } from '../../src/i18n/locale-tag'
 import { captureExitCode, runCli } from './helpers/cli'
 

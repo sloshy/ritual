@@ -1,6 +1,6 @@
 import { test, expect, type Route } from '@playwright/test'
 import type { ConfigResponse } from '../../../src/admin/api/config'
-import { defaultSiteSelection } from '../../../src/site/list-selection'
+import { defaultSiteSelection } from '../../../src/config/list-selection'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { fulfillJson } from '../helpers/fulfill'
 import { mockConfigApi, mockStatusApi, mockTotpApi, MOCK_CONFIG } from '../helpers/mock-admin'

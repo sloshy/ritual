@@ -9,8 +9,8 @@ import { displayLanguage } from '../../card/card-language'
 import { hasSpecificPrinting, resolvePrintingCard } from '../../card/card-printing'
 import { printingKey } from '../../card/printing-key'
 import { compareCollectorNumbers } from '../../scryfall/card-utils'
-import { listRefKey, type NamedListRef } from '../../site/combined-list'
-import { findMatchKey } from '../../site/find-search'
+import { listRefKey, type NamedListRef } from '../../list-view/combined-list'
+import { findMatchKey } from '../../card/find-search'
 import type {
   FinishFilter,
   PriceOf,

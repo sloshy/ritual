@@ -1,23 +1,23 @@
 import { createMemo, type JSX } from 'solid-js'
-import type { CollectionCardEntry } from '../site/data-types'
-import type { NamedListRef } from '../site/combined-list'
-import type { SellModeProps } from '../site/sell-mode'
-import type { PriceCurrency } from '../pricing/price-currency'
-import type { CardLabel } from '../card/card-labels'
-import type { CardContextInfo } from './context-menu'
-import { withEntryArt, type CardArtRefs } from './card-art-view'
-import { CollectionPage } from '../site/CollectionPage'
-import { promptCardLabels } from '../site/label-prompt'
-import type { UseEditorDefaultsResult } from './useEditorDefaults'
-import type { SearchProvider } from './search-provider'
-import { setLabelsForCards } from './collection-labels'
-import { contextInfoFromSelected } from './selected-to-context'
-import type { SwapPrintingsWizardProps } from './components/SwapPrintingsWizard'
+import type { CollectionCardEntry } from '../../list/site-data'
+import type { NamedListRef } from '../../list-view/combined-list'
+import type { SellModeProps } from '../../list-view/sell-mode'
+import type { PriceCurrency } from '../../pricing/price-currency'
+import type { CardLabel } from '../../card/card-labels'
+import type { CardContextInfo } from '../../list-view/card-context'
+import { withEntryArt, type CardArtRefs } from '../../editor/card-art-view'
+import { CollectionPage } from '../CollectionPage'
+import { promptCardLabels } from '../../list-view/label-prompt'
+import type { UseEditorDefaultsResult } from '../../editor/useEditorDefaults'
+import type { SearchProvider } from '../../editor/search-provider'
+import { setLabelsForCards } from '../../editor/collection-labels'
+import { contextInfoFromSelected } from '../../list-view/selected-to-context'
+import type { SwapPrintingsWizardProps } from '../../editor/components/SwapPrintingsWizard'
 import {
   type FlatBulkEdit,
   type FlatListController,
   FlatListEditorShell,
-} from './flat-list-controller'
+} from '../../editor/flat-list-controller'
 
 type CollectionEditorBodyProps = SellModeProps & {
   ctrl: FlatListController<CollectionCardEntry>

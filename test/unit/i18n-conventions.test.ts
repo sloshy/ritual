@@ -83,9 +83,12 @@ describe('the source scan', () => {
 
 describe('i18n persistence fence', () => {
   /**
-   * These modules write or re-parse `.changes.md`, CSV exports, and the
-   * Archidekt/Moxfield dialect headers. All of it is English by contract
-   * (plan §4.9), so none of them may reach the message catalog at all.
+   * These modules write or re-parse `.changes.md`, CSV exports, the
+   * ritual-change-bundle envelope, and the Archidekt/Moxfield dialect headers.
+   * All of it is English by contract (plan §4.9), so none of them may import
+   * the message catalog directly. (The scan is direct-import only; a transitive
+   * route through e.g. `card-labels` returns prose to callers rather than
+   * writing it into the file, which is the line the fence protects.)
    */
   test('changelog, CSV, and export modules never import src/i18n', async () => {
     const fenced = [
@@ -93,6 +96,7 @@ describe('i18n persistence fence', () => {
       'src/changes/changelog-writer.ts',
       'src/changes/changelog-parser.ts',
       'src/changes/csv.ts',
+      'src/changes/change-bundle.ts',
       'src/buylist/cart-csv.ts',
       ...[...new Glob('src/export/**/*.ts').scanSync(ROOT)].map((file) => file.replace(/\\/g, '/')),
     ]

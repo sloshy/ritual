@@ -1,5 +1,5 @@
 import { displayLanguage } from '../card/card-language'
-import type { CollectionCardEntry } from './data-types'
+import type { CollectionCardEntry } from '../list/site-data'
 
 /**
  * How many copies of a collection card a trade may take, derived by counting the

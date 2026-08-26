@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { toWantedCardEntries, type ParsedWantedEntry } from '../../src/editor/wanted-entries'
+import { toWantedCardEntries, type ParsedWantedEntry } from '../../src/list/wanted-entries'
 
 describe('toWantedCardEntries', () => {
   test('carries the language token through to the card-entry shape', () => {

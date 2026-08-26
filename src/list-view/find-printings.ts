@@ -3,7 +3,7 @@
  *
  * Any card surface (the read-view card modal, the editor context menu) can call
  * {@link openFindPrintings} with a card name; the app root renders a single
- * {@link import('./FindPrintingsModal').FindPrintingsModal} bound to
+ * {@link import('../site/FindPrintingsModal').FindPrintingsModal} bound to
  * {@link findPrintingsRequest} that shows every copy of that card (matched by
  * front-face name, so double-sided printings like `Steam Vents // Steam Vents`
  * count) across every deck, collection, and wanted list, grouped by list.
@@ -16,7 +16,7 @@
 import { createSignal, type Accessor } from 'solid-js'
 import type { ListType } from '../list/list-type'
 import { listRefKey, type CombinedCardData, type CombinedListRef } from './combined-list'
-import { cardMatchKey, findMatchKey } from './find-search'
+import { cardMatchKey, findMatchKey } from '../card/find-search'
 
 export interface FindPrintingsRequest {
   cardName: string

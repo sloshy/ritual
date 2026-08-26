@@ -1,5 +1,5 @@
 import { describe, expect, test, mock, beforeAll, afterAll, beforeEach, afterEach } from 'bun:test'
-import { resetApiBase, setApiBase } from '../../../src/site/api-base'
+import { resetApiBase, setApiBase } from '../../../src/list-view/api-base'
 import { defaultFinishForCard, resolveTradeFinish } from '../../../src/site/trade-finish'
 import { encodeTradeToParams, hasTradeParams } from '../../../src/site/trade-url-encode'
 import { normalizeCardName } from '../../../src/card/term-match'
@@ -8,7 +8,7 @@ import {
   type TradeDecodeWarning,
   type TradeParamEntries,
 } from '../../../src/site/trade-url-decode'
-import type { TradeCardEntry } from '../../../src/site/data-types'
+import type { TradeCardEntry } from '../../../src/list/site-data'
 import type { TradeSearchEntry } from '../../../src/site/useTradeData'
 import type { Finish } from '../../../src/card/finish-condition'
 import type { ScryfallCard } from '../../../src/scryfall/types'

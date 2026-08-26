@@ -26,7 +26,7 @@ import type {
   CollectionSession,
   FlatListStrategyContext,
 } from '../../src/commands/flat-list-session'
-import type { CollectionCardEntry } from '../../src/site/data-types'
+import type { CollectionCardEntry } from '../../src/list/site-data'
 
 describe('flat-list session models', () => {
   let tmpDir: string

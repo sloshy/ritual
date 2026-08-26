@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { listRefKey } from '../../../src/site/combined-list'
+import { listRefKey } from '../../../src/list-view/combined-list'
 import type { CardSwapPlan, SwapMove } from '../../../src/editor/swap-printings'
 import {
   afterPlanning,

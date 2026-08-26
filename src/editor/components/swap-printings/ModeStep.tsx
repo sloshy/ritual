@@ -1,7 +1,7 @@
 import { For, Show, type Accessor, type Component, type JSX } from 'solid-js'
 import { useT } from '../../../ui/i18n'
 import type { ParameterlessKey } from '../../../i18n/t'
-import { listRefKey, type ListRefKey, type NamedListRef } from '../../../site/combined-list'
+import { listRefKey, type ListRefKey, type NamedListRef } from '../../../list-view/combined-list'
 import type { DisplacedPolicy, FinishFilter, SwapMode, UnpricedPolicy } from '../../swap-printings'
 
 /** One radio in a labelled group: its value, caption key and one-line hint key. */

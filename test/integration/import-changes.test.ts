@@ -10,7 +10,7 @@ import { cardCache } from '../../src/cache'
 import { getBaseDir, setBaseDir } from '../../src/config/base-dir'
 import { getDefaultRitualConfig } from '../../src/config/ritual-config'
 import { applyChangeBundle } from '../../src/admin/api/import-changes'
-import { parseChangeBundle, type ChangeBundle } from '../../src/editor/change-bundle'
+import { parseChangeBundle, type ChangeBundle } from '../../src/changes/change-bundle'
 import { runCli, withTempDir } from './helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'
 import {

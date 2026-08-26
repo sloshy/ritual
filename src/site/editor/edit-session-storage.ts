@@ -4,7 +4,7 @@ import {
   listChangesFromBundle,
   parseChangeBundle,
   serializeChangeBundle,
-} from '../../editor/change-bundle'
+} from '../../changes/change-bundle'
 import { resolveKnownListSlug } from './list-slug-resolver'
 import type { ListType } from '../../list/list-type'
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { resetBuylistQuotes, seedBuylistQuotes } from '../../../src/site/buylist-quotes'
+import { resetBuylistQuotes, seedBuylistQuotes } from '../../../src/list-view/buylist-quotes'
 import {
   activeUsdSource,
   currencyHasSource,
@@ -15,7 +15,7 @@ import {
   sitePriceForFinish,
   usdSourceChoices,
   usdSourceIsExplicit,
-} from '../../../src/site/price-view'
+} from '../../../src/list-view/price-view'
 import { makeBuylistQuote, makeScryfallCard } from '../../test-utils'
 
 afterEach(() => {

@@ -5,9 +5,9 @@ import type { ScryfallCard } from '../../scryfall/types'
 import type { PriceCurrency } from '../../pricing/price-currency'
 import { type ChangeEvent, isAdditiveChange } from '../../changes/change-event'
 import { formatChange } from '../../changes/change-message'
-import { useTooltip } from '../../site/useTooltip'
+import { useTooltip } from '../../ui/useTooltip'
 import { getCardImageUrl } from '../../card/card-image'
-import { CardModal } from '../../site/CardModal'
+import { CardModal } from '../../list-view/CardModal'
 import { useT } from '../../ui/i18n'
 
 interface ChangesDialogProps {

@@ -1,12 +1,12 @@
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, on, onCleanup, For, Show } from 'solid-js'
-import { seedCards, seedPrintings, sessionCacheVersion } from './session-cache'
-import { apiBase } from './api-base'
+import { seedCards, seedPrintings, sessionCacheVersion } from '../list-view/session-cache'
+import { apiBase } from '../list-view/api-base'
 import type { PriceCurrency } from '../pricing/price-currency'
 import type { ListType } from '../list/list-type'
 import { useT } from '../ui/i18n'
 import { CombinedCardsView } from './CombinedCardsView'
-import type { SelectionListId } from './useCardSelection'
+import type { SelectionListId } from '../list-view/useCardSelection'
 import {
   type CombinedCardData,
   type LoadedListDetail,
@@ -19,7 +19,7 @@ import {
   mergeSymbolMaps,
   mergeCardMaps,
   mergePrintingMaps,
-} from './combined-list'
+} from '../list-view/combined-list'
 
 interface CombinedListPageProps {
   /** True when viewing every list ("All" was chosen in the modal or navbar). */

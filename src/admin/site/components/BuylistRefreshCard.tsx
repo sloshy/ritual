@@ -2,7 +2,7 @@ import { type JSX, createSignal, onMount, For, Match, Show, Switch } from 'solid
 import type { BuylistStatusResponse } from '../../../buylist'
 import type { ApiErrorResponse } from '../../api/save-helpers'
 import type { SellRefreshResponse } from '../../api/sell'
-import { resetBuylistQuotes } from '../../../site/buylist-quotes'
+import { resetBuylistQuotes } from '../../../list-view/buylist-quotes'
 import { formatDateTime, formatNumber } from '../../../ui/format'
 import { useT, useTSegments } from '../../../ui/i18n'
 

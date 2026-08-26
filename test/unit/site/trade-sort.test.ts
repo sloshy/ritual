@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { sortTradeCards } from '../../../src/site/trade-sort'
 import type { TradeSortState } from '../../../src/site/trade-sort'
-import type { TradeCardEntry } from '../../../src/site/data-types'
+import type { TradeCardEntry } from '../../../src/list/site-data'
 
 function makeEntry(overrides: Partial<TradeCardEntry>): TradeCardEntry {
   return {

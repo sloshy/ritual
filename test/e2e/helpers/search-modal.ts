@@ -1,7 +1,7 @@
 import { type Page } from '@playwright/test'
 import type { CardLanguage } from '../../../src/card/card-language'
 import type { DefaultLanguageOverride } from '../../../src/editor/default-language'
-import type { SearchDebounceOverride } from '../../../src/editor/search-debounce'
+import type { SearchDebounceOverride } from '../../../src/config/search-debounce'
 
 /**
  * Disable the card search autocomplete debounce for the page under test.

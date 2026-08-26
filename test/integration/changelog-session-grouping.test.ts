@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import { ensureDeckFile, loadDeck } from '../../src/commands/deck-helpers'
-import { applyChangeToDeck } from '../../src/editor/deck-changes'
+import { applyChangeToDeck } from '../../src/changes/deck-changes'
 import { assignMissingDeckCardIds } from '../../src/card/card-id'
 import { createAddChange } from '../../src/changes/change-event'
 import { computeHash } from '../../src/changes/content-hash'

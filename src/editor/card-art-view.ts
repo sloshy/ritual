@@ -1,7 +1,7 @@
 import { parseCardIdKey, type CardArtRecord, type CardArtRef } from '../list/card-art'
-import type { BakedDeckData } from '../site/data-types'
+import type { BakedDeckData } from '../list/site-data'
 import type { DeckData } from '../list/deck'
-import { cardArtDisplayUrl } from '../site/art-url'
+import { cardArtDisplayUrl } from '../list/art-url'
 
 /**
  * Custom art in an editor: the raw references the load body carried, projected

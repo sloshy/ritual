@@ -13,13 +13,13 @@ import {
   type MoveReplacement,
   isSamePrinting,
 } from '../changes/change-event'
-import type { CardContextInfo } from '../site/card-context'
-import type { NamedListRef } from '../site/combined-list'
+import type { CardContextInfo } from '../list-view/card-context'
+import type { NamedListRef } from '../list-view/combined-list'
 import { hasSpecificPrinting, resolvePrintingCard } from '../card/card-printing'
 import { displayFinish } from '../card/finish-condition'
 import { printingKey } from '../card/printing-key'
 import { displayLanguage } from '../card/card-language'
-import { findDeckAddMergeTargetId } from './deck-changes'
+import { findDeckAddMergeTargetId } from '../changes/deck-changes'
 import { definedPrintingDetails, targetPinsPrinting } from './swap-printings/printing-fields'
 import type { ChosenPrinting, SwapMove, SwapTarget } from './swap-printings'
 import type { SwapFlatLine } from './swap-sources'

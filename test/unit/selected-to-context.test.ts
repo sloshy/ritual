@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { contextInfoFromSelected } from '../../src/editor/selected-to-context'
-import type { SelectedCard } from '../../src/site/useCardSelection'
+import { contextInfoFromSelected } from '../../src/list-view/selected-to-context'
+import type { SelectedCard } from '../../src/list-view/useCardSelection'
 
 function selected(over: Partial<SelectedCard> = {}): SelectedCard {
   return {

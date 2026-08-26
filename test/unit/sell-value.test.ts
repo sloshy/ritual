@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { resetPriceView, selectUsdSource, setEnabledPriceSources } from '../../src/site/price-view'
+import {
+  resetPriceView,
+  selectUsdSource,
+  setEnabledPriceSources,
+} from '../../src/list-view/price-view'
 import type { BuylistQuoteRequest, BuylistQuotesResponse } from '../../src/buylist'
 import {
   buylistError,
@@ -8,8 +12,8 @@ import {
   resetBuylistFetcher,
   resetBuylistQuotes,
   setBuylistFetcher,
-} from '../../src/site/buylist-quotes'
-import { resetSellMode, setSellModeActive } from '../../src/site/sell-mode'
+} from '../../src/list-view/buylist-quotes'
+import { resetSellMode, setSellModeActive } from '../../src/list-view/sell-mode'
 import { makeScryfallCard } from '../test-utils'
 import {
   allocateSellQuantities,

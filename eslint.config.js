@@ -5,11 +5,13 @@ import noAnonymousObjectTypes from './eslint-rules/no-anonymous-object-types.js'
 import noBareIntlLocale from './eslint-rules/no-bare-intl-locale.js'
 import noInlinePlural from './eslint-rules/no-inline-plural.js'
 import noUntranslatedLiteral from './eslint-rules/no-untranslated-literal.js'
+import noUpwardImport from './eslint-rules/no-upward-import.js'
 
 // Project-local plugin housing custom rules that enforce AGENTS.md guidelines.
 const ritualPlugin = {
   rules: {
     'no-anonymous-object-types': noAnonymousObjectTypes,
+    'no-upward-import': noUpwardImport,
     'no-bare-intl-locale': noBareIntlLocale,
     'no-inline-plural': noInlinePlural,
     'no-untranslated-literal': noUntranslatedLiteral,
@@ -101,6 +103,83 @@ export default [
       'ritual/no-untranslated-literal': 'error',
       'ritual/no-bare-intl-locale': 'error',
       'ritual/no-inline-plural': 'error',
+
+      // ── Directory layering (research/simplification-zones-2026-08-26.md, Zone 2).
+      // Bottom-up: a file may import its own layer or anything below, never
+      // above. Directories missing from the table are unconstrained. The
+      // `allow` list is the known debt at the time the rule landed; the zone
+      // that closes a debt deletes its entry — never widen one.
+      'ritual/no-upward-import': [
+        'error',
+        {
+          layers: [
+            {
+              name: 'domain',
+              dirs: [
+                'src/util',
+                'src/i18n',
+                'src/config',
+                'src/card',
+                'src/list',
+                'src/changes',
+                'src/pricing',
+                'src/theme',
+                'src/scryfall',
+                'src/cache',
+                'src/cardkingdom',
+                'src/buylist',
+                'src/clients',
+                'src/auth',
+                'src/sync',
+                'src/deck-sync',
+                'src/collection-sync',
+                'src/importers',
+                'src/export',
+                'src/api',
+              ],
+            },
+            { name: 'ui', dirs: ['src/ui'] },
+            { name: 'list-view', dirs: ['src/list-view'] },
+            { name: 'editor', dirs: ['src/editor'] },
+            { name: 'site', dirs: ['src/site'] },
+            { name: 'admin', dirs: ['src/admin'] },
+            {
+              name: 'entry',
+              dirs: [
+                'src/commands',
+                'src/mcp',
+                'src/serve',
+                'src/skills',
+                'src/cache-server',
+                'src/cache-feed',
+              ],
+            },
+          ],
+          allow: [
+            // Zone 5c — the bake types live under site/details.
+            { from: 'src/cardkingdom/bake', to: 'src/site/details' },
+            // Zone 3 — engine helpers still living in src/commands/ (move-helpers, move-io,
+            // wanted-helpers, collection-helpers, history-helpers, scripting, import).
+            { from: 'src/admin/api', to: 'src/commands' },
+            { from: 'src/editor/dropped-notes', to: 'src/commands/move-io' },
+            { from: 'src/editor/saveEditorChanges', to: 'src/commands/move-io' },
+            { from: 'src/export/entries', to: 'src/commands/wanted-helpers' },
+            { from: 'src/importers/csv-apply', to: 'src/commands/wanted-helpers' },
+            { from: 'src/importers/text-file', to: 'src/commands/collection-helpers' },
+            { from: 'src/list/ensure-card-ids', to: 'src/commands/wanted-helpers' },
+            { from: 'src/list/list-info', to: 'src/commands/move-helpers' },
+            { from: 'src/pricing/price-report', to: 'src/commands/wanted-helpers' },
+            { from: 'src/cache/cadence', to: 'src/commands/scripting' },
+            { from: 'src/cache/refresh', to: 'src/commands/scripting' },
+            { from: 'src/site/details/wanted', to: 'src/commands' },
+            // Zone 10/11 — cache/ reaches into the two long-running servers.
+            { from: 'src/cache/cadence', to: 'src/cache-server' },
+            { from: 'src/cache/refresh-source', to: 'src/cache-feed/fetch' },
+            // Zone 10 — the client-neutral card routes borrow admin's HTTP helpers.
+            { from: 'src/api', to: 'src/admin/api/save-helpers' },
+          ],
+        },
+      ],
 
       // ── Targeted: catches review issue #4 (commander `.action(cb)` lands
       // `options` as `any` because of commander's `(...args: any[])` signature).

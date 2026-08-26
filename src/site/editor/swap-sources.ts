@@ -12,8 +12,8 @@ import {
   loadCombinedDetails,
   mergeCardMaps,
   mergePrintingMaps,
-} from '../combined-list'
-import { seedCards, seedPrintings } from '../session-cache'
+} from '../../list-view/combined-list'
+import { seedCards, seedPrintings } from '../../list-view/session-cache'
 import type {
   SwapSourceList,
   SwapSourceLoad,

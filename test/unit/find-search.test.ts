@@ -5,7 +5,7 @@ import {
   findMatchKey,
   parseSearchLines,
   partitionSearch,
-} from '../../src/site/find-search'
+} from '../../src/card/find-search'
 import { makeScryfallCard } from '../test-utils'
 
 describe('frontFaceName', () => {

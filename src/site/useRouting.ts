@@ -1,8 +1,8 @@
 import { createSignal, onMount, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import type { ListType } from '../list/list-type'
-import type { CombinedListRef } from './combined-list'
-import { parseCombinedQuery } from './combined-list'
+import type { CombinedListRef } from '../list-view/combined-list'
+import { parseCombinedQuery } from '../list-view/combined-list'
 
 export type Route =
   | { page: 'index'; tab?: 'decks' | 'collections' | 'wanted' }

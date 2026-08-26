@@ -7,7 +7,7 @@ import {
   CHANGE_BUNDLE_FILENAME,
   bundleFromChangeGroups,
   serializeChangeBundle,
-} from '../../editor/change-bundle'
+} from '../../changes/change-bundle'
 import { resolveKnownListSlug } from './list-slug-resolver'
 import type { ListType } from '../../list/list-type'
 import type { ImportResult } from '../../editor/useEditor'

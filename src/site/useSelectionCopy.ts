@@ -1,6 +1,6 @@
 import { createSignal, onCleanup, type Accessor } from 'solid-js'
-import type { SelectedCard } from './useCardSelection'
-import { selectionToText, selectionToCsv } from '../editor/list-export'
+import type { SelectedCard } from '../list-view/useCardSelection'
+import { selectionToText, selectionToCsv } from '../list-view/selection-export'
 import { selectionToCartCsv } from './sell-value'
 
 export interface SelectionCopy {

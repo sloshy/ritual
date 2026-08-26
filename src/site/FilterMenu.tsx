@@ -12,7 +12,7 @@ import {
 import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { parseSetCodesInput, scanSetCodesInput } from '../card/set-codes'
-import { colorIdentityName, WUBRG } from './card-sorting'
+import { colorIdentityName, WUBRG } from '../list-view/card-sorting'
 import {
   COPIES_MATCH_MODES,
   parseCopiesFilter,
@@ -30,7 +30,7 @@ import {
 } from './card-filters'
 import { CARD_LABEL_DISPLAY_NAMES, type CardLabelSelection } from '../card/card-labels'
 import { type PriceCurrency, getCurrencySymbol } from '../pricing/price-currency'
-import { pricesEnabled } from './price-view'
+import { pricesEnabled } from '../list-view/price-view'
 import { useT } from '../ui/i18n'
 import type { ParameterlessKey, TranslateFn } from '../i18n/t'
 import { formatCardTypeForDisplay, parseCardTypesInput, scanCardTypeInput } from './card-types'
@@ -44,7 +44,7 @@ import {
   type ListShareMatch,
   type ListShareMode,
 } from './filter-mode'
-import { listRefKey, type ListRefKey, type NamedListRef } from './combined-list'
+import { listRefKey, type ListRefKey, type NamedListRef } from '../list-view/combined-list'
 import { LIST_TYPE_SINGULAR } from '../list/list-type'
 import { normalizeForSearch } from '../card/term-match'
 import { compareDisplay } from '../i18n/collate'

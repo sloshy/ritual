@@ -3,7 +3,7 @@ import {
   buildSelectionEditActions,
   type BulkEditBundle,
 } from '../../../src/site/selection-edit-actions'
-import type { CardSelectionControl, SelectedCard } from '../../../src/site/useCardSelection'
+import type { CardSelectionControl, SelectedCard } from '../../../src/list-view/useCardSelection'
 import type { Finish } from '../../../src/card/finish-condition'
 
 type Call = { name: string; cards: SelectedCard[]; arg?: unknown }

@@ -11,7 +11,7 @@
 
 import { createSignal, Show, type JSX } from 'solid-js'
 import { useT } from '../ui/i18n'
-import { SymbolText } from './symbols'
+import { SymbolText } from '../list-view/symbols'
 
 /** Longer than this many characters and the blurb starts collapsed. */
 const COLLAPSE_THRESHOLD = 200

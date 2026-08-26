@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import type { TargetableEntry, TargetingChange } from '../../src/editor/entry-targeting'
-import { findEntryByIdOrName, findTargetEntryIndex } from '../../src/editor/entry-targeting'
+import type { TargetableEntry, TargetingChange } from '../../src/changes/entry-targeting'
+import { findEntryByIdOrName, findTargetEntryIndex } from '../../src/changes/entry-targeting'
 
 function entry(overrides: Partial<TargetableEntry> & { name: string }): TargetableEntry {
   return { ...overrides }

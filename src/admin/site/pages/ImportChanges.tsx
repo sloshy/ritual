@@ -10,7 +10,7 @@ import {
   moveFromEventOf,
   replacementAddEventOf,
   parseChangeBundle,
-} from '../../../editor/change-bundle'
+} from '../../../changes/change-bundle'
 import { useT, useTKey } from '../../../ui/i18n'
 import type { BundleImportResponse, BundleImportResult } from '../../api/import-changes'
 import type { ApiErrorResponse } from '../../api/save-helpers'

@@ -3,11 +3,11 @@ import type { CardLabel } from '../card/card-labels'
 import type { CardLanguage } from '../card/card-language'
 import type { ListRef } from '../changes/change-event'
 import type { SelectionEditActions } from './SelectionMenu'
-import type { CardSelectionControl, SelectedCard } from './useCardSelection'
+import type { CardSelectionControl, SelectedCard } from '../list-view/useCardSelection'
 
 /**
  * The subset of a controller's bulk-edit bundle the selection menu drives. Both
- * {@link import('../editor/DeckEditController').DeckBulkEdit} and the flat-list
+ * {@link import('./editor/DeckEditController').DeckBulkEdit} and the flat-list
  * {@link import('../editor/flat-list-controller').FlatBulkEdit} satisfy it;
  * `setCommander` is present only for decks.
  */
@@ -43,6 +43,16 @@ export type BulkEditBundle = {
   moveToList: (cards: SelectedCard[], dest: ListRef) => void
   moveTargets: () => ListRef[]
 }
+
+/** A deck's bundle: the shared set plus the actions every deck line supports. */
+export type DeckBulkEditBundle = BulkEditBundle &
+  Required<Pick<BulkEditBundle, 'setCommander' | 'setLabel' | 'swapPrintings'>>
+
+/** A wanted list holds no physical cards: no commander, no labels, no swap. */
+export type WantedBulkEditBundle = Omit<
+  BulkEditBundle,
+  'setCommander' | 'setLabel' | 'swapPrintings'
+>
 
 /**
  * Adapt a controller's bulk-edit bundle into the {@link SelectionEditActions} the

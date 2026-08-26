@@ -1,4 +1,4 @@
-import { combinedAllHref } from './combined-list'
+import { combinedAllHref } from '../list-view/combined-list'
 import type { MessageKey } from '../i18n/messages/en'
 
 export type NavDestination = {

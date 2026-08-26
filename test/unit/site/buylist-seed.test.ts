@@ -13,8 +13,8 @@ import {
   resetBuylistFetcher,
   resetBuylistQuotes,
   seedBuylistQuotes,
-} from '../../../src/site/buylist-quotes'
-import type { BakedBuylist } from '../../../src/site/data-types'
+} from '../../../src/list-view/buylist-quotes'
+import type { BakedBuylist } from '../../../src/list/site-data'
 import { makeBuylistQuote, stubBuylistFetcher } from '../../test-utils'
 
 /**

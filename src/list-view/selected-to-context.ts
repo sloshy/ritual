@@ -1,5 +1,5 @@
-import type { CardContextInfo } from '../site/card-context'
-import type { SelectedCard } from '../site/useCardSelection'
+import type { CardContextInfo } from './card-context'
+import type { SelectedCard } from './useCardSelection'
 
 /**
  * Adapt a {@link SelectedCard} (from the multi-select store) into the

@@ -13,7 +13,7 @@ import {
   type CardChange,
   type ChangeEvent,
 } from '../../changes/change-event'
-import { parseChangeBundle } from '../../editor/change-bundle'
+import { parseChangeBundle } from '../../changes/change-bundle'
 import {
   isToSectionInvalid,
   TO_SECTION_DECK_ONLY_MESSAGE,

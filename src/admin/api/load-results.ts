@@ -4,7 +4,7 @@ import type { CardArtRecord } from '../../list/card-art'
 import type { CardLabel } from '../../card/card-labels'
 import type { ListImageRef } from '../../list/list-image'
 import type { CardLanguage } from '../../card/card-language'
-import type { ParsedWantedEntry } from '../../editor/wanted-entries'
+import type { ParsedWantedEntry } from '../../list/wanted-entries'
 import type { DeckCardLoadResult, EntryCardLoadResult } from './card-data-loader'
 import type { ListCounts, ListLoadView, ListSectionCount } from './list-load-params'
 

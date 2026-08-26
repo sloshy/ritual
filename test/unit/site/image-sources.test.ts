@@ -3,7 +3,7 @@ import {
   resolveCardImageSources,
   resolveCardPreview,
   resolveCardThumbnailUrl,
-} from '../../../src/site/image-sources'
+} from '../../../src/card/image-sources'
 import type { ScryfallCard } from '../../../src/scryfall/types'
 import { makeScryfallCard } from '../../test-utils'
 

@@ -7,7 +7,7 @@ import {
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import * as path from 'node:path'
-import type { ApplyChange, MissReason } from '../src/editor/apply-batch'
+import type { ApplyChange, MissReason } from '../src/changes/apply-batch'
 import {
   type HttpClient,
   type CacheManager,
@@ -17,12 +17,12 @@ import {
 import { cardCache, streamFromBatchResults } from '../src/cache'
 import { MemoryLogger, resetLogger, setLogger } from '../src/util/logger'
 import { quoteKey, type BuylistQuote } from '../src/buylist'
-import { setBuylistFetcher } from '../src/site/buylist-quotes'
+import { setBuylistFetcher } from '../src/list-view/buylist-quotes'
 import type { CardKingdomCacheFile, CardKingdomProduct } from '../src/cardkingdom'
 import type { PrintingQuoteFn, QuotePrinting } from '../src/cardkingdom/quote'
 import { displayLanguage } from '../src/card/card-language'
 import type { ScryfallCard } from '../src/scryfall/types'
-import type { CardData } from '../src/site/card-sorting'
+import type { CardData } from '../src/list-view/card-sorting'
 
 /**
  * Seed the card cache with one neutral printing per name.

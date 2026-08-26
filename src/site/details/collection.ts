@@ -13,7 +13,7 @@ import { displayLanguage, scryfallCardLanguage } from '../../card/card-language'
 import { displayFinish } from '../../card/finish-condition'
 import { getCardPriceForFinish } from '../../pricing/price-currency'
 import type { ScryfallCard } from '../../scryfall/types'
-import type { CollectionCardEntry, CollectionDetail, CollectionSummary } from '../data-types'
+import type { CollectionCardEntry, CollectionDetail, CollectionSummary } from '../../list/site-data'
 import {
   bakeBuylistQuotes,
   cardIdsOf,

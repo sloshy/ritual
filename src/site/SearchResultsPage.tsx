@@ -1,17 +1,17 @@
 import type { Component } from 'solid-js'
 import { createMemo, For, Show } from 'solid-js'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { sessionCacheVersion } from './session-cache'
+import { sessionCacheVersion } from '../list-view/session-cache'
 import { CombinedCardsView } from './CombinedCardsView'
 import type { ListType } from '../list/list-type'
-import type { SelectionListId } from './useCardSelection'
+import type { SelectionListId } from '../list-view/useCardSelection'
 import {
   type CombinedCardData,
   type NamedListRef,
   buildCombinedCards,
   listHref,
   mergeSymbolMaps,
-} from './combined-list'
+} from '../list-view/combined-list'
 import { searchResults } from './search-results-state'
 import { useI18n } from '../ui/i18n'
 

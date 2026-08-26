@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { test, expect, type Locator, type Page } from '@playwright/test'
-import type { ChangeBundle } from '../../../src/editor/change-bundle'
+import type { ChangeBundle } from '../../../src/changes/change-bundle'
 import { enterEditMode, openSelectionMenu } from '../helpers/list-ui'
 import {
   SWAP_ART,

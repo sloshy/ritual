@@ -4,7 +4,7 @@ import {
   type ChangeBundleListRef,
   listChangesFromBundle,
   parseChangeBundle,
-} from '../change-bundle'
+} from '../../changes/change-bundle'
 import type { ChangeEvent } from '../../changes/change-event'
 import { IMPORT_CONFLICT_REASON_KEY } from '../import-changes'
 import { formatChange } from '../../changes/change-message'

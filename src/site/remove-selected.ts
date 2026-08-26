@@ -6,8 +6,8 @@ import {
 } from '../changes/change-event'
 import { activeEditSession } from './editor/active-edit-session'
 import { appendEditSession } from './editor/edit-session-memory'
-import { printingForMove } from './printing-prompt'
-import { groupSelectionsBySource, type SelectedCard } from './useCardSelection'
+import { printingForMove } from '../list-view/printing-prompt'
+import { groupSelectionsBySource, type SelectedCard } from '../list-view/useCardSelection'
 
 /**
  * Build the `remove` change events that delete a selected card entirely. Decks

@@ -1,7 +1,7 @@
 import { type JSX, Show, createMemo, type Accessor } from 'solid-js'
-import type { CardData } from './card-sorting'
+import type { CardData } from '../list-view/card-sorting'
 import { usePriceRefresh, type PriceRefresh, type PriceCardRef } from './usePriceRefresh'
-import { pricesEnabled } from './price-view'
+import { pricesEnabled } from '../list-view/price-view'
 import { useT } from '../ui/i18n'
 
 type PublicPriceControlsInput = {

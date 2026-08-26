@@ -1,12 +1,12 @@
-import { buylistFieldsFor } from './buylist-quotes'
+import { buylistFieldsFor } from '../list-view/buylist-quotes'
 import { createSellSummary, useSellMode, type QuoteSource } from './useSellMode'
 import { sellableFromCardData, selectionToCartCsv, type SellableCard } from './sell-value'
 import { buyerName } from '../buylist'
-import { cartBuyer, type SellModeProps } from './sell-mode'
+import { cartBuyer, type SellModeProps } from '../list-view/sell-mode'
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, on, onMount, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
-import { seedCards, seedPrintings, sessionCacheVersion } from './session-cache'
+import { seedCards, seedPrintings, sessionCacheVersion } from '../list-view/session-cache'
 import { normalizeCardName } from '../card/term-match'
 import { useT } from '../ui/i18n'
 import type { MessageKey } from '../i18n/messages/en'
@@ -18,11 +18,11 @@ import { TagFilterWarning } from './TagFilterWarning'
 import { ListDescriptionSection } from './ListDescription'
 import { ListPageStats, PageCountAndTotal, SellModeNotice } from './PageStats'
 import type { ScryfallCard } from '../scryfall/types'
-import type { CardContextInfo } from './card-context'
-import type { CardKingdomCards, WantedListCardEntry } from './data-types'
+import type { CardContextInfo } from '../list-view/card-context'
+import type { CardKingdomCards, WantedListCardEntry } from '../list/site-data'
 import type { ChangelogPage } from '../changes/changelog-parser'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { pricesEnabled, sitePriceForFinish } from './price-view'
+import { pricesEnabled, sitePriceForFinish } from '../list-view/price-view'
 import {
   type CardData,
   type CardGroup,
@@ -35,14 +35,14 @@ import {
   SELL_GROUP_BY_OPTIONS,
   sortByValuesFor,
   type SelectOption,
-} from './card-sorting'
-import { CardModal } from './CardModal'
+} from '../list-view/card-sorting'
+import { CardModal } from '../list-view/CardModal'
 import { ChangelogModal } from './ChangelogModal'
 import { useCardNavScroll } from './card-nav'
-import { TooltipOverlay } from './TooltipOverlay'
+import { TooltipOverlay } from '../ui/TooltipOverlay'
 import { useReadCardMenu } from './useReadCardMenu'
-import { finishName, rarityName } from './printing-display'
-import { useTooltip } from './useTooltip'
+import { finishName, rarityName } from '../list-view/printing-display'
+import { useTooltip } from '../ui/useTooltip'
 import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
 import { useToolbarState } from './useToolbarState'
@@ -56,7 +56,7 @@ import {
   useShareFilterContext,
   type ShareListsForPage,
 } from './list-shares'
-import type { NamedListRef } from './combined-list'
+import type { NamedListRef } from '../list-view/combined-list'
 import {
   collectArtTags,
   collectCardTypes,
@@ -70,19 +70,23 @@ import { deriveSectionOrder, sectionDefaultGroupBy } from '../list/section-forma
 import { TradePrintingPicker } from './TradePrintingPicker'
 import { addEntryToRight, canAddMoreToRight, showTradeToast } from './useTradeState'
 import type { TradeSearchEntry } from './useTradeData'
-import { resolveCardThumbnailUrl, resolveCardPreview } from './image-sources'
+import { resolveCardThumbnailUrl, resolveCardPreview } from '../card/image-sources'
 import { hasSpecificPrinting } from '../card/card-printing'
 import { printingKey } from '../card/printing-key'
-import { resolveWantedCardEntry } from './resolve-card'
-import type { SourceCardMaps } from './source-cards'
-import { cardPriceText, cardPricelessReason, isPricelessCard, pricelessFacts } from './priceless'
-import { useCardSelection, type SelectedCard } from './useCardSelection'
+import { resolveWantedCardEntry } from '../list-view/resolve-card'
+import type { SourceCardMaps } from '../list-view/source-cards'
+import {
+  cardPriceText,
+  cardPricelessReason,
+  isPricelessCard,
+  pricelessFacts,
+} from '../list-view/priceless'
+import { useCardSelection, type SelectedCard } from '../list-view/useCardSelection'
 import { SelectionMenu } from './SelectionMenu'
-import { buildSelectionEditActions } from './selection-edit-actions'
-import type { FlatBulkEdit } from '../editor/flat-list-controller'
+import { buildSelectionEditActions, type WantedBulkEditBundle } from './selection-edit-actions'
 import { ExportMenu, type ExportFormat, type ExtraExportFormat } from './ExportMenu'
-import { frontMatterFor, wantedToText, wantedToMarkdown, wantedToCsv } from '../editor/list-export'
-import type { MetaEntry } from './meta-entry'
+import { frontMatterFor, wantedToText, wantedToMarkdown, wantedToCsv } from '../list/list-export'
+import type { MetaEntry } from '../list-view/meta-entry'
 
 type WantedListGroupBy = GroupBy
 
@@ -163,7 +167,7 @@ interface WantedListPageProps extends SellModeProps {
   /** Offer "Add to Trade" in the multi-select menu (public site only; the trade page is unreachable on admin). */
   enableTrade?: boolean
   /** When provided (edit mode), enables bulk edit actions in the multi-select menu. */
-  bulkEdit?: FlatBulkEdit
+  bulkEdit?: WantedBulkEditBundle
   /** When provided (public read view), shows a "Combine with list…" header button. */
   onCombine?: () => void
   /** Mirror the toolbar/filter state into the URL query so the view is shareable (public read view only). */

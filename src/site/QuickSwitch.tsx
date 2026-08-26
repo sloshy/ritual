@@ -1,18 +1,23 @@
 import type { Component, Accessor } from 'solid-js'
 import { createSignal, createMemo, createEffect, on, onMount, onCleanup, For, Show } from 'solid-js'
-import type { DeckSummary, CollectionSummary, WantedListSummary, ListDetail } from './data-types'
+import type {
+  DeckSummary,
+  CollectionSummary,
+  WantedListSummary,
+  ListDetail,
+} from '../list/site-data'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { pricesEnabled } from './price-view'
+import { pricesEnabled } from '../list-view/price-view'
 import { formatPriceWithMissing } from '../pricing/price-currency'
-import { resolveCardThumbnailUrl } from './image-sources'
+import { resolveCardThumbnailUrl } from '../card/image-sources'
 import { scoreMatch } from './quick-switch-search'
 import type { CardCandidate } from './quick-switch-candidates'
 import { buildCandidates, cardNameKey, totalQuantityByName } from './quick-switch-candidates'
-import { fetchJson } from './useFetchJson'
-import { detailUrl } from './api-base'
-import { getSummaryMissingPriceCount, getSummaryTotalPrice } from './utils'
+import { fetchJson } from '../list-view/useFetchJson'
+import { detailUrl } from '../list-view/api-base'
+import { getSummaryMissingPriceCount, getSummaryTotalPrice } from '../pricing/price-summary'
 import { getDeckCountLabel } from '../list/deck-format'
-import { listHref } from './combined-list'
+import { listHref } from '../list-view/combined-list'
 import type { MessageKey } from '../i18n/messages/en'
 import { useI18n } from '../ui/i18n'
 import type { TranslateFn } from '../i18n/t'

@@ -5,7 +5,7 @@ import {
   searchDebounceMs,
   setSearchDebounceMs,
   type SearchDebounceOverride,
-} from '../../src/editor/search-debounce'
+} from '../../src/config/search-debounce'
 
 const overrideHost = globalThis as unknown as SearchDebounceOverride
 

@@ -1,8 +1,8 @@
-import type { WantedListCardEntry } from '../site/data-types'
+import type { WantedListCardEntry } from '../list/site-data'
 import { type PrintingTuple, isSamePrinting } from '../changes/change-event'
 import type { ChangePrintingContext } from './useEditor'
-import { applyChangeToWantedList } from './wanted-changes'
-import { findEntryPrintingById } from './entry-targeting'
+import { applyChangeToWantedList } from '../changes/wanted-changes'
+import { findEntryPrintingById } from '../changes/entry-targeting'
 import type { FlatPrinting } from './flat-list-controller'
 
 /** Printing fields logged when a wanted entry is added/removed (wanted lists carry no condition). */

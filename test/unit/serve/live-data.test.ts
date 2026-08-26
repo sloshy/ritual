@@ -14,7 +14,7 @@ import type {
   CollectionDetail,
   DeckDetail,
   SiteIndex,
-} from '../../../src/site/data-types'
+} from '../../../src/list/site-data'
 
 describe('createLiveSiteData', () => {
   let dir: string

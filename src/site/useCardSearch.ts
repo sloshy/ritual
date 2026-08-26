@@ -2,7 +2,7 @@ import { createSignal, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import type { ScryfallCard } from '../scryfall/types'
 import { autocompleteCardNames, fetchCardPrintings } from './card-search'
-import { isAbortError } from './utils'
+import { isAbortError } from '../util/errors'
 
 const AUTOCOMPLETE_DEBOUNCE_MS = 300
 const MIN_AUTOCOMPLETE_LENGTH = 2

@@ -9,7 +9,7 @@ import {
   deckSectionNames,
   listExistingDecks,
 } from '../../src/commands/deck-helpers'
-import { applyChangeToDeck } from '../../src/editor/deck-changes'
+import { applyChangeToDeck } from '../../src/changes/deck-changes'
 import { assignMissingDeckCardIds } from '../../src/card/card-id'
 import { createAddChange } from '../../src/changes/change-event'
 import type { DeckData } from '../../src/list/deck'

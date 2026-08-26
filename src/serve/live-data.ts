@@ -42,7 +42,7 @@ import type {
   DeckSummary,
   SiteIndex,
   WantedListSummary,
-} from '../site/data-types'
+} from '../list/site-data'
 import type { ListType } from '../list/list-type'
 import { VALID_CURRENCIES } from '../pricing/price-currency'
 import type { PriceCurrency } from '../pricing/price-currency'

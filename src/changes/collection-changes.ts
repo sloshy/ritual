@@ -1,5 +1,5 @@
-import type { ChangeInput, SetPrintingChange } from '../changes/change-event'
-import type { CollectionCardEntry } from '../site/data-types'
+import type { ChangeInput, SetPrintingChange } from './change-event'
+import type { CollectionCardEntry } from '../list/site-data'
 import { DEFAULT_SECTION } from '../list/deck'
 import { normalizedOverride } from '../card/card-labels'
 import { noteOrUndefined } from '../card/note-helpers'

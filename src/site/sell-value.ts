@@ -19,11 +19,11 @@ import {
 import type { BuylistQuote } from '../buylist'
 import { type Finish, displayFinish } from '../card/finish-condition'
 import type { ScryfallCard } from '../scryfall/types'
-import { isNonEnglishCard, quoteFor } from './buylist-quotes'
+import { isNonEnglishCard, quoteFor } from '../list-view/buylist-quotes'
 import { displayLanguage, type CardLanguage } from '../card/card-language'
-import type { CardData } from './card-sorting'
+import type { CardData } from '../list-view/card-sorting'
 import type { CardLabel } from '../card/card-labels'
-import { isPricelessCard } from './priceless'
+import { isPricelessCard } from '../list-view/priceless'
 import { t } from '../i18n/t'
 
 /**

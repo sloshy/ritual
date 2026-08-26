@@ -6,7 +6,7 @@ import {
   groupSelectionsBySource,
   type SelectedCard,
   type SelectionListId,
-} from '../../../src/site/useCardSelection'
+} from '../../../src/list-view/useCardSelection'
 import { makeScryfallCard } from '../../test-utils'
 
 const DECK: SelectionListId = { kind: 'deck', name: 'My Deck' }

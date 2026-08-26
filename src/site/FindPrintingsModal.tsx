@@ -14,11 +14,11 @@ import { useT } from '../ui/i18n'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { LIST_TYPE_DISPLAY } from '../list/list-type'
 import { CardItem } from './CardItem'
-import { cardPricelessReason } from './priceless'
-import { CARD_SIZE_WIDTHS } from './card-sorting'
-import { seedCards, seedPrintings, sessionCacheVersion } from './session-cache'
-import { TooltipOverlay } from './TooltipOverlay'
-import { useTooltip } from './useTooltip'
+import { cardPricelessReason } from '../list-view/priceless'
+import { CARD_SIZE_WIDTHS } from '../list-view/card-sorting'
+import { seedCards, seedPrintings, sessionCacheVersion } from '../list-view/session-cache'
+import { TooltipOverlay } from '../ui/TooltipOverlay'
+import { useTooltip } from '../ui/useTooltip'
 import { requestCardNav } from './card-nav'
 import {
   type FindPrintingsCopy,
@@ -28,7 +28,7 @@ import {
   countFindPrintingsCopies,
   findPrintingsRequest,
   setFindPrintingsAvailable,
-} from './find-printings'
+} from '../list-view/find-printings'
 import {
   type LoadedListDetail,
   type NamedListRef,
@@ -38,7 +38,7 @@ import {
   mergeCardMaps,
   mergePrintingMaps,
   mergeSymbolMaps,
-} from './combined-list'
+} from '../list-view/combined-list'
 
 /** How the found copies are displayed: card-art grid or compact text rows. */
 type FindPrintingsViewMode = 'binder' | 'list'

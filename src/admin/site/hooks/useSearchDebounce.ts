@@ -1,5 +1,5 @@
 import { fetchRitualConfig } from '../config-api'
-import { setSearchDebounceMs } from '../../../editor/search-debounce'
+import { setSearchDebounceMs } from '../../../config/search-debounce'
 
 /**
  * Sync the add-card search debounce with the configured `searchDebounceMs`.

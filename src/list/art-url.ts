@@ -1,4 +1,4 @@
-import type { CardArtRef } from '../list/card-art'
+import type { CardArtRef } from './card-art'
 
 /**
  * How a custom-art reference becomes a URL a page can point an `<img>` at.

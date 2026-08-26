@@ -7,7 +7,7 @@ import { scryfallCardLanguage, storedLanguage, type CardLanguage } from '../card
 /**
  * A sequential, one-at-a-time printing chooser shared by every flow that needs the
  * user to pin a name-only card to a specific printing: the bulk "Add to Trade"
- * ({@link import('./useSelectionTrade').addSelectionToTrade}) and moving a
+ * ({@link import('../site/useSelectionTrade').addSelectionToTrade}) and moving a
  * printing-less card into a printing-required list (a collection). The app renders
  * a single picker bound to {@link pendingPrintingPrompt}; callers await
  * {@link promptForPrinting}.

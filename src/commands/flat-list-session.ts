@@ -9,7 +9,7 @@ import {
   type ChangeEvent,
   type MoveToChange,
 } from '../changes/change-event'
-import type { CollectionCardEntry, WantedListCardEntry } from '../site/data-types'
+import type { CollectionCardEntry, WantedListCardEntry } from '../list/site-data'
 import { DEFAULT_SECTION } from '../list/deck'
 import type { ScryfallCard } from '../scryfall/types'
 import { parseTitleFromContent } from '../list/section-format'
@@ -23,9 +23,9 @@ import {
   repackSessionIds,
   type CardIdPool,
 } from '../card/card-id'
-import { applyChangeToCollection } from '../editor/collection-changes'
-import { applyChangeToWantedList } from '../editor/wanted-changes'
-import { collectionToMarkdown, wantedToMarkdown } from '../editor/list-export'
+import { applyChangeToCollection } from '../changes/collection-changes'
+import { applyChangeToWantedList } from '../changes/wanted-changes'
+import { collectionToMarkdown, wantedToMarkdown } from '../list/list-export'
 import { getCardPrintings } from '../scryfall'
 import {
   findCheapestPrinting,
@@ -49,7 +49,7 @@ import {
 } from './session-art'
 import type { CardSessionContext, SessionAddItem } from './card-session'
 import type { EditUndoEntry } from './edit-undo'
-import type { ApplyChange } from '../editor/apply-batch'
+import type { ApplyChange } from '../changes/apply-batch'
 
 /** The minimal entry shape the flat-list session machinery relies on. */
 export type FlatListEntry = { section: string; cardId?: number }

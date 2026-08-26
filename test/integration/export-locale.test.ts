@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { renderExport } from '../../src/export/output'
 import { EXPORT_PROPERTIES, type ExportProperty } from '../../src/export/render'
 import type { ExportEntry } from '../../src/export/entries'
-import { CSV_HEADER } from '../../src/editor/list-export'
+import { CSV_HEADER } from '../../src/list/list-export'
 import { buildCkCartCsv } from '../../src/buylist/cart-csv'
 import {
   formatPrice,

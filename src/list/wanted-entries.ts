@@ -1,8 +1,8 @@
 import type { Finish } from '../card/finish-condition'
 import { hasSpecificPrinting, type FinishedPrintingFields } from '../card/card-printing'
 import type { CardLanguage } from '../card/card-language'
-import type { WantedListCardEntry, WantedListEntryState } from '../site/data-types'
-import { DEFAULT_SECTION } from '../list/deck'
+import type { WantedListCardEntry, WantedListEntryState } from './site-data'
+import { DEFAULT_SECTION } from './deck'
 
 /** A wanted-list entry as parsed from disk (the shape the wanted load endpoint returns). */
 export type ParsedWantedEntry = {

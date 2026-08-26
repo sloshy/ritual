@@ -6,7 +6,7 @@
  * card's current language marked.
  */
 
-import { promptMoveTarget } from '../site/move-prompt'
+import { promptMoveTarget } from '../list-view/move-prompt'
 import { t } from '../i18n/t'
 import {
   CARD_LANGUAGES,

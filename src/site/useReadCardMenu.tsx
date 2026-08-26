@@ -1,8 +1,8 @@
 import type { JSX } from 'solid-js'
 import { createSignal, Show } from 'solid-js'
-import type { CardContextInfo } from './card-context'
+import type { CardContextInfo } from '../list-view/card-context'
 import { CardContextMenu } from '../editor/components/CardContextMenu'
-import { findPrintingsAvailable } from './find-printings'
+import { findPrintingsAvailable } from '../list-view/find-printings'
 
 /** A read-mode menu target: the card plus the ⋯ button's anchor rect. */
 export interface ReadCardMenuTarget extends CardContextInfo {

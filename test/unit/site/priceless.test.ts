@@ -6,7 +6,7 @@ import {
   isPricelessCard,
   pricelessMarkerKey,
   pricelessMarkerText,
-} from '../../../src/site/priceless'
+} from '../../../src/list-view/priceless'
 import { PRICELESS_REASONS } from '../../../src/card/card-labels'
 import { t } from '../../../src/i18n/t'
 

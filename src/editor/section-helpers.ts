@@ -1,4 +1,4 @@
-import type { CardContextInfo } from './context-menu'
+import type { CardContextInfo } from '../list-view/card-context'
 
 /**
  * Section helpers shared by the flat-list editors (collections and wanted lists), whose entries

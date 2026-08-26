@@ -64,7 +64,7 @@ import type {
   CollectionSummary,
   WantedListSummary,
   SiteIndex,
-} from '../site/data-types'
+} from '../list/site-data'
 import { fetchDeckFromUrl } from '../importers/url-dispatch'
 import { loadDeckSource, buildDeckArtifacts, type LoadedDeck } from '../site/details/deck'
 import { loadCollectionSource, buildCollectionArtifacts } from '../site/details/collection'

@@ -119,3 +119,13 @@ export function localizedCommandError<K extends MessageKey>(
   const params = paramsOf(args)
   return new CardCommandError(code, t(key, ...args), exitCode, undefined, { key, params })
 }
+
+/**
+ * Whether a caught error is a `fetch` cancelled through `AbortController.abort()`.
+ * Abort rejections are `DOMException`s, which extend `Error`, so one check
+ * covers every runtime. (`AbortSignal.timeout()` rejects with `TimeoutError`,
+ * which is deliberately not treated as a cancellation.)
+ */
+export function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}

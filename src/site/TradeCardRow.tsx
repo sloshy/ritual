@@ -1,13 +1,13 @@
 import type { Component } from 'solid-js'
 import { Show } from 'solid-js'
-import { isCardSideways, resolveCardImageSources } from './image-sources'
+import { isCardSideways, resolveCardImageSources } from '../card/image-sources'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { formatPrice } from '../pricing/price-currency'
-import type { TradeCardEntry } from './data-types'
+import type { TradeCardEntry } from '../list/site-data'
 import { languageBadge } from '../card/card-language'
 import { QuantityStepper } from '../ui/QuantityStepper'
 import { useT } from '../ui/i18n'
-import { cardPricelessMarkerText } from './priceless'
+import { cardPricelessMarkerText } from '../list-view/priceless'
 
 export interface TradeCardRowProps {
   card: TradeCardEntry

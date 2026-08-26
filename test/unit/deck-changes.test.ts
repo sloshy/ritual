@@ -15,10 +15,10 @@ import type {
   ChangeEvent,
   ChangeInput,
 } from '../../src/changes/change-event'
-import { applyChangeToDeck, findDeckAddMergeTargetId } from '../../src/editor/deck-changes'
+import { applyChangeToDeck, findDeckAddMergeTargetId } from '../../src/changes/deck-changes'
 import type { DeckData } from '../../src/list/deck'
 import { runMissMatrix, type MissMatrixCase } from '../test-utils'
-import type { MissReason } from '../../src/editor/apply-batch'
+import type { MissReason } from '../../src/changes/apply-batch'
 
 type MakeChangeOverrides = {
   action: ChangeAction

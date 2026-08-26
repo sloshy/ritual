@@ -9,7 +9,7 @@ import { cardKingdomPricesEnabled, getBannedPrintings } from '../../config/ritua
 import { extractChangelogCardNames, parseChangelog } from '../../changes/changelog-parser'
 import type { ScryfallCard } from '../../scryfall/types'
 import type { PriceCurrency } from '../../pricing/price-currency'
-import type { CardKingdomCards } from '../../site/data-types'
+import type { CardKingdomCards } from '../../list/site-data'
 import { indexPrintingCard } from '../../editor/card-data-utils'
 
 const ALL_CURRENCIES: PriceCurrency[] = ['usd', 'eur', 'tix']

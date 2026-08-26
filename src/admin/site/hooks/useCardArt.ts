@@ -1,7 +1,7 @@
 import { batch, createMemo, createSignal, type Accessor } from 'solid-js'
 import type { CardArtRecord, CardArtRef } from '../../../list/card-art'
 import { cardArtRefsFrom, type CardArtRefs } from '../../../editor/card-art-view'
-import type { CardContextInfo } from '../../../editor/context-menu'
+import type { CardContextInfo } from '../../../list-view/card-context'
 import {
   applyArtWrites,
   artAfterSave,

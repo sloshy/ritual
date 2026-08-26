@@ -1,14 +1,14 @@
 import { type Component, createSignal } from 'solid-js'
-import type { DeckDetail } from '../data-types'
+import type { DeckDetail } from '../../list/site-data'
 import type { PriceCurrency } from '../../pricing/price-currency'
 import type { DeckData } from '../../list/deck'
 import type { ListRef } from '../../changes/change-event'
-import type { NamedListRef } from '../combined-list'
+import type { NamedListRef } from '../../list-view/combined-list'
 import type { ListEditorConfig } from '../../editor/useEditor'
 import type { DeckCardDataActions } from '../../editor/useDeckCardData'
 import { collectDeckCardIds } from '../../card/card-id'
 import { useEditorDefaults } from '../../editor/useEditorDefaults'
-import { applyChangeToDeck } from '../../editor/deck-changes'
+import { applyChangeToDeck } from '../../changes/deck-changes'
 import {
   applyDeckChangePrinting,
   findDeckFinish,
@@ -17,7 +17,7 @@ import {
   deckCountsBySection,
   findDeckCardSection,
 } from '../../editor/deck-config'
-import { useDeckEditController, DeckEditorBody } from '../../editor/DeckEditController'
+import { useDeckEditController, DeckEditorBody } from './DeckEditController'
 import { deckToExportText } from '../../list/deck-text'
 import { DeckPage } from '../DeckPage'
 import { siteSearch } from './site-search'

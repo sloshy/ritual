@@ -14,10 +14,10 @@ import { getCardImageUrl } from '../../../card/card-image'
 import { languageBadge } from '../../../card/card-language'
 import { formatPrintingLabel } from '../../../card/printing-key'
 import { LIST_TYPE_DISPLAY } from '../../../list/list-type'
-import { finishChipName } from '../../../site/printing-display'
-import { printingPriceText } from '../../../site/printing-prices'
+import { finishChipName } from '../../../list-view/printing-display'
+import { printingPriceText } from '../../../list-view/printing-prices'
 import { useT } from '../../../ui/i18n'
-import type { NamedListRef } from '../../../site/combined-list'
+import type { NamedListRef } from '../../../list-view/combined-list'
 import { targetPinsPrinting, type SwapCandidate, type SwapTarget } from '../../swap-printings'
 
 /** Raises and clears the wizard's cursor-following card preview. */

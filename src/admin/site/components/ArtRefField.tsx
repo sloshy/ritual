@@ -1,7 +1,7 @@
 import { type Accessor, type Component, createMemo, createSignal, Show } from 'solid-js'
 import { useT } from '../../../ui/i18n'
 import { isCardArtRefError, parseCardArtRef, type CardArtRef } from '../../../list/card-art'
-import { cardArtDisplayUrl } from '../../../site/art-url'
+import { cardArtDisplayUrl } from '../../../list/art-url'
 import { useDebouncedInput, type DebouncedInput } from '../../../site/useDebouncedInput'
 
 /**

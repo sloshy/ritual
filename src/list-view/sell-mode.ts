@@ -1,6 +1,6 @@
 import { batch, createSignal, type Accessor } from 'solid-js'
 import { DEFAULT_BUYER, supportsCartCsv, type BuyerId } from '../buylist'
-import type { BakedBuylist } from './data-types'
+import type { BakedBuylist } from '../list/site-data'
 
 /**
  * Sell mode's on/off state and selected buyer, global like the selection store

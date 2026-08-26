@@ -7,7 +7,7 @@ import {
   countNarrowingFilters,
   createDefaultCardFilters,
 } from './card-filters'
-import { currencyEpoch } from './currency-epoch'
+import { currencyEpoch } from '../list-view/currency-epoch'
 
 export type CardFiltersControl = {
   /** Reactive filter values (SolidJS store proxy). */

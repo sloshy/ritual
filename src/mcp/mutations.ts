@@ -6,10 +6,10 @@ import {
   describeUnmatchedChanges,
   listUnmatchedChanges,
   type UnmatchedChange,
-} from '../editor/apply-batch'
-import { applyChangeToDeck } from '../editor/deck-changes'
-import { applyChangeToWantedList } from '../editor/wanted-changes'
-import { toWantedCardEntries } from '../editor/wanted-entries'
+} from '../changes/apply-batch'
+import { applyChangeToDeck } from '../changes/deck-changes'
+import { applyChangeToWantedList } from '../changes/wanted-changes'
+import { toWantedCardEntries } from '../list/wanted-entries'
 import { callApi } from './dispatch'
 import { apiErrorToMcp, isConflictError, type McpErrorDetail } from './errors'
 import type {

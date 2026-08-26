@@ -29,8 +29,8 @@ import {
   applyChangeToCollection,
   findCollectionPrintingError,
   toCollectionCardEntries,
-} from '../editor/collection-changes'
-import { collectionToMarkdown } from '../editor/list-export'
+} from '../changes/collection-changes'
+import { collectionToMarkdown } from './list-export'
 import { parseTitleFromContent } from './section-format'
 import { writeFileWithHash, hashPath } from '../changes/content-hash'
 import { appendChangelog } from '../changes/changelog-writer'
@@ -43,7 +43,7 @@ import {
   describeUnmatchedChanges,
   type UnmatchedChange,
   type UnmatchedTarget,
-} from '../editor/apply-batch'
+} from '../changes/apply-batch'
 
 /** The change kinds this module applies — moves belong to the move engine. */
 export type CardMutationChange = Exclude<ChangeEvent, MoveFromChange | MoveToChange>

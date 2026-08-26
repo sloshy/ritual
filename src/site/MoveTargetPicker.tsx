@@ -2,7 +2,7 @@ import type { Component } from 'solid-js'
 import { For } from 'solid-js'
 import { Modal } from '../ui/Modal'
 import { useT } from '../ui/i18n'
-import type { MoveTargetPrompt } from './move-prompt'
+import type { MoveTargetPrompt } from '../list-view/move-prompt'
 
 export interface MoveTargetPickerProps {
   prompt: MoveTargetPrompt
@@ -14,7 +14,7 @@ export interface MoveTargetPickerProps {
  * section of the current list) as buttons. Replaces the inline per-target menu
  * entries: the ⋯ context menu and the selection menus now show a single "Move to…"
  * item that opens this picker. Driven by the shared
- * {@link import('./move-prompt').pendingMovePrompt} singleton and rendered once at
+ * {@link import('../list-view/move-prompt').pendingMovePrompt} singleton and rendered once at
  * each app root (gated by a `<Show>`), so it is always open while mounted.
  */
 export const MoveTargetPicker: Component<MoveTargetPickerProps> = (props) => {

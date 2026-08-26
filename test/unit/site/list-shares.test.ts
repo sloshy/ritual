@@ -23,7 +23,7 @@ import {
   type CombinedListRef,
   type ListRefKey,
   type NamedListRef,
-} from '../../../src/site/combined-list'
+} from '../../../src/list-view/combined-list'
 import type { ScryfallCard } from '../../../src/scryfall/types'
 import { makeScryfallCard } from '../../test-utils'
 

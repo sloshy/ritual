@@ -1,7 +1,7 @@
 import { Show, type Accessor, type Component } from 'solid-js'
 import { useT } from '../../../ui/i18n'
-import { ListScopePicker } from '../../../site/ListScopePicker'
-import type { ListRefKey, NamedListRef } from '../../../site/combined-list'
+import { ListScopePicker } from '../../../list-view/ListScopePicker'
+import type { ListRefKey, NamedListRef } from '../../../list-view/combined-list'
 
 export type SourcesStepProps = {
   /** Every list that may be a source (the edited list already removed). */

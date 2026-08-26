@@ -8,9 +8,9 @@
 
 import { batch } from 'solid-js'
 import type { UseEditorResult } from './useEditor'
-import type { CollectionCardEntry } from '../site/data-types'
+import type { CollectionCardEntry } from '../list/site-data'
 import type { CardLabel } from '../card/card-labels'
-import { applyChangeToCollection } from './collection-changes'
+import { applyChangeToCollection } from '../changes/collection-changes'
 
 /** The card identity a label edit targets: the tile's name and every copy's id. */
 export type LabelTarget = { cardName: string; cardIds: number[] }

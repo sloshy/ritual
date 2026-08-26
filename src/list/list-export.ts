@@ -1,10 +1,9 @@
-import type { DeckData } from '../list/deck'
-import type { CollectionCardEntry, WantedListCardEntry } from '../site/data-types'
-import type { SelectedCard } from '../site/useCardSelection'
+import type { DeckData } from './deck'
+import type { CollectionCardEntry, WantedListCardEntry } from './site-data'
 import { normalizeCardLabels, type CardLabel } from '../card/card-labels'
-import { serializeListImageRef, type ListImageRef } from '../list/list-image'
-import type { FlatListFrontMatter } from '../list/flat-list-front-matter'
-import { serializeSectionedList } from '../list/section-format'
+import { serializeListImageRef, type ListImageRef } from './list-image'
+import type { FlatListFrontMatter } from './flat-list-front-matter'
+import { serializeSectionedList } from './section-format'
 import {
   aggregateQuantities,
   formatCollectionLine,
@@ -173,6 +172,17 @@ export function wantedToMarkdown(
   )
 }
 
+/** One CSV data row's cells, in {@link CSV_HEADER} order. */
+export type CsvRowFields = {
+  name: string
+  set: string
+  collectorNumber: string
+  finish: string
+  condition: string
+  language: CardLanguage | undefined
+  quantity: number
+}
+
 /**
  * Build one CSV data row in the canonical {@link CSV_HEADER} column order. Only the
  * name is quoted (the other columns are simple tokens); the set code is uppercased
@@ -180,32 +190,17 @@ export function wantedToMarkdown(
  * caller-specific normalisation (e.g. stripping a `nonfoil` finish); the Language
  * column carries the code and is blank for English, mirroring the markdown token.
  */
-function csvRow(
-  name: string,
-  set: string,
-  collectorNumber: string,
-  finish: string,
-  condition: string,
-  language: CardLanguage | undefined,
-  quantity: number,
-): string {
+export function csvRow(fields: CsvRowFields): string {
   return [
-    csvCell(name),
-    set.toUpperCase(),
-    collectorNumber,
-    finish,
-    condition,
-    storedLanguage(language) ?? '',
-    quantity,
+    csvCell(fields.name),
+    fields.set.toUpperCase(),
+    fields.collectorNumber,
+    fields.finish,
+    fields.condition,
+    storedLanguage(fields.language) ?? '',
+    fields.quantity,
   ].join(',')
 }
-
-const aggregateSelection = (cards: SelectedCard[]): Aggregated<SelectedCard>[] =>
-  aggregateQuantities(
-    cards,
-    (c) => variantKey(c.name, c.set, c.collectorNumber, c.finish, c.condition, c.language),
-    (c) => c.quantity,
-  )
 
 /** Collection entries are atomic (one copy each), so each contributes a quantity of 1. */
 const aggregateCollection = (entries: CollectionCardEntry[]): Aggregated<CollectionCardEntry>[] =>
@@ -216,55 +211,21 @@ const aggregateCollection = (entries: CollectionCardEntry[]): Aggregated<Collect
   )
 
 /**
- * Serialize selected cards to a plain-text list, one line per distinct printing:
- * `N {Name} ({SET}:{Collector Number})`. Matches the deck "Copy" text shape and
- * the canonical set-code uppercasing.
- */
-export function selectionToText(cards: SelectedCard[]): string {
-  return aggregateSelection(cards)
-    .map(
-      ({ entry, quantity }) =>
-        `${quantity} ${entry.name}${printingSuffix(entry.set, entry.collectorNumber)}`,
-    )
-    .join('\n')
-}
-
-/**
- * Serialize selected cards to CSV ({@link CSV_HEADER}). Mirrors {@link collectionToCsv}
- * so a "Copy as CSV" of a whole collection matches its CSV export, but works across
- * decks and wanted lists too.
- */
-export function selectionToCsv(cards: SelectedCard[]): string {
-  const rows = aggregateSelection(cards).map(({ entry, quantity }) =>
-    csvRow(
-      entry.name,
-      entry.set ?? '',
-      entry.collectorNumber ?? '',
-      entry.finish ?? '',
-      entry.condition ?? '',
-      entry.language,
-      quantity,
-    ),
-  )
-  return [CSV_HEADER, ...rows].join('\n')
-}
-
-/**
  * Serialize a collection to CSV ({@link CSV_HEADER}). Collection entries are atomic
  * (one copy each), so identical printings are grouped and counted into the Quantity
  * column.
  */
 export function collectionToCsv(entries: CollectionCardEntry[]): string {
   const rows = aggregateCollection(entries).map(({ entry, quantity }) =>
-    csvRow(
-      entry.name,
-      entry.set,
-      entry.collectorNumber,
-      entry.finish || '',
-      entry.condition || '',
-      entry.language,
+    csvRow({
+      name: entry.name,
+      set: entry.set,
+      collectorNumber: entry.collectorNumber,
+      finish: entry.finish || '',
+      condition: entry.condition || '',
+      language: entry.language,
       quantity,
-    ),
+    }),
   )
   return [CSV_HEADER, ...rows].join('\n')
 }
@@ -300,15 +261,15 @@ export function wantedToText(entries: WantedListCardEntry[]): string {
  */
 export function wantedToCsv(entries: WantedListCardEntry[]): string {
   const rows = entries.map((entry) =>
-    csvRow(
-      entry.name,
-      entry.set ?? '',
-      entry.collectorNumber ?? '',
-      entry.finish ?? '',
-      '',
-      entry.language,
-      1,
-    ),
+    csvRow({
+      name: entry.name,
+      set: entry.set ?? '',
+      collectorNumber: entry.collectorNumber ?? '',
+      finish: entry.finish ?? '',
+      condition: '',
+      language: entry.language,
+      quantity: 1,
+    }),
   )
   return [CSV_HEADER, ...rows].join('\n')
 }
@@ -321,15 +282,15 @@ export function wantedToCsv(entries: WantedListCardEntry[]): string {
 export function deckToCsv(deck: DeckData): string {
   const rows = deck.sections.flatMap((section) =>
     section.cards.map((card) =>
-      csvRow(
-        card.name,
-        card.set ?? '',
-        card.collectorNumber ?? '',
-        card.finish && card.finish !== 'nonfoil' ? card.finish : '',
-        card.condition ?? '',
-        card.language,
-        card.quantity,
-      ),
+      csvRow({
+        name: card.name,
+        set: card.set ?? '',
+        collectorNumber: card.collectorNumber ?? '',
+        finish: card.finish && card.finish !== 'nonfoil' ? card.finish : '',
+        condition: card.condition ?? '',
+        language: card.language,
+        quantity: card.quantity,
+      }),
     ),
   )
   return [CSV_HEADER, ...rows].join('\n')

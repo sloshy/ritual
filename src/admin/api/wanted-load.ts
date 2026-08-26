@@ -2,7 +2,7 @@ import { unreadableLines } from '../../list/markdown-fence'
 import { parseWantedListFile } from '../../commands/wanted-helpers'
 import { readListDescription } from '../../list/list-description'
 import { readListImage } from '../../list/list-image'
-import type { ParsedWantedEntry } from '../../editor/wanted-entries'
+import type { ParsedWantedEntry } from '../../list/wanted-entries'
 import { getWantedDir } from '../../config/ritual-config'
 import { handleFlatListLoad, type FlatListLoadConfig, type FlatListParseResult } from './list-load'
 

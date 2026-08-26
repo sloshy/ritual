@@ -16,7 +16,7 @@ import type { Finish, Condition } from '../../card/finish-condition'
 import type { CardLanguage } from '../../card/card-language'
 import type { CardPrintingsLookup } from '../../card/card-printing'
 import type { PrintingRef } from '../../card/printing-key'
-import type { NamedListRef } from '../../site/combined-list'
+import type { NamedListRef } from '../../list-view/combined-list'
 
 /** How the wizard chooses replacements: by hand per card, or by price. */
 export type SwapMode = 'manual' | 'most-expensive' | 'least-expensive'

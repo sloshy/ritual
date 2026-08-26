@@ -18,7 +18,7 @@ import type {
   WantedListDetail,
   WantedListEntryState,
   WantedListSummary,
-} from '../data-types'
+} from '../../list/site-data'
 import {
   bakeBuylistQuotes,
   cardIdsOf,

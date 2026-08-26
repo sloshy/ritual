@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { finishChipName, finishName, rarityName } from '../../../src/site/printing-display'
+import { finishChipName, finishName, rarityName } from '../../../src/list-view/printing-display'
 import { t } from '../../../src/i18n/t'
 import type { Finish } from '../../../src/card/finish-condition'
 

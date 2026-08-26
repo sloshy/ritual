@@ -1,6 +1,6 @@
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardPricesResponse } from '../api/card-prices'
-import { apiUrl } from './api-base'
+import { apiUrl } from '../list-view/api-base'
 
 /** Names per request; the server caps a batch at 500. */
 const PRICES_BATCH_SIZE = 400

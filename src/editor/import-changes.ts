@@ -1,6 +1,6 @@
 import type { ChangeAction, ChangeEvent } from '../changes/change-event'
 import type { MessageKey } from '../i18n/messages/en'
-import type { MissReason } from './apply-batch'
+import type { MissReason } from '../changes/apply-batch'
 
 /**
  * A change from an imported file that could not be applied to the current list:

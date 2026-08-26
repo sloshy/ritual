@@ -5,9 +5,9 @@ import type { Finish } from '../card/finish-condition'
 import type { CardLabel } from '../card/card-labels'
 import type { CardLanguage } from '../card/card-language'
 import { type PrintingTuple, isSamePrinting } from '../changes/change-event'
-import type { CardContextInfo } from './context-menu'
+import type { CardContextInfo } from '../list-view/card-context'
 import type { ChangePrintingContext } from './useEditor'
-import { applyChangeToDeck } from './deck-changes'
+import { applyChangeToDeck } from '../changes/deck-changes'
 
 /**
  * Deck-specific helpers wiring a deck into the shared {@link useEditor} engine.

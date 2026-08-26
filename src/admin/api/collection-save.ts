@@ -1,7 +1,7 @@
 import { getErrorMessage } from '../../util/errors'
-import type { CollectionCardEntry } from '../../site/data-types'
+import type { CollectionCardEntry } from '../../list/site-data'
 import type { ChangeEvent } from '../../changes/change-event'
-import { applyChangesCollectingMisses, describeUnmatchedChanges } from '../../editor/apply-batch'
+import { applyChangesCollectingMisses, describeUnmatchedChanges } from '../../changes/apply-batch'
 import { getCollectionsDir } from '../../config/ritual-config'
 import { assignEntryIds } from '../../card/card-id'
 import { parseCollectionFile } from '../../list/collection-file'
@@ -10,8 +10,8 @@ import {
   applyChangeToCollection,
   findCollectionPrintingError,
   toCollectionCardEntries,
-} from '../../editor/collection-changes'
-import { collectionToMarkdown } from '../../editor/list-export'
+} from '../../changes/collection-changes'
+import { collectionToMarkdown } from '../../list/list-export'
 import { parseTitleFromContent } from '../../list/section-format'
 import { changeCardNames, refuseUnknownCardNames } from './card-name-check'
 import { applyCrossListMoves } from './move-save'

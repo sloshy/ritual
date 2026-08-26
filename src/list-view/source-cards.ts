@@ -22,7 +22,7 @@
  */
 
 import type { PriceCurrency } from '../pricing/price-currency'
-import type { CardKingdomCards } from './data-types'
+import type { CardKingdomCards } from '../list/site-data'
 import { activeUsdSource } from './price-view'
 import type { ScryfallCard } from '../scryfall/types'
 

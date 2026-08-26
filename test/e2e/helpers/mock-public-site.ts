@@ -8,11 +8,11 @@ import type {
   SiteIndex,
   WantedListDetail,
   WantedListSummary,
-} from '../../../src/site/data-types'
+} from '../../../src/list/site-data'
 import type { Finish } from '../../../src/card/finish-condition'
 import type { ScryfallCard } from '../../../src/scryfall/types'
 import type { BuylistQuote } from '../../../src/buylist'
-import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/editor/search-debounce'
+import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/config/search-debounce'
 import { DEFAULT_LOCALE } from '../../../src/i18n/runtime'
 import { fulfillJson } from './fulfill'
 import {

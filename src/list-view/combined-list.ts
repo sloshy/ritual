@@ -9,14 +9,14 @@ import { hasSpecificPrinting, findPrinting } from '../card/card-printing'
 import { effectiveLabels } from '../card/card-labels'
 import { isPricelessCard, pricelessFacts } from './priceless'
 import { overlayCard } from './session-cache'
-import { resolveCardPreview } from './image-sources'
+import { resolveCardPreview } from '../card/image-sources'
 import { resolveWantedCardEntry } from './resolve-card'
 import { sourceCard, type SourceCardMaps } from './source-cards'
 import type { CardData } from './card-sorting'
 import type { SelectedCard } from './useCardSelection'
 import { fetchJson } from './useFetchJson'
 import { detailUrl, reportDataFetchError } from './api-base'
-import { isAbortError } from './utils'
+import { isAbortError } from '../util/errors'
 import type {
   BakedBuylist,
   DeckDetail,
@@ -24,7 +24,7 @@ import type {
   WantedListDetail,
   CollectionCardEntry,
   WantedListCardEntry,
-} from './data-types'
+} from '../list/site-data'
 import { lookupPrintingCard, printingKey } from '../card/printing-key'
 import { collectionTradeMaxQty, collectionTradeQtyMap } from './trade-qty'
 import { storedLanguage, type CardLanguage } from '../card/card-language'

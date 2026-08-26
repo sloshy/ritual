@@ -11,7 +11,7 @@ import {
   resetBuylistQuotes,
   setBuylistFetcher,
   setBuylistQuotesOnline,
-} from '../../../src/site/buylist-quotes'
+} from '../../../src/list-view/buylist-quotes'
 import {
   STUB_BUYLIST_FEED_CREATED_AT,
   makeBuylistQuote,

@@ -21,7 +21,7 @@ import {
   type ChangeBundleListRef,
   countLabel,
   parseChangeBundle,
-} from '../../editor/change-bundle'
+} from '../../changes/change-bundle'
 import { planImportBatches, type ImportBatch } from './import-batches'
 import {
   createRetargetState,
@@ -31,11 +31,11 @@ import {
   type RetargetState,
   retargetImportedChanges,
 } from '../../editor/import-changes'
-import { applyChangesCollectingMisses, type ApplyChange } from '../../editor/apply-batch'
-import { applyChangeToCollection, toCollectionCardEntries } from '../../editor/collection-changes'
-import { applyChangeToDeck, findDeckAddMergeTargetId } from '../../editor/deck-changes'
-import { applyChangeToWantedList } from '../../editor/wanted-changes'
-import { toWantedCardEntries } from '../../editor/wanted-entries'
+import { applyChangesCollectingMisses, type ApplyChange } from '../../changes/apply-batch'
+import { applyChangeToCollection, toCollectionCardEntries } from '../../changes/collection-changes'
+import { applyChangeToDeck, findDeckAddMergeTargetId } from '../../changes/deck-changes'
+import { applyChangeToWantedList } from '../../changes/wanted-changes'
+import { toWantedCardEntries } from '../../list/wanted-entries'
 import { buildSyntheticRequest } from '../../util/synthetic-request'
 import type { CollectionLoadResult, DeckLoadResult, WantedLoadResult } from './load-results'
 import type { ApiMessage } from './result'

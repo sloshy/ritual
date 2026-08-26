@@ -3,10 +3,10 @@ import {
   applyChangeToCollection,
   findCollectionPrintingError,
   toCollectionCardEntries,
-} from '../../src/editor/collection-changes'
-import type { CollectionCardEntry } from '../../src/site/data-types'
+} from '../../src/changes/collection-changes'
+import type { CollectionCardEntry } from '../../src/list/site-data'
 import { runMissMatrix, type MissMatrixCase } from '../test-utils'
-import type { MissReason } from '../../src/editor/apply-batch'
+import type { MissReason } from '../../src/changes/apply-batch'
 
 function makeEntry(overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry {
   return {

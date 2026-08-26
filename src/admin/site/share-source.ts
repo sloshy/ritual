@@ -4,7 +4,7 @@ import {
   type ListShareSource,
   type ShareEntryRef,
 } from '../../site/list-shares'
-import type { CombinedListRef } from '../../site/combined-list'
+import type { CombinedListRef } from '../../list-view/combined-list'
 import type { ListShareKeys } from '../../site/card-filters'
 import type { ApiErrorResponse } from '../api/save-helpers'
 import type {

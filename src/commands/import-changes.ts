@@ -12,7 +12,7 @@ import {
   moveFromEventOf,
   replacementAddEventOf,
   parseChangeBundle,
-} from '../editor/change-bundle'
+} from '../changes/change-bundle'
 import {
   type BundleImportResponse,
   type BundleImportResult,

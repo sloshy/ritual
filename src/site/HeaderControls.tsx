@@ -9,7 +9,7 @@
 
 import { type Component, Show, createEffect, createSignal, onCleanup } from 'solid-js'
 import { type PriceCurrency, isPriceCurrency } from '../pricing/price-currency'
-import { offeredCurrencies } from './price-view'
+import { offeredCurrencies } from '../list-view/price-view'
 import { useT } from '../ui/i18n'
 import { ThemePicker } from './ThemePicker'
 import { useTheme } from './useTheme'

@@ -1,5 +1,5 @@
 import { createSignal } from 'solid-js'
-import type { LoadedListDetail } from './combined-list'
+import type { LoadedListDetail } from '../list-view/combined-list'
 
 /**
  * The "View As List" hand-off from the Find page to the Search Results view.

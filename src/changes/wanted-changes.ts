@@ -1,11 +1,11 @@
-import type { ChangeInput } from '../changes/change-event'
-import type { WantedListCardEntry } from '../site/data-types'
+import type { ChangeInput } from './change-event'
+import type { WantedListCardEntry } from '../list/site-data'
 import { DEFAULT_SECTION } from '../list/deck'
 import { noteOrUndefined } from '../card/note-helpers'
 import { storedLanguage } from '../card/card-language'
 import { canSetFinish, finishMatchesPrinting } from '../card/card-printing'
 import { findTargetEntryIndex } from './entry-targeting.js'
-import { wantedState } from './wanted-entries'
+import { wantedState } from '../list/wanted-entries'
 import type { ApplyChangeOptions } from './apply-batch'
 
 type WantedListChangeInput = ChangeInput & {

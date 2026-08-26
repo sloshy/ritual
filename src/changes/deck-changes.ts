@@ -1,9 +1,9 @@
 import type { Card } from '../card/card'
 import type { DeckData } from '../list/deck'
-import type { ChangeInput, PrintingTuple, SetPrintingChange } from '../changes/change-event'
+import type { ChangeInput, PrintingTuple, SetPrintingChange } from './change-event'
 import type { CardLabel } from '../card/card-labels'
 import type { ApplyChangeOptions } from './apply-batch'
-import { isSamePrinting } from '../changes/change-event'
+import { isSamePrinting } from './change-event'
 import {
   COMMANDER_SECTION,
   findOrCreateSection,

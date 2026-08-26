@@ -5,7 +5,7 @@ import {
   sellModeActive,
   sellModeEngaging,
   setSellModeActive,
-} from '../../src/site/sell-mode'
+} from '../../src/list-view/sell-mode'
 
 /**
  * `engageSellMode` defers the flip until after a paint, so these tests drive its
