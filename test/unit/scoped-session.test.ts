@@ -8,12 +8,10 @@ import {
   type ScopedSession,
   type ScopedSessionState,
   type ListScope,
-} from '../../src/commands/scoped-session'
+} from '../../src/commands/session/scoped-session'
 import type { ListType } from '../../src/list/list-type'
 import {
   createCardSessionContext,
-  buildInitialSessionConfig,
-  saveCardSession,
   similarCopyInput,
   type CardChoiceInput,
   type CardChoiceIntent,
@@ -22,13 +20,14 @@ import {
   type EditableEntryItem,
   type SessionAddItem,
   type SessionChangeItem,
-  type SessionConfig,
-} from '../../src/commands/card-session'
+} from '../../src/commands/session/strategy'
+import { buildInitialSessionConfig, type SessionConfig } from '../../src/commands/session/config'
+import { saveCardSession } from '../../src/commands/session/loop'
 import {
   trackListCreation,
   type OpenList,
   type UnifiedListRef,
-} from '../../src/commands/edit-lists'
+} from '../../src/commands/session/edit-lists'
 import { createAddChange, type ChangeEvent } from '../../src/changes/change-event'
 import { stubTty } from '../test-utils'
 

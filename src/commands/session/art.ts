@@ -4,9 +4,12 @@ import {
   type CardArtReconcileInput,
   type CardArtReconcileResult,
   type CardArtRef,
-} from '../list/card-art'
-import { t } from '../i18n/t'
-import { reconcileListRefs } from '../list/list-refs'
+} from '../../list/card-art'
+import { t } from '../../i18n/t'
+import { reconcileListRefs } from '../../list/list-refs'
+
+/** What the Set Custom Art prompt resolved to: a reference, or `null` to clear. */
+export type CardArtEdit = { ref: CardArtRef | null }
 
 /**
  * A CLI edit session's pending custom-art bookkeeping.

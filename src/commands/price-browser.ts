@@ -42,9 +42,8 @@ import {
 import type { ListLocation } from '../list/resolve-list'
 import { comparePrintings } from '../scryfall'
 import { formatDuration } from '../util/duration'
-import { matchesAllTerms } from '../card/term-match'
 import type { ScryfallCard } from '../scryfall/types'
-import { ask, promptTextFilter } from '../cli/prompts'
+import { ask, promptTextFilter, suggestByTitleTerms } from '../cli/prompts'
 import { dateTimeFormat } from '../i18n/format'
 import { currentLocale } from '../i18n/runtime'
 
@@ -342,16 +341,6 @@ export function buildCardBrowserChoices(
   ]
 }
 
-/**
- * The autocomplete filter for browser menus: every space-separated term must
- * appear in the row (so typing a name, set code, or collector number narrows
- * the view). An empty input shows everything.
- */
-export function suggestBrowserChoices(input: string, choices: Choice[]): Choice[] {
-  if (!input) return choices
-  return choices.filter((choice) => matchesAllTerms(choice.title, input))
-}
-
 /** The card detail block shown when an entry is selected. */
 export function formatEntryDetailLines(entry: PricedEntry, currency: PriceCurrency): string[] {
   const printing =
@@ -449,8 +438,7 @@ async function promptMainSelection(report: PriceReport): Promise<PriceMainSelect
     message: t('cli.price.promptMainMenu'),
     choices: buildMainMenuChoices(report),
     limit: 14,
-    suggest: async (rawInput: string, choices: Choice[]) =>
-      suggestBrowserChoices(String(rawInput), choices),
+    suggest: suggestByTitleTerms,
   })
 }
 
@@ -563,8 +551,7 @@ async function runCardBrowser(
       message: t('cli.price.promptBrowser'),
       choices: buildCardBrowserChoices(visible, state, currency, options),
       limit: 15,
-      suggest: async (rawInput: string, choices: Choice[]) =>
-        suggestBrowserChoices(String(rawInput), choices),
+      suggest: suggestByTitleTerms,
     })
     if (!selection || selection.kind === 'back') return
     switch (selection.kind) {

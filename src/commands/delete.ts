@@ -1,6 +1,5 @@
 import { Command } from 'commander'
 import path from 'node:path'
-import prompts from 'prompts'
 import {
   deleteList,
   isListLifecycleError,
@@ -14,7 +13,7 @@ import { t } from '../i18n/t'
 import { addListTypeFlags, resolveListSelection, resolveListTypeFlag } from './card-target'
 import { cancelledError, runCommandAction, lifecycleErrorToCommandError } from '../cli/action'
 import { requireInteractive } from '../util/no-input'
-import type { PromptState } from '../cli/prompts'
+import { ask } from '../cli/prompts'
 import { addScriptingOptions } from '../cli/options'
 import {
   emitOutput,
@@ -125,15 +124,10 @@ export function deleteConfirmationText(
 
 /** Prompt for the typed confirmation, naming the exact string that will pass. */
 async function promptConfirmName(message: string): Promise<string> {
-  let exited = false
-  const resp = await prompts({
+  const value = await ask<string>({
     type: 'text',
-    name: 'value',
     message,
-    onState: (state: PromptState) => {
-      if (state.exited) exited = true
-    },
   })
-  if (exited || typeof resp.value !== 'string') throw cancelledError()
-  return resp.value
+  if (typeof value !== 'string') throw cancelledError()
+  return value
 }

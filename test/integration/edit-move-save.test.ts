@@ -9,9 +9,9 @@ import {
 } from '../../src/changes/change-event'
 import type { ListType } from '../../src/list/list-type'
 import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/list/card-art'
-import { openListSession, saveOpenList, type OpenList } from '../../src/commands/edit-lists'
-import { buildInitialSessionConfig } from '../../src/commands/card-session'
-import type { DeckSessionConfig } from '../../src/commands/deck-helpers'
+import { openListSession, saveOpenList, type OpenList } from '../../src/commands/session/edit-lists'
+import { buildInitialSessionConfig } from '../../src/commands/session/config'
+import type { SessionConfig } from '../../src/commands/session/config'
 import {
   bindWorkspace,
   writeCollectionFile,
@@ -34,10 +34,10 @@ let tmpDir: string
 
 // Fresh per test: sessions hold onto it and mutate it (filters, the cached
 // collector-mode pool), so sharing one would leak state between cases.
-let sessionConfig: DeckSessionConfig
+let sessionConfig: SessionConfig
 
 beforeEach(async () => {
-  sessionConfig = { ...buildInitialSessionConfig({}, undefined), targetSection: null }
+  sessionConfig = buildInitialSessionConfig({}, undefined)
   ws = await bindWorkspace({ config: false })
   tmpDir = ws.dir
   await writeCollectionFile(tmpDir, 'binder', {

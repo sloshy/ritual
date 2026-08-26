@@ -3,9 +3,9 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import prompts from 'prompts'
 import { loadCardArt, saveCardArt, type CardArtRef } from '../../src/list/card-art'
-import { buildInitialSessionConfig } from '../../src/commands/card-session'
-import type { DeckSessionConfig } from '../../src/commands/deck-helpers'
-import { openListSession, saveOpenList, type OpenList } from '../../src/commands/edit-lists'
+import { buildInitialSessionConfig } from '../../src/commands/session/config'
+import type { SessionConfig } from '../../src/commands/session/config'
+import { openListSession, saveOpenList, type OpenList } from '../../src/commands/session/edit-lists'
 import type { ListType } from '../../src/list/list-type'
 import { stubTty } from '../test-utils'
 import {
@@ -29,10 +29,10 @@ stubTty({ stdin: true })
 
 let ws: BoundWorkspace
 let tmpDir: string
-let sessionConfig: DeckSessionConfig
+let sessionConfig: SessionConfig
 
 beforeEach(async () => {
-  sessionConfig = { ...buildInitialSessionConfig({}, undefined), targetSection: null }
+  sessionConfig = buildInitialSessionConfig({}, undefined)
   ws = await bindWorkspace({ config: false })
   tmpDir = ws.dir
   await writeCollectionFile(tmpDir, 'binder', {

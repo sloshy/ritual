@@ -11,6 +11,8 @@ import {
   isAdditiveChange,
   isSamePrinting,
   mirrorMoveTo,
+  printingOptionsFrom,
+  resolvedPrintingOptionsFrom,
   CHANGE_ACTIONS,
 } from '../../src/changes/change-event'
 import { formatChange } from '../../src/changes/change-message'
@@ -160,6 +162,26 @@ describe('consolidateSetLanguage', () => {
     expect(result.cancelledChange).toBe(first)
     expect(result.addedChange).toBeNull()
     expect(result.changes).toHaveLength(0)
+  })
+})
+
+describe('printing projections', () => {
+  const bare = { set: 'lea', collectorNumber: '161', finish: 'nonfoil', cardId: 3 } as const
+
+  test('the plain projection keeps a bare language undefined', () => {
+    expect(printingOptionsFrom(bare).language).toBeUndefined()
+  })
+
+  test('the resolved projection reads a bare language as en and keeps the rest', () => {
+    expect(resolvedPrintingOptionsFrom(bare)).toStrictEqual({
+      set: 'lea',
+      collectorNumber: '161',
+      finish: 'nonfoil',
+      condition: undefined,
+      language: 'en',
+      cardId: 3,
+    })
+    expect(resolvedPrintingOptionsFrom({ ...bare, language: 'ja' }).language).toBe('ja')
   })
 })
 

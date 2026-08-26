@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import prompts, { type Choice } from 'prompts'
 import {
   ask,
+  askSequence,
   promptExitMenu,
   resolveImportPrintings,
   suggestByTitleTerms,
@@ -54,6 +55,76 @@ describe('ask', () => {
   test('returns undefined when the user cancels', async () => {
     prompts.inject([new Error('cancelled')])
     expect(await ask<string>({ type: 'text', message: 'Name?' })).toBeUndefined()
+  })
+})
+
+describe('askSequence', () => {
+  test('collects every answer under its question name', async () => {
+    prompts.inject(['mkm, sld', 'foil'])
+    const answers = await askSequence([
+      { type: 'text', name: 'sets', message: 'Sets?' },
+      {
+        type: 'select',
+        name: 'finish',
+        message: 'Finish?',
+        choices: [{ title: 'Foil', value: 'foil' }],
+      },
+    ])
+    expect(answers).toEqual({ sets: 'mkm, sld', finish: 'foil' })
+  })
+
+  test('stops at the first cancelled question and keeps the answers before it', async () => {
+    prompts.inject(['mkm', new Error('cancelled'), 'never asked'])
+    const answers = await askSequence([
+      { type: 'text', name: 'sets', message: 'Sets?' },
+      { type: 'text', name: 'finish', message: 'Finish?' },
+      { type: 'text', name: 'condition', message: 'Condition?' },
+    ])
+    expect(answers).toStrictEqual({ sets: 'mkm' })
+    // The third question was never opened: its injected answer is still queued.
+    expect(await ask<string>({ type: 'text', message: 'Next?' })).toBe('never asked')
+  })
+
+  test('a false confirm is an answer, not a cancellation', async () => {
+    prompts.inject([false, 'kept'])
+    const answers = await askSequence([
+      { type: 'confirm', name: 'foil', message: 'Foil?' },
+      { type: 'text', name: 'note', message: 'Note?' },
+    ])
+    expect(answers).toStrictEqual({ foil: false, note: 'kept' })
+  })
+
+  test("applies each question's format", async () => {
+    prompts.inject([' Mkm, sld ', 'ok'])
+    const answers = await askSequence([
+      {
+        type: 'text',
+        name: 'sets',
+        message: 'Sets?',
+        format: (value: string) => value.trim().toLowerCase().split(/,\s*/),
+      },
+      { type: 'text', name: 'note', message: 'Note?' },
+    ])
+    expect(answers).toEqual({ sets: ['mkm', 'sld'], note: 'ok' })
+  })
+
+  test('refuses the first question by its own subject under --no-input', async () => {
+    setNoInputOverride(true)
+    try {
+      // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's rejects matcher resolves at runtime but its type doesn't expose Promise.
+      await expect(
+        askSequence([
+          {
+            type: 'text',
+            name: 'sets',
+            message: 'Sets?',
+            subjectKey: 'cli.prompt.subject.setFilter',
+          },
+        ]),
+      ).rejects.toThrow('Input required: the session set filter (')
+    } finally {
+      setNoInputOverride(undefined)
+    }
   })
 })
 

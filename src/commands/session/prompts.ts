@@ -1,7 +1,8 @@
-import prompts, { type Choice } from 'prompts'
-import type { PromptState } from '../cli/prompts'
-import { getCardPrintings, isDigitalOnlySet } from '../scryfall'
-import type { ScryfallCard } from '../scryfall/types'
+import type { Choice } from 'prompts'
+import { ask } from '../../cli/prompts'
+import { t } from '../../i18n/t'
+import { getCardPrintings, isDigitalOnlySet } from '../../scryfall'
+import type { ScryfallCard } from '../../scryfall/types'
 import {
   type Finish,
   type Condition,
@@ -9,37 +10,29 @@ import {
   VALID_CONDITIONS,
   applyConditionUpdate,
   conditionLabel,
+  finishLabel,
   isFinish,
   isCondition,
-  printingFinishes,
-} from '../card/finish-condition'
-import type { MessageKey } from '../i18n/messages/en'
-import { t } from '../i18n/t'
-import type { ConditionUpdate } from '../changes/change-event'
-import {
-  dedupePrintingsByKey,
-  findPrinting,
-  hasSpecificPrinting,
-  printingLanguages,
-} from '../card/card-printing'
+} from '../../card/finish-condition'
+import type { ConditionUpdate } from '../../changes/change-event'
+import { dedupePrintingsByKey, printingLanguages } from '../../card/card-printing'
 import {
   CARD_LANGUAGES,
   displayLanguage,
   formatLanguageList,
   isCardLanguage,
   languageDisplayName,
-  storedLanguage,
   type CardLanguage,
-} from '../card/card-language'
+} from '../../card/card-language'
 import {
   cardLabelChoicesFor,
   cardLabelDefaultChoicesFor,
   formatCardLabels,
   type CardLabel,
   type CardLabelChoice,
-} from '../card/card-labels'
-import type { ListType } from '../list/list-type'
-import { resolvePrintingLanguage } from '../card/printing-language'
+} from '../../card/card-labels'
+import type { ListType } from '../../list/list-type'
+import { resolvePrintingLanguage } from '../../card/printing-language'
 import {
   formatFinishPriceCell,
   formatPriceColumn,
@@ -47,55 +40,64 @@ import {
   printingFinishColumns,
   type PriceColumnChoice,
   type PriceCurrency,
-} from '../pricing/price-currency'
-import { getCollectionsDir, getDefaultCurrency, getDefaultLanguage } from '../config/ritual-config'
-import { listFileName, unusableFileNameMessage } from '../list/list-file-name'
-import { ensureListFile } from './card-session'
-import { requireInteractive } from '../util/no-input'
-
-export { VALID_FINISHES, VALID_CONDITIONS, conditionLabel, isFinish, isCondition, printingFinishes }
-
-type FinishPromptResponse = { finish?: string }
-type ConditionPromptResponse = { condition?: string }
-// Loose string like the finish/condition responses: `prompts()` is untyped, so
-// the value is proven with `isCardLanguage` at the read, never asserted.
-type LanguagePromptResponse = { value?: string }
-/** The printing picker resolves to one of {@link printingChoices}' card values. */
-type PrintingPromptResponse = { printing?: ScryfallCard }
+} from '../../pricing/price-currency'
+import { getDefaultCurrency, getDefaultLanguage } from '../../config/ritual-config'
+import { requireInteractive, type PromptSubjectKey } from '../../util/no-input'
 
 /**
- * Ensure the collections directory and named collection file exist.
- * Creates the file with a markdown heading if new.
- * Returns the resolved file path.
+ * The prompts shared by every list type's card-entry session: the edit-mode
+ * action menu and note editor, and the printing / finish / condition / language
+ * / label pickers the add and edit flows drive.
  */
-export async function ensureCollectionFile(collectionName: string): Promise<string> {
-  const fileName = listFileName(collectionName)
-  if (fileName === null) {
-    throw new Error(unusableFileNameMessage(collectionName))
-  }
-  return ensureListFile(
-    getCollectionsDir(),
-    fileName,
-    `# ${collectionName}\n\n`,
-    t('cli.edit.listNoun', { type: 'collection' }),
-  )
-}
+
+/** The edit-mode prompts shared by every list type's card-entry session. */
+
+// ── Edit-mode action menu ───────────────────────────────────────────
+
+/** One option in an edit-mode per-entry action menu. */
+export type EditActionChoice = { title: string; value: string }
+
+const CANCEL_ACTION = '__CANCEL__'
 
 /**
- * A finish's display name. A key table rather than `capitalize(finish)`: the
- * slugs are file-format vocabulary that must never move, and capitalising one
- * leaves a translator with no string to translate at all (plan §7.3).
+ * Prompt for the edit action to run on the selected entry. Returns the chosen
+ * action value, or null when cancelled/escaped.
  */
-const FINISH_LABELS = {
-  nonfoil: 'cli.session.finishNonfoil',
-  foil: 'cli.session.finishFoil',
-  etched: 'cli.session.finishEtched',
-} as const satisfies Record<Finish, MessageKey>
-
-/** A finish's display name in the active UI locale. */
-export function finishLabel(finish: Finish): string {
-  return t(FINISH_LABELS[finish])
+export async function promptEditAction(
+  entryLabel: string,
+  actions: EditActionChoice[],
+): Promise<string | null> {
+  const action = await ask<string>({
+    type: 'select',
+    message: t('cli.session.promptEditEntry', { entry: entryLabel }),
+    subjectKey: 'cli.prompt.subject.editAction',
+    choices: [...actions, { title: `← ${t('cli.menu.cancel')}`, value: CANCEL_ACTION }],
+  })
+  if (!action || action === CANCEL_ACTION) return null
+  return action
 }
+
+/** A confirmed note edit: the new (trimmed) note and the value it replaces. */
+export type NoteEdit = { note: string; before: string }
+
+/**
+ * Prompt for an existing entry's note (empty input clears it). Returns null when
+ * the prompt is cancelled or the note is unchanged.
+ */
+export async function promptNoteEdit(currentNote: string | undefined): Promise<NoteEdit | null> {
+  const answer = await ask<string>({
+    type: 'text',
+    message: t('cli.session.promptNoteEdit'),
+    subjectKey: 'cli.prompt.subject.noteText',
+    initial: currentNote ?? '',
+  })
+  if (answer === undefined) return null
+  const note = answer.trim()
+  const before = currentNote ?? ''
+  return note === before ? null : { note, before }
+}
+
+// ── Printing, finish, condition, language and label pickers ─────────
 
 /** Minimal config used when filtering card printings by set. */
 export type PrintingFilterConfig = {
@@ -125,18 +127,6 @@ export type PrintingResolution =
   | { kind: 'picked'; printing: ScryfallCard; language?: CardLanguage }
   | { kind: 'cancelled' }
   | { kind: 'none' }
-
-/**
- * The language a freshly added entry records: the language the printing
- * resolution decided (the picker's availability confirm, or an explicit
- * `--language` flag folded in by the caller), else the configured
- * `defaultLanguage`. `en` collapses to undefined via {@link storedLanguage} —
- * the serializers omit the token for English, and a bare line always means
- * `en`. Adding never prompts for language.
- */
-export function resolveAddedLanguage(resolved: CardLanguage | undefined): CardLanguage | undefined {
-  return storedLanguage(resolved ?? getDefaultLanguage())
-}
 
 /**
  * Choices for the printing picker: each printing's identity plus its price in the
@@ -256,29 +246,8 @@ export function suggestPrintings(input: string, choices: readonly Choice[]): Cho
   return [...codeMatches, ...otherMatches]
 }
 
-/** An existing list entry, as far as resolving the printing it pins is concerned. */
-export type PinnedPrintingRef = {
-  name: string
-  set?: string
-  collectorNumber?: string
-}
-
-/**
- * The cached printing an entry pins, or undefined when the entry is name-only or
- * the printing isn't cached. Used to price the finish picker for an existing entry,
- * which carries a set/collector number rather than a resolved {@link ScryfallCard}.
- */
-export async function lookupPinnedPrinting(
-  entry: PinnedPrintingRef,
-): Promise<ScryfallCard | undefined> {
-  if (!hasSpecificPrinting(entry)) return undefined
-  return findPrinting(await getCardPrintings(entry.name), entry.set, entry.collectorNumber)
-}
-
 /** How the language-availability confirm resolved: take the printing, pick again, or abort. */
 type LanguageConfirmOutcome = 'confirm' | 'back' | 'cancelled'
-// Loose string like the finish/condition responses (see {@link LanguagePromptResponse}).
-type LanguageConfirmResponse = { choice?: string }
 
 /**
  * Confirm taking a printing that does not exist in the configured default
@@ -292,10 +261,9 @@ async function promptLanguageFallback(
   stamp: CardLanguage,
 ): Promise<LanguageConfirmOutcome> {
   const availableNames = formatLanguageList(available)
-  let isExited = false
-  const response = (await prompts({
+  // A loose string: the prompt is untyped, so the value is proven at the read.
+  const choice = await ask<string>({
     type: 'select',
-    name: 'choice',
     message: t('cli.printing.languageUnavailable', {
       printing: `${printing.set.toUpperCase()}:${printing.collector_number}`,
       language: languageDisplayName(defaultLanguage),
@@ -311,12 +279,10 @@ async function promptLanguageFallback(
       },
       { title: `← ${t('cli.printing.pickAnother')}`, value: 'back' },
     ],
-    onState: (state: PromptState) => {
-      if (state.exited) isExited = true
-    },
-  })) as LanguageConfirmResponse
-  if (isExited || (response.choice !== 'confirm' && response.choice !== 'back')) return 'cancelled'
-  return response.choice
+    subjectKey: 'cli.prompt.subject.languageFallback',
+  })
+  if (choice !== 'confirm' && choice !== 'back') return 'cancelled'
+  return choice
 }
 
 export async function resolveCardPrinting(
@@ -353,21 +319,18 @@ export async function resolveCardPrinting(
     if (distinct.length > 1) {
       const choices = printingChoices(printings)
 
-      let printingExited = false
-      const printingResponse = (await prompts({
+      // The picker resolves to one of {@link printingChoices}' card values.
+      const picked = await ask<ScryfallCard>({
         type: 'autocomplete',
-        name: 'printing',
         message: t('cli.printing.promptSelect'),
+        subjectKey: 'cli.prompt.subject.printing',
         choices,
         limit: 15,
         suggest: async (rawInput, choices) => suggestPrintings(String(rawInput), choices),
-        onState: (state: PromptState) => {
-          if (state.exited) printingExited = true
-        },
-      })) as PrintingPromptResponse
+      })
 
-      if (printingExited || !printingResponse.printing) return { kind: 'cancelled' }
-      selectedPrinting = printingResponse.printing
+      if (!picked) return { kind: 'cancelled' }
+      selectedPrinting = picked
     }
 
     // A printing the cache does not hold in the configured default language
@@ -416,11 +379,12 @@ export async function promptLanguageChoice(
 ): Promise<CardLanguage | null> {
   const resolved = displayLanguage(current)
   const currentIndex = Math.max(0, CARD_LANGUAGES.indexOf(resolved))
-  let isExited = false
-  const response = (await prompts({
+  // A loose string: the prompt is untyped, so the value is proven with
+  // `isCardLanguage` at the read, never asserted.
+  const value = await ask<string>({
     type: 'select',
-    name: 'value',
     message: t('cli.printing.promptLanguage'),
+    subjectKey: 'cli.prompt.subject.language',
     choices: CARD_LANGUAGES.map((code) => {
       const row = t('cli.printing.languageRow', { name: languageDisplayName(code), code })
       return {
@@ -429,15 +393,10 @@ export async function promptLanguageChoice(
       }
     }),
     initial: currentIndex,
-    onState: (state: PromptState) => {
-      if (state.exited) isExited = true
-    },
-  })) as LanguagePromptResponse
-  if (isExited || response.value === undefined || !isCardLanguage(response.value)) return null
-  return response.value
+  })
+  if (value === undefined || !isCardLanguage(value)) return null
+  return value
 }
-
-type LabelPromptResponse = { value?: string }
 
 /**
  * Pick a label state from `choices`, marking the current one and starting the
@@ -451,21 +410,21 @@ async function promptLabelChoiceFrom(
   choices: readonly CardLabelChoice[],
   current: readonly CardLabel[] | undefined,
   message: string,
+  subjectKey: PromptSubjectKey,
 ): Promise<CardLabel[] | null> {
   const currentKey = formatCardLabels(current ?? [])
   const currentIndex = choices.findIndex((choice) => formatCardLabels(choice.labels) === currentKey)
-  const response = (await prompts({
+  const key = await ask<string>({
     type: 'select',
-    name: 'value',
     message,
+    subjectKey,
     choices: choices.map((choice, i) => ({
       title:
         i === currentIndex ? t('cli.edit.current', { label: t(choice.label) }) : t(choice.label),
       value: formatCardLabels(choice.labels),
     })),
     initial: Math.max(0, currentIndex),
-  })) as LabelPromptResponse
-  const key = response.value
+  })
   if (key === undefined) return null
   const picked = choices.find((choice) => formatCardLabels(choice.labels) === key)
   return picked ? [...picked.labels] : null
@@ -479,7 +438,12 @@ export async function promptCardLabelChoice(
   type: ListType,
   current: readonly CardLabel[] | undefined,
 ): Promise<CardLabel[] | null> {
-  return promptLabelChoiceFrom(cardLabelChoicesFor(type), current, t('cli.labels.promptOverride'))
+  return promptLabelChoiceFrom(
+    cardLabelChoicesFor(type),
+    current,
+    t('cli.labels.promptOverride'),
+    'cli.prompt.subject.cardLabel',
+  )
 }
 
 /**
@@ -494,94 +458,8 @@ export async function promptDefaultLabelsChoice(
     cardLabelDefaultChoicesFor(type),
     current,
     t('cli.labels.promptDefault'),
+    'cli.prompt.subject.defaultLabels',
   )
-}
-
-/** A printing surfaced in a strict-pin error, as a `set`/`collectorNumber` pair. */
-export type AvailablePrinting = { set: string; collectorNumber: string }
-
-/**
- * Result of matching a strict `--set`/`--collector-number` printing pin against
- * a card's known printings. A failed match carries a user-facing message that
- * lists (up to {@link MAX_LISTED_PRINTINGS}) available printings, plus the same
- * list as structured data for machine output.
- */
-export type PrintingPinMatch =
-  | { ok: true; printing: ScryfallCard }
-  | { ok: false; message: string; available: AvailablePrinting[]; totalPrintings: number }
-
-const MAX_LISTED_PRINTINGS = 10
-
-/**
- * Match a strict printing pin. Unlike {@link resolveCardPrinting}'s soft set
- * filter (which falls back to all printings when nothing matches), a pin that
- * doesn't correspond to a real printing is an error. Set codes are compared
- * case-insensitively; collector numbers must match exactly.
- */
-export function matchPrintingPin(
-  cardName: string,
-  printings: ScryfallCard[],
-  set: string,
-  collectorNumber: string,
-): PrintingPinMatch {
-  const printing = findPrinting(printings, set, collectorNumber)
-  if (printing) return { ok: true, printing }
-
-  const available: AvailablePrinting[] = printings.slice(0, MAX_LISTED_PRINTINGS).map((p) => ({
-    set: p.set.toLowerCase(),
-    collectorNumber: p.collector_number,
-  }))
-  if (printings.length === 0) {
-    return {
-      ok: false,
-      message: t('cli.printing.noneCached', { name: cardName }),
-      available,
-      totalPrintings: 0,
-    }
-  }
-  const listed = available.map((p) => `${p.set.toUpperCase()}:${p.collectorNumber}`).join(', ')
-  const more =
-    printings.length > MAX_LISTED_PRINTINGS
-      ? t('cli.printing.andMore', { count: printings.length - MAX_LISTED_PRINTINGS })
-      : ''
-  return {
-    ok: false,
-    message: t('cli.printing.pinNotFound', {
-      printing: `${set.toUpperCase()}:${collectorNumber}`,
-      name: cardName,
-      listed,
-      more,
-    }),
-    available,
-    totalPrintings: printings.length,
-  }
-}
-
-/** Result of validating a requested finish against a resolved printing. */
-export type FinishPinMatch = { ok: true } | { ok: false; message: string; available: Finish[] }
-
-/**
- * Validate that `finish` is one the printing is offered in. A valid-but-
- * unavailable finish is an error listing the finishes that do exist, rather
- * than a silent fallback to a prompt.
- */
-export function matchFinishPin(
-  cardName: string,
-  printing: ScryfallCard,
-  finish: Finish,
-): FinishPinMatch {
-  const available = printingFinishes(printing)
-  if (available.includes(finish)) return { ok: true }
-  return {
-    ok: false,
-    message: t('cli.printing.finishUnavailable', {
-      printing: `${printing.set.toUpperCase()}:${printing.collector_number}`,
-      name: cardName,
-      finish,
-      available: available.join(', '),
-    }),
-    available,
-  }
 }
 
 type FinishAndConditionResult = {
@@ -603,13 +481,11 @@ export async function promptFinishAndCondition(
   } else if (availableFinishes.length > 1) {
     requireInteractive(`--finish <${availableFinishes.join('|')}>`)
     const choices = finishChoices(finishRows(availableFinishes), selectedPrinting)
-    const finishResponse = (await prompts({
+    const chosenFinish = await ask<string>({
       type: 'select',
-      name: 'finish',
       message: t('cli.printing.promptFinish'),
       choices,
-    })) as FinishPromptResponse
-    const chosenFinish = finishResponse.finish
+    })
     if (!chosenFinish || !isFinish(chosenFinish)) return null
     selectedFinish = chosenFinish
   } else {
@@ -625,25 +501,194 @@ export async function promptFinishAndCondition(
     // There is no non-interactive default: a run that cannot answer this must
     // say so, not exit 0 with the prompt unanswered and nothing written.
     requireInteractive(`--condition <${[...VALID_CONDITIONS, 'NONE'].join('|')}>`)
-    const conditionResponse = (await prompts({
+    const chosenCondition = await ask<string>({
       type: 'select',
-      name: 'condition',
       message: t('cli.printing.promptCondition'),
       choices: [
         { title: t('cli.session.conditionDontCare'), value: '' },
         ...VALID_CONDITIONS.map((c) => ({ title: conditionLabel(c), value: c })),
       ],
-    })) as ConditionPromptResponse
-    if (conditionResponse.condition === undefined) return null
+    })
+    if (chosenCondition === undefined) return null
     selectedCondition =
-      conditionResponse.condition === ''
+      chosenCondition === ''
         ? undefined
-        : isCondition(conditionResponse.condition)
-          ? conditionResponse.condition
+        : isCondition(chosenCondition)
+          ? chosenCondition
           : undefined
   }
 
   return { finish: selectedFinish, condition: selectedCondition }
 }
 
-export { formatCollectionLine } from '../card/card-line'
+// ── Wanted-list finish pickers ──────────────────────────────────────
+
+export type WantedFinishResult = Finish | 'nopreference' | 'cancelled'
+
+/**
+ * The wanted pickers' "any finish will do" sentinel. Exported so the add prompt
+ * here and the edit prompt in `wanted-strategy` name one value instead of two
+ * spellings the compiler can't reconcile.
+ */
+export const NO_PREFERENCE = '__NONE__'
+
+/** What a wanted finish picker's rows resolve to: a finish, or "no preference". */
+export type WantedFinishChoiceValue = Finish | typeof NO_PREFERENCE
+
+/**
+ * Prompt the user to select a finish for a wanted list entry.
+ * Returns:
+ *  - A specific `Finish` value if selected
+ *  - `'nopreference'` if the user chose "No preference"
+ *  - `'cancelled'` if the user cancelled
+ *
+ * If `defaultFinish` is provided and available on the card, it is used
+ * without prompting.
+ */
+export async function promptWantedFinish(
+  printing: ScryfallCard,
+  defaultFinish?: Finish,
+): Promise<WantedFinishResult> {
+  const availableFinishes = (printing.finishes ?? []).filter(isFinish)
+
+  if (defaultFinish && availableFinishes.includes(defaultFinish)) {
+    return defaultFinish
+  }
+
+  if (availableFinishes.length === 0) return 'nopreference'
+
+  if (availableFinishes.length === 1) {
+    const only = availableFinishes[0]
+    return only !== undefined ? only : 'nopreference'
+  }
+
+  requireInteractive(`--finish <${availableFinishes.join('|')}>`)
+
+  const answer = await askWantedFinish(
+    [
+      { label: t('cli.wanted.noPreferenceAny'), value: NO_PREFERENCE },
+      ...finishRows(availableFinishes),
+    ],
+    printing,
+    { message: t('cli.printing.promptFinish') },
+  )
+  return answer.kind === 'finish'
+    ? answer.finish
+    : answer.kind === 'none'
+      ? 'nopreference'
+      : 'cancelled'
+}
+
+/** What a wanted finish picker resolved to, before each caller's own return convention. */
+type WantedFinishAnswer =
+  | { kind: 'finish'; finish: Finish }
+  | { kind: 'none' }
+  | { kind: 'cancelled' }
+
+/** How a wanted finish picker asks: its message, and the edit picker's subject/cursor. */
+type WantedFinishAsk = { message: string; subjectKey?: PromptSubjectKey; initial?: number }
+
+/**
+ * The one wanted finish select behind {@link promptWantedFinish} (add) and
+ * {@link promptWantedFinishChoice} (edit): `rows` already carry the caller's
+ * "no preference" wording; the select is priced against `printing`.
+ */
+async function askWantedFinish(
+  rows: readonly FinishChoiceItem<WantedFinishChoiceValue>[],
+  printing: ScryfallCard | undefined,
+  how: WantedFinishAsk,
+): Promise<WantedFinishAnswer> {
+  const finish = await ask<string>({
+    type: 'select',
+    choices: finishChoices(rows, printing),
+    ...how,
+  })
+  if (finish === undefined) return { kind: 'cancelled' }
+  if (finish === NO_PREFERENCE) return { kind: 'none' }
+  return isFinish(finish) ? { kind: 'finish', finish } : { kind: 'cancelled' }
+}
+
+// ── Edit-mode field pickers ─────────────────────────────────────────
+
+/**
+ * Pick a finish for an existing entry, defaulting the cursor to the current one.
+ * `printing` prices the choices; it is undefined when the entry's pinned printing
+ * isn't in the card cache.
+ */
+export async function promptFinishChoice(
+  current: Finish,
+  printing: ScryfallCard | undefined,
+): Promise<Finish | null> {
+  const choices = finishChoices(finishRows(VALID_FINISHES, current), printing)
+  const value = await ask<string>({
+    type: 'select',
+    message: t('cli.printing.promptFinishShort'),
+    subjectKey: 'cli.prompt.subject.finish',
+    choices,
+    initial: Math.max(0, VALID_FINISHES.indexOf(current)),
+  })
+  return isFinish(value) ? value : null
+}
+
+/** Pick a condition for an existing entry, defaulting the cursor to the current one. */
+export async function promptConditionChoice(current: Condition): Promise<Condition | null> {
+  const value = await ask<string>({
+    type: 'select',
+    message: t('cli.printing.promptCondition'),
+    subjectKey: 'cli.prompt.subject.condition',
+    choices: VALID_CONDITIONS.map((c) => ({
+      title:
+        c === current ? t('cli.edit.current', { label: conditionLabel(c) }) : conditionLabel(c),
+      value: c,
+    })),
+    initial: Math.max(0, VALID_CONDITIONS.indexOf(current)),
+  })
+  return isCondition(value) ? value : null
+}
+
+/** Ask whether a wanted entry should be name-only or pinned to a specific printing. */
+export async function promptSpecificity(
+  cardName: string,
+): Promise<'name-only' | 'specific' | null> {
+  const specificity = await ask<'name-only' | 'specific'>({
+    type: 'select',
+    message: t('cli.wanted.promptSpecificity', { name: cardName }),
+    subjectKey: 'cli.prompt.subject.specificity',
+    choices: [
+      { title: t('cli.wanted.specificityNameOnly'), value: 'name-only' },
+      { title: t('cli.wanted.specificitySpecific'), value: 'specific' },
+    ],
+  })
+  return specificity ?? null
+}
+
+/**
+ * Pick a finish for an existing wanted entry, including "No preference" (which
+ * clears the finish back off the line). Returns undefined for no preference and
+ * null on cancel. `printing` prices the choices; it is undefined when the entry's
+ * pinned printing isn't in the card cache.
+ */
+export async function promptWantedFinishChoice(
+  current: Finish | undefined,
+  printing: ScryfallCard | undefined,
+): Promise<Finish | undefined | null> {
+  const answer = await askWantedFinish(
+    [
+      {
+        label:
+          current === undefined
+            ? t('cli.edit.current', { label: t('cli.wanted.noPreference') })
+            : t('cli.wanted.noPreferenceAny'),
+        value: NO_PREFERENCE,
+      },
+      ...finishRows(VALID_FINISHES, current),
+    ],
+    printing,
+    {
+      message: t('cli.printing.promptFinishShort'),
+      subjectKey: 'cli.prompt.subject.wantedFinish',
+      initial: current === undefined ? 0 : Math.max(0, VALID_FINISHES.indexOf(current) + 1),
+    },
+  )
+  return answer.kind === 'finish' ? answer.finish : answer.kind === 'none' ? undefined : null
+}

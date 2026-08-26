@@ -1,23 +1,21 @@
 import type { Choice } from 'prompts'
-import type { ChangeEvent } from '../changes/change-event'
-import { t } from '../i18n/t'
-import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from '../list/list-type'
+import type { ChangeEvent } from '../../changes/change-event'
+import { t } from '../../i18n/t'
+import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from '../../list/list-type'
 import {
   createCardSessionContext,
-  promptSessionConfigUpdate,
   type CardChoiceInput,
   type CardSessionContext,
   type CardSessionStrategy,
   type EditableEntryItem,
-  type MenuChoice,
-  type MenuSentinel,
   type SessionAddItem,
   type SessionChangeItem,
-  type SessionConfig,
-} from './card-session'
+} from './strategy'
+import { promptSessionConfigUpdate, type SessionConfig } from './config'
+import type { MenuChoice, MenuSentinel } from './menu'
 import { hasUnsavedChanges, newListTitle, type OpenList, type UnifiedListRef } from './edit-lists'
 import { listRefTitle } from './edit-move'
-import { ask, suggestByTitleTerms } from '../cli/prompts'
+import { ask, suggestByTitleTerms } from '../../cli/prompts'
 
 /**
  * The multi-list modes of the unified `edit` command: one card session spanning
@@ -148,6 +146,7 @@ async function promptAddTarget(
   return ask<AddTarget>({
     type: 'autocomplete',
     message: t('cli.edit.promptAddTarget'),
+    subjectKey: 'cli.prompt.subject.addTarget',
     choices: buildAddTargetChoices(lists, scope),
     limit: 12,
     suggest: suggestByTitleTerms,

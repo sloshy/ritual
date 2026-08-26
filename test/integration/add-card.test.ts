@@ -903,6 +903,35 @@ describe('add-card CLI (Integration)', () => {
       await removeWorkspace(empty)
     })
 
+    test('a name that folds onto an existing collection resolves to it, never a twin', async () => {
+      // The resolver folds names the same way `ritual new` does, so the
+      // auto-create path is never reached for a colliding name: the card lands
+      // in `Atraxa Binder.md` and no `atraxa binder.md` appears beside it.
+      await writeCollectionFile(dir, 'Atraxa Binder', { entries: [] })
+      const result = await runCli(
+        [
+          'add-card',
+          '--collection',
+          'atraxa binder',
+          'Sol',
+          'Ring',
+          '--exact',
+          '--set',
+          'lea',
+          '--collector-number',
+          '270',
+          '--condition',
+          'NONE',
+        ],
+        dir,
+      )
+      expect(result.exitCode).toBe(0)
+      const files = await fs.readdir(path.join(dir, 'collections'))
+      expect(files).not.toContain('atraxa binder.md')
+      const content = await fs.readFile(path.join(dir, 'collections', 'Atraxa Binder.md'), 'utf-8')
+      expect(content).toContain('- Sol Ring (LEA:270) &1')
+    })
+
     test('a missing deck is still an error in an empty workspace', async () => {
       const empty = await createWorkspace({ dirs: [] })
       await seedCardCache(empty, SEED_CARDS)

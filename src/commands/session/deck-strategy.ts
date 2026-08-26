@@ -1,30 +1,22 @@
-import prompts from 'prompts'
-import type { DeckData } from '../list/deck'
+import { ask } from '../../cli/prompts'
+import type { DeckData } from '../../list/deck'
+import { promptDefaultLabelsChoice, promptFinishAndCondition, resolveCardPrinting } from './prompts'
+import { resolveAddedLanguage } from '../../card/printing-pin'
+import { formatCardLabels, sameCardLabels } from '../../card/card-labels'
+import { languageToken, type CardLanguage } from '../../card/card-language'
+import type { SessionConfig } from './config'
+import { findCardById, findDeckCard, writeDeck } from '../../list/deck-io'
 import {
-  promptDefaultLabelsChoice,
-  promptFinishAndCondition,
-  resolveAddedLanguage,
-  resolveCardPrinting,
-} from './collection-helpers'
-import { formatCardLabels, sameCardLabels } from '../card/card-labels'
-import { languageToken, type CardLanguage } from '../card/card-language'
-import {
-  type DeckSessionConfig,
-  findCardById,
-  findDeckCard,
   promptDeckConfigUpdate,
   promptDeckFormat,
   promptSetTargetSection,
   resolveTargetSection,
   targetSectionDisplay,
-  writeDeck,
-} from './deck-helpers'
-import type { MessageKey } from '../i18n/messages/en'
+} from './deck-prompts'
 import type { MoveTargetsProvider } from './edit-move'
-import { DEFAULT_LOCALE } from '../i18n/runtime'
-import { t, tIn, type TranslateArgs } from '../i18n/t'
-import { getDeckFormatLabel, resolveDeckFormat, type DeckFormatKey } from '../list/deck-format'
-import type { DeckFrontMatter } from '../list/deck-file'
+import { t } from '../../i18n/t'
+import { getDeckFormatLabel, resolveDeckFormat, type DeckFormatKey } from '../../list/deck-format'
+import type { DeckFrontMatter } from '../../list/deck-file'
 import {
   applyDeckChange,
   discardDeckSessionAdd,
@@ -37,58 +29,34 @@ import {
   undoDeckEdit,
   type DeckSessionState,
 } from './deck-edit'
-import {
-  menuItem,
-  type CardSessionContext,
-  type CardSessionStrategy,
-  type MenuChoice,
-  type MenuSentinel,
-  type SessionAddItem,
-} from './card-session'
-import { normalizeBoard } from '../deck-sync/diff'
-import { assignMissingDeckCardIds, collectDeckCardIds } from '../card/card-id'
-import type { CardArtRef } from '../list/card-art'
+import { menuRow, type MenuChoice, type MenuSentinel } from './menu'
+import type { CardSessionContext, CardSessionStrategy, SessionAddItem } from './strategy'
+import { normalizeBoard } from '../../deck-sync/diff'
+import { assignMissingDeckCardIds, collectDeckCardIds } from '../../card/card-id'
+import type { CardArtRef } from '../../list/card-art'
 import {
   commitSessionArt,
   createSessionArtChanges,
   noteArtArrival,
   warnUnreconciledArt,
-} from './session-art'
+} from './art'
 import {
   createAddChange,
   createSetPrintingChange,
   type ChangeEvent,
   type PrintingTuple,
-} from '../changes/change-event'
-import { trackAdd, trackAnotherCopy, trackEdit } from '../changes/session-changelog'
-import { splitCommaTokens } from '../config/config-fields'
-import { formatSpecificPrintingPrice } from '../pricing/price-currency'
-import { getDefaultCurrency } from '../config/ritual-config'
-
-type TagsPromptResponse = { value?: string }
-
-/**
- * A session-menu row built from a catalog key, recording the key's English
- * rendering as a search alias in the same call so the typing a user has in
- * their fingers keeps selecting the row after the menu is translated. Mirrors
- * `menuRow` in `card-session.ts`, which does the same for the shared rows; the
- * icon stays out of the catalog because it is layout, not wording.
- */
-function menuRow<K extends MessageKey>(
-  icon: string,
-  value: MenuSentinel,
-  key: K,
-  ...args: TranslateArgs<K>
-): MenuChoice {
-  return menuItem(`${icon} ${t(key, ...args)}`, value, [tIn(DEFAULT_LOCALE, key, ...args)])
-}
+} from '../../changes/change-event'
+import { trackAdd, trackAnotherCopy, trackEdit } from '../../changes/session-changelog'
+import { splitCommaTokens } from '../../config/config-fields'
+import { formatSpecificPrintingPrice } from '../../pricing/price-currency'
+import { getDefaultCurrency } from '../../config/ritual-config'
 
 export type DeckStrategyArgs = {
   deckFile: string
   deckName: string
   initialDeck: DeckData
   frontMatter: DeckFrontMatter
-  sessionConfig: DeckSessionConfig
+  sessionConfig: SessionConfig
   excludeDigitalOnly: boolean
   /**
    * Start the session unsaved. Set for a deck that does not exist on disk yet,
@@ -165,14 +133,14 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
    * covers both.
    */
   const changeTags = async (): Promise<void> => {
-    const response = (await prompts({
+    const value = await ask<string>({
       type: 'text',
-      name: 'value',
       message: t('cli.deck.promptTags'),
+      subjectKey: 'cli.prompt.subject.deckTags',
       initial: (frontMatter.tags ?? []).join(', '),
-    })) as TagsPromptResponse
-    if (response.value === undefined) return
-    const tags = [...new Set(splitCommaTokens([response.value]))]
+    })
+    if (value === undefined) return
+    const tags = [...new Set(splitCommaTokens([value]))]
     const before = frontMatter.tags ?? []
     if (tags.length === before.length && tags.every((tag, i) => tag === before[i])) return
     if (tags.length === 0) delete frontMatter.tags

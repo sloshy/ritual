@@ -1,7 +1,7 @@
 /**
  * The collector search grammar: filtering printings by set code and collector
  * number. One grammar shared verbatim by the CLI's collector mode
- * (`src/commands/card-session.ts`) and the sites' printing pickers
+ * (`src/commands/session/menu.ts`) and the sites' printing pickers
  * (`CardSearchModal`, `TradePrintingPicker`), so `ds 12` means the same thing
  * everywhere a printing list can be narrowed.
  *

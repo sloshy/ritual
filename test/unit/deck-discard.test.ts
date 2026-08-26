@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { discardDeckCopy, type DeckDiscardState } from '../../src/commands/deck-helpers'
+import { discardDeckCopy, type DeckDiscardState } from '../../src/commands/session/deck-discard'
 import { createAddChange, type ChangeEvent } from '../../src/changes/change-event'
 import type { Card } from '../../src/card/card'
 import type { DeckData } from '../../src/list/deck'

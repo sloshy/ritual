@@ -305,6 +305,17 @@ export function printingOptionsFrom(entry: PrintingTupleWithId): CardPrintingOpt
   return { set, collectorNumber, finish, condition, language, cardId }
 }
 
+/**
+ * {@link printingOptionsFrom} with the language *resolved*: a bare line's
+ * absent language reads as `en` rather than staying undefined. This is the
+ * projection an edit's "before" tuple needs — on a set-printing event an absent
+ * language means "leave the token alone", which would let an undo keep a
+ * language the forward edit had changed.
+ */
+export function resolvedPrintingOptionsFrom(entry: PrintingTupleWithId): CardPrintingOptions {
+  return { ...printingOptionsFrom(entry), language: displayLanguage(entry.language) }
+}
+
 /** Create a unique ID for a change event */
 export function createChangeId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`

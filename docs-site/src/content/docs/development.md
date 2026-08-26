@@ -125,6 +125,7 @@ ritual-cli/
 ├── src/
 │   ├── cli/              # CLI framework: program, options, output, prompts
 │   ├── commands/         # CLI command implementations (registry.ts is the command table)
+│   │   └── session/      # Interactive card-session TUI: loop, menus, prompts, per-list strategies
 │   ├── card/             # Card-line grammar, printings, finishes, labels
 │   ├── list/             # Deck / collection / wanted list files and sidecars
 │   ├── changes/          # Change events and the .changes.md changelog

@@ -8,13 +8,13 @@ import {
   ART_IMAGE_EXTENSIONS,
   type CardArtRef,
   type CardArtRefError,
-} from '../list/card-art'
-import { getErrorMessage, hasErrorCode } from '../util/errors'
-import { compareData } from '../i18n/collate'
-import { t } from '../i18n/t'
-import { getArtDir } from '../config/ritual-config'
-import { ask, suggestByTitleTerms } from '../cli/prompts'
-import { currentSessionArt, noteArtSet, type SessionArtChanges } from './session-art'
+} from '../../list/card-art'
+import { getErrorMessage, hasErrorCode } from '../../util/errors'
+import { compareData } from '../../i18n/collate'
+import { t } from '../../i18n/t'
+import { getArtDir } from '../../config/ritual-config'
+import { ask, suggestByTitleTerms } from '../../cli/prompts'
+import { currentSessionArt, noteArtSet, type CardArtEdit, type SessionArtChanges } from './art'
 import type { EditUndoEntry } from './edit-undo'
 
 /**
@@ -23,7 +23,7 @@ import type { EditUndoEntry } from './edit-undo'
  * file, or clear the card's art.
  *
  * Like every other session edit the result is deferred — it is staged in the
- * session's art accumulator (`session-art.ts`) and written by the same save
+ * session's art accumulator (`art.ts`) and written by the same save
  * that writes the card lines, so exiting without saving leaves the sidecar
  * alone. The card *line* is untouched, which is why the operation records no
  * change event and no changelog entry: custom art is list metadata.
@@ -181,9 +181,6 @@ export async function browseArtFile(): Promise<string | null> {
     dir = choice.path
   }
 }
-
-/** What the Set Custom Art prompt resolved to: a reference, or `null` to clear. */
-export type CardArtEdit = { ref: CardArtRef | null }
 
 /** What the Set Custom Art menu's rows resolve to. */
 type ArtAction = 'url' | 'file' | 'clear' | 'cancel'

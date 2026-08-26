@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import prompts from 'prompts'
-import { createCollectionStrategy } from '../../src/commands/collection-strategy'
-import { newCollectionSession, type CollectionSession } from '../../src/commands/flat-list-session'
+import { createCollectionStrategy } from '../../src/commands/session/collection-strategy'
 import {
-  buildInitialSessionConfig,
-  type CardSessionContext,
-  type SessionConfig,
-} from '../../src/commands/card-session'
-import { currentSessionArt } from '../../src/commands/session-art'
+  newCollectionSession,
+  type CollectionSession,
+} from '../../src/commands/session/flat-list-session'
+import { buildInitialSessionConfig, type SessionConfig } from '../../src/commands/session/config'
+import type { CardSessionContext } from '../../src/commands/session/strategy'
+import { currentSessionArt } from '../../src/commands/session/art'
 import { scratchListPath, stubTty } from '../test-utils'
 import type { CardLanguage } from '../../src/card/card-language'
 

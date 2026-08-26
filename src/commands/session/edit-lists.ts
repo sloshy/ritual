@@ -1,44 +1,45 @@
+import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import type { DeckFormatKey } from '../list/deck-format'
-import type { MessageKey } from '../i18n/messages/en'
-import { t } from '../i18n/t'
-import type { ListType } from '../list/list-type'
-import { dirForType, normalizeListName } from '../list/resolve-list'
-import type { DeckData } from '../list/deck'
+import type { DeckFormatKey } from '../../list/deck-format'
+import type { MessageKey } from '../../i18n/messages/en'
+import { t } from '../../i18n/t'
+import type { ListType } from '../../list/list-type'
+import { isListMarkdownFile } from '../../list/list-file-name'
+import { dirForType, normalizeListName } from '../../list/resolve-list'
+import type { DeckData } from '../../list/deck'
 import {
   createCardSessionContext,
-  listMarkdownNames,
-  resetCardSessionTracking,
-  saveCardSession,
   type CardSessionContext,
   type CardSessionStrategy,
   type SessionChangeItem,
-} from './card-session'
+} from './strategy'
+import { resetCardSessionTracking, saveCardSession } from './loop'
 import {
   mirrorMoveTo,
   sameListRef,
   type ListRef,
   type MoveFromChange,
-} from '../changes/change-event'
+} from '../../changes/change-event'
 import {
   prepareOutgoingMoves,
   type OutgoingMoveBatch,
   type PreparedOutgoingMoves,
-} from '../admin/api/move-save'
-import { getErrorMessage } from '../util/errors'
-import { createCardArtCache } from '../list/card-art'
+} from '../../admin/api/move-save'
+import { getErrorMessage } from '../../util/errors'
+import { createCardArtCache } from '../../list/card-art'
 import type { MoveTargetsProvider } from './edit-move'
 import { createCollectionStrategy } from './collection-strategy'
 import { createDeckStrategy } from './deck-strategy'
-import { listExistingDecks, loadDeck, type DeckSessionConfig } from './deck-helpers'
-import { newDeckFrontMatter } from '../list/deck-file'
+import { listExistingDecks, loadDeck } from '../../list/deck-io'
+import type { SessionConfig } from './config'
+import { newDeckFrontMatter } from '../../list/deck-file'
 import {
   loadCollectionSession,
   loadWantedSession,
   newCollectionSession,
   newWantedSession,
 } from './flat-list-session'
-import { warnUnreconciledArt } from './session-art'
+import { warnUnreconciledArt } from './art'
 import { createWantedStrategy } from './wanted-strategy'
 
 /**
@@ -104,6 +105,13 @@ export function newListTitle(type: ListType): string {
   return `➕ ${t(NEW_LIST_TITLES[type])}`
 }
 
+/** List the `.md` files in a flat-list directory (excluding change files), as bare names. */
+async function listMarkdownNames(dir: string): Promise<string[]> {
+  await fs.mkdir(dir, { recursive: true })
+  const files = await fs.readdir(dir)
+  return files.filter(isListMarkdownFile).map((f) => f.replace('.md', ''))
+}
+
 /** Enumerate every list on disk for the selection menu (decks by display name). */
 export async function collectListRefs(): Promise<UnifiedListRef[]> {
   const decks = await listExistingDecks()
@@ -131,7 +139,7 @@ export async function collectListRefs(): Promise<UnifiedListRef[]> {
 /** Load a list into a fresh session and build its type-specific strategy. */
 export async function openListSession(
   ref: UnifiedListRef,
-  sessionConfig: DeckSessionConfig,
+  sessionConfig: SessionConfig,
   excludeDigitalOnly: boolean,
   moveTargets?: MoveTargetsProvider,
 ): Promise<OpenList> {
@@ -252,7 +260,7 @@ export function trackListCreation(
 export function newListSession(
   ref: UnifiedListRef,
   format: DeckFormatKey | null,
-  sessionConfig: DeckSessionConfig,
+  sessionConfig: SessionConfig,
   excludeDigitalOnly: boolean,
   onDiscard: () => void,
   moveTargets?: MoveTargetsProvider,
@@ -267,7 +275,7 @@ export function newListSession(
 function newListStrategy(
   ref: UnifiedListRef,
   format: DeckFormatKey | null,
-  sessionConfig: DeckSessionConfig,
+  sessionConfig: SessionConfig,
   excludeDigitalOnly: boolean,
   moveTargets?: MoveTargetsProvider,
 ): CardSessionStrategy {

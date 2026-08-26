@@ -1,26 +1,35 @@
-import prompts from 'prompts'
+import { ask } from '../../cli/prompts'
 import {
+  consolidateSetLanguage,
   consolidateSetNote,
   createAddChange,
   createMoveFromChange,
   createRemoveChange,
+  createSetLanguageChange,
   createSetNoteChange,
   printingOptionsFrom,
+  resolvedPrintingOptionsFrom,
   type ChangeEvent,
   type ConsolidateResult,
   type PrintingTuple,
-} from '../changes/change-event'
-import type { Condition, Finish } from '../card/finish-condition'
-import type { CardLabel } from '../card/card-labels'
-import { displayLanguage, type CardLanguage } from '../card/card-language'
-import { allocateId, claimId, releaseId } from '../card/card-id'
-import { t } from '../i18n/t'
+} from '../../changes/change-event'
+import type { Condition, Finish } from '../../card/finish-condition'
+import type { CardLabel } from '../../card/card-labels'
+import { displayLanguage, type CardLanguage } from '../../card/card-language'
+import { allocateId, claimId, releaseId } from '../../card/card-id'
+import { t } from '../../i18n/t'
 import {
+  promptLanguageChoice,
   promptNoteEdit,
-  type CardSessionContext,
-  type EditableEntryItem,
-  type SessionChangeItem,
-} from './card-session'
+  type EditActionChoice,
+  type PrintingFilterConfig,
+} from './prompts'
+import type {
+  CardSessionContext,
+  CardSessionStrategy,
+  EditableEntryItem,
+  SessionChangeItem,
+} from './strategy'
 import {
   changelogDelta,
   foldOutCardChanges,
@@ -30,22 +39,27 @@ import {
   targetedUndoBlocker,
 } from './edit-undo'
 import {
+  addAnotherFlatListCopy,
   applyFlatListChange,
   discardFlatListAdd,
   listFlatListSessionAdds,
-  type FlatListEntry,
+  persistFlatListSession,
+  receiveFlatListMove,
+  resetFlatListSessionTracking,
   type FlatListStrategyContext,
 } from './flat-list-session'
+import type { FlatListEntry } from '../../list/flat-list-read'
 import {
   listRefTitle,
   moveFromOptionsFor,
   resolveMoveDestination,
   type MoveDeps,
   type MoveDestination,
+  type MoveTargetsProvider,
 } from './edit-move'
-import { noteArtLineRemoved, noteArtLineRestored, noteArtSet } from './session-art'
+import { noteArtLineRemoved, noteArtLineRestored, noteArtSet } from './art'
 import { editCardArt } from './edit-art'
-import { hasSpecificPrinting } from '../card/card-printing'
+import { hasSpecificPrinting } from '../../card/card-printing'
 
 /**
  * Edit-mode operations shared by the collection and wanted sessions: targeting
@@ -78,13 +92,8 @@ export type EditableFlatListEntry = FlatListEntry & {
  * would let an undo keep a language the forward edit had changed.
  */
 export function entryPrinting(entry: EditableFlatListEntry): PrintingTuple {
-  return {
-    set: entry.set,
-    collectorNumber: entry.collectorNumber,
-    finish: entry.finish,
-    condition: entry.condition,
-    language: displayLanguage(entry.language),
-  }
+  const { cardId: _cardId, ...printing } = resolvedPrintingOptionsFrom(entry)
+  return printing
 }
 
 /** The list's current entries rendered for the edit-mode picker. */
@@ -225,8 +234,6 @@ export async function editFlatListArt<E extends EditableFlatListEntry>(
   })
 }
 
-type ConfirmPromptResponse = { confirm?: boolean }
-
 /** Confirmation gate in front of {@link performFlatListRemoval}. */
 export async function removeFlatListEntry<E extends EditableFlatListEntry>(
   list: FlatListStrategyContext<E>,
@@ -234,13 +241,13 @@ export async function removeFlatListEntry<E extends EditableFlatListEntry>(
   entry: E,
   cardId: number,
 ): Promise<void> {
-  const confirmResponse = (await prompts({
+  const confirmed = await ask<boolean>({
     type: 'confirm',
-    name: 'confirm',
     message: t('cli.edit.confirmRemove', { line: list.renderEntry(entry) }),
+    subjectKey: 'cli.prompt.subject.removeConfirm',
     initial: false,
-  })) as ConfirmPromptResponse
-  if (!confirmResponse.confirm) return
+  })
+  if (!confirmed) return
   performFlatListRemoval(list, ctx, entry, cardId)
 }
 
@@ -498,4 +505,155 @@ export function discardFlatListSessionChange<E extends EditableFlatListEntry>(
     return
   }
   undoFlatListEditAt(list, ctx, index - addCount)
+}
+
+/** Re-render an entry after an edit (apply replaces entry objects). */
+export function logFlatListUpdated<E extends EditableFlatListEntry>(
+  list: FlatListStrategyContext<E>,
+  cardId: number,
+  fallbackName: string,
+): void {
+  const updated = findFlatListEntry(list, cardId)
+  console.log(
+    t('cli.edit.changedLine', { line: updated ? list.renderEntry(updated) : fallbackName }),
+  )
+}
+
+/** The strategy members the collection and wanted strategies delegate here unchanged. */
+export type FlatListDelegates = Pick<
+  CardSessionStrategy,
+  | 'applyChange'
+  | 'receiveMove'
+  | 'persist'
+  | 'hasUnsavedChanges'
+  | 'sessionSaved'
+  | 'noteAdded'
+  | 'addAnotherCopy'
+  | 'listSessionAdds'
+  | 'discardSessionAdd'
+  | 'listSessionChanges'
+  | 'discardSessionChange'
+  | 'listEntries'
+  | 'lastEditUndoLabel'
+  | 'undoLastEdit'
+>
+
+/**
+ * The strategy members that are pure delegation to the shared flat-list
+ * session and edit engines, spread into each flat-list strategy literal.
+ */
+export function flatListDelegates<E extends EditableFlatListEntry>(
+  list: FlatListStrategyContext<E>,
+): FlatListDelegates {
+  const { session, state } = list
+  return {
+    applyChange: (change: ChangeEvent) => applyFlatListChange(session, change),
+    receiveMove: (change, art) => receiveFlatListMove(session, change, art),
+    persist: () => persistFlatListSession(session),
+    hasUnsavedChanges: () => session.dirty,
+    sessionSaved: () => resetFlatListSessionTracking(list),
+    noteAdded: (note: string): void => {
+      if (state.snapshot) state.snapshot.note = note
+    },
+    addAnotherCopy: (ctx: CardSessionContext) => addAnotherFlatListCopy(list, ctx),
+    listSessionAdds: () => listFlatListSessionAdds(list),
+    discardSessionAdd: async (ctx: CardSessionContext, index: number) =>
+      discardFlatListAdd(list, ctx, index),
+    listSessionChanges: () => listFlatListSessionChanges(list),
+    discardSessionChange: async (ctx: CardSessionContext, index: number) =>
+      discardFlatListSessionChange(list, ctx, index),
+    listEntries: () => listFlatListEntries(list),
+    lastEditUndoLabel: () => lastFlatListEditLabel(list),
+    undoLastEdit: async (ctx: CardSessionContext) => undoFlatListEdit(list, ctx),
+  }
+}
+
+/** What the shared edit actions need from the strategy that owns the list. */
+export type FlatListEditEnv = {
+  sessionConfig: PrintingFilterConfig
+  excludeDigitalOnly: boolean
+  moveTargets?: MoveTargetsProvider
+}
+
+/**
+ * The edit-action menu rows every flat list offers, in menu order — the rows
+ * whose values {@link editSharedFlatListAction} handles. `afterLanguage` slots a
+ * strategy's own rows between the language and art rows (the collection's label
+ * row lives there). The double-space icon on Remove is deliberate: that emoji
+ * carries a variation selector and renders narrower, so the extra space keeps
+ * the labels aligned.
+ */
+export function sharedFlatListEditActions(
+  env: Pick<FlatListEditEnv, 'moveTargets'>,
+  afterLanguage: EditActionChoice[] = [],
+): EditActionChoice[] {
+  return [
+    { title: `🌐 ${t('cli.editAction.changeLanguage')}`, value: 'language' },
+    ...afterLanguage,
+    { title: `🎨 ${t('cli.editAction.setArt')}`, value: 'art' },
+    ...(env.moveTargets
+      ? [{ title: `📤 ${t('cli.editAction.moveToList')}`, value: 'move-list' }]
+      : []),
+    { title: `📝 ${t('cli.editAction.editNote')}`, value: 'note' },
+    { title: `🗑️  ${t('cli.editAction.remove')}`, value: 'remove' },
+  ]
+}
+
+/**
+ * Run one of the edit actions whose flow is identical for collection and
+ * wanted entries (language, custom art, move to another list, note, remove).
+ * Returns false when `action` is not one of them, so the strategy's own
+ * branches (printing/finish/condition/label) run first and hand the rest here.
+ */
+export async function editSharedFlatListAction<E extends EditableFlatListEntry>(
+  action: string,
+  list: FlatListStrategyContext<E>,
+  ctx: CardSessionContext,
+  entry: E,
+  cardId: number,
+  env: FlatListEditEnv,
+): Promise<boolean> {
+  if (action === 'language') {
+    const language = await promptLanguageChoice(entry.language)
+    if (language === null || language === displayLanguage(entry.language)) return true
+    applyFlatListFieldEdit(list, ctx, entry, cardId, {
+      label: t('cli.editLabel.language', { name: entry.name }),
+      change: createSetLanguageChange(entry.name, { language, cardId }),
+      inverse: createSetLanguageChange(entry.name, {
+        language: displayLanguage(entry.language),
+        cardId,
+      }),
+      consolidate: (changes, original) =>
+        consolidateSetLanguage(changes, entry.name, language, original.language, cardId),
+    })
+    logFlatListUpdated(list, cardId, entry.name)
+    return true
+  }
+
+  if (action === 'art') {
+    await editFlatListArt(list, entry, cardId)
+    return true
+  }
+
+  if (action === 'move-list' && env.moveTargets) {
+    await moveFlatListEntry(list, ctx, entry, cardId, {
+      targets: env.moveTargets,
+      selfFile: list.session.filePath,
+      sessionConfig: env.sessionConfig,
+      excludeDigitalOnly: env.excludeDigitalOnly,
+    })
+    return true
+  }
+
+  if (action === 'note') {
+    await editFlatListNote(list, ctx, entry, cardId)
+    return true
+  }
+
+  if (action === 'remove') {
+    await removeFlatListEntry(list, ctx, entry, cardId)
+    return true
+  }
+
+  return false
 }

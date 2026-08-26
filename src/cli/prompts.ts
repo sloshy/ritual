@@ -161,6 +161,32 @@ export async function ask<T>(question: AskQuestion): Promise<T | undefined> {
 /** The injectable shape of {@link ask}, for flows that are tested without a TTY. */
 export type AskPrompt = typeof ask
 
+/** One question of an {@link askSequence}: an {@link AskQuestion} plus the answer's key. */
+export type AskSequenceQuestion<K extends string = string> = AskQuestion & { name: K }
+
+/** The answers an {@link askSequence} collected, keyed by question name. */
+export type AskAnswers = Record<string, unknown>
+
+/**
+ * Ask several questions in order, the way `prompts([...])` does: each answer
+ * lands under its question's `name`, and cancelling one question (Esc /
+ * Ctrl-C) ends the sequence, keeping the answers given before it — a wizard
+ * that is escaped on its second question still applies its first. Every
+ * question goes through {@link ask}, so `--no-input` refuses the first one by
+ * its own subject.
+ */
+export async function askSequence<T extends AskAnswers>(
+  questions: readonly AskSequenceQuestion<Extract<keyof T, string>>[],
+): Promise<Partial<T>> {
+  const answers: Partial<T> = {}
+  for (const { name, ...question } of questions) {
+    const answer = await ask<T[Extract<keyof T, string>]>(question)
+    if (answer === undefined) break
+    answers[name] = answer
+  }
+  return answers
+}
+
 /**
  * Read the password from stdin, draining it fully and stripping exactly one
  * trailing newline (`\r?\n`). Deliberately NOT `readLinesFromStdin` from

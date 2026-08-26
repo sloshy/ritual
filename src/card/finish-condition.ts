@@ -142,3 +142,19 @@ export function displayFinish(
 export function finishRequiresPrinting(finish: Finish): boolean {
   return finish !== 'nonfoil'
 }
+
+/**
+ * A finish's display name. A key table rather than `capitalize(finish)`: the
+ * slugs are file-format vocabulary that must never move, and capitalising one
+ * leaves a translator with no string to translate at all (plan §7.3).
+ */
+const FINISH_LABELS = {
+  nonfoil: 'cli.session.finishNonfoil',
+  foil: 'cli.session.finishFoil',
+  etched: 'cli.session.finishEtched',
+} as const satisfies Record<Finish, MessageKey>
+
+/** A finish's display name in the active UI locale. */
+export function finishLabel(finish: Finish): string {
+  return t(FINISH_LABELS[finish])
+}

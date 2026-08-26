@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import prompts from 'prompts'
-import { createWantedStrategy } from '../../src/commands/wanted-strategy'
-import { newWantedSession, type WantedSession } from '../../src/commands/flat-list-session'
-import { buildInitialSessionConfig, type CardSessionContext } from '../../src/commands/card-session'
-import type { WantedListSessionConfig } from '../../src/commands/wanted-helpers'
+import { createWantedStrategy } from '../../src/commands/session/wanted-strategy'
+import { newWantedSession, type WantedSession } from '../../src/commands/session/flat-list-session'
+import { buildInitialSessionConfig } from '../../src/commands/session/config'
+import type { CardSessionContext } from '../../src/commands/session/strategy'
+import type { SessionConfig } from '../../src/commands/session/config'
 import type { CardLanguage } from '../../src/card/card-language'
 import { scratchListPath, stubTty } from '../test-utils'
 
@@ -11,7 +12,7 @@ import { scratchListPath, stubTty } from '../test-utils'
 // terminal; these tests answer them with prompts.inject instead.
 stubTty({ stdin: true })
 
-function makeSessionConfig(): WantedListSessionConfig {
+function makeSessionConfig(): SessionConfig {
   return buildInitialSessionConfig({}, undefined)
 }
 

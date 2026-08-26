@@ -123,6 +123,8 @@ describe('i18n persistence fence', () => {
       'src/card/card-id.ts',
       'src/card/printing-key.ts',
       'src/list/list-file-name.ts',
+      'src/list/flat-list-read.ts',
+      'src/importers/text-file.ts',
     ]
     expect(await scan(/from\s+['"][^'"]*\bi18n\b/, { files: lineFenced })).toEqual([])
   })

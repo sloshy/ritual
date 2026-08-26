@@ -8,37 +8,32 @@ import {
   type AddRemoveOptions,
   type ChangeEvent,
   type MoveToChange,
-} from '../changes/change-event'
-import type { CollectionCardEntry, WantedListCardEntry } from '../list/site-data'
-import { DEFAULT_SECTION } from '../list/deck'
-import type { ScryfallCard } from '../scryfall/types'
-import { parseTitleFromContent } from '../list/section-format'
-import { unreadableLines } from '../list/markdown-fence'
-import { writeFileWithHash } from '../changes/content-hash'
+} from '../../changes/change-event'
+import type { CollectionCardEntry, WantedListCardEntry } from '../../list/site-data'
+import { DEFAULT_SECTION } from '../../list/deck'
+import type { ScryfallCard } from '../../scryfall/types'
+import { writeFileWithHash } from '../../changes/content-hash'
 import {
   allocateId,
-  collectExistingIds,
   createIdPool,
   releaseId,
   repackSessionIds,
   type CardIdPool,
-} from '../card/card-id'
-import { applyChangeToCollection } from '../changes/collection-changes'
-import { applyChangeToWantedList } from '../changes/wanted-changes'
-import { collectionToMarkdown, wantedToMarkdown } from '../list/list-export'
-import { getCardPrintings } from '../scryfall'
+} from '../../card/card-id'
+import { applyChangeToCollection } from '../../changes/collection-changes'
+import { applyChangeToWantedList } from '../../changes/wanted-changes'
+import { collectionToMarkdown, wantedToMarkdown } from '../../list/list-export'
+import { getCardPrintings } from '../../scryfall'
 import {
   findCheapestPrinting,
   formatCheapestPrintingDisplay,
   formatSpecificPrintingPrice,
-} from '../pricing/price-currency'
-import { getDefaultCurrency } from '../config/ritual-config'
-import { t } from '../i18n/t'
-import { trackAdd, trackAnotherCopy, trackEdit } from '../changes/session-changelog'
-import { parseCollectionFile, type CollectionEntry } from '../list/collection-file'
-import { parseWantedListFile, type WantedListEntry } from '../list/wanted-file'
-import type { FlatListFrontMatter } from '../list/flat-list-front-matter'
-import type { CardArtRef } from '../list/card-art'
+} from '../../pricing/price-currency'
+import { getDefaultCurrency } from '../../config/ritual-config'
+import { t } from '../../i18n/t'
+import { trackAdd, trackAnotherCopy, trackEdit } from '../../changes/session-changelog'
+import type { FlatListFrontMatter } from '../../list/flat-list-front-matter'
+import type { CardArtRef } from '../../list/card-art'
 import {
   commitSessionArt,
   createSessionArtChanges,
@@ -46,13 +41,12 @@ import {
   noteArtRepack,
   warnUnreconciledArt,
   type SessionArtChanges,
-} from './session-art'
-import type { CardSessionContext, SessionAddItem } from './card-session'
+} from './art'
+import type { CardSessionContext, SessionAddItem } from './strategy'
 import type { EditUndoEntry } from './edit-undo'
-import type { ApplyChange } from '../changes/apply-batch'
-
-/** The minimal entry shape the flat-list session machinery relies on. */
-export type FlatListEntry = { section: string; cardId?: number }
+import type { ApplyChange } from '../../changes/apply-batch'
+import type { FlatListEntry } from '../../list/flat-list-read'
+import { readCollectionFile, readWantedFile } from '../../list/flat-list-read'
 
 /**
  * In-memory session model for the flat list types (collections and wanted
@@ -95,15 +89,6 @@ type FlatListSerialize<E> = (
 export type CollectionSession = FlatListSession<CollectionCardEntry>
 export type WantedSession = FlatListSession<WantedListCardEntry>
 
-/** Assign pool-allocated IDs to any entries that lack one (persisted on the first save). */
-function assignMissingIds<E extends FlatListEntry>(entries: E[]): CardIdPool {
-  const pool = createIdPool(collectExistingIds(entries))
-  for (const entry of entries) {
-    if (entry.cardId === undefined) entry.cardId = allocateId(pool)
-  }
-  return pool
-}
-
 /**
  * An empty session for a flat list that does not exist on disk yet. It starts
  * dirty, so the list's creation is itself a pending change: saving the session
@@ -135,120 +120,6 @@ function newFlatListSession<E extends FlatListEntry>(
     apply,
     serialize,
   }
-}
-
-/**
- * Map parsed collection entries to the editor entry shape the serializers work
- * with, defaulting the fields the file format leaves implicit (finish, condition)
- * and fields the CLI doesn't price (price, fileOrder).
- */
-function collectionEntriesFromParse(entries: CollectionEntry[]): CollectionCardEntry[] {
-  return entries.map((e, i) => ({
-    name: e.name,
-    set: e.set,
-    collectorNumber: e.collectorNumber,
-    finish: e.finish ?? 'nonfoil',
-    condition: e.condition ?? 'NM',
-    // The written token only — never resolved to `en`, so a re-serialize
-    // round-trips bare lines as bare lines.
-    language: e.language,
-    labels: e.labels,
-    price: 0,
-    fileOrder: i,
-    section: e.section,
-    note: e.note,
-    cardId: e.cardId,
-  }))
-}
-
-/** Map parsed wanted-list entries to the editor entry shape, deriving each entry's state. */
-function wantedEntriesFromParse(entries: WantedListEntry[]): WantedListCardEntry[] {
-  return entries.map((e, i) => ({
-    name: e.name,
-    set: e.set,
-    collectorNumber: e.collectorNumber,
-    finish: e.finish,
-    language: e.language,
-    price: 0,
-    fileOrder: i,
-    section: e.section,
-    note: e.note,
-    state: !e.set || !e.collectorNumber ? 'name-only' : e.finish ? 'fully-specified' : 'printing',
-    cardId: e.cardId,
-  }))
-}
-
-/**
- * A flat-list file read from disk: its raw content, its title (the `# Title` H1,
- * falling back to the file's basename), its entries in the editor entry shape
- * with missing IDs assigned, and the parser's skipped-line warnings.
- */
-export type ParsedFlatListFile<E extends FlatListEntry> = {
-  content: string
-  title: string
-  entries: E[]
-  sectionOrder: string[]
-  /** The file's front-matter block, carried so every re-serialize preserves it. */
-  frontMatter?: FlatListFrontMatter
-  warnings: string[]
-  /**
-   * Non-blocking notices about lines that parsed but almost certainly do not say
-   * what the author meant — today, a card name that starts with a quantity.
-   * Kept apart from `warnings` because a re-serialize preserves these lines
-   * verbatim, so they must not gate the whole-file rewrite the way unreadable
-   * lines do.
-   */
-  advisories: string[]
-  pool: CardIdPool
-}
-
-/** What a flat-list parser produces, structurally common to collections and wanted lists. */
-type FlatListParse<Raw> = {
-  entries: Raw[]
-  sectionOrder: string[]
-  frontMatter?: FlatListFrontMatter
-  warnings: string[]
-  fencedLines: number
-  advisories: string[]
-}
-
-/**
- * The shared read→parse→map→assign-IDs→title prelude behind every consumer of a
- * collection or wanted-list file (the edit sessions here, the `cleanup` command),
- * so the two can never disagree about how a file's entries and title are derived.
- */
-async function readFlatListFile<Raw, E extends FlatListEntry>(
-  filePath: string,
-  parse: (content: string) => FlatListParse<Raw>,
-  entriesFromParse: (entries: Raw[]) => E[],
-): Promise<ParsedFlatListFile<E>> {
-  const content = await fs.readFile(filePath, 'utf-8')
-  const parsed = parse(content)
-  const entries = entriesFromParse(parsed.entries)
-  return {
-    content,
-    title: parseTitleFromContent(content) ?? path.basename(filePath, '.md'),
-    entries,
-    sectionOrder: parsed.sectionOrder,
-    frontMatter: parsed.frontMatter,
-    // Fenced code blocks join the parse warnings here: every consumer of this
-    // read re-serializes the whole file, which would delete the block.
-    warnings: unreadableLines(parsed),
-    advisories: parsed.advisories,
-    pool: assignMissingIds(entries),
-  }
-}
-
-/** Read and parse a collection file into editor-shaped entries. */
-export function readCollectionFile(
-  filePath: string,
-): Promise<ParsedFlatListFile<CollectionCardEntry>> {
-  return readFlatListFile(filePath, parseCollectionFile, collectionEntriesFromParse)
-}
-
-/** Read and parse a wanted-list file into editor-shaped entries. */
-export function readWantedFile(filePath: string): Promise<ParsedFlatListFile<WantedListCardEntry>> {
-  return readFlatListFile(filePath, parseWantedListFile, wantedEntriesFromParse)
 }
 
 /** Load a collection file into a session model, surfacing any parse warnings. */

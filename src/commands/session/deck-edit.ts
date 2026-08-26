@@ -1,7 +1,6 @@
-import prompts from 'prompts'
-import type { PromptState } from '../cli/prompts'
-import type { Card } from '../card/card'
-import type { DeckData } from '../list/deck'
+import { ask } from '../../cli/prompts'
+import type { Card } from '../../card/card'
+import type { DeckData } from '../../list/deck'
 import {
   consolidateSetLabel,
   consolidateSetLanguage,
@@ -17,10 +16,11 @@ import {
   createSetPrintingChange,
   createSetSectionChange,
   formatPrintingAnnotation,
+  resolvedPrintingOptionsFrom,
   type ChangeEvent,
   type ConsolidateResult,
   type PrintingTuple,
-} from '../changes/change-event'
+} from '../../changes/change-event'
 import {
   listRefTitle,
   moveFromOptionsFor,
@@ -28,49 +28,44 @@ import {
   type MoveDeps,
   type MoveDestination,
 } from './edit-move'
-import { sameCardLabels, type CardLabel } from '../card/card-labels'
+import { sameCardLabels, type CardLabel } from '../../card/card-labels'
 import {
   noteArtLineRemoved,
   noteArtLineRestored,
   noteArtRepack,
   noteArtSet,
   type SessionArtChanges,
-} from './session-art'
+} from './art'
 import { editCardArt } from './edit-art'
-import { displayLanguage, type CardLanguage } from '../card/card-language'
-import { t } from '../i18n/t'
+import { displayLanguage, type CardLanguage } from '../../card/card-language'
+import { t } from '../../i18n/t'
 import {
   allocateId,
   assignMissingDeckCardIds,
   collectDeckCardIds,
   createIdPool,
-} from '../card/card-id'
-import { applyChangeToDeck } from '../changes/deck-changes'
-import { normalizeBoard } from '../deck-sync/diff'
-import {
-  deckSectionNames,
-  discardDeckCopy,
-  findCardById,
-  promptNewSectionName,
-  renderDeckCopyRecord,
-  type DeckCopyRecord,
-} from './deck-helpers'
+} from '../../card/card-id'
+import { applyChangeToDeck } from '../../changes/deck-changes'
+import { normalizeBoard } from '../../deck-sync/diff'
+import { findCardById } from '../../list/deck-io'
+import { discardDeckCopy, renderDeckCopyRecord, type DeckCopyRecord } from './deck-discard'
+import { promptMoveSection } from './deck-prompts'
 import {
   promptEditAction,
   promptNoteEdit,
-  type CardSessionContext,
-  type EditableEntryItem,
-  type SessionAddItem,
-  type SessionChangeItem,
-} from './card-session'
-import {
   promptCardLabelChoice,
   promptFinishAndCondition,
   promptLanguageChoice,
   resolveCardPrinting,
   type FinishConditionConfig,
   type PrintingFilterConfig,
-} from './collection-helpers'
+} from './prompts'
+import type {
+  CardSessionContext,
+  EditableEntryItem,
+  SessionAddItem,
+  SessionChangeItem,
+} from './strategy'
 import {
   changelogDelta,
   foldOutCardChanges,
@@ -80,7 +75,7 @@ import {
   targetedUndoBlocker,
   type EditUndoEntry,
 } from './edit-undo'
-import { hasSpecificPrinting } from '../card/card-printing'
+import { hasSpecificPrinting } from '../../card/card-printing'
 
 /**
  * Edit-mode operations for the deck session: changing a line's printing,
@@ -148,13 +143,8 @@ export function applyDeckChange(state: DeckSessionState, change: ChangeEvent): v
  * restore the card's language — absent would mean "leave the token alone".
  */
 function cardPrinting(card: Card): PrintingTuple {
-  return {
-    set: card.set,
-    collectorNumber: card.collectorNumber,
-    finish: card.finish,
-    condition: card.condition,
-    language: displayLanguage(card.language),
-  }
+  const { cardId: _cardId, ...printing } = resolvedPrintingOptionsFrom(card)
+  return printing
 }
 
 /** Render a deck line for the edit-mode picker, e.g. `2 Sol Ring (C19:221) [foil] — Main &5`. */
@@ -295,34 +285,6 @@ function logUpdatedLine(state: DeckSessionState, cardId: number, fallbackName: s
       line: located ? renderDeckCardLine(located.card, located.section.name) : fallbackName,
     }),
   )
-}
-
-type ConfirmPromptResponse = { confirm?: boolean }
-type SectionPromptResponse = { section?: string }
-
-const NEW_SECTION = '__NEW__'
-
-/** Pick the section to move a card to (existing sections or a new one). */
-async function promptMoveSection(deck: DeckData, current: string): Promise<string | null> {
-  let isExited = false
-  const response = (await prompts({
-    type: 'select',
-    name: 'section',
-    message: t('cli.deck.promptMoveSection'),
-    choices: [
-      ...deckSectionNames(deck).map((n) => ({
-        title: n === current ? t('cli.edit.current', { label: n }) : n,
-        value: n,
-      })),
-      { title: `+ ${t('cli.deck.newSection')}`, value: NEW_SECTION },
-    ],
-    onState: (promptState: PromptState) => {
-      if (promptState.exited) isExited = true
-    },
-  })) as SectionPromptResponse
-  if (isExited || response.section === undefined) return null
-  if (response.section !== NEW_SECTION) return response.section
-  return promptNewSectionName()
 }
 
 /** The per-card prompt context the deck edit flow needs from the session. */
@@ -703,15 +665,15 @@ async function removeDeckLine(
 ): Promise<void> {
   const located = findCardById(state.deck, cardId)
   if (!located) return
-  const confirmResponse = (await prompts({
+  const confirmed = await ask<boolean>({
     type: 'confirm',
-    name: 'confirm',
     message: t('cli.edit.confirmRemove', {
       line: renderDeckCardLine(located.card, located.section.name),
     }),
+    subjectKey: 'cli.prompt.subject.removeConfirm',
     initial: false,
-  })) as ConfirmPromptResponse
-  if (!confirmResponse.confirm) return
+  })
+  if (!confirmed) return
   performDeckLineRemoval(state, ctx, cardId)
 }
 

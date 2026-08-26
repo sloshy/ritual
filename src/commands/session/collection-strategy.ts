@@ -1,123 +1,54 @@
-import prompts from 'prompts'
-import { DEFAULT_LOCALE } from '../i18n/runtime'
-import { t, tIn } from '../i18n/t'
+import { t } from '../../i18n/t'
 import {
-  conditionLabel,
-  finishChoices,
-  finishRows,
-  formatCollectionLine,
-  isCondition,
-  isFinish,
-  lookupPinnedPrinting,
   promptCardLabelChoice,
+  promptConditionChoice,
   promptDefaultLabelsChoice,
-  promptFinishAndCondition,
-  promptLanguageChoice,
-  resolveAddedLanguage,
-  resolveCardPrinting,
-  VALID_CONDITIONS,
-  VALID_FINISHES,
-} from './collection-helpers'
-import {
-  menuItem,
   promptEditAction,
-  promptSessionConfigUpdate,
-  type CardSessionContext,
-  type CardSessionStrategy,
-  type MenuChoice,
-  type MenuSentinel,
-  type SessionConfig,
-} from './card-session'
+  promptFinishAndCondition,
+  promptFinishChoice,
+  resolveCardPrinting,
+} from './prompts'
+import { formatCollectionLine } from '../../card/card-line'
+import { lookupPinnedPrinting, resolveAddedLanguage } from '../../card/printing-pin'
+import { menuRow, type MenuChoice, type MenuSentinel } from './menu'
+import { promptSessionConfigUpdate, type SessionConfig } from './config'
+import type { CardSessionContext, CardSessionStrategy } from './strategy'
 import {
-  addAnotherFlatListCopy,
   applyFlatListCardEntry,
-  applyFlatListChange,
-  discardFlatListAdd,
-  listFlatListSessionAdds,
-  persistFlatListSession,
-  receiveFlatListMove,
-  resetFlatListSessionTracking,
   type CollectionSession,
   type FlatListStrategyContext,
   type LastAddState,
 } from './flat-list-session'
 import {
   applyFlatListFieldEdit,
-  editFlatListArt,
-  editFlatListNote,
+  editSharedFlatListAction,
+  sharedFlatListEditActions,
+  type FlatListEditEnv,
   entryPrinting,
   findFlatListEntry,
-  lastFlatListEditLabel,
-  listFlatListEntries,
-  moveFlatListEntry,
-  removeFlatListEntry,
-  discardFlatListSessionChange,
-  listFlatListSessionChanges,
-  undoFlatListEdit,
+  flatListDelegates,
+  logFlatListUpdated,
 } from './flat-list-edit'
 import type { MoveTargetsProvider } from './edit-move'
-import type { CollectionCardEntry } from '../list/site-data'
-import type { Condition, Finish } from '../card/finish-condition'
-import type { ScryfallCard } from '../scryfall/types'
+import type { CollectionCardEntry } from '../../list/site-data'
 import {
   consolidateSetFinish,
   consolidateSetLabel,
-  consolidateSetLanguage,
   consolidateSetPrinting,
   createSetFinishChange,
   createSetLabelChange,
-  createSetLanguageChange,
   createSetPrintingChange,
-  type ChangeEvent,
   type PrintingTuple,
-} from '../changes/change-event'
-import { displayLanguage, type CardLanguage } from '../card/card-language'
+} from '../../changes/change-event'
+import { displayLanguage, type CardLanguage } from '../../card/card-language'
 import {
   formatCardLabels,
   parseCardLabelsValue,
   sameCardLabels,
   type CardLabel,
-} from '../card/card-labels'
-import { dumpFrontMatterBlock, readFrontMatterMapping } from '../list/front-matter-write'
-import { applyLabelsPatch } from '../list/flat-list-metadata'
-
-type ValuePromptResponse = { value?: string }
-
-/**
- * Pick a finish for an existing entry, defaulting the cursor to the current one.
- * `printing` prices the choices; it is undefined when the entry's pinned printing
- * isn't in the card cache.
- */
-async function promptFinishChoice(
-  current: Finish,
-  printing: ScryfallCard | undefined,
-): Promise<Finish | null> {
-  const choices = finishChoices(finishRows(VALID_FINISHES, current), printing)
-  const response = (await prompts({
-    type: 'select',
-    name: 'value',
-    message: t('cli.printing.promptFinishShort'),
-    choices,
-    initial: Math.max(0, VALID_FINISHES.indexOf(current)),
-  })) as ValuePromptResponse
-  return isFinish(response.value) ? response.value : null
-}
-
-/** Pick a condition for an existing entry, defaulting the cursor to the current one. */
-async function promptConditionChoice(current: Condition): Promise<Condition | null> {
-  const response = (await prompts({
-    type: 'select',
-    name: 'value',
-    message: t('cli.printing.promptCondition'),
-    choices: VALID_CONDITIONS.map((c) => ({
-      title:
-        c === current ? t('cli.edit.current', { label: conditionLabel(c) }) : conditionLabel(c),
-      value: c,
-    })),
-    initial: Math.max(0, VALID_CONDITIONS.indexOf(current)),
-  })) as ValuePromptResponse
-  return isCondition(response.value) ? response.value : null
-}
+} from '../../card/card-labels'
+import { dumpFrontMatterBlock, readFrontMatterMapping } from '../../list/front-matter-write'
+import { applyLabelsPatch } from '../../list/flat-list-metadata'
 
 /** Build the collection half of a card session. Shared with the unified `edit` command. */
 export function createCollectionStrategy(
@@ -162,13 +93,8 @@ export function createCollectionStrategy(
     originals: new Map(),
   }
 
-  /** Re-render the entry after an edit (apply replaces entry objects). */
-  const logUpdated = (cardId: number, fallbackName: string): void => {
-    const updated = findFlatListEntry(list, cardId)
-    console.log(
-      t('cli.edit.changedLine', { line: updated ? list.renderEntry(updated) : fallbackName }),
-    )
-  }
+  const logUpdated = (cardId: number, fallbackName: string): void =>
+    logFlatListUpdated(list, cardId, fallbackName)
 
   /** The list's current default labels, read from the session's front-matter block. */
   const currentDefaultLabels = (): CardLabel[] => {
@@ -218,6 +144,7 @@ export function createCollectionStrategy(
   }
 
   return {
+    ...flatListDelegates(list),
     managerLabel: t('cli.manager.collection'),
     saveTarget: { filePath: session.filePath, listName },
     sessionConfig,
@@ -225,25 +152,13 @@ export function createCollectionStrategy(
       const params = {
         labels: formatCardLabels(currentDefaultLabels()) || t('cli.labels.none'),
       }
-      return [
-        menuItem(`🏷️  ${t('cli.labels.menuListLabels', params)}`, '__LIST_LABELS__', [
-          tIn(DEFAULT_LOCALE, 'cli.labels.menuListLabels', params),
-        ]),
-      ]
+      return [menuRow('🏷️ ', '__LIST_LABELS__', 'cli.labels.menuListLabels', params)]
     },
     handleSentinel: async (_ctx: CardSessionContext, value: MenuSentinel): Promise<void> => {
       if (value === '__LIST_LABELS__') await editListLabels()
     },
     updateConfig: (excludeDigital: boolean) =>
       promptSessionConfigUpdate(sessionConfig, true, excludeDigital),
-    applyChange: (change: ChangeEvent) => applyFlatListChange(session, change),
-    receiveMove: (change, art) => receiveFlatListMove(session, change, art),
-    persist: () => persistFlatListSession(session),
-    hasUnsavedChanges: () => session.dirty,
-    sessionSaved: () => resetFlatListSessionTracking(list),
-    noteAdded: (note: string): void => {
-      if (state.snapshot) state.snapshot.note = note
-    },
 
     async handleCard(ctx: CardSessionContext, input): Promise<void> {
       const { cardName, forcePrompts } = input
@@ -288,21 +203,10 @@ export function createCollectionStrategy(
       )
     },
 
-    addAnotherCopy: (ctx: CardSessionContext) => addAnotherFlatListCopy(list, ctx),
-    listSessionAdds: () => listFlatListSessionAdds(list),
-    discardSessionAdd: async (ctx: CardSessionContext, index: number) =>
-      discardFlatListAdd(list, ctx, index),
-    listSessionChanges: () => listFlatListSessionChanges(list),
-    discardSessionChange: async (ctx: CardSessionContext, index: number) =>
-      discardFlatListSessionChange(list, ctx, index),
-
-    listEntries: () => listFlatListEntries(list),
-    lastEditUndoLabel: () => lastFlatListEditLabel(list),
-    undoLastEdit: async (ctx: CardSessionContext) => undoFlatListEdit(list, ctx),
-
     async editEntry(ctx: CardSessionContext, cardId: number): Promise<void> {
       const entry = findFlatListEntry(list, cardId)
       if (!entry) return
+      const env: FlatListEditEnv = { sessionConfig, excludeDigitalOnly, moveTargets }
       const action = await promptEditAction(list.renderEntry(entry), [
         // Always "change", never "set": a collection line cannot exist without a
         // printing (`CollectionEntry.set`/`collectorNumber` are required, and a
@@ -310,14 +214,9 @@ export function createCollectionStrategy(
         { title: `🖼️  ${t('cli.editAction.changePrinting')}`, value: 'printing' },
         { title: `✨ ${t('cli.editAction.changeFinish')}`, value: 'finish' },
         { title: `📋 ${t('cli.editAction.changeCondition')}`, value: 'condition' },
-        { title: `🌐 ${t('cli.editAction.changeLanguage')}`, value: 'language' },
-        { title: `🏷️  ${t('cli.editAction.changeLabel')}`, value: 'label' },
-        { title: `🎨 ${t('cli.editAction.setArt')}`, value: 'art' },
-        ...(moveTargets
-          ? [{ title: `📤 ${t('cli.editAction.moveToList')}`, value: 'move-list' }]
-          : []),
-        { title: `📝 ${t('cli.editAction.editNote')}`, value: 'note' },
-        { title: `🗑️  ${t('cli.editAction.remove')}`, value: 'remove' },
+        ...sharedFlatListEditActions(env, [
+          { title: `🏷️  ${t('cli.editAction.changeLabel')}`, value: 'label' },
+        ]),
       ])
       if (!action) return
 
@@ -387,23 +286,6 @@ export function createCollectionStrategy(
         return
       }
 
-      if (action === 'language') {
-        const language = await promptLanguageChoice(entry.language)
-        if (language === null || language === displayLanguage(entry.language)) return
-        applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: t('cli.editLabel.language', { name: entry.name }),
-          change: createSetLanguageChange(entry.name, { language, cardId }),
-          inverse: createSetLanguageChange(entry.name, {
-            language: displayLanguage(entry.language),
-            cardId,
-          }),
-          consolidate: (changes, original) =>
-            consolidateSetLanguage(changes, entry.name, language, original.language, cardId),
-        })
-        logUpdated(cardId, entry.name)
-        return
-      }
-
       if (action === 'label') {
         const labels = await promptCardLabelChoice('collection', entry.labels)
         if (labels === null || sameCardLabels(labels, entry.labels)) {
@@ -420,29 +302,7 @@ export function createCollectionStrategy(
         return
       }
 
-      if (action === 'art') {
-        await editFlatListArt(list, entry, cardId)
-        return
-      }
-
-      if (action === 'move-list' && moveTargets) {
-        await moveFlatListEntry(list, ctx, entry, cardId, {
-          targets: moveTargets,
-          selfFile: session.filePath,
-          sessionConfig,
-          excludeDigitalOnly,
-        })
-        return
-      }
-
-      if (action === 'note') {
-        await editFlatListNote(list, ctx, entry, cardId)
-        return
-      }
-
-      if (action === 'remove') {
-        await removeFlatListEntry(list, ctx, entry, cardId)
-      }
+      await editSharedFlatListAction(action, list, ctx, entry, cardId, env)
     },
   }
 }

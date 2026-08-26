@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test'
+import prompts from 'prompts'
 import {
   applyFlatListFieldEdit,
   discardFlatListSessionChange,
+  editSharedFlatListAction,
+  sharedFlatListEditActions,
   entryPrinting,
   findFlatListEntry,
   lastFlatListEditLabel,
@@ -11,18 +14,18 @@ import {
   performFlatListRemoval,
   undoFlatListEdit,
   type FlatListFieldEdit,
-} from '../../src/commands/flat-list-edit'
-import type { MoveDestination } from '../../src/commands/edit-move'
-import { createSessionArtChanges } from '../../src/commands/session-art'
+} from '../../src/commands/session/flat-list-edit'
+import type { MoveDestination } from '../../src/commands/session/edit-move'
+import { createSessionArtChanges } from '../../src/commands/session/art'
 import {
   discardFlatListAdd,
   listFlatListSessionAdds,
   resetFlatListSessionTracking,
   type CollectionSession,
   type FlatListStrategyContext,
-} from '../../src/commands/flat-list-session'
-import type { CardSessionContext } from '../../src/commands/card-session'
-import { scratchListPath } from '../test-utils'
+} from '../../src/commands/session/flat-list-session'
+import type { CardSessionContext } from '../../src/commands/session/strategy'
+import { scratchListPath, stubTty } from '../test-utils'
 import type { CollectionCardEntry } from '../../src/list/site-data'
 import { applyChangeToCollection } from '../../src/changes/collection-changes'
 import { collectionToMarkdown } from '../../src/list/list-export'
@@ -142,6 +145,59 @@ const C19: PrintingTuple = {
   finish: 'nonfoil',
   condition: 'NM',
 }
+
+describe('sharedFlatListEditActions', () => {
+  // The shared actions prompt, and the art prompt gates on a terminal.
+  stubTty({ stdin: true })
+
+  const env = { sessionConfig: { sets: [] }, excludeDigitalOnly: true, moveTargets: async () => [] }
+
+  test('offers the move row only with move targets', () => {
+    expect(sharedFlatListEditActions(env).map((r) => r.value)).toEqual([
+      'language',
+      'art',
+      'move-list',
+      'note',
+      'remove',
+    ])
+    expect(sharedFlatListEditActions({}).map((r) => r.value)).toEqual([
+      'language',
+      'art',
+      'note',
+      'remove',
+    ])
+  })
+
+  test('slots afterLanguage rows between the language and art rows', () => {
+    const label = { title: 'Label', value: 'label' }
+    expect(sharedFlatListEditActions({}, [label]).map((r) => r.value)).toEqual([
+      'language',
+      'label',
+      'art',
+      'note',
+      'remove',
+    ])
+  })
+
+  for (const row of sharedFlatListEditActions(env)) {
+    test(`editSharedFlatListAction handles ${row.value}`, async () => {
+      const h = harness([entry('Sol Ring', 1)])
+      const target = findFlatListEntry(h.list, 1)!
+      // Cancel whichever prompt the action opens; the move row opens none
+      // with no targets and returns on its own.
+      prompts.inject([new Error('cancelled')])
+      expect(await editSharedFlatListAction(row.value, h.list, h.ctx, target, 1, env)).toBe(true)
+    })
+  }
+
+  test("editSharedFlatListAction declines the strategies' own actions", async () => {
+    const h = harness([entry('Sol Ring', 1)])
+    const target = findFlatListEntry(h.list, 1)!
+    for (const own of ['printing', 'finish', 'condition', 'label']) {
+      expect(await editSharedFlatListAction(own, h.list, h.ctx, target, 1, env)).toBe(false)
+    }
+  })
+})
 
 describe('applyFlatListFieldEdit', () => {
   test('records one consolidated changelog event; re-editing replaces it', () => {

@@ -8,7 +8,7 @@ import {
   loadCollectionSession,
   loadWantedSession,
   persistFlatListSession,
-} from '../../src/commands/flat-list-session'
+} from '../../src/commands/session/flat-list-session'
 import { allocateId } from '../../src/card/card-id'
 import {
   createAddChange,
@@ -16,16 +16,16 @@ import {
   createSetPrintingChange,
 } from '../../src/changes/change-event'
 import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/list/card-art'
-import { createCardSessionContext } from '../../src/commands/card-session'
+import { createCardSessionContext } from '../../src/commands/session/strategy'
 import {
   performFlatListMove,
   performFlatListRemoval,
   undoFlatListEdit,
-} from '../../src/commands/flat-list-edit'
+} from '../../src/commands/session/flat-list-edit'
 import type {
   CollectionSession,
   FlatListStrategyContext,
-} from '../../src/commands/flat-list-session'
+} from '../../src/commands/session/flat-list-session'
 import type { CollectionCardEntry } from '../../src/list/site-data'
 
 describe('flat-list session models', () => {

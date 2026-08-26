@@ -1,11 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import prompts from 'prompts'
-import { createDeckStrategy } from '../../src/commands/deck-strategy'
-import {
-  buildInitialSessionConfig,
-  createCardSessionContext,
-} from '../../src/commands/card-session'
-import { deckFormatChoices, type DeckSessionConfig } from '../../src/commands/deck-helpers'
+import { createDeckStrategy } from '../../src/commands/session/deck-strategy'
+import { buildInitialSessionConfig } from '../../src/commands/session/config'
+import { createCardSessionContext } from '../../src/commands/session/strategy'
+import { deckFormatChoices } from '../../src/commands/session/deck-prompts'
+import type { SessionConfig } from '../../src/commands/session/config'
 import { DECK_FORMAT_KEYS } from '../../src/list/deck-format'
 import type { DeckFrontMatter } from '../../src/list/deck-file'
 import type { DeckData } from '../../src/list/deck'
@@ -15,8 +14,8 @@ import { scratchListPath, stubTty } from '../test-utils'
 // terminal; these tests answer them with prompts.inject instead.
 stubTty({ stdin: true })
 
-function makeSessionConfig(): DeckSessionConfig {
-  return { ...buildInitialSessionConfig({}, undefined), targetSection: null }
+function makeSessionConfig(): SessionConfig {
+  return buildInitialSessionConfig({}, undefined)
 }
 
 function makeDeck(sections: DeckData['sections'] = []): DeckData {

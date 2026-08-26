@@ -26,8 +26,8 @@ import { isSameFile as statSameFile, type SameFileCheck } from '../util/same-fil
 import { collectionToMarkdown, wantedToMarkdown } from '../list/list-export'
 import { getErrorMessage, localizedCommandError, ExitCode } from '../util/errors'
 import { runCommandAction } from '../cli/action'
-import { promptDeckFormat } from './deck-helpers'
-import { readCollectionFile, readWantedFile } from './flat-list-session'
+import { promptDeckFormat } from './session/deck-prompts'
+import { readCollectionFile, readWantedFile } from '../list/flat-list-read'
 import {
   canPromptWithOutput,
   emitOutput,

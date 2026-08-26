@@ -5,7 +5,7 @@ import {
   formatWantedListLine,
   type WantedListEntry,
 } from '../../src/list/wanted-file'
-import { formatCollectionLine } from '../../src/commands/collection-helpers'
+import { formatCollectionLine } from '../../src/card/card-line'
 import {
   orderedSections,
   parseTitleFromContent,

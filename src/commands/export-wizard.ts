@@ -55,8 +55,7 @@ import { t } from '../i18n/t'
 import { LIST_TYPE_DISPLAY } from '../list/list-type'
 import { listLocations, type ListLocation } from '../list/resolve-list'
 import { getExportPresets } from '../config/ritual-config'
-import { ask, promptTextFilter } from '../cli/prompts'
-import { suggestBrowserChoices } from './price-browser'
+import { ask, promptTextFilter, suggestByTitleTerms } from '../cli/prompts'
 
 /** Everything the wizard tracks between screens. */
 export type ExportWizardState = {
@@ -296,8 +295,7 @@ async function promptAddLists(
         ),
       ],
       limit: 14,
-      suggest: async (rawInput: string, choices: Choice[]) =>
-        suggestBrowserChoices(String(rawInput), choices),
+      suggest: suggestByTitleTerms,
     })
     if (!pick || pick === DONE_SENTINEL) return
     state.lists.push(pick)
@@ -322,8 +320,7 @@ async function promptAddCards(state: ExportWizardState, allEntries: ExportEntry[
         ),
       ],
       limit: 15,
-      suggest: async (rawInput: string, choices: Choice[]) =>
-        suggestBrowserChoices(String(rawInput), choices),
+      suggest: suggestByTitleTerms,
     })
     if (!pick || pick === DONE_SENTINEL) return
     state.picked.push(pick)
@@ -575,8 +572,7 @@ export async function promptColumns(
       message,
       choices,
       limit: 14,
-      suggest: async (rawInput: string, menuChoices: Choice[]) =>
-        suggestBrowserChoices(String(rawInput), menuChoices),
+      suggest: suggestByTitleTerms,
     })
     if (pick === undefined || pick === KEEP_SENTINEL) {
       return order.length > 0 ? order : undefined

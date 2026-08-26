@@ -2,14 +2,15 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { createAddChange } from '../../src/changes/change-event'
+import { buildInitialSessionConfig } from '../../src/commands/session/config'
+import { resetCardSessionTracking, saveCardSession } from '../../src/commands/session/loop'
 import {
-  buildInitialSessionConfig,
-  resetCardSessionTracking,
-  saveCardSession,
-} from '../../src/commands/card-session'
-import { newListSession, pendingListCollision, type OpenList } from '../../src/commands/edit-lists'
+  newListSession,
+  pendingListCollision,
+  type OpenList,
+} from '../../src/commands/session/edit-lists'
 import { listFilePath } from '../../src/list/resolve-list'
-import type { DeckSessionConfig } from '../../src/commands/deck-helpers'
+import type { SessionConfig } from '../../src/commands/session/config'
 import type { ListType } from '../../src/list/list-type'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
@@ -22,10 +23,7 @@ import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 let ws: BoundWorkspace
 let dir: string
 
-const sessionConfig: DeckSessionConfig = {
-  ...buildInitialSessionConfig({}, undefined),
-  targetSection: null,
-}
+const sessionConfig: SessionConfig = buildInitialSessionConfig({}, undefined)
 
 beforeEach(async () => {
   // No list subdirectories: these tests assert that nothing exists until save.

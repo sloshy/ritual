@@ -23,7 +23,7 @@ import { CardCommandError, localizedCommandError, ExitCode } from '../util/error
 import { t } from '../i18n/t'
 import type { ListType } from '../list/list-type'
 import type { ListTypeFlags } from '../list/resolve-list'
-import { browseArtFile, promptArtUrl } from './edit-art'
+import { browseArtFile, promptArtUrl } from './session/edit-art'
 import { ask, suggestByTitleTerms } from '../cli/prompts'
 import {
   addListTypeFlags,

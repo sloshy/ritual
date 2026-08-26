@@ -9,19 +9,22 @@ import type { ScryfallCard } from '../../src/scryfall/types'
 import { localeTag } from '../../src/i18n/locale-tag'
 import {
   applySessionConfigAnswers,
-  buildCollectorChoices,
   buildInitialSessionConfig,
+  buildSessionConfigQuestions,
+  type SessionConfig,
+} from '../../src/commands/session/config'
+import {
+  buildCollectorChoices,
   buildMenuChoices,
   ensureCollectorChoices,
   isMenuChoice,
   SESSION_MENU_LIMIT,
-  similarCopyInput,
   suggestCollectorMode,
   suggestEditMode,
   suggestNameMode,
   type MenuBuildInput,
-  type SessionConfig,
-} from '../../src/commands/card-session'
+} from '../../src/commands/session/menu'
+import { similarCopyInput } from '../../src/commands/session/strategy'
 import { makeScryfallCard } from '../test-utils'
 
 describe('isMenuChoice', () => {
@@ -763,6 +766,7 @@ describe('buildInitialSessionConfig', () => {
       condition: undefined,
       entryMode: 'name',
       collectorChoices: null,
+      targetSection: null,
     })
   })
 
@@ -837,6 +841,72 @@ describe('applySessionConfigAnswers', () => {
     const config = configWithPool(['mkm'])
     applySessionConfigAnswers(config, { condition: 'NONE' })
     expect(config.condition).toBe('NONE')
+  })
+})
+
+describe('buildSessionConfigQuestions', () => {
+  type SetsFormat = (value: string, answers: Record<string, unknown>) => unknown
+
+  test('asks sets and finish, in that order, and condition only when included', () => {
+    const config = buildInitialSessionConfig({}, undefined)
+    expect(buildSessionConfigQuestions(config, true).map((q) => [q.name, q.type])).toEqual([
+      ['sets', 'text'],
+      ['finish', 'select'],
+      ['condition', 'select'],
+    ])
+    expect(buildSessionConfigQuestions(config, false).map((q) => q.name)).toEqual([
+      'sets',
+      'finish',
+    ])
+  })
+
+  test('the set question starts on the current filter, rendered for display', () => {
+    const [unfiltered] = buildSessionConfigQuestions(buildInitialSessionConfig({}, undefined), true)
+    expect(unfiltered?.initial).toBe('')
+    const [filtered] = buildSessionConfigQuestions(
+      buildInitialSessionConfig({}, ['mkm', 'sld']),
+      true,
+    )
+    expect(filtered?.initial).toBe('MKM, SLD')
+  })
+
+  test('the set answer is parsed through the set-code grammar on the way out', () => {
+    const [question] = buildSessionConfigQuestions(buildInitialSessionConfig({}, undefined), true)
+    const format = question?.format as SetsFormat
+    expect(format(' Mkm, sld ,, mkm ', {})).toEqual(['mkm', 'sld'])
+    expect(format('', {})).toEqual([])
+  })
+
+  test('the finish cursor lands on the current default, or on always-prompt', () => {
+    const finishQuestion = (finish?: string) =>
+      buildSessionConfigQuestions(buildInitialSessionConfig({ finish }, undefined), true)[1]
+    expect(finishQuestion()?.initial).toBe(0)
+    expect(finishQuestion('nonfoil')?.initial).toBe(1)
+    expect(finishQuestion('foil')?.initial).toBe(2)
+    expect(finishQuestion('etched')?.initial).toBe(3)
+    expect((finishQuestion()?.choices as Choice[]).map((c) => c.value)).toEqual([
+      '',
+      'nonfoil',
+      'foil',
+      'etched',
+    ])
+  })
+
+  test('the condition question always starts on always-prompt and lists every grade', () => {
+    const [, , condition] = buildSessionConfigQuestions(
+      buildInitialSessionConfig({ condition: 'lp' }, undefined),
+      true,
+    )
+    expect(condition?.initial).toBe(0)
+    expect((condition?.choices as Choice[]).map((c) => c.value)).toEqual([
+      '',
+      'NONE',
+      'NM',
+      'LP',
+      'MP',
+      'HP',
+      'DMG',
+    ])
   })
 })
 

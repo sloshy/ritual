@@ -3,9 +3,9 @@ import type { Choice } from 'prompts'
 import {
   buildListSelectionChoices,
   type PendingChangesByFile,
-  type UnifiedListRef,
   type UnifiedSelection,
-} from '../../src/commands/edit'
+} from '../../src/commands/session/editor'
+import type { UnifiedListRef } from '../../src/commands/session/edit-lists'
 
 const refs: UnifiedListRef[] = [
   { type: 'wanted', name: 'To Buy', file: '/wanted/to-buy.md' },

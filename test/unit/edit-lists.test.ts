@@ -3,14 +3,14 @@ import {
   trackListCreation,
   type TrackedCreation,
   type UnifiedListRef,
-} from '../../src/commands/edit-lists'
+} from '../../src/commands/session/edit-lists'
+import { buildInitialSessionConfig } from '../../src/commands/session/config'
 import {
-  buildInitialSessionConfig,
   createCardSessionContext,
   type CardSessionContext,
   type CardSessionStrategy,
   type SessionChangeItem,
-} from '../../src/commands/card-session'
+} from '../../src/commands/session/strategy'
 
 /**
  * `trackListCreation` fronts a not-yet-created list's strategy so the creation

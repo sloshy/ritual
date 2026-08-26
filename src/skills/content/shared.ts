@@ -54,7 +54,8 @@ export const NO_INPUT_GUARANTEE = wrapProse(
     `variable does the same, and a falsy value — \`0\`/\`false\`/\`no\`/\`off\` — ` +
     `counts as unset): works on **every** command and guarantees no prompting; ` +
     `where input would be required the command fails fast with exit code 2 and a ` +
-    `\`Input required: pass <flag> (...)\` message naming the flag (or uses a ` +
+    `\`Input required: ...\` message naming the flag that would have supplied it, ` +
+    `or what the prompt asked for when no flag exists (or uses a ` +
     `documented default) instead of hanging or exiting 0 having done nothing. A ` +
     `non-terminal stdin — every agent invocation — is treated exactly the same ` +
     `way, so the flag is never strictly required. There are no per-command ` +
@@ -161,7 +162,7 @@ export function sessionSavingSemantics(options: SessionSavingSemanticsOptions): 
 /**
  * The interactive session's save/edit/undo semantics, written once and
  * specialized per list type. Matches the unified editor's actual behavior
- * (`runCardSession` in src/commands/card-session.ts): Switch List / Esc backs
+ * (`runCardSession` in src/commands/session/loop.ts): Switch List / Esc backs
  * out keeping unsaved changes in memory, Save flushes every open list with a
  * separate save-current item, and Exit runs the shared exit menu.
  */

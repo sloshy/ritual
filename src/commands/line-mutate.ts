@@ -40,7 +40,7 @@ import {
   WANTED_CARD_LINE_RE,
   WANTED_LINE_LANGUAGE_GROUP,
 } from '../list/wanted-file'
-import { formatCollectionLine } from './collection-helpers'
+import { formatCollectionLine } from '../card/card-line'
 import {
   DECK_CARD_LINE_RE,
   DECK_LINE_ID_GROUP,

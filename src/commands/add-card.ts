@@ -20,10 +20,10 @@ import {
 import {
   resolveCardPrinting,
   promptFinishAndCondition,
-  formatCollectionLine,
-  ensureCollectionFile,
-  resolveAddedLanguage,
-} from './collection-helpers'
+  promptWantedFinish,
+} from './session/prompts'
+import { formatCollectionLine } from '../card/card-line'
+import { resolveAddedLanguage } from '../card/printing-pin'
 import { resolvePrintingLanguage } from '../card/printing-language'
 import type { CardLanguage } from '../card/card-language'
 import {
@@ -36,7 +36,7 @@ import {
   type Finish,
 } from '../card/finish-condition'
 import { parseSetCode } from '../card/set-codes'
-import { ensureWantedListFile, promptWantedFinish } from './wanted-helpers'
+import { ensureCollectionFile, ensureWantedListFile } from '../list/ensure-list-file'
 import { formatWantedListLine } from '../list/wanted-file'
 import { isUsableFileName, unusableFileNameMessage, listFileName } from '../list/list-file-name'
 import { emptyCacheAdvice, ensureFreshCardCache } from '../cache/freshness'
@@ -749,7 +749,7 @@ async function addToCollection(
 /**
  * A resolved add printing: the card object plus, when the printing does not
  * exist in the configured default language, the language the entry records
- * instead (see {@link PrintingResolution} in collection-helpers).
+ * instead (see {@link PrintingResolution} in session/prompts).
  */
 type AddPrintingResolution = {
   printing: ScryfallCard

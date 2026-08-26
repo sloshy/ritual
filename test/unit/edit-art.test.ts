@@ -4,7 +4,7 @@ import {
   cardArtActionRows,
   cardArtDisplay,
   type ArtDirEntry,
-} from '../../src/commands/edit-art'
+} from '../../src/commands/session/edit-art'
 
 function dir(name: string): ArtDirEntry {
   return { name, isDirectory: true }

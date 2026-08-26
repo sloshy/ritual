@@ -161,6 +161,102 @@ export const cliMeta = {
   'cli.prompt.subject.listImageCard': {
     description: "Noun phrase for set-list-image's picker over the list's own cards.",
   },
+  'cli.prompt.subject.sectionName': {
+    description:
+      'Noun phrase naming what the new-deck-section name prompt wanted, spliced into the --no-input refusal frame.',
+  },
+  'cli.prompt.subject.addSection': {
+    description:
+      "Noun phrase naming what the deck session's add-to-section prompt wanted, spliced into the --no-input refusal frame. Distinct from the move command's destination-section key.",
+  },
+  'cli.prompt.subject.targetSection': {
+    description:
+      "Noun phrase naming what the deck session's Set Target Section prompt wanted, spliced into the --no-input refusal frame.",
+  },
+  'cli.prompt.subject.moveSection': {
+    description:
+      "Noun phrase naming what the deck editor's Move to Section prompt wanted, spliced into the --no-input refusal frame.",
+  },
+  'cli.prompt.subject.setFilter': {
+    description:
+      'Noun phrase naming what the Configure Session Filters set-filter question wanted, spliced into the --no-input refusal frame.',
+  },
+  'cli.prompt.subject.editAction': {
+    description:
+      "Noun phrase naming what the editor's per-card action menu wanted, spliced into the --no-input refusal frame.",
+  },
+  'cli.prompt.subject.noteText': {
+    description:
+      'Noun phrase naming what a card note prompt wanted, spliced into the --no-input refusal frame.',
+  },
+  'cli.prompt.subject.changeToDiscard': {
+    description:
+      'Noun phrase naming what the View Session Changes picker wanted, spliced into the --no-input refusal frame.',
+  },
+  'cli.prompt.subject.discardConfirm': {
+    description:
+      'Noun phrase naming what the discard-this-change confirmation wanted, spliced into the --no-input refusal frame.',
+  },
+  'cli.prompt.subject.sessionCard': {
+    description:
+      "Noun phrase naming what a card-entry session's main prompt wanted, spliced into the --no-input refusal frame.",
+  },
+  'cli.prompt.subject.listToEdit': {
+    description:
+      "Noun phrase naming what a card-entry session's main prompt wanted, spliced into the --no-input refusal frame.",
+  },
+  'cli.prompt.subject.newListName': {
+    description:
+      "Noun phrase naming what a card-entry session's main prompt wanted, spliced into the --no-input refusal frame.",
+  },
+  'cli.prompt.subject.addTarget': {
+    description:
+      "Noun phrase naming what a card-entry session's main prompt wanted, spliced into the --no-input refusal frame.",
+  },
+  'cli.prompt.subject.printing': {
+    description:
+      'Noun phrase naming what the printing picker wanted, spliced into the --no-input refusal frame.',
+  },
+  'cli.prompt.subject.languageFallback': {
+    description:
+      "Noun phrase naming what the printing picker's language-availability confirmation wanted, spliced into the --no-input refusal frame.",
+  },
+  'cli.prompt.subject.finish': {
+    description:
+      "Noun phrase naming what the editor's finish picker wanted, spliced into the --no-input refusal frame.",
+  },
+  'cli.prompt.subject.condition': {
+    description:
+      "Noun phrase naming what the editor's condition picker wanted, spliced into the --no-input refusal frame.",
+  },
+  'cli.prompt.subject.language': {
+    description:
+      "Noun phrase naming what the editor's card-language picker wanted, spliced into the --no-input refusal frame.",
+  },
+  'cli.prompt.subject.cardLabel': {
+    description:
+      "Noun phrase naming what the editor's per-card label picker wanted, spliced into the --no-input refusal frame.",
+  },
+  'cli.prompt.subject.defaultLabels': {
+    description:
+      "Noun phrase naming what the editor's list-default labels picker wanted, spliced into the --no-input refusal frame.",
+  },
+  'cli.prompt.subject.wantedFinish': {
+    description:
+      "Noun phrase naming what the wanted-list editor's finish picker wanted, spliced into the --no-input refusal frame.",
+  },
+  'cli.prompt.subject.specificity': {
+    description:
+      'Noun phrase naming what the wanted-list prompt asking for a specific printing or any printing wanted, spliced into the --no-input refusal frame.',
+  },
+  'cli.prompt.subject.deckTags': {
+    description:
+      "Noun phrase naming what the deck session's Edit Tags prompt wanted, spliced into the --no-input refusal frame.",
+  },
+  'cli.prompt.subject.removeConfirm': {
+    description:
+      "Noun phrase naming what the editor's remove-card confirmation wanted, spliced into the --no-input refusal frame.",
+  },
   'cli.prompt.noMatches': {
     description:
       "Override for the `prompts` library's autocomplete empty state. Shown in place of a choice row, so keep it short and lowercase like the library's own default.",

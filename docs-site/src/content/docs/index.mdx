@@ -175,7 +175,7 @@ RITUAL_NO_INPUT=0 ritual edit "My Deck"   # prompts again, despite the CI defaul
 
 ### When prompts are unavailable
 
-A prompt cannot run when `--no-input`/`RITUAL_NO_INPUT` disabled prompting **or** when stdin is not a terminal (piped input, `</dev/null`, most CI runners). The two causes are treated identically everywhere in the CLI: no command opens a prompt, spawns a pager, or exits `0` having quietly skipped the work it was asked to do. Where an answer is genuinely required you get a usage error (exit code `2`) naming the flag that would have supplied it, e.g.:
+A prompt cannot run when `--no-input`/`RITUAL_NO_INPUT` disabled prompting **or** when stdin is not a terminal (piped input, `</dev/null`, most CI runners). The two causes are treated identically everywhere in the CLI: no command opens a prompt, spawns a pager, or exits `0` having quietly skipped the work it was asked to do. Where an answer is genuinely required you get a usage error (exit code `2`) naming what was needed — the flag that would have supplied it where one exists (`Input required: pass --finish <nonfoil|foil> (...)`), otherwise the thing the prompt asked for (`Input required: a printing of the card (...)`), e.g.:
 
 ```
 Input required: pass --finish <nonfoil|foil|etched> (no terminal available for prompts).

@@ -15,10 +15,10 @@ import {
   renderDeckCardLine,
   undoDeckEdit,
   type DeckSessionState,
-} from '../../src/commands/deck-edit'
-import type { MoveDestination } from '../../src/commands/edit-move'
-import { findCardById } from '../../src/commands/deck-helpers'
-import type { CardSessionContext } from '../../src/commands/card-session'
+} from '../../src/commands/session/deck-edit'
+import type { MoveDestination } from '../../src/commands/session/edit-move'
+import { findCardById } from '../../src/list/deck-io'
+import type { CardSessionContext } from '../../src/commands/session/strategy'
 import type { Card } from '../../src/card/card'
 import type { DeckData } from '../../src/list/deck'
 import {
@@ -27,7 +27,7 @@ import {
   createSetPrintingChange,
   type PrintingTuple,
 } from '../../src/changes/change-event'
-import { createSessionArtChanges, pendingSessionArt } from '../../src/commands/session-art'
+import { createSessionArtChanges, pendingSessionArt } from '../../src/commands/session/art'
 import { scratchListPath, stubTty } from '../test-utils'
 
 // The Set Custom Art prompts go through `ask`, which refuses to open without a

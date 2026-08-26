@@ -3,7 +3,7 @@ import prompts from 'prompts'
 import {
   confirmMultiListExit,
   type MultiListSessionControls,
-} from '../../src/commands/card-session'
+} from '../../src/commands/session/loop'
 import { stubTty } from '../test-utils'
 
 // `ask` refuses to prompt without a terminal; these tests simulate an

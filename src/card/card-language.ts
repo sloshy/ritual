@@ -131,7 +131,7 @@ export function normalizeLanguageValue(raw: string): CardLanguage | null {
  * {@link languageLabel} instead.
  */
 // Remaining display callers still on this frozen English table — CollectionPage,
-// editor/language-prompt, CardSearchModal, admin Settings, collection-helpers,
+// editor/language-prompt, CardSearchModal, admin Settings, session/prompts,
 // card-target, set-card — move to `languageLabel` in the domain-vocabulary pass.
 // **New display code must use `languageLabel`**; this is the parse-side name.
 export function languageDisplayName(code: CardLanguage): string {

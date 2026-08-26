@@ -1,7 +1,7 @@
-import type { ChangeEvent, ConsolidateResult } from '../changes/change-event'
-import type { CardArtEdit } from './edit-art'
-import { t } from '../i18n/t'
-import type { CardSessionContext, SessionAddItem, SessionChangeItem } from './card-session'
+import type { ChangeEvent, ConsolidateResult } from '../../changes/change-event'
+import type { CardArtEdit } from './art'
+import { t } from '../../i18n/t'
+import type { CardSessionContext, SessionAddItem, SessionChangeItem } from './strategy'
 
 /**
  * The linear undo stack for edit-mode operations, shared by the flat-list

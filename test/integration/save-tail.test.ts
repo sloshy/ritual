@@ -15,7 +15,8 @@
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
-import { ensureDeckFile, loadDeck } from '../../src/commands/deck-helpers'
+import { loadDeck } from '../../src/list/deck-io'
+import { ensureDeckFile } from '../../src/list/ensure-list-file'
 import { applyChangeToDeck } from '../../src/changes/deck-changes'
 import { assignMissingDeckCardIds } from '../../src/card/card-id'
 import { createAddChange } from '../../src/changes/change-event'

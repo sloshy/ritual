@@ -1,126 +1,45 @@
-import prompts from 'prompts'
-import {
-  finishChoices,
-  finishRows,
-  isFinish,
-  lookupPinnedPrinting,
-  promptLanguageChoice,
-  resolveAddedLanguage,
-  resolveCardPrinting,
-  VALID_FINISHES,
-} from './collection-helpers'
-import { formatWantedListLine } from '../list/wanted-file'
-import {
-  promptWantedFinish,
-  NO_PREFERENCE,
-  type WantedFinishChoiceValue,
-  type WantedListSessionConfig,
-} from './wanted-helpers'
 import {
   promptEditAction,
-  promptSessionConfigUpdate,
-  type CardSessionContext,
-  type CardSessionStrategy,
-} from './card-session'
+  promptSpecificity,
+  promptWantedFinish,
+  promptWantedFinishChoice,
+  resolveCardPrinting,
+} from './prompts'
+import { lookupPinnedPrinting, resolveAddedLanguage } from '../../card/printing-pin'
+import { formatWantedListLine } from '../../list/wanted-file'
+import { promptSessionConfigUpdate, type SessionConfig } from './config'
+import type { CardSessionContext, CardSessionStrategy } from './strategy'
 import {
-  addAnotherFlatListCopy,
   applyFlatListCardEntry,
-  applyFlatListChange,
-  discardFlatListAdd,
-  listFlatListSessionAdds,
-  persistFlatListSession,
-  receiveFlatListMove,
-  resetFlatListSessionTracking,
   type FlatListStrategyContext,
   type LastAddState,
   type WantedSession,
 } from './flat-list-session'
 import {
   applyFlatListFieldEdit,
-  editFlatListArt,
-  editFlatListNote,
+  editSharedFlatListAction,
+  sharedFlatListEditActions,
+  type FlatListEditEnv,
   entryPrinting,
   findFlatListEntry,
-  lastFlatListEditLabel,
-  listFlatListEntries,
-  moveFlatListEntry,
-  removeFlatListEntry,
-  discardFlatListSessionChange,
-  listFlatListSessionChanges,
-  undoFlatListEdit,
+  flatListDelegates,
+  logFlatListUpdated,
 } from './flat-list-edit'
 import type { MoveTargetsProvider } from './edit-move'
-import type { WantedListCardEntry } from '../list/site-data'
-import type { Finish } from '../card/finish-condition'
-import type { ScryfallCard } from '../scryfall/types'
+import type { WantedListCardEntry } from '../../list/site-data'
 import {
-  consolidateSetLanguage,
   consolidateSetPrinting,
-  createSetLanguageChange,
   createSetPrintingChange,
-  type ChangeEvent,
   type PrintingTuple,
-} from '../changes/change-event'
-import { displayLanguage, type CardLanguage } from '../card/card-language'
-import { t } from '../i18n/t'
-import { hasSpecificPrinting } from '../card/card-printing'
-
-type SpecificityPromptResponse = { specificity?: 'name-only' | 'specific' }
-type FinishPromptResponse = { finish?: string }
-
-/** Ask whether a wanted entry should be name-only or pinned to a specific printing. */
-async function promptSpecificity(cardName: string): Promise<'name-only' | 'specific' | null> {
-  const response = (await prompts({
-    type: 'select',
-    name: 'specificity',
-    message: t('cli.wanted.promptSpecificity', { name: cardName }),
-    choices: [
-      { title: t('cli.wanted.specificityNameOnly'), value: 'name-only' },
-      { title: t('cli.wanted.specificitySpecific'), value: 'specific' },
-    ],
-  })) as SpecificityPromptResponse
-  return response.specificity ?? null
-}
-
-/**
- * Pick a finish for an existing wanted entry, including "No preference" (which
- * clears the finish back off the line). Returns undefined for no preference and
- * null on cancel. `printing` prices the choices; it is undefined when the entry's
- * pinned printing isn't in the card cache.
- */
-async function promptWantedFinishChoice(
-  current: Finish | undefined,
-  printing: ScryfallCard | undefined,
-): Promise<Finish | undefined | null> {
-  const choices = finishChoices<WantedFinishChoiceValue>(
-    [
-      {
-        label:
-          current === undefined
-            ? t('cli.edit.current', { label: t('cli.wanted.noPreference') })
-            : t('cli.wanted.noPreferenceAny'),
-        value: NO_PREFERENCE,
-      },
-      ...finishRows(VALID_FINISHES, current),
-    ],
-    printing,
-  )
-  const response = (await prompts({
-    type: 'select',
-    name: 'finish',
-    message: t('cli.printing.promptFinishShort'),
-    choices,
-    initial: current === undefined ? 0 : Math.max(0, VALID_FINISHES.indexOf(current) + 1),
-  })) as FinishPromptResponse
-  if (response.finish === undefined) return null
-  if (response.finish === NO_PREFERENCE) return undefined
-  return isFinish(response.finish) ? response.finish : null
-}
+} from '../../changes/change-event'
+import { displayLanguage, type CardLanguage } from '../../card/card-language'
+import { t } from '../../i18n/t'
+import { hasSpecificPrinting } from '../../card/card-printing'
 
 /** Build the wanted-list half of a card session. Shared with the unified `edit` command. */
 export function createWantedStrategy(
   session: WantedSession,
-  sessionConfig: WantedListSessionConfig,
+  sessionConfig: SessionConfig,
   listName: string,
   excludeDigitalOnly: boolean,
   moveTargets?: MoveTargetsProvider,
@@ -158,15 +77,11 @@ export function createWantedStrategy(
     originals: new Map(),
   }
 
-  /** Re-render the entry after an edit (apply replaces entry objects). */
-  const logUpdated = (cardId: number, fallbackName: string): void => {
-    const updated = findFlatListEntry(list, cardId)
-    console.log(
-      t('cli.edit.changedLine', { line: updated ? list.renderEntry(updated) : fallbackName }),
-    )
-  }
+  const logUpdated = (cardId: number, fallbackName: string): void =>
+    logFlatListUpdated(list, cardId, fallbackName)
 
   return {
+    ...flatListDelegates(list),
     managerLabel: t('cli.manager.wanted'),
     saveTarget: { filePath: session.filePath, listName },
     // The wanted list has no condition, but the shared engine config carries the
@@ -174,14 +89,6 @@ export function createWantedStrategy(
     sessionConfig,
     updateConfig: (excludeDigital: boolean) =>
       promptSessionConfigUpdate(sessionConfig, false, excludeDigital),
-    applyChange: (change: ChangeEvent) => applyFlatListChange(session, change),
-    receiveMove: (change, art) => receiveFlatListMove(session, change, art),
-    persist: () => persistFlatListSession(session),
-    hasUnsavedChanges: () => session.dirty,
-    sessionSaved: () => resetFlatListSessionTracking(list),
-    noteAdded: (note: string): void => {
-      if (state.snapshot) state.snapshot.note = note
-    },
 
     async handleCard(ctx: CardSessionContext, input): Promise<void> {
       const { cardName, forcePrompts } = input
@@ -245,22 +152,11 @@ export function createWantedStrategy(
       )
     },
 
-    addAnotherCopy: (ctx: CardSessionContext) => addAnotherFlatListCopy(list, ctx),
-    listSessionAdds: () => listFlatListSessionAdds(list),
-    discardSessionAdd: async (ctx: CardSessionContext, index: number) =>
-      discardFlatListAdd(list, ctx, index),
-    listSessionChanges: () => listFlatListSessionChanges(list),
-    discardSessionChange: async (ctx: CardSessionContext, index: number) =>
-      discardFlatListSessionChange(list, ctx, index),
-
-    listEntries: () => listFlatListEntries(list),
-    lastEditUndoLabel: () => lastFlatListEditLabel(list),
-    undoLastEdit: async (ctx: CardSessionContext) => undoFlatListEdit(list, ctx),
-
     async editEntry(ctx: CardSessionContext, cardId: number): Promise<void> {
       const entry = findFlatListEntry(list, cardId)
       if (!entry) return
       const pinned = hasSpecificPrinting(entry)
+      const env: FlatListEditEnv = { sessionConfig, excludeDigitalOnly, moveTargets }
       const action = await promptEditAction(list.renderEntry(entry), [
         {
           title: `🖼️  ${t(pinned ? 'cli.editAction.changePrinting' : 'cli.editAction.setPrinting')}`,
@@ -268,13 +164,7 @@ export function createWantedStrategy(
         },
         // Finish only annotates a specific printing; name-only entries have none to change.
         ...(pinned ? [{ title: `✨ ${t('cli.editAction.changeFinish')}`, value: 'finish' }] : []),
-        { title: `🌐 ${t('cli.editAction.changeLanguage')}`, value: 'language' },
-        { title: `🎨 ${t('cli.editAction.setArt')}`, value: 'art' },
-        ...(moveTargets
-          ? [{ title: `📤 ${t('cli.editAction.moveToList')}`, value: 'move-list' }]
-          : []),
-        { title: `📝 ${t('cli.editAction.editNote')}`, value: 'note' },
-        { title: `🗑️  ${t('cli.editAction.remove')}`, value: 'remove' },
+        ...sharedFlatListEditActions(env),
       ])
       if (!action) return
 
@@ -334,46 +224,7 @@ export function createWantedStrategy(
         return
       }
 
-      if (action === 'language') {
-        const language = await promptLanguageChoice(entry.language)
-        if (language === null || language === displayLanguage(entry.language)) return
-        applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: t('cli.editLabel.language', { name: entry.name }),
-          change: createSetLanguageChange(entry.name, { language, cardId }),
-          inverse: createSetLanguageChange(entry.name, {
-            language: displayLanguage(entry.language),
-            cardId,
-          }),
-          consolidate: (changes, original) =>
-            consolidateSetLanguage(changes, entry.name, language, original.language, cardId),
-        })
-        logUpdated(cardId, entry.name)
-        return
-      }
-
-      if (action === 'art') {
-        await editFlatListArt(list, entry, cardId)
-        return
-      }
-
-      if (action === 'move-list' && moveTargets) {
-        await moveFlatListEntry(list, ctx, entry, cardId, {
-          targets: moveTargets,
-          selfFile: session.filePath,
-          sessionConfig,
-          excludeDigitalOnly,
-        })
-        return
-      }
-
-      if (action === 'note') {
-        await editFlatListNote(list, ctx, entry, cardId)
-        return
-      }
-
-      if (action === 'remove') {
-        await removeFlatListEntry(list, ctx, entry, cardId)
-      }
+      await editSharedFlatListAction(action, list, ctx, entry, cardId, env)
     },
   }
 }

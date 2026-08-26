@@ -9,7 +9,6 @@ import {
   formatPrintingPriceLines,
   formatReportHeaderLines,
   formatTotalsSegment,
-  suggestBrowserChoices,
   visibleBrowserEntries,
   type CardBrowserSelection,
   type PriceMainSelection,
@@ -220,30 +219,6 @@ describe('buildCardBrowserChoices', () => {
     }).map((choice) => choice.title)
     expect(titles.find((t) => t.includes('List type filter'))).toContain('List type filter: all')
     expect(titles.find((t) => t.includes('Set code filter'))).toContain('Set code filter: NEO')
-  })
-})
-
-describe('suggestBrowserChoices', () => {
-  const choices = [
-    { title: 'Sol Ring (C19:221) — $2.00' },
-    { title: 'Solemn Simulacrum (NEO:10) — $1.00' },
-    { title: '← Back' },
-  ]
-
-  test('empty input shows everything', () => {
-    expect(suggestBrowserChoices('', choices)).toHaveLength(3)
-  })
-
-  test('every term must match, against name or set or collector number', () => {
-    expect(suggestBrowserChoices('sol ring', choices).map((c) => c.title)).toEqual([
-      'Sol Ring (C19:221) — $2.00',
-    ])
-    expect(suggestBrowserChoices('neo', choices).map((c) => c.title)).toEqual([
-      'Solemn Simulacrum (NEO:10) — $1.00',
-    ])
-    expect(suggestBrowserChoices('221', choices).map((c) => c.title)).toEqual([
-      'Sol Ring (C19:221) — $2.00',
-    ])
   })
 })
 

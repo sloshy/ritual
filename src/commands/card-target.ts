@@ -10,8 +10,7 @@
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { InvalidArgumentError, type Command } from 'commander'
-import prompts from 'prompts'
-import type { PromptState } from '../cli/prompts'
+import { ask, suggestByTitleTerms } from '../cli/prompts'
 import { importFromTextFile } from '../importers/text-file'
 import { parseCollectionFile } from '../list/collection-file'
 import { parseWantedListFile } from '../list/wanted-file'
@@ -33,7 +32,7 @@ import {
 } from '../list/resolve-list'
 import { formatPrintingAnnotation } from '../changes/change-event'
 import { requireInteractive } from '../util/no-input'
-import { matchFinishPin, matchPrintingPin } from './collection-helpers'
+import { matchFinishPin, matchPrintingPin } from '../card/printing-pin'
 import {
   fetchPrintingByCollectorNumber,
   getCardPrintingsResult,
@@ -234,22 +233,17 @@ export async function resolveListSelection(
       : localizedCommandError('not_found', ExitCode.NotFound, 'cli.cardOps.noListFiles')
   }
 
-  let exited = false
-  const resp = await prompts({
+  const index = await ask<number>({
     type: 'autocomplete',
-    name: 'index',
     message: t('cli.cardOps.promptSelectList'),
     choices: locations.map((loc, i) => ({
       title: t('cli.cardOps.listChoice', { name: loc.name, type: listTypeLabel(loc.type) }),
       value: i,
     })),
     limit: 15,
-    onState: (state: PromptState) => {
-      if (state.exited) exited = true
-    },
   })
-  if (exited || typeof resp.index !== 'number') throw cancelledError()
-  const chosen = locations[resp.index]
+  if (typeof index !== 'number') throw cancelledError()
+  const chosen = locations[index]
   if (!chosen) {
     throw localizedCommandError(
       'runtime_error',
@@ -436,28 +430,15 @@ async function promptCardSelection(entries: EntryRef[]): Promise<EntryRef> {
       : describeEntry(e),
     value: i,
   }))
-  let exited = false
-  const resp = await prompts({
+  const index = await ask<number>({
     type: 'autocomplete',
-    name: 'index',
     message: t('cli.cardOps.promptSelectCard'),
     choices,
     limit: 15,
-    suggest: async (rawInput, suggestChoices) => {
-      const input = String(rawInput).toLowerCase().trim()
-      if (!input) return suggestChoices.slice(0, 15)
-      const terms = input.split(/\s+/).filter(Boolean)
-      return suggestChoices.filter((c) => {
-        const title = c.title.toLowerCase()
-        return terms.every((t) => title.includes(t))
-      })
-    },
-    onState: (state: PromptState) => {
-      if (state.exited) exited = true
-    },
+    suggest: suggestByTitleTerms,
   })
-  if (exited || typeof resp.index !== 'number') throw cancelledError()
-  const target = entries[resp.index]
+  if (typeof index !== 'number') throw cancelledError()
+  const target = entries[index]
   if (!target) {
     throw localizedCommandError(
       'runtime_error',
