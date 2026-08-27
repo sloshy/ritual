@@ -8,9 +8,9 @@ import {
   buildVirtualState,
   commitAllMoves,
   commitAllRemovals,
-} from '../../src/commands/move-helpers'
+} from '../../src/list/move-commit'
 import { artSidecarPath, loadCardArt, saveCardArt } from '../../src/list/card-art'
-import type { PhysicalCard } from '../../src/commands/move-helpers'
+import type { PhysicalCard } from '../../src/list/move-staging'
 import type { ListEntry } from '../../src/list/list-info'
 import { collectionMarkdown, deckMarkdown, wantedMarkdown } from './helpers/workspace'
 

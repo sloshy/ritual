@@ -169,3 +169,11 @@ const FINISH_LABELS = {
 export function finishLabel(finish: Finish): string {
   return t(FINISH_LABELS[finish])
 }
+
+/**
+ * The ` [Foil]`-style suffix a CLI card row carries for a finish worth
+ * marking: '' for nonfoil (the unmarked case) and for a line with no finish.
+ */
+export function finishSuffix(finish: Finish | undefined): string {
+  return finish === undefined || finish === 'nonfoil' ? '' : ` [${finishLabel(finish)}]`
+}

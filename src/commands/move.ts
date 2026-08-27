@@ -1,20 +1,19 @@
 import { Command } from 'commander'
-import prompts, { type Choice } from 'prompts'
+import type { Choice } from 'prompts'
 import { promptExitMenu, ask, suggestCardsWithMenu } from '../cli/prompts'
 import { listRefLabel } from '../changes/change-event'
 import type { ListEntry } from '../list/list-info'
-import type { MoveSessionConfig, PhysicalCard, VirtualCard } from './move-helpers'
-import type { DroppedNote } from './move-io'
+import type { MoveSessionConfig, VirtualCard } from '../list/move-commit'
+import type { PhysicalCard, DroppedNote } from '../list/move-staging'
 import { loadAllLists } from '../list/list-info'
 import {
   loadPhysicalCards,
   buildVirtualState,
   applyVirtualMove,
   getPendingMoves,
-  buildCardSearchChoices,
   commitAllMoves,
-  finishLabel,
-} from './move-helpers'
+} from '../list/move-commit'
+import { buildCardSearchChoices } from './move-choices'
 import { promptListToggle } from './move-toggle'
 import {
   promptDestinationSection,
@@ -44,12 +43,14 @@ import { matchByNormalizedName } from '../card/term-match'
 import { getCardPrintingsResult } from '../scryfall'
 import { printingsAreComplete } from '../card/card-printing'
 import {
+  finishSuffix,
   isFinish,
   normalizeFinishValue,
   VALID_FINISHES,
   type Finish,
 } from '../card/finish-condition'
 import { parseSetCode } from '../card/set-codes'
+import { printingSuffix } from '../card/card-line'
 import { languageToken, type CardLanguage } from '../card/card-language'
 import type { ListType } from '../list/list-type'
 import { t } from '../i18n/t'
@@ -745,12 +746,11 @@ function emitMoveSuccess(
 ): void {
   if (scripting.output === 'text') {
     if (scripting.quiet) return
-    const printingPart =
-      card.set && card.collectorNumber ? ` (${card.set.toUpperCase()}:${card.collectorNumber})` : ''
+    const printingPart = printingSuffix(card.set, card.collectorNumber)
     emitOutput(
       t('cli.move.moved', {
         count: moved,
-        card: `${card.name}${printingPart}${finishLabel(card.finish)}${languageToken(card.language)}`,
+        card: `${card.name}${printingPart}${finishSuffix(card.finish)}${languageToken(card.language)}`,
         from: listRefLabel(from.ref),
         to: listRefLabel(to.ref),
       }),
@@ -807,9 +807,8 @@ function handleViewPending(virtualState: Map<string, VirtualCard>): void {
   console.log(`\n${t('cli.move.pendingHeading', { count: pending.length })}`)
   for (const vc of pending) {
     const card = vc.card
-    const printingPart =
-      card.set && card.collectorNumber ? ` (${card.set.toUpperCase()}:${card.collectorNumber})` : ''
-    const finishPart = finishLabel(card.finish) + languageToken(card.language)
+    const printingPart = printingSuffix(card.set, card.collectorNumber)
+    const finishPart = finishSuffix(card.finish) + languageToken(card.language)
     console.log(
       t('cli.move.pendingLine', {
         card: `${card.name}${printingPart}${finishPart}${cardIdLabel(card.cardId)}`,
@@ -870,11 +869,8 @@ async function handleCardMove(
 
   applyVirtualMove(virtualState, vc.physicalKey, destList, { section: section.section })
 
-  const printingPart =
-    resolvedCard.set && resolvedCard.collectorNumber
-      ? ` (${resolvedCard.set.toUpperCase()}:${resolvedCard.collectorNumber})`
-      : ''
-  const finishPart = finishLabel(resolvedCard.finish) + languageToken(resolvedCard.language)
+  const printingPart = printingSuffix(resolvedCard.set, resolvedCard.collectorNumber)
+  const finishPart = finishSuffix(resolvedCard.finish) + languageToken(resolvedCard.language)
   console.log(
     t('cli.move.queued', {
       card: `${resolvedCard.name}${printingPart}${finishPart}`,
@@ -883,24 +879,27 @@ async function handleCardMove(
   )
 }
 
+type ConfigAction = 'sources' | 'destinations' | 'back'
+type ConfigChoice = Choice & { value: ConfigAction }
+
 async function handleConfig(config: MoveSessionConfig): Promise<void> {
   while (true) {
-    const response = await prompts({
+    const choices: ConfigChoice[] = [
+      { title: t('cli.move.configureSources'), value: 'sources' },
+      { title: t('cli.move.configureDestinations'), value: 'destinations' },
+      { title: t('cli.move.back'), value: 'back' },
+    ]
+    const option = await ask<ConfigAction>({
       type: 'select',
-      name: 'option',
       message: t('cli.move.filtersPrompt'),
-      choices: [
-        { title: t('cli.move.configureSources'), value: 'sources' },
-        { title: t('cli.move.configureDestinations'), value: 'destinations' },
-        { title: t('cli.move.back'), value: 'back' },
-      ],
+      choices,
     })
 
-    if (!response.option || response.option === 'back') break
+    if (option === undefined || option === 'back') break
 
-    if (response.option === 'sources') {
+    if (option === 'sources') {
       await promptListToggle(config.enabledSources, config.allLists, 'from', false)
-    } else if (response.option === 'destinations') {
+    } else {
       await promptListToggle(config.enabledDestinations, config.allLists, 'to', true)
     }
   }

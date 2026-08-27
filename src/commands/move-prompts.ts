@@ -11,7 +11,8 @@ import { t } from '../i18n/t'
 import type { CardLanguage } from '../card/card-language'
 import { resolveCardPrinting } from './session/prompts'
 import { ask, suggestByTitleTerms } from '../cli/prompts'
-import { deckSectionChoices, type PhysicalCard } from './move-helpers'
+import { deckSectionChoices } from './move-choices'
+import type { PhysicalCard } from '../list/move-staging'
 import type { ListEntry } from '../list/list-info'
 
 /**

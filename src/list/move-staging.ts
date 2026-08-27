@@ -1,10 +1,18 @@
+/**
+ * Staged list files for cross-list moves: a list read into memory, card lines
+ * removed from and added to it (deck quantity merges, `&N` reuse, dropped
+ * notes), and written back with its hash sidecar. Both move engines —
+ * `move-commit.ts` and the admin editor saves — apply their moves through
+ * these before anything reaches disk.
+ */
+
 import * as fs from 'node:fs/promises'
 import { writeFileWithHash } from '../changes/content-hash'
-import { findOrCreateSection, resolveDefaultAddSection } from '../list/deck-format'
+import { findOrCreateSection, resolveDefaultAddSection } from './deck-format'
 import { loadDeckFile } from '../importers/text-file'
 import { formatCollectionLine, resolvePrinting, type CardPrinting } from '../card/card-line'
-import { formatWantedListLine } from '../list/wanted-file'
-import { serializeDeckToMarkdown, parseDeckFrontMatter } from '../list/deck-file'
+import { formatWantedListLine } from './wanted-file'
+import { serializeDeckToMarkdown, parseDeckFrontMatter } from './deck-file'
 import {
   allocateId,
   allocateNextIdFromContent,
@@ -18,23 +26,53 @@ import {
   markFencedLines,
   unreadableContentMessage,
   unreadableLines,
-} from '../list/markdown-fence'
+} from './markdown-fence'
 import type { Card } from '../card/card'
-import type { DeckData } from '../list/deck'
+import type { DeckData } from './deck'
 import type { ListRef, PrintingTuple } from '../changes/change-event'
-import { displayLanguage, isCardLanguage } from '../card/card-language'
+import { displayLanguage, isCardLanguage, type CardLanguage } from '../card/card-language'
 import { findMatchKey } from '../card/find-search'
 import { t } from '../i18n/t'
-import { COLLECTION_CARD_LINE_RE, COLLECTION_LINE_LANGUAGE_GROUP } from '../list/collection-file'
-import { isCondition, isFinish } from '../card/finish-condition'
-import type { PhysicalCard } from './move-helpers'
+import { COLLECTION_CARD_LINE_RE, COLLECTION_LINE_LANGUAGE_GROUP } from './collection-file'
+import { isCondition, isFinish, type Condition, type Finish } from '../card/finish-condition'
 import {
   normalizedOverride,
   sameCardLabels,
   supportedLabelsFor,
   type CardLabel,
 } from '../card/card-labels'
-import type { ListType } from '../list/list-type'
+import type { ListType } from './list-type'
+import type { ListEntry } from './list-info'
+
+/**
+ * A single movable card. For deck entries with quantity > 1, multiple PhysicalCards
+ * are created (one per copy), keyed by `filePath:cardId:copyIndex`.
+ */
+export type PhysicalCard = {
+  /** Stable unique key within the session (used to look up VirtualCard). */
+  key: string
+  name: string
+  set?: string
+  collectorNumber?: string
+  finish?: Finish
+  condition?: Condition
+  /** The line's `[ja]`-style language token. Absent means `en`; rides every move. */
+  language?: CardLanguage
+  /**
+   * Label override — decks and collections (see `LIST_TYPE_LABELS`). A `ritual
+   * move` carries it (like the note), filtered on arrival to what the
+   * destination type accepts: `proxy` survives a move into a deck, `sale` does
+   * not, and a wanted list keeps none of it. The editor sessions' move events
+   * do not carry it at all — an editor move drops the override even between
+   * collections, matching the notes precedent.
+   */
+  labels?: CardLabel[]
+  note?: string
+  cardId?: number
+  listEntry: ListEntry
+  /** Only set for deck cards: the copy index when quantity > 1. */
+  copyIndex?: number
+}
 
 /**
  * The part of a moved card's label override the destination type can carry, or

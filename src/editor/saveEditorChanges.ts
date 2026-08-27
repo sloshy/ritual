@@ -1,4 +1,4 @@
-import type { DroppedNote } from '../commands/move-io'
+import type { DroppedNote } from '../list/move-staging'
 import type { SaveEffect } from './save-effects'
 import { formatDroppedNotesSuffix } from './dropped-notes'
 import { type EditorStatusActions, statusMessage, statusText } from './useEditorStatus'

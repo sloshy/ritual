@@ -10,17 +10,16 @@ const ROOT = path.resolve(import.meta.dir, '../..')
  *
  * `ask()` in `src/cli/prompts.ts` is the one place the `--no-input` refusal,
  * the library-string overrides, and the Esc/Ctrl-C tracking live. A card
- * session that called the `prompts` library directly would open a prompt that
- * `--no-input` cannot refuse and that speaks the library's English — so the
- * session directory may import the library's types, never its value.
+ * session or move screen that called the `prompts` library directly would open
+ * a prompt that `--no-input` cannot refuse and that speaks the library's
+ * English — so the gated globs below may import the library's types, never
+ * its value.
  */
 
 type Violation = { file: string; line: number; text: string }
 
-async function scan(dir: string, pattern: RegExp): Promise<Violation[]> {
-  const files = [...new Glob(`${dir}/**/*.ts`).scanSync(ROOT)]
-    .map((file) => file.replace(/\\/g, '/'))
-    .sort()
+async function scan(glob: string, pattern: RegExp): Promise<Violation[]> {
+  const files = [...new Glob(glob).scanSync(ROOT)].map((file) => file.replace(/\\/g, '/')).sort()
   const violations: Violation[] = []
   for (const file of files) {
     const lines = (await Bun.file(path.join(ROOT, file)).text()).split('\n')
@@ -35,15 +34,15 @@ async function scan(dir: string, pattern: RegExp): Promise<Violation[]> {
 }
 
 describe('prompt gate conventions', () => {
-  test('the scan actually sees the session directory', async () => {
-    expect((await scan('src/commands/session', /from\s+['"]prompts['"]/)).length).toBeGreaterThan(0)
+  const GATED = ['src/commands/session/**/*.ts', 'src/commands/move*.ts']
+
+  test.each(GATED)('the scan actually sees %s', async (glob) => {
+    expect((await scan(glob, /from\s+['"]prompts['"]/)).length).toBeGreaterThan(0)
   })
 
-  test('no value import of the prompts library under src/commands/session/', async () => {
+  test.each(GATED)('no value import of the prompts library under %s', async (glob) => {
     // `import type { Choice } from 'prompts'` is fine; `import prompts from`
     // or `import { ... } from 'prompts'` (a value import) is not.
-    expect(
-      await scan('src/commands/session', /^\s*import\s+(?!type\b)[^'"]*from\s+['"]prompts['"]/),
-    ).toEqual([])
+    expect(await scan(glob, /^\s*import\s+(?!type\b)[^'"]*from\s+['"]prompts['"]/)).toEqual([])
   })
 })

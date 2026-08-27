@@ -62,7 +62,7 @@ export type MutateListResult = {
  * Apply `changes` to the collection file and persist the result, appending one
  * new changelog block (no session merging — each invocation is its own block).
  * Move events are not supported here; cross-list moves go through the move
- * engine (`move-helpers.ts`), which owns both sides of the transfer.
+ * engine (`move-commit.ts`), which owns both sides of the transfer.
  */
 export async function applyChangesToCollectionFile(
   filePath: string,

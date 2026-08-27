@@ -159,16 +159,6 @@ export default [
           allow: [
             // Zone 5c — the bake types live under site/details.
             { from: 'src/cardkingdom/bake', to: 'src/site/details' },
-            // Zone 3 — engine helpers still living in src/commands/ (move-helpers, move-io).
-            { from: 'src/editor/dropped-notes', to: 'src/commands/move-io' },
-            { from: 'src/editor/saveEditorChanges', to: 'src/commands/move-io' },
-            // Zone 5b — the move/save admin routes still drive the CLI's move engine.
-            { from: 'src/admin/api/move', to: 'src/commands/move-helpers' },
-            { from: 'src/admin/api/move', to: 'src/commands/move-io' },
-            { from: 'src/admin/api/move-save', to: 'src/commands/move-helpers' },
-            { from: 'src/admin/api/move-save', to: 'src/commands/move-io' },
-            { from: 'src/admin/api/card-index', to: 'src/commands/move-helpers' },
-            { from: 'src/admin/api/save-helpers', to: 'src/commands/move-io' },
             // Zone 10/11 — cache/ reaches into the feed server.
             { from: 'src/cache/refresh-source', to: 'src/cache-feed/fetch' },
             // Zone 10 — the client-neutral card routes borrow admin's HTTP helpers.

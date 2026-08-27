@@ -21,7 +21,7 @@ import {
 } from '../../list/card-art'
 import { reconcileListRefs } from '../../list/list-refs'
 import { loadAllLists, type ListEntry } from '../../list/list-info'
-import type { PhysicalCard } from '../../commands/move-helpers'
+import type { PhysicalCard } from '../../list/move-staging'
 import { t } from '../../i18n/t'
 import type { SaveEffect } from '../../editor/save-effects'
 import type { ApiMessage } from './result'
@@ -35,7 +35,7 @@ import {
   type DroppedNote,
   type RemovedCopy,
   type StagedFile,
-} from '../../commands/move-io'
+} from '../../list/move-staging'
 import { replayLineCopies, type LineQuantities } from './save-helpers'
 
 /**
@@ -284,7 +284,7 @@ const NO_BASELINE: LineQuantities = new Map()
  *   `move-from` there); the destination side — the added line + `move-to`
  *   changelog — is, again, the normal save path's.
  *
- * Mirrors {@link import('../../commands/move-helpers').commitAllMoves}'s
+ * Mirrors {@link import('../../list/move-commit').commitAllMoves}'s
  * load-validate-then-write ordering: every other list is pre-loaded, removals
  * applied, then adds, all in memory, before anything is written — so a missing
  * list, a source holding no copy to take, or an invalid add (a printing-less

@@ -13,8 +13,8 @@ import {
   commitAllMoves,
   commitAllRemovals,
   type VirtualCard,
-} from '../../commands/move-helpers'
-import type { DroppedNote } from '../../commands/move-io'
+} from '../../list/move-commit'
+import type { DroppedNote } from '../../list/move-staging'
 import { listSlug } from '../../list/list-file-name'
 import { indexPhysicalCards, moveCardKey, type MovePhysicalCard } from '../../card/card-index-types'
 import { refuseUnknownCardNames } from './card-name-check'
@@ -24,7 +24,7 @@ import { tIn } from '../../i18n/t'
 import { autoCommitAndPush, apiError, badRequest, readJsonObjectBody } from './save-helpers'
 import { MAX_LIST_BODY_SIZE } from '../validation'
 
-// The index vocabulary lives in `src/card-index-types.ts` — the index is the
+// The index vocabulary lives in `src/card/card-index-types.ts` — the index is the
 // general shape and this move flow is one of its consumers. Re-exported so the
 // admin site keeps its single import path.
 export { moveCardKey }

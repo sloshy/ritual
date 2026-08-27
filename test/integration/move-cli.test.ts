@@ -11,7 +11,7 @@ import {
   writeWantedFile,
 } from './helpers/workspace'
 import { makeScryfallCard } from '../test-utils'
-import { deckSectionChoices } from '../../src/commands/move-helpers'
+import { deckSectionChoices } from '../../src/commands/move-choices'
 import type { ScryfallCard } from '../../src/scryfall/types'
 
 /**

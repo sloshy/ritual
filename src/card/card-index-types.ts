@@ -12,7 +12,7 @@ import type { CardLanguage } from './card-language'
 import type { ListType } from '../list/list-type'
 
 /**
- * One movable physical card. Mirrors the CLI's `PhysicalCard` but uses a
+ * One movable physical card. Mirrors the move engine's `PhysicalCard` but uses a
  * slug-based, path-free `key` so the browser can echo it back on commit without
  * ever seeing absolute server paths. Deck entries with quantity > 1 expand to one
  * card per copy (distinguished by `copyIndex`).
@@ -36,7 +36,7 @@ export type MovePhysicalCard = {
 /**
  * Stable, path-free key for a physical card within a move session. Reconstructed
  * identically on the server at commit time (from the unchanged files) so the
- * browser only ever round-trips the opaque key. Matches the shape of the CLI's
+ * browser only ever round-trips the opaque key. Matches the shape of the move engine's
  * `PhysicalCard.key` but keyed on `type:slug` rather than the absolute file path.
  */
 export function moveCardKey(
@@ -51,7 +51,7 @@ export function moveCardKey(
 
 /**
  * The minimum a physical card must expose for {@link indexPhysicalCards} to key
- * it. Structural rather than an import of the CLI's `PhysicalCard`, so this
+ * it. Structural rather than an import of `move-staging.ts`'s `PhysicalCard`, so this
  * module stays free of the move engine.
  */
 export type KeyablePhysicalCard = {

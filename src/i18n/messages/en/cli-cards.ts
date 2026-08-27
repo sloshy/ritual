@@ -414,8 +414,6 @@ export const cliCardsMessages = {
   'cli.move.toggleItem': '[{state}] {name}',
   'cli.move.categoryPrompt': '{category}:',
   'cli.move.keepOneDestination': 'At least one destination must remain enabled.',
-  'cli.move.finishFoil': ' [Foil]',
-  'cli.move.finishEtched': ' [Etched]',
   'cli.move.listUnreadable':
     '{file}: could not be read or parsed; its cards are missing from the index.',
   'cli.move.listWarning': '{file}: {warning}',

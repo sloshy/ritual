@@ -5,12 +5,13 @@
  * so the two never drift into different toggle idioms.
  */
 
-import prompts, { type Choice } from 'prompts'
+import type { Choice } from 'prompts'
 import type { ListEntry } from '../list/list-info'
-import { getToggleState, toggleItemTitle, toggleSetAll, toggleStateChar } from './move-helpers'
+import { getToggleState, toggleItemTitle, toggleSetAll, toggleStateChar } from './move-choices'
 import { LIST_TYPES, listTypeTitle, type ListType } from '../list/list-type'
 import type { EnglishCatalog, MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
+import { ask } from '../cli/prompts'
 
 /** The session's lists, bucketed by list type for the toggle menus. */
 type ListsByType = Record<ListType, ListEntry[]>
@@ -68,14 +69,11 @@ export async function promptListToggle(
       { title: t('cli.move.done'), value: '__BACK__' },
     )
 
-    const response = (await prompts({
+    const action = await ask<string>({
       type: 'select',
-      name: 'action',
       message: t('cli.move.toggleListsPrompt', { direction }),
       choices,
-    })) as ToggleResponse
-
-    const action = response.action
+    })
     if (action === undefined || action === '__BACK__') break
 
     if (action === '__ALL_ON__') {
@@ -107,9 +105,6 @@ export async function promptListToggle(
   }
 }
 
-/** Both toggle screens resolve to a sentinel, a `type:` row, or a list's file path. */
-type ToggleResponse = { action?: string }
-
 async function promptSubListToggle(
   enabledSet: Set<string>,
   lists: ListEntry[],
@@ -129,14 +124,11 @@ async function promptSubListToggle(
       { title: t('cli.move.back'), value: '__BACK__' },
     )
 
-    const response = (await prompts({
+    const action = await ask<string>({
       type: 'select',
-      name: 'action',
       message: t('cli.move.categoryPrompt', { category: listTypeTitle(category) }),
       choices,
-    })) as ToggleResponse
-
-    const action = response.action
+    })
     if (action === undefined || action === '__BACK__') break
 
     if (action === '__ALL_ON__') {

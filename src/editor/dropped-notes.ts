@@ -1,4 +1,4 @@
-import type { DroppedNote } from '../commands/move-io'
+import type { DroppedNote } from '../list/move-staging'
 import { t } from '../i18n/t'
 
 /**

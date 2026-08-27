@@ -4,8 +4,8 @@ import {
   applyRemoveFromStaged,
   applyRemoveIncomingFromStaged,
   type StagedFile,
-} from '../../src/commands/move-io'
-import type { PhysicalCard } from '../../src/commands/move-helpers'
+} from '../../src/list/move-staging'
+import type { PhysicalCard } from '../../src/list/move-staging'
 import type { DeckData } from '../../src/list/deck'
 
 function deckStaged(deck: DeckData): StagedFile {

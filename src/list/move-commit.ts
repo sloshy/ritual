@@ -1,23 +1,23 @@
+/**
+ * The cross-list move engine: the physical-card index, the in-memory virtual
+ * state a session edits, and the two commits (moves, removals) that write it
+ * to disk. Shared by `ritual move`, the admin move routes and the MCP tools;
+ * the prompts and menus that drive it live under `src/commands/move*.ts`.
+ */
+
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { hashPath } from '../changes/content-hash'
-import { compareDisplay } from '../i18n/collate'
-import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 import { appendChangelog } from '../changes/changelog-writer'
 import {
   createMoveFromChange,
   createMoveToChange,
   createRemoveChange,
-  listRefLabel,
 } from '../changes/change-event'
-import type { Finish, Condition } from '../card/finish-condition'
-import type { CardLabel } from '../card/card-labels'
-import { languageToken, type CardLanguage } from '../card/card-language'
 import { importFromTextFile } from '../importers/text-file'
-import { resolveDefaultAddSection } from '../list/deck-format'
-import { parseCollectionFile } from '../list/collection-file'
-import { parseWantedListFile } from '../list/wanted-file'
+import { parseCollectionFile } from './collection-file'
+import { parseWantedListFile } from './wanted-file'
 import {
   loadStagedFile,
   applyRemoveFromStaged,
@@ -26,44 +26,15 @@ import {
   stagedCardIds,
   writeStagedFile,
   type DroppedNote,
+  type PhysicalCard,
   type StagedAddResult,
   type StagedFile,
-} from './move-io'
-import { createCardArtCache, type CardArtRef } from '../list/card-art'
-import { reconcileListRefs } from '../list/list-refs'
-import type { ListEntry } from '../list/list-info'
+} from './move-staging'
+import { createCardArtCache, type CardArtRef } from './card-art'
+import { reconcileListRefs } from './list-refs'
+import type { ListEntry } from './list-info'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-/**
- * A single movable card. For deck entries with quantity > 1, multiple PhysicalCards
- * are created (one per copy), keyed by `filePath:cardId:copyIndex`.
- */
-export type PhysicalCard = {
-  /** Stable unique key within the session (used to look up VirtualCard). */
-  key: string
-  name: string
-  set?: string
-  collectorNumber?: string
-  finish?: Finish
-  condition?: Condition
-  /** The line's `[ja]`-style language token. Absent means `en`; rides every move. */
-  language?: CardLanguage
-  /**
-   * Label override — decks and collections (see `LIST_TYPE_LABELS`). A `ritual
-   * move` carries it (like the note), filtered on arrival to what the
-   * destination type accepts: `proxy` survives a move into a deck, `sale` does
-   * not, and a wanted list keeps none of it. The editor sessions' move events
-   * do not carry it at all — an editor move drops the override even between
-   * collections, matching the notes precedent.
-   */
-  labels?: CardLabel[]
-  note?: string
-  cardId?: number
-  listEntry: ListEntry
-  /** Only set for deck cards: the copy index when quantity > 1. */
-  copyIndex?: number
-}
 
 export type PendingMove = {
   originalList: ListEntry
@@ -264,193 +235,7 @@ export function applyVirtualRemove(state: Map<string, VirtualCard>, physicalKey:
 function getPendingRemoves(state: Map<string, VirtualCard>): VirtualCard[] {
   return Array.from(state.values()).filter((vc) => vc.pendingRemove === true)
 }
-
-// ── UI helpers ─────────────────────────────────────────────────────────────────
-
-/** Truncate a string to at most maxLen characters, appending "…" if truncated. */
-function truncate(str: string, maxLen: number): string {
-  if (str.length <= maxLen) return str
-  return str.slice(0, maxLen - 1) + '…'
-}
-
-/**
- * The catalog key each finish is labelled by, or `undefined` for the finish
- * that needs no label at all. Keys rather than rendered text: the table is
- * evaluated once at module load, so a string would freeze in whatever language
- * was active when this module was first imported.
- */
-const FINISH_LABEL: Record<Finish, FinishLabelMessage | undefined> = {
-  nonfoil: undefined,
-  foil: 'cli.move.finishFoil',
-  etched: 'cli.move.finishEtched',
-}
-
-/** The two params-free messages a finish can be labelled by. */
-type FinishLabelMessage = Extract<MessageKey, `cli.move.finish${string}`>
-
-/**
- * Human-readable label for a card's finish, shown only when the printing is not a
- * normal non-foil one. Returns e.g. ` [Foil]` / ` [Etched]`, or '' for nonfoil/unknown.
- */
-export function finishLabel(finish: Finish | undefined): string {
-  const key = finish ? FINISH_LABEL[finish] : undefined
-  return key ? t(key) : ''
-}
-
-export type CardSearchChoice = {
-  title: string
-  value: string
-  /**
-   * The card text the row is searched by, set only when the title carries a
-   * checkbox: `[X]` is an ornament, not something a user types.
-   */
-  searchText?: string
-}
-
-/**
- * The searchable card rows for a move session.
- *
- * `selected` turns the rows into a checklist (Batch Mode): each row gains a
- * `[X]`/`[ ]` box, and keeps the undecorated card text as its `searchText` so
- * the box never answers a search. The sort happens on that card text rather
- * than the finished title, so ticking a card never makes it jump — a list that
- * reorders under the cursor is unusable for picking many cards in a row.
- */
-export function buildCardSearchChoices(
-  state: Map<string, VirtualCard>,
-  enabledSources: ReadonlySet<string>,
-  selected?: ReadonlySet<string>,
-): CardSearchChoice[] {
-  const choices: CardSearchChoice[] = []
-
-  for (const vc of state.values()) {
-    if (!enabledSources.has(vc.currentList.filePath)) continue
-    if (vc.pendingMove !== null) continue // already moved this session
-
-    const card = vc.card
-    const listLabel = listRefLabel(vc.currentList.ref)
-
-    let printingPart = ''
-    if (card.set && card.collectorNumber) {
-      printingPart = ` (${card.set.toUpperCase()}:${card.collectorNumber})`
-    }
-    const finishPart = finishLabel(card.finish) + languageToken(card.language)
-    const idPart = card.cardId !== undefined ? ` &${card.cardId}` : ''
-
-    let notePart = ''
-    if (card.note) {
-      // Truncate note to keep lines short (~80 chars)
-      const noteMax = Math.max(
-        20,
-        80 - card.name.length - printingPart.length - finishPart.length - 20,
-      )
-      notePart = ` | ${truncate(card.note, noteMax)}`
-    }
-
-    const title = `${card.name}${printingPart}${finishPart}${idPart} — ${listLabel}${notePart}`
-    choices.push({ title, value: vc.physicalKey })
-  }
-
-  // Sort alphabetically by card name for consistent display
-  choices.sort((a, b) => compareDisplay(a.title, b.title))
-  if (selected === undefined) return choices
-  return choices.map((choice) => ({
-    ...choice,
-    title: toggleItemTitle(selected.has(choice.value), choice.title),
-    searchText: choice.title,
-  }))
-}
-
-/**
- * Every card key Batch Mode may currently select: a card sitting in one of the
- * given lists that is not already queued for a move. The same predicate
- * {@link buildCardSearchChoices} filters its rows by, so "Select all" can never
- * tick a card the screen does not show.
- */
-export function batchSelectableKeys(
-  state: Map<string, VirtualCard>,
-  sourcePaths: ReadonlySet<string>,
-): Set<string> {
-  const keys = new Set<string>()
-  for (const vc of state.values()) {
-    if (!sourcePaths.has(vc.currentList.filePath)) continue
-    if (vc.pendingMove !== null) continue
-    keys.add(vc.physicalKey)
-  }
-  return keys
-}
-
-/** A destination deck's sections, and the one an unqualified add would land in. */
-export type DeckSectionChoices =
-  | {
-      ok: true
-      names: string[]
-      /** The section an unqualified add resolves to; `undefined` for a deck with no sections. */
-      defaultName: string | undefined
-    }
-  | { ok: false; error: string }
-
-/**
- * The section names a destination deck offers, for the "which section?" prompt.
- *
- * The default is resolved **before** the names are read: `resolveDefaultAddSection`
- * appends a `Main` section to a deck that has only a commander and a sideboard,
- * and a name list snapshotted before that call would not contain the very
- * section the prompt means to preselect.
- *
- * A deck that cannot be parsed is reported rather than reduced to "no sections":
- * skipping the prompt for it would only defer the failure to the commit, after
- * the user had answered every printing prompt of a batch.
- */
-export async function deckSectionChoices(filePath: string): Promise<DeckSectionChoices> {
-  const deck = await importFromTextFile(filePath).catch(() => null)
-  if (!deck) return { ok: false, error: t('cli.move.cannotReadDeck', { file: filePath }) }
-  if (deck.sections.length === 0) return { ok: true, names: [], defaultName: undefined }
-  // Mutates only this throwaway parse, never the file.
-  const defaultName = resolveDefaultAddSection(deck.sections).name
-  return { ok: true, names: deck.sections.map((section) => section.name), defaultName }
-}
-
-// ── Toggle state helpers ───────────────────────────────────────────────────────
-
-export function toggleSetAll(target: Set<string>, filePaths: string[], on: boolean): void {
-  for (const fp of filePaths) {
-    if (on) {
-      target.add(fp)
-    } else {
-      target.delete(fp)
-    }
-  }
-}
-
-export type ToggleState = 'all' | 'some' | 'none'
-
-export function getToggleState(
-  filePaths: readonly string[],
-  enabled: ReadonlySet<string>,
-): ToggleState {
-  const count = filePaths.filter((fp) => enabled.has(fp)).length
-  if (count === 0) return 'none'
-  if (count === filePaths.length) return 'all'
-  return 'some'
-}
-
-/**
- * A two-state checkbox row: `[X] name` / `[ ] name`. The tri-state sibling for
- * category rows is {@link toggleStateChar}; both spell the box the same way, and
- * a row that got the empty box's space wrong would misalign a whole screen.
- */
-export function toggleItemTitle(selected: boolean, name: string): string {
-  return t('cli.move.toggleItem', { state: selected ? 'X' : ' ', name })
-}
-
-export function toggleStateChar(state: ToggleState): string {
-  if (state === 'all') return 'X'
-  if (state === 'some') return '~'
-  return ' '
-}
-
-// ── Commit (file I/O delegated to move-io.ts) ─────────────────────────────────
+// ── Commit (file I/O delegated to move-staging.ts) ─────────────────────────────────
 
 type PerFileChanges = {
   listEntry: ListEntry

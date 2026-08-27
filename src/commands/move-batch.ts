@@ -8,18 +8,16 @@
  * save-on-exit menu all behave identically.
  */
 
-import prompts, { type Choice } from 'prompts'
+import type { Choice } from 'prompts'
 import { listRefLabel } from '../changes/change-event'
 import { t } from '../i18n/t'
+import { applyVirtualMove, type MoveSessionConfig, type VirtualCard } from '../list/move-commit'
 import {
-  applyVirtualMove,
   batchSelectableKeys,
   buildCardSearchChoices,
   toggleItemTitle,
   type CardSearchChoice,
-  type MoveSessionConfig,
-  type VirtualCard,
-} from './move-helpers'
+} from './move-choices'
 import type { ListEntry } from '../list/list-info'
 import { ask, suggestCardsWithMenu } from '../cli/prompts'
 import { promptListToggle } from './move-toggle'
@@ -202,9 +200,6 @@ function isEverySelected(selectable: ReadonlySet<string>, selected: ReadonlySet<
   return true
 }
 
-/** The "select all from…" screen resolves to a sentinel or a list's file path. */
-type SelectAllFromResponse = { action?: string }
-
 /**
  * "Select all from…": pick which of the viewed lists to take wholesale, or all
  * of them at once. Returns the chosen file paths, or `undefined` when the user
@@ -228,14 +223,11 @@ async function promptSelectAllFrom(
       { title: t('cli.move.back'), value: '__BACK__' },
     )
 
-    const response = (await prompts({
+    const action = await ask<string>({
       type: 'select',
-      name: 'action',
       message: t('cli.move.batchSelectFromPrompt'),
       choices,
-    })) as SelectAllFromResponse
-
-    const action = response.action
+    })
     if (action === undefined || action === '__BACK__') return undefined
     // Exclusive by construction: every viewed list, whatever the boxes say.
     if (action === '__ALL__') return lists.map((l) => l.filePath)

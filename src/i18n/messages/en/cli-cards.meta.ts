@@ -707,16 +707,6 @@ export const cliCardsMeta = {
   'cli.move.keepOneDestination': {
     description: 'Refusal: at least one destination list must stay enabled.',
   },
-  'cli.move.finishFoil': {
-    description:
-      'Display annotation for a foil printing, appended to a card name. The leading space is deliberate; the brackets are the annotation style.',
-    maxLen: 8,
-  },
-  'cli.move.finishEtched': {
-    description:
-      'Display annotation for an etched printing, appended to a card name. The leading space is deliberate.',
-    maxLen: 10,
-  },
   'cli.move.listUnreadable': {
     description: 'A list could not be parsed, so its cards are missing from the move index.',
   },

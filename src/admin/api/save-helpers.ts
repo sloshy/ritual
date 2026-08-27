@@ -37,7 +37,7 @@ import {
 } from '../../card/card-language'
 import type { ChangeEvent, MoveReplacement } from '../../changes/change-event'
 import { isFinish } from '../../card/finish-condition'
-import type { DroppedNote } from '../../commands/move-io'
+import type { DroppedNote } from '../../list/move-staging'
 import type { SaveEffect } from '../../editor/save-effects'
 import { t } from '../../i18n/t'
 import { apiMessage, type ApiMessage } from './result'
