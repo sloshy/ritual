@@ -1,7 +1,6 @@
 import { Command, InvalidArgumentError } from 'commander'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import prompts from 'prompts'
 import type {
   CISystem,
   DeployMode,
@@ -22,17 +21,19 @@ import { computeMigrations, isActiveManagedFile } from '../list/managed-files'
 import { compareVersions } from '../config/semver'
 import { getBaseDir } from '../config/base-dir'
 import { fileExists } from '../util/fs'
-import { promptsUnavailable } from '../util/no-input'
+import { promptsUnavailable, requireInteractive } from '../util/no-input'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 import { version as ritualVersion } from '../config/version'
 import { SKILLS } from '../skills/catalog'
 import { installSkills, refreshInstalledSkills, resolveSkillsDir } from '../skills/install'
 import { printSkillsWriteSummary } from './skills'
-import { CardCommandError, localizedCommandError, ExitCode } from '../util/errors'
+import { localizedCommandError, ExitCode } from '../util/errors'
 import { runCommandAction } from '../cli/action'
 import { TEXT_ONLY } from '../cli/output'
+import type { Choice } from 'prompts'
 import { parseEnumFlag } from '../cli/options'
+import { ask } from '../cli/prompts'
 
 /**
  * The `if:` guard stamped on every build/deploy step of the detect-changes
@@ -360,7 +361,7 @@ export function committedDistDir(config?: InitSiteConfig): string | null {
  * file is only ever appended to) stops covering it.
  *
  * `.dist-build-*`/`.dist-old-*` are the scratch directories every build writes
- * beside its output (see `src/site/publish.ts`); an interrupted build leaves one
+ * beside its output (see `src/site-build/publish.ts`); an interrupted build leaves one
  * behind for hours. They matter most under a local-build deploy, where `dist/`
  * is deliberately committed and they would otherwise be the one thing a
  * `git add -A` swept in.
@@ -421,22 +422,12 @@ export function gitignoreEntriesCovering(existing: string, distDir: string): str
 
 async function promptOverwrite(filePath: string): Promise<boolean> {
   const relativePath = path.relative(getBaseDir(), filePath)
-  let cancelled = false
-  const response = await prompts(
-    {
-      type: 'confirm',
-      name: 'overwrite',
-      message: t('cli.initSite.promptOverwrite', { path: relativePath }),
-      initial: false,
-    },
-    {
-      onCancel: () => {
-        cancelled = true
-      },
-    },
-  )
-  if (cancelled) return false
-  return response.overwrite === true
+  const overwrite = await ask<boolean>({
+    type: 'confirm',
+    message: t('cli.initSite.promptOverwrite', { path: relativePath }),
+    initial: false,
+  })
+  return overwrite === true
 }
 
 type ForceOption = { force: boolean }
@@ -451,14 +442,6 @@ export type InitSiteCommandOptions = {
   changeDetection?: boolean
   currency?: PriceCurrency
   overwriteReadme?: boolean
-}
-
-/** The usage error raised when a prompt is needed but prompts are unavailable. */
-function missingFlagError(flag: string, what: string): CardCommandError {
-  return localizedCommandError('usage_error', ExitCode.UsageError, 'cli.initSite.missingFlag', {
-    what,
-    flag,
-  })
 }
 
 const CI_SYSTEMS = ['github-actions', 'manual'] as const satisfies readonly CISystem[]
@@ -491,10 +474,10 @@ export function parseCurrencyFlag(value: string): PriceCurrency {
 /**
  * Install Ritual agent skills into the repository's `.claude/skills` so coding
  * agents working in the repo can drive Ritual. The decision is taken from the
- * `--skills`/`--no-skills` flags, falling back to an interactive prompt; in a
- * non-interactive context the prompt cancels and skills are skipped. `force`
- * mirrors the init `--force` flag so existing skill files are overwritten only
- * when the rest of the generated files are.
+ * `--skills`/`--no-skills` flags, falling back to an interactive prompt — a
+ * headless run was already refused by {@link requireSkillsDecision} before any
+ * file was written. `force` mirrors the init `--force` flag so existing skill
+ * files are overwritten only when the rest of the generated files are.
  */
 export async function maybeInstallSkills(
   options: InitSiteCommandOptions,
@@ -504,21 +487,12 @@ export async function maybeInstallSkills(
   if (options.skills !== undefined) {
     install = options.skills
   } else {
-    let cancelled = false
-    const response = await prompts(
-      {
-        type: 'confirm',
-        name: 'install',
-        message: t('cli.initSite.promptSkills'),
-        initial: true,
-      },
-      {
-        onCancel: () => {
-          cancelled = true
-        },
-      },
-    )
-    install = !cancelled && response.install === true
+    const answer = await ask<boolean>({
+      type: 'confirm',
+      message: t('cli.initSite.promptSkills'),
+      initial: true,
+    })
+    install = answer === true
   }
 
   if (!install) return
@@ -714,6 +688,15 @@ export function classifyInitRerun(currentVersion: string, initializedWith: strin
   return cmp > 0 ? 'upgrade' : 'downgrade'
 }
 
+/**
+ * The skills question is the one fresh-init prompt asked *after* the files are
+ * written, so a headless run that cannot answer it is refused up front — before
+ * anything is written — like every other missing flag.
+ */
+function requireSkillsDecision(options: InitSiteCommandOptions): void {
+  if (options.skills === undefined) requireInteractive('--skills or --no-skills')
+}
+
 /** True when any flag that configures a fresh init was passed. */
 function freshInitFlagsGiven(options: InitSiteCommandOptions): boolean {
   return (
@@ -740,6 +723,7 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
       process.exitCode = ExitCode.UsageError
       return
     }
+    requireSkillsDecision(options)
     await writeInitFiles(config, { force: true, overwriteReadme: options.overwriteReadme })
     if (!(await persistSiteConfig({ ...config, version: ritualVersion }, defaultCurrency))) {
       process.exitCode = ExitCode.RuntimeError
@@ -792,24 +776,15 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
           { from: loaded.version, to: ritualVersion },
         )
       }
-      let cancelled = false
-      const response = await prompts(
-        {
-          type: 'confirm',
-          name: 'confirm',
-          message: t('cli.initSite.promptUpgrade', {
-            from: loaded.version,
-            to: ritualVersion,
-          }),
-          initial: true,
-        },
-        {
-          onCancel: () => {
-            cancelled = true
-          },
-        },
-      )
-      if (cancelled || !response.confirm) {
+      const confirm = await ask<boolean>({
+        type: 'confirm',
+        message: t('cli.initSite.promptUpgrade', {
+          from: loaded.version,
+          to: ritualVersion,
+        }),
+        initial: true,
+      })
+      if (!confirm) {
         console.error(t('cli.initSite.cancelled'))
         process.exitCode = ExitCode.UsageError
         return
@@ -850,6 +825,7 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
     process.exitCode = ExitCode.UsageError
     return
   }
+  requireSkillsDecision(options)
   await writeInitFiles(config, { force: false, overwriteReadme: options.overwriteReadme })
   if (!(await persistSiteConfig({ ...config, version: ritualVersion }, defaultCurrency))) {
     process.exitCode = ExitCode.RuntimeError
@@ -885,13 +861,13 @@ async function persistSiteConfig(
 }
 
 /** Currency choices for the init-site prompt, USD first so it is the default. */
-export function defaultCurrencyChoices(current: PriceCurrency): prompts.Choice[] {
+export function defaultCurrencyChoices(current: PriceCurrency): Choice[] {
   const descriptions = {
     usd: 'cli.initSite.currencyUsd',
     eur: 'cli.initSite.currencyEur',
     tix: 'cli.initSite.currencyTix',
   } as const satisfies Record<PriceCurrency, MessageKey>
-  return VALID_CURRENCIES.map((currency): prompts.Choice => {
+  return VALID_CURRENCIES.map((currency): Choice => {
     const code = currency.toUpperCase()
     return {
       title: currency === current ? t('cli.initSite.currencyCurrent', { currency: code }) : code,
@@ -900,8 +876,6 @@ export function defaultCurrencyChoices(current: PriceCurrency): prompts.Choice[]
     }
   })
 }
-
-type DefaultCurrencyPromptResponse = { currency?: PriceCurrency }
 
 /**
  * Resolve the default price currency: the `--currency` flag when given,
@@ -912,9 +886,7 @@ async function resolveDefaultCurrency(
   options: InitSiteCommandOptions,
 ): Promise<PriceCurrency | null> {
   if (options.currency !== undefined) return options.currency
-  if (promptsUnavailable()) {
-    throw missingFlagError('--currency <currency>', t('cli.initSite.subjectCurrency'))
-  }
+  requireInteractive('--currency <currency>')
   return promptDefaultCurrency()
 }
 
@@ -925,23 +897,13 @@ async function resolveDefaultCurrency(
  */
 async function promptDefaultCurrency(): Promise<PriceCurrency | null> {
   const current = (await loadRitualConfig()).defaultCurrency
-  let cancelled = false
-  const response = (await prompts(
-    {
-      type: 'select',
-      name: 'currency',
-      message: t('cli.initSite.promptCurrency'),
-      choices: defaultCurrencyChoices(current),
-      initial: Math.max(0, VALID_CURRENCIES.indexOf(current)),
-    },
-    {
-      onCancel: () => {
-        cancelled = true
-      },
-    },
-  )) as DefaultCurrencyPromptResponse
-  if (cancelled || response.currency === undefined) return null
-  return response.currency
+  const currency = await ask<PriceCurrency>({
+    type: 'select',
+    message: t('cli.initSite.promptCurrency'),
+    choices: defaultCurrencyChoices(current),
+    initial: Math.max(0, VALID_CURRENCIES.indexOf(current)),
+  })
+  return currency ?? null
 }
 
 /**
@@ -951,42 +913,31 @@ async function promptDefaultCurrency(): Promise<PriceCurrency | null> {
  * missing flag. Returns null when a prompt is cancelled.
  */
 async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteConfig | null> {
-  let cancelled = false
-  const onCancel = () => {
-    cancelled = true
-  }
-
   let ciSystem = options.ci
   if (ciSystem === undefined) {
-    if (promptsUnavailable()) {
-      throw missingFlagError('--ci <system>', t('cli.initSite.subjectCiSystem'))
-    }
-    const ciResponse = await prompts(
-      {
-        type: 'select',
-        name: 'ciSystem',
-        message: t('cli.initSite.promptCi'),
-        choices: [
-          {
-            title: t('cli.initSite.ciGithubActions'),
-            description: t('cli.initSite.ciGithubActionsHint'),
-            value: 'github-actions',
-          },
-          {
-            title: t('cli.initSite.ciManual'),
-            description: t('cli.initSite.ciManualHint'),
-            value: 'manual',
-          },
-        ],
-      },
-      { onCancel },
-    )
+    requireInteractive('--ci <system>')
+    const picked = await ask<CISystem>({
+      type: 'select',
+      message: t('cli.initSite.promptCi'),
+      choices: [
+        {
+          title: t('cli.initSite.ciGithubActions'),
+          description: t('cli.initSite.ciGithubActionsHint'),
+          value: 'github-actions',
+        },
+        {
+          title: t('cli.initSite.ciManual'),
+          description: t('cli.initSite.ciManualHint'),
+          value: 'manual',
+        },
+      ],
+    })
 
-    if (cancelled || ciResponse.ciSystem === undefined) {
+    if (picked === undefined) {
       console.error(t('cli.initSite.cancelled'))
       return null
     }
-    ciSystem = ciResponse.ciSystem as CISystem
+    ciSystem = picked
   }
 
   if (ciSystem === 'manual') {
@@ -1006,35 +957,29 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
 
   let deployMode = options.deploy
   if (deployMode === undefined) {
-    if (promptsUnavailable()) {
-      throw missingFlagError('--deploy <mode>', t('cli.initSite.subjectDeployMode'))
-    }
-    const modeResponse = await prompts(
-      {
-        type: 'select',
-        name: 'deployMode',
-        message: t('cli.initSite.promptDeploy'),
-        choices: [
-          {
-            title: t('cli.initSite.deployPublish'),
-            description: t('cli.initSite.deployPublishHint'),
-            value: 'publish-for-me',
-          },
-          {
-            title: t('cli.initSite.deployLocal'),
-            description: t('cli.initSite.deployLocalHint'),
-            value: 'local-build',
-          },
-        ],
-      },
-      { onCancel },
-    )
+    requireInteractive('--deploy <mode>')
+    const picked = await ask<DeployMode>({
+      type: 'select',
+      message: t('cli.initSite.promptDeploy'),
+      choices: [
+        {
+          title: t('cli.initSite.deployPublish'),
+          description: t('cli.initSite.deployPublishHint'),
+          value: 'publish-for-me',
+        },
+        {
+          title: t('cli.initSite.deployLocal'),
+          description: t('cli.initSite.deployLocalHint'),
+          value: 'local-build',
+        },
+      ],
+    })
 
-    if (cancelled || modeResponse.deployMode === undefined) {
+    if (picked === undefined) {
       console.error(t('cli.initSite.cancelled'))
       return null
     }
-    deployMode = modeResponse.deployMode as DeployMode
+    deployMode = picked
   }
 
   if (deployMode === 'local-build') {
@@ -1051,24 +996,20 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
 
     let distDir = options.distDir
     if (distDir === undefined) {
-      if (promptsUnavailable()) {
-        throw missingFlagError('--dist-dir <dir>', t('cli.initSite.subjectDistDir'))
-      }
-      const dirResponse = await prompts(
-        {
-          type: 'text',
-          name: 'distDir',
-          message: t('cli.initSite.promptDistDir'),
-          initial: 'dist',
-        },
-        { onCancel },
-      )
+      requireInteractive('--dist-dir <dir>')
+      const typed = await ask<string>({
+        type: 'text',
+        message: t('cli.initSite.promptDistDir'),
+        initial: 'dist',
+        // The same refusal `--dist-dir` gives an empty value, inline.
+        validate: (value: string) => value.trim().length > 0 || t('cli.initSite.distDirRequired'),
+      })
 
-      if (cancelled || dirResponse.distDir === undefined) {
+      if (typed === undefined) {
         console.error(t('cli.initSite.cancelled'))
         return null
       }
-      distDir = dirResponse.distDir as string
+      distDir = typed.trim()
     }
 
     return { ciSystem, deployMode, distDir, detectChanges: false }
@@ -1081,28 +1022,19 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
 
   let detectChanges = options.changeDetection
   if (detectChanges === undefined) {
-    if (promptsUnavailable()) {
-      throw missingFlagError(
-        '--change-detection/--no-change-detection',
-        t('cli.initSite.subjectChangeDetection'),
-      )
-    }
-    const detectResponse = await prompts(
-      {
-        type: 'confirm',
-        name: 'detectChanges',
-        message: t('cli.initSite.promptChangeDetection'),
-        initial: false,
-      },
-      { onCancel },
-    )
+    requireInteractive('--change-detection/--no-change-detection')
+    const answer = await ask<boolean>({
+      type: 'confirm',
+      message: t('cli.initSite.promptChangeDetection'),
+      initial: false,
+    })
 
-    if (cancelled) {
+    if (answer === undefined) {
       console.error(t('cli.initSite.cancelled'))
       return null
     }
 
-    detectChanges = detectResponse.detectChanges === true
+    detectChanges = answer
   }
 
   return { ciSystem, deployMode, distDir: 'dist', detectChanges }

@@ -84,7 +84,7 @@ export type PrintingRef = {
  *
  * - **Not pinned** — resolve by name. The representative is the right answer.
  * - **Pinned, key present** — that is the answer, *including when it is `null`*.
- *   The site builders (`site/details/*.ts`) write an explicit `null` to record
+ *   The site builders (`site-build/*.ts`) write an explicit `null` to record
  *   "this printing was looked for and is not in the cache", and warn while doing
  *   it. Falling through that to the by-name representative substitutes a
  *   different printing: the page would show art and a price for a line the build
@@ -102,7 +102,7 @@ export type PrintingRef = {
  * written as `null` would be returned as-is rather than falling through to a
  * different object — but nothing writes one today: the builders leave a language
  * miss unkeyed on purpose, so it falls through to the plain key's
- * default-language object (see `site/details/collection.ts`).
+ * default-language object (see `site-build/collection.ts`).
  *
  * Callers apply their own session-cache overlay to the result; this returns the
  * raw map value.

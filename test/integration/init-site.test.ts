@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli, withTempDir } from './helpers/cli'
 import { version as ritualVersion } from '../../src/config/version'
+import { renderSkillFile, SKILLS } from '../../src/skills/catalog'
 
 /**
  * Headless `init-site` runs in synthetic directories. runCli's stdin is not a
@@ -260,6 +261,14 @@ describe('init-site CLI (Integration)', () => {
       '--change-detection',
     ],
     ['missing --currency', ['init-site', '--ci', 'manual', '--no-skills'], '--currency'],
+    // The skills question is asked last, after the files are written, so its
+    // missing flag is refused up front like the others — nothing is written.
+    ['missing --skills', ['init-site', '--ci', 'manual', '--currency', 'usd'], '--skills'],
+    [
+      'missing --skills on --force',
+      ['init-site', '--force', '--ci', 'manual', '--currency', 'usd'],
+      '--skills',
+    ],
   ])('a headless init with a %s is a usage error naming the flag', async (_name, args, flag) => {
     await withTempDir(async (dir) => {
       const result = await runCli(args, dir)
@@ -268,10 +277,10 @@ describe('init-site CLI (Integration)', () => {
       expect(result.stderr).toContain(flag)
       // Nothing was initialized. (The CLI bootstrap may create a default
       // ritual.config.json, but never the site block.)
-      if (await Bun.file(path.join(dir, 'ritual.config.json')).exists()) {
-        expect((await readConfig(dir)).site).toBeUndefined()
-      }
+      expect((await readConfig(dir).catch((): SiteConfigFile => ({}))).site).toBeUndefined()
       expect(await Bun.file(path.join(dir, workflowRelPath)).exists()).toBeFalse()
+      expect(await Bun.file(path.join(dir, 'README.md')).exists()).toBeFalse()
+      expect(await Bun.file(path.join(dir, '.gitignore')).exists()).toBeFalse()
     })
   })
 
@@ -404,6 +413,48 @@ describe('init-site CLI (Integration)', () => {
       // Build scratch directories are the one build residue left in a repo that
       // deliberately commits dist/.
       expect(gitignore).toContain('.dist-build-*')
+    })
+  })
+
+  test('--upgrade without a skills flag refreshes installed skills and never prompts', async () => {
+    await withTempDir(async (dir) => {
+      await fs.writeFile(
+        path.join(dir, 'ritual.config.json'),
+        JSON.stringify({
+          site: {
+            version: '0.0.1',
+            ciSystem: 'manual',
+            deployMode: 'publish-for-me',
+            distDir: 'dist',
+            detectChanges: false,
+          },
+        }),
+      )
+      // One skill installed by an older Ritual (machine-managed, stale
+      // version marker); every other skill was never installed.
+      const [installed, ...neverInstalled] = SKILLS
+      if (!installed || neverInstalled.length === 0) throw new Error('catalog too small')
+      const skillPath = path.join(dir, '.claude', 'skills', installed.name, 'SKILL.md')
+      await fs.mkdir(path.dirname(skillPath), { recursive: true })
+      await fs.writeFile(
+        skillPath,
+        renderSkillFile(installed).replace(
+          `ritual-version: ${ritualVersion}`,
+          'ritual-version: 0.0.1',
+        ),
+      )
+
+      // The upgrade path answers the skills question itself (refresh what is
+      // installed), so no --skills/--no-skills flag is needed headless.
+      const upgraded = await runCli(['init-site', '--upgrade'], dir)
+      expect(upgraded.exitCode).toBe(0)
+      expect(upgraded.stderr).not.toContain('--skills')
+
+      expect(await fs.readFile(skillPath, 'utf-8')).toContain(`ritual-version: ${ritualVersion}`)
+      for (const skill of neverInstalled) {
+        const absentPath = path.join(dir, '.claude', 'skills', skill.name, 'SKILL.md')
+        expect(await Bun.file(absentPath).exists()).toBeFalse()
+      }
     })
   })
 

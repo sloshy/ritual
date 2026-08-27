@@ -1,119 +1,34 @@
-import { t } from '../../i18n/t'
-import path from 'node:path'
-import fs from 'node:fs/promises'
-import { parseCollectionFile } from '../../list/collection-file'
-import type { CollectionEntry } from '../../list/collection-file'
-import { effectiveLabels, isPriceless, type CardLabel } from '../../card/card-labels'
-import type { CardArtMap } from '../../list/card-art'
-import { isListImageCardRef, type ListImageRef } from '../../list/list-image'
-import { parseTitleFromContent } from '../../list/section-format'
-import type { ChangelogPage } from '../../changes/changelog-parser'
-import { findPrinting } from '../../card/card-printing'
-import { displayLanguage, scryfallCardLanguage } from '../../card/card-language'
-import { displayFinish } from '../../card/finish-condition'
-import { getCardPriceForFinish } from '../../pricing/price-currency'
-import type { ScryfallCard } from '../../scryfall/types'
-import type { CollectionCardEntry, CollectionDetail, CollectionSummary } from '../../list/site-data'
+import { t } from '../i18n/t'
+import { parseCollectionFile } from '../list/collection-file'
+import type { CollectionEntry } from '../list/collection-file'
+import { effectiveLabels, isPriceless } from '../card/card-labels'
+import { isListImageCardRef } from '../list/list-image'
+import { findPrinting } from '../card/card-printing'
+import { displayLanguage, scryfallCardLanguage } from '../card/card-language'
+import { displayFinish } from '../card/finish-condition'
+import { getCardPriceForFinish } from '../pricing/price-currency'
+import type { ScryfallCard } from '../scryfall/types'
+import type { CollectionCardEntry, CollectionDetail, CollectionSummary } from '../list/site-data'
 import {
   bakeBuylistQuotes,
-  cardIdsOf,
   customArtLookup,
   includeChangelogCards,
-  listReadErrorMessage,
-  loadListSidecars,
-  readListFrontMatter,
+  loadFlatListSource,
   reportListCoverIssue,
   resolveListCover,
   slugifyListName,
 } from './shared'
-import type { BuylistBakeSource, ListCoverOverrideEntry } from './shared'
-import type { SiteDetailContext } from './types'
-import { printingKey, printingLanguageKey } from '../../card/printing-key'
+import type { BuylistBakeSource, ListCoverOverrideEntry, LoadedFlatList } from './shared'
+import type { CollectionArtifacts, SiteDetailContext } from './types'
+import { formatPrintingLabel, printingKey, printingLanguageKey } from '../card/printing-key'
 
-export type LoadedCollection = {
-  displayName: string
-  entries: CollectionEntry[]
-  /** Section names in file order, including empty sections. */
-  sectionOrder: string[]
-  /** The list's default card labels from its front matter, when declared. */
-  labels?: CardLabel[]
-  /** The list's prose blurb from its front matter, when it declares one. */
-  description?: string
-  /**
-   * The list's cover image override from its front matter, when it declares a
-   * usable one. An unreadable `image:` value is reported as one of
-   * {@link LoadedCollection.warnings} instead.
-   */
-  image?: ListImageRef
-  /** Custom art from the `.art.json` sidecar, keyed by card id. */
-  art?: CardArtMap
-  warnings: string[]
-  changelog: ChangelogPage[]
-  fileMtime?: string
-}
+export type LoadedCollection = LoadedFlatList<CollectionEntry>
 
-/**
- * Load a collection markdown file plus its `.changes.md` sidecar. Returns an
- * error message string when the file can't be read.
- */
-export async function loadCollectionSource(
-  collectionsDir: string,
+export function loadCollectionSource(
+  dir: string,
   name: string,
 ): Promise<LoadedCollection | string> {
-  const fileName = name.endsWith('.md') ? name : `${name}.md`
-  const filePath = path.join(collectionsDir, fileName)
-
-  let content: string
-  try {
-    content = await fs.readFile(filePath, 'utf-8')
-  } catch (error) {
-    // Just the reason: the caller owns the "Failed to load <kind> '<name>'"
-    // lead-in, so all three list types report a failed read identically.
-    return listReadErrorMessage(error, filePath)
-  }
-
-  const { entries, sectionOrder, labels, warnings, advisories, frontMatter } =
-    parseCollectionFile(content)
-  const displayName = parseTitleFromContent(content) ?? name
-  // The block is carried verbatim by the flat parser, so the keys the site
-  // interprets are read off its mapping here rather than during the parse. A
-  // value a grammar cannot read degrades to a warning — the list still loads.
-  const {
-    description,
-    image,
-    warnings: frontMatterWarnings,
-  } = readListFrontMatter(frontMatter?.data ?? {})
-
-  const baseName = name.endsWith('.md') ? name.slice(0, -3) : name
-  const { changelog, fileMtime, art, artWarnings } = await loadListSidecars(
-    collectionsDir,
-    baseName,
-    filePath,
-    { knownCardIds: cardIdsOf(entries) },
-  )
-
-  return {
-    displayName,
-    entries,
-    sectionOrder,
-    labels,
-    description,
-    image,
-    art,
-    // The parser's own advisories ride the same channel as its warnings and the
-    // sidecar's: an ignored `labels:` and an ignored `image:` are both things
-    // the user must hear about, and reporting one but not the other would be an
-    // inconsistency with no reason behind it.
-    warnings: [...warnings, ...advisories, ...frontMatterWarnings, ...artWarnings],
-    changelog,
-    fileMtime,
-  }
-}
-
-export type CollectionArtifacts = {
-  slug: string
-  detail: CollectionDetail
-  summary: CollectionSummary
+  return loadFlatListSource(dir, name, parseCollectionFile)
 }
 
 /** Build a collection's detail JSON payload and index summary. */
@@ -167,7 +82,7 @@ export async function buildCollectionArtifacts(
         await ctx.onCardShipped?.(exactPrinting)
       } else {
         ctx.warn?.(
-          `  ⚠️  Could not find printing for '${entry.name}' (${entry.set.toUpperCase()}:${entry.collectorNumber})`,
+          `  ⚠️  Could not find printing for '${entry.name}' (${formatPrintingLabel(entry.set, entry.collectorNumber)})`,
         )
         cardMap[cardKey] = null
       }
@@ -196,7 +111,7 @@ export async function buildCollectionArtifacts(
             `  ⚠️  ${t('site.detail.noLanguageCard', {
               language,
               name: entry.name,
-              printing: `${entry.set.toUpperCase()}:${entry.collectorNumber}`,
+              printing: formatPrintingLabel(entry.set, entry.collectorNumber),
             })}`,
           )
         }

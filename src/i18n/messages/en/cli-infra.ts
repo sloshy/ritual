@@ -103,6 +103,8 @@ export const cliInfraMessages = {
     'Card cache is empty — card search will return no results until the cache is preloaded.',
   'cli.serve.servingWithApi': 'Serving site + live API from {dir} at {url}...',
   'cli.serve.serving': 'Serving site from {dir} at {url}...',
+  'cli.serve.cacheDownloadFailed':
+    'Card cache download failed; serving from the existing cache. {reason}',
 
   // ── admin ─────────────────────────────────────────────────────────────
   'cli.admin.mcpTokenRequired':
@@ -234,12 +236,6 @@ export const cliInfraMessages = {
   'cli.initSite.fieldDeployMode': 'deploy mode',
   'cli.initSite.fieldCurrency': 'currency',
   'cli.initSite.distDirRequired': 'Expected a directory path for --dist-dir.',
-  'cli.initSite.missingFlag': '{what} is required and prompts are unavailable; pass {flag}.',
-  'cli.initSite.subjectCiSystem': 'A CI system',
-  'cli.initSite.subjectDeployMode': 'A deploy mode',
-  'cli.initSite.subjectDistDir': 'The built-site directory',
-  'cli.initSite.subjectChangeDetection': 'Automatic change detection',
-  'cli.initSite.subjectCurrency': 'A default price currency',
   'cli.initSite.promptOverwrite': '{path} already exists. Overwrite?',
   'cli.initSite.promptSkills':
     'Install Ritual agent skills into .claude/skills so coding agents can work with this repository?',

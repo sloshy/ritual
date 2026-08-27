@@ -399,3 +399,30 @@ export function resolveListTypeFlag(
 export function listTypeLabel(type: ListType): string {
   return t('cli.cardOps.typeLabel', { type })
 }
+
+/** What {@link resolveBuildLocale} reads off the command tree. */
+export type GlobalLocaleOption = {
+  locale?: string
+}
+
+/**
+ * The `--locale <tag>` a site build was given, from either flag position.
+ *
+ * `--locale` is declared twice: on the root program (the language Ritual's own
+ * output speaks) and on the build surface (the locale baked into the generated
+ * site). Commander resolves a flag against the *root* command while it scans
+ * for the subcommand's operands, so the root consumes `build-site --locale de`
+ * before the subcommand ever sees it and `options.locale` here is always
+ * undefined. `optsWithGlobals()` is where the value actually lands.
+ *
+ * Read it rather than renaming the flag, so both documented spellings —
+ * `ritual build-site --locale de` and `ritual --locale de build-site` — bake the
+ * locale they name. The root's `argParser` has already rejected a malformed tag
+ * with exit 2 by this point.
+ */
+export function resolveBuildLocale(
+  command: Command,
+  options: GlobalLocaleOption,
+): string | undefined {
+  return options.locale ?? command.optsWithGlobals<GlobalLocaleOption>().locale
+}

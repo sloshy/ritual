@@ -4,7 +4,12 @@ import { getErrorMessage } from '../util/errors'
 import { parseTitleFromContent } from '../list/section-format'
 import { listDeckFiles, readDeckName } from '../importers/text-file'
 import { normalizeListName } from '../list/resolve-list'
-import { filterBySelection, includesAllLists } from '../config/list-selection'
+import {
+  filterBySelection,
+  includesAllLists,
+  type SiteSelectionConfig,
+} from '../config/list-selection'
+import type { ListType } from '../list/list-type'
 import { isListMarkdownFile } from '../list/list-file-name'
 
 /** A list file discovered on disk, with both names a selection can match on. */
@@ -191,6 +196,19 @@ export type SourceSelection =
   | (NamedSelection & { explicit: true })
   | (ConfiguredSelection & { explicit: false })
 
+/** Which `site` config keys select each list type, and how its files carry their display name. */
+export const SITE_SELECTION_KEYS = {
+  deck: { kind: 'deck', include: 'includeDecks', exclude: 'excludeDecks' },
+  collection: { kind: 'flat', include: 'includeCollections', exclude: 'excludeCollections' },
+  wanted: { kind: 'flat', include: 'includeWantedLists', exclude: 'excludeWantedLists' },
+} as const satisfies Record<ListType, SelectionKeys>
+
+type SelectionKeys = {
+  kind: ListSourceKind
+  include: keyof SiteSelectionConfig
+  exclude: keyof SiteSelectionConfig
+}
+
 /**
  * Resolve one list category's build sources: explicit `names` when given,
  * otherwise the config selection.
@@ -202,49 +220,32 @@ export type SourceSelection =
  * {@link selectConfiguredSources}), but no longer in which names exist.
  */
 export async function resolveSourceSelection(
-  kind: ListSourceKind,
+  type: ListType,
   dir: string,
   names: string[] | undefined,
-  include: string[],
-  exclude: string[],
+  selection: SiteSelectionConfig,
 ): Promise<SourceSelection> {
-  const entries = await discoverListSources(kind, dir)
+  const keys = SITE_SELECTION_KEYS[type]
+  const entries = await discoverListSources(keys.kind, dir)
   if (names !== undefined) return { ...selectNamedSources(entries, names), explicit: true }
-  return { ...selectConfiguredSources(entries, include, exclude), explicit: false }
+  const configured = selectConfiguredSources(
+    entries,
+    selection[keys.include],
+    selection[keys.exclude],
+  )
+  return { ...configured, explicit: false }
 }
 
 /**
- * Deck base names to build, filtered by `includeDecks`/`excludeDecks` and
- * matched on display name. For callers that only need base names (`serve --api`'s
- * live index).
+ * Base names of the config selection's sources that can actually be loaded.
+ * For the name-only callers (`serve --api`'s live index), which have no channel
+ * to report an unreadable file and must not offer one as if it were servable.
  */
-export async function resolveDeckSources(
-  decksDir: string,
-  include: string[],
-  exclude: string[],
-): Promise<string[]> {
-  const { sources } = await resolveSourceSelection('deck', decksDir, undefined, include, exclude)
-  return buildableBasenames(sources)
-}
-
-/**
- * Base names of the sources that can actually be loaded. For the name-only
- * callers (`serve --api`'s live index), which have no channel to report an
- * unreadable file and must not offer one as if it were servable.
- */
-function buildableBasenames(sources: ListSourceEntry[]): string[] {
-  return sources.filter((e) => e.readError === undefined).map((e) => e.basename)
-}
-
-/**
- * Collection/wanted-list base names to build, filtered by the given
- * include/exclude selection and matched on display name.
- */
-export async function resolveListSources(
+export async function resolveSelectedBasenames(
+  type: ListType,
   dir: string,
-  include: string[],
-  exclude: string[],
+  selection: SiteSelectionConfig,
 ): Promise<string[]> {
-  const { sources } = await resolveSourceSelection('flat', dir, undefined, include, exclude)
-  return buildableBasenames(sources)
+  const { sources } = await resolveSourceSelection(type, dir, undefined, selection)
+  return sources.filter((e) => e.readError === undefined).map((e) => e.basename)
 }

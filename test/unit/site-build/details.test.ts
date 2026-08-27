@@ -1,17 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { makeBuylistQuote, makeScryfallCard } from '../../../test/test-utils'
-import { slugifyListName } from '../../../src/site/details/shared'
-import { buildDeckArtifacts, type LoadedDeck } from '../../../src/site/details/deck'
-import {
-  buildCollectionArtifacts,
-  type LoadedCollection,
-} from '../../../src/site/details/collection'
-import { buildWantedArtifacts, type LoadedWanted } from '../../../src/site/details/wanted'
+import { makeBuylistQuote, makeScryfallCard } from '../../test-utils'
+import { slugifyListName } from '../../../src/site-build/shared'
+import { buildDeckArtifacts, type LoadedDeck } from '../../../src/site-build/deck'
+import { buildCollectionArtifacts, type LoadedCollection } from '../../../src/site-build/collection'
+import { buildWantedArtifacts, type LoadedWanted } from '../../../src/site-build/wanted'
 import type {
   DetailBuylistContext,
   SiteCardData,
   SiteDetailContext,
-} from '../../../src/site/details/types'
+} from '../../../src/site-build/types'
 import type { BuylistQuote, BuylistQuoteRequest } from '../../../src/buylist'
 import { quoteKey } from '../../../src/buylist'
 import type { ScryfallCard } from '../../../src/scryfall/types'

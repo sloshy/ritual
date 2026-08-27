@@ -4,15 +4,11 @@ import { getErrorMessage, ExitCode } from '../util/errors'
 import { startSiteServer } from '../serve/server'
 import { sellModeWarning, warmCardKingdomFeed } from '../cardkingdom'
 import { cardCacheReady, warmSiteCache } from '../serve/warm'
-import { resolveOutDir } from '../site/dist-dir'
-import {
-  applyBuildSiteOptions,
-  resolveBuildLocale,
-  runBuildSite,
-  type BuildSiteOptions,
-} from './build-site'
+import { resolveOutDir } from '../site-build/dist-dir'
+import { applyBuildSiteOptions, runBuildSite, type BuildSiteOptions } from './build-site'
 import {
   applySellModeOverride,
+  resolveBuildLocale,
   REFRESH_OPTION_NAME,
   SELL_MODE_OPTION_NAME,
   parsePort,

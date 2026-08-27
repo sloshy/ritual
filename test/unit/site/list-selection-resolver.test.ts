@@ -3,7 +3,7 @@ import {
   selectConfiguredSources,
   selectNamedSources,
   type ListSourceEntry,
-} from '../../../src/site/list-sources'
+} from '../../../src/site-build/list-sources'
 
 /**
  * The one resolver both selection mechanisms use. Flags used to match file base

@@ -35,7 +35,7 @@ import {
   themeNames,
   type ThemeName,
 } from '../theme/themes'
-import { appBootScript, BOOT_SCRIPT_FILE, renderAppShell } from '../site/html-shell'
+import { appBootScript, BOOT_SCRIPT_FILE, renderAppShell } from '../site-build/html-shell'
 import { bakedDictionaries } from '../generated/locales'
 import { en } from '../i18n/messages/en'
 import { DEFAULT_LOCALE } from '../i18n/runtime'

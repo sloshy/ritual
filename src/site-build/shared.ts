@@ -1,32 +1,35 @@
 import path from 'node:path'
-import { compareData } from '../../i18n/collate'
+import { compareData } from '../i18n/collate'
 import fs from 'node:fs/promises'
 import {
   extractChangelogCardNames,
   parseChangelog,
   type ChangelogPage,
-} from '../../changes/changelog-parser'
-import { computeRepresentativePrints } from '../../scryfall'
-import { getErrorMessage } from '../../util/errors'
-import { t } from '../../i18n/t'
-import { buylistRequestFor, quoteKey, type BuylistQuote } from '../../buylist'
-import { loadCardArt, type CardArtMap, type CardArtRef } from '../../list/card-art'
+} from '../changes/changelog-parser'
+import { computeRepresentativePrints } from '../scryfall'
+import { getErrorMessage } from '../util/errors'
+import { t } from '../i18n/t'
+import { buylistRequestFor, quoteKey, type BuylistQuote } from '../buylist'
+import { loadCardArt, type CardArtMap, type CardArtRef } from '../list/card-art'
 import {
   isListImageCardRef,
   isListImageUrlRef,
   readListImage,
   type ListImageRef,
-} from '../../list/list-image'
-import { readListDescription } from '../../list/list-description'
-import { readFrontMatterMapping } from '../../list/front-matter-write'
-import { printingFinishPairs } from '../../card/card-printing'
-import { siteArtUrl } from '../../list/art-url'
-import { resolveCardImageSources } from '../../card/image-sources'
-import type { CardLanguage } from '../../card/card-language'
-import type { Finish } from '../../card/finish-condition'
-import type { ScryfallCard } from '../../scryfall/types'
-import type { BakedBuylist } from '../../list/site-data'
-import type { ListType } from '../../list/list-type'
+} from '../list/list-image'
+import { readListDescription } from '../list/list-description'
+import { readFrontMatterMapping } from '../list/front-matter-write'
+import { printingFinishPairs } from '../card/card-printing'
+import { siteArtUrl } from '../list/art-url'
+import { resolveCardImageSources } from '../card/image-sources'
+import type { CardLanguage } from '../card/card-language'
+import type { Finish } from '../card/finish-condition'
+import type { ScryfallCard } from '../scryfall/types'
+import type { BakedBuylist } from '../list/site-data'
+import type { ListType } from '../list/list-type'
+import type { CardLabel } from '../card/card-labels'
+import type { FlatListEntry, ParsedFlatListFile } from '../list/flat-list-read'
+import { parseTitleFromContent } from '../list/section-format'
 import type { SiteDetailContext } from './types'
 
 /**
@@ -181,6 +184,91 @@ export async function loadListSidecars(
 /** Anything carrying a card line's `&N` id — every list type's entry shape. */
 export type CardIdBearing = {
   cardId?: number
+}
+
+/**
+ * A loaded collection or wanted list: the parsed file plus its sidecars. The
+ * front-matter fields (`description`, `image`, and `labels` — which only the
+ * collection grammar can produce) are present when declared and usable; an
+ * unreadable value is a warning.
+ */
+export type LoadedFlatList<Entry> = {
+  /** The `# Title`, falling back to the file's base name. */
+  displayName: string
+  entries: Entry[]
+  /** Section names in file order, including empty sections. */
+  sectionOrder: string[]
+  labels?: CardLabel[]
+  description?: string
+  image?: ListImageRef
+  /** Custom art from the `.art.json` sidecar, keyed by card id. */
+  art?: CardArtMap
+  warnings: string[]
+  changelog: ChangelogPage[]
+  fileMtime?: string
+}
+
+/** What the loader reads off either flat-list parser's result. */
+export type FlatListParseResult<Entry extends FlatListEntry> = Pick<
+  ParsedFlatListFile<Entry>,
+  'entries' | 'sectionOrder' | 'frontMatter' | 'warnings' | 'advisories'
+> & { labels?: CardLabel[] }
+
+/**
+ * Load a collection or wanted list markdown file plus its sidecars through
+ * the given parser. Returns an error message string when the file can't be
+ * read.
+ */
+export async function loadFlatListSource<Entry extends FlatListEntry>(
+  dir: string,
+  name: string,
+  parse: (content: string) => FlatListParseResult<Entry>,
+): Promise<LoadedFlatList<Entry> | string> {
+  const baseName = name.endsWith('.md') ? name.slice(0, -3) : name
+  const filePath = path.join(dir, `${baseName}.md`)
+
+  let content: string
+  try {
+    content = await fs.readFile(filePath, 'utf-8')
+  } catch (error) {
+    // Just the reason: the caller owns the "Failed to load <kind> '<name>'"
+    // lead-in, so all three list types report a failed read identically.
+    return listReadErrorMessage(error, filePath)
+  }
+
+  const { entries, sectionOrder, labels, warnings, advisories, frontMatter } = parse(content)
+  // The block is carried verbatim by the flat parser, so the keys the site
+  // interprets are read off its mapping here rather than during the parse. A
+  // value a grammar cannot read degrades to a warning — the list still loads.
+  const {
+    description,
+    image,
+    warnings: frontMatterWarnings,
+  } = readListFrontMatter(frontMatter?.data ?? {})
+  const { changelog, fileMtime, art, artWarnings } = await loadListSidecars(
+    dir,
+    baseName,
+    filePath,
+    {
+      knownCardIds: cardIdsOf(entries),
+    },
+  )
+  return {
+    displayName: parseTitleFromContent(content) ?? name,
+    entries,
+    sectionOrder,
+    labels,
+    description,
+    image,
+    art,
+    // The parser's own advisories ride the same channel as its warnings and the
+    // sidecar's: an ignored `labels:` and an ignored `image:` are both things
+    // the user must hear about, and reporting one but not the other would be an
+    // inconsistency with no reason behind it.
+    warnings: [...warnings, ...advisories, ...frontMatterWarnings, ...artWarnings],
+    changelog,
+    fileMtime,
+  }
 }
 
 /** The ids a list currently has, which an art sidecar's keys are checked against. */
@@ -421,7 +509,7 @@ export type BuylistBakeSource = {
  * inside it. A leading `[ja]` line would otherwise claim the shared
  * `set:cn:finish` key and leave its English twin unpriced — the behaviour pinned
  * by 'a non-English copy is never quoted, and never suppresses its English twin'
- * in `test/unit/site/details.test.ts`.
+ * in `test/unit/site-build/details.test.ts`.
  */
 export function bakeBuylistQuotes(
   ctx: SiteDetailContext,

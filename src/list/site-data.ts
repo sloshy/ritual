@@ -328,6 +328,9 @@ export interface WantedListDetail {
 /** The JSON a list detail endpoint returns, across all three list kinds. */
 export type ListDetail = DeckDetail | CollectionDetail | WantedListDetail
 
+/** Any list's `index.json` entry. */
+export type ListSummary = DeckSummary | CollectionSummary | WantedListSummary
+
 export interface SiteIndex {
   decks: DeckSummary[]
   collections: CollectionSummary[]

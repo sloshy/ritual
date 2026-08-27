@@ -39,6 +39,7 @@ describe('prompt gate conventions', () => {
     'src/commands/move*.ts',
     'src/commands/add-card.ts',
     'src/commands/note.ts',
+    'src/commands/init-site.ts',
   ]
 
   test.each(GATED)('the glob %s matches at least one file', (glob) => {

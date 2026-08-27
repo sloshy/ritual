@@ -30,7 +30,7 @@ import {
   type LocaleOverride,
 } from '../i18n/runtime'
 import type { LocaleTag } from '../i18n/types'
-import { localeDirection } from './html-shell'
+import { localeDirection } from '../site-build/html-shell'
 
 export type UseSiteDataResult = {
   deckList: Accessor<DeckSummary[] | null>

@@ -22,7 +22,7 @@ import type { ScryfallCard } from '../../src/scryfall/types'
  * the static paths, unauthenticated cache-backed card queries, CORS for split
  * deployments, ETag revalidation, and the read-only guarantee. Engine
  * semantics (memoization, detail shapes, term matching) are pinned at the
- * unit layer (test/unit/serve/, test/unit/site/details.test.ts,
+ * unit layer (test/unit/serve/, test/unit/site-build/details.test.ts,
  * test/integration/card-search-api.test.ts).
  */
 describe('site server (Integration)', () => {

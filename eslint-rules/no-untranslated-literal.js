@@ -17,7 +17,8 @@
  *
  * **Scope is mandatory, not decorative.** Unscoped, this rule fires on ~20,000
  * lines. It runs only inside the surfaces that get localized (`src/cli`, `src/commands`,
- * `src/site`, `src/admin/site`, `src/ui`, `src/editor`) and never inside the
+ * `src/site`, `src/admin/site`, `src/ui`, `src/editor`, `src/list-view`,
+ * `src/site-build`) and never inside the
  * surfaces that are English by contract (`src/mcp`, `src/skills`, the changelog
  * persistence modules, `src/export`, generated code, tests,
  * docs). Both lists are options so the ratchet in §12 can widen or narrow them
@@ -39,6 +40,7 @@ const DEFAULT_INCLUDE = [
   'src/ui/',
   'src/editor/',
   'src/list-view/',
+  'src/site-build/',
 ]
 
 /** Files and directories that are English by contract (plan §4.9, §11). */

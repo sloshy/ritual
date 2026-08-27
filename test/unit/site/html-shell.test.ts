@@ -4,7 +4,7 @@ import {
   localeDirection,
   renderAppShell,
   RTL_LANGUAGES,
-} from '../../../src/site/html-shell'
+} from '../../../src/site-build/html-shell'
 import { localeTag } from '../../../src/i18n/locale-tag'
 import type { LocaleTag } from '../../../src/i18n/types'
 

@@ -81,6 +81,12 @@ ruleTester.run('no-untranslated-literal', rule as never, {
       filename: 'src/cli/options.ts',
       errors: [{ messageId: 'untranslated' }],
     },
+    // …and so is the Node-side site bake, whose warnings reach the CLI.
+    {
+      code: `const o = { description: 'Skipping deck: no cards' }`,
+      filename: 'src/site-build/deck.ts',
+      errors: [{ messageId: 'untranslated' }],
+    },
     {
       code: `const el = <span>Nothing selected</span>`,
       filename: 'src/admin/site/pages/DeckEditor.tsx',

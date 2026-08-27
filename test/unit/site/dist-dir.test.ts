@@ -6,7 +6,7 @@ import {
   resolveOutDir,
   ritualArgv,
   type RitualArgvEnv,
-} from '../../../src/site/dist-dir'
+} from '../../../src/site-build/dist-dir'
 
 /**
  * `--out-dir` resolution and the subprocess command line.

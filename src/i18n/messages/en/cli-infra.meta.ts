@@ -158,6 +158,10 @@ export const cliInfraMeta = {
   },
   'cli.serve.servingWithApi': { description: 'Startup line for `serve --api`.' },
   'cli.serve.serving': { description: 'Startup line for plain `serve`.' },
+  'cli.serve.cacheDownloadFailed': {
+    description:
+      "serve --api's warm could not bulk-download the card cache; the server starts on what the cache already holds. {reason} is the error.",
+  },
 
   // ── admin ─────────────────────────────────────────────────────────────
   'cli.admin.mcpTokenRequired': { description: '`admin --mcp` was given without a bearer token.' },
@@ -367,26 +371,6 @@ export const cliInfraMeta = {
     description: 'The noun naming the --currency value inside an "Invalid <field> …" error.',
   },
   'cli.initSite.distDirRequired': { description: '--dist-dir was given an empty value.' },
-  'cli.initSite.missingFlag': {
-    description:
-      'A value is needed, prompts are unavailable, and a flag could supply it. {what} is one of the cli.initSite.subject* noun phrases.',
-  },
-  'cli.initSite.subjectCiSystem': {
-    description:
-      'Subject of cli.initSite.missingFlag: the CI system. A noun phrase, not a question.',
-  },
-  'cli.initSite.subjectDeployMode': {
-    description: 'Subject of cli.initSite.missingFlag: the deploy mode.',
-  },
-  'cli.initSite.subjectDistDir': {
-    description: 'Subject of cli.initSite.missingFlag: the built-site directory.',
-  },
-  'cli.initSite.subjectChangeDetection': {
-    description: 'Subject of cli.initSite.missingFlag: the change-detection decision.',
-  },
-  'cli.initSite.subjectCurrency': {
-    description: 'Subject of cli.initSite.missingFlag: the default price currency.',
-  },
   'cli.initSite.promptOverwrite': {
     description: 'Confirm prompt before overwriting a generated file. {path} is repo-relative.',
   },

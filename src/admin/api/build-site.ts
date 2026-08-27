@@ -20,12 +20,12 @@ import { apiMessage, type ApiMessage } from './result'
 import { apiError } from './save-helpers'
 import { getBaseDir } from '../../config/base-dir'
 import { getSiteSellMode } from '../../config/ritual-config'
-import { defaultDistDir, ritualArgv } from '../../site/dist-dir'
+import { defaultDistDir, ritualArgv } from '../../site-build/dist-dir'
 import {
   createBuildScratchDir,
   publishAtomically,
   STALE_BUILD_DIR_MAX_AGE_MS,
-} from '../../site/publish'
+} from '../../site-build/publish'
 import type { RouteProgressSink } from '../../util/progress'
 
 // Re-exported: the sweep's age rule is shared with the CLI builder now, but this

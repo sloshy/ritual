@@ -56,10 +56,6 @@ export const cliMeta = {
     description:
       'Flags that only mean something with --build were passed to a plain `ritual serve`. {flags} is a comma-joined list of flag names, never translated; the verb agrees with how many were given.',
   },
-  'cli.serve.uniqueCards': {
-    description:
-      'How many distinct cards the served lists mention, spliced into "Found … across the served lists."',
-  },
 
   'cli.skills.written': {
     description:

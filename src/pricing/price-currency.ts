@@ -339,7 +339,7 @@ export function parseCurrencyFlagOrError<T>(
 }
 
 /** Parse a comma-separated currencies string (e.g., "usd,eur") into PriceCurrency[]. */
-export function parseCurrenciesFlag(input: string | undefined): PriceCurrency[] {
+export function parseCurrenciesFlag(input: string | undefined): PriceCurrencies {
   if (!input) return [...VALID_CURRENCIES]
   const parts = input
     .split(',')
@@ -355,11 +355,15 @@ export function parseCurrenciesFlag(input: string | undefined): PriceCurrency[] 
       )
     }
   }
-  if (result.length === 0) {
+  const [first, ...rest] = result
+  if (first === undefined) {
     throw new Error('At least one currency must be specified.')
   }
-  return result
+  return [first, ...rest]
 }
+
+/** A parsed `--currencies` list: never empty, so the first one is always a valid default. */
+export type PriceCurrencies = [PriceCurrency, ...PriceCurrency[]]
 
 /**
  * Find the cheapest printing+finish combination from a list of card printings,

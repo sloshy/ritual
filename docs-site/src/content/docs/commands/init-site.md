@@ -31,7 +31,7 @@ The site settings are stored under the `site` key of [`ritual.config.json`](/con
 
 ## Headless Runs
 
-When prompts are unavailable (`--no-input` / `RITUAL_NO_INPUT`, or stdin is not a terminal), any prompt whose flag was not provided is a usage error (exit 2) naming the missing flag. A fully-flagged headless init looks like:
+When prompts are unavailable (`--no-input` / `RITUAL_NO_INPUT`, or stdin is not a terminal), any prompt whose flag was not provided is a usage error (exit 2) of the form `Input required: pass --ci <system> (…)`, raised before anything is written — including the closing agent-skills question, which needs `--skills` or `--no-skills`. A fully-flagged headless init looks like:
 
 ```bash
 ritual init-site \
@@ -129,7 +129,7 @@ After the site files are written, `init-site` offers to install the [Ritual agen
 ? Install Ritual agent skills into .claude/skills so coding agents can work with this repository? (Y/n)
 ```
 
-If you keep your decks, collections, and wanted lists in a git repository and work in it with a coding agent (e.g. Claude Code), answering yes writes the skill files into `.claude/skills/` so the agent can drive Ritual in this repository's context. Pass `--skills` or `--no-skills` to make the choice without prompting (handy for scripted setups). With `--force`, existing skill files are overwritten; otherwise customized skill files are preserved. (During [upgrades](#upgrading), already-installed skills are refreshed automatically — no `--force` needed.) You can also install or refresh them at any time with [`ritual skills install`](/commands/skills/), or refresh just the already-installed ones — never adding new skills — with [`ritual skills update`](/commands/skills/#update).
+If you keep your decks, collections, and wanted lists in a git repository and work in it with a coding agent (e.g. Claude Code), answering yes writes the skill files into `.claude/skills/` so the agent can drive Ritual in this repository's context. Pass `--skills` or `--no-skills` to make the choice without prompting — required for a headless run, which refuses before writing any file if neither is given. With `--force`, existing skill files are overwritten; otherwise customized skill files are preserved. (During [upgrades](#upgrading), already-installed skills are refreshed automatically — no `--force` needed.) You can also install or refresh them at any time with [`ritual skills install`](/commands/skills/), or refresh just the already-installed ones — never adding new skills — with [`ritual skills update`](/commands/skills/#update).
 
 ## Generated Files
 
@@ -250,7 +250,7 @@ from ritual.config.json if you want to use this older version.
 Use `--force` (or `-f`) to bypass all version checks and re-run the full init, overwriting all generated files — including an existing `README.md` (pass `--no-overwrite-readme` to keep it). The fresh-init flags work here too, so a fully-flagged `--force` run never prompts:
 
 ```bash
-ritual init-site --force --ci github-actions --deploy publish-for-me --no-change-detection --currency usd
+ritual init-site --force --ci github-actions --deploy publish-for-me --no-change-detection --currency usd --no-skills
 ```
 
 ## Exit Codes

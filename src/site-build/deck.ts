@@ -1,22 +1,22 @@
 import path from 'node:path'
-import { loadDeckFile } from '../../importers/text-file'
-import { parseDeckFrontMatter } from '../../list/deck-file'
-import { extractChangelogCardNames } from '../../changes/changelog-parser'
-import type { ChangelogPage } from '../../changes/changelog-parser'
-import { effectiveLabels, isPriceless, type CardLabel } from '../../card/card-labels'
-import type { CardArtMap } from '../../list/card-art'
-import { isListImageCardRef, type ListImageRef } from '../../list/list-image'
-import { extractPrimerCardNames } from '../../list/primer-parser'
-import { resolveDeckFormat, getMainDeckSize, isCommanderSection } from '../../list/deck-format'
-import { findPrinting, hasSpecificPrinting } from '../../card/card-printing'
-import { formatPrintingLabel, printingKey } from '../../card/printing-key'
-import { getCardPrice } from '../../pricing/price-currency'
-import type { PriceCurrency } from '../../pricing/price-currency'
-import { getErrorMessage } from '../../util/errors'
-import type { Card } from '../../card/card'
-import type { DeckData } from '../../list/deck'
-import type { ScryfallCard } from '../../scryfall/types'
-import type { BakedDeckData, CardKingdomCards, DeckDetail, DeckSummary } from '../../list/site-data'
+import { loadDeckFile } from '../importers/text-file'
+import { parseDeckFrontMatter } from '../list/deck-file'
+import { extractChangelogCardNames } from '../changes/changelog-parser'
+import type { ChangelogPage } from '../changes/changelog-parser'
+import { effectiveLabels, isPriceless, type CardLabel } from '../card/card-labels'
+import type { CardArtMap } from '../list/card-art'
+import { isListImageCardRef, type ListImageRef } from '../list/list-image'
+import { extractPrimerCardNames } from '../list/primer-parser'
+import { resolveDeckFormat, getMainDeckSize, isCommanderSection } from '../list/deck-format'
+import { findPrinting, hasSpecificPrinting } from '../card/card-printing'
+import { formatPrintingLabel, printingKey } from '../card/printing-key'
+import { getCardPrice } from '../pricing/price-currency'
+import type { PriceCurrency } from '../pricing/price-currency'
+import { getErrorMessage } from '../util/errors'
+import type { Card } from '../card/card'
+import type { DeckData } from '../list/deck'
+import type { ScryfallCard } from '../scryfall/types'
+import type { BakedDeckData, CardKingdomCards, DeckDetail, DeckSummary } from '../list/site-data'
 import {
   bakeBuylistQuotes,
   cardIdsOf,
@@ -28,7 +28,7 @@ import {
   slugifyListName,
 } from './shared'
 import type { BuylistBakeSource, CustomArtLookup, ListCoverOverrideEntry } from './shared'
-import type { SiteDetailContext } from './types'
+import type { DeckArtifacts, SiteDetailContext } from './types'
 
 export type LoadedDeck = {
   data: DeckData
@@ -129,8 +129,6 @@ function withDeckCustomArt(deck: DeckData, artFor: CustomArtLookup): BakedDeckDa
     })),
   }
 }
-
-export type DeckArtifacts = { slug: string; detail: DeckDetail; summary: DeckSummary }
 
 /** Build a deck's detail JSON payload and index summary from prefetched card data. */
 export async function buildDeckArtifacts(

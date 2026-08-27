@@ -1,12 +1,7 @@
 import { describe, test, expect } from 'bun:test'
 import { Command } from 'commander'
-import {
-  parseLocaleFile,
-  planLocales,
-  resolveBuildLocale,
-  type BuildLocale,
-  type BuildSiteOptions,
-} from '../../../src/commands/build-site'
+import { parseLocaleFile, planLocales, type BuildLocale } from '../../../src/site-build/locales'
+import { resolveBuildLocale, type GlobalLocaleOption } from '../../../src/cli/options'
 import { localeTag } from '../../../src/i18n/locale-tag'
 
 /**
@@ -119,14 +114,16 @@ describe('planLocales', () => {
   })
 
   test('an unparseable tag is reported, from either flag', () => {
-    expect(
-      planLocales({
-        locale: 'zz-ZZ',
-        locales: undefined,
-        configured: localeTag('en'),
-        available: [],
-      }),
-    ).toContain('--locale')
+    const fromLocale = planLocales({
+      locale: 'zz-ZZ',
+      locales: undefined,
+      configured: localeTag('en'),
+      available: [],
+    })
+    expect(fromLocale).toContain('--locale')
+    // '--locales' contains '--locale', so the negative is what tells the branches apart.
+    expect(fromLocale).not.toContain('--locales')
+    expect(fromLocale).toContain('zz-ZZ')
     expect(
       planLocales({
         locale: undefined,
@@ -222,7 +219,7 @@ describe('resolveBuildLocale', () => {
     program.name('ritual').exitOverride()
     program.option('--locale <tag>', 'CLI locale')
     const build = program.command('build-site').option('--locale <tag>', 'site locale')
-    build.action((options: BuildSiteOptions) => {
+    build.action((options: GlobalLocaleOption) => {
       seen = resolveBuildLocale(build, options)
     })
     program.parse(['node', 'ritual', ...argv])

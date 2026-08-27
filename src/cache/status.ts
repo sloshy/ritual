@@ -9,6 +9,7 @@ import { readRecordedCardBulkType } from './bulk-provenance'
 import { configuredCardBulkType, type CardBulkType } from '../scryfall/bulk-manifest'
 import { getDefaultLanguage } from '../config/ritual-config'
 import type { CardLanguage } from '../card/card-language'
+import type { ScryfallCard } from '../scryfall/types'
 
 /**
  * The card cache's diagnostic report, collected once and rendered by whoever
@@ -80,14 +81,14 @@ const TAG_SAMPLE_SIZE = 25
  */
 export async function sampleTagsPresent(keys: readonly string[]): Promise<boolean> {
   for (const key of keys.slice(0, TAG_SAMPLE_SIZE)) {
-    const printings = await cardCache.get(key)
-    if (!printings) continue
-    const tagged = printings.some(
-      (card) => (card.oracleTags?.length ?? 0) > 0 || (card.artTags?.length ?? 0) > 0,
-    )
-    if (tagged) return true
+    if ((await cardCache.get(key))?.some(cardHasTags)) return true
   }
   return false
+}
+
+/** Whether a card carries any oracle or art tag. */
+export function cardHasTags(card: ScryfallCard): boolean {
+  return (card.oracleTags?.length ?? 0) > 0 || (card.artTags?.length ?? 0) > 0
 }
 
 /** Collect the card cache's current state. Read-only: nothing here refreshes or writes. */

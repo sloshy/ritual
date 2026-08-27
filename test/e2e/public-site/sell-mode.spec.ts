@@ -15,7 +15,7 @@ import { expectVisibleCards, gotoList, selectCard, switchToListView } from '../h
  *
  * Quote matching itself is pinned at the engine layer
  * (test/unit/buylist-quote.test.ts), the baking in
- * test/unit/site/details.test.ts, the store seeding in
+ * test/unit/site-build/details.test.ts, the store seeding in
  * test/unit/site/buylist-seed.test.ts, and the value math in
  * test/unit/sell-value.test.ts — this spec covers only what the UI does with
  * them. The mocked collection holds one actively-bought card, one the buyer has

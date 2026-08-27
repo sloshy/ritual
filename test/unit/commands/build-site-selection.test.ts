@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'bun:test'
-import { selectionFlagNames } from '../../../src/commands/build-site'
+import { afterEach, describe, expect, test } from 'bun:test'
+import { parseSelectionFlags, selectionFlagNames } from '../../../src/commands/build-site'
 
 /**
  * `--decks [names...]` is optional-variadic, so commander answers `true` for a
@@ -18,6 +18,13 @@ describe('selectionFlagNames', () => {
     })
   })
 
+  test('an empty list of names is a usage error, like the bare flag', () => {
+    expect(selectionFlagNames([], '--decks')).toEqual({
+      ok: false,
+      error: '--decks requires at least one name.',
+    })
+  })
+
   test('a bare flag is a usage error naming the flag', () => {
     expect(selectionFlagNames(true, '--decks')).toEqual({
       ok: false,
@@ -26,6 +33,30 @@ describe('selectionFlagNames', () => {
     expect(selectionFlagNames([], '--wanted-lists')).toEqual({
       ok: false,
       error: '--wanted-lists requires at least one name.',
+    })
+  })
+})
+
+describe('parseSelectionFlags', () => {
+  afterEach(() => {
+    process.exitCode = 0
+  })
+
+  test('each flag lands under its own list kind', () => {
+    expect(
+      parseSelectionFlags({
+        decks: ['Burn'],
+        collections: ['Binder'],
+        wantedLists: ['Wishlist'],
+      }),
+    ).toEqual({ deck: ['Burn'], collection: ['Binder'], wanted: ['Wishlist'] })
+  })
+
+  test('an absent flag is undefined for its kind alone', () => {
+    expect(parseSelectionFlags({ collections: ['Binder'] })).toEqual({
+      deck: undefined,
+      collection: ['Binder'],
+      wanted: undefined,
     })
   })
 })

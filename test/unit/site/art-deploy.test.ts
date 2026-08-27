@@ -6,7 +6,7 @@ import {
   deployCardArt,
   undeployedArtFiles,
   type CardArtDeployResult,
-} from '../../../src/site/art-deploy'
+} from '../../../src/site-build/art-deploy'
 import { siteArtUrl } from '../../../src/list/art-url'
 
 /**

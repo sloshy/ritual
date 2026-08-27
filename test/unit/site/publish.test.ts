@@ -6,7 +6,7 @@ import {
   buildAndPublish,
   createBuildScratchDir,
   publishAtomically,
-} from '../../../src/site/publish'
+} from '../../../src/site-build/publish'
 
 /**
  * The scratch-and-swap seam shared by `ritual build-site` and the admin build

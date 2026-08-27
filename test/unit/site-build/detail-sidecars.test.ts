@@ -2,9 +2,9 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { loadCollectionSource } from '../../../src/site/details/collection'
-import { loadDeckSource } from '../../../src/site/details/deck'
-import { loadWantedSource } from '../../../src/site/details/wanted'
+import { loadCollectionSource } from '../../../src/site-build/collection'
+import { loadDeckSource } from '../../../src/site-build/deck'
+import { loadWantedSource } from '../../../src/site-build/wanted'
 
 /**
  * What the detail loaders read beside a list file: the custom-art sidecar and

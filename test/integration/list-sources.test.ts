@@ -2,11 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import {
-  discoverListSources,
-  resolveDeckSources,
-  resolveListSources,
-} from '../../src/site/list-sources'
+import { discoverListSources, resolveSelectedBasenames } from '../../src/site-build/list-sources'
+import { defaultSiteSelection } from '../../src/config/list-selection'
 
 let dir: string
 
@@ -19,6 +16,21 @@ afterEach(async () => {
 })
 
 const write = (name: string, content: string) => writeFile(path.join(dir, name), content)
+
+// The literal config keys are the oracle: each wrapper pins that its list type
+// reads its own `include*`/`exclude*` pair.
+const resolveDeckSources = (_dir: string, include: string[], exclude: string[]) =>
+  resolveSelectedBasenames('deck', dir, {
+    ...defaultSiteSelection(),
+    includeDecks: include,
+    excludeDecks: exclude,
+  })
+const resolveListSources = (_dir: string, include: string[], exclude: string[]) =>
+  resolveSelectedBasenames('collection', dir, {
+    ...defaultSiteSelection(),
+    includeCollections: include,
+    excludeCollections: exclude,
+  })
 
 describe('resolveDeckSources', () => {
   // Deck display name comes from `name:` frontmatter, falling back to file name.

@@ -29,7 +29,7 @@ import type {
  * Kingdom cache file — `--refresh never` guarantees nothing is downloaded.
  * Which printing a builder decides a tile displays (finish resolution, the
  * non-English exclusion, dedupe) is pinned at the unit layer in
- * test/unit/site/details.test.ts.
+ * test/unit/site-build/details.test.ts.
  */
 describe('build-site buylist baking (Integration)', () => {
   let dir: string

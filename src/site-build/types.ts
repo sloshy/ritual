@@ -1,8 +1,22 @@
-import type { ScryfallCard } from '../../scryfall/types'
-import type { BuyerId, BuylistFeedProvenance } from '../../buylist'
-import type { PrintingQuoteFn } from '../../cardkingdom/quote'
-import type { PriceCurrency } from '../../pricing/price-currency'
-import type { CardKingdomCards } from '../../list/site-data'
+import type { ScryfallCard } from '../scryfall/types'
+import type { BuyerId, BuylistFeedProvenance } from '../buylist'
+import type { PrintingQuoteFn } from '../cardkingdom/quote'
+import type { PriceCurrency } from '../pricing/price-currency'
+import type {
+  CardKingdomCards,
+  CollectionDetail,
+  CollectionSummary,
+  DeckDetail,
+  DeckSummary,
+  WantedListDetail,
+  WantedListSummary,
+} from '../list/site-data'
+
+/** What a list bakes to: its detail JSON payload and its `index.json` summary. */
+export type ListArtifacts<Detail, Summary> = { slug: string; detail: Detail; summary: Summary }
+export type DeckArtifacts = ListArtifacts<DeckDetail, DeckSummary>
+export type CollectionArtifacts = ListArtifacts<CollectionDetail, CollectionSummary>
+export type WantedArtifacts = ListArtifacts<WantedListDetail, WantedListSummary>
 
 /**
  * Prefetched per-name card data the detail builders read. Key presence mirrors
@@ -17,7 +31,7 @@ export type SiteCardData = {
   /** Cheapest-or-representative card per name; only currencies being built have a map. */
   cheapest: Partial<Record<PriceCurrency, Record<string, ScryfallCard | null>>>
   /** Names with no price per currency, in fetch order. */
-  missing: Partial<Record<PriceCurrency, readonly string[]>>
+  missing: Partial<Record<PriceCurrency, string[]>>
   /**
    * The Card Kingdom counterparts of {@link cards} and {@link cheapest}`.usd`:
    * the printing a name-only line displays, and the cheapest printing, chosen
@@ -43,7 +57,7 @@ export type CardKingdomCardData = {
  * being quoted, a cache-backed single-printing lookup, and the feed's own
  * freshness stamps.
  *
- * A seam rather than a feed handle so `src/site/` never reaches into a buyer's
+ * A seam rather than a feed handle so `src/site-build/` never reaches into a buyer's
  * matching engine: `detailBuylistContext` in `src/cardkingdom/bake.ts` is the
  * only producer, and both `build-site` and the live server use it — so the two
  * can never quote the same printing differently.

@@ -1,17 +1,13 @@
 import { cardCache } from '../cache'
-import { cardKingdomDisplayPrints } from '../cardkingdom/retail'
 import type { PrintingQuoteFn } from '../cardkingdom/quote'
-import { computeRepresentativePrints } from '../scryfall'
-import { sortPrintingsByRelease } from '../site/details/shared'
-import type { CardKingdomCardData, SiteCardData } from '../site/details/types'
+import {
+  emptySiteCardData,
+  pickDisplayPrintings,
+  recordDisplayPrintings,
+} from '../site-build/card-fetch'
+import type { SiteCardData } from '../site-build/types'
 import type { ScryfallCard } from '../scryfall/types'
 import type { PriceCurrency } from '../pricing/price-currency'
-
-/** The Card Kingdom half of a pass: the lookup, and the maps it fills. */
-type CardKingdomPass = {
-  quote: PrintingQuoteFn
-  data: CardKingdomCardData
-}
 
 export type CacheCardSourceOptions = {
   currencies: PriceCurrency[]
@@ -50,54 +46,21 @@ export async function createCacheCardSource(
   // One round trip against an HTTP cache backend instead of one call per card.
   const unique = [...new Set(names)]
   const fetched = await cardCache.streamGetMany(unique, () => {})
+  const cardData = emptySiteCardData(currencies)
   for (const name of unique) {
-    printingsMemo.set(name, fetched[name] ?? [])
+    const printings = fetched[name] ?? []
+    printingsMemo.set(name, printings)
+    // The same picks `build-site` bakes, so a live-served page and a built one
+    // show the same printing for the same name-only line.
+    const picks = pickDisplayPrintings({
+      printings,
+      card: printings[0] ?? null,
+      currencies,
+      bannedPrintings,
+      ckQuote: cardKingdomQuote,
+    })
+    recordDisplayPrintings(cardData, name, printings, picks)
   }
-
-  const cardData: SiteCardData = { cards: {}, printings: {}, cheapest: {}, missing: {} }
-  const missing: Partial<Record<PriceCurrency, string[]>> = {}
-  for (const cur of currencies) {
-    cardData.cheapest[cur] = {}
-    missing[cur] = []
-  }
-  // One value, not a quote plus a maybe-map: the two are constructed from the
-  // same condition, and pairing them is what lets the loop below ask once.
-  const cardKingdom: CardKingdomPass | undefined = cardKingdomQuote
-    ? { quote: cardKingdomQuote, data: { cards: {}, cheapest: {} } }
-    : undefined
-
-  for (const name of unique) {
-    const printings = printingsMemo.get(name) ?? []
-    cardData.printings[name] = printings
-    // Mirrors the build fetch loop: the shipped card is the USD representative
-    // when priced, else the raw cached card (the cache's first printing).
-    const base = printings[0] ?? null
-    const sorted = sortPrintingsByRelease(printings)
-    const repPrints = computeRepresentativePrints(sorted, sorted, currencies, bannedPrintings)
-    const usdRep = repPrints.usd?.representative ?? null
-    cardData.cards[name] = currencies.includes('usd') && usdRep ? usdRep : base
-    for (const cur of currencies) {
-      const rep = repPrints[cur]?.representative ?? null
-      const cheap = repPrints[cur]?.cheapest ?? null
-      if (!rep) missing[cur]!.push(name)
-      cardData.cheapest[cur]![name] = cheap ?? rep ?? base
-    }
-    // Card Kingdom's picks, from its catalog at its prices — the same selection
-    // `build-site` bakes, so a live-served page and a built one show the same
-    // printing for the same name-only line.
-    if (cardKingdom) {
-      const ckPrints = cardKingdomDisplayPrints(
-        cardKingdom.quote,
-        sorted,
-        printings,
-        bannedPrintings,
-      )
-      if (ckPrints.representative) cardKingdom.data.cards[name] = ckPrints.representative
-      if (ckPrints.cheapest) cardKingdom.data.cheapest[name] = ckPrints.cheapest
-    }
-  }
-  cardData.missing = missing
-  if (cardKingdom) cardData.cardKingdom = cardKingdom.data
 
   return {
     cardData,

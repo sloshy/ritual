@@ -24,7 +24,7 @@ import {
 } from '../../../i18n/runtime'
 import { isLocaleTagError, parseLocaleTag } from '../../../i18n/locale-tag'
 import type { LocaleTag } from '../../../i18n/types'
-import { localeDirection } from '../../../site/html-shell'
+import { localeDirection } from '../../../site-build/html-shell'
 
 /**
  * Test seam for the locales this deployment offers, mirroring `__ritualLocale__`.

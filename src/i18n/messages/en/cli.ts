@@ -227,11 +227,6 @@ export const cliMessages = {
     one: '{flags} only applies when building; add --build to build the site before serving.',
     other: '{flags} only apply when building; add --build to build the site before serving.',
   },
-  'cli.serve.uniqueCards': {
-    $plural: 'count',
-    one: '{count} unique card',
-    other: '{count} unique cards',
-  },
 
   // ── Skill install/update summary ──────────────────────────────────────
   //

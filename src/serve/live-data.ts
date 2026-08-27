@@ -10,7 +10,6 @@ import {
   getBannedPrintings,
   getDefaultCurrency,
   getDefaultLanguage,
-  cardKingdomPricesEnabled,
   getPriceSources,
   getSearchDebounceMs,
   getSiteSelectionConfig,
@@ -20,29 +19,24 @@ import {
   wantsCardKingdomFeed,
   type RitualConfig,
 } from '../config/ritual-config'
-import {
-  detailBuylistContext,
-  getCardKingdomFeed,
-  type LoadedCardKingdomFeed,
-} from '../cardkingdom'
+import { getCardKingdomFeed, siteBuylistContext, type LoadedCardKingdomFeed } from '../cardkingdom'
 import { compareData } from '../i18n/collate'
 import { isLocaleTagError, parseLocaleTag } from '../i18n/locale-tag'
 import { DEFAULT_LOCALE } from '../i18n/runtime'
 import type { LocaleTag } from '../i18n/types'
 import { dirForType } from '../list/resolve-list'
 import { enumerateSources } from './lists'
-import { deckCardNames, flatListCardNames } from '../site/details/card-names'
-import { loadDeckSource, buildDeckArtifacts } from '../site/details/deck'
-import { loadCollectionSource, buildCollectionArtifacts } from '../site/details/collection'
-import { loadWantedSource, buildWantedArtifacts } from '../site/details/wanted'
-import type { SiteDetailContext } from '../site/details/types'
+import { loadListSource } from '../site-build/lists'
+import type { SiteDetailContext } from '../site-build/types'
+import { buildSiteIndex } from '../site-build/write-shell'
 import { createCacheCardSource } from './card-source'
 import type {
   CollectionSummary,
   DeckSummary,
-  SiteIndex,
+  ListSummary,
   WantedListSummary,
 } from '../list/site-data'
+import { t } from '../i18n/t'
 import type { ListType } from '../list/list-type'
 import { VALID_CURRENCIES } from '../pricing/price-currency'
 import type { PriceCurrency } from '../pricing/price-currency'
@@ -66,13 +60,10 @@ export interface LiveSiteData {
   getDetail(kind: ListType, slug: string): Promise<LiveJson | null>
 }
 
-/** What the live payloads need to know about the tree they are served from. */
 export type LiveSiteDataOptions = {
   /**
-   * The published site directory. Only the locale dictionaries are read from
-   * it: `availableLocales` must describe the files the browser can actually
-   * fetch, which is whatever the last build wrote into `dist/locales/`, not
-   * what this binary happens to carry.
+   * The published site directory, read only for its locale dictionaries:
+   * `availableLocales` must describe the files the browser can actually fetch.
    */
   distDir?: string
 }
@@ -88,8 +79,6 @@ type ListStamp = {
   generation: number
   configStamp: string
 }
-
-type ListSummary = DeckSummary | CollectionSummary | WantedListSummary
 
 type BuiltList = {
   slug: string
@@ -122,19 +111,14 @@ function etagFor(body: string): string {
 }
 
 /** Lines the parsers cannot read (malformed cards, prose) are skipped; say so in the server log rather than silently. */
-function logParseWarnings(kind: ListType, basename: string, warnings: readonly string[]): void {
-  for (const warning of warnings) {
-    console.warn(`[${kind}:${basename}] ${warning}`)
-  }
+function logListWarning(kind: ListType, basename: string, warning: string): void {
+  console.warn(`[${kind}:${basename}] ${warning}`)
 }
 
 /**
- * The locales the served tree has dictionaries for, English first.
- *
- * Read from disk on every index request rather than memoized: a rebuild into
- * the same directory can add or remove languages under a running server, and
- * one `readdir` is noise next to the per-list stats the same request already
- * does.
+ * The locales the served tree has dictionaries for, English first. Read on
+ * every index request rather than memoized: a rebuild into the same directory
+ * can add or remove languages under a running server.
  */
 async function publishedLocales(distDir: string | undefined): Promise<LocaleTag[]> {
   if (distDir === undefined) return [DEFAULT_LOCALE]
@@ -167,8 +151,7 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
   let buylistFeed: LoadedCardKingdomFeed | null = null
 
   function getSymbolMap(): Promise<Record<string, string>> {
-    // Fetched once per server lifetime (disk-cached in cache/symbology.json);
-    // maps to Scryfall's remote svg URIs so live payloads are self-contained.
+    // Once per server lifetime; Scryfall's remote svg URIs keep payloads self-contained.
     symbolMapPromise ??= fetchSymbology().then((symbols) => {
       const map: Record<string, string> = {}
       for (const s of symbols) {
@@ -227,17 +210,14 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
       bannedPrintings: [...getBannedPrintings(config)].sort(),
       searchDebounceMs: getSearchDebounceMs(config),
       defaultLanguage: getDefaultLanguage(config),
-      // Every field the index payload reads from config has to be here, or a
-      // `config set` of it is invisible until some unrelated file's mtime moves
-      // — the failure mode this allowlist exists to make reviewable.
+      // Every config field the payloads read has to be here, or a `config set`
+      // of it is invisible until some unrelated file's mtime moves.
       uiLocale: getUiLocale(config),
       selection: getSiteSelectionConfig(config.site),
       sellMode: getSiteSellMode(config),
       priceSources: getPriceSources(config),
-      // Not config, but it lands in the same payloads: details carry baked
-      // buylist quotes, so a refreshed buyer feed has to invalidate them too.
-      // `null` (no feed, or sell mode off) serializes as distinctly as any
-      // download time does.
+      // Not config, but details carry baked buylist quotes, so a refreshed
+      // buyer feed has to invalidate them too. `null` = no feed, or sell mode off.
       buylist: buylistRetrievedAt,
     })
   }
@@ -247,15 +227,7 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
     config: RitualConfig,
   ): Promise<SiteDetailContext> {
     const bannedPrintings = getBannedPrintings(config)
-    // The buylist context is built once and used twice: it quotes the printings
-    // a list displays, and — when the deployment offers CK prices — it is also
-    // what picks which printing a name-only line displays under that source.
-    const offersCardKingdom = cardKingdomPricesEnabled(config)
-    // `quotePrintings` follows the price source, not sell mode: it is the
-    // printing pickers and the other-printings grid that read those quotes.
-    const buylist = buylistFeed
-      ? detailBuylistContext(buylistFeed, { quotePrintings: offersCardKingdom })
-      : null
+    const buylist = siteBuylistContext(buylistFeed, config)
     const source = await createCacheCardSource(names, {
       currencies: LIVE_CURRENCIES,
       bannedPrintings,
@@ -272,15 +244,11 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
       defaultCurrency: configuredCurrency,
       availableCurrencies: LIVE_CURRENCIES,
       pricesDate,
-      // Quotes are baked into the detail here exactly as `build-site` bakes
-      // them, so the site's sell mode reads one shape in both modes and never
-      // calls the quotes API. Absent feed (or sell mode off) = no baked field.
+      // Baked exactly as `build-site` bakes them, so sell mode reads one shape
+      // in both modes. Absent feed (or sell mode off) = no baked field.
       ...(buylist ? { buylist } : {}),
       // No `missingArtFiles`: nothing is deployed here, so every custom-art
-      // reference is baked as `art/<relpath>` and answered — or 404'd — live by
-      // the `/art/*` route reading the configured art directory.
-      // Surface data-quality warnings (e.g. an unresolvable printing) in the
-      // server log, matching what build-site prints for the same condition.
+      // reference is baked as `art/<relpath>` and answered live by `/art/*`.
       warn: (message) => console.warn(message),
     }
   }
@@ -315,37 +283,18 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
     const memoized = listMemo.get(key)
     if (memoized && stampsEqual(memoized.stamp, stamp)) return memoized
 
-    let slug: string
-    let summary: ListSummary
-    let detailBody: string
-    if (kind === 'deck') {
-      const loaded = await loadDeckSource(dir, basename)
-      if (typeof loaded === 'string') return null
-      logParseWarnings(kind, basename, loaded.warnings)
-      const ctx = await makeContext(await deckCardNames(loaded), config)
-      const artifacts = await buildDeckArtifacts(loaded, ctx)
-      slug = artifacts.slug
-      summary = artifacts.summary
-      detailBody = JSON.stringify(artifacts.detail)
-    } else if (kind === 'collection') {
-      const loaded = await loadCollectionSource(dir, basename)
-      if (typeof loaded === 'string' || loaded.entries.length === 0) return null
-      logParseWarnings(kind, basename, loaded.warnings)
-      const ctx = await makeContext(await flatListCardNames(loaded), config)
-      const artifacts = await buildCollectionArtifacts(loaded, ctx)
-      slug = artifacts.slug
-      summary = artifacts.summary
-      detailBody = JSON.stringify(artifacts.detail)
-    } else {
-      const loaded = await loadWantedSource(dir, basename)
-      if (typeof loaded === 'string' || loaded.entries.length === 0) return null
-      logParseWarnings(kind, basename, loaded.warnings)
-      const ctx = await makeContext(await flatListCardNames(loaded), config)
-      const artifacts = await buildWantedArtifacts(loaded, ctx)
-      slug = artifacts.slug
-      summary = artifacts.summary
-      detailBody = JSON.stringify(artifacts.detail)
+    const list = await loadListSource(kind, dir, basename)
+    if (typeof list === 'string') return null
+    for (const warning of list.warnings) logListWarning(kind, basename, warning)
+    // The same rule as the build: an empty flat list is skipped, and said so.
+    if (list.isEmpty) {
+      logListWarning(kind, basename, t('cli.buildSite.noValidEntries', { name: list.name }))
+      return null
     }
+    const { slug, summary, detail } = await list.build(
+      await makeContext(await list.cardNames(), config),
+    )
+    const detailBody = JSON.stringify(detail)
 
     const built: BuiltList = {
       slug,
@@ -384,24 +333,22 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
     await collect('collection', collections)
     await collect('wanted', wantedLists)
 
-    const configuredCurrency = getDefaultCurrency(config)
-    const index: SiteIndex = {
-      decks,
-      collections,
-      wantedLists: wantedLists.length > 0 ? wantedLists : undefined,
-      useScryfallImgUrls: true,
-      defaultCurrency: configuredCurrency,
-      availableCurrencies: LIVE_CURRENCIES,
-      pricesDate,
-      searchDebounceMs: getSearchDebounceMs(config),
-      defaultLanguage: getDefaultLanguage(config),
-      uiLocale: getUiLocale(config),
-      availableLocales: await publishedLocales(options.distDir),
-      // Same-origin marker: this payload is only ever served by `serve --api`.
-      apiBaseUrl: '',
-      sellMode: getSiteSellMode(config),
-      priceSources: getPriceSources(config),
-    }
+    const index = buildSiteIndex(
+      {
+        decks,
+        collections,
+        wantedLists,
+        useScryfallImgUrls: true,
+        defaultCurrency: getDefaultCurrency(config),
+        availableCurrencies: LIVE_CURRENCIES,
+        pricesDate,
+        uiLocale: getUiLocale(config),
+        availableLocales: await publishedLocales(options.distDir),
+        // Same-origin marker: this payload is only ever served by `serve --api`.
+        apiBaseUrl: '',
+      },
+      config,
+    )
     const body = JSON.stringify(index)
     // Every file the payloads are built from, art sidecars included — the index
     // carries each list's totals, and those move when custom art is set or

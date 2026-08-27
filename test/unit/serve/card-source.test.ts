@@ -48,51 +48,20 @@ describe('createCacheCardSource', () => {
     await fs.rm(dir, { recursive: true, force: true })
   })
 
-  test('ships the USD representative as the card and the cheapest per currency', async () => {
+  test('prefetches every name from the cache with no Scryfall fallback', async () => {
     await cardCache.set('Lightning Bolt', [boltOld, boltNew])
-    const source = await createCacheCardSource(['Lightning Bolt'], {
-      currencies: CURRENCIES,
-      bannedPrintings: new Set(),
-    })
-
-    // Representative = newest priced printing; cheapest = lowest price overall.
-    expect(source.cardData.cards['Lightning Bolt']?.id).toBe('bolt-new')
-    expect(source.cardData.cheapest.usd?.['Lightning Bolt']?.id).toBe('bolt-old')
-    expect(source.cardData.printings['Lightning Bolt']).toHaveLength(2)
-  })
-
-  test('reports missing per currency without a Scryfall fallback', async () => {
-    await cardCache.set('Lightning Bolt', [boltOld])
     const source = await createCacheCardSource(['Lightning Bolt', 'Unknown Card'], {
       currencies: CURRENCIES,
       bannedPrintings: new Set(),
     })
 
-    // boltOld has USD but no EUR/TIX prices.
-    expect(source.cardData.missing.usd).toEqual(['Unknown Card'])
-    expect(source.cardData.missing.eur).toEqual(['Lightning Bolt', 'Unknown Card'])
+    // The display-printing rule itself is pinned in site-build/card-fetch.test.ts;
+    // this layer only feeds it the cache's printings, with the first as the base.
+    expect(source.cardData.printings['Lightning Bolt']).toHaveLength(2)
+    expect(source.cardData.cards['Lightning Bolt']?.id).toBe('bolt-new')
     expect(source.cardData.cards['Unknown Card']).toBeNull()
     expect(source.cardData.printings['Unknown Card']).toEqual([])
-    expect(source.cardData.cheapest.usd?.['Unknown Card']).toBeNull()
-  })
-
-  test('banned printings are skipped for the representative but still win cheapest', async () => {
-    const bannedCheap = makeScryfallCard({
-      id: 'bolt-banned',
-      name: 'Lightning Bolt',
-      set: 'sld',
-      collector_number: '123',
-      released_at: '2024-01-01',
-      prices: { usd: '0.50' },
-    })
-    await cardCache.set('Lightning Bolt', [boltOld, bannedCheap])
-    const source = await createCacheCardSource(['Lightning Bolt'], {
-      currencies: CURRENCIES,
-      bannedPrintings: new Set(['sld:123']),
-    })
-
-    expect(source.cardData.cards['Lightning Bolt']?.id).toBe('bolt-old')
-    expect(source.cardData.cheapest.usd?.['Lightning Bolt']?.id).toBe('bolt-banned')
+    expect(source.cardData.missing.usd).toEqual(['Unknown Card'])
   })
 
   test('getPrintings memoizes and reads through the cache for unprefetched names', async () => {

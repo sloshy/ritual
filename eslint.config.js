@@ -136,6 +136,7 @@ export default [
                 'src/importers',
                 'src/export',
                 'src/api',
+                'src/site-build',
               ],
             },
             { name: 'ui', dirs: ['src/ui'] },
@@ -157,8 +158,6 @@ export default [
             },
           ],
           allow: [
-            // Zone 5c — the bake types live under site/details.
-            { from: 'src/cardkingdom/bake', to: 'src/site/details' },
             // Zone 10/11 — cache/ reaches into the feed server.
             { from: 'src/cache/refresh-source', to: 'src/cache-feed/fetch' },
             // Zone 10 — the client-neutral card routes borrow admin's HTTP helpers.

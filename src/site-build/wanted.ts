@@ -1,122 +1,41 @@
-import { t } from '../../i18n/t'
-import path from 'node:path'
-import fs from 'node:fs/promises'
-import { parseWantedListFile } from '../../list/wanted-file'
-import type { WantedListEntry } from '../../list/wanted-file'
-import { parseTitleFromContent } from '../../list/section-format'
-import type { ChangelogPage } from '../../changes/changelog-parser'
-import { findPrinting, hasSpecificPrinting } from '../../card/card-printing'
-import { displayLanguage, scryfallCardLanguage } from '../../card/card-language'
-import { defaultPrintingFinish } from '../../card/finish-condition'
-import { getCardPrice, getCardPriceForFinish } from '../../pricing/price-currency'
-import type { CardArtMap } from '../../list/card-art'
-import { isListImageCardRef, type ListImageRef } from '../../list/list-image'
-import type { ScryfallCard } from '../../scryfall/types'
+import { t } from '../i18n/t'
+import { parseWantedListFile } from '../list/wanted-file'
+import type { WantedListEntry } from '../list/wanted-file'
+import { findPrinting, hasSpecificPrinting } from '../card/card-printing'
+import { displayLanguage, scryfallCardLanguage } from '../card/card-language'
+import { defaultPrintingFinish } from '../card/finish-condition'
+import { getCardPrice, getCardPriceForFinish } from '../pricing/price-currency'
+import { isListImageCardRef } from '../list/list-image'
+import type { ScryfallCard } from '../scryfall/types'
 import type {
   CardKingdomCards,
   WantedListCardEntry,
   WantedListDetail,
   WantedListEntryState,
   WantedListSummary,
-} from '../../list/site-data'
+} from '../list/site-data'
 import {
   bakeBuylistQuotes,
-  cardIdsOf,
   customArtLookup,
   includeChangelogCards,
-  listReadErrorMessage,
-  loadListSidecars,
-  readListFrontMatter,
+  loadFlatListSource,
   reportListCoverIssue,
   resolveListCover,
   slugifyListName,
 } from './shared'
-import type { BuylistBakeSource, ListCoverOverrideEntry } from './shared'
-import type { SiteDetailContext } from './types'
+import type { BuylistBakeSource, ListCoverOverrideEntry, LoadedFlatList } from './shared'
+import type { SiteDetailContext, WantedArtifacts } from './types'
 import {
   cardPrintingKey,
   formatPrintingLabel,
   printingKey,
   printingLanguageKey,
-} from '../../card/printing-key'
+} from '../card/printing-key'
 
-export type LoadedWanted = {
-  displayName: string
-  entries: WantedListEntry[]
-  /** Section names in file order, including empty sections. */
-  sectionOrder: string[]
-  /** The list's prose blurb from its front matter, when it declares one. */
-  description?: string
-  /**
-   * The list's cover image override from its front matter, when it declares a
-   * usable one. An unreadable value is reported as one of
-   * {@link LoadedWanted.warnings}.
-   */
-  image?: ListImageRef
-  /** Custom art from the `.art.json` sidecar, keyed by card id. */
-  art?: CardArtMap
-  warnings: string[]
-  changelog: ChangelogPage[]
-  fileMtime?: string
-}
+export type LoadedWanted = LoadedFlatList<WantedListEntry>
 
-/**
- * Load a wanted list markdown file plus its `.changes.md` sidecar. Returns an
- * error message string when the file can't be read.
- */
-export async function loadWantedSource(
-  wantedDir: string,
-  name: string,
-): Promise<LoadedWanted | string> {
-  const fileName = name.endsWith('.md') ? name : `${name}.md`
-  const filePath = path.join(wantedDir, fileName)
-
-  let content: string
-  try {
-    content = await fs.readFile(filePath, 'utf-8')
-  } catch (error) {
-    // Just the reason: the caller owns the "Failed to load <kind> '<name>'"
-    // lead-in, so all three list types report a failed read identically.
-    return listReadErrorMessage(error, filePath)
-  }
-
-  const { entries, sectionOrder, warnings, advisories, frontMatter } = parseWantedListFile(content)
-  const displayName = parseTitleFromContent(content) ?? name
-  // Read exactly as a collection's is — see `collection.ts`.
-  const {
-    description,
-    image,
-    warnings: frontMatterWarnings,
-  } = readListFrontMatter(frontMatter?.data ?? {})
-
-  const baseName = name.endsWith('.md') ? name.slice(0, -3) : name
-  const { changelog, fileMtime, art, artWarnings } = await loadListSidecars(
-    wantedDir,
-    baseName,
-    filePath,
-    { knownCardIds: cardIdsOf(entries) },
-  )
-
-  return {
-    displayName,
-    entries,
-    sectionOrder,
-    description,
-    image,
-    art,
-    // The parser's own advisories ride the same channel as its warnings and the
-    // sidecar's, so nothing the user should hear about is reported by one
-    // channel and swallowed by another.
-    warnings: [...warnings, ...advisories, ...frontMatterWarnings, ...artWarnings],
-    changelog,
-    fileMtime,
-  }
-}
-
-export type WantedArtifacts = {
-  slug: string
-  detail: WantedListDetail
-  summary: WantedListSummary
+export function loadWantedSource(dir: string, name: string): Promise<LoadedWanted | string> {
+  return loadFlatListSource(dir, name, parseWantedListFile)
 }
 
 /** Build a wanted list's detail JSON payload and index summary. */
