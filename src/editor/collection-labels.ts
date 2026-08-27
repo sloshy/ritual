@@ -7,7 +7,7 @@
  */
 
 import { batch } from 'solid-js'
-import type { UseEditorResult } from './useEditor'
+import type { UseEditorResult } from './editor-config'
 import type { CollectionCardEntry } from '../list/site-data'
 import type { CardLabel } from '../card/card-labels'
 import { applyChangeToCollection } from '../changes/collection-changes'

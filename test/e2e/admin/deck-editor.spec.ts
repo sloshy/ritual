@@ -235,4 +235,80 @@ test.describe('Deck Editor Page', () => {
       await expect(preview).toHaveCount(0)
     })
   })
+
+  test.describe('move to list — printing prompt language', () => {
+    /** A Japanese-only printing (no English object for this set:cn). */
+    const BOLT_JA = makeMockScryfallCard({
+      id: 'bolt-sta-ja',
+      name: 'Lightning Bolt',
+      cmc: 1,
+      type_line: 'Instant',
+      prices: { usd: null },
+      set: 'sta',
+      set_name: 'Strixhaven Mystical Archive',
+      collector_number: '42',
+      lang: 'ja',
+    })
+
+    test.beforeEach(async ({ page }) => {
+      await gotoAdminDashboard(page)
+      await fulfillJson(
+        page,
+        '**/api/decks',
+        { decks: [{ slug: 'lang-move-deck', name: 'Lang Move Deck' }] },
+        { method: 'GET' },
+      )
+      await fulfillJson(page, '**/api/lists', {
+        success: true,
+        lists: [
+          { type: 'deck', slug: 'lang-move-deck', name: 'Lang Move Deck' },
+          { type: 'collection', slug: 'binder', name: 'Binder' },
+        ],
+      })
+      // A name-only line: moving it into a collection must pick a printing.
+      await fulfillJson(page, '**/api/deck/lang-move-deck', {
+        success: true,
+        slug: 'lang-move-deck',
+        contentHash: 'hash-1',
+        deck: {
+          name: 'Lang Move Deck',
+          sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }] }],
+        },
+        cards: { 'Lightning Bolt': BOLT_JA },
+        printings: { 'Lightning Bolt': [BOLT_JA] },
+        lowestPriceCards: {},
+        lowestPriceCardsEur: {},
+        lowestPriceCardsTix: {},
+        symbolMap: {},
+        frontMatter: {},
+      })
+      await openListEditor(page, 'deck')
+      await selectList(page, 'deck', 'lang-move-deck')
+      await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+    })
+
+    test('a name-only card moved into a collection keeps the picked printing’s language', async ({
+      page,
+    }) => {
+      await page.locator('.card-item').first().locator('.edit-btn-context').click()
+      await page.locator('.card-context-menu button', { hasText: 'Move to list…' }).click()
+      await page.locator('.move-picker-item', { hasText: "Collection 'Binder'" }).click()
+
+      // The shared picker offers the Japanese-only object; confirming it pauses
+      // on the language notice, and Continue stamps `ja` on the pick.
+      const picker = page.locator('.trade-picker-modal')
+      await picker.locator('.trade-picker-item').first().click()
+      await picker.locator('.trade-picker-actions .btn-success').click()
+      await expect(picker.locator('.trade-picker-language-notice')).toBeVisible()
+      await picker.locator('.trade-picker-actions .btn-success').click()
+
+      // The deck line has no language of its own, so the recorded move-from
+      // carries the picker's — it used to be dropped here.
+      await expect(page.locator('.changes-badge')).toHaveText('1')
+      await page.locator('.btn-changes').click()
+      const changeItem = page.locator('.changes-modal .change-item')
+      await expect(changeItem).toContainText('Lightning Bolt (STA:42)')
+      await expect(changeItem).toContainText('[ja]')
+    })
+  })
 })

@@ -3,7 +3,7 @@ import type { CollectionDetail, CollectionCardEntry } from '../../list/site-data
 import type { PriceCurrency } from '../../pricing/price-currency'
 import type { ListRef } from '../../changes/change-event'
 import type { NamedListRef } from '../../list-view/combined-list'
-import type { ListEditorConfig } from '../../editor/useEditor'
+import type { ListEditorConfig } from '../../editor/editor-config'
 import type { EntryCardDataActions } from '../../editor/useEntryCardData'
 import { collectExistingIds } from '../../card/card-id'
 import { useEditorDefaults } from '../../editor/useEditorDefaults'

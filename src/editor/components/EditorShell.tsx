@@ -1,6 +1,6 @@
-import { type JSX, Show, For, createMemo, createSignal } from 'solid-js'
+import { type Accessor, type JSX, Show, For, createMemo, createSignal } from 'solid-js'
 import type { ScryfallCard } from '../../scryfall/types'
-import type { UseEditorResult, ListItem } from '../useEditor'
+import type { UseEditorResult, ListItem } from '../editor-config'
 import type { UseEditorDefaultsResult } from '../useEditorDefaults'
 import type { SearchProvider } from '../search-provider'
 import type { ListType } from '../../list/list-type'
@@ -70,7 +70,11 @@ type EditorShellProps<TData, TCardEntry> = {
   /** The swap wizard's props; the wizard is mounted only when present (deck and collection editors). */
   swap?: SwapPrintingsWizardProps
   contextMenu?: JSX.Element
-  children: JSX.Element
+  /**
+   * The page, rendered once the list is loaded and non-empty with the data it
+   * shows — non-null by construction, so no body has to assert it.
+   */
+  children: (data: Accessor<TData>) => JSX.Element
 }
 
 export function EditorShell<TData, TCardEntry>(
@@ -140,7 +144,9 @@ export function EditorShell<TData, TCardEntry>(
       </Show>
 
       {/* Content slot */}
-      <Show when={editor.isDataReady()}>{props.children}</Show>
+      <Show when={editor.isDataReady() ? editor.data() : null}>
+        {(data) => props.children(data)}
+      </Show>
 
       {/* Context menu slot */}
       {props.contextMenu}

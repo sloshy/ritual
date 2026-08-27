@@ -1,6 +1,6 @@
 import type { ChangeEvent } from '../changes/change-event'
 import type { EditorStatusActions } from './useEditorStatus'
-import type { SaveEffect } from './save-effects'
+import type { SaveEffect } from '../changes/save-effects'
 import { saveEditorChanges } from './saveEditorChanges'
 
 /** Everything a {@link CommitSink} needs to persist (or export) a set of edits. */

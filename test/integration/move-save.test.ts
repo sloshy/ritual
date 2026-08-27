@@ -12,7 +12,7 @@ import {
   applyCrossListMoves,
   applyOutgoingMoves,
   prepareOutgoingMoves,
-} from '../../src/admin/api/move-save'
+} from '../../src/list/move-prepare'
 import { handleSelectedMove } from '../../src/admin/api/move'
 import { handleLists } from '../../src/admin/api/lists'
 import { handleDeckSave } from '../../src/admin/api/deck-save'

@@ -3,10 +3,12 @@ import {
   applyAddToStaged,
   applyRemoveFromStaged,
   applyRemoveIncomingFromStaged,
+  loadStagedOrThrow,
   type StagedFile,
 } from '../../src/list/move-staging'
 import type { PhysicalCard } from '../../src/list/move-staging'
 import type { DeckData } from '../../src/list/deck'
+import { scratchListPath } from '../test-utils'
 
 function deckStaged(deck: DeckData): StagedFile {
   return { kind: 'deck', data: { deck, frontMatter: {} } }
@@ -506,5 +508,29 @@ describe('applyRemoveIncomingFromStaged line matching', () => {
     // No printing on the event at all: any line of that name (tier 4), then nothing left.
     expect(applyRemoveIncomingFromStaged(staged, { name: 'Sol Ring' })).toMatchObject({ cardId: 4 })
     expect(applyRemoveIncomingFromStaged(staged, { name: 'Sol Ring' })).toBeNull()
+  })
+})
+
+describe('loadStagedOrThrow', () => {
+  test('a missing list throws with the caller’s missing-file wording, naming the file', async () => {
+    const filePath = scratchListPath('absent-binder.md')
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+    await expect(
+      loadStagedOrThrow(
+        { ref: { type: 'collection', name: 'Binder' }, filePath },
+        { missingKey: 'cli.move.abortDestinationMissing', abortKey: 'cli.move.abortMove' },
+      ),
+    ).rejects.toThrow(`Destination file not found, aborting move: ${filePath}`)
+  })
+
+  test('the remove pair words a missing deck as a removal abort', async () => {
+    const filePath = scratchListPath('absent-deck.md')
+    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+    await expect(
+      loadStagedOrThrow(
+        { ref: { type: 'deck', name: 'Deck' }, filePath },
+        { missingKey: 'cli.move.abortRemoveSourceUnreadable', abortKey: 'cli.move.abortRemove' },
+      ),
+    ).rejects.toThrow(`Source file not readable, aborting remove: ${filePath}`)
   })
 })

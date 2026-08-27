@@ -7,7 +7,7 @@
  */
 
 import * as fs from 'node:fs/promises'
-import { writeFileWithHash } from '../changes/content-hash'
+import { hashPath, writeFileWithHash } from '../changes/content-hash'
 import { findOrCreateSection, resolveDefaultAddSection } from './deck-format'
 import { loadDeckFile } from '../importers/text-file'
 import { formatCollectionLine, resolvePrinting, type CardPrinting } from '../card/card-line'
@@ -150,6 +150,52 @@ export async function loadStagedFile(
     }
   }
   return { ok: true, file: { kind: 'text', content } }
+}
+
+/**
+ * How a move aborts when a list it needs cannot be staged: `missingKey` names
+ * the unreadable file, `abortKey` carries the staging refusal's own message
+ * (e.g. a deck with lines the write would lose).
+ */
+export type StagedAbortKeys = {
+  missingKey:
+    | 'cli.move.abortDestinationMissing'
+    | 'cli.move.abortSourceUnreadable'
+    | 'cli.move.abortRemoveSourceUnreadable'
+  abortKey: 'cli.move.abortMove' | 'cli.move.abortRemove'
+}
+
+/**
+ * {@link loadStagedFile} for a commit that must not touch any file unless every
+ * file stages: an unreadable list throws with the caller's wording instead of
+ * returning a refusal to thread through.
+ */
+export async function loadStagedOrThrow(
+  entry: ListEntry,
+  keys: StagedAbortKeys,
+): Promise<StagedFile> {
+  const loaded = await loadStagedFile(entry.filePath, entry.ref.type)
+  if (loaded.ok) return loaded.file
+  throw new Error(
+    loaded.reason === 'unreadable-file'
+      ? t(keys.missingKey, { file: entry.filePath })
+      : t(keys.abortKey, { reason: loaded.message }),
+  )
+}
+
+/**
+ * Write every staged file back in one pass, returning each list path and its
+ * hash sidecar so the caller can stage them.
+ */
+export async function writeStagedFiles(
+  staged: Iterable<readonly [string, StagedFile]>,
+): Promise<string[]> {
+  const written: string[] = []
+  for (const [filePath, file] of staged) {
+    await writeStagedFile(filePath, file)
+    written.push(filePath, hashPath(filePath))
+  }
+  return written
 }
 
 /**

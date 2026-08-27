@@ -2,7 +2,7 @@ import type { CardArtRef } from '../list/card-art'
 import type { ChangeEvent } from '../changes/change-event'
 import type { CardArtRefs } from './card-art-view'
 import { reconcileIdPoolForUndo } from './reconcile-undo'
-import type { SaveEffect } from './save-effects'
+import type { SaveEffect } from '../changes/save-effects'
 import type { UndoEntry } from './useCardChanges'
 
 /**

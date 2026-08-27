@@ -5,7 +5,7 @@ import type { Card } from '../../src/card/card'
 import type { DeckData } from '../../src/list/deck'
 import { createSetLanguageChange, type ChangeEvent } from '../../src/changes/change-event'
 import { handleDeckSave } from '../../src/admin/api/deck-save'
-import type { ListSaveResponse } from '../../src/admin/api/move-save'
+import type { ListSaveResponse } from '../../src/admin/api/list-save'
 import { computeHash } from '../../src/changes/content-hash'
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
 

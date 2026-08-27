@@ -1,4 +1,4 @@
-import type { DroppedNote } from '../list/move-staging'
+import type { DroppedNote } from './move-staging'
 import { t } from '../i18n/t'
 
 /**
@@ -6,7 +6,7 @@ import { t } from '../i18n/t'
  * e.g. ` Note dropped on merge: Sol Ring ("from trade").`. Shared by the move
  * page and the editor save flow so the wording stays identical.
  */
-export function formatDroppedNotesSuffix(droppedNotes: DroppedNote[]): string {
+export function formatDroppedNotesSuffix(droppedNotes: readonly DroppedNote[]): string {
   if (droppedNotes.length === 0) return ''
   const items = droppedNotes.map((d) => `${d.cardName} ("${d.note}")`).join(', ')
   // The leading space joins this onto the status sentence before it; it belongs

@@ -1,6 +1,6 @@
 import type { DroppedNote } from '../list/move-staging'
-import type { SaveEffect } from './save-effects'
-import { formatDroppedNotesSuffix } from './dropped-notes'
+import type { SaveEffect } from '../changes/save-effects'
+import { formatDroppedNotesSuffix } from '../list/dropped-notes'
 import { type EditorStatusActions, statusMessage, statusText } from './useEditorStatus'
 
 type SaveResponse = {

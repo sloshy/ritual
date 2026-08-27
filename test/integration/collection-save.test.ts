@@ -9,7 +9,7 @@ import {
   type ChangeEvent,
 } from '../../src/changes/change-event'
 import { handleCollectionSave } from '../../src/admin/api/collection-save'
-import type { ListSaveResponse } from '../../src/admin/api/move-save'
+import type { ListSaveResponse } from '../../src/admin/api/list-save'
 import { computeHash } from '../../src/changes/content-hash'
 import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from './helpers/workspace'
 

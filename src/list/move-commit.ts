@@ -7,30 +7,35 @@
 
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { hashPath } from '../changes/content-hash'
 import { t } from '../i18n/t'
 import { appendChangelog } from '../changes/changelog-writer'
 import {
   createMoveFromChange,
   createMoveToChange,
   createRemoveChange,
+  printingOptionsFrom,
 } from '../changes/change-event'
 import { importFromTextFile } from '../importers/text-file'
 import { parseCollectionFile } from './collection-file'
 import { parseWantedListFile } from './wanted-file'
 import {
-  loadStagedFile,
+  loadStagedOrThrow,
   applyRemoveFromStaged,
   adoptedCardId,
   applyAddToStaged,
   stagedCardIds,
-  writeStagedFile,
+  writeStagedFiles,
   type DroppedNote,
   type PhysicalCard,
   type StagedAddResult,
   type StagedFile,
 } from './move-staging'
-import { createCardArtCache, type CardArtRef } from './card-art'
+import {
+  createCardArtCache,
+  type CardArtReconcileFailure,
+  type CardArtReconcileInput,
+  type CardArtRef,
+} from './card-art'
 import { reconcileListRefs } from './list-refs'
 import type { ListEntry } from './list-info'
 
@@ -252,12 +257,12 @@ type PerFileChanges = {
  * source side while allocating a fresh one on the destination side — so the art
  * has to be re-filed, or the source's next added card inherits it.
  */
-type ArtReconcile = {
+export type ArtReconcile = CardArtReconcileInput & {
   removed: Set<number>
   added: Map<number, CardArtRef>
 }
 
-function artReconcileFor(byFile: Map<string, ArtReconcile>, filePath: string): ArtReconcile {
+export function artReconcileFor(byFile: Map<string, ArtReconcile>, filePath: string): ArtReconcile {
   let entry = byFile.get(filePath)
   if (!entry) {
     entry = { removed: new Set(), added: new Map() }
@@ -266,17 +271,30 @@ function artReconcileFor(byFile: Map<string, ArtReconcile>, filePath: string): A
   return entry
 }
 
+/** What committing a batch's art reconciles produced. */
+export type ArtCommitResult = {
+  /** Every sidecar and cover path written, deduplicated, for a caller staging them. */
+  writtenFiles: string[]
+  /** The sidecars that could not be reconciled; their art is left exactly as it was. */
+  failures: CardArtReconcileFailure[]
+}
+
 /**
- * Write every reconciled art sidecar and cover image, returning the paths
- * written so the caller can stage them. A sidecar Ritual cannot read is left
- * exactly as it is — see {@link reconcileListRefs}.
+ * Write every reconciled art sidecar and cover image. A sidecar Ritual cannot
+ * read keeps its own art and is reported as a failure rather than rewritten
+ * from a partial read — see {@link reconcileListRefs}.
  */
-async function commitArtReconciles(byFile: Map<string, ArtReconcile>): Promise<string[]> {
+export async function commitArtReconciles(
+  byFile: Map<string, ArtReconcile>,
+): Promise<ArtCommitResult> {
   const written: string[] = []
+  const failures: CardArtReconcileFailure[] = []
   for (const [filePath, entry] of byFile) {
-    written.push(...(await reconcileListRefs(filePath, entry)).writtenFiles)
+    const reconciled = await reconcileListRefs(filePath, entry)
+    if (!reconciled.art.ok) failures.push(reconciled.art)
+    written.push(...reconciled.writtenFiles)
   }
-  return [...new Set(written)]
+  return { writtenFiles: [...new Set(written)], failures }
 }
 
 /**
@@ -399,28 +417,24 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
 
   for (const { listEntry } of byDest.values()) {
     if (staged.has(listEntry.filePath)) continue
-    const loaded = await loadStagedFile(listEntry.filePath, listEntry.ref.type)
-    if (!loaded.ok) {
-      throw new Error(
-        loaded.reason === 'unreadable-file'
-          ? t('cli.move.abortDestinationMissing', { file: listEntry.filePath })
-          : t('cli.move.abortMove', { reason: loaded.message }),
-      )
-    }
-    staged.set(listEntry.filePath, loaded.file)
+    staged.set(
+      listEntry.filePath,
+      await loadStagedOrThrow(listEntry, {
+        missingKey: 'cli.move.abortDestinationMissing',
+        abortKey: 'cli.move.abortMove',
+      }),
+    )
   }
 
   for (const { listEntry } of bySource.values()) {
     if (staged.has(listEntry.filePath)) continue
-    const loaded = await loadStagedFile(listEntry.filePath, listEntry.ref.type)
-    if (!loaded.ok) {
-      throw new Error(
-        loaded.reason === 'unreadable-file'
-          ? t('cli.move.abortSourceUnreadable', { file: listEntry.filePath })
-          : t('cli.move.abortMove', { reason: loaded.message }),
-      )
-    }
-    staged.set(listEntry.filePath, loaded.file)
+    staged.set(
+      listEntry.filePath,
+      await loadStagedOrThrow(listEntry, {
+        missingKey: 'cli.move.abortSourceUnreadable',
+        abortKey: 'cli.move.abortMove',
+      }),
+    )
   }
 
   // --- APPLY: Removals in memory ---
@@ -457,11 +471,7 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
   const artByFile = await planMovedArt(bySource, survivingBySource, removedKeys, landed)
 
   // --- WRITE: All modified files to disk in a single pass ---
-  const writtenFiles: string[] = []
-  for (const [filePath, stagedFile] of staged.entries()) {
-    await writeStagedFile(filePath, stagedFile)
-    writtenFiles.push(filePath, hashPath(filePath))
-  }
+  const writtenFiles = await writeStagedFiles(staged)
 
   // --- CHANGELOG: Write entries only for successfully moved cards ---
   for (const { listEntry, removes } of bySource.values()) {
@@ -469,12 +479,7 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
       .filter((vc) => removedKeys.has(vc.physicalKey))
       .map((vc) =>
         createMoveFromChange(vc.card.name, {
-          set: vc.card.set,
-          collectorNumber: vc.card.collectorNumber,
-          finish: vc.card.finish,
-          condition: vc.card.condition,
-          language: vc.card.language,
-          cardId: vc.card.cardId,
+          ...printingOptionsFrom(vc.card),
           to: vc.currentList.ref,
         }),
       )
@@ -491,11 +496,7 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
       .filter((vc) => removedKeys.has(vc.physicalKey))
       .map((vc) =>
         createMoveToChange(vc.card.name, {
-          set: vc.card.set,
-          collectorNumber: vc.card.collectorNumber,
-          finish: vc.card.finish,
-          condition: vc.card.condition,
-          language: vc.card.language,
+          ...printingOptionsFrom(vc.card),
           cardId: landed.get(vc.physicalKey)?.cardId,
           from: vc.card.listEntry.ref,
           sourceCardId: vc.card.cardId,
@@ -507,7 +508,10 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
   }
 
   // --- ART: re-file the sidecars planned above (card lines are already written) ---
-  writtenFiles.push(...(await commitArtReconciles(artByFile)))
+  // Failures are not surfaced here: a sidecar this cannot read keeps its own
+  // art untouched, and every read path already reports it — the moves
+  // themselves are complete either way.
+  writtenFiles.push(...(await commitArtReconciles(artByFile)).writtenFiles)
 
   return { moved: removedKeys.size, writtenFiles: [...new Set(writtenFiles)], droppedNotes }
 }
@@ -547,15 +551,13 @@ export async function commitAllRemovals(
   const staged = new Map<string, StagedFile>()
   for (const { listEntry } of bySource.values()) {
     if (staged.has(listEntry.filePath)) continue
-    const loaded = await loadStagedFile(listEntry.filePath, listEntry.ref.type)
-    if (!loaded.ok) {
-      throw new Error(
-        loaded.reason === 'unreadable-file'
-          ? t('cli.move.abortRemoveSourceUnreadable', { file: listEntry.filePath })
-          : t('cli.move.abortRemove', { reason: loaded.message }),
-      )
-    }
-    staged.set(listEntry.filePath, loaded.file)
+    staged.set(
+      listEntry.filePath,
+      await loadStagedOrThrow(listEntry, {
+        missingKey: 'cli.move.abortRemoveSourceUnreadable',
+        abortKey: 'cli.move.abortRemove',
+      }),
+    )
   }
 
   // --- APPLY: Removals in memory ---
@@ -579,33 +581,20 @@ export async function commitAllRemovals(
   )
 
   // --- WRITE: All modified files to disk in a single pass ---
-  const writtenFiles: string[] = []
-  for (const [filePath, stagedFile] of staged.entries()) {
-    await writeStagedFile(filePath, stagedFile)
-    writtenFiles.push(filePath, hashPath(filePath))
-  }
+  const writtenFiles = await writeStagedFiles(staged)
 
   // --- CHANGELOG: One `remove` entry per successfully removed card ---
   for (const { listEntry, removes } of bySource.values()) {
     const changes = removes
       .filter((vc) => removedKeys.has(vc.physicalKey))
-      .map((vc) =>
-        createRemoveChange(vc.card.name, {
-          set: vc.card.set,
-          collectorNumber: vc.card.collectorNumber,
-          finish: vc.card.finish,
-          condition: vc.card.condition,
-          language: vc.card.language,
-          cardId: vc.card.cardId,
-        }),
-      )
+      .map((vc) => createRemoveChange(vc.card.name, printingOptionsFrom(vc.card)))
     if (changes.length > 0) {
       writtenFiles.push(await appendChangelog(listEntry.filePath, listEntry.ref.name, changes))
     }
   }
 
-  // --- ART: drop the departed cards' sidecar entries ---
-  writtenFiles.push(...(await commitArtReconciles(artByFile)))
+  // --- ART: drop the departed cards' sidecar entries (failures as above) ---
+  writtenFiles.push(...(await commitArtReconciles(artByFile)).writtenFiles)
 
   return { removed: removedKeys.size, writtenFiles: [...new Set(writtenFiles)] }
 }

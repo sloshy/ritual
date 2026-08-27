@@ -13,11 +13,13 @@ import type { NamedListRef } from '../../list-view/combined-list'
 import type { SelectedCard } from '../../list-view/useCardSelection'
 import type { CardContextInfo, ContextMenuState } from '../../list-view/card-context'
 import { contextInfoFromSelected } from '../../list-view/selected-to-context'
-import { printingForMove } from '../../list-view/printing-prompt'
+import { bulkMoveToList, printingForMove, printingOf } from '../../list-view/printing-prompt'
 import { promptListMove, promptSectionMove } from '../../list-view/move-prompt'
 import { promptCardLabels } from '../../list-view/label-prompt'
-import { promptCardLanguage } from '../../editor/language-prompt'
-import { useEditor, type ListEditorConfig, type UseEditorResult } from '../../editor/useEditor'
+import { promptCardLanguage } from '../../list-view/language-prompt'
+import { useEditor } from '../../editor/useEditor'
+import { sharedBulkEdit } from '../../editor/shared-bulk-edit'
+import type { ListEditorConfig, UseEditorResult } from '../../editor/editor-config'
 import type { UseEditorDefaultsResult } from '../../editor/useEditorDefaults'
 import type { SearchProvider } from '../../editor/search-provider'
 import {
@@ -271,7 +273,9 @@ export function useDeckEditController(
   // Emit one move-from per copy. A deck entry holds all its copies under a single
   // cardId, so every event shares that id and it is freed to the pool once. The
   // moved copies keep the entry's language, resolved before the first move-from
-  // collapses the entry.
+  // collapses the entry; a name-only card whose printing came from the picker
+  // has no entry language, so the tuple's own stamp (a ja-only pick) wins as
+  // the fallback.
   const emitMove = (
     cardName: string,
     dest: ListRef,
@@ -280,7 +284,8 @@ export function useDeckEditController(
     copies: number,
   ) => {
     const d = editor.data()
-    const language = d ? findDeckCardLanguage(d, cardName, cardId) : undefined
+    const language =
+      (d ? findDeckCardLanguage(d, cardName, cardId) : undefined) ?? printing.language
     batch(() => {
       for (let i = 0; i < copies; i++) {
         editor.changes.moveCardToList(cardName, dest, { ...printing, language, cardId })
@@ -305,12 +310,7 @@ export function useDeckEditController(
     void printingForMove(
       target.cardName,
       dest,
-      {
-        set: target.set,
-        collectorNumber: target.collectorNumber,
-        finish: target.finish,
-        condition: target.condition,
-      },
+      printingOf(target),
       cardData.printings[target.cardName] ?? [],
     ).then((printing) => {
       if (printing) emitMove(target.cardName, dest, printing, target.cardIds[0], target.quantity)
@@ -375,35 +375,15 @@ export function useDeckEditController(
         for (const c of cards) handleSetLabelFor(c.name, labels, c.cardIds[0])
       })
     },
-    changePrinting: (cards) => editor.startBulkChangePrinting(cards.map(contextInfoFromSelected)),
+    ...sharedBulkEdit(editor),
     swapPrintings: (cards) => swap.openSwapPrintings(cards.map(contextInfoFromSelected)),
     setCommander: (cards) => {
       for (const c of cards) setCommanderFor(c.name)
     },
-    moveToSection: (cards, section) =>
-      editor.handleMoveCardsToSection(cards.map(contextInfoFromSelected), section),
-    promptNewSection: (cards) =>
-      editor.promptNewSectionForCards(cards.map(contextInfoFromSelected)),
-    sections: () => editor.sectionOrder(),
-    moveToList: (cards, dest) => {
-      void (async () => {
-        for (const c of cards) {
-          const printing = await printingForMove(
-            c.name,
-            dest,
-            {
-              set: c.set,
-              collectorNumber: c.collectorNumber,
-              finish: c.finish,
-              condition: c.condition,
-            },
-            c.printings ?? [],
-          )
-          if (printing) emitMove(c.name, dest, printing, c.cardIds[0], c.groupSize)
-        }
-      })()
-    },
-    moveTargets: () => editor.moveTargets(),
+    moveToList: (cards, dest) =>
+      bulkMoveToList(cards, dest, (c, to, printing) =>
+        emitMove(c.name, to, printing, c.cardIds[0], c.groupSize),
+      ),
   }
 
   return {
@@ -485,14 +465,6 @@ type DeckEditorBodyProps = SellModeProps & {
 export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
   const ctrl = props.ctrl
   const editor = ctrl.editor
-  // Memoized: the projection clones every section on a list that has art, and
-  // the page prop is read on each of the editor's frequent re-renders. Null
-  // while no deck is loaded — a memo runs as soon as either input changes, and
-  // the art references land a beat before the data they decorate.
-  const deckWithArt = createMemo(() => {
-    const deck = editor.data()
-    return deck === null ? null : withDeckArt(deck, props.customArt)
-  })
   return (
     <EditorShell
       entityLabel="deck"
@@ -594,9 +566,8 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
                 onClose={ctrl.closeContextMenu}
                 onMoveToSection={() => {
                   const target = menu()
-                  const current = editor.data()
-                    ? findDeckCardSection(editor.data()!, target)
-                    : undefined
+                  const d = editor.data()
+                  const current = d ? findDeckCardSection(d, target) : undefined
                   ctrl.closeContextMenu()
                   promptSectionMove(
                     editor.sectionOrder().filter((s) => s !== current),
@@ -618,36 +589,44 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
         </Show>
       }
     >
-      <DeckPage
-        deck={deckWithArt()!}
-        listLabels={props.listLabels}
-        cards={ctrl.cardData.cards}
-        printings={ctrl.cardData.printings}
-        lowestPriceCards={ctrl.cardData.lowestPriceCards}
-        lowestPriceCardsEur={ctrl.cardData.lowestPriceCardsEur}
-        lowestPriceCardsTix={ctrl.cardData.lowestPriceCardsTix}
-        cardsCardKingdom={props.cardsCardKingdom}
-        symbolMap={ctrl.cardData.symbolMap}
-        useScryfallImgUrls={props.useScryfallImgUrls}
-        modalCardName={ctrl.modalCardName()}
-        onOpenModal={ctrl.setModalCardName}
-        onCloseModal={ctrl.closeModal}
-        currency={props.currency}
-        slug={editor.slug() ?? ''}
-        editMode={true}
-        fullWidth={props.fullWidth}
-        enablePriceRefresh={props.enablePriceRefresh}
-        enableTrade={props.enableTrade}
-        enableSellMode={props.enableSellMode}
-        bakedBuylist={props.bakedBuylist}
-        onCardIncrement={ctrl.handleIncrement}
-        onCardDecrement={ctrl.handleDecrement}
-        onCardContextMenu={ctrl.handleContextMenu}
-        bulkEdit={ctrl.bulkEdit}
-        unsavedChangeCount={editor.changes.changeCount()}
-        addedCardNames={editor.addedCardNames()}
-        shareLists={props.shareLists}
-      />
+      {(deck) => {
+        // Memoized: the projection clones every section on a list that has
+        // art, and the page prop is read on each of the editor's frequent
+        // re-renders.
+        const deckWithArt = createMemo(() => withDeckArt(deck(), props.customArt))
+        return (
+          <DeckPage
+            deck={deckWithArt()}
+            listLabels={props.listLabels}
+            cards={ctrl.cardData.cards}
+            printings={ctrl.cardData.printings}
+            lowestPriceCards={ctrl.cardData.lowestPriceCards}
+            lowestPriceCardsEur={ctrl.cardData.lowestPriceCardsEur}
+            lowestPriceCardsTix={ctrl.cardData.lowestPriceCardsTix}
+            cardsCardKingdom={props.cardsCardKingdom}
+            symbolMap={ctrl.cardData.symbolMap}
+            useScryfallImgUrls={props.useScryfallImgUrls}
+            modalCardName={ctrl.modalCardName()}
+            onOpenModal={ctrl.setModalCardName}
+            onCloseModal={ctrl.closeModal}
+            currency={props.currency}
+            slug={editor.slug() ?? ''}
+            editMode={true}
+            fullWidth={props.fullWidth}
+            enablePriceRefresh={props.enablePriceRefresh}
+            enableTrade={props.enableTrade}
+            enableSellMode={props.enableSellMode}
+            bakedBuylist={props.bakedBuylist}
+            onCardIncrement={ctrl.handleIncrement}
+            onCardDecrement={ctrl.handleDecrement}
+            onCardContextMenu={ctrl.handleContextMenu}
+            bulkEdit={ctrl.bulkEdit}
+            unsavedChangeCount={editor.changes.changeCount()}
+            addedCardNames={editor.addedCardNames()}
+            shareLists={props.shareLists}
+          />
+        )
+      }}
     </EditorShell>
   )
 }

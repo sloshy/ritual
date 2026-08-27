@@ -1,17 +1,16 @@
 import { assignDeckCardIds } from '../../card/card-id'
 import { serializeDeckToMarkdown, validateDeckFrontMatter } from '../../list/deck-file'
 import { readFrontMatterMapping } from '../../list/front-matter-write'
-import { computeDeckSaveEffects } from '../../editor/save-effects'
+import { computeDeckSaveEffects } from '../../changes/save-effects'
 import { getErrorMessage } from '../../util/errors'
 import type { DeckData } from '../../list/deck'
 import type { ChangeEvent } from '../../changes/change-event'
 import { getDecksDir } from '../../config/ritual-config'
 import { parseDeckText } from '../../importers/text-file'
 import { changeCardNames, refuseUnknownCardNames } from './card-name-check'
-import { applyCrossListMoves } from './move-save'
+import { applyCrossListMoves } from '../../list/move-prepare'
 import {
   apiError,
-  deckLineQuantities,
   PARTIAL_LOAD_HINT,
   readJsonObjectBody,
   validateContentHash,
@@ -25,6 +24,7 @@ import {
   refuseUnreadableBaseline,
   type ListSaveTail,
 } from './save-helpers'
+import { deckLineQuantities } from '../../changes/line-copies'
 import { resolveDeckFile, resolveListFileOrRefuse } from './list-file'
 import { parseSlugFromUrl } from './target'
 import { MAX_LIST_BODY_SIZE } from '../validation'

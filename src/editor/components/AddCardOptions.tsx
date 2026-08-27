@@ -61,6 +61,17 @@ type AddCardOptionsProps = AddCardOptionsState & {
 }
 
 /**
+ * The options row as the steps that show it receive it. Held at dialog level,
+ * not per step: the printing grid and the finish/condition step show the same
+ * row, and a value typed on one must survive the walk to the other.
+ */
+export type AddOptionsRowProps = {
+  /** Absent wherever the dialog does not commit an `add` (change-printing mode). */
+  addOptions: AddCardOptionsConfig | undefined
+  options: AddCardOptionsState
+}
+
+/**
  * Read the typed art text as a reference: `null` for an empty field (no art),
  * the parse error otherwise. One parse for the whole dialog — the same
  * `parseCardArtInput` the CLI's `--art` and the sidecar itself go through, so a
@@ -172,3 +183,19 @@ export const AddCardOptions: Component<AddCardOptionsProps> = (props) => {
     </Show>
   )
 }
+
+/** The row where a step offers it: nothing at all without a host config. */
+export const AddOptionsRow: Component<AddOptionsRowProps> = (props) => (
+  <Show when={props.addOptions}>
+    {(config) => (
+      <AddCardOptions
+        config={config()}
+        labels={props.options.labels}
+        setLabels={props.options.setLabels}
+        art={props.options.art}
+        setArt={props.options.setArt}
+        artInput={props.options.artInput}
+      />
+    )}
+  </Show>
+)

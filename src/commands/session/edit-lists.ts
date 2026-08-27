@@ -24,7 +24,7 @@ import {
   prepareOutgoingMoves,
   type OutgoingMoveBatch,
   type PreparedOutgoingMoves,
-} from '../../admin/api/move-save'
+} from '../../list/move-prepare'
 import { getErrorMessage } from '../../util/errors'
 import { createCardArtCache } from '../../list/card-art'
 import type { MoveTargetsProvider } from './edit-move'

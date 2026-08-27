@@ -3,6 +3,7 @@ import type { Finish } from '../card/finish-condition'
 import type { ScryfallCard } from '../scryfall/types'
 import type { ListRef, PrintingTuple } from '../changes/change-event'
 import { scryfallCardLanguage, storedLanguage, type CardLanguage } from '../card/card-language'
+import type { SelectedCard } from './useCardSelection'
 
 /**
  * A sequential, one-at-a-time printing chooser shared by every flow that needs the
@@ -91,4 +92,40 @@ export async function printingForMove(
     condition: current.condition,
     language: pickedPrintingLanguage(picked.printing),
   }
+}
+
+/** The four printing fields a tile or a selection snapshot carries. */
+export type PrintingFields = Pick<PrintingTuple, 'set' | 'collectorNumber' | 'finish' | 'condition'>
+
+/**
+ * The printing a card currently has, as {@link printingForMove}'s `current`.
+ * Deliberately without `language`: the move resolves each copy's language
+ * from the live entry itself, so a snapshot's stale token never rides along.
+ */
+export function printingOf(card: PrintingFields): PrintingTuple {
+  return {
+    set: card.set,
+    collectorNumber: card.collectorNumber,
+    finish: card.finish,
+    condition: card.condition,
+  }
+}
+
+/**
+ * Move a multi-select out to `dest` one card at a time, prompting for a
+ * printing wherever {@link printingForMove} needs one and handing each
+ * resolved card to `emit`. A skipped prompt drops that card and moves on.
+ * Fire-and-forget: the prompts serialize themselves.
+ */
+export function bulkMoveToList(
+  cards: SelectedCard[],
+  dest: ListRef,
+  emit: (card: SelectedCard, dest: ListRef, printing: PrintingTuple) => void,
+): void {
+  void (async () => {
+    for (const c of cards) {
+      const printing = await printingForMove(c.name, dest, printingOf(c), c.printings ?? [])
+      if (printing) emit(c, dest, printing)
+    }
+  })()
 }

@@ -6,14 +6,18 @@ import type { CardLanguage } from '../card/card-language'
 import type { ChangeInput, ListRef, PrintingTuple } from '../changes/change-event'
 import type { SelectedCard } from '../list-view/useCardSelection'
 import type { CardContextInfo } from '../list-view/card-context'
-import type { ListEditorConfig, UseEditorResult } from './useEditor'
+import type { ListEditorConfig, UseEditorResult } from './editor-config'
 import type { EditorEntity } from './entity'
 import type { ListType } from '../list/list-type'
-import { contextInfoFromSelected } from '../list-view/selected-to-context'
-import { printingForMove } from '../list-view/printing-prompt'
+import {
+  bulkMoveToList,
+  printingForMove,
+  printingOf as currentPrintingOf,
+} from '../list-view/printing-prompt'
 import { promptListMove, promptSectionMove } from '../list-view/move-prompt'
-import { promptCardLanguage } from './language-prompt'
+import { promptCardLanguage } from '../list-view/language-prompt'
 import { useEditor } from './useEditor'
+import { sharedBulkEdit } from './shared-bulk-edit'
 import type { UseEditorDefaultsResult } from './useEditorDefaults'
 import type { SearchProvider } from './search-provider'
 import { useEntryCardData, type EntryCardData, type EntryCardDataActions } from './useEntryCardData'
@@ -272,12 +276,7 @@ export function useFlatListEditController<E extends FlatEntry>(
     void printingForMove(
       target.cardName,
       dest,
-      {
-        set: target.set,
-        collectorNumber: target.collectorNumber,
-        finish: target.finish,
-        condition: target.condition,
-      },
+      currentPrintingOf(target),
       cardData.printings[target.cardName] ?? [],
     ).then((printing) => {
       if (printing) emitMove(target.cardName, dest, printing, target.cardIds)
@@ -356,31 +355,9 @@ export function useFlatListEditController<E extends FlatEntry>(
         }
       })
     },
-    changePrinting: (cards) => editor.startBulkChangePrinting(cards.map(contextInfoFromSelected)),
-    moveToSection: (cards, section) =>
-      editor.handleMoveCardsToSection(cards.map(contextInfoFromSelected), section),
-    promptNewSection: (cards) =>
-      editor.promptNewSectionForCards(cards.map(contextInfoFromSelected)),
-    sections: () => editor.sectionOrder(),
-    moveToList: (cards, dest) => {
-      void (async () => {
-        for (const c of cards) {
-          const printing = await printingForMove(
-            c.name,
-            dest,
-            {
-              set: c.set,
-              collectorNumber: c.collectorNumber,
-              finish: c.finish,
-              condition: c.condition,
-            },
-            c.printings ?? [],
-          )
-          if (printing) emitMove(c.name, dest, printing, c.cardIds)
-        }
-      })()
-    },
-    moveTargets: () => editor.moveTargets(),
+    ...sharedBulkEdit(editor),
+    moveToList: (cards, dest) =>
+      bulkMoveToList(cards, dest, (c, to, printing) => emitMove(c.name, to, printing, c.cardIds)),
   }
 
   return {
@@ -506,7 +483,8 @@ export function FlatListContextMenu<E extends FlatEntry>(
             hideCommander={true}
             onMoveToSection={() => {
               const target = menu()
-              const current = editor.data() ? sectionOfTarget(editor.data()!, target) : undefined
+              const d = editor.data()
+              const current = d ? sectionOfTarget(d, target) : undefined
               props.ctrl.closeContextMenu()
               promptSectionMove(
                 editor.sectionOrder().filter((s) => s !== current),
@@ -554,7 +532,8 @@ type FlatListEditorShellProps<E extends FlatEntry> = {
   onSwapPrintings?: () => void
   /** Open the wizard on one context-menu card (collection editors only). */
   onSwapPrinting?: (target: CardContextInfo) => void
-  children: JSX.Element
+  /** The page, rendered with the loaded entries (see {@link EditorShell}'s `children`). */
+  children: (entries: Accessor<E[]>) => JSX.Element
 }
 
 /** The {@link EditorShell} configured for a flat list, wrapping a caller-supplied page. */

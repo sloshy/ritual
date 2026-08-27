@@ -1,6 +1,6 @@
 import type { WantedListCardEntry } from '../list/site-data'
-import { type PrintingTuple, isSamePrinting } from '../changes/change-event'
-import type { ChangePrintingContext } from './useEditor'
+import { printingRetarget } from './printing-retarget'
+import type { ChangePrintingContext } from './editor-config'
 import { applyChangeToWantedList } from '../changes/wanted-changes'
 import { findEntryPrintingById } from '../changes/entry-targeting'
 import type { FlatPrinting } from './flat-list-controller'
@@ -25,21 +25,10 @@ export function applyWantedChangePrinting(ctx: ChangePrintingContext<WantedListC
   const cardId = target.cardIds[0]
   if (cardId === undefined) return
 
-  // `language` rides along when the picker resolved one (a printing unavailable
-  // in the default language); absent, the set-printing leaves the entry's
-  // language alone.
-  const newPrinting: PrintingTuple = {
-    set: options.set,
-    collectorNumber: options.collectorNumber,
-    finish: options.finish,
-    language: options.language,
-  }
-  const currentPrinting: PrintingTuple = {
-    set: target.set,
-    collectorNumber: target.collectorNumber,
-    finish: target.finish,
-  }
-  if (isSamePrinting(newPrinting, currentPrinting)) return
+  // Wanted lines carry no condition, so the comparison names none.
+  const retarget = printingRetarget(target, options, 'ignore-condition')
+  if (retarget === null) return
+  const { newPrinting, currentPrinting } = retarget
 
   const origPrinting = findEntryPrintingById(original, cardId) ?? currentPrinting
   tools.setPrinting(target.cardName, newPrinting, origPrinting, cardId)

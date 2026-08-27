@@ -1,12 +1,12 @@
 /**
  * The card-language picker, reusing the shared move-target singleton
- * (`site/move-prompt.ts` / `MoveTargetPicker`) exactly like the label picker
- * (`site/label-prompt.ts`) does, so no new modal plumbing is needed. The option
+ * (`list-view/move-prompt.ts` / `site/MoveTargetPicker`) exactly like the label picker
+ * (`list-view/label-prompt.ts`) does, so no new modal plumbing is needed. The option
  * list is {@link CARD_LANGUAGES} in canonical order — English first — with the
  * card's current language marked.
  */
 
-import { promptMoveTarget } from '../list-view/move-prompt'
+import { promptMoveTarget } from './move-prompt'
 import { t } from '../i18n/t'
 import {
   CARD_LANGUAGES,

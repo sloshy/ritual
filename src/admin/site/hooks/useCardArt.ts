@@ -10,7 +10,7 @@ import {
   savedCardIdsAfterSave,
   type PendingArt,
 } from '../../../editor/pending-art'
-import type { SaveEffect } from '../../../editor/save-effects'
+import type { SaveEffect } from '../../../changes/save-effects'
 import { statusMessage, type EditorStatusActions } from '../../../editor/useEditorStatus'
 import type { ListType } from '../../../list/list-type'
 import { promptCardArt } from '../card-art-prompt'

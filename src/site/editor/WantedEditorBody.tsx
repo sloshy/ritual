@@ -52,14 +52,6 @@ type WantedEditorBodyProps = SellModeProps & {
  */
 export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
   const ctrl = props.ctrl
-  // Memoized: the projection clones every entry on a list that has art, and the
-  // page prop is read on each of the editor's frequent re-renders. Null while
-  // no list is loaded — a memo runs as soon as either input changes, and the
-  // art references land a beat before the entries they decorate.
-  const entriesWithArt = createMemo(() => {
-    const entries = ctrl.editor.data()
-    return entries === null ? null : withEntryArt(entries, props.customArt)
-  })
   return (
     <FlatListEditorShell
       ctrl={ctrl}
@@ -75,36 +67,43 @@ export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
       onSetCustomArt={props.onSetCustomArt}
       onEditImage={props.onEditImage}
     >
-      <WantedListPage
-        name={props.name}
-        description={props.description}
-        slug={ctrl.editor.slug() ?? undefined}
-        entries={entriesWithArt()!}
-        sectionOrder={ctrl.editor.sectionOrder()}
-        cards={ctrl.cardData.cards}
-        cardsCardKingdom={props.cardsCardKingdom}
-        printings={ctrl.cardData.printings}
-        symbolMap={ctrl.cardData.symbolMap}
-        useScryfallImgUrls={props.useScryfallImgUrls}
-        totalPrice={0}
-        modalCardKey={ctrl.modalCardKey()}
-        onOpenModal={ctrl.setModalCardKey}
-        onCloseModal={ctrl.closeModal}
-        currency={props.currency}
-        editMode={true}
-        fullWidth={props.fullWidth}
-        enablePriceRefresh={props.enablePriceRefresh}
-        enableTrade={props.enableTrade}
-        enableSellMode={props.enableSellMode}
-        bakedBuylist={props.bakedBuylist}
-        onCardIncrement={ctrl.handleIncrement}
-        onCardDecrement={ctrl.handleDecrement}
-        onCardContextMenu={ctrl.handleContextMenu}
-        bulkEdit={ctrl.bulkEdit}
-        unsavedChangeCount={ctrl.editor.changes.changeCount()}
-        addedCardNames={ctrl.editor.addedCardNames()}
-        shareLists={props.shareLists}
-      />
+      {(entries) => {
+        // Memoized: the projection clones every entry on a list that has art,
+        // and the page prop is read on each of the editor's frequent re-renders.
+        const entriesWithArt = createMemo(() => withEntryArt(entries(), props.customArt))
+        return (
+          <WantedListPage
+            name={props.name}
+            description={props.description}
+            slug={ctrl.editor.slug() ?? undefined}
+            entries={entriesWithArt()}
+            sectionOrder={ctrl.editor.sectionOrder()}
+            cards={ctrl.cardData.cards}
+            cardsCardKingdom={props.cardsCardKingdom}
+            printings={ctrl.cardData.printings}
+            symbolMap={ctrl.cardData.symbolMap}
+            useScryfallImgUrls={props.useScryfallImgUrls}
+            totalPrice={0}
+            modalCardKey={ctrl.modalCardKey()}
+            onOpenModal={ctrl.setModalCardKey}
+            onCloseModal={ctrl.closeModal}
+            currency={props.currency}
+            editMode={true}
+            fullWidth={props.fullWidth}
+            enablePriceRefresh={props.enablePriceRefresh}
+            enableTrade={props.enableTrade}
+            enableSellMode={props.enableSellMode}
+            bakedBuylist={props.bakedBuylist}
+            onCardIncrement={ctrl.handleIncrement}
+            onCardDecrement={ctrl.handleDecrement}
+            onCardContextMenu={ctrl.handleContextMenu}
+            bulkEdit={ctrl.bulkEdit}
+            unsavedChangeCount={ctrl.editor.changes.changeCount()}
+            addedCardNames={ctrl.editor.addedCardNames()}
+            shareLists={props.shareLists}
+          />
+        )
+      }}
     </FlatListEditorShell>
   )
 }

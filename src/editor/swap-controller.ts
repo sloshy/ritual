@@ -11,7 +11,7 @@ import type { ListType } from '../list/list-type'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { listRefKey, type NamedListRef } from '../list-view/combined-list'
 import type { SwapMove, SwapSourceProvider, SwapTarget } from './swap-printings'
-import type { UseEditorResult } from './useEditor'
+import type { UseEditorResult } from './editor-config'
 import {
   type SwapListKind,
   type SwapScope,

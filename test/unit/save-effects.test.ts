@@ -3,7 +3,7 @@ import {
   computeDeckSaveEffects,
   computeEntrySaveEffects,
   type EffectEntry,
-} from '../../src/editor/save-effects'
+} from '../../src/changes/save-effects'
 import type { Card } from '../../src/card/card'
 import type { DeckData } from '../../src/list/deck'
 

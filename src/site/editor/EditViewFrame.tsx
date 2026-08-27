@@ -10,7 +10,7 @@ import {
 } from '../../changes/change-bundle'
 import { resolveKnownListSlug } from './list-slug-resolver'
 import type { ListType } from '../../list/list-type'
-import type { ImportResult } from '../../editor/useEditor'
+import type { ImportResult } from '../../editor/editor-config'
 import { ImportChangesDialog } from '../../editor/components/ImportChangesDialog'
 import type { BulkEditBundle } from '../selection-edit-actions'
 import { type EditView, useEditChrome } from './edit-chrome'

@@ -1,6 +1,6 @@
 import { type Component, type JSX, For, Show, createSignal, createMemo, onCleanup } from 'solid-js'
 import type { UseEditorDefaultsResult } from '../useEditorDefaults'
-import type { SectionInfo } from '../useEditor'
+import type { SectionInfo } from '../editor-config'
 import { EditorDefaultsForm } from './EditorDefaultsForm'
 import { Modal } from '../../ui/Modal'
 import { useT } from '../../ui/i18n'

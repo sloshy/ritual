@@ -6,20 +6,21 @@ import {
   type Condition,
   defaultPrintingFinish,
   printingFinishes,
-  VALID_CONDITIONS,
 } from '../../card/finish-condition'
 import type { ScryfallCard } from '../../scryfall/types'
 import { getCardImageUrl } from '../../card/card-image'
 import type { EditorDefaults } from '../useEditorDefaults'
-import type { AddCardExtras, AddCardFromSearch } from '../useEditor'
+import type { AddCardExtras, AddCardFromSearch } from '../editor-config'
 import type { CardLabel } from '../../card/card-labels'
-import { AddCardOptions, readAddCardArt, type AddCardOptionsConfig } from './AddCardOptions'
+import {
+  readAddCardArt,
+  type AddCardOptionsConfig,
+  type AddCardOptionsState,
+} from './AddCardOptions'
 import type { SearchProvider } from '../search-provider'
 import { useDocumentKeydown } from '../../ui/useDocumentKeydown'
-import { PrintingFilter } from '../../ui/PrintingFilter'
 import { filterPrintingsByQuery } from '../../card/collector-query'
 import { type KeyHint, KeyChips } from '../../ui/KeyHints'
-import { QuantityStepper } from '../../ui/QuantityStepper'
 import {
   type PrintingCellOffset,
   firstCellOfPage,
@@ -28,27 +29,24 @@ import {
   totalPrintingPages,
 } from '../printing-pagination'
 import { stepQuantity } from '../../ui/quantity'
-import { useT, useTKey, useTSegments } from '../../ui/i18n'
+import { useT, useTKey } from '../../ui/i18n'
 import { searchDebounceMs } from '../../config/search-debounce'
-import {
-  displayLanguage,
-  formatLanguageList,
-  languageBadge,
-  languageDisplayName,
-  scryfallCardLanguage,
-  storedLanguage,
-  type CardLanguage,
-} from '../../card/card-language'
+import { displayLanguage, storedLanguage, type CardLanguage } from '../../card/card-language'
 import { defaultLanguage } from '../default-language'
 import { dedupePrintingsByKey, printingLanguages } from '../../card/card-printing'
 import { resolvePrintingLanguage } from '../../card/printing-language'
-import { getCardPriceForFinish, type PriceCurrency } from '../../pricing/price-currency'
-import type { TranslateFn } from '../../i18n/t'
-import { PriceSourceSelect } from '../../list-view/PriceSourceSelect'
-import { PrintingPrices } from '../../list-view/PrintingPrices'
-import { printingPriceText } from '../../list-view/printing-prices'
 import { usePrintingQuotes } from '../../list-view/printing-quotes'
-import { pricesEnabled, sitePriceForFinish } from '../../list-view/price-view'
+import {
+  applySetFilter,
+  getCheapestPrinting,
+  resolveAutoOptions,
+} from '../card-search/add-resolution'
+import type { CardSearchStep, LanguageNotice } from '../card-search/dialog-state'
+import { keyHintsFor } from '../card-search/key-hints'
+import { SearchStep } from './card-search/SearchStep'
+import { PrintingStep } from './card-search/PrintingStep'
+import { LanguageNoticeStep } from './card-search/LanguageNoticeStep'
+import { FinishConditionStep, QUANTITY_STEPPER_ID } from './card-search/FinishConditionStep'
 
 /** Shared so the gated-off accessor keeps one identity instead of a fresh array. */
 const NO_PRINTINGS: readonly ScryfallCard[] = []
@@ -88,37 +86,6 @@ type CardSearchModalProps = {
   addOptions?: AddCardOptionsConfig
 }
 
-type AddOptionsInput = {
-  printing: ScryfallCard
-  finish: Finish
-  condition: Condition | undefined
-}
-
-type Step = 'search' | 'printing' | 'language-notice' | 'finish-condition'
-
-/**
- * A picked printing held while the language-notice step asks whether to proceed:
- * the printing is not available in the configured default language, so
- * continuing stamps `language` on the entry instead.
- */
-type LanguageNotice = {
-  printing: ScryfallCard
-  /** The language the entry will be stamped with on Continue. */
-  language: CardLanguage
-  /** Every language this `set:cn` is available in. */
-  available: CardLanguage[]
-  /**
-   * The full printing list the language was resolved against, committed as-is
-   * on Continue so the commit can never diverge from what the notice showed
-   * (e.g. when the auto-advance path resolved against a fresher list than
-   * `allLanguagePrintings()`).
-   */
-  allPrintings: ScryfallCard[]
-}
-
-/** DOM id of the finish/condition step's quantity ticker, shared by its ↑/↓ navigation. */
-const QUANTITY_STEPPER_ID = 'add-card-qty'
-
 /** One stop in the finish/condition step's ↑/↓ walk. See {@link finishConditionGroups}. */
 type FocusGroup = {
   /** The group's root, used to test whether it currently holds focus. */
@@ -132,55 +99,11 @@ type PreviewCard = {
   imageUrl: string
 }
 
-/**
- * The cheapest printing, for the flow that commits one without the user picking
- * (adding a card with "No specific printing").
- *
- * Scryfall prices deliberately, unlike everything else this dialog renders. The
- * choice is made synchronously the moment the printings land, and a Card Kingdom
- * quote for a printing nobody has looked at yet is still in flight then — under
- * the CK view every candidate would read 0 and this would degrade to "the first
- * printing returned". A price that is knowable now beats a store-correct one
- * that is not.
- *
- * An unpriced printing sorts last rather than first: 0 is "no price on record",
- * not "free".
- */
-function getCheapestPrinting(printings: ScryfallCard[]): ScryfallCard | undefined {
-  const priceOf = (card: ScryfallCard): number => {
-    const price = getCardPriceForFinish(card, defaultPrintingFinish(card), PICKER_CURRENCY)
-    return price > 0 ? price : Infinity
-  }
-  return [...printings].sort((a, b) => priceOf(a) - priceOf(b))[0]
-}
-
-/**
- * The currency this dialog quotes in. Every price it renders — the grid tiles and
- * the finish radios alike — goes through this, so the two can never disagree on
- * how a number is written. The currency sweep (plan §6.4 / Phase 3) is what gives
- * the picker a currency of its own.
- */
-const PICKER_CURRENCY = 'usd' as const satisfies PriceCurrency
-
-/**
- * What the picked printing costs in one of its finishes, shown beside that
- * finish's radio so the choice is priced before it is made. Source-aware, and
- * written the same way `PrintingPrices` writes the tiles' figures.
- */
-function finishPrice(t: TranslateFn, printing: ScryfallCard, finish: Finish): string {
-  return printingPriceText(
-    t,
-    sitePriceForFinish(printing, finish, PICKER_CURRENCY),
-    PICKER_CURRENCY,
-  )
-}
-
 export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   const t = useT()
   // The footer hints are message keys held in a memo, resolved at render.
   const tKey = useTKey()
-  const tSegments = useTSegments()
-  const [step, setStep] = createSignal<Step>('search')
+  const [step, setStep] = createSignal<CardSearchStep>('search')
 
   /** Whether this opening of the dialog is a change-printing flow. See {@link isAddFlow}. */
   const [changePrintingMode, setChangePrintingMode] = createSignal(false)
@@ -290,70 +213,6 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     })
   }
 
-  /**
-   * Apply the set-code default to a list of printings. If the filter excludes
-   * everything, fall back to the unfiltered list and surface a hint.
-   */
-  const applySetFilter = (allPrintings: ScryfallCard[]): ScryfallCard[] => {
-    const filterSets = props.defaults?.sets ?? []
-    if (filterSets.length === 0) {
-      setSetFilterFellBack(false)
-      return allPrintings
-    }
-    const filtered = allPrintings.filter((p) => filterSets.includes(p.set.toLowerCase()))
-    if (filtered.length === 0) {
-      setSetFilterFellBack(true)
-      return allPrintings
-    }
-    setSetFilterFellBack(false)
-    return filtered
-  }
-
-  /**
-   * Decide whether the finish/condition step can be skipped given the printing
-   * and the active defaults. Returns the resolved options when skip is safe.
-   *
-   * Skip rules:
-   * - Finish answered when the user's default applies, or the printing has exactly
-   *   one nonfoil-only finish (matching the legacy auto-skip behavior).
-   * - Condition answered when the user's default applies, or this list type
-   *   doesn't track condition (wanted lists), or the legacy "no specific printing
-   *   required" path supplies the NM default for decks.
-   */
-  const resolveAutoOptions = (printing: ScryfallCard): AddOptionsInput | null => {
-    // The same list the finish step would offer, so "can this step be skipped?"
-    // and "what does it show?" can never disagree.
-    const availableFinishes = printingFinishes(printing)
-
-    let finish: Finish | undefined
-    if (props.defaults?.finish && availableFinishes.includes(props.defaults.finish)) {
-      finish = props.defaults.finish
-    } else if (
-      availableFinishes.length === 1 &&
-      !availableFinishes.some((f) => f === 'foil' || f === 'etched')
-    ) {
-      finish = availableFinishes[0]
-    }
-
-    if (finish === undefined) return null
-
-    const conditionDefault = defaultCondition()
-    let condition: Condition | undefined
-    if (conditionDefault !== undefined) {
-      condition = conditionDefault
-    } else if (!usesCondition()) {
-      condition = undefined
-    } else if (!props.requirePrinting) {
-      // Legacy path for decks: condition is optional and defaults to NM.
-      condition = 'NM'
-    } else {
-      // Collections require an explicit condition; without a default we cannot skip.
-      return null
-    }
-
-    return { printing, finish, condition }
-  }
-
   // Step 3: Finish & condition
   const [selectedPrinting, setSelectedPrinting] = createSignal<ScryfallCard | null>(null)
   const [selectedFinish, setSelectedFinish] = createSignal<Finish>('nonfoil')
@@ -374,6 +233,20 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
 
   /** The typed art, parsed. `invalid` blocks every commit path in the add flow. */
   const addArtInput = createMemo(() => readAddCardArt(addArt()))
+  /** The options row's live state, read lazily by whichever step is showing the row. */
+  const addCardOptions: AddCardOptionsState = {
+    get labels() {
+      return addLabels()
+    },
+    setLabels: setAddLabels,
+    get art() {
+      return addArt()
+    },
+    setArt: setAddArt,
+    get artInput() {
+      return addArtInput()
+    },
+  }
   const addOptionsBlocked = (): boolean =>
     props.addOptions !== undefined && addArtInput().state === 'invalid'
 
@@ -531,12 +404,16 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       // One grid row per physical printing: an `all_cards` cache returns one
       // object per language for the same set:cn, deduped here preferring the
       // English (default) object.
-      const filtered = applySetFilter(dedupePrintingsByKey(allPrintings))
+      const { printings: filtered, fellBack } = applySetFilter(
+        dedupePrintingsByKey(allPrintings),
+        props.defaults?.sets ?? [],
+      )
+      setSetFilterFellBack(fellBack)
       setPrintings(filtered)
       // When the set-code default narrows to a single matching printing AND no
       // fallback was triggered, auto-advance with that printing — this is the
       // batch-entry shortcut that mirrors the CLI's session filters.
-      if (filtered.length === 1 && !setFilterFellBack() && (props.defaults?.sets.length ?? 0) > 0) {
+      if (filtered.length === 1 && !fellBack && (props.defaults?.sets.length ?? 0) > 0) {
         const only = filtered[0]!
         // Synchronous — SolidJS batches subsequent state changes (incl. setStep)
         // before the next render, so the printing step never visibly mounts.
@@ -614,7 +491,12 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   ) => {
     // English writes a bare line, so it is stamped as "no token".
     const languageOption = storedLanguage(language)
-    const auto = resolveAutoOptions(printing)
+    const auto = resolveAutoOptions(printing, {
+      defaultFinish: props.defaults?.finish,
+      defaultCondition: defaultCondition(),
+      usesCondition: usesCondition(),
+      requirePrinting: props.requirePrinting ?? false,
+    })
     if (auto) {
       props.onAddCard(
         selectedCardName(),
@@ -723,7 +605,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   }
 
   /** Whether the dialog is showing step `s` — the document-keydown gates. */
-  const onStep = (s: Step) => () => props.open && step() === s
+  const onStep = (s: CardSearchStep) => () => props.open && step() === s
 
   // Keyboard navigation for printing grid
   useDocumentKeydown((e) => {
@@ -784,13 +666,6 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   const usesQuantity = isAddFlow
 
   const adjustQuantity = (delta: number) => setQuantity((q) => stepQuantity(q, delta))
-
-  /** The `×N` multiplier both commit buttons carry once more than one copy is queued. */
-  const quantityBadge = () => (
-    <Show when={usesQuantity() && quantity() > 1}>
-      <span class="btn-qty-badge"> ×{quantity()}</span>
-    </Show>
-  )
 
   // Add card with selected finish and condition. With `addAnother`, the modal
   // returns to a fresh search step instead of closing.
@@ -943,42 +818,15 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     confirmLanguageNotice()
   }, onStep('language-notice'))
 
-  // Keyboard hints shown in the footer, mirroring the public site's quick-switch
-  // dialog. Each step advertises its own navigation: a flat result list, a card
-  // grid (row-wise ↑/↓, card-wise ←/→), and the finish/condition radio groups.
-  const keyHints = createMemo<KeyHint[]>(() => {
-    if (step() === 'language-notice') {
-      return [
-        { keys: ['Enter'], label: 'ui.hint.continue' },
-        { keys: ['Esc'], label: 'ui.hint.close' },
-      ]
-    }
-    if (step() === 'printing') {
-      return [
-        { keys: ['←', '→'], label: 'ui.hint.printing' },
-        { keys: ['↑', '↓'], label: 'ui.hint.row' },
-        { keys: ['A–Z', '0–9'], label: 'ui.hint.filterPrintings' },
-        { keys: ['Enter'], label: 'ui.hint.select' },
-        { keys: ['Esc'], label: 'ui.hint.close' },
-      ]
-    }
-    if (step() === 'finish-condition') {
-      const hints: KeyHint[] = [
-        { keys: ['←', '→'], label: 'ui.hint.choose' },
-        { keys: ['↑', '↓', 'Tab'], label: 'ui.hint.nextGroup' },
-      ]
-      if (usesQuantity()) hints.push({ keys: ['+', '-'], label: 'ui.hint.quantity' })
-      hints.push({ keys: ['Enter'], label: isAddFlow() ? 'ui.hint.addCard' : 'ui.hint.updateCard' })
-      if (canAddAnother()) hints.push({ keys: ['Ctrl', 'Enter'], label: 'ui.hint.addAnother' })
-      hints.push({ keys: ['Esc'], label: 'ui.hint.close' })
-      return hints
-    }
-    return [
-      { keys: ['↑', '↓'], label: 'ui.hint.navigate' },
-      { keys: ['Enter'], label: 'ui.hint.select' },
-      { keys: ['Esc'], label: 'ui.hint.close' },
-    ]
-  })
+  // Keyboard hints shown in the footer, one set per step.
+  const keyHints = createMemo<KeyHint[]>(() =>
+    keyHintsFor({
+      step: step(),
+      isAddFlow: isAddFlow(),
+      usesQuantity: usesQuantity(),
+      canAddAnother: canAddAnother(),
+    }),
+  )
 
   // Compute card preview position relative to modal.
   // Both signals are read before the `modalRef` check on purpose: `modalRef` is
@@ -1021,359 +869,88 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       }
     >
       <Show when={step() === 'search'}>
-        <>
-          <div class="search-modal-header">
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder={t('ui.addCard.searchPlaceholder')}
-              value={query()}
-              onInput={(e) => handleInputChange(e.currentTarget.value)}
-              onKeyDown={handleSearchKeyDown}
-            />
-          </div>
-          <Show when={props.search.sourceNote}>
-            {(note) => (
-              <p class="search-source-note">
-                <For each={note().segments(tSegments)}>
-                  {(segment) =>
-                    segment.kind === 'param' ? (
-                      <a href={note().linkUrl} target="_blank" rel="noopener noreferrer">
-                        {segment.value}
-                      </a>
-                    ) : (
-                      segment.value
-                    )
-                  }
-                </For>
-              </p>
-            )}
-          </Show>
-          <div
-            class="search-modal-body"
-            onMouseLeave={() => {
-              setHighlightedIndex(-1)
-              setQuery(typedQuery)
-              setPreviewCard(null)
-            }}
-          >
-            <For each={results()}>
-              {(name, i) => (
-                <button
-                  class={`search-result-item${i() === highlightedIndex() ? ' search-result-item--highlighted' : ''}`}
-                  onClick={() => void selectCardName(name)}
-                  onMouseEnter={() => {
-                    setHighlightedIndex(i())
-                    setQuery(name)
-                    void fetchCardImage(name)
-                  }}
-                >
-                  {name}
-                </button>
-              )}
-            </For>
-          </div>
-        </>
+        <SearchStep
+          query={query()}
+          results={results()}
+          highlightedIndex={highlightedIndex()}
+          sourceNote={props.search.sourceNote}
+          inputRef={(el) => (inputRef = el)}
+          onInput={handleInputChange}
+          onKeyDown={handleSearchKeyDown}
+          onPick={(name) => void selectCardName(name)}
+          onHover={(name, index) => {
+            setHighlightedIndex(index)
+            setQuery(name)
+            void fetchCardImage(name)
+          }}
+          onLeave={() => {
+            setHighlightedIndex(-1)
+            setQuery(typedQuery)
+            setPreviewCard(null)
+          }}
+        />
       </Show>
 
       <Show when={step() === 'printing'}>
-        <>
-          <div class="search-modal-header">
-            <button onClick={goBack} class="search-tab-btn">
-              {t('ui.addCard.back')}
-            </button>
-            <h3 class="modal-heading-flex">
-              {t('ui.addCard.selectPrinting', { name: selectedCardName() })}
-            </h3>
-            <PriceSourceSelect currency={PICKER_CURRENCY} id="add-card-price-source" />
-          </div>
-          <PrintingFilter
-            value={printingFilter()}
-            onChange={setPrintingFilter}
-            active={props.open && step() === 'printing'}
-          />
-          <div class="search-modal-body">
-            <Show
-              when={!loadingPrintings()}
-              fallback={<div class="empty-state">{t('ui.addCard.loadingPrintings')}</div>}
-            >
-              <Show when={setFilterFellBack()}>
-                <div class="search-modal-hint">
-                  {t('ui.addCard.setFilterFellBack', {
-                    sets: (props.defaults?.sets ?? []).map((code) => code.toUpperCase()).join(', '),
-                  })}
-                </div>
-              </Show>
-              <Show when={visiblePrintings().length === 0 && printings().length > 0}>
-                <div class="empty-state">{t('ui.printingFilter.noMatches')}</div>
-              </Show>
-              <div class="printing-select-grid" ref={printingGridRef}>
-                <Show when={cellOffset() === 1 && printingsPage() === 0}>
-                  <button
-                    class={`printing-no-printing${printingHighlightIndex() === 0 ? ' printing-no-printing--highlighted' : ''}`}
-                    disabled={addOptionsBlocked()}
-                    onClick={() => selectPrinting(null)}
-                  >
-                    {t('ui.addCard.noSpecificPrinting')}
-                  </button>
-                </Show>
-                <For each={paginatedPrintings()}>
-                  {(printing, i) => {
-                    const cellIdx = (): number => pageStart() + i() + cellOffset()
-                    const imageUrl = getCardImageUrl(printing)
-                    return (
-                      <button
-                        class={`printing-select-card btn-unstyled${cellIdx() === printingHighlightIndex() ? ' printing-select-card--highlighted' : ''}`}
-                        // A tile is a commit, so it goes dead with the rest of
-                        // the add flow while the options row refuses the art.
-                        disabled={addOptionsBlocked()}
-                        onClick={() => selectPrinting(printing)}
-                      >
-                        <Show when={imageUrl}>
-                          {(url) => <img src={url()} alt={printing.name} loading="lazy" />}
-                        </Show>
-                        {/* A printing whose default object is non-English (e.g. a
-                            Japanese-only alternate) wears its language code. */}
-                        <Show when={languageBadge(scryfallCardLanguage(printing))}>
-                          {(badge) => <span class="printing-lang-badge">{badge()}</span>}
-                        </Show>
-                        <div class="printing-label">
-                          <span class="printing-label-set">
-                            {printing.set.toUpperCase()} #{printing.collector_number}
-                          </span>
-                          {' · '}
-                          <PrintingPrices
-                            printing={printing}
-                            currency={PICKER_CURRENCY}
-                            class="printing-label-price"
-                          />
-                        </div>
-                      </button>
-                    )
-                  }}
-                </For>
-              </div>
-            </Show>
-          </div>
-          <Show when={totalPrintingsPages() > 1}>
-            <div class="printing-select-pagination">
-              <button
-                disabled={printingsPage() === 0}
-                onClick={() => goToPage(printingsPage() - 1)}
-              >
-                {t('ui.addCard.prevPage')}
-              </button>
-              <span>
-                {t('ui.addCard.pageOf', {
-                  page: printingsPage() + 1,
-                  total: totalPrintingsPages(),
-                })}
-              </span>
-              <button
-                disabled={printingsPage() >= totalPrintingsPages() - 1}
-                onClick={() => goToPage(printingsPage() + 1)}
-              >
-                {t('ui.addCard.nextPage')}
-              </button>
-            </div>
-          </Show>
-          <Show when={props.addOptions}>
-            {(config) => (
-              <AddCardOptions
-                config={config()}
-                labels={addLabels()}
-                setLabels={setAddLabels}
-                art={addArt()}
-                setArt={setAddArt}
-                artInput={addArtInput()}
-              />
-            )}
-          </Show>
-        </>
+        <PrintingStep
+          cardName={selectedCardName()}
+          loading={loadingPrintings()}
+          hasPrintings={printings().length > 0}
+          visibleCount={visiblePrintings().length}
+          paginatedPrintings={paginatedPrintings()}
+          pageStart={pageStart()}
+          page={printingsPage()}
+          totalPages={totalPrintingsPages()}
+          highlightIndex={printingHighlightIndex()}
+          cellOffset={cellOffset()}
+          filter={printingFilter()}
+          active={props.open && step() === 'printing'}
+          setFilterFellBack={setFilterFellBack()}
+          filterSets={props.defaults?.sets ?? []}
+          blocked={addOptionsBlocked()}
+          gridRef={(el) => (printingGridRef = el)}
+          onFilter={setPrintingFilter}
+          onPage={goToPage}
+          onSelect={selectPrinting}
+          onBack={goBack}
+          addOptions={props.addOptions}
+          options={addCardOptions}
+        />
       </Show>
 
-      {/* Language notice: the picked printing does not exist in the configured
-          default language — Continue stamps the resolved language, Back returns
-          to the printing grid. */}
       <Show when={step() === 'language-notice' && languageNotice()}>
         {(notice) => (
-          <>
-            <div class="search-modal-header">
-              <button onClick={goBack} class="search-tab-btn">
-                {t('ui.addCard.back')}
-              </button>
-              <h3 class="modal-heading-flex">
-                {t('ui.addCard.printingHeading', {
-                  name: selectedCardName(),
-                  set: notice().printing.set.toUpperCase(),
-                  number: notice().printing.collector_number,
-                })}
-              </h3>
-            </div>
-            <div class="search-modal-body">
-              <div class="search-modal-hint">
-                <Show
-                  when={notice().available.length > 1}
-                  fallback={t('ui.addCard.languageOnly', {
-                    languages: formatLanguageList(notice().available),
-                  })}
-                >
-                  {t('ui.addCard.languageUnavailable', {
-                    preferred: languageDisplayName(displayLanguage(defaultLanguage())),
-                    languages: formatLanguageList(notice().available),
-                    language: languageDisplayName(notice().language),
-                  })}
-                </Show>
-              </div>
-              <div class="add-card-actions">
-                <button onClick={confirmLanguageNotice} class="btn-add-card">
-                  {t('ui.dialog.continue')}
-                  <span class="btn-key-hint" aria-hidden="true">
-                    <KeyChips keys={['Enter']} />
-                  </span>
-                </button>
-              </div>
-            </div>
-          </>
+          <LanguageNoticeStep
+            cardName={selectedCardName()}
+            notice={notice()}
+            onContinue={confirmLanguageNotice}
+            onBack={goBack}
+          />
         )}
       </Show>
 
       <Show when={step() === 'finish-condition' && selectedPrinting()}>
         {(printing) => (
-          <>
-            <div class="search-modal-header">
-              <button onClick={goBack} class="search-tab-btn">
-                {t('ui.addCard.back')}
-              </button>
-              <h3 class="modal-heading-flex">
-                {t('ui.addCard.finishConditionHeading', {
-                  name: selectedCardName(),
-                  set: printing().set.toUpperCase(),
-                  number: printing().collector_number,
-                })}
-              </h3>
-            </div>
-            <div class="search-modal-body">
-              <div class="finish-condition-grid" ref={finishConditionRef}>
-                <Show
-                  when={
-                    printingFinishes(printing()).length > 1 ||
-                    printingFinishes(printing()).some((f) => f === 'foil' || f === 'etched')
-                  }
-                >
-                  <div class="finish-condition-section">
-                    <h4>{t('ui.field.finish')}</h4>
-                    <div class="radio-group">
-                      {/* `printingFinishes`, not the raw Scryfall list: a finish
-                          the domain does not model would otherwise render a radio
-                          that cannot be selected and carries no price. */}
-                      <For each={printingFinishes(printing())}>
-                        {(finish) => (
-                          <label
-                            class={`radio-option${selectedFinish() === finish ? ' radio-option--selected' : ''}`}
-                          >
-                            <input
-                              type="radio"
-                              name="finish"
-                              value={finish}
-                              checked={selectedFinish() === finish}
-                              onChange={() => setSelectedFinish(finish)}
-                            />
-                            {finish}
-                            <Show when={pricesEnabled()}>
-                              <span class="radio-option-price">
-                                {finishPrice(t, printing(), finish)}
-                              </span>
-                            </Show>
-                          </label>
-                        )}
-                      </For>
-                    </div>
-                  </div>
-                </Show>
-
-                <Show when={usesCondition()}>
-                  <div class="finish-condition-section">
-                    <h4>{t('ui.field.condition')}</h4>
-                    <div class="radio-group">
-                      <For each={VALID_CONDITIONS}>
-                        {(condition) => (
-                          <label
-                            class={`radio-option${selectedCondition() === condition ? ' radio-option--selected' : ''}`}
-                          >
-                            <input
-                              type="radio"
-                              name="condition"
-                              value={condition}
-                              checked={selectedCondition() === condition}
-                              onChange={() => setSelectedCondition(condition)}
-                            />
-                            {condition}
-                          </label>
-                        )}
-                      </For>
-                    </div>
-                  </div>
-                </Show>
-
-                <Show when={usesQuantity()}>
-                  <div class="finish-condition-section">
-                    <h4>{t('ui.field.quantity')}</h4>
-                    <QuantityStepper
-                      id={QUANTITY_STEPPER_ID}
-                      value={quantity()}
-                      onChange={setQuantity}
-                      focusable
-                      label={t('ui.addCard.quantityToAdd')}
-                    />
-                  </div>
-                </Show>
-
-                <Show when={props.addOptions}>
-                  {(config) => (
-                    <AddCardOptions
-                      config={config()}
-                      labels={addLabels()}
-                      setLabels={setAddLabels}
-                      art={addArt()}
-                      setArt={setAddArt}
-                      artInput={addArtInput()}
-                    />
-                  )}
-                </Show>
-
-                {/* Both commit buttons go dead while the options row refuses
-                    the typed art: the click would be a silent no-op otherwise,
-                    with the reason often scrolled out of sight above. */}
-                <div class="add-card-actions">
-                  <button
-                    onClick={() => handleAddWithOptions()}
-                    class="btn-add-card"
-                    disabled={addOptionsBlocked()}
-                  >
-                    {t(isAddFlow() ? 'ui.addCard.add' : 'ui.addCard.update')}
-                    {quantityBadge()}
-                    <span class="btn-key-hint" aria-hidden="true">
-                      <KeyChips keys={['Enter']} />
-                    </span>
-                  </button>
-                  <Show when={canAddAnother()}>
-                    <button
-                      onClick={() => handleAddWithOptions(true)}
-                      class="btn-add-card"
-                      disabled={addOptionsBlocked()}
-                    >
-                      {t('ui.addCard.addAnother')}
-                      {quantityBadge()}
-                      <span class="btn-key-hint" aria-hidden="true">
-                        <KeyChips keys={['Ctrl', 'Enter']} />
-                      </span>
-                    </button>
-                  </Show>
-                </div>
-              </div>
-            </div>
-          </>
+          <FinishConditionStep
+            cardName={selectedCardName()}
+            printing={printing()}
+            finish={selectedFinish()}
+            condition={selectedCondition()}
+            quantity={quantity()}
+            usesCondition={usesCondition()}
+            usesQuantity={usesQuantity()}
+            canAddAnother={canAddAnother()}
+            isAddFlow={isAddFlow()}
+            blocked={addOptionsBlocked()}
+            groupRef={(el) => (finishConditionRef = el)}
+            onFinish={setSelectedFinish}
+            onCondition={setSelectedCondition}
+            onQuantity={setQuantity}
+            onAdd={handleAddWithOptions}
+            onBack={goBack}
+            addOptions={props.addOptions}
+            options={addCardOptions}
+          />
         )}
       </Show>
 

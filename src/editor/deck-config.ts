@@ -4,9 +4,10 @@ import type { DeckData } from '../list/deck'
 import type { Finish } from '../card/finish-condition'
 import type { CardLabel } from '../card/card-labels'
 import type { CardLanguage } from '../card/card-language'
-import { type PrintingTuple, isSamePrinting } from '../changes/change-event'
+import type { PrintingTuple } from '../changes/change-event'
+import { printingRetarget } from './printing-retarget'
 import type { CardContextInfo } from '../list-view/card-context'
-import type { ChangePrintingContext } from './useEditor'
+import type { ChangePrintingContext } from './editor-config'
 import { applyChangeToDeck } from '../changes/deck-changes'
 
 /**
@@ -101,23 +102,9 @@ export function applyDeckChangePrinting(ctx: ChangePrintingContext<DeckData>): v
   const cardId = target.cardIds[0]
   if (cardId === undefined) return
 
-  // `language` rides along when the picker resolved one (a printing unavailable
-  // in the default language); absent, the set-printing leaves the entry's
-  // language alone.
-  const newPrinting: PrintingTuple = {
-    set: options.set,
-    collectorNumber: options.collectorNumber,
-    finish: options.finish,
-    condition: options.condition,
-    language: options.language,
-  }
-  const currentPrinting: PrintingTuple = {
-    set: target.set,
-    collectorNumber: target.collectorNumber,
-    finish: target.finish,
-    condition: target.condition,
-  }
-  if (isSamePrinting(newPrinting, currentPrinting)) return
+  const retarget = printingRetarget(target, options, 'compare-condition')
+  if (retarget === null) return
+  const { newPrinting, currentPrinting } = retarget
 
   const total = target.quantity
   const n = Math.min(Math.max(count, 1), total)

@@ -13,7 +13,7 @@ import {
   resolvePendingArt,
   savedCardIdsAfterSave,
 } from '../../src/editor/pending-art'
-import type { SaveEffect } from '../../src/editor/save-effects'
+import type { SaveEffect } from '../../src/changes/save-effects'
 import type { UndoEntry } from '../../src/editor/useCardChanges'
 
 /**

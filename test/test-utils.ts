@@ -23,6 +23,8 @@ import type { PrintingQuoteFn, QuotePrinting } from '../src/cardkingdom/quote'
 import { displayLanguage } from '../src/card/card-language'
 import type { ScryfallCard } from '../src/scryfall/types'
 import type { CardData } from '../src/list-view/card-sorting'
+import type { CardContextInfo } from '../src/list-view/card-context'
+import type { SelectedCard } from '../src/list-view/useCardSelection'
 
 /**
  * Seed the card cache with one neutral printing per name.
@@ -92,6 +94,30 @@ export function makePrintingIn(set: string, collectorNumber: string, lang?: stri
 }
 
 /** A CardData tile with neutral defaults for site sorting/filtering tests. */
+/** A context-menu / bulk-edit target: one name-only copy unless overridden. */
+export function makeContextInfo(
+  overrides: Partial<CardContextInfo> & { cardName: string },
+): CardContextInfo {
+  return { card: null, cardIds: [], quantity: 1, ...overrides }
+}
+
+/** A multi-select tile: one deck copy of a name-only card unless overridden. */
+export function makeSelectedCard(
+  overrides: Partial<SelectedCard> & { name: string },
+): SelectedCard {
+  return {
+    key: overrides.name,
+    quantity: 1,
+    groupSize: 1,
+    scryfallCard: null,
+    sourceName: 'Test',
+    sourceKind: 'deck',
+    maxQty: 1,
+    cardIds: [],
+    ...overrides,
+  }
+}
+
 export function makeCardData(overrides: Partial<CardData> = {}): CardData {
   return {
     name: 'Test Card',

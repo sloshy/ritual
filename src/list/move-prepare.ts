@@ -1,5 +1,12 @@
-import { hashPath } from '../../changes/content-hash'
-import { appendChangelog } from '../../changes/changelog-writer'
+/**
+ * The other side of an editor save's cross-list moves: the lists a save's
+ * `move-from`/`move-to` changes touch without saving them, staged in memory
+ * and written on commit. Shared by the admin save routes and the CLI editor's
+ * multi-list save; the virtual-state engine behind `ritual move` is
+ * `move-commit.ts`.
+ */
+
+import { appendChangelog } from '../changes/changelog-writer'
 import {
   createAddChange,
   createMoveFromChange,
@@ -12,58 +19,24 @@ import {
   type MoveFromChange,
   type MoveToChange,
   type PrintingTuple,
-} from '../../changes/change-event'
-import {
-  createCardArtCache,
-  type CardArtMap,
-  type CardArtRef,
-  type CardArtReconcileFailure,
-} from '../../list/card-art'
-import { reconcileListRefs } from '../../list/list-refs'
-import { loadAllLists, type ListEntry } from '../../list/list-info'
-import type { PhysicalCard } from '../../list/move-staging'
-import { t } from '../../i18n/t'
-import type { SaveEffect } from '../../editor/save-effects'
-import type { ApiMessage } from './result'
+} from '../changes/change-event'
+import { createCardArtCache, type CardArtMap, type CardArtReconcileFailure } from './card-art'
+import { artReconcileFor, commitArtReconciles, type ArtReconcile } from './move-commit'
+import { loadAllLists, type ListEntry } from './list-info'
+import type { PhysicalCard } from './move-staging'
+import { t } from '../i18n/t'
 import {
   adoptedCardId,
   applyAddToStaged,
   applyRemoveIncomingFromStaged,
-  loadStagedFile,
+  loadStagedOrThrow,
   stagedCardIds,
-  writeStagedFile,
+  writeStagedFiles,
   type DroppedNote,
   type RemovedCopy,
   type StagedFile,
-} from '../../list/move-staging'
-import { replayLineCopies, type LineQuantities } from './save-helpers'
-
-/**
- * Success body shared by the three editor save endpoints (deck/collection/wanted).
- * `droppedNotes` reports notes discarded by the destination side of this save's
- * cross-list moves (deck quantity merges keep the existing line's note).
- */
-export type ListSaveResponse = ApiMessage & {
-  success: true
-  contentHash: string
-  droppedNotes: DroppedNote[]
-  /**
-   * What the save did to individual entries, with the `&N` ids it allocated.
-   *
-   * The response is the only place these can appear: ids are assigned at
-   * serialization time, so a client that added a card learns its id here rather
-   * than by re-reading the list.
-   */
-  effects: SaveEffect[]
-  /**
-   * Custom-art sidecars this save could not re-file — its own, or a move
-   * destination's. The card lines were written either way, which is why this is
-   * a warning channel and not a failure: the same field name the load routes
-   * use, so a client reads sidecar trouble out of one place in both directions.
-   * Omitted when every reconcile was clean.
-   */
-  artWarnings?: string[]
-}
+} from './move-staging'
+import { replayLineCopies, type LineQuantities } from '../changes/line-copies'
 
 /**
  * The list a save is writing, as its cross-list moves know it, plus which of
@@ -155,7 +128,7 @@ function mirrorMoveFrom(line: RemovedCopy, to: ListRef): MoveFromChange {
  * keeps its own art (the rule `adoptedCardId` states for the outgoing side);
  * an emptied or new one adopts the incoming reference.
  */
-export function freshMoveToChangeIds(
+function freshMoveToChangeIds(
   changes: readonly ChangeEvent[],
   baseline: LineQuantities,
 ): Set<string> {
@@ -260,18 +233,6 @@ export type PreparedOutgoingMoves = {
   commit: () => Promise<OutgoingMovesResult>
 }
 
-/** The art edits one other list's sidecar needs once the staged moves land. */
-type ArtPlan = { removed: Set<number>; added: Map<number, CardArtRef> }
-
-function artPlanFor(byFile: Map<string, ArtPlan>, filePath: string): ArtPlan {
-  let plan = byFile.get(filePath)
-  if (!plan) {
-    plan = { removed: new Set(), added: new Map() }
-    byFile.set(filePath, plan)
-  }
-  return plan
-}
-
 const NO_BASELINE: LineQuantities = new Map()
 
 /**
@@ -284,7 +245,7 @@ const NO_BASELINE: LineQuantities = new Map()
  *   `move-from` there); the destination side — the added line + `move-to`
  *   changelog — is, again, the normal save path's.
  *
- * Mirrors {@link import('../../list/move-commit').commitAllMoves}'s
+ * Mirrors {@link import('./move-commit').commitAllMoves}'s
  * load-validate-then-write ordering: every other list is pre-loaded, removals
  * applied, then adds, all in memory, before anything is written — so a missing
  * list, a source holding no copy to take, or an invalid add (a printing-less
@@ -375,19 +336,14 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
   const prepared: StagedOther[] = []
   for (const other of byFile.values()) {
     const { listEntry } = other
-    const loaded = await loadStagedFile(listEntry.filePath, listEntry.ref.type)
-    if (!loaded.ok) {
-      const missingKey =
+    const file = await loadStagedOrThrow(listEntry, {
+      missingKey:
         other.incoming.length > 0
           ? 'cli.move.abortSourceUnreadable'
-          : 'cli.move.abortDestinationMissing'
-      throw new Error(
-        loaded.reason === 'unreadable-file'
-          ? t(missingKey, { file: listEntry.filePath })
-          : t('cli.move.abortMove', { reason: loaded.message }),
-      )
-    }
-    prepared.push({ ...other, file: loaded.file })
+          : 'cli.move.abortDestinationMissing',
+      abortKey: 'cli.move.abortMove',
+    })
+    prepared.push({ ...other, file })
   }
 
   // APPLY: in-memory removals (a source holding no copy to take throws here).
@@ -448,7 +404,7 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
 
   // APPLY: in-memory adds (a bad add — e.g. a printing-less card into a collection — throws here).
   const droppedNotes: DroppedNote[] = []
-  const artByFile = new Map<string, ArtPlan>()
+  const artByFile = new Map<string, ArtReconcile>()
   // Read here, in the staging phase: a saved list's own save re-files its
   // sidecar against the ids its removal freed, and by then the departed entry
   // is gone. Other lists' sidecars are read before their own write below.
@@ -470,7 +426,7 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
       if (adopted === undefined) continue
       const ref = await art.lookup(source.file, move.cardId)
       if (ref === undefined) continue
-      artPlanFor(artByFile, listEntry.filePath).added.set(adopted, ref)
+      artReconcileFor(artByFile, listEntry.filePath).added.set(adopted, ref)
     }
   }
 
@@ -491,7 +447,7 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
       // before the art lookup because the freed id is also what re-points the
       // list's cover image, and that is filed whether or not the line wore art.
       if (!stage.surviving.has(line.cardId)) {
-        artPlanFor(artByFile, listEntry.filePath).removed.add(line.cardId)
+        artReconcileFor(artByFile, listEntry.filePath).removed.add(line.cardId)
       }
       const ref = await art.lookup(listEntry.filePath, line.cardId)
       if (ref === undefined) continue
@@ -525,20 +481,15 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
     committed = true
     // WRITE: files, then one changelog entry per other list. Each mirrored
     // line names its own counterpart, so attribution survives the merged entry.
-    const written: string[] = []
-    const artFailures: CardArtReconcileFailure[] = [...unfiled]
-    for (const { listEntry, file } of prepared) {
-      await writeStagedFile(listEntry.filePath, file)
-      written.push(listEntry.filePath, hashPath(listEntry.filePath))
-    }
-    for (const [filePath, plan] of artByFile) {
-      // A sidecar this could not read keeps its own art, and the moving
-      // cards' art is what is lost — reported, never swallowed. The list's
-      // cover follows the same ids and is re-pointed in the same step.
-      const reconciled = await reconcileListRefs(filePath, plan)
-      if (!reconciled.art.ok) artFailures.push(reconciled.art)
-      written.push(...reconciled.writtenFiles)
-    }
+    const written = await writeStagedFiles(
+      prepared.map(({ listEntry, file }) => [listEntry.filePath, file] as const),
+    )
+    // A sidecar this could not read keeps its own art, and the moving cards'
+    // art is what is lost — reported, never swallowed. The list's cover
+    // follows the same ids and is re-pointed in the same step.
+    const artCommit = await commitArtReconciles(artByFile)
+    written.push(...artCommit.writtenFiles)
+    const artFailures: CardArtReconcileFailure[] = [...unfiled, ...artCommit.failures]
     for (const { listEntry, outgoing: departures } of prepared) {
       const arrivals = incomingByFile.get(listEntry.filePath)?.removed ?? []
       // One entry per list, the lines in the order the user made the moves.

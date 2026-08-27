@@ -5,7 +5,7 @@ import { applyChangesCollectingMisses, describeUnmatchedChanges } from '../../ch
 import { getCollectionsDir } from '../../config/ritual-config'
 import { assignEntryIds } from '../../card/card-id'
 import { parseCollectionFile } from '../../list/collection-file'
-import { computeEntrySaveEffects } from '../../editor/save-effects'
+import { computeEntrySaveEffects } from '../../changes/save-effects'
 import {
   applyChangeToCollection,
   findCollectionPrintingError,
@@ -14,10 +14,9 @@ import {
 import { collectionToMarkdown } from '../../list/list-export'
 import { parseTitleFromContent } from '../../list/section-format'
 import { changeCardNames, refuseUnknownCardNames } from './card-name-check'
-import { applyCrossListMoves } from './move-save'
+import { applyCrossListMoves } from '../../list/move-prepare'
 import {
   apiError,
-  entryLineQuantities,
   PARTIAL_LOAD_HINT,
   readJsonObjectBody,
   validateContentHash,
@@ -31,6 +30,7 @@ import {
   refuseUnreadableBaseline,
   type ListSaveTail,
 } from './save-helpers'
+import { entryLineQuantities } from '../../changes/line-copies'
 import { resolveFlatListFile, resolveListFileOrRefuse } from './list-file'
 import { parseSlugFromUrl } from './target'
 import { MAX_LIST_BODY_SIZE } from '../validation'

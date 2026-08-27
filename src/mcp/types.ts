@@ -22,8 +22,8 @@ export type { ParsedWantedEntry }
  * per-entry effects it reports. Re-exported from the handler rather than
  * redeclared — an MCP-side copy silently went stale against `droppedNotes`.
  */
-export type { ListSaveResponse } from '../admin/api/move-save'
-export type { SaveEffect, SaveEffectAction, SaveEffectPrinting } from '../editor/save-effects'
+export type { ListSaveResponse } from '../admin/api/list-save'
+export type { SaveEffect, SaveEffectAction, SaveEffectPrinting } from '../changes/save-effects'
 
 /**
  * A tool result never carries `success`: `callApi` throws on a non-2xx response
