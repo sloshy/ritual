@@ -4,7 +4,7 @@ import {
   listImageModeChoices,
   type ListImageModeChoice,
 } from '../../src/commands/set-list-image'
-import type { EntryRef } from '../../src/commands/card-target'
+import type { EntryRef } from '../../src/list/entry-ref'
 
 /**
  * The pure halves of `ritual set-list-image`'s wizard: which modes the menu

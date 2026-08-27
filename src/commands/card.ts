@@ -2,7 +2,7 @@ import { Command } from 'commander'
 import fs from 'node:fs/promises'
 import { classifyFetchCard, scryfallClient } from '../scryfall'
 import { getErrorMessage, ExitCode } from '../util/errors'
-import { t } from '../i18n/t'
+import { t, type MessageParams } from '../i18n/t'
 import { addFieldsOption, addOutputOption } from '../cli/options'
 import {
   classifyFileReadError,
@@ -87,15 +87,10 @@ export function registerCardCommand(program: Command): void {
       try {
         fileContent = await fs.readFile(options.fromFile, 'utf-8')
       } catch (e) {
-        const failure = classifyFileReadError(e)
-        emitError(
-          failure.errorCode,
-          t('cli.card.readFailed', { file: options.fromFile, reason: getErrorMessage(e) }),
-          scriptingOptions,
-          undefined,
-          'cli.card.readFailed',
-        )
-        process.exitCode = failure.exitCode
+        fail(scriptingOptions, classifyFileReadError(e).errorCode, 'cli.card.readFailed', {
+          file: options.fromFile,
+          reason: getErrorMessage(e),
+        })
         return
       }
       names = parseInputNames(fileContent)
@@ -130,25 +125,24 @@ export function registerCardCommand(program: Command): void {
       )
 
       if (outcome.kind === 'failed') {
-        emitError(
-          'runtime_error',
-          t('cli.card.fetchFailed', { name: cardName, reason: outcome.message }),
-          scriptingOptions,
-          undefined,
-          'cli.card.fetchFailed',
-        )
+        const params: MessageParams<'cli.card.fetchFailed'> = {
+          name: cardName,
+          reason: outcome.message,
+        }
+        emitError('runtime_error', t('cli.card.fetchFailed', params), scriptingOptions, undefined, {
+          key: 'cli.card.fetchFailed',
+          params,
+        })
         hadFailure = true
         continue
       }
 
       if (outcome.kind === 'not-found') {
-        emitError(
-          'not_found',
-          t('cli.card.notFound', { name: cardName }),
-          scriptingOptions,
-          undefined,
-          'cli.card.notFound',
-        )
+        const params: MessageParams<'cli.card.notFound'> = { name: cardName }
+        emitError('not_found', t('cli.card.notFound', params), scriptingOptions, undefined, {
+          key: 'cli.card.notFound',
+          params,
+        })
         hadMissing = true
         continue
       }

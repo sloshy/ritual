@@ -37,7 +37,7 @@ import { promptExitMenu } from '../cli/prompts'
 import { inputRequiredError, promptsUnavailable, requireInteractive } from '../util/no-input'
 import { fail, runCommandAction } from '../cli/action'
 import { parsePositiveInteger } from '../util/parse-number'
-import { t } from '../i18n/t'
+import { t, type MessageRef } from '../i18n/t'
 
 export type HistoryOptions = ListTypeFlags &
   Partial<ScriptingOptions> & {
@@ -259,13 +259,15 @@ async function resolveLocation(
 
   const locations = await listLocations(type)
   if (locations.length === 0) {
-    const messageKey = type ? 'cli.history.noListsOfType' : 'errors.resolveList.noLists'
+    const ref: MessageRef = type
+      ? { key: 'cli.history.noListsOfType', params: { type } }
+      : { key: 'errors.resolveList.noLists' }
     emitError(
       'not_found',
       type ? t('cli.history.noListsOfType', { type }) : t('errors.resolveList.noLists'),
       scripting,
       undefined,
-      messageKey,
+      ref,
     )
     process.exitCode = ExitCode.NotFound
     return null

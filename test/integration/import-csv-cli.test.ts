@@ -80,6 +80,20 @@ describe('import CSV scripted path (Integration)', () => {
     })
   })
 
+  test('a missing source file is a not-found naming the file', async () => {
+    await withWorkspace(async (dir) => {
+      const source = path.join(dir, 'absent.csv')
+
+      const result = await runCli(
+        ['import', source, '--type', 'collection', '--name', 'binder'],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(ExitCode.NotFound)
+      expect(result.stderr.trim()).toBe(`Could not read CSV file: ${source}`)
+    })
+  })
+
   test('an out-of-range column is one usage error naming the index and the width', async () => {
     await withWorkspace(async (dir) => {
       const source = path.join(dir, 'cards.csv')

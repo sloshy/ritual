@@ -10,11 +10,11 @@ import { type ListType } from '../list/list-type'
 import { type ListTypeFlags } from '../list/resolve-list'
 import { CardCommandError, ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
-import { addListTypeFlags, resolveListSelection, resolveListTypeFlag } from './card-target'
+import { addListTypeFlags, resolveListTypeFlag, addScriptingOptions } from '../cli/options'
+import { resolveListSelection } from './card-target'
 import { cancelledError, runCommandAction, lifecycleErrorToCommandError } from '../cli/action'
 import { requireInteractive } from '../util/no-input'
 import { ask } from '../cli/prompts'
-import { addScriptingOptions } from '../cli/options'
 import {
   emitOutput,
   emitWarnings,

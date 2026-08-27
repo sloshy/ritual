@@ -404,10 +404,13 @@ export function formatResolveListError(error: ResolveListError, hint: ResolveHin
   }
 }
 
+/** A list argument's prefix contradicted the command's type flag. */
+export type ListArgumentsConflict = { kind: 'conflict'; conflict: ListArgumentConflict }
+/** A list argument resolved to no single list. */
+export type ListArgumentsResolveFailure = { kind: 'resolve'; error: ResolveListError }
+
 /** Why a list-argument batch failed to resolve. */
-export type ListArgumentsFailure =
-  | { kind: 'conflict'; message: string }
-  | { kind: 'resolve'; error: ResolveListError }
+export type ListArgumentsFailure = ListArgumentsConflict | ListArgumentsResolveFailure
 
 export type ListArgumentsResult = ListLocation[] | ListArgumentsFailure
 
@@ -432,7 +435,7 @@ export async function resolveListArguments(
   const locations: ListLocation[] = []
   for (const value of raw) {
     const arg = resolveListArgument(value, flagType)
-    if (isListArgumentConflict(arg)) return { kind: 'conflict', message: arg.message }
+    if (isListArgumentConflict(arg)) return { kind: 'conflict', conflict: arg }
     const resolved = await resolveList(arg.name, arg.type)
     if (isResolveListError(resolved)) return { kind: 'resolve', error: resolved }
     locations.push(resolved)

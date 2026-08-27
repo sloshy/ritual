@@ -13,6 +13,7 @@ import {
   writeStdout,
 } from '../../../src/cli/output'
 import { ExitCode } from '../../../src/util/errors'
+import { exitCodeFor } from '../../../src/cli/action'
 import type { ScriptingOptions } from '../../../src/cli/output'
 import { setNoInputOverride } from '../../../src/util/no-input'
 import { stubTty } from '../../test-utils'
@@ -151,22 +152,19 @@ describe('scripting output helpers', () => {
 
   test('classifyFileReadError maps a missing file to not-found', () => {
     const enoent = Object.assign(new Error('no such file'), { code: 'ENOENT' })
-    expect(classifyFileReadError(enoent)).toEqual({
-      errorCode: 'not_found',
-      exitCode: ExitCode.NotFound,
-    })
+    expect(classifyFileReadError(enoent)).toEqual({ errorCode: 'not_found' })
   })
 
   test('classifyFileReadError maps any other failure to a runtime error', () => {
     const eacces = Object.assign(new Error('permission denied'), { code: 'EACCES' })
-    expect(classifyFileReadError(eacces)).toEqual({
-      errorCode: 'runtime_error',
-      exitCode: ExitCode.RuntimeError,
-    })
-    expect(classifyFileReadError(new Error('plain'))).toEqual({
-      errorCode: 'runtime_error',
-      exitCode: ExitCode.RuntimeError,
-    })
+    expect(classifyFileReadError(eacces)).toEqual({ errorCode: 'runtime_error' })
+    expect(classifyFileReadError(new Error('plain'))).toEqual({ errorCode: 'runtime_error' })
+  })
+
+  test('exitCodeFor pairs each error code with its process exit code', () => {
+    expect(exitCodeFor('not_found')).toBe(ExitCode.NotFound)
+    expect(exitCodeFor('usage_error')).toBe(ExitCode.UsageError)
+    expect(exitCodeFor('runtime_error')).toBe(ExitCode.RuntimeError)
   })
 })
 

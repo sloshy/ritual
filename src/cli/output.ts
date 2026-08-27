@@ -15,10 +15,9 @@ import {
   hasErrorCode,
   isBrokenPipeError,
   type ErrorMessageRef,
-  type ExitCodeValue,
 } from '../util/errors'
 import type { MessageKey } from '../i18n/messages/en'
-import { t, type RenderParams } from '../i18n/t'
+import { t, type RenderParams, type ParameterlessKey } from '../i18n/t'
 import {
   formatResolveListError,
   type ResolveHint,
@@ -230,8 +229,9 @@ export function emitError(
   details?: unknown,
   // A bare key for the common params-free failure, or the whole ref when the
   // message interpolates — carrying a parameterised key without its parameters
-  // would hand a client a key it cannot render.
-  messageRef?: MessageKey | ErrorMessageRef,
+  // would hand a client a key it cannot render, so the bare form is typed to
+  // refuse one.
+  messageRef?: ParameterlessKey | ErrorMessageRef,
 ): void {
   if (options.output === 'text') {
     writeStderr(`${message}\n`)
@@ -409,17 +409,16 @@ export function resolveOutPath(out: string | undefined): string | undefined {
   return path.isAbsolute(out) ? out : path.join(getBaseDir(), out)
 }
 
-export type FileReadFailure = { errorCode: ErrorCode; exitCode: ExitCodeValue }
+export type FileReadFailure = { errorCode: ErrorCode }
 
 /**
  * Classify a failed read of a user-supplied file path: a missing file is a
  * not-found, anything else (permissions, directory, IO) is a runtime error.
+ * The exit code follows from the error code (`exitCodeFor` in `./action`).
  */
 export function classifyFileReadError(error: unknown): FileReadFailure {
   const missing = hasErrorCode(error, 'ENOENT')
-  return missing
-    ? { errorCode: 'not_found', exitCode: ExitCode.NotFound }
-    : { errorCode: 'runtime_error', exitCode: ExitCode.RuntimeError }
+  return { errorCode: missing ? 'not_found' : 'runtime_error' }
 }
 
 export function parseFields(value: string): string[] {

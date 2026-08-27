@@ -26,8 +26,21 @@ import {
 } from '../list/card-art'
 import { getArtDir } from '../config/ritual-config'
 import type { CardMutationChange } from '../list/list-mutate'
-import { applyTargetedChanges } from './line-mutate'
-import { addDryRunOption, addScriptingOptions, type DryRunOptions } from '../cli/options'
+import { applyTargetedChanges } from '../list/line-mutate'
+import {
+  addDryRunOption,
+  addScriptingOptions,
+  type DryRunOptions,
+  addListTypeFlags,
+  ensureLabelsSupported,
+  parseCardIdFlag,
+  parseConditionFlag,
+  parseFinishFlag,
+  parseLanguageFlag,
+  parseSetFlag,
+  resolveListTypeFlag,
+  type CardCommandResultBase,
+} from '../cli/options'
 import {
   classifyFileReadError,
   emitOutput,
@@ -37,34 +50,18 @@ import {
 } from '../cli/output'
 import { ExitCode, getErrorMessage, localizedCommandError } from '../util/errors'
 import { t } from '../i18n/t'
+import { describeEntry, type EntryRef } from '../list/entry-ref'
 import {
-  addListTypeFlags,
-  describeEntry,
   ensureFinishAvailable,
   ensureFinishAvailableForEntry,
-  ensureLabelsSupported,
   ensureLanguageAvailableForEntry,
-  parseCardIdFlag,
-  parseLanguageFlag,
-  resolveListSelection,
-  resolveListTypeFlag,
   resolvePinnedPrinting,
-  resolveTarget,
-  type CardCommandResultBase,
-  type EntryRef,
   type FinishCheckSkip,
-} from './card-target'
-import { runCommandAction } from '../cli/action'
+} from '../card/printing-pin'
+import { resolveListSelection, resolveTarget } from './card-target'
+import { exitCodeFor, runCommandAction } from '../cli/action'
 import { type ListTypeFlags } from '../list/resolve-list'
-import {
-  isCondition,
-  isFinish,
-  normalizeFinishValue,
-  VALID_CONDITIONS,
-  VALID_FINISHES,
-  type Finish,
-} from '../card/finish-condition'
-import { parseSetCode } from '../card/set-codes'
+import { VALID_CONDITIONS, VALID_FINISHES, type Finish } from '../card/finish-condition'
 import type { ListType } from '../list/list-type'
 
 /**
@@ -100,40 +97,6 @@ type SetCardOptions = {
 } & ListTypeFlags &
   DryRunOptions &
   Partial<ScriptingOptions>
-
-/** Commander argParser for `--finish`: one of the valid finishes (case-insensitive). */
-function parseFinishFlag(value: string): Finish {
-  const result = normalizeFinishValue(value)
-  if (!isFinish(result)) {
-    throw new InvalidArgumentError(result)
-  }
-  return result
-}
-
-/** Commander argParser for `--set`: a normalized (lowercase alphanumeric) set code. */
-function parseSetFlag(value: string): string {
-  const result = parseSetCode(value)
-  if (!result.ok) {
-    throw new InvalidArgumentError(result.error)
-  }
-  return result.code
-}
-
-/**
- * Commander argParser for `--condition`: one of the valid conditions
- * (case-insensitive), or `NONE` to clear a recorded grade — the same vocabulary
- * `add-card --condition` accepts.
- */
-function parseConditionFlag(value: string): ConditionUpdate {
-  const normalized = value.toUpperCase()
-  if (normalized === 'NONE') return 'NONE'
-  if (!isCondition(normalized)) {
-    throw new InvalidArgumentError(
-      t('cli.setCard.invalidCondition', { value, choices: VALID_CONDITIONS.join(', ') }),
-    )
-  }
-  return normalized
-}
 
 /**
  * Commander argParser for `--label`: a comma-separated label set (`sale,trade`,
@@ -313,7 +276,8 @@ async function ensureArtFileExists(ref: CardArtFileRef): Promise<void> {
   try {
     stats = await fs.stat(filePath)
   } catch (err) {
-    const { errorCode, exitCode } = classifyFileReadError(err)
+    const { errorCode } = classifyFileReadError(err)
+    const exitCode = exitCodeFor(errorCode)
     throw errorCode === 'not_found'
       ? localizedCommandError(errorCode, exitCode, 'cli.setCard.artFileMissing', {
           path: filePath,

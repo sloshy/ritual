@@ -1,17 +1,44 @@
 /**
  * The shared commander option registrations and argParsers: every flag that
  * more than one command spells (`--output`, `--quiet`, `--dry-run`, `--fields`,
- * `--refresh`, `--sell-mode`, `--sync-printings`) is declared exactly once here
- * so its spelling, help text and parse rule cannot drift between commands.
+ * `--refresh`, `--sell-mode`, `--sync-printings`, the `--deck`/`--collection`/
+ * `--wanted` type flags and the one-shot card commands' `--card-id`/`--language`)
+ * is declared exactly once here so its spelling, help text and parse rule
+ * cannot drift between commands.
  */
 
 import { InvalidArgumentError, type Command } from 'commander'
 import { setSiteSellModeOverride } from '../config/ritual-config'
 import { parsePositiveInteger } from '../util/parse-number'
+import {
+  isCondition,
+  isFinish,
+  normalizeFinishValue,
+  VALID_CONDITIONS,
+  type ConditionUpdate,
+  type Finish,
+} from '../card/finish-condition'
+import { parseSetCode } from '../card/set-codes'
 import { REFRESH_MODES, type RefreshMode } from '../cache/refresh'
 import { t } from '../i18n/t'
 import { parseEnumField } from '../util/parse-enum'
-import { OUTPUT_FORMATS, parseFields, type CsvOutputFormat, type OutputFormat } from './output'
+import { ExitCode, localizedCommandError } from '../util/errors'
+import { checkLabelsForListType, LIST_TYPE_LABELS, type CardLabel } from '../card/card-labels'
+import {
+  invalidLanguageMessage,
+  normalizeLanguageValue,
+  type CardLanguage,
+} from '../card/card-language'
+import type { ListType } from '../list/list-type'
+import { listTypeFromFlags, type ListTypeFlags } from '../list/resolve-list'
+import { fail } from './action'
+import {
+  OUTPUT_FORMATS,
+  parseFields,
+  type CsvOutputFormat,
+  type OutputFormat,
+  type ScriptingOptions,
+} from './output'
 
 /**
  * Commander argParser body for an enum-valued flag: match the value against
@@ -230,4 +257,145 @@ export function readSyncPrintingsFlag(
   options: SyncPrintingsOptions,
 ): boolean | undefined {
   return command.getOptionValueSource('syncPrintings') === 'cli' ? options.syncPrintings : undefined
+}
+
+/** Fields every one-shot card command's JSON success payload shares. */
+export type CardCommandResultBase = {
+  type: ListType
+  list: string
+  cardName: string
+  cardId: number | undefined
+}
+
+/**
+ * Parse a `--card-id` flag value into a positive integer. Rejects floats,
+ * negatives, zero, and non-digit input.
+ */
+export function parseCardIdFlag(raw: string): number {
+  const parsed = parsePositiveInteger(raw)
+  if (parsed === undefined) {
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.cardIdPositive', {
+      value: raw,
+    })
+  }
+  return parsed
+}
+
+/** Commander argParser for `--finish`: one of the valid finishes (case-insensitive). */
+export function parseFinishFlag(value: string): Finish {
+  const result = normalizeFinishValue(value)
+  if (!isFinish(result)) {
+    throw new InvalidArgumentError(result)
+  }
+  return result
+}
+
+/** Commander argParser for `--set`: a normalized (lowercase alphanumeric) set code. */
+export function parseSetFlag(value: string): string {
+  const result = parseSetCode(value)
+  if (!result.ok) {
+    throw new InvalidArgumentError(result.error)
+  }
+  return result.code
+}
+
+/**
+ * Commander argParser for `--condition`: one of the valid conditions
+ * (case-insensitive), or `NONE` to record no condition (clearing any grade an
+ * existing entry holds). Shared by `add-card` and `set-card`.
+ */
+export function parseConditionFlag(value: string): ConditionUpdate {
+  const normalized = value.toUpperCase()
+  if (normalized === 'NONE') return 'NONE'
+  if (!isCondition(normalized)) {
+    throw new InvalidArgumentError(
+      t('cli.cardOps.invalidCondition', { value, choices: VALID_CONDITIONS.join(', ') }),
+    )
+  }
+  return normalized
+}
+
+/** Commander argParser for `-q/--quantity`: positive integers only. */
+export function parseQuantityFlag(value: string): number {
+  const parsed = parsePositiveInteger(value.trim())
+  if (parsed === undefined) {
+    throw new InvalidArgumentError(t('cli.cardOps.quantityPositive', { value }))
+  }
+  return parsed
+}
+
+/**
+ * Refuse a `--label` value the resolved list type cannot carry. The decision is
+ * {@link checkLabelsForListType}'s — shared with the admin routes, the bundle
+ * importer, and the MCP schemas — and only the wording is the CLI's own, since
+ * this is the one surface of the five whose refusal a human reads.
+ * Shared by `set-card` and `add-card` so the two refuse alike.
+ */
+export function ensureLabelsSupported(type: ListType, labels: readonly CardLabel[]): void {
+  const check = checkLabelsForListType(type, labels)
+  if (check.ok) return
+  throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.labelsUnsupported', {
+    type,
+    labels: check.unsupported.join(', '),
+    supported: LIST_TYPE_LABELS[type].join(', '),
+  })
+}
+
+/**
+ * Parse a `--language` flag value: a Scryfall language code or one of the
+ * usual aliases (e.g. `jp`), refused via {@link invalidLanguageMessage}.
+ * `hint` is an extra clause appended to the `for --language` context
+ * (`set-card` passes `(en clears the token)`). Wrap in an arrow when handing
+ * to Commander — an argParser's second argument is the previous value, which
+ * must not land here as the hint.
+ */
+export function parseLanguageFlag(value: string, hint?: string): CardLanguage {
+  const result = normalizeLanguageValue(value)
+  if (result === null) {
+    throw new InvalidArgumentError(
+      invalidLanguageMessage(value, hint ? `for --language ${hint}` : 'for --language'),
+    )
+  }
+  return result
+}
+
+/** A located list and the type it was resolved to. */
+export type ResolvedList = { type: ListType; filePath: string }
+
+/**
+ * Register the shared `--deck`/`--collection`/`--wanted` type flags every
+ * list-resolving command offers, with the standard help text.
+ */
+export function addListTypeFlags(command: Command): Command {
+  return command
+    .option('--deck', t('help.listFlags.deck'))
+    .option('--collection', t('help.listFlags.collection'))
+    .option('--wanted', t('help.listFlags.wanted'))
+}
+
+/**
+ * Resolve the mutually-exclusive `--deck`/`--collection`/`--wanted` flags for a
+ * one-shot card command's action handler. A conflict is reported through the
+ * scripting error channel and sets the usage-error exit code — the caller only
+ * has to check for `'conflict'` and return.
+ */
+export function resolveListTypeFlag(
+  flags: ListTypeFlags,
+  scripting: ScriptingOptions,
+): ListType | undefined | 'conflict' {
+  const type = listTypeFromFlags(flags)
+  if (type === 'conflict') {
+    fail(scripting, 'usage_error', 'cli.cardOps.oneTypeFlag')
+  }
+  return type
+}
+
+/**
+ * A list type's name as the one-shot commands' pickers show it. Deliberately a
+ * `$select` message rather than the lowercase file-format vocabulary in
+ * `src/list-type.ts`: this one is display text, and nothing may case-fold it —
+ * a sentence that needs the lowercase form gets its own whole-sentence message.
+ */
+export function listTypeLabel(type: ListType): string {
+  return t('cli.cardOps.typeLabel', { type })
 }

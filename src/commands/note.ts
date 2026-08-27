@@ -1,24 +1,24 @@
 import { Command, Option } from 'commander'
-import prompts from 'prompts'
 import path from 'node:path'
-import type { PromptState } from '../cli/prompts'
+import { ask } from '../cli/prompts'
 import { createSetNoteChange } from '../changes/change-event'
-import { applyTargetedChanges } from './line-mutate'
-import { addDryRunOption, addScriptingOptions, type DryRunOptions } from '../cli/options'
+import { applyTargetedChanges } from '../list/line-mutate'
+import {
+  addDryRunOption,
+  addScriptingOptions,
+  type DryRunOptions,
+  addListTypeFlags,
+  parseCardIdFlag,
+  resolveListTypeFlag,
+  type CardCommandResultBase,
+} from '../cli/options'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
 import { normalizeNote } from '../card/note-helpers'
 import { requireInteractive } from '../util/no-input'
 import { t } from '../i18n/t'
-import {
-  addListTypeFlags,
-  parseCardIdFlag,
-  resolveListSelection,
-  resolveListTypeFlag,
-  resolveTarget,
-  type CardCommandResultBase,
-  type EntryRef,
-} from './card-target'
+import { resolveListSelection, resolveTarget } from './card-target'
+import type { EntryRef } from '../list/entry-ref'
 import { cancelledError, runCommandAction } from '../cli/action'
 import { type ListTypeFlags } from '../list/resolve-list'
 import type { ListType } from '../list/list-type'
@@ -250,20 +250,15 @@ async function resolveNoteText(
   // terminal, or with prompts disabled via --no-input, must say what to pass.
   requireInteractive('--note <text> or --clear')
 
-  let exited = false
-  const resp = await prompts({
+  const note = await ask<string>({
     type: 'text',
-    name: 'note',
     message: existingNote
       ? t('cli.note.promptReplace', { current: existingNote })
       : t('cli.note.promptText'),
     initial: existingNote ?? '',
-    onState: (state: PromptState) => {
-      if (state.exited) exited = true
-    },
   })
-  if (exited || typeof resp.note !== 'string') throw cancelledError()
-  return validateOrThrow(resp.note)
+  if (note === undefined) throw cancelledError()
+  return validateOrThrow(note)
 }
 
 /**

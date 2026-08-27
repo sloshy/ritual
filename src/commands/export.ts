@@ -1,7 +1,7 @@
 import path from 'node:path'
 import type { Command } from 'commander'
 import { describeExportProperties } from '../pricing/export-hints'
-import { isFinish, VALID_CONDITIONS, VALID_FINISHES } from '../card/finish-condition'
+import { VALID_CONDITIONS, VALID_FINISHES } from '../card/finish-condition'
 import { CARD_LABEL_SELECTION_NONE, CARD_LABELS } from '../card/card-labels'
 import { type ListType } from '../list/list-type'
 import {
@@ -13,7 +13,6 @@ import {
 } from '../export/entries'
 import {
   EXPORT_DIALECTS,
-  isExportDialect,
   parseColumnsFlag,
   type ExportDialect,
   type ExportProperty,
@@ -45,7 +44,8 @@ import {
   emitWarnings,
   TEXT_ONLY,
 } from '../cli/output'
-import { fail, failWith } from '../cli/action'
+import { fail, failWith, failWithError, listArgumentConflictError } from '../cli/action'
+import { parseEnumField } from '../util/parse-enum'
 import { runExportWizard } from './export-wizard'
 import { t } from '../i18n/t'
 
@@ -123,21 +123,15 @@ export function shouldRunExportInteractive(
 function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | undefined {
   const filters: ExportFilters = { name: options.name, set: options.set }
   if (options.finish !== undefined) {
-    const finish = options.finish.toLowerCase()
-    if (!isFinish(finish)) {
-      failWith(
-        TEXT_ONLY,
-        'usage_error',
-        t('errors.enum.invalid', {
-          field: 'finish',
-          value: options.finish,
-          choices: VALID_FINISHES.join(', '),
-        }),
-        'errors.enum.invalid',
-      )
+    const finish = parseEnumField(options.finish, VALID_FINISHES, 'finish')
+    if (!finish.ok) {
+      failWith(TEXT_ONLY, 'usage_error', finish.message, {
+        key: finish.messageKey,
+        params: finish.messageParams,
+      })
       return undefined
     }
-    filters.finish = finish
+    filters.finish = finish.value
   }
   if (options.condition !== undefined) {
     const conditions = parseConditionFilterValues(
@@ -178,21 +172,15 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
 
   let dialect: ExportDialect | undefined
   if (options.dialect !== undefined) {
-    const lower = options.dialect.toLowerCase()
-    if (!isExportDialect(lower)) {
-      failWith(
-        TEXT_ONLY,
-        'usage_error',
-        t('errors.enum.invalid', {
-          field: 'dialect',
-          value: options.dialect,
-          choices: EXPORT_DIALECTS.join(', '),
-        }),
-        'errors.enum.invalid',
-      )
+    const parsed = parseEnumField(options.dialect, EXPORT_DIALECTS, 'dialect')
+    if (!parsed.ok) {
+      failWith(TEXT_ONLY, 'usage_error', parsed.message, {
+        key: parsed.messageKey,
+        params: parsed.messageParams,
+      })
       return undefined
     }
-    dialect = lower
+    dialect = parsed.value
   }
 
   const format = options.format
@@ -207,12 +195,10 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
     if (options.quoteAll) conflicting.push('--quote-all')
     if (options.dialect !== undefined) conflicting.push('--dialect')
     if (conflicting.length > 0) {
-      failWith(
-        TEXT_ONLY,
-        'usage_error',
-        t('cli.export.formatFlagConflict', { flags: conflicting.join(' and '), format }),
-        'cli.export.formatFlagConflict',
-      )
+      fail(TEXT_ONLY, 'usage_error', 'cli.export.formatFlagConflict', {
+        flags: conflicting.join(' and '),
+        format,
+      })
       return undefined
     }
   }
@@ -293,7 +279,7 @@ async function runFlagExport(
   const resolvedArgs = await resolveListArguments(listArgs, type)
   if (isListArgumentsFailure(resolvedArgs)) {
     if (resolvedArgs.kind === 'conflict') {
-      failWith(TEXT_ONLY, 'usage_error', resolvedArgs.message)
+      failWithError(TEXT_ONLY, listArgumentConflictError(resolvedArgs.conflict))
     } else {
       emitResolveListError(resolvedArgs.error, TEXT_ONLY, 'type-prefix')
     }

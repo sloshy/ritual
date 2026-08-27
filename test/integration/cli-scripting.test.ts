@@ -15,6 +15,7 @@ import { makeScryfallCard } from '../test-utils'
 import { runCli, withTempDir } from './helpers/cli'
 import { stubFetch, type StubbedFetch } from './helpers/stub-fetch'
 import { writeDeckFile } from './helpers/workspace'
+import { ExitCode } from '../../src/util/errors'
 
 /** Seed a card cache with priced printings so `price` has something to total. */
 async function seedPriceCache(dir: string): Promise<void> {
@@ -670,6 +671,22 @@ describe('card batch output (Integration)', () => {
     process.exitCode = 0
   })
 
+  /** Run `run` with stderr captured; the card command reports refusals there. */
+  async function captureStderr(run: () => Promise<void>): Promise<string> {
+    const originalStderrWrite = process.stderr.write.bind(process.stderr)
+    let stderr = ''
+    process.stderr.write = (chunk: string | Uint8Array): boolean => {
+      stderr += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)
+      return true
+    }
+    try {
+      await run()
+    } finally {
+      process.stderr.write = originalStderrWrite
+    }
+    return stderr
+  }
+
   async function runCard(args: string[]): Promise<void> {
     scryfall.sent.length = 0
     stdout = ''
@@ -706,6 +723,18 @@ describe('card batch output (Integration)', () => {
       const lines = stdout.trim().split('\n')
       expect(lines).toHaveLength(2)
       expect((JSON.parse(lines[1] ?? '{}') as { name: string }).name).toBe('Counterspell')
+    })
+  })
+
+  test('a missing --from-file is a not-found naming the file', async () => {
+    await withTempDir(async (dir) => {
+      const absent = path.join(dir, 'absent.txt')
+      const stderr = await captureStderr(() => runCard(['--from-file', absent]))
+
+      expect(process.exitCode).toBe(ExitCode.NotFound)
+      expect(stderr).toContain(`Could not read file '${absent}'`)
+      expect(stderr).toContain('ENOENT')
+      expect(stdout).toBe('')
     })
   })
 

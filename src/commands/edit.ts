@@ -3,7 +3,7 @@ import { t } from '../i18n/t'
 import { parseSetCodesInput } from '../card/set-codes'
 import { buildInitialSessionConfig, prepareCardSessionCache } from './session/config'
 import { runUnifiedEditor } from './session/editor'
-import { addRefreshOption } from '../cli/options'
+import { addRefreshOption, resolveListTypeFlag } from '../cli/options'
 import type { RefreshMode } from '../cache/refresh'
 import type { UnifiedListRef } from './session/edit-lists'
 import {
@@ -14,7 +14,6 @@ import {
   type ListLocation,
   type ListTypeFlags,
 } from '../list/resolve-list'
-import { resolveListTypeFlag } from './card-target'
 import { inputRequiredError, promptsUnavailable } from '../util/no-input'
 import { readDeckName } from '../importers/text-file'
 import { emitError, emitResolveListError, TEXT_ONLY } from '../cli/output'

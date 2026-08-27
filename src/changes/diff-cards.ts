@@ -9,6 +9,7 @@ import {
 } from './change-event'
 import type { Card } from '../card/card'
 import type { DeckSection } from '../list/deck'
+import { isCommanderSection } from '../list/deck-format'
 import type { Finish, Condition } from '../card/finish-condition'
 import { displayLanguage, type CardLanguage } from '../card/card-language'
 
@@ -61,10 +62,6 @@ function printingOptions(c: CardIdentity): CardPrintingOptions {
 }
 
 // ── Deck diffing ─────────────────────────────────────────────────────
-
-function isCommanderSection(name: string): boolean {
-  return name.toLowerCase() === 'commander'
-}
 
 type FlatCard = Readonly<Card> & { readonly isCommander: boolean }
 

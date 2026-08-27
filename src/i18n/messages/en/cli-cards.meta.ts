@@ -28,6 +28,10 @@ export const cliCardsMeta = {
     description:
       '--quantity rejected a non-positive or non-numeric value. {value} is what was typed.',
   },
+  'cli.cardOps.invalidCondition': {
+    description:
+      '--condition rejected a value (add-card and set-card). {choices} is the comma-joined grade list; NONE is a machine value.',
+  },
   'cli.cardOps.oneTypeFlag': {
     description: 'Refusal when more than one of the three list-type flags was passed.',
   },
@@ -127,11 +131,6 @@ export const cliCardsMeta = {
   },
 
   // ── add-card ──────────────────────────────────────────────────────────
-  'cli.addCard.invalidCondition': {
-    description:
-      '--condition rejected a value. {choices} is the comma-joined grade list; NONE is a machine value.',
-  },
-  'cli.addCard.quantityPositive': { description: 'add-card --quantity rejected a value.' },
   'cli.addCard.collectorNumberEmpty': {
     description: 'add-card --collector-number was given an empty string.',
   },
@@ -214,10 +213,6 @@ export const cliCardsMeta = {
   },
 
   // ── set-card ──────────────────────────────────────────────────────────
-  'cli.setCard.invalidCondition': {
-    description:
-      '--condition rejected a value. {choices} is the comma-joined grade list; NONE is a machine value.',
-  },
   'cli.setCard.labelWithNone': {
     description:
       "Wraps the label parser's refusal with set-card's extra escape hatch. 'none' is a machine value.",

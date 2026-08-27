@@ -21,7 +21,7 @@ import {
   resolveMovePrinting,
 } from './move-prompts'
 import { createBatchSession, runBatchRound, type BatchSession } from './move-batch'
-import { addScriptingOptions } from '../cli/options'
+import { addScriptingOptions, parseCardIdFlag } from '../cli/options'
 import {
   emitOutput,
   emitResolveListError,
@@ -29,12 +29,8 @@ import {
   type ScriptingOptions,
 } from '../cli/output'
 import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
-import {
-  describeEntry,
-  ensureCardIdMatchesName,
-  parseCardIdFlag,
-  resolvePinnedPrinting,
-} from './card-target'
+import { describeEntry, ensureCardIdMatchesName } from '../list/entry-ref'
+import { resolvePinnedPrinting } from '../card/printing-pin'
 import { runCommandAction } from '../cli/action'
 import { parsePositiveInteger } from '../util/parse-number'
 import { requireInteractive } from '../util/no-input'

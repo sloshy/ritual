@@ -27,7 +27,6 @@ import {
   type ScriptingOptions,
   installScriptingLogger,
   classifyFileReadError,
-  emitError,
   emitOutput,
   normalizeScriptingOptions,
 } from '../cli/output'
@@ -178,18 +177,10 @@ export function registerImportChangesCommand(program: Command): void {
     try {
       text = await fs.readFile(file, 'utf-8')
     } catch (error) {
-      const failure = classifyFileReadError(error)
-      emitError(
-        failure.errorCode,
-        t('cli.importChanges.unreadable', {
-          file,
-          reason: error instanceof Error ? error.message : String(error),
-        }),
-        scripting,
-        undefined,
-        'cli.importChanges.unreadable',
-      )
-      process.exitCode = failure.exitCode
+      fail(scripting, classifyFileReadError(error).errorCode, 'cli.importChanges.unreadable', {
+        file,
+        reason: error instanceof Error ? error.message : String(error),
+      })
       return
     }
 

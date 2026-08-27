@@ -7,7 +7,7 @@
 import type { ListArgumentConflict } from '../list/resolve-list'
 import type { ListLifecycleError } from '../list/list-lifecycle'
 import type { MessageKey } from '../i18n/messages/en'
-import { t, type TranslateArgs, paramsOf, type MessageRef } from '../i18n/t'
+import { t, type TranslateArgs, paramsOf, type MessageRef, type ParameterlessKey } from '../i18n/t'
 import {
   CardCommandError,
   ExitCode,
@@ -48,6 +48,11 @@ const EXIT_FOR_ERROR = {
   runtime_error: ExitCode.RuntimeError,
 } as const satisfies Record<ErrorCode, ExitCodeValue>
 
+/** The process exit code a structured error code maps to. */
+export function exitCodeFor(code: ErrorCode): ExitCodeValue {
+  return EXIT_FOR_ERROR[code]
+}
+
 /**
  * Report a catalog-keyed failure through the scripting error channel and record
  * its exit code — the inline form of throwing a {@link CardCommandError} for the
@@ -67,16 +72,27 @@ export function fail<K extends MessageKey>(
  * {@link fail} for a message an engine has already rendered (a parser's
  * `.message`, a git failure description). `messageRef` is the envelope's
  * `messageKey`/`messageParams` when the caller has one; omit it for prose
- * with no key.
+ * with no key. A bare key is accepted only for a params-free message — a
+ * parameterised key must travel with its params, as a {@link MessageRef}.
  */
 export function failWith(
   scripting: ScriptingOptions,
   code: ErrorCode,
   message: string,
-  messageRef?: MessageKey | MessageRef,
+  messageRef?: ParameterlessKey | MessageRef,
 ): void {
   emitError(code, message, scripting, undefined, messageRef)
-  process.exitCode = EXIT_FOR_ERROR[code]
+  process.exitCode = exitCodeFor(code)
+}
+
+/**
+ * {@link failWith} for a {@link CardCommandError} the caller holds rather than
+ * throws: report it through the scripting error channel and record its exit
+ * code — exactly what {@link runCommandAction} does for a thrown one.
+ */
+export function failWithError(scripting: ScriptingOptions, error: CardCommandError): void {
+  emitError(error.code, error.message, scripting, error.details, error.messageRef)
+  process.exitCode = error.exitCode
 }
 
 /**

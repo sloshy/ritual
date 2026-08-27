@@ -83,7 +83,7 @@ export async function suggestByTitleTerms(rawInput: unknown, choices: Choice[]):
 }
 
 /** A `prompts` autocomplete `suggest` callback. */
-type SuggestCallback = (rawInput: unknown, choices: Choice[]) => Promise<Choice[]>
+export type SuggestCallback = (rawInput: unknown, choices: Choice[]) => Promise<Choice[]>
 
 /** How a card prompt whose choice list also holds menu rows filters itself. */
 export type MenuAwareSuggestOptions = {

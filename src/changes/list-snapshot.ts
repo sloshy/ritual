@@ -9,6 +9,7 @@ import { importFromTextFile } from '../importers/text-file'
 import { parseCollectionFile } from '../list/collection-file'
 import { parseWantedListFile } from '../list/wanted-file'
 import { DEFAULT_SECTION } from '../list/deck'
+import { isCommanderSection } from '../list/deck-format'
 import type { Condition, Finish } from '../card/finish-condition'
 import type { CardLanguage } from '../card/card-language'
 import type { ListType } from '../list/list-type'
@@ -48,10 +49,6 @@ export type ListSnapshot = {
   /** Section names in display order. */
   sectionOrder: string[]
   entries: SnapshotEntry[]
-}
-
-function isCommanderSection(name: string): boolean {
-  return name.toLowerCase() === 'commander'
 }
 
 /** Load a list of any type into a uniform {@link ListSnapshot}. */

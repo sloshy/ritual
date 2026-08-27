@@ -34,10 +34,16 @@ async function scan(glob: string, pattern: RegExp): Promise<Violation[]> {
 }
 
 describe('prompt gate conventions', () => {
-  const GATED = ['src/commands/session/**/*.ts', 'src/commands/move*.ts']
+  const GATED = [
+    'src/commands/session/**/*.ts',
+    'src/commands/move*.ts',
+    'src/commands/add-card.ts',
+    'src/commands/note.ts',
+  ]
 
-  test.each(GATED)('the scan actually sees %s', async (glob) => {
-    expect((await scan(glob, /from\s+['"]prompts['"]/)).length).toBeGreaterThan(0)
+  test.each(GATED)('the glob %s matches at least one file', (glob) => {
+    // A glob that silently matches nothing would make the scan below vacuous.
+    expect([...new Glob(glob).scanSync(ROOT)].length).toBeGreaterThan(0)
   })
 
   test.each(GATED)('no value import of the prompts library under %s', async (glob) => {

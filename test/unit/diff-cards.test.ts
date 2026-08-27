@@ -168,6 +168,18 @@ describe('diffDeckCards', () => {
     expect(changes[0]!.action).toBe('add')
     expect(changes[1]!.action).toBe('set-commander')
   })
+
+  test('a "## Commanders" heading counts as the command zone', () => {
+    const oldSections: DeckSection[] = [
+      { name: 'Main', cards: [{ quantity: 1, name: 'Atraxa', cardId: 5 }] },
+    ]
+    const newSections: DeckSection[] = [
+      { name: 'Commanders', cards: [{ quantity: 1, name: 'Atraxa', cardId: 5 }] },
+    ]
+
+    const changes = diffDeckCards(oldSections, newSections)
+    expect(changes.map((c) => c.action)).toEqual(['set-commander'])
+  })
 })
 
 // ── Collection diffing ───────────────────────────────────────────────

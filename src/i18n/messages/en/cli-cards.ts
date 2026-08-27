@@ -31,6 +31,8 @@ export const cliCardsMessages = {
   },
   'cli.cardOps.cardIdPositive': "--card-id must be a positive integer (got '{value}').",
   'cli.cardOps.quantityPositive': "--quantity must be a positive integer (got '{value}').",
+  'cli.cardOps.invalidCondition':
+    "Invalid condition '{value}'. Use one of: {choices}, or NONE to record no condition.",
   'cli.cardOps.oneTypeFlag': 'Specify only one of --deck, --collection, or --wanted.',
   'cli.cardOps.noListFiles': 'No decks, collections, or wanted lists found. Create one first.',
   'cli.cardOps.noListFilesOfType': {
@@ -89,9 +91,6 @@ export const cliCardsMessages = {
     "pass the full card name — '{name}' does not exactly match a cached card name, and the card picker cannot open",
 
   // ── add-card ──────────────────────────────────────────────────────────
-  'cli.addCard.invalidCondition':
-    "Invalid condition '{value}'. Use one of: {choices}, or NONE to record no condition.",
-  'cli.addCard.quantityPositive': 'Quantity must be a positive integer.',
   'cli.addCard.collectorNumberEmpty': 'Collector number cannot be empty.',
   'cli.addCard.cacheUnavailable': 'Card cache is not available.',
   'cli.addCard.loadedFromCache': 'Loaded {count} cards from cache.',
@@ -153,8 +152,6 @@ export const cliCardsMessages = {
   },
 
   // ── set-card ──────────────────────────────────────────────────────────
-  'cli.setCard.invalidCondition':
-    "Invalid condition '{value}'. Use one of: {choices}, or NONE to clear the recorded condition.",
   'cli.setCard.labelWithNone': "{reason} Or pass 'none' to clear the override.",
   'cli.setCard.languageFlagHint': '(en clears the token)',
   'cli.setCard.conditionCleared': 'condition → none (grade cleared)',

@@ -1,6 +1,5 @@
 import { Command, InvalidArgumentError, Option } from 'commander'
-import prompts from 'prompts'
-import type { PromptState } from '../cli/prompts'
+import { ask, type SuggestCallback } from '../cli/prompts'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
 import {
@@ -16,26 +15,22 @@ import {
   applyDeckAddToContent,
   type DeckAddOutcome,
   type DeckAddPlacement,
-} from './line-mutate'
+} from '../list/line-mutate'
 import {
   resolveCardPrinting,
   promptFinishAndCondition,
   promptWantedFinish,
 } from './session/prompts'
 import { formatCollectionLine } from '../card/card-line'
-import { resolveAddedLanguage } from '../card/printing-pin'
+import {
+  resolveAddedLanguage,
+  ensureFinishAvailable,
+  resolvePinnedPrinting,
+  type PrintingPin,
+} from '../card/printing-pin'
 import { resolvePrintingLanguage } from '../card/printing-language'
 import type { CardLanguage } from '../card/card-language'
-import {
-  applyConditionUpdate,
-  isCondition,
-  isFinish,
-  normalizeFinishValue,
-  VALID_CONDITIONS,
-  type Condition,
-  type Finish,
-} from '../card/finish-condition'
-import { parseSetCode } from '../card/set-codes'
+import { applyConditionUpdate, type Condition, type Finish } from '../card/finish-condition'
 import { ensureCollectionFile, ensureWantedListFile } from '../list/ensure-list-file'
 import { formatWantedListLine } from '../list/wanted-file'
 import { isUsableFileName, unusableFileNameMessage, listFileName } from '../list/list-file-name'
@@ -45,6 +40,13 @@ import {
   addDryRunOption,
   addScriptingOptions,
   type DryRunOptions,
+  ensureLabelsSupported,
+  parseConditionFlag,
+  parseFinishFlag,
+  parseLanguageFlag,
+  parseQuantityFlag,
+  parseSetFlag,
+  resolveListTypeFlag,
 } from '../cli/options'
 import type { RefreshMode } from '../cache/refresh'
 import { appendChangelog } from '../changes/changelog-writer'
@@ -76,16 +78,7 @@ import {
   type ListTypeFlags,
 } from '../list/resolve-list'
 import { cancelledError, listArgumentConflictError, runCommandAction } from '../cli/action'
-import {
-  ensureFinishAvailable,
-  ensureLabelsSupported,
-  parseLanguageFlag,
-  resolveListTypeFlag,
-  resolvePinnedPrinting,
-  type EntryRef,
-  type PrintingPin,
-} from './card-target'
-import { parsePositiveInteger } from '../util/parse-number'
+import type { EntryRef } from '../list/entry-ref'
 import { inputRequiredError, promptsUnavailable } from '../util/no-input'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
@@ -174,41 +167,6 @@ type AddCardSuccess = {
 }
 
 // ── Flag argParsers (reject invalid values at parse time, exit code 2) ────────
-
-function parseFinishFlag(value: string): Finish {
-  const result = normalizeFinishValue(value)
-  if (!isFinish(result)) {
-    throw new InvalidArgumentError(result)
-  }
-  return result
-}
-
-function parseConditionFlag(value: string): Condition | 'NONE' {
-  const normalized = value.toUpperCase()
-  if (normalized === 'NONE') return 'NONE'
-  if (!isCondition(normalized)) {
-    throw new InvalidArgumentError(
-      t('cli.addCard.invalidCondition', { value, choices: VALID_CONDITIONS.join(', ') }),
-    )
-  }
-  return normalized
-}
-
-function parseQuantityFlag(value: string): number {
-  const parsed = parsePositiveInteger(value.trim())
-  if (parsed === undefined) {
-    throw new InvalidArgumentError(t('cli.addCard.quantityPositive'))
-  }
-  return parsed
-}
-
-function parseSetFlag(value: string): string {
-  const result = parseSetCode(value)
-  if (!result.ok) {
-    throw new InvalidArgumentError(result.error)
-  }
-  return result.code
-}
 
 function parseCollectorNumberFlag(value: string): string {
   const normalized = value.trim()
@@ -562,27 +520,23 @@ async function selectCardAutocomplete(
 
   const choices = filteredNames.map((name) => ({ title: name, value: name }))
 
-  let isExited = false
-  const response = await prompts({
+  const suggestNames: SuggestCallback = async (rawInput, choices) => {
+    const input = String(rawInput)
+    if (!input) return choices.slice(0, 15)
+
+    const matches = choices.filter((choice) => matchesAllNameTerms(choice.title, input))
+    return rankNameMatches(matches, input, (choice) => choice.title)
+  }
+
+  const selected = await ask<string>({
     type: 'autocomplete',
-    name: 'cardName',
     message: t('cli.cardOps.promptSelectCard'),
     choices,
     limit: 15,
-    suggest: async (rawInput, choices) => {
-      const input = String(rawInput)
-      if (!input) return choices.slice(0, 15)
-
-      const matches = choices.filter((choice) => matchesAllNameTerms(choice.title, input))
-      return rankNameMatches(matches, input, (choice) => choice.title)
-    },
-    onState: (state: PromptState) => {
-      if (state.exited) isExited = true
-    },
+    suggest: suggestNames,
   })
 
-  if (isExited || !response.cardName) return null
-  return response.cardName as string
+  return selected === undefined ? null : selected
 }
 
 // ── Per-type add flows ────────────────────────────────────────────────────────
@@ -918,9 +872,8 @@ async function resolveWantedMode(
   if (options.nameOnly) return 'name-only'
   if (options.specific || pin !== undefined) return 'specific'
 
-  const specificityResponse = await prompts({
+  const specificity = await ask<WantedAddMode>({
     type: 'select',
-    name: 'specificity',
     message: t('cli.addCard.promptSpecificity', { name: selectedName }),
     choices: [
       { title: t('cli.addCard.specificityNameOnly'), value: 'name-only' },
@@ -928,8 +881,8 @@ async function resolveWantedMode(
     ],
   })
 
-  if (!specificityResponse.specificity) throw cancelledError()
-  return specificityResponse.specificity as WantedAddMode
+  if (specificity === undefined) throw cancelledError()
+  return specificity
 }
 
 /**

@@ -1,8 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  applyDeckAddToContent,
-  applyTargetedChangesToContent,
-} from '../../src/commands/line-mutate'
+import { applyDeckAddToContent, applyTargetedChangesToContent } from '../../src/list/line-mutate'
 import {
   createRemoveChange,
   createSetCommanderChange,
@@ -14,7 +11,7 @@ import {
   createSetSectionChange,
   createUnsetCommanderChange,
 } from '../../src/changes/change-event'
-import type { EntryRef } from '../../src/commands/card-target'
+import type { EntryRef } from '../../src/list/entry-ref'
 
 /**
  * The line-preserving apply core: only the targeted entry's line may change;
@@ -593,6 +590,16 @@ describe('applyTargetedChangesToContent — labels', () => {
     )
     expect(result).toContain('- Sol Ring (C21:263) [sale,trade] &2')
     expect(result).toContain('- Lightning Bolt (LEA:161) [foil] [keep] {my first rare} &1')
+  })
+
+  test('set-label writes the token in canonical order regardless of the order given', () => {
+    const result = applyTargetedChangesToContent(
+      labeledCollection,
+      'collection',
+      { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 2 },
+      [createSetLabelChange('Sol Ring', { labels: ['trade', 'sale'], cardId: 2 })],
+    )
+    expect(result).toContain('- Sol Ring (C21:263) [sale,trade] &2')
   })
 
   test('an empty label set clears the token', () => {

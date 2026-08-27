@@ -46,7 +46,7 @@ import {
   type CsvOutputFormat,
   type ScriptingOptions,
 } from '../cli/output'
-import { fail } from '../cli/action'
+import { fail, failWithError, listArgumentConflictError } from '../cli/action'
 import { ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
 
@@ -259,8 +259,7 @@ export function registerSellCommand(program: Command): void {
       const resolved = await resolveListArguments(listArgs, type)
       if (isListArgumentsFailure(resolved)) {
         if (resolved.kind === 'conflict') {
-          emitError('usage_error', resolved.message, scripting)
-          process.exitCode = ExitCode.UsageError
+          failWithError(scripting, listArgumentConflictError(resolved.conflict))
         } else {
           emitResolveListError(resolved.error, scripting, 'type-prefix')
         }

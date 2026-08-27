@@ -3,6 +3,7 @@ import { importFromTextFile } from '../importers/text-file'
 import { MoxfieldClient } from '../importers/moxfield-client'
 import { parseMoxfieldPrimer } from '../list/primer-parser'
 import { classifyFileReadError, writeStdout } from '../cli/output'
+import { exitCodeFor } from '../cli/action'
 import { ExitCode } from '../util/errors'
 import { getLogger } from '../util/logger'
 import {
@@ -69,9 +70,8 @@ export function registerGetPrimerCommand(program: Command): void {
       } catch (e) {
         // A deck file that vanished between resolution and read is a not-found;
         // a permission/IO failure stays a runtime error.
-        const { exitCode } = classifyFileReadError(e)
         logger.error(t('cli.getPrimer.readFailed', { file: resolved.filePath }), e)
-        process.exitCode = exitCode
+        process.exitCode = exitCodeFor(classifyFileReadError(e).errorCode)
         return
       }
 

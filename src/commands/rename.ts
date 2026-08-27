@@ -4,9 +4,9 @@ import { isListLifecycleError, renameList } from '../list/list-lifecycle'
 import { type ListType } from '../list/list-type'
 import { type ListTypeFlags } from '../list/resolve-list'
 import { t } from '../i18n/t'
-import { addListTypeFlags, resolveListSelection, resolveListTypeFlag } from './card-target'
+import { addListTypeFlags, resolveListTypeFlag, addScriptingOptions } from '../cli/options'
+import { resolveListSelection } from './card-target'
 import { runCommandAction, lifecycleErrorToCommandError } from '../cli/action'
-import { addScriptingOptions } from '../cli/options'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 
 type RenameOptions = ListTypeFlags & Partial<ScriptingOptions>

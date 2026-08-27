@@ -25,9 +25,10 @@ import {
   COLLECTION_CARD_LINE_RE,
   COLLECTION_LINE_LABELS_GROUP,
   COLLECTION_LINE_LANGUAGE_GROUP,
-} from '../list/collection-file'
+} from './collection-file'
 import {
   checkLabelsForListType,
+  normalizedOverride,
   parseCardLabelsToken,
   sameCardLabels,
   supportsAnyLabels,
@@ -39,7 +40,7 @@ import {
   formatWantedListLine,
   WANTED_CARD_LINE_RE,
   WANTED_LINE_LANGUAGE_GROUP,
-} from '../list/wanted-file'
+} from './wanted-file'
 import { formatCollectionLine } from '../card/card-line'
 import {
   DECK_CARD_LINE_RE,
@@ -49,12 +50,12 @@ import {
   DECK_LINE_NOTE_GROUP,
 } from '../importers/text-file'
 import { isCardLanguage, storedLanguage, type CardLanguage } from '../card/card-language'
-import { serializeCardLine } from '../list/deck-file'
-import { COMMANDER_SECTION, isCommanderSection, isSideboardSection } from '../list/deck-format'
-import { DEFAULT_SECTION } from '../list/deck'
+import { serializeCardLine } from './deck-file'
+import { COMMANDER_SECTION, isCommanderSection, isSideboardSection } from './deck-format'
+import { DEFAULT_SECTION } from './deck'
 import { hashPath, writeFileWithHash } from '../changes/content-hash'
-import { reconcileListRefs } from '../list/list-refs'
-import { endsInsideOpenFence, frontMatterBodyStart, markFencedLines } from '../list/markdown-fence'
+import { reconcileListRefs } from './list-refs'
+import { endsInsideOpenFence, frontMatterBodyStart, markFencedLines } from './markdown-fence'
 import { appendChangelog } from '../changes/changelog-writer'
 import { allocateNextIdFromContent } from '../card/card-id'
 import {
@@ -68,9 +69,9 @@ import { applyConditionUpdate, isCondition, isFinish, type Finish } from '../car
 import { canSetFinish } from '../card/card-printing'
 import { noteOrUndefined } from '../card/note-helpers'
 import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
-import type { ListType } from '../list/list-type'
-import type { CardMutationChange } from '../list/list-mutate'
-import type { EntryRef } from './card-target'
+import type { ListType } from './list-type'
+import type { CardMutationChange } from './list-mutate'
+import type { EntryRef } from './entry-ref'
 
 /** Options for {@link applyTargetedChanges}. */
 export type TargetedMutateOptions = {
@@ -246,7 +247,7 @@ export function applyTargetedChangesToContent(
       case 'set-label':
         requireSupportedLabels(type, change.labels)
         rewriteWith(() => {
-          entry.labels = change.labels.length > 0 ? change.labels : undefined
+          entry.labels = normalizedOverride(change.labels)
         }, true)
         break
       case 'set-section':

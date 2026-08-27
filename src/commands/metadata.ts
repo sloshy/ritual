@@ -36,14 +36,14 @@ import {
 } from '../config/config-fields'
 import {
   addListTypeFlags,
-  resolveListSelection,
   resolveListTypeFlag,
   type ResolvedList,
-} from './card-target'
+  addScriptingOptions,
+} from '../cli/options'
+import { resolveListSelection } from './card-target'
 import { fail, runCommandAction } from '../cli/action'
 import type { ListType } from '../list/list-type'
 import type { ListTypeFlags } from '../list/resolve-list'
-import { addScriptingOptions } from '../cli/options'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 
 /**

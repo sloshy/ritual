@@ -27,16 +27,16 @@ import { browseArtFile, promptArtUrl } from './session/edit-art'
 import { ask, suggestByTitleTerms } from '../cli/prompts'
 import {
   addListTypeFlags,
-  describeEntry,
-  loadEntryRefs,
   listTypeLabel,
   parseCardIdFlag,
-  resolveListSelection,
   resolveListTypeFlag,
-  type EntryRef,
-} from './card-target'
+  addDryRunOption,
+  addScriptingOptions,
+  type DryRunOptions,
+} from '../cli/options'
+import { describeEntry, loadEntryRefs, type EntryRef } from '../list/entry-ref'
+import { resolveListSelection } from './card-target'
 import { cancelledError, runCommandAction } from '../cli/action'
-import { addDryRunOption, addScriptingOptions, type DryRunOptions } from '../cli/options'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 
 /**

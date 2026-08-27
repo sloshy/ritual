@@ -5,7 +5,7 @@
  * content-hash conflict checks, full Scryfall load payloads, and git
  * auto-commit; the MCP mutations reuse those handlers in-process. The one-shot
  * CLI commands (`set-card`, `remove-card`, `note`) use the line-preserving
- * path in `commands/line-mutate.ts` instead. This module remains the
+ * path in `list/line-mutate.ts` instead. This module remains the
  * whole-file apply for `collection-sync`, whose pulls add and remove entries
  * in bulk: read the collection file, apply the events through the shared
  * editor engine, re-serialize, write through the `.sha256` sidecar helpers,

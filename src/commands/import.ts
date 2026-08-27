@@ -419,15 +419,9 @@ async function runCsvImport(
   try {
     content = await fs.readFile(file, 'utf-8')
   } catch (error) {
-    const failure = classifyFileReadError(error)
-    emitError(
-      failure.errorCode,
-      t('cli.import.csvUnreadable', { path: file }),
-      scripting,
-      undefined,
-      'cli.import.csvUnreadable',
-    )
-    process.exitCode = failure.exitCode
+    fail(scripting, classifyFileReadError(error).errorCode, 'cli.import.csvUnreadable', {
+      path: file,
+    })
     return
   }
 

@@ -375,13 +375,8 @@ describe('export command (Integration)', () => {
     ['unknown column', ['export', '--all', '--columns', 'name,bogus'], 2],
     ['unresolved list', ['export', 'no-such-list'], 3],
     ['conflicting type flags', ['export', '--deck', '--collection'], 2],
-    // A per-argument prefix that contradicts the whole-command flag used to win
-    // silently, so this reported that no *deck* named 'binder' exists.
-    ['a prefix contradicting a type flag', ['export', 'deck:binder', '--collection'], 2],
-    ['invalid finish', ['export', '--all', '--finish', 'shiny'], 2],
     ['invalid condition', ['export', '--all', '--condition', 'OK'], 2],
     ['invalid export format', ['export', '--all', '--format', 'xml'], 2],
-    ['invalid dialect', ['export', '--all', '--dialect', 'moxfield'], 2],
     [
       'dialect with a fixed-line format',
       ['export', '--all', '--format', 'md', '--dialect', 'archidekt'],
@@ -397,6 +392,47 @@ describe('export command (Integration)', () => {
 
         expect(result.exitCode).toBe(exitCode)
         expect(result.stderr).not.toBe('')
+      })
+    },
+    60_000,
+  )
+
+  // The enum refusals and the prefix conflict now go through `parseEnumField`
+  // and `listArgumentConflictError` (the shared renderers); the stderr prose is
+  // the hand-built text they replaced, byte for byte.
+  test.each<[string, string[], string]>([
+    [
+      'invalid finish',
+      ['export', '--all', '--finish', 'shiny'],
+      "Invalid finish 'shiny'. Use one of: nonfoil, foil, etched.",
+    ],
+    [
+      'invalid dialect',
+      ['export', '--all', '--dialect', 'moxfield'],
+      "Invalid dialect 'moxfield'. Use one of: ritual, archidekt.",
+    ],
+    // A per-argument prefix that contradicts the whole-command flag used to win
+    // silently, so this reported that no *deck* named 'binder' exists.
+    [
+      'a deck: prefix contradicting --collection',
+      ['export', 'deck:binder', '--collection'],
+      "'deck:binder' selects a deck, which conflicts with --collection. Drop the 'deck:' prefix or the --collection flag.",
+    ],
+    [
+      'a collection: prefix contradicting --deck',
+      ['export', 'collection:burn', '--deck'],
+      "'collection:burn' selects a collection, which conflicts with --deck. Drop the 'collection:' prefix or the --deck flag.",
+    ],
+  ])(
+    '%s refuses with the shared wording',
+    async (_label, args, message) => {
+      await withTempDir(async (dir) => {
+        await seedWorkspace(dir)
+
+        const result = await runCli(args, dir)
+
+        expect(result.exitCode).toBe(2)
+        expect(result.stderr.trim()).toBe(message)
       })
     },
     60_000,
