@@ -1,7 +1,7 @@
 import { RuleTester } from '@typescript-eslint/rule-tester'
 import { Linter } from 'eslint'
 import { afterAll, describe, expect, it, test } from 'bun:test'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import rule from '../../../eslint-rules/no-upward-import.js'
 
@@ -321,15 +321,18 @@ describe('absolute filenames', () => {
  * rename shows up here instead of quietly widening what the rule permits.
  */
 describe('the eslint.config.js layer table', () => {
-  test('every layer fragment and allow entry names a real path', async () => {
+  type LayerOptions = { layers: { dirs: string[] }[]; allow: { from: string; to: string }[] }
+  const loadOptions = async (): Promise<LayerOptions> => {
     const { default: config } = (await import('../../../eslint.config.js')) as {
       default: { rules?: Record<string, unknown> }[]
     }
     const entry = config.find((c) => c.rules?.['ritual/no-upward-import'] !== undefined)
-    const [, options] = entry!.rules!['ritual/no-upward-import'] as [
-      string,
-      { layers: { dirs: string[] }[]; allow: { from: string; to: string }[] },
-    ]
+    const [, options] = entry!.rules!['ritual/no-upward-import'] as [string, LayerOptions]
+    return options
+  }
+
+  test('every layer fragment and allow entry names a real path', async () => {
+    const options = await loadOptions()
     const fragments = [
       ...options.layers.flatMap((layer) => layer.dirs),
       ...options.allow.flatMap((debt) => [debt.from, debt.to]),
@@ -341,5 +344,27 @@ describe('the eslint.config.js layer table', () => {
     )
     expect(fragments.length).toBeGreaterThan(20)
     expect(missing).toEqual([])
+  })
+
+  /**
+   * The converse: a directory the table does not name is unconstrained in both
+   * directions, so a new `src/*` directory silently escapes the rule until
+   * someone notices. Every top-level source directory must sit in some layer.
+   */
+  test('every directory directly under src/ is placed in a layer', async () => {
+    // Assets and generated output, not TypeScript modules: nothing imports
+    // across them, so they have no place in the layer table.
+    const UNLAYERED = ['src/css', 'src/generated']
+    // An allowlist entry for a directory that no longer exists is inert; pin it the
+    // way the sibling test pins the layer fragments.
+    for (const dir of UNLAYERED)
+      expect({ dir, exists: existsSync(path.join(ROOT, dir)) }).toEqual({ dir, exists: true })
+    const options = await loadOptions()
+    const layered = new Set(options.layers.flatMap((layer) => layer.dirs))
+    const dirs = readdirSync(path.join(ROOT, 'src'), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => `src/${entry.name}`)
+    expect(dirs.length).toBeGreaterThan(20)
+    expect(dirs.filter((dir) => !layered.has(dir) && !UNLAYERED.includes(dir))).toEqual([])
   })
 })

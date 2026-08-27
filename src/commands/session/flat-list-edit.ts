@@ -1,29 +1,17 @@
-import { ask } from '../../cli/prompts'
 import {
-  consolidateSetLanguage,
-  consolidateSetNote,
   createAddChange,
   createMoveFromChange,
   createRemoveChange,
-  createSetLanguageChange,
   createSetNoteChange,
   printingOptionsFrom,
-  resolvedPrintingOptionsFrom,
   type ChangeEvent,
-  type ConsolidateResult,
-  type PrintingTuple,
 } from '../../changes/change-event'
 import type { Condition, Finish } from '../../card/finish-condition'
 import type { CardLabel } from '../../card/card-labels'
-import { displayLanguage, type CardLanguage } from '../../card/card-language'
+import type { CardLanguage } from '../../card/card-language'
 import { allocateId, claimId, releaseId } from '../../card/card-id'
 import { t } from '../../i18n/t'
-import {
-  promptLanguageChoice,
-  promptNoteEdit,
-  type EditActionChoice,
-  type PrintingFilterConfig,
-} from './prompts'
+import type { EditActionChoice, PrintingFilterConfig } from './prompts'
 import type {
   CardSessionContext,
   CardSessionStrategy,
@@ -31,13 +19,26 @@ import type {
   SessionChangeItem,
 } from './strategy'
 import {
-  changelogDelta,
   foldOutCardChanges,
   listSessionChangeItems,
   retargetUndoCardId,
   swapUndoChangelog,
   targetedUndoBlocker,
 } from './edit-undo'
+import {
+  applyFieldEdit,
+  confirmRemoval,
+  discardSessionChangeAt,
+  editArt,
+  editLanguage,
+  editNote,
+  lastEditLabel,
+  listEditableEntries,
+  logUpdatedLine,
+  resetStaleLastAdded,
+  type EditModel,
+  type FieldEdit,
+} from './edit-model'
 import {
   addAnotherFlatListCopy,
   applyFlatListChange,
@@ -58,7 +59,6 @@ import {
   type MoveTargetsProvider,
 } from './edit-move'
 import { noteArtLineRemoved, noteArtLineRestored, noteArtSet } from './art'
-import { editCardArt } from './edit-art'
 import { hasSpecificPrinting } from '../../card/card-printing'
 
 /**
@@ -84,30 +84,6 @@ export type EditableFlatListEntry = FlatListEntry & {
   note?: string
 }
 
-/**
- * The printing tuple of an entry, for consolidation comparisons and inverses.
- * The language is always resolved explicitly (`en` for a bare line): a
- * set-printing built from this tuple must *restore* the entry's language —
- * an absent language on a set-printing means "leave the token alone", which
- * would let an undo keep a language the forward edit had changed.
- */
-export function entryPrinting(entry: EditableFlatListEntry): PrintingTuple {
-  const { cardId: _cardId, ...printing } = resolvedPrintingOptionsFrom(entry)
-  return printing
-}
-
-/** The list's current entries rendered for the edit-mode picker. */
-export function listFlatListEntries<E extends EditableFlatListEntry>(
-  list: FlatListStrategyContext<E>,
-): EditableEntryItem[] {
-  const items: EditableEntryItem[] = []
-  for (const entry of list.session.entries) {
-    if (entry.cardId === undefined) continue
-    items.push({ label: list.renderEntry(entry), cardId: entry.cardId })
-  }
-  return items
-}
-
 /** Find an entry by card id (entries always carry ids after session load). */
 export function findFlatListEntry<E extends EditableFlatListEntry>(
   list: FlatListStrategyContext<E>,
@@ -117,138 +93,50 @@ export function findFlatListEntry<E extends EditableFlatListEntry>(
 }
 
 /**
- * The session-start snapshot of an entry, captured on first touch. A snapshot
- * whose name no longer matches the live entry is stale (its id was released and
- * reused by a different card), so it is replaced rather than trusted.
+ * The shared edit-mode view of a flat-list session. Built per operation so the
+ * fields a save reassigns (`editUndo`) are always read live; the snapshot is
+ * the entry itself, since a flat entry is already a plain record.
  */
-function originalSnapshot<E extends EditableFlatListEntry>(
+export function flatListModel<E extends EditableFlatListEntry>(
   list: FlatListStrategyContext<E>,
-  entry: E,
-  cardId: number,
-): E {
-  const existing = list.originals.get(cardId)
-  if (existing && existing.name === entry.name) return existing
-  const snapshot = { ...entry }
-  list.originals.set(cardId, snapshot)
-  return snapshot
+): EditModel<E, E> {
+  const { session } = list
+  return {
+    filePath: session.filePath,
+    editUndo: () => list.editUndo,
+    originals: list.originals,
+    art: session.art,
+    apply: (change) => applyFlatListChange(session, change),
+    markDirty: () => {
+      session.dirty = true
+    },
+    entries: () => session.entries,
+    cardId: (entry) => entry.cardId,
+    find: (cardId) => findFlatListEntry(list, cardId) ?? null,
+    render: list.renderEntry,
+    snapshot: (entry) => ({ ...entry }),
+    onLastAddedReset: () => {
+      list.state.snapshot = null
+    },
+  }
 }
 
-/**
- * Editing or removing the "last added" card invalidates the add-mode shortcuts
- * (Add Exact Copy would resurrect the pre-edit line), so they reset until the
- * next add.
- */
-function resetStaleLastAdded<E extends FlatListEntry>(
+/** The list's current entries rendered for the edit-mode picker. */
+export function listFlatListEntries<E extends EditableFlatListEntry>(
   list: FlatListStrategyContext<E>,
-  ctx: CardSessionContext,
-  cardId: number,
-): void {
-  if (ctx.lastAdded?.cardId !== cardId) return
-  ctx.lastAdded = null
-  ctx.lastChangeIndex = null
-  ctx.lastAddedCount = 0
-  list.state.snapshot = null
+): EditableEntryItem[] {
+  return listEditableEntries(flatListModel(list))
 }
 
-/** One edit-mode field change: the model change, its inverse, and its changelog consolidation. */
-export type FlatListFieldEdit<E extends EditableFlatListEntry> = {
-  /** Short description for messages and the Undo menu item, e.g. `printing on Sol Ring`. */
-  label: string
-  /** The change applied to the in-memory entries now. */
-  change: ChangeEvent
-  /** The change that restores the entry's pre-edit state. */
-  inverse: ChangeEvent
-  /** Consolidate the session changelog against the session-start snapshot. */
-  consolidate: (changes: ChangeEvent[], original: E) => ConsolidateResult
-}
-
-/**
- * Apply an edit-mode field change to an existing entry: mutate the model, fold
- * the event into the session changelog with "latest wins" semantics (an entry
- * restored to its session-start state drops out of the changelog entirely), and
- * push an undo entry.
- */
+/** Apply an edit-mode field change to an existing entry (see {@link applyFieldEdit}). */
 export function applyFlatListFieldEdit<E extends EditableFlatListEntry>(
   list: FlatListStrategyContext<E>,
   ctx: CardSessionContext,
   entry: E,
   cardId: number,
-  edit: FlatListFieldEdit<E>,
+  edit: FieldEdit<E>,
 ): void {
-  const original = originalSnapshot(list, entry, cardId)
-  applyFlatListChange(list.session, edit.change)
-  const result = edit.consolidate(ctx.sessionChanges, original)
-  ctx.sessionChanges = result.changes
-  list.editUndo.push({
-    cardId,
-    kind: 'edit',
-    label: edit.label,
-    inverse: [edit.inverse],
-    ...changelogDelta(result),
-  })
-  resetStaleLastAdded(list, ctx, cardId)
-}
-
-/** Prompt for and apply a note edit on an existing entry (empty input clears the note). */
-export async function editFlatListNote<E extends EditableFlatListEntry>(
-  list: FlatListStrategyContext<E>,
-  ctx: CardSessionContext,
-  entry: E,
-  cardId: number,
-): Promise<void> {
-  const edit = await promptNoteEdit(entry.note)
-  if (!edit) return
-  applyFlatListFieldEdit(list, ctx, entry, cardId, {
-    label: t('cli.editLabel.note', { name: entry.name }),
-    change: createSetNoteChange(entry.name, { note: edit.note, cardId }),
-    inverse: createSetNoteChange(entry.name, { note: edit.before, cardId }),
-    consolidate: (changes, original) =>
-      consolidateSetNote(changes, entry.name, edit.note, original.note ?? '', cardId),
-  })
-  console.log(
-    edit.note
-      ? t('cli.edit.noteSet', { name: entry.name })
-      : t('cli.edit.noteCleared', { name: entry.name }),
-  )
-}
-
-/**
- * Run the Set Custom Art action on an existing entry. Deferred like every other
- * session edit: the `.art.json` sidecar is written by the save that writes the
- * entries, so the session is only marked dirty here.
- */
-export async function editFlatListArt<E extends EditableFlatListEntry>(
-  list: FlatListStrategyContext<E>,
-  entry: E,
-  cardId: number,
-): Promise<void> {
-  await editCardArt({
-    filePath: list.session.filePath,
-    cardId,
-    cardName: entry.name,
-    art: list.session.art,
-    editUndo: list.editUndo,
-    markDirty: () => {
-      list.session.dirty = true
-    },
-  })
-}
-
-/** Confirmation gate in front of {@link performFlatListRemoval}. */
-export async function removeFlatListEntry<E extends EditableFlatListEntry>(
-  list: FlatListStrategyContext<E>,
-  ctx: CardSessionContext,
-  entry: E,
-  cardId: number,
-): Promise<void> {
-  const confirmed = await ask<boolean>({
-    type: 'confirm',
-    message: t('cli.edit.confirmRemove', { line: list.renderEntry(entry) }),
-    subjectKey: 'cli.prompt.subject.removeConfirm',
-    initial: false,
-  })
-  if (!confirmed) return
-  performFlatListRemoval(list, ctx, entry, cardId)
+  applyFieldEdit(flatListModel(list), ctx, entry, cardId, edit)
 }
 
 /**
@@ -291,7 +179,7 @@ export function performFlatListRemoval<E extends EditableFlatListEntry>(
     removedFromChangelog: displaced,
     reclaimId: cardId,
   })
-  resetStaleLastAdded(list, ctx, cardId)
+  resetStaleLastAdded(flatListModel(list), ctx, cardId)
   console.log(t('cli.edit.removedLine', { line: list.renderEntry(removed) }))
 }
 
@@ -398,7 +286,7 @@ export function performFlatListMove<E extends EditableFlatListEntry>(
     removedFromChangelog: displaced,
     reclaimId: cardId,
   })
-  resetStaleLastAdded(list, ctx, cardId)
+  resetStaleLastAdded(flatListModel(list), ctx, cardId)
   if (removed.note) console.log(t('cli.edit.moveNoteDropped', { name: removed.name }))
   console.log(
     t('cli.edit.movedToList', {
@@ -412,7 +300,7 @@ export function performFlatListMove<E extends EditableFlatListEntry>(
 export function lastFlatListEditLabel<E extends FlatListEntry>(
   list: FlatListStrategyContext<E>,
 ): string | null {
-  return list.editUndo[list.editUndo.length - 1]?.label ?? null
+  return lastEditLabel(list.editUndo)
 }
 
 /**
@@ -475,7 +363,7 @@ export function undoFlatListEditAt<E extends EditableFlatListEntry>(
   }
 
   swapUndoChangelog(ctx, undo)
-  resetStaleLastAdded(list, ctx, undo.cardId)
+  resetStaleLastAdded(flatListModel(list), ctx, undo.cardId)
   console.log(t('cli.edit.undid', { label: undo.label }))
 }
 
@@ -499,12 +387,12 @@ export function discardFlatListSessionChange<E extends EditableFlatListEntry>(
   ctx: CardSessionContext,
   index: number,
 ): void {
-  const addCount = list.sessionAdds.length
-  if (index < addCount) {
-    discardFlatListAdd(list, ctx, index)
-    return
-  }
-  undoFlatListEditAt(list, ctx, index - addCount)
+  discardSessionChangeAt(
+    list.sessionAdds.length,
+    index,
+    (i) => discardFlatListAdd(list, ctx, i),
+    (i) => undoFlatListEditAt(list, ctx, i),
+  )
 }
 
 /** Re-render an entry after an edit (apply replaces entry objects). */
@@ -513,10 +401,7 @@ export function logFlatListUpdated<E extends EditableFlatListEntry>(
   cardId: number,
   fallbackName: string,
 ): void {
-  const updated = findFlatListEntry(list, cardId)
-  console.log(
-    t('cli.edit.changedLine', { line: updated ? list.renderEntry(updated) : fallbackName }),
-  )
+  logUpdatedLine(flatListModel(list), cardId, fallbackName)
 }
 
 /** The strategy members the collection and wanted strategies delegate here unchanged. */
@@ -557,8 +442,9 @@ export function flatListDelegates<E extends EditableFlatListEntry>(
     },
     addAnotherCopy: (ctx: CardSessionContext) => addAnotherFlatListCopy(list, ctx),
     listSessionAdds: () => listFlatListSessionAdds(list),
-    discardSessionAdd: async (ctx: CardSessionContext, index: number) =>
-      discardFlatListAdd(list, ctx, index),
+    discardSessionAdd: async (ctx: CardSessionContext, index: number) => {
+      discardFlatListAdd(list, ctx, index)
+    },
     listSessionChanges: () => listFlatListSessionChanges(list),
     discardSessionChange: async (ctx: CardSessionContext, index: number) =>
       discardFlatListSessionChange(list, ctx, index),
@@ -613,25 +499,14 @@ export async function editSharedFlatListAction<E extends EditableFlatListEntry>(
   cardId: number,
   env: FlatListEditEnv,
 ): Promise<boolean> {
+  const model = flatListModel(list)
   if (action === 'language') {
-    const language = await promptLanguageChoice(entry.language)
-    if (language === null || language === displayLanguage(entry.language)) return true
-    applyFlatListFieldEdit(list, ctx, entry, cardId, {
-      label: t('cli.editLabel.language', { name: entry.name }),
-      change: createSetLanguageChange(entry.name, { language, cardId }),
-      inverse: createSetLanguageChange(entry.name, {
-        language: displayLanguage(entry.language),
-        cardId,
-      }),
-      consolidate: (changes, original) =>
-        consolidateSetLanguage(changes, entry.name, language, original.language, cardId),
-    })
-    logFlatListUpdated(list, cardId, entry.name)
+    await editLanguage(model, ctx, entry, cardId)
     return true
   }
 
   if (action === 'art') {
-    await editFlatListArt(list, entry, cardId)
+    await editArt(model, entry, cardId)
     return true
   }
 
@@ -646,12 +521,12 @@ export async function editSharedFlatListAction<E extends EditableFlatListEntry>(
   }
 
   if (action === 'note') {
-    await editFlatListNote(list, ctx, entry, cardId)
+    await editNote(model, ctx, entry, cardId)
     return true
   }
 
   if (action === 'remove') {
-    await removeFlatListEntry(list, ctx, entry, cardId)
+    if (await confirmRemoval(model, entry)) performFlatListRemoval(list, ctx, entry, cardId)
     return true
   }
 

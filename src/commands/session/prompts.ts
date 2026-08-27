@@ -10,6 +10,7 @@ import {
   VALID_CONDITIONS,
   applyConditionUpdate,
   conditionLabel,
+  declaredFinishes,
   finishLabel,
   isFinish,
   isCondition,
@@ -474,7 +475,7 @@ export async function promptFinishAndCondition(
 ): Promise<FinishAndConditionResult> {
   // Prompt for Finish
   let selectedFinish: Finish = 'nonfoil'
-  const availableFinishes = (selectedPrinting.finishes ?? []).filter(isFinish)
+  const availableFinishes = declaredFinishes(selectedPrinting)
 
   if (!forcePrompts && config.finish && availableFinishes.includes(config.finish)) {
     selectedFinish = config.finish
@@ -549,7 +550,7 @@ export async function promptWantedFinish(
   printing: ScryfallCard,
   defaultFinish?: Finish,
 ): Promise<WantedFinishResult> {
-  const availableFinishes = (printing.finishes ?? []).filter(isFinish)
+  const availableFinishes = declaredFinishes(printing)
 
   if (defaultFinish && availableFinishes.includes(defaultFinish)) {
     return defaultFinish

@@ -423,7 +423,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
       lastPrinting = null
     },
 
-    listEntries: () => listDeckEntries(state.deck),
+    listEntries: () => listDeckEntries(state),
     lastEditUndoLabel: () => lastDeckEditLabel(state),
     undoLastEdit: async (ctx: CardSessionContext) => undoDeckEdit(state, ctx),
     editEntry: (ctx: CardSessionContext, cardId: number) =>

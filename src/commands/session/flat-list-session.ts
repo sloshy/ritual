@@ -416,17 +416,18 @@ export function listFlatListSessionAdds<E extends NamedFlatListEntry>(
  * its entry, drop its changelog events, and re-pack the surviving session ids so they
  * stay dense and in add order (the highest session id returns to the pool). Pre-existing
  * (non-session) entries and their ids are never touched.
+ * Returns false when `index` names no discardable add.
  */
 export function discardFlatListAdd<E extends NamedFlatListEntry>(
   list: FlatListStrategyContext<E>,
   ctx: CardSessionContext,
   index: number,
-): void {
+): boolean {
   const { session } = list
   const targetId = list.sessionAdds[index]
-  if (targetId === undefined) return
+  if (targetId === undefined) return false
   const entry = session.entries.find((e) => e.cardId === targetId)
-  if (!entry) return
+  if (!entry) return false
 
   // Remove the discarded entry and forget its changelog events.
   session.entries = session.apply(
@@ -469,4 +470,5 @@ export function discardFlatListAdd<E extends NamedFlatListEntry>(
   ctx.lastAddedCount = 0
   list.state.snapshot = null
   console.log(t('cli.edit.discardedCard', { name: entry.name }))
+  return true
 }

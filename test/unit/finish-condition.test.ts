@@ -1,6 +1,7 @@
 import { describe, test, expect } from 'bun:test'
 import {
   applyConditionUpdate,
+  declaredFinishes,
   defaultPrintingFinish,
   displayFinish,
   printingFinishes,
@@ -24,6 +25,18 @@ describe('printingFinishes', () => {
 
   test('falls back to nonfoil when no usable finish data exists', () => {
     expect(printingFinishes(makeScryfallCard({ finishes: [] }))).toEqual(['nonfoil'])
+  })
+})
+
+describe('declaredFinishes', () => {
+  test('applies the same token filter as printingFinishes but never defaults', () => {
+    expect(declaredFinishes(makeScryfallCard({ finishes: ['glossy', 'foil'] }))).toEqual(['foil'])
+    // The contrast the wanted finish picker relies on: an empty declaration is
+    // "no preference" there, and would silently become nonfoil under the
+    // defaulted rule.
+    const undeclared = makeScryfallCard({ finishes: [] })
+    expect(declaredFinishes(undeclared)).toEqual([])
+    expect(printingFinishes(undeclared)).toEqual(['nonfoil'])
   })
 })
 

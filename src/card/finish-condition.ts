@@ -78,12 +78,23 @@ export function applyConditionUpdate(
 }
 
 /**
+ * The finishes a printing's cache entry declares, with unknown tokens dropped
+ * and no default applied: an entry with no usable finish data yields `[]`.
+ * For the prompts that treat "nothing declared" as its own case (the wanted
+ * finish picker answers "no preference"); everything that wants a finish to
+ * read a card at goes through {@link printingFinishes}.
+ */
+export function declaredFinishes(printing: ScryfallCard): Finish[] {
+  return (printing.finishes ?? []).filter(isFinish)
+}
+
+/**
  * The finishes a printing is actually offered in. Cache entries that carry no
  * usable finish data are treated as plain nonfoil, matching the default the
  * finish prompts fall back to.
  */
 export function printingFinishes(printing: ScryfallCard): Finish[] {
-  const available = (printing.finishes ?? []).filter(isFinish)
+  const available = declaredFinishes(printing)
   return available.length > 0 ? available : ['nonfoil']
 }
 

@@ -79,7 +79,7 @@ function printingEdit(
     finish: card.finish,
     condition: card.condition,
   }
-  applyDeckFieldEdit(state, ctx, card, located.section.name, cardId, {
+  applyDeckFieldEdit(state, ctx, located, cardId, {
     label: `printing on ${card.name}`,
     change: createSetPrintingChange(card.name, { ...to, cardId }),
     inverse: createSetPrintingChange(card.name, { ...before, cardId }),
@@ -357,7 +357,7 @@ describe('listDeckEntries', () => {
         { name: 'Main', cards: [{ quantity: 2, name: 'Sol Ring', finish: 'foil', cardId: 2 }] },
       ],
     }
-    const items = listDeckEntries(deck)
+    const items = listDeckEntries(stateOf(deck))
     expect(items.map((i) => i.cardId)).toEqual([1, 2])
     expect(items[0]!.label).toBe('1 Atraxa (C16:28) — Commander &1')
     expect(items[1]!.label).toBe('2 Sol Ring [foil] — Main &2')

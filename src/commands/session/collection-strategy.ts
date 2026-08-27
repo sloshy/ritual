@@ -24,11 +24,11 @@ import {
   editSharedFlatListAction,
   sharedFlatListEditActions,
   type FlatListEditEnv,
-  entryPrinting,
   findFlatListEntry,
   flatListDelegates,
   logFlatListUpdated,
 } from './flat-list-edit'
+import { printingTupleOf } from './edit-model'
 import type { MoveTargetsProvider } from './edit-move'
 import type { CollectionCardEntry } from '../../list/site-data'
 import {
@@ -243,13 +243,13 @@ export function createCollectionStrategy(
           // explicitly so the tuple restores/compares the real token).
           language: result.language ?? displayLanguage(entry.language),
         }
-        const before = entryPrinting(entry)
+        const before = printingTupleOf(entry)
         applyFlatListFieldEdit(list, ctx, entry, cardId, {
           label: t('cli.editLabel.printing', { name: entry.name }),
           change: createSetPrintingChange(entry.name, { ...target, cardId }),
           inverse: createSetPrintingChange(entry.name, { ...before, cardId }),
           consolidate: (changes, original) =>
-            consolidateSetPrinting(changes, entry.name, target, entryPrinting(original), cardId),
+            consolidateSetPrinting(changes, entry.name, target, printingTupleOf(original), cardId),
         })
         logUpdated(cardId, entry.name)
         return
@@ -274,13 +274,13 @@ export function createCollectionStrategy(
         if (!condition || condition === entry.condition) return
         // There is no set-condition change; a set-printing carrying the entry's
         // current printing plus the new condition is the canonical encoding.
-        const target: PrintingTuple = { ...entryPrinting(entry), condition }
+        const target: PrintingTuple = { ...printingTupleOf(entry), condition }
         applyFlatListFieldEdit(list, ctx, entry, cardId, {
           label: t('cli.editLabel.condition', { name: entry.name }),
           change: createSetPrintingChange(entry.name, { ...target, cardId }),
-          inverse: createSetPrintingChange(entry.name, { ...entryPrinting(entry), cardId }),
+          inverse: createSetPrintingChange(entry.name, { ...printingTupleOf(entry), cardId }),
           consolidate: (changes, original) =>
-            consolidateSetPrinting(changes, entry.name, target, entryPrinting(original), cardId),
+            consolidateSetPrinting(changes, entry.name, target, printingTupleOf(original), cardId),
         })
         logUpdated(cardId, entry.name)
         return

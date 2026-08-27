@@ -5,7 +5,6 @@ import {
   discardFlatListSessionChange,
   editSharedFlatListAction,
   sharedFlatListEditActions,
-  entryPrinting,
   findFlatListEntry,
   lastFlatListEditLabel,
   listFlatListEntries,
@@ -13,8 +12,8 @@ import {
   performFlatListMove,
   performFlatListRemoval,
   undoFlatListEdit,
-  type FlatListFieldEdit,
 } from '../../src/commands/session/flat-list-edit'
+import { printingTupleOf, type FieldEdit } from '../../src/commands/session/edit-model'
 import type { MoveDestination } from '../../src/commands/session/edit-move'
 import { createSessionArtChanges } from '../../src/commands/session/art'
 import {
@@ -113,13 +112,13 @@ function printingEdit(
   target: CollectionCardEntry,
   cardId: number,
   to: PrintingTuple,
-): FlatListFieldEdit<CollectionCardEntry> {
+): FieldEdit<CollectionCardEntry> {
   return {
     label: `printing on ${target.name}`,
     change: createSetPrintingChange(target.name, { ...to, cardId }),
-    inverse: createSetPrintingChange(target.name, { ...entryPrinting(target), cardId }),
+    inverse: createSetPrintingChange(target.name, { ...printingTupleOf(target), cardId }),
     consolidate: (changes, original) =>
-      consolidateSetPrinting(changes, target.name, to, entryPrinting(original), cardId),
+      consolidateSetPrinting(changes, target.name, to, printingTupleOf(original), cardId),
   }
 }
 
@@ -220,7 +219,7 @@ describe('applyFlatListFieldEdit', () => {
 
   test('editing back to the session-start printing drops out of the changelog', () => {
     const h = harness([entry('Sol Ring', 1)])
-    const original = entryPrinting(findFlatListEntry(h.list, 1)!)
+    const original = printingTupleOf(findFlatListEntry(h.list, 1)!)
 
     editPrinting(h, 1, LTC)
     expect(h.ctx.sessionChanges).toHaveLength(1)

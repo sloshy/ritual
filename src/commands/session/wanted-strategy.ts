@@ -20,11 +20,11 @@ import {
   editSharedFlatListAction,
   sharedFlatListEditActions,
   type FlatListEditEnv,
-  entryPrinting,
   findFlatListEntry,
   flatListDelegates,
   logFlatListUpdated,
 } from './flat-list-edit'
+import { printingTupleOf } from './edit-model'
 import type { MoveTargetsProvider } from './edit-move'
 import type { WantedListCardEntry } from '../../list/site-data'
 import {
@@ -192,13 +192,13 @@ export function createWantedStrategy(
           }
         }
 
-        const before = entryPrinting(entry)
+        const before = printingTupleOf(entry)
         applyFlatListFieldEdit(list, ctx, entry, cardId, {
           label: t('cli.editLabel.printing', { name: entry.name }),
           change: createSetPrintingChange(entry.name, { ...target, cardId }),
           inverse: createSetPrintingChange(entry.name, { ...before, cardId }),
           consolidate: (changes, original) =>
-            consolidateSetPrinting(changes, entry.name, target, entryPrinting(original), cardId),
+            consolidateSetPrinting(changes, entry.name, target, printingTupleOf(original), cardId),
         })
         logUpdated(cardId, entry.name)
         return
@@ -212,13 +212,13 @@ export function createWantedStrategy(
         if (finish === null || finish === entry.finish) return
         // Wanted finishes can be cleared back to "no preference", which set-finish
         // cannot express, so finish edits ride on a set-printing of the same printing.
-        const target: PrintingTuple = { ...entryPrinting(entry), finish }
+        const target: PrintingTuple = { ...printingTupleOf(entry), finish }
         applyFlatListFieldEdit(list, ctx, entry, cardId, {
           label: t('cli.editLabel.finish', { name: entry.name }),
           change: createSetPrintingChange(entry.name, { ...target, cardId }),
-          inverse: createSetPrintingChange(entry.name, { ...entryPrinting(entry), cardId }),
+          inverse: createSetPrintingChange(entry.name, { ...printingTupleOf(entry), cardId }),
           consolidate: (changes, original) =>
-            consolidateSetPrinting(changes, entry.name, target, entryPrinting(original), cardId),
+            consolidateSetPrinting(changes, entry.name, target, printingTupleOf(original), cardId),
         })
         logUpdated(cardId, entry.name)
         return

@@ -1,24 +1,19 @@
-import { ask } from '../../cli/prompts'
 import type { Card } from '../../card/card'
 import type { DeckData } from '../../list/deck'
 import {
   consolidateSetLabel,
-  consolidateSetLanguage,
-  consolidateSetNote,
   consolidateSetPrinting,
   consolidateSetSection,
   createAddChange,
   createMoveFromChange,
   createRemoveChange,
   createSetLabelChange,
-  createSetLanguageChange,
   createSetNoteChange,
   createSetPrintingChange,
   createSetSectionChange,
   formatPrintingAnnotation,
-  resolvedPrintingOptionsFrom,
+  type AddRemoveOptions,
   type ChangeEvent,
-  type ConsolidateResult,
   type PrintingTuple,
 } from '../../changes/change-event'
 import {
@@ -36,8 +31,7 @@ import {
   noteArtSet,
   type SessionArtChanges,
 } from './art'
-import { editCardArt } from './edit-art'
-import { displayLanguage, type CardLanguage } from '../../card/card-language'
+import { displayLanguage } from '../../card/card-language'
 import { t } from '../../i18n/t'
 import {
   allocateId,
@@ -47,15 +41,13 @@ import {
 } from '../../card/card-id'
 import { applyChangeToDeck } from '../../changes/deck-changes'
 import { normalizeBoard } from '../../deck-sync/diff'
-import { findCardById } from '../../list/deck-io'
+import { findCardById, type DeckCardLocation } from '../../list/deck-io'
 import { discardDeckCopy, renderDeckCopyRecord, type DeckCopyRecord } from './deck-discard'
 import { promptMoveSection } from './deck-prompts'
 import {
   promptEditAction,
-  promptNoteEdit,
   promptCardLabelChoice,
   promptFinishAndCondition,
-  promptLanguageChoice,
   resolveCardPrinting,
   type FinishConditionConfig,
   type PrintingFilterConfig,
@@ -67,7 +59,6 @@ import type {
   SessionChangeItem,
 } from './strategy'
 import {
-  changelogDelta,
   foldOutCardChanges,
   listSessionChangeItems,
   retargetUndoCardId,
@@ -75,6 +66,22 @@ import {
   targetedUndoBlocker,
   type EditUndoEntry,
 } from './edit-undo'
+import {
+  applyFieldEdit,
+  confirmRemoval,
+  discardSessionChangeAt,
+  editArt,
+  editLanguage,
+  editNote,
+  lastEditLabel,
+  listEditableEntries,
+  logUpdatedLine,
+  printingTupleOf,
+  resetStaleLastAdded,
+  type EditModel,
+  type EditSnapshot,
+  type FieldEdit,
+} from './edit-model'
 import { hasSpecificPrinting } from '../../card/card-printing'
 
 /**
@@ -86,14 +93,10 @@ import { hasSpecificPrinting } from '../../card/card-printing'
  */
 
 /** Session-start snapshot of a deck card touched in edit mode. */
-export type DeckCardSnapshot = {
-  name: string
+export type DeckCardSnapshot = EditSnapshot & {
   printing: PrintingTuple
-  /** The line's `[ja]`-style language token at session start. Absent means `en`. */
-  language?: CardLanguage
   /** The line's `[proxy]` label override at session start; absent means the deck default. */
   labels?: CardLabel[]
-  note?: string
   section: string
 }
 
@@ -136,69 +139,86 @@ export function applyDeckChange(state: DeckSessionState, change: ChangeEvent): v
   state.dirty = true
 }
 
-/**
- * The printing tuple of a deck card, for consolidation comparisons and
- * inverses. The language is resolved explicitly (`en` for a bare line), like
- * `entryPrinting` in flat-list-edit: a set-printing built from this tuple must
- * restore the card's language — absent would mean "leave the token alone".
- */
-function cardPrinting(card: Card): PrintingTuple {
-  const { cardId: _cardId, ...printing } = resolvedPrintingOptionsFrom(card)
-  return printing
-}
-
 /** Render a deck line for the edit-mode picker, e.g. `2 Sol Ring (C19:221) [foil] — Main &5`. */
 export function renderDeckCardLine(card: Card, sectionName: string): string {
   return `${card.quantity} ${card.name}${formatPrintingAnnotation(card)} — ${sectionName} &${card.cardId}`
 }
 
-/** The deck's current lines rendered for the edit-mode picker, in file order. */
-export function listDeckEntries(deck: DeckData): EditableEntryItem[] {
-  const items: EditableEntryItem[] = []
-  for (const section of deck.sections) {
-    for (const card of section.cards) {
-      if (card.cardId === undefined) continue
-      items.push({ label: renderDeckCardLine(card, section.name), cardId: card.cardId })
-    }
+/** The deck session as the shared edit-mode operations see it. */
+type DeckEditModel = EditModel<DeckCardLocation, DeckCardSnapshot>
+
+/**
+ * The shared edit-mode view of a deck session. Built per operation so the
+ * fields the session reassigns (`deck`, `editUndo`) are always read live.
+ */
+function deckModel(state: DeckSessionState): DeckEditModel {
+  return {
+    filePath: state.filePath,
+    editUndo: () => state.editUndo,
+    originals: state.originals,
+    art: state.art,
+    apply: (change) => applyDeckChange(state, change),
+    markDirty: () => {
+      state.dirty = true
+    },
+    entries: () =>
+      state.deck.sections.flatMap((section) => section.cards.map((card) => ({ section, card }))),
+    cardId: ({ card }) => card.cardId,
+    find: (cardId) => findCardById(state.deck, cardId),
+    render: ({ card, section }) => renderDeckCardLine(card, section.name),
+    snapshot: ({ card, section }) => ({
+      name: card.name,
+      printing: printingTupleOf(card),
+      language: card.language,
+      labels: card.labels,
+      note: card.note,
+      section: section.name,
+    }),
   }
-  return items
+}
+
+/** The deck's current lines rendered for the edit-mode picker, in file order. */
+export function listDeckEntries(state: DeckSessionState): EditableEntryItem[] {
+  return listEditableEntries(deckModel(state))
+}
+
+/** The add that puts one copy of a line back into `sectionName`, or first adds it there. */
+function deckAddOptions(
+  printing: PrintingTuple,
+  cardId: number,
+  sectionName: string,
+): AddRemoveOptions {
+  return { ...printing, cardId, section: sectionName, board: normalizeBoard(sectionName) }
+}
+
+/** The remove that takes one copy of a line out of `sectionName`. */
+function deckRemoveOptions(
+  printing: PrintingTuple,
+  cardId: number,
+  sectionName: string,
+): AddRemoveOptions {
+  return { ...printing, cardId, board: normalizeBoard(sectionName) }
 }
 
 /**
- * The session-start snapshot of a deck card, captured on first touch. A
- * snapshot whose name no longer matches the live card is stale (its id was
- * freed and reused by a different card), so it is replaced rather than trusted.
+ * The inverse changes that bring `quantity` removed (or moved) copies of a line
+ * back: an add per copy, plus the line's note when it carried one.
  */
-function originalSnapshot(
-  state: DeckSessionState,
-  card: Card,
+function restoreLineInverse(
+  snapshot: Card,
+  printing: PrintingTuple,
   sectionName: string,
   cardId: number,
-): DeckCardSnapshot {
-  const existing = state.originals.get(cardId)
-  if (existing && existing.name === card.name) return existing
-  const snapshot: DeckCardSnapshot = {
-    name: card.name,
-    printing: cardPrinting(card),
-    language: card.language,
-    labels: card.labels,
-    note: card.note,
-    section: sectionName,
+  quantity: number,
+): ChangeEvent[] {
+  const inverse: ChangeEvent[] = []
+  for (let i = 0; i < quantity; i++) {
+    inverse.push(createAddChange(snapshot.name, deckAddOptions(printing, cardId, sectionName)))
   }
-  state.originals.set(cardId, snapshot)
-  return snapshot
-}
-
-/**
- * Editing or removing the "last added" card invalidates the add-mode shortcuts
- * (Add Exact Copy would resurrect the pre-edit line), so they reset until the
- * next add.
- */
-function resetStaleLastAdded(ctx: CardSessionContext, cardId: number): void {
-  if (ctx.lastAdded?.cardId !== cardId) return
-  ctx.lastAdded = null
-  ctx.lastChangeIndex = null
-  ctx.lastAddedCount = 0
+  if (snapshot.note) {
+    inverse.push(createSetNoteChange(snapshot.name, { note: snapshot.note, cardId }))
+  }
+  return inverse
 }
 
 /**
@@ -247,44 +267,17 @@ export function discardDeckSessionAdd(
 }
 
 /** One deck edit-mode field change: the model change, its inverse, and its consolidation. */
-export type DeckFieldEdit = {
-  label: string
-  change: ChangeEvent
-  inverse: ChangeEvent
-  consolidate: (changes: ChangeEvent[], original: DeckCardSnapshot) => ConsolidateResult
-}
+export type DeckFieldEdit = FieldEdit<DeckCardSnapshot>
 
 /** Apply a field edit to an existing deck card and record it for changelog + undo. */
 export function applyDeckFieldEdit(
   state: DeckSessionState,
   ctx: CardSessionContext,
-  card: Card,
-  sectionName: string,
+  located: DeckCardLocation,
   cardId: number,
   edit: DeckFieldEdit,
 ): void {
-  const original = originalSnapshot(state, card, sectionName, cardId)
-  applyDeckChange(state, edit.change)
-  const result = edit.consolidate(ctx.sessionChanges, original)
-  ctx.sessionChanges = result.changes
-  state.editUndo.push({
-    cardId,
-    kind: 'edit',
-    label: edit.label,
-    inverse: [edit.inverse],
-    ...changelogDelta(result),
-  })
-  resetStaleLastAdded(ctx, cardId)
-}
-
-/** Re-render the line after an edit (apply replaces card objects). */
-function logUpdatedLine(state: DeckSessionState, cardId: number, fallbackName: string): void {
-  const located = findCardById(state.deck, cardId)
-  console.log(
-    t('cli.edit.changedLine', {
-      line: located ? renderDeckCardLine(located.card, located.section.name) : fallbackName,
-    }),
-  )
+  applyFieldEdit(deckModel(state), ctx, located, cardId, edit)
 }
 
 /** The per-card prompt context the deck edit flow needs from the session. */
@@ -306,6 +299,7 @@ export async function editDeckCard(
   if (!located) return
   const { card } = located
   const sectionName = located.section.name
+  const model = deckModel(state)
 
   const action = await promptEditAction(renderDeckCardLine(card, sectionName), [
     {
@@ -354,26 +348,21 @@ export async function editDeckCard(
       // picker's availability confirm resolved a different one.
       language: result.language ?? displayLanguage(card.language),
     }
-    const before = cardPrinting(card)
-    applyDeckFieldEdit(state, ctx, card, sectionName, cardId, {
+    const before = printingTupleOf(card)
+    applyDeckFieldEdit(state, ctx, located, cardId, {
       label: t('cli.editLabel.printing', { name: card.name }),
       change: createSetPrintingChange(card.name, { ...target, cardId }),
       inverse: createSetPrintingChange(card.name, { ...before, cardId }),
       consolidate: (changes, original) =>
         consolidateSetPrinting(changes, card.name, target, original.printing, cardId),
     })
-    logUpdatedLine(state, cardId, card.name)
+    logUpdatedLine(model, cardId, card.name)
     return
   }
 
   if (action === 'add-copy') {
-    const printing = cardPrinting(card)
-    const addEvent = createAddChange(card.name, {
-      ...printing,
-      cardId,
-      section: sectionName,
-      board: normalizeBoard(sectionName),
-    })
+    const printing = printingTupleOf(card)
+    const addEvent = createAddChange(card.name, deckAddOptions(printing, cardId, sectionName))
     applyDeckChange(state, addEvent)
     ctx.sessionChanges.push(addEvent)
     // The new copy joins the session adds, so the regular Undo Last Add /
@@ -395,61 +384,40 @@ export async function editDeckCard(
   }
 
   if (action === 'language') {
-    const language = await promptLanguageChoice(card.language)
-    if (language === null || language === displayLanguage(card.language)) return
-    applyDeckFieldEdit(state, ctx, card, sectionName, cardId, {
-      label: t('cli.editLabel.language', { name: card.name }),
-      change: createSetLanguageChange(card.name, { language, cardId }),
-      inverse: createSetLanguageChange(card.name, {
-        language: displayLanguage(card.language),
-        cardId,
-      }),
-      consolidate: (changes, original) =>
-        consolidateSetLanguage(changes, card.name, language, original.language, cardId),
-    })
-    logUpdatedLine(state, cardId, card.name)
+    await editLanguage(model, ctx, located, cardId)
     return
   }
 
   if (action === 'label') {
     const labels = await promptCardLabelChoice('deck', card.labels)
     if (labels === null || sameCardLabels(labels, card.labels)) return
-    applyDeckFieldEdit(state, ctx, card, sectionName, cardId, {
+    applyDeckFieldEdit(state, ctx, located, cardId, {
       label: t('cli.editLabel.labels', { name: card.name }),
       change: createSetLabelChange(card.name, { labels, cardId }),
       inverse: createSetLabelChange(card.name, { labels: [...(card.labels ?? [])], cardId }),
       consolidate: (changes, original) =>
         consolidateSetLabel(changes, card.name, labels, original.labels, cardId),
     })
-    logUpdatedLine(state, cardId, card.name)
+    logUpdatedLine(model, cardId, card.name)
     return
   }
 
   if (action === 'art') {
-    await editCardArt({
-      filePath: state.filePath,
-      cardId,
-      cardName: card.name,
-      art: state.art,
-      editUndo: state.editUndo,
-      markDirty: () => {
-        state.dirty = true
-      },
-    })
+    await editArt(model, located, cardId)
     return
   }
 
   if (action === 'move') {
     const target = await promptMoveSection(state.deck, sectionName)
     if (!target || target === sectionName) return
-    applyDeckFieldEdit(state, ctx, card, sectionName, cardId, {
+    applyDeckFieldEdit(state, ctx, located, cardId, {
       label: t('cli.editLabel.section', { name: card.name }),
       change: createSetSectionChange(card.name, target, cardId),
       inverse: createSetSectionChange(card.name, sectionName, cardId),
       consolidate: (changes, original) =>
         consolidateSetSection(changes, card.name, target, original.section, cardId),
     })
-    logUpdatedLine(state, cardId, card.name)
+    logUpdatedLine(model, cardId, card.name)
     return
   }
 
@@ -459,12 +427,12 @@ export async function editDeckCard(
   }
 
   if (action === 'note') {
-    await editDeckNote(state, ctx, card, sectionName, cardId)
+    await editNote(model, ctx, located, cardId)
     return
   }
 
-  if (action === 'remove-line') {
-    await removeDeckLine(state, ctx, cardId)
+  if (action === 'remove-line' && (await confirmRemoval(model, located))) {
+    performDeckLineRemoval(state, ctx, cardId)
   }
 }
 
@@ -512,7 +480,7 @@ export function performDeckLineMove(
   if (!located) return
   const snapshot: Card = { ...located.card }
   const sectionName = located.section.name
-  const printing = cardPrinting(snapshot)
+  const printing = printingTupleOf(snapshot)
 
   // Copies added this session keep their add events but leave the discard
   // menus — the move's undo entry owns the whole line now. The line's id is
@@ -526,30 +494,14 @@ export function performDeckLineMove(
   noteArtLineRemoved(state.art, cardId)
 
   const moveEvents: ChangeEvent[] = []
-  const inverse: ChangeEvent[] = []
   for (let i = 0; i < snapshot.quantity; i++) {
     applyDeckChange(
       state,
-      createRemoveChange(snapshot.name, {
-        ...printing,
-        cardId,
-        board: normalizeBoard(sectionName),
-      }),
+      createRemoveChange(snapshot.name, deckRemoveOptions(printing, cardId, sectionName)),
     )
     moveEvents.push(
       createMoveFromChange(snapshot.name, moveFromOptionsFor({ ...printing, cardId }, dest)),
     )
-    inverse.push(
-      createAddChange(snapshot.name, {
-        ...printing,
-        cardId,
-        section: sectionName,
-        board: normalizeBoard(sectionName),
-      }),
-    )
-  }
-  if (snapshot.note) {
-    inverse.push(createSetNoteChange(snapshot.name, { note: snapshot.note, cardId }))
   }
 
   const { kept, displaced } = foldOutCardChanges(ctx.sessionChanges, cardId, { keepAdds: true })
@@ -562,42 +514,18 @@ export function performDeckLineMove(
       name: snapshot.name,
       list: listRefTitle(dest.target),
     }),
-    inverse,
+    inverse: restoreLineInverse(snapshot, printing, sectionName, cardId, snapshot.quantity),
     addedToChangelog: moveEvents,
     removedFromChangelog: displaced,
     reclaimId: cardId,
   })
-  resetStaleLastAdded(ctx, cardId)
+  resetStaleLastAdded(deckModel(state), ctx, cardId)
   if (snapshot.note) console.log(t('cli.edit.moveNoteDropped', { name: snapshot.name }))
   console.log(
     t('cli.edit.movedToList', {
       line: renderDeckCardLine(snapshot, sectionName),
       list: listRefTitle(dest.target),
     }),
-  )
-}
-
-/** Prompt for and apply a note edit on an existing deck line (empty input clears the note). */
-export async function editDeckNote(
-  state: DeckSessionState,
-  ctx: CardSessionContext,
-  card: Card,
-  sectionName: string,
-  cardId: number,
-): Promise<void> {
-  const edit = await promptNoteEdit(card.note)
-  if (!edit) return
-  applyDeckFieldEdit(state, ctx, card, sectionName, cardId, {
-    label: t('cli.editLabel.note', { name: card.name }),
-    change: createSetNoteChange(card.name, { note: edit.note, cardId }),
-    inverse: createSetNoteChange(card.name, { note: edit.before, cardId }),
-    consolidate: (changes, original) =>
-      consolidateSetNote(changes, card.name, edit.note, original.note ?? '', cardId),
-  })
-  console.log(
-    edit.note
-      ? t('cli.edit.noteSet', { name: card.name })
-      : t('cli.edit.noteCleared', { name: card.name }),
   )
 }
 
@@ -624,11 +552,11 @@ export function performDeckCopyRemoval(
     discardDeckSessionAdd(state, ctx, sessionIdx)
     return
   }
-  const removeEvent = createRemoveChange(card.name, {
-    ...cardPrinting(card),
-    cardId,
-    board: normalizeBoard(sectionName),
-  })
+  const printing = printingTupleOf(card)
+  const removeEvent = createRemoveChange(
+    card.name,
+    deckRemoveOptions(printing, cardId, sectionName),
+  )
   applyDeckChange(state, removeEvent)
   ctx.sessionChanges.push(removeEvent)
   // Whether the `&N` survived is read off the deck rather than assumed from the
@@ -641,40 +569,14 @@ export function performDeckCopyRemoval(
     cardId,
     kind: 'removal',
     label: t('cli.editLabel.removeCopy', { name: card.name }),
-    inverse: [
-      createAddChange(card.name, {
-        ...cardPrinting(card),
-        cardId,
-        section: sectionName,
-        board: normalizeBoard(sectionName),
-      }),
-    ],
+    inverse: [createAddChange(card.name, deckAddOptions(printing, cardId, sectionName))],
     addedToChangelog: [removeEvent],
     removedFromChangelog: [],
     ...(survived ? {} : { reclaimId: cardId }),
   })
-  resetStaleLastAdded(ctx, cardId)
-  logUpdatedLine(state, cardId, card.name)
-}
-
-/** Confirmation gate in front of {@link performDeckLineRemoval}. */
-async function removeDeckLine(
-  state: DeckSessionState,
-  ctx: CardSessionContext,
-  cardId: number,
-): Promise<void> {
-  const located = findCardById(state.deck, cardId)
-  if (!located) return
-  const confirmed = await ask<boolean>({
-    type: 'confirm',
-    message: t('cli.edit.confirmRemove', {
-      line: renderDeckCardLine(located.card, located.section.name),
-    }),
-    subjectKey: 'cli.prompt.subject.removeConfirm',
-    initial: false,
-  })
-  if (!confirmed) return
-  performDeckLineRemoval(state, ctx, cardId)
+  const model = deckModel(state)
+  resetStaleLastAdded(model, ctx, cardId)
+  logUpdatedLine(model, cardId, card.name)
 }
 
 /**
@@ -704,29 +606,16 @@ export function performDeckLineRemoval(
   // changelog mirrors how the admin editor records full removals.
   const remaining = findCardById(state.deck, cardId)
   if (!remaining) return
-  const printing = cardPrinting(remaining.card)
+  const printing = printingTupleOf(remaining.card)
   const quantity = remaining.card.quantity
   const removeEvents: ChangeEvent[] = []
-  const inverse: ChangeEvent[] = []
   for (let i = 0; i < quantity; i++) {
-    const removeEvent = createRemoveChange(snapshot.name, {
-      ...printing,
-      cardId,
-      board: normalizeBoard(sectionName),
-    })
+    const removeEvent = createRemoveChange(
+      snapshot.name,
+      deckRemoveOptions(printing, cardId, sectionName),
+    )
     applyDeckChange(state, removeEvent)
     removeEvents.push(removeEvent)
-    inverse.push(
-      createAddChange(snapshot.name, {
-        ...printing,
-        cardId,
-        section: sectionName,
-        board: normalizeBoard(sectionName),
-      }),
-    )
-  }
-  if (snapshot.note) {
-    inverse.push(createSetNoteChange(snapshot.name, { note: snapshot.note, cardId }))
   }
 
   // The last copy went, so the line — and its `&N` — is gone; its custom art
@@ -742,18 +631,18 @@ export function performDeckLineRemoval(
     cardId,
     kind: 'removal',
     label: t('cli.editLabel.removal', { name: snapshot.name }),
-    inverse,
+    inverse: restoreLineInverse(snapshot, printing, sectionName, cardId, quantity),
     addedToChangelog: removeEvents,
     removedFromChangelog: displaced,
     reclaimId: cardId,
   })
-  resetStaleLastAdded(ctx, cardId)
+  resetStaleLastAdded(deckModel(state), ctx, cardId)
   console.log(t('cli.deck.removedFromSection', { name: snapshot.name, section: sectionName }))
 }
 
 /** Label of the operation Undo Last Edit would revert, or null when the stack is empty. */
 export function lastDeckEditLabel(state: DeckSessionState): string | null {
-  return state.editUndo[state.editUndo.length - 1]?.label ?? null
+  return lastEditLabel(state.editUndo)
 }
 
 /**
@@ -817,7 +706,7 @@ export function undoDeckEditAt(
   }
 
   swapUndoChangelog(ctx, undo)
-  resetStaleLastAdded(ctx, undo.cardId)
+  resetStaleLastAdded(deckModel(state), ctx, undo.cardId)
   console.log(t('cli.edit.undid', { label: undo.label }))
 }
 
@@ -845,10 +734,10 @@ export function discardDeckSessionChange(
   ctx: CardSessionContext,
   index: number,
 ): boolean {
-  const addCount = state.sessionAdds.length
-  if (index < addCount) {
-    return discardDeckSessionAdd(state, ctx, index)
-  }
-  undoDeckEditAt(state, ctx, index - addCount)
-  return false
+  return discardSessionChangeAt(
+    state.sessionAdds.length,
+    index,
+    (i) => discardDeckSessionAdd(state, ctx, i),
+    (i) => undoDeckEditAt(state, ctx, i),
+  )
 }
