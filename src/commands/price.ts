@@ -60,6 +60,7 @@ import {
   type ScriptingOptions,
 } from '../cli/output'
 import { fail } from '../cli/action'
+import { cliRefreshPolicy } from '../cli/refresh-policy'
 import { ExitCode } from '../util/errors'
 
 type PriceCommandOptions = Partial<ScriptingOptions> & {
@@ -364,7 +365,8 @@ export function registerPriceCommand(program: Command): void {
     }
 
     const refreshMode = resolveRefreshMode(options.refresh, scriptingOptions.output)
-    const freshness = await ensureFreshPriceData(refreshMode)
+    const refreshPolicy = cliRefreshPolicy(refreshMode)
+    const freshness = await ensureFreshPriceData(refreshPolicy)
     if (!freshness.ready) {
       emitError('runtime_error', emptyCacheAdvice(t('cli.price.emptyCache')), scriptingOptions)
       process.exitCode = ExitCode.RuntimeError
@@ -377,7 +379,7 @@ export function registerPriceCommand(program: Command): void {
     // different store's prices.
     let cardKingdom: CardKingdomPricing | undefined
     if (source === 'cardkingdom') {
-      const feed = await ensureCardKingdomFeed(refreshMode)
+      const feed = await ensureCardKingdomFeed(refreshPolicy)
       if (typeof feed === 'string') {
         emitError('runtime_error', feed, scriptingOptions)
         process.exitCode = ExitCode.RuntimeError

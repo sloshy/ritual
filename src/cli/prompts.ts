@@ -6,6 +6,7 @@
 
 import prompts, { type Choice } from 'prompts'
 import { LIST_TYPES, type ListType } from '../list/list-type'
+import type { ArchidektCredentials } from '../auth/interfaces'
 import {
   inputRequiredError,
   isNoInput,
@@ -174,6 +175,11 @@ export type AskAnswers = Record<string, unknown>
  * that is escaped on its second question still applies its first. Every
  * question goes through {@link ask}, so `--no-input` refuses the first one by
  * its own subject.
+ *
+ * Typing limitation: `T` describes the whole answer bag, but every question is
+ * asked through the same `ask<T[keyof T]>`, so a sequence whose questions
+ * answer in different types is typed as their union per answer rather than
+ * per key — callers narrow each answer where they read it.
  */
 export async function askSequence<T extends AskAnswers>(
   questions: readonly AskSequenceQuestion<Extract<keyof T, string>>[],
@@ -185,6 +191,28 @@ export async function askSequence<T extends AskAnswers>(
     answers[name] = answer
   }
   return answers
+}
+
+/** The two credential answers, as the sequence collects them. */
+type CredentialAnswers = { username: string; password: string }
+
+/**
+ * Ask for Archidekt credentials, or `undefined` when either question is
+ * cancelled. Without a terminal the refusal names the headless flags: a silent
+ * no-op here would leave a script wondering why nothing was logged in.
+ */
+export async function promptCredentials(): Promise<ArchidektCredentials | undefined> {
+  const answers = await askSequence<CredentialAnswers>([
+    {
+      type: 'text',
+      name: 'username',
+      message: t('cli.login.usernamePrompt'),
+      subjectKey: 'cli.prompt.subject.loginCredentials',
+    },
+    { type: 'password', name: 'password', message: t('cli.login.passwordPrompt') },
+  ])
+  if (!answers.username || !answers.password) return undefined
+  return { username: answers.username, password: answers.password }
 }
 
 /**

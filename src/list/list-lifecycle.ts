@@ -149,11 +149,11 @@ export async function listDisplayName(type: ListType, filePath: string): Promise
  * addressable; `exceptFilePath` exempts the list being renamed from colliding
  * with itself.
  */
-async function collidingList(
+export async function findCollidingList(
   type: ListType,
   name: string,
-  exceptFilePath: string | undefined,
-  sameFile: SameFileCheck,
+  exceptFilePath?: string,
+  sameFile: SameFileCheck = statSameFile,
 ): Promise<CollidingList | null> {
   const normalized = normalizeListName(name)
   for (const location of await listLocations(type)) {
@@ -188,15 +188,15 @@ export async function listNameCollision(
 ): Promise<ListLifecycleError | null> {
   const slug = sanitizeListFileName(name.trim())
   if (slug === null) return null
-  const existing = await collidingList(type, slug, exceptFilePath, isSameFile)
+  const existing = await findCollidingList(type, slug, exceptFilePath, isSameFile)
   return existing ? collisionError(type, slug, existing) : null
 }
 
 /** The existing list a proposed name would resolve to. */
-type CollidingList = { name: string; filePath: string }
+export type CollidingList = { name: string; filePath: string }
 
 /**
- * The refusal a {@link collidingList} hit becomes. Terminated with a period like
+ * The refusal a {@link findCollidingList} hit becomes. Terminated with a period like
  * every other {@link ListLifecycleError} message, so no surface has to punctuate
  * it at the call site.
  */

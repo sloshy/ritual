@@ -47,6 +47,7 @@ import {
   type ScriptingOptions,
 } from '../cli/output'
 import { fail, failWithError, listArgumentConflictError } from '../cli/action'
+import { cliRefreshPolicy } from '../cli/refresh-policy'
 import { ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
 
@@ -269,14 +270,15 @@ export function registerSellCommand(program: Command): void {
     }
 
     try {
-      const cacheReady = await ensureCardCachePresent(refreshMode, t('cli.sell.cacheRequirement'))
+      const refreshPolicy = cliRefreshPolicy(refreshMode)
+      const cacheReady = await ensureCardCachePresent(refreshPolicy, t('cli.sell.cacheRequirement'))
       if (!cacheReady) {
         emitError('runtime_error', emptyCacheAdvice(t('cli.sell.emptyCache')), scripting)
         process.exitCode = ExitCode.RuntimeError
         return
       }
 
-      const feed = await ensureCardKingdomFeed(refreshMode)
+      const feed = await ensureCardKingdomFeed(refreshPolicy)
       if (typeof feed === 'string') {
         emitError('runtime_error', feed, scripting)
         process.exitCode = ExitCode.RuntimeError

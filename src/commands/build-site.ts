@@ -1,4 +1,5 @@
 import { Command } from 'commander'
+import { cliRefreshPolicy } from '../cli/refresh-policy'
 import { t } from '../i18n/t'
 import type { MessageKey } from '../i18n/messages/en'
 import { bakedDictionaries } from '../generated/locales'
@@ -50,7 +51,7 @@ import type { ListType } from '../list/list-type'
 import { getErrorMessage, ExitCode, type ExitCodeValue } from '../util/errors'
 import { emptyCacheAdvice } from '../cache/freshness'
 import { isThemeName, resolveThemeName, themeNames, type CustomTheme } from '../theme/themes'
-import type { RefreshMode } from '../cache/refresh'
+import type { RefreshMode, RefreshPolicy } from '../cache/refresh'
 import {
   buildSiteSpaFromSource,
   createSymbolCollector,
@@ -301,7 +302,7 @@ type BakeInput = {
   sources: BuildSources
   spa: SiteSpaAssets
   /** This run's `--refresh` policy. */
-  mode: RefreshMode
+  policy: RefreshPolicy
 }
 
 /** Whether a bake should be published, and if not, why. */
@@ -314,7 +315,7 @@ type BakeWithheld = { published: false; reason: 'no-price-data' | 'named-source-
  * detail, then `index.json` and the shell.
  */
 async function bakeSite(input: BakeInput, buildDir: string): Promise<BakeResult> {
-  const { options, settings, sources, spa, mode } = input
+  const { options, settings, sources, spa, policy } = input
   const { availableCurrencies, defaultCurrency, localePlan } = settings
   const { skipped, skipSource, categories } = sources
   const cacheImages = options.cacheImages === true
@@ -324,7 +325,7 @@ async function bakeSite(input: BakeInput, buildDir: string): Promise<BakeResult>
   await fs.mkdir(symbolsDir, { recursive: true })
 
   const artDeploy = await deployArtForBuild(Object.values(categories), buildDir)
-  const { symbolMap, ensureSymbols } = await createSymbolCollector(mode, symbolsDir)
+  const { symbolMap, ensureSymbols } = await createSymbolCollector(policy.mode, symbolsDir)
 
   // Phase 1: Load every list and harvest the card names
   const { lists, cardNames } = await collectSiteLists({
@@ -337,15 +338,15 @@ async function bakeSite(input: BakeInput, buildDir: string): Promise<BakeResult>
   // Phase 2: Fetch Cards with Progress Bar
   const { uniqueCards, priceTimestampSeed } = await prepareCardCache({
     cardNames,
-    mode,
+    policy,
     verbose: options.verbose === true,
   })
-  const buylist = siteBuylistContext(await loadBakedFeed(mode))
+  const buylist = siteBuylistContext(await loadBakedFeed(policy))
 
   console.log(t('cli.buildSite.fetchingData'))
   const { cardData, latestPriceTimestamp } = await fetchBuildCards({
     uniqueCards,
-    mode,
+    policy,
     availableCurrencies,
     // Card Kingdom's own printing picks, only when the site offers CK prices.
     ckQuote: buylist?.quotePrintings ? buylist.quote : null,
@@ -354,7 +355,7 @@ async function bakeSite(input: BakeInput, buildDir: string): Promise<BakeResult>
     ensureSymbols,
     priceTimestampSeed,
   })
-  await attachBuildTags(cardData, mode)
+  await attachBuildTags(cardData, policy)
 
   if (latestPriceTimestamp == null) {
     // Two very different causes wore the same message: an unusable cache, and a
@@ -491,7 +492,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
 
   // How the cache refresh question is answered for this run (--refresh <mode>,
   // interactive by default).
-  const mode = options.refresh ?? 'ask'
+  const policy = cliRefreshPolicy(options.refresh ?? 'ask')
 
   console.log(t('cli.buildSite.starting'))
   console.log(
@@ -507,7 +508,7 @@ export async function runBuildSite(options: BuildSiteOptions): Promise<void> {
   const published = await buildAndPublish(
     distDir,
     async (buildDir) =>
-      (await bakeSite({ options, settings, sources, spa: siteSpaAssets, mode }, buildDir))
+      (await bakeSite({ options, settings, sources, spa: siteSpaAssets, policy }, buildDir))
         .published,
   )
 

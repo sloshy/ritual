@@ -8,6 +8,7 @@ import {
 } from '../collection-sync/engine'
 import type { Logger } from '../util/logger'
 import { addRefreshOption, addScriptingOptions } from '../cli/options'
+import { cliRefreshPolicy } from '../cli/refresh-policy'
 import type { RefreshMode } from '../cache/refresh'
 import { getCollectionSyncPullTarget } from '../config/ritual-config'
 import { unreadableConsequence, type SyncChangeFilter, type SyncDirection } from '../sync/common'
@@ -278,7 +279,9 @@ export function registerCollectionSyncCommand(program: Command): void {
         // for, or refused, according to `--refresh`. The refresh line goes through
         // the run's log so it reads in order with the rest of the run.
         ensureCsvCache: ({ log }) =>
-          ensureCardCacheForUpload(options.refresh ?? 'ask', { log: (message) => log(message) }),
+          ensureCardCacheForUpload(cliRefreshPolicy(options.refresh ?? 'ask'), {
+            log: (message) => log(message),
+          }),
         dryRun: options.dryRun ?? false,
         onEvent: (event) => renderSyncEvent(direction, logger, indent, event),
         confirmUnreadable: (unreadable) =>

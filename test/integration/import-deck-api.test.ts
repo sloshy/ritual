@@ -73,6 +73,48 @@ describe('POST /api/import-deck printings (Integration)', () => {
     expect(deck).not.toContain('[foil]')
   })
 
+  test('a name/ID conflict without overwrite is a 400 naming the file, not a 500', async () => {
+    const body = { mode: 'text', content: '1 Sol Ring', name: 'Dup' }
+    expect((await postImport(body)).status).toBe(200)
+
+    const { status, message } = await postImport(body)
+    expect(status).toBe(400)
+    expect(message).toContain("Import conflict for 'Dup.md'")
+  })
+
+  test('a deck name with nothing usable in a file name is a 400', async () => {
+    const { status, message } = await postImport({
+      mode: 'text',
+      content: '1 Sol Ring',
+      name: '???',
+    })
+    expect(status).toBe(400)
+    expect(message).toContain('no characters usable in a file name')
+    expect(await fs.readdir(path.join(dir, 'decks')).catch(() => [])).toEqual([])
+  })
+
+  test('overwriting a deck matched by source id commits the file it replaced', async () => {
+    // The import's own slug (`Fetched Deck.md`) is not the file written when an
+    // existing deck carries the same source id: that deck is replaced in place.
+    await fs.mkdir(path.join(dir, 'decks'), { recursive: true })
+    await fs.writeFile(
+      path.join(dir, 'decks', 'Renamed.md'),
+      `---\nname: Renamed\nsourceId: '${ARCHIDEKT_DECK_ID}'\n---\n1 Mountain &1\n`,
+    )
+
+    const { status } = await postImport({
+      mode: 'url',
+      url: SOURCE_URL,
+      syncPrintings: true,
+      overwrite: true,
+    })
+
+    expect(status).toBe(200)
+    const files = (await fs.readdir(path.join(dir, 'decks'))).filter((f) => f.endsWith('.md'))
+    expect(files).toEqual(['Renamed.md'])
+    expect(await fs.readFile(path.join(dir, 'decks', 'Renamed.md'), 'utf-8')).toContain('Sol Ring')
+  })
+
   test('a text import rejects syncPrintings — pasted text states its own printings', async () => {
     const { status, message } = await postImport({
       mode: 'text',

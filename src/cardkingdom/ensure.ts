@@ -2,12 +2,7 @@ import { buylistFeedIsStale } from '../buylist'
 import { defaultHttpClient } from '../util/http'
 import type { HttpClient } from '../util/interfaces'
 import { getLogger } from '../util/logger'
-import {
-  bulkAllowed,
-  shouldBulkRefresh,
-  type BulkRefreshPrompt,
-  type RefreshMode,
-} from '../cache/refresh'
+import { bulkAllowed, type RefreshPolicy } from '../cache/refresh'
 import { loadRitualConfig, wantsCardKingdomFeed } from '../config/ritual-config'
 import { formatDuration } from '../util/duration'
 import { loadCardKingdomCache, saveCardKingdomCache, type CardKingdomCacheFile } from './cache'
@@ -47,7 +42,6 @@ export type EnsureCardKingdomFeedDeps = {
   http?: HttpClient
   load?: () => Promise<CardKingdomCacheFile | null>
   save?: (file: CardKingdomCacheFile) => Promise<void>
-  confirm?: (prompt: BulkRefreshPrompt) => Promise<boolean>
   now?: () => number
   /** Treat a fresh cache as stale, so `auto` redownloads unconditionally. */
   force?: boolean
@@ -72,13 +66,12 @@ export type EnsureCardKingdomFeedDeps = {
  * @returns The feed, or an error string worded for the caller to report.
  */
 export async function ensureCardKingdomFeed(
-  mode: RefreshMode,
+  policy: RefreshPolicy,
   deps: EnsureCardKingdomFeedDeps = {},
 ): Promise<CardKingdomFeedResult | string> {
   const http = deps.http ?? defaultHttpClient
   const load = deps.load ?? loadCardKingdomCache
   const save = deps.save ?? saveCardKingdomCache
-  const confirm = deps.confirm ?? ((prompt: BulkRefreshPrompt) => shouldBulkRefresh(mode, prompt))
   const now = deps.now ?? Date.now
 
   const cached = await load()
@@ -106,7 +99,7 @@ export async function ensureCardKingdomFeed(
     // running the command again — or starting a server — renews it.
     // `no-bulk`/`never` still forbid it, and keep the stale feed silently.
     const age = formatDuration(now() - cached.retrievedAt)
-    if (bulkAllowed(mode)) {
+    if (bulkAllowed(policy.mode)) {
       getLogger().info(`The Card Kingdom buylist was retrieved ${age} ago. Updating it...`)
       const downloaded = await download()
       if (typeof downloaded !== 'string') return downloaded
@@ -121,11 +114,11 @@ export async function ensureCardKingdomFeed(
   // Missing entirely: only a download can help. This one still asks — it is the
   // first ~70 MB, and consenting to it is what licenses the silent daily
   // refreshes above.
-  if (!bulkAllowed(mode)) {
+  if (!bulkAllowed(policy.mode)) {
     return missingFeedAdvice()
   }
-  if (mode === 'ask') {
-    const accepted = await confirm({
+  if (policy.mode === 'ask') {
+    const accepted = await policy.confirm({
       message: `${NO_FEED_LEAD} Download it now (~70 MB)?`,
       initial: true,
     })
@@ -202,7 +195,7 @@ export function sellModeWarning(warmth: BuylistWarmth): string | undefined {
  * Never fatal either: a server with no buylist still serves everything else.
  */
 export async function warmCardKingdomFeed(
-  mode: RefreshMode,
+  policy: RefreshPolicy,
   deps: WarmCardKingdomFeedDeps = {},
 ): Promise<BuylistWarmth> {
   const { sellMode, adopt, ...ensureDeps } = deps
@@ -212,7 +205,7 @@ export async function warmCardKingdomFeed(
   const cached = await (ensureDeps.load ?? loadCardKingdomCache)()
   if (!cached) return { enabled: true, ready: false, refreshed: false }
 
-  const result = await ensureCardKingdomFeed(mode, { ...ensureDeps, load: async () => cached })
+  const result = await ensureCardKingdomFeed(policy, { ...ensureDeps, load: async () => cached })
   if (typeof result === 'string') {
     // Unreachable in practice — the gate refuses only a missing feed, and this
     // one is in hand — but a refusal is still a refusal, not a usable feed.

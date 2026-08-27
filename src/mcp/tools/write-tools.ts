@@ -410,7 +410,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'text was not imported; `advisories` reports content that was read but is worth a ' +
         'word (a line that looked off, or an empty Maybeboard/Tokens section the write drops). ' +
         'A URL import must state `syncPrintings` — the CLI asks the user interactively, and ' +
-        'this call is that decision, so ask the user when their intent is unclear.',
+        'this call is that decision, so ask the user when their intent is unclear. A name/ID ' +
+        'conflict without `overwrite`, or a deck name with no characters usable in a file ' +
+        'name, fails with `code: "invalid-request"`.',
       inputSchema: z.object({
         mode: z.enum(['url', 'text']).describe('Import source.'),
         url: z.string().optional().describe('Deck URL (mode "url").'),

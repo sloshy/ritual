@@ -110,6 +110,12 @@ export const cliMessages = {
   'cli.session.reloadingCards': 'Reloading card database with new filters...',
   'cli.session.loadedCards': 'Loaded {count} cards.',
   'cli.session.cacheEmpty': 'Card cache is empty.',
+  'cli.session.preloadPrompt':
+    'Ritual runs faster and hits rate limits less often if data is cached up front. Would you like to pre-cache Scryfall data for {scope}?',
+  'cli.session.preloadScopeEnglish': 'all English MTG cards',
+  'cli.session.preloadScopeAllLanguages':
+    "all MTG cards in every language (defaultLanguage '{language}' needs the larger all_cards bulk)",
+  'cli.session.preloadFailed': '\nFailed to preload all cards:',
   'cli.session.createdFile': 'Created new {label} file: {file}',
   'cli.session.usingFile': 'Using {label} file: {file}',
   'cli.session.loadingPrintings': 'Loading printings for collector number search...',

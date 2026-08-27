@@ -1,5 +1,6 @@
 import { Command, InvalidArgumentError, Option } from 'commander'
 import { ask, type SuggestCallback } from '../cli/prompts'
+import { cliRefreshPolicy } from '../cli/refresh-policy'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
 import {
@@ -266,7 +267,7 @@ async function runAddCard(input: RunInput, scripting: ScriptingOptions): Promise
   // `ensureTargetFile`), so a doomed add leaves the workspace as it found it.
   if (type !== undefined) validateTargetFlags(type, pin, options)
 
-  const cacheResult = await ensureFreshCardCache(options.refresh)
+  const cacheResult = await ensureFreshCardCache(cliRefreshPolicy(options.refresh))
   if (!cacheResult.ready) {
     throw new CardCommandError(
       'runtime_error',

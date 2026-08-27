@@ -5,9 +5,8 @@
  */
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
-import { promptUser } from '../util/prompt'
 import { listFileName, unusableFileNameMessage } from '../list/list-file-name'
-import { listDeckFiles } from './text-file'
+import { listDeckFiles, parseDeckText } from './text-file'
 import {
   applyCsvImport,
   type CsvImportMode,
@@ -20,22 +19,37 @@ import { parseMoxfieldPrimer } from '../list/primer-parser'
 import { getLogger } from '../util/logger'
 import { writeFileWithHash } from '../changes/content-hash'
 import { isPathWithinDir } from '../util/path-validation'
-import { listFilePath, normalizeListName } from '../list/resolve-list'
-import { listTypeLabel } from '../list/list-type'
-import { promptsUnavailable } from '../util/no-input'
+import { dirForType, listFilePath, normalizeListName } from '../list/resolve-list'
+import { findCollidingList } from '../list/list-lifecycle'
+import { reconcileListRefs } from '../list/list-refs'
+import { collectDeckCardIds } from '../card/card-id'
+import { listTypeLabel, type ListType } from '../list/list-type'
 import { CardCommandError, ExitCode, hasErrorCode, localizedCommandError } from '../util/errors'
 import { t } from '../i18n/t'
+import type { MessageKey } from '../i18n/messages/en'
+
+/**
+ * An existing list an import would replace, and how it was matched. Only a
+ * deck carries a `sourceId`, so an id match is a deck match by construction.
+ */
+export type SaveConflict =
+  | { file: string; reason: 'id'; listType: 'deck' }
+  | { file: string; reason: 'name'; listType: ListType }
+
+export type ConflictResolution =
+  | { action: 'overwrite' }
+  | { action: 'rename'; newName: string }
+  | { action: 'cancel' }
+
+/**
+ * Settles a conflict neither `forceOverwrite` nor `assumeYes` covers. May throw
+ * a `CardCommandError` to refuse outright — the CLI resolver does so when
+ * prompts are unavailable — which the writers propagate untouched.
+ */
+export type ConflictResolver = (conflict: SaveConflict) => Promise<ConflictResolution>
 
 export interface SaveListOptions {
   forceOverwrite?: boolean
-  /**
-   * Refuse to prompt on a name/ID conflict and throw instead. Defaults to
-   * `promptsUnavailable()`, so every caller — the CLI, `import-account`, the
-   * admin import handler — gets the actionable conflict error rather than a
-   * prompt guard firing deep inside the save. Programmatic callers (the admin
-   * import handler) pass true explicitly since there is never a terminal there.
-   */
-  noPrompts?: boolean
   /** Auto-answer the overwrite confirmation with yes when a conflict comes up. */
   assumeYes?: boolean
   dryRun?: boolean
@@ -47,32 +61,39 @@ export interface SaveListOptions {
    * goes to stderr through `warn` on every source kind (matching the CSV path).
    */
   quiet?: boolean
+  /**
+   * How to settle a name/ID conflict the flags above do not. Absent — the admin
+   * import handler, any headless caller — the conflict is the actionable usage
+   * error rather than a prompt firing deep inside the save; the CLI passes its
+   * interactive resolver (`cliConflictResolver` in `src/cli/import-prompts.ts`).
+   */
+  resolveConflict?: ConflictResolver
 }
 
-type DeckFileFrontmatter = {
-  sourceId?: string
-}
+type ResolvedSaveOptions = Required<Omit<SaveListOptions, 'resolveConflict'>> &
+  Pick<SaveListOptions, 'resolveConflict'>
 
 /** What saving the imported list did — or would do, under `--dry-run`. */
 export type SaveListAction = 'created' | 'overwritten' | 'renamed'
 
-/** Result of {@link saveDeck} / {@link saveFlatList}: where the list went, or a prompt cancel. */
-export type SaveListOutcome =
-  | { status: 'saved'; filePath: string; name: string; action: SaveListAction }
-  | { status: 'cancelled' }
+/** Where a save lands once any conflict is settled. */
+type SaveTarget = { filePath: string; name: string; action: SaveListAction }
 
-function normalizeSaveListOptions(options?: SaveListOptions): Required<SaveListOptions> {
+/** Result of {@link saveDeck} / {@link saveFlatList}: where the list went, or a prompt cancel. */
+export type SaveListOutcome = ({ status: 'saved' } & SaveTarget) | { status: 'cancelled' }
+
+function normalizeSaveListOptions(options?: SaveListOptions): ResolvedSaveOptions {
   return {
     forceOverwrite: options?.forceOverwrite ?? false,
-    noPrompts: options?.noPrompts ?? promptsUnavailable(),
     assumeYes: options?.assumeYes ?? false,
     dryRun: options?.dryRun ?? false,
     quiet: options?.quiet ?? false,
+    resolveConflict: options?.resolveConflict,
   }
 }
 
 /** `getLogger().info` gated on a save's `quiet` option. */
-function saveInfo(resolvedOptions: Required<SaveListOptions>, message: string): void {
+function saveInfo(resolvedOptions: ResolvedSaveOptions, message: string): void {
   if (resolvedOptions.quiet) return
   getLogger().info(message)
 }
@@ -82,59 +103,113 @@ function saveInfo(resolvedOptions: Required<SaveListOptions>, message: string): 
  * being told to. Shared by the deck and flat-list saves (and matched by the CSV
  * path's own wording) so the advice and the usage exit code never diverge.
  */
-function importConflictError(target: string): CardCommandError {
+export function importConflictError(target: string): CardCommandError {
   return localizedCommandError('usage_error', ExitCode.UsageError, 'cli.import.conflict', {
     target,
   })
 }
 
-type ConflictResolution =
-  | { action: 'overwrite' }
-  | { action: 'rename'; newName: string }
-  | { action: 'cancel' }
-
-/** Run the interactive overwrite/rename/cancel dance for an import name conflict. */
-async function promptConflictResolution(renamePrompt: string): Promise<ConflictResolution> {
-  let response = ''
-  while (!['o', 'r', 'c'].includes(response)) {
-    response = (await promptUser(t('cli.import.conflictAction'))).toLowerCase()
-  }
-
-  if (response === 'c') return { action: 'cancel' }
-  if (response === 'o') return { action: 'overwrite' }
-
-  let newName = ''
-  while (!newName) {
-    newName = await promptUser(renamePrompt)
-  }
-  return { action: 'rename', newName }
+/** A list name with nothing usable left is the caller's mistake, not a crash. */
+function unusableNameError(name: string): CardCommandError {
+  return new CardCommandError('usage_error', unusableFileNameMessage(name), ExitCode.UsageError)
 }
 
-export async function saveDeck(
+/** The stderr notice naming why an import conflicts, by how it was matched. */
+const CONFLICT_NOTICE = {
+  id: 'cli.import.deckExistsId',
+  name: 'cli.import.fileExistsName',
+} as const satisfies Record<SaveConflict['reason'], MessageKey>
+
+type ConflictInput = {
+  conflict: SaveConflict
+  /** The import's own name, kept when the existing file is exactly its slug. */
+  name: string
+  /** The directory the list lives in; a rename may not escape it. */
+  dir: string
+  /** The path a typed-in rename would save to; null when the name is unusable. */
+  pathFor: (name: string) => string | null
+  options: ResolvedSaveOptions
+}
+
+/**
+ * Settle a name/ID conflict: the flags decide, else the injected resolver, else
+ * the usage error. Returns null when the resolver cancelled the import.
+ */
+async function resolveSaveConflict(input: ConflictInput): Promise<SaveTarget | null> {
+  const { conflict, dir, options } = input
+  const overwrite = (): SaveTarget => {
+    const existing = path.basename(conflict.file, '.md')
+    // A fold collision (`trade binder` vs `Trade Binder.md`) must replace the
+    // existing file, not write a twin the writers would name from the import.
+    const keepsName = path.basename(input.pathFor(input.name) ?? '', '.md') === existing
+    return {
+      filePath: path.join(dir, conflict.file),
+      name: keepsName ? input.name : existing,
+      action: 'overwritten',
+    }
+  }
+
+  if (options.forceOverwrite || options.assumeYes) {
+    if (!options.dryRun) getLogger().warn(t('cli.import.overwritingFile', { file: conflict.file }))
+    return overwrite()
+  }
+  if (options.resolveConflict === undefined) throw importConflictError(conflict.file)
+
+  getLogger().warn(`\n${t(CONFLICT_NOTICE[conflict.reason], { file: conflict.file })}`)
+  const resolution = await options.resolveConflict(conflict)
+  if (resolution.action === 'cancel') {
+    getLogger().warn(t('cli.import.cancelledSave'))
+    return null
+  }
+  if (resolution.action === 'overwrite') {
+    getLogger().warn(t('cli.import.overwritingFile', { file: conflict.file }))
+    return overwrite()
+  }
+  // The typed-in name goes through the same naming rule as any other list, so
+  // a prompt answer can neither escape the list directory nor name a file `.md`.
+  const newName = resolution.newName.replace(/\.md$/i, '')
+  const filePath = input.pathFor(newName)
+  if (filePath === null || !isPathWithinDir(filePath, dir)) {
+    throw unusableNameError(resolution.newName)
+  }
+  if (await Bun.file(filePath).exists()) throw importConflictError(path.basename(filePath))
+  return { filePath, name: newName, action: 'renamed' }
+}
+
+/**
+ * Where a save lands: the fresh `created` target when nothing conflicts, else
+ * whatever {@link resolveSaveConflict} settles on — or null for a cancel.
+ */
+async function settleTarget(
+  created: Omit<SaveTarget, 'action'>,
+  conflict: SaveConflict | null,
+  input: Omit<ConflictInput, 'conflict'>,
+): Promise<SaveTarget | null> {
+  if (conflict === null) return { ...created, action: 'created' }
+  return resolveSaveConflict({ conflict, ...input })
+}
+
+/**
+ * The `sourceId` a deck file's leading front-matter block declares, read with
+ * a regex rather than a YAML parse: a neighbour's malformed front matter must
+ * never fail an unrelated import. An unquoted numeric scalar is a YAML number,
+ * which `validateDeckFrontMatter` does not read as a source id either.
+ */
+async function readSourceId(filePath: string): Promise<string | undefined> {
+  const content = await Bun.file(filePath).text()
+  const frontMatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1] ?? ''
+  const match = frontMatter.match(/^sourceId:\s*(?:"([^"]*)"|'([^']*)'|(\S+))/m)
+  if (!match) return undefined
+  if (match[3] !== undefined && /^\d+$/.test(match[3])) return undefined
+  return match[1] ?? match[2] ?? match[3]
+}
+
+/** The existing deck an import would replace: same source id first, then a folded name. */
+async function scanDeckConflict(
   deckData: DeckData,
   decksDir: string,
-  options?: SaveListOptions,
-): Promise<SaveListOutcome> {
-  const resolvedOptions = normalizeSaveListOptions(options)
-  // Determine Target Filename. An imported deck's name comes from the source
-  // service, so it can be anything — a name with nothing usable left is an error,
-  // not a file called `.md`.
-  let fileName = listFileName(deckData.name)
-  if (fileName === null) {
-    throw new Error(unusableFileNameMessage(deckData.name))
-  }
-
-  // Scan Existing Decks for ID Conflict
-  let conflictFile: string | null = null
-  let conflictReason: 'id' | 'name' | null = null
-
-  // A dry run must leave a pristine directory byte-for-byte untouched, so the
-  // decks dir is only created on the path that actually writes into it; the
-  // conflict scan below already tolerates a missing directory.
-  if (!resolvedOptions.dryRun) {
-    await fs.mkdir(decksDir, { recursive: true })
-  }
-
+  fileName: string,
+): Promise<SaveConflict | null> {
   let existingFiles: string[]
   try {
     existingFiles = await listDeckFiles(decksDir)
@@ -144,93 +219,73 @@ export async function saveDeck(
     if (!hasErrorCode(error, 'ENOENT')) throw error
     existingFiles = []
   }
-
-  // Helper to read simple frontmatter without heavy parser
-  const readFrontmatter = async (fPath: string): Promise<DeckFileFrontmatter> => {
-    const content = await Bun.file(fPath).text()
-    const match = content.match(/^sourceId:\s*(?:"([^"]*)"|(\S+))/m)
-    return match ? { sourceId: match[1] ?? match[2] } : {}
-  }
-
   if (deckData.sourceId) {
-    for (const f of existingFiles) {
-      const fPath = path.join(decksDir, f)
-      const meta = await readFrontmatter(fPath)
-      if (meta.sourceId === deckData.sourceId) {
-        conflictFile = f
-        conflictReason = 'id'
-        break
+    for (const file of existingFiles) {
+      if ((await readSourceId(path.join(decksDir, file))) === deckData.sourceId) {
+        return { file, reason: 'id', listType: 'deck' }
       }
     }
   }
+  // By the resolver's folding, not a byte-exact file name: importing `atraxa
+  // superfriends` beside `Atraxa Superfriends.md` would otherwise create a pair
+  // every name-resolving command reports as ambiguous, which `new` and `rename` refuse.
+  const normalized = normalizeListName(path.basename(fileName, '.md'))
+  const folded = existingFiles.find(
+    (f) => normalizeListName(path.basename(f, '.md')) === normalized,
+  )
+  return folded === undefined ? null : { file: folded, reason: 'name', listType: 'deck' }
+}
 
-  // If no ID conflict, check Filename conflict — by the resolver's folding, not
-  // by a byte-exact file name: importing `atraxa superfriends` beside
-  // `Atraxa Superfriends.md` would otherwise create a pair that every
-  // name-resolving command reports as ambiguous, which `new` and `rename` refuse.
-  if (!conflictFile) {
-    const normalized = normalizeListName(path.basename(fileName, '.md'))
-    const folded = existingFiles.find(
-      (f) => normalizeListName(path.basename(f, '.md')) === normalized,
-    )
-    if (folded !== undefined) {
-      conflictFile = folded
-      conflictReason = 'name'
-    }
+/**
+ * The existing list of this type an import's name folds onto, if any — the same
+ * fold `new` and `rename` refuse. Exported for the CSV import path, whose
+ * `--overwrite` must land on the folded file too.
+ */
+export async function scanNameConflict(
+  listType: ListType,
+  filePath: string,
+): Promise<SaveConflict | null> {
+  const existing = await findCollidingList(listType, path.basename(filePath, '.md'))
+  return existing === null
+    ? null
+    : { file: path.basename(existing.filePath), reason: 'name', listType }
+}
+
+/** The `&N` ids a deck file holds, so an overwrite can retire what it replaces. */
+async function readDeckCardIds(filePath: string, fallbackName: string): Promise<number[]> {
+  const content = await Bun.file(filePath).text()
+  return collectDeckCardIds(parseDeckText(content, fallbackName).deck)
+}
+
+export async function saveDeck(
+  deckData: DeckData,
+  decksDir: string,
+  options?: SaveListOptions,
+): Promise<SaveListOutcome> {
+  const resolvedOptions = normalizeSaveListOptions(options)
+  // An imported deck's name comes from the source service, so it can be
+  // anything — a name with nothing usable left is an error, not a file called `.md`.
+  const fileName = listFileName(deckData.name)
+  if (fileName === null) throw unusableNameError(deckData.name)
+  const pathFor = (name: string): string | null => {
+    const file = listFileName(name)
+    return file === null ? null : path.join(decksDir, file)
   }
 
-  let filePath = path.join(decksDir, fileName)
-  let action: SaveListAction = 'created'
-  const shouldOverwrite = resolvedOptions.forceOverwrite || resolvedOptions.assumeYes
-
-  if (conflictFile && shouldOverwrite) {
-    filePath = path.join(decksDir, conflictFile)
-    action = 'overwritten'
-    if (!resolvedOptions.dryRun) {
-      getLogger().warn(t('cli.import.overwritingFile', { file: conflictFile }))
-    }
-  } else if (conflictFile && !shouldOverwrite) {
-    if (resolvedOptions.noPrompts) {
-      throw importConflictError(conflictFile)
-    }
-
-    if (conflictReason === 'id') {
-      getLogger().warn(`\n${t('cli.import.deckExistsId', { file: conflictFile })}`)
-    } else {
-      getLogger().warn(`\n${t('cli.import.fileExistsName', { file: conflictFile })}`)
-    }
-
-    const resolution = await promptConflictResolution(t('cli.import.promptNewFileName'))
-
-    if (resolution.action === 'cancel') {
-      getLogger().warn(t('cli.import.cancelledSave'))
-      return { status: 'cancelled' }
-    } else if (resolution.action === 'rename') {
-      // The typed-in name goes through the same naming rule as any other list, so
-      // a prompt answer can neither escape the decks directory nor name a file `.md`.
-      const renamed = listFileName(resolution.newName.replace(/\.md$/i, ''))
-      if (renamed === null) {
-        throw new Error(unusableFileNameMessage(resolution.newName))
-      }
-      fileName = renamed
-      filePath = path.join(decksDir, fileName)
-      action = 'renamed'
-      if (!isPathWithinDir(filePath, decksDir)) {
-        throw new Error(t('cli.import.invalidDeckFileName', { name: resolution.newName }))
-      }
-
-      // Double check new filename
-      if (await Bun.file(filePath).exists()) {
-        getLogger().error(t('cli.import.renameTargetExists', { file: fileName }))
-        throw new Error(t('cli.import.fileExists'))
-      }
-    } else {
-      // Overwrite existing file.
-      filePath = path.join(decksDir, conflictFile)
-      action = 'overwritten'
-      getLogger().warn(t('cli.import.overwritingFile', { file: conflictFile }))
-    }
+  // A dry run must leave a pristine directory byte-for-byte untouched, so the
+  // decks dir is only created on the path that actually writes into it; the
+  // conflict scan tolerates a missing directory.
+  if (!resolvedOptions.dryRun) {
+    await fs.mkdir(decksDir, { recursive: true })
   }
+
+  const target = await settleTarget(
+    { filePath: path.join(decksDir, fileName), name: deckData.name },
+    await scanDeckConflict(deckData, decksDir, fileName),
+    { name: deckData.name, dir: decksDir, pathFor, options: resolvedOptions },
+  )
+  if (target === null) return { status: 'cancelled' }
+  const { filePath, action } = target
 
   // Written through the shared serializer, so an imported deck comes out with the
   // same front matter (including a canonical `format:`, resolved from the source
@@ -269,7 +324,12 @@ export async function saveDeck(
     return outcome
   }
 
+  // The replaced deck's `&N` ids are retired: the new lines are numbered from
+  // scratch, so custom art or a cover filed under an old id would otherwise
+  // reappear on whichever card takes the number next.
+  const retired = action === 'overwritten' ? await readDeckCardIds(filePath, deckData.name) : []
   await writeFileWithHash(filePath, fileContent)
+  if (retired.length > 0) await reconcileListRefs(filePath, { removed: retired })
   saveInfo(resolvedOptions, t('cli.import.savedDeck', { path: filePath }))
 
   if (primerMarkdown) {
@@ -293,6 +353,7 @@ function flattenToEntries(deckData: DeckData): ImportCardEntry[] {
         finish: card.finish,
         condition: card.condition,
         language: card.language,
+        labels: card.labels,
         note: card.note,
         section: section.name,
       })
@@ -323,79 +384,52 @@ export async function saveFlatList(
     if (missing.length > 0) {
       const preview = missing.slice(0, 5).map((entry) => entry.name)
       const rest = missing.length - preview.length
-      throw new Error(
-        t('cli.import.collectionNeedsPrinting', {
+      throw localizedCommandError(
+        'usage_error',
+        ExitCode.UsageError,
+        'cli.import.collectionNeedsPrinting',
+        {
           count: missing.length,
           names: preview.join(', '),
           more: rest > 0 ? t('cli.import.andMore', { count: rest }) : '',
-        }),
+        },
       )
     }
   }
 
-  let name = deckData.name
-  let mode: CsvImportMode = 'create'
-  let action: SaveListAction = 'created'
+  // The list's path, rejecting a name with nothing usable left rather than naming a file `.md`.
+  const filePath = listFilePath(listType, deckData.name)
+  if (filePath === null) throw unusableNameError(deckData.name)
 
-  /** The list's path, rejecting a name with nothing usable left rather than naming a file `.md`. */
-  const targetPathFor = (listName: string): string => {
-    const target = listFilePath(listType, listName)
-    if (target === null) {
-      throw new Error(unusableFileNameMessage(listName))
-    }
-    return target
-  }
-
-  let filePath = targetPathFor(name)
-  const exists = await Bun.file(filePath).exists()
-  const shouldOverwrite = resolvedOptions.forceOverwrite || resolvedOptions.assumeYes
-
-  if (exists && shouldOverwrite) {
-    mode = 'overwrite'
-    action = 'overwritten'
-    if (!resolvedOptions.dryRun) {
-      getLogger().warn(t('cli.import.overwritingFile', { file: path.basename(filePath) }))
-    }
-  } else if (exists) {
-    if (resolvedOptions.noPrompts) {
-      throw importConflictError(path.basename(filePath))
-    }
-
-    getLogger().warn(`\n${t('cli.import.fileExistsName', { file: path.basename(filePath) })}`)
-    const resolution = await promptConflictResolution(t('cli.import.promptNewListName', { label }))
-
-    if (resolution.action === 'cancel') {
-      getLogger().warn(t('cli.import.cancelledSave'))
-      return { status: 'cancelled' }
-    } else if (resolution.action === 'rename') {
-      name = resolution.newName
-      filePath = targetPathFor(name)
-      action = 'renamed'
-
-      if (await Bun.file(filePath).exists()) {
-        getLogger().error(t('cli.import.renameTargetExists', { file: path.basename(filePath) }))
-        throw new Error(t('cli.import.fileExists'))
-      }
-    } else {
-      mode = 'overwrite'
-      action = 'overwritten'
-      getLogger().warn(t('cli.import.overwritingFile', { file: path.basename(filePath) }))
-    }
-  }
+  const target = await settleTarget(
+    { filePath, name: deckData.name },
+    await scanNameConflict(listType, filePath),
+    {
+      name: deckData.name,
+      dir: dirForType(listType),
+      pathFor: (name) => listFilePath(listType, name),
+      options: resolvedOptions,
+    },
+  )
+  if (target === null) return { status: 'cancelled' }
+  const { name, action } = target
+  const mode: CsvImportMode = action === 'overwritten' ? 'overwrite' : 'create'
 
   if (resolvedOptions.dryRun) {
     saveInfo(
       resolvedOptions,
       action === 'overwritten'
-        ? t('cli.import.dryRunOverwriteList', { label, path: filePath })
-        : t('cli.import.dryRunSaveList', { label, path: filePath }),
+        ? t('cli.import.dryRunOverwriteList', { label, path: target.filePath })
+        : t('cli.import.dryRunSaveList', { label, path: target.filePath }),
     )
-    return { status: 'saved', filePath, name, action }
+    return { status: 'saved', filePath: target.filePath, name, action }
   }
 
-  const result = await applyCsvImport({ listType, name, mode }, entries)
+  // The settled path is handed down so an overwrite replaces the file the
+  // notice named, never a folded twin the writer would name from the import.
+  const result = await applyCsvImport({ listType, name, mode, filePath: target.filePath }, entries)
   if ('error' in result) {
-    throw new Error(result.error)
+    throw new CardCommandError('usage_error', result.error, ExitCode.UsageError)
   }
 
   saveInfo(resolvedOptions, t('cli.import.savedList', { label, path: result.filePath }))

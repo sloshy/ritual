@@ -3,11 +3,11 @@ import { Command } from 'commander'
 import { ArchidektAuth } from '../auth/ArchidektAuth'
 import type { ArchidektLoginStatus } from '../auth/interfaces'
 import { FileTokenStore } from '../auth/FileTokenStore'
-import { loginWithCredentials, promptForLoginOutcome } from '../auth/login-helper'
+import { loginWithCredentials, type LoginResult, type LoginService } from '../auth/login-helper'
 import { localizedCommandError, ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
 import { runCommandAction } from '../cli/action'
-import { readPasswordFromStdin } from '../cli/prompts'
+import { promptCredentials, readPasswordFromStdin } from '../cli/prompts'
 import { addOutputOption, addScriptingOptions } from '../cli/options'
 import {
   emitOutput,
@@ -44,6 +44,37 @@ function makeAuth(): ArchidektAuth {
   return new ArchidektAuth(new FileTokenStore())
 }
 
+/** How an interactive login ended; `cancelled` means the prompt was aborted. */
+export type LoginPromptOutcome = LoginResult['outcome'] | 'cancelled'
+
+/** Report a login attempt's outcome on the console, the same way from every path. */
+function reportLogin(result: LoginResult): void {
+  if (result.outcome === 'success') {
+    console.log(
+      result.username
+        ? t('cli.login.success', { username: result.username })
+        : t('cli.login.successUnnamed'),
+    )
+  } else {
+    console.error(t('cli.login.failed', { reason: result.error }))
+  }
+}
+
+/**
+ * Prompt for credentials and log in, reporting the outcome. Shared with
+ * `import-account`'s expired-session re-login so both say the same things.
+ */
+export async function runInteractiveLogin(auth: LoginService): Promise<LoginPromptOutcome> {
+  const credentials = await promptCredentials()
+  if (credentials === undefined) {
+    console.error(t('cli.login.cancelled'))
+    return 'cancelled'
+  }
+  const result = await loginWithCredentials(auth, credentials)
+  reportLogin(result)
+  return result.outcome
+}
+
 async function runArchidektLogin(options: LoginArchidektOptions): Promise<void> {
   const auth = makeAuth()
   const headless = options.username !== undefined || options.passwordStdin === true
@@ -78,14 +109,15 @@ async function runArchidektLogin(options: LoginArchidektOptions): Promise<void> 
     if (password.length === 0) {
       throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.login.emptyPassword')
     }
-    const outcome = await loginWithCredentials(auth, { username: options.username, password })
-    if (outcome === 'failed') {
+    const result = await loginWithCredentials(auth, { username: options.username, password })
+    reportLogin(result)
+    if (result.outcome === 'failed') {
       process.exitCode = ExitCode.RuntimeError
     }
     return
   }
 
-  const outcome = await promptForLoginOutcome(auth)
+  const outcome = await runInteractiveLogin(auth)
   if (outcome === 'cancelled') {
     process.exitCode = ExitCode.UsageError
     return

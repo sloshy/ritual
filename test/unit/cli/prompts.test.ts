@@ -3,6 +3,7 @@ import prompts, { type Choice } from 'prompts'
 import {
   ask,
   askSequence,
+  promptCredentials,
   promptExitMenu,
   resolveImportPrintings,
   suggestByTitleTerms,
@@ -39,6 +40,30 @@ describe('ask under --no-input', () => {
       // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's rejects matcher resolves at runtime but its type doesn't expose Promise.
       await expect(ask<string>({ type: 'text', message: 'Card name?' })).rejects.toThrow(
         'Input required: Card name? (prompts are disabled by --no-input / RITUAL_NO_INPUT)',
+      )
+    } finally {
+      setNoInputOverride(undefined)
+    }
+  })
+})
+
+describe('promptCredentials', () => {
+  test('collects both answers', async () => {
+    prompts.inject(['user', 'pw'])
+    expect(await promptCredentials()).toEqual({ username: 'user', password: 'pw' })
+  })
+
+  test('an escaped password question cancels the login', async () => {
+    prompts.inject(['user', new Error('cancelled')])
+    expect(await promptCredentials()).toBeUndefined()
+  })
+
+  test('refuses without a terminal by naming the headless flags', async () => {
+    setNoInputOverride(true)
+    try {
+      // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's rejects matcher resolves at runtime but its type doesn't expose Promise.
+      await expect(promptCredentials()).rejects.toThrow(
+        'Input required: Archidekt login credentials — pass --username and --password-stdin instead',
       )
     } finally {
       setNoInputOverride(undefined)

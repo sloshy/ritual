@@ -1,6 +1,3 @@
-import prompts from 'prompts'
-import { promptsUnavailable } from '../util/no-input'
-
 /**
  * How the card-cache refresh question should be resolved for a command run,
  * selected by the shared `--refresh <mode>` option (`addRefreshOption` in
@@ -27,35 +24,44 @@ export function refreshStaleAllowed(mode: RefreshMode): boolean {
   return mode !== 'never'
 }
 
-/** The `prompts` confirm answer, which the library types as `any`. */
-type ConfirmAnswer = { value?: boolean }
-
 export type BulkRefreshPrompt = {
   message: string
   initial: boolean
 }
 
 /**
- * Decide whether to run a bulk cache download under a given mode.
- *
- * - `auto` always accepts; `no-bulk`/`never` always decline.
- * - `ask` prompts interactively. When prompts are unavailable (`--no-input` or
- *   stdin is not a terminal) it always declines — never the prompt's default —
- *   so a headless run can't be surprised by a multi-MB download; an empty cache
- *   then surfaces through the caller's `ready: false` error path.
+ * A run's refresh mode plus the way its `ask` questions get answered. The
+ * gates in `freshness.ts` and `cardkingdom/ensure.ts` take one of these rather
+ * than prompting themselves: the CLI's policy (`src/cli/refresh-policy.ts`)
+ * asks on the terminal, a server's ({@link headlessPolicy}) always declines,
+ * and a test's records what was asked.
  */
-export async function shouldBulkRefresh(
-  mode: RefreshMode,
-  { message, initial }: BulkRefreshPrompt,
+export type RefreshPolicy = {
+  mode: RefreshMode
+  confirm: (prompt: BulkRefreshPrompt) => Promise<boolean>
+}
+
+/**
+ * Decide whether to run a bulk cache download under a policy: `auto` always
+ * accepts, `no-bulk`/`never` always decline, and `ask` puts the question to
+ * the policy's `confirm`.
+ */
+export async function decideBulkRefresh(
+  policy: RefreshPolicy,
+  prompt: BulkRefreshPrompt,
 ): Promise<boolean> {
-  if (mode === 'auto') return true
-  if (mode === 'no-bulk' || mode === 'never') return false
-  if (promptsUnavailable()) return false
-  const response = (await prompts({
-    type: 'confirm',
-    name: 'value',
-    message,
-    initial,
-  })) as ConfirmAnswer
-  return response.value === true
+  switch (policy.mode) {
+    case 'auto':
+      return true
+    case 'no-bulk':
+    case 'never':
+      return false
+    case 'ask':
+      return policy.confirm(prompt)
+  }
+}
+
+/** A policy with nobody to ask: every `ask` question is declined. */
+export function headlessPolicy(mode: RefreshMode): RefreshPolicy {
+  return { mode, confirm: async () => false }
 }

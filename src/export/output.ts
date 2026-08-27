@@ -1,5 +1,4 @@
 import type { CardPrintingsLookup } from '../card/card-printing'
-import { getCardPrintings } from '../scryfall'
 import type { ExportEntry } from './entries'
 import { renderCsvExport, renderJsonExport, renderMarkdownExport, renderTextExport } from './render'
 import { columnsNeedScryfallIds, resolveExportScryfallIds } from './scryfall-id'
@@ -21,8 +20,12 @@ export type RenderedExport = {
 }
 
 export type RenderExportOptions = {
-  /** Injectable for tests; the Scryfall cache by default. */
-  lookupPrintings?: CardPrintingsLookup
+  /**
+   * Resolves a card's printings for the `scryfallId` column. Callers pass the
+   * Scryfall cache (`getCardPrintings`); this module sits below `src/scryfall`
+   * and does not reach it itself.
+   */
+  lookupPrintings: CardPrintingsLookup
 }
 
 /**
@@ -37,15 +40,12 @@ export type RenderExportOptions = {
 export async function renderExport(
   entries: ExportEntry[],
   settings: ResolvedExportSettings,
-  options?: RenderExportOptions,
+  options: RenderExportOptions,
 ): Promise<RenderedExport> {
   let rendered = entries
   const warnings: string[] = []
   if (exportFormatUsesColumns(settings.format) && columnsNeedScryfallIds(settings.columns)) {
-    const resolution = await resolveExportScryfallIds(
-      entries,
-      options?.lookupPrintings ?? getCardPrintings,
-    )
+    const resolution = await resolveExportScryfallIds(entries, options.lookupPrintings)
     rendered = resolution.entries
     warnings.push(...resolution.warnings)
   }

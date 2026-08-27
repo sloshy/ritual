@@ -321,7 +321,10 @@ describe('absolute filenames', () => {
  * rename shows up here instead of quietly widening what the rule permits.
  */
 describe('the eslint.config.js layer table', () => {
-  type LayerOptions = { layers: { dirs: string[] }[]; allow: { from: string; to: string }[] }
+  type LayerOptions = {
+    layers: { name: string; dirs: string[] }[]
+    allow: { from: string; to: string }[]
+  }
   const loadOptions = async (): Promise<LayerOptions> => {
     const { default: config } = (await import('../../../eslint.config.js')) as {
       default: { rules?: Record<string, unknown> }[]
@@ -330,6 +333,21 @@ describe('the eslint.config.js layer table', () => {
     const [, options] = entry!.rules!['ritual/no-upward-import'] as [string, LayerOptions]
     return options
   }
+
+  test('the layers are the Zone 9 sub-layered table, bottom-up', async () => {
+    const options = await loadOptions()
+    expect(options.layers.map((layer) => layer.name)).toEqual([
+      'core',
+      'providers',
+      'engines',
+      'ui',
+      'list-view',
+      'editor',
+      'site',
+      'admin',
+      'entry',
+    ])
+  })
 
   test('every layer fragment and allow entry names a real path', async () => {
     const options = await loadOptions()
@@ -344,6 +362,36 @@ describe('the eslint.config.js layer table', () => {
     )
     expect(fragments.length).toBeGreaterThan(20)
     expect(missing).toEqual([])
+  })
+
+  /** Lint one import under the real table; the count of upward-import reports. */
+  const lintReal = async (filename: string, specifier: string): Promise<number> =>
+    new Linter({ cwd: ROOT })
+      .verify(
+        `import { a } from '${specifier}'`,
+        {
+          plugins: { ritual: { rules: { 'no-upward-import': rule } } },
+          rules: { 'ritual/no-upward-import': ['error', await loadOptions()] },
+          languageOptions: { ecmaVersion: 2022, sourceType: 'module' },
+        },
+        `${ROOT}/${filename}`,
+      )
+      .filter((message) => message.ruleId === 'ritual/no-upward-import').length
+
+  /**
+   * Membership spot-checks: the sub-layered table places `src/scryfall` in
+   * providers, `src/list` in core, and `src/importers` in engines, so each may
+   * import downward and none upward.
+   */
+  test.each<[string, string, number]>([
+    ['src/scryfall/x.js', '../list/deck', 0],
+    ['src/scryfall/x.js', '../importers/csv-apply', 1],
+    ['src/list/x.js', '../scryfall/client', 1],
+    ['src/list/x.js', '../util/errors', 0],
+    ['src/importers/x.js', '../scryfall/client', 0],
+    ['src/importers/x.js', '../admin/server', 1],
+  ])('%s importing %s reports %i', async (filename, specifier, reports) => {
+    expect(await lintReal(filename, specifier)).toBe(reports)
   })
 
   /**

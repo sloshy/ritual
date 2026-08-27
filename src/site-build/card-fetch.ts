@@ -18,7 +18,7 @@ import type { ScryfallCard } from '../scryfall/types'
 import { cardCache, ensureCacheForCards } from '../cache'
 import { PRICE_MAX_AGE_MS } from '../cache/constants'
 import { offerBulkPriceRefresh, offerTagDownload } from '../cache/freshness'
-import { bulkAllowed, refreshStaleAllowed, type RefreshMode } from '../cache/refresh'
+import { bulkAllowed, refreshStaleAllowed, type RefreshPolicy } from '../cache/refresh'
 import { cardHasTags } from '../cache/status'
 import { ensureCardKingdomFeed, loadEnsuredFeed, type LoadedCardKingdomFeed } from '../cardkingdom'
 import { cardKingdomDisplayPrints, type CardKingdomDisplayPrints } from '../cardkingdom/retail'
@@ -46,7 +46,7 @@ export async function downloadCardImages(card: ScryfallCard, imgDir: string): Pr
 /** What {@link prepareCardCache} readies the cache for. */
 export type CardCachePrepInput = {
   cardNames: Set<string>
-  mode: RefreshMode
+  policy: RefreshPolicy
   /** `--verbose`: list every name the cache lacks. */
   verbose: boolean
 }
@@ -80,7 +80,7 @@ export async function prepareCardCache(
       (await ensureCacheForCards(names, undefined, { allowBulk })).refreshed)
   const offerPrices =
     deps.offerPrices ??
-    ((names, cacheJustRefreshed) => offerBulkPriceRefresh(names, input.mode, cacheJustRefreshed))
+    ((names, cacheJustRefreshed) => offerBulkPriceRefresh(names, input.policy, cacheJustRefreshed))
   const downloadFailed =
     deps.downloadFailed ?? ((reason) => t('cli.buildSite.cacheDownloadFailed', { reason }))
 
@@ -92,7 +92,7 @@ export async function prepareCardCache(
 
   let cacheJustRefreshed = false
   try {
-    cacheJustRefreshed = await ensureCards(input.cardNames, bulkAllowed(input.mode))
+    cacheJustRefreshed = await ensureCards(input.cardNames, bulkAllowed(input.policy.mode))
   } catch (e) {
     console.error(downloadFailed(getErrorMessage(e)))
   }
@@ -124,9 +124,11 @@ export async function prepareCardCache(
  * build. Loaded ahead of the card loop because the CK picks happen per name
  * as the cards are fetched.
  */
-export async function loadBakedFeed(mode: RefreshMode): Promise<LoadedCardKingdomFeed | undefined> {
+export async function loadBakedFeed(
+  policy: RefreshPolicy,
+): Promise<LoadedCardKingdomFeed | undefined> {
   if (!wantsCardKingdomFeed()) return undefined
-  const feed = await ensureCardKingdomFeed(mode)
+  const feed = await ensureCardKingdomFeed(policy)
   if (typeof feed === 'string') {
     console.warn(t('cli.buildSite.buylistUnavailable', { reason: feed }))
     return undefined
@@ -234,7 +236,7 @@ export function recordDisplayPrintings(
 /** What {@link fetchBuildCards} resolves. */
 export type CardFetchInput = {
   uniqueCards: string[]
-  mode: RefreshMode
+  policy: RefreshPolicy
   availableCurrencies: PriceCurrency[]
   /** Card Kingdom's quote lookup, present only when the site offers CK prices. */
   ckQuote: PrintingQuoteFn | null
@@ -309,7 +311,7 @@ async function fetchCard(
     card,
     currencies: availableCurrencies,
     bannedPrintings: getBannedPrintings(),
-    ...(pricesFresh || !refreshStaleAllowed(input.mode)
+    ...(pricesFresh || !refreshStaleAllowed(input.policy.mode)
       ? {}
       : { repPrints: await fetchRepresentativePrints(name, availableCurrencies) }),
     ckQuote: input.ckQuote,
@@ -358,12 +360,15 @@ function collectBuildCards(cardData: SiteCardData): ScryfallCard[] {
  * (e.g. a cache populated before tags existed), fetch them now rather than
  * shipping empty filters — gated by the same refresh mode as the bulk download.
  */
-export async function attachBuildTags(cardData: SiteCardData, mode: RefreshMode): Promise<void> {
+export async function attachBuildTags(
+  cardData: SiteCardData,
+  policy: RefreshPolicy,
+): Promise<void> {
   const buildCards = collectBuildCards(cardData)
   if (buildCards.length > 0 && !buildCards.some(cardHasTags)) {
     // The bake into the cache happens inside; the returned index tags the
     // cards already loaded for this build, without a second download.
-    const tagIndex = await offerTagDownload(mode)
+    const tagIndex = await offerTagDownload(policy)
     if (tagIndex) {
       for (const card of buildCards) attachTags(card, tagIndex)
     }

@@ -1,3 +1,4 @@
+import { headlessPolicy } from '../../cache/refresh'
 import {
   adoptCardKingdomFeed,
   ensureCardKingdomFeed,
@@ -189,7 +190,7 @@ export async function handleSellCart(req: Request): Promise<Response> {
 export async function handleSellRefresh(req: Request): Promise<Response> {
   try {
     const force = new URL(req.url).searchParams.get('force') === 'true'
-    const result = await ensureCardKingdomFeed('auto', { force })
+    const result = await ensureCardKingdomFeed(headlessPolicy('auto'), { force })
     if (typeof result === 'string') {
       return apiError(result, 502)
     }

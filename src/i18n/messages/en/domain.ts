@@ -154,6 +154,14 @@ export const domainMessages = {
   },
   'domain.sync.rateLimitWait':
     'Rate limited by Archidekt — waiting {seconds}s before retry {retry} of {maxRetries}.',
+  // What accepting a source's unreadable lines costs, shown above the list of
+  // those lines before the user agrees to sync it anyway.
+  'domain.sync.unreadableDeckConsequence':
+    'Syncing rewrites the deck file, so these lines would be removed:',
+  'domain.sync.unreadablePullConsequence':
+    'A pull rewrites the list file, so these lines would be removed:',
+  'domain.sync.unreadablePushConsequence':
+    'A push treats the list file as the truth, so the cards on these lines would be removed from your Archidekt collection:',
 
   // ── Collection-sync progress ──────────────────────────────────────────
   //

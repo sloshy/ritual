@@ -1,7 +1,12 @@
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { saveDeck } from '../../src/importers/save-list'
+import {
+  saveDeck,
+  type ConflictResolution,
+  type SaveListOutcome,
+} from '../../src/importers/save-list'
+import { ExitCode } from '../../src/util/errors'
 import { parseDeckFrontMatter } from '../../src/list/deck-file'
 import { sanitizeListFileName } from '../../src/list/list-file-name'
 import type { DeckData } from '../../src/list/deck'
@@ -43,7 +48,7 @@ describe('saveDeck (Integration)', () => {
 
   test('dry-run writes nothing and logs the deck and primer sidecar paths', async () => {
     await withTempDir(async (dir) => {
-      await saveDeck(deckWithPrimer, dir, { dryRun: true, noPrompts: true })
+      await saveDeck(deckWithPrimer, dir, { dryRun: true })
 
       const files = await fs.readdir(dir)
       expect(files).toHaveLength(0)
@@ -66,9 +71,7 @@ describe('saveDeck (Integration)', () => {
       const deck: DeckData = { ...sampleDeck, name: '???' }
 
       // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-      await expect(saveDeck(deck, dir, { noPrompts: true })).rejects.toThrow(
-        'no characters usable in a file name',
-      )
+      await expect(saveDeck(deck, dir)).rejects.toThrow('no characters usable in a file name')
       expect(await fs.readdir(dir)).toEqual([])
     })
   })
@@ -78,18 +81,90 @@ describe('saveDeck (Integration)', () => {
       await Bun.write(deckPath(dir, sampleDeck.name), '# existing')
 
       // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-      await expect(saveDeck(sampleDeck, dir, { noPrompts: true })).rejects.toThrow(
-        'Import conflict',
-      )
+      await expect(saveDeck(sampleDeck, dir)).rejects.toThrow('Import conflict')
     })
   })
+
+  test.each([
+    [
+      'a fenced body `sourceId:` is not a conflict',
+      '# Notes\n\n```\nsourceId: source-123\n```\n',
+      false,
+    ],
+    [
+      'a single-quoted front-matter sourceId is',
+      "---\nname: Other\nsourceId: 'source-123'\n---\n",
+      true,
+    ],
+    [
+      // A bare numeric scalar is a YAML number, which the front-matter
+      // validator does not read as a source id either.
+      'an unquoted numeric sourceId is not a string id',
+      '---\nname: Other\nsourceId: 123\n---\n',
+      false,
+    ],
+  ])('sourceId scan is front-matter scoped: %s', async (_label, existing, conflicts) => {
+    await withTempDir(async (dir) => {
+      await Bun.write(deckPath(dir, 'Other'), existing)
+      const deck: DeckData = {
+        ...sampleDeck,
+        sourceId: existing.includes('123\n') ? '123' : sampleDeck.sourceId,
+      }
+      const attempt = saveDeck(deck, dir)
+      if (conflicts) {
+        // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+        await expect(attempt).rejects.toThrow("Import conflict for 'Other.md'")
+      } else {
+        expect(await attempt).toMatchObject({ status: 'saved', action: 'created' })
+      }
+    })
+  })
+
+  test.each<[string, ConflictResolution, Partial<SaveListOutcome> | RegExp]>([
+    ['overwrite', { action: 'overwrite' }, { status: 'saved', action: 'overwritten' }],
+    ['rename', { action: 'rename', newName: 'Fresh Name' }, { status: 'saved', action: 'renamed' }],
+    ['cancel', { action: 'cancel' }, { status: 'cancelled' }],
+    [
+      'rename onto an existing deck',
+      { action: 'rename', newName: 'Taken' },
+      /Import conflict for 'Taken.md'/,
+    ],
+    ['rename with nothing usable', { action: 'rename', newName: '???' }, /no characters usable/],
+  ])(
+    'an injected resolver answering %s decides the conflict',
+    async (_label, resolution, expected) => {
+      await withTempDir(async (dir) => {
+        await Bun.write(deckPath(dir, sampleDeck.name), '# existing')
+        await Bun.write(deckPath(dir, 'Taken'), '# taken')
+        const resolveConflict = async (): Promise<ConflictResolution> => resolution
+
+        if (expected instanceof RegExp) {
+          // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
+          await expect(saveDeck(sampleDeck, dir, { resolveConflict })).rejects.toMatchObject({
+            message: expect.stringMatching(expected),
+            exitCode: ExitCode.UsageError,
+          })
+        } else {
+          expect(await saveDeck(sampleDeck, dir, { resolveConflict })).toMatchObject(expected)
+          if (resolution.action === 'rename') {
+            expect(await Bun.file(deckPath(dir, resolution.newName)).exists()).toBeTrue()
+          }
+          if (resolution.action === 'overwrite') {
+            const written = await Bun.file(deckPath(dir, sampleDeck.name)).text()
+            expect(written).not.toBe('# existing')
+            expect(written).toContain('1 Sol Ring &1')
+          }
+        }
+      })
+    },
+  )
 
   test('assumeYes overwrites a conflict with prompts disabled', async () => {
     await withTempDir(async (dir) => {
       const conflictPath = deckPath(dir, sampleDeck.name)
       await Bun.write(conflictPath, '# existing')
 
-      await saveDeck(sampleDeck, dir, { noPrompts: true, assumeYes: true })
+      await saveDeck(sampleDeck, dir, { assumeYes: true })
 
       const frontMatter = await parseDeckFrontMatter(conflictPath)
       expect(frontMatter.name).toBe('Integration Deck')
@@ -101,7 +176,7 @@ describe('saveDeck (Integration)', () => {
   test('persists the format the source service reported', async () => {
     await withTempDir(async (dir) => {
       const deck: DeckData = { ...sampleDeck, format: 'modern' }
-      await saveDeck(deck, dir, { noPrompts: true })
+      await saveDeck(deck, dir)
 
       const frontMatter = await parseDeckFrontMatter(deckPath(dir, deck.name))
       expect(frontMatter.format).toBe('modern')
@@ -120,7 +195,7 @@ describe('saveDeck (Integration)', () => {
           { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
         ],
       }
-      await saveDeck(deck, dir, { noPrompts: true })
+      await saveDeck(deck, dir)
 
       const frontMatter = await parseDeckFrontMatter(deckPath(dir, deck.name))
       expect(frontMatter.format).toBe('commander')
@@ -148,7 +223,7 @@ describe('saveDeck (Integration)', () => {
           },
         ],
       }
-      await saveDeck(deckWithPrinting, dir, { noPrompts: true })
+      await saveDeck(deckWithPrinting, dir)
 
       const content = await readWrittenDeck(dir)
       expect(content).toContain('1 Mana Crypt (2XM:1) [foil] &1')
@@ -187,7 +262,7 @@ describe('saveDeck (Integration)', () => {
         ],
       }
 
-      await saveDeck(parseArchidektDeckResponse(response, '7031486'), dir, { noPrompts: true })
+      await saveDeck(parseArchidektDeckResponse(response, '7031486'), dir)
 
       const content = await readWrittenDeck(dir)
       expect(content).toContain('## Commander\n1 Krenko, Mob Boss (M19:149) [foil] &1')
@@ -198,7 +273,7 @@ describe('saveDeck (Integration)', () => {
 
   test('deck with primer writes .primer.md sidecar and no primer in frontmatter', async () => {
     await withTempDir(async (dir) => {
-      await saveDeck(deckWithPrimer, dir, { noPrompts: true })
+      await saveDeck(deckWithPrimer, dir)
 
       const deckFilePath = deckPath(dir, deckWithPrimer.name)
       const deckContent = await Bun.file(deckFilePath).text()

@@ -45,6 +45,7 @@ import { getUiLocale } from '../config/ritual-config'
 import { buildFlameSvg } from '../theme/flame'
 import { localizedCommandError, ExitCode } from '../util/errors'
 import { runCommandAction } from '../cli/action'
+import { cliRefreshPolicy } from '../cli/refresh-policy'
 import { requireInteractive } from '../util/no-input'
 import { readPasswordFromStdin } from '../cli/prompts'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
@@ -182,13 +183,14 @@ export function registerAdminCommand(program: Command): void {
 
       console.log(t('cli.admin.preparing'))
 
-      await ensureFreshCardCache(options.refresh)
+      const refreshPolicy = cliRefreshPolicy(options.refresh)
+      await ensureFreshCardCache(refreshPolicy)
 
       // The admin's buylist routes read a cached feed and never download; a
       // day-old one quotes yesterday's offers, so startup brings it current.
       // Gated on sell mode exactly like every other surface: `site.sellMode`, or
       // this run's `--sell-mode`. A workspace with no buylist is left alone.
-      const buylistWarning = sellModeWarning(await warmCardKingdomFeed(options.refresh))
+      const buylistWarning = sellModeWarning(await warmCardKingdomFeed(refreshPolicy))
       if (buylistWarning !== undefined) console.warn(buylistWarning)
 
       await fs.rm(adminDistDir, { recursive: true, force: true })

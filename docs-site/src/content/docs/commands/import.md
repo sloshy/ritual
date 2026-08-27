@@ -366,12 +366,12 @@ Text-file imports behave the same way: a body line that is neither a section hea
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                                                 |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Success — the import was written, or fully previewed under `--dry-run`                                                                                                                                                  |
-| `1`  | Runtime failure — a fetch or parse error, or a partial failure (CSV rows or text lines skipped)                                                                                                                         |
-| `2`  | Usage error — invalid or misapplied flags, an unsupported URL, a name/ID conflict with no `--overwrite`/`--append`/`--yes`, a required prompt when input is unavailable, or a cancelled prompt (`Cancelled.` on stderr) |
-| `3`  | Not found — the source file does not exist                                                                                                                                                                              |
+| Code | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success — the import was written, or fully previewed under `--dry-run`                                                                                                                                                                                                                                                                                                                                                                            |
+| `1`  | Runtime failure — a fetch or parse error, or a partial failure (CSV rows or text lines skipped)                                                                                                                                                                                                                                                                                                                                                   |
+| `2`  | Usage error — invalid or misapplied flags, an unsupported URL, a name/ID conflict with no `--overwrite`/`--append`/`--yes`, a list name with no characters usable in a file name, a collection import whose lines carry no printing, a text-file import whose list write the shared CSV writer refuses (for example, the target file already exists), a required prompt when input is unavailable, or a cancelled prompt (`Cancelled.` on stderr) |
+| `3`  | Not found — the source file does not exist                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ## Examples
 
@@ -467,8 +467,11 @@ headers split the cards into sections:
 2 Pyroblast
 ```
 
-Lines may also carry a printing, finish, condition, and note, e.g.
-`1 Sol Ring (C19:221) [foil] [NM] {trade binder}`.
+Lines may also carry a printing, finish, condition, language, labels, and note, e.g.
+`1 Sol Ring (C19:221) [foil] [NM] [ja] [sale] {trade binder}`. The `[sale]` / `[trade]` /
+`[keep]` label token is a **collection-only** feature: it is written through on a collection
+import, while a deck import warns that the label was dropped and a wanted-list import drops it
+the same way (wanted lists carry no labels).
 
 When importing into a collection or wanted list, each line expands to one
 bullet line per copy (`4 Lightning Bolt` becomes four `- Lightning Bolt` lines),

@@ -1,7 +1,6 @@
 import { IMPORT_TEXT_PARSE_OPTIONS, parseDeckText } from '../../importers/text-file'
 import { fetchDeckFromUrl, stripDeckPrintings } from '../../importers/url-dispatch'
 import { saveDeck } from '../../importers/save-list'
-import { listFilePath } from '../../list/resolve-list'
 import { autoCommitAndPush, badRequest, readJsonObjectBody } from './save-helpers'
 import { apiHandler } from '../utils'
 import type { ApiMessage } from './result'
@@ -135,20 +134,19 @@ export function handleImportDeck(req: Request): Promise<Response> {
     }
 
     const decksDir = getDecksDir()
-    await saveDeck(deckData, decksDir, {
+    // No conflict resolver: there is no terminal behind an API request, so a
+    // conflict is the usage error (a 400), never a prompt.
+    const outcome = await saveDeck(deckData, decksDir, {
       forceOverwrite: overwrite,
-      // There is no terminal behind an API request; a conflict must throw
-      // instead of trying to prompt.
-      noPrompts: true,
       assumeYes: overwrite,
     })
+    // Only a resolver can cancel, and this call injects none; still, the
+    // outcome is honoured rather than assumed so the contract cannot drift.
+    if (outcome.status === 'cancelled') return badRequest('Import cancelled')
 
-    // saveDeck has already rejected a name with no usable characters, so the path
-    // it wrote to is the one this resolves to.
-    const filePath = listFilePath('deck', deckData.name)
-    if (filePath === null) return badRequest(`Deck name '${deckData.name}' cannot be a file name`)
-
-    await autoCommitAndPush(decksDir, [filePath], `Import deck: ${deckData.name}`)
+    // The file the save actually wrote: an overwrite of a folded twin or an
+    // id-matched deck lands on the existing file, not the import's own slug.
+    await autoCommitAndPush(decksDir, [outcome.filePath], `Import deck: ${outcome.name}`)
 
     // The admin UI surfaces only `message`, so a lossy text import says so
     // there too; API clients get the individual lines in `warnings`.
@@ -162,8 +160,8 @@ export function handleImportDeck(req: Request): Promise<Response> {
       advisories.length > 0 ? ` — ${advisories.length} line(s) may not have been understood` : ''
     const resp: ImportDeckResponse = {
       success: true,
-      message: `Successfully imported '${deckData.name}'${skippedNote}${advisoryNote}`,
-      deckName: deckData.name,
+      message: `Successfully imported '${outcome.name}'${skippedNote}${advisoryNote}`,
+      deckName: outcome.name,
       warnings,
       advisories,
       syncPrintings: request.mode === 'url' ? request.syncPrintings : true,

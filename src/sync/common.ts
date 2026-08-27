@@ -133,6 +133,16 @@ export type ConfirmUnreadable = (sources: UnreadableSource[]) => Promise<boolean
 /** Which engine is asking, for the wording of {@link unreadableConsequence}. */
 export type SyncSubjectKind = 'deck' | 'collection'
 
+/** A deck sync's one sentence, or a collection sync's per direction. */
+type UnreadableConsequenceKey = 'deck' | SyncDirection
+
+/** Keys only, resolved at call time — see {@link SKIPPED_MESSAGE}. */
+const UNREADABLE_CONSEQUENCE = {
+  deck: 'domain.sync.unreadableDeckConsequence',
+  pull: 'domain.sync.unreadablePullConsequence',
+  push: 'domain.sync.unreadablePushConsequence',
+} as const satisfies Record<UnreadableConsequenceKey, MessageKey>
+
 /**
  * What accepting a source's unreadable lines costs.
  *
@@ -145,10 +155,5 @@ export type SyncSubjectKind = 'deck' | 'collection'
  * user reads before agreeing to lose lines is the same one everywhere.
  */
 export function unreadableConsequence(kind: SyncSubjectKind, direction: SyncDirection): string {
-  if (kind === 'deck') {
-    return 'Syncing rewrites the deck file, so these lines would be removed:'
-  }
-  return direction === 'pull'
-    ? 'A pull rewrites the list file, so these lines would be removed:'
-    : 'A push treats the list file as the truth, so the cards on these lines would be removed from your Archidekt collection:'
+  return t(UNREADABLE_CONSEQUENCE[kind === 'deck' ? 'deck' : direction])
 }

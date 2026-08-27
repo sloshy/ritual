@@ -2,7 +2,7 @@ import { cardCache } from './index'
 import { refreshCardCache } from './refresh-source'
 import { readRecordedCardBulkType } from './bulk-provenance'
 import { BULK_CACHE_MAX_AGE_MS, BULK_FETCH_THRESHOLD, PRICE_MAX_AGE_MS } from './constants'
-import { bulkAllowed, shouldBulkRefresh, type BulkRefreshPrompt, type RefreshMode } from './refresh'
+import { bulkAllowed, decideBulkRefresh, type RefreshPolicy } from './refresh'
 import { downloadTagIndex, refreshTags } from '../scryfall'
 import { configuredCardBulkType, type CardBulkType } from '../scryfall/bulk-manifest'
 import { getDefaultLanguage } from '../config/ritual-config'
@@ -37,6 +37,16 @@ async function tryPreload(preload: () => Promise<void>): Promise<string | null> 
   } catch (e) {
     return `Card cache download failed: ${getErrorMessage(e)}`
   }
+}
+
+/**
+ * {@link tryPreload} for the callers that report to the user: the failure is
+ * printed to stderr, and the result says whether the download happened.
+ */
+async function preloadOrReport(preload: () => Promise<void>): Promise<boolean> {
+  const failure = await tryPreload(preload)
+  if (failure !== null) console.error(failure)
+  return failure === null
 }
 
 /**
@@ -98,8 +108,7 @@ export type BulkTypeMismatchCheck = () => Promise<BulkTypeMismatch | null>
  */
 async function handleBulkTypeMismatch(
   mismatch: BulkTypeMismatch | null,
-  mode: RefreshMode,
-  confirm: (prompt: BulkRefreshPrompt) => Promise<boolean>,
+  policy: RefreshPolicy,
   preload: () => Promise<void>,
 ): Promise<boolean> {
   if (mismatch === null) return false
@@ -107,19 +116,16 @@ async function handleBulkTypeMismatch(
   // as-is (the caller keeps working from the mismatched data, as `never`
   // promises), and the mismatch still consumed the decision — a staleness
   // refresh under `no-bulk` could not happen either.
-  if (!bulkAllowed(mode)) return true
-  const accepted =
-    mode === 'auto' ||
-    (await confirm({
-      message: `${bulkTypeMismatchMessage(mismatch)} Redownload the card cache now?`,
-      initial: true,
-    }))
+  if (!bulkAllowed(policy.mode)) return true
+  const accepted = await decideBulkRefresh(policy, {
+    message: `${bulkTypeMismatchMessage(mismatch)} Redownload the card cache now?`,
+    initial: true,
+  })
   if (!accepted) return true
-  if (mode === 'auto') {
+  if (policy.mode === 'auto') {
     console.log(`${bulkTypeMismatchMessage(mismatch)} Redownloading the card cache...`)
   }
-  const failure = await tryPreload(preload)
-  if (failure !== null) console.error(failure)
+  await preloadOrReport(preload)
   return true
 }
 
@@ -132,7 +138,7 @@ async function handleBulkTypeMismatch(
  */
 async function promptStaleCacheRefresh(
   age: number,
-  confirm: (prompt: BulkRefreshPrompt) => Promise<boolean>,
+  policy: RefreshPolicy,
   preload: () => Promise<void>,
 ): Promise<string | null> {
   if (age <= BULK_CACHE_MAX_AGE_MS) return null
@@ -143,7 +149,7 @@ async function promptStaleCacheRefresh(
     unit: 'day',
     unitDisplay: 'long',
   }).format(days)
-  const accepted = await confirm({
+  const accepted = await decideBulkRefresh(policy, {
     message: `Card cache is ${dayCount} old. Would you like to update it?`,
     initial: false,
   })
@@ -165,7 +171,7 @@ async function promptStaleCacheRefresh(
  * redownload first — with that handled, the ordinary staleness offer is
  * skipped so one gate never asks twice.
  *
- * @param mode The `--refresh` policy; the cache here is populated only by bulk
+ * @param policy The `--refresh` policy; the cache here is populated only by bulk
  *   download, so `no-bulk` behaves like `never` (no preload).
  * @param deps Injectable seams (tests); the global cache and real refresh
  *   otherwise. `deps.cache` is deliberately unused here — this gate reports
@@ -173,17 +179,16 @@ async function promptStaleCacheRefresh(
  * @returns Whether the cache is ready for use (has cards) and how many cards are available.
  */
 export async function ensureFreshCardCache(
-  mode: RefreshMode = 'ask',
+  policy: RefreshPolicy,
   deps: SessionCacheDeps = {},
 ): Promise<CacheFreshnessResult> {
   const preload = deps.preload ?? refreshCardCache
-  const confirm = deps.confirmStaleRefresh ?? ((prompt: BulkRefreshPrompt) => shouldBulkRefresh(mode, prompt))
   const detectMismatch = deps.detectMismatch ?? detectCardBulkTypeMismatch
   const empty = await cardCache.isEmpty()
 
   if (empty) {
     console.log('Card cache is empty. A preloaded cache is required for card autocomplete.')
-    const shouldPreload = await shouldBulkRefresh(mode, {
+    const shouldPreload = await decideBulkRefresh(policy, {
       message: 'Would you like to download the card database now?',
       initial: true,
     })
@@ -191,20 +196,15 @@ export async function ensureFreshCardCache(
     if (shouldPreload) {
       // Best-effort warm: a cold network must leave the caller with an empty
       // cache rather than an exception — the `ready: false` below already says so.
-      const failure = await tryPreload(preload)
-      if (failure !== null) console.error(failure)
+      await preloadOrReport(preload)
     } else {
       return { ready: false, cardCount: 0 }
     }
-  } else if (!(await handleBulkTypeMismatch(await detectMismatch(), mode, confirm, preload))) {
+  } else if (!(await handleBulkTypeMismatch(await detectMismatch(), policy, preload))) {
     const lastRefreshed = await cardCache.getLastRefreshedAt()
 
     if (lastRefreshed !== null) {
-      const failure = await promptStaleCacheRefresh(
-        Date.now() - lastRefreshed,
-        confirm,
-        preload,
-      )
+      const failure = await promptStaleCacheRefresh(Date.now() - lastRefreshed, policy, preload)
       if (failure !== null) console.error(failure)
     }
   }
@@ -223,7 +223,6 @@ export type SessionCardCache = {
 export type SessionCacheDeps = {
   cache?: SessionCardCache
   preload?: () => Promise<void>
-  confirmStaleRefresh?: (prompt: BulkRefreshPrompt) => Promise<boolean>
   /** How to detect a card-bulk/`defaultLanguage` mismatch (tests inject; real check otherwise). */
   detectMismatch?: BulkTypeMismatchCheck
 }
@@ -246,18 +245,16 @@ export type SessionCacheDeps = {
  * is skipped for that run.
  */
 export async function refreshCardCacheForSession(
-  mode: RefreshMode,
+  policy: RefreshPolicy,
   deps: SessionCacheDeps = {},
 ): Promise<void> {
   const cache = deps.cache ?? cardCache
   const preload = deps.preload ?? refreshCardCache
-  const confirmStaleRefresh =
-    deps.confirmStaleRefresh ?? ((prompt) => shouldBulkRefresh(mode, prompt))
   const detectMismatch = deps.detectMismatch ?? detectCardBulkTypeMismatch
 
   if (await cache.isEmpty()) return
 
-  if (await handleBulkTypeMismatch(await detectMismatch(), mode, confirmStaleRefresh, preload)) {
+  if (await handleBulkTypeMismatch(await detectMismatch(), policy, preload)) {
     return
   }
 
@@ -265,15 +262,14 @@ export async function refreshCardCacheForSession(
   if (lastRefreshed === null) return
   const age = Date.now() - lastRefreshed
 
-  if (mode === 'auto' && age > PRICE_MAX_AGE_MS) {
+  if (policy.mode === 'auto' && age > PRICE_MAX_AGE_MS) {
     console.log('Cached prices are more than a day old. Refreshing the card cache from Scryfall...')
-    const failure = await tryPreload(preload)
-    if (failure !== null) console.error(failure)
+    await preloadOrReport(preload)
     return
   }
 
-  if (mode !== 'ask') return
-  const failure = await promptStaleCacheRefresh(age, confirmStaleRefresh, preload)
+  if (policy.mode !== 'ask') return
+  const failure = await promptStaleCacheRefresh(age, policy, preload)
   if (failure !== null) console.error(failure)
 }
 
@@ -308,13 +304,11 @@ export type UploadCacheDeps = SessionCacheDeps & { log?: CacheRefreshLog }
  *   for the caller to report verbatim.
  */
 export async function ensureCardCacheForUpload(
-  mode: RefreshMode,
+  policy: RefreshPolicy,
   deps: UploadCacheDeps = {},
 ): Promise<true | string> {
   const cache = deps.cache ?? cardCache
   const preload = deps.preload ?? refreshCardCache
-  const confirmStaleRefresh =
-    deps.confirmStaleRefresh ?? ((prompt) => shouldBulkRefresh(mode, prompt))
   const log = deps.log ?? ((message: string) => console.log(message))
 
   const empty = await cache.isEmpty()
@@ -326,14 +320,14 @@ export async function ensureCardCacheForUpload(
   const because = `Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is ${state}.`
   const remedy = 'Run `ritual cache preload-all`, or re-run with --refresh auto.'
 
-  if (mode === 'auto') {
+  if (policy.mode === 'auto') {
     log(`${because} Refreshing it from Scryfall first...`)
     // A download that failed leaves the same cache the requirement just refused,
     // so the failure *is* the refusal rather than an exception past the caller.
     const failure = await tryPreload(preload)
     if (failure !== null) return `${failure} ${remedy}`
-  } else if (mode === 'ask') {
-    const accepted = await confirmStaleRefresh({
+  } else if (policy.mode === 'ask') {
+    const accepted = await policy.confirm({
       message: `${because} Update it before uploading?`,
       initial: true,
     })
@@ -368,22 +362,22 @@ export async function ensureCardCacheForUpload(
  * @returns Whether the cache now holds cards.
  */
 export async function ensureCardCachePresent(
-  mode: RefreshMode,
+  policy: RefreshPolicy,
   requirement: string,
   deps: SessionCacheDeps = {},
 ): Promise<boolean> {
   const cache = deps.cache ?? cardCache
   const preload = deps.preload ?? refreshCardCache
-  const confirm = deps.confirmStaleRefresh ?? ((prompt: BulkRefreshPrompt) => shouldBulkRefresh(mode, prompt))
 
   if (!(await cache.isEmpty())) return true
   // The cache can only be filled by a bulk download, so modes that forbid one
   // leave an empty cache simply unusable — never download, stay quiet.
-  if (mode === 'no-bulk' || mode === 'never') return false
+  if (!bulkAllowed(policy.mode)) return false
   getLogger().info(`Card cache is empty. ${requirement}`)
-  const accepted =
-    mode === 'auto' ||
-    (await confirm({ message: 'Would you like to download it now?', initial: true }))
+  const accepted = await decideBulkRefresh(policy, {
+    message: 'Would you like to download it now?',
+    initial: true,
+  })
   if (!accepted) return false
   const failure = await tryPreload(preload)
   if (failure !== null) {
@@ -406,12 +400,10 @@ export type PriceFreshnessCache = Required<
 export type PriceRefreshDeps = {
   cache?: PriceFreshnessCache
   preload?: () => Promise<void>
-  confirm?: (prompt: BulkRefreshPrompt) => Promise<boolean>
 }
 
 /** Injectable dependencies for {@link offerTagDownload}. */
 export type TagDownloadDeps = {
-  confirm?: (prompt: BulkRefreshPrompt) => Promise<boolean>
   download?: () => Promise<TagIndex | null>
   /** Re-attach the downloaded tags to every cached card. */
   bake?: (index: TagIndex) => Promise<void>
@@ -432,15 +424,14 @@ export type TagDownloadDeps = {
  */
 export async function offerBulkPriceRefresh(
   cardNames: readonly string[],
-  mode: RefreshMode,
+  policy: RefreshPolicy,
   cacheJustRefreshed: boolean,
   deps: PriceRefreshDeps = {},
 ): Promise<void> {
   const cache = deps.cache ?? cardCache
   const preload = deps.preload ?? refreshCardCache
-  const confirm = deps.confirm ?? ((prompt: BulkRefreshPrompt) => shouldBulkRefresh(mode, prompt))
 
-  if (!bulkAllowed(mode)) return
+  if (!bulkAllowed(policy.mode)) return
 
   const lastBulkRefresh = await cache.getLastRefreshedAt()
   const bulkCacheIsRecent =
@@ -464,7 +455,7 @@ export async function offerBulkPriceRefresh(
     `Redownloading the Scryfall bulk card cache (includes fresh prices) would be faster than refreshing each card individually.`,
   )
 
-  const shouldPreload = await confirm({
+  const shouldPreload = await decideBulkRefresh(policy, {
     message: 'Redownload the latest Scryfall card cache now?',
     initial: false,
   })
@@ -489,14 +480,13 @@ export async function offerBulkPriceRefresh(
  *   tags to them without a second download; `null` when nothing was downloaded.
  */
 export async function offerTagDownload(
-  mode: RefreshMode,
+  policy: RefreshPolicy,
   deps: TagDownloadDeps = {},
 ): Promise<TagIndex | null> {
-  const confirm = deps.confirm ?? ((prompt: BulkRefreshPrompt) => shouldBulkRefresh(mode, prompt))
   const download = deps.download ?? downloadTagIndex
   const bake = deps.bake ?? refreshTags
 
-  const accepted = await confirm({
+  const accepted = await decideBulkRefresh(policy, {
     message:
       'The card cache has no oracle/art tags (used by the site’s tag filters). Download them now?',
     initial: true,
@@ -542,20 +532,18 @@ export type PriceFreshnessResult = {
  *   `no-bulk`/`never`.
  */
 export async function ensureFreshPriceData(
-  mode: RefreshMode,
+  policy: RefreshPolicy,
   deps: SessionCacheDeps = {},
 ): Promise<PriceFreshnessResult> {
   const cache = deps.cache ?? cardCache
   const preload = deps.preload ?? refreshCardCache
-  const confirmStaleRefresh =
-    deps.confirmStaleRefresh ?? ((prompt) => shouldBulkRefresh(mode, prompt))
 
   if (await cache.isEmpty()) {
     // The cache was empty, so a download that failed leaves nothing to price.
     const ready = await ensureCardCachePresent(
-      mode,
+      policy,
       'Pricing requires the Scryfall card database.',
-      { cache, preload, confirmStaleRefresh },
+      { cache, preload },
     )
     return ready
       ? { ready: true, lastRefreshedAt: await cache.getLastRefreshedAt() }
@@ -568,20 +556,18 @@ export async function ensureFreshPriceData(
     if (age > PRICE_MAX_AGE_MS) {
       // A stale-price refresh that failed still leaves usable (older) prices, so
       // it is reported and the run continues.
-      if (mode === 'auto') {
+      if (policy.mode === 'auto') {
         console.log(
           'Cached prices are more than a day old. Refreshing the card cache from Scryfall...',
         )
-        const failure = await tryPreload(preload)
-        if (failure !== null) console.error(failure)
-      } else if (mode === 'ask') {
-        const accepted = await confirmStaleRefresh({
+        await preloadOrReport(preload)
+      } else if (policy.mode === 'ask') {
+        const accepted = await policy.confirm({
           message: `Prices were last updated ${formatDuration(age)} ago. Update now?`,
           initial: false,
         })
         if (accepted) {
-          const failure = await tryPreload(preload)
-          if (failure !== null) console.error(failure)
+          await preloadOrReport(preload)
         }
       }
     }

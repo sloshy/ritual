@@ -95,6 +95,12 @@ decides how its freshness is handled before the session starts:
   old** (prices ride along inside the cached card data, so a redownload is how they refresh).
 - **`no-bulk`** / **`never`** — leave the cache alone; the session uses it as-is.
 
+When the cache is **empty** the session cannot start at all, so the same policy decides the one-off
+download that fills it: `ask` offers it (default yes; naming the English-only `default_cards` bulk,
+or the every-language `all_cards` bulk when `defaultLanguage` is not `en`), `auto` downloads it
+without asking, and `no-bulk` / `never` skip the offer — the session then fails with the
+`ritual cache preload-all` advice.
+
 ## The List Selection Menu
 
 On startup (and whenever you back out of a list) you pick what to edit next:

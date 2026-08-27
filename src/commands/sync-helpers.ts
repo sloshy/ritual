@@ -12,7 +12,7 @@
 
 import { ArchidektAuth } from '../auth/ArchidektAuth'
 import { FileTokenStore } from '../auth/FileTokenStore'
-import { getLogger, STDERR_LOGGER, type Logger } from '../util/logger'
+import { getLogger, QUIET_STDERR_LOGGER, quietLogger, type Logger } from '../util/logger'
 import {
   SYNC_CHANGE_FILTERS,
   SYNC_DIRECTIONS,
@@ -99,16 +99,6 @@ export function createScopedIndenter(scripting: ScriptingOptions): ScopedIndente
   }
 }
 
-/** Warnings and errors still print, progress info does not. */
-function quietLogger(base: Logger): Logger {
-  return {
-    info() {},
-    progress() {},
-    warn: base.warn.bind(base),
-    error: base.error.bind(base),
-  }
-}
-
 /**
  * Pick the logger for a run. Under `--output json`/`ndjson` the report owns
  * stdout, so progress is dropped but warnings and errors go to stderr — a run
@@ -117,7 +107,7 @@ function quietLogger(base: Logger): Logger {
  * normal logger.
  */
 export function loggerFor(scripting: ScriptingOptions): Logger {
-  if (scripting.output !== 'text') return quietLogger(STDERR_LOGGER)
+  if (scripting.output !== 'text') return QUIET_STDERR_LOGGER
   return scripting.quiet ? quietLogger(getLogger()) : getLogger()
 }
 

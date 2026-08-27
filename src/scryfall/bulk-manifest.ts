@@ -1,4 +1,5 @@
 import type { HttpClient } from '../util/interfaces'
+import type { ScryfallCard } from './types'
 import { throwHttpError } from '../util/errors'
 import { getDefaultLanguage } from '../config/ritual-config'
 
@@ -51,4 +52,19 @@ export async function fetchScryfallBulkManifest(
   if (!response.ok) throwHttpError(response, 'Failed to fetch bulk manifest')
   const json = (await response.json()) as ScryfallBulkManifest
   return json.data ?? []
+}
+
+/**
+ * Check the minimum shape of a card-bulk line (`default_cards` or `all_cards`)
+ * that {@link mapScryfallCard} dereferences unconditionally.
+ */
+export function isBulkCardEntry(value: unknown): value is ScryfallCard {
+  if (!value || typeof value !== 'object') return false
+  const card = value as Record<string, unknown>
+  return (
+    typeof card['name'] === 'string' &&
+    typeof card['set'] === 'string' &&
+    typeof card['prices'] === 'object' &&
+    card['prices'] !== null
+  )
 }

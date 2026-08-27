@@ -1,8 +1,12 @@
 import { askSequence, type AskSequenceQuestion } from '../../cli/prompts'
 import { compareData } from '../../i18n/collate'
-import { getAllCardNames } from '../../scryfall'
+import { getAllCardNames, preloadCache } from '../../scryfall'
+import { cardCache } from '../../cache'
+import { configuredCardBulkType } from '../../scryfall/bulk-manifest'
+import { getDefaultLanguage } from '../../config/ritual-config'
 import { emptyCacheAdvice, refreshCardCacheForSession } from '../../cache/freshness'
-import type { RefreshMode } from '../../cache/refresh'
+import { decideBulkRefresh, type RefreshPolicy } from '../../cache/refresh'
+import { getLogger } from '../../util/logger'
 import {
   type Condition,
   type Finish,
@@ -52,18 +56,66 @@ export type SessionConfig = {
   targetSection: string | null
 }
 
+/** Injectable seams of {@link prepareCardSessionCache} (tests); the real cache otherwise. */
+export type CardSessionCacheDeps = {
+  isEmpty?: () => Promise<boolean>
+  preload?: () => Promise<void>
+  loadCardNames?: typeof getAllCardNames
+}
+
 /**
- * Apply the `--refresh` freshness policy before a session, then load the
- * card-name list for autocomplete, logging progress. Returns null (after
- * telling the user to preload) when the Scryfall cache is empty.
+ * Apply the `--refresh` freshness policy before a session, offer the bulk
+ * download when the cache is empty (under the same policy: `auto` downloads
+ * outright, `no-bulk`/`never` never offer), then load the card-name list for
+ * autocomplete, logging progress. Returns null (after telling the user to
+ * preload) when the Scryfall cache is still empty.
  */
 export async function prepareCardSessionCache(
-  mode: RefreshMode,
+  policy: RefreshPolicy,
   sets: string[] | undefined,
   excludeDigitalOnly: boolean,
+  deps: CardSessionCacheDeps = {},
 ): Promise<string[] | null> {
-  await refreshCardCacheForSession(mode)
-  return loadCardNamesOrWarn(sets, excludeDigitalOnly)
+  const isEmpty = deps.isEmpty ?? (() => cardCache.isEmpty())
+  await refreshCardCacheForSession(policy)
+  if (await isEmpty()) {
+    await offerSessionPreload(policy, deps)
+    if (await isEmpty()) return refuseEmptyCache()
+  }
+  return loadCardNamesOrWarn(sets, excludeDigitalOnly, deps.loadCardNames ?? getAllCardNames)
+}
+
+/**
+ * Offer the one-off bulk download that fills an empty cache, naming what the
+ * configured bulk actually downloads: `default_cards` (English-only) for
+ * `defaultLanguage: en`, the much larger every-language `all_cards` bulk
+ * otherwise. Best-effort: a cold network must not abort the session.
+ */
+async function offerSessionPreload(
+  policy: RefreshPolicy,
+  deps: CardSessionCacheDeps,
+): Promise<void> {
+  const scope =
+    configuredCardBulkType() === 'default_cards'
+      ? t('cli.session.preloadScopeEnglish')
+      : t('cli.session.preloadScopeAllLanguages', { language: getDefaultLanguage() })
+  const accepted = await decideBulkRefresh(policy, {
+    message: t('cli.session.preloadPrompt', { scope }),
+    initial: true,
+  })
+  if (!accepted) return
+  try {
+    await (deps.preload ?? preloadCache)()
+  } catch (error) {
+    getLogger().error(t('cli.session.preloadFailed'), error)
+  }
+}
+
+/** Tell the user how to fill the cache and fail the run; the session cannot start. */
+function refuseEmptyCache(): null {
+  console.error(emptyCacheAdvice(t('cli.session.cacheEmpty')))
+  process.exitCode = ExitCode.RuntimeError
+  return null
 }
 
 /**
@@ -73,14 +125,11 @@ export async function prepareCardSessionCache(
 async function loadCardNamesOrWarn(
   sets: string[] | undefined,
   excludeDigitalOnly: boolean,
+  loadCardNames: typeof getAllCardNames,
 ): Promise<string[] | null> {
   console.log(t('cli.session.loadingCards'))
-  const cardNames = await getAllCardNames({ sets, excludeDigitalOnly })
-  if (cardNames.length === 0) {
-    console.error(emptyCacheAdvice(t('cli.session.cacheEmpty')))
-    process.exitCode = ExitCode.RuntimeError
-    return null
-  }
+  const cardNames = await loadCardNames({ sets, excludeDigitalOnly })
+  if (cardNames.length === 0) return refuseEmptyCache()
   console.log(t('cli.session.loadedCards', { count: cardNames.length }))
   return cardNames
 }

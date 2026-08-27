@@ -32,6 +32,7 @@ import { writeFileWithHash } from '../changes/content-hash'
 import { unreadableContentMessage, unreadableLines } from '../list/markdown-fence'
 import { unusableFileNameMessage } from '../list/list-file-name'
 import { listNameCollision } from '../list/list-lifecycle'
+import { reconcileListRefs } from '../list/list-refs'
 import { createAddChange, isSamePrinting, type ChangeEvent } from '../changes/change-event'
 import { appendChangelog } from '../changes/changelog-writer'
 import {
@@ -76,9 +77,9 @@ export type CsvImportOptions = {
 
 /**
  * A normalized card entry ready to apply to a list. CSV rows never produce a
- * `note`; text-file imports can carry one through to the written list line.
+ * `note` or `labels`; text-file imports carry both through to the written list line.
  */
-export type ImportCardEntry = CsvCardEntry & { note?: string }
+export type ImportCardEntry = CsvCardEntry & { note?: string; labels?: CardLabel[] }
 
 export type CsvImportTarget = {
   listType: ListType
@@ -87,6 +88,12 @@ export type CsvImportTarget = {
   mode: CsvImportMode
   /** Deck format. Required when creating or overwriting a deck; unused otherwise. */
   format?: DeckFormatKey
+  /**
+   * The file an overwrite replaces, when the caller has already settled it —
+   * the folded twin (`Trade Binder.md` for `trade binder`) rather than the path
+   * the import's own name would resolve to. Defaults to that path.
+   */
+  filePath?: string
 }
 
 export type CsvImportSuccess = {
@@ -139,6 +146,7 @@ function buildDeckMarkdown(
       finish: entry.finish,
       condition: entry.condition,
       language: entry.language,
+      labels: entry.labels,
       note: entry.note,
     })
   }
@@ -199,7 +207,7 @@ type FlatLineEntry = {
   condition?: Condition
   /** Language token — carried through from parsed entries so a re-serialize never drops `[ja]`. */
   language?: CardLanguage
-  /** Label override — parsed collection entries only; imported rows never carry one. */
+  /** Label override — parsed collection entries and text-file imports; CSV rows never carry one. */
   labels?: CardLabel[]
   note?: string
   cardId?: number
@@ -254,7 +262,7 @@ async function createList(
   dryRun: boolean,
 ): Promise<CsvImportOutcome> {
   const targetDir = dirForType(target.listType)
-  const filePath = listFilePath(target.listType, target.name)
+  const filePath = target.filePath ?? listFilePath(target.listType, target.name)
   if (filePath === null) {
     return { error: unusableFileNameMessage(target.name) }
   }
@@ -274,6 +282,12 @@ async function createList(
     }
   }
 
+  /** The file an overwrite replaces, when there is one. */
+  const replaced =
+    target.mode === 'overwrite' && (await Bun.file(filePath).exists())
+      ? await fs.readFile(filePath, 'utf-8')
+      : null
+
   let content: string
   if (target.listType === 'deck') {
     if (target.format === undefined) {
@@ -284,9 +298,8 @@ async function createList(
     content = buildFlatListMarkdown(target.listType, target.name, entries)
     // Overwrite replaces the card lines, not the list's metadata — an existing
     // front-matter block (a collection's `labels:` default) survives verbatim.
-    if (target.mode === 'overwrite' && (await Bun.file(filePath).exists())) {
-      const existing = await fs.readFile(filePath, 'utf-8')
-      const parsed = parseFlatListFrontMatter(existing.split('\n'), { validateLabels: false })
+    if (replaced !== null) {
+      const parsed = parseFlatListFrontMatter(replaced.split('\n'), { validateLabels: false })
       content = withFrontMatter(parsed.frontMatter, content)
     }
   }
@@ -294,8 +307,23 @@ async function createList(
   if (!dryRun) {
     await fs.mkdir(targetDir, { recursive: true })
     await writeFileWithHash(filePath, content)
+    // The replaced lines' `&N` ids are retired: the new lines are numbered from
+    // scratch, so custom art or a cover filed under an old id would otherwise
+    // reappear on whichever card takes the number next.
+    if (replaced !== null) {
+      const retired = existingCardIds(target.listType, replaced, target.name)
+      if (retired.length > 0) await reconcileListRefs(filePath, { removed: retired })
+    }
   }
   return { filePath, cardCount: totalCards(entries), mode: target.mode }
+}
+
+/** The `&N` ids a list file's card lines hold. */
+function existingCardIds(listType: ListType, content: string, fallbackName: string): number[] {
+  if (listType === 'deck') return collectDeckCardIds(parseDeckText(content, fallbackName).deck)
+  const parsed =
+    listType === 'collection' ? parseCollectionFile(content) : parseWantedListFile(content)
+  return collectExistingIds(parsed.entries)
 }
 
 // ── Append ──────────────────────────────────────────────────────────
@@ -341,6 +369,7 @@ function appendToDeck(
         finish: entry.finish,
         condition: entry.condition,
         language: entry.language,
+        labels: entry.labels,
         note: entry.note,
         cardId,
       })

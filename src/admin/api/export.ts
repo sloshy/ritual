@@ -6,6 +6,7 @@ import {
   type ExportFilters,
 } from '../../export/entries'
 import { renderExport } from '../../export/output'
+import { getCardPrintings } from '../../scryfall'
 import {
   EXPORT_FORMATS,
   exportPresetNames,
@@ -243,7 +244,9 @@ export async function handleExport(req: Request): Promise<Response> {
     }
 
     const selection = await buildExportSelection(selected, scope, cards, filters)
-    const rendered = await renderExport(selection.entries, settings)
+    const rendered = await renderExport(selection.entries, settings, {
+      lookupPrintings: getCardPrintings,
+    })
     const warnings = [...selection.warnings, ...rendered.warnings]
 
     if (body.write === true) {

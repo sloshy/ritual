@@ -113,28 +113,55 @@ export default [
         'error',
         {
           layers: [
+            // Zone 9 sub-layered `domain` into three. Fragments pin a single
+            // file whose imports differ from its directory's layer
+            // (longest-fragment-wins, see eslint-rules/no-upward-import.js).
             {
-              name: 'domain',
+              name: 'core',
               dirs: [
-                'src/util',
                 'src/i18n',
+                'src/util',
                 'src/config',
                 'src/card',
                 'src/list',
                 'src/changes',
-                'src/pricing',
                 'src/theme',
+                'src/export',
+                'src/buylist',
+                'src/sync',
+                'src/scryfall/types',
+                'src/scryfall/card-utils',
+                'src/pricing/price-currency',
+                'src/pricing/price-source',
+                'src/pricing/price-data',
+                'src/cache/constants',
+                'src/importers/text-file',
+                'src/importers/archidekt-types',
+                'src/importers/archidekt-collection',
+                'src/importers/csv',
+              ],
+            },
+            {
+              name: 'providers',
+              dirs: [
                 'src/scryfall',
                 'src/cache',
                 'src/cardkingdom',
-                'src/buylist',
-                'src/clients',
+                'src/pricing',
                 'src/auth',
-                'src/sync',
+                // Imports `cache/bulk-provenance`; every importer is a command.
+                'src/card/printing-pin',
+                // Type-only imports from `buylist`, `cardkingdom`, `pricing`, `list`.
+                'src/site-build/types',
+              ],
+            },
+            {
+              name: 'engines',
+              dirs: [
+                'src/clients',
+                'src/importers',
                 'src/deck-sync',
                 'src/collection-sync',
-                'src/importers',
-                'src/export',
                 'src/api',
                 'src/site-build',
               ],

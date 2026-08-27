@@ -7,6 +7,7 @@ import {
   removeWorkspace,
   seedCardCache,
   snapshotTree,
+  withWorkspace,
   writeCollectionFile,
   writeConfig,
   writeDeckFile,
@@ -114,6 +115,24 @@ afterEach(async () => {
 })
 
 describe('add-card CLI (Integration)', () => {
+  test('an empty cache under a declining policy fails once, with the preload advice', async () => {
+    // `--no-input` makes the `ask` policy decline the bulk download; the run
+    // then fails with the remedy rather than asking again on the way out.
+    await withWorkspace(async (emptyDir) => {
+      await writeDeckFile(emptyDir, 'test', { frontMatter: { name: 'Test Deck' }, cards: [] })
+      const result = await runCli(
+        ['add-card', '--deck', 'test', 'Sol Ring', '--no-input'],
+        emptyDir,
+      )
+
+      expect(result.exitCode).toBe(1)
+      expect(result.stderr).toContain('Card cache is not available.')
+      expect(result.stderr).toContain('ritual cache preload-all')
+      expect(result.stderr).not.toContain('Would you like to download')
+      expect(result.stdout).not.toContain('Would you like to download')
+    })
+  })
+
   describe('flag validation', () => {
     test('rejects an invalid --finish at parse time', async () => {
       const result = await runCli(

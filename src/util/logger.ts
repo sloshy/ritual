@@ -80,6 +80,16 @@ export const STDERR_LOGGER: Logger = {
   },
 }
 
+/** Warnings and errors still print, progress info does not. */
+export function quietLogger(base: Logger): Logger {
+  return {
+    info() {},
+    progress() {},
+    warn: base.warn.bind(base),
+    error: base.error.bind(base),
+  }
+}
+
 /**
  * {@link STDERR_LOGGER} for a `--quiet` run: info and progress are the
  * non-essential chatter `--quiet` exists to suppress, so they are dropped
@@ -87,16 +97,7 @@ export const STDERR_LOGGER: Logger = {
  * so data-layer chatter (cache "Fetching: …" notices, blocklist additions)
  * obeys the flag without each call site having to know about it.
  */
-export const QUIET_STDERR_LOGGER: Logger = {
-  info(): void {},
-  warn(message?: unknown, ...optionalParams: unknown[]): void {
-    console.warn(message, ...optionalParams)
-  },
-  error(message?: unknown, ...optionalParams: unknown[]): void {
-    console.error(message, ...optionalParams)
-  },
-  progress(): void {},
-}
+export const QUIET_STDERR_LOGGER: Logger = quietLogger(STDERR_LOGGER)
 
 const defaultLogger = new ConsoleLogger()
 let activeLogger: Logger = defaultLogger

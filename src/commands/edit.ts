@@ -4,6 +4,7 @@ import { parseSetCodesInput } from '../card/set-codes'
 import { buildInitialSessionConfig, prepareCardSessionCache } from './session/config'
 import { runUnifiedEditor } from './session/editor'
 import { addRefreshOption, resolveListTypeFlag } from '../cli/options'
+import { cliRefreshPolicy } from '../cli/refresh-policy'
 import type { RefreshMode } from '../cache/refresh'
 import type { UnifiedListRef } from './session/edit-lists'
 import {
@@ -104,7 +105,11 @@ export function registerEditCommand(program: Command): void {
     const parsedSets = options.sets ? parseSetCodesInput(options.sets) : undefined
     const excludeDigitalOnly = !options.allowDigitalOnlyCards
 
-    const cardNames = await prepareCardSessionCache(options.refresh, parsedSets, excludeDigitalOnly)
+    const cardNames = await prepareCardSessionCache(
+      cliRefreshPolicy(options.refresh),
+      parsedSets,
+      excludeDigitalOnly,
+    )
     if (!cardNames) return
 
     const sessionConfig = buildInitialSessionConfig(options, parsedSets)

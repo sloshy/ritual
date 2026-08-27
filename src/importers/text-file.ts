@@ -21,6 +21,7 @@ import { readListImage } from '../list/list-image'
 import { isDroppedEmptySection, parseDeckFormat } from '../list/deck-format'
 import { createFenceTracker } from '../list/markdown-fence'
 import { isListMarkdownFile } from '../list/list-file-name'
+import { listTypeLabel, type ListType } from '../list/list-type'
 
 /** A deck directory entry that is a deck's own file. Decks share the one list-file predicate. */
 export const isDeckFile = isListMarkdownFile
@@ -194,6 +195,13 @@ export type ParseDeckTextOptions = {
    * fenced block is prose the parser must leave alone.
    */
   readFencedContent?: boolean
+  /**
+   * The list type the cards are bound for, which decides which `[label]`
+   * tokens survive: `[sale]` is dropped (with a warning) from a deck but kept
+   * by a collection import. Defaults to `deck`, the type this parser's own
+   * grammar describes.
+   */
+  listType?: ListType
 }
 
 /**
@@ -246,6 +254,7 @@ function parseDeckLineLabels(
   raw: string | undefined,
   cardName: string,
   line: string,
+  listType: ListType,
 ): DeckLineLabels {
   if (raw === undefined) return {}
   const parsed = parseCardLabelsToken(raw)
@@ -256,11 +265,11 @@ function parseDeckLineLabels(
         `The labels were ignored, and a rewrite would drop them: ${line}`,
     }
   }
-  const unsupported = unsupportedLabelsFor('deck', parsed.labels)
+  const unsupported = unsupportedLabelsFor(listType, parsed.labels)
   if (unsupported.length > 0) {
     return {
       warning:
-        `Labels [${unsupported.join(',')}] on '${cardName}' are not supported on a deck. ` +
+        `Labels [${unsupported.join(',')}] on '${cardName}' are not supported on a ${listTypeLabel(listType)}. ` +
         `The labels were ignored, and a rewrite would drop them: ${line}`,
     }
   }
@@ -292,6 +301,7 @@ export function parseDeckText(
   const parsed = matter(rawText)
   const arenaDialect = options?.arenaDialect === true
   const readFencedContent = options?.readFencedContent === true
+  const listType: ListType = options?.listType ?? 'deck'
 
   const frontMatterName = getString(parsed.data.name)
   let name = resolveDeckName(parsed.data.name, fallbackName)
@@ -442,7 +452,12 @@ export function parseDeckText(
       }
 
       const rawLanguage = quantityMatch[DECK_LINE_LANGUAGE_GROUP]
-      const labels = parseDeckLineLabels(quantityMatch[DECK_LINE_LABELS_GROUP], cardName, trimmed)
+      const labels = parseDeckLineLabels(
+        quantityMatch[DECK_LINE_LABELS_GROUP],
+        cardName,
+        trimmed,
+        listType,
+      )
       if ('warning' in labels) warnings.push(labels.warning)
       const rawCardId = quantityMatch[DECK_LINE_ID_GROUP]
       currentSection.cards.push({

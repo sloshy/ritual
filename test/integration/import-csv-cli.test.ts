@@ -159,6 +159,31 @@ describe('import CSV scripted path (Integration)', () => {
     })
   })
 
+  test('--overwrite of a name that only folds onto an existing list replaces that file', async () => {
+    // Like the URL/text paths: `trade binder` beside `Trade Binder.md` is the
+    // existing list, not a twin every name-resolving command would call ambiguous.
+    await withWorkspace(async (dir) => {
+      const source = path.join(dir, 'cards.csv')
+      await fs.writeFile(source, headerless)
+      const args = [source, '--type', 'wanted', '--columns', columns, '--no-header']
+      await runCli(['import', ...args, '--name', 'Trade Binder'], dir)
+
+      const result = await runCli(
+        ['import', ...args, '--name', 'trade binder', '--overwrite', '--output', 'json'],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stderr).toContain('Overwriting Trade Binder.md...')
+      type Payload = { filePath: string; replacesExisting: boolean }
+      const payload = JSON.parse(result.stdout) as Payload
+      expect(payload.replacesExisting).toBe(true)
+      expect(path.basename(payload.filePath)).toBe('Trade Binder.md')
+      const files = (await fs.readdir(path.join(dir, 'wanted'))).filter((f) => f.endsWith('.md'))
+      expect(files).toEqual(['Trade Binder.md'])
+    })
+  })
+
   test('a fresh create reports no replacement', async () => {
     await withWorkspace(async (dir) => {
       const source = path.join(dir, 'cards.csv')

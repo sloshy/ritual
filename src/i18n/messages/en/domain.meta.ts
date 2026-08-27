@@ -194,6 +194,18 @@ export const domainMeta = {
     description:
       'Warns that Archidekt answered 429 and the sync is pausing before retrying the same request. {seconds} is a number that may carry one decimal place (e.g. 2 or 2.5), {retry} is the 1-based attempt about to be made, {maxRetries} the total budget.',
   },
+  'domain.sync.unreadableDeckConsequence': {
+    description:
+      'Shown in the CLI prompt and the admin confirmation panel before a deck sync proceeds with lines the parser could not read; the list of those lines follows the colon. A deck sync rewrites the file in either direction, so the sentence does not mention one.',
+  },
+  'domain.sync.unreadablePullConsequence': {
+    description:
+      'The collection-sync counterpart for a pull (Archidekt → local): pulling rewrites the collection list file, dropping the unreadable lines. The list of lines follows the colon.',
+  },
+  'domain.sync.unreadablePushConsequence': {
+    description:
+      "The collection-sync counterpart for a push (local → Archidekt): the file is taken as the truth, so cards on unreadable lines are deleted from the user's Archidekt collection. The list of lines follows the colon.",
+  },
   'domain.sync.readingLists': {
     description:
       'The first progress line of a collection sync, printed before the list files are read.',

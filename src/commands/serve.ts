@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { cliRefreshPolicy } from '../cli/refresh-policy'
 import type { Command, Option } from 'commander'
 import { getErrorMessage, ExitCode } from '../util/errors'
 import { startSiteServer } from '../serve/server'
@@ -153,15 +154,15 @@ export function registerServeCommand(program: Command): void {
       // does — over the same cards, under the same --refresh policy. A build
       // that just ran applied those gates already, so this only reads the result
       // rather than asking the same questions twice.
-      const mode = options.refresh ?? 'ask'
-      const ready = build ? await cardCacheReady() : (await warmSiteCache(mode)).ready
+      const policy = cliRefreshPolicy(options.refresh ?? 'ask')
+      const ready = build ? await cardCacheReady() : (await warmSiteCache(policy)).ready
       if (!ready) {
         console.warn(t('cli.serve.emptyCardCache'))
       }
       // Sell mode quotes from the Card Kingdom feed, and the quote routes never
       // download (they are unauthenticated and CORS-open). Startup is the only
       // moment this process can keep a day-old feed current, so it does.
-      const buylistWarning = sellModeWarning(await warmCardKingdomFeed(mode))
+      const buylistWarning = sellModeWarning(await warmCardKingdomFeed(policy))
       if (buylistWarning !== undefined) console.warn(buylistWarning)
       console.log(t('cli.serve.servingWithApi', { dir: distDir, url: serveUrl(host, port) }))
       startSiteServer({ distDir, port, hostname: host })

@@ -27,6 +27,7 @@ import {
   type ExportPreset,
 } from '../export/presets'
 import { renderExport, saveExportPreset } from '../export/output'
+import { getCardPrintings } from '../scryfall'
 import {
   isListArgumentsFailure,
   listLocations,
@@ -317,7 +318,9 @@ async function runFlagExport(
     if (!quiet) console.log(`✓ ${t('cli.export.savedPreset', { name: flags.savePreset })}`)
   }
 
-  const rendered = await renderExport(selection.entries, settings)
+  const rendered = await renderExport(selection.entries, settings, {
+    lookupPrintings: getCardPrintings,
+  })
   emitWarnings(
     rendered.warnings.map((warning) => `⚠️  ${warning}`),
     { output: 'text', quiet },

@@ -3,8 +3,14 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { handleExport, type ExportResponse } from '../../src/admin/api/export'
 import { EXPORTS_DIR_NAME, writeExportFile } from '../../src/export/file'
-import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from './helpers/workspace'
+import {
+  bindWorkspace,
+  seedCardCache,
+  writeCollectionFile,
+  type BoundWorkspace,
+} from './helpers/workspace'
 import { callJson } from './helpers/request'
+import { makePrintingIn } from '../test-utils'
 
 /**
  * `POST /api/export` — the two output modes. Selection and rendering are covered
@@ -37,6 +43,17 @@ function post(body: unknown): Promise<ExportCall> {
 }
 
 describe('handleExport', () => {
+  test('the scryfallId column is resolved through the cache lookup the route wires in', async () => {
+    await seedCardCache(ws.dir, { 'Lightning Bolt': [makePrintingIn('lea', '161')] })
+    const { status, body } = await post({
+      lists: [{ type: 'collection', name: 'binder' }],
+      columns: ['name', 'scryfallId'],
+    })
+    expect(status).toBe(200)
+    if (!('content' in body)) throw new Error('expected content mode')
+    expect(body.content).toContain('lea-161')
+  })
+
   test('content mode returns the rendered export inline', async () => {
     const { status, body } = await post({ lists: [{ type: 'collection', name: 'binder' }] })
     expect(status).toBe(200)

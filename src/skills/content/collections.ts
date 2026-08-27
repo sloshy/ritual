@@ -161,7 +161,7 @@ ${textImportSection({
   examples: `ritual import binder.txt --type collection
 ritual import binder.txt --type collection --overwrite --no-input`,
   extra:
-    'Every line must carry a printing (e.g. `2 Sol Ring (C19:221)`) — collections track specific physical printings, so name-only lines are rejected.',
+    'Every line must carry a printing (e.g. `2 Sol Ring (C19:221)`) — collections track specific physical printings, so name-only lines are rejected. A `[sale]` / `[trade]` / `[keep]` label token on a line is carried through to the collection (a wanted-list import drops it, since wanted lists carry no labels).',
 })}
 
 ## Import from a CSV file

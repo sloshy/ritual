@@ -1,3 +1,4 @@
+import { headlessPolicy } from '../../cache/refresh'
 /**
  * The admin HTTP surface of `ritual collection-sync`, mirroring the deck-sync
  * endpoints: a status read, a JSON run, and an SSE stream of the same run.
@@ -388,7 +389,8 @@ async function performSync(
     // upload's rows are only as good as it is — so freshness is treated as
     // `auto`: an empty or day-old cache is refreshed before the upload is built,
     // and the refresh is reported through the run's own progress events.
-    ensureCsvCache: ({ log }) => ensureCardCacheForUpload('auto', { log: (m) => log(m) }),
+    ensureCsvCache: ({ log }) =>
+      ensureCardCacheForUpload(headlessPolicy('auto'), { log: (m) => log(m) }),
     // No `resolveAmbiguous`: an HTTP caller cannot be walked through the copies
     // one at a time, so a removal the priority (if any) cannot place fails the
     // run — the reason lands in `report.errors`, and nothing is written.

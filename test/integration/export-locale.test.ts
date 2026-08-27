@@ -51,13 +51,17 @@ const ENTRIES: ExportEntry[] = [
 ]
 
 async function renderCsv(): Promise<string> {
-  const { content } = await renderExport(ENTRIES, {
-    format: 'csv',
-    columns: ALL_COLUMNS,
-    header: true,
-    quoteAll: false,
-    dialect: 'ritual',
-  })
+  const { content } = await renderExport(
+    ENTRIES,
+    {
+      format: 'csv',
+      columns: ALL_COLUMNS,
+      header: true,
+      quoteAll: false,
+      dialect: 'ritual',
+    },
+    { lookupPrintings: async () => [] },
+  )
   return content
 }
 

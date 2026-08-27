@@ -25,9 +25,10 @@ import {
 } from '../cli/output'
 import { fail } from '../cli/action'
 import { ExitCode, CardCommandError, getErrorMessage } from '../util/errors'
-import { promptForLoginOutcome } from '../auth/login-helper'
 import { getDecksDir } from '../config/ritual-config'
 import { ask, resolveImportPrintings } from '../cli/prompts'
+import { cliConflictResolver } from '../cli/import-prompts'
+import { runInteractiveLogin } from './login'
 import { stripDeckPrintings } from '../importers/url-dispatch'
 import { promptsUnavailable, promptsUnavailableReason } from '../util/no-input'
 import { t } from '../i18n/t'
@@ -180,7 +181,7 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
               return undefined
             }
             info(t('cli.importAccount.sessionExpiredRelogin'))
-            const outcome = await promptForLoginOutcome(auth)
+            const outcome = await runInteractiveLogin(auth)
             if (outcome === 'success') {
               token = (await auth.getToken()) ?? undefined
             }
@@ -282,6 +283,7 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
               assumeYes: options.yes === true,
               dryRun,
               quiet: scripting.quiet,
+              resolveConflict: cliConflictResolver,
             })
             if (outcome.status === 'cancelled') {
               results.push({

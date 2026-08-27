@@ -10,7 +10,7 @@ import {
   type WarmCardKingdomFeedDeps,
 } from '../../src/cardkingdom'
 import { BUYLIST_FEED_MAX_AGE_MS } from '../../src/buylist'
-import type { RefreshMode } from '../../src/cache/refresh'
+import { headlessPolicy, type RefreshMode, type RefreshPolicy } from '../../src/cache/refresh'
 import type { HttpClient } from '../../src/util/interfaces'
 import { MemoryLogger, resetLogger, setLogger } from '../../src/util/logger'
 import {
@@ -45,7 +45,12 @@ const noNetHttp: HttpClient = {
 type Recorded = { saved: CardKingdomCacheFile[]; confirms: string[] }
 
 /** A deps bag plus the calls it records. */
-type EnsureDepsFixture = { deps: EnsureCardKingdomFeedDeps; recorded: Recorded }
+type EnsureDepsFixture = {
+  deps: EnsureCardKingdomFeedDeps
+  recorded: Recorded
+  /** The fixture's recording confirm under a mode. */
+  policy: (mode: RefreshMode) => RefreshPolicy
+}
 
 function deps(
   cached: CardKingdomCacheFile | null,
@@ -55,15 +60,18 @@ function deps(
   const recorded: Recorded = { saved: [], confirms: [] }
   return {
     recorded,
+    policy: (mode) => ({
+      mode,
+      confirm: async (prompt) => {
+        recorded.confirms.push(prompt.message)
+        return answer
+      },
+    }),
     deps: {
       http: okHttp,
       load: async () => cached,
       save: async (file) => {
         recorded.saved.push(file)
-      },
-      confirm: async (prompt) => {
-        recorded.confirms.push(prompt.message)
-        return answer
       },
       now: () => NOW,
       ...overrides,
@@ -83,8 +91,8 @@ function withQuietLogger<T>(run: () => Promise<T>): Promise<T> {
 
 describe('ensureCardKingdomFeed', () => {
   test('a fresh cache is used without downloading or prompting', async () => {
-    const { deps: d, recorded } = deps(cachedFile(NOW - 1000))
-    const result = await withQuietLogger(() => ensureCardKingdomFeed('ask', d))
+    const { deps: d, recorded, policy } = deps(cachedFile(NOW - 1000))
+    const result = await withQuietLogger(() => ensureCardKingdomFeed(policy('ask'), d))
     if (typeof result === 'string') throw new Error(result)
     expect(result.refreshed).toBe(false)
     expect(result.retrievedAt).toBe(NOW - 1000)
@@ -93,8 +101,8 @@ describe('ensureCardKingdomFeed', () => {
   })
 
   test('a stale cache redownloads under auto and saves the result', async () => {
-    const { deps: d, recorded } = deps(cachedFile(NOW - 2 * BUYLIST_FEED_MAX_AGE_MS))
-    const result = await withQuietLogger(() => ensureCardKingdomFeed('auto', d))
+    const { deps: d, recorded, policy } = deps(cachedFile(NOW - 2 * BUYLIST_FEED_MAX_AGE_MS))
+    const result = await withQuietLogger(() => ensureCardKingdomFeed(policy('auto'), d))
     if (typeof result === 'string') throw new Error(result)
     expect(result.refreshed).toBe(true)
     expect(result.retrievedAt).toBe(NOW)
@@ -103,8 +111,12 @@ describe('ensureCardKingdomFeed', () => {
   })
 
   test('a stale cache is redownloaded under ask without prompting', async () => {
-    const { deps: d, recorded } = deps(cachedFile(NOW - 2 * BUYLIST_FEED_MAX_AGE_MS), {}, false)
-    const result = await withQuietLogger(() => ensureCardKingdomFeed('ask', d))
+    const {
+      deps: d,
+      recorded,
+      policy,
+    } = deps(cachedFile(NOW - 2 * BUYLIST_FEED_MAX_AGE_MS), {}, false)
+    const result = await withQuietLogger(() => ensureCardKingdomFeed(policy('ask'), d))
     if (typeof result === 'string') throw new Error(result)
     // Card Kingdom regenerates daily, so a stale feed quotes yesterday's
     // offers; keeping it current is not a question worth asking every run.
@@ -116,8 +128,8 @@ describe('ensureCardKingdomFeed', () => {
 
   test('never/no-bulk use a stale cache silently', async () => {
     for (const mode of ['never', 'no-bulk'] as const) {
-      const { deps: d, recorded } = deps(cachedFile(NOW - 2 * BUYLIST_FEED_MAX_AGE_MS))
-      const result = await withQuietLogger(() => ensureCardKingdomFeed(mode, d))
+      const { deps: d, recorded, policy } = deps(cachedFile(NOW - 2 * BUYLIST_FEED_MAX_AGE_MS))
+      const result = await withQuietLogger(() => ensureCardKingdomFeed(policy(mode), d))
       if (typeof result === 'string') throw new Error(result)
       expect(result.refreshed).toBe(false)
       expect(recorded.confirms).toEqual([])
@@ -126,27 +138,31 @@ describe('ensureCardKingdomFeed', () => {
 
   test('a missing cache refuses under never/no-bulk with the remedy', async () => {
     for (const mode of ['never', 'no-bulk'] as const) {
-      const { deps: d } = deps(null)
-      const result = await withQuietLogger(() => ensureCardKingdomFeed(mode, d))
+      const { deps: d, policy } = deps(null)
+      const result = await withQuietLogger(() => ensureCardKingdomFeed(policy(mode), d))
       expect(result).toContain('--refresh auto')
     }
   })
 
   test('a missing cache downloads under ask when accepted, refuses when declined', async () => {
     const accepted = deps(null, {}, true)
-    const result = await withQuietLogger(() => ensureCardKingdomFeed('ask', accepted.deps))
+    const result = await withQuietLogger(() =>
+      ensureCardKingdomFeed(accepted.policy('ask'), accepted.deps),
+    )
     if (typeof result === 'string') throw new Error(result)
     expect(result.refreshed).toBe(true)
 
     const declined = deps(null, {}, false)
-    const refused = await withQuietLogger(() => ensureCardKingdomFeed('ask', declined.deps))
+    const refused = await withQuietLogger(() =>
+      ensureCardKingdomFeed(declined.policy('ask'), declined.deps),
+    )
     expect(refused).toContain('--refresh auto')
   })
 
   test('a failed download falls back to the stale cache, reporting the failure', async () => {
     const stale = cachedFile(NOW - 2 * BUYLIST_FEED_MAX_AGE_MS)
-    const { deps: d } = deps(stale, { http: failHttp })
-    const result = await withQuietLogger(() => ensureCardKingdomFeed('auto', d))
+    const { deps: d, policy } = deps(stale, { http: failHttp })
+    const result = await withQuietLogger(() => ensureCardKingdomFeed(policy('auto'), d))
     if (typeof result === 'string') throw new Error(result)
     expect(result.refreshed).toBe(false)
     // The cached feed, not the downloaded one — the two carry different
@@ -158,21 +174,21 @@ describe('ensureCardKingdomFeed', () => {
   })
 
   test('a clean run carries no staleFallback', async () => {
-    const { deps: d } = deps(cachedFile(NOW - 1000))
-    const result = await withQuietLogger(() => ensureCardKingdomFeed('ask', d))
+    const { deps: d, policy } = deps(cachedFile(NOW - 1000))
+    const result = await withQuietLogger(() => ensureCardKingdomFeed(policy('ask'), d))
     if (typeof result === 'string') throw new Error(result)
     expect(result.staleFallback).toBeUndefined()
   })
 
   test('a failed download with no cache at all is the refusal', async () => {
-    const { deps: d } = deps(null, { http: failHttp })
-    const result = await withQuietLogger(() => ensureCardKingdomFeed('auto', d))
+    const { deps: d, policy } = deps(null, { http: failHttp })
+    const result = await withQuietLogger(() => ensureCardKingdomFeed(policy('auto'), d))
     expect(result).toContain('HTTP 503')
   })
 
   test('force redownloads a fresh cache under auto', async () => {
-    const { deps: d, recorded } = deps(cachedFile(NOW - 1000), { force: true })
-    const result = await withQuietLogger(() => ensureCardKingdomFeed('auto', d))
+    const { deps: d, recorded, policy } = deps(cachedFile(NOW - 1000), { force: true })
+    const result = await withQuietLogger(() => ensureCardKingdomFeed(policy('auto'), d))
     if (typeof result === 'string') throw new Error(result)
     expect(result.refreshed).toBe(true)
     expect(recorded.saved).toHaveLength(1)
@@ -222,7 +238,7 @@ describe('warmCardKingdomFeed', () => {
     overrides: Partial<WarmCardKingdomFeedDeps> = {},
   ): Promise<BuylistWarmth> {
     return withQuietLogger(() =>
-      warmCardKingdomFeed(mode, { ...fixture.deps, sellMode: true, ...overrides }),
+      warmCardKingdomFeed(fixture.policy(mode), { ...fixture.deps, sellMode: true, ...overrides }),
     )
   }
 
@@ -268,7 +284,7 @@ describe('warmCardKingdomFeed', () => {
     let loads = 0
 
     const warmth = await withQuietLogger(() =>
-      warmCardKingdomFeed('auto', {
+      warmCardKingdomFeed(headlessPolicy('auto'), {
         ...fixture.deps,
         sellMode: false,
         load: async () => {

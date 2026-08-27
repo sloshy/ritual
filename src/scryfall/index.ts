@@ -14,39 +14,34 @@ export {
 export {
   ScryfallClient,
   classifyFetchCard,
-  computeRepresentativePrints,
-  SEARCH_ALL_PAGES_MAX,
   type FetchSymbologyOptions,
   type GetCardPrintingsOptions,
   type FetchCardOutcome,
   type ScryfallSymbol,
-  type CurrencyPrint,
-  type RepresentativePrintsResult,
   type ScryfallFetchError,
   type FetchCardResult,
-  type SearchPage,
-  type SearchPageFailure,
-  type SearchPageResult,
-  type SearchAllPagesSuccess,
-  type SearchAllPagesResult,
 } from './client'
+export { computeRepresentativePrints } from './prices'
+export type * from './prices'
+export { SEARCH_ALL_PAGES_MAX } from './search'
+export type * from './search'
 
 import type { ScryfallCard } from './types'
 import { cardCache } from '../cache/instances'
 import { defaultHttpClient } from '../util/http'
-import { ScryfallClient, type BulkCacheFiles } from './client'
-import type { CardPrintingsResult } from '../card/card-printing'
-import type {
-  ScryfallSymbol,
-  RepresentativePrintsResult,
-  FetchCardDataOptions,
-  FetchSymbologyOptions,
-  GetCardPrintingsOptions,
-  FetchNamedCardOptions,
-  FetchCardResult,
-  SearchPageResult,
-  SearchAllPagesResult,
+import {
+  ScryfallClient,
+  type BulkCacheFiles,
+  type ScryfallSymbol,
+  type FetchCardDataOptions,
+  type FetchSymbologyOptions,
+  type GetCardPrintingsOptions,
+  type FetchNamedCardOptions,
+  type FetchCardResult,
 } from './client'
+import type { CardPrintingsResult } from '../card/card-printing'
+import type { MinMaxPrice, RepresentativePrintsResult } from './prices'
+import type { SearchPageResult, SearchAllPagesResult } from './search'
 import { comparePrintings, type CardNameFilter } from './card-utils'
 import type { CardLanguage } from '../card/card-language'
 import type { PriceCurrency } from '../pricing/price-currency'
@@ -59,8 +54,6 @@ export type {
   PreloadCacheOptions,
 } from './progress'
 import type { PreloadCacheOptions } from './progress'
-
-export type MinMaxPrice = { min: number; max: number }
 
 export const scryfallClient = new ScryfallClient(defaultHttpClient, cardCache)
 

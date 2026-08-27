@@ -1,3 +1,4 @@
+import { headlessPolicy } from '../cache/refresh'
 import { Command } from 'commander'
 import { searchAllPages, refreshTags } from '../scryfall'
 import { refreshCardCache } from '../cache/refresh-source'
@@ -166,7 +167,7 @@ export function registerCacheCommand(program: Command): void {
       // warning, never the command's exit code — the card cache did refresh.
       if (getSiteSellMode()) {
         try {
-          const feed = await ensureCardKingdomFeed('auto', { force: options.force })
+          const feed = await ensureCardKingdomFeed(headlessPolicy('auto'), { force: options.force })
           if (typeof feed === 'string') {
             console.warn(t('cli.cache.preloadAllBuylistFailed', { reason: feed }))
           }

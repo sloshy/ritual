@@ -23,6 +23,8 @@ import {
   setLogger,
 } from '../test-utils'
 import type { ScryfallCard } from '../../src/scryfall/types'
+import { setNoInputOverride } from '../../src/util/no-input'
+import { stubTty } from '../test-utils'
 
 const readFileMock = mock(async (_path: string, _encoding: BufferEncoding) => '[]')
 const writeFileMock = mock(async (_path: string, _data: string | Uint8Array) => {})
@@ -178,6 +180,27 @@ describe('ScryfallClient', () => {
       expect(cached).toHaveLength(1)
       expect(cached?.[0]?.name).toBe('Test Card')
     })
+  })
+
+  describe('empty-cache reads never prompt', () => {
+    // A terminal, with prompts enabled: the gate's "cannot ask" half is off.
+    stubTty({ stdin: true })
+
+    afterEach(() => {
+      setNoInputOverride(undefined)
+    })
+
+    test('non-silent fetchCardData and getAllCardNames on an empty cache with a TTY never touch prompts', async () => {
+      // The empty-cache preload offer lives in the CLI session now; a provider
+      // that opened a prompt here would block this test on a stdin read.
+      setNoInputOverride(false)
+      mockHttp.mock('https://api.scryfall.com/cards/named?exact=Missing', () => {
+        return new Response('{"details":"not found"}', { status: 404 })
+      })
+
+      expect(await client.getAllCardNames()).toEqual([])
+      expect(await client.fetchCardData('Missing')).toBeNull()
+    }, 2000)
   })
 
   describe('fetchPrintingByCollectorNumber', () => {

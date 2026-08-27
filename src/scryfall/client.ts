@@ -9,14 +9,12 @@ import {
 } from '../util/interfaces'
 import { dedupePrintingsByKey, type CardPrintingsResult } from '../card/card-printing'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { getPriceField } from '../pricing/price-currency'
-import { getBannedPrintings, getDefaultLanguage } from '../config/ritual-config'
+import { getCardPrice, getPriceField } from '../pricing/price-currency'
+import { getBannedPrintings } from '../config/ritual-config'
 import { displayLanguage, type CardLanguage } from '../card/card-language'
-import { promptsUnavailable } from '../util/no-input'
 import { getLogger } from '../util/logger'
 import { getErrorMessage, throwHttpError } from '../util/errors'
 import path from 'node:path'
-import prompts from 'prompts'
 import {
   type CardNameFilter,
   isDigitalOnlySet,
@@ -40,6 +38,7 @@ import { type GzipJsonLinesProgress, readGzipJsonLines } from './jsonl'
 import {
   configuredCardBulkType,
   fetchScryfallBulkManifest,
+  isBulkCardEntry,
   type CardBulkType,
   type ScryfallBulkManifestEntry,
 } from './bulk-manifest'
@@ -47,72 +46,23 @@ import { recordCardBulkType } from '../cache/bulk-provenance'
 import type { CacheRefreshProgressHandler, PreloadCacheOptions } from './progress'
 import { withCacheLock } from '../cache/lock'
 import { writeFileAtomic } from '../cache/atomic-write'
+import { RATE_LIMIT_MS, RequestQueue } from './request-queue'
 import {
-  NO_BANNED_PRINTINGS,
-  selectCheapestPrinting,
-  selectRepresentativePrinting,
-  type PrintingPriceFn,
-} from '../card/printing-select'
+  computeRepresentativePrints,
+  type MinMaxPrice,
+  type RepresentativePrintsResult,
+} from './prices'
+import {
+  SEARCH_ALL_PAGES_MAX,
+  readScryfallErrorDetails,
+  type SearchAllPagesResult,
+  type SearchPageResult,
+} from './search'
 
-const RATE_LIMIT_MS = 150
 const SCRYFALL_CARDS_PER_PAGE = 175
-
-/**
- * Hard page ceiling for {@link ScryfallClient.searchAllPages}. At 175 cards a
- * page this is far past any real Scryfall result set (the largest set is a few
- * hundred cards); it exists only so a response that never stops reporting
- * `has_more` terminates.
- */
-export const SEARCH_ALL_PAGES_MAX = 1000
 
 /** How long a single Scryfall API request may take before it is aborted. */
 const SCRYFALL_FETCH_TIMEOUT_MS = 15_000
-
-class RequestQueue {
-  private readonly queue: Array<() => Promise<void>> = []
-  private tickPending = false
-  private lastFiredAt = 0
-
-  constructor(private readonly intervalMs: number) {}
-
-  enqueueBack(task: () => Promise<void>): void {
-    this.queue.push(task)
-    this.scheduleIfNeeded()
-  }
-
-  enqueueFront(task: () => Promise<void>): void {
-    this.queue.unshift(task)
-    this.scheduleIfNeeded()
-  }
-
-  private scheduleIfNeeded(): void {
-    if (this.tickPending || this.queue.length === 0) return
-    const elapsed = Date.now() - this.lastFiredAt
-    const delay = Math.max(0, this.intervalMs - elapsed)
-    this.tickPending = true
-    setTimeout(() => this.tick(), delay)
-  }
-
-  private tick(): void {
-    this.tickPending = false
-    this.lastFiredAt = Date.now()
-    const task = this.queue.shift()
-    if (task) void task()
-    this.scheduleIfNeeded()
-  }
-}
-
-export type CurrencyPrint = {
-  representative: ScryfallCard | null
-  cheapest: ScryfallCard | null
-}
-
-export type RepresentativePrintsResult = Partial<Record<PriceCurrency, CurrencyPrint>>
-
-export type MinMaxPrice = {
-  min: number
-  max: number
-}
 
 export type FetchCardDataOptions = { silent?: boolean }
 
@@ -138,7 +88,6 @@ export type GetCardPrintingsOptions = {
   network?: boolean
 }
 export type FetchNamedCardOptions = { fuzzy?: boolean; set?: string }
-type ScryfallErrorBody = { details: string }
 
 /** Request-level failure from a card fetch: a network error or a non-404 HTTP response. */
 export type ScryfallFetchError = { error: string }
@@ -165,100 +114,6 @@ export function classifyFetchCard(result: FetchCardResult): FetchCardOutcome {
   if (result === null) return { kind: 'not-found' }
   if ('error' in result) return { kind: 'failed', message: result.error }
   return { kind: 'card', card: result }
-}
-
-/** Extract the human-readable `details` from a Scryfall error body, falling back to the HTTP status. */
-async function readScryfallErrorDetails(response: Response): Promise<string> {
-  const errorBody = await response.json().catch(() => null)
-  return errorBody && typeof errorBody === 'object' && 'details' in errorBody
-    ? (errorBody as ScryfallErrorBody).details
-    : `${response.status} ${response.statusText}`
-}
-/**
- * One fetched search page. `data` is null for a CSV fetch (the page lives in
- * `raw`) and for a Scryfall 404, which means "no matches" — an empty page, not
- * a failure.
- */
-export type SearchPage = {
-  kind: 'page'
-  data: ScryfallList<ScryfallCard> | null
-  raw: string
-  hasMore: boolean
-}
-
-/**
- * Scryfall refused the request. A malformed query is a 4xx here, so callers can
- * blame the query rather than reporting a server error; `message` carries
- * Scryfall's own `details` text when it sent one.
- */
-export type SearchPageFailure = {
-  kind: 'failed'
-  status: number
-  message: string
-}
-
-/** The outcome of {@link ScryfallClient.fetchSearchPage}. */
-export type SearchPageResult = SearchPage | SearchPageFailure
-
-/**
- * A completed {@link ScryfallClient.searchAllPages} walk.
- *
- * `matched` and `cards` are deliberately separate. `cards` holds only *real
- * printings* — tokens and art series are dropped on the way into the cache — so
- * a genuine token set (`tmkm`) or an Art Series set returns `cards: []` while
- * having matched plenty. Only `matched === 0` means "Scryfall matched nothing",
- * which is what an unknown set code produces; a caller that reports a typo must
- * branch on `matched`, not on `cards.length`.
- */
-export type SearchAllPagesSuccess = {
-  kind: 'cards'
-  /** Real printings, cached as a side effect of the walk. */
-  cards: ScryfallCard[]
-  /** How many items Scryfall returned in total, before the real-printing filter. */
-  matched: number
-}
-
-/**
- * The outcome of {@link ScryfallClient.searchAllPages} — what the query matched,
- * or why the search did not happen.
- *
- * The point of the variant is that an HTTP failure comes back as data rather
- * than as an empty result, so `cache preload-set` can tell a typo'd set code
- * from a dead network.
- */
-export type SearchAllPagesResult = SearchAllPagesSuccess | SearchPageFailure
-
-/**
- * Compute representative and cheapest prints from cached card data, per
- * currency, against Scryfall's own price fields.
- * @param recentPrintings - Printings sorted by release date descending, used to pick the representative.
- * @param allPrintings - All printings for the card, used to find the cheapest.
- * @param bannedPrintings - `set:collectorNumber` keys (set code lowercased) that must
- *   never be chosen as the representative; the selection slides to the next eligible
- *   printing. Banned printings still count toward `cheapest`.
- */
-export function computeRepresentativePrints(
-  recentPrintings: ScryfallCard[],
-  allPrintings: ScryfallCard[],
-  currencies: PriceCurrency[],
-  bannedPrintings: ReadonlySet<string> = NO_BANNED_PRINTINGS,
-): RepresentativePrintsResult {
-  const result: RepresentativePrintsResult = {}
-
-  for (const currency of currencies) {
-    const priceField = getPriceField(currency)
-    const priceOf: PrintingPriceFn = (card) => {
-      const raw = card.prices?.[priceField]
-      return raw ? parseFloat(raw) : 0
-    }
-
-    result[currency] = {
-      representative: selectRepresentativePrinting(recentPrintings, priceOf, bannedPrintings),
-      cheapest: selectCheapestPrinting(allPrintings, priceOf),
-    }
-  }
-
-  return result
 }
 
 export interface ScryfallSymbol {
@@ -289,37 +144,6 @@ interface ScryfallCollectionResponse {
   not_found?: Array<{ name?: string }>
 }
 
-/**
- * The empty-cache preload prompt, naming what the configured bulk actually
- * downloads: `default_cards` (English-only) for `defaultLanguage: en`, the
- * much larger every-language `all_cards` bulk otherwise.
- */
-export function preloadPromptMessage(): string {
-  const scope =
-    configuredCardBulkType() === 'default_cards'
-      ? 'all English MTG cards'
-      : `all MTG cards in every language (defaultLanguage '${getDefaultLanguage()}' needs the larger all_cards bulk)`
-  return (
-    'Ritual runs faster and hits rate limits less often if data is cached up front. ' +
-    `Would you like to pre-cache Scryfall data for ${scope}?`
-  )
-}
-
-/**
- * Check the minimum shape of a card-bulk line (`default_cards` or `all_cards`)
- * that {@link mapScryfallCard} dereferences unconditionally.
- */
-function isBulkCardEntry(value: unknown): value is ScryfallCard {
-  if (!value || typeof value !== 'object') return false
-  const card = value as Record<string, unknown>
-  return (
-    typeof card['name'] === 'string' &&
-    typeof card['set'] === 'string' &&
-    typeof card['prices'] === 'object' &&
-    card['prices'] !== null
-  )
-}
-
 export class ScryfallClient implements PricingBackend {
   private fileSystem: FileSystemClient
   private readonly requestQueue: RequestQueue
@@ -334,7 +158,6 @@ export class ScryfallClient implements PricingBackend {
     this.requestQueue = new RequestQueue(requestQueueIntervalMs ?? RATE_LIMIT_MS * 2)
   }
 
-  private hasPrompted = false
   /** Memoized {@link cacheIsBulkBacked} answer; only ever flips false → true. */
   private bulkBacked = false
   /** undefined = not yet loaded; null = loaded but no cache file; TagIndex = loaded. */
@@ -362,34 +185,6 @@ export class ScryfallClient implements PricingBackend {
         )
       }
       throw e
-    }
-  }
-
-  private async checkAndPromptPreload() {
-    if (this.hasPrompted) return
-    this.hasPrompted = true
-
-    // With prompts unavailable, proceed without preloading — downstream
-    // cache-miss paths fetch (or fail) per card instead.
-    if (promptsUnavailable()) return
-
-    if (this.cardCache.isEmpty && (await this.cardCache.isEmpty())) {
-      const response = await prompts({
-        type: 'confirm',
-        name: 'value',
-        message: preloadPromptMessage(),
-        initial: true,
-      })
-
-      if (response.value) {
-        // `preloadCache` propagates now; this prompt is an optional speed-up, so a
-        // cold network must not abort whatever command triggered it.
-        try {
-          await this.preloadCache()
-        } catch (e) {
-          getLogger().error('\nFailed to preload all cards:', e)
-        }
-      }
     }
   }
 
@@ -456,7 +251,6 @@ export class ScryfallClient implements PricingBackend {
   }
 
   async getAllCardNames(filter?: CardNameFilter): Promise<string[]> {
-    await this.checkAndPromptPreload()
     const allCardsArrays = await this.cardCache.values()
 
     let filteredArrays = allCardsArrays
@@ -603,7 +397,6 @@ export class ScryfallClient implements PricingBackend {
    * about which language object represents a printing.
    */
   async getAllPrintings(filter?: CardNameFilter): Promise<ScryfallCard[]> {
-    await this.checkAndPromptPreload()
     const allCardsArrays = await this.cardCache.values()
     const setFilter = normalizeSetFilter(filter)
 
@@ -622,10 +415,6 @@ export class ScryfallClient implements PricingBackend {
   }
 
   async fetchCardData(name: string, options?: FetchCardDataOptions): Promise<ScryfallCard | null> {
-    if (!options?.silent) {
-      await this.checkAndPromptPreload()
-    }
-
     const cached = await this.cardCache.get(name)
     // Cached is now ScryfallCard[]
     if (cached && cached.length > 0) {
@@ -851,11 +640,7 @@ export class ScryfallClient implements PricingBackend {
         const json = (await response.json()) as ScryfallList<ScryfallCard>
         const data = json.data
         if (data && data.length > 0) {
-          const prices = data
-            .map((card) => card.prices?.[priceField])
-            .filter((price): price is string => price !== null && price !== undefined)
-            .map((price) => parseFloat(price))
-            .filter((p) => Number.isFinite(p) && p > 0)
+          const prices = data.map((card) => getCardPrice(card, currency)).filter((p) => p > 0)
 
           if (prices.length > 0) {
             return {

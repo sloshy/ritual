@@ -5,11 +5,12 @@ import { IMPORT_TEXT_PARSE_OPTIONS, loadDeckFile } from '../importers/text-file'
 import {
   saveDeck,
   saveFlatList,
+  scanNameConflict,
   type SaveListAction,
   type SaveListOptions,
   type SaveListOutcome,
 } from '../importers/save-list'
-import { listFilePath } from '../list/resolve-list'
+import { dirForType, listFilePath } from '../list/resolve-list'
 import {
   deckStatesPrintings,
   fetchDeckFromUrl,
@@ -64,6 +65,7 @@ import { getLogger } from '../util/logger'
 import { getDecksDir } from '../config/ritual-config'
 import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list/list-type'
 import { ask, promptListType, resolveImportPrintings } from '../cli/prompts'
+import { cliConflictResolver } from '../cli/import-prompts'
 import { isNoInput, promptsUnavailable } from '../util/no-input'
 import { t, type MessageParams } from '../i18n/t'
 
@@ -514,9 +516,11 @@ async function runCsvImport(
   // the same name is overwritten under --yes (which auto-answers the conflict,
   // like the URL/text paths) or prompts append / overwrite / cancel.
   const targetPath = listFilePath(listType, name)
-  /** The target list's path when it already exists, else null (the create case). */
-  const existingPath =
-    targetPath !== null && (await Bun.file(targetPath).exists()) ? targetPath : null
+  // By the resolver's folding, like the URL/text paths: `--overwrite` of
+  // `trade binder` replaces `Trade Binder.md` rather than writing a twin.
+  const conflict = targetPath === null ? null : await scanNameConflict(listType, targetPath)
+  /** The existing list's path when the name lands on one, else null (the create case). */
+  const existingPath = conflict === null ? null : path.join(dirForType(listType), conflict.file)
   let mode: CsvImportMode
   if (flagMode !== undefined) {
     mode = flagMode
@@ -650,10 +654,21 @@ async function runCsvImport(
     logger.warn(t('cli.import.overwritingFile', { file: path.basename(existingPath) }))
   }
 
-  const result = await applyCsvImport({ listType, name, mode, format }, entries, {
-    dryRun,
-    sourceHadLanguageColumn: mapping.language !== undefined,
-  })
+  const result = await applyCsvImport(
+    // Only an overwrite lands on the folded file; a create must still refuse it.
+    {
+      listType,
+      name,
+      mode,
+      format,
+      filePath: mode === 'overwrite' ? (existingPath ?? undefined) : undefined,
+    },
+    entries,
+    {
+      dryRun,
+      sourceHadLanguageColumn: mapping.language !== undefined,
+    },
+  )
   if ('error' in result) {
     emitError('runtime_error', result.error, scripting)
     process.exitCode = ExitCode.RuntimeError
@@ -783,6 +798,7 @@ export function registerImportCommand(program: Command): void {
       assumeYes: options.yes === true,
       dryRun: options.dryRun === true,
       quiet: scripting.quiet,
+      resolveConflict: cliConflictResolver,
     }
 
     try {
@@ -834,6 +850,15 @@ export function registerImportCommand(program: Command): void {
         return
       }
 
+      // The destination type is settled before the parse: it decides which
+      // `[label]` tokens the parser keeps (`[sale]` survives into a collection,
+      // never into a deck).
+      const listType = await resolveImportListType(typeFlag)
+      if (listType === undefined) {
+        fail(scripting, 'usage_error', 'cli.import.cancelled')
+        return
+      }
+
       if (!scripting.quiet) logger.info(t('cli.import.readingFile', { path: source }))
       // Import reads the Arena/MTGO export dialect on top of Ritual's own
       // grammar, and reads through ``` fences (a pasted decklist usually
@@ -843,13 +868,7 @@ export function registerImportCommand(program: Command): void {
         deck: deckData,
         warnings,
         advisories,
-      } = await loadDeckFile(source, IMPORT_TEXT_PARSE_OPTIONS)
-
-      const listType = await resolveImportListType(typeFlag)
-      if (listType === undefined) {
-        fail(scripting, 'usage_error', 'cli.import.cancelled')
-        return
-      }
+      } = await loadDeckFile(source, { ...IMPORT_TEXT_PARSE_OPTIONS, listType })
 
       const outcome =
         listType === 'deck'

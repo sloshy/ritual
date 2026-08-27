@@ -130,6 +130,57 @@ describe('import Arena-dialect text file (Integration)', () => {
     })
   })
 
+  test('a second import under --no-input is the conflict usage error, not a prompt', async () => {
+    await withWorkspace(async (dir) => {
+      const source = path.join(dir, 'decklist.txt')
+      await fs.writeFile(source, '2 Mountain\n')
+      await runCli(['import', source, '--type', 'deck', '--no-input'], dir)
+
+      const result = await runCli(['import', source, '--type', 'deck', '--no-input'], dir)
+
+      expect(result.exitCode).toBe(ExitCode.UsageError)
+      expect(result.stderr).toContain("Import conflict for 'decklist.md'")
+    })
+  })
+
+  test.each<[string, string, string, string, boolean]>([
+    [
+      'a collection keeps a [sale] label',
+      'collection',
+      'collections',
+      '- Sol Ring (C19:221) [sale] &1',
+      true,
+    ],
+    ['a wanted list drops it with a warning', 'wanted', 'wanted', '- Sol Ring (C19:221) &1', false],
+  ])('%s', async (_label, type, listDir, line, kept) => {
+    // The destination type — not the parser's deck grammar — decides which
+    // label tokens survive a text import.
+    await withWorkspace(async (dir) => {
+      const source = path.join(dir, 'binder.txt')
+      await fs.writeFile(source, '1 Sol Ring (C19:221) [sale]\n')
+
+      const result = await runCli(['import', source, '--type', type, '--no-input'], dir)
+
+      expect(result.exitCode).toBe(kept ? 0 : ExitCode.RuntimeError)
+      const written = await fs.readFile(path.join(dir, listDir, 'binder.md'), 'utf-8')
+      expect(written).toContain(line)
+      if (!kept) expect(result.stderr).toContain('not supported on a wanted list')
+    })
+  })
+
+  test('a name with nothing usable in a file name is a usage error, not a crash', async () => {
+    await withWorkspace(async (dir) => {
+      const source = path.join(dir, 'decklist.txt')
+      await fs.writeFile(source, '---\nname: "???"\n---\n2 Mountain\n')
+
+      const result = await runCli(['import', source, '--type', 'deck', '--no-input'], dir)
+
+      expect(result.exitCode).toBe(ExitCode.UsageError)
+      expect(result.stderr).toContain('no characters usable in a file name')
+      expect(result.stderr).not.toContain('Failed to import:')
+    })
+  })
+
   test('--dry-run over an existing deck says it would overwrite it', async () => {
     await withWorkspace(async (dir) => {
       const source = path.join(dir, 'decklist.txt')

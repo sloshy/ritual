@@ -1,7 +1,13 @@
-import { describe, test, expect, afterEach } from 'bun:test'
-import prompts from 'prompts'
-import { bulkAllowed, refreshStaleAllowed, shouldBulkRefresh } from '../../src/cache/refresh'
-import { setNoInputOverride } from '../../src/util/no-input'
+import { describe, test, expect } from 'bun:test'
+import {
+  bulkAllowed,
+  decideBulkRefresh,
+  headlessPolicy,
+  refreshStaleAllowed,
+  type BulkRefreshPrompt,
+  type RefreshMode,
+  type RefreshPolicy,
+} from '../../src/cache/refresh'
 
 describe('bulkAllowed', () => {
   test('permits bulk only for ask and auto', () => {
@@ -21,46 +27,44 @@ describe('refreshStaleAllowed', () => {
   })
 })
 
-describe('shouldBulkRefresh', () => {
-  const originalIsTty = process.stdin.isTTY
+describe('decideBulkRefresh', () => {
+  const prompt: BulkRefreshPrompt = { message: 'go?', initial: true }
 
-  afterEach(() => {
-    process.stdin.isTTY = originalIsTty
-    setNoInputOverride(undefined)
+  /** A policy whose confirm records how often it was asked. */
+  type RecordedPolicy = { asked: number; policy: RefreshPolicy }
+
+  /** A policy whose confirm records whether it was asked and answers `answer`. */
+  function recording(mode: RefreshMode, answer: boolean): RecordedPolicy {
+    const state: RecordedPolicy = {
+      asked: 0,
+      policy: { mode, confirm: async () => (state.asked++, answer) },
+    }
+    return state
+  }
+
+  test('auto accepts without asking', async () => {
+    const r = recording('auto', false)
+    expect(await decideBulkRefresh(r.policy, prompt)).toBe(true)
+    expect(r.asked).toBe(0)
   })
 
-  test('auto always accepts', async () => {
-    expect(await shouldBulkRefresh('auto', { message: 'go?', initial: false })).toBe(true)
+  test.each(['no-bulk', 'never'] as const)('%s declines without asking', async (mode) => {
+    const r = recording(mode, true)
+    expect(await decideBulkRefresh(r.policy, prompt)).toBe(false)
+    expect(r.asked).toBe(0)
   })
 
-  test('no-bulk and never always decline', async () => {
-    expect(await shouldBulkRefresh('no-bulk', { message: 'go?', initial: true })).toBe(false)
-    expect(await shouldBulkRefresh('never', { message: 'go?', initial: true })).toBe(false)
+  test.each([true, false])('ask follows the policy confirm (%p)', async (answer) => {
+    const r = recording('ask', answer)
+    expect(await decideBulkRefresh(r.policy, prompt)).toBe(answer)
+    expect(r.asked).toBe(1)
   })
 
-  test('ask always declines when stdin is not a TTY, whatever the prompt default', async () => {
-    process.stdin.isTTY = false
-    expect(await shouldBulkRefresh('ask', { message: 'go?', initial: true })).toBe(false)
-    expect(await shouldBulkRefresh('ask', { message: 'go?', initial: false })).toBe(false)
+  test('a headless policy declines every ask', async () => {
+    expect(await decideBulkRefresh(headlessPolicy('ask'), prompt)).toBe(false)
   })
 
-  test('ask always declines under --no-input, even on a TTY', async () => {
-    process.stdin.isTTY = true
-    setNoInputOverride(true)
-    expect(await shouldBulkRefresh('ask', { message: 'go?', initial: true })).toBe(false)
-  })
-
-  test('ask on a TTY with prompts enabled follows an accepting answer', async () => {
-    process.stdin.isTTY = true
-    setNoInputOverride(false)
-    prompts.inject([true])
-    expect(await shouldBulkRefresh('ask', { message: 'go?', initial: false })).toBe(true)
-  })
-
-  test('ask on a TTY with prompts enabled follows a declining answer', async () => {
-    process.stdin.isTTY = true
-    setNoInputOverride(false)
-    prompts.inject([false])
-    expect(await shouldBulkRefresh('ask', { message: 'go?', initial: true })).toBe(false)
+  test('a headless auto policy still accepts: nobody is asked', async () => {
+    expect(await decideBulkRefresh(headlessPolicy('auto'), prompt)).toBe(true)
   })
 })

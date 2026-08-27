@@ -34,6 +34,28 @@ export const cliSyncMeta = {
     description:
       'Usage error: a scripted login gave one of --username / --password-stdin but not both.',
   },
+  'cli.login.usernamePrompt': {
+    description: 'Text prompt for the Archidekt account name or e-mail address.',
+  },
+  'cli.login.passwordPrompt': { description: 'Masked prompt for the Archidekt password.' },
+  'cli.login.success': {
+    description: 'Confirmation after a login; {username} is the account Archidekt reported.',
+  },
+  'cli.login.successUnnamed': {
+    description:
+      'Confirmation after a login when Archidekt reported no account name to show; the same line as cli.login.success minus the account clause.',
+  },
+  'cli.login.failed': {
+    description: 'Error line after a failed login; {reason} is the message the auth service gave.',
+  },
+  'cli.login.cancelled': {
+    description:
+      'Stderr line when the credential prompt is escaped; the command exits with the usage code.',
+  },
+  'cli.prompt.subject.loginCredentials': {
+    description:
+      'Noun phrase naming what the interactive login wanted, spliced into "Input required: {subject} ({reason})". The two flags are CLI option names — leave them untranslated.',
+  },
   'cli.login.emptyPassword': {
     description: 'Usage error: --password-stdin was given but stdin held no password.',
   },
@@ -106,16 +128,6 @@ export const cliSyncMeta = {
   },
   'cli.import.cancelledSave': {
     description: 'The import stopped because the user chose [C]ancel at the conflict prompt.',
-  },
-  'cli.import.invalidDeckFileName': {
-    description: 'The typed-in rename left nothing that could legally name a deck file.',
-  },
-  'cli.import.renameTargetExists': {
-    description: 'The typed-in rename names a file that also exists, so the import stops.',
-  },
-  'cli.import.fileExists': {
-    description:
-      'The bare failure text behind cli.import.renameTargetExists, which is what the run reports as its cause.',
   },
   'cli.import.dryRunOverwriteDeck': {
     description:

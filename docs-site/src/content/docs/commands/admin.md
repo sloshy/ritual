@@ -679,6 +679,8 @@ Import a deck from a supported URL, or from decklist text supplied directly (pas
 
 Pasted/uploaded text is read with the same dialects as [`ritual import`](/commands/import/#mtg-arena--mtgo-exports): Ritual's own format plus MTG Arena/MTGO exports (`4 Lightning Bolt (M10) 146`, bare `Deck`/`Sideboard` markers).
 
+A name/ID conflict without `overwrite` and a deck name with no characters usable in a file name are both the client's to fix: they fail with a `400` (the same usage classification the CLI turns into exit code `2`), not a `500`.
+
 ### `POST /api/import-csv`
 
 **Auth required:** Yes

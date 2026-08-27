@@ -3,7 +3,7 @@ import { offerTagDownload } from '../cache/freshness'
 import { sampleTagsPresent } from '../cache/status'
 import { t } from '../i18n/t'
 import { loadRitualConfig } from '../config/ritual-config'
-import type { RefreshMode } from '../cache/refresh'
+import type { RefreshPolicy } from '../cache/refresh'
 import { LIST_TYPES } from '../list/list-type'
 import { dirForType } from '../list/resolve-list'
 import { prepareCardCache, type CardCachePrepDeps } from '../site-build/card-fetch'
@@ -43,11 +43,11 @@ export type WarmDeps = Pick<CardCachePrepDeps, 'ensureCards' | 'offerPrices'> & 
  * reports what the cache ended up holding rather than throwing.
  */
 export async function warmSiteCache(
-  mode: RefreshMode,
+  policy: RefreshPolicy,
   deps: WarmDeps = {},
 ): Promise<SiteCacheWarmth> {
   const hasTags = deps.hasTags ?? sampleTagsPresent
-  const offerTags = deps.offerTags ?? (async () => void (await offerTagDownload(mode)))
+  const offerTags = deps.offerTags ?? (async () => void (await offerTagDownload(policy)))
 
   const config = await loadRitualConfig()
   const cardNames = new Set<string>()
@@ -63,7 +63,7 @@ export async function warmSiteCache(
     }
   }
   const { uniqueCards } = await prepareCardCache(
-    { cardNames, mode, verbose: false },
+    { cardNames, policy, verbose: false },
     {
       ...deps,
       downloadFailed: (reason) => t('cli.serve.cacheDownloadFailed', { reason }),

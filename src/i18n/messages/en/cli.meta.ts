@@ -397,6 +397,22 @@ export const cliMeta = {
     description:
       'Lead sentence of the refusal to start a session with no cached cards; advice on how to fill the cache is appended after it.',
   },
+  'cli.session.preloadPrompt': {
+    description:
+      'Yes/no offer, made once when a card-entry session starts on an empty cache, to download the Scryfall card database. {scope} is one of the two cli.session.preloadScope* phrases naming what gets downloaded.',
+  },
+  'cli.session.preloadScopeEnglish': {
+    description:
+      'The {scope} of cli.session.preloadPrompt when only the English-language bulk is needed.',
+  },
+  'cli.session.preloadScopeAllLanguages': {
+    description:
+      'The {scope} of cli.session.preloadPrompt when the every-language bulk is needed. {language} is the configured defaultLanguage code; "defaultLanguage" and "all_cards" are a config key and a Scryfall bulk name — leave both untranslated.',
+  },
+  'cli.session.preloadFailed': {
+    description:
+      'Error lead-in when the accepted preload download failed; the underlying error is printed after it and the session goes on with an empty cache. Keep the leading newline.',
+  },
   'cli.session.createdFile': {
     description:
       'A list file did not exist and was created. {label} is the kind of list ("deck", "collection"), {file} the file name.',

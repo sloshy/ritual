@@ -599,6 +599,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     })
     expect(result.isError).toBe(true)
     expect(firstText(result)).toContain('syncPrintings is required')
+    expect(toolError(result).code).toBe('invalid-request')
   })
 
   test('import_deck reads a decklist wrapped in a fenced block', async () => {

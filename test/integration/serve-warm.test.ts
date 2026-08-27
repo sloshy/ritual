@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { cardCache } from '../../src/cache/instances'
+import { headlessPolicy } from '../../src/cache/refresh'
 import { warmCardKingdomFeed } from '../../src/cardkingdom'
 import { primerSidecarPath } from '../../src/list/list-sidecars'
 import { warmSiteCache, type SiteCacheWarmth, type WarmDeps } from '../../src/serve/warm'
@@ -54,7 +55,7 @@ describe('warmSiteCache (Integration)', () => {
       priceCalls: 0,
       tagCalls: 0,
     }
-    run.warmth = await warmSiteCache('never', {
+    run.warmth = await warmSiteCache(headlessPolicy('never'), {
       ensureCards: async (names) => {
         run.names = [...names].sort()
         return false
@@ -226,7 +227,7 @@ describe('warmCardKingdomFeed config gate (Integration)', () => {
 
     // No `sellMode` argument: the config is the only thing that can say no,
     // and saying no is what keeps a ~70 MB download off an unrelated server.
-    const warmth = await warmCardKingdomFeed('auto', {
+    const warmth = await warmCardKingdomFeed(headlessPolicy('auto'), {
       ...noNet,
       load: async () => {
         throw new Error('the cache must not be read when sell mode is off')
@@ -242,7 +243,7 @@ describe('warmCardKingdomFeed config gate (Integration)', () => {
     // The injection seam a caller with its own policy uses. The commands
     // themselves reach the same outcome through the session override that
     // `--sell-mode` sets, which this call bypasses entirely.
-    const warmth = await warmCardKingdomFeed('never', { ...noNet, sellMode: true })
+    const warmth = await warmCardKingdomFeed(headlessPolicy('never'), { ...noNet, sellMode: true })
 
     expect(warmth).toStrictEqual({ enabled: true, ready: false, refreshed: false })
   })
@@ -255,7 +256,7 @@ describe('warmCardKingdomFeed config gate (Integration)', () => {
     // The whole chain: a corrupt file loads as null, so the warm treats it the
     // way it treats an absent one — no prompt, and no ~70 MB download. `ask` is
     // the mode whose missing-feed branch would otherwise prompt.
-    const warmth = await warmCardKingdomFeed('ask', noNet)
+    const warmth = await warmCardKingdomFeed(headlessPolicy('ask'), noNet)
 
     expect(warmth).toStrictEqual({ enabled: true, ready: false, refreshed: false })
   })
@@ -267,7 +268,7 @@ describe('warmCardKingdomFeed config gate (Integration)', () => {
     // server start must not spend ~70 MB, so the refusal here is a decision
     // rather than a structural impossibility — the `DenyHttpClient` is what
     // makes a regression fail loudly instead of quietly downloading.
-    const warmth = await warmCardKingdomFeed('auto', noNet)
+    const warmth = await warmCardKingdomFeed(headlessPolicy('auto'), noNet)
 
     expect(warmth).toStrictEqual({ enabled: true, ready: false, refreshed: false })
   })
