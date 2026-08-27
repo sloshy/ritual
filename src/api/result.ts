@@ -1,7 +1,7 @@
 /**
- * The message half of every admin API response, and the one way to build it.
+ * The message half of every API response, and the one way to build it.
  *
- * The admin HTTP API is Ritual's client-neutral surface: the admin SPA renders
+ * The HTTP API is Ritual's client-neutral surface: the admin SPA renders
  * these responses as alerts, and the MCP server dispatches the *same* handlers
  * in-process, where an agent reads `message` and expects English. Rather than
  * negotiate a language per client, the shape is widened once (plan §7.7):
@@ -21,15 +21,15 @@
  * in this module may reach for `node:`.
  */
 
-import { DEFAULT_LOCALE } from '../../i18n/runtime'
+import { DEFAULT_LOCALE } from '../i18n/runtime'
 import {
   paramsOf,
   tIn,
   type RenderParams,
   type TranslateArgs,
   type TranslateDynamicFn,
-} from '../../i18n/t'
-import type { MessageKey } from '../../i18n/messages/en'
+} from '../i18n/t'
+import type { MessageKey } from '../i18n/messages/en'
 
 /** The parameters a {@link ApiMessage.messageKey} interpolates. */
 export type ApiMessageParams = RenderParams
@@ -48,7 +48,7 @@ export type ApiMessage = {
 }
 
 /**
- * The shared admin response envelope: did it work, and what to tell the user.
+ * The shared API response envelope: did it work, and what to tell the user.
  *
  * Individual routes extend this with their own payload rather than returning it
  * bare — `success` is narrowed to `true` on a success arm, and the extra fields

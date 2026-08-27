@@ -60,7 +60,7 @@ import {
 } from '../card/printing-pin'
 import { resolveListSelection, resolveTarget } from './card-target'
 import { exitCodeFor, runCommandAction } from '../cli/action'
-import { type ListTypeFlags } from '../list/resolve-list'
+import type { ListTypeFlags } from '../list/resolve-list'
 import { VALID_CONDITIONS, VALID_FINISHES, type Finish } from '../card/finish-condition'
 import type { ListType } from '../list/list-type'
 

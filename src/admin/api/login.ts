@@ -1,7 +1,7 @@
 import { ArchidektAuth } from '../../auth/ArchidektAuth'
 import { FileTokenStore } from '../../auth/FileTokenStore'
 import { getErrorMessage } from '../../util/errors'
-import { apiMessage, type ApiMessage } from './result'
+import { apiMessage, type ApiMessage } from '../../api/result'
 
 interface ArchidektLoginRequest {
   username: string

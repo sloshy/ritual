@@ -8,7 +8,7 @@ import type { ListInfo } from '../../list/list-info'
 import { matchesNameTerms, normalizeCardName, splitNameTerms } from '../../card/term-match'
 import { moveCardKey, type MovePhysicalCard } from '../../card/card-index-types'
 import { isValidListSlug } from './target'
-import { apiError, badRequest } from './save-helpers'
+import { apiError, badRequest } from '../../api/http'
 import { parseSetCode } from '../../card/set-codes'
 
 /**

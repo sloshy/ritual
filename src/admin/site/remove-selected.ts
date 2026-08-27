@@ -9,7 +9,7 @@ import type {
   SelectedMoveItem,
   SelectedMoveResponse,
 } from '../api/move'
-import type { ApiErrorResponse } from '../api/save-helpers'
+import type { ApiErrorResponse } from '../../api/http'
 
 /** Destination + resolved printing shared by every per-copy {@link SelectedMoveItem} of one card. */
 type MoveDestination = Pick<

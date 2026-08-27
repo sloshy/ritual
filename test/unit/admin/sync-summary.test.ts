@@ -1,29 +1,27 @@
 import { describe, expect, test } from 'bun:test'
-import { apiMessage, renderApiMessage, type ApiMessage } from '../../src/admin/api/result'
 import {
   renderSyncSummary,
   renderSyncSummaryEnglish,
   type SyncSummary,
-} from '../../src/admin/api/sync-summary'
-import { summarizeRun as summarizeDeckRun } from '../../src/admin/api/deck-sync'
-import { summarizeRun as summarizeCollectionRun } from '../../src/admin/api/collection-sync'
-import type { DeckSyncReport } from '../../src/deck-sync/engine'
-import type { CollectionSyncReport } from '../../src/collection-sync/engine'
-import { loadDictionary, resetI18nRuntime } from '../../src/i18n/runtime'
-import { tDynamic, type TranslateDynamicFn } from '../../src/i18n/t'
-import type { LocaleCatalog, LocaleTag } from '../../src/i18n/types'
-import { localeTag } from '../../src/i18n/locale-tag'
+} from '../../../src/admin/api/sync-summary'
+import { summarizeRun as summarizeDeckRun } from '../../../src/admin/api/deck-sync'
+import { summarizeRun as summarizeCollectionRun } from '../../../src/admin/api/collection-sync'
+import type { DeckSyncReport } from '../../../src/deck-sync/engine'
+import type { CollectionSyncReport } from '../../../src/collection-sync/engine'
+import { loadDictionary, resetI18nRuntime } from '../../../src/i18n/runtime'
+import { tDynamic, type TranslateDynamicFn } from '../../../src/i18n/t'
+import type { LocaleCatalog, LocaleTag } from '../../../src/i18n/types'
+import { localeTag } from '../../../src/i18n/locale-tag'
 
 /**
- * The widened admin response shape (plan §7.7): `message` is rendered English —
- * byte for byte what MCP and scripts already read — and the key/params pair
- * beside it is what lets a client re-render the same sentence in the reader's
- * language.
+ * A sync run's summary has no single catalog key — it is a list of clauses — so
+ * it is built structured and rendered twice: once in English for the wire, once
+ * in the reader's locale by a client that has a translator.
  *
- * Everything here is pinned at the lowest layer that can express it: the
- * builders and renderers themselves, against synthetic catalogs. The handlers
- * that emit these results are covered by their own integration tests, and the
- * schemas that advertise them by `test/unit/mcp/output-schemas.test.ts`.
+ * The producers and the renderer are pinned here, against synthetic catalogs.
+ * The routes that emit these summaries are covered by their own integration
+ * tests, and the schema that advertises the shape by
+ * `test/unit/mcp/output-schemas.test.ts`.
  */
 
 /** A translator bound to one locale, standing in for a component's `useTDynamic()`. */
@@ -36,66 +34,6 @@ function withDictionary(tag: LocaleTag, catalog: LocaleCatalog): void {
   resetI18nRuntime()
   loadDictionary(tag, catalog)
 }
-
-describe('apiMessage', () => {
-  test('renders English and carries the key it rendered from', () => {
-    const result = apiMessage('admin.api.buildSite.built')
-    expect(result).toEqual({
-      message: 'Site built successfully',
-      messageKey: 'admin.api.buildSite.built',
-    })
-  })
-
-  test('carries the parameters a keyed message interpolates', () => {
-    expect(apiMessage('admin.api.list.created', { listType: 'wanted', name: 'Trades' })).toEqual({
-      message: "Created wanted list 'Trades'",
-      messageKey: 'admin.api.list.created',
-      messageParams: { listType: 'wanted', name: 'Trades' },
-    })
-  })
-
-  test('renders English even when another locale is active', () => {
-    // The point of the split: an operator running a German UI must not make the
-    // API answer an agent in German.
-    withDictionary(localeTag('xx'), { 'admin.api.buildSite.built': 'Baustelle' })
-    try {
-      expect(apiMessage('admin.api.buildSite.built').message).toBe('Site built successfully')
-    } finally {
-      resetI18nRuntime()
-    }
-  })
-})
-
-describe('renderApiMessage', () => {
-  test('prefers the key over the server-rendered English', () => {
-    withDictionary(localeTag('xx'), { 'admin.api.cache.refreshed': 'Katalog erneuert' })
-    try {
-      const result = apiMessage('admin.api.cache.refreshed')
-      expect(renderApiMessage(translatorFor(localeTag('xx')), result)).toBe('Katalog erneuert')
-    } finally {
-      resetI18nRuntime()
-    }
-  })
-
-  test('interpolates the parameters that rode along', () => {
-    withDictionary(localeTag('xx'), { 'admin.api.list.deleted': '{name} ({listType}) weg' })
-    try {
-      const result = apiMessage('admin.api.list.deleted', { listType: 'deck', name: 'Burn' })
-      expect(renderApiMessage(translatorFor(localeTag('xx')), result)).toBe('Burn (deck) weg')
-    } finally {
-      resetI18nRuntime()
-    }
-  })
-
-  test('falls back to English prose for a response that carries no key', () => {
-    // The incremental-conversion path: an unconverted handler sends English
-    // only, and it must still render rather than rendering nothing.
-    const unkeyed: ApiMessage = { message: 'decks must be an array of strings' }
-    expect(renderApiMessage(translatorFor(localeTag('xx')), unkeyed)).toBe(
-      'decks must be an array of strings',
-    )
-  })
-})
 
 describe('renderSyncSummary', () => {
   const summary: SyncSummary = {

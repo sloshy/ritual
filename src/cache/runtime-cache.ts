@@ -1,4 +1,4 @@
-import { type CacheManager, type CacheStreamEntryMeta } from '../util/interfaces'
+import type { CacheManager, CacheStreamEntryMeta } from '../util/interfaces'
 import { getCacheServerBaseUrl } from './config'
 import { type CacheSection, type DataType, DEFAULT_EXPIRATION_MS, FileCacheManager } from './file-cache'
 import { HttpCacheManager } from './http-cache'

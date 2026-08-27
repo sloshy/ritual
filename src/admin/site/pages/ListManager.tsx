@@ -18,7 +18,7 @@ import {
 import { listFileName } from '../../../list/list-file-name'
 import { type ListType, LIST_TYPE_DISPLAY } from '../../../list/list-type'
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
-import { apiMessage } from '../../api/result'
+import { apiMessage } from '../../../api/result'
 import type { RitualConfig, SiteConfig } from '../../../config/ritual-config'
 import { type SiteSelectionConfig, defaultSiteSelection } from '../../../config/list-selection'
 import { fetchRitualConfig } from '../config-api'

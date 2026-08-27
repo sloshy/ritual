@@ -31,7 +31,7 @@ import {
   type CsvRowFailure,
 } from '../../../importers/csv'
 import type { ImportCsvResponse } from '../../api/import-csv'
-import type { ApiErrorResponse } from '../../api/save-helpers'
+import type { ApiErrorResponse } from '../../../api/http'
 import { PageHeading } from '../components/PageHeading'
 import type { ParameterlessKey } from '../../../i18n/t'
 

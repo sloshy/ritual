@@ -24,7 +24,7 @@ import { parseExportPresets } from '../../export/presets'
 import { parsePriceSources } from '../../pricing/price-source'
 import { shouldAutoCommit, commitFiles } from '../git'
 import { apiHandler } from '../utils'
-import { badRequest, readJsonObjectBody } from './save-helpers'
+import { badRequest, readJsonObjectBody } from '../../api/http'
 import { getBaseDir } from '../../config/base-dir'
 
 /**

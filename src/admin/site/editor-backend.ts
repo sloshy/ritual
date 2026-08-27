@@ -10,7 +10,7 @@ import type {
   FlatListMetadataRequest,
   MetadataResponse,
 } from '../api/metadata'
-import type { ApiErrorResponse } from '../api/save-helpers'
+import type { ApiErrorResponse } from '../../api/http'
 
 /**
  * Admin-side wiring for the shared editor: the strategies that talk to the admin

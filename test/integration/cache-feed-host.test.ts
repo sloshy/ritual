@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { CacheFeedHost } from '../../src/cache-feed/host'
-import { parseCacheFeed, type CacheFeedDocument } from '../../src/cache-feed/feed'
+import { parseCacheFeed, type CacheFeedDocument } from '../../src/cache/feed'
 import { createFileTorrent } from '../../src/cache-feed/torrents'
 import { MockHttpClient, MemoryLogger, gzipJsonLines, setLogger } from '../test-utils'
 

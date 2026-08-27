@@ -2,7 +2,7 @@ import path from 'node:path'
 import { resolveDeckFilePath } from '../../list/deck-file'
 import { isPathWithinDir } from '../../util/path-validation'
 import { capitalize } from '../../util/strings'
-import { apiError } from './save-helpers'
+import { apiError } from '../../api/http'
 
 /**
  * Resolving a `:slug` path segment to the markdown file behind it.

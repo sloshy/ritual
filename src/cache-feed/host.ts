@@ -1,3 +1,10 @@
+/**
+ * The feed *server*: publishes the bulk artifacts and seeds their torrents.
+ * The client half — the code a `ritual cache` refresh runs to fetch a feed —
+ * lives in `src/cache/feed-client.ts`, below this layer, with the feed document
+ * it parses (`src/cache/feed.ts`) and its download helper.
+ */
+
 import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { mkdir, readdir, unlink } from 'node:fs/promises'
@@ -11,6 +18,7 @@ import {
 } from '../scryfall/bulk-manifest'
 import {
   BULK_TYPE_BY_KIND,
+  CACHE_FEED_LOG_PREFIX,
   FEED_FILENAME,
   FEED_VERSION,
   TAG_FEED_KINDS,
@@ -18,12 +26,11 @@ import {
   type CacheFeedDocument,
   type CacheFeedEntry,
   type CacheFeedKind,
-} from './feed'
+} from '../cache/feed'
 import { createFileTorrent } from './torrents'
-import { streamToFile } from './download'
+import { streamToFile } from '../cache/feed-download'
 
 export const DEFAULT_BULK_API_URL = SCRYFALL_BULK_API_URL
-export const CACHE_FEED_LOG_PREFIX = '[cache-feed]'
 
 /** A `.torrent` loaded from the feed dir, ready to hand to the seeder. */
 export type FeedTorrentFile = {

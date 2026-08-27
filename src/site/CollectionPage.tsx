@@ -26,7 +26,7 @@ import {
 } from '../card/card-labels'
 import { cardPriceText, cardPricelessReason, pricelessFacts } from '../list-view/priceless'
 import { pricesEnabled, sitePriceForFinish } from '../list-view/price-view'
-import { type CardData, type SortBy } from '../list-view/card-sorting'
+import type { CardData, SortBy } from '../list-view/card-sorting'
 import { collectionTradeMaxQty, collectionTradeQtyMap } from '../list-view/trade-qty'
 import { CardModal } from '../list-view/CardModal'
 import { ListPageShell, type ListPageChangelog, type ListPageExport } from './ListPageShell'

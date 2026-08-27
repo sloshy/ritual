@@ -9,7 +9,8 @@ import {
 import { appendAuditLog, createAuditEntry } from '../audit-log'
 import { loadRitualConfig } from '../../config/ritual-config'
 import { globalRateLimiter } from '../rate-limit'
-import { MAX_BODY_SIZE, MAX_USERNAME_LENGTH, MAX_PASSWORD_LENGTH } from '../validation'
+import { validateBodySize } from '../../api/http'
+import { MAX_USERNAME_LENGTH, MAX_PASSWORD_LENGTH } from '../validation'
 
 interface LoginRequest {
   username: string
@@ -44,10 +45,8 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
     return Response.json(resp, { status: 429, headers: { 'Retry-After': String(remaining) } })
   }
 
-  const contentLength = Number(req.headers.get('Content-Length') ?? '0')
-  if (contentLength > MAX_BODY_SIZE) {
-    return Response.json({ success: false, message: 'Request body too large' }, { status: 413 })
-  }
+  const tooLarge = validateBodySize(req)
+  if (tooLarge) return tooLarge
 
   let body: LoginRequest
   try {

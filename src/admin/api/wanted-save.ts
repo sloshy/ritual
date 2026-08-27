@@ -9,10 +9,9 @@ import { assignEntryIds } from '../../card/card-id'
 import { computeEntrySaveEffects } from '../../changes/save-effects'
 import { changeCardNames, refuseUnknownCardNames } from './card-name-check'
 import { applyCrossListMoves } from '../../list/move-prepare'
+import { apiError, readJsonObjectBody } from '../../api/http'
 import {
-  apiError,
   PARTIAL_LOAD_HINT,
-  readJsonObjectBody,
   validateContentHash,
   finishListSave,
   listSaveOutcome,

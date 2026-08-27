@@ -1,4 +1,4 @@
-import { pickMessage, type ApiMessage } from '../admin/api/result'
+import { pickMessage, type ApiMessage } from '../api/result'
 import type { ChangeEvent } from '../changes/change-event'
 import type { ListType } from '../list/list-type'
 import {

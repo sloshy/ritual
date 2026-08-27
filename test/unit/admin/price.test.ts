@@ -11,7 +11,7 @@ import {
   type PriceListDetailResponse,
   type PriceSummaryResponse,
 } from '../../../src/admin/api/price'
-import type { ApiErrorResponse } from '../../../src/admin/api/save-helpers'
+import type { ApiErrorResponse } from '../../../src/api/http'
 import {
   makeCardKingdomCacheFile,
   makeCardKingdomProduct,

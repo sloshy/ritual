@@ -1,5 +1,5 @@
 import type { PriceData } from '../pricing/price-data'
-import { type CacheSource } from '../config/ritual-config'
+import type { CacheSource } from '../config/ritual-config'
 
 export type RefreshCadence = 'daily' | 'weekly' | 'monthly'
 export type PriceRefreshReason = 'scheduled' | 'manual-override'

@@ -1,4 +1,4 @@
-import { type HttpClient } from '../util/interfaces'
+import type { HttpClient } from '../util/interfaces'
 import { defaultHttpClient } from '../util/http'
 import { throwHttpError } from '../util/errors'
 

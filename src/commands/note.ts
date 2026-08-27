@@ -20,7 +20,7 @@ import { t } from '../i18n/t'
 import { resolveListSelection, resolveTarget } from './card-target'
 import type { EntryRef } from '../list/entry-ref'
 import { cancelledError, runCommandAction } from '../cli/action'
-import { type ListTypeFlags } from '../list/resolve-list'
+import type { ListTypeFlags } from '../list/resolve-list'
 import type { ListType } from '../list/list-type'
 
 type NoteOptions = {

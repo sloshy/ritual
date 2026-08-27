@@ -1,6 +1,7 @@
 import type WebTorrent from 'webtorrent'
 import type { Torrent } from 'webtorrent'
-import { CACHE_FEED_LOG_PREFIX, type FeedTorrentFile } from './host'
+import { CACHE_FEED_LOG_PREFIX } from '../cache/feed'
+import type { FeedTorrentFile } from './host'
 
 // A torrent that cannot verify its on-disk artifact would otherwise wait on
 // 'ready' forever, wedging every future scheduled refresh behind sync().

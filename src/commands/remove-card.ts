@@ -19,7 +19,7 @@ import { t, type MessageParams } from '../i18n/t'
 import { describeEntry } from '../list/entry-ref'
 import { resolveListSelection, resolveTarget } from './card-target'
 import { runCommandAction } from '../cli/action'
-import { type ListTypeFlags } from '../list/resolve-list'
+import type { ListTypeFlags } from '../list/resolve-list'
 import type { ListType } from '../list/list-type'
 
 type RemoveCardOptions = {

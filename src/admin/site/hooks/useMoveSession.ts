@@ -10,7 +10,7 @@ import { t } from '../../../i18n/t'
 import type { MoveCommitResponse } from '../../api/move'
 import type { MovePhysicalCard } from '../../../card/card-index-types'
 import type { CardIndexResponse } from '../../api/card-index'
-import type { ApiErrorResponse } from '../../api/save-helpers'
+import type { ApiErrorResponse } from '../../../api/http'
 import type { ListInfo } from '../../../list/list-info'
 import {
   type PendingMove,

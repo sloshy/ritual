@@ -1,6 +1,6 @@
 import { type JSX, For, Match, Show, Switch, createMemo, createSignal } from 'solid-js'
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
-import { apiMessage } from '../../api/result'
+import { apiMessage } from '../../../api/result'
 import type { ImportDeckRequest } from '../../api/import-deck'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'

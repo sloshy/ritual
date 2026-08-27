@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { getBaseDir, setBaseDir } from '../../../src/config/base-dir'
 import { resetRitualConfigCache } from '../../../src/config/ritual-config'
 import { handleDiff, type DiffResponseBody } from '../../../src/admin/api/diff'
-import type { ApiErrorResponse } from '../../../src/admin/api/save-helpers'
+import type { ApiErrorResponse } from '../../../src/api/http'
 
 /**
  * Handler tests for `GET /api/diff`. Diff semantics (identity modes, finish

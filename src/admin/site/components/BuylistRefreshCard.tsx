@@ -1,6 +1,6 @@
 import { type JSX, createSignal, onMount, For, Match, Show, Switch } from 'solid-js'
 import type { BuylistStatusResponse } from '../../../buylist'
-import type { ApiErrorResponse } from '../../api/save-helpers'
+import type { ApiErrorResponse } from '../../../api/http'
 import type { SellRefreshResponse } from '../../api/sell'
 import { resetBuylistQuotes } from '../../../list-view/buylist-quotes'
 import { formatDateTime, formatNumber } from '../../../ui/format'

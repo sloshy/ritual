@@ -1,6 +1,6 @@
 import type { DroppedNote } from '../../list/move-staging'
 import type { SaveEffect } from '../../changes/save-effects'
-import type { ApiMessage } from './result'
+import type { ApiMessage } from '../../api/result'
 
 /**
  * Success body shared by the three editor save endpoints (deck/collection/wanted).

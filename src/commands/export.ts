@@ -3,7 +3,7 @@ import type { Command } from 'commander'
 import { describeExportProperties } from '../pricing/export-hints'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../card/finish-condition'
 import { CARD_LABEL_SELECTION_NONE, CARD_LABELS } from '../card/card-labels'
-import { type ListType } from '../list/list-type'
+import type { ListType } from '../list/list-type'
 import {
   buildExportSelection,
   hasActiveExportFilters,

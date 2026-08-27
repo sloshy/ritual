@@ -12,8 +12,9 @@ import {
 } from '../../list/list-lifecycle'
 import { apiHandler } from '../utils'
 import { resolveListFileOrRefuse, type ListFileResult, type ResolveListFile } from './list-file'
-import { apiMessage, type ApiMessage } from './result'
-import { apiError, autoCommitAndPush, readJsonObjectBody } from './save-helpers'
+import { apiMessage, type ApiMessage } from '../../api/result'
+import { apiError, readJsonObjectBody } from '../../api/http'
+import { autoCommitAndPush } from './save-helpers'
 import { parseSlugFromUrl } from './target'
 
 /**

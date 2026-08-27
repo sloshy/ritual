@@ -5,7 +5,7 @@ import { sseResponse } from '../../util/sse'
 import type { RouteProgressSink } from '../../util/progress'
 import { apiHandler } from '../utils'
 import { collectCacheStatus, type CacheStatusResult } from '../../cache/status'
-import { apiMessage, type ApiMessage } from './result'
+import { apiMessage, type ApiMessage } from '../../api/result'
 
 /** `POST /api/cache/refresh` — the card cache was rebuilt from Scryfall. */
 export interface CacheRefreshResponse extends ApiMessage {

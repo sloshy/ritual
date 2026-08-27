@@ -1,12 +1,8 @@
 import { createAdminUser, adminUserExists } from '../auth'
 import { apiHandler } from '../utils'
-import type { ApiMessage } from './result'
-import {
-  MAX_BODY_SIZE,
-  MAX_USERNAME_LENGTH,
-  MAX_PASSWORD_LENGTH,
-  MIN_PASSWORD_LENGTH,
-} from '../validation'
+import type { ApiMessage } from '../../api/result'
+import { validateBodySize } from '../../api/http'
+import { MAX_USERNAME_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '../validation'
 
 interface SetupRequest {
   username: string
@@ -24,11 +20,8 @@ export function handleSetup(req: Request): Promise<Response> {
       return Response.json(resp, { status: 409 })
     }
 
-    const contentLength = Number(req.headers.get('Content-Length') ?? '0')
-    if (contentLength > MAX_BODY_SIZE) {
-      const resp: SetupResponse = { success: false, message: 'Request body too large' }
-      return Response.json(resp, { status: 413 })
-    }
+    const tooLarge = validateBodySize(req)
+    if (tooLarge) return tooLarge
 
     const body = (await req.json()) as SetupRequest
     const { username, password } = body

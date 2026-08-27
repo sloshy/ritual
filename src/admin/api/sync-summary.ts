@@ -27,7 +27,7 @@ import { listFormat } from '../../i18n/format'
 import { DEFAULT_LOCALE } from '../../i18n/runtime'
 import type { TranslateDynamicFn } from '../../i18n/t'
 import type { LocaleTag } from '../../i18n/types'
-import { renderApiMessage, type ApiMessage } from './result'
+import { renderApiMessage, type ApiMessage } from '../../api/result'
 
 /**
  * One clause of a summary — "Pulled 3 decks", "2 failed" — as its own keyed

@@ -15,16 +15,17 @@ import { t } from '../i18n/t'
 import { parsePort } from '../cli/options'
 import { DAY_REFRESH_MS } from '../cache-server/constants'
 import type { RefreshCadence } from '../cache-server/types'
-import { CACHE_FEED_LOG_PREFIX, CacheFeedHost, DEFAULT_BULK_API_URL } from '../cache-feed/host'
+import { CacheFeedHost, DEFAULT_BULK_API_URL } from '../cache-feed/host'
 import { FeedSeeder } from '../cache-feed/seeder'
 import {
+  CACHE_FEED_LOG_PREFIX,
   CARD_KIND_BY_BULK_TYPE,
   FEED_FILENAME,
   TAG_FEED_KINDS,
   type CacheFeedKind,
   type CardFeedKind,
-} from '../cache-feed/feed'
-import type { FeedSyncResult } from '../cache-feed/fetch'
+} from '../cache/feed'
+import type { FeedSyncResult } from '../cache/feed-client'
 import { createCacheFeedClient, resolveFeedUrl } from '../cache/refresh-source'
 
 type CacheFeedFetchCommandOptions = {

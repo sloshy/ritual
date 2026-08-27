@@ -69,7 +69,7 @@ import {
   handleListDelete,
   type ListLifecycleConfig,
 } from './api/list-lifecycle'
-import type { ApiErrorResponse } from './api/save-helpers'
+import type { ApiErrorResponse } from '../api/http'
 import { resolveDeckFile, resolveFlatListFile } from './api/list-file'
 
 const COLLECTION_CFG: ListLifecycleConfig = {

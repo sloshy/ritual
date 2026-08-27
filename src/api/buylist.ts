@@ -13,7 +13,7 @@
  * so an unauthenticated public route can never be made to pull ~70 MB.
  */
 
-import { apiError, readJsonObjectBody, requireBuylistFeed } from '../admin/api/save-helpers'
+import { apiError, readJsonObjectBody } from './http'
 import {
   DEFAULT_BUYER,
   isBuyerId,
@@ -25,11 +25,30 @@ import {
   type BuylistQuotesResponse,
   type BuylistStatusResponse,
 } from '../buylist'
-import { feedStamp, quoteForPrinting } from '../cardkingdom'
+import {
+  feedStamp,
+  getCardKingdomFeed,
+  missingFeedApiAdvice,
+  quoteForPrinting,
+  type LoadedCardKingdomFeed,
+} from '../cardkingdom'
 import { getErrorMessage } from '../util/errors'
 import { invalidLanguageMessage, isCardLanguage } from '../card/card-language'
 import { isFinish } from '../card/finish-condition'
 import { loadRitualConfig, wantsCardKingdomFeed } from '../config/ritual-config'
+
+/**
+ * The cached buyer feed, or a 503 naming every way to download it. The buylist
+ * mirror of `requireCardCache` in `src/admin/api/save-helpers.ts`: shared so the
+ * admin sell routes and these dual-mounted buylist routes refuse identically.
+ * It lives beside its main consumer so `src/api/http.ts` keeps zero provider
+ * dependencies and stays importable from the SPAs.
+ */
+export async function requireBuylistFeed(): Promise<LoadedCardKingdomFeed | Response> {
+  const feed = await getCardKingdomFeed()
+  if (feed === null) return apiError(missingFeedApiAdvice(), 503)
+  return feed
+}
 
 /**
  * Upper bound on printings per request. A list page asks for every card at

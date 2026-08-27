@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { handleImportDeck } from '../../src/admin/api/import-deck'
-import type { ApiMessage } from '../../src/admin/api/result'
+import type { ApiMessage } from '../../src/api/result'
 import {
   ARCHIDEKT_DECK_ID,
   ARCHIDEKT_DECK_URL,

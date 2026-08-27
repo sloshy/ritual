@@ -25,8 +25,8 @@ import {
   SYNC_DECKS_OUTPUT,
   TOOL_ERROR_OUTPUT,
   TOOL_OUTPUT_SCHEMAS,
-  defsFor,
 } from '../../../src/mcp/schema-json'
+import { defsFor } from '../../../src/mcp/schema-defs'
 import { apiErrorToMcp } from '../../../src/mcp/errors'
 import { toToolErrorPayload } from '../../../src/mcp/result'
 import { MCP_TOOL_NAMES } from '../../../src/mcp/tools/names'
@@ -588,7 +588,7 @@ describe('MCP output schemas, as authored', () => {
 
   test('the tool-error payload is formalized, though it is never an outputSchema arm', async () => {
     // `isError` results skip output validation entirely, so this shape is
-    // documented and pinned rather than attached to all 34 tools. Built by the
+    // documented and pinned rather than attached to every tool. Built by the
     // real producer rather than a literal, so a change to how a conflict is
     // classified shows up here.
     expect(

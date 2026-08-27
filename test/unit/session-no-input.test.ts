@@ -16,13 +16,15 @@ import {
   promptSetTargetSection,
   resolveTargetSection,
 } from '../../src/commands/session/deck-prompts'
-import { promptSessionConfigUpdate } from '../../src/commands/session/config'
+import {
+  promptSessionConfigUpdate,
+  buildInitialSessionConfig,
+} from '../../src/commands/session/config'
 import { registerCliMessages } from '../../src/i18n/register/cli'
 import { setNoInputOverride } from '../../src/util/no-input'
 import { CardCommandError, ExitCode } from '../../src/util/errors'
 import type { DeckData } from '../../src/list/deck'
 import { stubTty } from '../test-utils'
-import { buildInitialSessionConfig } from '../../src/commands/session/config'
 
 // The refusal prose asserted below only exists once the CLI catalog is registered.
 registerCliMessages()

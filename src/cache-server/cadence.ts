@@ -1,7 +1,7 @@
 import { InvalidArgumentError, type Command } from 'commander'
 import { DAY_REFRESH_MS, MONTHLY_REFRESH_MS, WEEKLY_REFRESH_MS } from './constants'
 import { parseCacheFeedUrl, parseCacheSource, type CacheSource } from '../config/ritual-config'
-import { type RefreshCadence } from './types'
+import type { RefreshCadence } from './types'
 import { parsePort } from '../cli/options'
 
 export function parseRefreshCadence(value: string): RefreshCadence {

@@ -1,6 +1,14 @@
-import { ProtocolError, ProtocolErrorCode, type CallToolResult } from '@modelcontextprotocol/server'
+import {
+  ProtocolError,
+  ProtocolErrorCode,
+  fromJsonSchema,
+  type CallToolResult,
+  type StandardSchemaWithJSON,
+} from '@modelcontextprotocol/server'
 import { getErrorMessage } from '../util/errors'
 import { isConflictError, mcpErrorDetail } from './errors'
+import { TOOL_OUTPUT_SCHEMAS } from './schema-json'
+import type { McpToolName } from './tools/names'
 
 /**
  * How every tool returns.
@@ -19,6 +27,25 @@ import { isConflictError, mcpErrorDetail } from './errors'
  * formalized as `TOOL_ERROR_OUTPUT` in `schema-json.ts` rather than being an arm
  * of each tool's own schema.
  */
+
+/**
+ * The `outputSchema` a tool advertises, looked up by the name it registers under.
+ *
+ * Indexing {@link TOOL_OUTPUT_SCHEMAS} rather than naming a constant is what
+ * keeps the two in step: the map is keyed by `McpToolName`, so a tool whose
+ * schema was never authored is a compile error here as well as there.
+ *
+ * `T` buys less than it looks like. `fromJsonSchema` cannot infer a type from
+ * raw JSON Schema, so `T` is whatever the call site declares, unchecked against
+ * the schema this returns — a handler is free to promise a shape the advertised
+ * schema would reject. What actually holds name and registration together is a
+ * runtime pin: `output-schemas.test.ts`'s "every tool advertises the schema this
+ * module authored, byte for byte" reads `tools/list` off a live connection and
+ * compares each tool's schema against this map, key set included.
+ */
+export function outputSchemaFor<T>(name: McpToolName): StandardSchemaWithJSON<T, T> {
+  return fromJsonSchema<T>(TOOL_OUTPUT_SCHEMAS[name])
+}
 
 /** Why a tool call failed, in the three cases an agent responds to differently. */
 export type ToolErrorCode = 'conflict' | 'invalid-request' | 'internal'

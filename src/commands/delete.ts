@@ -6,8 +6,8 @@ import {
   listDisplayName,
   requireDeleteConfirmation,
 } from '../list/list-lifecycle'
-import { type ListType } from '../list/list-type'
-import { type ListTypeFlags } from '../list/resolve-list'
+import type { ListType } from '../list/list-type'
+import type { ListTypeFlags } from '../list/resolve-list'
 import { CardCommandError, ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
 import { addListTypeFlags, resolveListTypeFlag, addScriptingOptions } from '../cli/options'

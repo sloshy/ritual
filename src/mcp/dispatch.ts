@@ -4,6 +4,7 @@ import { buildSyntheticRequest } from '../util/synthetic-request'
 import { apiErrorToMcp, type ApiErrorBody } from './errors'
 import type { OmitSuccess } from './types'
 import type { RouteProgressSink } from '../util/progress'
+import { isRecord } from '../util/json'
 
 /**
  * Synthetic request context for in-process calls. The MCP server is a local,
@@ -14,10 +15,6 @@ const MCP_CONTEXT: RequestContext = { clientIp: 'mcp', sessionToken: null }
 
 /** Origin for synthetic request URLs. Nothing leaves the process, so the host is arbitrary. */
 const SYNTHETIC_ORIGIN = 'http://ritual-mcp'
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 function errorBody(data: unknown, status: number): ApiErrorBody {
   if (isRecord(data)) {

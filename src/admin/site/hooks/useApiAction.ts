@@ -4,7 +4,7 @@ import {
   renderApiMessage,
   type ApiMessage,
   type ApiMessageParams,
-} from '../../api/result'
+} from '../../../api/result'
 import { isMessageKey } from '../../../i18n/t'
 import { useTDynamic } from '../../../ui/i18n'
 

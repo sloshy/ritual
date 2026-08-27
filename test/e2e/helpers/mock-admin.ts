@@ -17,7 +17,7 @@ import type { AmbiguousRemoval } from '../../../src/collection-sync/describe'
 import type { CardIndexResponse } from '../../../src/admin/api/card-index'
 import type { StatusResponse } from '../../../src/admin/api/status'
 import type { SellRefreshResponse } from '../../../src/admin/api/sell'
-import { apiMessage } from '../../../src/admin/api/result'
+import { apiMessage } from '../../../src/api/result'
 import { renderSyncSummaryEnglish, type SyncSummary } from '../../../src/admin/api/sync-summary'
 import {
   type BundleImportResponse,

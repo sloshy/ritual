@@ -13,7 +13,7 @@ import {
 } from '../../../changes/change-bundle'
 import { useT, useTKey } from '../../../ui/i18n'
 import type { BundleImportResponse, BundleImportResult } from '../../api/import-changes'
-import type { ApiErrorResponse } from '../../api/save-helpers'
+import type { ApiErrorResponse } from '../../../api/http'
 import { PageHeading } from '../components/PageHeading'
 import type { ParameterlessKey } from '../../../i18n/t'
 

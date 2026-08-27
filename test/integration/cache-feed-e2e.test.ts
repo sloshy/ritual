@@ -5,11 +5,7 @@ import { tmpdir } from 'node:os'
 import type { Subprocess } from 'bun'
 import WebTorrent from 'webtorrent'
 import { ensureBinary, binaryPath, runCli } from './helpers/cli'
-import {
-  parseCacheFeed,
-  type CacheFeedDocument,
-  type CacheFeedEntry,
-} from '../../src/cache-feed/feed'
+import { parseCacheFeed, type CacheFeedDocument, type CacheFeedEntry } from '../../src/cache/feed'
 import { gzipJsonLines } from '../test-utils'
 
 // Fixed ports for the spawned host; chosen away from the other suites' ports.

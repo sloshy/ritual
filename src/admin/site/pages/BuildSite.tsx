@@ -1,6 +1,6 @@
 import type { JSX } from 'solid-js'
 import { useT } from '../../../ui/i18n'
-import { apiMessage } from '../../api/result'
+import { apiMessage } from '../../../api/result'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { PageHeading } from '../components/PageHeading'

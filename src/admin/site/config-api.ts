@@ -1,5 +1,5 @@
 import type { RitualConfig } from '../../config/ritual-config'
-import type { ApiErrorResponse } from '../api/save-helpers'
+import type { ApiErrorResponse } from '../../api/http'
 import type { ConfigResponse } from '../api/config'
 
 /**

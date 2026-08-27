@@ -18,8 +18,9 @@ import { listTypeLabel, type ListType } from '../../list/list-type'
 import { dirForType } from '../../list/resolve-list'
 import { apiHandler } from '../utils'
 import { resolveListFile } from './list-info'
-import { apiMessage, type ApiMessage } from './result'
-import { apiError, autoCommitAndPush, badRequest, readJsonObjectBody } from './save-helpers'
+import { apiMessage, type ApiMessage } from '../../api/result'
+import { apiError, badRequest, readJsonObjectBody } from '../../api/http'
+import { autoCommitAndPush } from './save-helpers'
 import { parseListTarget } from './target'
 
 /**

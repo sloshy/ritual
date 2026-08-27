@@ -18,10 +18,11 @@ import type { DroppedNote } from '../../list/move-staging'
 import { listSlug } from '../../list/list-file-name'
 import { indexPhysicalCards, moveCardKey, type MovePhysicalCard } from '../../card/card-index-types'
 import { refuseUnknownCardNames } from './card-name-check'
-import { apiMessage, type ApiMessage } from './result'
+import { apiMessage, type ApiMessage } from '../../api/result'
 import { DEFAULT_LOCALE } from '../../i18n/runtime'
 import { tIn } from '../../i18n/t'
-import { autoCommitAndPush, apiError, badRequest, readJsonObjectBody } from './save-helpers'
+import { autoCommitAndPush } from './save-helpers'
+import { apiError, badRequest, readJsonObjectBody } from '../../api/http'
 import { MAX_LIST_BODY_SIZE } from '../validation'
 
 // The index vocabulary lives in `src/card/card-index-types.ts` — the index is the

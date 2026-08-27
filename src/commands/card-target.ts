@@ -8,7 +8,7 @@ import { ask, suggestByTitleTerms } from '../cli/prompts'
 import { cancelledError, listArgumentConflictError } from '../cli/action'
 import { listTypeLabel, type ResolvedList } from '../cli/options'
 import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
-import { type ListType } from '../list/list-type'
+import type { ListType } from '../list/list-type'
 import {
   formatResolveListError,
   isListArgumentConflict,

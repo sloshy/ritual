@@ -17,7 +17,7 @@ import type {
   DeckFullLoadResult,
   WantedFullLoadResult,
 } from '../api/load-results'
-import type { ApiErrorResponse } from '../api/save-helpers'
+import type { ApiErrorResponse } from '../../api/http'
 import { adminSearch, fetchAdminJson } from './editor-backend'
 import { listInfosToNamedRefs } from './move-targets'
 

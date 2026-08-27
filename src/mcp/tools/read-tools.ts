@@ -1,29 +1,9 @@
-import { fromJsonSchema, type McpServer } from '@modelcontextprotocol/server'
+import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { callApi, callApiData } from '../dispatch'
 import { loadProjectedList, type ListProjection } from '../projection'
 import { VALID_PRICE_SOURCES, resolveSourceCurrency } from '../../pricing/price-source'
-import { runTool } from '../result'
-import {
-  AUTOCOMPLETE_CARD_OUTPUT,
-  DIFF_LISTS_OUTPUT,
-  EXPORT_CARDS_OUTPUT,
-  FIND_CARDS_OUTPUT,
-  GET_BUYLIST_QUOTES_OUTPUT,
-  GET_CACHE_STATUS_OUTPUT,
-  GET_CARD_DETAILS_OUTPUT,
-  GET_CARD_PRICE_OUTPUT,
-  GET_CARD_PRINTINGS_OUTPUT,
-  GET_CONFIG_OUTPUT,
-  GET_HISTORY_OUTPUT,
-  GET_LIST_OUTPUT,
-  GET_PRICE_REPORT_OUTPUT,
-  GET_SELL_CART_OUTPUT,
-  GET_SELL_REPORT_OUTPUT,
-  GET_SYNC_STATUS_OUTPUT,
-  LIST_LISTS_OUTPUT,
-  SEARCH_SCRYFALL_OUTPUT,
-} from '../schema-json'
+import { outputSchemaFor, runTool } from '../result'
 import {
   currencySchema,
   finishSchema,
@@ -276,7 +256,7 @@ export function registerReadTools(server: McpServer): void {
       inputSchema: z.object({
         listType: listTypeSchema.optional().describe('Only return lists of this type.'),
       }),
-      outputSchema: fromJsonSchema<ListListsResult>(LIST_LISTS_OUTPUT),
+      outputSchema: outputSchemaFor<ListListsResult>('list_lists'),
       annotations: { readOnlyHint: true },
     },
     async ({ listType }) =>
@@ -302,7 +282,7 @@ export function registerReadTools(server: McpServer): void {
           .optional()
           .describe('Which half to report; omit for both.'),
       }),
-      outputSchema: fromJsonSchema<SyncStatusResult>(GET_SYNC_STATUS_OUTPUT),
+      outputSchema: outputSchemaFor<SyncStatusResult>('get_sync_status'),
       annotations: { readOnlyHint: true },
     },
     async ({ target }) =>
@@ -376,7 +356,7 @@ export function registerReadTools(server: McpServer): void {
           .optional()
           .describe('Entries to skip (with limit, for paging).'),
       }),
-      outputSchema: fromJsonSchema<ListProjection>(GET_LIST_OUTPUT),
+      outputSchema: outputSchemaFor<ListProjection>('get_list'),
       annotations: { readOnlyHint: true },
     },
     async ({ listType, slug, ...query }) =>
@@ -421,7 +401,7 @@ export function registerReadTools(server: McpServer): void {
               'matches. Default false.',
           ),
       }),
-      outputSchema: fromJsonSchema<CardSearchResult>(SEARCH_SCRYFALL_OUTPUT),
+      outputSchema: outputSchemaFor<CardSearchResult>('search_scryfall'),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async ({ query, page, limit, warm }) =>
@@ -447,7 +427,7 @@ export function registerReadTools(server: McpServer): void {
         '"in tre" finds "In the Trenches". Closest matches first: a name spelled out in full, ' +
         'then names the query prefixes, then names whose words the terms begin.',
       inputSchema: z.object({ query: z.string().min(1).describe('Partial card name.') }),
-      outputSchema: fromJsonSchema<AutocompleteResult>(AUTOCOMPLETE_CARD_OUTPUT),
+      outputSchema: outputSchemaFor<AutocompleteResult>('autocomplete_card'),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async ({ query }) =>
@@ -485,7 +465,7 @@ export function registerReadTools(server: McpServer): void {
               'name. Default false; the roster does not depend on the filters.',
           ),
       }),
-      outputSchema: fromJsonSchema<FindCardsResult>(FIND_CARDS_OUTPUT),
+      outputSchema: outputSchemaFor<FindCardsResult>('find_cards'),
       annotations: { readOnlyHint: true },
     },
     async ({ name, listType, slug, set, includeLists }) =>
@@ -516,7 +496,7 @@ export function registerReadTools(server: McpServer): void {
         'Names are matched exactly and case-sensitively — resolve a partial name with ' +
         'autocomplete_card first.',
       inputSchema: z.object({ name: z.string().min(1).describe('Exact card name.') }),
-      outputSchema: fromJsonSchema<CardDetails>(GET_CARD_DETAILS_OUTPUT),
+      outputSchema: outputSchemaFor<CardDetails>('get_card_details'),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async ({ name }) =>
@@ -559,7 +539,7 @@ export function registerReadTools(server: McpServer): void {
           .optional()
           .describe('Include each printing’s price block. Default false.'),
       }),
-      outputSchema: fromJsonSchema<CardPrintingsResult>(GET_CARD_PRINTINGS_OUTPUT),
+      outputSchema: outputSchemaFor<CardPrintingsResult>('get_card_printings'),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async ({ name, limit, includePrices }) =>
@@ -589,7 +569,7 @@ export function registerReadTools(server: McpServer): void {
         'Get a card’s representative printing and cheapest printing per currency. ' +
         'An unknown card name is an error.',
       inputSchema: z.object({ name: z.string().min(1).describe('Exact card name.') }),
-      outputSchema: fromJsonSchema<CardPriceResult>(GET_CARD_PRICE_OUTPUT),
+      outputSchema: outputSchemaFor<CardPriceResult>('get_card_price'),
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async ({ name }) =>
@@ -653,7 +633,7 @@ export function registerReadTools(server: McpServer): void {
             }
           }
         }),
-      outputSchema: fromJsonSchema<PriceReportResult>(GET_PRICE_REPORT_OUTPUT),
+      outputSchema: outputSchemaFor<PriceReportResult>('get_price_report'),
       annotations: { readOnlyHint: true },
     },
     async ({ listType, slug, currency, source }) =>
@@ -691,7 +671,7 @@ export function registerReadTools(server: McpServer): void {
         'downloaded (run refresh_buylist). Requires sell mode: with the site.sellMode config ' +
         'off and no --sell-mode flag on this server, this tool errors "Not found".',
       inputSchema: sellScopeSchema,
-      outputSchema: fromJsonSchema<SellReportResult>(GET_SELL_REPORT_OUTPUT),
+      outputSchema: outputSchemaFor<SellReportResult>('get_sell_report'),
       annotations: { readOnlyHint: true },
     },
     async (scope) =>
@@ -717,7 +697,7 @@ export function registerReadTools(server: McpServer): void {
         'caps and etched foils the format cannot express. Requires sell mode, like ' +
         'get_sell_report.',
       inputSchema: sellScopeSchema,
-      outputSchema: fromJsonSchema<SellCartResult>(GET_SELL_CART_OUTPUT),
+      outputSchema: outputSchemaFor<SellCartResult>('get_sell_cart'),
       annotations: { readOnlyHint: true },
     },
     async (scope) =>
@@ -751,7 +731,7 @@ export function registerReadTools(server: McpServer): void {
           .optional()
           .describe('Which buyer to quote against (default: cardkingdom).'),
       }),
-      outputSchema: fromJsonSchema<BuylistQuotesResult>(GET_BUYLIST_QUOTES_OUTPUT),
+      outputSchema: outputSchemaFor<BuylistQuotesResult>('get_buylist_quotes'),
       annotations: { readOnlyHint: true },
     },
     async ({ printings, buyer }) =>
@@ -770,7 +750,7 @@ export function registerReadTools(server: McpServer): void {
       title: 'Get change history',
       description: 'Load a list’s change history (newest first) plus the default-rewrite lines.',
       inputSchema: z.object({ listType: listTypeSchema, slug: slugField }),
-      outputSchema: fromJsonSchema<HistoryResult>(GET_HISTORY_OUTPUT),
+      outputSchema: outputSchemaFor<HistoryResult>('get_history'),
       annotations: { readOnlyHint: true },
     },
     async ({ listType, slug }) =>
@@ -797,7 +777,7 @@ export function registerReadTools(server: McpServer): void {
         '--sell-mode reports overrides {"site.sellMode": true} while config.site.sellMode ' +
         'stays as stored (often unset). No overrides key means the two agree.',
       inputSchema: z.object({}),
-      outputSchema: fromJsonSchema<GetConfigResult>(GET_CONFIG_OUTPUT),
+      outputSchema: outputSchemaFor<GetConfigResult>('get_config'),
       annotations: { readOnlyHint: true },
     },
     async () =>
@@ -824,7 +804,7 @@ export function registerReadTools(server: McpServer): void {
         'get_price_report errors on, and refresh_cache is the fix. Diagnostic only — reading ' +
         'this never refreshes or writes the cache.',
       inputSchema: z.object({}),
-      outputSchema: fromJsonSchema<CacheStatusResult>(GET_CACHE_STATUS_OUTPUT),
+      outputSchema: outputSchemaFor<CacheStatusResult>('get_cache_status'),
       annotations: { readOnlyHint: true },
     },
     async () =>
@@ -848,7 +828,7 @@ export function registerReadTools(server: McpServer): void {
         b: listRefSchema.describe('Second list.'),
         by: z.enum(DIFF_BY_MODES).optional().describe('Identity to compare by (default "name").'),
       }),
-      outputSchema: fromJsonSchema<DiffResult>(DIFF_LISTS_OUTPUT),
+      outputSchema: outputSchemaFor<DiffResult>('diff_lists'),
       annotations: { readOnlyHint: true },
     },
     async ({ a, b, by }) =>
@@ -946,7 +926,7 @@ export function registerReadTools(server: McpServer): void {
               'instead of the content. Default false.',
           ),
       }),
-      outputSchema: fromJsonSchema<ExportResult>(EXPORT_CARDS_OUTPUT),
+      outputSchema: outputSchemaFor<ExportResult>('export_cards'),
       // No readOnlyHint: write mode touches the filesystem. No destructiveHint
       // either — the writer never overwrites an existing file.
       annotations: {},

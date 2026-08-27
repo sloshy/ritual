@@ -4,11 +4,13 @@ import { mkdir, readdir, unlink } from 'node:fs/promises'
 import type WebTorrent from 'webtorrent'
 import type { Torrent } from 'webtorrent'
 import { createDefaultFileSystemClient, type HttpClient } from '../util/interfaces'
-import { writeFileAtomic } from '../cache/atomic-write'
+import { writeFileAtomic } from './atomic-write'
 import { throwHttpError } from '../util/errors'
+import { isRecord } from '../util/json'
 import type { BulkCacheFiles } from '../scryfall/client'
 import { configuredCardBulkType } from '../scryfall/bulk-manifest'
 import {
+  CACHE_FEED_LOG_PREFIX,
   CARD_BULK_TYPE_BY_KIND,
   CARD_KIND_BY_BULK_TYPE,
   FEED_KINDS,
@@ -19,8 +21,7 @@ import {
   type CacheFeedKind,
   type CardFeedKind,
 } from './feed'
-import { CACHE_FEED_LOG_PREFIX } from './host'
-import { streamToFile } from './download'
+import { streamToFile } from './feed-download'
 
 /**
  * Default feed URL consulted when neither `--url` nor the `cacheFeedUrl`
@@ -47,21 +48,19 @@ export type CacheFeedClientState = {
  * in AGENTS.md — a malformed state is treated as "nothing ingested yet".
  */
 export function parseCacheFeedClientState(json: unknown): CacheFeedClientState | string {
-  if (!json || typeof json !== 'object' || Array.isArray(json)) {
+  if (!isRecord(json)) {
     return 'Invalid feed-client state: expected an object'
   }
-  const state = json as Record<string, unknown>
-  if (!state['ingested'] || typeof state['ingested'] !== 'object') {
+  const ingested = json['ingested']
+  if (!isRecord(ingested)) {
     return 'Invalid feed-client state: missing ingested map'
   }
-  for (const [kind, value] of Object.entries(state['ingested'] as Record<string, unknown>)) {
+  for (const [kind, entry] of Object.entries(ingested)) {
     if (!(FEED_KINDS as readonly string[]).includes(kind)) {
       return `Invalid feed-client state: unknown kind '${kind}'`
     }
-    const entry = value as Record<string, unknown>
     if (
-      !entry ||
-      typeof entry !== 'object' ||
+      !isRecord(entry) ||
       typeof entry['infoHash'] !== 'string' ||
       typeof entry['ingestedAt'] !== 'string'
     ) {

@@ -34,7 +34,7 @@ import {
 import { printingSuffix } from '../card/card-line'
 import { findPrinting, type CardPrintingsLookup } from '../card/card-printing'
 import { createAddChange, createRemoveChange } from '../changes/change-event'
-import { type CollectionEntry } from '../list/collection-file'
+import type { CollectionEntry } from '../list/collection-file'
 import { defaultPrintingFinish } from '../card/finish-condition'
 import {
   ARCHIDEKT_GAME_PAPER,

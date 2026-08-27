@@ -2,9 +2,9 @@ import * as fs from 'node:fs/promises'
 import { getCacheDir, getCacheFile, FileCacheManager } from '../cache'
 import { defaultHttpClient } from '../util/http'
 import { getCacheSource, type CacheSource } from '../config/ritual-config'
-import { CacheFeedClient, type FeedSyncResult } from '../cache-feed/fetch'
+import { CacheFeedClient, type FeedSyncResult } from '../cache/feed-client'
 import { getFeedClientDataDir, resolveFeedUrl } from '../cache/refresh-source'
-import { type HttpClient } from '../util/interfaces'
+import type { HttpClient } from '../util/interfaces'
 import { ScryfallClient } from '../scryfall'
 import type { PriceData } from '../pricing/price-data'
 import type { ScryfallCard } from '../scryfall/types'
@@ -28,7 +28,7 @@ import {
   resolvePriceCacheReadThrough,
 } from './read-through'
 import { PriceRefreshScheduler } from './scheduler'
-import { type CacheServerCommandOptions, type PriceReadThroughResult } from './types'
+import type { CacheServerCommandOptions, PriceReadThroughResult } from './types'
 
 interface BulkSetPayload {
   entries?: Record<string, PriceData> | Record<string, ScryfallCard[]>

@@ -21,10 +21,10 @@ import {
   makeScryfallCard,
   resetLogger,
   setLogger,
+  stubTty,
 } from '../test-utils'
 import type { ScryfallCard } from '../../src/scryfall/types'
 import { setNoInputOverride } from '../../src/util/no-input'
-import { stubTty } from '../test-utils'
 
 const readFileMock = mock(async (_path: string, _encoding: BufferEncoding) => '[]')
 const writeFileMock = mock(async (_path: string, _data: string | Uint8Array) => {})

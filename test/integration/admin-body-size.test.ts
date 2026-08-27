@@ -7,9 +7,9 @@ import { handleDeckSave } from '../../src/admin/api/deck-save'
 import { handleCollectionSave } from '../../src/admin/api/collection-save'
 import { handleWantedListSave } from '../../src/admin/api/wanted-save'
 import { handleLogin } from '../../src/admin/api/auth-login'
-import { validateBodySize } from '../../src/admin/api/save-helpers'
+import { validateBodySize, MAX_BODY_SIZE } from '../../src/api/http'
 import { computeHash } from '../../src/changes/content-hash'
-import { MAX_BODY_SIZE, MAX_LIST_BODY_SIZE } from '../../src/admin/validation'
+import { MAX_LIST_BODY_SIZE } from '../../src/admin/validation'
 import {
   bindWorkspace,
   snapshotTree,
@@ -193,6 +193,21 @@ describe('admin request-body cap', () => {
     // An address no other suite locks out: `handleLogin` consults the global
     // rate limiter before the size cap, and that limiter is process-wide.
     const resp = await handleLogin(post('http://localhost/api/login', body), '10.99.0.1')
+
+    expect(resp.status).toBe(413)
+  })
+
+  // The credential routes share `validateBodySize` rather than hand-rolling the
+  // check, so an unparseable header is refused there too. The hand-rolled form
+  // (`Number(header ?? '0') > MAX_BODY_SIZE`) waved NaN through as "fits".
+  test('a credential route refuses a malformed declared size', async () => {
+    const req = new Request('http://localhost/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': 'lots' },
+      body: JSON.stringify({ username: 'admin', password: 'hunter2' }),
+    })
+    // A second address the rate limiter has not seen — see the test above.
+    const resp = await handleLogin(req, '10.99.0.2')
 
     expect(resp.status).toBe(413)
   })

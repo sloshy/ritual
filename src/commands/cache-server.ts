@@ -1,4 +1,4 @@
-import { type Command } from 'commander'
+import type { Command } from 'commander'
 import {
   addFeedUrlOption,
   addTorrentPortOption,
@@ -7,7 +7,7 @@ import {
   parseRefreshCadence,
 } from '../cache-server/cadence'
 import { runCacheServer } from '../cache-server/server'
-import { type CacheServerCommandOptions } from '../cache-server/types'
+import type { CacheServerCommandOptions } from '../cache-server/types'
 import { t } from '../i18n/t'
 import { ExitCode } from '../util/errors'
 import { parsePort } from '../cli/options'

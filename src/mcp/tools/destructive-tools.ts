@@ -1,4 +1,4 @@
-import { fromJsonSchema, type McpServer } from '@modelcontextprotocol/server'
+import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import type { BuildSiteResponse } from '../../admin/api/build-site'
 import type { CacheRefreshResponse } from '../../admin/api/cache'
@@ -14,18 +14,7 @@ import type { ListDeleteResponse, ListRenameResponse } from '../../admin/api/lis
 import { callApi, callApiData } from '../dispatch'
 import { createToolProgressSink } from '../progress'
 import type { ListChangeNotifier } from '../notify'
-import { runTool } from '../result'
-import {
-  BUILD_SITE_OUTPUT,
-  CONFIG_OUTPUT,
-  DELETE_LIST_OUTPUT,
-  REFRESH_BUYLIST_OUTPUT,
-  REFRESH_CACHE_OUTPUT,
-  RENAME_LIST_OUTPUT,
-  REWRITE_HISTORY_OUTPUT,
-  SYNC_COLLECTION_OUTPUT,
-  SYNC_DECKS_OUTPUT,
-} from '../schema-json'
+import { outputSchemaFor, runTool } from '../result'
 import { listTypeSchema, slugField } from '../schemas'
 import type { OmitSuccess, UpdateConfigResult } from '../types'
 import { CSV_UPLOAD_THRESHOLD } from '../../collection-sync/csv'
@@ -136,7 +125,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'path). Refused when another list of that type already resolves under the new name; ' +
         'changing only the capitalization or punctuation of this list’s own name is allowed.',
       inputSchema: z.object({ listType: listTypeSchema, slug: slugField, newName: newNameField }),
-      outputSchema: fromJsonSchema<RenameListResult>(RENAME_LIST_OUTPUT),
+      outputSchema: outputSchemaFor<RenameListResult>('rename_list'),
       annotations: { destructiveHint: true },
     },
     async ({ listType, slug, newName }) =>
@@ -163,7 +152,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         slug: slugField,
         confirmName: confirmNameField,
       }),
-      outputSchema: fromJsonSchema<DeleteListResult>(DELETE_LIST_OUTPUT),
+      outputSchema: outputSchemaFor<DeleteListResult>('delete_list'),
       annotations: { destructiveHint: true, idempotentHint: true },
     },
     async ({ listType, slug, confirmName }) =>
@@ -192,7 +181,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         slug: slugField,
         sets: z.array(changeSetSchema).describe('The full set of change sets to write.'),
       }),
-      outputSchema: fromJsonSchema<HistoryRewriteResult>(REWRITE_HISTORY_OUTPUT),
+      outputSchema: outputSchemaFor<HistoryRewriteResult>('rewrite_history'),
       annotations: { destructiveHint: true },
     },
     async ({ listType, slug, sets }) =>
@@ -228,7 +217,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
       inputSchema: z.object({
         config: z.record(z.string(), z.unknown()).describe('Partial RitualConfig object to merge.'),
       }),
-      outputSchema: fromJsonSchema<UpdateConfigResult>(CONFIG_OUTPUT),
+      outputSchema: outputSchemaFor<UpdateConfigResult>('update_config'),
       annotations: { destructiveHint: true },
     },
     async ({ config }) =>
@@ -248,7 +237,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'Emits progress notifications when the call supplies a progressToken, and honours ' +
         'cancellation.',
       inputSchema: z.object({}),
-      outputSchema: fromJsonSchema<BuildSiteResult>(BUILD_SITE_OUTPUT),
+      outputSchema: outputSchemaFor<BuildSiteResult>('build_site'),
       annotations: { destructiveHint: true },
     },
     async (_args, ctx) =>
@@ -310,7 +299,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
               'printings are left alone.',
           ),
       }),
-      outputSchema: fromJsonSchema<DeckSyncResult>(SYNC_DECKS_OUTPUT),
+      outputSchema: outputSchemaFor<DeckSyncResult>('sync_decks'),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
     async (
@@ -423,7 +412,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
               'Writing the CSV to a file instead of pushing it is CLI-only (--csv-file).',
           ),
       }),
-      outputSchema: fromJsonSchema<CollectionSyncResult>(SYNC_COLLECTION_OUTPUT),
+      outputSchema: outputSchemaFor<CollectionSyncResult>('sync_collection'),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
     async (
@@ -465,7 +454,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'reports success unconditionally. Emits progress notifications when the call supplies a ' +
         'progressToken.',
       inputSchema: z.object({}),
-      outputSchema: fromJsonSchema<CacheRefreshResult>(REFRESH_CACHE_OUTPUT),
+      outputSchema: outputSchemaFor<CacheRefreshResult>('refresh_cache'),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
     async (_args, ctx) =>
@@ -497,7 +486,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
           .optional()
           .describe('Redownload even when the cached feed is still fresh.'),
       }),
-      outputSchema: fromJsonSchema<BuylistRefreshResult>(REFRESH_BUYLIST_OUTPUT),
+      outputSchema: outputSchemaFor<BuylistRefreshResult>('refresh_buylist'),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
     async ({ force }) =>

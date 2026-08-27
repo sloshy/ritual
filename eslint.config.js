@@ -108,7 +108,8 @@ export default [
       // Bottom-up: a file may import its own layer or anything below, never
       // above. Directories missing from the table are unconstrained. The
       // `allow` list is the known debt at the time the rule landed; the zone
-      // that closes a debt deletes its entry — never widen one.
+      // that closes a debt deletes its entry — never widen one. Zone 10 closed
+      // the last two, so the layering now holds with no exceptions at all.
       'ritual/no-upward-import': [
         'error',
         {
@@ -184,12 +185,8 @@ export default [
               ],
             },
           ],
-          allow: [
-            // Zone 10/11 — cache/ reaches into the feed server.
-            { from: 'src/cache/refresh-source', to: 'src/cache-feed/fetch' },
-            // Zone 10 — the client-neutral card routes borrow admin's HTTP helpers.
-            { from: 'src/api', to: 'src/admin/api/save-helpers' },
-          ],
+          // Empty, and meant to stay that way: fix the layering, not the list.
+          allow: [],
         },
       ],
 

@@ -1,9 +1,4 @@
-import {
-  fromJsonSchema,
-  ProtocolError,
-  ProtocolErrorCode,
-  type McpServer,
-} from '@modelcontextprotocol/server'
+import { ProtocolError, ProtocolErrorCode, type McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import {
   createAddChange,
@@ -37,18 +32,7 @@ import type { MoveCommitResponse, RemoveCommitResponse } from '../../admin/api/m
 import { callApi, callApiData } from '../dispatch'
 import type { ListChangeNotifier } from '../notify'
 import { applyMutation, type MutationResult } from '../mutations'
-import { runTool } from '../result'
-import {
-  CREATE_LIST_OUTPUT,
-  IMPORT_CHANGE_BUNDLE_OUTPUT,
-  IMPORT_CSV_OUTPUT,
-  IMPORT_DECK_OUTPUT,
-  MOVE_SELECTED_CARDS_OUTPUT,
-  MUTATION_OUTPUT,
-  REMOVE_SELECTED_CARDS_OUTPUT,
-  SET_CARD_ART_OUTPUT,
-  SET_LIST_METADATA_OUTPUT,
-} from '../schema-json'
+import { outputSchemaFor, runTool } from '../result'
 import type { ListType } from '../../list/list-type'
 import type { OmitSuccess } from '../types'
 import {
@@ -388,7 +372,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
             .describe('Deck format (decks only; defaults to commander).'),
         })
         .superRefine(refineDeckOnlyFormat),
-      outputSchema: fromJsonSchema<CreateListResult>(CREATE_LIST_OUTPUT),
+      outputSchema: outputSchemaFor<CreateListResult>('create_list'),
     },
     async ({ listType, name, format }) =>
       runTool(async (): Promise<CreateListResult> => {
@@ -429,7 +413,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
               'printings come from the pasted lines themselves.',
           ),
       }),
-      outputSchema: fromJsonSchema<ImportDeckResult>(IMPORT_DECK_OUTPUT),
+      outputSchema: outputSchemaFor<ImportDeckResult>('import_deck'),
       annotations: { destructiveHint: true },
     },
     async ({ mode, url, content, name, overwrite, syncPrintings }) =>
@@ -486,7 +470,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
             ),
         })
         .superRefine(refineDeckOnlyFormat),
-      outputSchema: fromJsonSchema<ImportCsvResult>(IMPORT_CSV_OUTPUT),
+      outputSchema: outputSchemaFor<ImportCsvResult>('import_csv'),
       annotations: { destructiveHint: true },
     },
     async ({ listType, name, mode, format, content, columns, hasHeader }) =>
@@ -525,7 +509,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       inputSchema: z.object({
         json: z.string().min(1).describe('The exported change JSON, verbatim.'),
       }),
-      outputSchema: fromJsonSchema<ImportChangeBundleResult>(IMPORT_CHANGE_BUNDLE_OUTPUT),
+      outputSchema: outputSchemaFor<ImportChangeBundleResult>('import_change_bundle'),
       annotations: { destructiveHint: true },
     },
     async ({ json }) =>
@@ -618,7 +602,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
           // only a present array is checked against the type's vocabulary.
           if (val.labels != null) refineLabelsForListType({ ...val, labels: val.labels }, ctx)
         }),
-      outputSchema: fromJsonSchema<ListMetadataResult>(SET_LIST_METADATA_OUTPUT),
+      outputSchema: outputSchemaFor<ListMetadataResult>('set_list_metadata'),
     },
     async ({ listType, slug, ...patch }) =>
       runTool(async (): Promise<ListMetadataResult> => {
@@ -668,7 +652,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
           }
           refineLabelsForListType(val, ctx)
         }),
-      outputSchema: fromJsonSchema<MutationResult>(MUTATION_OUTPUT),
+      outputSchema: outputSchemaFor<MutationResult>('add_card'),
     },
     async ({
       listType,
@@ -734,7 +718,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
             })
           }
         }),
-      outputSchema: fromJsonSchema<MutationResult>(MUTATION_OUTPUT),
+      outputSchema: outputSchemaFor<MutationResult>('remove_card'),
     },
     async ({
       listType,
@@ -789,7 +773,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
           .optional()
           .describe('New language for the card; omit to leave the current language alone.'),
       }),
-      outputSchema: fromJsonSchema<MutationResult>(MUTATION_OUTPUT),
+      outputSchema: outputSchemaFor<MutationResult>('set_card_printing'),
     },
     async ({
       listType,
@@ -834,7 +818,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         cardId: cardIdTargetField,
         art: cardArtSchema,
       }),
-      outputSchema: fromJsonSchema<SetCardArtResult>(SET_CARD_ART_OUTPUT),
+      outputSchema: outputSchemaFor<SetCardArtResult>('set_card_art'),
     },
     async ({ listType, slug, cardId, art }) =>
       runTool(async (): Promise<SetCardArtResult> => {
@@ -892,7 +876,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
             refineLabelsForListType({ listType: val.listType, labels }, ctx)
           }
         }),
-      outputSchema: fromJsonSchema<MutationResult>(MUTATION_OUTPUT),
+      outputSchema: outputSchemaFor<MutationResult>('apply_changes'),
       // Like import_change_bundle: a change batch can remove cards in bulk.
       annotations: { destructiveHint: true },
     },
@@ -919,7 +903,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       inputSchema: z.object({
         moves: z.array(moveItemSchema).min(1).describe('Moves to apply atomically.'),
       }),
-      outputSchema: fromJsonSchema<MoveSelectedResult>(MOVE_SELECTED_CARDS_OUTPUT),
+      outputSchema: outputSchemaFor<MoveSelectedResult>('move_selected_cards'),
     },
     async ({ moves }) =>
       runTool(async (): Promise<MoveSelectedResult> => {
@@ -956,7 +940,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       inputSchema: z.object({
         removes: z.array(removeItemSchema).min(1).describe('Cards to remove atomically.'),
       }),
-      outputSchema: fromJsonSchema<RemoveSelectedResult>(REMOVE_SELECTED_CARDS_OUTPUT),
+      outputSchema: outputSchemaFor<RemoveSelectedResult>('remove_selected_cards'),
     },
     async ({ removes }) =>
       runTool(async (): Promise<RemoveSelectedResult> => {

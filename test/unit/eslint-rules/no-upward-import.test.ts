@@ -136,14 +136,14 @@ ruleTester.run('no-upward-import', rule as never, {
     },
     // Two layers up, from a nested importer.
     {
-      code: `import { a } from '../../admin/api/result'`,
+      code: `import { a } from '../../admin/api/save-helpers'`,
       filename: 'src/list/x/y.ts',
       options: OPTIONS,
       errors: [
         {
           messageId: 'upwardImport',
           data: {
-            specifier: '../../admin/api/result',
+            specifier: '../../admin/api/save-helpers',
             fromLayer: 'domain',
             fromDir: 'src/list',
             toLayer: 'apps',
@@ -314,11 +314,12 @@ describe('absolute filenames', () => {
 })
 
 /**
- * Vacuity guard for the real table in eslint.config.js. A layer fragment or
- * allow entry naming a path that no longer exists is silently inert — the
- * directory becomes unconstrained, or the debt entry stops matching — and lint
- * stays green. Pin that every fragment resolves to something on disk, so a
- * rename shows up here instead of quietly widening what the rule permits.
+ * Vacuity guard for the real table in eslint.config.js. A layer fragment naming
+ * a path that no longer exists is silently inert — the directory becomes
+ * unconstrained — and lint stays green. Pin that every fragment resolves to
+ * something on disk, so a rename shows up here instead of quietly widening what
+ * the rule permits. The same holds for an `allow` entry, which is why the list
+ * is checked for emptiness rather than merely for resolvable paths.
  */
 describe('the eslint.config.js layer table', () => {
   type LayerOptions = {
@@ -347,6 +348,14 @@ describe('the eslint.config.js layer table', () => {
       'admin',
       'entry',
     ])
+  })
+
+  test('the allow list is empty and stays that way', async () => {
+    // Zone 10 closed the last two entries. Each one was a hole in the layering
+    // that lint could not see through, so re-adding one is a decision to take
+    // deliberately — not a way past a lint failure.
+    const options = await loadOptions()
+    expect(options.allow).toEqual([])
   })
 
   test('every layer fragment and allow entry names a real path', async () => {
@@ -390,6 +399,9 @@ describe('the eslint.config.js layer table', () => {
     ['src/list/x.js', '../util/errors', 0],
     ['src/importers/x.js', '../scryfall/client', 0],
     ['src/importers/x.js', '../admin/server', 1],
+    // The two edges Zone 10 closed, now enforced rather than allow-listed.
+    ['src/api/x.js', '../admin/api/save-helpers', 1],
+    ['src/cache/x.js', '../cache-feed/host', 1],
   ])('%s importing %s reports %i', async (filename, specifier, reports) => {
     expect(await lintReal(filename, specifier)).toBe(reports)
   })
@@ -403,7 +415,7 @@ describe('the eslint.config.js layer table', () => {
     // Assets and generated output, not TypeScript modules: nothing imports
     // across them, so they have no place in the layer table.
     const UNLAYERED = ['src/css', 'src/generated']
-    // An allowlist entry for a directory that no longer exists is inert; pin it the
+    // An exemption for a directory that no longer exists is inert; pin it the
     // way the sibling test pins the layer fragments.
     for (const dir of UNLAYERED)
       expect({ dir, exists: existsSync(path.join(ROOT, dir)) }).toEqual({ dir, exists: true })

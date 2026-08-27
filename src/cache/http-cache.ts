@@ -1,5 +1,5 @@
-import { type CacheManager, type CacheStreamEntryMeta } from '../util/interfaces'
-import { type CacheSection, type DataType } from './file-cache'
+import type { CacheManager, CacheStreamEntryMeta } from '../util/interfaces'
+import type { CacheSection, DataType } from './file-cache'
 
 interface CacheServerGetResponse<T> {
   value: T | null

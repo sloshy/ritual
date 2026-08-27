@@ -13,7 +13,7 @@ import {
   CARD_KIND_BY_BULK_TYPE,
   FEED_KINDS,
   TAG_FEED_KINDS,
-} from '../../../src/cache-feed/feed'
+} from '../../../src/cache/feed'
 import { refreshRitualConfig, resetRitualConfigCache } from '../../../src/config/ritual-config'
 import { setBaseDir } from '../../../src/config/base-dir'
 

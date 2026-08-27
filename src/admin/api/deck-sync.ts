@@ -16,9 +16,10 @@ import type { SyncDirection } from '../../sync/common'
 import { sseResponse } from '../../util/sse'
 import { itemStartProgress, itemsDoneProgress, type RouteProgressSink } from '../../util/progress'
 import { apiHandler } from '../utils'
-import { apiMessage, pickMessage, type ApiMessage } from './result'
+import { apiMessage, pickMessage, type ApiMessage } from '../../api/result'
 import { renderSyncSummaryEnglish, type SyncSummary, type SyncSummaryClause } from './sync-summary'
-import { autoCommitAndPush, readJsonObjectBody } from './save-helpers'
+import { autoCommitAndPush } from './save-helpers'
+import { readJsonObjectBody } from '../../api/http'
 import {
   isRecord,
   parseNameArray,

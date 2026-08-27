@@ -26,7 +26,7 @@ import {
   rankNameMatches,
   splitNameTerms,
 } from '../../card/term-match'
-import { apiError } from './save-helpers'
+import { apiError } from '../../api/http'
 
 /** How many close cached names a refusal offers per rejected name. */
 export const MAX_CANDIDATES = 3

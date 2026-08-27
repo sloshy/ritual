@@ -19,7 +19,9 @@ import {
 import { loadAndBuildSellReport } from '../../pricing/sell-runtime'
 import { parseSetCodesInput } from '../../card/set-codes'
 import { listLocationForSlug } from './list-info'
-import { apiError, badRequest, requireBuylistFeed, requireCardCache } from './save-helpers'
+import { apiError, badRequest } from '../../api/http'
+import { requireBuylistFeed } from '../../api/buylist'
+import { requireCardCache } from './save-helpers'
 
 /** GET /api/sell/report body — the CLI's `sell --output json` payload. */
 export type SellReportResponse = SellReportPayload & {

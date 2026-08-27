@@ -1,7 +1,7 @@
 import { type JSX, createSignal, Match, Switch } from 'solid-js'
 import type { ArchidektLoginStatus } from '../../../auth/interfaces'
 import { useT } from '../../../ui/i18n'
-import { apiMessage } from '../../api/result'
+import { apiMessage } from '../../../api/result'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from './StatusAlerts'
 

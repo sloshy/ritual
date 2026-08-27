@@ -2,7 +2,8 @@ import { getDecksDir } from '../../config/ritual-config'
 import { createList, isListLifecycleError } from '../../list/list-lifecycle'
 import { apiHandler } from '../utils'
 import { lifecycleErrorResponse, type ListCreateResponse } from './list-lifecycle'
-import { apiError, autoCommitAndPush, readJsonObjectBody } from './save-helpers'
+import { apiError, readJsonObjectBody } from '../../api/http'
+import { autoCommitAndPush } from './save-helpers'
 
 export interface DeckCreateRequest {
   name: string

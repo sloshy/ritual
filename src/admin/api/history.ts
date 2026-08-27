@@ -14,8 +14,9 @@ import { buildDefaultChangeLines, loadListSnapshot } from '../../changes/list-sn
 import { changelogSidecarPath } from '../../list/list-sidecars'
 import { resolveListFile } from './list-info'
 import { listSlug } from '../../list/list-file-name'
-import { apiMessage, type ApiMessage } from './result'
-import { autoCommitAndPush, apiError, badRequest, readJsonObjectBody } from './save-helpers'
+import { apiMessage, type ApiMessage } from '../../api/result'
+import { autoCommitAndPush } from './save-helpers'
+import { apiError, badRequest, readJsonObjectBody } from '../../api/http'
 import { parseListTarget } from './target'
 import { MAX_LIST_BODY_SIZE } from '../validation'
 

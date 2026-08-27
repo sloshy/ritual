@@ -1,4 +1,4 @@
-import { type HttpClient } from './interfaces'
+import type { HttpClient } from './interfaces'
 import { version } from '../config/version'
 
 function isMoxfieldApiRequest(url: string | URL | Request): boolean {

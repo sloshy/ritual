@@ -25,12 +25,8 @@ import { checkArchidektLink } from '../../deck-sync/link'
 import { invalidDeckFormatMessage, parseDeckFormat } from '../../list/deck-format'
 import { parseListTarget } from './target'
 import { resolveListFile } from './list-info'
-import {
-  apiError,
-  autoCommitAndPush,
-  readJsonObjectBody,
-  validateContentHash,
-} from './save-helpers'
+import { apiError, readJsonObjectBody } from '../../api/http'
+import { autoCommitAndPush, validateContentHash } from './save-helpers'
 import { MAX_LIST_BODY_SIZE } from '../validation'
 
 /**

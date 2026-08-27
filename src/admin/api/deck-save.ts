@@ -9,10 +9,9 @@ import { getDecksDir } from '../../config/ritual-config'
 import { parseDeckText } from '../../importers/text-file'
 import { changeCardNames, refuseUnknownCardNames } from './card-name-check'
 import { applyCrossListMoves } from '../../list/move-prepare'
+import { apiError, readJsonObjectBody } from '../../api/http'
 import {
-  apiError,
   PARTIAL_LOAD_HINT,
-  readJsonObjectBody,
   validateContentHash,
   finishListSave,
   listSaveOutcome,

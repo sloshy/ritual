@@ -11,7 +11,7 @@ import {
 } from '../../../changes/changelog-blocks'
 import type { ListInfo } from '../../../list/list-info'
 import type { HistoryLoadResponse, HistorySaveResponse } from '../../api/history'
-import type { ApiErrorResponse } from '../../api/save-helpers'
+import type { ApiErrorResponse } from '../../../api/http'
 import type { ListsResponse } from '../../api/lists'
 import { t } from '../../../i18n/t'
 import { type ListId, listInfoId } from '../list-grouping'

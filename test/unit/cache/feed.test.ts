@@ -4,7 +4,7 @@ import {
   parseCacheFeed,
   type CacheFeedDocument,
   type CacheFeedEntry,
-} from '../../src/cache-feed/feed'
+} from '../../../src/cache/feed'
 
 function makeEntry(overrides: Partial<CacheFeedEntry> = {}): CacheFeedEntry {
   return {

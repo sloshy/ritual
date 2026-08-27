@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { handleImportCsv, type ImportCsvResponse } from '../../src/admin/api/import-csv'
-import type { ApiErrorResponse } from '../../src/admin/api/save-helpers'
+import type { ApiErrorResponse } from '../../src/api/http'
 import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
 
 /**

@@ -1,12 +1,12 @@
-import { type FileCacheManager } from '../cache'
+import type { FileCacheManager } from '../cache'
 import { isCurrencyAvailableForCard } from '../pricing/price-currency'
 import { parsePriceCacheKey } from '../pricing/prices'
 import { ScryfallClient, getCardGames } from '../scryfall'
 import type { PriceData } from '../pricing/price-data'
 import type { ScryfallCard } from '../scryfall/types'
 import { shouldForcePriceRefresh } from './helpers'
-import { type PriceRefreshScheduler } from './scheduler'
-import { type PriceReadThroughResult, type PriceRefreshAction } from './types'
+import type { PriceRefreshScheduler } from './scheduler'
+import type { PriceReadThroughResult, PriceRefreshAction } from './types'
 
 type CacheUpdateLogger = (message: string) => void
 

@@ -17,7 +17,7 @@ import {
 } from '../../list/resolve-list'
 import { parseEnumField } from '../../util/parse-enum'
 import { apiHandler } from '../utils'
-import { badRequest } from './save-helpers'
+import { badRequest } from '../../api/http'
 
 /** `GET /api/diff` success body — the CLI `diff --output json` shape plus `success`. */
 export type DiffResponseBody = {

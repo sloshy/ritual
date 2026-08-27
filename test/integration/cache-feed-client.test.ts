@@ -2,12 +2,8 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { CacheFeedClient, parseCacheFeedClientState } from '../../src/cache-feed/fetch'
-import {
-  FEED_VERSION,
-  type CacheFeedDocument,
-  type CacheFeedEntry,
-} from '../../src/cache-feed/feed'
+import { CacheFeedClient, parseCacheFeedClientState } from '../../src/cache/feed-client'
+import { FEED_VERSION, type CacheFeedDocument, type CacheFeedEntry } from '../../src/cache/feed'
 import type { BulkCacheFiles } from '../../src/scryfall/client'
 import { MockHttpClient, MemoryLogger, gzipJsonLines, setLogger } from '../test-utils'
 
