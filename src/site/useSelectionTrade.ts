@@ -1,4 +1,5 @@
 import type { ScryfallCard } from '../scryfall/types'
+import type { Finish } from '../card/finish-condition'
 import type { PriceCurrency } from '../pricing/price-currency'
 import type { SelectedCard, SelectionSourceKind } from '../list-view/useCardSelection'
 import type { TradeSearchEntry } from './useTradeData'
@@ -72,6 +73,85 @@ export function tradeEntryFor(card: SelectedCard): TradeSearchEntry {
     maxQty: card.maxQty,
     cardIds: card.cardIds,
   }
+}
+
+/**
+ * Toast the row that just landed on the board. Every add path ends here, so the
+ * thumbnail always comes from the row's own printing rather than whichever card
+ * object the call site happened to have in hand.
+ */
+export function toastTradeAdd(entry: TradeSearchEntry, useScryfallImgUrls: boolean): void {
+  showTradeToast(entry.name, resolveCardThumbnailUrl(entry.scryfallCard, useScryfallImgUrls))
+}
+
+/**
+ * Add one copy of `entry` to its trade side and toast it when it fits. The side
+ * comes from {@link TRADE_SIDES}, so a page cannot add a wanted row to the
+ * offering column by reaching for the wrong `addEntryTo*`. Collection adds go
+ * through the keep-guarded add and call {@link toastTradeAdd} directly.
+ */
+export function addAndToast(
+  entry: TradeSearchEntry,
+  currency: PriceCurrency,
+  useScryfallImgUrls: boolean,
+): boolean {
+  const added = TRADE_SIDES[entry.sourceKind].add(entry, currency)
+  if (added) toastTradeAdd(entry, useScryfallImgUrls)
+  return added
+}
+
+/** The source line a printing picker was opened for, minus the printing itself. */
+export type PickedPrintingTradeSource = {
+  sourceName: string
+  sourceKind: SelectionSourceKind
+  /** Copies the source line makes available for this exact variant. */
+  maxQty: number
+  cardIds: number[]
+  currency: PriceCurrency
+  useScryfallImgUrls: boolean
+}
+
+/**
+ * The trade row a picked printing becomes, for a name-only source line. Exported
+ * for the unit test pinning the language stamp: an alternate-language printing
+ * must carry its token, or the row prices and de-duplicates as the English card.
+ */
+export function pickedPrintingTradeEntry(
+  printing: ScryfallCard,
+  finish: Finish,
+  source: PickedPrintingTradeSource,
+): TradeSearchEntry {
+  return {
+    name: printing.name,
+    nameKey: normalizeCardName(printing.name),
+    set: printing.set.toLowerCase(),
+    collectorNumber: printing.collector_number,
+    finish,
+    // A picked alternate-language object stamps its language on the row.
+    language: pickedPrintingLanguage(printing),
+    scryfallCard: printing,
+    sourceName: source.sourceName,
+    sourceKind: source.sourceKind,
+    maxQty: source.maxQty,
+    cardIds: source.cardIds,
+  }
+}
+
+/**
+ * Add the printing a user picked for a name-only card to the trade, and toast it.
+ * Shared by the deck and wanted pages so their picker handlers cannot drift from
+ * each other, or from `addSelectionToTrade`'s bulk path.
+ */
+export function addPickedPrintingToTrade(
+  printing: ScryfallCard,
+  finish: Finish,
+  source: PickedPrintingTradeSource,
+): boolean {
+  return addAndToast(
+    pickedPrintingTradeEntry(printing, finish, source),
+    source.currency,
+    source.useScryfallImgUrls,
+  )
 }
 
 /** Add up to `qty` copies of `entry` to its trade side, stopping when capped. Returns the count added. */

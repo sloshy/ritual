@@ -32,7 +32,7 @@ type ExtraToggleLock = {
   reason: string
 }
 
-type ExtraToggle = {
+export type ExtraToggle = {
   label: string
   checked: boolean
   onChange: () => void

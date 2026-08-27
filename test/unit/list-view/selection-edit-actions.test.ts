@@ -2,13 +2,38 @@ import { describe, expect, test } from 'bun:test'
 import {
   buildSelectionEditActions,
   type BulkEditBundle,
-} from '../../../src/site/selection-edit-actions'
+  type SelectionEditActions,
+} from '../../../src/list-view/selection-edit-actions'
 import type { CardSelectionControl, SelectedCard } from '../../../src/list-view/useCardSelection'
 import type { Finish } from '../../../src/card/finish-condition'
+import { makeSelectedCard } from '../../test-utils'
 
 type Call = { name: string; cards: SelectedCard[]; arg?: unknown }
 
-function harness(withCommander = true, canSetFinish = true, withSwap = true, pinned = true) {
+/** What a harness may vary; every field defaults to the richest bundle (a deck's). */
+type HarnessOptions = {
+  /** Decks only. */
+  withCommander?: boolean
+  /** What the bundle answers when asked whether the finish applies to everything. */
+  canSetFinish?: boolean
+  /** Deck and collection editors only; a wanted list has nothing to swap. */
+  withSwap?: boolean
+  /** Whether the selected tile names a printing. */
+  pinned?: boolean
+}
+
+type Harness = {
+  actions: SelectionEditActions
+  /** Every bundle call in order, with the cards and extra argument it got. */
+  calls: Call[]
+  /** The exact array the actions must forward, so identity can be asserted. */
+  cards: SelectedCard[]
+  /** How many times the selection has been cleared. */
+  cleared: () => number
+}
+
+function harness(options: HarnessOptions = {}): Harness {
+  const { withCommander = true, canSetFinish = true, withSwap = true, pinned = true } = options
   const calls: Call[] = []
   let cleared = 0
   const record = (name: string) => (cards: SelectedCard[], arg?: unknown) =>
@@ -35,25 +60,28 @@ function harness(withCommander = true, canSetFinish = true, withSwap = true, pin
   }
 
   const cards: SelectedCard[] = [
-    {
+    makeSelectedCard({
       key: 'a',
       name: 'Sol Ring',
-      quantity: 1,
-      groupSize: 1,
-      scryfallCard: null,
       sourceName: 'Deck',
-      sourceKind: 'deck',
-      maxQty: 1,
       cardIds: [1],
       ...(pinned ? { set: 'c21', collectorNumber: '263' } : {}),
-    },
+    }),
   ]
-  const selection = {
+  // A real literal, not a cast: only `selected` and `clear` are exercised, but
+  // the rest are the honest no-ops a control with nothing selected would give,
+  // so a new member of the interface shows up here instead of being erased.
+  const selection: CardSelectionControl = {
     selected: () => cards,
+    count: () => cards.length,
+    value: () => 0,
+    state: () => 'none',
+    toggle: () => {},
+    removeOne: () => {},
     clear: () => {
       cleared++
     },
-  } as unknown as CardSelectionControl
+  }
 
   return {
     actions: buildSelectionEditActions(bundle, selection),
@@ -103,7 +131,7 @@ describe('buildSelectionEditActions', () => {
   })
 
   test('canSetFoil reports the bundle’s refusal', () => {
-    const h = harness(true, false)
+    const h = harness({ canSetFinish: false })
     expect(h.actions.canSetFoil()).toBe(false)
   })
 
@@ -129,7 +157,7 @@ describe('buildSelectionEditActions', () => {
   })
 
   test('omits setCommander when the bundle has none (flat lists)', () => {
-    const h = harness(false)
+    const h = harness({ withCommander: false })
     expect(h.actions.setCommander).toBeUndefined()
   })
 
@@ -141,12 +169,12 @@ describe('buildSelectionEditActions', () => {
   })
 
   test('omits swapPrintings when the bundle has none (wanted lists)', () => {
-    const h = harness(true, true, false)
+    const h = harness({ withSwap: false })
     expect(h.actions.swapPrintings).toBeUndefined()
   })
 
   test('offers swapPrintings for a name-only selection (the wizard sets its printing)', () => {
-    const h = harness(true, true, true, false)
+    const h = harness({ pinned: false })
     h.actions.swapPrintings!()
     expect(h.calls).toEqual([{ name: 'swapPrintings', cards: h.cards, arg: undefined }])
   })

@@ -3,7 +3,7 @@
  *
  * Any card surface (the read-view card modal, the editor context menu) can call
  * {@link openFindPrintings} with a card name; the app root renders a single
- * {@link import('../site/FindPrintingsModal').FindPrintingsModal} bound to
+ * `FindPrintingsModal` (in `site/`) bound to
  * {@link findPrintingsRequest} that shows every copy of that card (matched by
  * front-face name, so double-sided printings like `Steam Vents // Steam Vents`
  * count) across every deck, collection, and wanted list, grouped by list.

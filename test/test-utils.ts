@@ -23,6 +23,7 @@ import type { PrintingQuoteFn, QuotePrinting } from '../src/cardkingdom/quote'
 import { displayLanguage } from '../src/card/card-language'
 import type { ScryfallCard } from '../src/scryfall/types'
 import type { CardData } from '../src/list-view/card-sorting'
+import type { CollectionCardEntry } from '../src/list/site-data'
 import type { CardContextInfo } from '../src/list-view/card-context'
 import type { SelectedCard } from '../src/list-view/useCardSelection'
 
@@ -102,6 +103,27 @@ export function makeContextInfo(
 }
 
 /** A multi-select tile: one deck copy of a name-only card unless overridden. */
+/**
+ * A collection line with neutral defaults; spread overrides on top. One copy,
+ * `tst:1` nonfoil NM in `Main`, priced at zero — nothing that would accidentally
+ * satisfy a filter or a price assertion a test did not ask for.
+ */
+export function makeCollectionEntry(
+  overrides: Partial<CollectionCardEntry> = {},
+): CollectionCardEntry {
+  return {
+    name: 'Test Card',
+    set: 'tst',
+    collectorNumber: '1',
+    finish: 'nonfoil',
+    condition: 'NM',
+    price: 0,
+    fileOrder: 0,
+    section: 'Main',
+    ...overrides,
+  }
+}
+
 export function makeSelectedCard(
   overrides: Partial<SelectedCard> & { name: string },
 ): SelectedCard {

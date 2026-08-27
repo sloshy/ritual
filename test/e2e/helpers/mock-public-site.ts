@@ -1380,6 +1380,119 @@ export async function mockPublicSiteDeckForFilters(page: Page): Promise<void> {
   await fulfillJson(page, '**/decks/test-filter-deck.json', MOCK_FILTER_DECK)
 }
 
+// ===== Deck-section pricing fixture =====
+
+/**
+ * One card per deck zone, at prices no two of which can be confused for a sum of
+ * the others. Only the three "Green" ones match a `green` name filter, so a
+ * filtered figure says exactly which zones the page counts:
+ *
+ * - Commander ($100) is *pinned* — the deck's identity, which filters never touch.
+ * - Mainboard is what the filters narrow ($10 green stays, $1 blue goes).
+ * - Sideboard ($20 green) is filtered like the mainboard but rendered apart, and
+ *   still counts toward the deck's money.
+ * - Maybeboard ($1000 green) is an extra: it matches the filter and must *still*
+ *   be excluded, which is why its price dwarfs the rest.
+ */
+const MOCK_ZONE_CARDS = [
+  makeMockScryfallCard({
+    id: 'zone-commander',
+    name: 'Zone Commander',
+    cmc: 4,
+    type_line: 'Legendary Creature — Elder Dragon',
+    set: 'tsa',
+    set_name: 'Test Set A',
+    collector_number: '20',
+    prices: { usd: '100.00' },
+  }),
+  makeMockScryfallCard({
+    id: 'zone-main-green',
+    name: 'Zone Main Green',
+    cmc: 2,
+    type_line: 'Creature — Elf',
+    set: 'tsa',
+    set_name: 'Test Set A',
+    collector_number: '21',
+    prices: { usd: '10.00' },
+  }),
+  makeMockScryfallCard({
+    id: 'zone-main-blue',
+    name: 'Zone Main Blue',
+    cmc: 2,
+    type_line: 'Creature — Merfolk',
+    set: 'tsa',
+    set_name: 'Test Set A',
+    collector_number: '22',
+    prices: { usd: '1.00' },
+  }),
+  makeMockScryfallCard({
+    id: 'zone-side-green',
+    name: 'Zone Side Green',
+    cmc: 3,
+    type_line: 'Instant',
+    set: 'tsa',
+    set_name: 'Test Set A',
+    collector_number: '23',
+    prices: { usd: '20.00' },
+  }),
+  makeMockScryfallCard({
+    id: 'zone-maybe-green',
+    name: 'Zone Maybe Green',
+    cmc: 6,
+    type_line: 'Sorcery',
+    set: 'tsa',
+    set_name: 'Test Set A',
+    collector_number: '24',
+    prices: { usd: '1000.00' },
+  }),
+]
+
+const zoneLine = (card: ScryfallCard, cardId: number) => ({
+  quantity: 1,
+  name: card.name,
+  set: card.set,
+  collectorNumber: card.collector_number,
+  cardId,
+})
+
+const MOCK_ZONE_DECK = {
+  deck: {
+    name: 'Test Zone Deck',
+    sections: [
+      { name: 'Commander', cards: [zoneLine(MOCK_ZONE_CARDS[0]!, 1)] },
+      { name: 'Main', cards: [zoneLine(MOCK_ZONE_CARDS[1]!, 2), zoneLine(MOCK_ZONE_CARDS[2]!, 3)] },
+      { name: 'Sideboard', cards: [zoneLine(MOCK_ZONE_CARDS[3]!, 4)] },
+      { name: 'Maybeboard', cards: [zoneLine(MOCK_ZONE_CARDS[4]!, 5)] },
+    ],
+  },
+  cards: Object.fromEntries(MOCK_ZONE_CARDS.map((card) => [card.name, card])),
+  printings: Object.fromEntries(MOCK_ZONE_CARDS.map((card) => [card.name, [card]])),
+  symbolMap: {},
+  useScryfallImgUrls: false,
+  defaultCurrency: 'usd',
+  availableCurrencies: ['usd'],
+  missingCards: { usd: [], eur: [], tix: [] },
+} satisfies DeckDetail
+
+const MOCK_SITE_INDEX_WITH_ZONE_DECK = makeSiteIndex({
+  decks: [
+    makeDeckSummary({
+      slug: 'test-zone-deck',
+      name: 'Test Zone Deck',
+      cardCount: MOCK_ZONE_CARDS.length,
+    }),
+  ],
+})
+
+/**
+ * Mock the public site with {@link MOCK_ZONE_CARDS}: a deck holding one card in
+ * each of the four zones the deck page treats differently when it adds up money.
+ */
+export async function mockPublicSiteDeckWithZones(page: Page): Promise<void> {
+  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_WITH_ZONE_DECK)
+  await fulfillJson(page, '**/decks/test-zone-deck.json', MOCK_ZONE_DECK)
+}
+
 /**
  * Two printings of one name, each a one-of, one nonfoil and one foil. The three
  * copies match modes give this deck three different answers — 2 copies together

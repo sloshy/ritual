@@ -3,6 +3,7 @@ import {
   FILTER_DECK_CARDS,
   mockPublicSiteDeckForCopiesModes,
   mockPublicSiteDeckForFilters,
+  mockPublicSiteDeckWithZones,
 } from '../helpers/mock-public-site'
 import { openFilterMenu } from '../helpers/filter-menu'
 import { expectVisibleCards, switchToListView } from '../helpers/list-ui'
@@ -561,5 +562,40 @@ test.describe('Copies match mode', () => {
     await expect(pressed).toHaveText(['Number'])
     await mode.getByRole('button', { name: 'Exact' }).click()
     await expect(pressed).toHaveText(['Exact'])
+  })
+})
+
+test.describe('deck zone pricing', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockPublicSiteDeckWithZones(page)
+    await page.goto('#/deck/test-zone-deck')
+    await switchToListView(page)
+  })
+
+  test('the filtered figure covers the commander and sideboard but never the extras', async ({
+    page,
+  }) => {
+    const stats = page.locator('.page-stats')
+    // Commander $100 + mainboard $10 + $1 + sideboard $20; the $1000 maybeboard
+    // card is an extra and is outside the deck's price entirely.
+    await expect(stats).toContainText('Total: $131.00')
+
+    await openFilterMenu(page)
+    await page.locator('#filter-name').fill('green')
+    // The maybeboard's green card is on screen like the others — extras are
+    // rendered, just never priced — which is what makes the figure below a real
+    // test of the split rather than of what the filter happens to hide.
+    await expectVisibleCards(page, [
+      'Zone Commander',
+      'Zone Main Green',
+      'Zone Side Green',
+      'Zone Maybe Green',
+    ])
+
+    // $100 commander (pinned — the filters never touch the deck's identity)
+    // + $10 filtered mainboard + $20 filtered sideboard. The maybeboard's
+    // "Zone Maybe Green" matches the filter and is still excluded, so a figure
+    // of $1130.00 would mean extras had leaked into the total.
+    await expect(stats).toContainText('Filtered: $130.00')
   })
 })

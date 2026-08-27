@@ -3,10 +3,10 @@ import { For, Show, createMemo } from 'solid-js'
 import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { usePointerCoarse } from '../ui/useMediaQuery'
-import type { ListRef } from '../changes/change-event'
 import type { NamedListRef } from '../list-view/combined-list'
 import type { PriceCurrency } from '../pricing/price-currency'
 import type { CardSelectionControl, SelectedCard } from '../list-view/useCardSelection'
+import type { SelectionEditActions } from '../list-view/selection-edit-actions'
 import { useSelectionCopy } from './useSelectionCopy'
 import { addSelectionToTrade } from './useSelectionTrade'
 import { openSelectionView } from './SelectionModal'
@@ -42,58 +42,6 @@ function commonLabelListType(cards: SelectedCard[]): ListType | undefined {
   const first = cards[0]?.sourceKind
   if (first === undefined || !supportsAnyLabels(first)) return undefined
   return cards.every((c) => c.sourceKind === first) ? first : undefined
-}
-
-/**
- * Bulk edit operations exposed by the selection menu when a list is open in edit
- * mode. Mirrors the per-card `⋯` context menu: quantity steppers, full removal,
- * foil toggling, change printing, commander (decks only), and section moves. The
- * owning page wires each to its editor's bulk-edit bundle over the live selection.
- */
-export interface SelectionEditActions {
-  addCopy: () => void
-  /**
-   * Decrement one copy from each selected group. The menu only shows the "Remove a
-   * copy" item when the selection actually contains a multi-copy group (some tile
-   * with `groupSize > 1`); for single-copy tiles it would be identical to "Remove
-   * from list", so it is hidden. This is selection-driven, not list-type-driven —
-   * a deck holding one of a card (a common commander-deck case) does not qualify.
-   */
-  removeCopy: () => void
-  removeAll: () => void
-  setFoil: () => void
-  /**
-   * Whether "Set as Foil" applies to the whole selection right now. A finish
-   * belongs to a printing, so a name-only card cannot take one — and the answer
-   * comes from the open editor's live data, not the selection snapshot, which
-   * can be stale in either direction after a printing is pinned or undone.
-   */
-  canSetFoil: () => boolean
-  setNonfoil: () => void
-  /**
-   * Set the language on the selection (`en` clears the token). Absent until the
-   * owning editor exposes a language handler — the item hides itself then.
-   */
-  setLanguage?: (language: CardLanguage) => void
-  changePrinting: () => void
-  /** Open the swap wizard on the selection. Present for deck and collection editors only. */
-  swapPrintings?: () => void
-  /** Present for decks only. */
-  setCommander?: () => void
-  /**
-   * Set/clear the label override on the selection. Present only where the
-   * open editor wires it — collections (the whole vocabulary) and decks
-   * (`proxy` alone); wanted lists carry no labels.
-   */
-  setLabel?: (labels: CardLabel[]) => void
-  moveToSection: (section: string) => void
-  promptNewSection: () => void
-  /** Current section names, for the move submenu. */
-  sections: () => string[]
-  /** Move every selected card out of this list into another list. */
-  moveToList: (dest: ListRef) => void
-  /** The other lists the selection can be moved to, for the move-to-list submenu. */
-  moveTargets: () => ListRef[]
 }
 
 export interface SelectionMenuProps {

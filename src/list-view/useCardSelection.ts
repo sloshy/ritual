@@ -4,6 +4,7 @@ import type { ScryfallCard } from '../scryfall/types'
 import type { CardLabel } from '../card/card-labels'
 import { isPricelessCard } from './priceless'
 import type { CardLanguage } from '../card/card-language'
+import type { ListType } from '../list/list-type'
 import { getCardPriceForFinish, type PriceCurrency } from '../pricing/price-currency'
 
 /**
@@ -64,7 +65,11 @@ export interface SelectedCard {
   cardIds: number[]
 }
 
-export type SelectionSourceKind = 'deck' | 'collection' | 'wanted'
+/**
+ * The kind of list a selected card came from. An alias, not a restatement: a new
+ * list type would otherwise be selectable everywhere except here.
+ */
+export type SelectionSourceKind = ListType
 
 /** Identifies the list a selection belongs to. */
 export interface SelectionListId {

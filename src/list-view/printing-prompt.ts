@@ -8,7 +8,7 @@ import type { SelectedCard } from './useCardSelection'
 /**
  * A sequential, one-at-a-time printing chooser shared by every flow that needs the
  * user to pin a name-only card to a specific printing: the bulk "Add to Trade"
- * ({@link import('../site/useSelectionTrade').addSelectionToTrade}) and moving a
+ * (`addSelectionToTrade` in `site/useSelectionTrade`) and moving a
  * printing-less card into a printing-required list (a collection). The app renders
  * a single picker bound to {@link pendingPrintingPrompt}; callers await
  * {@link promptForPrinting}.

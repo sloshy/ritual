@@ -1,6 +1,6 @@
 import { createSignal, type Accessor } from 'solid-js'
 import type { ListType } from '../../list/list-type'
-import type { BulkEditBundle } from '../selection-edit-actions'
+import type { BulkEditBundle } from '../../list-view/selection-edit-actions'
 
 /**
  * The list currently open in the public editor, exposed so the cross-list navbar

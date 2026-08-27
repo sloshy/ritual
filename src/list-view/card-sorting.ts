@@ -48,7 +48,10 @@ export type SelectOption<T extends string = string> = { value: T; label: string 
  * the boot-time language after a locale switch. The `value` half is a persisted
  * URL token and stays locale-independent.
  */
-export type SelectOptionKey<T extends string = string> = { value: T; label: MessageKey }
+export type SelectOptionKey<T extends string = string, K extends MessageKey = MessageKey> = {
+  value: T
+  label: K
+}
 
 /**
  * Every key naming a toolbar sort field. Narrower than `MessageKey` so `t()`
@@ -79,25 +82,19 @@ export const SORT_BY_LABELS = {
 export const SORT_BYS = Object.keys(SORT_BY_LABELS) as readonly SortBy[]
 
 /**
- * The group-by options sell mode adds, in the order they appear after the
- * ordinary ones. Shared so every list page's dropdown — and the URL whitelist
- * that validates a shared link's `group=` — offer exactly the same set.
+ * The groupings sell mode adds, in the order they appear after the ordinary
+ * ones. Shared so every list page's dropdown — and the URL whitelist that
+ * validates a shared link's `group=` — offer exactly the same set. Values, not
+ * labelled options: the labels live in one `GroupBy`-total table beside the
+ * pages that build the dropdowns.
  */
-export const SELL_GROUP_BY_OPTIONS = [
-  { value: 'buylist-price', label: 'domain.groupBy.buylistPrice' },
-  { value: 'on-buylist', label: 'domain.groupBy.onBuylist' },
-] as const satisfies readonly SelectOptionKey<GroupBy>[]
+export const SELL_GROUP_BYS = ['buylist-price', 'on-buylist'] as const satisfies readonly GroupBy[]
 
 /**
  * The group-by values sell mode adds. Narrower than `GroupBy`, so a page whose
- * own group-by union is a subset of it can still spread these options in.
+ * own group-by union is a subset of it can still spread these values in.
  */
-export type SellGroupBy = (typeof SELL_GROUP_BY_OPTIONS)[number]['value']
-
-/** {@link SELL_GROUP_BY_OPTIONS} with its labels rendered in the active locale. */
-export function sellGroupByOptions(): SelectOption<SellGroupBy>[] {
-  return SELL_GROUP_BY_OPTIONS.map((option) => ({ value: option.value, label: t(option.label) }))
-}
+export type SellGroupBy = (typeof SELL_GROUP_BYS)[number]
 
 /** The sort fields sell mode adds. */
 export const SELL_SORT_BYS = [

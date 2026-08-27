@@ -1,21 +1,9 @@
-import { createMemo, type JSX } from 'solid-js'
+import type { JSX } from 'solid-js'
 import type { CardKingdomCards, WantedListCardEntry } from '../../list/site-data'
-import type { NamedListRef } from '../../list-view/combined-list'
-import type { SellModeProps } from '../../list-view/sell-mode'
-import type { PriceCurrency } from '../../pricing/price-currency'
 import { WantedListPage } from '../WantedListPage'
-import type { UseEditorDefaultsResult } from '../../editor/useEditorDefaults'
-import type { SearchProvider } from '../../editor/search-provider'
-import { type FlatListController, FlatListEditorShell } from '../../editor/flat-list-controller'
-import type { CardContextInfo } from '../../list-view/card-context'
-import { withEntryArt, type CardArtRefs } from '../../editor/card-art-view'
+import { FlatEditorBody, type FlatEditorBodyCommonProps } from './FlatEditorBody'
 
-type WantedEditorBodyProps = SellModeProps & {
-  ctrl: FlatListController<WantedListCardEntry>
-  defaults: UseEditorDefaultsResult
-  search: SearchProvider
-  currency: PriceCurrency
-  useScryfallImgUrls: boolean
+type WantedEditorBodyProps = FlatEditorBodyCommonProps<WantedListCardEntry> & {
   /**
    * Card Kingdom's baked printing picks for this list, forwarded to the page so
    * the editing pane swaps printings on a source switch exactly as the read
@@ -23,87 +11,60 @@ type WantedEditorBodyProps = SellModeProps & {
    * simply has no CK pick and falls back to its Scryfall one.
    */
   cardsCardKingdom?: CardKingdomCards
-  /** Display name for the list page header. */
-  name: string
-  /** Forwarded to the page: the list's front-matter blurb. */
-  description?: string
-  showSave?: boolean
-  showDiscard?: boolean
-  enableImport?: boolean
-  /** Forwarded to the page: the public editor keeps the centered container width. */
-  fullWidth?: boolean
-  /** Forwarded to the page: show the public "Update Prices" toolbar button + staleness. */
-  enablePriceRefresh?: boolean
-  /** Forwarded to the page: offer "Add to Trade" in the multi-select menu (public site only). */
-  enableTrade?: boolean
-  /** The list's custom art, resolved onto the entries the page renders. */
-  customArt?: CardArtRefs
-  /** Open the custom-art dialog for a card (admin editor only — needs the authed art route). */
-  onSetCustomArt?: (target: CardContextInfo) => void
-  /** Open the cover-image editor (admin editor only — needs the authed metadata route). */
-  onEditImage?: () => void
-  /** Every list, for the toolbar's share filters (the page drops itself). */
-  shareLists?: readonly NamedListRef[]
 }
 
 /**
  * Editor chrome shared by the admin and public wanted-list editors: the flat-list
- * {@link FlatListEditorShell} wrapping a {@link WantedListPage} in edit mode.
+ * {@link FlatEditorBody} wrapping a {@link WantedListPage} in edit mode.
  */
 export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
   const ctrl = props.ctrl
+  // A wanted list holds no physical cards, so the flat controller's optional
+  // label and swap actions are dropped here rather than forwarded — the page's
+  // `WantedBulkEditBundle` declares them absent, which is what makes this
+  // explicit instead of silent.
+  const { setLabel: _setLabel, swapPrintings: _swapPrintings, ...bulkEdit } = ctrl.bulkEdit
   return (
-    <FlatListEditorShell
-      ctrl={ctrl}
-      entityLabel="wanted list"
-      selectorId="wanted-list-select"
-      defaults={props.defaults}
-      search={props.search}
-      requirePrinting={false}
-      showSave={props.showSave}
-      showDiscard={props.showDiscard}
-      enableImport={props.enableImport}
-      importKind="wanted"
-      onSetCustomArt={props.onSetCustomArt}
-      onEditImage={props.onEditImage}
-    >
-      {(entries) => {
-        // Memoized: the projection clones every entry on a list that has art,
-        // and the page prop is read on each of the editor's frequent re-renders.
-        const entriesWithArt = createMemo(() => withEntryArt(entries(), props.customArt))
-        return (
-          <WantedListPage
-            name={props.name}
-            description={props.description}
-            slug={ctrl.editor.slug() ?? undefined}
-            entries={entriesWithArt()}
-            sectionOrder={ctrl.editor.sectionOrder()}
-            cards={ctrl.cardData.cards}
-            cardsCardKingdom={props.cardsCardKingdom}
-            printings={ctrl.cardData.printings}
-            symbolMap={ctrl.cardData.symbolMap}
-            useScryfallImgUrls={props.useScryfallImgUrls}
-            totalPrice={0}
-            modalCardKey={ctrl.modalCardKey()}
-            onOpenModal={ctrl.setModalCardKey}
-            onCloseModal={ctrl.closeModal}
-            currency={props.currency}
-            editMode={true}
-            fullWidth={props.fullWidth}
-            enablePriceRefresh={props.enablePriceRefresh}
-            enableTrade={props.enableTrade}
-            enableSellMode={props.enableSellMode}
-            bakedBuylist={props.bakedBuylist}
-            onCardIncrement={ctrl.handleIncrement}
-            onCardDecrement={ctrl.handleDecrement}
-            onCardContextMenu={ctrl.handleContextMenu}
-            bulkEdit={ctrl.bulkEdit}
-            unsavedChangeCount={ctrl.editor.changes.changeCount()}
-            addedCardNames={ctrl.editor.addedCardNames()}
-            shareLists={props.shareLists}
-          />
-        )
+    <FlatEditorBody
+      {...props}
+      shell={{
+        entityLabel: 'wanted list',
+        selectorId: 'wanted-list-select',
+        requirePrinting: false,
+        importKind: 'wanted',
       }}
-    </FlatListEditorShell>
+      page={(entries) => (
+        <WantedListPage
+          name={props.name}
+          description={props.description}
+          slug={ctrl.editor.slug() ?? undefined}
+          entries={entries()}
+          sectionOrder={ctrl.editor.sectionOrder()}
+          cards={ctrl.cardData.cards}
+          cardsCardKingdom={props.cardsCardKingdom}
+          printings={ctrl.cardData.printings}
+          symbolMap={ctrl.cardData.symbolMap}
+          useScryfallImgUrls={props.useScryfallImgUrls}
+          totalPrice={0}
+          modalCardKey={ctrl.modalCardKey()}
+          onOpenModal={ctrl.setModalCardKey}
+          onCloseModal={ctrl.closeModal}
+          currency={props.currency}
+          editMode={true}
+          fullWidth={props.fullWidth}
+          enablePriceRefresh={props.enablePriceRefresh}
+          enableTrade={props.enableTrade}
+          enableSellMode={props.enableSellMode}
+          bakedBuylist={props.bakedBuylist}
+          onCardIncrement={ctrl.handleIncrement}
+          onCardDecrement={ctrl.handleDecrement}
+          onCardContextMenu={ctrl.handleContextMenu}
+          bulkEdit={bulkEdit}
+          unsavedChangeCount={ctrl.editor.changes.changeCount()}
+          addedCardNames={ctrl.editor.addedCardNames()}
+          shareLists={props.shareLists}
+        />
+      )}
+    />
   )
 }

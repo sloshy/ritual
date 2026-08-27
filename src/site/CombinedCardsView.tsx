@@ -12,7 +12,6 @@ import {
   groupTotalPrice,
   sortByOptions,
   CARD_SIZE_WIDTHS,
-  SELL_GROUP_BY_OPTIONS,
   sortByValuesFor,
 } from '../list-view/card-sorting'
 import { CardModal } from '../list-view/CardModal'
@@ -45,6 +44,7 @@ import { addSelectedCardToTrade, canAddSelectedCardToTrade } from './useSelectio
 import type { MetaEntry } from '../list-view/meta-entry'
 import type { CombinedCardData, NamedListRef } from '../list-view/combined-list'
 import { useShareFilterContext } from './list-shares'
+import { combinedGroupByOptions, type GroupByOption } from './list-page-options'
 import {
   CARD_LABEL_SELECTIONS,
   cardLabelName,
@@ -52,20 +52,6 @@ import {
   type CardLabelSelection,
 } from '../card/card-labels'
 import { useT } from '../ui/i18n'
-import type { MessageKey } from '../i18n/messages/en'
-
-/**
- * Every key a group-by dropdown label may name. Narrower than `MessageKey` so
- * `t()` can render one without params, and `Extract` turns a key that no longer
- * exists in the catalog into `never` — a compile error at the table below.
- */
-type GroupByMessageKey = Extract<MessageKey, `site.groupBy.${string}` | `domain.groupBy.${string}`>
-
-/**
- * A group-by choice before its label is rendered. The `value` half is a
- * persisted URL token and stays locale-independent.
- */
-type CombinedGroupByOption = { value: GroupBy; label: GroupByMessageKey }
 
 // The sort fields the combined view offers, in order — shared by the toolbar's
 // dropdown options and the URL sync's validation of incoming sort layers.
@@ -177,33 +163,15 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
     combinedLabelFilters(props.selectionLists.map((l) => l.kind)),
   )
 
-  // Group-by options are the lowest common denominator of the combined list types,
-  // plus "Source List". "Printing" only applies when no collection is present (every
-  // collection card is pinned, so the distinction is meaningless once one is mixed in).
   // `sellMode` is a parameter rather than a read of the toolbar signal so the URL
   // sync can ask for the *full* option set (what a shared link may legally name)
   // while the dropdown shows only what is currently offered.
-  const groupByOptionsFor = (sellMode: boolean): CombinedGroupByOption[] => {
-    const opts: CombinedGroupByOption[] = [{ value: 'source', label: 'site.groupBy.source' }]
-    if (sectionOrder().length >= 2) opts.push({ value: 'section', label: 'site.groupBy.section' })
-    opts.push(
-      { value: 'type', label: 'site.groupBy.type' },
-      { value: 'cmc', label: 'site.groupBy.cmc' },
-      { value: 'color-identity', label: 'site.groupBy.colorIdentity' },
-      { value: 'price', label: 'site.groupBy.price' },
-    )
-    if (!hasCollections()) opts.push({ value: 'printing', label: 'site.groupBy.printing' })
-    if (sellMode) opts.push(...SELL_GROUP_BY_OPTIONS)
-    opts.push({ value: 'none', label: 'site.groupBy.none' })
-    return opts
-  }
+  const groupByOptionsFor = (sellMode: boolean): readonly GroupByOption[] =>
+    combinedGroupByOptions(sellMode, sectionOrder().length >= 2, hasCollections())
   // A plain accessor, not a memo: `createMemo` evaluates eagerly, and `sell` is
   // declared below. Rebuilding a small array on read costs nothing.
   const groupByOptions = (): SelectOption[] =>
-    groupByOptionsFor(sell.active()).map((option) => ({
-      value: option.value,
-      label: t(option.label),
-    }))
+    groupByOptionsFor(sell.active()).map((o) => ({ value: o.value, label: t(o.label) }))
   // A parameter, not a read of the live mode, for the same reason as the
   // group-by options: the URL sync validates against the full set a shared
   // link may name, while the dropdown offers only what is currently on.

@@ -28,7 +28,7 @@ import {
 import { useT } from '../ui/i18n'
 import { isPricelessCard } from '../list-view/priceless'
 import type { CardData, SortBy, SortLayer } from '../list-view/card-sorting'
-import { SELL_GROUP_BY_OPTIONS, SELL_SORT_BYS } from '../list-view/card-sorting'
+import { SELL_GROUP_BYS, SELL_SORT_BYS } from '../list-view/card-sorting'
 import type { CardFilters } from './card-filters'
 import type { CardFiltersControl } from './useCardFilters'
 import { summarizeSellValue, type SellableCard, type SellValueSummary } from './sell-value'
@@ -57,7 +57,7 @@ type SellToolbarState<G extends string> = Pick<
 >
 
 /** What grouping and sorting revert to when a buylist choice is abandoned. */
-type SellModeDefaults<G extends string> = {
+export type SellModeDefaults<G extends string> = {
   groupBy: G
   sortBy: SortBy
 }
@@ -313,7 +313,7 @@ export function createSellSummary(
 
 /** Whether a grouping is one sell mode contributes (and therefore hides on exit). */
 function isSellGroupBy(groupBy: string): boolean {
-  return SELL_GROUP_BY_OPTIONS.some((option) => option.value === groupBy)
+  return SELL_GROUP_BYS.some((value) => value === groupBy)
 }
 
 /** Whether a sort field is one sell mode contributes. */

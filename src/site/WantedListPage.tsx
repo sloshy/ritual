@@ -1,76 +1,32 @@
 import { buylistFieldsFor } from '../list-view/buylist-quotes'
-import { createSellSummary, useSellMode, type QuoteSource } from './useSellMode'
-import { sellableFromCardData, selectionToCartCsv, type SellableCard } from './sell-value'
-import { buyerName } from '../buylist'
-import { cartBuyer, type SellModeProps } from '../list-view/sell-mode'
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, on, onMount, For, Show } from 'solid-js'
+import { createSignal, createMemo, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, sessionCacheVersion } from '../list-view/session-cache'
 import { normalizeCardName } from '../card/term-match'
 import { useT } from '../ui/i18n'
-import type { MessageKey } from '../i18n/messages/en'
 import { displayFinish, type Finish } from '../card/finish-condition'
 import { storedLanguage } from '../card/card-language'
-import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
-import { PriceStalenessNotice } from './PriceStalenessNotice'
-import { TagFilterWarning } from './TagFilterWarning'
 import { ListDescriptionSection } from './ListDescription'
-import { ListPageStats, PageCountAndTotal, SellModeNotice } from './PageStats'
+import { PageCountAndTotal } from './PageStats'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardContextInfo } from '../list-view/card-context'
-import type { CardKingdomCards, WantedListCardEntry } from '../list/site-data'
-import type { ChangelogPage } from '../changes/changelog-parser'
-import type { PriceCurrency } from '../pricing/price-currency'
+import type { WantedListCardEntry } from '../list/site-data'
 import { pricesEnabled, sitePriceForFinish } from '../list-view/price-view'
-import {
-  type CardData,
-  type CardGroup,
-  type GroupBy,
-  type SortBy,
-  groupAndSortCards,
-  groupTotalPrice,
-  sortByOptions,
-  CARD_SIZE_WIDTHS,
-  SELL_GROUP_BY_OPTIONS,
-  sortByValuesFor,
-  type SelectOption,
-} from '../list-view/card-sorting'
+import { type CardData, type GroupBy, type SortBy } from '../list-view/card-sorting'
 import { CardModal } from '../list-view/CardModal'
-import { ChangelogModal } from './ChangelogModal'
-import { useCardNavScroll } from './card-nav'
-import { TooltipOverlay } from '../ui/TooltipOverlay'
-import { useReadCardMenu } from './useReadCardMenu'
+import { ListPageShell, type ListPageChangelog, type ListPageExport } from './ListPageShell'
+import type { FlatListPageProps } from './list-page-props'
+import { useListPage } from './useListPage'
 import { finishName, rarityName } from '../list-view/printing-display'
-import { useTooltip } from '../ui/useTooltip'
-import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
-import { useToolbarState } from './useToolbarState'
-import { useListViewUrlSync } from './useListViewUrlSync'
-import { labelFiltersFor } from '../card/card-labels'
-import type { ListImageRef } from '../list/list-image'
-import { useCardFilters } from './useCardFilters'
-import {
-  pruneOwnShareSelections,
-  shareListsExcluding,
-  useShareFilterContext,
-  type ShareListsForPage,
-} from './list-shares'
-import type { NamedListRef } from '../list-view/combined-list'
-import {
-  collectArtTags,
-  collectCardTypes,
-  collectOracleTags,
-  collectSetCodes,
-  filterCards,
-  isTagFilterActive,
-  untaggedAddedCardNames,
-} from './card-filters'
+import { labelFiltersFor, type CardLabelSelection } from '../card/card-labels'
 import { deriveSectionOrder, sectionDefaultGroupBy } from '../list/section-format'
 import { TradePrintingPicker } from './TradePrintingPicker'
-import { addEntryToRight, canAddMoreToRight, showTradeToast } from './useTradeState'
+import { canAddMoreToRight } from './useTradeState'
+import { addAndToast, addPickedPrintingToTrade } from './useSelectionTrade'
 import type { TradeSearchEntry } from './useTradeData'
-import { resolveCardThumbnailUrl, resolveCardPreview } from '../card/image-sources'
+import { resolveCardPreview } from '../card/image-sources'
 import { hasSpecificPrinting } from '../card/card-printing'
 import { printingKey } from '../card/printing-key'
 import { resolveWantedCardEntry } from '../list-view/resolve-card'
@@ -81,27 +37,25 @@ import {
   isPricelessCard,
   pricelessFacts,
 } from '../list-view/priceless'
-import { useCardSelection, type SelectedCard } from '../list-view/useCardSelection'
-import { SelectionMenu } from './SelectionMenu'
-import { buildSelectionEditActions, type WantedBulkEditBundle } from './selection-edit-actions'
-import { ExportMenu, type ExportFormat, type ExtraExportFormat } from './ExportMenu'
+import type { SelectedCard } from '../list-view/useCardSelection'
+import type { WantedBulkEditBundle } from '../list-view/selection-edit-actions'
+import type { ExportFormat } from './ExportMenu'
 import { frontMatterFor, wantedToText, wantedToMarkdown, wantedToCsv } from '../list/list-export'
 import type { MetaEntry } from '../list-view/meta-entry'
-
-type WantedListGroupBy = GroupBy
-
-/**
- * Every key a group-by dropdown label may name. Narrower than `MessageKey` so
- * `t()` can render one without params, and `Extract` turns a key that no longer
- * exists in the catalog into `never` — a compile error at the table below.
- */
-type GroupByMessageKey = Extract<MessageKey, `site.groupBy.${string}` | `domain.groupBy.${string}`>
+import { wantedGroupByOptions } from './list-page-options'
+import { buildEntryIndex, entryAtModalKey, findEntryIndex } from '../list-view/entry-index'
+import { wantedStateLabel } from './wanted-page-logic'
 
 /**
- * A group-by choice before its label is rendered. The `value` half is a
- * persisted URL token and stays locale-independent.
+ * The label chips this page offers. Hoisted to module scope like the deck's and
+ * the collection's: it is a property of the list *type*, and
+ * the frame's URL sync reads it once at setup either way.
+ *
+ * Wanted-list entries carry no labels at all, so this is empty and every
+ * `labels=` value a pasted link brings is dropped rather than filtering the page
+ * to nothing.
  */
-type WantedGroupByOption = { value: WantedListGroupBy; label: GroupByMessageKey }
+const WANTED_LABEL_FILTERS: readonly CardLabelSelection[] = labelFiltersFor('wanted')
 
 // The sort fields this page offers, in order — shared by the toolbar's dropdown
 // options and the URL sync's validation of incoming sort layers.
@@ -120,189 +74,20 @@ type WantedTradePicker = {
   wantedEntry: WantedListCardEntry
 }
 
-interface WantedListPageProps extends SellModeProps {
-  name: string
-  /** Slug of this list, threaded into selected cards so cross-list edits can target it. */
-  slug?: string
-  entries: WantedListCardEntry[]
-  /** Section names in display order, including empty sections. Falls back to entry order. */
-  sectionOrder?: string[]
-  /** The list's front-matter blurb, printed above the cards. */
-  description?: string
-  /** The list's cover image override, re-emitted by the `.md` download. */
-  listImage?: ListImageRef
-  cards: Record<string, ScryfallCard | null>
-  /** Card Kingdom's picks for the name-only entries, read under the CK source. */
-  cardsCardKingdom?: CardKingdomCards
-  printings: Record<string, ScryfallCard[]>
-  symbolMap: Record<string, string>
-  useScryfallImgUrls?: boolean
-  totalPrice: number
-  /** Show the page-header Copy/Download export menu (public read view only). */
-  enableExport?: boolean
-  modalCardKey: string | null
-  onOpenModal: (cardKey: string) => void
-  onCloseModal: () => void
-  currency: PriceCurrency
-  editMode?: boolean
-  /** Card names added during the current edit session (edit mode only). */
-  addedCardNames?: string[]
-  onCardIncrement?: (entry: WantedListCardEntry) => void
-  onCardDecrement?: (entry: WantedListCardEntry) => void
-  onCardContextMenu?: (info: CardContextInfo, rect: DOMRect) => void
-  /**
-   * When provided, each card shows a single "Move To…" button (instead of the edit
-   * or trade controls) reporting the card and the button's rect. Used by the admin
-   * Move Cards page.
-   */
-  onCardMove?: (info: CardContextInfo, rect: DOMRect) => void
-  unsavedChangeCount?: number
-  changelog?: ChangelogPage[]
-  /** Force page width; defaults to full width in edit/move mode. The public editor sets `false`. */
-  fullWidth?: boolean
-  /** Build-time price date (ISO), shipped with the wanted-list JSON; drives staleness after a refresh. */
-  pricesDate?: string
-  /** Show the public "Update Prices" toolbar button + staleness notice (public site only). */
-  enablePriceRefresh?: boolean
-  /** Offer "Add to Trade" in the multi-select menu (public site only; the trade page is unreachable on admin). */
-  enableTrade?: boolean
-  /** When provided (edit mode), enables bulk edit actions in the multi-select menu. */
-  bulkEdit?: WantedBulkEditBundle
-  /** When provided (public read view), shows a "Combine with list…" header button. */
-  onCombine?: () => void
-  /** Mirror the toolbar/filter state into the URL query so the view is shareable (public read view only). */
-  enableUrlState?: boolean
-  /** Every list on the site, for the share filters; the page drops itself. */
-  shareLists?: readonly NamedListRef[]
-}
+type WantedListPageProps = FlatListPageProps<WantedListCardEntry, WantedBulkEditBundle>
 
 export const WantedListPage: Component<WantedListPageProps> = (props) => {
   const t = useT()
-  const selection = useCardSelection({ kind: 'wanted', name: props.name })
-  const editActions = createMemo(() =>
-    props.bulkEdit ? buildSelectionEditActions(props.bulkEdit, selection) : undefined,
-  )
+
   // Section order, including any empty sections from the build/save payload; falls back to the
   // sections discovered in the entries (in file order) when not provided.
   const sectionOrder = createMemo(() => deriveSectionOrder(props.sectionOrder, props.entries))
   const hasSections = createMemo(() => sectionOrder().length >= 2)
-  // `sellMode` is a parameter rather than a read of the toolbar signal so the URL
-  // sync can ask for the *full* option set (what a shared link may legally name)
-  // while the dropdown shows only what is currently offered.
-  const groupByOptionsFor = (sellMode: boolean): WantedGroupByOption[] => [
-    ...(hasSections()
-      ? [{ value: 'section' as const, label: 'site.groupBy.section' as const }]
-      : []),
-    { value: 'type', label: 'site.groupBy.type' },
-    { value: 'cmc', label: 'site.groupBy.cmc' },
-    { value: 'color-identity', label: 'site.groupBy.colorIdentity' },
-    { value: 'price', label: 'site.groupBy.price' },
-    { value: 'printing', label: 'site.groupBy.printing' },
-    ...(sellMode ? SELL_GROUP_BY_OPTIONS : []),
-    { value: 'none', label: 'site.groupBy.none' },
-  ]
-  // A plain accessor, not a memo: `createMemo` evaluates eagerly, and `sell` is
-  // declared below. Rebuilding a seven-element array on read costs nothing.
-  const groupByOptions = (): SelectOption<WantedListGroupBy>[] =>
-    groupByOptionsFor(sell.active()).map((option) => ({
-      value: option.value,
-      label: t(option.label),
-    }))
-  // A parameter, not a read of the live mode, for the same reason as the
-  // group-by options: the URL sync validates against the full set a shared
-  // link may name, while the dropdown offers only what is currently on.
-  const sortValuesFor = (sellMode: boolean): readonly SortBy[] =>
-    sortByValuesFor(WANTED_SORT_BYS, sellMode)
 
   // Intentional one-time seed for the toolbar's group-by signal (read once at construction;
   // it must not fight the user's later toolbar changes). The editor remounts these pages on
   // each load, so a stale seed is not reachable.
-  const initialGroupBy: WantedListGroupBy = sectionDefaultGroupBy(props.entries)
-
-  const toolbar = useToolbarState<WantedListGroupBy>({
-    groupBy: initialGroupBy,
-    sortBy: 'file-order',
-  })
-  const {
-    viewMode,
-    setViewMode,
-    cardSize,
-    setCardSize,
-    groupBy,
-    setGroupBy,
-    sortLayers,
-    setSortLayers,
-    reverseGroups,
-    setReverseGroups,
-    priceGroupStrategy,
-    setPriceGroupStrategy,
-  } = toolbar
-  const cardFilters = useCardFilters()
-  const shareContext = useShareFilterContext(cardFilters)
-  // The share filters never offer the page's own list — a card trivially
-  // "shares" with the list it is on. One memo feeds the toolbar's options, the
-  // URL sync's self-stripping, and the slug-switch prune below.
-  const shareRefs = createMemo<ShareListsForPage | undefined>(() =>
-    props.slug
-      ? shareListsExcluding(props.shareLists, { type: 'wanted', slug: props.slug })
-      : undefined,
-  )
-  const otherShareLists = (): readonly NamedListRef[] =>
-    shareRefs()?.others ?? props.shareLists ?? []
-  // Admin surfaces (the editors, Move Cards) keep this page mounted across slug
-  // switches with URL state off, so `currentShareList` stripping never runs
-  // there — a chip naming the newly opened list would survive and filter the
-  // list against itself. `on` has no equality check, so the prune itself bails
-  // without a store write when no chip names this list.
-  createEffect(
-    on(
-      () => props.slug,
-      () => {
-        const refs = shareRefs()
-        if (refs) pruneOwnShareSelections(cardFilters, refs.selfKey)
-      },
-      { defer: true },
-    ),
-  )
-  useListViewUrlSync({
-    toolbar,
-    filters: cardFilters,
-    defaults: { groupBy: initialGroupBy, sortBy: 'file-order' },
-    groupByValues: groupByOptionsFor(Boolean(props.enableSellMode)).map((o) => o.value),
-    sortByValues: sortValuesFor(Boolean(props.enableSellMode)),
-    enabled: props.enableUrlState,
-    // Wanted-list entries carry no labels at all, so every `labels=` value a
-    // pasted link brings is dropped rather than filtering the page to nothing.
-    availableLabels: labelFiltersFor('wanted'),
-    supportsSellMode: Boolean(props.enableSellMode),
-    // A shared URL's share-filter params naming this page itself are stripped
-    // — the page never offers its own list as an option.
-    currentShareList: shareRefs()?.selfKey,
-  })
-
-  // Declared once, at setup: a page handed a baked payload never calls the quote
-  // API (the public site and the public editor), and one without it quotes live
-  // against a credentialed API (the admin editors). Making the choice explicit
-  // keeps a call site from silently landing on the path it did not mean.
-  const quoteSource: QuoteSource = props.bakedBuylist
-    ? { kind: 'baked', quotes: props.bakedBuylist }
-    : { kind: 'live' }
-  const sell = useSellMode({
-    toolbar,
-    supported: () => Boolean(props.enableSellMode),
-    quotes: quoteSource,
-    // Deferred: `allCards` is declared below this call.
-    cards: () => allCards(),
-    selected: selection.selected,
-    filters: cardFilters,
-    defaults: { groupBy: initialGroupBy, sortBy: 'file-order' },
-  })
-  const [showChangelog, setShowChangelog] = createSignal(false)
-
-  const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
-
-  // Read-mode ⋯ menu (cross-list lookups only); edit mode uses the editor's own menu.
-  const readMenu = useReadCardMenu()
+  const initialGroupBy: GroupBy = sectionDefaultGroupBy(props.entries)
 
   const [wantedTradePicker, setWantedTradePicker] = createSignal<WantedTradePicker | null>(null)
 
@@ -341,36 +126,21 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
       return
     }
     const searchEntry = buildWantedSearchEntry(entry, scryfallCard)
-    const added = addEntryToRight(searchEntry, props.currency)
-    if (added)
-      showTradeToast(
-        searchEntry.name,
-        resolveCardThumbnailUrl(scryfallCard, props.useScryfallImgUrls ?? false),
-      )
+    addAndToast(searchEntry, props.currency, props.useScryfallImgUrls ?? false)
   }
 
   const handleWantedTradePickerSelect = (printing: ScryfallCard, finish: Finish) => {
     const picker = wantedTradePicker()
     if (!picker) return
-    const searchEntry: TradeSearchEntry = {
-      name: printing.name,
-      nameKey: normalizeCardName(printing.name),
-      set: printing.set.toLowerCase(),
-      collectorNumber: printing.collector_number,
-      finish,
-      scryfallCard: printing,
+    setWantedTradePicker(null)
+    addPickedPrintingToTrade(printing, finish, {
       sourceName: props.name,
       sourceKind: 'wanted',
       maxQty: 1,
       cardIds: picker.wantedEntry.cardId !== undefined ? [picker.wantedEntry.cardId] : [],
-    }
-    const added = addEntryToRight(searchEntry, props.currency)
-    setWantedTradePicker(null)
-    if (added)
-      showTradeToast(
-        searchEntry.name,
-        resolveCardThumbnailUrl(searchEntry.scryfallCard, props.useScryfallImgUrls ?? false),
-      )
+      currency: props.currency,
+      useScryfallImgUrls: props.useScryfallImgUrls ?? false,
+    })
   }
 
   const isWantedCardAddDisabled = (
@@ -450,87 +220,34 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     })
   })
 
-  // Seed the session cache from this list's baked card data so the editor's card
-  // search and the trade page reuse it instead of re-fetching from Scryfall.
-  onMount(() => {
-    seedCards(props.cards)
-    seedPrintings(props.printings)
-    if (props.cardsCardKingdom) seedCards(props.cardsCardKingdom)
+  const page = useListPage<GroupBy, CardData>({
+    identity: { kind: 'wanted', name: props.name, slug: () => props.slug },
+    options: {
+      groupByOptionsFor: (sellMode) => wantedGroupByOptions(sellMode, hasSections()),
+      sortBys: WANTED_SORT_BYS,
+      availableLabels: WANTED_LABEL_FILTERS,
+      defaults: { groupBy: initialGroupBy, sortBy: 'file-order' },
+    },
+    cards: allCards,
+    sectionOrder,
+    // Seed the session cache from this list's baked card data so the editor's
+    // card search and the trade page reuse it instead of re-fetching.
+    seed: () => {
+      seedCards(props.cards)
+      seedPrintings(props.printings)
+      if (props.cardsCardKingdom) seedCards(props.cardsCardKingdom)
+    },
+    currency: () => props.currency,
+    pricesDate: props.pricesDate,
+    enableSellMode: () => Boolean(props.enableSellMode),
+    bakedBuylist: props.bakedBuylist,
+    enableUrlState: () => props.enableUrlState,
+    shareLists: () => props.shareLists,
+    addedCardNames: () => props.addedCardNames,
+    bulkEdit: () => props.bulkEdit,
   })
 
-  // Price refresh is wired for every render but only shown when `enablePriceRefresh`.
-  const prices = usePublicPriceControls({ cards: allCards, pricesDate: props.pricesDate })
-
-  // Scroll to a cross-list navigation target (e.g. from "Find Other Printings")
-  // once the wanted list's cards are rendered.
-  useCardNavScroll(
-    () => (props.slug ? { type: 'wanted', slug: props.slug } : null),
-    () => allCards().length > 0,
-  )
-
-  const setCodeOptions = createMemo(() => collectSetCodes(allCards()))
-  const cardTypeOptions = createMemo(() => collectCardTypes(allCards()))
-  const oracleTagOptions = createMemo(() => collectOracleTags(allCards()))
-  const artTagOptions = createMemo(() => collectArtTags(allCards()))
-  const untaggedAddedNames = createMemo(() =>
-    isTagFilterActive(cardFilters.filters)
-      ? untaggedAddedCardNames(allCards(), props.addedCardNames ?? [])
-      : [],
-  )
-
-  const filteredCards = createMemo(() =>
-    filterCards(allCards(), cardFilters.filters, shareContext()),
-  )
-
-  const filteredTotalPrice = createMemo(() => groupTotalPrice(filteredCards()))
-
-  /**
-   * The filtered view as sellable cards. A plain function, not a memo: the
-   * buylist summary below skips it entirely while sell mode is off, and a hot
-   * memo would map the whole list on every filter change regardless. Both the
-   * header's buylist total and the cart export read it, so the figure the header
-   * promises always covers exactly the cards the export ships.
-   */
-  const filteredSellables = (): SellableCard[] => filteredCards().map(sellableFromCardData)
-
-  const filteredSellSummary = createSellSummary(sell.active, filteredSellables)
-
-  // The buyer's cart for the *visible* list: the filter is part of what the user
-  // is looking at, so a filtered view exports the filtered cards.
-  const cartExportFormats = createMemo((): ExtraExportFormat[] => {
-    const buyer = cartBuyer()
-    if (!buyer) return []
-    return [
-      {
-        label: t('site.export.buyerCart', { buyer: buyerName(buyer) }),
-        extension: 'csv',
-        mime: 'text/csv',
-        serialize: () => {
-          const cart = selectionToCartCsv(filteredSellables())
-          return { content: cart.csv, warnings: cart.warnings }
-        },
-      },
-    ]
-  })
-
-  const cardGroups = createMemo((): CardGroup[] => {
-    return groupAndSortCards(
-      filteredCards(),
-      groupBy(),
-      sortLayers(),
-      sectionOrder(),
-      priceGroupStrategy(),
-      props.currency,
-      reverseGroups(),
-    )
-  })
-
-  const modalEntry = createMemo((): WantedListCardEntry | null => {
-    if (!props.modalCardKey) return null
-    const idx = parseInt(props.modalCardKey, 10)
-    if (!isNaN(idx) && currencyEntries()[idx]) return currencyEntries()[idx] ?? null
-    return null
-  })
+  const modalEntry = createMemo(() => entryAtModalKey(currencyEntries(), props.modalCardKey))
 
   const modalCard = createMemo((): ScryfallCard | null => {
     if (!modalEntry()) return null
@@ -551,33 +268,17 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     return isWantedCardAddDisabled(entry, scryfallCard)
   })
 
-  const entryIndexMap = createMemo(() => {
-    const map = new Map<string, number>()
-    currencyEntries().forEach((e, i) => {
-      map.set(`${e.name}|${e.set ?? ''}|${e.fileOrder}`, i)
-    })
-    return map
-  })
+  const modalPrintings = createMemo(() =>
+    modalEntry() ? (props.printings[modalEntry()!.name] ?? []) : [],
+  )
 
-  const findEntryIndex = (cardData: CardData): number => {
-    return (
-      entryIndexMap().get(`${cardData.name}|${cardData.setCode ?? ''}|${cardData.fileOrder}`) ?? -1
-    )
-  }
+  // Pre-computed index map for O(1) entry lookups (avoids O(n²) on large lists)
+  const entryIndexMap = createMemo(() => buildEntryIndex(currencyEntries()))
 
-  const stateLabel = (state: string): string => {
-    switch (state) {
-      case 'name-only':
-        return t('site.wanted.anyPrinting')
-      case 'printing':
-        return t('site.wanted.anyFinish')
-      default:
-        return ''
-    }
-  }
+  const entryIndexOf = (cardData: CardData): number => findEntryIndex(entryIndexMap(), cardData)
 
   const renderWantedListCard = (c: CardData) => {
-    const entryIdx = findEntryIndex(c)
+    const entryIdx = entryIndexOf(c)
     const entry = currencyEntries()[entryIdx]
     const showTrade = !props.editMode && !props.onCardMove && entry !== undefined
     const selectKey = String(entryIdx)
@@ -625,12 +326,12 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         customArt={c.customArt}
         symbolMap={props.symbolMap}
         buylistPrice={c.buylistPrice}
-        viewMode={viewMode()}
+        viewMode={page.toolbar.viewMode()}
         hideCount={true}
         useScryfallImgUrls={props.useScryfallImgUrls}
         onCardClick={() => props.onOpenModal(String(entryIdx))}
-        onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
-        onTooltipLeave={() => setTooltip(null)}
+        onTooltipEnter={(src, sideways) => page.tooltip.setTooltip({ src, sideways })}
+        onTooltipLeave={() => page.tooltip.setTooltip(null)}
         collectionFinish={entry?.finish}
         collectionLanguage={storedLanguage(entry?.language)}
         collectionSetCN={
@@ -648,16 +349,16 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         onContextMenu={
           props.editMode
             ? (rect) => props.onCardContextMenu?.(contextInfo(), rect)
-            : !props.onCardMove && readMenu.enabled()
-              ? (rect) => readMenu.open(contextInfo(), rect)
+            : !props.onCardMove && page.readMenu.enabled()
+              ? (rect) => page.readMenu.open(contextInfo(), rect)
               : undefined
         }
         onMove={props.onCardMove ? (rect) => props.onCardMove!(contextInfo(), rect) : undefined}
         onAddToTrade={showTrade ? () => handleWantedAddToTrade(entry, c.card) : undefined}
         addToTradeDisabled={showTrade ? isWantedCardAddDisabled(entry, c.card) : undefined}
         selectable={entry !== undefined}
-        selectState={selection.state(selectKey)}
-        onToggleSelect={() => selection.toggle(buildSelected())}
+        selectState={page.selection.state(selectKey)}
+        onToggleSelect={() => page.selection.toggle(buildSelected())}
       />
     )
   }
@@ -685,9 +386,9 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         value: finishName(t, entry.finish),
       })
     }
-    const sl = stateLabel(entry.state)
-    if (sl) {
-      parts.push({ label: 'specificity', value: sl })
+    const stateLabel = wantedStateLabel(t, entry.state)
+    if (stateLabel !== undefined) {
+      parts.push({ label: 'specificity', value: stateLabel })
     }
     parts.push({
       label: 'rarity',
@@ -695,10 +396,6 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     })
     return parts
   })
-
-  const modalPrintings = createMemo(() =>
-    modalEntry() ? (props.printings[modalEntry()!.name] ?? []) : [],
-  )
 
   const serializeWanted = (format: ExportFormat): string => {
     switch (format) {
@@ -716,121 +413,41 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     }
   }
 
+  // Built once: a stable object keeps the header's `<Show>` from flipping on every read.
+  const exportFormats: ListPageExport = { serialize: serializeWanted }
+
+  /** The changelog slot — the pages and the card data they render with, together. */
+  const changelogBundle = createMemo((): ListPageChangelog | undefined =>
+    props.changelog
+      ? { pages: props.changelog, cards: props.cards, printings: props.printings }
+      : undefined,
+  )
+
   return (
-    <div
-      class={
-        (props.fullWidth ?? (props.editMode || props.onCardMove))
-          ? 'page-full-width'
-          : 'page-container'
+    <ListPageShell
+      page={page}
+      title={props.name}
+      fullWidth={Boolean(props.fullWidth ?? (props.editMode || props.onCardMove))}
+      currency={props.currency}
+      symbolMap={props.symbolMap}
+      useScryfallImgUrls={props.useScryfallImgUrls}
+      enableTrade={props.enableTrade}
+      onCombine={props.onCombine}
+      export={props.enableExport ? exportFormats : undefined}
+      changelog={changelogBundle()}
+      enablePriceRefresh={props.enablePriceRefresh}
+      statsLead={
+        <PageCountAndTotal
+          count={props.entries.length}
+          total={computedTotalPrice()}
+          currency={props.currency}
+        />
       }
-    >
-      {/* Header */}
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">{props.name}</h1>
-          <p class="page-stats">
-            <PageCountAndTotal
-              count={props.entries.length}
-              total={computedTotalPrice()}
-              currency={props.currency}
-            />
-            <ListPageStats
-              filters={cardFilters}
-              currency={props.currency}
-              filteredAmount={filteredTotalPrice()}
-              selectedCount={selection.count()}
-              selectedAmount={selection.value(props.currency)}
-              sellMode={sell.active()}
-              buylistSummary={filteredSellSummary()}
-              selectionSummary={sell.summary()}
-            />
-          </p>
-          <SellModeNotice sellMode={sell.active()} />
-        </div>
-        <Show
-          when={
-            props.onCombine ||
-            props.enableExport ||
-            (props.changelog && props.changelog.length > 0) ||
-            props.enablePriceRefresh
-          }
-        >
-          <div class="btn-group">
-            <Show when={props.onCombine}>
-              <button onClick={() => props.onCombine!()} class="btn btn-secondary">
-                {t('site.page.combineWithList')}
-              </button>
-            </Show>
-            <Show when={props.changelog && props.changelog.length > 0}>
-              <button
-                onClick={() => setShowChangelog(true)}
-                class="btn btn-secondary btn-view-changes"
-              >
-                {t('site.page.viewChanges')}
-              </button>
-            </Show>
-            <Show when={props.enableExport}>
-              <ExportMenu
-                serialize={serializeWanted}
-                name={props.name}
-                extraFormats={cartExportFormats()}
-              />
-            </Show>
-            <Show when={props.enablePriceRefresh}>
-              <UpdatePricesButton prices={prices} />
-            </Show>
-          </div>
-        </Show>
-      </div>
-      <Toolbar
-        viewMode={viewMode()}
-        onViewModeChange={setViewMode}
-        cardSize={cardSize()}
-        onCardSizeChange={setCardSize}
-        groupBy={groupBy()}
-        groupByOptions={groupByOptions()}
-        onGroupByChange={(v) => setGroupBy(v as WantedListGroupBy)}
-        sortLayers={sortLayers()}
-        sortByOptions={sortByOptions(sortValuesFor(sell.active()))}
-        onSortLayersChange={setSortLayers}
-        priceGroupStrategy={priceGroupStrategy()}
-        onPriceGroupStrategyChange={setPriceGroupStrategy}
-        reverseGroups={reverseGroups()}
-        onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
-        sell={sell.control()}
-        filters={cardFilters}
-        symbolMap={props.symbolMap}
-        currency={props.currency}
-        setCodeOptions={setCodeOptions()}
-        cardTypeOptions={cardTypeOptions()}
-        oracleTagOptions={oracleTagOptions()}
-        artTagOptions={artTagOptions()}
-        shareLists={otherShareLists()}
-        selectionMenu={
-          <SelectionMenu
-            selection={selection}
-            currency={props.currency}
-            enableTrade={props.enableTrade}
-            useScryfallImgUrls={props.useScryfallImgUrls}
-            editActions={editActions()}
-            dockOnTouch
-          />
-        }
-      />
-
-      <Show when={props.enablePriceRefresh}>
-        <PriceStalenessNotice outdatedNames={prices.outdatedNames()} />
-      </Show>
-      <TagFilterWarning untaggedCardNames={untaggedAddedNames()} />
-
-      <ListDescriptionSection description={props.description} symbolMap={props.symbolMap} />
-
-      {/* Card sections */}
-      <div
-        class={`card-sections view-${viewMode()}`}
-        style={`--card-width:${CARD_SIZE_WIDTHS[cardSize()]}px`}
-      >
-        <For each={cardGroups()}>
+      beforeCards={
+        <ListDescriptionSection description={props.description} symbolMap={props.symbolMap} />
+      }
+      sections={
+        <For each={page.cardGroups()}>
           {(group) => (
             <CardSection
               label={group.key}
@@ -840,60 +457,42 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
             />
           )}
         </For>
-      </div>
-
-      {/* List-view hover tooltip */}
-      <TooltipOverlay tooltip={tooltip()} pos={tooltipPos()} tooltipRef={tooltipRef} />
-
-      {/* Read-mode card ⋯ menu */}
-      {readMenu.element()}
-
-      {/* Card detail modal */}
-      <CardModal
-        open={Boolean(modalCard())}
-        card={modalCard()}
-        customArt={modalEntry()?.customArt}
-        hasCustomArt={modalEntry()?.hasCustomArt}
-        cardName={modalEntry()?.name ?? null}
-        symbolMap={props.symbolMap}
-        useScryfallImgUrls={props.useScryfallImgUrls}
-        currency={props.currency}
-        printings={modalPrintings()}
-        onClose={props.onCloseModal}
-        meta={modalMeta()}
-        note={modalEntry()?.note}
-        onAddToTrade={modalAddToTrade()}
-        addToTradeDisabled={modalAddToTradeDisabled()}
-      />
-
-      {/* Trade printing picker for wanted cards without specific printings */}
-      <Show when={wantedTradePicker()}>
-        {(picker) => (
-          <TradePrintingPicker
-            cardName={picker().cardName}
-            printings={picker().printings}
-            loading={false}
+      }
+      overlays={
+        <>
+          <CardModal
+            open={Boolean(modalCard())}
+            card={modalCard()}
+            customArt={modalEntry()?.customArt}
+            hasCustomArt={modalEntry()?.hasCustomArt}
+            cardName={modalEntry()?.name ?? null}
+            symbolMap={props.symbolMap}
             useScryfallImgUrls={props.useScryfallImgUrls}
             currency={props.currency}
-            onSelect={handleWantedTradePickerSelect}
-            onClose={() => setWantedTradePicker(null)}
+            printings={modalPrintings()}
+            onClose={props.onCloseModal}
+            meta={modalMeta()}
+            note={modalEntry()?.note}
+            onAddToTrade={modalAddToTrade()}
+            addToTradeDisabled={modalAddToTradeDisabled()}
           />
-        )}
-      </Show>
 
-      {/* Changelog modal */}
-      <Show when={props.changelog && props.changelog.length > 0}>
-        <ChangelogModal
-          open={showChangelog()}
-          changelog={props.changelog!}
-          cards={props.cards}
-          printings={props.printings}
-          symbolMap={props.symbolMap}
-          useScryfallImgUrls={props.useScryfallImgUrls}
-          currency={props.currency}
-          onClose={() => setShowChangelog(false)}
-        />
-      </Show>
-    </div>
+          {/* Trade printing picker for wanted cards without specific printings */}
+          <Show when={wantedTradePicker()}>
+            {(picker) => (
+              <TradePrintingPicker
+                cardName={picker().cardName}
+                printings={picker().printings}
+                loading={false}
+                useScryfallImgUrls={props.useScryfallImgUrls}
+                currency={props.currency}
+                onSelect={handleWantedTradePickerSelect}
+                onClose={() => setWantedTradePicker(null)}
+              />
+            )}
+          </Show>
+        </>
+      }
+    />
   )
 }

@@ -6,6 +6,7 @@ import type { CardLanguage } from '../card/card-language'
 import type { ChangeInput, ListRef, PrintingTuple } from '../changes/change-event'
 import type { SelectedCard } from '../list-view/useCardSelection'
 import type { CardContextInfo } from '../list-view/card-context'
+import type { BulkEditBundle } from '../list-view/selection-edit-actions'
 import type { ListEditorConfig, UseEditorResult } from './editor-config'
 import type { EditorEntity } from './entity'
 import type { ListType } from '../list/list-type'
@@ -67,54 +68,7 @@ export type FlatChangeInput = ChangeInput & { fileOrder?: number }
  * Flat entries are one-per-copy with their own `cardId`, so removals target specific
  * entries resolved from the selection's `cardIds` — never by name. No commander.
  */
-export type FlatBulkEdit = {
-  /** Add one more copy of each selected card. */
-  addCopy: (cards: SelectedCard[]) => void
-  /** Remove one copy of each selected card. */
-  removeCopy: (cards: SelectedCard[]) => void
-  /** Remove every copy of each selected card (full removal). */
-  removeAll: (cards: SelectedCard[]) => void
-  /** Set the finish on each selected card that supports it; others are skipped. */
-  setFinish: (cards: SelectedCard[], finish: Finish) => void
-  /**
-   * Whether {@link setFinish} would apply the finish to *every* selected card
-   * as the list stands now — both halves of the question it asks: the card's
-   * printing publishes that finish, and (for foil/etched) the line pins a
-   * printing at all. A {@link SelectedCard} is a snapshot taken when the tile
-   * was ticked, so its printing can be stale in both directions — pinned since,
-   * or unpinned again by an undo — and the answer comes from live data.
-   *
-   * All-or-nothing on purpose: `setFinish` skips what it cannot apply, so a
-   * partially-applicable selection would look like it worked while quietly
-   * leaving cards behind. The menu greys the action out instead.
-   */
-  canSetFinish: (cards: SelectedCard[], finish: Finish) => boolean
-  /** Set the language on every copy of every selected card. */
-  setLanguage: (cards: SelectedCard[], language: CardLanguage) => void
-  /**
-   * Set (or clear, with `[]`) the label override on every selected card.
-   * Collection editors only — supplied by the collection layer, absent elsewhere.
-   */
-  setLabel?: (cards: SelectedCard[], labels: CardLabel[]) => void
-  /** Run the change-printing flow over the selection one card at a time. */
-  changePrinting: (cards: SelectedCard[]) => void
-  /**
-   * Open the "Swap Printings" wizard pre-checked on the selection. Collection
-   * editors only — supplied by the collection layer, absent elsewhere (a
-   * wanted list holds no physical cards to swap).
-   */
-  swapPrintings?: (cards: SelectedCard[]) => void
-  /** Move every selected card into an existing section. */
-  moveToSection: (cards: SelectedCard[], section: string) => void
-  /** Prompt for a new section name and move every selected card into it. */
-  promptNewSection: (cards: SelectedCard[]) => void
-  /** Current section names, for the move submenu. */
-  sections: () => string[]
-  /** Move every selected card out of this list into another list. */
-  moveToList: (cards: SelectedCard[], dest: ListRef) => void
-  /** The other lists cards can be moved to, for the move-to-list submenu. */
-  moveTargets: () => ListRef[]
-}
+export type FlatBulkEdit = Omit<BulkEditBundle, 'setCommander'>
 
 /**
  * Shared controller for the flat-list editors (collections and wanted lists):
@@ -507,7 +461,7 @@ export function FlatListContextMenu<E extends FlatEntry>(
   )
 }
 
-type FlatListEditorShellProps<E extends FlatEntry> = {
+export type FlatListEditorShellProps<E extends FlatEntry> = {
   ctrl: FlatListController<E>
   entityLabel: EditorEntity
   selectorId: string
@@ -540,26 +494,18 @@ type FlatListEditorShellProps<E extends FlatEntry> = {
 export function FlatListEditorShell<E extends FlatEntry>(
   props: FlatListEditorShellProps<E>,
 ): JSX.Element {
+  // Every prop this shell forwards unchanged already carries the editor shell's
+  // own name, so the spread says it once; what is left is what this layer
+  // *decides* — the editor and card data off the controller, the add-time art
+  // flag, and the flat-list context menu.
   return (
     <EditorShell
-      entityLabel={props.entityLabel}
-      selectorId={props.selectorId}
+      {...props}
       editor={props.ctrl.editor}
       cardData={props.ctrl.cardData}
-      search={props.search}
-      defaults={props.defaults}
-      requirePrinting={props.requirePrinting}
-      showSave={props.showSave}
-      showDiscard={props.showDiscard}
-      enableImport={props.enableImport}
-      importKind={props.importKind}
-      onEditLabels={props.onEditLabels}
-      onEditImage={props.onEditImage}
       // Art is offered at add time exactly where a card's art can be written:
       // the same authed route behind the context menu's "Set Custom Art…".
       enableAddArt={props.onSetCustomArt !== undefined}
-      swap={props.swap}
-      onSwapPrintings={props.onSwapPrintings}
       contextMenu={
         <FlatListContextMenu
           ctrl={props.ctrl}

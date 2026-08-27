@@ -3,16 +3,14 @@ import type { SellModeProps } from '../../list-view/sell-mode'
 import type { CardKingdomCards } from '../../list/site-data'
 import type { DeckData } from '../../list/deck'
 import type { Card } from '../../card/card'
-import type { Finish } from '../../card/finish-condition'
 import type { CardLabel } from '../../card/card-labels'
-import type { CardLanguage } from '../../card/card-language'
 import { DeckPage } from '../DeckPage'
 import type { PriceCurrency } from '../../pricing/price-currency'
 import type { ListRef, PrintingTuple } from '../../changes/change-event'
 import type { NamedListRef } from '../../list-view/combined-list'
-import type { SelectedCard } from '../../list-view/useCardSelection'
 import type { CardContextInfo, ContextMenuState } from '../../list-view/card-context'
 import { contextInfoFromSelected } from '../../list-view/selected-to-context'
+import type { DeckBulkEditBundle } from '../../list-view/selection-edit-actions'
 import { bulkMoveToList, printingForMove, printingOf } from '../../list-view/printing-prompt'
 import { promptListMove, promptSectionMove } from '../../list-view/move-prompt'
 import { promptCardLabels } from '../../list-view/label-prompt'
@@ -48,59 +46,6 @@ import { withDeckArt, type CardArtRefs } from '../../editor/card-art-view'
 export type DeckContextMenuState = ContextMenuState & { isInCommanderSection: boolean }
 
 /**
- * Bulk edit operations over a multi-select of deck cards. Each maps the selection
- * onto the controller's existing single-card primitives (quantity steppers,
- * foil/section/commander, change printing), iterating copies where needed. Decks
- * operate by card name; copies are applied as repeated single-step changes.
- */
-export type DeckBulkEdit = {
-  /** Add one more copy of each selected card. */
-  addCopy: (cards: SelectedCard[]) => void
-  /** Remove one copy of each selected card. */
-  removeCopy: (cards: SelectedCard[]) => void
-  /** Remove every copy of each selected card (full removal). */
-  removeAll: (cards: SelectedCard[]) => void
-  /** Set the finish on each selected card that supports it; others are skipped. */
-  setFinish: (cards: SelectedCard[], finish: Finish) => void
-  /**
-   * Whether {@link setFinish} would apply the finish to *every* selected card
-   * as the list stands now — both halves of the question it asks: the card's
-   * printing publishes that finish, and (for foil/etched) the line pins a
-   * printing at all. A {@link SelectedCard} is a snapshot taken when the tile
-   * was ticked, so its printing can be stale in both directions — pinned since,
-   * or unpinned again by an undo — and the answer comes from live data.
-   *
-   * All-or-nothing on purpose: `setFinish` skips what it cannot apply, so a
-   * partially-applicable selection would look like it worked while quietly
-   * leaving cards behind. The menu greys the action out instead.
-   */
-  canSetFinish: (cards: SelectedCard[], finish: Finish) => boolean
-  /** Set the language on each selected card (every copy of the entry). */
-  setLanguage: (cards: SelectedCard[], language: CardLanguage) => void
-  /**
-   * Set (or clear, with `[]`) the label override on each selected card. Decks
-   * carry `proxy` alone, so the picker offers that and the clear row.
-   */
-  setLabel: (cards: SelectedCard[], labels: CardLabel[]) => void
-  /** Run the change-printing flow over the selection one card at a time. */
-  changePrinting: (cards: SelectedCard[]) => void
-  /** Open the "Swap Printings" wizard pre-checked on the selection. */
-  swapPrintings: (cards: SelectedCard[]) => void
-  /** Mark each selected card as a commander. */
-  setCommander: (cards: SelectedCard[]) => void
-  /** Move every selected card into an existing section. */
-  moveToSection: (cards: SelectedCard[], section: string) => void
-  /** Prompt for a new section name and move every selected card into it. */
-  promptNewSection: (cards: SelectedCard[]) => void
-  /** Current section names, for the move submenu. */
-  sections: () => string[]
-  /** Move every selected card out of this deck into another list. */
-  moveToList: (cards: SelectedCard[], dest: ListRef) => void
-  /** The other lists cards can be moved to, for the move-to-list submenu. */
-  moveTargets: () => ListRef[]
-}
-
-/**
  * Shared controller for the deck editor: owns the card-data store, the
  * {@link useEditor} instance, and every deck interaction handler (quantity steppers,
  * context menu, change-printing, commander toggles). Both the admin deck editor and
@@ -130,7 +75,14 @@ export type DeckEditController = SwapController & {
   closeModal: () => void
   closeContextMenu: () => void
   /** Bulk edit operations over a multi-select of deck cards. */
-  bulkEdit: DeckBulkEdit
+  /**
+   * Bulk edit operations over a multi-select of deck cards. Each maps the
+   * selection onto the controller's existing single-card primitives (quantity
+   * steppers, foil/section/commander, change printing), iterating copies where
+   * needed. Decks operate by card name; copies are applied as repeated
+   * single-step changes.
+   */
+  bulkEdit: DeckBulkEditBundle
 }
 
 /**
@@ -335,7 +287,7 @@ export function useDeckEditController(
     mergeTargetId: deckSwapMergeTargetId,
   })
 
-  const bulkEdit: DeckBulkEdit = {
+  const bulkEdit: DeckBulkEditBundle = {
     addCopy: (cards) => {
       for (const c of cards) handleIncrement(c.name)
     },

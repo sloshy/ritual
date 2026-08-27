@@ -1,10 +1,7 @@
 import { buylistFieldsFor } from '../list-view/buylist-quotes'
-import { createSellSummary, useSellMode, type QuoteSource } from './useSellMode'
-import { sellableFromCardData, selectionToCartCsv, type SellableCard } from './sell-value'
-import { buyerName } from '../buylist'
-import { cartBuyer, type SellModeProps } from '../list-view/sell-mode'
+import type { SellModeProps } from '../list-view/sell-mode'
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, on, onMount, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import {
   seedCards,
@@ -14,11 +11,6 @@ import {
 } from '../list-view/session-cache'
 import { normalizeCardName } from '../card/term-match'
 import { useT } from '../ui/i18n'
-import type { MessageKey } from '../i18n/messages/en'
-import { usePublicPriceControls, UpdatePricesButton } from './PriceControls'
-import { PriceStalenessNotice } from './PriceStalenessNotice'
-import { TagFilterWarning } from './TagFilterWarning'
-import { ListPageStats, SellModeNotice } from './PageStats'
 import type { Card } from '../card/card'
 import type { ScryfallCard } from '../scryfall/types'
 import type { Finish } from '../card/finish-condition'
@@ -40,7 +32,6 @@ import {
 } from '../list-view/priceless'
 import type { MetaEntry } from '../list-view/meta-entry'
 import { rarityName } from '../list-view/printing-display'
-import type { ChangelogPage } from '../changes/changelog-parser'
 import { findPrinting, hasSpecificPrinting } from '../card/card-printing'
 import { storedLanguage } from '../card/card-language'
 import { ListDescription } from './ListDescription'
@@ -51,52 +42,26 @@ import {
   type GroupBy,
   type SortBy,
   type CardData,
-  type CardGroup,
-  type SelectOption,
-  groupAndSortCards,
   groupTotalPrice,
-  sortByOptions,
-  CARD_SIZE_WIDTHS,
-  SELL_GROUP_BY_OPTIONS,
-  sortByValuesFor,
 } from '../list-view/card-sorting'
+import { deckGroupByOptions } from './list-page-options'
+import { deckPrimerHash, partitionDeckCards } from './deck-page-logic'
 import { CardModal } from '../list-view/CardModal'
-import { ChangelogModal } from './ChangelogModal'
-import { useCardNavScroll } from './card-nav'
-import { TooltipOverlay } from '../ui/TooltipOverlay'
-import { useReadCardMenu } from './useReadCardMenu'
-import { useTooltip } from '../ui/useTooltip'
-import { Toolbar } from './Toolbar'
+import { ListPageShell, type ListPageChangelog, type ListPageExport } from './ListPageShell'
+import type { ListPageCommonProps } from './list-page-props'
+import { useListPage } from './useListPage'
 import { TradePrintingPicker } from './TradePrintingPicker'
-import { addEntryToLeft, canAddMoreToLeft, showTradeToast } from './useTradeState'
+import { canAddMoreToLeft } from './useTradeState'
+import { addAndToast, addPickedPrintingToTrade } from './useSelectionTrade'
 import type { TradeSearchEntry } from './useTradeData'
-import { resolveCardThumbnailUrl, resolveCardPreview } from '../card/image-sources'
+import { resolveCardPreview } from '../card/image-sources'
 import { CardSection } from './CardSection'
-import { useToolbarState } from './useToolbarState'
-import { useListViewUrlSync } from './useListViewUrlSync'
-import { useCardFilters } from './useCardFilters'
-import {
-  pruneOwnShareSelections,
-  shareListsExcluding,
-  useShareFilterContext,
-  type ShareListsForPage,
-} from './list-shares'
-import type { NamedListRef } from '../list-view/combined-list'
 import { printingKey } from '../card/printing-key'
-import {
-  collectArtTags,
-  collectCardTypes,
-  collectOracleTags,
-  collectSetCodes,
-  filterCards,
-  isTagFilterActive,
-  untaggedAddedCardNames,
-} from './card-filters'
 import { PrimerRenderer, buildToc } from './PrimerRenderer'
-import { useCardSelection, type SelectedCard } from '../list-view/useCardSelection'
-import { SelectionMenu } from './SelectionMenu'
-import { buildSelectionEditActions, type DeckBulkEditBundle } from './selection-edit-actions'
-import { ExportMenu, type ExportFormat, type ExtraExportFormat } from './ExportMenu'
+import type { SelectedCard } from '../list-view/useCardSelection'
+import type { DeckBulkEditBundle } from '../list-view/selection-edit-actions'
+import type { ExportFormat } from './ExportMenu'
+import { isExtraSection, isSideboardSection } from '../list/deck-format'
 import { deckToExportText, deckToMarkdown } from '../list/deck-text'
 import { deckToCsv } from '../list/list-export'
 
@@ -106,223 +71,46 @@ type DeckTradePicker = { cardName: string; printings: ScryfallCard[]; deckEntry:
  * The label chips a deck's filter row offers, and the `labels=` values a shared
  * URL may name here. Derived from the vocabulary (decks carry `proxy` alone),
  * so the row cannot drift from what a deck line can actually hold — and known
- * synchronously, which is what {@link useListViewUrlSync} needs at setup.
+ * synchronously, which is what the frame's URL sync needs at setup.
  */
 const DECK_LABEL_FILTERS: readonly CardLabelSelection[] = labelFiltersFor('deck')
-
-/**
- * Every key a group-by dropdown label may name. Narrower than `MessageKey` so
- * `t()` can render one without params, and `Extract` turns a key that no longer
- * exists in the catalog into `never` — a compile error at the table below.
- */
-type GroupByMessageKey = Extract<MessageKey, `site.groupBy.${string}` | `domain.groupBy.${string}`>
-
-/**
- * A group-by choice before its label is rendered. The `value` half is a
- * persisted URL token and stays locale-independent.
- */
-type DeckGroupByOption = { value: GroupBy; label: GroupByMessageKey }
-
-/**
- * The deck's group-by choices. Labels are {@link MessageKey}s, not rendered
- * text: this table is evaluated once at module load, so a rendered string would
- * freeze the dropdown in whatever language the bundle booted in. The `value`
- * side stays locale-independent — it is what `group=` carries in a shared URL.
- */
-const DECK_GROUP_BY_OPTIONS: DeckGroupByOption[] = [
-  { value: 'type', label: 'site.groupBy.type' },
-  { value: 'section', label: 'site.groupBy.section' },
-  { value: 'cmc', label: 'site.groupBy.cmc' },
-  { value: 'color-identity', label: 'site.groupBy.colorIdentity' },
-  { value: 'price', label: 'site.groupBy.price' },
-  { value: 'printing', label: 'site.groupBy.printing' },
-  { value: 'none', label: 'site.groupBy.none' },
-]
-
-/**
- * The group-by options offered, with sell mode's appended when it is on. Called
- * with `true` by the URL sync so a shared link may legally name them, and with
- * the live toggle for the dropdown itself.
- */
-function deckGroupByOptions(sellMode: boolean): DeckGroupByOption[] {
-  if (!sellMode) return DECK_GROUP_BY_OPTIONS
-  const withoutNone = DECK_GROUP_BY_OPTIONS.filter((o) => o.value !== 'none')
-  return [...withoutNone, ...SELL_GROUP_BY_OPTIONS, { value: 'none', label: 'site.groupBy.none' }]
-}
 
 // The sort fields this page offers, in order — shared by the toolbar's dropdown
 // options and the URL sync's validation of incoming sort layers.
 const DECK_SORT_BYS: readonly SortBy[] = ['name', 'cmc', 'price', 'color-identity', 'edhrec']
 
-/** Rebuild the deck hash for a primer toggle, preserving any shareable list-view query string. */
-const deckPrimerHash = (slug: string, primerOpen: boolean): string => {
-  const query = window.location.hash.split('?')[1]
-  const base = `#/deck/${slug}${primerOpen ? '/primer' : ''}`
-  return query ? `${base}?${query}` : base
-}
-
-const isCommanderSection = (s: string): boolean => s.toLowerCase().includes('commander')
-const isSideboardSection = (s: string): boolean => s.toLowerCase().includes('sideboard')
-const isExtraSection = (s: string): boolean => {
-  const low = s.toLowerCase()
-  return low.includes('maybeboard') || low.includes('token')
-}
-
-export interface DeckPageProps extends SellModeProps {
+export interface DeckPageProps extends SellModeProps, ListPageCommonProps {
   deck: BakedDeckData
   /**
    * The deck's default card labels from its front matter; a line's own labels
    * override replaces it entirely. Decks accept `proxy` alone.
    */
   listLabels?: CardLabel[]
-  cards: Record<string, ScryfallCard | null>
-  printings: Record<string, ScryfallCard[]>
   lowestPriceCards?: Record<string, ScryfallCard | null>
   lowestPriceCardsEur?: Record<string, ScryfallCard | null>
   lowestPriceCardsTix?: Record<string, ScryfallCard | null>
   /** Card Kingdom's own printing picks, read while the USD source is Card Kingdom. */
   cardsCardKingdom?: CardKingdomCards
   lowestPriceCardsCardKingdom?: CardKingdomCards
-  symbolMap: Record<string, string>
-  /** Show the page-header Copy/Download export menu (public read view only). */
-  enableExport?: boolean
-  useScryfallImgUrls?: boolean
+  /**
+   * Tiles are keyed by card *name*, not printing: a deck shows one tile per
+   * name, so the modal opens on the name rather than a `set:cn` key.
+   */
   modalCardName: string | null
   onOpenModal: (cardName: string) => void
-  onCloseModal: () => void
-  currency: PriceCurrency
   missingCards?: Partial<Record<PriceCurrency, string[]>>
   slug: string
   primerOpen?: boolean
   sectionId?: string
-  editMode?: boolean
-  /** Card names added during the current edit session (edit mode only). */
-  addedCardNames?: string[]
   onCardIncrement?: (cardName: string) => void
   onCardDecrement?: (cardName: string) => void
-  onCardContextMenu?: (info: CardContextInfo, rect: DOMRect) => void
-  /**
-   * When provided, each card shows a single "Move To…" button (instead of the edit
-   * or trade controls) that reports the card and the button's rect. Used by the
-   * admin Move Cards page.
-   */
-  onCardMove?: (info: CardContextInfo, rect: DOMRect) => void
-  unsavedChangeCount?: number
-  changelog?: ChangelogPage[]
-  /**
-   * Force the page width. Defaults to full width in edit/move mode and the centered
-   * container otherwise; the public in-browser editor sets `false` to keep the
-   * normal margins even while editing.
-   */
-  fullWidth?: boolean
-  /** Build-time price date (ISO), shipped with the deck JSON; drives staleness after a refresh. */
-  pricesDate?: string
-  /** Show the public "Update Prices" toolbar button + staleness notice (public site only). */
-  enablePriceRefresh?: boolean
-  /** Offer "Add to Trade" in the multi-select menu (public site only; the trade page is unreachable on admin). */
-  enableTrade?: boolean
   /** When provided (edit mode), enables bulk edit actions in the multi-select menu. */
   bulkEdit?: DeckBulkEditBundle
-  /** When provided (public read view), shows a "Combine with list…" header button. */
-  onCombine?: () => void
-  /** Mirror the toolbar/filter state into the URL query so the view is shareable (public read view only). */
-  enableUrlState?: boolean
-  /** Every list on the site, for the share filters; the page drops itself. */
-  shareLists?: readonly NamedListRef[]
 }
 
 export const DeckPage: Component<DeckPageProps> = (props) => {
   const t = useT()
-  const selection = useCardSelection({ kind: 'deck', name: props.deck.name })
-  const editActions = createMemo(() =>
-    props.bulkEdit ? buildSelectionEditActions(props.bulkEdit, selection) : undefined,
-  )
-  const toolbar = useToolbarState<GroupBy>({ groupBy: 'type', sortBy: 'name' })
-  const {
-    viewMode,
-    setViewMode,
-    cardSize,
-    setCardSize,
-    groupBy,
-    setGroupBy,
-    sortLayers,
-    setSortLayers,
-    reverseGroups,
-    setReverseGroups,
-    priceGroupStrategy,
-    setPriceGroupStrategy,
-  } = toolbar
-  const cardFilters = useCardFilters()
-  const shareContext = useShareFilterContext(cardFilters)
-  // The share filters never offer the page's own list — a card trivially
-  // "shares" with the list it is on. One memo feeds the toolbar's options, the
-  // URL sync's self-stripping, and the slug-switch prune below.
-  const shareRefs = createMemo<ShareListsForPage | undefined>(() =>
-    props.slug
-      ? shareListsExcluding(props.shareLists, { type: 'deck', slug: props.slug })
-      : undefined,
-  )
-  const otherShareLists = (): readonly NamedListRef[] =>
-    shareRefs()?.others ?? props.shareLists ?? []
-  // Admin surfaces (the editors, Move Cards) keep this page mounted across slug
-  // switches with URL state off, so `currentShareList` stripping never runs
-  // there — a chip naming the newly opened list would survive and filter the
-  // list against itself. `on` has no equality check, so the prune itself bails
-  // without a store write when no chip names this list.
-  createEffect(
-    on(
-      () => props.slug,
-      () => {
-        const refs = shareRefs()
-        if (refs) pruneOwnShareSelections(cardFilters, refs.selfKey)
-      },
-      { defer: true },
-    ),
-  )
-  // A parameter, not a read of the live mode, for the same reason as the
-  // group-by options: the URL sync validates against the full set a shared
-  // link may name, while the dropdown offers only what is currently on.
-  const sortValuesFor = (sellMode: boolean): readonly SortBy[] =>
-    sortByValuesFor(DECK_SORT_BYS, sellMode)
-  /** The dropdown's options with their labels rendered in the active locale. */
-  const groupByOptions = (): SelectOption<GroupBy>[] =>
-    deckGroupByOptions(sell.active()).map((option) => ({
-      value: option.value,
-      label: t(option.label),
-    }))
-  useListViewUrlSync({
-    toolbar,
-    filters: cardFilters,
-    defaults: { groupBy: 'type', sortBy: 'name' },
-    groupByValues: deckGroupByOptions(Boolean(props.enableSellMode)).map((o) => o.value),
-    sortByValues: sortValuesFor(Boolean(props.enableSellMode)),
-    enabled: props.enableUrlState,
-    // The same chips the toolbar draws, so a `labels=` param can only ask for
-    // something this page can also show and clear.
-    availableLabels: DECK_LABEL_FILTERS,
-    supportsSellMode: Boolean(props.enableSellMode),
-    // A shared URL's share-filter params naming this page itself are stripped
-    // — the page never offers its own list as an option.
-    currentShareList: shareRefs()?.selfKey,
-  })
 
-  // Declared once, at setup: a page handed a baked payload never calls the quote
-  // API (the public site and the public editor), and one without it quotes live
-  // against a credentialed API (the admin editors). Making the choice explicit
-  // keeps a call site from silently landing on the path it did not mean.
-  const quoteSource: QuoteSource = props.bakedBuylist
-    ? { kind: 'baked', quotes: props.bakedBuylist }
-    : { kind: 'live' }
-  const sell = useSellMode({
-    toolbar,
-    supported: () => Boolean(props.enableSellMode),
-    quotes: quoteSource,
-    // Deferred: `allCards` is declared below this call.
-    cards: () => allCards(),
-    selected: selection.selected,
-    filters: cardFilters,
-    defaults: { groupBy: 'type', sortBy: 'name' },
-  })
   const [lowestPriceRequested, setLowestPriceRequested] = createSignal(false)
   /**
    * "Lowest Price" re-targets every entry at the cheapest printing of its card,
@@ -333,7 +121,6 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
    */
   const lowestPrice = (): boolean => !props.editMode && lowestPriceRequested()
   const [missingCardsExpanded, setMissingCardsExpanded] = createSignal(false)
-  const [showChangelog, setShowChangelog] = createSignal(false)
 
   const [deckTradePicker, setDeckTradePicker] = createSignal<DeckTradePicker | null>(null)
 
@@ -398,38 +185,22 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
       })
       return
     }
-    const scryfallCard = c.card
-    const entry = buildDeckSearchEntry(c.name, deckEntry, scryfallCard, c.quantity)
-    const added = addEntryToLeft(entry, props.currency)
-    if (added)
-      showTradeToast(
-        entry.name,
-        resolveCardThumbnailUrl(entry.scryfallCard, props.useScryfallImgUrls ?? false),
-      )
+    const entry = buildDeckSearchEntry(c.name, deckEntry, c.card, c.quantity)
+    addAndToast(entry, props.currency, props.useScryfallImgUrls ?? false)
   }
 
   const handleDeckTradePickerSelect = (printing: ScryfallCard, finish: Finish) => {
     const picker = deckTradePicker()
     if (!picker) return
-    const searchEntry: TradeSearchEntry = {
-      name: printing.name,
-      nameKey: normalizeCardName(printing.name),
-      set: printing.set.toLowerCase(),
-      collectorNumber: printing.collector_number,
-      finish,
-      scryfallCard: printing,
+    setDeckTradePicker(null)
+    addPickedPrintingToTrade(printing, finish, {
       sourceName: props.deck.name,
       sourceKind: 'deck',
       maxQty: picker.deckEntry.quantity ?? 1,
       cardIds: picker.deckEntry.cardId !== undefined ? [picker.deckEntry.cardId] : [],
-    }
-    const added = addEntryToLeft(searchEntry, props.currency)
-    setDeckTradePicker(null)
-    if (added)
-      showTradeToast(
-        searchEntry.name,
-        resolveCardThumbnailUrl(searchEntry.scryfallCard, props.useScryfallImgUrls ?? false),
-      )
+      currency: props.currency,
+      useScryfallImgUrls: props.useScryfallImgUrls ?? false,
+    })
   }
 
   const isDeckCardAddDisabled = (c: CardData, deckEntry: Card): boolean => {
@@ -502,12 +273,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     }
     const scryfallCard = activeCards()[cardName] ?? null
     const searchEntry = buildDeckSearchEntry(cardName, entry, scryfallCard, entry.quantity)
-    const added = addEntryToLeft(searchEntry, props.currency)
-    if (added)
-      showTradeToast(
-        searchEntry.name,
-        resolveCardThumbnailUrl(searchEntry.scryfallCard, props.useScryfallImgUrls ?? false),
-      )
+    addAndToast(searchEntry, props.currency, props.useScryfallImgUrls ?? false)
   }
 
   const modalAddToTradeDisabled = createMemo(() => {
@@ -525,12 +291,6 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     if (!props.missingCards) return []
     return props.missingCards[props.currency] ?? []
   })
-
-  // Tooltip state for list-view hover preview
-  const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
-
-  // Read-mode ⋯ menu (cross-list lookups only); edit mode uses the editor's own menu.
-  const readMenu = useReadCardMenu()
 
   // Build flat card list with metadata
   const allCards = createMemo((): CardData[] => {
@@ -577,29 +337,6 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     return result
   })
 
-  // Seed the session cache from this deck's baked card data so the editor's card
-  // search and the trade page reuse it instead of re-fetching from Scryfall.
-  onMount(() => {
-    seedCards(props.cards)
-    seedPrintings(props.printings)
-    if (props.lowestPriceCards) seedCards(props.lowestPriceCards)
-    if (props.lowestPriceCardsEur) seedCards(props.lowestPriceCardsEur)
-    if (props.lowestPriceCardsTix) seedCards(props.lowestPriceCardsTix)
-    if (props.cardsCardKingdom) seedCards(props.cardsCardKingdom)
-    if (props.lowestPriceCardsCardKingdom) seedCards(props.lowestPriceCardsCardKingdom)
-  })
-
-  // Price refresh is wired for every render but only shown when the page opts in
-  // via `enablePriceRefresh` (the public site, read-only or editing).
-  const prices = usePublicPriceControls({ cards: allCards, pricesDate: props.pricesDate })
-
-  // Scroll to a cross-list navigation target (e.g. from "Find Other Printings")
-  // once the deck's cards are rendered.
-  useCardNavScroll(
-    () => (props.slug ? { type: 'deck', slug: props.slug } : null),
-    () => allCards().length > 0,
-  )
-
   const sectionOrder = createMemo(() => {
     return props.deck.sections.map((s) => s.name)
   })
@@ -609,48 +346,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   // mainboard.  cardGroups can then depend on mainboardCards rather than
   // allCards, so toolbar changes (groupBy, sortBy…) no longer re-trigger the
   // categorisation step.
-  const partitioned = createMemo(() => {
-    const commanderCards: CardData[] = []
-    const sideboardCards: CardData[] = []
-    const extraCards: CardData[] = []
-    const mainboardCards: CardData[] = []
-    for (const c of allCards()) {
-      if (isCommanderSection(c.section)) commanderCards.push(c)
-      else if (isSideboardSection(c.section)) sideboardCards.push(c)
-      else if (isExtraSection(c.section)) extraCards.push(c)
-      else mainboardCards.push(c)
-    }
-    return { commanderCards, sideboardCards, extraCards, mainboardCards }
-  })
-
-  // Toolbar filters apply to everything except the commander section, which is
-  // the deck's identity and stays pinned.
-  const setCodeOptions = createMemo(() => collectSetCodes(allCards()))
-  const cardTypeOptions = createMemo(() => collectCardTypes(allCards()))
-  const oracleTagOptions = createMemo(() => collectOracleTags(allCards()))
-  const artTagOptions = createMemo(() => collectArtTags(allCards()))
-  const untaggedAddedNames = createMemo(() =>
-    isTagFilterActive(cardFilters.filters)
-      ? untaggedAddedCardNames(allCards(), props.addedCardNames ?? [])
-      : [],
-  )
-
-  const filteredMainboardCards = createMemo(() =>
-    filterCards(partitioned().mainboardCards, cardFilters.filters, shareContext()),
-  )
-
-  // Sorted and grouped cards (mainboard only)
-  const cardGroups = createMemo((): CardGroup[] => {
-    return groupAndSortCards(
-      filteredMainboardCards(),
-      groupBy(),
-      sortLayers(),
-      sectionOrder(),
-      priceGroupStrategy(),
-      props.currency,
-      reverseGroups(),
-    )
-  })
+  const partitioned = createMemo(() => partitionDeckCards(allCards()))
 
   // Deck price = mainboard + commander + sideboard only
   const mainAndSideboardCards = createMemo(() => {
@@ -667,48 +363,41 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     return groupTotalPrice(partitioned().extraCards)
   })
 
-  const filteredSideboardCards = createMemo(() =>
-    filterCards(partitioned().sideboardCards, cardFilters.filters, shareContext()),
-  )
-
-  // Filtered deck price = commander (always shown, unfiltered) + filtered mainboard + filtered sideboard
-  const filteredMainAndSideboardCards = createMemo(() => {
-    const p = partitioned()
-    return [...p.commanderCards, ...filteredMainboardCards(), ...filteredSideboardCards()]
-  })
-
-  const filteredTotalPrice = createMemo(() => groupTotalPrice(filteredMainAndSideboardCards()))
-
-  /**
-   * The deck proper as sellable cards — the same commander/mainboard/sideboard
-   * scope as the deck total, with the maybeboard and token extras left out. A
-   * plain function, not a memo: the buylist summary below skips it entirely
-   * while sell mode is off, and a hot memo would map the deck on every filter
-   * change regardless. Both the header's buylist total and the cart export read
-   * it, so the figure the header promises always covers exactly the cards the
-   * export ships.
-   */
-  const filteredSellables = (): SellableCard[] =>
-    filteredMainAndSideboardCards().map(sellableFromCardData)
-
-  const filteredSellSummary = createSellSummary(sell.active, filteredSellables)
-
-  // The buyer's cart for the *visible* list: the filter is part of what the user
-  // is looking at, so a filtered view exports the filtered cards.
-  const cartExportFormats = createMemo((): ExtraExportFormat[] => {
-    const buyer = cartBuyer()
-    if (!buyer) return []
-    return [
-      {
-        label: t('site.export.buyerCart', { buyer: buyerName(buyer) }),
-        extension: 'csv',
-        mime: 'text/csv',
-        serialize: () => {
-          const cart = selectionToCartCsv(filteredSellables())
-          return { content: cart.csv, warnings: cart.warnings }
-        },
-      },
-    ]
+  const page = useListPage<GroupBy, CardData>({
+    identity: { kind: 'deck', name: props.deck.name, slug: () => props.slug },
+    options: {
+      groupByOptionsFor: deckGroupByOptions,
+      sortBys: DECK_SORT_BYS,
+      availableLabels: DECK_LABEL_FILTERS,
+      defaults: { groupBy: 'type', sortBy: 'name' },
+    },
+    cards: allCards,
+    // The commander is the deck's identity, and the sideboard and extras render
+    // in their own sections, so only the mainboard is filtered and grouped.
+    filterSource: () => partitioned().mainboardCards,
+    // Deck price = commander + mainboard + sideboard; extras are excluded.
+    valued: {
+      pinned: () => partitioned().commanderCards,
+      alsoFiltered: () => partitioned().sideboardCards,
+    },
+    sectionOrder,
+    seed: () => {
+      seedCards(props.cards)
+      seedPrintings(props.printings)
+      if (props.lowestPriceCards) seedCards(props.lowestPriceCards)
+      if (props.lowestPriceCardsEur) seedCards(props.lowestPriceCardsEur)
+      if (props.lowestPriceCardsTix) seedCards(props.lowestPriceCardsTix)
+      if (props.cardsCardKingdom) seedCards(props.cardsCardKingdom)
+      if (props.lowestPriceCardsCardKingdom) seedCards(props.lowestPriceCardsCardKingdom)
+    },
+    currency: () => props.currency,
+    pricesDate: props.pricesDate,
+    enableSellMode: () => Boolean(props.enableSellMode),
+    bakedBuylist: props.bakedBuylist,
+    enableUrlState: () => props.enableUrlState,
+    shareLists: () => props.shareLists,
+    addedCardNames: () => props.addedCardNames,
+    bulkEdit: () => props.bulkEdit,
   })
 
   // Modal card data
@@ -756,6 +445,16 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         return deckToCsv(props.deck)
     }
   }
+
+  // Built once: a stable object keeps the header's `<Show>` from flipping on every read.
+  const exportFormats: ListPageExport = { serialize: serializeDeck }
+
+  /** The changelog slot — the pages and the card data they render with, together. */
+  const changelogBundle = createMemo((): ListPageChangelog | undefined =>
+    props.changelog
+      ? { pages: props.changelog, cards: props.cards, printings: props.printings }
+      : undefined,
+  )
 
   const renderDeckCard = (hideCount: boolean) => (c: CardData) => {
     const deckEntry = deckEntryByOrder().get(c.fileOrder)
@@ -808,12 +507,12 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         customArt={c.customArt}
         symbolMap={props.symbolMap}
         buylistPrice={c.buylistPrice}
-        viewMode={viewMode()}
+        viewMode={page.toolbar.viewMode()}
         hideCount={hideCount}
         useScryfallImgUrls={props.useScryfallImgUrls}
         onCardClick={() => props.onOpenModal(c.name)}
-        onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
-        onTooltipLeave={() => setTooltip(null)}
+        onTooltipEnter={(src, sideways) => page.tooltip.setTooltip({ src, sideways })}
+        onTooltipLeave={() => page.tooltip.setTooltip(null)}
         collectionFinish={deckEntry?.finish}
         // The entry's own price, not the printing's: a proxy computed 0 above,
         // and letting the tile re-derive from the Scryfall card would print a
@@ -829,16 +528,16 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         onContextMenu={
           props.editMode
             ? (rect) => props.onCardContextMenu?.(contextInfo(), rect)
-            : !props.onCardMove && readMenu.enabled()
-              ? (rect) => readMenu.open(contextInfo(), rect)
+            : !props.onCardMove && page.readMenu.enabled()
+              ? (rect) => page.readMenu.open(contextInfo(), rect)
               : undefined
         }
         onMove={props.onCardMove ? (rect) => props.onCardMove!(contextInfo(), rect) : undefined}
         onAddToTrade={showTrade ? () => handleDeckAddToTrade(c, deckEntry) : undefined}
         addToTradeDisabled={showTrade ? isDeckCardAddDisabled(c, deckEntry) : undefined}
         selectable
-        selectState={selection.state(selectKey)}
-        onToggleSelect={() => selection.toggle(buildSelected())}
+        selectState={page.selection.state(selectKey)}
+        onToggleSelect={() => page.selection.toggle(buildSelected())}
       />
     )
   }
@@ -855,8 +554,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
 
   // Pre-compute extra sections for reactive rendering
   const extraSections = createMemo(() => {
-    if (cardFilters.filters.hideExtras || partitioned().extraCards.length === 0) return []
-    const extraCards = filterCards(partitioned().extraCards, cardFilters.filters, shareContext())
+    if (page.filters.filters.hideExtras || partitioned().extraCards.length === 0) return []
+    const extraCards = page.filterVisible(partitioned().extraCards)
     return props.deck.sections
       .filter((s) => isExtraSection(s.name))
       .map((s) => ({
@@ -865,316 +564,212 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
       }))
       .filter((s) => s.cards.length > 0)
   })
-
   return (
-    <div
-      class={
-        (props.fullWidth ?? (props.editMode || props.onCardMove))
-          ? 'page-full-width'
-          : 'page-container'
+    <ListPageShell
+      page={page}
+      title={props.deck.name}
+      fullWidth={Boolean(props.fullWidth ?? (props.editMode || props.onCardMove))}
+      currency={props.currency}
+      symbolMap={props.symbolMap}
+      useScryfallImgUrls={props.useScryfallImgUrls}
+      enableTrade={props.enableTrade}
+      onCombine={props.onCombine}
+      export={props.enableExport ? exportFormats : undefined}
+      changelog={changelogBundle()}
+      enablePriceRefresh={props.enablePriceRefresh}
+      showHideExtras
+      extraToggles={
+        hasLowestPriceCards()
+          ? [
+              {
+                label: t('site.deck.lowestPrice'),
+                checked: lowestPrice(),
+                onChange: () => setLowestPriceRequested((prev) => !prev),
+                locked: props.editMode
+                  ? { reason: t('site.deck.lowestPriceEditDisabled') }
+                  : undefined,
+              },
+            ]
+          : undefined
       }
-    >
-      {/* Header */}
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">{props.deck.name}</h1>
-          <p class="page-stats">
-            <Show when={pricesEnabled()}>
-              {t('site.stats.total', { amount: formatPrice(totalPrice(), props.currency) })}
-            </Show>
-            <Show
-              when={
-                pricesEnabled() &&
-                !cardFilters.filters.hideExtras &&
-                partitioned().extraCards.length > 0
-              }
-            >
-              <span class="page-stats-label">
-                {' '}
-                {t('site.deck.allCardsPrice', {
-                  amount: formatPrice(totalPrice() + extrasPrice(), props.currency),
-                })}
-              </span>
-            </Show>
-            <ListPageStats
-              filters={cardFilters}
-              currency={props.currency}
-              filteredAmount={filteredTotalPrice()}
-              selectedCount={selection.count()}
-              selectedAmount={selection.value(props.currency)}
-              sellMode={sell.active()}
-              buylistSummary={filteredSellSummary()}
-              selectionSummary={sell.summary()}
-            />
-          </p>
-          <SellModeNotice sellMode={sell.active()} />
-          <Show when={props.deck.sourceUrl}>
-            <a href={props.deck.sourceUrl} target="_blank" rel="noreferrer" class="copy-link">
-              {t('site.deck.importedFrom', {
-                source: (() => {
-                  // i18n-exempt: site names are proper nouns and stay as spelled.
-                  if (props.deck.sourceUrl!.includes('moxfield.com')) return 'Moxfield'
-                  if (props.deck.sourceUrl!.includes('archidekt.com')) return 'Archidekt'
-                  if (props.deck.sourceUrl!.includes('mtggoldfish.com')) return 'MTGGoldfish'
-                  return t('site.deck.sourceGeneric')
-                })(),
-              })}
-            </a>
+      statsLead={
+        <>
+          <Show when={pricesEnabled()}>
+            {t('site.stats.total', { amount: formatPrice(totalPrice(), props.currency) })}
           </Show>
-        </div>
-        <Show
-          when={
-            props.onCombine ||
-            props.enableExport ||
-            (props.changelog && props.changelog.length > 0) ||
-            props.enablePriceRefresh
-          }
-        >
-          <div class="btn-group">
-            <Show when={props.onCombine}>
-              <button onClick={() => props.onCombine!()} class="btn btn-secondary">
-                {t('site.page.combineWithList')}
-              </button>
-            </Show>
-            <Show when={props.changelog && props.changelog.length > 0}>
-              <button
-                onClick={() => setShowChangelog(true)}
-                class="btn btn-secondary btn-view-changes"
-              >
-                {t('site.page.viewChanges')}
-              </button>
-            </Show>
-            <Show when={props.enableExport}>
-              <ExportMenu
-                serialize={serializeDeck}
-                name={props.deck.name}
-                extraFormats={cartExportFormats()}
-              />
-            </Show>
-            <Show when={props.enablePriceRefresh}>
-              <UpdatePricesButton prices={prices} />
-            </Show>
-          </div>
-        </Show>
-      </div>
-
-      {/* Toolbar */}
-      <Toolbar
-        viewMode={viewMode()}
-        onViewModeChange={setViewMode}
-        cardSize={cardSize()}
-        onCardSizeChange={setCardSize}
-        groupBy={groupBy()}
-        groupByOptions={groupByOptions()}
-        onGroupByChange={(v) => setGroupBy(v as GroupBy)}
-        sortLayers={sortLayers()}
-        sortByOptions={sortByOptions(sortValuesFor(sell.active()))}
-        onSortLayersChange={setSortLayers}
-        priceGroupStrategy={priceGroupStrategy()}
-        onPriceGroupStrategyChange={setPriceGroupStrategy}
-        reverseGroups={reverseGroups()}
-        onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
-        sell={sell.control()}
-        filters={cardFilters}
-        symbolMap={props.symbolMap}
-        currency={props.currency}
-        setCodeOptions={setCodeOptions()}
-        cardTypeOptions={cardTypeOptions()}
-        oracleTagOptions={oracleTagOptions()}
-        artTagOptions={artTagOptions()}
-        showHideExtras
-        showLabelsFilter={DECK_LABEL_FILTERS.length > 0}
-        availableLabels={DECK_LABEL_FILTERS}
-        shareLists={otherShareLists()}
-        extraToggles={
-          hasLowestPriceCards()
-            ? [
-                {
-                  label: t('site.deck.lowestPrice'),
-                  checked: lowestPrice(),
-                  onChange: () => setLowestPriceRequested((prev) => !prev),
-                  locked: props.editMode
-                    ? { reason: t('site.deck.lowestPriceEditDisabled') }
-                    : undefined,
-                },
-              ]
-            : undefined
-        }
-        selectionMenu={
-          <SelectionMenu
-            selection={selection}
-            currency={props.currency}
-            enableTrade={props.enableTrade}
-            useScryfallImgUrls={props.useScryfallImgUrls}
-            editActions={editActions()}
-            dockOnTouch
-          />
-        }
-      />
-
-      <Show when={props.enablePriceRefresh}>
-        <PriceStalenessNotice outdatedNames={prices.outdatedNames()} />
-      </Show>
-      <TagFilterWarning untaggedCardNames={untaggedAddedNames()} />
-
-      {/* Description / Primer */}
-      <Show when={props.deck.description || props.deck.primer}>
-        <div class="list-description-section">
-          <ListDescription description={props.deck.description} symbolMap={props.symbolMap} />
-          <Show when={props.deck.primer}>
-            <div class="deck-primer">
-              <ExpandablePrimer
-                primer={props.deck.primer!}
-                slug={props.slug}
-                cards={activeCards()}
-                onOpenModal={props.onOpenModal}
-                primerOpen={props.primerOpen}
-                sectionId={props.sectionId}
-              />
-            </div>
-          </Show>
-        </div>
-      </Show>
-
-      {/* Missing cards warning banner */}
-      <Show when={currentMissingCards().length > 0}>
-        <div class="missing-cards-banner">
-          <button
-            type="button"
-            class="missing-cards-banner-toggle"
-            onClick={() => setMissingCardsExpanded((prev) => !prev)}
+          <Show
+            when={
+              pricesEnabled() &&
+              !page.filters.filters.hideExtras &&
+              partitioned().extraCards.length > 0
+            }
           >
-            <span>⚠️</span>
-            <span class="missing-toggle-label">
-              {t('site.deck.missingPricing', {
-                count: currentMissingCards().length,
-                currency: props.currency.toUpperCase(),
+            <span class="page-stats-label">
+              {' '}
+              {t('site.deck.allCardsPrice', {
+                amount: formatPrice(totalPrice() + extrasPrice(), props.currency),
               })}
             </span>
-            <span class="missing-toggle-arrow">{missingCardsExpanded() ? '▲' : '▼'}</span>
-          </button>
-          <Show when={missingCardsExpanded()}>
-            <div class="missing-cards-banner-list">
-              <ul>
-                <For each={currentMissingCards()}>{(name) => <li>{name}</li>}</For>
-              </ul>
+          </Show>
+        </>
+      }
+      headerExtra={
+        <Show when={props.deck.sourceUrl}>
+          <a href={props.deck.sourceUrl} target="_blank" rel="noreferrer" class="copy-link">
+            {t('site.deck.importedFrom', {
+              source: (() => {
+                // i18n-exempt: site names are proper nouns and stay as spelled.
+                if (props.deck.sourceUrl!.includes('moxfield.com')) return 'Moxfield'
+                if (props.deck.sourceUrl!.includes('archidekt.com')) return 'Archidekt'
+                if (props.deck.sourceUrl!.includes('mtggoldfish.com')) return 'MTGGoldfish'
+                return t('site.deck.sourceGeneric')
+              })(),
+            })}
+          </a>
+        </Show>
+      }
+      beforeCards={
+        <>
+          {/* Description / Primer */}
+          <Show when={props.deck.description || props.deck.primer}>
+            <div class="list-description-section">
+              <ListDescription description={props.deck.description} symbolMap={props.symbolMap} />
+              <Show when={props.deck.primer}>
+                <div class="deck-primer">
+                  <ExpandablePrimer
+                    primer={props.deck.primer!}
+                    slug={props.slug}
+                    cards={activeCards()}
+                    onOpenModal={props.onOpenModal}
+                    primerOpen={props.primerOpen}
+                    sectionId={props.sectionId}
+                  />
+                </div>
+              </Show>
             </div>
           </Show>
-        </div>
-      </Show>
 
-      {/* Card sections */}
-      <div
-        class={`card-sections view-${viewMode()}`}
-        style={`--card-width:${CARD_SIZE_WIDTHS[cardSize()]}px`}
-      >
-        {/* Commander section always shown first */}
-        <Show when={partitioned().commanderCards.length > 0}>
-          <CardSection
-            label={
-              props.deck.sections.find((s) => s.name.toLowerCase().includes('commander'))?.name ??
-              // i18n-exempt: a board name, English by contract (see BOARDS).
-              'Commander'
-            }
-            cards={partitioned().commanderCards}
-            currency={props.currency}
-            renderCard={renderDeckCard(true)}
-          />
-        </Show>
-
-        {/* Dynamic sorted/grouped sections (mainboard only) */}
-        <For each={cardGroups()}>
-          {(group) => (
+          {/* Missing cards warning banner */}
+          <Show when={currentMissingCards().length > 0}>
+            <div class="missing-cards-banner">
+              <button
+                type="button"
+                class="missing-cards-banner-toggle"
+                onClick={() => setMissingCardsExpanded((prev) => !prev)}
+              >
+                <span>⚠️</span>
+                <span class="missing-toggle-label">
+                  {t('site.deck.missingPricing', {
+                    count: currentMissingCards().length,
+                    currency: props.currency.toUpperCase(),
+                  })}
+                </span>
+                <span class="missing-toggle-arrow">{missingCardsExpanded() ? '▲' : '▼'}</span>
+              </button>
+              <Show when={missingCardsExpanded()}>
+                <div class="missing-cards-banner-list">
+                  <ul>
+                    <For each={currentMissingCards()}>{(name) => <li>{name}</li>}</For>
+                  </ul>
+                </div>
+              </Show>
+            </div>
+          </Show>
+        </>
+      }
+      sections={
+        <>
+          {/* Commander section always shown first */}
+          <Show when={partitioned().commanderCards.length > 0}>
             <CardSection
-              label={group.key}
-              cards={group.cards}
+              label={
+                props.deck.sections.find((s) => s.name.toLowerCase().includes('commander'))?.name ??
+                // i18n-exempt: a board name, English by contract (see BOARDS).
+                'Commander'
+              }
+              cards={partitioned().commanderCards}
+              currency={props.currency}
+              renderCard={renderDeckCard(true)}
+            />
+          </Show>
+
+          {/* Dynamic sorted/grouped sections (mainboard only) */}
+          <For each={page.cardGroups()}>
+            {(group) => (
+              <CardSection
+                label={group.key}
+                cards={group.cards}
+                currency={props.currency}
+                renderCard={renderDeckCard(false)}
+              />
+            )}
+          </For>
+
+          {/* Sideboard always shown at bottom, ungrouped */}
+          <Show when={page.filteredAlso().length > 0}>
+            <CardSection
+              label={
+                props.deck.sections.find((s) => isSideboardSection(s.name))?.name ??
+                // i18n-exempt: a board name, English by contract (see BOARDS).
+                'Sideboard'
+              }
+              cards={page.filteredAlso()}
               currency={props.currency}
               renderCard={renderDeckCard(false)}
             />
-          )}
-        </For>
+          </Show>
 
-        {/* Sideboard always shown at bottom, ungrouped */}
-        <Show when={filteredSideboardCards().length > 0}>
-          <CardSection
-            label={
-              props.deck.sections.find((s) => isSideboardSection(s.name))?.name ??
-              // i18n-exempt: a board name, English by contract (see BOARDS).
-              'Sideboard'
-            }
-            cards={filteredSideboardCards()}
-            currency={props.currency}
-            renderCard={renderDeckCard(false)}
-          />
-        </Show>
-
-        {/* Extras (maybeboard, tokens) shown below sideboard, ungrouped */}
-        <For each={extraSections()}>
-          {(s) => (
-            <CardSection
-              label={s.name}
-              cards={s.cards}
-              currency={props.currency}
-              renderCard={renderDeckCard(false)}
-            />
-          )}
-        </For>
-      </div>
-
-      {/* List-view hover tooltip */}
-      <TooltipOverlay tooltip={tooltip()} pos={tooltipPos()} tooltipRef={tooltipRef} />
-
-      {/* Read-mode card ⋯ menu */}
-      {readMenu.element()}
-
-      {/* Card detail modal */}
-      <CardModal
-        open={Boolean(modalCard())}
-        card={modalCard()}
-        customArt={modalDeckEntry()?.customArt}
-        hasCustomArt={modalDeckEntry()?.hasCustomArt}
-        cardName={props.modalCardName}
-        symbolMap={props.symbolMap}
-        useScryfallImgUrls={props.useScryfallImgUrls}
-        currency={props.currency}
-        printings={modalPrintings()}
-        onClose={props.onCloseModal}
-        meta={modalMeta()}
-        onAddToTrade={!props.editMode && !props.onCardMove ? handleModalAddToTrade : undefined}
-        addToTradeDisabled={
-          !props.editMode && !props.onCardMove ? modalAddToTradeDisabled() : undefined
-        }
-      />
-
-      {/* Trade printing picker for deck cards without specific printings */}
-      <Show when={deckTradePicker()}>
-        {(picker) => (
-          <TradePrintingPicker
-            cardName={picker().cardName}
-            printings={picker().printings}
-            loading={false}
+          {/* Extras (maybeboard, tokens) shown below sideboard, ungrouped */}
+          <For each={extraSections()}>
+            {(s) => (
+              <CardSection
+                label={s.name}
+                cards={s.cards}
+                currency={props.currency}
+                renderCard={renderDeckCard(false)}
+              />
+            )}
+          </For>
+        </>
+      }
+      overlays={
+        <>
+          {/* Card detail modal */}
+          <CardModal
+            open={Boolean(modalCard())}
+            card={modalCard()}
+            customArt={modalDeckEntry()?.customArt}
+            hasCustomArt={modalDeckEntry()?.hasCustomArt}
+            cardName={props.modalCardName}
+            symbolMap={props.symbolMap}
             useScryfallImgUrls={props.useScryfallImgUrls}
             currency={props.currency}
-            onSelect={handleDeckTradePickerSelect}
-            onClose={() => setDeckTradePicker(null)}
+            printings={modalPrintings()}
+            onClose={props.onCloseModal}
+            meta={modalMeta()}
+            onAddToTrade={!props.editMode && !props.onCardMove ? handleModalAddToTrade : undefined}
+            addToTradeDisabled={
+              !props.editMode && !props.onCardMove ? modalAddToTradeDisabled() : undefined
+            }
           />
-        )}
-      </Show>
 
-      {/* Changelog modal */}
-      <Show when={props.changelog && props.changelog.length > 0}>
-        <ChangelogModal
-          open={showChangelog()}
-          changelog={props.changelog!}
-          cards={props.cards}
-          printings={props.printings}
-          symbolMap={props.symbolMap}
-          useScryfallImgUrls={props.useScryfallImgUrls}
-          currency={props.currency}
-          onClose={() => setShowChangelog(false)}
-        />
-      </Show>
-    </div>
+          {/* Trade printing picker for deck cards without specific printings */}
+          <Show when={deckTradePicker()}>
+            {(picker) => (
+              <TradePrintingPicker
+                cardName={picker().cardName}
+                printings={picker().printings}
+                loading={false}
+                useScryfallImgUrls={props.useScryfallImgUrls}
+                currency={props.currency}
+                onSelect={handleDeckTradePickerSelect}
+                onClose={() => setDeckTradePicker(null)}
+              />
+            )}
+          </Show>
+        </>
+      }
+    />
   )
 }
 
@@ -1219,7 +814,11 @@ function ExpandablePrimer(props: ExpandablePrimerProps) {
               aria-expanded={false}
               onClick={() => {
                 setExpanded(true)
-                history.replaceState(null, '', deckPrimerHash(props.slug, true))
+                history.replaceState(
+                  null,
+                  '',
+                  deckPrimerHash(props.slug, true, window.location.hash),
+                )
               }}
             >
               {t('site.list.readMore')}
@@ -1256,7 +855,11 @@ function ExpandablePrimer(props: ExpandablePrimerProps) {
             aria-expanded={true}
             onClick={() => {
               setExpanded(false)
-              history.replaceState(null, '', deckPrimerHash(props.slug, false))
+              history.replaceState(
+                null,
+                '',
+                deckPrimerHash(props.slug, false, window.location.hash),
+              )
             }}
           >
             {t('site.list.showLess')}
