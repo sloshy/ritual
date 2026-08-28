@@ -26,10 +26,10 @@ import {
 import { SyncRunLog } from '../components/SyncRunLog'
 import { UnreadableLinesPanel } from '../components/UnreadableLinesPanel'
 import {
+  applySyncEvent,
   lastSyncedLabel,
   relativeTime,
   upsertRunItem,
-  withMessage,
   type SyncRunItem,
   type SyncRunMessage,
   type SyncRunPhase,
@@ -154,40 +154,13 @@ export function DeckSync(): JSX.Element {
     setRunDecks((current) => upsertRunItem(current, name, apply))
   }
 
-  /**
-   * `confirmed` is the current run's answer to the unreadable-lines question.
-   * The engine reports those decks on every run, confirmed or not, so a run the
-   * user already approved must not re-raise the panel it was launched from.
-   */
   const handleSyncEvent = (event: DeckSyncEvent, confirmed: boolean): void => {
-    switch (event.kind) {
-      case 'deck-start':
-        updateDeck(event.deck, (item) => ({ ...item, status: 'running' }))
-        return
-      case 'log': {
-        const message: SyncRunMessage = { level: event.level, text: event.message }
-        if (event.deck === null) {
-          setRunLog((current) => [...current, message])
-          return
-        }
-        updateDeck(event.deck, withMessage(message))
-        return
-      }
-      case 'deck-result':
-        updateDeck(event.result.name, (item) => ({ ...item, status: event.result.status }))
-        return
-      case 'unreadable-lines':
-        // Held for the confirmation panel the run ends on — the browser's
-        // equivalent of the CLI's prompt. Already-confirmed runs skip it: those
-        // lines are being removed on purpose.
-        if (!confirmed) setUnreadable(event.decks)
-        return
-      default: {
-        // Every event kind must be rendered somewhere; a new one is a compile error.
-        const unhandled: never = event
-        throw new Error(`Unhandled deck-sync event: ${JSON.stringify(unhandled)}`)
-      }
-    }
+    applySyncEvent(event, {
+      update: updateDeck,
+      appendLog: (message) => setRunLog((current) => [...current, message]),
+      setUnreadable,
+      confirmed,
+    })
   }
 
   const finishRun = (message: string): void => {

@@ -321,9 +321,12 @@ not there — is always **3**, never 1.
   file format or destination. \`json\` emits exactly one document per run (a
   card batch or a multi-page search is still one array); \`ndjson\` streams one
   object per line. Errors go to stderr as
-  \`{"error":{"code","messageKey?","message","details"}}\` in the structured
+  \`{"error":{"code","messageKey?","message","details?"}}\` in the structured
   modes — \`code\` and \`messageKey\` are locale-invariant (match on those, never
-  on prose), while \`message\` follows the UI locale. Three
+  on prose), while \`message\` follows the UI locale. An unexpected internal
+  failure uses the same envelope with \`code: "runtime_error"\` and exit \`1\`,
+  carrying neither \`messageKey\` nor \`details\` — there is no catalog entry
+  and no structured payload behind it. Three
   exceptions, all deliberate: \`scry\` and \`sell\` add a fourth value
   \`--output csv\` (Scryfall's server-side CSV and Card Kingdom's sell-cart
   upload format, respectively — \`sell\`'s csv is a different payload, not the

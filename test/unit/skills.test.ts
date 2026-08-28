@@ -95,7 +95,8 @@ describe('skill catalog invariants', () => {
  * deliberate act — the guard below exists precisely because a stale or
  * misspelled tool name in a skill body is invisible until an agent tries it.
  */
-const ALLOWED_NON_TOOL_TOKENS = new Set<string>()
+// `runtime_error` is an `ErrorCode` in the CLI's stderr envelope, not a tool.
+const ALLOWED_NON_TOOL_TOKENS = new Set<string>(['runtime_error'])
 
 /** `snake_case` identifiers, the shape every MCP tool name has. */
 const TOOL_NAME_SHAPED = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g

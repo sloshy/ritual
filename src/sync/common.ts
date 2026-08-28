@@ -157,3 +157,26 @@ const UNREADABLE_CONSEQUENCE = {
 export function unreadableConsequence(kind: SyncSubjectKind, direction: SyncDirection): string {
   return t(UNREADABLE_CONSEQUENCE[kind === 'deck' ? 'deck' : direction])
 }
+
+// ── Run events ────────────────────────────────────────────────────────
+
+/**
+ * One step of a sync run, emitted as it happens.
+ *
+ * Shared by both engines so every surface in front of them — the CLI renderer,
+ * the admin route's progress mapping, the admin SPA's run panel — reads one
+ * vocabulary. `item` is whatever the run works through (a deck, a collection
+ * list): a `log` naming one belongs to it and is indented under its start line,
+ * while `item: null` is about the run as a whole, including sources that could
+ * not be loaded at all. Only the result payload differs between engines, so it
+ * is the parameter.
+ */
+export type SyncEvent<TResult> =
+  | { kind: 'item-start'; item: string; index: number; total: number }
+  | { kind: 'log'; level: SyncLogLevel; item: string | null; message: string }
+  | { kind: 'item-result'; result: TResult }
+  /** Emitted before anything syncs, when some source has lines the parser cannot read. */
+  | { kind: 'unreadable-lines'; items: UnreadableSource[] }
+
+/** How a surface receives a run's {@link SyncEvent}s. */
+export type SyncEventHandler<TResult> = (event: SyncEvent<TResult>) => void

@@ -36,7 +36,7 @@ export async function pushToArchidekt(
 
   const plan = planPush(local, remote, flow.only)
   const skippedMessage = describeSkippedChanges(flow.only, plan.skipped)
-  if (skippedMessage) emit({ kind: 'log', level: 'info', list: null, message: skippedMessage })
+  if (skippedMessage) emit({ kind: 'log', level: 'info', item: null, message: skippedMessage })
 
   // The mirror image of the pull guard above: a list missing from the comparison
   // makes the cards it holds look gone, and a push would delete them from the
@@ -50,7 +50,7 @@ export async function pushToArchidekt(
       emit({
         kind: 'log',
         level: 'error',
-        list: null,
+        item: null,
         message: `Not removing ${t('domain.count.copies', { count: copies })} from Archidekt: some collection lists in scope could not be read, so cards they still hold would look gone. Fix or accept those lists and run again.`,
       })
       operations = operations.filter((operation) => operationRemoved(operation) === 0)
@@ -66,7 +66,7 @@ export async function pushToArchidekt(
   )
   const route = await routeAdditions(flow, creates)
   if (typeof route === 'string') {
-    emit({ kind: 'log', level: 'error', list: null, message: route })
+    emit({ kind: 'log', level: 'error', item: null, message: route })
     return abortedOutcome([route])
   }
 
@@ -108,7 +108,7 @@ export async function pushToArchidekt(
   }
 
   for (const [index, name] of names.entries()) {
-    emit({ kind: 'list-start', list: name, index, total: names.length })
+    emit({ kind: 'item-start', item: name, index, total: names.length })
     const owned = byList.get(name) ?? []
     if (owned.length === 0) {
       // A key held in several binders is pushed once, at its first list's turn
@@ -124,7 +124,7 @@ export async function pushToArchidekt(
         entry.removed === 0 &&
         entry.pending === 0
       ) {
-        emit({ kind: 'log', level: 'info', list: name, message: 'No changes.' })
+        emit({ kind: 'log', level: 'info', item: name, message: 'No changes.' })
         results.finish(name, 'no changes')
       } else {
         results.finish(name)
@@ -200,20 +200,20 @@ async function runPushOperation(
   const label = describeCollectionKey(operation.name, operation.parts)
 
   const fail = (reason: string): boolean => {
-    emit({ kind: 'log', level: 'error', list, message: reason })
+    emit({ kind: 'log', level: 'error', item: list, message: reason })
     for (const name of operation.lists) results.fail(name, reason)
     return false
   }
 
   const log = (message: string): void => {
-    emit({ kind: 'log', level: 'info', list, message })
+    emit({ kind: 'log', level: 'info', item: list, message })
   }
 
   if (operation.kind === 'create') {
     // Said before anything is sent (and on dry runs too): the record about to be
     // created will not carry the language the local line does.
     const languageWarning = unmappableLanguageWarning(operation.name, operation.parts)
-    if (languageWarning) emit({ kind: 'log', level: 'warn', list, message: languageWarning })
+    if (languageWarning) emit({ kind: 'log', level: 'warn', item: list, message: languageWarning })
     if (dryRun && csvRouted) {
       log(
         `[dry-run] Would add ${operation.quantity} × ${label} one at a time — the printing is not in the Scryfall cache, so it cannot ride the CSV and was not resolved here.`,

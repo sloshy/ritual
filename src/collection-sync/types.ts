@@ -10,6 +10,8 @@ import type {
   ConfirmUnreadable,
   SyncChangeFilter,
   SyncDirection,
+  SyncEvent,
+  SyncEventHandler,
   SyncItemStatus,
   SyncLogLevel,
   UnreadableSource,
@@ -60,21 +62,10 @@ export type ConfirmUnreadableLists = ConfirmUnreadable
 
 export type CollectionSyncLogLevel = SyncLogLevel
 
-/**
- * One step of a run, emitted as it happens.
- *
- * A `log` event with a `list` belongs to the list currently being synced; one
- * with `list: null` is about the run as a whole — the remote fetch, records for
- * cards that live in no list any more, and removals too ambiguous to place.
- */
-export type CollectionSyncEvent =
-  | { kind: 'list-start'; list: string; index: number; total: number }
-  | { kind: 'log'; level: CollectionSyncLogLevel; list: string | null; message: string }
-  | { kind: 'list-result'; result: CollectionSyncListResult }
-  /** Emitted before anything syncs, when some list has lines the parser cannot read. */
-  | { kind: 'unreadable-lines'; lists: UnreadableList[] }
+/** One step of a run — the shared {@link SyncEvent}, carrying collection list results. */
+export type CollectionSyncEvent = SyncEvent<CollectionSyncListResult>
 
-export type CollectionSyncEventHandler = (event: CollectionSyncEvent) => void
+export type CollectionSyncEventHandler = SyncEventHandler<CollectionSyncListResult>
 
 /** Copies the run moved, and how many changes its `--only` filter skipped. */
 export type CollectionSyncTotals = {
@@ -454,7 +445,7 @@ export function createListResults(emit: CollectionSyncEventHandler): ListResults
       pending: entry.pending,
     }
     finished.set(name, result)
-    emit({ kind: 'list-result', result })
+    emit({ kind: 'item-result', result })
     return result
   }
 

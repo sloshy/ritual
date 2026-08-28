@@ -21,8 +21,8 @@ import {
 } from '../list/resolve-list'
 import { t } from '../i18n/t'
 import { addOutputOption } from '../cli/options'
+import { runCommandAction } from '../cli/action'
 import {
-  emitActionError,
   emitOutput,
   emitWarnings,
   emitResolveListError,
@@ -237,11 +237,7 @@ export function registerDiffCommand(program: Command): void {
       .option('--by <mode>', t('help.diff.by'), parseByFlag, 'name'),
   ).action(async (rawA: string, rawB: string, options: DiffCommandOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
-    try {
-      // A diff with differences is still a successful diff: exit code 0 either way.
-      await runDiff(rawA, rawB, options.by, scripting)
-    } catch (e) {
-      emitActionError(e, scripting)
-    }
+    // A diff with differences is still a successful diff: exit code 0 either way.
+    await runCommandAction(scripting, () => runDiff(rawA, rawB, options.by, scripting))
   })
 }

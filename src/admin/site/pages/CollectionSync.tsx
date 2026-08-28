@@ -38,9 +38,9 @@ import { CsvOutcomePanel, CsvUploadToggle } from '../components/SyncCsv'
 import { SyncRunLog } from '../components/SyncRunLog'
 import { UnreadableLinesPanel } from '../components/UnreadableLinesPanel'
 import {
+  applySyncEvent,
   relativeTime,
   upsertRunItem,
-  withMessage,
   type SyncRunItem,
   type SyncRunMessage,
   type SyncRunPhase,
@@ -310,46 +310,14 @@ export function CollectionSync(): JSX.Element {
     setRunLists((current) => upsertRunItem(current, name, apply))
   }
 
-  /**
-   * `confirmed` is the current run's answer to the unreadable-lines question.
-   * The engine reports those lists on every run, confirmed or not, so a run the
-   * user already approved must not re-raise the panel it was launched from.
-   */
   const handleSyncEvent = (event: CollectionSyncEvent, confirmed: boolean): void => {
-    switch (event.kind) {
-      case 'list-start':
-        updateList(event.list, (item) => ({ ...item, status: 'running' }))
-        return
-      case 'log': {
-        const message: SyncRunMessage = { level: event.level, text: event.message }
-        // A line with no list belongs to the run: the remote fetch, the change
-        // filter's tally, removals that could not be placed.
-        if (event.list === null) {
-          setRunLog((current) => [...current, message])
-          return
-        }
-        updateList(event.list, withMessage(message))
-        return
-      }
-      case 'list-result':
-        updateList(event.result.name, (item) => ({
-          ...item,
-          status: event.result.status,
-          meta: resultMeta(event.result),
-        }))
-        return
-      case 'unreadable-lines':
-        // Held for the confirmation panel the run ends on — the browser's
-        // equivalent of the CLI's prompt. Already-confirmed runs skip it: those
-        // lines are being dropped on purpose.
-        if (!confirmed) setUnreadable(event.lists)
-        return
-      default: {
-        // Every event kind must be rendered somewhere; a new one is a compile error.
-        const unhandled: never = event
-        throw new Error(`Unhandled collection-sync event: ${JSON.stringify(unhandled)}`)
-      }
-    }
+    applySyncEvent(event, {
+      update: updateList,
+      appendLog: (message) => setRunLog((current) => [...current, message]),
+      setUnreadable,
+      confirmed,
+      meta: resultMeta,
+    })
   }
 
   /**

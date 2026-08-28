@@ -178,8 +178,8 @@ test.describe('Sync Decks Page', () => {
     await syncButton(page).click()
 
     await emitStreamEvent(page, 'progress', {
-      kind: 'deck-start',
-      deck: WINOTA!.name,
+      kind: 'item-start',
+      item: WINOTA!.name,
       index: 0,
       total: 2,
     })
@@ -201,8 +201,8 @@ test.describe('Sync Decks Page', () => {
     await expect(syncButton(page)).toBeDisabled()
 
     await emitStreamEvent(page, 'progress', {
-      kind: 'deck-start',
-      deck: WINOTA!.name,
+      kind: 'item-start',
+      item: WINOTA!.name,
       index: 0,
       total: 2,
     })
@@ -212,19 +212,19 @@ test.describe('Sync Decks Page', () => {
     await emitStreamEvent(page, 'progress', {
       kind: 'log',
       level: 'info',
-      deck: WINOTA!.name,
+      item: WINOTA!.name,
       message: 'Changes: +1 added, -0 removed, ~0 quantity changed',
     })
     await expect(winotaRun.locator('.sync-run-message')).toContainText('+1 added')
 
     await emitStreamEvent(page, 'progress', {
-      kind: 'deck-result',
+      kind: 'item-result',
       result: { name: WINOTA!.name, status: 'synced' },
     })
     await expect(winotaRun).toHaveAttribute('data-status', 'synced')
 
     await emitStreamEvent(page, 'progress', {
-      kind: 'deck-result',
+      kind: 'item-result',
       result: { name: SOLDIERS!.name, status: 'skipped', reason: 'you do not own it' },
     })
     await expect(page.locator('.sync-run-item', { hasText: SOLDIERS!.name })).toHaveAttribute(
@@ -256,7 +256,7 @@ test.describe('Sync Decks Page', () => {
 
     await emitStreamEvent(page, 'progress', {
       kind: 'unreadable-lines',
-      decks: [
+      items: [
         {
           name: WINOTA!.name,
           file: `${WINOTA!.slug}.md`,
@@ -265,7 +265,7 @@ test.describe('Sync Decks Page', () => {
       ],
     })
     await emitStreamEvent(page, 'progress', {
-      kind: 'deck-result',
+      kind: 'item-result',
       result: {
         name: WINOTA!.name,
         status: 'failed',
@@ -294,7 +294,7 @@ test.describe('Sync Decks Page', () => {
     // confirmed run must not re-raise the question it was launched from.
     await emitStreamEvent(page, 'progress', {
       kind: 'unreadable-lines',
-      decks: [
+      items: [
         {
           name: WINOTA!.name,
           file: `${WINOTA!.slug}.md`,

@@ -98,7 +98,7 @@ export async function runCollectionSync(
   const client =
     options.client ??
     createPacedArchidektClient((message) =>
-      emit({ kind: 'log', level: 'warn', list: null, message }),
+      emit({ kind: 'log', level: 'warn', item: null, message }),
     )
   const store = options.store ?? createDiskCollectionListStore()
   // Cache-only by design: names are "resolved against the local card cache"
@@ -141,7 +141,7 @@ export async function runCollectionSync(
    * long enough that silence reads as a hang.
    */
   const progress = (message: string): void => {
-    emit({ kind: 'log', level: 'info', list: null, message })
+    emit({ kind: 'log', level: 'info', item: null, message })
   }
 
   // 1. Scope: the named lists, or every collection list.
@@ -169,10 +169,10 @@ export async function runCollectionSync(
     if (direction === 'push') {
       const reason =
         'No readable collection lists to push. Refusing to treat that as an empty collection.'
-      emit({ kind: 'log', level: 'error', list: null, message: reason })
+      emit({ kind: 'log', level: 'error', item: null, message: reason })
       return report(empty([reason]), loaded)
     }
-    emit({ kind: 'log', level: 'info', list: null, message: 'No collection lists to sync from.' })
+    emit({ kind: 'log', level: 'info', item: null, message: 'No collection lists to sync from.' })
   }
 
   // 3. Index both sides. The first printings lookup loads the whole card cache
@@ -197,7 +197,7 @@ export async function runCollectionSync(
     )
   }
   for (const warning of local.warnings) {
-    emit({ kind: 'log', level: 'warn', list: warning.list, message: warning.message })
+    emit({ kind: 'log', level: 'warn', item: warning.list, message: warning.message })
   }
 
   // Destination names are validated before the remote fetch: they are local
@@ -207,7 +207,7 @@ export async function runCollectionSync(
   if (direction === 'pull') {
     const invalid = await validatePullDestinations(store, into, options.removalPriority ?? [])
     if (invalid !== null) {
-      emit({ kind: 'log', level: 'error', list: null, message: invalid })
+      emit({ kind: 'log', level: 'error', item: null, message: invalid })
       return report(empty([invalid]), loaded)
     }
   }
@@ -224,7 +224,7 @@ export async function runCollectionSync(
     )
   })
   if (typeof fetched === 'string') {
-    emit({ kind: 'log', level: 'error', list: null, message: fetched })
+    emit({ kind: 'log', level: 'error', item: null, message: fetched })
     // Nothing can be compared without the remote side; every in-scope list is
     // unsynced rather than unchanged.
     for (const list of loaded.lists) results.fail(list.name, fetched)
@@ -233,7 +233,7 @@ export async function runCollectionSync(
 
   const remote = buildRemoteIndex(fetched.records)
   for (const warning of remote.warnings) {
-    emit({ kind: 'log', level: 'warn', list: null, message: warning })
+    emit({ kind: 'log', level: 'warn', item: null, message: warning })
   }
   progress(
     t('domain.sync.collectionFetched', {
@@ -286,7 +286,7 @@ export async function runCollectionSync(
       emit({
         kind: 'log',
         level: 'warn',
-        list: null,
+        item: null,
         message: `Could not record the sync timestamp: ${getErrorMessage(error)}`,
       })
     }
@@ -325,7 +325,7 @@ async function resolveScope(
     const location = await store.resolve(name)
     if (isResolveFailure(location)) {
       const message = formatResolveListError(location, 'none')
-      emit({ kind: 'log', level: 'error', list: null, message })
+      emit({ kind: 'log', level: 'error', item: null, message })
       results.fail(name, message)
       results.finish(name)
       complete = false
@@ -378,7 +378,7 @@ async function loadLists(
     const loaded = await store.load(name)
     if (typeof loaded === 'string') {
       const reason = `Could not read collection list "${name}": ${loaded}`
-      emit({ kind: 'log', level: 'error', list: null, message: reason })
+      emit({ kind: 'log', level: 'error', item: null, message: reason })
       results.fail(name, reason)
       results.finish(name)
       complete = false
@@ -388,7 +388,7 @@ async function loadLists(
     // whether or not the list is held back for unreadable lines, and never
     // decide anything.
     for (const advisory of loaded.advisories) {
-      emit({ kind: 'log', level: 'warn', list: loaded.name, message: advisory })
+      emit({ kind: 'log', level: 'warn', item: loaded.name, message: advisory })
     }
     if (loaded.warnings.length > 0) held.push(loaded)
     else lists.push(loaded)
@@ -404,7 +404,7 @@ async function loadLists(
     file: list.file,
     warnings: list.warnings,
   }))
-  emit({ kind: 'unreadable-lines', lists: unreadable })
+  emit({ kind: 'unreadable-lines', items: unreadable })
 
   let accepted = dryRun
   if (!accepted && confirmUnreadable) {
@@ -415,7 +415,7 @@ async function loadLists(
       emit({
         kind: 'log',
         level: 'error',
-        list: null,
+        item: null,
         message: `Could not confirm the unreadable lines: ${getErrorMessage(error)}`,
       })
     }
@@ -428,7 +428,7 @@ async function loadLists(
     }
     const count = list.warnings.length
     const reason = `${t('domain.count.unreadableLines', { count })} would be dropped by a sync`
-    emit({ kind: 'log', level: 'warn', list: null, message: `${list.file}: ${reason}` })
+    emit({ kind: 'log', level: 'warn', item: null, message: `${list.file}: ${reason}` })
     results.fail(list.name, reason)
     results.finish(list.name)
     complete = false
@@ -440,7 +440,7 @@ async function loadLists(
     emit({
       kind: 'log',
       level: 'info',
-      list: null,
+      item: null,
       message:
         'This preview includes the lists above; a real run holds them back until their unreadable lines are accepted.',
     })

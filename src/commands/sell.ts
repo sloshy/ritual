@@ -37,7 +37,6 @@ import { formatDuration } from '../util/duration'
 import {
   CSV_OUTPUT_FORMATS,
   csvScriptingOptions,
-  emitActionError,
   emitError,
   emitResolveListError,
   emitToFileOrStdout,
@@ -47,7 +46,7 @@ import {
   type CsvOutputFormat,
   type ScriptingOptions,
 } from '../cli/output'
-import { failWithError, listArgumentConflictError } from '../cli/action'
+import { failWithError, listArgumentConflictError, runCommandAction } from '../cli/action'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
 import { ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
@@ -242,31 +241,30 @@ export function registerSellCommand(program: Command): void {
       output: format === 'text' ? 'text' : 'ndjson',
       quiet: scripting.quiet,
     })
+    await runCommandAction(scripting, async () => {
+      const type = resolveListTypeFlag(options, scripting)
+      if (type === 'conflict') return
 
-    const type = resolveListTypeFlag(options, scripting)
-    if (type === 'conflict') return
+      const refreshMode = resolveRefreshMode(options.refresh, format)
 
-    const refreshMode = resolveRefreshMode(options.refresh, format)
-
-    // Resolve the scope: explicit lists (any type), or every list of the
-    // scoped type, defaulting to collections — the lists that hold cards
-    // physically owned and therefore sellable.
-    let locations: ListLocation[] | undefined
-    const scopeType = type ?? 'collection'
-    if (listArgs.length > 0) {
-      const resolved = await resolveListArguments(listArgs, type)
-      if (isListArgumentsFailure(resolved)) {
-        if (resolved.kind === 'conflict') {
-          failWithError(scripting, listArgumentConflictError(resolved.conflict))
-        } else {
-          emitResolveListError(resolved.error, scripting, 'type-prefix')
+      // Resolve the scope: explicit lists (any type), or every list of the
+      // scoped type, defaulting to collections — the lists that hold cards
+      // physically owned and therefore sellable.
+      let locations: ListLocation[] | undefined
+      const scopeType = type ?? 'collection'
+      if (listArgs.length > 0) {
+        const resolved = await resolveListArguments(listArgs, type)
+        if (isListArgumentsFailure(resolved)) {
+          if (resolved.kind === 'conflict') {
+            failWithError(scripting, listArgumentConflictError(resolved.conflict))
+          } else {
+            emitResolveListError(resolved.error, scripting, 'type-prefix')
+          }
+          return
         }
-        return
+        locations = resolved
       }
-      locations = resolved
-    }
 
-    try {
       const refreshPolicy = cliRefreshPolicy(refreshMode)
       const cacheReady = await ensureCardCachePresent(refreshPolicy, t('cli.sell.cacheRequirement'))
       if (!cacheReady) {
@@ -351,8 +349,6 @@ export function registerSellCommand(program: Command): void {
             ? undefined
             : { file: (target) => t('cli.sell.wroteFile', { file: target }) },
       })
-    } catch (e) {
-      emitActionError(e, scripting)
-    }
+    })
   })
 }

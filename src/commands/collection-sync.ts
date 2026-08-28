@@ -1,17 +1,12 @@
 import { Command, InvalidArgumentError } from 'commander'
 import { ensureCardCacheForUpload } from '../cache/freshness'
 import { ARCHIDEKT_IMPORT_URL, CSV_UPLOAD_THRESHOLD } from '../collection-sync/csv'
-import {
-  runCollectionSync,
-  type CollectionSyncEvent,
-  type CollectionSyncReport,
-} from '../collection-sync/engine'
-import type { Logger } from '../util/logger'
+import { runCollectionSync, type CollectionSyncReport } from '../collection-sync/engine'
 import { addRefreshOption, addScriptingOptions } from '../cli/options'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
 import type { RefreshMode } from '../cache/refresh'
 import { getCollectionSyncPullTarget } from '../config/ritual-config'
-import { unreadableConsequence, type SyncChangeFilter, type SyncDirection } from '../sync/common'
+import type { SyncChangeFilter, SyncDirection } from '../sync/common'
 import { decideCsvUpload } from './decide-csv'
 import { resolveAmbiguousRemovals } from './resolve-ambiguity'
 import {
@@ -27,12 +22,11 @@ import {
   addSyncOptions,
   confirmUnreadableSync,
   createScopedIndenter,
-  describeUnreadable,
   loggerFor,
   requireArchidektSession,
-  type ScopedIndenter,
   type UnreadableSubject,
 } from './sync-helpers'
+import { createSyncEventRenderer } from './sync-render-event'
 import { t } from '../i18n/t'
 
 /** Commander argParser for `--into`: the name of the list a pull adds cards to. */
@@ -92,50 +86,6 @@ function unreadableCost(direction: SyncDirection): string {
   return direction === 'pull'
     ? t('cli.sync.costRemoveLines')
     : t('cli.sync.costRemoveFromArchidekt')
-}
-
-/**
- * Render one sync event as a console line. List-scoped messages are indented
- * under the `Syncing "…"` line that opened the list — but only when that line
- * actually printed, and only after it did (see {@link createScopedIndenter}):
- * the per-line cache warnings arrive before any list header exists, and
- * `--quiet` drops the headers entirely. Run-level messages (the remote fetch,
- * ambiguous removals, records for cards that live in no list any more) sit
- * flush left. Results themselves are not printed — they are summarized by the
- * report.
- */
-function renderSyncEvent(
-  direction: SyncDirection,
-  logger: Logger,
-  indent: ScopedIndenter,
-  event: CollectionSyncEvent,
-): void {
-  switch (event.kind) {
-    case 'list-start':
-      indent.start(event.list)
-      logger.info(t('cli.sync.syncing', { name: event.list, direction }))
-      return
-    case 'log': {
-      const line = indent.line(event.list, event.message)
-      if (event.level === 'warn') logger.warn(line)
-      else if (event.level === 'error') logger.error(line)
-      else logger.info(line)
-      return
-    }
-    case 'list-result':
-      // Results are summarized by the report rather than printed per list.
-      return
-    case 'unreadable-lines':
-      logger.warn(
-        describeUnreadable(event.lists, LISTS, unreadableConsequence('collection', direction)),
-      )
-      return
-    default: {
-      // Every event kind must be rendered somewhere; a new one is a compile error.
-      const unhandled: never = event
-      throw new Error(`Unhandled collection-sync event: ${JSON.stringify(unhandled)}`)
-    }
-  }
 }
 
 /**
@@ -283,7 +233,7 @@ export function registerCollectionSyncCommand(program: Command): void {
             log: (message) => log(message),
           }),
         dryRun: options.dryRun ?? false,
-        onEvent: (event) => renderSyncEvent(direction, logger, indent, event),
+        onEvent: createSyncEventRenderer({ subject: 'collection', direction, logger, indent }),
         confirmUnreadable: (unreadable) =>
           confirmUnreadableSync({
             sources: unreadable,

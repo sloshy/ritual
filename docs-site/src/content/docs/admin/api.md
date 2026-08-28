@@ -1912,11 +1912,11 @@ misread as "no").
 
 Three event types are emitted:
 
-| Event      | Payload                                                                                                                                                                                                                                                     |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `progress` | One step of the run: `{ kind: "deck-start", deck, index, total }`, `{ kind: "log", level, deck, message }` (`deck` is `null` for run-level lines), `{ kind: "deck-result", result }`, or `{ kind: "unreadable-lines", decks: [{ name, file, warnings }] }`. |
-| `done`     | `{ message, messageKey?, messageParams?, summary, report }` — the same [message triple](#the-message-triple), keyed `summary`, and report the JSON endpoint returns.                                                                                        |
-| `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                                              |
+| Event      | Payload                                                                                                                                                                                                                                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `progress` | One step of the run, in the vocabulary both syncs share — `item` is the deck being worked on: `{ kind: "item-start", item, index, total }`, `{ kind: "log", level, item, message }` (`item` is `null` for run-level lines), `{ kind: "item-result", result }`, or `{ kind: "unreadable-lines", items: [{ name, file, warnings }] }`. |
+| `done`     | `{ message, messageKey?, messageParams?, summary, report }` — the same [message triple](#the-message-triple), keyed `summary`, and report the JSON endpoint returns.                                                                                                                                                                 |
+| `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                                                                                                                       |
 
 Failures are reported inside the stream rather than as an HTTP status, since `EventSource` exposes no
 response body for a non-2xx open.
@@ -2130,11 +2130,11 @@ rejected here too.
 
 Three event types are emitted:
 
-| Event      | Payload                                                                                                                                                                                                                         |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `progress` | One step of the run: `{ kind: "list-start", list, index, total }`, `{ kind: "log", level, list, message }` (`list` is `null` for run-level lines), `{ kind: "list-result", result }`, or `{ kind: "unreadable-lines", lists }`. |
-| `done`     | `{ message, messageKey?, messageParams?, summary, report }` — the same [message triple](#the-message-triple), keyed `summary`, and report the JSON endpoint returns.                                                            |
-| `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                  |
+| Event      | Payload                                                                                                                                                                                                                                                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `progress` | One step of the run, in the vocabulary both syncs share — `item` is the collection list being worked on: `{ kind: "item-start", item, index, total }`, `{ kind: "log", level, item, message }` (`item` is `null` for run-level lines), `{ kind: "item-result", result }`, or `{ kind: "unreadable-lines", items }`. |
+| `done`     | `{ message, messageKey?, messageParams?, summary, report }` — the same [message triple](#the-message-triple), keyed `summary`, and report the JSON endpoint returns.                                                                                                                                                |
+| `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                                                                                                      |
 
 Failures are reported inside the stream rather than as an HTTP status, since `EventSource` exposes no
 response body for a non-2xx open.

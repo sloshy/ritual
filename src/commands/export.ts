@@ -42,14 +42,14 @@ import {
   parseEnumFlag,
   resolveListTypeFlag,
 } from '../cli/options'
+import { emitResolveListError, emitToFileOrStdout, emitWarnings, TEXT_ONLY } from '../cli/output'
 import {
-  emitActionError,
-  emitResolveListError,
-  emitToFileOrStdout,
-  emitWarnings,
-  TEXT_ONLY,
-} from '../cli/output'
-import { fail, failWith, failWithError, listArgumentConflictError } from '../cli/action'
+  fail,
+  failWith,
+  failWithError,
+  listArgumentConflictError,
+  runCommandAction,
+} from '../cli/action'
 import { parseEnumField } from '../util/parse-enum'
 import { runExportWizard } from './export-wizard'
 import { t } from '../i18n/t'
@@ -385,13 +385,13 @@ export function registerExportCommand(program: Command): void {
       .option('--preset <name>', t('help.export.preset'))
       .option('--save-preset <name>', t('help.export.savePreset')),
   ).action(async (listArgs: string[], options: ExportCommandOptions) => {
-    const type = resolveListTypeFlag(options, TEXT_ONLY)
-    if (type === 'conflict') return
+    await runCommandAction(TEXT_ONLY, async () => {
+      const type = resolveListTypeFlag(options, TEXT_ONLY)
+      if (type === 'conflict') return
 
-    const flags = parseExportFlags(options)
-    if (!flags) return
+      const flags = parseExportFlags(options)
+      if (!flags) return
 
-    try {
       const interactiveAvailable = process.stdout.isTTY === true && !promptsUnavailable()
       if (shouldRunExportInteractive(flags, listArgs, interactiveAvailable)) {
         await runExportWizard()
@@ -407,8 +407,6 @@ export function registerExportCommand(program: Command): void {
         return
       }
       await runFlagExport(listArgs, type, flags)
-    } catch (e) {
-      emitActionError(e, TEXT_ONLY)
-    }
+    })
   })
 }

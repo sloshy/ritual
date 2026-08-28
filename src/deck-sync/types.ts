@@ -12,6 +12,8 @@ import type {
   ConfirmUnreadable,
   SyncChangeFilter,
   SyncDirection,
+  SyncEvent,
+  SyncEventHandler,
   SyncItemStatus,
   SyncLogLevel,
   UnreadableSource,
@@ -70,21 +72,10 @@ export type UnreadableDeck = UnreadableSource
  */
 export type { ConfirmUnreadable }
 
-/**
- * One step of a sync run, emitted as it happens.
- *
- * A `log` event with a `deck` belongs to the deck currently being synced (the
- * CLI indents those under its `deck-start` line); one with `deck: null` is about
- * the run as a whole, including decks that could not be loaded at all.
- */
-export type DeckSyncEvent =
-  | { kind: 'deck-start'; deck: string; index: number; total: number }
-  | { kind: 'log'; level: DeckSyncLogLevel; deck: string | null; message: string }
-  | { kind: 'deck-result'; result: DeckSyncDeckResult }
-  /** Emitted before any deck syncs, when some deck file has lines the parser cannot read. */
-  | { kind: 'unreadable-lines'; decks: UnreadableDeck[] }
+/** One step of a deck sync run — the shared {@link SyncEvent}, carrying deck results. */
+export type DeckSyncEvent = SyncEvent<DeckSyncDeckResult>
 
-export type DeckSyncEventHandler = (event: DeckSyncEvent) => void
+export type DeckSyncEventHandler = SyncEventHandler<DeckSyncDeckResult>
 
 export type DeckSyncOptions = {
   direction: SyncDirection

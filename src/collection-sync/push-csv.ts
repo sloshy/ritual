@@ -65,7 +65,7 @@ export async function routeAdditions(
     try {
       ready = await flow.ensureCsvCache({
         additions: creates.length,
-        log: (message) => flow.emit({ kind: 'log', level: 'info', list: null, message }),
+        log: (message) => flow.emit({ kind: 'log', level: 'info', item: null, message }),
       })
     } catch (error: unknown) {
       return `Could not prepare the card cache for a CSV upload: ${getErrorMessage(error)}. Nothing was pushed.`
@@ -171,14 +171,14 @@ export async function pushAdditionsAsCsv(
 
   const plan = await planCollectionCsv(creates, flow.lookupPrintings)
   for (const warning of plan.warnings) {
-    emit({ kind: 'log', level: 'warn', list: null, message: warning })
+    emit({ kind: 'log', level: 'warn', item: null, message: warning })
   }
   if (plan.uncached.length > 0) {
     const count = plan.uncached.length
     emit({
       kind: 'log',
       level: 'warn',
-      list: null,
+      item: null,
       message: t('domain.sync.csvUncachedAdditions', { count }),
     })
   }
@@ -218,7 +218,7 @@ export async function pushAdditionsAsCsv(
     emit({
       kind: 'log',
       level: 'info',
-      list: null,
+      item: null,
       message:
         route.kind === 'export'
           ? `[dry-run] Would write ${size} to ${route.path} for a manual upload at ${ARCHIDEKT_IMPORT_URL}.`
@@ -243,14 +243,14 @@ export async function pushAdditionsAsCsv(
       await flow.writeCsv(route.path, `${plan.csv}\n`)
     } catch (error: unknown) {
       const message = `Failed to write the additions CSV to ${route.path}: ${getErrorMessage(error)}`
-      emit({ kind: 'log', level: 'error', list: null, message })
+      emit({ kind: 'log', level: 'error', item: null, message })
       failRows(plan.rows, message)
       return { ...nothing, csv: { ...counts, status: 'failed', message }, carried: plan.rows }
     }
     emit({
       kind: 'log',
       level: 'info',
-      list: null,
+      item: null,
       message: `Wrote ${size} to ${route.path}; they were not pushed. Import the file at ${ARCHIDEKT_IMPORT_URL}.`,
     })
     return {
@@ -262,13 +262,13 @@ export async function pushAdditionsAsCsv(
     }
   }
 
-  emit({ kind: 'log', level: 'info', list: null, message: `Uploading ${size} as a CSV import...` })
+  emit({ kind: 'log', level: 'info', item: null, message: `Uploading ${size} as a CSV import...` })
   let result: CollectionCsvUploadResult
   try {
     result = await flow.client.uploadCollectionCsv(plan.csv, COLLECTION_CSV_UPLOAD, flow.token)
   } catch (error: unknown) {
     const message = `Failed to upload ${size} as a CSV import: ${getErrorMessage(error)}`
-    emit({ kind: 'log', level: 'error', list: null, message })
+    emit({ kind: 'log', level: 'error', item: null, message })
     failRows(plan.rows, message)
     return { ...nothing, csv: { ...counts, status: 'failed', message }, carried: plan.rows }
   }
@@ -277,7 +277,7 @@ export async function pushAdditionsAsCsv(
     emit({
       kind: 'log',
       level: 'warn',
-      list: null,
+      item: null,
       message: `Could not read Archidekt's answer for CSV chunk ${unreadable.chunk}: ${unreadable.message}. Response: ${unreadable.body}`,
     })
   }
@@ -289,7 +289,7 @@ export async function pushAdditionsAsCsv(
     emit({
       kind: 'log',
       level: 'warn',
-      list: null,
+      item: null,
       message: `${t('domain.count.refusedRows', { count: unpaired })} could not be matched to a card; the copies they carried are credited on faith — a later push reconciles anything actually missed.`,
     })
   }
@@ -299,14 +299,14 @@ export async function pushAdditionsAsCsv(
     emit({
       kind: 'log',
       level: 'warn',
-      list: null,
+      item: null,
       message: `Archidekt did not import ${failures.length} of ${counts.rows} CSV rows${reasons ? ` (${reasons})` : ''}.`,
     })
     for (const failure of failures.slice(0, CSV_FAILURE_DETAIL_LIMIT)) {
       emit({
         kind: 'log',
         level: 'warn',
-        list: null,
+        item: null,
         // The describer always has something to say, so there is no empty-reason
         // shape to word around here.
         message: `  Not imported: ${failure.card} — ${describeCsvFailure(failure)}.`,
@@ -316,7 +316,7 @@ export async function pushAdditionsAsCsv(
       emit({
         kind: 'log',
         level: 'warn',
-        list: null,
+        item: null,
         message: `  …and ${failures.length - CSV_FAILURE_DETAIL_LIMIT} more.`,
       })
     }
@@ -331,7 +331,7 @@ export async function pushAdditionsAsCsv(
   emit({
     kind: 'log',
     level: 'info',
-    list: null,
+    item: null,
     message: `Imported ${describeCsvSize(imported, landed.length)} from the CSV in ${t('domain.count.requests', { count: result.chunkCount })}.`,
   })
 

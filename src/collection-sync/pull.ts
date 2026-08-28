@@ -43,7 +43,7 @@ export async function pullFromArchidekt(
 
   const plan = planPull(local, remote, flow.only)
   const skippedMessage = describeSkippedChanges(flow.only, plan.skipped)
-  if (skippedMessage) emit({ kind: 'log', level: 'info', list: null, message: skippedMessage })
+  if (skippedMessage) emit({ kind: 'log', level: 'info', item: null, message: skippedMessage })
 
   let target = flow.into
   let applicable = plan
@@ -54,7 +54,7 @@ export async function pullFromArchidekt(
    * what `aborted` tells `runCollectionSync`.
    */
   const abort = (message: string): FlowOutcome => {
-    emit({ kind: 'log', level: 'error', list: null, message })
+    emit({ kind: 'log', level: 'error', item: null, message })
     return abortedOutcome([message], plan.ambiguous)
   }
 
@@ -65,7 +65,7 @@ export async function pullFromArchidekt(
   if (typeof priority === 'string') return abort(priority)
 
   for (const ambiguous of plan.ambiguous) {
-    emit({ kind: 'log', level: 'warn', list: null, message: describeAmbiguousRemoval(ambiguous) })
+    emit({ kind: 'log', level: 'warn', item: null, message: describeAmbiguousRemoval(ambiguous) })
   }
 
   if (plan.ambiguous.length > 0) {
@@ -83,7 +83,7 @@ export async function pullFromArchidekt(
     emit({
       kind: 'log',
       level: 'error',
-      list: null,
+      item: null,
       message: `Not adding ${t('domain.count.copies', { count: copies })}: some collection lists in scope could not be read, so cards they already hold would be duplicated into "${flow.into}". Fix or accept those lists and run again.`,
     })
     applicable = { ...applicable, additions: [] }
@@ -95,7 +95,7 @@ export async function pullFromArchidekt(
   if (applicable.additions.length > 0) {
     const resolved = await resolveTarget(flow)
     if (typeof resolved === 'string') {
-      emit({ kind: 'log', level: 'error', list: null, message: resolved })
+      emit({ kind: 'log', level: 'error', item: null, message: resolved })
       results.fail(flow.into, resolved)
       results.finish(flow.into)
       applicable = { ...applicable, additions: [] }
@@ -119,16 +119,16 @@ export async function pullFromArchidekt(
   let added = 0
   let removed = 0
   for (const [index, name] of ordered.entries()) {
-    emit({ kind: 'list-start', list: name, index, total: ordered.length })
+    emit({ kind: 'item-start', item: name, index, total: ordered.length })
     const changes = changesByList.get(name)
     if (!changes || changes.changes.length === 0) {
-      emit({ kind: 'log', level: 'info', list: name, message: 'No changes.' })
+      emit({ kind: 'log', level: 'info', item: name, message: 'No changes.' })
       results.finish(name, 'no changes')
       continue
     }
 
     const summary = `+${changes.added} added, -${changes.removed} removed`
-    emit({ kind: 'log', level: 'info', list: name, message: `Changes: ${summary}` })
+    emit({ kind: 'log', level: 'info', item: name, message: `Changes: ${summary}` })
 
     // Counted only once the write lands, so the totals describe what happened
     // rather than what was planned.
@@ -142,7 +142,7 @@ export async function pullFromArchidekt(
 
     if (dryRun) {
       countChanges()
-      emit({ kind: 'log', level: 'info', list: name, message: '[dry-run] Not saved.' })
+      emit({ kind: 'log', level: 'info', item: name, message: '[dry-run] Not saved.' })
       results.finish(name, `dry-run: ${summary}`)
       continue
     }
@@ -150,11 +150,11 @@ export async function pullFromArchidekt(
     try {
       writtenFiles.push(...(await store.apply(name, changes.changes)))
       countChanges()
-      emit({ kind: 'log', level: 'info', list: name, message: 'Saved.' })
+      emit({ kind: 'log', level: 'info', item: name, message: 'Saved.' })
       results.finish(name)
     } catch (error: unknown) {
       const reason = `Failed to save: ${getErrorMessage(error)}`
-      emit({ kind: 'log', level: 'error', list: name, message: reason })
+      emit({ kind: 'log', level: 'error', item: name, message: reason })
       results.fail(name, reason)
       results.finish(name)
     }
@@ -238,7 +238,7 @@ async function placeAmbiguous(
       emit({
         kind: 'log',
         level: 'info',
-        list: null,
+        item: null,
         message: `${preview}Removing ${removal.copies.length} × ${describeCollectionKey(removal.name, removal.parts)} from "${removal.list}" (${reason}).`,
       })
     }
@@ -252,7 +252,7 @@ async function placeAmbiguous(
     }
     const message = `The removal priority (${priority.join(', ')}) cannot place ${describeUnplaceable(resolution.unresolved)}. Nothing was written.`
     if (!dryRun) return message
-    emit({ kind: 'log', level: 'warn', list: null, message: `${preview}${message}` })
+    emit({ kind: 'log', level: 'warn', item: null, message: `${preview}${message}` })
     return []
   }
 
@@ -261,7 +261,7 @@ async function placeAmbiguous(
     emit({
       kind: 'log',
       level: 'warn',
-      list: null,
+      item: null,
       message: `${preview}A real run would refuse to place ${describeUnplaceable(ambiguous)} until the ambiguity is resolved.`,
     })
     return []
@@ -357,7 +357,7 @@ async function resolveTarget(flow: SyncFlow): Promise<PullTarget | string> {
     emit({
       kind: 'log',
       level: 'info',
-      list: null,
+      item: null,
       message: `[dry-run] Would create collection list "${into}" for the cards being added.`,
     })
     return { name: into, writtenFiles: [] }
@@ -370,7 +370,7 @@ async function resolveTarget(flow: SyncFlow): Promise<PullTarget | string> {
   emit({
     kind: 'log',
     level: 'info',
-    list: null,
+    item: null,
     message: `Created collection list "${created.name}" for the cards being added.`,
   })
   return { name: created.name, writtenFiles: created.writtenFiles }
@@ -397,7 +397,7 @@ async function pulledNameResolver(
     flow.emit({
       kind: 'log',
       level: 'warn',
-      list: null,
+      item: null,
       message: `Could not read the Scryfall cache: ${getErrorMessage(error)}`,
     })
     return (addition) => addition.name

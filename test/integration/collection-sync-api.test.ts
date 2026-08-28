@@ -230,7 +230,7 @@ describe('collection-sync API', () => {
 
     // The exact sequence, like the deck sibling: one report per list start
     // (0-based), then the terminal n/n on the engine's own scale. Asserting only
-    // "monotonic, ends with the summary" let the list-start mapping be deleted
+    // "monotonic, ends with the summary" let the item-start mapping be deleted
     // entirely and still pass, since the terminal report alone satisfies both.
     expectMonotonicProgress(reports, 1)
     expect(reports.map((r) => r.progress)).toEqual([0, 1])
@@ -321,9 +321,9 @@ describe('collection-sync API', () => {
       .filter((frame) => frame.event === 'progress')
       .map((frame) => frame.data as unknown as CollectionSyncEvent)
 
-    expect(progress).toContainEqual({ kind: 'list-start', list: 'binder', index: 0, total: 1 })
+    expect(progress).toContainEqual({ kind: 'item-start', item: 'binder', index: 0, total: 1 })
     expect(progress.at(-1)).toEqual({
-      kind: 'list-result',
+      kind: 'item-result',
       result: { name: 'binder', status: 'synced', added: 1, removed: 0, pending: 0 },
     })
 

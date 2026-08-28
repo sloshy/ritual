@@ -47,7 +47,6 @@ import {
   type PriceListRef,
 } from './price-browser'
 import {
-  emitActionError,
   emitError,
   emitOutput,
   emitResolveListError,
@@ -56,6 +55,7 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from '../cli/output'
+import { runCommandAction } from '../cli/action'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
 import { ExitCode } from '../util/errors'
 
@@ -282,106 +282,105 @@ export function registerPriceCommand(program: Command): void {
     // fetches, blocklist additions). Those are info lines: keep them off stdout
     // so `--output json` stays parseable, and drop them under `--quiet`.
     installScriptingLogger(scriptingOptions)
-
-    let currency = parseCurrencyFlagOrError(
-      options.prices,
-      emitError,
-      scriptingOptions,
-      ExitCode.UsageError,
-      getDefaultCurrency(),
-    )
-    if (!currency) return
-
-    // A source names its own currency (tcgplayer/cardkingdom → usd, cardmarket
-    // → eur). An explicit --prices that disagrees is a usage error rather than
-    // a silent override; an omitted one simply follows the source.
-    const source = options.source
-    if (source) {
-      const resolved = resolveSourceCurrency(
-        source,
-        options.prices !== undefined ? currency : undefined,
+    await runCommandAction(scriptingOptions, async () => {
+      let currency = parseCurrencyFlagOrError(
+        options.prices,
+        emitError,
+        scriptingOptions,
+        ExitCode.UsageError,
+        getDefaultCurrency(),
       )
-      if (!resolved.ok) {
-        emitError(
-          'usage_error',
-          t('cli.price.sourceCurrencyConflict', {
-            source,
-            currency: resolved.implied.toUpperCase(),
-          }),
-          scriptingOptions,
+      if (!currency) return
+
+      // A source names its own currency (tcgplayer/cardkingdom → usd, cardmarket
+      // → eur). An explicit --prices that disagrees is a usage error rather than
+      // a silent override; an omitted one simply follows the source.
+      const source = options.source
+      if (source) {
+        const resolved = resolveSourceCurrency(
+          source,
+          options.prices !== undefined ? currency : undefined,
         )
-        process.exitCode = ExitCode.UsageError
-        return
+        if (!resolved.ok) {
+          emitError(
+            'usage_error',
+            t('cli.price.sourceCurrencyConflict', {
+              source,
+              currency: resolved.implied.toUpperCase(),
+            }),
+            scriptingOptions,
+          )
+          process.exitCode = ExitCode.UsageError
+          return
+        }
+        currency = resolved.currency
       }
-      currency = resolved.currency
-    }
 
-    const type = resolveListTypeFlag(options, scriptingOptions)
-    if (type === 'conflict') return
+      const type = resolveListTypeFlag(options, scriptingOptions)
+      if (type === 'conflict') return
 
-    // The --deck/--collection/--wanted flags scope which lists are loaded;
-    // only the card-level flags act as search filters.
-    const filters: PriceEntryFilters = {
-      name: options.name,
-      set: options.set,
-      collector: options.collector,
-    }
-    const interactive = shouldRunInteractive(options, scriptingOptions, filters, {
-      stdinIsTTY: process.stdin.isTTY === true,
-      stdoutIsTTY: process.stdout.isTTY === true,
-      noInput: isNoInput(),
-    })
-
-    let scope: ListLocation[] | undefined
-    let openList: PriceListRef | undefined
-    if (listName) {
-      const resolved = await resolveList(listName, type)
-      if (isResolveListError(resolved)) {
-        emitResolveListError(resolved, scriptingOptions, 'type-flags')
-        return
+      // The --deck/--collection/--wanted flags scope which lists are loaded;
+      // only the card-level flags act as search filters.
+      const filters: PriceEntryFilters = {
+        name: options.name,
+        set: options.set,
+        collector: options.collector,
       }
-      openList = { type: resolved.type, name: resolved.name }
-      // The browser needs every list for its main screen; a non-interactive
-      // run only needs the one being printed.
-      scope = interactive ? undefined : [resolved]
-      if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {
-        emitOutput(
-          t('cli.price.pricingList', {
-            type: resolved.type,
-            name: resolved.name,
-            suffix: interactive ? '' : '...',
-          }),
-          scriptingOptions,
-        )
+      const interactive = shouldRunInteractive(options, scriptingOptions, filters, {
+        stdinIsTTY: process.stdin.isTTY === true,
+        stdoutIsTTY: process.stdout.isTTY === true,
+        noInput: isNoInput(),
+      })
+
+      let scope: ListLocation[] | undefined
+      let openList: PriceListRef | undefined
+      if (listName) {
+        const resolved = await resolveList(listName, type)
+        if (isResolveListError(resolved)) {
+          emitResolveListError(resolved, scriptingOptions, 'type-flags')
+          return
+        }
+        openList = { type: resolved.type, name: resolved.name }
+        // The browser needs every list for its main screen; a non-interactive
+        // run only needs the one being printed.
+        scope = interactive ? undefined : [resolved]
+        if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {
+          emitOutput(
+            t('cli.price.pricingList', {
+              type: resolved.type,
+              name: resolved.name,
+              suffix: interactive ? '' : '...',
+            }),
+            scriptingOptions,
+          )
+        }
       }
-    }
 
-    const refreshMode = resolveRefreshMode(options.refresh, scriptingOptions.output)
-    const refreshPolicy = cliRefreshPolicy(refreshMode)
-    const freshness = await ensureFreshPriceData(refreshPolicy)
-    if (!freshness.ready) {
-      emitError('runtime_error', emptyCacheAdvice(t('cli.price.emptyCache')), scriptingOptions)
-      process.exitCode = ExitCode.RuntimeError
-      return
-    }
-
-    // Card Kingdom retail prices come from the buylist pricelist feed, under
-    // this run's --refresh policy exactly like the card cache above. No feed,
-    // no report: falling back to Scryfall would silently answer with a
-    // different store's prices.
-    let cardKingdom: CardKingdomPricing | undefined
-    if (source === 'cardkingdom') {
-      const feed = await ensureCardKingdomFeed(refreshPolicy)
-      if (typeof feed === 'string') {
-        emitError('runtime_error', feed, scriptingOptions)
+      const refreshMode = resolveRefreshMode(options.refresh, scriptingOptions.output)
+      const refreshPolicy = cliRefreshPolicy(refreshMode)
+      const freshness = await ensureFreshPriceData(refreshPolicy)
+      if (!freshness.ready) {
+        emitError('runtime_error', emptyCacheAdvice(t('cli.price.emptyCache')), scriptingOptions)
         process.exitCode = ExitCode.RuntimeError
         return
       }
-      const loaded = await loadEnsuredFeed(feed)
-      cardKingdom = { quote: detailBuylistContext(loaded).quote }
-    }
 
-    try {
+      // Card Kingdom retail prices come from the buylist pricelist feed, under
+      // this run's --refresh policy exactly like the card cache above. No feed,
+      // no report: falling back to Scryfall would silently answer with a
+      // different store's prices.
+      let cardKingdom: CardKingdomPricing | undefined
+      if (source === 'cardkingdom') {
+        const feed = await ensureCardKingdomFeed(refreshPolicy)
+        if (typeof feed === 'string') {
+          emitError('runtime_error', feed, scriptingOptions)
+          process.exitCode = ExitCode.RuntimeError
+          return
+        }
+        const loaded = await loadEnsuredFeed(feed)
+        cardKingdom = { quote: detailBuylistContext(loaded).quote }
+      }
+
       const buildScoped = async (
         reportCurrency: PriceCurrency,
         locations?: ListLocation[],
@@ -433,10 +432,6 @@ export function registerPriceCommand(program: Command): void {
         return
       }
       emitSummary(built, freshness.lastRefreshedAt, warnings, scriptingOptions)
-    } catch (e) {
-      // A `… | head` broken pipe is a normal end of output, not a runtime
-      // failure — emitActionError keeps those apart.
-      emitActionError(e, scriptingOptions)
-    }
+    })
   })
 }

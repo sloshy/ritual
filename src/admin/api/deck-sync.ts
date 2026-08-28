@@ -1,25 +1,31 @@
 import { ArchidektAuth } from '../../auth/ArchidektAuth'
 import { FileTokenStore } from '../../auth/FileTokenStore'
 import type { ArchidektLoginStatus } from '../../auth/interfaces'
-import { getErrorMessage } from '../../util/errors'
 import { getDecksDir } from '../../config/ritual-config'
 import {
   listSyncableDecks,
   runDeckSync,
-  type DeckSyncEvent,
+  type DeckSyncDeckResult,
   type DeckSyncEventHandler,
   type DeckSyncReport,
   type DeckSyncStatus,
   type SyncableDeck,
 } from '../../deck-sync/engine'
 import type { SyncDirection } from '../../sync/common'
-import { sseResponse } from '../../util/sse'
-import { itemStartProgress, itemsDoneProgress, type RouteProgressSink } from '../../util/progress'
+import type { RouteProgressSink } from '../../util/progress'
 import { apiHandler } from '../utils'
-import { apiMessage, pickMessage, type ApiMessage } from '../../api/result'
+import { apiMessage, type ApiMessage } from '../../api/result'
 import { renderSyncSummaryEnglish, type SyncSummary, type SyncSummaryClause } from './sync-summary'
+import {
+  runSyncRoute,
+  streamSyncRoute,
+  type SyncDoneEvent,
+  type SyncErrorEvent,
+  type SyncRouteConfig,
+  type SyncRunOutcome,
+  type SyncRunResponse,
+} from './sync-route'
 import { autoCommitAndPush } from './save-helpers'
-import { readJsonObjectBody } from '../../api/http'
 import {
   isRecord,
   parseNameArray,
@@ -77,14 +83,8 @@ export type DeckSyncRequest = SyncRequestCore & {
   syncPrintings: boolean
 }
 
-/**
- * `POST /api/deck-sync`: the run's outcome. `success` says whether the run could
- * be performed at all — a run that completed with individual decks failing is a
- * success carrying a non-zero `report.failedCount`.
- */
-export type DeckSyncRunResponse =
-  | (ApiMessage & { success: true; report: DeckSyncReport; summary: SyncSummary })
-  | (ApiMessage & { success: false; loginRequired: boolean })
+/** `POST /api/deck-sync`: the run's outcome — see {@link SyncRunResponse}. */
+export type DeckSyncRunResponse = SyncRunResponse<DeckSyncReport>
 
 // ── Request parsing ───────────────────────────────────────────────────
 
@@ -204,11 +204,6 @@ export function describeRun(report: DeckSyncReport, dryRun: boolean): string {
   return renderSyncSummaryEnglish(summarizeRun(report, dryRun))
 }
 
-/** The outcome of a run attempt: either a finished report or a reason it never started. */
-type RunOutcome =
-  | { ok: true; report: DeckSyncReport }
-  | (ApiMessage & { ok: false; status: number; loginRequired: boolean })
-
 /**
  * Resolve the Archidekt token, run the sync, and auto-commit any deck files it
  * wrote. Shared by the JSON and SSE endpoints so both enforce the same login
@@ -218,7 +213,7 @@ type RunOutcome =
 async function performSync(
   request: DeckSyncRequest,
   onEvent?: DeckSyncEventHandler,
-): Promise<RunOutcome> {
+): Promise<SyncRunOutcome<DeckSyncReport>> {
   const token = await new ArchidektAuth(new FileTokenStore()).getToken()
   if (!token) {
     return { ok: false, status: 401, ...loginRequiredMessage(), loginRequired: true }
@@ -262,127 +257,25 @@ export function handleDeckSyncStatus(): Promise<Response> {
   })
 }
 
-/**
- * A run that never started, as the JSON endpoint reports it. Takes the whole
- * message triple so a keyed refusal keeps its key on the way out.
- */
-function runRefused(reason: ApiMessage, status: number, loginRequired = false): Response {
-  const body: DeckSyncRunResponse = { success: false, ...pickMessage(reason), loginRequired }
-  return Response.json(body, { status })
+/** What this endpoint contributes to the shared run/stream plumbing. */
+const ROUTE: SyncRouteConfig<DeckSyncRequest, DeckSyncReport, DeckSyncDeckResult> = {
+  parseBody: parseDeckSyncBody,
+  parseQuery: parseDeckSyncQuery,
+  perform: performSync,
+  summarize: (report, request) => summarizeRun(report, request.dryRun),
 }
 
-/** A run's event mapper plus the scale its reports counted against. */
-interface DeckSyncProgressMapping {
-  onEvent: DeckSyncEventHandler
-  /**
-   * The engine's deck total, as its `deck-start` events reported it — the
-   * denominator every in-flight report used, and therefore the one the terminal
-   * report must use. `0` until an event says otherwise, which is also the honest
-   * scale for a run that found nothing to sync.
-   */
-  scale: () => number
-}
-
-/**
- * Map the engine's events onto the shared progress scale.
- *
- * Only `deck-start` advances it: a `log` line has no position on the scale, and
- * forwarding one would either repeat the last value (the spec wants progress to
- * increase) or invent a fake increment. Log lines stay on the SSE channel, where
- * the admin UI renders them as text.
- */
-function deckSyncProgressEvents(sink: RouteProgressSink): DeckSyncProgressMapping {
-  let total = 0
-  return {
-    onEvent: (event: DeckSyncEvent): void => {
-      if (event.kind !== 'deck-start') return
-      total = event.total
-      sink(itemStartProgress(`Syncing ${event.deck}`, event.index, event.total))
-    },
-    scale: () => total,
-  }
-}
-
+/** `POST /api/deck-sync` — see {@link runSyncRoute}. */
 export function handleDeckSyncRun(req: Request, onProgress?: RouteProgressSink): Promise<Response> {
-  return apiHandler(async () => {
-    const parsedBody = await readJsonObjectBody(req)
-    if (!parsedBody.ok) return parsedBody.response
-    const raw: unknown = parsedBody.body
-
-    const parsed = parseDeckSyncBody(raw)
-    if (typeof parsed === 'string') {
-      // A validation message is composed from the caller's own field names, so
-      // it carries no catalog key — the English text is the whole of it.
-      return runRefused({ message: parsed }, 400)
-    }
-
-    const mapping = onProgress === undefined ? undefined : deckSyncProgressEvents(onProgress)
-    const outcome = await performSync(parsed, mapping?.onEvent)
-    if (!outcome.ok) {
-      return runRefused(outcome, outcome.status, outcome.loginRequired)
-    }
-
-    // A run that completed is a success even when individual decks failed —
-    // `report.failedCount` and each deck's `reason` carry that detail.
-    const summary = summarizeRun(outcome.report, parsed.dryRun)
-    const message = renderSyncSummaryEnglish(summary)
-    // On the engine's scale, not `report.decks.length`: the report also holds
-    // decks that never emitted a `deck-start`, so counting it would move the
-    // denominator out from under every frame already sent.
-    if (mapping) onProgress?.(itemsDoneProgress(mapping.scale(), message))
-    const body: DeckSyncRunResponse = {
-      success: true,
-      message,
-      summary,
-      report: outcome.report,
-    }
-    return Response.json(body)
-  })
+  return runSyncRoute(req, onProgress, ROUTE)
 }
 
 /** `event: done` payload — the same shape the JSON endpoint returns. */
-export type DeckSyncDoneEvent = ApiMessage & { report: DeckSyncReport; summary: SyncSummary }
+export type DeckSyncDoneEvent = SyncDoneEvent<DeckSyncReport>
 /** `event: error` payload for a run that never produced a report. */
-export type DeckSyncErrorEvent = ApiMessage & { loginRequired: boolean }
+export type DeckSyncErrorEvent = SyncErrorEvent
 
-/** The event vocabulary of `GET /api/deck-sync/stream`, name paired with payload. */
-type DeckSyncStreamEvents = {
-  progress: DeckSyncEvent
-  done: DeckSyncDoneEvent
-  error: DeckSyncErrorEvent
-}
-
-/**
- * Stream a sync run as server-sent events: one `progress` frame per
- * {@link DeckSyncEvent}, then a single `done` (with the report) or `error`.
- *
- * Failures are reported *inside* the stream rather than as an HTTP status,
- * because `EventSource` exposes no response body for a non-2xx open.
- */
+/** `event: progress` per step, then `done` or `error` — see {@link streamSyncRoute}. */
 export function handleDeckSyncStream(req: Request): Promise<Response> {
-  const parsed = parseDeckSyncQuery(new URL(req.url).searchParams)
-
-  const response = sseResponse<DeckSyncStreamEvents>(async (send) => {
-    try {
-      if (typeof parsed === 'string') {
-        send('error', { message: parsed, loginRequired: false })
-        return
-      }
-
-      const outcome = await performSync(parsed, (event) => send('progress', event))
-      if (!outcome.ok) {
-        send('error', { ...pickMessage(outcome), loginRequired: outcome.loginRequired })
-        return
-      }
-      const summary = summarizeRun(outcome.report, parsed.dryRun)
-      send('done', {
-        message: renderSyncSummaryEnglish(summary),
-        summary,
-        report: outcome.report,
-      })
-    } catch (error) {
-      send('error', { message: getErrorMessage(error), loginRequired: false })
-    }
-  })
-  return Promise.resolve(response)
+  return streamSyncRoute(req, ROUTE)
 }

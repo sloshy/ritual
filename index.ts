@@ -71,6 +71,10 @@ async function main(): Promise<void> {
       process.stderr.write(`${error.message}\n`)
       process.exitCode = error.exitCode
     } else {
+      // The last-resort net for throws from `buildProgram`, the `preAction`
+      // hook, or `parseAsync` itself — the only places left with no
+      // `ScriptingOptions` to render an envelope with. Everything thrown
+      // inside a command action is caught by `runCommandAction`.
       process.stderr.write(`${getErrorMessage(error)}\n`)
       if (!process.exitCode) process.exitCode = ExitCode.RuntimeError
     }

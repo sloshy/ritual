@@ -1,11 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  applySyncEvent,
   lastSyncedLabel,
   relativeTime,
   upsertRunItem,
   withMessage,
   type SyncRunItem,
+  type SyncRunMessage,
 } from '../../../src/admin/site/sync-run'
+import type { SyncEvent, UnreadableSource } from '../../../src/sync/common'
 
 /**
  * The bookkeeping behind the two sync pages' progress lists. The pages
@@ -66,5 +69,84 @@ describe('relativeTime', () => {
   ])('%s has no age', (_label, iso) => {
     expect(relativeTime(iso)).toBeNull()
     expect(lastSyncedLabel(iso)).toBe('never synced')
+  })
+})
+
+/** A collection list's result — the richer of the two, so `meta` is exercised too. */
+type ListResult = { name: string; status: 'synced' | 'failed'; added: number }
+
+/** The run state a page holds while a stream arrives, folded by {@link applySyncEvent}. */
+type RunState = {
+  items: SyncRunItem[]
+  log: SyncRunMessage[]
+  unreadable: UnreadableSource[] | null
+}
+
+function fold(events: SyncEvent<ListResult>[], confirmed = false): RunState {
+  const state: RunState = { items: [], log: [], unreadable: null }
+  for (const event of events) {
+    applySyncEvent(event, {
+      update: (name, apply) => {
+        state.items = upsertRunItem(state.items, name, apply)
+      },
+      appendLog: (message) => state.log.push(message),
+      setUnreadable: (sources) => {
+        state.unreadable = sources
+      },
+      confirmed,
+      meta: (result) => (result.added === 0 ? undefined : `+${result.added} added`),
+    })
+  }
+  return state
+}
+
+const UNREADABLE: SyncEvent<ListResult> = {
+  kind: 'unreadable-lines',
+  items: [{ name: 'Blue Binder', file: 'blue.md', warnings: ['line 3: junk'] }],
+}
+
+describe('applySyncEvent', () => {
+  test('opens a row, files its lines under it, and closes it on its result', () => {
+    const state = fold([
+      { kind: 'item-start', item: 'Blue Binder', index: 0, total: 1 },
+      { kind: 'log', level: 'info', item: 'Blue Binder', message: 'Changes' },
+      { kind: 'item-result', result: { name: 'Blue Binder', status: 'synced', added: 2 } },
+    ])
+    expect(state.items).toEqual([
+      {
+        name: 'Blue Binder',
+        status: 'synced',
+        meta: '+2 added',
+        messages: [{ level: 'info', text: 'Changes' }],
+      },
+    ])
+    expect(state.log).toEqual([])
+  })
+
+  test('a line with no item belongs to the run, not to any row', () => {
+    const state = fold([{ kind: 'log', level: 'warn', item: null, message: 'Fetching…' }])
+    expect(state.log).toEqual([{ level: 'warn', text: 'Fetching…' }])
+    expect(state.items).toEqual([])
+  })
+
+  test('a result with nothing to tally leaves the row without a meta line', () => {
+    const state = fold([
+      { kind: 'item-result', result: { name: 'Long Box', status: 'failed', added: 0 } },
+    ])
+    expect(state.items[0]).toEqual({
+      name: 'Long Box',
+      status: 'failed',
+      meta: undefined,
+      messages: [],
+    })
+  })
+
+  test('raises the unreadable-lines panel only for a run that has not answered it', () => {
+    expect(fold([UNREADABLE]).unreadable).toEqual([
+      { name: 'Blue Binder', file: 'blue.md', warnings: ['line 3: junk'] },
+    ])
+    // The engines report those sources on every run, so an already-confirmed run
+    // must not re-raise the panel it was launched from.
+    expect(fold([UNREADABLE], true).unreadable).toBeNull()
   })
 })

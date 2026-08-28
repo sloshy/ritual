@@ -11,6 +11,7 @@
  */
 
 import { formatDuration } from '../../util/duration'
+import type { SyncEvent, UnreadableSource } from '../../sync/common'
 import { t } from '../../i18n/t'
 
 /** How far a run has progressed; drives the button state and the result panel. */
@@ -73,4 +74,67 @@ export function relativeTime(iso: string | null): string | null {
 /** {@link relativeTime}, with the wording a never-synced row shows instead. */
 export function lastSyncedLabel(iso: string | null): string {
   return relativeTime(iso) ?? t('admin.sync.neverSynced')
+}
+
+/** All the run panel reads from a result directly; `meta` projects the rest. */
+export type SyncRunResult = { name: string; status: SyncRunStatus }
+
+/** Where {@link applySyncEvent} puts each kind of event. */
+export type ApplySyncEventOptions<TResult extends SyncRunResult> = {
+  /** Create or update one row, as {@link upsertRunItem} does. */
+  update: (name: string, apply: (item: SyncRunItem) => SyncRunItem) => void
+  /** Record a line belonging to the run rather than to any one row. */
+  appendLog: (message: SyncRunMessage) => void
+  /** Hold the sources whose unreadable lines a run would drop, for the confirmation panel. */
+  setUnreadable: (sources: UnreadableSource[]) => void
+  /**
+   * The current run's answer to the unreadable-lines question. The engines
+   * report those sources on every run, confirmed or not, so a run the user
+   * already approved must not re-raise the panel it was launched from.
+   */
+  confirmed: boolean
+  /** A short tally to show beside the row, e.g. `+2 added, -1 removed`. */
+  meta?: (result: TResult) => string | undefined
+}
+
+/**
+ * Fold one streamed {@link SyncEvent} into a sync page's run state, so Sync
+ * Decks and Sync Collection cannot disagree about which lines belong to a row,
+ * when a row stops being `running`, or when the unreadable panel is raised.
+ */
+export function applySyncEvent<TResult extends SyncRunResult>(
+  event: SyncEvent<TResult>,
+  { update, appendLog, setUnreadable, confirmed, meta }: ApplySyncEventOptions<TResult>,
+): void {
+  switch (event.kind) {
+    case 'item-start':
+      update(event.item, (item) => ({ ...item, status: 'running' }))
+      return
+    case 'log': {
+      const message: SyncRunMessage = { level: event.level, text: event.message }
+      // A line with no item belongs to the run: the remote fetch, the change
+      // filter's tally, removals that could not be placed.
+      if (event.item === null) appendLog(message)
+      else update(event.item, withMessage(message))
+      return
+    }
+    case 'item-result':
+      // A caller with no tally to show leaves the row's `meta` alone; one that
+      // has a projection owns the field, including when it has nothing to say.
+      update(event.result.name, (item) => ({
+        ...item,
+        status: event.result.status,
+        meta: meta ? meta(event.result) : item.meta,
+      }))
+      return
+    case 'unreadable-lines':
+      // Held for the confirmation panel the run ends on — the CLI prompt's equivalent.
+      if (!confirmed) setUnreadable(event.items)
+      return
+    default: {
+      // Every event kind must be handled somewhere; a new one is a compile error.
+      const unhandled: never = event
+      throw new Error(`Unhandled sync event: ${JSON.stringify(unhandled)}`)
+    }
+  }
 }

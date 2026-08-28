@@ -26,24 +26,30 @@ import type { ArchidektLoginStatus } from '../../auth/interfaces'
 import { ensureCardCacheForUpload } from '../../cache/freshness'
 import {
   runCollectionSync,
-  type CollectionSyncEvent,
   type CollectionSyncEventHandler,
+  type CollectionSyncListResult,
   type CollectionSyncReport,
 } from '../../collection-sync/engine'
 import type { SyncDirection } from '../../sync/common'
 import { CSV_UPLOAD_THRESHOLD } from '../../collection-sync/csv'
 import { readCollectionSyncState } from '../../collection-sync/state'
-import { getErrorMessage } from '../../util/errors'
 import { listDisplayName } from '../../list/list-lifecycle'
 import { listLocations } from '../../list/resolve-list'
 import { getCollectionSyncPullTarget, getCollectionsDir } from '../../config/ritual-config'
-import { sseResponse } from '../../util/sse'
-import { itemStartProgress, itemsDoneProgress, type RouteProgressSink } from '../../util/progress'
+import type { RouteProgressSink } from '../../util/progress'
 import { apiHandler } from '../utils'
-import { apiMessage, pickMessage, type ApiMessage } from '../../api/result'
+import { apiMessage, type ApiMessage } from '../../api/result'
 import { renderSyncSummaryEnglish, type SyncSummary, type SyncSummaryClause } from './sync-summary'
+import {
+  runSyncRoute,
+  streamSyncRoute,
+  type SyncDoneEvent,
+  type SyncErrorEvent,
+  type SyncRouteConfig,
+  type SyncRunOutcome,
+  type SyncRunResponse,
+} from './sync-route'
 import { autoCommitAndPush } from './save-helpers'
-import { readJsonObjectBody } from '../../api/http'
 import {
   isRecord,
   parseNameArray,
@@ -169,14 +175,8 @@ export type CollectionSyncRequest = SyncRequestCore & {
 export const CSV_FILE_UNSUPPORTED_MESSAGE =
   'csvFile is not supported over HTTP: use the CLI’s --csv-file to write a CSV, or csv: true to upload the additions.'
 
-/**
- * `POST /api/collection-sync`: the run's outcome. `success` says whether the run
- * could be performed at all — a run that completed with individual lists failing
- * is a success carrying a non-zero `report.failedCount`.
- */
-export type CollectionSyncRunResponse =
-  | (ApiMessage & { success: true; report: CollectionSyncReport; summary: SyncSummary })
-  | (ApiMessage & { success: false; loginRequired: boolean })
+/** `POST /api/collection-sync`: the run's outcome — see {@link SyncRunResponse}. */
+export type CollectionSyncRunResponse = SyncRunResponse<CollectionSyncReport>
 
 // ── Request parsing ───────────────────────────────────────────────────
 
@@ -348,11 +348,6 @@ export function describeRun(report: CollectionSyncReport): string {
   return renderSyncSummaryEnglish(summarizeRun(report))
 }
 
-/** The outcome of a run attempt: either a finished report or a reason it never started. */
-type RunOutcome =
-  | { ok: true; report: CollectionSyncReport }
-  | (ApiMessage & { ok: false; status: number; loginRequired: boolean })
-
 /**
  * Resolve the Archidekt session, run the sync, and auto-commit any list files it
  * wrote. Shared by the JSON and SSE endpoints so both enforce the same login
@@ -362,7 +357,7 @@ type RunOutcome =
 async function performSync(
   request: CollectionSyncRequest,
   onEvent?: CollectionSyncEventHandler,
-): Promise<RunOutcome> {
+): Promise<SyncRunOutcome<CollectionSyncReport>> {
   const auth = new ArchidektAuth(new FileTokenStore())
   const token = await auth.getToken()
   if (!token) {
@@ -453,131 +448,32 @@ export function handleCollectionSyncStatus(): Promise<Response> {
   })
 }
 
-/**
- * A run that never started, as the JSON endpoint reports it. Takes the whole
- * message triple so a keyed refusal keeps its key on the way out.
- */
-function runRefused(reason: ApiMessage, status: number, loginRequired = false): Response {
-  const body: CollectionSyncRunResponse = { success: false, ...pickMessage(reason), loginRequired }
-  return Response.json(body, { status })
+/** What this endpoint contributes to the shared run/stream plumbing. */
+const ROUTE: SyncRouteConfig<
+  CollectionSyncRequest,
+  CollectionSyncReport,
+  CollectionSyncListResult
+> = {
+  parseBody: parseCollectionSyncBody,
+  parseQuery: parseCollectionSyncQuery,
+  perform: performSync,
+  summarize: (report) => summarizeRun(report),
 }
 
-/** A run's event mapper plus the scale its reports counted against. */
-interface CollectionSyncProgressMapping {
-  onEvent: CollectionSyncEventHandler
-  /**
-   * The engine's list total, as its `list-start` events reported it — the
-   * denominator every in-flight report used, and therefore the one the terminal
-   * report must use. `0` until an event says otherwise, which is also the honest
-   * scale for a run that found nothing to sync.
-   */
-  scale: () => number
-}
-
-/**
- * Map the engine's events onto the shared progress scale.
- *
- * Only `list-start` advances it, for the reason deck sync's twin gives: a `log`
- * line has no position on the scale. Both the pull and the push loop emit
- * `list-start`, but only one of them runs per direction, so the scale stays
- * monotonic.
- */
-function collectionSyncProgressEvents(sink: RouteProgressSink): CollectionSyncProgressMapping {
-  let total = 0
-  return {
-    onEvent: (event: CollectionSyncEvent): void => {
-      if (event.kind !== 'list-start') return
-      total = event.total
-      sink(itemStartProgress(`Syncing ${event.list}`, event.index, event.total))
-    },
-    scale: () => total,
-  }
-}
-
+/** `POST /api/collection-sync` — see {@link runSyncRoute}. */
 export function handleCollectionSyncRun(
   req: Request,
   onProgress?: RouteProgressSink,
 ): Promise<Response> {
-  return apiHandler(async () => {
-    const parsedBody = await readJsonObjectBody(req)
-    if (!parsedBody.ok) return parsedBody.response
-    const raw: unknown = parsedBody.body
-
-    const parsed = parseCollectionSyncBody(raw)
-    if (typeof parsed === 'string') {
-      // A validation message is composed from the caller's own field names, so
-      // it carries no catalog key — the English text is the whole of it.
-      return runRefused({ message: parsed }, 400)
-    }
-
-    const mapping = onProgress === undefined ? undefined : collectionSyncProgressEvents(onProgress)
-    const outcome = await performSync(parsed, mapping?.onEvent)
-    if (!outcome.ok) {
-      return runRefused(outcome, outcome.status, outcome.loginRequired)
-    }
-
-    // A run that completed is a success even when individual lists failed —
-    // `report.failedCount`, each list's `reason`, and `report.errors` carry that
-    // detail.
-    const summary = summarizeRun(outcome.report)
-    const message = renderSyncSummaryEnglish(summary)
-    // On the engine's scale, not `report.lists.length`: the report also holds
-    // lists that never emitted a `list-start`, so counting it would move the
-    // denominator out from under every frame already sent.
-    if (mapping) onProgress?.(itemsDoneProgress(mapping.scale(), message))
-    const body: CollectionSyncRunResponse = {
-      success: true,
-      message,
-      summary,
-      report: outcome.report,
-    }
-    return Response.json(body)
-  })
+  return runSyncRoute(req, onProgress, ROUTE)
 }
 
 /** `event: done` payload — the same shape the JSON endpoint returns. */
-export type CollectionSyncDoneEvent = ApiMessage & {
-  report: CollectionSyncReport
-  summary: SyncSummary
-}
+export type CollectionSyncDoneEvent = SyncDoneEvent<CollectionSyncReport>
 /** `event: error` payload for a run that never produced a report. */
-export type CollectionSyncErrorEvent = ApiMessage & { loginRequired: boolean }
+export type CollectionSyncErrorEvent = SyncErrorEvent
 
-/** The event vocabulary of `GET /api/collection-sync/stream`, name paired with payload. */
-type CollectionSyncStreamEvents = {
-  progress: CollectionSyncEvent
-  done: CollectionSyncDoneEvent
-  error: CollectionSyncErrorEvent
-}
-
-/**
- * Stream a sync run as server-sent events: one `progress` frame per
- * {@link CollectionSyncEvent}, then a single `done` (with the report) or
- * `error`.
- *
- * Failures are reported *inside* the stream rather than as an HTTP status,
- * because `EventSource` exposes no response body for a non-2xx open.
- */
+/** `event: progress` per step, then `done` or `error` — see {@link streamSyncRoute}. */
 export function handleCollectionSyncStream(req: Request): Promise<Response> {
-  const parsed = parseCollectionSyncQuery(new URL(req.url).searchParams)
-
-  const response = sseResponse<CollectionSyncStreamEvents>(async (send) => {
-    try {
-      if (typeof parsed === 'string') {
-        send('error', { message: parsed, loginRequired: false })
-        return
-      }
-
-      const outcome = await performSync(parsed, (event) => send('progress', event))
-      if (!outcome.ok) {
-        send('error', { ...pickMessage(outcome), loginRequired: outcome.loginRequired })
-        return
-      }
-      const summary = summarizeRun(outcome.report)
-      send('done', { message: renderSyncSummaryEnglish(summary), summary, report: outcome.report })
-    } catch (error) {
-      send('error', { message: getErrorMessage(error), loginRequired: false })
-    }
-  })
-  return Promise.resolve(response)
+  return streamSyncRoute(req, ROUTE)
 }

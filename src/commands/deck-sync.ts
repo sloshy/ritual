@@ -3,29 +3,23 @@ import type { Logger } from '../util/logger'
 import {
   listSyncableDecks,
   runDeckSync,
-  type DeckSyncEvent,
   type DeckSyncReport,
   type SyncableDeck,
 } from '../deck-sync/engine'
 import { linkDeckToArchidekt, parseArchidektDeckUrl, type DeckLinkResult } from '../deck-sync/link'
 import { readCollectionSyncStateFile, type CollectionSyncState } from '../collection-sync/state'
-import {
-  SYNC_DIRECTIONS,
-  unreadableConsequence,
-  type SyncChangeFilter,
-  type SyncDirection,
-} from '../sync/common'
+import { SYNC_DIRECTIONS, type SyncChangeFilter, type SyncDirection } from '../sync/common'
 import { formatResolveListError, isResolveListError, resolveList } from '../list/resolve-list'
 import {
   addSyncOptions,
   confirmUnreadableSync,
   createScopedIndenter,
-  describeUnreadable,
   loggerFor,
   requireArchidektToken,
   type UnreadableSource,
   type UnreadableSubject,
 } from './sync-helpers'
+import { createSyncEventRenderer } from './sync-render-event'
 import { runCommandAction } from '../cli/action'
 import { addDryRunOption, addOutputOption, addScriptingOptions } from '../cli/options'
 import {
@@ -81,45 +75,6 @@ const DECKS: UnreadableSubject = 'decks'
  * freeze the clause in whatever locale happened to be active at import time.
  */
 const UNREADABLE_COST = 'cli.sync.costRemoveLines' satisfies MessageKey
-
-/**
- * Render one sync event as a console line. Deck-scoped messages are indented
- * under the `Syncing "…"` line that opened the deck — but only when that line
- * actually printed (see {@link createScopedIndenter}); run-level ones (including
- * decks that could not be loaded at all) sit flush left. Results themselves are
- * not printed — they are summarized by the closing tally and the report.
- */
-function renderSyncEvent(
-  direction: SyncDirection,
-  logger: Logger,
-  indent: ReturnType<typeof createScopedIndenter>,
-  event: DeckSyncEvent,
-): void {
-  switch (event.kind) {
-    case 'deck-start':
-      indent.start(event.deck)
-      logger.info(t('cli.sync.syncing', { name: event.deck, direction }))
-      return
-    case 'log': {
-      const line = indent.line(event.deck, event.message)
-      if (event.level === 'warn') logger.warn(line)
-      else if (event.level === 'error') logger.error(line)
-      else logger.info(line)
-      return
-    }
-    case 'deck-result':
-      // Results are summarized by the closing tally rather than printed per deck.
-      return
-    case 'unreadable-lines':
-      logger.warn(describeUnreadable(event.decks, DECKS, unreadableConsequence('deck', direction)))
-      return
-    default: {
-      // Every event kind must be rendered somewhere; a new one is a compile error.
-      const unhandled: never = event
-      throw new Error(`Unhandled deck-sync event: ${JSON.stringify(unhandled)}`)
-    }
-  }
-}
 
 /**
  * The run's closing tally, the counterpart of collection-sync's — a text-mode
@@ -324,7 +279,7 @@ async function runSync(
     only: options.only,
     force: options.force === true,
     syncPrintings: options.syncPrintings === true,
-    onEvent: (event) => renderSyncEvent(direction, logger, indent, event),
+    onEvent: createSyncEventRenderer({ subject: 'deck', direction, logger, indent }),
     confirmUnreadable: (unreadable) =>
       confirmUnreadableDecks(unreadable, options.yes === true, scripting, logger),
   })

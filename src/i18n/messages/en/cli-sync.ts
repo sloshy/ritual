@@ -216,7 +216,6 @@ export const cliSyncMessages = {
   'cli.detectChanges.dryRunComplete': 'Dry run complete. No files were modified.',
   'cli.detectChanges.changelogsUpdated': 'Changelogs updated.',
   'cli.detectChanges.noChangelogUpdates': 'No changelog updates needed.',
-  'cli.detectChanges.failed': 'detect-changes failed: {reason}',
 
   // ── `detect-changes` — sidecar modes ──────────────────────────────────
   'cli.detectChanges.noListFiles': 'No list files found.',

@@ -42,7 +42,7 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from '../cli/output'
-import { fail, failWith } from '../cli/action'
+import { failWith, runCommandAction } from '../cli/action'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -843,9 +843,10 @@ export function registerDetectChangesCommand(program: Command): void {
     }
 
     // The sidecar modes walk the filesystem, so an unreadable list file (or a
-    // list directory that changes under them) must surface as a structured
-    // error, not as a raw ENOENT string that escapes the --output contract.
-    try {
+    // list directory that changes under them) surfaces as the shared
+    // `runtime_error` envelope rather than a raw ENOENT string that would
+    // escape the --output contract.
+    await runCommandAction(scripting, async () => {
       switch (selection.mode) {
         case 'hash-only':
           await runHashOnly(cwd, dryRun, scripting)
@@ -857,10 +858,6 @@ export function registerDetectChangesCommand(program: Command): void {
           await runDetect(selection.commit, cwd, dryRun, scripting)
           return
       }
-    } catch (error) {
-      fail(scripting, 'runtime_error', 'cli.detectChanges.failed', {
-        reason: getErrorMessage(error),
-      })
-    }
+    })
   })
 }

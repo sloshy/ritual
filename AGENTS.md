@@ -177,6 +177,7 @@ Most features are reachable through several surfaces (engine module, CLI command
 
 - **Engine semantics** (parsing, diffing, apply logic, formatting) belong in unit tests against the engine module.
 - **Integration tests** cover one representative path through the CLI or admin handler per feature — flag wiring, exit codes, file side effects — not a re-run of the engine's cases.
+- A unit test may still touch the filesystem when the subject is a file-format module (parsers, sidecars, snapshots) and the I/O is confined to a throwaway workspace from `test/helpers/workspace.ts` — the layer is decided by what is being asserted, not by whether a temp dir was used. Spawning the binary, network, or the cache belongs in `test/integration/`.
 - **Playwright tests** cover UI state transitions (the UI reflects and mutates state correctly), not engine behavior that happens to be reachable through the page.
 - **MCP tool tests** cover wiring only: the tool is registered, its schema rejects bad input, the result shape is right, and one happy path per tool. The MCP server reuses the admin handlers in-process, so anything beyond wiring re-tests a layer that already has coverage.
 

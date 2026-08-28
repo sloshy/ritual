@@ -505,9 +505,6 @@ export const cliSyncMeta = {
   'cli.detectChanges.noChangelogUpdates': {
     description: 'Closing line when list files changed but nothing needed a changelog entry.',
   },
-  'cli.detectChanges.failed': {
-    description: 'The catch-all failure for the whole command; {reason} is the underlying error.',
-  },
 
   // ── `detect-changes` — sidecar modes ──────────────────────────────────
   'cli.detectChanges.noListFiles': {

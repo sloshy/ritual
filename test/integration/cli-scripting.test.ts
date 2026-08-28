@@ -18,6 +18,7 @@ import { captureStream } from '../helpers/capture'
 import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
 import { writeDeckFile } from '../helpers/workspace'
 import { ExitCode } from '../../src/util/errors'
+import type { ErrorEnvelope } from '../../src/cli/output'
 
 /** Seed a card cache with priced printings so `price` has something to total. */
 async function seedPriceCache(dir: string): Promise<void> {
@@ -493,6 +494,31 @@ name: "Conflict Deck"
       const rejected = await runCli(['lists', '--cache-server', '   '], dir)
       expect(rejected.exitCode).toBe(2)
       expect(rejected.stderr).toContain('non-empty hostname and port')
+    })
+  })
+
+  // The shared catch-all: an *unexpected* throw (not a CardCommandError) still
+  // has to reach stderr as the same envelope, or a scripted caller gets
+  // unparseable prose. A directory where a `.sha256` sidecar belongs makes the
+  // sidecar *stamp* (`saveHash`'s writeFile) throw EISDIR from inside the
+  // action body — `loadHash` swallows read failures, so the write is the only
+  // throw site. It throws before the stamp warnings are emitted, so stderr is
+  // exactly the envelope and nothing else.
+  test('an unexpected failure is a runtime_error envelope with no messageKey', async () => {
+    await withTempDir(async (dir) => {
+      await writeDeckFile(dir, 'sample', {
+        frontMatter: { name: 'sample' },
+        cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+      })
+      await fs.mkdir(path.join(dir, 'decks', 'sample.md.sha256'))
+
+      const result = await runCli(['detect-changes', '--hash-only', '--output', 'json'], dir)
+
+      expect(result.exitCode).toBe(1)
+      const { error } = JSON.parse(result.stderr) as { error: ErrorEnvelope }
+      expect(Object.keys(error).sort()).toEqual(['code', 'message'])
+      expect(error.code).toBe('runtime_error')
+      expect(error.message).toContain('EISDIR')
     })
   })
 })

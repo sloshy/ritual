@@ -9,9 +9,7 @@ import { InvalidArgumentError } from 'commander'
 import { getBaseDir } from '../config/base-dir'
 import {
   type ErrorCode,
-  CardCommandError,
   ExitCode,
-  getErrorMessage,
   hasErrorCode,
   isBrokenPipeError,
   type ErrorMessageRef,
@@ -271,26 +269,6 @@ export function emitError(
   }
   const indent = options.output === 'json' ? 2 : undefined
   writeStderr(`${JSON.stringify({ error: envelope }, null, indent)}\n`)
-}
-
-/**
- * Report an error caught by a command action. A broken pipe (`… | head` closed
- * the reader) is a normal end of output rather than a failure: latch it so the
- * shared writers go quiet and leave the exit code untouched — anything the
- * command already recorded stands, and an otherwise clean run still exits 0.
- * Every other error is a runtime failure with the shared envelope.
- */
-export function emitActionError(error: unknown, options: ScriptingOptions): void {
-  if (isBrokenPipeError(error)) {
-    markStdoutClosed()
-    return
-  }
-  const messageRef =
-    error instanceof CardCommandError && error.messageKey !== undefined
-      ? { key: error.messageKey, params: error.messageParams }
-      : undefined
-  emitError('runtime_error', getErrorMessage(error), options, error, messageRef)
-  process.exitCode = ExitCode.RuntimeError
 }
 
 /**

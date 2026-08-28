@@ -138,7 +138,7 @@ test.describe('Sync Collection Page', () => {
     await emitStreamEvent(page, 'progress', {
       kind: 'log',
       level: 'info',
-      list: null,
+      item: null,
       message:
         'Archidekt collection: 12 collection records covering 9 printings, fetched in 6 seconds.',
     })
@@ -147,8 +147,8 @@ test.describe('Sync Collection Page', () => {
     )
 
     await emitStreamEvent(page, 'progress', {
-      kind: 'list-start',
-      list: BLUE!.name,
+      kind: 'item-start',
+      item: BLUE!.name,
       index: 0,
       total: 2,
     })
@@ -157,13 +157,13 @@ test.describe('Sync Collection Page', () => {
     await emitStreamEvent(page, 'progress', {
       kind: 'log',
       level: 'info',
-      list: BLUE!.name,
+      item: BLUE!.name,
       message: 'Changes: +2 added, -0 removed',
     })
     await expect(runRow(page, BLUE!.name).locator('.sync-run-message')).toContainText('+2 added')
 
     await emitStreamEvent(page, 'progress', {
-      kind: 'list-result',
+      kind: 'item-result',
       result: { name: BLUE!.name, status: 'synced', added: 2, removed: 0 },
     })
     await expect(runRow(page, BLUE!.name)).toHaveAttribute('data-status', 'synced')
@@ -172,7 +172,7 @@ test.describe('Sync Collection Page', () => {
     )
 
     await emitStreamEvent(page, 'progress', {
-      kind: 'list-result',
+      kind: 'item-result',
       result: {
         name: LONG!.name,
         status: 'failed',
@@ -252,7 +252,7 @@ test.describe('Sync Collection Page', () => {
     expect(url).toContain('dryRun=true')
 
     await emitStreamEvent(page, 'progress', {
-      kind: 'list-result',
+      kind: 'item-result',
       result: { name: BLUE!.name, status: 'synced', added: 0, removed: 3 },
     })
     await expect(runRow(page, BLUE!.name).locator('.sync-run-meta')).toHaveText(
@@ -395,13 +395,13 @@ test.describe('Sync Collection Page', () => {
     await emitStreamEvent(page, 'progress', {
       kind: 'log',
       level: 'warn',
-      list: null,
+      item: null,
       message: AMBIGUOUS_TEXT,
     })
     await emitStreamEvent(page, 'progress', {
       kind: 'log',
       level: 'error',
-      list: null,
+      item: null,
       message: AMBIGUOUS_ERROR,
     })
     await emitStreamEvent(page, 'done', {
@@ -483,7 +483,7 @@ test.describe('Sync Collection Page', () => {
     await emitStreamEvent(page, 'progress', {
       kind: 'log',
       level: 'error',
-      list: null,
+      item: null,
       message: CSV_REFUSED_ERROR,
     })
     await emitStreamEvent(page, 'done', {
@@ -599,7 +599,7 @@ test.describe('Sync Collection Page', () => {
 
     await emitStreamEvent(page, 'progress', {
       kind: 'unreadable-lines',
-      lists: [
+      items: [
         {
           name: BLUE!.name,
           file: `${BLUE!.slug}.md`,

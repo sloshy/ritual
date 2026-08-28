@@ -1,7 +1,8 @@
 /**
  * The standard action-handler shell for one-shot commands: run the body, and
- * turn every structured refusal ({@link CardCommandError}) into the scripting
- * error channel plus the matching process exit code.
+ * turn every failure — a broken pipe, a structured refusal
+ * ({@link CardCommandError}), or an unexpected throw, in that dispatch order —
+ * into the scripting error channel plus the matching process exit code.
  */
 
 import type { ListArgumentConflict } from '../list/resolve-list'
@@ -11,17 +12,21 @@ import { t, type TranslateArgs, paramsOf, type MessageRef, type ParameterlessKey
 import {
   CardCommandError,
   ExitCode,
+  getErrorMessage,
+  isBrokenPipeError,
   localizedCommandError,
   type ErrorCode,
   type ExitCodeValue,
 } from '../util/errors'
-import { emitError, type ScriptingOptions } from './output'
+import { emitError, markStdoutClosed, type ScriptingOptions } from './output'
 
 /**
- * Run a one-shot command's action body, mapping a thrown
- * {@link CardCommandError} to the scripting error channel and process exit
- * code — the standard action-handler shell shared by every one-shot command.
- * Anything else propagates untouched.
+ * Run a one-shot command's action body — the standard action-handler shell
+ * shared by every one-shot command, and the CLI's one catch-all. A broken pipe
+ * (`… | head` closed the reader) is a normal end of output; a thrown
+ * {@link CardCommandError} is a structured refusal carrying its own code and
+ * exit code; anything else is an unexpected failure reported through the same
+ * envelope so `--output json` stays parseable either way.
  */
 export async function runCommandAction(
   scripting: ScriptingOptions,
@@ -30,6 +35,13 @@ export async function runCommandAction(
   try {
     await run()
   } catch (err) {
+    if (isBrokenPipeError(err)) {
+      // Latch the shared writers quiet and leave the exit code untouched:
+      // anything the command already recorded stands, and an otherwise clean
+      // run still exits 0.
+      markStdoutClosed()
+      return
+    }
     if (err instanceof CardCommandError) {
       // The catalog key travels beside the rendered prose, so `--output json`
       // carries a locale-invariant discriminator alongside `error.code`.
@@ -37,7 +49,13 @@ export async function runCommandAction(
       process.exitCode = err.exitCode
       return
     }
-    throw err
+    // A bug rather than a refusal: there is no catalog key behind it, and the
+    // raw Error is not `details` (it stringifies to `{}` and a subclass could
+    // leak a path).
+    emitError('runtime_error', getErrorMessage(err), scripting)
+    // Deliberately overrides any code an earlier emit set: the run ended in a
+    // bug, and that is what the caller should see.
+    process.exitCode = ExitCode.RuntimeError
   }
 }
 

@@ -145,7 +145,7 @@ export async function runDeckSync(options: DeckSyncOptions): Promise<DeckSyncRun
   const client =
     options.client ??
     createPacedArchidektClient((message) =>
-      emit({ kind: 'log', level: 'warn', deck: null, message }),
+      emit({ kind: 'log', level: 'warn', item: null, message }),
     )
 
   const { targets, problems, unreadable } = await resolveTargetDecks(
@@ -157,7 +157,7 @@ export async function runDeckSync(options: DeckSyncOptions): Promise<DeckSyncRun
   )
 
   if (targets.length === 0 && problems.length === 0) {
-    emit({ kind: 'log', level: 'info', deck: null, message: 'No Archidekt decks found to sync.' })
+    emit({ kind: 'log', level: 'info', item: null, message: 'No Archidekt decks found to sync.' })
   }
 
   const flow: SyncFlow = {
@@ -192,7 +192,7 @@ function finish(
   result: DeckSyncDeckResult,
 ): void {
   results.push(result)
-  emit({ kind: 'deck-result', result })
+  emit({ kind: 'item-result', result })
 }
 
 /** Report a deck as failed: the reason on the log, then the result. */
@@ -202,7 +202,7 @@ function failDeck(
   name: string,
   reason: string,
 ): void {
-  emit({ kind: 'log', level: 'error', deck: name, message: reason })
+  emit({ kind: 'log', level: 'error', item: name, message: reason })
   finish(results, emit, { name, status: 'failed', reason })
 }
 
@@ -261,7 +261,7 @@ function emitPrintingMismatches(
     flow.emit({
       kind: 'log',
       level: 'warn',
-      deck,
+      item: deck,
       message:
         `Printings not synced for "${mismatch.name}": the local file and Archidekt hold ` +
         'different printings of it. Re-run with --sync-printings to reconcile them.',
@@ -278,7 +278,7 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
 
   for (const [index, target] of targets.entries()) {
     const name = target.deck.name
-    emit({ kind: 'deck-start', deck: name, index, total: targets.length })
+    emit({ kind: 'item-start', item: name, index, total: targets.length })
 
     // Fetched with its raw payload: the pull records the remote's `updatedAt` as
     // the divergence baseline a later push compares against.
@@ -303,7 +303,7 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     )
     const skippedMessage = describeSkippedChanges(only, skipped)
     if (skippedMessage) {
-      emit({ kind: 'log', level: 'info', deck: name, message: skippedMessage })
+      emit({ kind: 'log', level: 'info', item: name, message: skippedMessage })
     }
     emitPrintingMismatches(flow, name, diff.unaligned)
     // Spread into every result this deck produces, so structured consumers see
@@ -312,7 +312,7 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     const formatSync = syncDeckFormat(target.deck, target.frontMatter.format, remoteDeck)
 
     if (isDiffEmpty(diff) && !formatSync.changed) {
-      emit({ kind: 'log', level: 'info', deck: name, message: 'No changes detected.' })
+      emit({ kind: 'log', level: 'info', item: name, message: 'No changes detected.' })
       // The sync still happened, so its stamp is still recorded. Skipping this
       // is what used to lock a deck out of `push`: a remote edit that touches no
       // card list (a rename, a category shuffle, another machine's push) moves
@@ -331,20 +331,20 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
         : ''
     const changeSummary = `+${diff.added.length} added, -${diff.removed.length} removed, ~${diff.quantityChanged.length} quantity changed${printingClause}`
     if (!isDiffEmpty(diff)) {
-      emit({ kind: 'log', level: 'info', deck: name, message: `Changes: ${changeSummary}` })
+      emit({ kind: 'log', level: 'info', item: name, message: `Changes: ${changeSummary}` })
     }
     if (formatSync.changed && formatSync.format) {
       const was = formatSync.localFormat ? getDeckFormatLabel(formatSync.localFormat) : 'not set'
       emit({
         kind: 'log',
         level: 'info',
-        deck: name,
+        item: name,
         message: `Format: ${was} → ${getDeckFormatLabel(formatSync.format)}`,
       })
     }
 
     if (dryRun) {
-      emit({ kind: 'log', level: 'info', deck: name, message: '[dry-run] Not saved.' })
+      emit({ kind: 'log', level: 'info', item: name, message: '[dry-run] Not saved.' })
       finish(results, emit, {
         name,
         status: 'synced',
@@ -411,7 +411,7 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     if (changes.length > 0) {
       writtenFiles.push(await appendChangelog(target.filePath, target.deck.name, changes))
     }
-    emit({ kind: 'log', level: 'info', deck: name, message: 'Saved.' })
+    emit({ kind: 'log', level: 'info', item: name, message: 'Saved.' })
     finish(results, emit, { name, status: 'synced', ...printingReport })
   }
 
@@ -434,7 +434,7 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
     // No outer prefix: the client's error already names the operation that
     // failed ("Failed to fetch own decks: 502 …").
     const reason = getErrorMessage(error)
-    emit({ kind: 'log', level: 'error', deck: null, message: reason })
+    emit({ kind: 'log', level: 'error', item: null, message: reason })
     // No deck could be synced without the ownership list — all failed.
     for (const target of targets) {
       finish(results, emit, { name: target.deck.name, status: 'failed', reason })
@@ -444,11 +444,11 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
 
   for (const [index, target] of targets.entries()) {
     const name = target.deck.name
-    emit({ kind: 'deck-start', deck: name, index, total: targets.length })
+    emit({ kind: 'item-start', item: name, index, total: targets.length })
 
     if (!ownedDeckIds.has(target.sourceId)) {
       const reason = `you do not own Archidekt deck ${target.sourceId}`
-      emit({ kind: 'log', level: 'warn', deck: name, message: `Skipping: ${reason}` })
+      emit({ kind: 'log', level: 'warn', item: name, message: `Skipping: ${reason}` })
       finish(results, emit, { name, status: 'skipped', reason })
       continue
     }
@@ -490,7 +490,7 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
         emit({
           kind: 'log',
           level: 'warn',
-          deck: name,
+          item: name,
           message: `${check.reason} — pushing without the divergence check.`,
         })
       }
@@ -510,13 +510,13 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
     )
     const skippedMessage = describeSkippedChanges(only, skipped)
     if (skippedMessage) {
-      emit({ kind: 'log', level: 'info', deck: name, message: skippedMessage })
+      emit({ kind: 'log', level: 'info', item: name, message: skippedMessage })
     }
     emitPrintingMismatches(flow, name, diff.unaligned)
     const printingReport = printingResultFields(flow, diff)
 
     if (isDiffEmpty(diff)) {
-      emit({ kind: 'log', level: 'info', deck: name, message: 'No changes to upload.' })
+      emit({ kind: 'log', level: 'info', item: name, message: 'No changes to upload.' })
       finish(results, emit, { name, status: 'synced', reason: 'no changes', ...printingReport })
       continue
     }
@@ -528,7 +528,7 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
     emit({
       kind: 'log',
       level: 'info',
-      deck: name,
+      item: name,
       message: `Changes: +${diff.added.length} to add, -${diff.removed.length} to remove, ~${diff.quantityChanged.length} quantity changes${printingClause}`,
     })
 
@@ -538,14 +538,14 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
     // upload entries, so the deck did not fully sync even if the rest pushes.
     const deckFailed = plan.errors.length > 0
     for (const err of plan.errors) {
-      emit({ kind: 'log', level: 'warn', deck: name, message: err })
+      emit({ kind: 'log', level: 'warn', item: name, message: err })
     }
 
     if (dryRun) {
       emit({
         kind: 'log',
         level: 'info',
-        deck: name,
+        item: name,
         message: `[dry-run] Would push ${plan.entries.length} card changes to Archidekt.`,
       })
       finish(
@@ -569,7 +569,7 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
         emit({
           kind: 'log',
           level: 'info',
-          deck: name,
+          item: name,
           message: `Pushed ${plan.entries.length} card changes to Archidekt.`,
         })
       } catch (error: unknown) {
@@ -605,7 +605,7 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
       rawDeck.updatedAt,
     )
     writtenFiles.push(...(await saveDeckWithSyncTimestamp(target, target.deck, pushedUpdatedAt)))
-    emit({ kind: 'log', level: 'info', deck: name, message: 'Updated lastSynced.' })
+    emit({ kind: 'log', level: 'info', item: name, message: 'Updated lastSynced.' })
 
     finish(results, emit, { name, status: 'synced', ...printingReport })
   }

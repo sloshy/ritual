@@ -622,7 +622,7 @@ describe('deck-sync API', () => {
 
     expect(unreadable).toEqual({
       kind: 'unreadable-lines',
-      decks: [
+      items: [
         {
           name: 'Linked Deck',
           file: 'linked.md',
@@ -641,15 +641,15 @@ describe('deck-sync API', () => {
       .filter((frame) => frame.event === 'progress')
       .map((frame) => frame.data as unknown as DeckSyncEvent)
 
-    expect(progress[0]).toEqual({ kind: 'deck-start', deck: 'Linked Deck', index: 0, total: 1 })
+    expect(progress[0]).toEqual({ kind: 'item-start', item: 'Linked Deck', index: 0, total: 1 })
     expect(progress).toContainEqual({
       kind: 'log',
       level: 'info',
-      deck: 'Linked Deck',
+      item: 'Linked Deck',
       message: 'Changes: +1 added, -0 removed, ~0 quantity changed',
     })
     expect(progress.at(-1)).toEqual({
-      kind: 'deck-result',
+      kind: 'item-result',
       result: { name: 'Linked Deck', status: 'synced' },
     })
 

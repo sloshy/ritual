@@ -156,10 +156,10 @@ export async function resolveTargetDecks(
   const unreadable: HeldTarget[] = []
 
   const problem = ({ name, status, reason, message, level }: DeckProblem): void => {
-    emit({ kind: 'log', level, deck: null, message })
+    emit({ kind: 'log', level, item: null, message })
     const result: DeckSyncDeckResult = { name, status, reason }
     problems.push(result)
-    emit({ kind: 'deck-result', result })
+    emit({ kind: 'item-result', result })
   }
 
   /** Load a resolved deck file into a target, reporting a read failure as a problem. */
@@ -292,7 +292,7 @@ export async function resolveTargetDecks(
   // run that follows is where the question belongs.
   const unreadableDecks = unreadable.map((entry) => entry.deck)
   if (unreadable.length > 0) {
-    emit({ kind: 'unreadable-lines', decks: unreadableDecks })
+    emit({ kind: 'unreadable-lines', items: unreadableDecks })
     // A handler that throws is a decision that was never made — refuse, since
     // that is the direction that cannot destroy anything.
     let accepted = dryRun
@@ -303,7 +303,7 @@ export async function resolveTargetDecks(
         emit({
           kind: 'log',
           level: 'error',
-          deck: null,
+          item: null,
           message: `Could not confirm the unreadable lines: ${getErrorMessage(error)}`,
         })
       }
@@ -318,9 +318,9 @@ export async function resolveTargetDecks(
       const result: DeckSyncDeckResult = { name: entry.deck.name, status: 'failed', reason }
       // Logged like every other failure, so a refused deck carries its reason
       // inline rather than only in the list emitted above.
-      emit({ kind: 'log', level: 'warn', deck: null, message: `${entry.deck.file}: ${reason}` })
+      emit({ kind: 'log', level: 'warn', item: null, message: `${entry.deck.file}: ${reason}` })
       problems.push(result)
-      emit({ kind: 'deck-result', result })
+      emit({ kind: 'item-result', result })
     }
   }
 
