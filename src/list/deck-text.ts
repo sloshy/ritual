@@ -1,6 +1,13 @@
 import type { Card } from '../card/card'
 import type { DeckData } from './deck'
-import { printingSuffix } from '../card/card-line'
+import {
+  formatCollectionLine,
+  formatWantedListLine,
+  printingSuffix,
+  resolvePrinting,
+} from '../card/card-line'
+import type { EntryRef } from './entry-ref'
+import type { ListType } from './list-type'
 import { formatCardLabels } from '../card/card-labels'
 import { languageToken } from '../card/card-language'
 
@@ -91,4 +98,55 @@ export function deckToExportText(deck: DeckData): string {
   }
 
   return lines.join('\n').trim()
+}
+
+/**
+ * The canonical single line for one entry of any list type, without a trailing
+ * newline (the collection and wanted formatters are newline-terminated, the deck
+ * serializer is not). The one dispatch shared by the line-surgery writer and the
+ * markdown export — `labels` and `cardId` are each caller's to supply or
+ * withhold.
+ *
+ * A collection entry that pins no printing falls through to the wanted grammar:
+ * the collection grammar cannot express a bare name (it would write `(:)`). That
+ * fallback carries neither a condition nor labels — the wanted grammar has no
+ * token for either — which is why the collection parser refuses such a line in
+ * the first place.
+ */
+export function canonicalCardLine(type: ListType, fields: EntryRef): string {
+  if (type === 'deck') {
+    return serializeCardLine({
+      quantity: fields.quantity ?? 1,
+      name: fields.name,
+      set: fields.set,
+      collectorNumber: fields.collectorNumber,
+      finish: fields.finish,
+      condition: fields.condition,
+      language: fields.language,
+      labels: fields.labels,
+      note: fields.note,
+      cardId: fields.cardId,
+    })
+  }
+  if (type === 'collection' && fields.set && fields.collectorNumber) {
+    return formatCollectionLine({
+      cardName: fields.name,
+      set: fields.set,
+      collectorNumber: fields.collectorNumber,
+      finish: fields.finish ?? 'nonfoil',
+      condition: fields.condition,
+      language: fields.language,
+      labels: fields.labels,
+      note: fields.note,
+      cardId: fields.cardId,
+    }).trimEnd()
+  }
+  return formatWantedListLine({
+    name: fields.name,
+    printing: resolvePrinting(fields.set, fields.collectorNumber),
+    finish: fields.finish,
+    language: fields.language,
+    note: fields.note,
+    cardId: fields.cardId,
+  }).trimEnd()
 }

@@ -230,6 +230,24 @@ describe('renderMarkdownExport', () => {
     )
   })
 
+  // A collection entry cannot pin a grade without a printing to hang it on, so
+  // the canonical line falls back to the wanted grammar — which carries neither
+  // a condition nor labels. The collection parser refuses such a line, so this
+  // is only reachable through a hand-built export entry.
+  test('a collection entry with no printing falls back to the wanted grammar', () => {
+    const md = renderMarkdownExport([
+      entry({
+        listType: 'collection',
+        listName: 'Binder',
+        set: undefined,
+        collectorNumber: undefined,
+        finish: undefined,
+        condition: 'LP',
+      }),
+    ])
+    expect(md).toBe('# Binder\n\n## Main\n- Lightning Bolt')
+  })
+
   test('sections group by first-seen order even when entries interleave', () => {
     const md = renderMarkdownExport([
       entry({ listType: 'deck', listName: 'Burn', section: 'Main', finish: undefined }),

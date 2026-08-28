@@ -17,6 +17,7 @@ import { DAY_REFRESH_MS } from '../cache-server/constants'
 import type { RefreshCadence } from '../cache-server/types'
 import { CacheFeedHost, DEFAULT_BULK_API_URL } from '../cache-feed/host'
 import { FeedSeeder } from '../cache-feed/seeder'
+import { tryStartServer } from '../util/start-server'
 import {
   CACHE_FEED_LOG_PREFIX,
   CARD_KIND_BY_BULK_TYPE,
@@ -154,27 +155,28 @@ export function registerCacheFeedSubcommand(cache: Command): void {
         )
       }
 
-      try {
+      const started = tryStartServer(() =>
         Bun.serve({
           hostname: options.host,
           port: options.port,
           idleTimeout: 120,
           fetch: async (req) => {
-            const started = Date.now()
+            const requestStart = Date.now()
             const response = await host.handleRequest(req)
             if (options.verbose) {
               const { pathname } = new URL(req.url)
-              log(`${req.method} ${pathname} ${response.status} ${Date.now() - started}ms`)
+              log(`${req.method} ${pathname} ${response.status} ${Date.now() - requestStart}ms`)
             }
             return response
           },
-        })
-      } catch (e) {
+        }),
+      )
+      if (!started.ok) {
         // Most likely the port is already in use. Stop the seeder so its
         // torrent client doesn't keep the failed process alive.
         console.error(
           `${CACHE_FEED_LOG_PREFIX} ${t('cli.cacheFeed.serverStartFailed')}`,
-          getErrorMessage(e),
+          started.error,
         )
         if (seeder) await seeder.stop()
         process.exitCode = ExitCode.RuntimeError

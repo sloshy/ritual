@@ -9,11 +9,12 @@ import {
   resolveRefreshMode,
   addOutputOption,
   addQuietOption,
+  addListScopeFlags,
+  resolveListTypeFlag,
 } from '../cli/options'
 import type { RefreshMode } from '../cache/refresh'
 import {
   isListArgumentsFailure,
-  listTypeFromFlags,
   resolveListArguments,
   type ListLocation,
 } from '../list/resolve-list'
@@ -46,7 +47,7 @@ import {
   type CsvOutputFormat,
   type ScriptingOptions,
 } from '../cli/output'
-import { fail, failWithError, listArgumentConflictError } from '../cli/action'
+import { failWithError, listArgumentConflictError } from '../cli/action'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
 import { ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
@@ -216,13 +217,12 @@ export function registerSellCommand(program: Command): void {
   addRefreshOption(
     addQuietOption(
       addOutputOption(
-        program
-          .command('sell')
-          .description(t('help.sell.description'))
-          .argument('[list...]', t('help.sell.listArg'))
-          .option('--deck', t('help.sell.deck'))
-          .option('--collection', t('help.sell.collection'))
-          .option('--wanted', t('help.sell.wanted'))
+        addListScopeFlags(
+          program
+            .command('sell')
+            .description(t('help.sell.description'))
+            .argument('[list...]', t('help.sell.listArg')),
+        )
           .option('--sets <codes>', t('help.sell.sets'), (value) => parseSetCodesInput(value))
           .option('--min <price>', t('help.sell.min'), parseMinPriceFlag)
           .option('--all', t('help.sell.all'))
@@ -243,11 +243,8 @@ export function registerSellCommand(program: Command): void {
       quiet: scripting.quiet,
     })
 
-    const type = listTypeFromFlags(options)
-    if (type === 'conflict') {
-      fail(scripting, 'usage_error', 'cli.listScope.oneTypeFlag')
-      return
-    }
+    const type = resolveListTypeFlag(options, scripting)
+    if (type === 'conflict') return
 
     const refreshMode = resolveRefreshMode(options.refresh, format)
 

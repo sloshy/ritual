@@ -27,6 +27,7 @@ import {
   resolveCardCacheReadThrough,
   resolvePriceCacheReadThrough,
 } from './read-through'
+import { tryStartServer } from '../util/start-server'
 import { PriceRefreshScheduler } from './scheduler'
 import type { CacheServerCommandOptions, PriceReadThroughResult } from './types'
 
@@ -538,18 +539,16 @@ export async function runCacheServer(options: CacheServerCommandOptions): Promis
     priceRefreshScheduler,
   }
 
-  try {
+  // Most likely failure is a port already in use.
+  const started = tryStartServer(() =>
     Bun.serve({
       hostname: options.host,
       port: options.port,
       fetch: createCacheServerFetchHandler(runtime, options.verbose ?? false),
-    })
-  } catch (e) {
-    // Most likely the port is already in use.
-    console.error(
-      `${CACHE_SERVER_LOG_PREFIX} Failed to start the cache server:`,
-      getErrorMessage(e),
-    )
+    }),
+  )
+  if (!started.ok) {
+    console.error(`${CACHE_SERVER_LOG_PREFIX} Failed to start the cache server:`, started.error)
     process.exitCode = ExitCode.RuntimeError
     return
   }

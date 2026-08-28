@@ -5,7 +5,6 @@ import type { PromptState } from '../cli/prompts'
 import {
   isResolveListError,
   listLocations,
-  listTypeFromFlags,
   resolveList,
   type ListLocation,
   type ListTypeFlags,
@@ -24,7 +23,7 @@ import {
 } from '../changes/changelog-blocks'
 import { buildDefaultChangeLines, loadListSnapshot } from '../changes/list-snapshot'
 import { changelogSidecarPath } from '../list/list-sidecars'
-import { addOutputOption } from '../cli/options'
+import { addListTypeFlags, addOutputOption, resolveListTypeFlag } from '../cli/options'
 import {
   emitError,
   emitOutput,
@@ -127,22 +126,18 @@ export function registerHistoryCommand(program: Command): void {
   // `--output` only: `--show` prints its payload and the interactive editor
   // needs a terminal, so there is no scriptable chatter for `--quiet`.
   addOutputOption(
-    program
-      .command('history')
-      .description(t('help.history.description'))
-      .argument('[listName]', t('help.history.listName'))
-      .option('--deck', t('help.history.deck'))
-      .option('--collection', t('help.history.collection'))
-      .option('--wanted', t('help.history.wanted'))
+    addListTypeFlags(
+      program
+        .command('history')
+        .description(t('help.history.description'))
+        .argument('[listName]', t('help.history.listName')),
+    )
       .option('--show', t('help.history.show'), false)
       .option('--limit <n>', t('help.history.limit'), parseLimitFlag),
   ).action(async (listNameArg: string | undefined, options: HistoryOptions) => {
     const scripting = normalizeScriptingOptions(options, 'text')
-    const type = listTypeFromFlags(options)
-    if (type === 'conflict') {
-      fail(scripting, 'usage_error', 'cli.history.typeFlagConflict')
-      return
-    }
+    const type = resolveListTypeFlag(options, scripting)
+    if (type === 'conflict') return
 
     if (options.limit !== undefined && !options.show) {
       fail(scripting, 'usage_error', 'cli.history.limitRequiresShow')

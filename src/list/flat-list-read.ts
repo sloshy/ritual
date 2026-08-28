@@ -6,6 +6,7 @@ import { unreadableLines } from './markdown-fence'
 import { allocateId, collectExistingIds, createIdPool, type CardIdPool } from '../card/card-id'
 import { parseCollectionFile, type CollectionEntry } from './collection-file'
 import { parseWantedListFile, type WantedListEntry } from './wanted-file'
+import { wantedState } from './wanted-entries'
 import type { FlatListFrontMatter } from './flat-list-front-matter'
 
 /**
@@ -63,7 +64,7 @@ function wantedEntriesFromParse(entries: WantedListEntry[]): WantedListCardEntry
     fileOrder: i,
     section: e.section,
     note: e.note,
-    state: !e.set || !e.collectorNumber ? 'name-only' : e.finish ? 'fully-specified' : 'printing',
+    state: wantedState(e),
     cardId: e.cardId,
   }))
 }

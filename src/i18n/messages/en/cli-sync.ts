@@ -305,7 +305,6 @@ export const cliSyncMessages = {
   'cli.collectionSync.listsFailed': '{failed} of {total} collection lists failed',
 
   // ── `export` (flag mode) ──────────────────────────────────────────────
-  'cli.export.oneTypeFlag': 'Use only one of --deck, --collection, or --wanted.',
   'cli.export.formatFlagConflict':
     '{flags} cannot be combined with --format {format}: {format} exports have a fixed line format. Columns, CSV options, and the value dialect apply to csv/json output only.',
   'cli.export.unknownPreset': "No export preset named '{name}'. Available presets: {available}.",

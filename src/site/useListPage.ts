@@ -36,8 +36,9 @@ import {
   type GroupBy,
   type SelectOption,
   type SortBy,
+  type SortByMessageKey,
 } from '../list-view/card-sorting'
-import type { NamedListRef } from '../list-view/combined-list'
+import type { CombinedListRef, NamedListRef } from '../list-view/combined-list'
 import { cartBuyer } from '../list-view/sell-mode'
 import {
   buildSelectionEditActions,
@@ -112,12 +113,12 @@ export type ListPageIdentity = SelectionListId & {
 export type ListPageDefaults<G extends GroupBy> = SellModeDefaults<G>
 
 /**
- * The vocabulary this page's toolbar offers. `sortBys`, `availableLabels` and
- * `defaults` are read **once at setup** — the URL sync takes them plain and
- * returns early when disabled — so each must follow from the page's *kind*, not
- * from data arriving later. `groupByOptionsFor` is the exception: a function,
- * called at setup for the URL whitelist and live on every dropdown read, which
- * is what lets the flat pages close over their reactive `hasSections()`.
+ * The vocabulary this page's toolbar offers. `sortBys` and `defaults` are read
+ * **once at setup** — the URL sync takes them plain and returns early when
+ * disabled — so each must follow from the page's *kind*, not from data arriving
+ * later, as must the first read of `availableLabels`. `groupByOptionsFor` is the
+ * exception: a function, called at setup for the URL whitelist and live on every
+ * dropdown read, which lets the flat pages close over a reactive `hasSections()`.
  */
 export type ListPageOptions<G extends GroupBy> = {
   /**
@@ -128,8 +129,14 @@ export type ListPageOptions<G extends GroupBy> = {
   groupByOptionsFor: (sellMode: boolean) => readonly GroupByOption<G>[]
   /** The sort fields this page offers, in order, before sell mode's are folded in. */
   sortBys: readonly SortBy[]
-  /** The label chips the filter row offers, and the `labels=` values a link may name. */
-  availableLabels: readonly CardLabelSelection[]
+  /** Relabels a sort field in this page's context (the combined view's `file-order`). */
+  sortByOverrides?: Partial<Record<SortBy, SortByMessageKey>>
+  /**
+   * The label chips the filter row offers, and the `labels=` values a link may
+   * name. An accessor: the combined view's chips follow its list *set*, which
+   * changes without a remount. The URL sync still reads it once, at setup.
+   */
+  availableLabels: Accessor<readonly CardLabelSelection[]>
   /** The page's effective default group/sort, so default values stay out of the URL. */
   defaults: ListPageDefaults<G>
 }
@@ -146,8 +153,18 @@ export type ListPageValuedCards<C extends CardData> = {
   alsoFiltered?: Accessor<C[]>
 }
 
-export type ListPageConfig<G extends GroupBy, C extends CardData> = {
-  identity: ListPageIdentity
+/**
+ * What the page is a view *of*, and therefore what its tiles select: either one
+ * list — whose {@link useCardSelection} the frame then builds itself, so the two
+ * can never name different lists — or a synthetic multi-list surface, which
+ * brings its own selection and has no slug for the share filters, their
+ * slug-switch prune, or card-nav to key on.
+ */
+export type ListPageScope =
+  | { identity: ListPageIdentity; selection?: undefined }
+  | { identity?: undefined; selection: CardSelectionControl }
+
+export type ListPageConfig<G extends GroupBy, C extends CardData> = ListPageScope & {
   options: ListPageOptions<G>
   /**
    * The page's whole card list. A thunk, never a pre-computed array: sell mode
@@ -161,14 +178,14 @@ export type ListPageConfig<G extends GroupBy, C extends CardData> = {
   /** Section names in display order, for section grouping. */
   sectionOrder: Accessor<string[]>
   /** The onMount seed of the session card cache from this page's baked data. */
-  seed: () => void
+  seed?: () => void
   currency: Accessor<PriceCurrency>
   /**
    * The build's price date. A plain value, not an accessor:
    * {@link usePublicPriceControls} takes it once at setup and always has, so an
    * accessor would promise a re-read that never happens.
    */
-  pricesDate: string | undefined
+  pricesDate?: string
   /** Whether the site was built with sell mode on. */
   enableSellMode: Accessor<boolean>
   /** Quotes baked into the list detail; absent means quote live. */
@@ -178,9 +195,9 @@ export type ListPageConfig<G extends GroupBy, C extends CardData> = {
   /** Every list on the site, for the share filters; the page drops itself. */
   shareLists: Accessor<readonly NamedListRef[] | undefined>
   /** Names added in this session, for the tag-filter warning. */
-  addedCardNames: Accessor<string[] | undefined>
+  addedCardNames?: Accessor<string[] | undefined>
   /** The open editor's bulk-edit bundle, when the page is in edit mode. */
-  bulkEdit: Accessor<BulkEditBundle | undefined>
+  bulkEdit?: Accessor<BulkEditBundle | undefined>
 }
 
 /**
@@ -212,7 +229,7 @@ export type ListPageToolbarView = Pick<
   cardTypeOptions: Accessor<string[]>
   oracleTagOptions: Accessor<string[]>
   artTagOptions: Accessor<string[]>
-  availableLabels: readonly CardLabelSelection[]
+  availableLabels: Accessor<readonly CardLabelSelection[]>
   /** The share filters' other lists — never this page's own. */
   shareLists: Accessor<readonly NamedListRef[]>
   /** `--card-width` for the card-sections grid. */
@@ -262,9 +279,9 @@ export function useListPage<G extends GroupBy, C extends CardData>(
   config: ListPageConfig<G, C>,
 ): ListPageState<C> {
   const t = useT()
-  const selection = useCardSelection(config.identity)
+  const selection = config.identity ? useCardSelection(config.identity) : config.selection
   const editActions = createMemo(() => {
-    const bulk = config.bulkEdit()
+    const bulk = config.bulkEdit?.()
     return bulk ? buildSelectionEditActions(bulk, selection) : undefined
   })
   const toolbar = useToolbarState<G>({
@@ -273,14 +290,18 @@ export function useListPage<G extends GroupBy, C extends CardData>(
   })
   const cardFilters = useCardFilters()
   const shareContext = useShareFilterContext(cardFilters)
+  // This page's own list, or null where it has no identity (the combined view).
+  const listRef = (): CombinedListRef | null => {
+    const identity = config.identity
+    const slug = identity?.slug()
+    return identity && slug ? { type: identity.kind, slug } : null
+  }
   // The share filters never offer the page's own list — a card trivially
   // "shares" with the list it is on. One memo feeds the toolbar's options, the
   // URL sync's self-stripping, and the slug-switch prune below.
   const shareRefs = createMemo<ShareListsForPage | undefined>(() => {
-    const slug = config.identity.slug()
-    return slug
-      ? shareListsExcluding(config.shareLists(), { type: config.identity.kind, slug })
-      : undefined
+    const ref = listRef()
+    return ref ? shareListsExcluding(config.shareLists(), ref) : undefined
   })
   const otherShareLists = (): readonly NamedListRef[] =>
     shareRefs()?.others ?? config.shareLists() ?? []
@@ -291,7 +312,7 @@ export function useListPage<G extends GroupBy, C extends CardData>(
   // without a store write when no chip names this list.
   createEffect(
     on(
-      () => config.identity.slug(),
+      () => config.identity?.slug(),
       () => {
         const refs = shareRefs()
         if (refs) pruneOwnShareSelections(cardFilters, refs.selfKey)
@@ -318,7 +339,7 @@ export function useListPage<G extends GroupBy, C extends CardData>(
     enabled: config.enableUrlState(),
     // The same chips the toolbar draws, so a `labels=` param can only ask for
     // something this page can also show and clear.
-    availableLabels: config.options.availableLabels,
+    availableLabels: config.options.availableLabels(),
     supportsSellMode: config.enableSellMode(),
     // A shared URL's share-filter params naming this page itself are stripped
     // — the page never offers its own list as an option.
@@ -348,20 +369,14 @@ export function useListPage<G extends GroupBy, C extends CardData>(
 
   // Seed the session cache so the card search and trade page reuse this list's
   // baked data instead of re-fetching from Scryfall.
-  onMount(() => config.seed())
+  onMount(() => config.seed?.())
 
   // Wired for every render, shown only when the page opts in via
   // `enablePriceRefresh` (the public site, read-only or editing).
   const prices = usePublicPriceControls({ cards: config.cards, pricesDate: config.pricesDate })
 
   // Scroll to a cross-list nav target ("Find Other Printings") once cards render.
-  useCardNavScroll(
-    () => {
-      const slug = config.identity.slug()
-      return slug ? { type: config.identity.kind, slug } : null
-    },
-    () => config.cards().length > 0,
-  )
+  useCardNavScroll(listRef, () => config.cards().length > 0)
 
   const setCodeOptions = createMemo(() => collectSetCodes(config.cards()))
   const cardTypeOptions = createMemo(() => collectCardTypes(config.cards()))
@@ -369,7 +384,7 @@ export function useListPage<G extends GroupBy, C extends CardData>(
   const artTagOptions = createMemo(() => collectArtTags(config.cards()))
   const untaggedAddedNames = createMemo(() =>
     isTagFilterActive(cardFilters.filters)
-      ? untaggedAddedCardNames(config.cards(), config.addedCardNames() ?? [])
+      ? untaggedAddedCardNames(config.cards(), config.addedCardNames?.() ?? [])
       : [],
   )
 
@@ -441,7 +456,8 @@ export function useListPage<G extends GroupBy, C extends CardData>(
       if (option) toolbar.setGroupBy(() => option.value)
     },
     groupByOptions,
-    sortByOptions: () => sortByOptions(sortValuesFor(sell.active())),
+    sortByOptions: () =>
+      sortByOptions(sortValuesFor(sell.active()), config.options.sortByOverrides),
     setCodeOptions,
     cardTypeOptions,
     oracleTagOptions,

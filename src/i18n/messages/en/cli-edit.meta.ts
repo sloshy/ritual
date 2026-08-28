@@ -582,10 +582,6 @@ export const cliEditMeta = {
     description:
       'Usage error from `ritual history --limit`. The flag name never translates. Exits 2.',
   },
-  'cli.history.typeFlagConflict': {
-    description:
-      'Usage error when more than one list-type flag was given. Flag names never translate.',
-  },
   'cli.history.limitRequiresShow': {
     description: 'Usage error: --limit only means something together with --show.',
   },

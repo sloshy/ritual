@@ -28,9 +28,9 @@ The name is matched case- and accent-insensitively across all three list types, 
 
 | Option                 | Description                                                                                                                                                                           |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--deck`               | Only decks (also disambiguates `listName`)                                                                                                                                            |
-| `--collection`         | Only collections (also disambiguates `listName`)                                                                                                                                      |
-| `--wanted`             | Only wanted lists (also disambiguates `listName`)                                                                                                                                     |
+| `--deck`               | Only decks (also disambiguates list names)                                                                                                                                            |
+| `--collection`         | Only collections (also disambiguates list names)                                                                                                                                      |
+| `--wanted`             | Only wanted lists (also disambiguates list names)                                                                                                                                     |
 | `--prices <currency>`  | Price currency: `usd`, `eur`, or `tix` (default: the configured [`defaultCurrency`](/configuration/#default-currency))                                                                |
 | `--source <store>`     | Price store: `tcgplayer` (Scryfall USD, the default behavior), `cardmarket` (Scryfall EUR), or `cardkingdom` (Card Kingdom NM retail from the cached [buylist feed](/commands/sell/)) |
 | `--name <terms>`       | Print cards whose name contains every space-separated term                                                                                                                            |

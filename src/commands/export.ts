@@ -31,13 +31,17 @@ import { getCardPrintings } from '../scryfall'
 import {
   isListArgumentsFailure,
   listLocations,
-  listTypeFromFlags,
   resolveListArguments,
   type ListLocation,
 } from '../list/resolve-list'
 import { getExportPresets } from '../config/ritual-config'
 import { promptsUnavailable } from '../util/no-input'
-import { addQuietOption, parseEnumFlag } from '../cli/options'
+import {
+  addListScopeFlags,
+  addQuietOption,
+  parseEnumFlag,
+  resolveListTypeFlag,
+} from '../cli/options'
 import {
   emitActionError,
   emitResolveListError,
@@ -332,13 +336,12 @@ async function runFlagExport(
 
 export function registerExportCommand(program: Command): void {
   addQuietOption(
-    program
-      .command('export')
-      .description(t('help.export.description'))
-      .argument('[lists...]', t('help.export.lists'))
-      .option('--deck', t('help.export.deck'))
-      .option('--collection', t('help.export.collection'))
-      .option('--wanted', t('help.export.wanted'))
+    addListScopeFlags(
+      program
+        .command('export')
+        .description(t('help.export.description'))
+        .argument('[lists...]', t('help.export.lists')),
+    )
       .option('--all', t('help.export.all'))
       .option(
         '--card <terms>',
@@ -382,11 +385,8 @@ export function registerExportCommand(program: Command): void {
       .option('--preset <name>', t('help.export.preset'))
       .option('--save-preset <name>', t('help.export.savePreset')),
   ).action(async (listArgs: string[], options: ExportCommandOptions) => {
-    const type = listTypeFromFlags(options)
-    if (type === 'conflict') {
-      failWith(TEXT_ONLY, 'usage_error', t('cli.export.oneTypeFlag'), 'cli.export.oneTypeFlag')
-      return
-    }
+    const type = resolveListTypeFlag(options, TEXT_ONLY)
+    if (type === 'conflict') return
 
     const flags = parseExportFlags(options)
     if (!flags) return

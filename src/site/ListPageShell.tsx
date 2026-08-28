@@ -158,8 +158,8 @@ export function ListPageShell(props: ListPageShellProps): JSX.Element {
         oracleTagOptions={toolbar().oracleTagOptions()}
         artTagOptions={toolbar().artTagOptions()}
         showHideExtras={props.showHideExtras}
-        showLabelsFilter={toolbar().availableLabels.length > 0}
-        availableLabels={toolbar().availableLabels}
+        showLabelsFilter={toolbar().availableLabels().length > 0}
+        availableLabels={toolbar().availableLabels()}
         shareLists={toolbar().shareLists()}
         extraToggles={props.extraToggles}
         selectionMenu={

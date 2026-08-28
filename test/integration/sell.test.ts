@@ -14,6 +14,9 @@ import { seedCardCache, seedCardKingdomFeed } from './helpers/seed'
 import { OFFLINE_ENV } from './helpers/offline-env'
 import { createWorkspace, removeWorkspace, writeCollectionFile } from '../helpers/workspace'
 
+/** The `--output json` error envelope, as a script parses it. */
+type ErrorEnvelopeJson = { error: { messageKey?: string } }
+
 // ── Synthetic caches ──────────────────────────────────────────────────────────
 // sell resolves printings from the local card cache and offers from the cached
 // Card Kingdom feed; both are seeded synthetically so nothing reaches the
@@ -223,6 +226,17 @@ describe('sell CLI (Integration)', () => {
     const result = await runCli(['sell', '--deck', '--collection'], dir, OFFLINE_ENV)
     expect(result.exitCode).toBe(2)
     expect(result.stderr).toContain('only one of')
+  })
+
+  test('conflicting type flags carry the shared messageKey under --output json', async () => {
+    const result = await runCli(
+      ['sell', '--deck', '--collection', '--output', 'json'],
+      dir,
+      OFFLINE_ENV,
+    )
+    expect(result.exitCode).toBe(2)
+    const envelope = JSON.parse(result.stderr) as ErrorEnvelopeJson
+    expect(envelope.error.messageKey).toBe('cli.cardOps.oneTypeFlag')
   })
 
   test('an unknown list name is not found', async () => {

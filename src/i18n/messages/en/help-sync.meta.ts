@@ -130,9 +130,6 @@ export const helpSyncMeta = {
     description:
       'The `[lists...]` argument of `export`. The three prefixes are literal spellings, colon included.',
   },
-  'help.export.deck': { description: '`export --deck`.' },
-  'help.export.collection': { description: '`export --collection`.' },
-  'help.export.wanted': { description: '`export --wanted`.' },
   'help.export.all': { description: '`export --all`. --card is a flag spelling.' },
   'help.export.card': { description: '`export --card`.' },
   'help.export.name': { description: '`export --name`.' },

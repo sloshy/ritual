@@ -36,12 +36,7 @@ import {
   unsupportedLabelsMessage,
   type CardLabel,
 } from '../card/card-labels'
-import {
-  formatWantedListLine,
-  WANTED_CARD_LINE_RE,
-  WANTED_LINE_LANGUAGE_GROUP,
-} from './wanted-file'
-import { formatCollectionLine } from '../card/card-line'
+import { WANTED_CARD_LINE_RE, WANTED_LINE_LANGUAGE_GROUP } from './wanted-file'
 import {
   DECK_CARD_LINE_RE,
   DECK_LINE_ID_GROUP,
@@ -50,7 +45,7 @@ import {
   DECK_LINE_NOTE_GROUP,
 } from '../importers/text-file'
 import { isCardLanguage, storedLanguage, type CardLanguage } from '../card/card-language'
-import { serializeCardLine } from './deck-file'
+import { canonicalCardLine } from './deck-text'
 import { COMMANDER_SECTION, isCommanderSection, isSideboardSection } from './deck-format'
 import { DEFAULT_SECTION } from './deck'
 import { hashPath, writeFileWithHash } from '../changes/content-hash'
@@ -195,7 +190,7 @@ export function applyTargetedChangesToContent(
       entry.labels ??= lineLabels.labels
     }
     mutate()
-    lines = replaceLineAt(lines, idx, serializeEntryLine(type, entry))
+    lines = replaceLineAt(lines, idx, canonicalCardLine(type, entry))
   }
 
   for (const change of changes) {
@@ -453,49 +448,6 @@ function conflictingLabelsToken(raw: string): CardCommandError {
   )
 }
 
-/** The canonical single line for `entry`, without a trailing newline. */
-function serializeEntryLine(type: ListType, entry: EntryRef): string {
-  if (type === 'deck') {
-    return serializeCardLine({
-      quantity: entry.quantity ?? 1,
-      name: entry.name,
-      set: entry.set,
-      collectorNumber: entry.collectorNumber,
-      finish: entry.finish,
-      condition: entry.condition,
-      language: entry.language,
-      labels: entry.labels,
-      note: entry.note,
-      cardId: entry.cardId,
-    })
-  }
-  if (type === 'collection') {
-    return formatCollectionLine({
-      cardName: entry.name,
-      set: entry.set ?? '',
-      collectorNumber: entry.collectorNumber ?? '',
-      finish: entry.finish ?? 'nonfoil',
-      condition: entry.condition,
-      language: entry.language,
-      labels: entry.labels,
-      note: entry.note,
-      cardId: entry.cardId,
-    }).trimEnd()
-  }
-  const printing =
-    entry.set && entry.collectorNumber
-      ? { set: entry.set, collectorNumber: entry.collectorNumber }
-      : undefined
-  return formatWantedListLine({
-    name: entry.name,
-    printing,
-    finish: entry.finish,
-    language: entry.language,
-    note: entry.note,
-    cardId: entry.cardId,
-  }).trimEnd()
-}
-
 /** Replace the line at `idx` with `newLine`, preserving its leading whitespace. */
 function replaceLineAt(lines: string[], idx: number, newLine: string): string[] {
   const leading = lines[idx]!.match(/^(\s*)/)?.[1] ?? ''
@@ -539,7 +491,7 @@ function removeTargetCopies(
         // A decrement must not strip the line's `[proxy]` override.
         labels: target.labels ?? lineLabels.labels,
       }
-      return replaceLineAt(lines, idx, serializeEntryLine(type, entry))
+      return replaceLineAt(lines, idx, canonicalCardLine(type, entry))
     }
   }
   return [...lines.slice(0, idx), ...lines.slice(idx + 1)]
@@ -751,7 +703,7 @@ export function applyDeckAddToContent(
       lines = replaceLineAt(
         lines,
         idx,
-        serializeEntryLine('deck', { ...existing, quantity, cardId }),
+        canonicalCardLine('deck', { ...existing, quantity, cardId }),
       )
       continue
     }
@@ -761,7 +713,7 @@ export function applyDeckAddToContent(
     quantity = 1
     lines = insertDeckCardLine(
       lines,
-      serializeEntryLine('deck', { ...card, quantity, cardId }),
+      canonicalCardLine('deck', { ...card, quantity, cardId }),
       placement.section,
     )
   }

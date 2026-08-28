@@ -25,6 +25,9 @@ export const helpCardsMessages = {
   'help.listFlags.deck': 'Resolve the name as a deck',
   'help.listFlags.collection': 'Resolve the name as a collection',
   'help.listFlags.wanted': 'Resolve the name as a wanted list',
+  'help.listScope.deck': 'Only decks (also disambiguates list names)',
+  'help.listScope.collection': 'Only collections (also disambiguates list names)',
+  'help.listScope.wanted': 'Only wanted lists (also disambiguates list names)',
   'help.cardId.disambiguate': 'Disambiguate by card ID (the &N suffix in list files)',
 
   // ── add-card ──────────────────────────────────────────────────────────

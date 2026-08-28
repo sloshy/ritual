@@ -3,7 +3,7 @@ import { t } from '../i18n/t'
 import { parseSetCodesInput } from '../card/set-codes'
 import { buildInitialSessionConfig, prepareCardSessionCache } from './session/config'
 import { runUnifiedEditor } from './session/editor'
-import { addRefreshOption, resolveListTypeFlag } from '../cli/options'
+import { addListTypeFlags, addRefreshOption, resolveListTypeFlag } from '../cli/options'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
 import type { RefreshMode } from '../cache/refresh'
 import type { UnifiedListRef } from './session/edit-lists'
@@ -48,13 +48,12 @@ async function directOpenRef(location: ListLocation): Promise<UnifiedListRef> {
 /** The edit command has no --output flag; resolution errors go to stderr as plain text. */
 
 export function registerEditCommand(program: Command): void {
-  const editCommand = program
-    .command('edit')
-    .description(t('help.edit.description'))
-    .argument('[listName]', t('help.edit.listName'))
-    .option('--deck', t('help.edit.deck'))
-    .option('--collection', t('help.edit.collection'))
-    .option('--wanted', t('help.edit.wanted'))
+  const editCommand = addListTypeFlags(
+    program
+      .command('edit')
+      .description(t('help.edit.description'))
+      .argument('[listName]', t('help.edit.listName')),
+  )
     .option('-s, --sets <codes>', t('help.edit.sets'))
     .option('-f, --finish <finish>', t('help.edit.finish'))
     .option('-c, --condition <condition>', t('help.edit.condition'))

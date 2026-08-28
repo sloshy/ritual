@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { openFilterMenu } from '../helpers/filter-menu'
 import { mockPublicSiteCombinedLists } from '../helpers/mock-public-site'
 
 /**
@@ -144,6 +145,25 @@ test.describe('Combined list view', () => {
     await expect(page.getByRole('link', { name: 'Decks', exact: true })).toHaveClass(
       /site-nav-link-active/,
     )
+  })
+
+  test('the label chips follow a change of the combined list set', async ({ page }) => {
+    // A deck-only view offers only what a deck can carry (`proxy`) plus the
+    // unlabeled chip; adding the collection widens the row to the whole
+    // vocabulary. The route stays `#/combined`, so the view is *not* remounted
+    // — the chips have to follow the new list set reactively. The filter panel
+    // renders only while open, so the second assertion seeing chips at all is
+    // itself the proof that nothing was torn down and rebuilt.
+    await gotoCombined(page, 'lists=deck:cv-deck')
+    // The deck page left behind by `beforeEach` renders the same two chips, so
+    // pin the combined view itself before reading them.
+    await expect(page.locator('.page-title')).toHaveText('Combined List')
+    const panel = await openFilterMenu(page)
+    const labelChips = panel.getByRole('group', { name: 'Label filter' }).getByRole('button')
+    await expect(labelChips).toHaveText(['Proxy', 'Unlabeled'])
+
+    await gotoCombined(page, 'lists=deck:cv-deck,collection:cv-box')
+    await expect(labelChips).toHaveText(['For sale', 'For trade', 'To keep', 'Proxy', 'Unlabeled'])
   })
 
   test('cards in the combined view are multi-selectable', async ({ page }) => {

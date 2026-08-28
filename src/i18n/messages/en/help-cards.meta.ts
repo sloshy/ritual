@@ -21,6 +21,18 @@ export const helpCardsMeta = {
   'help.listFlags.wanted': {
     description: 'Help for the shared --wanted flag: read the given name as a wanted-list name.',
   },
+  'help.listScope.deck': {
+    description:
+      'Help for the shared --deck flag where it scopes a multi-list run (export/price/sell) to decks.',
+  },
+  'help.listScope.collection': {
+    description:
+      'Help for the shared --collection flag where it scopes a multi-list run (export/price/sell) to collections.',
+  },
+  'help.listScope.wanted': {
+    description:
+      'Help for the shared --wanted flag where it scopes a multi-list run (export/price/sell) to wanted lists.',
+  },
   'help.cardId.disambiguate': {
     description:
       'Help for the shared --card-id flag. "&N" is the literal id syntax written in list files and never translates.',

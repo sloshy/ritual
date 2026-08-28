@@ -239,7 +239,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     options: {
       groupByOptionsFor: (sellMode) => collectionGroupByOptions(sellMode, hasSections()),
       sortBys: COLLECTION_SORT_BYS,
-      availableLabels: COLLECTION_LABEL_FILTERS,
+      availableLabels: () => COLLECTION_LABEL_FILTERS,
       defaults: { groupBy: initialGroupBy, sortBy: 'file-order' },
     },
     cards: allCards,

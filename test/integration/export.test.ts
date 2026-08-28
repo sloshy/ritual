@@ -374,7 +374,6 @@ describe('export command (Integration)', () => {
     ['unknown preset', ['export', '--preset', 'nope'], 3],
     ['unknown column', ['export', '--all', '--columns', 'name,bogus'], 2],
     ['unresolved list', ['export', 'no-such-list'], 3],
-    ['conflicting type flags', ['export', '--deck', '--collection'], 2],
     ['invalid condition', ['export', '--all', '--condition', 'OK'], 2],
     ['invalid export format', ['export', '--all', '--format', 'xml'], 2],
     [
@@ -397,14 +396,20 @@ describe('export command (Integration)', () => {
     60_000,
   )
 
-  // The enum refusals and the prefix conflict now go through `parseEnumField`
-  // and `listArgumentConflictError` (the shared renderers); the stderr prose is
-  // the hand-built text they replaced, byte for byte.
+  // The enum refusals and the prefix conflict go through `parseEnumField` and
+  // `listArgumentConflictError`, the type-flag conflict through
+  // `resolveListTypeFlag` (the shared renderers); the stderr prose is the
+  // hand-built text they replaced, byte for byte.
   test.each<[string, string[], string]>([
     [
       'invalid finish',
       ['export', '--all', '--finish', 'shiny'],
       "Invalid finish 'shiny'. Use one of: nonfoil, foil, etched.",
+    ],
+    [
+      'conflicting list-scope flags',
+      ['export', '--deck', '--collection'],
+      'Specify only one of --deck, --collection, or --wanted.',
     ],
     [
       'invalid dialect',

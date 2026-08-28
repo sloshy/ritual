@@ -142,16 +142,17 @@ Host with a shared cache server providing the card data:
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                                                                                          |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | The server ran (it serves until stopped with `Ctrl+C`).                                                                                                                                                                                                          |
-| `1`  | The build failed at runtime (e.g. an unreadable `--theme-file`, or a build error), or there is no built site to serve and none was built (no `index.html` in the served directory; under `--api` this means the build it ran failed). The server is not started. |
-| `2`  | Usage error: invalid `--port`, a build-only flag without `--build`, or an invalid `--currencies`/`--theme` value.                                                                                                                                                |
+| Code | Meaning                                                                                                                                                                                                                                                                                                                                                 |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | The server ran (it serves until stopped with `Ctrl+C`).                                                                                                                                                                                                                                                                                                 |
+| `1`  | The build failed at runtime (e.g. an unreadable `--theme-file`, or a build error); there is no built site to serve and none was built (no `index.html` in the served directory; under `--api` this means the build it ran failed); or the server could not bind its port (usually because another process already holds it). The server is not started. |
+| `2`  | Usage error: invalid `--port`, a build-only flag without `--build`, or an invalid `--currencies`/`--theme` value.                                                                                                                                                                                                                                       |
 
 ## Notes
 
 - Files are served from the `dist/` directory, or from `--out-dir` when given — the build and the server always agree on one directory. Without `--build` or `--api`, run [`build-site`](/commands/build-site/) first to generate the content; serving a directory with no `index.html` is refused with exit code 1 and a message naming both remedies.
 - With `--build`, the site is built exactly as `build-site` would; if the build fails, the server does not start.
+- If the port is already in use, `serve` prints `Failed to start the server on <host>:<port>: <reason>` and exits with code 1 — pick another port with `--port`.
 - `--host` defaults to `0.0.0.0` (all interfaces), matching [`admin`](/commands/admin/). The printed URL names the address the server actually bound: a wildcard or loopback bind prints `http://localhost:<port>` (use the machine's address to reach it from another device), and an explicit `--host 192.168.1.5` prints that address.
 - Press `Ctrl+C` to stop the server.
 - For an auto-restarting workflow that rebuilds when source or data files change, see [Development → Dev Workflow](/development/#dev-workflow). `bun run dev serve` appends `--build` automatically and requires an explicit `--refresh` mode (`auto`, `no-bulk`, or `never`) so the cache refresh prompt can be answered non-interactively.

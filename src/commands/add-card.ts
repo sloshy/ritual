@@ -81,7 +81,7 @@ import {
 import { cancelledError, listArgumentConflictError, runCommandAction } from '../cli/action'
 import type { EntryRef } from '../list/entry-ref'
 import { inputRequiredError, promptsUnavailable } from '../util/no-input'
-import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
+import { emitCardResult, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
 import { divertConsoleLogToStderr } from '../util/stdout-guard'
 import {
@@ -163,8 +163,6 @@ type AddCardSuccess = {
   cardId: number
   /** Deck adds only: the section the card's line ended up in. */
   section?: string
-  /** Present and true when `--dry-run` reported the add without writing it. */
-  dryRun?: true
 }
 
 // ── Flag argParsers (reject invalid values at parse time, exit code 2) ────────
@@ -930,13 +928,10 @@ function emitSuccess(
   scripting: ScriptingOptions,
   dryRun: boolean,
 ): void {
-  if (scripting.output === 'text') {
-    if (!scripting.quiet) {
-      emitOutput(dryRun ? t('cli.cardOps.dryRunLine', { line: textLine }) : textLine, scripting)
-    }
-    return
-  }
-  emitOutput(dryRun ? { ...payload, dryRun: true as const } : payload, scripting)
+  // `add-card` renders its whole dry-run sentence through one wrapper message,
+  // where the other card commands pick a `$select` branch inside their own.
+  const line = dryRun ? t('cli.cardOps.dryRunLine', { line: textLine }) : textLine
+  emitCardResult(payload, line, scripting, dryRun)
 }
 
 /** Text-mode price hint for a name-only wanted add: the cheapest printing. */

@@ -40,9 +40,9 @@ When no lists and no `--card` picks are given, a headless run exports **every li
 
 | Option           | Description                                                                                                               |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `--deck`         | Only decks (also disambiguates bare list names)                                                                           |
-| `--collection`   | Only collections (also disambiguates bare list names)                                                                     |
-| `--wanted`       | Only wanted lists (also disambiguates bare list names)                                                                    |
+| `--deck`         | Only decks (also disambiguates list names)                                                                                |
+| `--collection`   | Only collections (also disambiguates list names)                                                                          |
+| `--wanted`       | Only wanted lists (also disambiguates list names)                                                                         |
 | `--all`          | Export every list in scope (the default when no lists or `--card` are given)                                              |
 | `--card <terms>` | Add every entry (across all lists in scope) whose name matches all terms. Repeatable; deduplicated against selected lists |
 

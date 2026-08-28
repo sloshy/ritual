@@ -12,7 +12,7 @@ import {
   resolveListTypeFlag,
   type CardCommandResultBase,
 } from '../cli/options'
-import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
+import { emitCardResult, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
 import { normalizeNote } from '../card/note-helpers'
 import { requireInteractive } from '../util/no-input'
@@ -85,13 +85,9 @@ type RunInput = {
 type NoteSetResult = CardCommandResultBase & {
   note: string
   previousNote: string | undefined
-  /** Present and true when `--dry-run` reported the note without writing it. */
-  dryRun?: true
 }
 
 type NoteClearResult = CardCommandResultBase & {
-  /** Present and true when `--dry-run` reported the clear without performing it. */
-  dryRun?: true
   cleared: boolean
   /** The removed note, or null when there was nothing to clear (idempotent no-op). */
   previousNote: string | null
@@ -132,23 +128,7 @@ async function runNote(input: RunInput, scripting: ScriptingOptions): Promise<vo
   // before the first write: no list file, no changelog, no sidecar.
   if (!input.dryRun) await persistNote(type, filePath, target, noteText)
 
-  if (scripting.output === 'text') {
-    if (!scripting.quiet) {
-      emitOutput(
-        t('cli.note.set', {
-          mode: input.dryRun ? 'preview' : 'done',
-          name: target.name,
-          id: cardIdLabel(target),
-          note: noteText,
-        }),
-        scripting,
-      )
-    }
-    return
-  }
-
   const result: NoteSetResult = {
-    ...(input.dryRun ? { dryRun: true as const } : {}),
     type,
     list: listSlug,
     cardName: target.name,
@@ -156,7 +136,13 @@ async function runNote(input: RunInput, scripting: ScriptingOptions): Promise<vo
     note: noteText,
     previousNote: target.note,
   }
-  emitOutput(result, scripting)
+  const line = t('cli.note.set', {
+    mode: input.dryRun ? 'preview' : 'done',
+    name: target.name,
+    id: cardIdLabel(target),
+    note: noteText,
+  })
+  emitCardResult(result, line, scripting, input.dryRun)
 }
 
 // ── Clearing ──────────────────────────────────────────────────────────────────
@@ -173,21 +159,7 @@ async function runClear(
   // file or appending a changelog entry. Scripting clients can detect this from
   // the `previousNote: null` field in the JSON output.
   if (target.note === undefined || target.note === '') {
-    if (scripting.output === 'text') {
-      if (!scripting.quiet) {
-        emitOutput(
-          t('cli.note.nothingToClear', {
-            mode: dryRun ? 'preview' : 'done',
-            name: target.name,
-            id: cardIdLabel(target),
-          }),
-          scripting,
-        )
-      }
-      return
-    }
     const noop: NoteClearResult = {
-      ...(dryRun ? { dryRun: true as const } : {}),
       type,
       list: listSlug,
       cardName: target.name,
@@ -195,7 +167,12 @@ async function runClear(
       cleared: false,
       previousNote: null,
     }
-    emitOutput(noop, scripting)
+    const noopLine = t('cli.note.nothingToClear', {
+      mode: dryRun ? 'preview' : 'done',
+      name: target.name,
+      id: cardIdLabel(target),
+    })
+    emitCardResult(noop, noopLine, scripting, dryRun)
     return
   }
 
@@ -203,22 +180,7 @@ async function runClear(
 
   if (!dryRun) await persistNote(type, filePath, target, '')
 
-  if (scripting.output === 'text') {
-    if (!scripting.quiet) {
-      emitOutput(
-        t('cli.note.cleared', {
-          mode: dryRun ? 'preview' : 'done',
-          name: target.name,
-          id: cardIdLabel(target),
-        }),
-        scripting,
-      )
-    }
-    return
-  }
-
   const result: NoteClearResult = {
-    ...(dryRun ? { dryRun: true as const } : {}),
     type,
     list: listSlug,
     cardName: target.name,
@@ -226,7 +188,12 @@ async function runClear(
     cleared: true,
     previousNote,
   }
-  emitOutput(result, scripting)
+  const line = t('cli.note.cleared', {
+    mode: dryRun ? 'preview' : 'done',
+    name: target.name,
+    id: cardIdLabel(target),
+  })
+  emitCardResult(result, line, scripting, dryRun)
 }
 
 /**

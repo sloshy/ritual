@@ -5,7 +5,7 @@ import { normalizedOverride } from '../card/card-labels'
 import { noteOrUndefined } from '../card/note-helpers'
 import { applyConditionUpdate } from '../card/finish-condition'
 import { canSetFinish, finishMatchesPrinting } from '../card/card-printing'
-import { findTargetEntryIndex } from './entry-targeting.js'
+import { removeTarget, updateTarget } from './entry-targeting.js'
 import type { ApplyChangeOptions } from './apply-batch'
 
 type CollectionChangeInput = ChangeInput & {
@@ -142,94 +142,50 @@ export function applyChangeToCollection(
       return [...entries, newEntry]
     }
 
-    case 'remove': {
-      const idx = findTargetEntryIndex(entries, change)
-      if (idx === -1) {
-        options?.onMiss?.('no-target')
-        return entries
-      }
-      return entries.filter((_, i) => i !== idx)
-    }
+    case 'remove':
+      return removeTarget(entries, change, options)
 
-    case 'set-finish': {
-      const idx = findTargetEntryIndex(entries, change)
-      if (idx === -1) {
-        options?.onMiss?.('no-target')
-        return entries
-      }
+    case 'set-finish':
       // A foil/etched token is a claim about a printing, so a name-only entry
       // cannot take one — the caller must pin a printing first.
-      if (!canSetFinish(entries[idx]!, change.finish)) {
-        options?.onMiss?.('needs-printing')
-        return entries
-      }
-      return entries.map((e, i) => (i === idx ? { ...e, finish: change.finish } : e))
-    }
+      return updateTarget(entries, change, options, (e) =>
+        canSetFinish(e, change.finish) ? { ...e, finish: change.finish } : 'needs-printing',
+      )
 
-    case 'set-printing': {
-      const idx = findTargetEntryIndex(entries, change)
-      if (idx === -1) {
-        options?.onMiss?.('no-target')
-        return entries
-      }
+    case 'set-printing':
       // Belt and braces beside `findCollectionPrintingError`, which already
       // requires set + collector number on a collection: the pair a
       // `set-printing` writes has to hold together on every list type. Checked
       // against the entry this *writes* — an absent `change.finish` carries the
       // entry's own forward, so validating the change alone would miss a foil
       // entry having its printing cleared out from under the token.
-      if (
-        !finishMatchesPrinting({
+      return updateTarget(entries, change, options, (e) =>
+        finishMatchesPrinting({
           set: change.set,
           collectorNumber: change.collectorNumber,
-          finish: change.finish ?? entries[idx]!.finish,
+          finish: change.finish ?? e.finish,
         })
-      ) {
-        options?.onMiss?.('needs-printing')
-        return entries
-      }
-      return entries.map((e, i) => (i === idx ? withPrinting(e, change) : e))
-    }
+          ? withPrinting(e, change)
+          : 'needs-printing',
+      )
 
-    case 'set-language': {
-      const idx = findTargetEntryIndex(entries, change)
-      if (idx === -1) {
-        options?.onMiss?.('no-target')
-        return entries
-      }
-      return entries.map((e, i) => (i === idx ? { ...e, language: change.language } : e))
-    }
+    case 'set-language':
+      return updateTarget(entries, change, options, (e) => ({ ...e, language: change.language }))
 
     case 'set-note': {
-      const idx = findTargetEntryIndex(entries, change)
-      if (idx === -1) {
-        options?.onMiss?.('no-target')
-        return entries
-      }
       const note = noteOrUndefined(change.note)
-      return entries.map((e, i) => (i === idx ? { ...e, note } : e))
+      return updateTarget(entries, change, options, (e) => ({ ...e, note }))
     }
 
     case 'set-label': {
-      const idx = findTargetEntryIndex(entries, change)
-      if (idx === -1) {
-        options?.onMiss?.('no-target')
-        return entries
-      }
       // An empty set clears the override — the entry falls back to its list's
       // front-matter default. Normalized so the file's token is always canonical.
       const labels = normalizedOverride(change.labels)
-      return entries.map((e, i) => (i === idx ? { ...e, labels } : e))
+      return updateTarget(entries, change, options, (e) => ({ ...e, labels }))
     }
 
-    case 'set-section': {
-      const idx = findTargetEntryIndex(entries, change)
-      if (idx === -1) {
-        options?.onMiss?.('no-target')
-        return entries
-      }
-      return entries.map((e, i) => (i === idx ? { ...e, section: change.section } : e))
-    }
+    case 'set-section':
+      return updateTarget(entries, change, options, (e) => ({ ...e, section: change.section }))
 
     case 'rename-section': {
       // Membership lives on each entry; the section-order list is maintained by the caller.

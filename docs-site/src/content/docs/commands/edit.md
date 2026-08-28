@@ -31,9 +31,9 @@ commands ([`add-card`](/commands/add-card/), [`remove-card`](/commands/remove-ca
 
 | Flag                          | Description                                                                                                           |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `--deck`                      | Resolve `[listName]` as a deck                                                                                        |
-| `--collection`                | Resolve `[listName]` as a collection                                                                                  |
-| `--wanted`                    | Resolve `[listName]` as a wanted list                                                                                 |
+| `--deck`                      | Resolve the name as a deck                                                                                            |
+| `--collection`                | Resolve the name as a collection                                                                                      |
+| `--wanted`                    | Resolve the name as a wanted list                                                                                     |
 | `-s, --sets <codes>`          | Filter by set codes (comma-separated, e.g., `"FDN, SPG"`)                                                             |
 | `-f, --finish <finish>`       | Default finish: `nonfoil`, `foil`, or `etched`                                                                        |
 | `-c, --condition <condition>` | Default condition: `NM`, `LP`, `MP`, `HP`, or `DMG`                                                                   |

@@ -225,7 +225,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     options: {
       groupByOptionsFor: (sellMode) => wantedGroupByOptions(sellMode, hasSections()),
       sortBys: WANTED_SORT_BYS,
-      availableLabels: WANTED_LABEL_FILTERS,
+      availableLabels: () => WANTED_LABEL_FILTERS,
       defaults: { groupBy: initialGroupBy, sortBy: 'file-order' },
     },
     cards: allCards,

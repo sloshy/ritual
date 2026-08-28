@@ -108,6 +108,40 @@ describe('serve command (Integration)', () => {
     })
   })
 
+  test('a port already in use is reported, not thrown as an uncaught EADDRINUSE', async () => {
+    await withWorkspace(async (dir) => {
+      // The index.html only exists to get past the "no built site" gate, so
+      // the run actually reaches the bind. `--host 127.0.0.1` does double
+      // duty: it forces the collision with the squatter *and* pins the
+      // {host} the failure message interpolates.
+      await fs.mkdir(path.join(dir, 'dist'), { recursive: true })
+      await fs.writeFile(path.join(dir, 'dist', 'index.html'), '<!doctype html><title>x</title>')
+      const squatter = Bun.serve({
+        port: 0,
+        hostname: '127.0.0.1',
+        fetch: () => new Response(''),
+      })
+      try {
+        const result = await runCli(
+          ['serve', '--host', '127.0.0.1', '--port', String(squatter.port)],
+          dir,
+        )
+
+        expect(result.exitCode).toBe(1)
+        // The underlying reason is carried through after the colon, not swallowed
+        // (its wording is Bun's, so only its presence is pinned).
+        expect(result.stderr).toMatch(
+          new RegExp(`Failed to start the server on 127\\.0\\.0\\.1:${squatter.port}: \\S`),
+        )
+        expect(result.stdout).not.toContain('Serving site')
+      } finally {
+        await squatter.stop(true)
+      }
+    })
+    // A regression here means the CLI binds and serves forever, so the wait is
+    // bounded: the test fails instead of hanging the suite with two live processes.
+  }, 30_000)
+
   test('other build-only flags are still rejected with --api but without --build', async () => {
     await withWorkspace(async (dir) => {
       const result = await runCli(['serve', '--api', '--verbose'], dir)

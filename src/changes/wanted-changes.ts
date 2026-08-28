@@ -4,7 +4,7 @@ import { DEFAULT_SECTION } from '../list/deck'
 import { noteOrUndefined } from '../card/note-helpers'
 import { storedLanguage } from '../card/card-language'
 import { canSetFinish, finishMatchesPrinting } from '../card/card-printing'
-import { findTargetEntryIndex } from './entry-targeting.js'
+import { removeTarget, updateTarget } from './entry-targeting.js'
 import { wantedState } from '../list/wanted-entries'
 import type { ApplyChangeOptions } from './apply-batch'
 
@@ -47,51 +47,28 @@ export function applyChangeToWantedList(
       return [...entries, newEntry]
     }
 
-    case 'remove': {
-      const idx = findTargetEntryIndex(entries, change)
-      if (idx === -1) {
-        options?.onMiss?.('no-target')
-        return entries
-      }
-      return entries.filter((_, i) => i !== idx)
-    }
+    case 'remove':
+      return removeTarget(entries, change, options)
 
     case 'set-finish': {
-      const idx = findTargetEntryIndex(entries, change)
-      if (idx === -1) {
-        options?.onMiss?.('no-target')
-        return entries
-      }
-      const target = entries[idx]!
+      const finish = change.finish
       // A foil/etched token is a claim about a printing, so a name-only entry
       // cannot take one — the caller must pin a printing first. (A wanted line
       // can still be cleared back to nonfoil while it names no printing.)
-      if (!canSetFinish(target, change.finish)) {
-        options?.onMiss?.('needs-printing')
-        return entries
-      }
-      const finish = change.finish
-      // Recomputed from the entry the write produces, through the same rule the
-      // parser uses — a set code alone is not a printing.
-      const state = wantedState({ ...target, finish })
-      return entries.map((e, i) => (i === idx ? { ...e, finish, state } : e))
+      return updateTarget(entries, change, options, (e) =>
+        canSetFinish(e, finish)
+          ? // Recomputed from the entry the write produces, through the same rule
+            // the parser uses — a set code alone is not a printing.
+            { ...e, finish, state: wantedState({ ...e, finish }) }
+          : 'needs-printing',
+      )
     }
 
-    case 'set-printing': {
-      const idx = findTargetEntryIndex(entries, change)
-      if (idx === -1) {
-        options?.onMiss?.('no-target')
-        return entries
-      }
+    case 'set-printing':
       // The printing and the finish are written together here, so the pair has
       // to hold together — see the `set-finish` case above.
-      if (!finishMatchesPrinting(change)) {
-        options?.onMiss?.('needs-printing')
-        return entries
-      }
-      const state = wantedState(change)
-      return entries.map((e, i) =>
-        i === idx
+      return updateTarget(entries, change, options, (e) =>
+        finishMatchesPrinting(change)
           ? {
               ...e,
               set: change.set?.toLowerCase(),
@@ -100,42 +77,25 @@ export function applyChangeToWantedList(
               // Unlike finish, an absent language leaves the entry's alone —
               // language changes have their own set-language event.
               language: change.language ?? e.language,
-              state,
+              state: wantedState(change),
             }
-          : e,
+          : 'needs-printing',
       )
-    }
 
     case 'set-language': {
-      const idx = findTargetEntryIndex(entries, change)
-      if (idx === -1) {
-        options?.onMiss?.('no-target')
-        return entries
-      }
       // `en` clears the stored value so the entry serializes bare, matching
       // what a re-parse of the written line would produce.
       const language = storedLanguage(change.language)
-      return entries.map((e, i) => (i === idx ? { ...e, language } : e))
+      return updateTarget(entries, change, options, (e) => ({ ...e, language }))
     }
 
     case 'set-note': {
-      const idx = findTargetEntryIndex(entries, change)
-      if (idx === -1) {
-        options?.onMiss?.('no-target')
-        return entries
-      }
       const note = noteOrUndefined(change.note)
-      return entries.map((e, i) => (i === idx ? { ...e, note } : e))
+      return updateTarget(entries, change, options, (e) => ({ ...e, note }))
     }
 
-    case 'set-section': {
-      const idx = findTargetEntryIndex(entries, change)
-      if (idx === -1) {
-        options?.onMiss?.('no-target')
-        return entries
-      }
-      return entries.map((e, i) => (i === idx ? { ...e, section: change.section } : e))
-    }
+    case 'set-section':
+      return updateTarget(entries, change, options, (e) => ({ ...e, section: change.section }))
 
     case 'rename-section': {
       // Membership lives on each entry; the section-order list is maintained by the caller.

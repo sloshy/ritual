@@ -43,7 +43,7 @@ import {
 } from '../cli/options'
 import {
   classifyFileReadError,
-  emitOutput,
+  emitCardResult,
   emitWarnings,
   normalizeScriptingOptions,
   type ScriptingOptions,
@@ -214,8 +214,6 @@ type RunInput = {
 
 type SetCardResult = CardCommandResultBase & {
   applied: string[]
-  /** Present and true when `--dry-run` reported the change without writing it. */
-  dryRun?: true
 }
 
 /**
@@ -536,28 +534,18 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
   }
   if (!input.dryRun && artWrite !== undefined) await writeCardArt(filePath, artWrite)
 
-  if (scripting.output === 'text') {
-    if (!scripting.quiet) {
-      emitOutput(
-        t('cli.setCard.updated', {
-          mode: input.dryRun ? 'preview' : 'done',
-          entry: describeEntry(target),
-          list: listSlug,
-          changes: applied.join(', '),
-        }),
-        scripting,
-      )
-    }
-    return
-  }
-
   const result: SetCardResult = {
-    ...(input.dryRun ? { dryRun: true as const } : {}),
     type,
     list: listSlug,
     cardName: target.name,
     cardId: target.cardId,
     applied,
   }
-  emitOutput(result, scripting)
+  const line = t('cli.setCard.updated', {
+    mode: input.dryRun ? 'preview' : 'done',
+    entry: describeEntry(target),
+    list: listSlug,
+    changes: applied.join(', '),
+  })
+  emitCardResult(result, line, scripting, input.dryRun)
 }

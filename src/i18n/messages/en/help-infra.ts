@@ -211,9 +211,6 @@ export const helpInfraMessages = {
   // ── price ─────────────────────────────────────────────────────────────
   'help.price.description': 'Browse prices of every deck, collection, and wanted list',
   'help.price.listArg': 'Open (or print) a single list instead of all lists',
-  'help.price.deck': 'Only decks (also disambiguates listName)',
-  'help.price.collection': 'Only collections (also disambiguates listName)',
-  'help.price.wanted': 'Only wanted lists (also disambiguates listName)',
   'help.price.prices': 'Price currency: usd, eur, or tix (default: the configured defaultCurrency)',
   'help.price.source':
     'Price store: tcgplayer (Scryfall USD), cardmarket (Scryfall EUR), or cardkingdom (NM retail from the Card Kingdom feed)',
@@ -228,9 +225,6 @@ export const helpInfraMessages = {
   'help.sell.description': "Check what Card Kingdom's buylist pays for cards in your lists",
   'help.sell.listArg':
     'Lists to check (any type; deck:/collection:/wanted: prefixes work). Default: every collection',
-  'help.sell.deck': 'Scope to decks (also disambiguates list names)',
-  'help.sell.collection': 'Scope to collections (also disambiguates list names)',
-  'help.sell.wanted': 'Scope to wanted lists (also disambiguates list names)',
   'help.sell.sets': 'Only cards from these set codes (comma-separated)',
   'help.sell.min': 'Only offers of at least this much per copy',
   'help.sell.all': 'Also list entries CK is not buying (text output)',

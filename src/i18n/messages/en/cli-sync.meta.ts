@@ -668,9 +668,6 @@ export const cliSyncMeta = {
   },
 
   // ── `export` (flag mode) ──────────────────────────────────────────────
-  'cli.export.oneTypeFlag': {
-    description: 'Usage error: the three list-type flags are mutually exclusive.',
-  },
   'cli.export.formatFlagConflict': {
     description:
       'Usage error: column and CSV-shape flags were combined with a fixed-line format. {flags} is an "and"-joined list of flag names; {format} is an export format slug.',

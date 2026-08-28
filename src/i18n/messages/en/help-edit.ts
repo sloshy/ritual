@@ -22,9 +22,6 @@ export const helpEditMessages = {
   'help.edit.description': 'Edit any deck, collection, or wanted list in one interactive session',
   'help.edit.listName':
     'Open this list directly, skipping the selection menu (optionally with a deck:/collection:/wanted: prefix)',
-  'help.edit.deck': 'Resolve the list name as a deck',
-  'help.edit.collection': 'Resolve the list name as a collection',
-  'help.edit.wanted': 'Resolve the list name as a wanted list',
   'help.edit.sets': 'Filter by set codes (comma-separated, e.g., "FDN, SPG")',
   'help.edit.finish': 'Default finish (nonfoil, foil, etched)',
   'help.edit.condition': 'Default condition (NM, LP, MP, HP, DMG)',
@@ -37,9 +34,6 @@ export const helpEditMessages = {
     'Compact and rewrite the change history for a deck, collection, or wanted list',
   'help.history.listName':
     'Name of the deck, collection, or wanted list (resolved across all types unless a type flag is given)',
-  'help.history.deck': 'Resolve the name as a deck',
-  'help.history.collection': 'Resolve the name as a collection',
-  'help.history.wanted': 'Resolve the name as a wanted list',
   'help.history.show': 'Print the change history and exit instead of opening the editor',
   'help.history.limit': 'With --show: print only the newest <n> change sets',
 

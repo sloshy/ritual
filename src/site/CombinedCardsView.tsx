@@ -3,47 +3,22 @@ import { createSignal, createMemo, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { cardPriceText, cardPricelessReason } from '../list-view/priceless'
-import {
-  type GroupBy,
-  type SortBy,
-  type CardGroup,
-  type SelectOption,
-  groupAndSortCards,
-  groupTotalPrice,
-  sortByOptions,
-  CARD_SIZE_WIDTHS,
-  sortByValuesFor,
-} from '../list-view/card-sorting'
+import { type GroupBy, type SortBy, groupTotalPrice } from '../list-view/card-sorting'
 import { CardModal } from '../list-view/CardModal'
-import { ListPageStats, PageCountAndTotal, SellModeNotice } from './PageStats'
-import { createSellSummary, useSellMode, type QuoteSource } from './useSellMode'
-import { sellableFromCardData } from './sell-value'
+import { PageCountAndTotal } from './PageStats'
 import type { SellModeProps } from '../list-view/sell-mode'
 import { finishName, rarityName } from '../list-view/printing-display'
-import { TooltipOverlay } from '../ui/TooltipOverlay'
-import { useTooltip } from '../ui/useTooltip'
-import { Toolbar } from './Toolbar'
 import { CardSection } from './CardSection'
-import { useToolbarState } from './useToolbarState'
-import { useListViewUrlSync } from './useListViewUrlSync'
-import { useCardFilters } from './useCardFilters'
-import {
-  collectArtTags,
-  collectCardTypes,
-  collectOracleTags,
-  collectSetCodes,
-  filterCards,
-} from './card-filters'
+import { ListPageShell } from './ListPageShell'
+import { useListPage, type ListPageDefaults } from './useListPage'
 import {
   useCombinedSelection,
   type SelectionListId,
   type SelectionSourceKind,
 } from '../list-view/useCardSelection'
-import { SelectionMenu } from './SelectionMenu'
 import { addSelectedCardToTrade, canAddSelectedCardToTrade } from './useSelectionTrade'
 import type { MetaEntry } from '../list-view/meta-entry'
 import type { CombinedCardData, NamedListRef } from '../list-view/combined-list'
-import { useShareFilterContext } from './list-shares'
 import { combinedGroupByOptions, type GroupByOption } from './list-page-options'
 import {
   CARD_LABEL_SELECTIONS,
@@ -64,6 +39,9 @@ const COMBINED_SORT_BYS: readonly SortBy[] = [
   'edhrec',
   'file-order',
 ]
+
+/** Group by source list, sorted by name — the view's URL-omitted default. */
+const COMBINED_DEFAULTS: ListPageDefaults<GroupBy> = { groupBy: 'source', sortBy: 'name' }
 
 /**
  * The label chips a combined view offers — and the `labels=` values a shared
@@ -121,27 +99,16 @@ interface CombinedCardsViewProps extends SellModeProps {
  * tooltip, and card detail modal. Backs both the combined-list view and the
  * Find page's "Search Results" view — callers build {@link CombinedCardData}
  * themselves and hand it in, along with the title and header.
+ *
+ * Everything it shares with the single-list pages comes from the list-page
+ * frame ({@link useListPage} + {@link ListPageShell}); what it holds itself is
+ * a selection scoped to a *set* of lists rather than one, and source-derived
+ * grouping. It has no list identity of its own — no slug, so no share-filter
+ * self-exclusion, no card-nav target, and no per-tile ⋯ menu (the frame mounts
+ * the menu element, but these tiles never open it).
  */
 export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
   const t = useT()
-  const toolbar = useToolbarState<GroupBy>({ groupBy: 'source', sortBy: 'name' })
-  const {
-    viewMode,
-    setViewMode,
-    cardSize,
-    setCardSize,
-    groupBy,
-    setGroupBy,
-    sortLayers,
-    setSortLayers,
-    reverseGroups,
-    setReverseGroups,
-    priceGroupStrategy,
-    setPriceGroupStrategy,
-  } = toolbar
-  const cardFilters = useCardFilters()
-  const shareContext = useShareFilterContext(cardFilters)
-  const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
   const [modalTile, setModalTile] = createSignal<CombinedCardData | null>(null)
 
   const sectionOrder = createMemo(() => {
@@ -168,77 +135,31 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
   // while the dropdown shows only what is currently offered.
   const groupByOptionsFor = (sellMode: boolean): readonly GroupByOption[] =>
     combinedGroupByOptions(sellMode, sectionOrder().length >= 2, hasCollections())
-  // A plain accessor, not a memo: `createMemo` evaluates eagerly, and `sell` is
-  // declared below. Rebuilding a small array on read costs nothing.
-  const groupByOptions = (): SelectOption[] =>
-    groupByOptionsFor(sell.active()).map((o) => ({ value: o.value, label: t(o.label) }))
-  // A parameter, not a read of the live mode, for the same reason as the
-  // group-by options: the URL sync validates against the full set a shared
-  // link may name, while the dropdown offers only what is currently on.
-  const sortValuesFor = (sellMode: boolean): readonly SortBy[] =>
-    sortByValuesFor(COMBINED_SORT_BYS, sellMode)
 
-  useListViewUrlSync({
-    toolbar,
-    filters: cardFilters,
-    defaults: { groupBy: 'source', sortBy: 'name' },
-    groupByValues: groupByOptionsFor(Boolean(props.enableSellMode)).map((o) => o.value),
-    sortByValues: sortValuesFor(Boolean(props.enableSellMode)),
-    enabled: props.enableUrlState,
-    // From the selection's list *kinds*, not the loaded cards: the URL params
-    // are applied once at construction, before any card data has arrived.
-    // Decks count too — they carry the `proxy` label — and a chip no selected
-    // kind offers is dropped from the incoming param rather than hiding
-    // everything behind a filter this row cannot show.
-    availableLabels: labelFilters(),
-    supportsSellMode: Boolean(props.enableSellMode),
-  })
-
+  // Scoped to the view's lists, not to one: `selected`/`count`/`clear` cover
+  // every member list, while the tiles below key on already-global keys.
   const selection = useCombinedSelection(() => props.selectionLists)
 
-  // Declared once, at setup: a page handed a baked payload never calls the quote
-  // API (the public site and the public editor), and one without it quotes live
-  // against a credentialed API (the admin editors). Making the choice explicit
-  // keeps a call site from silently landing on the path it did not mean.
-  const quoteSource: QuoteSource = props.bakedBuylist
-    ? { kind: 'baked', quotes: props.bakedBuylist }
-    : { kind: 'live' }
-  const sell = useSellMode({
-    toolbar,
-    supported: () => Boolean(props.enableSellMode),
-    quotes: quoteSource,
+  const page = useListPage<GroupBy, CombinedCardData>({
+    selection,
+    options: {
+      groupByOptionsFor,
+      sortBys: COMBINED_SORT_BYS,
+      // A card's position within its own source list, across several of them.
+      sortByOverrides: { 'file-order': 'domain.sortBy.listOrder' },
+      availableLabels: labelFilters,
+      defaults: COMBINED_DEFAULTS,
+    },
     cards: () => props.cards,
-    selected: selection.selected,
-    filters: cardFilters,
-    defaults: { groupBy: 'source', sortBy: 'name' },
-  })
-
-  const setCodeOptions = createMemo(() => collectSetCodes(props.cards))
-  const cardTypeOptions = createMemo(() => collectCardTypes(props.cards))
-  const oracleTagOptions = createMemo(() => collectOracleTags(props.cards))
-  const artTagOptions = createMemo(() => collectArtTags(props.cards))
-
-  const filteredCards = createMemo((): CombinedCardData[] =>
-    filterCards(props.cards, cardFilters.filters, shareContext()),
-  )
-
-  const cardGroups = createMemo((): CardGroup<CombinedCardData>[] => {
-    return groupAndSortCards(
-      filteredCards(),
-      groupBy(),
-      sortLayers(),
-      sectionOrder(),
-      priceGroupStrategy(),
-      props.currency,
-      reverseGroups(),
-    )
+    sectionOrder,
+    currency: () => props.currency,
+    enableSellMode: () => Boolean(props.enableSellMode),
+    bakedBuylist: props.bakedBuylist,
+    enableUrlState: () => props.enableUrlState,
+    shareLists: () => props.shareLists,
   })
 
   const totalPrice = createMemo(() => groupTotalPrice(props.cards))
-  const filteredTotalPrice = createMemo(() => groupTotalPrice(filteredCards()))
-  const filteredSellSummary = createSellSummary(sell.active, () =>
-    filteredCards().map(sellableFromCardData),
-  )
   const cardCount = createMemo(() => props.cards.reduce((sum, c) => sum + c.quantity, 0))
 
   const modalMeta = createMemo((): MetaEntry[] | undefined => {
@@ -299,12 +220,12 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
       priceless={cardPricelessReason(c)}
       symbolMap={props.symbolMap}
       buylistPrice={c.buylistPrice}
-      viewMode={viewMode()}
+      viewMode={page.toolbar.viewMode()}
       hideCount={c.quantity <= 1}
       useScryfallImgUrls={props.useScryfallImgUrls}
       onCardClick={() => setModalTile(c)}
-      onTooltipEnter={(src, sideways) => setTooltip({ src, sideways })}
-      onTooltipLeave={() => setTooltip(null)}
+      onTooltipEnter={(src, sideways) => page.tooltip.setTooltip({ src, sideways })}
+      onTooltipLeave={() => page.tooltip.setTooltip(null)}
       collectionFinish={c.selectedTile.finish}
       collectionCondition={c.selectedTile.condition}
       collectionLanguage={c.selectedTile.language}
@@ -327,88 +248,37 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
   )
 
   return (
-    <div class="page-container">
-      {/* Header */}
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">{props.title}</h1>
-          <p class="page-stats">
-            <PageCountAndTotal count={cardCount()} total={totalPrice()} currency={props.currency} />
-            <ListPageStats
-              filters={cardFilters}
-              currency={props.currency}
-              filteredAmount={filteredTotalPrice()}
-              selectedCount={selection.count()}
-              selectedAmount={selection.value(props.currency)}
-              sellMode={sell.active()}
-              buylistSummary={filteredSellSummary()}
-              selectionSummary={sell.summary()}
-            />
-          </p>
-          <SellModeNotice sellMode={sell.active()} />
-          {props.header}
-        </div>
-      </div>
+    <ListPageShell
+      page={page}
+      title={props.title}
+      fullWidth={false}
+      currency={props.currency}
+      symbolMap={props.symbolMap}
+      useScryfallImgUrls={props.useScryfallImgUrls}
+      enableTrade={props.enableTrade}
+      statsLead={
+        <PageCountAndTotal count={cardCount()} total={totalPrice()} currency={props.currency} />
+      }
+      headerExtra={props.header}
+      beforeCards={
+        <>
+          <Show when={props.error}>
+            <div class="error-container">{props.error}</div>
+          </Show>
 
-      <Toolbar
-        viewMode={viewMode()}
-        onViewModeChange={setViewMode}
-        cardSize={cardSize()}
-        onCardSizeChange={setCardSize}
-        groupBy={groupBy()}
-        groupByOptions={groupByOptions()}
-        onGroupByChange={(v) => setGroupBy(v as GroupBy)}
-        sortLayers={sortLayers()}
-        sortByOptions={sortByOptions(sortValuesFor(sell.active()), {
-          'file-order': 'domain.sortBy.listOrder',
-        })}
-        onSortLayersChange={setSortLayers}
-        priceGroupStrategy={priceGroupStrategy()}
-        onPriceGroupStrategyChange={setPriceGroupStrategy}
-        reverseGroups={reverseGroups()}
-        onReverseGroupsChange={() => setReverseGroups((prev) => !prev)}
-        sell={sell.control()}
-        filters={cardFilters}
-        symbolMap={props.symbolMap}
-        currency={props.currency}
-        setCodeOptions={setCodeOptions()}
-        cardTypeOptions={cardTypeOptions()}
-        oracleTagOptions={oracleTagOptions()}
-        artTagOptions={artTagOptions()}
-        showLabelsFilter={labelFilters().length > 0}
-        availableLabels={labelFilters()}
-        shareLists={props.shareLists}
-        selectionMenu={
-          <SelectionMenu
-            selection={selection}
-            currency={props.currency}
-            enableTrade={props.enableTrade}
-            useScryfallImgUrls={props.useScryfallImgUrls}
-            dockOnTouch
-          />
-        }
-      />
+          <Show when={props.loading}>
+            <div class="loading-container">
+              <div class="loading-spinner" />
+            </div>
+          </Show>
 
-      <Show when={props.error}>
-        <div class="error-container">{props.error}</div>
-      </Show>
-
-      <Show when={props.loading}>
-        <div class="loading-container">
-          <div class="loading-spinner" />
-        </div>
-      </Show>
-
-      <Show when={!props.loading && props.cards.length === 0 && !props.error}>
-        <div class="combined-empty">{props.emptyMessage ?? t('site.combined.empty')}</div>
-      </Show>
-
-      {/* Card sections */}
-      <div
-        class={`card-sections view-${viewMode()}`}
-        style={`--card-width:${CARD_SIZE_WIDTHS[cardSize()]}px`}
-      >
-        <For each={cardGroups()}>
+          <Show when={!props.loading && props.cards.length === 0 && !props.error}>
+            <div class="combined-empty">{props.emptyMessage ?? t('site.combined.empty')}</div>
+          </Show>
+        </>
+      }
+      sections={
+        <For each={page.cardGroups()}>
           {(group) => (
             <CardSection
               label={group.key}
@@ -418,28 +288,25 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
             />
           )}
         </For>
-      </div>
-
-      {/* List-view hover tooltip */}
-      <TooltipOverlay tooltip={tooltip()} pos={tooltipPos()} tooltipRef={tooltipRef} />
-
-      {/* Card detail modal */}
-      <CardModal
-        open={Boolean(modalTile())}
-        card={modalTile()?.card ?? null}
-        customArt={modalTile()?.customArt}
-        hasCustomArt={modalTile()?.hasCustomArt}
-        cardName={modalTile()?.name ?? null}
-        symbolMap={props.symbolMap}
-        useScryfallImgUrls={props.useScryfallImgUrls}
-        currency={props.currency}
-        printings={modalTile()?.printings ?? []}
-        onClose={() => setModalTile(null)}
-        meta={modalMeta()}
-        onAddToTrade={modalTrade()?.add}
-        addToTradeDisabled={modalTrade()?.disabled}
-        note={modalTile()?.selectedTile.note}
-      />
-    </div>
+      }
+      overlays={
+        <CardModal
+          open={Boolean(modalTile())}
+          card={modalTile()?.card ?? null}
+          customArt={modalTile()?.customArt}
+          hasCustomArt={modalTile()?.hasCustomArt}
+          cardName={modalTile()?.name ?? null}
+          symbolMap={props.symbolMap}
+          useScryfallImgUrls={props.useScryfallImgUrls}
+          currency={props.currency}
+          printings={modalTile()?.printings ?? []}
+          onClose={() => setModalTile(null)}
+          meta={modalMeta()}
+          onAddToTrade={modalTrade()?.add}
+          addToTradeDisabled={modalTrade()?.disabled}
+          note={modalTile()?.selectedTile.note}
+        />
+      }
+    />
   )
 }

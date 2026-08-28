@@ -25,18 +25,15 @@ import {
 } from '../pricing/price-report'
 import { loadAndBuildPriceReport, type LoadedPriceReport } from '../pricing/price-runtime'
 import type { CardKingdomPricing } from '../pricing/price-report'
-import {
-  isResolveListError,
-  listTypeFromFlags,
-  resolveList,
-  type ListLocation,
-} from '../list/resolve-list'
+import { isResolveListError, resolveList, type ListLocation } from '../list/resolve-list'
 import { getDefaultCurrency } from '../config/ritual-config'
 import { refreshCardCache } from '../cache/refresh-source'
 import {
   addRefreshOption,
   resolveRefreshMode,
   addScriptingOptions,
+  addListScopeFlags,
+  resolveListTypeFlag,
   parseEnumFlag,
 } from '../cli/options'
 import type { RefreshMode } from '../cache/refresh'
@@ -59,7 +56,6 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from '../cli/output'
-import { fail } from '../cli/action'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
 import { ExitCode } from '../util/errors'
 
@@ -260,13 +256,12 @@ function emitCardSearch(
 export function registerPriceCommand(program: Command): void {
   addRefreshOption(
     addScriptingOptions(
-      program
-        .command('price')
-        .description(t('help.price.description'))
-        .argument('[listName]', t('help.price.listArg'))
-        .option('--deck', t('help.price.deck'))
-        .option('--collection', t('help.price.collection'))
-        .option('--wanted', t('help.price.wanted'))
+      addListScopeFlags(
+        program
+          .command('price')
+          .description(t('help.price.description'))
+          .argument('[listName]', t('help.price.listArg')),
+      )
         .option('--prices <currency>', t('help.price.prices'))
         .option('--source <store>', t('help.price.source'), parseSourceFlag)
         .option('--name <terms>', t('help.price.name'))
@@ -321,11 +316,8 @@ export function registerPriceCommand(program: Command): void {
       currency = resolved.currency
     }
 
-    const type = listTypeFromFlags(options)
-    if (type === 'conflict') {
-      fail(scriptingOptions, 'usage_error', 'cli.listScope.oneTypeFlag')
-      return
-    }
+    const type = resolveListTypeFlag(options, scriptingOptions)
+    if (type === 'conflict') return
 
     // The --deck/--collection/--wanted flags scope which lists are loaded;
     // only the card-level flags act as search filters.

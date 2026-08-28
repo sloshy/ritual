@@ -98,6 +98,7 @@ describe('i18n persistence fence', () => {
       'src/changes/csv.ts',
       'src/changes/change-bundle.ts',
       'src/changes/list-snapshot.ts',
+      'src/list/entry-load.ts',
       'src/buylist/cart-csv.ts',
       ...[...new Glob('src/export/**/*.ts').scanSync(ROOT)].map((file) => file.replace(/\\/g, '/')),
     ]
@@ -116,6 +117,7 @@ describe('i18n persistence fence', () => {
   test('card-line serializers never import src/i18n', async () => {
     const lineFenced = [
       'src/list/deck-file.ts',
+      'src/list/deck-text.ts',
       'src/card/card-line.ts',
       'src/list/collection-file.ts',
       'src/list/wanted-file.ts',

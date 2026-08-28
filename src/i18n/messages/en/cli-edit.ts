@@ -298,7 +298,6 @@ export const cliEditMessages = {
 
   // ── `ritual history` ──────────────────────────────────────────────────
   'cli.history.limitInvalid': "--limit must be a positive integer (got '{value}').",
-  'cli.history.typeFlagConflict': 'Specify only one of --deck, --collection, or --wanted.',
   'cli.history.limitRequiresShow': '--limit requires --show.',
   'cli.history.outputRequiresShow': '--output {output} requires --show.',
   'cli.history.noEditorHeadless':

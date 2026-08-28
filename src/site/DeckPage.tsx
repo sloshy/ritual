@@ -368,7 +368,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     options: {
       groupByOptionsFor: deckGroupByOptions,
       sortBys: DECK_SORT_BYS,
-      availableLabels: DECK_LABEL_FILTERS,
+      availableLabels: () => DECK_LABEL_FILTERS,
       defaults: { groupBy: 'type', sortBy: 'name' },
     },
     cards: allCards,

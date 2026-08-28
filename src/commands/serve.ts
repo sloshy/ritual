@@ -15,6 +15,7 @@ import {
   parsePort,
 } from '../cli/options'
 import { serveStaticSite, serveUrl } from '../serve/static'
+import { tryStartServer } from '../util/start-server'
 import { t } from '../i18n/t'
 
 export type ServeCliOptions = BuildSiteOptions & {
@@ -145,7 +146,8 @@ export function registerServeCommand(program: Command): void {
       return
     }
 
-    if (options.api === true) {
+    const api = options.api === true
+    if (api) {
       if (options.cacheImages === true) {
         console.warn(t('cli.serve.cacheImagesNote'))
       }
@@ -164,12 +166,25 @@ export function registerServeCommand(program: Command): void {
       // moment this process can keep a day-old feed current, so it does.
       const buylistWarning = sellModeWarning(await warmCardKingdomFeed(policy))
       if (buylistWarning !== undefined) console.warn(buylistWarning)
-      console.log(t('cli.serve.servingWithApi', { dir: distDir, url: serveUrl(host, port) }))
-      startSiteServer({ distDir, port, hostname: host })
-      return
     }
 
-    console.log(t('cli.serve.serving', { dir: distDir, url: serveUrl(host, port) }))
-    serveStaticSite({ distDir, port, hostname: host })
+    // Bind before announcing: a busy port used to print the "Serving ..." line
+    // and then throw an uncaught EADDRINUSE stack trace over the top of it.
+    const started = tryStartServer(() =>
+      api
+        ? startSiteServer({ distDir, port, hostname: host })
+        : serveStaticSite({ distDir, port, hostname: host }),
+    )
+    if (!started.ok) {
+      console.error(t('cli.serve.startFailed', { host, port, error: started.error }))
+      process.exitCode = ExitCode.RuntimeError
+      return
+    }
+    const url = serveUrl(host, port)
+    console.log(
+      api
+        ? t('cli.serve.servingWithApi', { dir: distDir, url })
+        : t('cli.serve.serving', { dir: distDir, url }),
+    )
   })
 }

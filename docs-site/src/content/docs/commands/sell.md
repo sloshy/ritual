@@ -28,9 +28,9 @@ Names resolve case- and accent-insensitively with a unique-substring fallback, l
 
 | Option              | Description                                                                                                                                                       |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--deck`            | Check every deck (also disambiguates list names)                                                                                                                  |
-| `--collection`      | Check every collection (the default scope; also disambiguates list names)                                                                                         |
-| `--wanted`          | Check every wanted list (also disambiguates list names)                                                                                                           |
+| `--deck`            | Only decks (also disambiguates list names)                                                                                                                        |
+| `--collection`      | Only collections (also disambiguates list names)                                                                                                                  |
+| `--wanted`          | Only wanted lists (also disambiguates list names)                                                                                                                 |
 | `--sets <codes>`    | Only cards from these set codes (comma-separated, e.g. `dsk,fdn`): an entry's own pin, or the quoted printing's set                                               |
 | `--min <price>`     | Only offers of at least this much per copy (e.g. `0.50`)                                                                                                          |
 | `--all`             | Also itemize entries CK is **not** buying and unmatched entries in the text report (they are otherwise only counted)                                              |

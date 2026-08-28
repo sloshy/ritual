@@ -13,7 +13,7 @@ import {
   type CardCommandResultBase,
   parseQuantityFlag,
 } from '../cli/options'
-import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
+import { emitCardResult, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
 import { t, type MessageParams } from '../i18n/t'
 import { describeEntry } from '../list/entry-ref'
@@ -85,8 +85,6 @@ type RunInput = {
 type RemoveCardResult = CardCommandResultBase & {
   removed: number
   remaining: number
-  /** Present and true when `--dry-run` reported the removal without performing it. */
-  dryRun?: true
 }
 
 async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Promise<void> {
@@ -159,24 +157,7 @@ async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Prom
   // stops before the first write: no list file, no changelog, no sidecar.
   if (!input.dryRun) await applyTargetedChanges(type, filePath, target, changes)
 
-  if (scripting.output === 'text') {
-    if (!scripting.quiet) {
-      emitOutput(
-        t('cli.removeCard.removed', {
-          mode: input.dryRun ? 'preview' : 'done',
-          count: copies,
-          entry: describeEntry(target),
-          list: listSlug,
-          remaining,
-        }),
-        scripting,
-      )
-    }
-    return
-  }
-
   const result: RemoveCardResult = {
-    ...(input.dryRun ? { dryRun: true as const } : {}),
     type,
     list: listSlug,
     cardName: target.name,
@@ -184,5 +165,12 @@ async function runRemoveCard(input: RunInput, scripting: ScriptingOptions): Prom
     removed: copies,
     remaining,
   }
-  emitOutput(result, scripting)
+  const line = t('cli.removeCard.removed', {
+    mode: input.dryRun ? 'preview' : 'done',
+    count: copies,
+    entry: describeEntry(target),
+    list: listSlug,
+    remaining,
+  })
+  emitCardResult(result, line, scripting, input.dryRun)
 }

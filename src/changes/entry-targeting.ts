@@ -1,4 +1,5 @@
 import type { PrintingTuple } from './change-event'
+import type { ApplyChangeOptions, MissReason } from './apply-batch'
 
 /**
  * Targeting is deliberately name/set/collector-number/cardId-based — an
@@ -98,4 +99,44 @@ export function findTargetEntryIndex(entries: TargetableEntry[], change: Targeti
     if (change.collectorNumber && e.collectorNumber !== change.collectorNumber) return false
     return true
   })
+}
+
+/**
+ * Apply an update to the entry a change targets, returning a new array. A change
+ * that matches nothing reports `no-target` through `options.onMiss` and returns
+ * the entries unchanged; an updater may refuse in the same way by returning a
+ * {@link MissReason} instead of an entry (the `needs-printing` guards). This is
+ * the targeting prologue every flat-list `set-*` case shares.
+ */
+export function updateTarget<E extends TargetableEntry>(
+  entries: E[],
+  change: TargetingChange,
+  options: ApplyChangeOptions | undefined,
+  update: (entry: E) => E | MissReason,
+): E[] {
+  const idx = findTargetEntryIndex(entries, change)
+  if (idx === -1) {
+    options?.onMiss?.('no-target')
+    return entries
+  }
+  const updated = update(entries[idx]!)
+  if (typeof updated === 'string') {
+    options?.onMiss?.(updated)
+    return entries
+  }
+  return entries.map((e, i) => (i === idx ? updated : e))
+}
+
+/** Drop the entry a change targets; a miss reports `no-target` and changes nothing. */
+export function removeTarget<E extends TargetableEntry>(
+  entries: E[],
+  change: TargetingChange,
+  options: ApplyChangeOptions | undefined,
+): E[] {
+  const idx = findTargetEntryIndex(entries, change)
+  if (idx === -1) {
+    options?.onMiss?.('no-target')
+    return entries
+  }
+  return entries.filter((_, i) => i !== idx)
 }

@@ -10,9 +10,6 @@ export const helpEditMeta = {
     description:
       'The `[listName]` argument of `edit`. The three prefixes are literal spellings, colon included.',
   },
-  'help.edit.deck': { description: '`edit --deck`.' },
-  'help.edit.collection': { description: '`edit --collection`.' },
-  'help.edit.wanted': { description: '`edit --wanted`.' },
   'help.edit.sets': {
     description: '`edit --sets`. FDN and SPG are set codes and stay uppercase as-is.',
   },
@@ -36,9 +33,6 @@ export const helpEditMeta = {
   // ── history ───────────────────────────────────────────────────────────
   'help.history.description': { description: 'Summary of the `history` command.' },
   'help.history.listName': { description: 'The `[listName]` argument of `history`.' },
-  'help.history.deck': { description: '`history --deck`.' },
-  'help.history.collection': { description: '`history --collection`.' },
-  'help.history.wanted': { description: '`history --wanted`.' },
   'help.history.show': { description: '`history --show`.' },
   'help.history.limit': {
     description: '`history --limit`. `--show` is a flag spelling and `<n>` its placeholder.',

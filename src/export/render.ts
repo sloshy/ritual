@@ -1,20 +1,12 @@
 import { csvCell } from '../changes/csv'
-import {
-  aggregateQuantities,
-  formatCollectionLine,
-  formatWantedListLine,
-  printingSuffix,
-  variantKey,
-  type CardPrinting,
-} from '../card/card-line'
-import { serializeCardLine } from '../list/deck-text'
+import { aggregateQuantities, printingSuffix, variantKey } from '../card/card-line'
+import { canonicalCardLine } from '../list/deck-text'
 import { storedLanguage } from '../card/card-language'
 import {
   archidektCsvCondition,
   archidektCsvLanguage,
   archidektModifier,
 } from '../importers/archidekt-collection'
-import type { Card } from '../card/card'
 import type { ExportEntry } from './entries'
 
 /**
@@ -280,51 +272,14 @@ export function renderTextExport(entries: ExportEntry[]): string {
 type MarkdownListGroup = { listName: string; entries: ExportEntry[] }
 
 /**
- * The canonical markdown line for one entry, per its list type, WITHOUT a
- * trailing newline (the collection/wanted formatters are newline-terminated
- * while the deck serializer is not, so both are normalized here) and without a
- * `&N` id (ExportEntry deliberately carries none).
+ * The canonical markdown line for one entry, per its list type, without a `&N`
+ * id (ExportEntry deliberately carries none) and — for decks — without labels:
+ * `ExportEntry.labels` are *effective* labels and can hold collection-only
+ * vocabulary a deck line could not re-parse.
  */
 function markdownLine(entry: ExportEntry): string {
-  if (entry.listType === 'deck') {
-    const card: Card = {
-      quantity: entry.quantity,
-      name: entry.name,
-      set: entry.set,
-      collectorNumber: entry.collectorNumber,
-      finish: entry.finish,
-      condition: entry.condition,
-      language: entry.language,
-      note: entry.note,
-    }
-    return serializeCardLine(card)
-  }
-  if (entry.listType === 'collection' && entry.set && entry.collectorNumber) {
-    return formatCollectionLine({
-      cardName: entry.name,
-      set: entry.set,
-      collectorNumber: entry.collectorNumber,
-      finish: entry.finish ?? 'nonfoil',
-      condition: entry.condition,
-      language: entry.language,
-      labels: entry.labels,
-      note: entry.note,
-    }).replace(/\n$/, '')
-  }
-  // Wanted entries — and, as a type-level fallback, a collection entry missing
-  // its printing (the collection parser never produces one) — use the
-  // wanted-list grammar, where the printing and finish are optional.
-  const printing: CardPrinting | undefined =
-    entry.set && entry.collectorNumber
-      ? { set: entry.set, collectorNumber: entry.collectorNumber }
-      : undefined
-  return formatWantedListLine({
-    name: entry.name,
-    printing,
-    finish: entry.finish,
-    language: entry.language,
-    note: entry.note,
-  }).replace(/\n$/, '')
+  const labels = entry.listType === 'deck' ? undefined : entry.labels
+  return canonicalCardLine(entry.listType, { ...entry, labels, cardId: undefined })
 }
 
 /**

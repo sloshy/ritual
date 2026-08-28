@@ -96,7 +96,9 @@ export async function collectCacheStatus(): Promise<CacheStatusResult> {
   const empty = await cardCache.isEmpty()
   const keys = await cardCache.keys()
   const lastRefreshedAt = await cardCache.getLastRefreshedAt()
-  const priceAgeMs = lastRefreshedAt === null ? null : Date.now() - lastRefreshedAt
+  // Clamped: a stamp written a hair ahead of this clock (or a clock nudged
+  // backwards) would otherwise report a negative age.
+  const priceAgeMs = lastRefreshedAt === null ? null : Math.max(0, Date.now() - lastRefreshedAt)
   const cardBulkType = await readRecordedCardBulkType()
 
   return {

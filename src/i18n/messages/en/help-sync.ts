@@ -113,9 +113,6 @@ export const helpSyncMessages = {
     'Export cards from decks, collections, and wanted lists as CSV, JSON, plain text, or Markdown',
   'help.export.lists':
     'Lists to export; an optional deck:/collection:/wanted: prefix pins the type',
-  'help.export.deck': 'Only decks (also disambiguates list names)',
-  'help.export.collection': 'Only collections (also disambiguates list names)',
-  'help.export.wanted': 'Only wanted lists (also disambiguates list names)',
   'help.export.all': 'Export every list (the default when no lists or --card are given)',
   'help.export.card': 'Add cards whose name matches every term (repeatable)',
   'help.export.name': 'Only cards whose name contains every term',

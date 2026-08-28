@@ -206,9 +206,6 @@ export const helpInfraMeta = {
   // ── price ─────────────────────────────────────────────────────────────
   'help.price.description': { description: 'Summary of the `price` command.' },
   'help.price.listArg': { description: 'The `[listName]` argument of `price`.' },
-  'help.price.deck': { description: '`price --deck`.' },
-  'help.price.collection': { description: '`price --collection`.' },
-  'help.price.wanted': { description: '`price --wanted`.' },
   'help.price.prices': {
     description: '`price --prices`. defaultCurrency is a config key; usd/eur/tix are codes.',
   },
@@ -230,9 +227,6 @@ export const helpInfraMeta = {
   'help.sell.listArg': {
     description: 'The `[list...]` argument of `sell`. The `deck:` style prefixes are literal.',
   },
-  'help.sell.deck': { description: '`sell --deck`.' },
-  'help.sell.collection': { description: '`sell --collection`.' },
-  'help.sell.wanted': { description: '`sell --wanted`.' },
   'help.sell.sets': { description: '`sell --sets`.' },
   'help.sell.min': { description: '`sell --min`.' },
   'help.sell.all': { description: '`sell --all`. CK is Card Kingdom.' },

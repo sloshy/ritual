@@ -277,7 +277,9 @@ answered with bare 404s; the message names \`ritual build-site\` and \`--build\`
 Under \`--api\` it is not refused: the data is served live, so a missing build is
 just a missing app shell and the command builds one itself before serving.
 The startup line prints the address actually bound — \`localhost\` for a wildcard
-or loopback bind, the \`--host\` value otherwise.
+or loopback bind, the \`--host\` value otherwise, and it prints only after the
+port is bound: a port already in use is also exit 1
+(\`Failed to start the server on <host>:<port>: ...\`) with no startup line.
 
 Build flags (\`--theme\`, \`--currencies\`, ...) only apply together with \`--build\`;
 passing one without it is a usage error. \`--refresh\`, \`--out-dir\` and

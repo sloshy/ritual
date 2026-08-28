@@ -3,11 +3,8 @@
  * {@link EntryRef}s and locating one by `--card-id` or (fuzzy) name. Prompt-free.
  */
 
-import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { importFromTextFile } from '../importers/text-file'
-import { parseCollectionFile } from './collection-file'
-import { parseWantedListFile } from './wanted-file'
+import { loadListEntries } from './entry-load'
 import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
 import { matchByNormalizedName } from '../card/term-match'
 import type { ListType } from './list-type'
@@ -30,7 +27,7 @@ export type EntryRef = {
   labels?: CardLabel[]
   note?: string
   cardId?: number
-  /** Line quantity — decks only; flat-list entries are one physical card each. */
+  /** Line quantity. Only a deck line can exceed 1 — flat-list entries are one card each. */
   quantity?: number
 }
 
@@ -45,61 +42,7 @@ export type EntryLookup = { type: ListType; filePath: string; entries: EntryRef[
 
 /** Load every card entry of a list as a type-agnostic {@link EntryRef}. */
 export async function loadEntryRefs(type: ListType, filePath: string): Promise<EntryRef[]> {
-  switch (type) {
-    case 'deck': {
-      const deck = await importFromTextFile(filePath)
-      const entries: EntryRef[] = []
-      for (const section of deck.sections) {
-        for (const card of section.cards) {
-          entries.push({
-            name: card.name,
-            set: card.set,
-            collectorNumber: card.collectorNumber,
-            finish: card.finish,
-            condition: card.condition,
-            language: card.language,
-            labels: card.labels,
-            note: card.note,
-            cardId: card.cardId,
-            quantity: card.quantity,
-          })
-        }
-      }
-      return entries
-    }
-    case 'collection': {
-      const content = await fs.readFile(filePath, 'utf-8')
-      const { entries } = parseCollectionFile(content)
-      return entries.map((e) => ({
-        name: e.name,
-        set: e.set,
-        collectorNumber: e.collectorNumber,
-        finish: e.finish,
-        condition: e.condition,
-        language: e.language,
-        labels: e.labels,
-        note: e.note,
-        cardId: e.cardId,
-      }))
-    }
-    case 'wanted': {
-      const content = await fs.readFile(filePath, 'utf-8')
-      const { entries } = parseWantedListFile(content)
-      return entries.map((e) => ({
-        name: e.name,
-        set: e.set,
-        collectorNumber: e.collectorNumber,
-        finish: e.finish,
-        language: e.language,
-        note: e.note,
-        cardId: e.cardId,
-      }))
-    }
-    default:
-      // `type` is a keyword at statement start, so the exhaustiveness check
-      // rides on the return.
-      return type satisfies never
-  }
+  return (await loadListEntries(type, filePath)).entries
 }
 
 /** {@link findTargetEntry} found no selector: the caller must pick among `candidates`. */

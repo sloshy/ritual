@@ -4,15 +4,8 @@
  * raw changelog lines describing that current state.
  */
 
-import * as fs from 'node:fs/promises'
-import { importFromTextFile } from '../importers/text-file'
-import { parseCollectionFile } from '../list/collection-file'
-import { parseWantedListFile } from '../list/wanted-file'
+import { loadListEntries, type ListEntryRef, type LoadedListEntries } from '../list/entry-load'
 import { DEFAULT_SECTION } from '../list/deck'
-import { isCommanderSection } from '../list/deck-format'
-import type { Condition, Finish } from '../card/finish-condition'
-import type { CardLanguage } from '../card/card-language'
-import type { ListType } from '../list/list-type'
 import {
   createAddChange,
   createAddSectionChange,
@@ -24,99 +17,15 @@ import {
   printingOptionsFrom,
   type ChangeEvent,
 } from './change-event'
-import type { CardLabel } from '../card/card-labels'
 
 /** A single list entry, normalized across decks, collections, and wanted lists. */
-export type SnapshotEntry = {
-  name: string
-  set?: string
-  collectorNumber?: string
-  finish?: Finish
-  condition?: Condition
-  /** The line's `[ja]`-style language token. Absent means `en`. */
-  language?: CardLanguage
-  /** Label override — deck and collection entries (see LIST_TYPE_LABELS). */
-  labels?: CardLabel[]
-  note?: string
-  cardId?: number
-  section: string
-  quantity: number
-  isCommander: boolean
-}
+export type SnapshotEntry = ListEntryRef
 
 /** A list's current contents, normalized for default-changelog generation. */
-export type ListSnapshot = {
-  /** Section names in display order. */
-  sectionOrder: string[]
-  entries: SnapshotEntry[]
-}
+export type ListSnapshot = LoadedListEntries
 
 /** Load a list of any type into a uniform {@link ListSnapshot}. */
-export async function loadListSnapshot(type: ListType, filePath: string): Promise<ListSnapshot> {
-  if (type === 'deck') {
-    const deck = await importFromTextFile(filePath)
-    const entries: SnapshotEntry[] = []
-    for (const section of deck.sections) {
-      const commander = isCommanderSection(section.name)
-      for (const card of section.cards) {
-        entries.push({
-          name: card.name,
-          set: card.set,
-          collectorNumber: card.collectorNumber,
-          finish: card.finish,
-          condition: card.condition,
-          language: card.language,
-          labels: card.labels,
-          note: card.note,
-          cardId: card.cardId,
-          section: section.name,
-          quantity: card.quantity,
-          isCommander: commander,
-        })
-      }
-    }
-    return { sectionOrder: deck.sections.map((s) => s.name), entries }
-  }
-
-  const content = await fs.readFile(filePath, 'utf-8')
-  if (type === 'collection') {
-    const { entries, sectionOrder } = parseCollectionFile(content)
-    return {
-      sectionOrder,
-      entries: entries.map((e) => ({
-        name: e.name,
-        set: e.set,
-        collectorNumber: e.collectorNumber,
-        finish: e.finish,
-        condition: e.condition,
-        language: e.language,
-        labels: e.labels,
-        note: e.note,
-        cardId: e.cardId,
-        section: e.section,
-        quantity: e.quantity,
-        isCommander: false,
-      })),
-    }
-  }
-
-  const { entries, sectionOrder } = parseWantedListFile(content)
-  return {
-    sectionOrder,
-    entries: entries.map((e) => ({
-      name: e.name,
-      set: e.set,
-      collectorNumber: e.collectorNumber,
-      finish: e.finish,
-      language: e.language,
-      note: e.note,
-      cardId: e.cardId,
-      section: e.section,
-      quantity: e.quantity,
-      isCommander: false,
-    })),
-  }
-}
+export { loadListEntries as loadListSnapshot }
 
 /**
  * Build the raw changelog lines for a single "current state" change set. Emits, in

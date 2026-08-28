@@ -4,11 +4,6 @@ import type { MetaFor } from '../../types'
 import type { cliInfraMessages } from './cli-infra'
 
 export const cliInfraMeta = {
-  'cli.listScope.oneTypeFlag': {
-    description:
-      'Usage error when more than one of the --deck/--collection/--wanted scope flags is given.',
-  },
-
   // ── cache status ──────────────────────────────────────────────────────
   'cli.cache.rowEmpty': {
     description: '`cache status` row label: whether the card cache holds nothing.',
@@ -161,6 +156,10 @@ export const cliInfraMeta = {
   'cli.serve.cacheDownloadFailed': {
     description:
       "serve --api's warm could not bulk-download the card cache; the server starts on what the cache already holds. {reason} is the error.",
+  },
+  'cli.serve.startFailed': {
+    description:
+      'The server could not bind its port — nearly always because another process already holds it. {host} and {port} are the requested bind address; {error} is the operating system’s own message.',
   },
 
   // ── admin ─────────────────────────────────────────────────────────────

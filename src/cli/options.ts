@@ -374,8 +374,20 @@ export function addListTypeFlags(command: Command): Command {
 }
 
 /**
- * Resolve the mutually-exclusive `--deck`/`--collection`/`--wanted` flags for a
- * one-shot card command's action handler. A conflict is reported through the
+ * Register the same three flags where they *scope* a multi-list run (`export`,
+ * `price`, `sell`) rather than resolving one name — same spelling and conflict
+ * rule, different help text.
+ */
+export function addListScopeFlags(command: Command): Command {
+  return command
+    .option('--deck', t('help.listScope.deck'))
+    .option('--collection', t('help.listScope.collection'))
+    .option('--wanted', t('help.listScope.wanted'))
+}
+
+/**
+ * Resolve the mutually-exclusive `--deck`/`--collection`/`--wanted` flags for
+ * any command that takes them. A conflict is reported through the
  * scripting error channel and sets the usage-error exit code — the caller only
  * has to check for `'conflict'` and return.
  */

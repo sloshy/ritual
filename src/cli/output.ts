@@ -160,6 +160,29 @@ export function emitOutput(data: unknown, options: ScriptingOptions): void {
   writeStdout(`${String(data)}\n`)
 }
 
+/** A card-command payload that leaves the `dryRun` marker to the emitter. */
+type UnflaggedResult = { dryRun?: never }
+
+/**
+ * The one emit tail every one-shot card mutation shares: under `--output text`
+ * print `textLine` (silenced by `--quiet`), otherwise emit `payload` as the
+ * structured result, flagged with `dryRun: true` when the run only previewed.
+ * A payload declaring its own `dryRun` would shadow that marker, so the
+ * constraint forbids it.
+ */
+export function emitCardResult<P extends object & UnflaggedResult>(
+  payload: P,
+  textLine: string,
+  scripting: ScriptingOptions,
+  dryRun: boolean,
+): void {
+  if (scripting.output === 'text') {
+    if (!scripting.quiet) emitOutput(textLine, scripting)
+    return
+  }
+  emitOutput(dryRun ? { dryRun: true as const, ...payload } : payload, scripting)
+}
+
 /**
  * The one channel for warnings that must survive structured output: a note the
  * user needs (a skipped card line, a truncated result set) goes to stderr so

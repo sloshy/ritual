@@ -16,9 +16,6 @@
 import type { MessageCatalogShape } from '../../types'
 
 export const cliInfraMessages = {
-  // ── Shared list scoping ───────────────────────────────────────────────
-  'cli.listScope.oneTypeFlag': 'Use only one of --deck, --collection, or --wanted.',
-
   // ── cache status ──────────────────────────────────────────────────────
   //
   // Row labels of the `cache status` text report. The column is padded to the
@@ -105,6 +102,7 @@ export const cliInfraMessages = {
   'cli.serve.serving': 'Serving site from {dir} at {url}...',
   'cli.serve.cacheDownloadFailed':
     'Card cache download failed; serving from the existing cache. {reason}',
+  'cli.serve.startFailed': 'Failed to start the server on {host}:{port}: {error}',
 
   // ── admin ─────────────────────────────────────────────────────────────
   'cli.admin.mcpTokenRequired':
