@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import path from 'node:path'
 import { CardCommandError } from '../../src/util/errors'
 import { resolveTarget } from '../../src/commands/card-target'
-import { createWorkspace, removeWorkspace, writeDeckFile } from './helpers/workspace'
+import { createWorkspace, removeWorkspace, writeDeckFile } from '../helpers/workspace'
 
 /**
  * Direct tests for `resolveTarget` (src/commands/card-target.ts): pure

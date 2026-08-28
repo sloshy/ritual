@@ -14,11 +14,11 @@ import {
 } from '../../src/list/list-lifecycle'
 import { parseDeckFrontMatter } from '../../src/list/deck-file'
 import { computeHash } from '../../src/changes/content-hash'
-import { setBaseDir } from '../../src/config/base-dir'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
-const testDir = path.join(import.meta.dir, '../.test-list-lifecycle')
-const decksDir = path.join(testDir, 'decks')
-const collectionsDir = path.join(testDir, 'collections')
+let ws: BoundWorkspace
+let decksDir: string
+let collectionsDir: string
 
 function unwrap<S>(result: S | ListLifecycleError): S {
   if (isListLifecycleError(result)) {
@@ -37,17 +37,14 @@ function unwrapError<S>(result: S | ListLifecycleError): ListLifecycleError {
 const exists = (filePath: string): Promise<boolean> => Bun.file(filePath).exists()
 
 describe('list-lifecycle engine', () => {
-  const originalCwd = process.cwd()
-
   beforeEach(async () => {
-    await fs.mkdir(decksDir, { recursive: true })
-    await fs.mkdir(collectionsDir, { recursive: true })
-    setBaseDir(testDir)
+    ws = await bindWorkspace({ dirs: ['decks', 'collections'], config: false })
+    decksDir = path.join(ws.dir, 'decks')
+    collectionsDir = path.join(ws.dir, 'collections')
   })
 
   afterEach(async () => {
-    setBaseDir(originalCwd)
-    await fs.rm(testDir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   describe('createList', () => {

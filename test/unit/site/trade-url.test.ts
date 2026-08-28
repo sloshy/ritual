@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeAll, afterAll, beforeEach, afterEach } from 'bun:test'
+import { describe, expect, test, beforeAll, afterAll, beforeEach, afterEach } from 'bun:test'
 import { resetApiBase, setApiBase } from '../../../src/list-view/api-base'
 import { defaultFinishForCard, resolveTradeFinish } from '../../../src/site/trade-finish'
 import { encodeTradeToParams, hasTradeParams } from '../../../src/site/trade-url-encode'
@@ -13,6 +13,7 @@ import type { TradeSearchEntry } from '../../../src/site/useTradeData'
 import type { Finish } from '../../../src/card/finish-condition'
 import type { ScryfallCard } from '../../../src/scryfall/types'
 import { makeScryfallCard } from '../../test-utils'
+import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
 
 const noEntries: TradeParamEntries = {
   collectionEntries: [],
@@ -34,15 +35,14 @@ function roundTrip(
 // the network, so stub fetch to return an empty collection — none of these
 // tests depend on the prefetched card (the rows under test either resolve from
 // the provided entries or are intentionally empty because entries are stale).
-const originalFetch = globalThis.fetch
+let stubbed: StubbedFetch
 function stubEmptyScryfallCollection(): void {
-  globalThis.fetch = mock(() =>
-    Promise.resolve(new Response(JSON.stringify({ data: [], not_found: [] }), { status: 200 })),
-  ) as unknown as typeof fetch
+  stubbed?.restore()
+  stubbed = stubFetch({ '': () => Response.json({ data: [], not_found: [] }) })
 }
 beforeAll(stubEmptyScryfallCollection)
 afterAll(() => {
-  globalThis.fetch = originalFetch
+  stubbed.restore()
 })
 
 function makeCard(overrides: Partial<ScryfallCard> = {}): ScryfallCard {
@@ -253,17 +253,17 @@ describe('encodeTradeToParams', () => {
 describe('decodeTradeFromParams — where a bare Scryfall ID is looked up', () => {
   const card = makeCard({ id: 'sf-1', name: 'Test Card' })
   const params = new URLSearchParams('rightSideScryfall=x1@sf-1')
-  let requested: string[] = []
+  /** The URLs the decoder asked for, in order. */
+  const requested = (): string[] => stubbed.sent.map((sent) => sent.url)
 
   beforeEach(() => {
-    requested = []
-    globalThis.fetch = (async (input: string | URL | Request): Promise<Response> => {
-      const url = input instanceof Request ? input.url : String(input)
-      requested.push(url)
-      return url.includes('/api/cards')
-        ? Response.json({ success: true, cards: [card] })
-        : Response.json({ data: [card], not_found: [] })
-    }) as unknown as typeof fetch
+    stubbed.restore()
+    stubbed = stubFetch({
+      '': (request) =>
+        request.url.includes('/api/cards')
+          ? Response.json({ success: true, cards: [card] })
+          : Response.json({ data: [card], not_found: [] }),
+    })
   })
 
   afterEach(() => {
@@ -275,7 +275,7 @@ describe('decodeTradeFromParams — where a bare Scryfall ID is looked up', () =
     const decoded = await decodeTradeFromParams(params, noEntries, 'usd')
 
     expect(decoded.right[0]).toMatchObject({ source: 'scryfall', sourceName: 'Scryfall', qty: 1 })
-    expect(requested.some((url) => url.includes('api.scryfall.com'))).toBeTrue()
+    expect(requested().some((url) => url.includes('api.scryfall.com'))).toBeTrue()
   })
 
   test("hosted site asks the backend's cache, and the row says so", async () => {
@@ -284,7 +284,7 @@ describe('decodeTradeFromParams — where a bare Scryfall ID is looked up', () =
     const decoded = await decodeTradeFromParams(params, noEntries, 'usd')
 
     expect(decoded.right[0]).toMatchObject({ source: 'scryfall', sourceName: 'Cache' })
-    expect(requested).toEqual(['/api/cards?ids=sf-1'])
+    expect(requested()).toEqual(['/api/cards?ids=sf-1'])
   })
 })
 
@@ -637,8 +637,8 @@ describe('encode → decode round-trip', () => {
 
     // The decoder only has the wanted list's own entry, so it must resolve the
     // picked printing from the URL's Scryfall ID.
-    globalThis.fetch = (async (): Promise<Response> =>
-      Response.json({ data: [picked], not_found: [] })) as unknown as typeof fetch
+    stubbed.restore()
+    stubbed = stubFetch({ '': () => Response.json({ data: [picked], not_found: [] }) })
     try {
       const decoded = await decodeTradeFromParams(
         params,

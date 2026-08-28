@@ -25,7 +25,7 @@ import {
   writeDeckFile,
   writeWantedFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 let ws: BoundWorkspace
 let tmpDir: string

@@ -22,7 +22,7 @@ import { assignMissingDeckCardIds } from '../../src/card/card-id'
 import { createAddChange } from '../../src/changes/change-event'
 import { computeHash } from '../../src/changes/content-hash'
 import { handleDeckSave } from '../../src/admin/api/deck-save'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 let ws: BoundWorkspace
 

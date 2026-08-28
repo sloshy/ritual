@@ -6,7 +6,9 @@ import '../../src/scryfall'
 import { Command } from 'commander'
 import { registerScryCommand } from '../../src/commands/scry'
 import { makeScryfallCard } from '../test-utils'
-import { stubFetch, type StubbedFetch } from './helpers/stub-fetch'
+import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
+import { captureExitCode } from '../helpers/cli'
+import { captureStream } from '../helpers/capture'
 import type { ScryfallCard } from '../../src/scryfall/types'
 
 /**
@@ -16,12 +18,8 @@ import type { ScryfallCard } from '../../src/scryfall/types'
  * own suite in cli-scripting.test.ts; this one covers the --random dispatch.
  */
 describe('scry --random (Integration)', () => {
-  const originalStdoutWrite = process.stdout.write.bind(process.stdout)
-  const originalStderrWrite = process.stderr.write.bind(process.stderr)
   let scryfall: StubbedFetch
   let responseStatus = 200
-  let stdout = ''
-  let stderr = ''
 
   /** The URLs this run asked Scryfall for, in order. */
   const requestedUrls = (): string[] => scryfall.sent.map((request) => request.url)
@@ -33,76 +31,73 @@ describe('scry --random (Integration)', () => {
           ? new Response('not found', { status: responseStatus })
           : Response.json(makeScryfallCard({ name: `Random Card ${scryfall.sent.length}` })),
     })
-    process.stdout.write = (chunk: string | Uint8Array): boolean => {
-      stdout += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)
-      return true
-    }
-    process.stderr.write = (chunk: string | Uint8Array): boolean => {
-      stderr += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)
-      return true
-    }
   })
 
   afterAll(() => {
     scryfall.restore()
-    process.stdout.write = originalStdoutWrite
-    process.stderr.write = originalStderrWrite
   })
 
   afterEach(() => {
-    process.exitCode = 0
     responseStatus = 200
   })
 
-  async function runScry(args: string[]): Promise<void> {
+  /** One in-process `scry` run: the exit code it set and what it printed. */
+  type ScryRun = { code: number; stdout: string; stderr: string }
+
+  async function runScry(args: string[]): Promise<ScryRun> {
     scryfall.sent.length = 0
-    stdout = ''
-    stderr = ''
-    const program = new Command()
-    registerScryCommand(program)
-    await program.parseAsync(['scry', ...args], { from: 'user' })
+    let code = 0
+    let stderr = ''
+    const stdout = await captureStream('stdout', async () => {
+      stderr = await captureStream('stderr', async () => {
+        const program = new Command()
+        registerScryCommand(program)
+        code = await captureExitCode(() => program.parseAsync(['scry', ...args], { from: 'user' }))
+      })
+    })
+    return { code, stdout, stderr }
   }
 
   test('--random fetches /cards/random and emits a bare card', async () => {
-    await runScry(['--random'])
+    const { code, stdout } = await runScry(['--random'])
 
     expect(requestedUrls()).toHaveLength(1)
     expect(requestedUrls()[0]).toContain('/cards/random')
     const card = JSON.parse(stdout) as ScryfallCard
     expect(card.name).toBe('Random Card 1')
-    expect(process.exitCode ?? 0).toBe(0)
+    expect(code).toBe(0)
   })
 
   test('the query doubles as the random filter', async () => {
-    await runScry(['t:instant', '--random'])
+    const { code } = await runScry(['t:instant', '--random'])
 
     expect(requestedUrls()[0]).toContain('/cards/random?q=t%3Ainstant')
-    expect(process.exitCode ?? 0).toBe(0)
+    expect(code).toBe(0)
   })
 
   test('--count 2 fetches twice and emits an array', async () => {
-    await runScry(['--random', '--count', '2'])
+    const { code, stdout } = await runScry(['--random', '--count', '2'])
 
     expect(requestedUrls()).toHaveLength(2)
     const cards = JSON.parse(stdout) as ScryfallCard[]
     expect(Array.isArray(cards)).toBe(true)
     expect(cards.map((card) => card.name)).toEqual(['Random Card 1', 'Random Card 2'])
-    expect(process.exitCode ?? 0).toBe(0)
+    expect(code).toBe(0)
   })
 
   test('--output text renders one Name (SET) line per card', async () => {
-    await runScry(['--random', '--count', '2', '--output', 'text'])
+    const { code, stdout } = await runScry(['--random', '--count', '2', '--output', 'text'])
 
     const lines = stdout.split('\n').filter((line) => line.length > 0)
     expect(lines).toEqual(['Random Card 1 (TST)', 'Random Card 2 (TST)'])
-    expect(process.exitCode ?? 0).toBe(0)
+    expect(code).toBe(0)
   })
 
   test('--random with --pages is a usage error before any fetch', async () => {
-    await runScry(['--random', '--pages', '2'])
+    const { code, stderr } = await runScry(['--random', '--pages', '2'])
 
     expect(requestedUrls()).toHaveLength(0)
-    expect(process.exitCode ?? 0).toBe(2)
+    expect(code).toBe(2)
     const errorJson = JSON.parse(stderr) as { error: { code: string; message: string } }
     expect(errorJson.error.code).toBe('usage_error')
     expect(errorJson.error.message).toBe('--pages cannot be used with --random.')
@@ -110,9 +105,9 @@ describe('scry --random (Integration)', () => {
 
   test('a 404 from the random endpoint is a not-found', async () => {
     responseStatus = 404
-    await runScry(['nonsense-filter', '--random'])
+    const { code, stderr } = await runScry(['nonsense-filter', '--random'])
 
-    expect(process.exitCode ?? 0).toBe(3)
+    expect(code).toBe(3)
     const errorJson = JSON.parse(stderr) as { error: { code: string; message: string } }
     expect(errorJson.error.code).toBe('not_found')
     expect(errorJson.error.message).toBe('No card found for the supplied random filter.')
@@ -125,9 +120,7 @@ describe('scry --random (Integration)', () => {
  * parser accepts; `ndjson` streams per page because that is its contract.
  */
 describe('scry --output json across pages (Integration)', () => {
-  const originalStdoutWrite = process.stdout.write.bind(process.stdout)
   let scryfall: StubbedFetch
-  let stdout = ''
 
   beforeAll(() => {
     scryfall = stubFetch({
@@ -140,31 +133,22 @@ describe('scry --output json across pages (Integration)', () => {
         })
       },
     })
-    process.stdout.write = (chunk: string | Uint8Array): boolean => {
-      stdout += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)
-      return true
-    }
   })
 
   afterAll(() => {
     scryfall.restore()
-    process.stdout.write = originalStdoutWrite
   })
 
-  afterEach(() => {
-    process.exitCode = 0
-  })
-
-  async function runScry(args: string[]): Promise<void> {
-    stdout = ''
+  /** Run one `scry` in-process and report everything it wrote to stdout. */
+  async function runScry(args: string[]): Promise<string> {
     scryfall.sent.length = 0
     const program = new Command()
     registerScryCommand(program)
-    await program.parseAsync(['scry', ...args], { from: 'user' })
+    return captureStream('stdout', () => program.parseAsync(['scry', ...args], { from: 'user' }))
   }
 
   test('a three-page run emits one parseable JSON array', async () => {
-    await runScry(['t:instant', '--pages', '3'])
+    const stdout = await runScry(['t:instant', '--pages', '3'])
 
     expect(scryfall.sent).toHaveLength(3)
     const cards = JSON.parse(stdout) as ScryfallCard[]
@@ -176,7 +160,7 @@ describe('scry --output json across pages (Integration)', () => {
     // pass Scryfall's raw `{ object: "list", data: [...] }` straight through,
     // making the document shape depend on how many pages the run happened to
     // walk — the one thing a scripted caller cannot branch on.
-    await runScry(['t:instant'])
+    const stdout = await runScry(['t:instant'])
 
     expect(scryfall.sent).toHaveLength(1)
     const cards = JSON.parse(stdout) as ScryfallCard[]
@@ -185,17 +169,17 @@ describe('scry --output json across pages (Integration)', () => {
   })
 
   test('--fields projects the cards inside that one array', async () => {
-    await runScry(['t:instant', '--pages', '2', '--fields', 'name'])
+    const stdout = await runScry(['t:instant', '--pages', '2', '--fields', 'name'])
 
     const cards = JSON.parse(stdout) as Partial<ScryfallCard>[]
     expect(cards).toEqual([{ name: 'Page 1 Card' }, { name: 'Page 2 Card' }])
   })
 
   test('ndjson still streams one document per card', async () => {
-    await runScry(['t:instant', '--pages', '2', '--output', 'ndjson'])
+    const stdout = await runScry(['t:instant', '--pages', '2', '--output', 'ndjson'])
 
-    const lines = stdout.split('\n').filter((line) => line.length > 0)
-    expect(lines).toHaveLength(2)
-    expect((JSON.parse(lines[0]!) as ScryfallCard).name).toBe('Page 1 Card')
+    const printed = stdout.split('\n').filter((line) => line.length > 0)
+    expect(printed).toHaveLength(2)
+    expect((JSON.parse(printed[0]!) as ScryfallCard).name).toBe('Page 1 Card')
   })
 })

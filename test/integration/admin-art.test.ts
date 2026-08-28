@@ -25,8 +25,8 @@ import {
   writeCollectionFile,
   writeDeckFile,
   writeWantedFile,
-} from './helpers/workspace'
-import type { BoundWorkspace } from './helpers/workspace'
+} from '../helpers/workspace'
+import type { BoundWorkspace } from '../helpers/workspace'
 import { callJson } from './helpers/request'
 
 /**

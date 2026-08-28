@@ -1,11 +1,10 @@
 import type { ScryfallCard } from '../../../src/scryfall/types'
 import type { CollectionDetail, WantedListDetail } from '../../../src/list/site-data'
+import { makeScryfallCard } from '../../fixtures/cards'
 
-// A dedicated e2e card factory (rather than reusing test/test-utils.ts's
-// makeScryfallCard) because the site payload mocks share a richer default
-// envelope — an all-empty image_uris block and an empty oracle_text, as
-// build-site emits — and because test-utils has runtime imports from
-// src/cache that the Playwright (Node) process should not load.
+// A thin e2e wrapper over the shared `makeScryfallCard` fixture: the site
+// payload mocks want a richer default envelope — an all-empty image_uris block
+// and an empty oracle_text, as build-site emits — than a plain card fixture.
 
 /**
  * Overrides for {@link makeMockScryfallCard}. `prices` and `image_uris` may be
@@ -32,31 +31,8 @@ const EMPTY_IMAGE_URIS: NonNullable<ScryfallCard['image_uris']> = {
  * shares. Pass only the fields a spec's assertions rely on.
  */
 export function makeMockScryfallCard(overrides: MockScryfallCardOverrides = {}): ScryfallCard {
-  const { prices, image_uris, ...rest } = overrides
-  const card: ScryfallCard = {
-    id: 'test-card-id',
-    name: 'Test Card',
-    cmc: 0,
-    type_line: 'Artifact',
-    oracle_text: '',
-    finishes: ['nonfoil'],
-    games: ['paper'],
-    set: 'tst',
-    set_name: 'Test Set',
-    collector_number: '1',
-    rarity: 'common',
-    color_identity: [],
-    ...rest,
-    prices: {
-      usd: null,
-      usd_foil: null,
-      usd_etched: null,
-      eur: null,
-      eur_foil: null,
-      tix: null,
-      ...prices,
-    },
-  }
+  const { image_uris, ...rest } = overrides
+  const card = makeScryfallCard({ id: 'test-card-id', oracle_text: '', ...rest })
   if (image_uris !== null) {
     card.image_uris = { ...EMPTY_IMAGE_URIS, ...image_uris }
   }

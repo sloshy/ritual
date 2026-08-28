@@ -11,14 +11,14 @@ import type {
 } from '../../src/admin/api/load-results'
 import { seedCardNames } from '../test-utils'
 import { callJson } from './helpers/request'
-import { stubFetch, type StubbedFetch } from './helpers/stub-fetch'
+import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
 import {
   bindWorkspace,
   writeCollectionFile,
   writeDeckFile,
   writeWantedFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 /**
  * The `?view=` short-circuit on the three list load routes.

@@ -15,6 +15,7 @@ import {
   ARCHIDEKT_CSV_CHUNK_SIZE,
 } from '../../../src/importers/archidekt-collection'
 import type { RateLimitWait } from '../../../src/sync/common'
+import { stubFetch } from '../../helpers/stub-fetch'
 
 /**
  * The client's rate limiting: request pacing (`minRequestIntervalMs`) and the
@@ -443,13 +444,14 @@ describe('createPacedArchidektClient', () => {
   test('reports 429 waits as the shared human-readable line', async () => {
     const timeline = fakeTimeline()
     const messages: string[] = []
-    const priorFetch = globalThis.fetch
     let first = true
-    globalThis.fetch = ((_input: string | URL | Request, _init?: RequestInit) => {
-      const response = first ? tooMany() : ok()
-      first = false
-      return Promise.resolve(response)
-    }) as typeof globalThis.fetch
+    const archidekt = stubFetch({
+      '': () => {
+        const response = first ? tooMany() : ok()
+        first = false
+        return response
+      },
+    })
     try {
       const client = createPacedArchidektClient((message) => messages.push(message), {
         minRequestIntervalMs: 0,
@@ -458,7 +460,7 @@ describe('createPacedArchidektClient', () => {
       })
       await client.fetchPublicDecks('user1')
     } finally {
-      globalThis.fetch = priorFetch
+      archidekt.restore()
     }
 
     expect(messages).toEqual(['Rate limited by Archidekt — waiting 2s before retry 1 of 5.'])

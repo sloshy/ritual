@@ -1,14 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
 import {
   MAX_BUYLIST_PRINTINGS,
   parseBuylistQuoteBody,
   requireBuylistFeed,
   type BuylistQuoteBody,
 } from '../../../src/api/buylist'
-import { getBaseDir, setBaseDir } from '../../../src/config/base-dir'
+import { bindWorkspace } from '../../helpers/workspace'
 
 const printing = (overrides: Record<string, unknown> = {}): Record<string, unknown> => ({
   set: 'DSK',
@@ -87,16 +84,13 @@ describe('requireBuylistFeed', () => {
     // Pointed at an empty base dir rather than a stub: the memo is keyed on the
     // cache file's path, so a workspace with no `cache/cardkingdom.json` is the
     // real "nobody has run a refresh yet" state every sell route can hit.
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-buylist-'))
-    const previous = getBaseDir()
-    setBaseDir(dir)
+    const ws = await bindWorkspace()
     try {
       const result = await requireBuylistFeed()
       expect(result).toBeInstanceOf(Response)
       expect((result as Response).status).toBe(503)
     } finally {
-      setBaseDir(previous)
-      await fs.rm(dir, { recursive: true, force: true })
+      await ws.dispose()
     }
   })
 })

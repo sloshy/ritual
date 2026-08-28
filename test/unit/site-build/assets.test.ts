@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import { loadCustomThemes } from '../../../src/site-build/assets'
 import { parseCustomTheme } from '../../../src/theme/themes'
+import { createWorkspace, removeWorkspace } from '../../helpers/workspace'
 
 /**
  * `--theme-file` loading: the first failure is the whole answer, and it names
@@ -11,11 +11,11 @@ import { parseCustomTheme } from '../../../src/theme/themes'
  */
 
 async function withThemeDir(run: (dir: string) => Promise<void>): Promise<void> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-themes-'))
+  const dir = await createWorkspace({ dirs: [], config: false })
   try {
     await run(dir)
   } finally {
-    await fs.rm(dir, { recursive: true, force: true })
+    await removeWorkspace(dir)
   }
 }
 

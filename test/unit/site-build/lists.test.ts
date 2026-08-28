@@ -1,12 +1,13 @@
-import { beforeEach, describe, expect, spyOn, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import { writeListDetails, type LoadedList, type SourceLoad } from '../../../src/site-build/lists'
 import type { SkippedSource, SourceCategory } from '../../../src/site-build/sources'
 import type { SiteDetailContext } from '../../../src/site-build/types'
 import type { CollectionSummary, ListSummary } from '../../../src/list/site-data'
 import type { ListType } from '../../../src/list/list-type'
+import { createWorkspace, removeWorkspace } from '../../helpers/workspace'
+import { captureConsole } from '../../helpers/capture'
 
 /**
  * The write pass's bookkeeping, with lists already loaded: what is reported as
@@ -67,30 +68,27 @@ async function run(
   explicit: boolean,
   lists: (LoadedList | string)[],
 ): Promise<Run> {
-  const buildDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-lists-'))
+  const buildDir = await createWorkspace({ dirs: [], config: false })
   const skipped: SkippedSource[] = []
-  const logged: string[] = []
-  const log = spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
-    logged.push(args.map(String).join(' '))
-  })
   try {
     const loads: SourceLoad[] = lists.map((list, i) => ({
       source: { basename: `file-${i}`, displayName: `List ${i}` },
       list,
     }))
-    const summaries = await writeListDetails({
-      category: category(kind, explicit, loads),
-      loads,
-      buildDir,
-      detailCtx: ctx,
-      skipSource: (source) => skipped.push(source),
-      loadingMessage: kind === 'deck' ? undefined : 'Loading...',
-    })
+    const { result: summaries, lines } = await captureConsole(['log'], () =>
+      writeListDetails({
+        category: category(kind, explicit, loads),
+        loads,
+        buildDir,
+        detailCtx: ctx,
+        skipSource: (source) => skipped.push(source),
+        loadingMessage: kind === 'deck' ? undefined : 'Loading...',
+      }),
+    )
     const files = await fs.readdir(buildDir, { recursive: true })
-    return { summaries, skipped, built: builds, files: files.map(String), logged }
+    return { summaries, skipped, built: builds, files: files.map(String), logged: lines.log }
   } finally {
-    log.mockRestore()
-    await fs.rm(buildDir, { recursive: true, force: true })
+    await removeWorkspace(buildDir)
   }
 }
 

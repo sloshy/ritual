@@ -5,7 +5,7 @@ import {
   writeCollectionFile,
   writeDeckFile,
   writeWantedFile,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 async function seedLists(dir: string): Promise<void> {
   await writeDeckFile(dir, 'burn', { frontMatter: { name: 'Burn' }, cards: [] })

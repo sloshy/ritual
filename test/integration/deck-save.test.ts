@@ -7,7 +7,7 @@ import { createSetLanguageChange, type ChangeEvent } from '../../src/changes/cha
 import { handleDeckSave } from '../../src/admin/api/deck-save'
 import type { ListSaveResponse } from '../../src/admin/api/list-save'
 import { computeHash } from '../../src/changes/content-hash'
-import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, writeDeckFile, type BoundWorkspace } from '../helpers/workspace'
 
 /**
  * The deck save route's language wiring: a `set-language` change round-trips

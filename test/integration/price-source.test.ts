@@ -11,7 +11,7 @@ import { makeCardKingdomProduct, makeScryfallCard } from '../test-utils'
 import { runCli } from './helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'
 import { seedCardCache, seedCardKingdomFeed } from './helpers/seed'
-import { createWorkspace, removeWorkspace, writeCollectionFile } from './helpers/workspace'
+import { createWorkspace, removeWorkspace, writeCollectionFile } from '../helpers/workspace'
 
 // `price --source` wiring only: the CK pricing rules themselves are pinned in
 // test/unit/price-report-cardkingdom.test.ts.

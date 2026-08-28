@@ -1,7 +1,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test'
 import { DECK_FORMAT_KEYS } from '../../../src/list/deck-format'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
-import { fulfillJsonRoute } from '../helpers/fulfill'
+import { fulfillJson, fulfillJsonRoute } from '../helpers/fulfill'
 
 type ListItem = { slug: string; name: string }
 
@@ -68,20 +68,10 @@ async function installConfigMock(page: Page, site: SiteState): Promise<void> {
  * exercised end-to-end without touching real files.
  */
 async function installManagerMocks(page: Page, state: ManagerState): Promise<void> {
-  await page.route('**/api/decks', async (route) => {
-    if (route.request().method() !== 'GET') return route.fallback()
-    await fulfillJsonRoute(route, { decks: state.decks })
-  })
-
-  await page.route('**/api/collections', async (route) => {
-    if (route.request().method() !== 'GET') return route.fallback()
-    await fulfillJsonRoute(route, { collections: state.collections })
-  })
-
-  await page.route('**/api/wanted', async (route) => {
-    if (route.request().method() !== 'GET') return route.fallback()
-    await fulfillJsonRoute(route, { wantedLists: state.wantedLists })
-  })
+  const GET = { method: 'GET' }
+  await fulfillJson(page, '**/api/decks', () => ({ decks: state.decks }), GET)
+  await fulfillJson(page, '**/api/collections', () => ({ collections: state.collections }), GET)
+  await fulfillJson(page, '**/api/wanted', () => ({ wantedLists: state.wantedLists }), GET)
 
   const handleCreate = async (route: Route, key: keyof ManagerState) => {
     if (route.request().method() !== 'POST') return route.fallback()
@@ -318,9 +308,10 @@ test.describe('List Manager', () => {
   }) => {
     // The editor loads the picked deck via a GET; return a minimal valid deck so
     // the editor mounts and its selector reflects the deep-linked slug.
-    await page.route('**/api/deck/*', async (route) => {
-      if (route.request().method() !== 'GET') return route.fallback()
-      await fulfillJsonRoute(route, {
+    await fulfillJson(
+      page,
+      '**/api/deck/*',
+      {
         success: true,
         deck: { name: 'Existing Deck', format: 'commander', sections: [] },
         cards: {},
@@ -332,8 +323,9 @@ test.describe('List Manager', () => {
         frontMatter: {},
         slug: 'Existing Deck',
         contentHash: 'hash',
-      })
-    })
+      },
+      { method: 'GET' },
+    )
 
     await page.locator('.deck-list-item:has-text("Existing Deck") .btn:has-text("Edit")').click()
 
@@ -348,9 +340,10 @@ test.describe('List Manager', () => {
   test('Edit opens the Edit Lists page on the Collections tab with the collection pre-selected', async ({
     page,
   }) => {
-    await page.route('**/api/collection/*', async (route) => {
-      if (route.request().method() !== 'GET') return route.fallback()
-      await fulfillJsonRoute(route, {
+    await fulfillJson(
+      page,
+      '**/api/collection/*',
+      {
         success: true,
         entries: [],
         cards: {},
@@ -358,8 +351,9 @@ test.describe('List Manager', () => {
         symbolMap: {},
         slug: 'Existing Collection',
         contentHash: 'hash',
-      })
-    })
+      },
+      { method: 'GET' },
+    )
 
     await page.locator('.list-type-tab:has-text("Collections")').click()
     await page

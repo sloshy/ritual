@@ -13,6 +13,7 @@ import {
   resetBuylistQuotes,
 } from '../../../src/list-view/buylist-quotes'
 import { stubBuylistFetcher } from '../../test-utils'
+import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
 
 /**
  * The admin SPA's sell-mode flag: primed at boot from `GET /api/status` and
@@ -25,10 +26,10 @@ import { stubBuylistFetcher } from '../../test-utils'
  * (`test/e2e/admin/sell-mode-gate.spec.ts`).
  */
 
-const realFetch = globalThis.fetch
+let stubbed: StubbedFetch | undefined
 
 /** Every URL `fetch` was called with since the last reset. */
-let asked: string[] = []
+const asked = (): string[] => (stubbed?.sent ?? []).map((sent) => sent.url)
 
 /** A `GET /api/status` payload from a logged-in server offering (or not) sell mode. */
 function status(sellMode: boolean): StatusResponse {
@@ -36,19 +37,17 @@ function status(sellMode: boolean): StatusResponse {
 }
 
 /**
- * Answer every request with a fresh `makeResponse()`, recording the URL it was
- * asked for. Built per call because a `Response` body may only be read once.
+ * Answer every request with a fresh `makeResponse()`. Built per call because a
+ * `Response` body may only be read once; `asked()` reports the URLs.
  */
-function stubFetch(makeResponse: () => Response): void {
-  globalThis.fetch = ((input: string | URL | Request) => {
-    asked.push(input instanceof Request ? input.url : input.toString())
-    return Promise.resolve(makeResponse())
-  }) as unknown as typeof fetch
+function stubStatus(makeResponse: () => Response): void {
+  stubbed?.restore()
+  stubbed = stubFetch({ '': () => makeResponse() })
 }
 
 afterEach(() => {
-  globalThis.fetch = realFetch
-  asked = []
+  stubbed?.restore()
+  stubbed = undefined
   setSellModeEnabled(false)
   setSellModeActive(false)
   resetBuylistQuotes()
@@ -106,18 +105,20 @@ describe('refreshSellModeEnabled', () => {
     // The save path's whole point: the client asks the server rather than
     // trusting the config it just wrote, since only the server knows whether a
     // `--sell-mode` run is overriding the stored key.
-    stubFetch(() => Response.json(status(true)))
+    stubStatus(() => Response.json(status(true)))
     await refreshSellModeEnabled()
 
     expect(sellModeEnabled()).toBe(true)
     // Named explicitly: a refresh that read `/api/config` and derived the value
     // locally would satisfy every other assertion here.
-    expect(asked).toEqual(['/api/status'])
+    expect(asked()).toEqual(['/api/status'])
   })
 
   test('leaves the flag alone when the status request fails', async () => {
     setSellModeEnabled(true)
-    globalThis.fetch = (() => Promise.reject(new Error('offline'))) as unknown as typeof fetch
+    stubStatus(() => {
+      throw new Error('offline')
+    })
 
     await refreshSellModeEnabled()
 
@@ -132,7 +133,7 @@ describe('refreshSellModeEnabled', () => {
     // The admin's own envelope when `ritual.config.json` is unparseable: it
     // parses fine, so only the `resp.ok` check keeps it from reading as a
     // status payload with `sellMode` undefined.
-    stubFetch(() => Response.json({ success: false, message: 'bad config' }, { status: 500 }))
+    stubStatus(() => Response.json({ success: false, message: 'bad config' }, { status: 500 }))
 
     await refreshSellModeEnabled()
 
@@ -143,7 +144,7 @@ describe('refreshSellModeEnabled', () => {
     setSellModeEnabled(true)
     // A 200 from a server ahead of or behind this bundle. Validated rather than
     // asserted into shape, so an absent `sellMode` is "no answer", not `false`.
-    stubFetch(() => Response.json({ ok: true, setupRequired: false, totpEnabled: false }))
+    stubStatus(() => Response.json({ ok: true, setupRequired: false, totpEnabled: false }))
 
     await refreshSellModeEnabled()
 
@@ -153,7 +154,7 @@ describe('refreshSellModeEnabled', () => {
   test('leaves the flag alone when the body is not JSON', async () => {
     setSellModeEnabled(true)
     // A reverse proxy's HTML error page.
-    stubFetch(() => new Response('<html>502</html>', { headers: { 'Content-Type': 'text/html' } }))
+    stubStatus(() => new Response('<html>502</html>', { headers: { 'Content-Type': 'text/html' } }))
 
     await refreshSellModeEnabled()
 

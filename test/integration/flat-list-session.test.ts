@@ -1,7 +1,6 @@
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import * as os from 'node:os'
 import {
   applyFlatListChange,
   flatListTargetSection,
@@ -27,16 +26,17 @@ import type {
   FlatListStrategyContext,
 } from '../../src/commands/session/flat-list-session'
 import type { CollectionCardEntry } from '../../src/list/site-data'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 describe('flat-list session models', () => {
   let tmpDir: string
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-test-'))
+    tmpDir = await createWorkspace({ dirs: [], config: false })
   })
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true })
+    await removeWorkspace(tmpDir)
   })
 
   async function writeList(name: string, content: string): Promise<string> {
@@ -194,11 +194,11 @@ describe('session front matter', () => {
   let tmpDir: string
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-test-'))
+    tmpDir = await createWorkspace({ dirs: [], config: false })
   })
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true })
+    await removeWorkspace(tmpDir)
   })
 
   test('a collection session save preserves the block and its entry labels', async () => {
@@ -231,11 +231,11 @@ describe('session custom art', () => {
   let tmpDir: string
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-test-'))
+    tmpDir = await createWorkspace({ dirs: [], config: false })
   })
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true })
+    await removeWorkspace(tmpDir)
   })
 
   /** A two-card collection whose lines both carry custom art. */

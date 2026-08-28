@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -8,6 +8,7 @@ import { SKILLS, renderSkillFile } from '../../src/skills/catalog'
 import { installSkills, refreshInstalledSkills, resolveSkillsDir } from '../../src/skills/install'
 import { fileExists } from '../../src/util/fs'
 import { runCli, withTempDir } from './helpers/cli'
+import { captureConsole } from '../helpers/capture'
 
 /**
  * Re-stamp rendered `SKILL.md` content with a fake old `ritual-version`. The
@@ -24,13 +25,7 @@ function withFakeOldVersion(rendered: string): string {
 
 /** Run `fn` with console.log captured, returning everything it printed. */
 async function captureConsoleLog(fn: () => Promise<void>): Promise<string> {
-  const logSpy = spyOn(console, 'log').mockImplementation(() => {})
-  try {
-    await fn()
-    return logSpy.mock.calls.map((args) => args.join(' ')).join('\n')
-  } finally {
-    logSpy.mockRestore()
-  }
+  return (await captureConsole(['log'], fn)).lines.log.join('\n')
 }
 
 describe('resolveSkillsDir', () => {

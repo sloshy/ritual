@@ -24,7 +24,7 @@ import {
   type FlatListStrategyContext,
 } from '../../src/commands/session/flat-list-session'
 import type { CardSessionContext } from '../../src/commands/session/strategy'
-import { scratchListPath, stubTty } from '../test-utils'
+import { makeCollectionEntry, scratchListPath, stubTty } from '../test-utils'
 import type { CollectionCardEntry } from '../../src/list/site-data'
 import { applyChangeToCollection } from '../../src/changes/collection-changes'
 import { collectionToMarkdown } from '../../src/list/list-export'
@@ -45,18 +45,14 @@ function entry(
   cardId: number,
   overrides: Partial<CollectionCardEntry> = {},
 ): CollectionCardEntry {
-  return {
+  return makeCollectionEntry({
     name,
     set: 'lea',
     collectorNumber: '161',
-    finish: 'nonfoil',
-    condition: 'NM',
-    price: 0,
     fileOrder: cardId,
-    section: 'Main',
     cardId,
     ...overrides,
-  }
+  })
 }
 
 type Harness = {
@@ -200,21 +196,19 @@ describe('sharedFlatListEditActions', () => {
 
 describe('applyFlatListFieldEdit', () => {
   test('records one consolidated changelog event; re-editing replaces it', () => {
-    const { list, ctx } = harness([entry('Sol Ring', 1)])
-    const target = findFlatListEntry(list, 1)!
+    const h = harness([entry('Sol Ring', 1)])
 
-    applyFlatListFieldEdit(list, ctx, target, 1, printingEdit(target, 1, LTC))
-    expect(findFlatListEntry(list, 1)!.set).toBe('ltc')
-    expect(ctx.sessionChanges).toHaveLength(1)
-    expect(list.session.dirty).toBe(true)
+    editPrinting(h, 1, LTC)
+    expect(findFlatListEntry(h.list, 1)!.set).toBe('ltc')
+    expect(h.ctx.sessionChanges).toHaveLength(1)
+    expect(h.list.session.dirty).toBe(true)
 
     // A second edit consolidates: still one event, describing the latest state.
-    const updated = findFlatListEntry(list, 1)!
-    applyFlatListFieldEdit(list, ctx, updated, 1, printingEdit(updated, 1, C19))
-    expect(findFlatListEntry(list, 1)!.set).toBe('c19')
-    expect(ctx.sessionChanges).toHaveLength(1)
-    expect(ctx.sessionChanges[0]).toMatchObject({ action: 'set-printing', set: 'c19' })
-    expect(lastFlatListEditLabel(list)).toBe('printing on Sol Ring')
+    editPrinting(h, 1, C19)
+    expect(findFlatListEntry(h.list, 1)!.set).toBe('c19')
+    expect(h.ctx.sessionChanges).toHaveLength(1)
+    expect(h.ctx.sessionChanges[0]).toMatchObject({ action: 'set-printing', set: 'c19' })
+    expect(lastFlatListEditLabel(h.list)).toBe('printing on Sol Ring')
   })
 
   test('editing back to the session-start printing drops out of the changelog', () => {

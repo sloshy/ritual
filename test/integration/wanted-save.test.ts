@@ -10,7 +10,7 @@ import {
   writeWantedFile,
   type BoundWorkspace,
   type WantedFixtureEntry,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 /**
  * The wanted list's half of the save-effects contract, which the collection

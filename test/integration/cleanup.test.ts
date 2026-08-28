@@ -13,7 +13,7 @@ import {
   writeDeckFile,
   writeWantedFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 function resultFor(results: CleanupResult[], fileName: string): CleanupResult {
   const match = results.find((r) => path.basename(r.filePath) === fileName)

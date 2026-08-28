@@ -1,15 +1,15 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { tmpdir } from 'node:os'
-import { getBaseDir, setBaseDir } from '../../src/config/base-dir'
 import { cardCache } from '../../src/cache'
 import { refreshRitualConfig, resetRitualConfigCache } from '../../src/config/ritual-config'
 import { runBuildSite, type BuildSiteOptions } from '../../src/commands/build-site'
 import { ExitCode } from '../../src/util/errors'
 import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
-import { captureExitCode, runCli } from './helpers/cli'
-import { withWorkspace } from './helpers/workspace'
+import { runCli } from './helpers/cli'
+import { captureExitCode } from '../helpers/cli'
+import { captureConsole } from '../helpers/capture'
+import { bindWorkspace, withWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 /**
  * Source selection and build integrity: a build that could not assemble what it
@@ -17,25 +17,19 @@ import { withWorkspace } from './helpers/workspace'
  * published site with a broken one.
  */
 describe('build-site sources (Integration)', () => {
-  let dir: string
-  let originalBase: string
+  let ws: BoundWorkspace
 
   beforeEach(async () => {
-    originalBase = getBaseDir()
-    dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-build-sources-'))
-    createSyntheticWorkspace(dir)
-    setBaseDir(dir)
-    resetRitualConfigCache()
+    ws = await bindWorkspace({ dirs: [], config: false })
+    createSyntheticWorkspace(ws.dir)
     await refreshRitualConfig()
     cardCache.invalidate()
   })
 
   afterEach(async () => {
-    setBaseDir(originalBase)
-    resetRitualConfigCache()
+    await ws.dispose()
     await refreshRitualConfig()
     cardCache.invalidate()
-    await fs.rm(dir, { recursive: true, force: true })
   })
 
   /** Run a build offline and report the exit code it set (0 when it set none). */
@@ -43,7 +37,7 @@ describe('build-site sources (Integration)', () => {
     return captureExitCode(() => runBuildSite({ refresh: 'never', ...options }))
   }
 
-  const distDir = (): string => path.join(dir, 'dist')
+  const distDir = (): string => path.join(ws.dir, 'dist')
 
   test('a deck can be selected by its display name, not just its file name', async () => {
     // The file is `test-unset-commander.md`; the docs' examples (and the config
@@ -70,20 +64,14 @@ describe('build-site sources (Integration)', () => {
     expect(await build()).toBe(0)
     const previous = await fs.readFile(path.join(distDir(), 'index.json'), 'utf-8')
 
-    await fs.writeFile(path.join(dir, 'decks', 'broken.md'), '---\nname: [broken\n---\n')
+    await fs.writeFile(path.join(ws.dir, 'decks', 'broken.md'), '---\nname: [broken\n---\n')
 
-    const errors: string[] = []
-    const originalError = console.error
-    console.error = (...args: unknown[]) => void errors.push(args.join(' '))
-    let code: number
-    try {
-      code = await build({ decks: ['broken'] })
-    } finally {
-      console.error = originalError
-    }
+    const { result: code, lines } = await captureConsole(['error'], () =>
+      build({ decks: ['broken'] }),
+    )
 
     expect(code).toBe(ExitCode.RuntimeError)
-    const output = errors.join('\n')
+    const output = lines.error.join('\n')
     expect(output).toContain("Failed to load deck 'broken'")
     expect(output).not.toContain('no deck named that')
     expect(output).toContain('The published site was left unchanged.')
@@ -94,22 +82,14 @@ describe('build-site sources (Integration)', () => {
     // The silent case: under the default wildcard include this deck used to be
     // dropped during discovery, so nothing downstream could mention it and the
     // build exited 0 having quietly published a site missing a deck.
-    await fs.writeFile(path.join(dir, 'decks', 'broken.md'), '---\nname: [broken\n---\n')
+    await fs.writeFile(path.join(ws.dir, 'decks', 'broken.md'), '---\nname: [broken\n---\n')
 
-    const errors: string[] = []
-    const originalError = console.error
-    console.error = (...args: unknown[]) => void errors.push(args.join(' '))
-    let code: number
-    try {
-      code = await build()
-    } finally {
-      console.error = originalError
-    }
+    const { result: code, lines } = await captureConsole(['error'], () => build())
 
     // Reported and built around: a list the user did not name going bad is not
     // a reason to withhold the whole site.
     expect(code).toBe(0)
-    const output = errors.join('\n')
+    const output = lines.error.join('\n')
     expect(output).toContain("Failed to load deck 'broken'")
     expect(output).toContain('The site was published without them.')
 
@@ -128,18 +108,12 @@ describe('build-site sources (Integration)', () => {
     expect(await build()).toBe(0)
     const previous = await fs.readFile(path.join(distDir(), 'index.json'), 'utf-8')
 
-    const errors: string[] = []
-    const originalError = console.error
-    console.error = (...args: unknown[]) => void errors.push(args.join(' '))
-    let code: number
-    try {
-      code = await build({ decks: ['https://example.com/decks/not-a-service'] })
-    } finally {
-      console.error = originalError
-    }
+    const { result: code, lines } = await captureConsole(['error'], () =>
+      build({ decks: ['https://example.com/decks/not-a-service'] }),
+    )
 
     expect(code).toBe(ExitCode.RuntimeError)
-    const output = errors.join('\n')
+    const output = lines.error.join('\n')
     expect(output).toContain('https://example.com/decks/not-a-service')
     expect(output).toContain('The published site was left unchanged.')
     // The scratch-and-swap is what makes this true: the build ran, wrote a whole
@@ -148,54 +122,42 @@ describe('build-site sources (Integration)', () => {
   }, 120_000)
 
   test('a config include entry matching nothing warns but still builds', async () => {
-    const configPath = path.join(dir, 'ritual.config.json')
+    const configPath = path.join(ws.dir, 'ritual.config.json')
     const config = JSON.parse(await fs.readFile(configPath, 'utf-8')) as Record<string, unknown>
     config.site = { includeDecks: ['Test Unset Commander', 'Renamed Away'] }
     await fs.writeFile(configPath, JSON.stringify(config, null, 2))
     resetRitualConfigCache()
     await refreshRitualConfig()
 
-    const warnings: string[] = []
-    const originalWarn = console.warn
-    console.warn = (...args: unknown[]) => void warnings.push(args.join(' '))
-    try {
-      expect(await build()).toBe(0)
-    } finally {
-      console.warn = originalWarn
-    }
+    const { result: code, lines } = await captureConsole(['warn'], () => build())
+    expect(code).toBe(0)
 
-    expect(warnings.join('\n')).toContain('Renamed Away')
+    expect(lines.warn.join('\n')).toContain('Renamed Away')
     expect(await Bun.file(path.join(distDir(), 'index.json')).exists()).toBeTrue()
   }, 120_000)
 
   test('custom art files are copied into the site, and a missing one only warns', async () => {
-    await fs.mkdir(path.join(dir, 'art', 'proxies'), { recursive: true })
-    await fs.writeFile(path.join(dir, 'art', 'proxies', 'bolt.png'), 'bolt-bytes')
+    await fs.mkdir(path.join(ws.dir, 'art', 'proxies'), { recursive: true })
+    await fs.writeFile(path.join(ws.dir, 'art', 'proxies', 'bolt.png'), 'bolt-bytes')
     await fs.writeFile(
-      path.join(dir, 'decks', 'emberwild-aggro.art.json'),
+      path.join(ws.dir, 'decks', 'emberwild-aggro.art.json'),
       JSON.stringify({ '1': { file: 'proxies/bolt.png' }, '2': { file: 'gone.png' } }),
     )
     // A second list whose sidecar does not parse at all: the build must say so
     // and carry on, not fail and not silently publish a list with no art.
-    await fs.writeFile(path.join(dir, 'collections', 'test-binder.art.json'), '{ not json')
+    await fs.writeFile(path.join(ws.dir, 'collections', 'test-binder.art.json'), '{ not json')
 
-    const warnings: string[] = []
-    const originalWarn = console.warn
-    console.warn = (...args: unknown[]) => void warnings.push(args.join(' '))
-    try {
-      expect(await build()).toBe(0)
-    } finally {
-      console.warn = originalWarn
-    }
+    const { result: code, lines } = await captureConsole(['warn'], () => build())
+    expect(code).toBe(0)
 
     // Copied under its art-dir-relative path — the same path the baked value
     // and the live `/art/*` route name.
     expect(await Bun.file(path.join(distDir(), 'art', 'proxies', 'bolt.png')).text()).toBe(
       'bolt-bytes',
     )
-    expect(warnings.join('\n')).toContain('gone.png')
+    expect(lines.warn.join('\n')).toContain('gone.png')
     // The parse failure is a build warning too, naming what is wrong with it.
-    expect(warnings.join('\n')).toContain('not valid JSON')
+    expect(lines.warn.join('\n')).toContain('not valid JSON')
     expect(await Bun.file(path.join(distDir(), 'collections', 'test-binder.json')).exists()).toBe(
       true,
     )
@@ -232,16 +194,16 @@ describe('build-site CLI source handling (Integration)', () => {
   })
 
   test('an empty workspace says what to do instead of failing on a missing decks/', async () => {
-    const dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-empty-'))
-    try {
-      const result = await runCli(['build-site', '--refresh', 'never'], dir)
-      expect(result.exitCode).toBe(1)
-      expect(result.stderr).toContain('Nothing to build')
-      expect(result.stderr).toContain('ritual new deck')
-      // Not a raw ENOENT for the missing decks/ directory.
-      expect(result.stderr).not.toContain('ENOENT')
-    } finally {
-      await fs.rm(dir, { recursive: true, force: true })
-    }
+    await withWorkspace(
+      async (dir) => {
+        const result = await runCli(['build-site', '--refresh', 'never'], dir)
+        expect(result.exitCode).toBe(1)
+        expect(result.stderr).toContain('Nothing to build')
+        expect(result.stderr).toContain('ritual new deck')
+        // Not a raw ENOENT for the missing decks/ directory.
+        expect(result.stderr).not.toContain('ENOENT')
+      },
+      { dirs: [], config: false },
+    )
   })
 })

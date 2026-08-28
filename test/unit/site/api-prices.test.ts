@@ -2,8 +2,9 @@ import { describe, test, expect, afterEach, beforeEach } from 'bun:test'
 import { batchFetchApiPrices } from '../../../src/site/api-prices'
 import { resetApiBase, setApiBase } from '../../../src/list-view/api-base'
 import { makeScryfallCard } from '../../test-utils'
+import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
 
-const originalFetch = globalThis.fetch
+let stubbed: StubbedFetch | undefined
 
 type StubbedBatch = { names: string[] }
 
@@ -12,14 +13,16 @@ function stubCardPrices(
   respond: (names: string[], batchIndex: number) => Response,
 ): StubbedBatch[] {
   const batches: StubbedBatch[] = []
-  const stub = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-    const url = input instanceof Request ? input.url : String(input)
-    if (!url.includes('/api/card-prices')) throw new Error(`unexpected request: ${url}`)
-    const body = JSON.parse(init?.body as string) as { names: string[] }
-    batches.push({ names: body.names })
-    return respond(body.names, batches.length - 1)
-  }
-  globalThis.fetch = stub as unknown as typeof fetch
+  stubbed = stubFetch({
+    '': (request) => {
+      if (!request.url.includes('/api/card-prices')) {
+        throw new Error(`unexpected request: ${request.url}`)
+      }
+      const { names } = request.body as { names: string[] }
+      batches.push({ names })
+      return respond(names, batches.length - 1)
+    },
+  })
   return batches
 }
 
@@ -30,7 +33,8 @@ describe('batchFetchApiPrices', () => {
   })
 
   afterEach(() => {
-    globalThis.fetch = originalFetch
+    stubbed?.restore()
+    stubbed = undefined
     resetApiBase()
   })
 

@@ -8,7 +8,7 @@ import {
   seedCardCache,
   writeCollectionFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 import { callJson } from './helpers/request'
 import { makePrintingIn } from '../test-utils'
 

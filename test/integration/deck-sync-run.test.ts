@@ -11,9 +11,9 @@ import {
   type StubbedRequest,
   type StubRoute,
 } from './helpers/archidekt'
-import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
-import { captureStream } from './helpers/capture'
-import { runInProcess } from './helpers/cli'
+import { bindWorkspace, writeDeckFile, type BoundWorkspace } from '../helpers/workspace'
+import { captureStream } from '../helpers/capture'
+import { runInProcess } from '../helpers/cli'
 import type { Card } from '../../src/card/card'
 import type { DeckSection } from '../../src/list/deck'
 import type { ArchidektCardModifier } from '../../src/importers/archidekt-types'
@@ -37,12 +37,16 @@ const MODIFY_URL = `https://archidekt.com/api/decks/${DECK_ID}/modifyCards/v2/`
 
 let ws: BoundWorkspace
 let dir: string
-let originalFetch: typeof globalThis.fetch
+let restoreFetch: (() => void) | undefined
 let logger: MemoryLogger
 let sent: StubbedRequest[]
 
 function stubFetch(routes: Record<string, StubRoute>): void {
-  sent = stubArchidekt(routes)
+  const stubbed = stubArchidekt(routes)
+  sent = stubbed.sent
+  // Only the first install's restore puts the real `fetch` back; a later
+  // re-stub in the same test captured this stub, not the original.
+  restoreFetch ??= stubbed.restore
 }
 
 /** Run the command in-process and return the exit code it set. */
@@ -169,7 +173,6 @@ async function readDeck(): Promise<string> {
 beforeEach(async () => {
   ws = await bindWorkspace({ init: true })
   dir = ws.dir
-  originalFetch = globalThis.fetch
   stubFetch({})
   logger = new MemoryLogger()
   setLogger(logger)
@@ -177,7 +180,8 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  globalThis.fetch = originalFetch
+  restoreFetch?.()
+  restoreFetch = undefined
   resetLogger()
   await ws.dispose()
 })

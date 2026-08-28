@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { runCli } from './helpers/cli'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { cardCache } from '../../src/cache'
 import { makeScryfallCard } from '../test-utils'
 import type { CacheStatusResult } from '../../src/cache/status'

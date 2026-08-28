@@ -1,18 +1,18 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { discoverListSources, resolveSelectedBasenames } from '../../src/site-build/list-sources'
 import { defaultSiteSelection } from '../../src/config/list-selection'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 let dir: string
 
 beforeEach(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), 'ritual-sources-'))
+  dir = await createWorkspace({ dirs: [], config: false })
 })
 
 afterEach(async () => {
-  await rm(dir, { recursive: true, force: true })
+  await removeWorkspace(dir)
 })
 
 const write = (name: string, content: string) => writeFile(path.join(dir, name), content)

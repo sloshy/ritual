@@ -1,6 +1,7 @@
-import { describe, expect, test, mock, afterEach } from 'bun:test'
+import { describe, expect, test, afterEach } from 'bun:test'
 import { batchFetchScryfall } from '../../../src/site/scryfall-collection'
 import { makeScryfallCard } from '../../test-utils'
+import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
 import type { ScryfallCard } from '../../../src/scryfall/types'
 
 type CollectionRequest = { identifiers: { id: string }[] }
@@ -9,47 +10,50 @@ function makeCard(id: string, usd: string): ScryfallCard {
   return makeScryfallCard({ id, name: id, prices: { usd } })
 }
 
-const originalFetch = globalThis.fetch
+/** The ids one batch POST asked Scryfall for. */
+const askedIds = (body: unknown): string[] =>
+  (body as CollectionRequest).identifiers.map((identifier) => identifier.id)
+
+let stubbed: StubbedFetch | undefined
 
 afterEach(() => {
-  globalThis.fetch = originalFetch
+  stubbed?.restore()
 })
 
 describe('batchFetchScryfall', () => {
   test('returns empty map when given no IDs (no fetch)', async () => {
-    const fetchMock = mock(() => Promise.resolve(new Response()))
-    globalThis.fetch = fetchMock as unknown as typeof fetch
+    stubbed = stubFetch({ 'https://api.scryfall.com': () => new Response() })
     const result = await batchFetchScryfall([])
     expect(result.size).toBe(0)
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(stubbed.sent).toHaveLength(0)
   })
 
   test('issues a single batch for ≤75 IDs and merges the response', async () => {
     const ids = ['a', 'b', 'c']
-    const fetchMock = mock(async (_url: string, init?: RequestInit) => {
-      const body = JSON.parse(init!.body as string) as CollectionRequest
-      const data = body.identifiers.map((i) => makeCard(i.id, '1.00'))
-      return new Response(JSON.stringify({ data, not_found: [] }), { status: 200 })
+    stubbed = stubFetch({
+      'https://api.scryfall.com': (request) =>
+        Response.json({
+          data: askedIds(request.body).map((id) => makeCard(id, '1.00')),
+          not_found: [],
+        }),
     })
-    globalThis.fetch = fetchMock as unknown as typeof fetch
     const result = await batchFetchScryfall(ids)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(stubbed.sent).toHaveLength(1)
     expect(result.size).toBe(3)
     expect(result.get('b')?.prices.usd).toBe('1.00')
   })
 
   test('splits into multiple batches of 75 and merges results', async () => {
     const ids = Array.from({ length: 160 }, (_, i) => `card-${i}`)
-    const calls: number[] = []
-    const fetchMock = mock(async (_url: string, init?: RequestInit) => {
-      const body = JSON.parse(init!.body as string) as CollectionRequest
-      calls.push(body.identifiers.length)
-      const data = body.identifiers.map((i) => makeCard(i.id, '2.00'))
-      return new Response(JSON.stringify({ data, not_found: [] }), { status: 200 })
+    stubbed = stubFetch({
+      'https://api.scryfall.com': (request) =>
+        Response.json({
+          data: askedIds(request.body).map((id) => makeCard(id, '2.00')),
+          not_found: [],
+        }),
     })
-    globalThis.fetch = fetchMock as unknown as typeof fetch
     const result = await batchFetchScryfall(ids)
-    expect(calls).toEqual([75, 75, 10])
+    expect(stubbed.sent.map((request) => askedIds(request.body).length)).toEqual([75, 75, 10])
     expect(result.size).toBe(160)
     expect(result.get('card-0')?.prices.usd).toBe('2.00')
     expect(result.get('card-159')?.prices.usd).toBe('2.00')
@@ -58,14 +62,15 @@ describe('batchFetchScryfall', () => {
   test('skips a failed batch but keeps results from successful batches', async () => {
     const ids = Array.from({ length: 100 }, (_, i) => `card-${i}`)
     let callCount = 0
-    const fetchMock = mock(async (_url: string, init?: RequestInit) => {
-      callCount++
-      if (callCount === 1) return new Response('boom', { status: 500 })
-      const body = JSON.parse(init!.body as string) as CollectionRequest
-      const data = body.identifiers.map((i) => makeCard(i.id, '3.00'))
-      return new Response(JSON.stringify({ data, not_found: [] }), { status: 200 })
+    stubbed = stubFetch({
+      'https://api.scryfall.com': (request) => {
+        if (++callCount === 1) return new Response('boom', { status: 500 })
+        return Response.json({
+          data: askedIds(request.body).map((id) => makeCard(id, '3.00')),
+          not_found: [],
+        })
+      },
     })
-    globalThis.fetch = fetchMock as unknown as typeof fetch
     const result = await batchFetchScryfall(ids)
     expect(callCount).toBe(2)
     expect(result.size).toBe(25)
@@ -74,8 +79,11 @@ describe('batchFetchScryfall', () => {
   })
 
   test('returns empty map when fetch throws', async () => {
-    const fetchMock = mock(() => Promise.reject(new Error('network')))
-    globalThis.fetch = fetchMock as unknown as typeof fetch
+    stubbed = stubFetch({
+      'https://api.scryfall.com': () => {
+        throw new Error('network')
+      },
+    })
     const result = await batchFetchScryfall(['a', 'b'])
     expect(result.size).toBe(0)
   })

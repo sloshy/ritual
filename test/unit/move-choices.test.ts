@@ -17,7 +17,7 @@ import {
 import { buildMoveMenuChoices, isMoveMenuChoice } from '../../src/commands/move'
 import type { MoveSessionConfig } from '../../src/list/move-commit'
 import type { ListEntry } from '../../src/list/list-info'
-import { makeListEntry, makePhysicalCard } from './move-fixtures'
+import { makeListEntry, makePhysicalCard } from '../fixtures/lists'
 
 // ── buildCardSearchChoices ────────────────────────────────────────────────────
 

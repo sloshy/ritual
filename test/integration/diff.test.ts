@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { runCli, withTempDir } from './helpers/cli'
-import { writeCollectionFile, writeDeckFile } from './helpers/workspace'
+import { writeCollectionFile, writeDeckFile } from '../helpers/workspace'
 
 type DiffJsonBody = {
   a: { listType: string; slug: string; name: string }

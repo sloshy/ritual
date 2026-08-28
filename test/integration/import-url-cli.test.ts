@@ -3,8 +3,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { registerImportCommand } from '../../src/commands/import'
 import { MemoryLogger, resetLogger, setLogger } from '../../src/util/logger'
-import { captureStream } from './helpers/capture'
-import { runInProcess } from './helpers/cli'
+import { captureStream } from '../helpers/capture'
+import { runInProcess } from '../helpers/cli'
 import {
   ARCHIDEKT_DECK_ID,
   ARCHIDEKT_DECK_URL,
@@ -12,8 +12,8 @@ import {
   REMOTE_FOIL_DECK,
   readImportedDeck,
 } from './helpers/import-fixtures'
-import { stubFetch, type StubbedFetch } from './helpers/stub-fetch'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 /**
  * The URL half of `ritual import`, driven in-process against a stubbed

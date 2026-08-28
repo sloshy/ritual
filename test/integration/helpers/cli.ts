@@ -1,45 +1,8 @@
-import fs from 'node:fs/promises'
 import path from 'node:path'
-import { tmpdir } from 'node:os'
-import { Command } from 'commander'
-import type { CommandRegistrar } from '../../../src/cli/program'
-
-export type { CommandRegistrar }
+import { withWorkspace } from '../../helpers/workspace'
 
 export const repoRoot = path.resolve(import.meta.dir, '../../..')
 export const binaryPath = path.join(repoRoot, 'ritual')
-
-/**
- * Run one CLI command in-process and return the exit code it set — the driver
- * for suites whose network is a stubbed `fetch` the built binary could never
- * see. Encodes the rules every hand-rolled copy had to repeat: `exitOverride`
- * so a usage error throws instead of exiting the test process, `from: 'user'`
- * argv parsing, and resetting `process.exitCode` on both sides so one run's
- * failure cannot leak into the next assertion (or the suite's own exit code).
- */
-export async function runInProcess(register: CommandRegistrar, args: string[]): Promise<number> {
-  const program = new Command()
-  program.exitOverride()
-  register(program)
-  return captureExitCode(() => program.parseAsync(args, { from: 'user' }))
-}
-
-/**
- * Run `body` with a cleared exit code and report the one it set, leaving a
- * concrete 0 behind — even when `body` (or a caller's assertion between runs)
- * throws. Bun ignores `process.exitCode = undefined`, so restoring a saved
- * `undefined` does nothing and an in-process run's failure code would become
- * the whole suite's exit code on a green run.
- */
-export async function captureExitCode(body: () => Promise<unknown>): Promise<number> {
-  process.exitCode = 0
-  try {
-    await body()
-    return typeof process.exitCode === 'number' ? process.exitCode : 0
-  } finally {
-    process.exitCode = 0
-  }
-}
 
 export type CliResult = {
   exitCode: number
@@ -148,13 +111,13 @@ export async function runCli(
   return { exitCode, stdout, stderr }
 }
 
-/** Create a fresh temp directory, hand it to `run`, and clean it up afterwards. */
+/**
+ * A **bare** temp directory scoped to `run`: no list subdirectories and no
+ * `ritual.config.json`. Its ~180 call sites are the suites that pin
+ * bare-directory behaviour, where writing a config would change the outcome —
+ * hence the name and the one-argument shape. The directory itself comes from
+ * {@link withWorkspace}, so there is one temp-workspace implementation.
+ */
 export async function withTempDir(run: (dir: string) => Promise<void>): Promise<void> {
-  const dir = path.join(tmpdir(), `ritual-cli-test-${crypto.randomUUID()}`)
-  await fs.mkdir(dir, { recursive: true })
-  try {
-    await run(dir)
-  } finally {
-    await fs.rm(dir, { recursive: true, force: true })
-  }
+  return withWorkspace(run, { dirs: [], config: false })
 }

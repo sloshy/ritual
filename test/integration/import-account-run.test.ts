@@ -7,7 +7,9 @@ import type { ArchidektClient, ArchidektDeckSimple } from '../../src/clients/Arc
 import type { DeckData } from '../../src/list/deck'
 import { ExitCode } from '../../src/util/errors'
 import { setNoInputOverride } from '../../src/util/no-input'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { captureConsole, captureStream } from '../helpers/capture'
+import { captureExitCode } from '../helpers/cli'
 
 /**
  * `import-account` past its flag validation, driven in-process with an injected
@@ -40,11 +42,6 @@ function fakeClient(options: FakeClientOptions): ArchidektClient {
   return client as unknown as ArchidektClient
 }
 
-/** `process.exitCode`, read through a widening alias so assertions stay typed. */
-function exitCode(): number | string | null | undefined {
-  return process.exitCode
-}
-
 function listedDeck(id: number, name: string): ArchidektDeckSimple {
   return { id, name, updatedAt: '2026-01-01', deckFormat: 3, owner: { username: 'someuser' } }
 }
@@ -53,40 +50,33 @@ function deckData(name: string): DeckData {
   return { name, sections: [{ name: 'Main', cards: [{ quantity: 4, name: 'Mountain' }] }] }
 }
 
-/** What one `import-account` run wrote. */
-type RunOutput = { stdout: string; stderr: string }
+/** What one `import-account` run wrote, and the exit code it set. */
+type RunOutput = { stdout: string; stderr: string; exitCode: number }
 
 /**
  * Run `import-account` with an injected client, capturing what it wrote.
  *
  * The console rather than a `MemoryLogger`: the action installs its own
  * scripting logger over whatever is current, and that logger reports through
- * `console.warn`/`console.error`. The payload goes to `process.stdout`.
+ * `console.warn`/`console.error`. The payload goes to `process.stdout`, which
+ * Bun's `console` does not route through — hence the two nested captures.
  */
 async function run(client: ArchidektClient, argv: string[]): Promise<RunOutput> {
   const program = new Command()
   program.exitOverride()
   registerImportAccountCommand(program, { createClient: () => client })
-  const captured: RunOutput = { stdout: '', stderr: '' }
-  const originalWrite = process.stdout.write.bind(process.stdout)
-  const originalConsole = { warn: console.warn, error: console.error }
-  process.stdout.write = (chunk: string): boolean => {
-    captured.stdout += String(chunk)
-    return true
-  }
-  const record = (...args: unknown[]): void => {
-    captured.stderr += `${args.map(String).join(' ')}\n`
-  }
-  console.warn = record
-  console.error = record
-  try {
-    await program.parseAsync(['node', 'ritual', 'import-account', ...argv])
-  } finally {
-    process.stdout.write = originalWrite
-    console.warn = originalConsole.warn
-    console.error = originalConsole.error
-  }
-  return captured
+  let reported: string[] = []
+  let exitCode = 0
+  const stdout = await captureStream('stdout', async () => {
+    exitCode = await captureExitCode(async () => {
+      reported = (
+        await captureConsole(['warn', 'error'], () =>
+          program.parseAsync(['node', 'ritual', 'import-account', ...argv]),
+        )
+      ).all
+    })
+  })
+  return { stdout, stderr: reported.map((line) => `${line}\n`).join(''), exitCode }
 }
 
 describe('import-account past its flag validation (Integration)', () => {
@@ -96,14 +86,10 @@ describe('import-account past its flag validation (Integration)', () => {
     // The global `--no-input` flag lives on the root program, not the
     // subcommand; set the value it would resolve to directly.
     setNoInputOverride(true)
-    // Bun ignores `process.exitCode = undefined`, so a concrete 0 is the only
-    // way to clear a code a neighbouring test (or this suite) set.
-    process.exitCode = 0
   })
 
   afterEach(async () => {
     setNoInputOverride(undefined)
-    process.exitCode = 0
     await workspace.dispose()
   })
 
@@ -130,7 +116,7 @@ describe('import-account past its flag validation (Integration)', () => {
       decksById: { '1': deckData('Burn') },
     })
 
-    const { stdout } = await run(client, ['someuser', '--all', '--output', 'json'])
+    const { stdout, exitCode: exit } = await run(client, ['someuser', '--all', '--output', 'json'])
 
     type DeckResult = { id: number; status: string; action?: string; error?: string }
     type Payload = {
@@ -154,7 +140,7 @@ describe('import-account past its flag validation (Integration)', () => {
     expect(payload.decks[0]).toMatchObject({ id: 1, status: 'imported', action: 'created' })
     expect(payload.decks[1]).toMatchObject({ id: 2, status: 'failed' })
     // A partial run must not look clean to a script.
-    expect(exitCode()).toBe(ExitCode.RuntimeError)
+    expect(exit).toBe(ExitCode.RuntimeError)
     expect(await Bun.file(path.join(workspace.dir, 'decks', 'Burn.md')).exists()).toBeTrue()
   })
 
@@ -199,7 +185,7 @@ describe('import-account past its flag validation (Integration)', () => {
     )
     // The whole suite runs under setNoInputOverride(true), so this is the
     // defaulted path; the run must say the choice was defaulted, not chosen.
-    expect(stderr).toContain('')
+    expect(stderr).toContain('Keeping the exact printings the source lists')
     const onDisk = await fs.readFile(path.join(workspace.dir, 'decks', 'Foil Deck.md'), 'utf-8')
     expect(onDisk).toContain('1 Sol Ring (LTC:284) [foil] &1')
   })
@@ -226,15 +212,14 @@ describe('import-account past its flag validation (Integration)', () => {
       decksById: { '1': deckData('Burn') },
     })
     await run(client, ['someuser', '--all', '--output', 'json'])
-    process.exitCode = 0
 
-    const { stdout } = await run(client, ['someuser', '--all', '--output', 'json'])
+    const { stdout, exitCode: exit } = await run(client, ['someuser', '--all', '--output', 'json'])
 
     type Payload = { failed: number; decks: { status: string; error?: string }[] }
     const payload = JSON.parse(stdout) as Payload
     expect(payload.failed).toBe(1)
     expect(payload.decks[0]?.error).toContain('--overwrite')
     // A conflict is a usage error, not a runtime one — the exit code says which.
-    expect(exitCode()).toBe(ExitCode.UsageError)
+    expect(exit).toBe(ExitCode.UsageError)
   })
 })

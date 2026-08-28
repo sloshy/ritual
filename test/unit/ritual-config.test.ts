@@ -35,19 +35,19 @@ import {
   parseSearchDebounceMs,
   parseSiteApiBaseUrl,
   parseSiteConfig,
-  resetRitualConfigCache,
   RitualConfigParseError,
   saveRitualConfig,
   type RitualConfig,
   type SiteConfig,
 } from '../../src/config/ritual-config'
 import { defaultSiteSelection } from '../../src/config/list-selection'
-import { setBaseDir } from '../../src/config/base-dir'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { localeTag } from '../../src/i18n/locale-tag'
 import type { PriceSource } from '../../src/pricing/price-source'
 
-const testDir = path.join(import.meta.dir, '../.test-ritual-config')
-const configPath = path.join(testDir, 'ritual.config.json')
+let testDir: string
+let configPath: string
+let ws: BoundWorkspace
 
 /** What bun:test's `toThrow` accepts: an error class, instance, or message match. */
 type ThrowMatcher = string | RegExp | Error | (new (...args: never[]) => Error)
@@ -71,18 +71,14 @@ function expectParseError(result: unknown, substring: string): void {
 }
 
 describe('ritual config', () => {
-  const originalCwd = process.cwd()
-
   beforeEach(async () => {
-    await fs.mkdir(testDir, { recursive: true })
-    setBaseDir(testDir)
-    resetRitualConfigCache()
+    ws = await bindWorkspace({ dirs: [], config: false })
+    testDir = ws.dir
+    configPath = path.join(testDir, 'ritual.config.json')
   })
 
   afterEach(async () => {
-    setBaseDir(originalCwd)
-    resetRitualConfigCache()
-    await fs.rm(testDir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   test('getDefaultRitualConfig returns default values including wantedDir', () => {
@@ -740,14 +736,13 @@ describe('parseSiteConfig', () => {
 
 describe('priceSources', () => {
   beforeEach(async () => {
-    await fs.mkdir(testDir, { recursive: true })
-    setBaseDir(testDir)
-    resetRitualConfigCache()
+    ws = await bindWorkspace({ dirs: [], config: false })
+    configPath = path.join(ws.dir, 'ritual.config.json')
   })
 
   afterEach(async () => {
     clearSiteSellModeOverride()
-    await fs.rm(testDir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   test('defaults to tcgplayer only, and an empty array survives a load', async () => {

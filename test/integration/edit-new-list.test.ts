@@ -12,7 +12,7 @@ import {
 import { listFilePath } from '../../src/list/resolve-list'
 import type { SessionConfig } from '../../src/commands/session/config'
 import type { ListType } from '../../src/list/list-type'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 /**
  * A list created in the `edit` command exists in memory only: its file and

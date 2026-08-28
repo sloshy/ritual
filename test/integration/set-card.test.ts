@@ -10,7 +10,7 @@ import {
   seedCardTargetWorkspace,
   snapshotTree,
   writeBulkProvenance,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 import { makeScryfallCard } from '../test-utils'
 import type { ScryfallCard } from '../../src/scryfall/types'
 

@@ -1,24 +1,21 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import { prereadUiLocale } from '../../../src/i18n/config-preread'
-import { setBaseDir } from '../../../src/config/base-dir'
 import {
   isConfigParseError,
   loadRitualConfig,
   parseUiLocale,
-  resetRitualConfigCache,
   RitualConfigParseError,
 } from '../../../src/config/ritual-config'
+import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 import { DEFAULT_LOCALE } from '../../../src/i18n/runtime'
 
-// Scratch space lives in the OS temp dir, never inside the repo: a directory
-// that appears and disappears under `test/` races ESLint's and Prettier's
-// directory walks when the suite and the linters run concurrently.
+// No config file is written on bind: one test asks what the pre-read does when
+// the file is absent, and every other one writes its own.
+let ws: BoundWorkspace
 let testDir = ''
 let configPath = ''
-const originalCwd = process.cwd()
 
 async function writeConfig(contents: string): Promise<void> {
   await fs.writeFile(configPath, contents, 'utf-8')
@@ -61,16 +58,13 @@ async function expectAgreement(): Promise<void> {
 
 describe('prereadUiLocale', () => {
   beforeEach(async () => {
-    testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-i18n-config-preread-'))
+    ws = await bindWorkspace({ dirs: [], config: false })
+    testDir = ws.dir
     configPath = path.join(testDir, 'ritual.config.json')
-    setBaseDir(testDir)
-    resetRitualConfigCache()
   })
 
   afterEach(async () => {
-    setBaseDir(originalCwd)
-    resetRitualConfigCache()
-    await fs.rm(testDir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   test('reads a configured uiLocale', async () => {

@@ -1,10 +1,11 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import prompts from 'prompts'
 import { runCardSession, type CardSessionResult } from '../../src/commands/session/loop'
 import { buildInitialSessionConfig } from '../../src/commands/session/config'
 import type { CardSessionStrategy } from '../../src/commands/session/strategy'
 import { t } from '../../src/i18n/t'
 import { scratchListPath, stubTty } from '../test-utils'
+import { captureConsole, type ConsoleCapture } from '../helpers/capture'
 
 // The main card prompt goes through `ask`, which refuses to prompt without a
 // terminal; the answers come from prompts.inject, so pretend stdin is a TTY.
@@ -43,8 +44,11 @@ function idleStrategy(maxIterations = 10): CardSessionStrategy {
   }
 }
 
-const run = (strategy = idleStrategy()): Promise<CardSessionResult> =>
-  runCardSession({ strategy, cardNames: ['Sol Ring'], excludeDigitalOnly: true })
+/** Run one session, recording everything the loop printed at any level. */
+const run = (strategy = idleStrategy()): Promise<ConsoleCapture<CardSessionResult>> =>
+  captureConsole(['log', 'warn', 'error'], () =>
+    runCardSession({ strategy, cardNames: ['Sol Ring'], excludeDigitalOnly: true }),
+  )
 
 const EXITED: CardSessionResult = { reason: 'exit', cardNames: ['Sol Ring'] }
 
@@ -60,49 +64,31 @@ type AutocompleteQuestion = { onState?: (state: PromptExitState) => void }
  * and is told from a submission only by the element's exit state.
  */
 describe('runCardSession no-match vs escape', () => {
-  type ConsoleSinks = { log: Console['log']; error: Console['error']; warn: Console['warn'] }
-  const logged: string[] = []
-  const errored: string[] = []
-  const warned: string[] = []
-  let original: ConsoleSinks
-
-  beforeEach(() => {
-    logged.length = 0
-    errored.length = 0
-    warned.length = 0
-    original = { log: console.log, error: console.error, warn: console.warn }
-    console.log = (...args: unknown[]) => logged.push(args.map(String).join(' '))
-    console.error = (...args: unknown[]) => errored.push(args.map(String).join(' '))
-    console.warn = (...args: unknown[]) => warned.push(args.map(String).join(' '))
-  })
-  afterEach(() => {
-    console.log = original.log
-    console.error = original.error
-    console.warn = original.warn
-  })
-
   test('Enter on no match reports the card as not found and re-prompts', async () => {
     prompts.inject([undefined, '__EXIT__'])
-    expect(await run()).toEqual(EXITED)
+    const { result, lines } = await run()
+    expect(result).toEqual(EXITED)
     expect(t('cli.session.cardNotFound')).not.toBe('cli.session.cardNotFound')
-    expect(errored).toEqual([t('cli.session.cardNotFound')])
-    expect(warned).toEqual([])
-    expect(logged).toContain(t('cli.session.exitingManager', { manager: 'test manager' }))
+    expect(lines.error).toEqual([t('cli.session.cardNotFound')])
+    expect(lines.warn).toEqual([])
+    expect(lines.log).toContain(t('cli.session.exitingManager', { manager: 'test manager' }))
   })
 
   test('the no-match message names the active set filter', async () => {
     const strategy = idleStrategy()
     strategy.sessionConfig.sets = ['mkm']
     prompts.inject([undefined, '__EXIT__'])
-    expect(await run(strategy)).toEqual(EXITED)
-    expect(warned).toEqual([t('cli.session.setFiltersActive', { sets: 'MKM' })])
+    const { result, lines } = await run(strategy)
+    expect(result).toEqual(EXITED)
+    expect(lines.warn).toEqual([t('cli.session.setFiltersActive', { sets: 'MKM' })])
   })
 
   test('Ctrl-C (abort) exits without a not-found message', async () => {
     prompts.inject([new Error('cancelled')])
-    expect(await run()).toEqual(EXITED)
-    expect(errored).toEqual([])
-    expect(logged).toContain(t('cli.session.exitingManager', { manager: 'test manager' }))
+    const { result, lines } = await run()
+    expect(result).toEqual(EXITED)
+    expect(lines.error).toEqual([])
+    expect(lines.log).toContain(t('cli.session.exitingManager', { manager: 'test manager' }))
   })
 
   test('Esc exits instead of submitting the highlighted card', async () => {
@@ -112,8 +98,9 @@ describe('runCardSession no-match vs escape', () => {
       return 'Sol Ring'
     }) as typeof prompts.prompts.autocomplete
     try {
-      expect(await run()).toEqual(EXITED)
-      expect(errored).toEqual([])
+      const { result, lines } = await run()
+      expect(result).toEqual(EXITED)
+      expect(lines.error).toEqual([])
     } finally {
       prompts.prompts.autocomplete = element
     }

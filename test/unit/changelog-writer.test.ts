@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import * as fs from 'node:fs/promises'
-import * as os from 'node:os'
 import * as path from 'node:path'
 import { appendChangelog } from '../../src/changes/changelog-writer'
 import type { ChangeEvent } from '../../src/changes/change-event'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 /** Test helper — builds a ChangeEvent with add-change defaults.
  *  Uses assertion since overrides may switch to a different union branch. */
@@ -22,14 +22,14 @@ let filePath: string
 let changelogPath: string
 
 beforeEach(async () => {
-  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'changelog-test-'))
+  tmpDir = await createWorkspace({ dirs: [], config: false })
   filePath = path.join(tmpDir, 'Test.md')
   changelogPath = path.join(tmpDir, 'Test.changes.md')
   await fs.writeFile(filePath, '# Test\n')
 })
 
 afterEach(async () => {
-  await fs.rm(tmpDir, { recursive: true, force: true })
+  await removeWorkspace(tmpDir)
 })
 
 describe('appendChangelog', () => {

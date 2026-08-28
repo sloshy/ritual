@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 // scryfall must load before src/cache: cache/index transitively imports
@@ -13,8 +13,10 @@ import { registerScryCommand } from '../../src/commands/scry'
 import { setNoInputOverride } from '../../src/util/no-input'
 import { makeScryfallCard } from '../test-utils'
 import { runCli, withTempDir } from './helpers/cli'
-import { stubFetch, type StubbedFetch } from './helpers/stub-fetch'
-import { writeDeckFile } from './helpers/workspace'
+import { captureExitCode } from '../helpers/cli'
+import { captureStream } from '../helpers/capture'
+import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
+import { writeDeckFile } from '../helpers/workspace'
 import { ExitCode } from '../../src/util/errors'
 
 /** Seed a card cache with priced printings so `price` has something to total. */
@@ -503,11 +505,7 @@ name: "Conflict Deck"
  * the interactive side lives in test/unit/commands/scry.test.ts.
  */
 describe('scry paging (Integration)', () => {
-  const originalWrite = process.stdout.write.bind(process.stdout)
-  const originalErrorWrite = process.stderr.write.bind(process.stderr)
   let scryfall: StubbedFetch
-  let stdout: string
-  let stderr: string
 
   /** Pages this run fetched — one request per page, so the record is the count. */
   const fetchedPages = (): number => scryfall.sent.length
@@ -539,64 +537,58 @@ describe('scry paging (Integration)', () => {
         })
       },
     })
-    process.stdout.write = (chunk: string | Uint8Array): boolean => {
-      stdout += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)
-      return true
-    }
-    process.stderr.write = (chunk: string | Uint8Array): boolean => {
-      stderr += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)
-      return true
-    }
   })
 
   afterAll(() => {
     setNoInputOverride(undefined)
     scryfall.restore()
-    process.stdout.write = originalWrite
-    process.stderr.write = originalErrorWrite
   })
 
-  afterEach(() => {
-    process.exitCode = 0
-  })
+  /** One in-process `scry` run: the exit code it set and what it printed. */
+  type ScryRun = { code: number; stdout: string; stderr: string }
 
-  async function runScry(args: string[]): Promise<void> {
+  async function runScry(args: string[]): Promise<ScryRun> {
     scryfall.sent.length = 0
-    stdout = ''
-    stderr = ''
-    const program = new Command()
-    // Matches index.ts: a usage error throws instead of calling process.exit,
-    // which would take the test runner down with it.
-    program.exitOverride()
-    registerScryCommand(program)
-    await program.parseAsync(['scry', ...args], { from: 'user' })
+    let code = 0
+    let stderr = ''
+    const stdout = await captureStream('stdout', async () => {
+      stderr = await captureStream('stderr', async () => {
+        const program = new Command()
+        // Matches index.ts: a usage error throws instead of calling process.exit,
+        // which would take the test runner down with it.
+        program.exitOverride()
+        registerScryCommand(program)
+        code = await captureExitCode(() => program.parseAsync(['scry', ...args], { from: 'user' }))
+      })
+    })
+    return { code, stdout, stderr }
   }
 
   test('fetches exactly one page when prompts are unavailable', async () => {
-    await runScry(['type:creature'])
+    const { code, stdout } = await runScry(['type:creature'])
 
     expect(fetchedPages()).toBe(1)
     expect(stdout).toContain('Page 1 Card')
-    expect(process.exitCode ?? 0).toBe(0)
+    expect(code).toBe(0)
   })
 
   test('--pages caps the fetch without prompting', async () => {
-    await runScry(['type:creature', '--pages', '3'])
+    const { code, stdout } = await runScry(['type:creature', '--pages', '3'])
 
     expect(fetchedPages()).toBe(3)
     expect(stdout).toContain('Page 3 Card')
-    expect(process.exitCode ?? 0).toBe(0)
+    expect(code).toBe(0)
   })
 
   // A capped run that stopped with results left must say so: the notice is a
   // content-loss warning, so it goes to stderr in every output mode and there
   // is no `--quiet` to hide it with.
   test('a capped run reports the truncation on stderr, keeping stdout parseable', async () => {
-    await runScry(['type:creature', '--pages', '2'])
+    const { code, stdout, stderr } = await runScry(['type:creature', '--pages', '2'])
 
     expect(stderr.trim()).toBe('Fetched 2 of 4210 results (pages 1-2); use --pages <n> for more.')
     expect(stdout).not.toContain('use --pages')
-    expect(process.exitCode ?? 0).toBe(0)
+    expect(code).toBe(0)
   })
 
   test('scry registers no --quiet flag', async () => {
@@ -608,33 +600,33 @@ describe('scry paging (Integration)', () => {
   // The search path renders text itself rather than dumping the raw Scryfall
   // list envelope; the random path's rendering is pinned in scry-random.test.ts.
   test('--output text renders one `Name (SET)` line per card', async () => {
-    await runScry(['type:creature', '--output', 'text'])
+    const { code, stdout } = await runScry(['type:creature', '--output', 'text'])
 
     expect(stdout.trim()).toBe('Page 1 Card (TST)')
     expect(stdout).not.toContain('"object"')
-    expect(process.exitCode ?? 0).toBe(0)
+    expect(code).toBe(0)
   })
 
   test('--output csv asks Scryfall for CSV and writes it through unchanged', async () => {
-    await runScry(['type:creature', '--output', 'csv'])
+    const { code, stdout } = await runScry(['type:creature', '--output', 'csv'])
 
     const requested = scryfall.sent[0]
     expect(requested).toBeDefined()
     expect(new URL(requested?.url ?? '').searchParams.get('format')).toBe('csv')
     expect(stdout.split('\n')[0]).toBe('name,set')
     expect(stdout).toContain('Page 1 Card 1,tst')
-    expect(process.exitCode ?? 0).toBe(0)
+    expect(code).toBe(0)
   })
 
   // Every page carries its own header row; only the first one belongs in a
   // single concatenated CSV stream.
   test('--output csv strips the repeated header on later pages', async () => {
-    await runScry(['type:creature', '--output', 'csv', '--pages', '2'])
+    const { code, stdout } = await runScry(['type:creature', '--output', 'csv', '--pages', '2'])
 
     expect(fetchedPages()).toBe(2)
     expect(stdout.split('\n').filter((line) => line === 'name,set')).toHaveLength(1)
     expect(stdout).toContain('Page 2 Card 1,tst')
-    expect(process.exitCode ?? 0).toBe(0)
+    expect(code).toBe(0)
   })
 })
 
@@ -644,9 +636,7 @@ describe('scry paging (Integration)', () => {
  * a spawned binary would need real network access to produce any.
  */
 describe('card batch output (Integration)', () => {
-  const originalWrite = process.stdout.write.bind(process.stdout)
   let scryfall: StubbedFetch
-  let stdout: string
 
   beforeAll(() => {
     scryfall = stubFetch({
@@ -656,44 +646,19 @@ describe('card batch output (Integration)', () => {
         return Response.json(makeScryfallCard({ name }))
       },
     })
-    process.stdout.write = (chunk: string | Uint8Array): boolean => {
-      stdout += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)
-      return true
-    }
   })
 
   afterAll(() => {
     scryfall.restore()
-    process.stdout.write = originalWrite
   })
 
-  afterEach(() => {
-    process.exitCode = 0
-  })
-
-  /** Run `run` with stderr captured; the card command reports refusals there. */
-  async function captureStderr(run: () => Promise<void>): Promise<string> {
-    const originalStderrWrite = process.stderr.write.bind(process.stderr)
-    let stderr = ''
-    process.stderr.write = (chunk: string | Uint8Array): boolean => {
-      stderr += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk)
-      return true
-    }
-    try {
-      await run()
-    } finally {
-      process.stderr.write = originalStderrWrite
-    }
-    return stderr
-  }
-
-  async function runCard(args: string[]): Promise<void> {
+  /** Run one `card` in-process and report everything it wrote to stdout. */
+  async function runCard(args: string[]): Promise<string> {
     scryfall.sent.length = 0
-    stdout = ''
     const program = new Command()
     program.exitOverride()
     registerCardCommand(program)
-    await program.parseAsync(['card', ...args], { from: 'user' })
+    return captureStream('stdout', () => program.parseAsync(['card', ...args], { from: 'user' }))
   }
 
   test('--output json emits one array for a batch and a bare object for one name', async () => {
@@ -701,13 +666,11 @@ describe('card batch output (Integration)', () => {
       const namesPath = path.join(dir, 'names.txt')
       await Bun.write(namesPath, 'Sol Ring\nCounterspell\n')
 
-      await runCard(['--from-file', namesPath])
-      const batch = JSON.parse(stdout) as { name: string }[]
+      const batch = JSON.parse(await runCard(['--from-file', namesPath])) as { name: string }[]
       expect(Array.isArray(batch)).toBeTrue()
       expect(batch.map((card) => card.name)).toEqual(['Sol Ring', 'Counterspell'])
 
-      await runCard(['Sol Ring'])
-      const single = JSON.parse(stdout) as { name: string }
+      const single = JSON.parse(await runCard(['Sol Ring'])) as { name: string }
       expect(Array.isArray(single)).toBeFalse()
       expect(single.name).toBe('Sol Ring')
     })
@@ -718,7 +681,7 @@ describe('card batch output (Integration)', () => {
       const namesPath = path.join(dir, 'names.txt')
       await Bun.write(namesPath, 'Sol Ring\nCounterspell\n')
 
-      await runCard(['--from-file', namesPath, '--output', 'ndjson'])
+      const stdout = await runCard(['--from-file', namesPath, '--output', 'ndjson'])
 
       const lines = stdout.trim().split('\n')
       expect(lines).toHaveLength(2)
@@ -729,7 +692,10 @@ describe('card batch output (Integration)', () => {
   test('a missing --from-file is a not-found naming the file', async () => {
     await withTempDir(async (dir) => {
       const absent = path.join(dir, 'absent.txt')
-      const stderr = await captureStderr(() => runCard(['--from-file', absent]))
+      let stdout = ''
+      const stderr = await captureStream('stderr', async () => {
+        stdout = await runCard(['--from-file', absent])
+      })
 
       expect(process.exitCode).toBe(ExitCode.NotFound)
       expect(stderr).toContain(`Could not read file '${absent}'`)

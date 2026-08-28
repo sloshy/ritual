@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
-import { createWorkspace, removeWorkspace } from './helpers/workspace'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 type AdminSetupJson = {
   username: string

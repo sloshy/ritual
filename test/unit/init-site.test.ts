@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import yaml from 'js-yaml'
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import {
   defaultCurrencyChoices,
@@ -16,7 +15,7 @@ import {
   servePreviewCommand,
   updateGitignore,
 } from '../../src/commands/init-site'
-import { setBaseDir } from '../../src/config/base-dir'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 type WorkflowStep = {
   name?: string
@@ -404,21 +403,17 @@ describe('classifyInitRerun', () => {
 })
 
 describe('updateGitignore', () => {
-  const originalCwd = process.cwd()
-  let tmpDir: string | null = null
+  let ws: BoundWorkspace | null = null
 
   afterEach(async () => {
-    setBaseDir(originalCwd)
-    if (tmpDir) {
-      await fs.rm(tmpDir, { recursive: true, force: true })
-      tmpDir = null
-    }
+    await ws?.dispose()
+    ws = null
   })
 
+  /** A bare base dir — `updateGitignore` is about a repo root, not a list workspace. */
   async function useTempDir(): Promise<string> {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-gitignore-test-'))
-    setBaseDir(tmpDir)
-    return tmpDir
+    ws = await bindWorkspace({ dirs: [], config: false })
+    return ws.dir
   }
 
   test('creates a .gitignore containing the ritual binary when none exists', async () => {

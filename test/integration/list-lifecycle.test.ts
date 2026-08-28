@@ -8,7 +8,7 @@ import {
   type ListLifecycleConfig,
 } from '../../src/admin/api/list-lifecycle'
 import { resolveFlatListFile } from '../../src/admin/api/list-file'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 /**
  * The create/rename/delete handlers write real files, so they belong here rather

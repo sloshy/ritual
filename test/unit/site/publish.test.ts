@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { tmpdir } from 'node:os'
 import {
   buildAndPublish,
   createBuildScratchDir,
   publishAtomically,
 } from '../../../src/site-build/publish'
+import { createWorkspace, removeWorkspace } from '../../helpers/workspace'
 
 /**
  * The scratch-and-swap seam shared by `ritual build-site` and the admin build
@@ -18,12 +18,12 @@ describe('site publish', () => {
   let distDir: string
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(tmpdir(), 'ritual-publish-'))
+    root = await createWorkspace({ dirs: [], config: false })
     distDir = path.join(root, 'dist')
   })
 
   afterEach(async () => {
-    await fs.rm(root, { recursive: true, force: true })
+    await removeWorkspace(root)
   })
 
   const writePrevious = async (marker: string): Promise<void> => {

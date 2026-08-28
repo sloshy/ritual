@@ -17,8 +17,8 @@ import type {
 } from '../../src/importers/archidekt-types'
 import { signIn as storeLogin } from './helpers/archidekt'
 import type { RouteProgress, RouteProgressSink } from '../../src/util/progress'
-import { stubFetch } from './helpers/stub-fetch'
-import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
+import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
+import { bindWorkspace, writeDeckFile, type BoundWorkspace } from '../helpers/workspace'
 import { expectMonotonicProgress } from '../test-utils'
 
 /**
@@ -49,7 +49,7 @@ const REMOTE_DECK: ArchidektDeckResponse = {
 
 let ws: BoundWorkspace
 let tmpDir: string
-let originalFetch: typeof globalThis.fetch
+let stubbed: StubbedFetch
 
 /** Store an Archidekt login the same way `ritual login archidekt` does. */
 async function signIn(): Promise<void> {
@@ -204,15 +204,14 @@ async function readStream(query: string): Promise<StreamFrame[]> {
 beforeEach(async () => {
   ws = await bindWorkspace({ config: false })
   tmpDir = ws.dir
-  originalFetch = globalThis.fetch
   // No test may reach the network: a stub that forgot a URL — or a token-refresh
   // attempt — must fail loudly rather than call Archidekt for real.
-  stubFetch({})
+  stubbed = stubFetch({})
   await writeDecks()
 })
 
 afterEach(async () => {
-  globalThis.fetch = originalFetch
+  stubbed.restore()
   await ws.dispose()
 })
 
@@ -445,22 +444,16 @@ describe('deck-sync API', () => {
       ],
     })
     await signIn()
-    const bodies: unknown[] = []
-    stubFetch({
+    const push = stubFetch({
       'https://archidekt.com/api/decks/curated/self/': () =>
         Response.json({ results: [{ id: Number(SOURCE_ID), name: 'Linked Deck' }], count: 1 }),
       [`https://archidekt.com/api/decks/${SOURCE_ID}/`]: () => Response.json(RAW_DECK),
       [`https://archidekt.com/api/decks/${SOURCE_ID}/modifyCards/v2/`]: () => Response.json({}),
     })
-    const withBody = globalThis.fetch
-    globalThis.fetch = ((input: string | URL | Request, init?: RequestInit) => {
-      if (init?.method === 'PATCH' && typeof init.body === 'string') {
-        bodies.push(JSON.parse(init.body))
-      }
-      return withBody(input, init)
-    }) as typeof globalThis.fetch
 
     const events = await runEvents({ direction: 'push', decks: ['linked'], only: 'removals' })
+
+    const bodies = push.sent.filter((sent) => sent.method === 'PATCH').map((sent) => sent.body)
 
     // Lightning Bolt is remote-only, Counterspell local-only: only the former
     // survives a removals-only push, and no card search is needed for it.

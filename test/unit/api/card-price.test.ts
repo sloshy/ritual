@@ -1,11 +1,8 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
-import fs from 'node:fs/promises'
-import path from 'node:path'
-import { tmpdir } from 'node:os'
 import { isPriceStale, PRICE_STALENESS_THRESHOLD_MS } from '../../../src/api/card-price'
-import { getBaseDir, setBaseDir } from '../../../src/config/base-dir'
-import { cardCache } from '../../../src/cache'
+import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 import { MemoryLogger, resetLogger, setLogger } from '../../../src/util/logger'
+import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
 
 describe('isPriceStale', () => {
   test('returns true for null timestamp (never cached)', () => {
@@ -39,30 +36,23 @@ describe('handleCardPrice', () => {
 })
 
 describe('handleCardPrice unknown card', () => {
-  let dir: string
-  let originalBase: string
-  let originalFetch: typeof fetch
+  let ws: BoundWorkspace
+  let offline: StubbedFetch
 
   beforeEach(async () => {
-    originalBase = getBaseDir()
-    originalFetch = globalThis.fetch
-    dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-card-price-'))
-    setBaseDir(dir)
-    await cardCache.clear()
+    ws = await bindWorkspace({ clearCardCache: true })
     setLogger(new MemoryLogger())
     // Offline Scryfall stub: every lookup 404s, so no printings can be found.
-    globalThis.fetch = ((_input: string | URL | Request) =>
-      Promise.resolve(
+    offline = stubFetch({
+      http: () =>
         Response.json({ object: 'error', code: 'not_found', status: 404 }, { status: 404 }),
-      )) as typeof fetch
+    })
   })
 
   afterEach(async () => {
-    globalThis.fetch = originalFetch
+    offline.restore()
     resetLogger()
-    await cardCache.clear()
-    setBaseDir(originalBase)
-    await fs.rm(dir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   test('returns 404 when no printings exist for the name', async () => {

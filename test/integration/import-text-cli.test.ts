@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { ExitCode } from '../../src/util/errors'
 import { runCli } from './helpers/cli'
-import { withWorkspace } from './helpers/workspace'
+import { withWorkspace } from '../helpers/workspace'
 
 /**
  * CLI wiring for text-file imports with unparseable lines: the skipped lines

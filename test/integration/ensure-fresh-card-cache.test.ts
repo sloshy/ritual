@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { ensureFreshCardCache } from '../../src/cache/freshness'
 import type { BulkRefreshPrompt } from '../../src/cache/refresh'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 /**
  * `ensureFreshCardCache` reads the *global* card cache (its `deps.cache` is

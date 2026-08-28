@@ -19,7 +19,7 @@ import {
 } from '../../src/admin/api/build-site'
 import type { RouteProgress } from '../../src/util/progress'
 import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../src/config/ritual-config'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 let ws: BoundWorkspace
 

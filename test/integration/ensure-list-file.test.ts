@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { ensureCollectionFile } from '../../src/list/ensure-list-file'
 import { CardCommandError, ExitCode } from '../../src/util/errors'
-import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from '../helpers/workspace'
 
 let ws: BoundWorkspace
 

@@ -1,13 +1,7 @@
-import { RuleTester } from '@typescript-eslint/rule-tester'
-import { afterAll, describe, it } from 'bun:test'
 import rule from '../../../eslint-rules/no-bare-intl-locale.js'
+import { makeRuleTester } from './tester'
 
-RuleTester.afterAll = afterAll
-RuleTester.describe = describe
-RuleTester.it = it
-RuleTester.itOnly = it
-
-const ruleTester = new RuleTester()
+const ruleTester = makeRuleTester()
 
 const FILE = 'src/price-currency.ts'
 

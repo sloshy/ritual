@@ -7,14 +7,15 @@ import {
   mergeDeckMetadata,
 } from '../../src/list/deck-metadata'
 import { parseDeckFrontMatter } from '../../src/list/deck-file'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 /**
  * The deck metadata write is front-matter only, so a cover image lands in the
  * block while every card line — `&N` ids included — survives byte for byte.
  */
 
-const testDir = path.join(import.meta.dir, '../.test-deck-metadata')
-const deckPath = path.join(testDir, 'Burn.md')
+let testDir: string
+let deckPath: string
 
 const BODY = ['## Main', '1 Sol Ring &1', '1 Lightning Bolt (LEA:161) &2', ''].join('\n')
 
@@ -23,11 +24,12 @@ async function writeDeck(frontMatter: string): Promise<void> {
 }
 
 beforeEach(async () => {
-  await fs.mkdir(testDir, { recursive: true })
+  testDir = await createWorkspace({ dirs: [], config: false })
+  deckPath = path.join(testDir, 'Burn.md')
 })
 
 afterEach(async () => {
-  await fs.rm(testDir, { recursive: true, force: true })
+  await removeWorkspace(testDir)
 })
 
 describe('DECK_METADATA_KEYS', () => {

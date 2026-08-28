@@ -7,11 +7,13 @@ import path from 'node:path'
 import { registerCacheCommand } from '../../src/commands/cache'
 import { CARDKINGDOM_PRICELIST_URL, loadCardKingdomCache } from '../../src/cardkingdom'
 import { cardCache } from '../../src/cache'
-import { runCli, runInProcess, withTempDir } from './helpers/cli'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { runCli, withTempDir } from './helpers/cli'
+import { runInProcess } from '../helpers/cli'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { stubScryfallBulk } from './helpers/scryfall-bulk'
-import type { StubbedFetch } from './helpers/stub-fetch'
+import type { StubbedFetch } from '../helpers/stub-fetch'
 import { bulkCard, cardKingdomFeedBody, makeCardKingdomProduct } from '../test-utils'
+import { captureConsole, type ConsoleCapture } from '../helpers/capture'
 
 /**
  * `ritual cache preload-all` flag validation. Only the offline-safe usage path
@@ -43,14 +45,12 @@ describe('cache preload-all CLI (Integration)', () => {
 describe('cache preload-all buylist step (Integration)', () => {
   let workspace: BoundWorkspace | undefined
   let stubbed: StubbedFetch | undefined
-  let warnings: string[]
-  const originalWarn = console.warn
 
-  /** Run the subcommand, returning the exit code it set. */
-  async function runPreloadAll(): Promise<number> {
-    // `console.warn` stays captured until the afterEach restores it, so a test
-    // that runs this twice records both runs rather than only the first.
-    return runInProcess(registerCacheCommand, ['cache', 'preload-all'])
+  /** Run the subcommand, reporting the exit code it set and what it warned. */
+  async function runPreloadAll(): Promise<ConsoleCapture<number>> {
+    return captureConsole(['warn'], () =>
+      runInProcess(registerCacheCommand, ['cache', 'preload-all']),
+    )
   }
 
   /** Whether the run asked Card Kingdom for its pricelist. */
@@ -58,13 +58,10 @@ describe('cache preload-all buylist step (Integration)', () => {
     (stubbed?.sent ?? []).some((request) => request.url.startsWith(CARDKINGDOM_PRICELIST_URL))
 
   beforeEach(() => {
-    warnings = []
     workspace = undefined
-    console.warn = (...args: unknown[]) => void warnings.push(args.join(' '))
   })
 
   afterEach(async () => {
-    console.warn = originalWarn
     stubbed?.restore()
     stubbed = undefined
     // Optional: each test binds its own workspace inside its body, so a bind
@@ -90,7 +87,7 @@ describe('cache preload-all buylist step (Integration)', () => {
       },
     })
 
-    const code = await runPreloadAll()
+    const { result: code } = await runPreloadAll()
 
     expect(code).toBe(0)
     expect(await cardCache.get('Sol Ring')).not.toBeNull()
@@ -103,7 +100,7 @@ describe('cache preload-all buylist step (Integration)', () => {
     workspace = await bindWorkspace({ init: true, clearCardCache: true })
     stubbed = stubScryfallBulk({ cards: [bulkCard()] })
 
-    const code = await runPreloadAll()
+    const { result: code } = await runPreloadAll()
 
     expect(code).toBe(0)
     expect(await cardCache.get('Sol Ring')).not.toBeNull()
@@ -130,7 +127,7 @@ describe('cache preload-all buylist step (Integration)', () => {
       routes: { [CARDKINGDOM_PRICELIST_URL]: () => new Response('nope', { status: 500 }) },
     })
 
-    const code = await runPreloadAll()
+    const { result: code, lines } = await runPreloadAll()
 
     // The card cache did refresh; reporting that as a failure would break every
     // script and cron job that checks this command's exit code.
@@ -139,7 +136,7 @@ describe('cache preload-all buylist step (Integration)', () => {
     expect(downloadedFeed()).toBe(true)
     // A fragment unique to `cli.cache.preloadAllBuylistFailed`: matching on
     // "Card Kingdom" alone would pass for any of the ensure gate's own logs.
-    expect(warnings.join('\n')).toContain('The card cache was updated, but')
-    expect(warnings.join('\n')).toContain('HTTP 500')
+    expect(lines.warn.join('\n')).toContain('The card cache was updated, but')
+    expect(lines.warn.join('\n')).toContain('HTTP 500')
   })
 })

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { handleCardPrintings, type CardPrintingsResponse } from '../../src/api/card-printings'
 import { cardCache } from '../../src/cache'
 import { callJson } from './helpers/request'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { makeScryfallCard } from '../test-utils'
 
 /**

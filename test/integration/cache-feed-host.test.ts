@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { tmpdir } from 'node:os'
 import { CacheFeedHost } from '../../src/cache-feed/host'
 import { parseCacheFeed, type CacheFeedDocument } from '../../src/cache/feed'
 import { createFileTorrent } from '../../src/cache-feed/torrents'
 import { MockHttpClient, MemoryLogger, gzipJsonLines, setLogger } from '../test-utils'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 const BULK_API = 'https://upstream.example/bulk-data'
 const PUBLIC_URL = 'https://feed.example'
@@ -73,7 +73,7 @@ describe('CacheFeedHost', () => {
 
   beforeEach(async () => {
     setLogger(new MemoryLogger())
-    feedDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-cache-feed-'))
+    feedDir = await createWorkspace({ dirs: [], config: false })
     http = new MockHttpClient()
     host = new CacheFeedHost({
       feedDir,
@@ -85,7 +85,7 @@ describe('CacheFeedHost', () => {
   })
 
   afterEach(async () => {
-    await fs.rm(feedDir, { recursive: true, force: true })
+    await removeWorkspace(feedDir)
   })
 
   const bodies = () => ({
@@ -302,7 +302,7 @@ describe('CacheFeedHost', () => {
 
 describe('createFileTorrent', () => {
   test('is deterministic for identical content, name, and creation date', async () => {
-    const dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-torrent-'))
+    const dir = await createWorkspace({ dirs: [], config: false })
     try {
       const filePath = path.join(dir, 'artifact.jsonl.gz')
       await fs.writeFile(filePath, gzipJsonLines([{ name: 'Sol Ring' }]))
@@ -320,7 +320,7 @@ describe('createFileTorrent', () => {
       const other = await createFileTorrent(otherPath, 'https://feed.example/files/a', date)
       expect(other.infoHash).not.toBe(first.infoHash)
     } finally {
-      await fs.rm(dir, { recursive: true, force: true })
+      await removeWorkspace(dir)
     }
   })
 })

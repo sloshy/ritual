@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { computeHash } from '../../src/changes/content-hash'
 import { runCli } from './helpers/cli'
-import { withWorkspace, writeCollectionFile, writeDeckFile } from './helpers/workspace'
+import { withWorkspace, writeCollectionFile, writeDeckFile } from '../helpers/workspace'
 
 const exists = (filePath: string): Promise<boolean> => Bun.file(filePath).exists()
 

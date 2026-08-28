@@ -1,21 +1,17 @@
 import { describe, expect, test } from 'bun:test'
 import { contextInfoFromSelected } from '../../src/list-view/selected-to-context'
 import type { SelectedCard } from '../../src/list-view/useCardSelection'
+import { makeSelectedCard } from '../test-utils'
 
-function selected(over: Partial<SelectedCard> = {}): SelectedCard {
-  return {
-    key: 'k',
+const selected = (over: Partial<SelectedCard> = {}): SelectedCard =>
+  makeSelectedCard({
     name: 'Lightning Bolt',
     quantity: 2,
     groupSize: 4,
-    scryfallCard: null,
-    sourceName: 'My Deck',
-    sourceKind: 'deck',
     maxQty: 4,
     cardIds: [11, 12],
     ...over,
-  }
-}
+  })
 
 describe('contextInfoFromSelected', () => {
   test('maps identity, printing, and copy fields', () => {

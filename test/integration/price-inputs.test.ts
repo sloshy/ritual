@@ -9,7 +9,7 @@ import {
   writeCollectionFile,
   writeDeckFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 /**
  * The shared list loader behind `ritual price` and `ritual sell`, at the one

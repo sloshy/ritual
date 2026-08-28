@@ -30,6 +30,7 @@ import {
 } from '../../src/list/ensure-card-ids'
 import { parseChangelog } from '../../src/changes/changelog-parser'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/list/site-data'
+import { makeCollectionEntry } from '../test-utils'
 import type { DeckData } from '../../src/list/deck'
 
 // ── Parser: section assignment ───────────────────────────────────────
@@ -215,18 +216,8 @@ describe('consolidateSetSection', () => {
 
 // ── Change application: flat lists ───────────────────────────────────
 
-const collectionEntry = (over: Partial<CollectionCardEntry> = {}): CollectionCardEntry => ({
-  name: 'Sol Ring',
-  set: 'c21',
-  collectorNumber: '167',
-  finish: 'nonfoil',
-  condition: 'NM',
-  price: 0,
-  fileOrder: 0,
-  section: 'Main',
-  cardId: 1,
-  ...over,
-})
+const collectionEntry = (over: Partial<CollectionCardEntry> = {}): CollectionCardEntry =>
+  makeCollectionEntry({ name: 'Sol Ring', set: 'c21', collectorNumber: '167', cardId: 1, ...over })
 
 describe('applyChangeToCollection sections', () => {
   test('set-section moves the targeted entry', () => {

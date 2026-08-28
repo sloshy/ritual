@@ -6,7 +6,7 @@ import { ensureCardIdsForAllLists } from '../../src/list/ensure-card-ids'
 import { ExitCode } from '../../src/util/errors'
 import { runCli } from './helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'
-import { bindWorkspace, withWorkspace } from './helpers/workspace'
+import { bindWorkspace, withWorkspace } from '../helpers/workspace'
 
 /**
  * Pins the root preAction hook's wiring: index.ts hands `buildProgram` (src/cli/program.ts)

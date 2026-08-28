@@ -19,6 +19,7 @@ import type { MovePhysicalCard } from '../../src/admin/api/move'
 import type { ListInfo } from '../../src/list/list-info'
 import type { DeckData } from '../../src/list/deck'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/list/site-data'
+import { makeCollectionEntry } from '../test-utils'
 
 const deckList: ListInfo = { type: 'deck', slug: 'my-deck', name: 'My Deck' }
 const collList: ListInfo = { type: 'collection', slug: 'binder', name: 'Binder' }
@@ -145,28 +146,14 @@ describe('overlayDeck', () => {
 
 describe('overlayCollection', () => {
   const baseEntries = (): CollectionCardEntry[] => [
-    {
-      name: 'Sol Ring',
-      set: 'c19',
-      collectorNumber: '221',
-      finish: 'nonfoil',
-      condition: 'NM',
-      price: 0,
-      fileOrder: 0,
-      section: 'Main',
-      cardId: 1,
-    },
-    {
+    makeCollectionEntry({ name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }),
+    makeCollectionEntry({
       name: 'Brainstorm',
       set: 'mh2',
       collectorNumber: '42',
-      finish: 'nonfoil',
-      condition: 'NM',
-      price: 0,
       fileOrder: 1,
-      section: 'Main',
       cardId: 2,
-    },
+    }),
   ]
 
   test('removes an outbound entry by card id', () => {

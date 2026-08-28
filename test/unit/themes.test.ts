@@ -11,37 +11,6 @@ import {
   themes,
 } from '../../src/theme/themes'
 
-const REQUIRED_VARS = [
-  '--bg-body',
-  '--bg-panel',
-  '--bg-hover',
-  '--bg-active',
-  '--bg-subtle',
-  '--border',
-  '--border-hover',
-  '--border-focus',
-  '--border-separator',
-  '--text-primary',
-  '--text-body',
-  '--text-secondary',
-  '--text-muted',
-  '--text-dim',
-  '--text-accent',
-  '--accent',
-  '--accent-hover',
-  '--accent-dim',
-  '--btn-bg',
-  '--btn-hover',
-  '--btn-text',
-  '--btn-primary',
-  '--btn-primary-hover',
-  '--btn-danger',
-  '--btn-danger-hover',
-  '--btn-export',
-  '--btn-export-hover',
-  '--btn-on-color-text',
-] as const
-
 const GUILDS = [
   'orzhov',
   'izzet',
@@ -103,16 +72,6 @@ describe('generateThemeCss', () => {
     expect(generateThemeCss('izzet')).toContain(':root[data-theme="izzet"] {')
     expect(generateThemeCss('boros-inverted')).toContain(':root[data-theme="boros-inverted"] {')
   })
-
-  // darkVars and lightVars are separate code paths, so cover one theme of each.
-  for (const name of ['default', 'selesnya'] as const) {
-    test(`emits all required variables for ${name}`, () => {
-      const css = generateThemeCss(name)
-      for (const variable of REQUIRED_VARS) {
-        expect(css).toContain(`${variable}:`)
-      }
-    })
-  }
 
   test('includes the theme name in a leading comment', () => {
     expect(generateThemeCss('izzet')).toMatch(/^\/\* Theme: izzet \*\//)

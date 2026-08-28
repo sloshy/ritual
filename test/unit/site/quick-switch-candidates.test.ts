@@ -3,7 +3,7 @@ import { buildCandidates, totalQuantityByName } from '../../../src/site/quick-sw
 import type { CollectionDetail, CollectionCardEntry, DeckDetail } from '../../../src/list/site-data'
 import type { DeckSection } from '../../../src/list/deck'
 import type { ScryfallCard } from '../../../src/scryfall/types'
-import { makeScryfallCard } from '../../test-utils'
+import { makeCollectionEntry, makeScryfallCard } from '../../test-utils'
 
 function makeCollectionDetail(
   entries: CollectionCardEntry[],
@@ -28,17 +28,7 @@ function makeEntry(
   fileOrder: number,
   language?: CollectionCardEntry['language'],
 ): CollectionCardEntry {
-  return {
-    name,
-    set,
-    collectorNumber,
-    finish: 'nonfoil',
-    condition: 'NM',
-    language,
-    price: 0,
-    fileOrder,
-    section: 'Main',
-  }
+  return makeCollectionEntry({ name, set, collectorNumber, language, fileOrder })
 }
 
 function makeDeckDetail(

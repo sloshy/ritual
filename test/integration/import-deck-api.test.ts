@@ -9,8 +9,8 @@ import {
   REMOTE_FOIL_DECK,
   readImportedDeck,
 } from './helpers/import-fixtures'
-import { stubFetch, type StubbedFetch } from './helpers/stub-fetch'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 /**
  * The admin import endpoint's printing contract: a URL import must state

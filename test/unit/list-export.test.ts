@@ -15,37 +15,15 @@ import { readFrontMatterMapping } from '../../src/list/front-matter-write'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/list/site-data'
 import type { SelectedCard } from '../../src/list-view/useCardSelection'
 import type { DeckData } from '../../src/list/deck'
+import { makeCollectionEntry, makeSelectedCard } from '../test-utils'
 
-function collectionEntry(overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry {
-  return {
-    name: 'Lightning Bolt',
-    set: 'lea',
-    collectorNumber: '161',
-    finish: 'nonfoil',
-    condition: 'NM',
-    price: 0,
-    fileOrder: 0,
-    section: 'Main',
-    ...overrides,
-  }
-}
+const BOLT = { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' } as const
 
-function selected(overrides: Partial<SelectedCard> = {}): SelectedCard {
-  return {
-    key: 'k',
-    name: 'Lightning Bolt',
-    set: 'lea',
-    collectorNumber: '161',
-    quantity: 1,
-    groupSize: 1,
-    scryfallCard: null,
-    sourceName: 'My List',
-    sourceKind: 'collection',
-    maxQty: 1,
-    cardIds: [],
-    ...overrides,
-  }
-}
+const collectionEntry = (overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry =>
+  makeCollectionEntry({ ...BOLT, ...overrides })
+
+const selected = (overrides: Partial<SelectedCard> = {}): SelectedCard =>
+  makeSelectedCard({ ...BOLT, sourceName: 'My List', sourceKind: 'collection', ...overrides })
 
 function wantedEntry(overrides: Partial<WantedListCardEntry> = {}): WantedListCardEntry {
   return {

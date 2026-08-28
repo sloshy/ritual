@@ -36,6 +36,12 @@ export type StubbedRequest = {
    * Read the file cell to assert what was uploaded.
    */
   form?: FormData
+  /**
+   * The literal `init` the caller passed, for the few suites that assert on
+   * headers or credentials rather than on the body. Absent for a call made with
+   * a `Request` object, which carries those itself.
+   */
+  init?: RequestInit
 }
 
 /** Serves one endpoint; anything unrouted fails the run loudly. */
@@ -94,6 +100,7 @@ export function stubFetch(
       method: asRequest?.method ?? init?.method ?? 'GET',
       url: urlOf(input),
     }
+    if (init) request.init = init
     if (typeof init?.body === 'string') recordBody(request, init.body)
     else if (init?.body instanceof FormData) request.form = init.body
     else if (asRequest && asRequest.body !== null) recordBody(request, await asRequest.text())

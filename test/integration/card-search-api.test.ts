@@ -8,8 +8,8 @@ import {
   type CardSearchSuccess,
 } from '../../src/api/card-search'
 import { cardCache } from '../../src/cache'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
-import { stubFetch, type StubbedFetch } from './helpers/stub-fetch'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
 import { makeScryfallCard, seedCardNames } from '../test-utils'
 import type { ScryfallCard, ScryfallList } from '../../src/scryfall/types'
 

@@ -1,16 +1,11 @@
-import { RuleTester } from '@typescript-eslint/rule-tester'
 import { Linter } from 'eslint'
-import { afterAll, describe, expect, it, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import rule from '../../../eslint-rules/no-upward-import.js'
+import { makeRuleTester } from './tester'
 
-RuleTester.afterAll = afterAll
-RuleTester.describe = describe
-RuleTester.it = it
-RuleTester.itOnly = it
-
-const ruleTester = new RuleTester()
+const ruleTester = makeRuleTester()
 const ROOT = path.resolve(import.meta.dir, '../../..')
 
 // A three-layer table small enough to read; the real one lives in eslint.config.js.

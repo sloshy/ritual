@@ -1,12 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import fs from 'node:fs/promises'
 import path from 'node:path'
-import { tmpdir } from 'node:os'
 import type { Subprocess } from 'bun'
 import WebTorrent from 'webtorrent'
 import { ensureBinary, binaryPath, runCli } from './helpers/cli'
 import { parseCacheFeed, type CacheFeedDocument, type CacheFeedEntry } from '../../src/cache/feed'
 import { gzipJsonLines } from '../test-utils'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 // Fixed ports for the spawned host; chosen away from the other suites' ports.
 const FEED_PORT = 4915
@@ -45,7 +44,7 @@ async function waitForFeed(url: string, timeoutMs: number): Promise<CacheFeedDoc
 // Leech the entry's artifact from a TCP peer and verify its sha256 hash.
 async function leechAndVerify(entry: CacheFeedEntry, peerPort: number): Promise<void> {
   const torrentBuf = new Uint8Array(await (await fetch(entry.torrentUrl)).arrayBuffer())
-  const downloadDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-leech-'))
+  const downloadDir = await createWorkspace({ dirs: [], config: false })
   const leecher = new WebTorrent({
     dht: false,
     tracker: false,
@@ -76,7 +75,7 @@ async function leechAndVerify(entry: CacheFeedEntry, peerPort: number): Promise<
     expect(hash).toBe(entry.sha256)
   } finally {
     await new Promise<void>((resolve) => leecher.destroy(() => resolve()))
-    await fs.rm(downloadDir, { recursive: true, force: true })
+    await removeWorkspace(downloadDir)
   }
 }
 
@@ -89,8 +88,8 @@ describe('cache feed host (e2e over the built binary)', () => {
 
   beforeAll(async () => {
     await ensureBinary()
-    feedDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-feed-e2e-'))
-    workDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-feed-e2e-cwd-'))
+    feedDir = await createWorkspace({ dirs: [], config: false })
+    workDir = await createWorkspace({ dirs: [], config: false })
 
     upstream = Bun.serve({
       port: 0,
@@ -139,8 +138,8 @@ describe('cache feed host (e2e over the built binary)', () => {
     hostProc?.kill()
     await hostProc?.exited
     await upstream.stop(true)
-    await fs.rm(feedDir, { recursive: true, force: true })
-    await fs.rm(workDir, { recursive: true, force: true })
+    await removeWorkspace(feedDir)
+    await removeWorkspace(workDir)
   })
 
   test('publishes one feed entry per bulk artifact with matching hashes', async () => {
@@ -154,7 +153,7 @@ describe('cache feed host (e2e over the built binary)', () => {
   })
 
   test('the fetch command syncs a fresh base dir from the feed and is then idempotent', async () => {
-    const fetchDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-fetch-cwd-'))
+    const fetchDir = await createWorkspace({ dirs: [], config: false })
     try {
       const feedUrl = `http://127.0.0.1:${FEED_PORT}/feed.json`
       const first = await runCli(
@@ -180,12 +179,12 @@ describe('cache feed host (e2e over the built binary)', () => {
       expect(second.exitCode).toBe(0)
       expect(second.stdout).toContain('Feed is unchanged')
     } finally {
-      await fs.rm(fetchDir, { recursive: true, force: true })
+      await removeWorkspace(fetchDir)
     }
   }, 60_000)
 
   test('a feed-mode cache server syncs on startup and seeds persistently', async () => {
-    const serverDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-cache-server-feed-'))
+    const serverDir = await createWorkspace({ dirs: [], config: false })
     let serverProc: Subprocess | undefined
     try {
       serverProc = Bun.spawn(
@@ -239,12 +238,12 @@ describe('cache feed host (e2e over the built binary)', () => {
     } finally {
       serverProc?.kill()
       await serverProc?.exited
-      await fs.rm(serverDir, { recursive: true, force: true })
+      await removeWorkspace(serverDir)
     }
   }, 120_000)
 
   test('--no-seed syncs the cache without seeding', async () => {
-    const serverDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-cache-server-noseed-'))
+    const serverDir = await createWorkspace({ dirs: [], config: false })
     let serverProc: Subprocess | undefined
     try {
       serverProc = Bun.spawn(
@@ -288,7 +287,7 @@ describe('cache feed host (e2e over the built binary)', () => {
     } finally {
       serverProc?.kill()
       await serverProc?.exited
-      await fs.rm(serverDir, { recursive: true, force: true })
+      await removeWorkspace(serverDir)
     }
   }, 120_000)
 

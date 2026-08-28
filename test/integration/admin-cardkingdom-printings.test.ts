@@ -1,10 +1,9 @@
 import { describe, test, expect, beforeAll, afterAll, beforeEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { tmpdir } from 'node:os'
-import { getBaseDir, setBaseDir } from '../../src/config/base-dir'
 import { cardCache } from '../../src/cache'
 import { refreshRitualConfig, resetRitualConfigCache } from '../../src/config/ritual-config'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import type { PriceSource } from '../../src/pricing/price-source'
 import { invalidateCardKingdomIndex, saveCardKingdomCache } from '../../src/cardkingdom'
 import { getCardKingdomCachePath } from '../../src/cardkingdom/cache'
@@ -27,12 +26,11 @@ import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../test-utils'
  * the admin route's loader consults the feed at all, and honours `priceSources`.
  */
 describe('admin card-data loader — Card Kingdom printings (Integration)', () => {
-  let dir: string
-  let originalBase: string
+  let ws: BoundWorkspace
 
   /** Rewrite the workspace config, which is where `priceSources` is read from. */
   async function setPriceSources(sources: readonly PriceSource[]): Promise<void> {
-    const configPath = path.join(dir, 'ritual.config.json')
+    const configPath = path.join(ws.dir, 'ritual.config.json')
     const config = JSON.parse(await fs.readFile(configPath, 'utf-8')) as Record<string, unknown>
     config['priceSources'] = sources
     await fs.writeFile(configPath, JSON.stringify(config, null, 2))
@@ -41,11 +39,8 @@ describe('admin card-data loader — Card Kingdom printings (Integration)', () =
   }
 
   beforeAll(async () => {
-    originalBase = getBaseDir()
-    dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-admin-ck-'))
-    createSyntheticWorkspace(dir)
-    setBaseDir(dir)
-    resetRitualConfigCache()
+    ws = await bindWorkspace({ dirs: [], config: false })
+    createSyntheticWorkspace(ws.dir)
     await refreshRitualConfig()
     cardCache.invalidate()
     await saveCardKingdomCache(
@@ -70,11 +65,9 @@ describe('admin card-data loader — Card Kingdom printings (Integration)', () =
 
   afterAll(async () => {
     invalidateCardKingdomIndex()
-    setBaseDir(originalBase)
-    resetRitualConfigCache()
+    await ws.dispose()
     await refreshRitualConfig()
     cardCache.invalidate()
-    await fs.rm(dir, { recursive: true, force: true })
   })
 
   beforeEach(() => {

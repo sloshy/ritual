@@ -17,7 +17,7 @@ import { validateArchidektCsvColumns } from '../../../src/importers/archidekt-co
 import type { CollectionCsvUploadResult } from '../../../src/importers/archidekt-collection'
 import type { CardLanguage } from '../../../src/card/card-language'
 import type { Condition, Finish } from '../../../src/card/finish-condition'
-import { noPrintings, printing, printingId, printingsLookup } from './fixtures'
+import { noPrintings, printing, printingId, printingsLookup } from '../../fixtures/archidekt'
 
 /**
  * The CSV a push uploads: rows resolved from the local Scryfall cache, in

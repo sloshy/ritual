@@ -13,7 +13,7 @@ import { applyChangeToDeck } from '../../src/changes/deck-changes'
 import { assignMissingDeckCardIds } from '../../src/card/card-id'
 import { createAddChange } from '../../src/changes/change-event'
 import type { DeckData } from '../../src/list/deck'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 let ws: BoundWorkspace
 let dir: string

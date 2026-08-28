@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'
-import { createWorkspace, removeWorkspace } from './helpers/workspace'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 type LoginStatusPayload = {
   loggedIn: boolean

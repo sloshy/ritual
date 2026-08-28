@@ -129,15 +129,36 @@ function wantedStrategy(pinned: boolean, withMove: boolean): CardSessionStrategy
   )
 }
 
-function deckStrategy(): CardSessionStrategy {
+function deckStrategy(quantity = 0, withMove = false): CardSessionStrategy {
   const sessionConfig: SessionConfig = makeSessionConfig()
   return createDeckStrategy({
     deckFile: scratchListPath('menus-deck.md'),
     deckName: 'Test Deck',
-    initialDeck: { name: 'Test Deck', sections: [] },
+    initialDeck: {
+      name: 'Test Deck',
+      sections:
+        quantity > 0
+          ? [
+              {
+                name: 'Main',
+                cards: [
+                  {
+                    quantity,
+                    name: 'Sol Ring',
+                    set: 'c21',
+                    collectorNumber: '240',
+                    finish: 'nonfoil',
+                    cardId: 1,
+                  },
+                ],
+              },
+            ]
+          : [],
+    },
     frontMatter: {},
     sessionConfig,
     excludeDigitalOnly: true,
+    moveTargets: withMove ? moveTargets : undefined,
   })
 }
 
@@ -268,6 +289,40 @@ describe('deck strategy menus', () => {
       { title: '🏷️  Change Format (not set)', value: '__FORMAT__' },
       { title: '🔖 Edit Tags (none)', value: '__TAGS__' },
       { title: '🏷️  Edit List Labels (default: none)', value: '__LIST_LABELS__' },
+    ])
+  })
+
+  test('edit-action menu for a single copy, without move targets', async () => {
+    const menu = await editMenu(deckStrategy(1))
+    expect(menu.message).toBe('Edit 1 Sol Ring (C21:240) — Main &1:')
+    expect(menu.rows).toEqual([
+      { title: '🖼️  Change Printing', value: 'printing' },
+      { title: '➕ Add a Copy', value: 'add-copy' },
+      LANGUAGE_ROW,
+      { title: '🏷️  Change Label', value: 'label' },
+      ART_ROW,
+      { title: '🗂️  Move to Section', value: 'move' },
+      NOTE_ROW,
+      { title: '🗑️  Remove Card', value: 'remove-line' },
+      CANCEL_ROW,
+    ])
+  })
+
+  test('a second copy adds the remove-copy row and counts the removal; move targets add move-list', async () => {
+    const menu = await editMenu(deckStrategy(2, true))
+    expect(menu.message).toBe('Edit 2 Sol Ring (C21:240) — Main &1:')
+    expect(menu.rows).toEqual([
+      { title: '🖼️  Change Printing', value: 'printing' },
+      { title: '➕ Add a Copy', value: 'add-copy' },
+      { title: '➖ Remove a Copy', value: 'remove-copy' },
+      LANGUAGE_ROW,
+      { title: '🏷️  Change Label', value: 'label' },
+      ART_ROW,
+      { title: '🗂️  Move to Section', value: 'move' },
+      MOVE_ROW,
+      NOTE_ROW,
+      { title: '🗑️  Remove All Copies (2)', value: 'remove-line' },
+      CANCEL_ROW,
     ])
   })
 })

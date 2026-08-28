@@ -5,8 +5,8 @@ import {
   type CardDetailsResponse,
 } from '../../src/api/card-details'
 import { cardCache } from '../../src/cache'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
-import { stubFetch, type StubbedFetch } from './helpers/stub-fetch'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
 import { makeScryfallCard } from '../test-utils'
 import type { ScryfallCard } from '../../src/scryfall/types'
 

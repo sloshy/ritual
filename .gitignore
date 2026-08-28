@@ -75,7 +75,6 @@ test-results/
 playwright-report/
 .playwright-cli/
 .e2e-state.json
-test/.test-*/
 test/e2e/.auth/
 
 # Dev files

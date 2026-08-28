@@ -11,7 +11,7 @@ import {
 } from '../../src/admin/auth'
 import { startAdminServer } from '../../src/admin/server'
 import { createSession, getSessionCookieName } from '../../src/admin/session'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 /**
  * The auth helpers write a real credentials file, so they belong here rather

@@ -2,9 +2,8 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import fsSync from 'node:fs'
 import path from 'node:path'
-import { tmpdir } from 'node:os'
-import { getBaseDir, setBaseDir } from '../../../src/config/base-dir'
 import { cardCache } from '../../../src/cache'
+import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 import { invalidateCardKingdomIndex, saveCardKingdomCache } from '../../../src/cardkingdom'
 import { createLiveSiteData } from '../../../src/serve/live-data'
 import { createSyntheticWorkspace } from '../../e2e/helpers/synthetic-workspace'
@@ -15,34 +14,27 @@ import type {
   DeckDetail,
   SiteIndex,
 } from '../../../src/list/site-data'
+import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
 
 describe('createLiveSiteData', () => {
-  let dir: string
-  let originalBase: string
-  let originalFetch: typeof fetch
+  let ws: BoundWorkspace
+  let offline: StubbedFetch
 
   beforeEach(async () => {
-    originalBase = getBaseDir()
-    originalFetch = globalThis.fetch
-    dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-live-data-'))
-    createSyntheticWorkspace(dir)
-    setBaseDir(dir)
+    ws = await bindWorkspace({ dirs: [], config: false })
+    createSyntheticWorkspace(ws.dir)
     cardCache.invalidate()
     // The live layer must be fully offline: any network attempt is a bug.
-    globalThis.fetch = ((input: string | URL | Request) => {
-      const url = input instanceof Request ? input.url : String(input)
-      throw new Error(`Unexpected network request: ${url}`)
-    }) as unknown as typeof fetch
+    offline = stubFetch({})
   })
 
   afterEach(async () => {
-    globalThis.fetch = originalFetch
-    setBaseDir(originalBase)
+    offline.restore()
+    await ws.dispose()
     cardCache.invalidate()
     // The buyer-feed memo is process-global and keyed on a path this workspace
     // is about to take with it.
     invalidateCardKingdomIndex()
-    await fs.rm(dir, { recursive: true, force: true })
   })
 
   /** The deck line with this `&N` id, from a served deck detail body. */
@@ -57,7 +49,7 @@ describe('createLiveSiteData', () => {
 
   /** Merge `patch` into the workspace's config file, which the live layer re-reads. */
   async function patchConfig(patch: Record<string, unknown>): Promise<void> {
-    const configPath = path.join(dir, 'ritual.config.json')
+    const configPath = path.join(ws.dir, 'ritual.config.json')
     const config = JSON.parse(await fs.readFile(configPath, 'utf-8')) as Record<string, unknown>
     await fs.writeFile(configPath, JSON.stringify({ ...config, ...patch }, null, 2))
   }
@@ -103,7 +95,7 @@ describe('createLiveSiteData', () => {
     const second = await live.getDetail('deck', 'emberwild-aggro')
     expect(second!.etag).toBe(first!.etag)
 
-    const deckPath = path.join(dir, 'decks', 'emberwild-aggro.md')
+    const deckPath = path.join(ws.dir, 'decks', 'emberwild-aggro.md')
     const content = await fs.readFile(deckPath, 'utf-8')
     await Bun.sleep(5)
     await fs.writeFile(
@@ -125,7 +117,7 @@ describe('createLiveSiteData', () => {
 
     await Bun.sleep(5)
     fsSync.writeFileSync(
-      path.join(dir, 'decks', 'emberwild-aggro.changes.md'),
+      path.join(ws.dir, 'decks', 'emberwild-aggro.changes.md'),
       '## 2026-07-24T10:00:00.000Z\n\n- Added Lightning Bolt &99\n',
     )
 
@@ -143,7 +135,7 @@ describe('createLiveSiteData', () => {
     expect(deckCard(before!.body, 1).customArt).toBeUndefined()
     const indexBefore = await live.getIndex()
 
-    const artPath = path.join(dir, 'decks', 'emberwild-aggro.art.json')
+    const artPath = path.join(ws.dir, 'decks', 'emberwild-aggro.art.json')
     fsSync.writeFileSync(artPath, '{"1":{"url":"https://example.test/bolt.png"}}\n')
     // Last-Modified has second resolution; stamp the sidecar far enough ahead
     // that the header has to move rather than sleeping for a second.
@@ -161,7 +153,7 @@ describe('createLiveSiteData', () => {
 
   test('bakes a local art reference as the path the /art route serves', async () => {
     fsSync.writeFileSync(
-      path.join(dir, 'decks', 'emberwild-aggro.art.json'),
+      path.join(ws.dir, 'decks', 'emberwild-aggro.art.json'),
       '{"2":{"file":"proxies/bolt.png"}}\n',
     )
     const live = createLiveSiteData()
@@ -178,7 +170,7 @@ describe('createLiveSiteData', () => {
     const before = JSON.parse((await live.getIndex()).body) as SiteIndex
     expect(before.defaultLanguage).toBe('en')
 
-    const configPath = path.join(dir, 'ritual.config.json')
+    const configPath = path.join(ws.dir, 'ritual.config.json')
     const config = JSON.parse(await fs.readFile(configPath, 'utf-8')) as Record<string, unknown>
     config.defaultLanguage = 'ja'
     await fs.writeFile(configPath, JSON.stringify(config, null, 2))
@@ -312,7 +304,7 @@ describe('createLiveSiteData', () => {
     const live = createLiveSiteData()
     expect(await live.getDetail('deck', 'emberwild-aggro')).not.toBeNull()
 
-    const configPath = path.join(dir, 'ritual.config.json')
+    const configPath = path.join(ws.dir, 'ritual.config.json')
     const config = JSON.parse(await fs.readFile(configPath, 'utf-8')) as Record<string, unknown>
     // Selection lists match on display names, not file basenames.
     config.site = { excludeDecks: ['Emberwild Aggro'] }

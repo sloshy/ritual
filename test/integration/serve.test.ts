@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
-import { withWorkspace } from './helpers/workspace'
+import { withWorkspace } from '../helpers/workspace'
 
 /**
  * Wiring pins for the merged `serve [--build]` command: build-only flags are

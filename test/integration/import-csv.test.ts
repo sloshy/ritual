@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { handleImportCsv, type ImportCsvResponse } from '../../src/admin/api/import-csv'
 import type { ApiErrorResponse } from '../../src/api/http'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 /**
  * The CSV import handler writes real list files, so it belongs here rather than

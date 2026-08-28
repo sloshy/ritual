@@ -3,26 +3,21 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { refreshCardCache, resolveFeedUrl } from '../../src/cache/refresh-source'
 import { DEFAULT_FEED_URL } from '../../src/cache/feed-client'
-import { refreshRitualConfig, resetRitualConfigCache } from '../../src/config/ritual-config'
-import { setBaseDir } from '../../src/config/base-dir'
+import { refreshRitualConfig } from '../../src/config/ritual-config'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { MemoryLogger, resetLogger, setLogger } from '../test-utils'
 
-const testDir = path.join(import.meta.dir, '../.test-cache-refresh-source')
-const configPath = path.join(testDir, 'ritual.config.json')
+let ws: BoundWorkspace
+let configPath: string
 
 describe('resolveFeedUrl', () => {
-  const originalCwd = process.cwd()
-
   beforeEach(async () => {
-    await fs.mkdir(testDir, { recursive: true })
-    setBaseDir(testDir)
-    resetRitualConfigCache()
+    ws = await bindWorkspace({ dirs: [], config: false })
+    configPath = path.join(ws.dir, 'ritual.config.json')
   })
 
   afterEach(async () => {
-    setBaseDir(originalCwd)
-    resetRitualConfigCache()
-    await fs.rm(testDir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   test('falls back to the built-in default when neither explicit nor config is set', async () => {

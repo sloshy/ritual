@@ -21,7 +21,7 @@ import {
   writeDeckFile,
   writeWantedFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 const BUNDLE = {
   format: 'ritual-change-bundle',

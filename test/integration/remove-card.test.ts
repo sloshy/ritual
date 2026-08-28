@@ -8,7 +8,7 @@ import {
   removeWorkspace,
   seedCardTargetWorkspace,
   snapshotTree,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 type RemoveCardJson = {
   type: string

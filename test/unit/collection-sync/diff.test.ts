@@ -22,7 +22,7 @@ import {
   type RemoteCollectionIndex,
 } from '../../../src/collection-sync/diff'
 import type { AddChange, RemoveChange } from '../../../src/changes/change-event'
-import { entry, noPrintings, printing, printingsLookup, record } from './fixtures'
+import { entry, noPrintings, printing, printingsLookup, record } from '../../fixtures/archidekt'
 
 /** The local index for one list of entries, with no cache behind it. */
 async function indexOf(

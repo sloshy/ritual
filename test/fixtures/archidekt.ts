@@ -10,13 +10,13 @@ import {
   type ArchidektCollectionPage,
   type ArchidektCollectionRecord,
   type ArchidektCollectionTag,
-} from '../../../src/importers/archidekt-collection'
-import type { CollectionEntry } from '../../../src/list/collection-file'
-import type { CardLanguage } from '../../../src/card/card-language'
-import type { CardPrintingsLookup } from '../../../src/card/card-printing'
-import { DEFAULT_SECTION } from '../../../src/list/deck'
-import type { Condition, Finish } from '../../../src/card/finish-condition'
-import type { ScryfallCard } from '../../../src/scryfall/types'
+} from '../../src/importers/archidekt-collection'
+import type { CollectionEntry } from '../../src/list/collection-file'
+import type { CardLanguage } from '../../src/card/card-language'
+import type { CardPrintingsLookup } from '../../src/card/card-printing'
+import { DEFAULT_SECTION } from '../../src/list/deck'
+import type { Condition, Finish } from '../../src/card/finish-condition'
+import type { ScryfallCard } from '../../src/scryfall/types'
 
 /** Optional fields of a synthetic collection line. */
 export type EntryOptions = {

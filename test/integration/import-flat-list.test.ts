@@ -6,7 +6,7 @@ import { importFromTextFile } from '../../src/importers/text-file'
 import { ExitCode } from '../../src/util/errors'
 import type { ConflictResolution } from '../../src/importers/save-list'
 import { MemoryLogger, resetLogger, setLogger } from '../test-utils'
-import { bindWorkspace, writeWantedFile, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, writeWantedFile, type BoundWorkspace } from '../helpers/workspace'
 
 describe('import text file into flat lists (Integration)', () => {
   let ws: BoundWorkspace

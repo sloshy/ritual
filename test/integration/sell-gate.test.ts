@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { dispatchRoute, type RequestContext } from '../../src/admin/server'
 import { invalidateCardKingdomIndex, saveCardKingdomCache } from '../../src/cardkingdom'
 import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../src/config/ritual-config'
-import { bindWorkspace, writeConfig, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, writeConfig, type BoundWorkspace } from '../helpers/workspace'
 import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../test-utils'
 
 /**

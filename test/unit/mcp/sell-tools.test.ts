@@ -14,6 +14,7 @@ import {
   clearSiteSellModeOverride,
   setSiteSellModeOverride,
 } from '../../../src/config/ritual-config'
+import { stubFetch } from '../../helpers/stub-fetch'
 
 /**
  * Wiring-only coverage per the test layering policy: the tools are registered
@@ -189,15 +190,11 @@ describe('sell MCP tools', () => {
 
   test('refresh_buylist reports a successful download', async () => {
     // Serve a one-product feed from the stubbed global fetch.
-    const originalFetch = globalThis.fetch
-    const stub = (input: string | URL | Request): Promise<Response> => {
-      const url = String(input instanceof Request ? input.url : input)
-      if (url.includes('api.cardkingdom.com')) {
-        return Promise.resolve(Response.json(cardKingdomFeedBody()))
-      }
-      return originalFetch(input)
-    }
-    globalThis.fetch = stub as typeof fetch
+    // Passthrough so anything else still reaches the harness's offline stub.
+    const feed = stubFetch(
+      { 'https://api.cardkingdom.com': () => Response.json(cardKingdomFeedBody()) },
+      { passthrough: true },
+    )
     try {
       const result = await client.callTool({ name: 'refresh_buylist', arguments: {} })
       const data = toolData<{ refreshed: boolean; productCount: number; warnings: string[] }>(
@@ -207,7 +204,7 @@ describe('sell MCP tools', () => {
       expect(data.productCount).toBe(1)
       expect(data.warnings).toEqual([])
     } finally {
-      globalThis.fetch = originalFetch
+      feed.restore()
     }
   })
 

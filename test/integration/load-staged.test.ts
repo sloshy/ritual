@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import * as fs from 'node:fs/promises'
-import * as os from 'node:os'
 import * as path from 'node:path'
 import { loadStagedOrThrow } from '../../src/list/move-staging'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 let tmpDir: string
 
 beforeEach(async () => {
-  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-load-staged-'))
+  tmpDir = await createWorkspace({ dirs: [], config: false })
 })
 
 afterEach(async () => {
-  await fs.rm(tmpDir, { recursive: true, force: true })
+  await removeWorkspace(tmpDir)
 })
 
 describe('loadStagedOrThrow', () => {

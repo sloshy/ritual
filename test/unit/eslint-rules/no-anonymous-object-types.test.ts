@@ -1,13 +1,7 @@
-import { RuleTester } from '@typescript-eslint/rule-tester'
-import { afterAll, describe, it } from 'bun:test'
 import rule from '../../../eslint-rules/no-anonymous-object-types.js'
+import { makeRuleTester } from './tester'
 
-RuleTester.afterAll = afterAll
-RuleTester.describe = describe
-RuleTester.it = it
-RuleTester.itOnly = it
-
-const ruleTester = new RuleTester()
+const ruleTester = makeRuleTester()
 
 ruleTester.run('no-anonymous-object-types', rule as never, {
   valid: [

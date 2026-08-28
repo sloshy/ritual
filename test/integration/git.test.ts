@@ -8,8 +8,7 @@ import {
 import { getDefaultRitualConfig } from '../../src/config/ritual-config'
 import type { RitualConfig } from '../../src/config/ritual-config'
 import path from 'node:path'
-import os from 'node:os'
-import fs from 'node:fs'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 /** The commit/push gate values observed at one point in time. */
 type GateSnapshot = { commit: boolean; push: boolean }
@@ -29,12 +28,12 @@ describe('admin git', () => {
     expect(isGitRepo(projectRoot)).toBe(true)
   })
 
-  test('isGitRepo returns false for a non-git directory', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ritual-test-'))
+  test('isGitRepo returns false for a non-git directory', async () => {
+    const tmpDir = await createWorkspace({ dirs: [], config: false })
     try {
       expect(isGitRepo(tmpDir)).toBe(false)
     } finally {
-      fs.rmdirSync(tmpDir)
+      await removeWorkspace(tmpDir)
     }
   })
 

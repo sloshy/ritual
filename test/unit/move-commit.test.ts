@@ -6,7 +6,7 @@ import {
   getPendingMoves,
   type VirtualCard,
 } from '../../src/list/move-commit'
-import { makeListEntry, makePhysicalCard } from './move-fixtures'
+import { makeListEntry, makePhysicalCard } from '../fixtures/lists'
 
 // ── loadPhysicalCards ─────────────────────────────────────────────────────────
 

@@ -7,25 +7,13 @@ import {
   type SelectedCard,
   type SelectionListId,
 } from '../../../src/list-view/useCardSelection'
-import { makeScryfallCard } from '../../test-utils'
+import { makeScryfallCard, makeSelectedCard } from '../../test-utils'
 
 const DECK: SelectionListId = { kind: 'deck', name: 'My Deck' }
 const COLLECTION: SelectionListId = { kind: 'collection', name: 'My Cards' }
 
-function card(list: SelectionListId, key: string, over: Partial<SelectedCard> = {}): SelectedCard {
-  return {
-    key,
-    name: 'Card',
-    quantity: 1,
-    groupSize: 1,
-    scryfallCard: null,
-    sourceName: list.name,
-    sourceKind: list.kind,
-    maxQty: 1,
-    cardIds: [],
-    ...over,
-  }
-}
+const card = (list: SelectionListId, key: string, over: Partial<SelectedCard> = {}): SelectedCard =>
+  makeSelectedCard({ key, name: 'Card', sourceName: list.name, sourceKind: list.kind, ...over })
 
 // The store is module-global, so reset it before each test.
 beforeEach(() => clearAllSelections())

@@ -21,13 +21,18 @@ import '../../../src/scryfall'
 import { cardCache } from '../../../src/cache'
 import { scryfallIdIndex } from '../../../src/cache/scryfall-id-index'
 import type { ArchidektToken } from '../../../src/auth/interfaces'
-import { printing, printingId, TEST_ACCOUNT } from '../../unit/collection-sync/fixtures'
-import { stubFetch, type StubbedRequest, type StubRoute } from './stub-fetch'
+import { printing, printingId, TEST_ACCOUNT } from '../../fixtures/archidekt'
+import {
+  stubFetch,
+  type StubbedFetch,
+  type StubbedRequest,
+  type StubRoute,
+} from '../../helpers/stub-fetch'
 
 // The request/route vocabulary lives in `stub-fetch.ts` (every network-free
 // suite speaks it, not just the sync ones); re-exported so this harness stays
 // one import site for its users.
-export type { StubbedRequest, StubRoute }
+export type { StubbedFetch, StubbedRequest, StubRoute }
 
 export { TEST_ACCOUNT }
 
@@ -77,15 +82,13 @@ export async function uploadedCsvRows(requests: readonly StubbedRequest[]): Prom
 /**
  * Install a stubbed `fetch` serving `routes` by URL **prefix**, longest first
  * (the collection read carries a query string; a nested path like
- * `/decks/1/modifyCards/` must beat the `/decks/1/` it starts with). Returns the
- * array every request is recorded into, so a push can assert what went to
- * Archidekt.
+ * `/decks/1/modifyCards/` must beat the `/decks/1/` it starts with).
  *
- * The Archidekt-flavoured name for the shared {@link stubFetch}; callers restore
- * `globalThis.fetch` themselves.
+ * The Archidekt-flavoured name for the shared {@link stubFetch}: same contract,
+ * `sent` for what a push put on the wire and `restore()` when the suite is done.
  */
-export function stubArchidekt(routes: Record<string, StubRoute>): StubbedRequest[] {
-  return stubFetch(routes).sent
+export function stubArchidekt(routes: Record<string, StubRoute>): StubbedFetch {
+  return stubFetch(routes)
 }
 
 /**

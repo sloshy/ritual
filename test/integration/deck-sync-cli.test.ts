@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { runCli } from './helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'
-import { withWorkspace } from './helpers/workspace'
+import { withWorkspace } from '../helpers/workspace'
 
 /**
  * Network-free argument-surface tests for `deck-sync`. The sync flows

@@ -1,10 +1,10 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { tmpdir } from 'node:os'
 import { loadCollectionSource } from '../../../src/site-build/collection'
 import { loadDeckSource } from '../../../src/site-build/deck'
 import { loadWantedSource } from '../../../src/site-build/wanted'
+import { createWorkspace, removeWorkspace } from '../../helpers/workspace'
 
 /**
  * What the detail loaders read beside a list file: the custom-art sidecar and
@@ -16,11 +16,11 @@ describe('detail loaders: art sidecar', () => {
   let dir: string
 
   beforeEach(async () => {
-    dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-detail-sidecar-'))
+    dir = await createWorkspace({ dirs: [], config: false })
   })
 
   afterEach(async () => {
-    await fs.rm(dir, { recursive: true, force: true })
+    await removeWorkspace(dir)
   })
 
   async function writeList(name: string, content: string, art?: string): Promise<void> {
@@ -105,11 +105,11 @@ describe('detail loaders: list image', () => {
   let dir: string
 
   beforeEach(async () => {
-    dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-detail-image-'))
+    dir = await createWorkspace({ dirs: [], config: false })
   })
 
   afterEach(async () => {
-    await fs.rm(dir, { recursive: true, force: true })
+    await removeWorkspace(dir)
   })
 
   const write = (name: string, content: string): Promise<void> =>

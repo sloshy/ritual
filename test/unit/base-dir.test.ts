@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { tmpdir } from 'node:os'
 import {
   isBaseDirError,
   parseBaseDir,
   resolveBaseDir,
   type BaseDirError,
 } from '../../src/config/base-dir'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 /** The error message of a {@link parseBaseDir} result, or a failing marker. */
 function errorOf(result: string | BaseDirError): string {
@@ -38,11 +38,11 @@ describe('parseBaseDir', () => {
   let dir: string
 
   beforeEach(async () => {
-    dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-base-dir-'))
+    dir = await createWorkspace({ dirs: [], config: false })
   })
 
   afterEach(async () => {
-    await fs.rm(dir, { recursive: true, force: true })
+    await removeWorkspace(dir)
   })
 
   test('resolves an unnormalized path to its absolute form', async () => {

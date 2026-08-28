@@ -10,7 +10,7 @@ import {
   writeConfig,
   writeWantedFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 /**
  * End-to-end coverage for the admin cross-list remove endpoint. The client

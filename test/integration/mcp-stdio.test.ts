@@ -3,7 +3,7 @@ import { Client, type CallToolResult } from '@modelcontextprotocol/client'
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
 import { expectStructuredOnly, toolData } from '../mcp-test-utils'
 import { binaryPath, ensureBinary, withTempDir } from './helpers/cli'
-import { writeDeckFile } from './helpers/workspace'
+import { writeDeckFile } from '../helpers/workspace'
 
 type ListsResult = { lists: { slug: string }[] }
 

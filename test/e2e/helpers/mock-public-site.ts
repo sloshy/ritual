@@ -15,6 +15,8 @@ import type { BuylistQuote } from '../../../src/buylist'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/config/search-debounce'
 import { DEFAULT_LOCALE } from '../../../src/i18n/runtime'
 import { fulfillJson } from './fulfill'
+import { makeCollectionEntry } from '../../fixtures/lists'
+import { makeBuylistQuote } from '../../fixtures/cards'
 import {
   MOCK_COLLECTION_CARD_PRICED,
   MOCK_COLLECTION_DETAIL,
@@ -149,7 +151,7 @@ const MOCK_SCRYFALL_CARD = makeMockScryfallCard({
   prices: { usd: '1.00', eur: '0.80' },
 })
 
-const MOCK_DECK_WITH_CHANGELOG = {
+const MOCK_DECK_WITH_CHANGELOG = makeDeckDetail({
   deck: {
     name: 'Test Changelog Deck',
     sections: [
@@ -161,10 +163,6 @@ const MOCK_DECK_WITH_CHANGELOG = {
   },
   cards: { 'Test Creature': MOCK_SCRYFALL_CARD },
   printings: { 'Test Creature': [MOCK_SCRYFALL_CARD] },
-  symbolMap: {},
-  useScryfallImgUrls: false,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
   changelog: [
     {
       timestamp: '2025-01-15T10:00:00.000Z',
@@ -185,7 +183,7 @@ const MOCK_DECK_WITH_CHANGELOG = {
       changes: [{ action: 'Added', cardName: 'Old Card' }],
     },
   ],
-} satisfies DeckDetail
+})
 
 const MOCK_SITE_INDEX_WITH_CHANGELOG_DECK = makeSiteIndex({
   decks: [makeDeckSummary({ slug: 'test-changelog-deck', name: 'Test Changelog Deck' })],
@@ -207,7 +205,7 @@ const LONG_DESCRIPTION =
   'threshold used by the ExpandableText component. It contains enough text to ensure the ' +
   'Read more and Show less buttons appear and function correctly when toggling.'
 
-const MOCK_DECK_WITH_DESCRIPTION = {
+const MOCK_DECK_WITH_DESCRIPTION = makeDeckDetail({
   deck: {
     name: 'Test Description Deck',
     description: LONG_DESCRIPTION,
@@ -220,12 +218,7 @@ const MOCK_DECK_WITH_DESCRIPTION = {
   },
   cards: { 'Test Creature': MOCK_SCRYFALL_CARD },
   printings: { 'Test Creature': [MOCK_SCRYFALL_CARD] },
-  symbolMap: {},
-  useScryfallImgUrls: false,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
 const MOCK_SITE_INDEX_WITH_DESCRIPTION_DECK = makeSiteIndex({
   decks: [makeDeckSummary({ slug: 'test-description-deck', name: 'Test Description Deck' })],
@@ -341,7 +334,7 @@ const MOCK_SCRYFALL_ARTIFACT = makeMockScryfallCard({
   edhrec_rank: 3000,
 })
 
-const MOCK_MULTI_SECTION_DECK = {
+const MOCK_MULTI_SECTION_DECK = makeDeckDetail({
   deck: {
     name: 'Test Multi-Section Deck',
     sections: [
@@ -381,12 +374,7 @@ const MOCK_MULTI_SECTION_DECK = {
     'Test Instant': MOCK_SCRYFALL_INSTANT,
     'Test Artifact': MOCK_SCRYFALL_ARTIFACT,
   },
-  symbolMap: {},
-  useScryfallImgUrls: false,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
 const MOCK_SITE_INDEX_WITH_MULTI_SECTION_DECK = makeSiteIndex({
   decks: [
@@ -431,7 +419,7 @@ const MOCK_SCRYFALL_UPRIGHT = withImage(
   'https://card-images.test/creature.svg',
 )
 
-const MOCK_SIDEWAYS_DECK = {
+const MOCK_SIDEWAYS_DECK = makeDeckDetail({
   deck: {
     name: 'Test Sideways Deck',
     sections: [
@@ -452,12 +440,8 @@ const MOCK_SIDEWAYS_DECK = {
     'Test Battle': [MOCK_SCRYFALL_BATTLE],
     'Test Creature': [MOCK_SCRYFALL_UPRIGHT],
   },
-  symbolMap: {},
   useScryfallImgUrls: true,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
 const MOCK_SITE_INDEX_WITH_SIDEWAYS_DECK = makeSiteIndex({
   decks: [
@@ -504,7 +488,7 @@ export async function mockPublicSiteCollection(page: Page): Promise<void> {
 // A collection holding two identical copies of one card, so "Group Duplicates"
 // merges them into a single quantity-2 tile — used to test that "Remove a copy"
 // appears only for a real multi-copy group.
-const MOCK_COLLECTION_DUP_DETAIL = {
+const MOCK_COLLECTION_DUP_DETAIL = makeCollectionDetail({
   name: 'Dup Collection',
   entries: [
     {
@@ -530,11 +514,8 @@ const MOCK_COLLECTION_DUP_DETAIL = {
   ],
   cards: { 'tst:10': MOCK_COLLECTION_CARD_PRICED },
   printings: { 'Priced Card': [MOCK_COLLECTION_CARD_PRICED] },
-  symbolMap: {},
-  useScryfallImgUrls: false,
   totalPrice: 7.0,
-  defaultCurrency: 'usd',
-} satisfies CollectionDetail
+})
 
 const MOCK_SITE_INDEX_WITH_DUP_COLLECTION = makeSiteIndex({
   collections: [
@@ -546,21 +527,6 @@ const MOCK_SITE_INDEX_WITH_DUP_COLLECTION = makeSiteIndex({
     }),
   ],
 })
-
-/** A collection entry with neutral defaults; spread overrides on top. */
-function makeCollectionEntry(overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry {
-  return {
-    name: 'Test Card',
-    set: 'tst',
-    collectorNumber: '1',
-    finish: 'nonfoil',
-    condition: 'NM',
-    price: 0,
-    fileOrder: 0,
-    section: 'Main',
-    ...overrides,
-  }
-}
 
 // ===== Collections with card labels (sale / trade / keep) =====
 
@@ -595,7 +561,7 @@ function makeLabelEntry(
 
 // Every chip is testable on one page: each label appears as an override, plus
 // one unlabeled card. No list default, so every badge here is an override.
-const MOCK_LABEL_BINDER_DETAIL = {
+const MOCK_LABEL_BINDER_DETAIL = makeCollectionDetail({
   name: 'Label Binder',
   entries: [
     makeLabelEntry('Sale Card', '1', 0, ['sale']),
@@ -609,16 +575,12 @@ const MOCK_LABEL_BINDER_DETAIL = {
     'tst:3': makeLabelCard('Keep Card', '3'),
     'tst:4': makeLabelCard('Plain Card', '4'),
   },
-  printings: {},
-  symbolMap: {},
-  useScryfallImgUrls: false,
   totalPrice: 4.0,
-  defaultCurrency: 'usd',
-} satisfies CollectionDetail
+})
 
 // A list-level default (`sale, trade`) with one keep override — proves the
 // default resolves end-to-end and that tiles badge overrides only.
-const MOCK_SALE_BINDER_DETAIL = {
+const MOCK_SALE_BINDER_DETAIL = makeCollectionDetail({
   name: 'Sale Binder',
   labels: ['sale', 'trade'],
   entries: [makeLabelEntry('Default Card', '5', 0), makeLabelEntry('Keeper', '6', 1, ['keep'])],
@@ -626,12 +588,8 @@ const MOCK_SALE_BINDER_DETAIL = {
     'tst:5': makeLabelCard('Default Card', '5'),
     'tst:6': makeLabelCard('Keeper', '6'),
   },
-  printings: {},
-  symbolMap: {},
-  useScryfallImgUrls: false,
   totalPrice: 2.0,
-  defaultCurrency: 'usd',
-} satisfies CollectionDetail
+})
 
 const MOCK_SITE_INDEX_FOR_LABELS = makeSiteIndex({
   collections: [
@@ -688,7 +646,7 @@ const MOCK_PROXY_DECK_PLAIN_PROXY = makeProxyDeckCard('Plain Proxy', '22')
 // flavours of priceless are present on purpose — `Proxy Bolt` is a proxy that
 // also wears custom art (so its marker must read CUSTOM, the winning reason),
 // while `Plain Proxy` carries the label alone (PROXY).
-const MOCK_PROXY_DECK = {
+const MOCK_PROXY_DECK = makeDeckDetail({
   deck: {
     name: 'Proxy Deck',
     sections: [
@@ -723,12 +681,7 @@ const MOCK_PROXY_DECK = {
     'Plain Proxy': MOCK_PROXY_DECK_PLAIN_PROXY,
   },
   printings: { 'Proxy Bolt': [MOCK_PROXY_DECK_PROXY] },
-  symbolMap: {},
-  useScryfallImgUrls: false,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
 const MOCK_SITE_INDEX_WITH_PROXY_DECK = makeSiteIndex({
   decks: [
@@ -768,7 +721,7 @@ export async function mockPublicSiteProxyDeck(page: Page): Promise<void> {
  * a build produces for a reference whose image file it could not copy: the card
  * shows its real printing and is priceless all the same.
  */
-const MOCK_GHOST_ART_DETAIL = {
+const MOCK_GHOST_ART_DETAIL = makeCollectionDetail({
   name: 'Ghost Art Binder',
   entries: [
     makeCollectionEntry({
@@ -807,12 +760,8 @@ const MOCK_GHOST_ART_DETAIL = {
       collector_number: '31',
     }),
   },
-  printings: {},
-  symbolMap: {},
-  useScryfallImgUrls: false,
   totalPrice: 10,
-  defaultCurrency: 'usd',
-} satisfies CollectionDetail
+})
 
 const MOCK_SITE_INDEX_WITH_GHOST_ART = makeSiteIndex({
   collections: [
@@ -865,37 +814,19 @@ function makeSellEntry(
  * Every quote the stub buyer knows, keyed exactly as a build bakes them.
  * `tst:3` is deliberately absent — a printing the buyer has no product for is
  * omitted, not zero-priced.
- *
- * Written out by hand rather than through `makeBuylistQuote` in
- * test/test-utils.ts: that module imports `bun:test`, which a Playwright helper
- * cannot. Keep these literals in step with that fixture when `BuylistQuote`
- * gains a field.
  */
 const MOCK_BUYLIST_CATALOG: Record<string, BuylistQuote> = {
-  'tst:1:nonfoil': {
-    priceBuy: 4,
-    qtyBuying: 2,
-    priceRetail: 8,
-    qtyRetail: 3,
-    buying: true,
-    finish: 'nonfoil',
-    matchVia: 'scryfall-id',
-    productId: 1,
-    name: 'Bought Card',
-    edition: 'Test Set',
-  },
-  'tst:2:nonfoil': {
+  'tst:1:nonfoil': makeBuylistQuote({ name: 'Bought Card' }),
+  // The paused offer: a published price the buyer is not taking today.
+  'tst:2:nonfoil': makeBuylistQuote({
     priceBuy: 9,
     qtyBuying: 0,
     priceRetail: 18,
     qtyRetail: 0,
     buying: false,
-    finish: 'nonfoil',
-    matchVia: 'scryfall-id',
     productId: 2,
     name: 'Paused Card',
-    edition: 'Test Set',
-  },
+  }),
 }
 
 /**
@@ -916,7 +847,7 @@ const MOCK_BAKED_FEED = {
  * stock at all. The paused one is what separates "on the buylist" meaning
  * *actively buying* from the retired "their catalog lists it".
  */
-const MOCK_SELL_BINDER_DETAIL = {
+const MOCK_SELL_BINDER_DETAIL = makeCollectionDetail({
   name: 'Sell Binder',
   entries: [
     makeSellEntry('Bought Card', '1', 0, 10),
@@ -928,15 +859,11 @@ const MOCK_SELL_BINDER_DETAIL = {
     'tst:2': makeSellCard('Paused Card', '2', '20.00'),
     'tst:3': makeSellCard('Unlisted Card', '3', '30.00'),
   },
-  printings: {},
-  symbolMap: {},
-  useScryfallImgUrls: false,
   totalPrice: 60.0,
-  defaultCurrency: 'usd',
   // The offers a `--sell-mode` build bakes into the list itself. This is the
   // whole fixture: the site below has no backend to ask.
   buylist: { cardkingdom: { quotes: MOCK_BUYLIST_CATALOG, ...MOCK_BAKED_FEED } },
-} satisfies CollectionDetail
+})
 
 // No `apiBaseUrl`: a plain static build, which is exactly where baked quotes
 // have to work. One factory for every sell-binder fixture, so its index
@@ -1065,21 +992,10 @@ function ckQuote(fields: {
   priceBuy: number
   priceRetail: number
 }): BuylistQuote {
-  return {
-    priceBuy: fields.priceBuy,
-    qtyBuying: 4,
-    priceRetail: fields.priceRetail,
-    qtyRetail: 4,
-    buying: true,
-    finish: fields.finish,
-    matchVia: 'scryfall-id',
-    productId: fields.productId,
-    name: 'Split Pick',
-    edition: fields.edition,
-  }
+  return makeBuylistQuote({ ...fields, qtyBuying: 4, qtyRetail: 4, name: 'Split Pick' })
 }
 
-const MOCK_DECK_FOR_PRICE_SOURCES = {
+const MOCK_DECK_FOR_PRICE_SOURCES = makeDeckDetail({
   deck: {
     name: 'Split Pick Deck',
     sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Split Pick' }] }],
@@ -1096,10 +1012,6 @@ const MOCK_DECK_FOR_PRICE_SOURCES = {
   cardsCardKingdom: { 'Split Pick': MOCK_DECK_CK_KINGDOM_PICK },
   lowestPriceCards: { 'Split Pick': MOCK_DECK_CK_SCRYFALL_PICK },
   lowestPriceCardsCardKingdom: { 'Split Pick': MOCK_DECK_CK_KINGDOM_CHEAPEST },
-  symbolMap: {},
-  useScryfallImgUrls: false,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
   buylist: {
     cardkingdom: {
       quotes: {
@@ -1135,7 +1047,7 @@ const MOCK_DECK_FOR_PRICE_SOURCES = {
       ...MOCK_BAKED_FEED,
     },
   },
-} satisfies DeckDetail
+})
 
 /**
  * Mock a static site offering both USD stores, whose deck's name-only card has a
@@ -1317,7 +1229,7 @@ const MOCK_FILTER_CARDS = [
  */
 export const FILTER_DECK_CARDS = MOCK_FILTER_CARDS.map((card) => card.name)
 
-const MOCK_FILTER_DECK = {
+const MOCK_FILTER_DECK = makeDeckDetail({
   deck: {
     name: 'Test Filter Deck',
     sections: [
@@ -1351,12 +1263,8 @@ const MOCK_FILTER_DECK = {
   },
   cards: Object.fromEntries(MOCK_FILTER_CARDS.map((card) => [card.name, card])),
   printings: Object.fromEntries(MOCK_FILTER_CARDS.map((card) => [card.name, [card]])),
-  symbolMap: {},
-  useScryfallImgUrls: false,
-  defaultCurrency: 'usd',
   availableCurrencies: ['usd', 'eur'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
 const MOCK_SITE_INDEX_WITH_FILTER_DECK = makeSiteIndex({
   decks: [
@@ -1455,7 +1363,7 @@ const zoneLine = (card: ScryfallCard, cardId: number) => ({
   cardId,
 })
 
-const MOCK_ZONE_DECK = {
+const MOCK_ZONE_DECK = makeDeckDetail({
   deck: {
     name: 'Test Zone Deck',
     sections: [
@@ -1467,12 +1375,7 @@ const MOCK_ZONE_DECK = {
   },
   cards: Object.fromEntries(MOCK_ZONE_CARDS.map((card) => [card.name, card])),
   printings: Object.fromEntries(MOCK_ZONE_CARDS.map((card) => [card.name, [card]])),
-  symbolMap: {},
-  useScryfallImgUrls: false,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
 const MOCK_SITE_INDEX_WITH_ZONE_DECK = makeSiteIndex({
   decks: [
@@ -1528,7 +1431,7 @@ const MOCK_COPIES_PRINTINGS = [
   }),
 ]
 
-const MOCK_COPIES_DECK = {
+const MOCK_COPIES_DECK = makeDeckDetail({
   deck: {
     name: 'Test Copies Deck',
     sections: [
@@ -1549,12 +1452,7 @@ const MOCK_COPIES_DECK = {
   },
   cards: { 'Split Bolt': MOCK_COPIES_PRINTINGS[0]! },
   printings: { 'Split Bolt': MOCK_COPIES_PRINTINGS },
-  symbolMap: {},
-  useScryfallImgUrls: false,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
 // ===== Share filters (cross-list) mock data =====
 
@@ -1882,7 +1780,7 @@ const MOCK_TRADE_WANTED_CARD_CRYPT = makeMockScryfallCard({
   released_at: '2020-08-07',
 })
 
-const MOCK_TRADE_COLLECTION_DETAIL = {
+const MOCK_TRADE_COLLECTION_DETAIL = makeCollectionDetail({
   name: 'Trade Collection',
   entries: [
     // Three identical Lightning Bolts (no notes) — should aggregate maxQty=3.
@@ -1999,13 +1897,10 @@ const MOCK_TRADE_COLLECTION_DETAIL = {
     'Altered Bauble': [MOCK_TRADE_COLLECTION_CARD_ALTERED],
     'Fake Relic': [MOCK_TRADE_COLLECTION_CARD_FAKE],
   },
-  symbolMap: {},
-  useScryfallImgUrls: false,
   totalPrice: 20.5,
-  defaultCurrency: 'usd',
-} satisfies CollectionDetail
+})
 
-const MOCK_TRADE_WANTED_DETAIL = {
+const MOCK_TRADE_WANTED_DETAIL = makeWantedDetail({
   name: 'Trade Wanted List',
   entries: [
     {
@@ -2025,11 +1920,8 @@ const MOCK_TRADE_WANTED_DETAIL = {
     '2xm:270': MOCK_TRADE_WANTED_CARD_CRYPT,
   },
   printings: { 'Mana Crypt': [MOCK_TRADE_WANTED_CARD_CRYPT] },
-  symbolMap: {},
-  useScryfallImgUrls: false,
   totalPrice: 175.0,
-  defaultCurrency: 'usd',
-} satisfies WantedListDetail
+})
 
 const MOCK_TRADE_DECK_CARD_COUNTERSPELL = makeMockScryfallCard({
   id: 'trade-counterspell-id',
@@ -2045,7 +1937,7 @@ const MOCK_TRADE_DECK_CARD_COUNTERSPELL = makeMockScryfallCard({
   released_at: '2024-06-14',
 })
 
-const MOCK_TRADE_DECK_DETAIL = {
+const MOCK_TRADE_DECK_DETAIL = makeDeckDetail({
   deck: {
     name: 'Trade Deck',
     sections: [
@@ -2081,12 +1973,7 @@ const MOCK_TRADE_DECK_DETAIL = {
     ],
   },
   cards: { 'Sol Ring': MOCK_TRADE_COLLECTION_CARD_RING },
-  printings: {},
-  symbolMap: {},
-  useScryfallImgUrls: false,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-} satisfies DeckDetail
+})
 
 const MOCK_SITE_INDEX_FOR_TRADE = makeSiteIndex({
   decks: [makeDeckSummary({ slug: 'trade-deck', name: 'Trade Deck' })],
@@ -2208,7 +2095,7 @@ const MOCK_SITE_INDEX_FOR_QUICK_SWITCH: SiteIndex = makeSiteIndex({
   ],
 })
 
-const MOCK_QUICK_SWITCH_DECK_AZORIUS = {
+const MOCK_QUICK_SWITCH_DECK_AZORIUS = makeDeckDetail({
   deck: {
     name: 'Azorius Control',
     sections: [
@@ -2219,15 +2106,9 @@ const MOCK_QUICK_SWITCH_DECK_AZORIUS = {
     ],
   },
   cards: { Counterspell: null, 'Teferi, Hero of Dominaria': null },
-  printings: {},
-  symbolMap: {},
-  useScryfallImgUrls: false,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
-const MOCK_QUICK_SWITCH_DECK_MONO_RED = {
+const MOCK_QUICK_SWITCH_DECK_MONO_RED = makeDeckDetail({
   deck: {
     name: 'Mono Red Aggro',
     sections: [
@@ -2238,13 +2119,7 @@ const MOCK_QUICK_SWITCH_DECK_MONO_RED = {
     ],
   },
   cards: { 'Lightning Bolt': null, 'Goblin Guide': null },
-  printings: {},
-  symbolMap: {},
-  useScryfallImgUrls: false,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
 function binderEntry(
   name: string,
@@ -2313,7 +2188,7 @@ const SOL_RING_LGN: ScryfallCard = {
   collector_number: '303',
 }
 
-const MOCK_QUICK_SWITCH_COLLECTION_MAIN_BINDER = {
+const MOCK_QUICK_SWITCH_COLLECTION_MAIN_BINDER = makeCollectionDetail({
   name: 'Main Binder',
   entries: [
     binderEntry('Lightning Bolt', 'm10', '146', 0),
@@ -2337,23 +2212,14 @@ const MOCK_QUICK_SWITCH_COLLECTION_MAIN_BINDER = {
     Moonshadow: MOONSHADOW_OTHER_PRINTING,
     'Mistrise Village': null,
   },
-  printings: {},
-  symbolMap: {},
-  useScryfallImgUrls: false,
   totalPrice: 1240.75,
-  defaultCurrency: 'usd',
-} satisfies CollectionDetail
+})
 
-const MOCK_QUICK_SWITCH_WANTED_HIGH_PRIORITY = {
+const MOCK_QUICK_SWITCH_WANTED_HIGH_PRIORITY = makeWantedDetail({
   name: 'High Priority',
-  entries: [],
   cards: { 'Mana Crypt': null },
-  printings: {},
-  symbolMap: {},
-  useScryfallImgUrls: false,
   totalPrice: 95,
-  defaultCurrency: 'usd',
-} satisfies WantedListDetail
+})
 
 /**
  * Mock the public site index.json with two decks, one collection, and one wanted list,
@@ -2471,7 +2337,7 @@ export async function mockPublicSiteIndexLists(page: Page): Promise<void> {
 // A two-card deck (one Instant, one Artifact, so default type-grouping splits
 // them) used to exercise the list-page multi-select feature. Reuses the trade
 // mock cards so the resolved printings carry real set/collector data.
-const MOCK_MULTISELECT_DECK = {
+const MOCK_MULTISELECT_DECK = makeDeckDetail({
   deck: {
     name: 'Multi Select Deck',
     sections: [
@@ -2492,12 +2358,7 @@ const MOCK_MULTISELECT_DECK = {
     'Lightning Bolt': [MOCK_TRADE_COLLECTION_CARD_BOLT],
     'Sol Ring': [MOCK_TRADE_COLLECTION_CARD_RING],
   },
-  symbolMap: {},
-  useScryfallImgUrls: false,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
 const MOCK_MULTISELECT_INDEX = makeSiteIndex({
   decks: [makeDeckSummary({ slug: 'test-multi-select', name: 'Multi Select Deck', cardCount: 2 })],
@@ -2518,7 +2379,7 @@ const MS_BOLT = withImage(MOCK_TRADE_COLLECTION_CARD_BOLT)
 const MS_RING = withImage(MOCK_TRADE_COLLECTION_CARD_RING)
 const MS_CRYPT = withImage(MOCK_TRADE_WANTED_CARD_CRYPT)
 
-const MOCK_MS_DECK_A = {
+const MOCK_MS_DECK_A = makeDeckDetail({
   deck: {
     name: 'MS Deck A',
     sections: [
@@ -2541,29 +2402,21 @@ const MOCK_MS_DECK_A = {
   },
   cards: { 'Lightning Bolt': MS_BOLT, 'Sol Ring': MS_RING },
   printings: { 'Lightning Bolt': [MS_BOLT], 'Sol Ring': [MS_RING] },
-  symbolMap: {},
   useScryfallImgUrls: true,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
-const MOCK_MS_DECK_B = {
+const MOCK_MS_DECK_B = makeDeckDetail({
   deck: {
     name: 'MS Deck B',
     sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Mana Crypt', cardId: 1 }] }],
   },
   cards: { 'Mana Crypt': MS_CRYPT },
   printings: { 'Mana Crypt': [MS_CRYPT] },
-  symbolMap: {},
   useScryfallImgUrls: true,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
 // A deck with a 4× quantity group, for the per-copy selection tests.
-const MOCK_MS_DECK_QTY = {
+const MOCK_MS_DECK_QTY = makeDeckDetail({
   deck: {
     name: 'MS Deck Qty',
     sections: [
@@ -2577,12 +2430,8 @@ const MOCK_MS_DECK_QTY = {
   },
   cards: { 'Lightning Bolt': MS_BOLT },
   printings: { 'Lightning Bolt': [MS_BOLT] },
-  symbolMap: {},
   useScryfallImgUrls: true,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
 const MOCK_MS_INDEX = makeSiteIndex({
   decks: [
@@ -2605,7 +2454,7 @@ export async function mockPublicSiteMultiSelectLists(page: Page): Promise<void> 
 // A deck and a collection that share a card (Sol Ring), used to exercise the
 // "Combine with list" modal and the combined view: cross-type combining, the
 // lowest-common-denominator "no card merging" rule, and source-list grouping.
-const MOCK_CV_DECK = {
+const MOCK_CV_DECK = makeDeckDetail({
   deck: {
     name: 'CV Deck',
     sections: [
@@ -2620,14 +2469,10 @@ const MOCK_CV_DECK = {
   },
   cards: { 'Lightning Bolt': MS_BOLT, 'Sol Ring': MS_RING },
   printings: { 'Lightning Bolt': [MS_BOLT], 'Sol Ring': [MS_RING] },
-  symbolMap: {},
   useScryfallImgUrls: true,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
-const MOCK_CV_COLLECTION = {
+const MOCK_CV_COLLECTION = makeCollectionDetail({
   name: 'CV Box',
   entries: [
     {
@@ -2644,11 +2489,9 @@ const MOCK_CV_COLLECTION = {
   ],
   cards: { 'c19:221': MS_RING },
   printings: { 'Sol Ring': [MS_RING] },
-  symbolMap: {},
   useScryfallImgUrls: true,
   totalPrice: 3,
-  defaultCurrency: 'usd',
-} satisfies CollectionDetail
+})
 
 const MOCK_CV_INDEX = makeSiteIndex({
   decks: [makeDeckSummary({ slug: 'cv-deck', name: 'CV Deck', cardCount: 3, totalPrice: 8 })],
@@ -2710,7 +2553,7 @@ const MOCK_SCRYFALL_PLAIN_LAND = makeMockScryfallCard({
   edhrec_rank: 600,
 })
 
-const MOCK_DFC_DECK = {
+const MOCK_DFC_DECK = makeDeckDetail({
   deck: {
     name: 'Test DFC Deck',
     sections: [
@@ -2737,12 +2580,8 @@ const MOCK_DFC_DECK = {
     'Werewolf Front // Werewolf Back': [MOCK_SCRYFALL_DFC],
     'Test Wastes': [MOCK_SCRYFALL_PLAIN_LAND],
   },
-  symbolMap: {},
   useScryfallImgUrls: true,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
 const MOCK_SITE_INDEX_WITH_DFC_DECK = makeSiteIndex({
   decks: [makeDeckSummary({ slug: 'test-dfc-deck', name: 'Test DFC Deck', cardCount: 2 })],
@@ -2850,7 +2689,7 @@ const FIND_COUNTER = makeMockScryfallCard({
   edhrec_rank: 150,
 })
 
-const FIND_DECK = {
+const FIND_DECK = makeDeckDetail({
   deck: {
     name: 'Find Deck',
     sections: [
@@ -2880,14 +2719,10 @@ const FIND_DECK = {
     'Bruce Banner // The Incredible Hulk': [FIND_BRUCE],
     'Steam Vents': [FIND_STEAM],
   },
-  symbolMap: {},
   useScryfallImgUrls: true,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
-const FIND_COLLECTION = {
+const FIND_COLLECTION = makeCollectionDetail({
   name: 'Find Box',
   entries: [
     {
@@ -2915,13 +2750,11 @@ const FIND_COLLECTION = {
   ],
   cards: { 'c19:221': FIND_RING, 'sld:1234': FIND_STEAM_DOUBLE_ART },
   printings: { 'Sol Ring': [FIND_RING], 'Steam Vents': [FIND_STEAM_DOUBLE_ART] },
-  symbolMap: {},
   useScryfallImgUrls: true,
   totalPrice: 8,
-  defaultCurrency: 'usd',
-} satisfies CollectionDetail
+})
 
-const FIND_WANTED = {
+const FIND_WANTED = makeWantedDetail({
   name: 'Find Wanted',
   entries: [
     {
@@ -2935,11 +2768,9 @@ const FIND_WANTED = {
   ],
   cards: { Counterspell: FIND_COUNTER },
   printings: { Counterspell: [FIND_COUNTER] },
-  symbolMap: {},
   useScryfallImgUrls: true,
   totalPrice: 1,
-  defaultCurrency: 'usd',
-} satisfies WantedListDetail
+})
 
 // A second deck whose only card matches none of the names the Find specs search,
 // so it never changes result counts — it exists to make the scope controls'
@@ -2954,7 +2785,7 @@ const FIND_ISLAND = makeMockScryfallCard({
   collector_number: '288',
 })
 
-const FIND_ATTIC = {
+const FIND_ATTIC = makeDeckDetail({
   deck: {
     name: 'Find Attic',
     sections: [
@@ -2966,12 +2797,8 @@ const FIND_ATTIC = {
   },
   cards: { Island: FIND_ISLAND },
   printings: { Island: [FIND_ISLAND] },
-  symbolMap: {},
   useScryfallImgUrls: true,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
 const FIND_INDEX = makeSiteIndex({
   decks: [
@@ -3004,7 +2831,7 @@ const PRINT_STEAM_DOUBLE_ART = withImage(FIND_STEAM_DOUBLE_ART)
 const PRINT_BOLT = withImage(FIND_BOLT)
 const PRINT_RING = withImage(FIND_RING)
 
-const PRINT_DECK = {
+const PRINT_DECK = makeDeckDetail({
   deck: {
     name: 'Print Deck',
     sections: [
@@ -3022,14 +2849,10 @@ const PRINT_DECK = {
     'Steam Vents': [PRINT_STEAM, PRINT_STEAM_DOUBLE_ART],
     'Lightning Bolt': [PRINT_BOLT],
   },
-  symbolMap: {},
   useScryfallImgUrls: true,
-  defaultCurrency: 'usd',
-  availableCurrencies: ['usd'],
-  missingCards: { usd: [], eur: [], tix: [] },
-} satisfies DeckDetail
+})
 
-const PRINT_BINDER = {
+const PRINT_BINDER = makeCollectionDetail({
   name: 'Print Binder',
   entries: [
     {
@@ -3075,11 +2898,9 @@ const PRINT_BINDER = {
     'Steam Vents': [PRINT_STEAM, PRINT_STEAM_DOUBLE_ART],
     'Sol Ring': [PRINT_RING],
   },
-  symbolMap: {},
   useScryfallImgUrls: true,
   totalPrice: 45,
-  defaultCurrency: 'usd',
-} satisfies CollectionDetail
+})
 
 const PRINT_WANTED: WantedListDetail = { ...FIND_WANTED, name: 'Print Wanted' }
 
@@ -3130,7 +2951,7 @@ export const MOCK_LANG_CARD_JA = makeMockScryfallCard({
   image_uris: { normal: 'https://img.test/lang-ja.jpg' },
 })
 
-const MOCK_LANG_BINDER_DETAIL = {
+const MOCK_LANG_BINDER_DETAIL = makeCollectionDetail({
   name: 'Lang Binder',
   entries: [
     makeCollectionEntry({
@@ -3154,11 +2975,8 @@ const MOCK_LANG_BINDER_DETAIL = {
     'tst:9@ja': MOCK_LANG_CARD_JA,
   },
   printings: { 'Language Card': [MOCK_LANG_CARD_EN, MOCK_LANG_CARD_JA] },
-  symbolMap: {},
-  useScryfallImgUrls: false,
   totalPrice: 4.0,
-  defaultCurrency: 'usd',
-} satisfies CollectionDetail
+})
 
 const MOCK_SITE_INDEX_WITH_LANG_BINDER = makeSiteIndex({
   collections: [

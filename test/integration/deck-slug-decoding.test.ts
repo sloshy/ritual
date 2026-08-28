@@ -3,7 +3,7 @@ import path from 'node:path'
 import { handleDeckLoad } from '../../src/admin/api/deck-load'
 import { handleListRename, type ListLifecycleConfig } from '../../src/admin/api/list-lifecycle'
 import { resolveDeckFile } from '../../src/admin/api/list-file'
-import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, writeDeckFile, type BoundWorkspace } from '../helpers/workspace'
 import { getDecksDir } from '../../src/config/ritual-config'
 
 const DECK_CFG: ListLifecycleConfig = {

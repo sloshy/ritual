@@ -1,10 +1,8 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { tmpdir } from 'node:os'
-import { getBaseDir, setBaseDir } from '../../../src/config/base-dir'
 import { cardCache } from '../../../src/cache'
-import { resetRitualConfigCache } from '../../../src/config/ritual-config'
+import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 import {
   handlePriceList,
   handlePriceSummary,
@@ -31,31 +29,19 @@ const BURN_MD = ['---', 'name: Burn', '---', '', '## Main', '', '2 Test Card &1'
 /** One nonfoil printing of "Test Card" at TST:1, priced in USD and EUR. */
 const TEST_CARD_PRINTINGS = [makeScryfallCard({ prices: { usd: '2.50', eur: '4.00' } })]
 
-let dir: string
-let originalBase: string
+let ws: BoundWorkspace
 
 beforeEach(async () => {
-  originalBase = getBaseDir()
-  dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-price-api-'))
-  for (const sub of ['decks', 'collections', 'wanted']) {
-    await fs.mkdir(path.join(dir, sub), { recursive: true })
-  }
-  setBaseDir(dir)
-  resetRitualConfigCache()
-  // The module-level card cache persists across tests in this process; start empty.
-  await cardCache.clear()
+  ws = await bindWorkspace({ clearCardCache: true })
 })
 
 afterEach(async () => {
-  await cardCache.clear()
-  setBaseDir(originalBase)
-  resetRitualConfigCache()
-  await fs.rm(dir, { recursive: true, force: true })
+  await ws.dispose()
 })
 
 async function writeLists(): Promise<void> {
-  await fs.writeFile(path.join(dir, 'collections', 'binder.md'), BINDER_MD)
-  await fs.writeFile(path.join(dir, 'decks', 'burn.md'), BURN_MD)
+  await fs.writeFile(path.join(ws.dir, 'collections', 'binder.md'), BINDER_MD)
+  await fs.writeFile(path.join(ws.dir, 'decks', 'burn.md'), BURN_MD)
 }
 
 /** Seed the card cache via bulkSet so `lastRefreshedAt` metadata is stamped too. */
@@ -76,8 +62,8 @@ async function seedFeedCache(): Promise<void> {
   const file = makeCardKingdomCacheFile([
     makeCardKingdomProduct({ scryfallId: 'test-id', priceRetail: 6.25, qtyRetail: 2 }),
   ])
-  await fs.mkdir(path.join(dir, 'cache'), { recursive: true })
-  await fs.writeFile(path.join(dir, 'cache', 'cardkingdom.json'), JSON.stringify(file))
+  await fs.mkdir(path.join(ws.dir, 'cache'), { recursive: true })
+  await fs.writeFile(path.join(ws.dir, 'cache', 'cardkingdom.json'), JSON.stringify(file))
 }
 
 describe('GET /api/price/summary — ?source=', () => {

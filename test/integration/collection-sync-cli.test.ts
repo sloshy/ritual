@@ -7,7 +7,7 @@ import { registerCollectionSyncCommand } from '../../src/commands/collection-syn
 import type { ArchidektCollectionRecord } from '../../src/importers/archidekt-collection'
 import { MemoryLogger, resetLogger, setLogger } from '../../src/util/logger'
 import { refreshRitualConfig } from '../../src/config/ritual-config'
-import { collectionPage, record } from '../unit/collection-sync/fixtures'
+import { collectionPage, record } from '../fixtures/archidekt'
 import {
   BOLT,
   BULK_URL,
@@ -25,7 +25,8 @@ import {
   type StubRoute,
   seededScryfallId,
 } from './helpers/archidekt'
-import { runCli, runInProcess } from './helpers/cli'
+import { runCli } from './helpers/cli'
+import { runInProcess } from '../helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'
 import {
   bindWorkspace,
@@ -34,7 +35,7 @@ import {
   writeCollectionFile,
   writeConfig,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 /**
  * End-to-end coverage for `ritual collection-sync`: one representative path per
@@ -52,14 +53,18 @@ import {
 
 let ws: BoundWorkspace
 let dir: string
-let originalFetch: typeof globalThis.fetch
+let restoreFetch: (() => void) | undefined
 let logger: MemoryLogger
 /** Every request the run made, recorded by the stub the test installed. */
 let sent: StubbedRequest[]
 
 /** Install the stub and point `sent` at its recording. */
 function stubFetch(routes: Record<string, StubRoute>): void {
-  sent = stubArchidekt(routes)
+  const stubbed = stubArchidekt(routes)
+  sent = stubbed.sent
+  // Only the first install's restore puts the real `fetch` back; a later
+  // re-stub in the same test captured this stub, not the original.
+  restoreFetch ??= stubbed.restore
 }
 
 /**
@@ -95,7 +100,6 @@ describe('collection-sync CLI (Integration)', () => {
   beforeEach(async () => {
     ws = await bindWorkspace({ init: true })
     dir = ws.dir
-    originalFetch = globalThis.fetch
     // No test may reach the network: a route a test forgot — or a token refresh
     // attempt — must fail loudly rather than call Archidekt for real.
     stubFetch({})
@@ -109,7 +113,8 @@ describe('collection-sync CLI (Integration)', () => {
   })
 
   afterEach(async () => {
-    globalThis.fetch = originalFetch
+    restoreFetch?.()
+    restoreFetch = undefined
     resetLogger()
     cardCache.invalidate()
     scryfallIdIndex.reset()

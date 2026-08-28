@@ -4,8 +4,10 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import '../../src/scryfall'
 import { registerCacheCommand } from '../../src/commands/cache'
 import { ExitCode } from '../../src/util/errors'
-import { runInProcess } from './helpers/cli'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { runInProcess } from '../helpers/cli'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { captureConsole } from '../helpers/capture'
+import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
 
 /**
  * Wiring pin for `cache refresh-tags`: a download that did not happen has to
@@ -13,37 +15,29 @@ import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
  * 0, so no script or cron job could tell a failed refresh from a good one.
  */
 describe('cache refresh-tags (Integration)', () => {
-  const originalFetch = globalThis.fetch
   let workspace: BoundWorkspace
+  let scryfall: StubbedFetch
 
   beforeAll(async () => {
     workspace = await bindWorkspace({ clearCardCache: true })
     // Every Scryfall request fails, including the bulk manifest the tag
     // download starts with.
-    globalThis.fetch = (() =>
-      Promise.resolve(new Response('nope', { status: 500 }))) as unknown as typeof fetch
+    scryfall = stubFetch({ '': () => new Response('nope', { status: 500 }) })
   })
 
   afterAll(async () => {
-    globalThis.fetch = originalFetch
+    scryfall.restore()
     await workspace.dispose()
   })
 
   test('a failed tag download exits 1 and says so', async () => {
-    const errors: string[] = []
-    const originalError = console.error
-    console.error = (...args: unknown[]) => void errors.push(args.join(' '))
-
-    let code: number
-    try {
-      code = await runInProcess(registerCacheCommand, ['cache', 'refresh-tags'])
-    } finally {
-      console.error = originalError
-    }
+    const { result: code, lines } = await captureConsole(['error'], () =>
+      runInProcess(registerCacheCommand, ['cache', 'refresh-tags']),
+    )
 
     expect(code).toBe(ExitCode.RuntimeError)
     // Ties the exit code to the intended path: a workspace or cache-lock failure
     // inside the action would otherwise produce an identical RuntimeError.
-    expect(errors.join('\n')).toContain('Failed to refresh tags')
+    expect(lines.error.join('\n')).toContain('Failed to refresh tags')
   })
 })

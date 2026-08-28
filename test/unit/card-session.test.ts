@@ -388,9 +388,6 @@ describe('buildMenuChoices', () => {
     const MENU_KEY_PREFIX = 'cli.menu.'
     /** One standard terminal line. A row wider than this wraps and costs a second. */
     const MENU_ROW_BUDGET = 80
-    /** Rows a not-yet-converted strategy contributes, still English by definition. */
-    const UNCONVERTED_ROWS = new Set(['__SECTION__', '__FORMAT__', '__TAGS__', '__LIST_LABELS__'])
-
     beforeAll(() => {
       loadDictionary(PSEUDO_LOCALE, pseudoLocalize(en, enMeta))
       setLocale(PSEUDO_LOCALE)
@@ -408,25 +405,21 @@ describe('buildMenuChoices', () => {
     })
 
     test('the tallest menu keeps its row count and its trailing Exit', () => {
-      const tallest = buildMenuChoices(tallestMenuInput())
+      const input = tallestMenuInput()
+      const tallest = buildMenuChoices(input)
       expect(tallest.length).toBe(SESSION_MENU_LIMIT)
       expect(tallest.at(-1)?.value).toBe('__EXIT__')
       // Every label the engine owns really was translated: an untouched row
       // stays plain ASCII with no brackets, which is what the pseudo-locale
-      // exists to make visible.
+      // exists to make visible. `extraItems` are spliced in verbatim by the
+      // caller, so they are the strategy's labels, not the engine's.
+      const callerRows = new Set(input.extraItems.map((item) => String(item.value)))
+      expect([...callerRows]).toEqual(['__SECTION__', '__FORMAT__', '__TAGS__', '__LIST_LABELS__'])
       const untranslated = tallest
-        .filter((choice) => !UNCONVERTED_ROWS.has(String(choice.value)))
+        .filter((choice) => !callerRows.has(String(choice.value)))
         .map((choice) => choice.title)
         .filter((title) => !title.includes('['))
       expect(untranslated).toEqual([])
-      // Shrink guard for the exemption list: once one of those rows *is*
-      // converted, this fails and forces the set to shrink, rather than the
-      // filter above quietly losing three rows of coverage forever.
-      const stillExempt = tallest
-        .filter((choice) => UNCONVERTED_ROWS.has(String(choice.value)))
-        .filter((choice) => choice.title.includes('['))
-        .map((choice) => String(choice.value))
-      expect(stillExempt).toEqual([])
     })
 
     test('no menu row wraps onto a second line', () => {

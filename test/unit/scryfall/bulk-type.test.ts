@@ -14,23 +14,19 @@ import {
   FEED_KINDS,
   TAG_FEED_KINDS,
 } from '../../../src/cache/feed'
-import { refreshRitualConfig, resetRitualConfigCache } from '../../../src/config/ritual-config'
-import { setBaseDir } from '../../../src/config/base-dir'
+import { refreshRitualConfig } from '../../../src/config/ritual-config'
+import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 
-const testDir = path.join(import.meta.dir, '../../.test-bulk-type')
-const configPath = path.join(testDir, 'ritual.config.json')
-const originalCwd = process.cwd()
+let ws: BoundWorkspace
+let configPath: string
 
 beforeEach(async () => {
-  await fs.mkdir(testDir, { recursive: true })
-  setBaseDir(testDir)
-  resetRitualConfigCache()
+  ws = await bindWorkspace({ dirs: [], config: false })
+  configPath = path.join(ws.dir, 'ritual.config.json')
 })
 
 afterEach(async () => {
-  setBaseDir(originalCwd)
-  resetRitualConfigCache()
-  await fs.rm(testDir, { recursive: true, force: true })
+  await ws.dispose()
 })
 
 describe('configuredCardBulkType', () => {

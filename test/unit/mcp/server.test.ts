@@ -31,6 +31,7 @@ import {
   type McpTestSession,
   type RitualTestEnv,
 } from './harness'
+import { stubFetch } from '../../helpers/stub-fetch'
 
 // In registration order (read → write → destructive, as server.ts registers
 // them) — the catalogue test asserts ordered equality to pin `tools/list`
@@ -372,7 +373,6 @@ describe('Ritual MCP server (in-memory transport)', () => {
   test('search_scryfall warms the local cache and promotes a whole-name match', async () => {
     // The harness answers every non-symbology request with a 404; swap in a
     // search page for this call only.
-    const previousFetch = globalThis.fetch
     const page = {
       object: 'list',
       has_more: false,
@@ -381,11 +381,11 @@ describe('Ritual MCP server (in-memory transport)', () => {
         makeScryfallCard({ id: 'p2', name: 'Shock', set: 'lea' }),
       ],
     }
-    globalThis.fetch = ((input: string | URL | Request) => {
-      const url = String(input instanceof Request ? input.url : input)
-      if (url.includes('/cards/search')) return Promise.resolve(Response.json(page))
-      return previousFetch(input)
-    }) as typeof fetch
+    // Passthrough so every other URL still reaches the harness's offline stub.
+    const search = stubFetch(
+      { 'https://api.scryfall.com/cards/search': () => Response.json(page) },
+      { passthrough: true },
+    )
 
     try {
       const data = toolData<{ warmed: boolean; cards: { name: string }[] }>(
@@ -396,7 +396,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       expect(data.cards.map((c) => c.name)).toEqual(['Shock', 'Shocking Grasp'])
       expect(await cardCache.get('Shocking Grasp')).not.toBeNull()
     } finally {
-      globalThis.fetch = previousFetch
+      search.restore()
     }
   })
 

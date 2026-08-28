@@ -4,6 +4,7 @@ import { collectionToMarkdown, wantedToMarkdown, withFrontMatter } from '../../s
 import { parseCollectionFile } from '../../src/list/collection-file'
 import { parseWantedListFile } from '../../src/list/wanted-file'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/list/site-data'
+import { makeCollectionEntry } from '../test-utils'
 
 describe('parseFlatListFrontMatter', () => {
   test('no block: bodyStart 0, nothing captured', () => {
@@ -38,18 +39,14 @@ describe('parseFlatListFrontMatter', () => {
   })
 })
 
-const entry = (overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry => ({
-  name: 'Sol Ring',
-  set: 'c21',
-  collectorNumber: '263',
-  finish: 'nonfoil',
-  condition: 'NM',
-  price: 0,
-  fileOrder: 0,
-  section: 'Main',
-  cardId: 1,
-  ...overrides,
-})
+const entry = (overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry =>
+  makeCollectionEntry({
+    name: 'Sol Ring',
+    set: 'c21',
+    collectorNumber: '263',
+    cardId: 1,
+    ...overrides,
+  })
 
 describe('front-matter round trips through the whole-file serializers', () => {
   test('collectionToMarkdown re-emits the block byte for byte with one blank line', () => {

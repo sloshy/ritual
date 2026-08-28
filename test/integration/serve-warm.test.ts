@@ -15,7 +15,7 @@ import {
   writeDeckFile,
   writeWantedFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 /**
  * `serve --api` warms the card cache over the cards it is about to serve, so

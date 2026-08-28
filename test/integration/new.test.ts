@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { parseDeckFrontMatter } from '../../src/list/deck-file'
 import { runCli } from './helpers/cli'
-import { withWorkspace } from './helpers/workspace'
+import { withWorkspace } from '../helpers/workspace'
 
 describe('new CLI (Integration)', () => {
   test('names the file as the deck is named, with the default commander format', async () => {

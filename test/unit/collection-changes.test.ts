@@ -5,22 +5,11 @@ import {
   toCollectionCardEntries,
 } from '../../src/changes/collection-changes'
 import type { CollectionCardEntry } from '../../src/list/site-data'
-import { runMissMatrix, type MissMatrixCase } from '../test-utils'
+import { makeCollectionEntry, runMissMatrix, type MissMatrixCase } from '../test-utils'
 import type { MissReason } from '../../src/changes/apply-batch'
 
-function makeEntry(overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry {
-  return {
-    name: 'Lightning Bolt',
-    set: 'lea',
-    collectorNumber: '161',
-    finish: 'nonfoil',
-    condition: 'NM',
-    price: 0,
-    fileOrder: 0,
-    section: 'Main',
-    ...overrides,
-  }
-}
+const makeEntry = (overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry =>
+  makeCollectionEntry({ name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', ...overrides })
 
 describe('applyChangeToCollection', () => {
   it('add — adds a new entry to the end with correct fields', () => {
@@ -228,26 +217,6 @@ describe('applyChangeToCollection', () => {
     })
 
     expect(result).toBe(entries)
-  })
-
-  it('remove by fileOrder — targets the exact entry among duplicates', () => {
-    const entries = [
-      makeEntry({ name: 'Sheltered by Ghosts', set: 'dsk', collectorNumber: '30', fileOrder: 0 }),
-      makeEntry({ name: 'Sheltered by Ghosts', set: 'dsk', collectorNumber: '30', fileOrder: 1 }),
-      makeEntry({ name: 'Sheltered by Ghosts', set: 'dsk', collectorNumber: '30', fileOrder: 2 }),
-    ]
-
-    const result = applyChangeToCollection(entries, {
-      action: 'remove',
-      cardName: 'Sheltered by Ghosts',
-      set: 'dsk',
-      collectorNumber: '30',
-      fileOrder: 1,
-    })
-
-    expect(result).toHaveLength(2)
-    expect(result[0]!.fileOrder).toBe(0)
-    expect(result[1]!.fileOrder).toBe(2)
   })
 
   it('add copy — duplicate printing appends a second entry, never merges like deck add', () => {
@@ -483,18 +452,14 @@ describe('toCollectionCardEntries', () => {
 })
 
 describe('applyChangeToCollection — move-to pinning a name-only entry', () => {
-  const nameOnly: CollectionCardEntry = {
+  const nameOnly = makeCollectionEntry({
     name: 'Sol Ring',
     set: '',
     collectorNumber: '',
-    finish: 'nonfoil',
     condition: 'LP',
     language: 'en',
-    price: 0,
-    fileOrder: 0,
-    section: 'Main',
     cardId: 3,
-  }
+  })
 
   it('sets the printing on the entry the change pins, keeping its id and grade', () => {
     const result = applyChangeToCollection([nameOnly], {

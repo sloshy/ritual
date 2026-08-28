@@ -8,6 +8,7 @@ import {
 } from '../../../src/list-view/session-cache'
 import { resetApiBase, setApiBase } from '../../../src/list-view/api-base'
 import { makeScryfallCard } from '../../test-utils'
+import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
 import type { ScryfallCard } from '../../../src/scryfall/types'
 
 /**
@@ -16,9 +17,7 @@ import type { ScryfallCard } from '../../../src/scryfall/types'
  * endpoints when a backend is configured, Scryfall otherwise.
  */
 
-const originalFetch = globalThis.fetch
-
-type StubbedRequest = { url: string }
+let stubbed: StubbedFetch | undefined
 
 /** Per-endpoint Scryfall stubs. An omitted endpoint answers 404. */
 type ScryfallStubs = {
@@ -27,24 +26,21 @@ type ScryfallStubs = {
   named?: () => Response
 }
 
-/** Stub Scryfall, routing by endpoint. Returns the requests the client actually made. */
-function stubScryfall(handlers: ScryfallStubs): StubbedRequest[] {
-  const requests: StubbedRequest[] = []
+/** Stub Scryfall, routing by endpoint. Read `.sent` for what the client asked. */
+function stubScryfall(handlers: ScryfallStubs): StubbedFetch {
   const notFound = (): Response => Response.json({ object: 'error' }, { status: 404 })
-  const stub = (input: string | URL | Request): Promise<Response> => {
-    const url = input instanceof Request ? input.url : String(input)
-    requests.push({ url })
-    if (url.includes('/cards/autocomplete')) {
-      const query = new URL(url).searchParams.get('q') ?? ''
-      const names = handlers.autocomplete?.(query) ?? []
-      return Promise.resolve(Response.json({ object: 'catalog', total_values: 0, data: names }))
-    }
-    if (url.includes('/cards/search')) return Promise.resolve(handlers.search?.() ?? notFound())
-    if (url.includes('/cards/named')) return Promise.resolve(handlers.named?.() ?? notFound())
-    throw new Error(`unexpected request: ${url}`)
-  }
-  globalThis.fetch = stub as typeof fetch
-  return requests
+  const scryfall = 'https://api.scryfall.com/cards'
+  stubbed = stubFetch({
+    [`${scryfall}/autocomplete`]: (request) =>
+      Response.json({
+        object: 'catalog',
+        total_values: 0,
+        data: handlers.autocomplete?.(new URL(request.url).searchParams.get('q') ?? '') ?? [],
+      }),
+    [`${scryfall}/search`]: () => handlers.search?.() ?? notFound(),
+    [`${scryfall}/named`]: () => handlers.named?.() ?? notFound(),
+  })
+  return stubbed
 }
 
 function cardList(...cards: ScryfallCard[]): Response {
@@ -58,7 +54,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  globalThis.fetch = originalFetch
+  stubbed?.restore()
+  stubbed = undefined
   resetSessionCache()
   resetApiBase()
 })
@@ -78,9 +75,7 @@ describe('autocompleteCardNames', () => {
   })
 
   test('resolves empty when Scryfall rejects the query', async () => {
-    const stub = (_input: string | URL | Request): Promise<Response> =>
-      Promise.resolve(Response.json({ object: 'error' }, { status: 400 }))
-    globalThis.fetch = stub as typeof fetch
+    stubbed = stubFetch({ '': () => Response.json({ object: 'error' }, { status: 400 }) })
     expect(await autocompleteCardNames('!!')).toEqual([])
   })
 
@@ -90,7 +85,7 @@ describe('autocompleteCardNames', () => {
     // Scryfall's own contiguous-string results instead of widening the query
     // with extra requests. The search dialog discloses the difference.
     const contiguousOnly = ['Intrepid Ace', 'Kin-Tree Warden']
-    const requests = stubScryfall({ autocomplete: () => contiguousOnly })
+    const { sent: requests } = stubScryfall({ autocomplete: () => contiguousOnly })
 
     expect(await autocompleteCardNames('in tre')).toEqual(contiguousOnly)
     expect(requests).toHaveLength(1)
@@ -102,7 +97,7 @@ describe('fetchCardPrintings', () => {
   const boltReprint = makeScryfallCard({ id: 'bolt-2x2', name: 'Lightning Bolt', set: '2x2' })
 
   test('returns the exact-name search results and caches them for the session', async () => {
-    const requests = stubScryfall({ search: () => cardList(bolt, boltReprint) })
+    const { sent: requests } = stubScryfall({ search: () => cardList(bolt, boltReprint) })
 
     expect(await fetchCardPrintings('Lightning Bolt')).toEqual([bolt, boltReprint])
     expect(getPrintingsByName('Lightning Bolt')).toEqual([bolt, boltReprint])
@@ -111,7 +106,7 @@ describe('fetchCardPrintings', () => {
 
   test('serves an already-cached name without hitting Scryfall', async () => {
     seedPrintings({ 'Lightning Bolt': [bolt] })
-    const requests = stubScryfall({})
+    const { sent: requests } = stubScryfall({})
 
     expect(await fetchCardPrintings('Lightning Bolt')).toEqual([bolt])
     expect(requests).toEqual([])
@@ -119,7 +114,7 @@ describe('fetchCardPrintings', () => {
 
   test('falls back to a fuzzy lookup when the exact search 404s', async () => {
     // Scryfall's exact search misses some names (tokens and other edge cases).
-    const requests = stubScryfall({ named: () => Response.json(bolt) })
+    const { sent: requests } = stubScryfall({ named: () => Response.json(bolt) })
 
     expect(await fetchCardPrintings('Lightning Bolt')).toEqual([bolt])
     expect(requests.map((r) => r.url.split('?')[0])).toEqual([
@@ -137,9 +132,11 @@ describe('fetchCardPrintings', () => {
   test('a cancelled fetch rejects rather than resolving empty', async () => {
     // The caller (the trade page's search box) needs "cancelled" to look different
     // from "no results", so it can leave the previous suggestions on screen.
-    const stub = (_input: string | URL | Request): Promise<Response> =>
-      Promise.reject(new DOMException('aborted', 'AbortError'))
-    globalThis.fetch = stub as typeof fetch
+    stubbed = stubFetch({
+      '': () => {
+        throw new DOMException('aborted', 'AbortError')
+      },
+    })
     const controller = new AbortController()
     controller.abort()
 
@@ -156,36 +153,34 @@ describe('fetchCardPrintings', () => {
 describe('live-API dispatch', () => {
   const bolt = makeScryfallCard({ id: 'bolt-lea', name: 'Lightning Bolt', set: 'lea' })
 
-  /** Stub the live API endpoints; anything else (e.g. Scryfall) is an error. */
+  /**
+   * Stub the live API endpoints; anything else (e.g. Scryfall) is an error. One
+   * catch-all route rather than a per-endpoint table: the API base may be
+   * absolute or relative depending on the case, so the match is on the path.
+   */
   function stubApi(handlers: {
     autocomplete?: () => Response
     printings?: () => Response
-  }): StubbedRequest[] {
-    const requests: StubbedRequest[] = []
-    const stub = (input: string | URL | Request): Promise<Response> => {
-      const url = input instanceof Request ? input.url : String(input)
-      requests.push({ url })
-      if (url.includes('/api/autocomplete')) {
-        return Promise.resolve(
-          handlers.autocomplete?.() ?? Response.json({ success: true, names: [] }),
-        )
-      }
-      if (url.includes('/api/card-printings')) {
-        return Promise.resolve(
-          handlers.printings?.() ?? Response.json({ success: true, printings: [] }),
-        )
-      }
-      throw new Error(`unexpected request in API mode: ${url}`)
-    }
-    globalThis.fetch = stub as typeof fetch
-    return requests
+  }): StubbedFetch {
+    stubbed = stubFetch({
+      '': (request) => {
+        if (request.url.includes('/api/autocomplete')) {
+          return handlers.autocomplete?.() ?? Response.json({ success: true, names: [] })
+        }
+        if (request.url.includes('/api/card-printings')) {
+          return handlers.printings?.() ?? Response.json({ success: true, printings: [] })
+        }
+        throw new Error(`unexpected request in API mode: ${request.url}`)
+      },
+    })
+    return stubbed
   }
 
   test('autocomplete asks the API and keeps the server order verbatim', async () => {
     setApiBase('')
     // The server already ranked; the client must not re-promote "The End".
     const serverOrder = ['The Enduring Renown', 'The End']
-    const requests = stubApi({
+    const { sent: requests } = stubApi({
       autocomplete: () => Response.json({ success: true, names: serverOrder }),
     })
 
@@ -196,14 +191,14 @@ describe('live-API dispatch', () => {
 
   test('a remote base prefixes the endpoint URLs', async () => {
     setApiBase('https://api.example.com')
-    const requests = stubApi({})
+    const { sent: requests } = stubApi({})
     await autocompleteCardNames('bolt')
     expect(requests[0]!.url).toBe('https://api.example.com/api/autocomplete?q=bolt')
   })
 
   test('printings come from the API and land in the session cache', async () => {
     setApiBase('')
-    const requests = stubApi({
+    const { sent: requests } = stubApi({
       printings: () => Response.json({ success: true, printings: [bolt] }),
     })
 
@@ -216,7 +211,7 @@ describe('live-API dispatch', () => {
   test('the session cache still answers first in API mode', async () => {
     setApiBase('')
     seedPrintings({ 'Lightning Bolt': [bolt] })
-    const requests = stubApi({})
+    const { sent: requests } = stubApi({})
 
     expect(await fetchCardPrintings('Lightning Bolt')).toEqual([bolt])
     expect(requests).toEqual([])

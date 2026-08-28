@@ -8,7 +8,7 @@ import {
   writeCollectionFile,
   writeDeckFile,
   writeWantedFile,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 /**
  * `ritual metadata` — the scripting surface over list front matter. The write

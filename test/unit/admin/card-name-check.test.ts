@@ -12,7 +12,7 @@ import {
   createRemoveChange,
   createSetNoteChange,
 } from '../../../src/changes/change-event'
-import { bindWorkspace, type BoundWorkspace } from '../../integration/helpers/workspace'
+import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 import { makeScryfallCard, seedCardNames } from '../../test-utils'
 
 /**

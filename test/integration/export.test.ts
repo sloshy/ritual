@@ -10,7 +10,7 @@ import { getBaseDir, setBaseDir } from '../../src/config/base-dir'
 import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeScryfallCard } from '../test-utils'
 import { runCli, withTempDir } from './helpers/cli'
-import { writeCollectionFile, writeWantedFile } from './helpers/workspace'
+import { writeCollectionFile, writeWantedFile } from '../helpers/workspace'
 
 // Kept as a literal on purpose: the `[NM]` on a deck line is non-canonical (the
 // deck serializer omits an NM condition), and the condition-filter case below

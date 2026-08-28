@@ -1,26 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import { selectionToRemoveItems } from '../../../src/admin/site/remove-selected'
-import type { SelectedCard } from '../../../src/list-view/useCardSelection'
-
-function selected(over: Partial<SelectedCard>): SelectedCard {
-  return {
-    key: 'k',
-    name: 'Card',
-    quantity: 1,
-    groupSize: 1,
-    scryfallCard: null,
-    sourceName: 'List',
-    sourceKind: 'collection',
-    maxQty: 1,
-    cardIds: [],
-    ...over,
-  }
-}
+import { makeSelectedCard } from '../../test-utils'
 
 describe('selectionToRemoveItems', () => {
   test('expands a multi-copy deck tile by copyIndex sharing one cardId', () => {
     const items = selectionToRemoveItems([
-      selected({
+      makeSelectedCard({
         name: 'Sol Ring',
         sourceKind: 'deck',
         sourceSlug: 'my-deck',
@@ -37,7 +22,7 @@ describe('selectionToRemoveItems', () => {
 
   test('emits one item per cardId for flat lists at copyIndex 0', () => {
     const items = selectionToRemoveItems([
-      selected({
+      makeSelectedCard({
         name: 'Island',
         sourceKind: 'collection',
         sourceSlug: 'my-cards',
@@ -52,7 +37,7 @@ describe('selectionToRemoveItems', () => {
 
   test('skips cards lacking a sourceSlug (cannot be targeted)', () => {
     const items = selectionToRemoveItems([
-      selected({ name: 'Forest', sourceKind: 'wanted', cardIds: [3] }),
+      makeSelectedCard({ name: 'Forest', sourceKind: 'wanted', cardIds: [3] }),
     ])
     expect(items).toEqual([])
   })

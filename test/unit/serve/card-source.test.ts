@@ -1,9 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
-import fs from 'node:fs/promises'
-import path from 'node:path'
-import { tmpdir } from 'node:os'
-import { getBaseDir, setBaseDir } from '../../../src/config/base-dir'
 import { cardCache } from '../../../src/cache'
+import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 import { createCacheCardSource } from '../../../src/serve/card-source'
 import { makeScryfallCard } from '../../../test/test-utils'
 import type { PriceCurrency } from '../../../src/pricing/price-currency'
@@ -30,22 +27,17 @@ const boltOld = makeScryfallCard({
 })
 
 describe('createCacheCardSource', () => {
-  let dir: string
-  let originalBase: string
+  let ws: BoundWorkspace
 
   beforeEach(async () => {
-    originalBase = getBaseDir()
-    dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-card-source-'))
-    setBaseDir(dir)
+    ws = await bindWorkspace({ dirs: [], config: false, clearCardCache: true })
+    // `invalidate()` drops the on-disk handle `clearCardCache` does not know about.
     cardCache.invalidate()
-    await cardCache.clear()
   })
 
   afterEach(async () => {
-    await cardCache.clear()
-    setBaseDir(originalBase)
+    await ws.dispose()
     cardCache.invalidate()
-    await fs.rm(dir, { recursive: true, force: true })
   })
 
   test('prefetches every name from the cache with no Scryfall fallback', async () => {

@@ -6,7 +6,7 @@ import {
   writeCollectionFile,
   writeDeckFile,
   writeWantedFile,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 import { buildDefaultChangeLines, loadListSnapshot } from '../../src/changes/list-snapshot'
 import { changelogSidecarPath } from '../../src/list/list-sidecars'
 import type { ChangeSet } from '../../src/changes/changelog-blocks'

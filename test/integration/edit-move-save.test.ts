@@ -18,7 +18,8 @@ import {
   writeDeckFile,
   writeWantedFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
+import { captureConsole } from '../helpers/capture'
 
 /**
  * The unified editor's save path for cross-list moves (`saveOpenList`): a saved
@@ -341,16 +342,12 @@ describe('saveOpenList', () => {
     await fs.writeFile(artSidecarPath(destPath), '{ this is not json')
     recordMove(binder, BOLT, { type: 'wanted', name: 'Wishlist' })
 
-    const warnings: string[] = []
-    const realWarn = console.warn
-    console.warn = (...args: unknown[]) => void warnings.push(args.join(' '))
-    try {
-      expect(await saveOpenList(binder, () => [binder])).toBe(true)
-    } finally {
-      console.warn = realWarn
-    }
+    const { result: saved, lines } = await captureConsole(['warn'], () =>
+      saveOpenList(binder, () => [binder]),
+    )
+    expect(saved).toBe(true)
 
-    expect(warnings.join('\n')).toContain('not valid JSON')
+    expect(lines.warn.join('\n')).toContain('not valid JSON')
     // The line moved; only its art stayed behind, and the sidecar was left
     // exactly as the user wrote it rather than overwritten.
     expect(await fs.readFile(destPath, 'utf-8')).toContain('Lightning Bolt')

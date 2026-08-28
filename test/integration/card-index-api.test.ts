@@ -6,7 +6,7 @@ import {
   writeDeckFile,
   writeWantedFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 import { callJson } from './helpers/request'
 
 /**

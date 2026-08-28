@@ -10,6 +10,7 @@ import {
 } from '../../src/list/flat-list-metadata'
 import { readFrontMatterMapping } from '../../src/list/front-matter-write'
 import { readListImageFile, writeListImage } from '../../src/list/list-image-file'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 /**
  * The flat-list metadata writer is front-matter only: card lines, `&N` ids and
@@ -17,8 +18,8 @@ import { readListImageFile, writeListImage } from '../../src/list/list-image-fil
  * and an unreadable block must refuse the write rather than clobber it.
  */
 
-const testDir = path.join(import.meta.dir, '../.test-flat-list-metadata')
-const listPath = path.join(testDir, 'Binder.md')
+let testDir: string
+let listPath: string
 
 const BODY = ['- Sol Ring (LEA:270) &1', '- Lightning Bolt (LEA:161) &2', ''].join('\n')
 
@@ -36,11 +37,12 @@ async function readMapping(): Promise<Record<string, unknown>> {
 }
 
 beforeEach(async () => {
-  await fs.mkdir(testDir, { recursive: true })
+  testDir = await createWorkspace({ dirs: [], config: false })
+  listPath = path.join(testDir, 'Binder.md')
 })
 
 afterEach(async () => {
-  await fs.rm(testDir, { recursive: true, force: true })
+  await removeWorkspace(testDir)
 })
 
 describe('FLAT_LIST_METADATA_KEYS', () => {

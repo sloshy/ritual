@@ -11,6 +11,7 @@ import {
   setLeftCards,
   setRightCards,
 } from '../../src/site/useTradeState'
+import { makeCollectionEntry, makeSelectedCard } from '../test-utils'
 
 /**
  * The trade-side rules behind the per-tile "Add to Trade" button: which column a
@@ -19,34 +20,20 @@ import {
  * plain functions over plain data.
  */
 
-const collectionEntry = (over: Partial<CollectionCardEntry> = {}): CollectionCardEntry => ({
-  name: 'Sol Ring',
-  set: 'c19',
-  collectorNumber: '221',
-  finish: 'nonfoil',
-  condition: 'NM',
-  price: 3,
-  fileOrder: 0,
-  section: 'Main',
-  ...over,
-})
+const SOL_RING = { name: 'Sol Ring', set: 'c19', collectorNumber: '221' } as const
 
-const selected = (over: Partial<SelectedCard> = {}): SelectedCard => ({
-  key: 'k1',
-  name: 'Sol Ring',
-  set: 'c19',
-  collectorNumber: '221',
-  finish: 'nonfoil',
-  condition: 'NM',
-  quantity: 1,
-  groupSize: 1,
-  scryfallCard: null,
-  sourceName: 'Box',
-  sourceKind: 'collection',
-  maxQty: 1,
-  cardIds: [],
-  ...over,
-})
+const collectionEntry = (over: Partial<CollectionCardEntry> = {}): CollectionCardEntry =>
+  makeCollectionEntry({ ...SOL_RING, price: 3, ...over })
+
+const selected = (over: Partial<SelectedCard> = {}): SelectedCard =>
+  makeSelectedCard({
+    ...SOL_RING,
+    finish: 'nonfoil',
+    condition: 'NM',
+    sourceName: 'Box',
+    sourceKind: 'collection',
+    ...over,
+  })
 
 beforeEach(() => {
   setLeftCards([])

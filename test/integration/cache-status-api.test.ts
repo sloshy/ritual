@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { handleCacheStatus, type CacheStatusResponse } from '../../src/admin/api/cache'
 import { cardCache } from '../../src/cache'
 import { clearCacheServerAddressOverride } from '../../src/cache/config'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { makeScryfallCard } from '../test-utils'
 
 /**

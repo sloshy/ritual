@@ -8,7 +8,7 @@ import {
   writeCollectionFile,
   writeDeckFile,
   writeWantedFile,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 /**
  * `ritual set-list-image` — the CLI surface over a list's `image:` front-matter

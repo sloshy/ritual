@@ -11,7 +11,7 @@ import {
 import { handleCollectionSave } from '../../src/admin/api/collection-save'
 import type { ListSaveResponse } from '../../src/admin/api/list-save'
 import { computeHash } from '../../src/changes/content-hash'
-import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from '../helpers/workspace'
 
 /**
  * Collection saves must refuse changes that would write a printing-less entry —

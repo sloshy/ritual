@@ -11,11 +11,11 @@ import type { Progress } from '@modelcontextprotocol/client'
 import { expectStructuredOnly, toolData } from '../mcp-test-utils'
 import { expectMonotonicProgress } from '../test-utils'
 import { stubScryfallBulk } from './helpers/scryfall-bulk'
-import type { StubbedFetch } from './helpers/stub-fetch'
+import type { StubbedFetch } from '../helpers/stub-fetch'
 
 /** `list_lists`' result, as far as this transport check reads it. */
 type ListsResult = { lists: { slug: string }[] }
-import { bindWorkspace, writeDeckFile, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, writeDeckFile, type BoundWorkspace } from '../helpers/workspace'
 import { runCli, withTempDir } from './helpers/cli'
 
 const TOKEN = 'integration-secret'

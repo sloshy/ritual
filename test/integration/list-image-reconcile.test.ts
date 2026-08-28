@@ -7,7 +7,7 @@ import {
   removeWorkspace,
   writeCollectionFile,
   writeDeckFile,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 import type { ListImageRef } from '../../src/list/list-image'
 
 /**

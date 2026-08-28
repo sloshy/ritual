@@ -6,19 +6,16 @@ import {
   readRecordedCardBulkType,
   recordCardBulkType,
 } from '../../../src/cache/bulk-provenance'
-import { setBaseDir } from '../../../src/config/base-dir'
+import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 
-const testDir = path.join(import.meta.dir, '../../.test-bulk-provenance')
-const originalCwd = process.cwd()
+let ws: BoundWorkspace
 
 beforeEach(async () => {
-  await fs.mkdir(testDir, { recursive: true })
-  setBaseDir(testDir)
+  ws = await bindWorkspace({ dirs: [], config: false })
 })
 
 afterEach(async () => {
-  setBaseDir(originalCwd)
-  await fs.rm(testDir, { recursive: true, force: true })
+  await ws.dispose()
 })
 
 describe('parseCardBulkProvenance', () => {
@@ -56,7 +53,7 @@ describe('readRecordedCardBulkType / recordCardBulkType', () => {
 
     // The injected clock is the oracle for the recorded timestamp.
     const sidecar = JSON.parse(
-      await fs.readFile(path.join(testDir, 'cache', 'card-bulk.json'), 'utf-8'),
+      await fs.readFile(path.join(ws.dir, 'cache', 'card-bulk.json'), 'utf-8'),
     ) as { bulkType: string; recordedAt: string }
     expect(sidecar).toEqual({ bulkType: 'all_cards', recordedAt: '2026-08-06T12:00:00.000Z' })
 
@@ -66,7 +63,7 @@ describe('readRecordedCardBulkType / recordCardBulkType', () => {
   })
 
   test('a malformed sidecar reads as unrecorded rather than throwing', async () => {
-    const sidecar = path.join(testDir, 'cache', 'card-bulk.json')
+    const sidecar = path.join(ws.dir, 'cache', 'card-bulk.json')
     await fs.mkdir(path.dirname(sidecar), { recursive: true })
     await fs.writeFile(sidecar, 'not json')
     expect(await readRecordedCardBulkType()).toBeNull()

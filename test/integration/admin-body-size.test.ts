@@ -15,7 +15,7 @@ import {
   snapshotTree,
   writeDeckFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 /**
  * The request-body cap is split in two: routes whose body scales with a list get

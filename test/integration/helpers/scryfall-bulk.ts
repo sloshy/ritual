@@ -19,7 +19,7 @@ import {
   bulkMetaBody,
   gzipJsonLinesResponse,
 } from '../../test-utils'
-import { stubFetch, type StubRoute, type StubbedFetch } from './stub-fetch'
+import { stubFetch, type StubRoute, type StubbedFetch } from '../../helpers/stub-fetch'
 
 export type ScryfallBulkStubOptions = {
   /** Cards in the `default_cards` file. Defaults to {@link bulkCards}. */

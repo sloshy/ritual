@@ -18,7 +18,7 @@ import {
   writeDeckFile,
   writeWantedFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 /**
  * `PUT /api/metadata/:type/:slug` and the load routes, for a list's `image:`

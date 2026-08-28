@@ -12,7 +12,7 @@ import { makeCardKingdomProduct, makeScryfallCard } from '../test-utils'
 import { runCli } from './helpers/cli'
 import { seedCardCache, seedCardKingdomFeed } from './helpers/seed'
 import { OFFLINE_ENV } from './helpers/offline-env'
-import { createWorkspace, removeWorkspace, writeCollectionFile } from './helpers/workspace'
+import { createWorkspace, removeWorkspace, writeCollectionFile } from '../helpers/workspace'
 
 // ── Synthetic caches ──────────────────────────────────────────────────────────
 // sell resolves printings from the local card cache and offers from the cached

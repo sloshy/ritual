@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { ExitCode } from '../../src/util/errors'
 import { runCli } from './helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'
-import { withWorkspace } from './helpers/workspace'
+import { withWorkspace } from '../helpers/workspace'
 
 /**
  * Network-free scripting-surface tests for `import-account`. The Archidekt

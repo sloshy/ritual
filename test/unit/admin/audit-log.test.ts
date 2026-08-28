@@ -1,22 +1,16 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
-import fs from 'node:fs/promises'
-import path from 'node:path'
 import { appendAuditLog, createAuditEntry, readAuditLog } from '../../../src/admin/audit-log'
-import { setBaseDir } from '../../../src/config/base-dir'
+import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 
-const testDir = path.join(import.meta.dir, '../../.test-admin-audit-log')
+let ws: BoundWorkspace
 
 describe('audit log', () => {
-  const originalCwd = process.cwd()
-
   beforeEach(async () => {
-    await fs.mkdir(testDir, { recursive: true })
-    setBaseDir(testDir)
+    ws = await bindWorkspace({ dirs: [], config: false })
   })
 
   afterEach(async () => {
-    setBaseDir(originalCwd)
-    await fs.rm(testDir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   test('createAuditEntry creates a well-formed entry', () => {

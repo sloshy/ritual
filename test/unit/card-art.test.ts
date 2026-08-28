@@ -18,8 +18,9 @@ import {
   type CardArtMap,
   type CardArtRef,
 } from '../../src/list/card-art'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
-const testDir = path.join(import.meta.dir, '../.test-card-art')
+let testDir: string
 
 const exists = (p: string): Promise<boolean> => Bun.file(p).exists()
 
@@ -272,16 +273,16 @@ describe('cardArtFilePath', () => {
 })
 
 describe('loadCardArt / saveCardArt', () => {
-  const listPath = path.join(testDir, 'Burn.md')
+  let listPath: string
 
   beforeEach(async () => {
-    await fs.rm(testDir, { recursive: true, force: true })
-    await fs.mkdir(testDir, { recursive: true })
+    testDir = await createWorkspace({ dirs: [], config: false })
+    listPath = path.join(testDir, 'Burn.md')
     await fs.writeFile(listPath, '# Burn\n')
   })
 
   afterEach(async () => {
-    await fs.rm(testDir, { recursive: true, force: true })
+    await removeWorkspace(testDir)
   })
 
   test('an absent sidecar loads as empty art', async () => {
@@ -421,16 +422,16 @@ describe('reconcileCardArtMap', () => {
 })
 
 describe('reconcileCardArt', () => {
-  const listPath = path.join(testDir, 'Burn.md')
+  let listPath: string
 
   beforeEach(async () => {
-    await fs.rm(testDir, { recursive: true, force: true })
-    await fs.mkdir(testDir, { recursive: true })
+    testDir = await createWorkspace({ dirs: [], config: false })
+    listPath = path.join(testDir, 'Burn.md')
     await fs.writeFile(listPath, '# Burn\n')
   })
 
   afterEach(async () => {
-    await fs.rm(testDir, { recursive: true, force: true })
+    await removeWorkspace(testDir)
   })
 
   test('an empty reconcile touches nothing at all', async () => {

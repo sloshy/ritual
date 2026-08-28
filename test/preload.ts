@@ -10,7 +10,7 @@
  * `minRequestIntervalMs`, which beats the environment.
  */
 
-import { beforeEach } from 'bun:test'
+import { afterEach, beforeEach } from 'bun:test'
 import prompts from 'prompts'
 import { registerCliMessages } from '../src/i18n/register/cli'
 
@@ -39,4 +39,18 @@ registerCliMessages()
  */
 beforeEach(() => {
   ;(prompts as unknown as { _injected?: unknown[] })._injected = undefined
+})
+
+/**
+ * Clear `process.exitCode` after every test. Suites that drive a command
+ * in-process leave the code the run set behind, and Bun reports a lingering
+ * non-zero one as the whole run's exit code — a green suite that exits 2.
+ *
+ * Concretely 0, never `undefined`: Bun ignores `process.exitCode = undefined`,
+ * so restoring a saved `undefined` does nothing at all. `afterEach` rather than
+ * `beforeEach` because the leak that matters most is the *last* test's, which
+ * no later `beforeEach` would ever clear.
+ */
+afterEach(() => {
+  process.exitCode = 0
 })

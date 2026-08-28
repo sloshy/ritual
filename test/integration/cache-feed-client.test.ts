@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { tmpdir } from 'node:os'
 import { CacheFeedClient, parseCacheFeedClientState } from '../../src/cache/feed-client'
 import { FEED_VERSION, type CacheFeedDocument, type CacheFeedEntry } from '../../src/cache/feed'
 import type { BulkCacheFiles } from '../../src/scryfall/client'
 import { MockHttpClient, MemoryLogger, gzipJsonLines, setLogger } from '../test-utils'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 const FEED_URL = 'https://feed.example/feed.json'
 
@@ -93,7 +93,7 @@ describe('CacheFeedClient (HTTP download path)', () => {
 
   beforeEach(async () => {
     setLogger(new MemoryLogger())
-    dataDir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-feed-fetch-'))
+    dataDir = await createWorkspace({ dirs: [], config: false })
     http = new MockHttpClient()
     ingested = []
     client = new CacheFeedClient({
@@ -110,7 +110,7 @@ describe('CacheFeedClient (HTTP download path)', () => {
 
   afterEach(async () => {
     await client.stop()
-    await fs.rm(dataDir, { recursive: true, force: true })
+    await removeWorkspace(dataDir)
   })
 
   test('first sync downloads, verifies, ingests, and records state', async () => {

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { ExitCode } from '../../src/util/errors'
 import { runCli, withTempDir } from './helpers/cli'
-import { writeDeckFile } from './helpers/workspace'
+import { writeDeckFile } from '../helpers/workspace'
 
 /**
  * Which directory the CLI treats as the workspace, and what it is allowed to

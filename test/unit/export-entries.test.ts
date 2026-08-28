@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import * as fs from 'node:fs/promises'
-import * as os from 'node:os'
 import path from 'node:path'
 import {
   exportEntryKey,
@@ -12,6 +11,7 @@ import {
   type ExportEntry,
 } from '../../src/export/entries'
 import type { ListLocation } from '../../src/list/resolve-list'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 function entry(overrides: Partial<ExportEntry> = {}): ExportEntry {
   return {
@@ -32,13 +32,13 @@ async function withListFile<T>(
   content: string,
   run: (location: ListLocation) => Promise<T>,
 ): Promise<T> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-export-test-'))
+  const dir = await createWorkspace({ dirs: [], config: false })
   try {
     const filePath = path.join(dir, 'Test List.md')
     await fs.writeFile(filePath, content)
     return await run({ type, name: 'Test List', filePath })
   } finally {
-    await fs.rm(dir, { recursive: true, force: true })
+    await removeWorkspace(dir)
   }
 }
 

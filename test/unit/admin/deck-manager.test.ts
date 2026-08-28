@@ -9,10 +9,10 @@ import {
 } from '../../../src/admin/api/list-lifecycle'
 import { resolveDeckFile } from '../../../src/admin/api/list-file'
 import { parseDeckFrontMatter, type DeckFrontMatter } from '../../../src/list/deck-file'
-import { setBaseDir } from '../../../src/config/base-dir'
+import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 
-const testDir = path.join(import.meta.dir, '../../.test-deck-manager')
-const decksDir = path.join(testDir, 'decks')
+let ws: BoundWorkspace
+let decksDir: string
 
 const DECK_CFG: ListLifecycleConfig = {
   kind: 'deck',
@@ -41,16 +41,13 @@ async function readCreatedDeck(slug: string): Promise<CreatedDeck> {
 }
 
 describe('deck-create handler', () => {
-  const originalCwd = process.cwd()
-
   beforeEach(async () => {
-    await fs.mkdir(decksDir, { recursive: true })
-    setBaseDir(testDir)
+    ws = await bindWorkspace({ dirs: ['decks'], config: false })
+    decksDir = path.join(ws.dir, 'decks')
   })
 
   afterEach(async () => {
-    setBaseDir(originalCwd)
-    await fs.rm(testDir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   test('creates a deck file with correct slug', async () => {
@@ -133,11 +130,9 @@ describe('deck-create handler', () => {
 })
 
 describe('deck-rename handler', () => {
-  const originalCwd = process.cwd()
-
   beforeEach(async () => {
-    await fs.mkdir(decksDir, { recursive: true })
-    setBaseDir(testDir)
+    ws = await bindWorkspace({ dirs: ['decks'], config: false })
+    decksDir = path.join(ws.dir, 'decks')
 
     // Create a test deck
     await Bun.write(
@@ -147,8 +142,7 @@ describe('deck-rename handler', () => {
   })
 
   afterEach(async () => {
-    setBaseDir(originalCwd)
-    await fs.rm(testDir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   test('renames deck file and updates frontmatter', async () => {
@@ -214,11 +208,9 @@ describe('deck-rename handler', () => {
 })
 
 describe('deck-delete handler', () => {
-  const originalCwd = process.cwd()
-
   beforeEach(async () => {
-    await fs.mkdir(decksDir, { recursive: true })
-    setBaseDir(testDir)
+    ws = await bindWorkspace({ dirs: ['decks'], config: false })
+    decksDir = path.join(ws.dir, 'decks')
 
     await Bun.write(
       path.join(decksDir, 'test-deck.md'),
@@ -227,8 +219,7 @@ describe('deck-delete handler', () => {
   })
 
   afterEach(async () => {
-    setBaseDir(originalCwd)
-    await fs.rm(testDir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   test('deletes deck file when confirmation matches', async () => {

@@ -9,7 +9,7 @@ import {
   applyDetectedChanges,
   type DetectWarning,
 } from '../../src/commands/detect-changes'
-import { bindWorkspace, deckMarkdown, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, deckMarkdown, type BoundWorkspace } from '../helpers/workspace'
 import { runCli, withTempDir } from './helpers/cli'
 
 // ── Test fixtures ────────────────────────────────────────────────────

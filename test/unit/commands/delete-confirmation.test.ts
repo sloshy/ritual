@@ -3,8 +3,9 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import prompts from 'prompts'
 import { deleteConfirmationText, runDelete } from '../../../src/commands/delete'
-import { setBaseDir } from '../../../src/config/base-dir'
+import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 import { stubTty } from '../../test-utils'
+import { captureStream } from '../../helpers/capture'
 
 // The confirmation refuses to prompt without a terminal; these tests simulate an
 // interactive session via prompts.inject, so pretend stdin is a TTY.
@@ -41,51 +42,30 @@ describe('deleteConfirmationText', () => {
   })
 })
 
-/** Collect what the command writes to stderr — the notice does not go via console. */
-type StderrCapture = { text: () => string; restore: () => void }
-function captureStderr(): StderrCapture {
-  const chunks: string[] = []
-  const original = process.stderr.write.bind(process.stderr)
-  process.stderr.write = (chunk: string | Uint8Array): boolean => {
-    chunks.push(typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk))
-    return true
-  }
-  return {
-    text: () => chunks.join(''),
-    restore: () => {
-      process.stderr.write = original
-    },
-  }
-}
-
 describe('the interactive delete confirmation', () => {
-  const testDir = path.join(import.meta.dir, '../../.test-delete-confirm')
-  const collectionsDir = path.join(testDir, 'collections')
-  const filePath = path.join(collectionsDir, "Atraxa Praetors' Voice.md")
+  let ws: BoundWorkspace
+  let filePath: string
 
   beforeEach(async () => {
-    await fs.rm(testDir, { recursive: true, force: true })
-    await fs.mkdir(collectionsDir, { recursive: true })
+    ws = await bindWorkspace({ dirs: ['collections'], config: false })
+    filePath = path.join(ws.dir, 'collections', "Atraxa Praetors' Voice.md")
     // A display name the file name cannot hold: the confirmation has to quote
     // the display name, which is the whole point of showing the notice first.
     await fs.writeFile(filePath, "# Atraxa: Praetors' Voice\n\n")
-    setBaseDir(testDir)
   })
 
   afterEach(async () => {
-    await fs.rm(testDir, { recursive: true, force: true })
+    await ws.dispose()
   })
 
   test('writes the notice to stderr and asks for the display name', async () => {
-    const stderr = captureStderr()
-    prompts.inject(["Atraxa: Praetors' Voice"])
-    try {
-      await runDelete('praetors', 'collection', undefined, { output: 'text', quiet: false })
-    } finally {
-      stderr.restore()
-    }
+    // The notice goes straight to stderr, not through `console`.
+    const stderr = await captureStream('stderr', () => {
+      prompts.inject(["Atraxa: Praetors' Voice"])
+      return runDelete('praetors', 'collection', undefined, { output: 'text', quiet: false })
+    })
 
-    expect(stderr.text()).toContain(
+    expect(stderr).toContain(
       "About to delete collection 'Atraxa: Praetors' Voice' (" + filePath + ')',
     )
     // The confirmation matched, so the list is gone.
@@ -93,16 +73,15 @@ describe('the interactive delete confirmation', () => {
   })
 
   test('a typed name that does not match the display name deletes nothing', async () => {
-    const stderr = captureStderr()
-    prompts.inject(["Atraxa Praetors' Voice"])
     let thrown: unknown
-    try {
-      await runDelete('praetors', 'collection', undefined, { output: 'text', quiet: false })
-    } catch (error) {
-      thrown = error
-    } finally {
-      stderr.restore()
-    }
+    await captureStream('stderr', async () => {
+      prompts.inject(["Atraxa Praetors' Voice"])
+      try {
+        await runDelete('praetors', 'collection', undefined, { output: 'text', quiet: false })
+      } catch (error) {
+        thrown = error
+      }
+    })
     expect((thrown as Error).message).toContain("Expected 'Atraxa: Praetors' Voice'")
     expect(await Bun.file(filePath).exists()).toBe(true)
   })

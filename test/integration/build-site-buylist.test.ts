@@ -1,14 +1,13 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { tmpdir } from 'node:os'
-import { getBaseDir, setBaseDir } from '../../src/config/base-dir'
 import { cardCache } from '../../src/cache'
 import {
   clearSiteSellModeOverride,
   refreshRitualConfig,
   resetRitualConfigCache,
 } from '../../src/config/ritual-config'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { invalidateCardKingdomIndex, saveCardKingdomCache } from '../../src/cardkingdom'
 import { runBuildSite } from '../../src/commands/build-site'
 import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
@@ -19,6 +18,7 @@ import type {
   SiteIndex,
   WantedListDetail,
 } from '../../src/list/site-data'
+import { captureConsole } from '../helpers/capture'
 
 /**
  * The build's half of baked sell mode: `--sell-mode` turns the buylist on for
@@ -32,8 +32,7 @@ import type {
  * test/unit/site-build/details.test.ts.
  */
 describe('build-site buylist baking (Integration)', () => {
-  let dir: string
-  let originalBase: string
+  let ws: BoundWorkspace
   /**
    * When this run downloaded the feed; staleness derives from it in the
    * browser. (The buyer's *own* generation stamp is `feedCreatedAt`, which
@@ -42,11 +41,8 @@ describe('build-site buylist baking (Integration)', () => {
   const FEED_RETRIEVED_AT = Date.now()
 
   beforeAll(async () => {
-    originalBase = getBaseDir()
-    dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-build-buylist-'))
-    createSyntheticWorkspace(dir)
-    setBaseDir(dir)
-    resetRitualConfigCache()
+    ws = await bindWorkspace({ dirs: [], config: false })
+    createSyntheticWorkspace(ws.dir)
     await refreshRitualConfig()
     cardCache.invalidate()
     // The synthetic binder holds Serra Angel (FDN:35), a *foil* Lightning Bolt
@@ -94,11 +90,9 @@ describe('build-site buylist baking (Integration)', () => {
   afterAll(async () => {
     clearSiteSellModeOverride()
     invalidateCardKingdomIndex()
-    setBaseDir(originalBase)
-    resetRitualConfigCache()
+    await ws.dispose()
     await refreshRitualConfig()
     cardCache.invalidate()
-    await fs.rm(dir, { recursive: true, force: true })
   })
 
   test('--sell-mode bakes the buyer’s offers into each list detail', async () => {
@@ -107,12 +101,12 @@ describe('build-site buylist baking (Integration)', () => {
     await runBuildSite({ refresh: 'never', sellMode: true })
 
     const index = JSON.parse(
-      await fs.readFile(path.join(dir, 'dist', 'index.json'), 'utf-8'),
+      await fs.readFile(path.join(ws.dir, 'dist', 'index.json'), 'utf-8'),
     ) as SiteIndex
     expect(index.sellMode).toBe(true)
 
     const detail = JSON.parse(
-      await fs.readFile(path.join(dir, 'dist', 'collections', 'test-binder.json'), 'utf-8'),
+      await fs.readFile(path.join(ws.dir, 'dist', 'collections', 'test-binder.json'), 'utf-8'),
     ) as CollectionDetail
     const baked = detail.buylist?.cardkingdom
     expect(baked).toBeDefined()
@@ -130,7 +124,7 @@ describe('build-site buylist baking (Integration)', () => {
     // Every list type carries the field, not just collections: the wanted
     // list wants the same Serra Angel.
     const wanted = JSON.parse(
-      await fs.readFile(path.join(dir, 'dist', 'wanted', 'test-wants.json'), 'utf-8'),
+      await fs.readFile(path.join(ws.dir, 'dist', 'wanted', 'test-wants.json'), 'utf-8'),
     ) as WantedListDetail
     expect(wanted.buylist?.cardkingdom?.quotes['fdn:35:nonfoil']).toBeDefined()
   }, 180_000)
@@ -144,12 +138,12 @@ describe('build-site buylist baking (Integration)', () => {
     await runBuildSite({ refresh: 'never' })
 
     const index = JSON.parse(
-      await fs.readFile(path.join(dir, 'dist', 'index.json'), 'utf-8'),
+      await fs.readFile(path.join(ws.dir, 'dist', 'index.json'), 'utf-8'),
     ) as SiteIndex
     expect(index.sellMode).toBe(false)
 
     const detail = JSON.parse(
-      await fs.readFile(path.join(dir, 'dist', 'collections', 'test-binder.json'), 'utf-8'),
+      await fs.readFile(path.join(ws.dir, 'dist', 'collections', 'test-binder.json'), 'utf-8'),
     ) as Record<string, unknown>
     expect(detail).not.toHaveProperty('buylist')
   }, 180_000)
@@ -158,24 +152,19 @@ describe('build-site buylist baking (Integration)', () => {
   test('sell mode with no buylist warns and builds without offers', async () => {
     // `--refresh never` plus no cache file is a guaranteed refusal, so nothing
     // is downloaded to reach the branch.
-    await fs.rm(path.join(dir, 'cache', 'cardkingdom.json'))
+    await fs.rm(path.join(ws.dir, 'cache', 'cardkingdom.json'))
     invalidateCardKingdomIndex()
 
-    const warnings: string[] = []
-    const originalWarn = console.warn
-    console.warn = (...args: unknown[]) => void warnings.push(args.join(' '))
-    try {
-      await runBuildSite({ refresh: 'never', sellMode: true })
-    } finally {
-      console.warn = originalWarn
-    }
+    const { lines } = await captureConsole(['warn'], () =>
+      runBuildSite({ refresh: 'never', sellMode: true }),
+    )
 
     // The build says why rather than failing, and names the remedy.
-    expect(warnings.join('\n')).toContain('Sell mode is on but the Card Kingdom buylist')
-    expect(warnings.join('\n')).toContain('--refresh auto')
+    expect(lines.warn.join('\n')).toContain('Sell mode is on but the Card Kingdom buylist')
+    expect(lines.warn.join('\n')).toContain('--refresh auto')
 
     const index = JSON.parse(
-      await fs.readFile(path.join(dir, 'dist', 'index.json'), 'utf-8'),
+      await fs.readFile(path.join(ws.dir, 'dist', 'index.json'), 'utf-8'),
     ) as SiteIndex
     // The toggle is still offered — the flag alone decides that…
     expect(index.sellMode).toBe(true)
@@ -183,7 +172,7 @@ describe('build-site buylist baking (Integration)', () => {
     // …with nothing behind it. An absent `buylist` field is what makes the
     // client explain the gap instead of reading every card as declined.
     const detail = JSON.parse(
-      await fs.readFile(path.join(dir, 'dist', 'collections', 'test-binder.json'), 'utf-8'),
+      await fs.readFile(path.join(ws.dir, 'dist', 'collections', 'test-binder.json'), 'utf-8'),
     ) as Record<string, unknown>
     expect(detail).not.toHaveProperty('buylist')
   }, 180_000)
@@ -193,7 +182,7 @@ describe('build-site buylist baking (Integration)', () => {
     // and it must reach the *card fetch loop*, where the picks are made.
     // (The no-buylist case above removed the feed; this needs it back.)
     await seedFeed()
-    const configPath = path.join(dir, 'ritual.config.json')
+    const configPath = path.join(ws.dir, 'ritual.config.json')
     const config = JSON.parse(await fs.readFile(configPath, 'utf-8')) as Record<string, unknown>
     await fs.writeFile(
       configPath,
@@ -205,7 +194,7 @@ describe('build-site buylist baking (Integration)', () => {
     await runBuildSite({ refresh: 'never' })
 
     const deck = JSON.parse(
-      await fs.readFile(path.join(dir, 'dist', 'decks', 'emberwild-aggro.json'), 'utf-8'),
+      await fs.readFile(path.join(ws.dir, 'dist', 'decks', 'emberwild-aggro.json'), 'utf-8'),
     ) as DeckDetail
 
     // The buyer stocks Serra Angel's only printing, so it gets a pick. Lightning

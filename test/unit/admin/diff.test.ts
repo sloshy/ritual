@@ -1,9 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { tmpdir } from 'node:os'
-import { getBaseDir, setBaseDir } from '../../../src/config/base-dir'
-import { resetRitualConfigCache } from '../../../src/config/ritual-config'
+import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 import { handleDiff, type DiffResponseBody } from '../../../src/admin/api/diff'
 import type { ApiErrorResponse } from '../../../src/api/http'
 
@@ -34,25 +32,16 @@ const BINDER_MD = [
   '',
 ].join('\n')
 
-let dir: string
-let originalBase: string
+let ws: BoundWorkspace
 
 beforeEach(async () => {
-  originalBase = getBaseDir()
-  dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-diff-api-'))
-  for (const sub of ['decks', 'collections', 'wanted']) {
-    await fs.mkdir(path.join(dir, sub), { recursive: true })
-  }
-  await fs.writeFile(path.join(dir, 'decks', 'burn.md'), BURN_MD)
-  await fs.writeFile(path.join(dir, 'collections', 'binder.md'), BINDER_MD)
-  setBaseDir(dir)
-  resetRitualConfigCache()
+  ws = await bindWorkspace()
+  await fs.writeFile(path.join(ws.dir, 'decks', 'burn.md'), BURN_MD)
+  await fs.writeFile(path.join(ws.dir, 'collections', 'binder.md'), BINDER_MD)
 })
 
 afterEach(async () => {
-  setBaseDir(originalBase)
-  resetRitualConfigCache()
-  await fs.rm(dir, { recursive: true, force: true })
+  await ws.dispose()
 })
 
 function diffRequest(query: string): Request {

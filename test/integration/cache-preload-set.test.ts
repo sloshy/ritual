@@ -5,10 +5,12 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import '../../src/scryfall'
 import { registerCacheCommand } from '../../src/commands/cache'
 import { cardCache } from '../../src/cache'
-import { runInProcess } from './helpers/cli'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { runInProcess } from '../helpers/cli'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { makeScryfallCard } from '../test-utils'
 import { ExitCode } from '../../src/util/errors'
+import { captureConsole } from '../helpers/capture'
+import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
 
 /**
  * `ritual cache preload-set` is the one caller that walks a whole Scryfall
@@ -17,56 +19,48 @@ import { ExitCode } from '../../src/util/errors'
  * command is driven through commander against a stubbed Scryfall.
  */
 describe('cache preload-set (Integration)', () => {
-  const originalFetch = globalThis.fetch
   let workspace: BoundWorkspace
-  let requestedUrls: string[] = []
+  let scryfall: StubbedFetch
 
   beforeAll(async () => {
     workspace = await bindWorkspace({ clearCardCache: true })
-    const stub = (input: string | URL | Request): Promise<Response> => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-      requestedUrls.push(url)
-      // Scryfall answers an unknown set code with a 404 "nothing matched".
-      if (url.includes(encodeURIComponent('set:zzzznotaset'))) {
-        return Promise.resolve(new Response('{}', { status: 404 }))
-      }
-      if (url.includes(encodeURIComponent('set:down'))) {
-        return Promise.resolve(
-          new Response(JSON.stringify({ details: 'Service unavailable' }), { status: 503 }),
-        )
-      }
-      if (url.includes('page=2')) {
-        return Promise.resolve(
-          Response.json({
+    scryfall = stubFetch({
+      'https://api.scryfall.com': ({ url }) => {
+        // Scryfall answers an unknown set code with a 404 "nothing matched".
+        if (url.includes(encodeURIComponent('set:zzzznotaset'))) {
+          return new Response('{}', { status: 404 })
+        }
+        if (url.includes(encodeURIComponent('set:down'))) {
+          return new Response(JSON.stringify({ details: 'Service unavailable' }), { status: 503 })
+        }
+        if (url.includes('page=2')) {
+          return Response.json({
             has_more: false,
             data: [makeScryfallCard({ id: '2', name: 'Second Page Card', set: 'khm' })],
-          }),
-        )
-      }
-      return Promise.resolve(
-        Response.json({
+          })
+        }
+        return Response.json({
           has_more: true,
           next_page: 'https://api.scryfall.com/cards/search?page=2',
           data: [makeScryfallCard({ id: '1', name: 'First Page Card', set: 'khm' })],
-        }),
-      )
-    }
-    globalThis.fetch = stub as typeof fetch
+        })
+      },
+    })
   })
 
   afterAll(async () => {
-    globalThis.fetch = originalFetch
+    scryfall.restore()
     await workspace.dispose()
   })
 
   test('walks every result page, so a whole set lands in the cache', async () => {
-    requestedUrls = []
+    scryfall.sent.length = 0
     const code = await runPreloadSet('KHM')
 
     expect(code).toBe(0)
     // The set code is lowercased before it reaches Scryfall.
-    expect(requestedUrls[0]).toContain(encodeURIComponent('set:khm'))
-    expect(requestedUrls).toHaveLength(2)
+    expect(scryfall.sent[0]?.url).toContain(encodeURIComponent('set:khm'))
+    expect(scryfall.sent).toHaveLength(2)
     expect((await cardCache.get('First Page Card'))?.[0]?.name).toBe('First Page Card')
     expect((await cardCache.get('Second Page Card'))?.[0]?.name).toBe('Second Page Card')
   })
@@ -78,18 +72,12 @@ describe('cache preload-set (Integration)', () => {
 
   /** Run `preload-set`, capturing what it wrote to stderr alongside its exit code. */
   async function preloadSetWithErrors(setCode: string): Promise<{ code: number; stderr: string }> {
-    const errors: string[] = []
-    const originalError = console.error
-    console.error = (...args: unknown[]) => void errors.push(args.join(' '))
-    try {
-      return { code: await runPreloadSet(setCode), stderr: errors.join('\n') }
-    } finally {
-      console.error = originalError
-    }
+    const { result: code, lines } = await captureConsole(['error'], () => runPreloadSet(setCode))
+    return { code, stderr: lines.error.join('\n') }
   }
 
   test('an unknown set code exits non-zero instead of reporting 0 cards cached', async () => {
-    requestedUrls = []
+    scryfall.sent.length = 0
     const { code, stderr } = await preloadSetWithErrors('zzzznotaset')
 
     expect(code).toBe(ExitCode.NotFound)
@@ -99,7 +87,7 @@ describe('cache preload-set (Integration)', () => {
   })
 
   test('an HTTP failure exits 1, as the docs promise', async () => {
-    requestedUrls = []
+    scryfall.sent.length = 0
     const { code, stderr } = await preloadSetWithErrors('down')
 
     expect(code).toBe(ExitCode.RuntimeError)

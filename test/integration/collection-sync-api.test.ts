@@ -17,7 +17,7 @@ import type { RouteProgress, RouteProgressSink } from '../../src/util/progress'
 import type { ArchidektToken } from '../../src/auth/interfaces'
 import type { CollectionSyncEvent } from '../../src/collection-sync/engine'
 import type { ArchidektCollectionRecord } from '../../src/importers/archidekt-collection'
-import { collectionPage, record } from '../unit/collection-sync/fixtures'
+import { collectionPage, record } from '../fixtures/archidekt'
 import {
   BOLT,
   COLLECTION_URL,
@@ -29,10 +29,10 @@ import {
   TEST_ACCOUNT,
   UPLOAD_URL,
   uploadedCsvRows,
-  type StubbedRequest,
+  type StubbedFetch,
   seededScryfallId,
 } from './helpers/archidekt'
-import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from '../helpers/workspace'
 import { expectMonotonicProgress } from '../test-utils'
 
 /**
@@ -53,7 +53,7 @@ const ACCOUNT: ArchidektToken['user'] = { ...TEST_ACCOUNT }
 
 let ws: BoundWorkspace
 let dir: string
-let originalFetch: typeof globalThis.fetch
+let restoreFetch: () => void
 
 /** Store an Archidekt login in this test's workspace; no user writes an older, account-less one. */
 async function signIn(user?: ArchidektToken['user']): Promise<void> {
@@ -61,7 +61,7 @@ async function signIn(user?: ArchidektToken['user']): Promise<void> {
 }
 
 /** Serve a collection holding `records` — the only endpoint a pull needs. */
-function stubCollection(...records: ArchidektCollectionRecord[]): StubbedRequest[] {
+function stubCollection(...records: ArchidektCollectionRecord[]): StubbedFetch {
   return stubArchidekt({ [COLLECTION_URL]: () => Response.json(collectionPage(records)) })
 }
 
@@ -115,10 +115,9 @@ function listPath(name: string): string {
 beforeEach(async () => {
   ws = await bindWorkspace({ init: true })
   dir = ws.dir
-  originalFetch = globalThis.fetch
   // No test may reach the network: a route a test forgot — or a token refresh
   // attempt — must fail loudly rather than call Archidekt for real.
-  stubArchidekt({})
+  restoreFetch = stubArchidekt({}).restore
   await seedCollectionCardCache()
   await writeCollectionFile(dir, 'binder', {
     title: 'Blue Binder',
@@ -127,7 +126,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
-  globalThis.fetch = originalFetch
+  restoreFetch()
   cardCache.invalidate()
   scryfallIdIndex.reset()
   await ws.dispose()
@@ -361,7 +360,7 @@ describe('collection-sync API', () => {
     test('csv: true uploads the additions and reports what the import did', async () => {
       await signIn(ACCOUNT)
       await twoAdditions()
-      const sent = stubArchidekt({
+      const { sent } = stubArchidekt({
         [COLLECTION_URL]: () => Response.json(collectionPage([])),
         // One result per row, in row order: the second card is one Archidekt
         // could not match, which is how a per-row failure reaches the report.
@@ -429,7 +428,7 @@ describe('collection-sync API', () => {
           cardId: index + 1,
         })),
       })
-      const sent = stubCollection()
+      const { sent } = stubCollection()
 
       const { status, body } = await postRun({ direction: 'push' })
 

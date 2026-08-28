@@ -8,6 +8,8 @@ import {
   resetI18nRuntime,
   resolveBrowserLocale,
 } from '../../../src/i18n/runtime'
+import { captureConsole } from '../../helpers/capture'
+import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
 
 /**
  * Browser-side delivery: the precedence chain a page resolves its locale
@@ -16,23 +18,18 @@ import {
  * runtime but not their tiers.
  */
 
-const realFetch = globalThis.fetch
-
-/** The URL a stubbed `fetch` was called with, whatever form the argument took. */
-function requestedUrl(input: RequestInfo | URL): string {
-  if (typeof input === 'string') return input
-  if (input instanceof URL) return input.href
-  return input.url
-}
+let stubbed: StubbedFetch | undefined
 
 /** Replace the global `fetch` for one test; `afterEach` puts the real one back. */
-function stubFetch(handler: (url: string) => Response): void {
-  globalThis.fetch = ((input: RequestInfo | URL) =>
-    Promise.resolve(handler(requestedUrl(input)))) as unknown as typeof fetch
+function stubLocaleFetch(handler: (url: string) => Response): StubbedFetch {
+  stubbed?.restore()
+  stubbed = stubFetch({ '': (request) => handler(request.url) })
+  return stubbed
 }
 
 afterEach(() => {
-  globalThis.fetch = realFetch
+  stubbed?.restore()
+  stubbed = undefined
   resetI18nRuntime()
 })
 
@@ -127,7 +124,7 @@ describe('coerceCatalog', () => {
 describe('ensureLocaleLoaded', () => {
   test('never fetches English — it is inline in the bundle', async () => {
     let called = false
-    stubFetch(() => {
+    stubLocaleFetch(() => {
       called = true
       return new Response('{}')
     })
@@ -137,7 +134,7 @@ describe('ensureLocaleLoaded', () => {
 
   test('fetches a dictionary once, same-origin, and registers it', async () => {
     const urls: string[] = []
-    stubFetch((url) => {
+    stubLocaleFetch((url) => {
       urls.push(url)
       return new Response(JSON.stringify({ 'site.toolbar.sortBy': 'Sortieren nach' }))
     })
@@ -152,50 +149,36 @@ describe('ensureLocaleLoaded', () => {
   })
 
   test('degrades to English when the dictionary cannot be fetched', async () => {
-    stubFetch(() => new Response('nope', { status: 404 }))
+    stubLocaleFetch(() => new Response('nope', { status: 404 }))
     expect(await ensureLocaleLoaded(localeTag('de-AT'))).toBe(DEFAULT_LOCALE)
     expect(getDictionary(localeTag('de-AT'))).toBeUndefined()
   })
 
   test('an aborted fetch degrades quietly, with no warning', async () => {
-    const warn = console.warn
-    const warnings: unknown[] = []
-    console.warn = (...args: unknown[]) => warnings.push(args)
-    try {
-      stubFetch(() => {
+    const { lines } = await captureConsole(['warn'], async () => {
+      stubLocaleFetch(() => {
         throw new DOMException('aborted', 'AbortError')
       })
       const controller = new AbortController()
       expect(await ensureLocaleLoaded(localeTag('de-AT'), { signal: controller.signal })).toBe(
         DEFAULT_LOCALE,
       )
-      // The one failure path that deliberately says nothing: an abort is the app
-      // navigating away, not a broken deployment.
-      expect(warnings).toEqual([])
-    } finally {
-      console.warn = warn
-    }
+    })
+    // The one failure path that deliberately says nothing: an abort is the app
+    // navigating away, not a broken deployment.
+    expect(lines.warn).toEqual([])
   })
 
   test('passes an AbortSignal through to fetch', async () => {
-    let seen: AbortSignal | undefined
-    const realFetch = globalThis.fetch
-    globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
-      seen = init?.signal ?? undefined
-      return Promise.resolve(new Response('{}'))
-    }) as unknown as typeof fetch
-    try {
-      const controller = new AbortController()
-      await ensureLocaleLoaded(localeTag('de-AT'), { signal: controller.signal })
-      expect(seen).toBe(controller.signal)
-    } finally {
-      globalThis.fetch = realFetch
-    }
+    const stub = stubLocaleFetch(() => new Response('{}'))
+    const controller = new AbortController()
+    await ensureLocaleLoaded(localeTag('de-AT'), { signal: controller.signal })
+    expect(stub.sent[0]?.init?.signal).toBe(controller.signal)
   })
 
   test('a basePath prefixes the request, for a site not served from the root', async () => {
     const urls: string[] = []
-    stubFetch((url) => {
+    stubLocaleFetch((url) => {
       urls.push(url)
       return new Response('{}')
     })

@@ -10,7 +10,7 @@ import {
   writeDeckFile,
   writeWantedFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 describe('list-all-cards engine', () => {
   let ws: BoundWorkspace

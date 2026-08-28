@@ -1,6 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import {
   diffSnapshots,
@@ -9,6 +8,7 @@ import {
   type WatchRoot,
 } from '../../scripts/dev-snapshot'
 import { shouldRestartForSource } from '../../scripts/dev-watch'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 describe('diffSnapshots', () => {
   test('no differences for identical snapshots', () => {
@@ -40,13 +40,13 @@ describe('snapshotTree', () => {
   let dir: string
   let roots: WatchRoot[]
 
-  beforeEach(() => {
-    dir = mkdtempSync(path.join(tmpdir(), 'ritual-snapshot-'))
+  beforeEach(async () => {
+    dir = await createWorkspace({ dirs: [], config: false })
     roots = [{ dir, include: shouldRestartForSource }]
   })
 
-  afterEach(() => {
-    rmSync(dir, { recursive: true, force: true })
+  afterEach(async () => {
+    await removeWorkspace(dir)
   })
 
   test('includes only files matching the root predicate', () => {

@@ -1,6 +1,4 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import * as fs from 'node:fs/promises'
-import * as os from 'node:os'
 import * as path from 'node:path'
 import {
   createSessionArtChanges,
@@ -14,6 +12,7 @@ import {
   type SessionArtChanges,
 } from '../../src/commands/session/art'
 import type { CardArtRef } from '../../src/list/card-art'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 const proxy: CardArtRef = { file: 'proxies/sol-ring.jpg' }
 const alter: CardArtRef = { file: 'alters/island.webp' }
@@ -181,12 +180,12 @@ describe('session art — what a card wears now', () => {
   let file: string
 
   beforeAll(async () => {
-    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-session-art-'))
+    dir = await createWorkspace({ dirs: [], config: false })
     file = path.join(dir, 'never-read.md')
   })
 
   afterAll(async () => {
-    await fs.rm(dir, { recursive: true, force: true })
+    await removeWorkspace(dir)
   })
 
   test('a staged set, clear, arrival, and removal all answer without the sidecar', async () => {

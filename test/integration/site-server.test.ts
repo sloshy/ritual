@@ -1,8 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { tmpdir } from 'node:os'
-import { getBaseDir, setBaseDir } from '../../src/config/base-dir'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { cardCache } from '../../src/cache'
 import { startSiteServer } from '../../src/serve/server'
 import type { StaticSiteServer } from '../../src/serve/static'
@@ -26,22 +25,19 @@ import type { ScryfallCard } from '../../src/scryfall/types'
  * test/integration/card-search-api.test.ts).
  */
 describe('site server (Integration)', () => {
-  let dir: string
-  let originalBase: string
+  let ws: BoundWorkspace
   let server: StaticSiteServer
   let base: string
 
   beforeAll(async () => {
-    originalBase = getBaseDir()
-    dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-site-server-'))
-    createSyntheticWorkspace(dir)
+    ws = await bindWorkspace({ dirs: [], config: false })
+    createSyntheticWorkspace(ws.dir)
     // A minimal dist/ stands in for a real build: the server only needs files
     // to serve statically.
-    const distDir = path.join(dir, 'dist')
+    const distDir = path.join(ws.dir, 'dist')
     await fs.mkdir(distDir, { recursive: true })
     await fs.writeFile(path.join(distDir, 'index.html'), '<!DOCTYPE html><title>Ritual</title>')
     await fs.writeFile(path.join(distDir, 'app.js'), '// app')
-    setBaseDir(dir)
     cardCache.invalidate()
     // Term-separation fixture alongside the seeded synthetic cards.
     await cardCache.set('In the Trenches', [])
@@ -52,9 +48,8 @@ describe('site server (Integration)', () => {
 
   afterAll(async () => {
     await server.stop(true)
-    setBaseDir(originalBase)
+    await ws.dispose()
     cardCache.invalidate()
-    await fs.rm(dir, { recursive: true, force: true })
   })
 
   test('serves a live index with the same-origin marker, and disk edits appear without a rebuild', async () => {
@@ -67,7 +62,7 @@ describe('site server (Integration)', () => {
     expect(emberwild).toBeDefined()
 
     // The headline behavior: edit the markdown on disk, refetch, no rebuild.
-    const deckPath = path.join(dir, 'decks', 'emberwild-aggro.md')
+    const deckPath = path.join(ws.dir, 'decks', 'emberwild-aggro.md')
     const content = await fs.readFile(deckPath, 'utf-8')
     await Bun.sleep(5)
     await fs.writeFile(deckPath, content.replace('3 Lightning Bolt', '4 Lightning Bolt'))
@@ -103,7 +98,7 @@ describe('site server (Integration)', () => {
     })
     expect(revalidated.status).toBe(304)
 
-    const wantedPath = path.join(dir, 'wanted', 'test-wants.md')
+    const wantedPath = path.join(ws.dir, 'wanted', 'test-wants.md')
     const content = await fs.readFile(wantedPath, 'utf-8')
     await Bun.sleep(5)
     await fs.writeFile(wantedPath, `${content}- Serra Angel &99\n`)
@@ -188,15 +183,15 @@ describe('site server (Integration)', () => {
   describe('custom art route', () => {
     beforeAll(async () => {
       // The workspace's configured art directory (`artDir`, default ./art).
-      await fs.mkdir(path.join(dir, 'art', 'proxies'), { recursive: true })
-      await fs.writeFile(path.join(dir, 'art', 'proxies', 'sol ring.png'), 'ring-bytes')
-      await fs.writeFile(path.join(dir, 'art', 'notes.txt'), 'not an image')
+      await fs.mkdir(path.join(ws.dir, 'art', 'proxies'), { recursive: true })
+      await fs.writeFile(path.join(ws.dir, 'art', 'proxies', 'sol ring.png'), 'ring-bytes')
+      await fs.writeFile(path.join(ws.dir, 'art', 'notes.txt'), 'not an image')
       // A real image one level *above* the art directory, with an extension the
       // route serves: the target a traversal would reach if the guard were
       // gone. Without it, a `..` request 404s on the extension gate or on the
       // file simply not being there, and the assertion below would hold for a
       // route that has no guard at all.
-      await fs.writeFile(path.join(dir, 'outside.png'), 'outside-bytes')
+      await fs.writeFile(path.join(ws.dir, 'outside.png'), 'outside-bytes')
     })
 
     test('serves a nested art file at the path a built site carries it at', async () => {

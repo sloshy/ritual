@@ -5,7 +5,7 @@ import {
   type CardSessionCacheDeps,
 } from '../../src/commands/session/config'
 import { MemoryLogger, resetLogger, setLogger } from '../test-utils'
-import { bindWorkspace, type BoundWorkspace } from './helpers/workspace'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 /**
  * The empty-cache preload offer a card-entry session makes, decided by the
@@ -18,7 +18,6 @@ describe('prepareCardSessionCache on an empty cache (Integration)', () => {
   let ws: BoundWorkspace
 
   beforeEach(async () => {
-    process.exitCode = 0
     ws = await bindWorkspace({
       init: true,
       clearCardCache: true,
@@ -27,9 +26,6 @@ describe('prepareCardSessionCache on an empty cache (Integration)', () => {
   })
 
   afterEach(async () => {
-    // Never restore `undefined`: Bun ignores that assignment, so a refused
-    // session's exit code would otherwise leak into the whole suite's.
-    process.exitCode = 0
     resetLogger()
     await ws.dispose()
   })

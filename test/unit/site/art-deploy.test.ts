@@ -1,13 +1,13 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { tmpdir } from 'node:os'
 import {
   deployCardArt,
   undeployedArtFiles,
   type CardArtDeployResult,
 } from '../../../src/site-build/art-deploy'
 import { siteArtUrl } from '../../../src/list/art-url'
+import { createWorkspace, removeWorkspace } from '../../helpers/workspace'
 
 /**
  * The copy half of build-site's custom-art support: which files land in the
@@ -21,7 +21,7 @@ describe('deployCardArt', () => {
   let listsDir: string
 
   beforeEach(async () => {
-    dir = await fs.mkdtemp(path.join(tmpdir(), 'ritual-art-deploy-'))
+    dir = await createWorkspace({ dirs: [], config: false })
     artDir = path.join(dir, 'art')
     buildDir = path.join(dir, 'build')
     listsDir = path.join(dir, 'decks')
@@ -31,7 +31,7 @@ describe('deployCardArt', () => {
   })
 
   afterEach(async () => {
-    await fs.rm(dir, { recursive: true, force: true })
+    await removeWorkspace(dir)
   })
 
   /** Write an art file with `content` at an art-dir-relative path. */

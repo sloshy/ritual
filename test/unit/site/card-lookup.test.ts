@@ -2,6 +2,7 @@ import { describe, test, expect, afterEach, beforeEach } from 'bun:test'
 import { cardLookupSourceName, fetchCardsByIds } from '../../../src/site/card-lookup'
 import { resetApiBase, setApiBase } from '../../../src/list-view/api-base'
 import { makeScryfallCard } from '../../test-utils'
+import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
 
 /**
  * The by-ID card lookup behind trade-URL restores: which backend answers, and
@@ -9,19 +10,20 @@ import { makeScryfallCard } from '../../test-utils'
  * `batchFetchScryfall`, pinned in scryfall-collection.test.ts.
  */
 
-const originalFetch = globalThis.fetch
+let stubbed: StubbedFetch | undefined
 
 /** Stub `GET /api/cards`, recording the ids each batch asked for. */
 function stubCardsApi(respond: (ids: string[]) => Response): string[][] {
   const batches: string[][] = []
-  const stub = async (input: string | URL | Request): Promise<Response> => {
-    const url = new URL(input instanceof Request ? input.url : String(input), 'http://site.test')
-    if (!url.pathname.endsWith('/api/cards')) throw new Error(`unexpected request: ${url.href}`)
-    const ids = (url.searchParams.get('ids') ?? '').split(',')
-    batches.push(ids)
-    return respond(ids)
-  }
-  globalThis.fetch = stub as unknown as typeof fetch
+  stubbed = stubFetch({
+    '': (request) => {
+      const url = new URL(request.url, 'http://site.test')
+      if (!url.pathname.endsWith('/api/cards')) throw new Error(`unexpected request: ${url.href}`)
+      const ids = (url.searchParams.get('ids') ?? '').split(',')
+      batches.push(ids)
+      return respond(ids)
+    },
+  })
   return batches
 }
 
@@ -43,7 +45,8 @@ describe('fetchCardsByIds — hosted', () => {
   })
 
   afterEach(() => {
-    globalThis.fetch = originalFetch
+    stubbed?.restore()
+    stubbed = undefined
     resetApiBase()
   })
 
@@ -97,7 +100,11 @@ describe('fetchCardsByIds — hosted', () => {
   })
 
   test('an unreachable backend yields nothing and degrades the session to static', async () => {
-    globalThis.fetch = (() => Promise.reject(new Error('offline'))) as unknown as typeof fetch
+    stubbed = stubFetch({
+      '': () => {
+        throw new Error('offline')
+      },
+    })
     setApiBase('https://api.test')
 
     expect((await fetchCardsByIds(['bolt'])).size).toBe(0)

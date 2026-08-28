@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { McpServer } from '@modelcontextprotocol/server'
 import { createListChangeNotifier } from '../../../src/mcp/notify'
+import { captureConsole } from '../../helpers/capture'
 
 /**
  * The `notifications/resources/list_changed` notifier.
@@ -47,17 +48,13 @@ describe('createListChangeNotifier', () => {
     expect(fake.sent).toBe(0)
   })
 
-  test('a send that throws is swallowed, so the write that succeeded still reports success', () => {
+  test('a send that throws is swallowed, so the write that succeeded still reports success', async () => {
     const fake = fakeServer(true)
     const notifier = createListChangeNotifier(fake.server, true)
 
-    const originalError = console.error
-    console.error = () => {}
-    try {
+    await captureConsole(['error'], () => {
       expect(() => notifier.notifyListsChanged()).not.toThrow()
-    } finally {
-      console.error = originalError
-    }
+    })
     expect(fake.sent).toBe(1)
   })
 })

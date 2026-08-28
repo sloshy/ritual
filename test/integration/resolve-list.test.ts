@@ -6,7 +6,7 @@ import {
   writeDeckFile,
   type CollectionFixture,
   type DeckFixture,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 /**
  * End-to-end coverage for the shared cross-type list resolver, exercised through

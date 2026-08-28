@@ -12,7 +12,7 @@ import {
   writeConfig,
   writeDeckFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 /**
  * End-to-end coverage for the admin change-history endpoints: loading parsed

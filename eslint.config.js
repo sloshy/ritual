@@ -41,12 +41,6 @@ export default [
       'app.svg',
       'ritual',
       '**/*.d.ts',
-      // Several unit tests create scratch directories under `test/` and delete
-      // them in `afterEach`. `precommit` runs lint and the unit suite
-      // concurrently, so a directory can vanish between ESLint enumerating it
-      // and reading it — an ENOENT that aborts the whole lint run. Skipping the
-      // walk is the fix; new tests should use `os.tmpdir()` instead.
-      'test/.test-*/**',
     ],
   },
   js.configs.recommended,

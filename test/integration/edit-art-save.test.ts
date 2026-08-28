@@ -13,7 +13,8 @@ import {
   writeCollectionFile,
   writeDeckFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
+import { captureConsole } from '../helpers/capture'
 
 /**
  * The editor's Set Custom Art action end to end: the action stages a reference,
@@ -133,17 +134,12 @@ describe('the editor’s Set Custom Art action', () => {
     await saveCardArt(binderFile(), new Map<number, CardArtRef>([[1, { file: 'alters/one.png' }]]))
     const binder = await openList('collection', 'Binder', 'collections/binder.md')
 
-    const errors: string[] = []
-    const originalError = console.error
-    console.error = (...args: unknown[]) => void errors.push(args.join(' '))
-    try {
+    const { lines } = await captureConsole(['error'], () => {
       prompts.inject(['art', 'url', ''])
-      await binder.strategy.editEntry(binder.ctx, 1)
-    } finally {
-      console.error = originalError
-    }
+      return binder.strategy.editEntry(binder.ctx, 1)
+    })
 
-    expect(errors).toEqual([])
+    expect(lines.error).toEqual([])
     expect(binder.strategy.hasUnsavedChanges()).toBeFalse()
     expect(await saveOpenList(binder, () => [binder])).toBe(true)
     const saved = await loadCardArt(binderFile())

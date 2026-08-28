@@ -12,22 +12,17 @@ import { applyChangeToDeck } from '../../src/changes/deck-changes'
 import { parseChangeLine } from '../../src/changes/changelog-parser'
 import { CARD_LABELS } from '../../src/card/card-labels'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/list/site-data'
+import { makeCollectionEntry } from '../test-utils'
 import type { DeckData } from '../../src/list/deck'
 
-function makeEntry(overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry {
-  return {
+const makeEntry = (overrides: Partial<CollectionCardEntry> = {}): CollectionCardEntry =>
+  makeCollectionEntry({
     name: 'Lightning Bolt',
     set: 'lea',
     collectorNumber: '161',
-    finish: 'nonfoil',
-    condition: 'NM',
-    price: 0,
-    fileOrder: 0,
-    section: 'Main',
     cardId: 1,
     ...overrides,
-  }
-}
+  })
 
 describe('applyChangeToCollection — set-label', () => {
   it('sets a normalized override on the target entry', () => {

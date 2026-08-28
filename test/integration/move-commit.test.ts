@@ -1,6 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import * as fs from 'node:fs/promises'
-import * as os from 'node:os'
 import * as path from 'node:path'
 import {
   applyVirtualMove,
@@ -12,27 +11,27 @@ import {
 import { artSidecarPath, loadCardArt, saveCardArt } from '../../src/list/card-art'
 import type { PhysicalCard } from '../../src/list/move-staging'
 import type { ListEntry } from '../../src/list/list-info'
-import { collectionMarkdown, deckMarkdown, wantedMarkdown } from './helpers/workspace'
+import { collectionMarkdown, deckMarkdown, wantedMarkdown } from '../helpers/workspace'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
+import { makeListEntry } from '../test-utils'
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────
 
 let tmpDir: string
 
 beforeEach(async () => {
-  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'move-test-'))
+  tmpDir = await createWorkspace({ dirs: [], config: false })
 })
 
 afterEach(async () => {
-  await fs.rm(tmpDir, { recursive: true, force: true })
+  await removeWorkspace(tmpDir)
 })
 
-function makeList(
+const makeList = (
   type: 'deck' | 'collection' | 'wanted',
   name: string,
   fileName: string,
-): ListEntry {
-  return { ref: { type, name }, filePath: path.join(tmpDir, fileName) }
-}
+): ListEntry => makeListEntry(type, name, path.join(tmpDir, fileName))
 
 function makeCard(
   name: string,

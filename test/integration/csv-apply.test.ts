@@ -16,7 +16,7 @@ import {
   writeCollectionFile,
   writeDeckFile,
   type BoundWorkspace,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 
 function prepareEntries(csv: string, spec: string, listType: ListType): CsvConversionResult {
   const parsed = parseCsv(csv)

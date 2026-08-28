@@ -7,6 +7,7 @@ import {
 } from '../../../src/editor/useEditorStatus'
 import { tDynamic } from '../../../src/i18n/t'
 import { currentLocale } from '../../../src/i18n/runtime'
+import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
 
 describe('saveEditorChanges', () => {
   type Call = { method: string; args: unknown[] }
@@ -26,13 +27,20 @@ describe('saveEditorChanges', () => {
   const shown = (message: EditorStatusMessage): string =>
     renderStatus((key, params) => tDynamic(currentLocale(), key, params), message)
 
-  // Every case below installs its own `globalThis.fetch` stub. Restored after
-  // each one, or the last stub — a 400 refusal — leaks into every test file that
-  // runs after this one in the same `bun test` process.
-  const realFetch = globalThis.fetch
+  // Every case below installs its own stub. Restored after each one, or the
+  // last stub — a 400 refusal — leaks into every test file that runs after this
+  // one in the same `bun test` process.
+  let stubbed: StubbedFetch | undefined
   afterEach(() => {
-    globalThis.fetch = realFetch
+    stubbed?.restore()
+    stubbed = undefined
   })
+
+  /** Answer every save POST with `body`, at `status` when the case is about one. */
+  function stubSave(body: unknown, status?: number): void {
+    stubbed?.restore()
+    stubbed = stubFetch({ '/api/': () => Response.json(body, status ? { status } : undefined) })
+  }
 
   beforeEach(() => {
     calls = []
@@ -49,10 +57,7 @@ describe('saveEditorChanges', () => {
   })
 
   it('calls saveStart then saveSuccess on success and returns the response data', async () => {
-    globalThis.fetch = (async () =>
-      ({
-        json: async () => ({ success: true, contentHash: 'abc123' }),
-      }) as Response) as any
+    stubSave({ success: true, contentHash: 'abc123' })
 
     const result = await saveEditorChanges(
       '/api/test/save',
@@ -70,14 +75,11 @@ describe('saveEditorChanges', () => {
   })
 
   it('appends a dropped-note report to the success status when the save dropped notes', async () => {
-    globalThis.fetch = (async () =>
-      ({
-        json: async () => ({
-          success: true,
-          contentHash: 'abc123',
-          droppedNotes: [{ cardName: 'Sol Ring', cardId: 3, note: 'from trade' }],
-        }),
-      }) as Response) as any
+    stubSave({
+      success: true,
+      contentHash: 'abc123',
+      droppedNotes: [{ cardName: 'Sol Ring', cardId: 3, note: 'from trade' }],
+    })
 
     await saveEditorChanges('/api/test/save', { data: 'test' }, statusActions, discardAll)
 
@@ -104,10 +106,7 @@ describe('saveEditorChanges', () => {
     for (const { response, expected } of cases) {
       calls = []
       discardCalled = false
-      globalThis.fetch = (async () =>
-        ({
-          json: async () => response,
-        }) as Response) as any
+      stubSave(response)
 
       await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
 
@@ -120,9 +119,11 @@ describe('saveEditorChanges', () => {
   })
 
   it('calls saveError on network failure and returns undefined', async () => {
-    globalThis.fetch = (async () => {
-      throw new Error('Network error')
-    }) as any
+    stubbed = stubFetch({
+      '/api/': () => {
+        throw new Error('Network error')
+      },
+    })
 
     const result = await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
 
@@ -135,37 +136,28 @@ describe('saveEditorChanges', () => {
   })
 
   it('sends correct request configuration', async () => {
-    let capturedUrl = ''
-    let capturedInit: RequestInit = {}
-
-    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
-      capturedUrl = input as string
-      capturedInit = init ?? {}
-      return {
-        json: async () => ({ success: true }),
-      } as Response
-    }) as any
+    stubSave({ success: true })
 
     const body = { changes: [1, 2], entries: ['a'] }
     await saveEditorChanges('/api/collection/my-col/save', body, statusActions, discardAll)
 
-    expect(capturedUrl).toBe('/api/collection/my-col/save')
-    expect(capturedInit.method).toBe('POST')
-    expect(capturedInit.headers).toEqual({ 'Content-Type': 'application/json' })
-    expect(capturedInit.credentials).toBe('same-origin')
-    expect(capturedInit.body).toBe(JSON.stringify(body))
+    const sent = stubbed?.sent[0]
+    expect(sent?.url).toBe('/api/collection/my-col/save')
+    expect(sent?.method).toBe('POST')
+    expect(sent?.init?.headers).toEqual({ 'Content-Type': 'application/json' })
+    expect(sent?.init?.credentials).toBe('same-origin')
+    expect(sent?.init?.body).toBe(JSON.stringify(body))
   })
 
   it('handles 409 conflict response', async () => {
-    globalThis.fetch = (async () =>
-      ({
-        status: 409,
-        json: async () => ({
-          success: false,
-          conflict: true,
-          message: 'Deck has been modified since you loaded it. Please reload.',
-        }),
-      }) as Response) as any
+    stubSave(
+      {
+        success: false,
+        conflict: true,
+        message: 'Deck has been modified since you loaded it. Please reload.',
+      },
+      409,
+    )
 
     const result = await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
 
@@ -185,11 +177,7 @@ describe('saveEditorChanges', () => {
   })
 
   it('handles conflict flag without 409 status', async () => {
-    globalThis.fetch = (async () =>
-      ({
-        status: 200,
-        json: async () => ({ success: false, conflict: true }),
-      }) as Response) as any
+    stubSave({ success: false, conflict: true }, 200)
 
     const result = await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
 
@@ -211,14 +199,10 @@ describe('saveEditorChanges', () => {
       saveError: (error) => recorded.push(error),
     }
 
-    globalThis.fetch = (async () => ({ json: async () => ({ success: true }) }) as Response) as any
+    stubSave({ success: true })
     await saveEditorChanges('/api/test/save', {}, capture, discardAll)
 
-    globalThis.fetch = (async () =>
-      ({
-        status: 400,
-        json: async () => ({ success: false, error: 'Bad request data' }),
-      }) as Response) as any
+    stubSave({ success: false, error: 'Bad request data' }, 400)
     await saveEditorChanges('/api/test/save', {}, capture, discardAll)
 
     expect(recorded).toEqual([

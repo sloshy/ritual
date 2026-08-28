@@ -1,13 +1,12 @@
 import fs from 'node:fs/promises'
-import os from 'node:os'
 import path from 'node:path'
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
-import { getBaseDir, setBaseDir } from '../../../src/config/base-dir'
 import { buildMcpServer } from '../../../src/mcp/server'
 import { cardCache } from '../../../src/cache'
 import { MemoryLogger, resetLogger, setLogger } from '../../../src/util/logger'
-import { refreshRitualConfig, resetRitualConfigCache } from '../../../src/config/ritual-config'
 import { makeScryfallCard } from '../../test-utils'
+import { bindWorkspace } from '../../helpers/workspace'
+import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
 
 /**
  * Card names the seeded cache knows.
@@ -54,19 +53,17 @@ format: "commander"
 `
 
 /**
- * Offline Scryfall stub: symbology returns an empty list (200); every card lookup
- * returns 404 so the card-data loaders resolve cards to null without the network.
+ * Offline Scryfall stub: symbology returns an empty list (200); every other URL
+ * returns 404 so the card-data loaders resolve cards to null without the
+ * network. Routed rather than thrown on, because a card lookup finding nothing
+ * is the state these suites are in, not a failure.
  */
-function stubScryfallFetch(input: string | URL | Request): Promise<Response> {
-  const url = String(input instanceof Request ? input.url : input)
-  if (url.includes('/symbology')) {
-    return Promise.resolve(
-      Response.json({ object: 'list', has_more: false, data: [] }, { status: 200 }),
-    )
-  }
-  return Promise.resolve(
-    Response.json({ object: 'error', code: 'not_found', status: 404 }, { status: 404 }),
-  )
+function stubScryfallFetch(): StubbedFetch {
+  return stubFetch({
+    '': () => Response.json({ object: 'error', code: 'not_found', status: 404 }, { status: 404 }),
+    'https://api.scryfall.com/symbology': () =>
+      Response.json({ object: 'list', has_more: false, data: [] }),
+  })
 }
 
 /**
@@ -106,26 +103,15 @@ export async function setupMcpClient(clientName = 'ritual-test'): Promise<McpTes
 }
 
 export async function setupRitualTestEnv(): Promise<RitualTestEnv> {
-  const originalBase = getBaseDir()
-  const originalFetch = globalThis.fetch
-
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ritual-mcp-'))
-  await Promise.all(
-    ['decks', 'collections', 'wanted'].map((sub) =>
-      fs.mkdir(path.join(dir, sub), { recursive: true }),
-    ),
-  )
+  const ws = await bindWorkspace({ init: true })
+  const dir = ws.dir
   await fs.writeFile(path.join(dir, 'decks', 'test-deck.md'), TEST_DECK)
   await fs.writeFile(path.join(dir, 'collections', 'shoebox.md'), '# Shoebox\n\n')
   await fs.writeFile(path.join(dir, 'wanted', 'wishlist.md'), '# Wishlist\n\n')
 
-  setBaseDir(dir)
-  resetRitualConfigCache()
-  await refreshRitualConfig()
-
   // Silence the offline-stub's "card not found" / symbology chatter from the logger.
   setLogger(new MemoryLogger())
-  globalThis.fetch = stubScryfallFetch as typeof fetch
+  const scryfall = stubScryfallFetch()
   // Seeding also marks the cache as freshly bulk-downloaded, so ensureCacheForCards
   // skips the (network) bulk preload; the small synthetic decks stay under the
   // fetch threshold.
@@ -138,14 +124,12 @@ export async function setupRitualTestEnv(): Promise<RitualTestEnv> {
   return {
     dir,
     cleanup: async () => {
-      globalThis.fetch = originalFetch
+      scryfall.restore()
       resetLogger()
       // Reset the module-level card cache so entries/metadata don't leak into the
       // next test that reuses this process with a different base dir.
       await cardCache.clear()
-      setBaseDir(originalBase)
-      resetRitualConfigCache()
-      await fs.rm(dir, { recursive: true, force: true })
+      await ws.dispose()
     },
   }
 }

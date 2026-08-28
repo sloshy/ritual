@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 import { parseSelectionFlags, selectionFlagNames } from '../../../src/commands/build-site'
 
 /**
@@ -38,10 +38,6 @@ describe('selectionFlagNames', () => {
 })
 
 describe('parseSelectionFlags', () => {
-  afterEach(() => {
-    process.exitCode = 0
-  })
-
   test('each flag lands under its own list kind', () => {
     expect(
       parseSelectionFlags({

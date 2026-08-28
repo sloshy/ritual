@@ -12,7 +12,7 @@ import {
   writeConfig,
   writeDeckFile,
   writeWantedFile,
-} from './helpers/workspace'
+} from '../helpers/workspace'
 import type { ScryfallCard } from '../../src/scryfall/types'
 
 // ── Synthetic card cache ──────────────────────────────────────────────────────

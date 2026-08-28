@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
-import { createWorkspace, removeWorkspace } from './helpers/workspace'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 import type { ScryfallCard } from '../../src/scryfall/types'
 import type { CachedItem, CacheSchema } from '../../src/cache/file-cache'
 

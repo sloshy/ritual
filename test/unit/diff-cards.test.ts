@@ -449,6 +449,7 @@ describe('diffWantedEntries', () => {
         quantity: 3,
         set: 'lea',
         collectorNumber: '161',
+        finish: 'foil',
         cardId: 5,
         section: 'Main',
       },
@@ -458,6 +459,11 @@ describe('diffWantedEntries', () => {
     const adds = changes.filter((c) => c.action === 'add')
     expect(adds).toHaveLength(2)
     expect(adds[0]!.cardName).toBe('Lightning Bolt')
+    // Wanted diffing tracks finish as well as quantity, so the same edit that
+    // added two copies also reports the printing turning foil — exactly once.
+    const finishes = changes.filter((c) => c.action === 'set-finish')
+    expect(finishes).toHaveLength(1)
+    expect(finishes[0]).toMatchObject({ cardName: 'Lightning Bolt', finish: 'foil', cardId: 5 })
   })
 
   test('detects quantity decreases', () => {
@@ -472,36 +478,6 @@ describe('diffWantedEntries', () => {
     const removes = changes.filter((c) => c.action === 'remove')
     expect(removes).toHaveLength(2)
     expect(removes[0]!.cardName).toBe('Island')
-  })
-
-  test('detects finish changes by cardId', () => {
-    const oldEntries: WantedListEntry[] = [
-      {
-        section: 'Main',
-        name: 'Mox Ruby',
-        quantity: 1,
-        set: 'lea',
-        collectorNumber: '265',
-        finish: 'nonfoil',
-        cardId: 7,
-      },
-    ]
-    const newEntries: WantedListEntry[] = [
-      {
-        section: 'Main',
-        name: 'Mox Ruby',
-        quantity: 1,
-        set: 'lea',
-        collectorNumber: '265',
-        finish: 'foil',
-        cardId: 7,
-      },
-    ]
-
-    const changes = diffWantedEntries(oldEntries, newEntries)
-    expect(changes).toHaveLength(1)
-    expect(changes[0]!.action).toBe('set-finish')
-    expect(changes[0]!.cardName).toBe('Mox Ruby')
   })
 })
 

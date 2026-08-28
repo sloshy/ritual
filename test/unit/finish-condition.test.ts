@@ -4,8 +4,11 @@ import {
   declaredFinishes,
   defaultPrintingFinish,
   displayFinish,
+  isCondition,
+  isFinish,
   printingFinishes,
 } from '../../src/card/finish-condition'
+import type { Condition, Finish } from '../../src/card/finish-condition'
 import type { ConditionUpdate } from '../../src/changes/change-event'
 import { makeScryfallCard } from '../test-utils'
 
@@ -117,5 +120,37 @@ describe('applyConditionUpdate', () => {
     // The parameter type rejects this at compile time; the cast stands in for a
     // value that arrived as untyped JSON from the admin API or an MCP client.
     expect(applyConditionUpdate('MINT' as ConditionUpdate, 'LP')).toBeUndefined()
+  })
+})
+
+describe('isFinish', () => {
+  test('accepts valid finishes', () => {
+    const validFinishes: Finish[] = ['nonfoil', 'foil', 'etched']
+    for (const f of validFinishes) {
+      expect(isFinish(f)).toBe(true)
+    }
+  })
+
+  test('rejects invalid strings', () => {
+    expect(isFinish('glossy')).toBe(false)
+    expect(isFinish('')).toBe(false)
+    expect(isFinish('Foil')).toBe(false)
+    expect(isFinish('NONFOIL')).toBe(false)
+  })
+})
+
+describe('isCondition', () => {
+  test('accepts valid conditions', () => {
+    const validConditions: Condition[] = ['NM', 'LP', 'MP', 'HP', 'DMG']
+    for (const c of validConditions) {
+      expect(isCondition(c)).toBe(true)
+    }
+  })
+
+  test('rejects invalid strings', () => {
+    expect(isCondition('nm')).toBe(false)
+    expect(isCondition('')).toBe(false)
+    expect(isCondition('MINT')).toBe(false)
+    expect(isCondition('Near Mint')).toBe(false)
   })
 })

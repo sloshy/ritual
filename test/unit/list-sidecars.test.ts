@@ -7,18 +7,18 @@ import {
   renameListThroughTemp,
   type KindedSidecarMove,
 } from '../../src/list/list-sidecars'
+import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
-const testDir = path.join(import.meta.dir, '../.test-list-sidecars')
+let testDir: string
 
 const exists = (p: string): Promise<boolean> => Bun.file(p).exists()
 
 beforeEach(async () => {
-  await fs.rm(testDir, { recursive: true, force: true })
-  await fs.mkdir(testDir, { recursive: true })
+  testDir = await createWorkspace({ dirs: [], config: false })
 })
 
 afterEach(async () => {
-  await fs.rm(testDir, { recursive: true, force: true })
+  await removeWorkspace(testDir)
 })
 
 /** A list file with every sidecar beside it. */

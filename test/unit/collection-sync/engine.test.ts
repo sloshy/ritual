@@ -31,7 +31,7 @@ import {
   printingsLookup,
   record,
   TEST_ACCOUNT,
-} from './fixtures'
+} from '../../fixtures/archidekt'
 
 /**
  * Engine-level tests: every side effect the run can have — reading and writing

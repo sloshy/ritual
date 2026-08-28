@@ -1,11 +1,9 @@
 import { describe, test, expect, afterEach } from 'bun:test'
-import fs from 'node:fs/promises'
-import path from 'node:path'
 import { matchFinishPin, matchPrintingPin, resolveAddedLanguage } from '../../src/card/printing-pin'
 import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeScryfallCard } from '../test-utils'
-import { setBaseDir } from '../../src/config/base-dir'
-import { refreshRitualConfig, resetRitualConfigCache } from '../../src/config/ritual-config'
+import { refreshRitualConfig } from '../../src/config/ritual-config'
+import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 // ── Strict printing/finish pin matching ───────────────────────────────────────
 
@@ -116,22 +114,14 @@ describe('resolveAddedLanguage', () => {
   })
 
   describe('with a configured non-en defaultLanguage', () => {
-    const testDir = path.join(import.meta.dir, '../.test-printing-pin')
-    const originalCwd = process.cwd()
+    let ws: BoundWorkspace
 
     afterEach(async () => {
-      setBaseDir(originalCwd)
-      resetRitualConfigCache()
-      await fs.rm(testDir, { recursive: true, force: true })
+      await ws.dispose()
     })
 
     test('an unresolved language is stamped with the configured default', async () => {
-      await fs.mkdir(testDir, { recursive: true })
-      await fs.writeFile(
-        path.join(testDir, 'ritual.config.json'),
-        JSON.stringify({ defaultLanguage: 'ja' }),
-      )
-      setBaseDir(testDir)
+      ws = await bindWorkspace({ dirs: [], config: { defaultLanguage: 'ja' } })
       await refreshRitualConfig()
       expect(resolveAddedLanguage(undefined)).toBe('ja')
     })
