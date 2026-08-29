@@ -11,9 +11,10 @@
  * tokenizer reads: an id must stand at a whitespace boundary, so a card named
  * `Bebop & Rocksteady` never yields one. {@link readAnyCardId} is what seeds the
  * id pool, and is deliberately *wider*: a glued `- Sol Ring (LEA:2)&2` is not an
- * id the entry parser will report, but the pool must still treat 2 as spoken
- * for. Over-reserving costs one id; under-reserving hands a live id to a second
- * card, which is silent data loss.
+ * id the entry parser will report — the tokenizer refuses that line outright,
+ * naming the missing space — but the pool must still treat 2 as spoken for
+ * while the line sits in the file. Over-reserving costs one id; under-reserving
+ * hands a live id to a second card, which is silent data loss.
  *
  * English by construction and browser-safe: no `src/i18n`, no `node:`.
  */

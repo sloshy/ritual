@@ -1,25 +1,22 @@
+import type { Card } from '../card/card'
 import type { DeckData, DeckSection } from '../list/deck'
-import type { Finish } from '../card/finish-condition'
 import path from 'node:path'
 import { readdir } from 'node:fs/promises'
 import matter from 'gray-matter'
-import { isFinish, isCondition } from '../card/finish-condition'
+import { malformedLanguageTokenHint } from '../card/card-language'
+import { readListDefaultLabels, unsupportedLabelsFor, type CardLabel } from '../card/card-labels'
 import {
-  isCardLanguage,
-  LANGUAGE_TOKEN_PATTERN,
-  malformedLanguageTokenHint,
-} from '../card/card-language'
-import {
-  LABEL_TOKEN_PATTERN,
-  parseCardLabelsToken,
-  readListDefaultLabels,
-  unsupportedLabelsFor,
-  type CardLabel,
-} from '../card/card-labels'
+  isCommentLine,
+  parseCardLine,
+  type CardLineDiagnostic,
+  type LineTokens,
+} from '../card/card-line-grammar'
+import { isCardCandidate } from '../card/card-line-read'
+import { createLineDiagnostics, type ListFileParseOptions } from '../list/line-diagnostics'
 import { listDescriptionOrUndefined } from '../list/list-description'
 import { readListImage } from '../list/list-image'
 import { isDroppedEmptySection, parseDeckFormat } from '../list/deck-format'
-import { createFenceTracker } from '../list/markdown-fence'
+import { createFenceTracker, frontMatterBodyStart } from '../list/markdown-fence'
 import { isListMarkdownFile } from '../list/list-file-name'
 import { parseHeading } from '../list/section-format'
 import { listTypeLabel, type ListType } from '../list/list-type'
@@ -69,96 +66,6 @@ export async function readDeckName(filePath: string): Promise<string> {
 }
 
 /**
- * Matches a deck card line: `2 Lightning Bolt (LEA:161) [foil] [NM] [ja] [proxy] {note} &12`.
- * Set codes allow `_` (some art-series / playtest sets use underscores).
- * Whitespace is `\s+` so multiple spaces between tokens are tolerated. The four
- * bracketed vocabularies (finish, condition, language, labels) are disjoint, so
- * each token is unambiguous; the labels token accepts the whole label
- * vocabulary and {@link parseDeckText} warns about one a deck cannot carry. The
- * optional `&N` id stays the final capture group (the id backfill and the
- * line-preserving mutations index the match by its last group).
- */
-export const DECK_CARD_LINE_RE = new RegExp(
-  `^(\\d+)[xX]?\\s+(.+?)(?:\\s+\\(([A-Za-z0-9_]+):([^)]+)\\))?(?:\\s+\\[(nonfoil|foil|etched)\\])?(?:\\s+\\[(NM|LP|MP|HP|DMG)\\])?(?:\\s+\\[(${LANGUAGE_TOKEN_PATTERN})\\])?(?:\\s+\\[(${LABEL_TOKEN_PATTERN}(?:,${LABEL_TOKEN_PATTERN})*)\\])?(?:\\s+\\{(.*)\\})?(?:\\s+&(\\d+))?$`,
-)
-
-/** The {@link DECK_CARD_LINE_RE} capture group holding the language token body. */
-export const DECK_LINE_LANGUAGE_GROUP = 7
-
-/** The {@link DECK_CARD_LINE_RE} capture group holding the labels token body. */
-export const DECK_LINE_LABELS_GROUP = 8
-
-/** The {@link DECK_CARD_LINE_RE} capture group holding the `{note}` body. */
-export const DECK_LINE_NOTE_GROUP = 9
-
-/** The {@link DECK_CARD_LINE_RE} capture group holding the `&N` id. */
-export const DECK_LINE_ID_GROUP = 10
-
-/**
- * Matches an MTG Arena / MTGO export card line's printing suffix:
- * `4 Lightning Bolt (M10) 146` → name `Lightning Bolt`, set `M10`, number `146`.
- *
- * Two deliberate restrictions:
- *
- * - The set token excludes `:`, so a canonical `(LEA:161)` line can never match
- *   — the two grammars stay disjoint.
- * - **The collector number is required.** A parenthesized token alone is far too
- *   common in real card names (`Very Cryptic Command (Untap)`, `Hazmat Suit
- *   (Used)`, `Ineffable Blessing (Cardboard)`) to reinterpret as a set code, and
- *   a set with no collector number is not a printing the canonical card line can
- *   express anyway (see {@link resolvePrinting}) — it would be lifted out of the
- *   name only to be dropped by the serializer. Such a line keeps the name the
- *   user wrote and gets an advisory instead.
- */
-const ARENA_PRINTING_RE = /^(.+?)\s+\(([A-Za-z0-9_]{2,10})\)\s+([A-Za-z0-9\-★†]+)$/
-
-/**
- * A parenthesized set-like token left inside a parsed card name — the shape an
- * unrecognized export dialect leaves behind (`Lightning Bolt (M10) 146`). Used
- * for the safety-net advisory, so a dialect nobody taught the parser is never
- * silent corruption.
- */
-const SUSPECT_PRINTING_IN_NAME_RE = /\([A-Za-z0-9_]{2,10}\)(?:\s+[A-Za-z0-9\-★†]+)?$/
-
-/**
- * What a card name's trailing parenthesized token turned out to be. One
- * recognizer owns the whole grammar so the "lift it" and "warn about it"
- * decisions can never drift apart.
- */
-export type ArenaSuffix =
-  /** A complete printing, safe to lift out of the name. */
-  | { kind: 'printing'; name: string; set: string; collectorNumber: string }
-  /** Set-like enough to mention, but not a printing — the name is left alone. */
-  | { kind: 'suspect' }
-  /** An ordinary card name. */
-  | { kind: 'none' }
-
-/**
- * Classify a parsed card name's trailing parenthesized token. Pure and
- * exported so the grammar is testable on its own.
- */
-export function matchArenaSuffix(cardName: string): ArenaSuffix {
-  const printing = cardName.match(ARENA_PRINTING_RE)
-  if (printing?.[1] && printing[2] && printing[3]) {
-    return {
-      kind: 'printing',
-      name: printing[1].trim(),
-      set: printing[2].toLowerCase(),
-      collectorNumber: printing[3],
-    }
-  }
-  if (SUSPECT_PRINTING_IN_NAME_RE.test(cardName)) return { kind: 'suspect' }
-  return { kind: 'none' }
-}
-
-/**
- * The trailing finish marker Moxfield, Archidekt, and MTGO append to a plain-text
- * export line: `1 Sol Ring (LTC) 284 *F*` (foil) or `*E*` (etched). Stripped
- * before the card line is matched, so the marker never lands inside the name.
- */
-const EXPORT_FINISH_MARKER_RE = /^(.*\S)\s+\*([FE])\*$/i
-
-/**
  * Bare marker lines an Arena export uses in place of `##` section headers.
  *
  * A `Map` rather than an object literal: the key is arbitrary file content, and
@@ -172,20 +79,19 @@ const ARENA_SECTION_MARKERS: ReadonlyMap<string, string> = new Map([
   ['companion', 'Companion'],
 ])
 
-/** How a text source should be read. */
-export type ParseDeckTextOptions = {
-  /**
-   * Recognize the MTG Arena / MTGO export dialect: `N Name (SET) NUM` card
-   * lines, bare `Deck`/`Sideboard`/`Commander`/`Companion` section markers, and
-   * an `About` block (whose `Name …` line names the deck).
-   *
-   * Off by default, and deliberately so: this same parser loads Ritual's own
-   * workspace list files, where the grammar must stay strict — a canonical
-   * `(SET:NUM)` line must never be reinterpreted, and a marker word must keep
-   * warning as a skipped line rather than silently starting a section. Only the
-   * import surfaces (`ritual import`, the admin import route) opt in.
-   */
-  arenaDialect?: boolean
+/**
+ * How a text source should be read.
+ *
+ * There is no dialect switch: the Arena/MTGO export forms — `N Name (SET) NUM`
+ * card lines, `*F*`/`*E*` finish markers, bare
+ * `Deck`/`Sideboard`/`Commander`/`Companion` section markers and the `About`
+ * block — are **always** recognized, because read tolerance is a property of
+ * the one card-line grammar rather than of the surface that called it (see
+ * `card-line-grammar.ts`: lenient in, canonical out). What still varies is
+ * whether a fenced block is packaging or prose, and which list type the cards
+ * are bound for.
+ */
+export type ParseDeckTextOptions = ListFileParseOptions & {
   /**
    * Read fenced code block content as deck data instead of prose.
    *
@@ -207,10 +113,11 @@ export type ParseDeckTextOptions = {
 
 /**
  * How the import surfaces read a third-party text source. Shared so the CLI and
- * the admin import route can never disagree about which dialects they accept.
+ * the admin import route can never disagree about how a pasted list is read.
+ * The card-line dialects need no opt-in — only the fence does, because a pasted
+ * decklist is very often wrapped in one.
  */
 export const IMPORT_TEXT_PARSE_OPTIONS: ParseDeckTextOptions = {
-  arenaDialect: true,
   readFencedContent: true,
 }
 
@@ -235,38 +142,39 @@ export type DeckParseResult = {
    * re-serialize a file whose content the parser could not read.
    */
   advisories: string[]
+  /**
+   * Every card-line diagnostic above in structured form — code, offending
+   * token, column. The strings in {@link warnings} and {@link advisories} are
+   * these, rendered, alongside the front-matter and section messages this
+   * parser raises about the file rather than about one line.
+   */
+  diagnostics: CardLineDiagnostic[]
 }
 
 /**
- * A deck line's label override: the parsed labels (absent when the line carries
- * no token), plus the warning explaining a token that was dropped.
+ * A card line's label override for the list type it is bound for: the labels
+ * the destination keeps (absent when the line carries no token), plus the
+ * warning explaining a token that was dropped.
  */
 type DeckLineLabels = { labels?: CardLabel[] } | { labels?: undefined; warning: string }
 
 /**
- * Read a deck card line's labels token. The regex guarantees the token's shape
- * and vocabulary, so the only ways this fails are the exclusivity rule and a
- * label decks do not carry (`[keep]` in a deck file). Either way the card is
- * kept — it is perfectly usable on read surfaces — and the labels are dropped,
- * which is exactly why this is a warning and not an advisory: a whole-file
- * rewrite would lose the token, so the rewrite gates must block.
+ * Narrow a card line's labels to the ones `listType` carries. The grammar has
+ * already refused a malformed or self-conflicting token, so the only failure
+ * left here is a *value* one: a label this type does not carry (`[keep]` in a
+ * deck file). The card is kept — it is perfectly usable on read surfaces — and
+ * the labels are dropped, which is exactly why this is a warning and not an
+ * advisory: a whole-file rewrite would lose the token, so the rewrite gates
+ * must block.
  */
-function parseDeckLineLabels(
-  raw: string | undefined,
+function deckLineLabels(
+  labels: readonly CardLabel[] | undefined,
   cardName: string,
   line: string,
   listType: ListType,
 ): DeckLineLabels {
-  if (raw === undefined) return {}
-  const parsed = parseCardLabelsToken(raw)
-  if (!parsed.ok) {
-    return {
-      warning:
-        `Conflicting labels [${raw}] on '${cardName}' — ${parsed.message} ` +
-        `The labels were ignored, and a rewrite would drop them: ${line}`,
-    }
-  }
-  const unsupported = unsupportedLabelsFor(listType, parsed.labels)
+  if (labels === undefined) return {}
+  const unsupported = unsupportedLabelsFor(listType, labels)
   if (unsupported.length > 0) {
     return {
       warning:
@@ -274,7 +182,32 @@ function parseDeckLineLabels(
         `The labels were ignored, and a rewrite would drop them: ${line}`,
     }
   }
-  return { labels: parsed.labels }
+  return { labels: [...labels] }
+}
+
+/**
+ * One deck card from the tokens its line carried. The grammar has already
+ * resolved every read tolerance (`4x`, `(SET) CN`, `*F*`, token order), so the
+ * only judgement left is the label narrowing, whose refusal is a warning the
+ * caller collects rather than a lost line.
+ */
+function deckCard(tokens: LineTokens, line: string, listType: ListType, warnings: string[]): Card {
+  const labels = deckLineLabels(tokens.labels, tokens.name, line, listType)
+  if ('warning' in labels) warnings.push(labels.warning)
+  return {
+    quantity: tokens.quantity,
+    name: tokens.name,
+    // Both halves or neither — a printing is a pair (see `resolvePrinting`).
+    set: tokens.printing?.set,
+    collectorNumber: tokens.printing?.collectorNumber,
+    finish: tokens.finish,
+    condition: tokens.condition,
+    // Set only when the token is present — a bare line means `en` and stays bare.
+    language: tokens.language,
+    labels: labels.labels,
+    note: tokens.note,
+    cardId: tokens.cardId,
+  }
 }
 
 /**
@@ -300,9 +233,11 @@ export function parseDeckText(
   options?: ParseDeckTextOptions,
 ): DeckParseResult {
   const parsed = matter(rawText)
-  const arenaDialect = options?.arenaDialect === true
   const readFencedContent = options?.readFencedContent === true
   const listType: ListType = options?.listType ?? 'deck'
+  // `parsed.content` starts at the first body line, so a diagnostic's file line
+  // is its index in that content plus however many lines the front matter took.
+  const bodyOffset = frontMatterBodyStart(rawText.split(/\r?\n/))
 
   const frontMatterName = getString(parsed.data.name)
   let name = resolveDeckName(parsed.data.name, fallbackName)
@@ -330,8 +265,8 @@ export function parseDeckText(
   sections.push(currentSection)
 
   const lines = parsed.content.split(/\r?\n/)
-  const warnings: string[] = []
-  const advisories: string[] = []
+  const report = createLineDiagnostics(options?.file)
+  const { warnings, advisories } = report
   // A `labels:` default the deck cannot carry is dropped by
   // `validateDeckFrontMatter`, so the next save deletes the key outright — the
   // same loss a refused card-line token would cause, and a warning for the same
@@ -367,7 +302,7 @@ export function parseDeckText(
     }
   }
 
-  for (const line of lines) {
+  for (const [index, line] of lines.entries()) {
     const fenceState = fence.feed(line)
     if (fenceState.opaque) {
       // On the import path a fence is packaging: its delimiters are dropped and
@@ -384,6 +319,12 @@ export function parseDeckText(
       inAboutBlock = false
       continue
     }
+    // A `//` comment is a recognized line kind: read-tolerated, dropped on
+    // write. Decklist exports use it for section names and attribution.
+    if (isCommentLine(trimmed)) {
+      inAboutBlock = false
+      continue
+    }
 
     const heading = parseHeading(trimmed)
     if (heading) {
@@ -392,90 +333,40 @@ export function parseDeckText(
       continue
     }
 
-    if (arenaDialect) {
-      const marker = ARENA_SECTION_MARKERS.get(trimmed.toLowerCase())
-      if (marker !== undefined) {
-        inAboutBlock = false
-        // Level 2: a marker is a `##`-equivalent, so an empty one warns like one.
-        startSection(marker, 2)
-        continue
+    const marker = ARENA_SECTION_MARKERS.get(trimmed.toLowerCase())
+    if (marker !== undefined) {
+      inAboutBlock = false
+      // Level 2: a marker is a `##`-equivalent, so an empty one warns like one.
+      startSection(marker, 2)
+      continue
+    }
+    if (trimmed.toLowerCase() === 'about') {
+      inAboutBlock = true
+      continue
+    }
+    if (inAboutBlock) {
+      // `Name My Deck` names the deck (frontmatter, when present, still wins);
+      // anything else in the block is metadata this parser does not model.
+      const aboutName = trimmed.match(/^Name\s+(.+)$/i)?.[1]?.trim()
+      if (aboutName && frontMatterName === undefined) {
+        name = aboutName
+      } else if (!aboutName) {
+        advisories.push(`Skipped About line: ${trimmed}`)
       }
-      if (trimmed.toLowerCase() === 'about') {
-        inAboutBlock = true
-        continue
-      }
-      if (inAboutBlock) {
-        // `Name My Deck` names the deck (frontmatter, when present, still wins);
-        // anything else in the block is metadata this parser does not model.
-        const aboutName = trimmed.match(/^Name\s+(.+)$/i)?.[1]?.trim()
-        if (aboutName && frontMatterName === undefined) {
-          name = aboutName
-        } else if (!aboutName) {
-          advisories.push(`Skipped About line: ${trimmed}`)
-        }
-        continue
-      }
+      continue
     }
 
-    // An export's trailing `*F*` / `*E*` finish marker is stripped before the
-    // card line is matched, so it can never end up inside the card name.
-    let body = trimmed
-    let markerFinish: Finish | undefined
-    if (arenaDialect) {
-      const marker = trimmed.match(EXPORT_FINISH_MARKER_RE)
-      if (marker?.[1] && marker[2]) {
-        body = marker[1]
-        markerFinish = marker[2].toLowerCase() === 'f' ? 'foil' : 'etched'
+    if (isCardCandidate('deck', trimmed)) {
+      // Always the deck grammar, whatever the cards are bound for: this is the
+      // quantity-led decklist form, and `listType` only decides which of the
+      // labels it read the destination can keep.
+      const card = parseCardLine('deck', trimmed)
+      if (!card.ok) {
+        report.record(card, bodyOffset + index + 1)
+        continue
       }
-    }
-
-    const quantityMatch = body.match(DECK_CARD_LINE_RE)
-    if (quantityMatch?.[1] && quantityMatch?.[2]) {
-      let cardName = quantityMatch[2].trim()
-      let set = quantityMatch[3]?.toLowerCase()
-      let collectorNumber = quantityMatch[4]
-
-      // The canonical grammar has no `(SET) NUM` form, so such a suffix lands in
-      // the card name. On the import path a *complete* one is the Arena dialect
-      // and is lifted into the printing; anything short of that is an advisory,
-      // never a silent rewrite of a card name the user wrote.
-      if (set === undefined) {
-        const suffix = matchArenaSuffix(cardName)
-        if (arenaDialect && suffix.kind === 'printing') {
-          cardName = suffix.name
-          set = suffix.set
-          collectorNumber = suffix.collectorNumber
-        } else if (suffix.kind !== 'none') {
-          advisories.push(
-            `Card name still contains a printing token, so the line's format was not recognized: ${trimmed}`,
-          )
-        }
-      }
-
-      const rawLanguage = quantityMatch[DECK_LINE_LANGUAGE_GROUP]
-      const labels = parseDeckLineLabels(
-        quantityMatch[DECK_LINE_LABELS_GROUP],
-        cardName,
-        trimmed,
-        listType,
-      )
-      if ('warning' in labels) warnings.push(labels.warning)
-      const rawCardId = quantityMatch[DECK_LINE_ID_GROUP]
-      currentSection.cards.push({
-        quantity: Number.parseInt(quantityMatch[1], 10),
-        name: cardName,
-        // Both halves or neither: the two branches above never set one alone
-        // (see `resolvePrinting` for why half a printing cannot be written).
-        set,
-        collectorNumber,
-        finish: quantityMatch[5] && isFinish(quantityMatch[5]) ? quantityMatch[5] : markerFinish,
-        condition: quantityMatch[6] && isCondition(quantityMatch[6]) ? quantityMatch[6] : undefined,
-        // Set only when the token is present — a bare line means `en` and stays bare.
-        language: rawLanguage && isCardLanguage(rawLanguage) ? rawLanguage : undefined,
-        labels: labels.labels,
-        note: quantityMatch[DECK_LINE_NOTE_GROUP],
-        cardId: rawCardId ? Number.parseInt(rawCardId, 10) : undefined,
-      })
+      for (const advisory of card.advisories) report.record(advisory, bodyOffset + index + 1)
+      currentSection.cards.push(deckCard(card.tokens, trimmed, listType, report.warnings))
       continue
     }
 
@@ -526,7 +417,7 @@ export function parseDeckText(
     sourceId,
     sections: validSections,
   }
-  return { deck, warnings, fencedLines, advisories }
+  return { deck, warnings, fencedLines, advisories, diagnostics: report.diagnostics }
 }
 
 /**

@@ -148,6 +148,8 @@ export type TokenErrorCode =
   | 'duplicate-token'
   /** A token sitting inside the name instead of in the line's token tail. */
   | 'misplaced-token'
+  /** A token written with no whitespace between it and the text beside it. */
+  | 'unseparated-token'
   /** A quantity of zero, which says nothing. */
   | 'bad-quantity'
   /** A `{` the line never closes. */
@@ -179,6 +181,7 @@ export const CARD_LINE_ERROR_CODES: readonly CardLineErrorCode[] = Object.values
   'token-not-allowed': 'token-not-allowed',
   'duplicate-token': 'duplicate-token',
   'misplaced-token': 'misplaced-token',
+  'unseparated-token': 'unseparated-token',
   'bad-quantity': 'bad-quantity',
   'missing-printing': 'missing-printing',
   'malformed-note': 'malformed-note',
@@ -404,11 +407,37 @@ const QUANTITY_RE = /^(\d+)([xX])?(\s+)/
  */
 const NOT_A_CARD_LINE_RE = /^(?:#{1,6}\s|\/\/|```|~~~|-{3,}\s*$)/
 
+/**
+ * The list bullet a card line may open with — mandatory on write, optional on
+ * read. Exported because the file-level candidate rule
+ * (`isCardCandidate`) must ask the same question this tokenizer answers: a
+ * scanner with a narrower bullet than the parser calls a readable line prose.
+ */
+export const CARD_LINE_BULLET_RE = /^-\s+/
+
+/**
+ * True when a **trimmed** line is a `//` comment.
+ *
+ * A comment is read-tolerated and dropped on write, so a file parser must
+ * recognize it *before* it decides the line is content a save would delete —
+ * otherwise every `//` in a pasted decklist warns. Exported from here so the
+ * three parsers and {@link parseCardLine} cannot disagree about what a comment
+ * is; {@link NOT_A_CARD_LINE_RE} refuses the same shape.
+ */
+export function isCommentLine(trimmed: string): boolean {
+  return trimmed.startsWith('//')
+}
+
 /** True when the character before `start` is whitespace, or `start` opens the body. */
 function isTokenBoundary(line: string, start: number, bodyStart: number): boolean {
   if (start === bodyStart) return true
   if (start < bodyStart) return false
   return /\s/.test(line.charAt(start - 1))
+}
+
+/** True when the character at `end` is whitespace, or `end` runs off the line. */
+function isTokenEnd(line: string, end: number): boolean {
+  return end >= line.length || /\s/.test(line.charAt(end))
 }
 
 /** What a caller supplies to build a refusal; the rest is boilerplate. */
@@ -448,14 +477,27 @@ type ScannedToken = {
 }
 
 /**
- * Token-shaped text left inside a card name. Each alternative is a *complete*
- * token at a whitespace boundary: an id, a parenthesized body, a bracket, or a
- * brace pair.
+ * Token-shaped text left inside a card name: a complete id, a parenthesized
+ * body, a bracket, or a brace pair.
+ *
+ * Deliberately **not** anchored to whitespace boundaries. A token glued to what
+ * sits beside it (`Sol Ring(LEA:270)`, `(LEA:270)&2`) is the one shape the peel
+ * loop cannot read, and leaving it out of this scan is what let a collection
+ * line that visibly names a printing be refused for *missing* one. It is found
+ * here and reported as the separator problem it is.
  */
-const RESIDUE_TOKEN_RE = /(?:^|\s)(&\d+|\([^()]*\)|\[[^\][]*\]|\{[^{}]*\})(?=\s|$)/g
+const RESIDUE_TOKEN_RE = /&\d+|\([^()]*\)|\[[^\][]*\]|\{[^{}]*\}/g
 
-/** A token found inside the name, with where it sits in the line. */
-type MisplacedToken = { text: string; column: number; kind: TokenKind }
+/** A token found inside the name, with where it sits and how it was spaced. */
+type MisplacedToken = {
+  text: string
+  column: number
+  kind: TokenKind
+  /** Whitespace — or the start of the body — precedes the token. */
+  spacedBefore: boolean
+  /** Whitespace — or the end of the line — follows the token. */
+  spacedAfter: boolean
+}
 
 /**
  * The token the peel loop stopped short of, if the residue holds one.
@@ -472,21 +514,33 @@ type MisplacedToken = { text: string; column: number; kind: TokenKind }
  * unrecognized bracket are left alone, because nothing was lost. When the
  * residue holds an id, that id is what is reported — a misplaced `&N` is nearly
  * always the actual cause, and its fix is the most specific.
+ *
+ * Each hit carries how it was spaced, because the two causes want two different
+ * fixes: a token written out of order has to move, while one glued to its
+ * neighbour only wants a space.
  */
-function findMisplacedToken(residue: string, offset: number): MisplacedToken | undefined {
+function findMisplacedToken(
+  line: string,
+  bodyStart: number,
+  end: number,
+): MisplacedToken | undefined {
   const found: MisplacedToken[] = []
-  for (const match of residue.matchAll(RESIDUE_TOKEN_RE)) {
-    const text = match[1]
-    if (text === undefined || match.index === undefined) continue
-    const column = offset + match.index + match[0].indexOf(text)
+  for (const match of line.slice(bodyStart, end).matchAll(RESIDUE_TOKEN_RE)) {
+    const text = match[0]
+    if (match.index === undefined) continue
+    const column = bodyStart + match.index
+    const spacing: Pick<MisplacedToken, 'spacedBefore' | 'spacedAfter'> = {
+      spacedBefore: isTokenBoundary(line, column, bodyStart),
+      spacedAfter: isTokenEnd(line, column + text.length),
+    }
     const inner = text.slice(1, -1)
-    if (text.startsWith('&')) found.push({ text, column, kind: 'id' })
+    if (text.startsWith('&')) found.push({ text, column, kind: 'id', ...spacing })
     else if (text.startsWith('(')) {
-      if (PRINTING_BODY_RE.test(inner)) found.push({ text, column, kind: 'printing' })
-    } else if (text.startsWith('{')) found.push({ text, column, kind: 'note' })
+      if (PRINTING_BODY_RE.test(inner)) found.push({ text, column, kind: 'printing', ...spacing })
+    } else if (text.startsWith('{')) found.push({ text, column, kind: 'note', ...spacing })
     else {
       const kind = bracketTokenKind(inner)
-      if (kind !== undefined) found.push({ text, column, kind })
+      if (kind !== undefined) found.push({ text, column, kind, ...spacing })
     }
   }
   return found.find((token) => token.kind === 'id') ?? found[0]
@@ -538,7 +592,7 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
   }
 
   let start = leading
-  const bullet = /^-\s+/.exec(line.slice(start))
+  const bullet = CARD_LINE_BULLET_RE.exec(line.slice(start))
   if (bullet) start += bullet[0].length
 
   let quantity = 1
@@ -790,9 +844,23 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
     return failLine(type, line, { code: 'empty-name', message: `No card name: ${line.trim()}` })
   }
 
-  const residue = line.slice(bodyStart, end)
-  const misplaced = findMisplacedToken(residue, bodyStart)
+  const misplaced = findMisplacedToken(line, bodyStart, end)
   if (misplaced) {
+    // Two causes, two fixes. A token glued to its neighbour (`Sol Ring(LEA:270)`,
+    // `(LEA:270)&2`) is only missing a separator — telling its author that "the
+    // &N must be the last token" about an id that already is last helps nobody,
+    // and blaming a *missing* printing on a line that visibly names one is the
+    // mystifying refusal this grammar exists to end.
+    if (!misplaced.spacedBefore || !misplaced.spacedAfter) {
+      return failToken(type, line, {
+        code: 'unseparated-token',
+        kind: misplaced.kind,
+        token: misplaced.text,
+        column: misplaced.column,
+        message: `${misplaced.text} runs into the text beside it: a card line's tokens are separated by whitespace.`,
+        hint: `insert a space ${misplaced.spacedBefore ? 'after' : 'before'} ${misplaced.text}`,
+      })
+    }
     return failToken(type, line, {
       code: 'misplaced-token',
       kind: misplaced.kind,
@@ -854,9 +922,7 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
  * The `&N` readers, re-exported so a consumer of the grammar has one import.
  * `readCardId` answers exactly what {@link parseCardLine} reads; `readAnyCardId`
  * is the deliberately wider pool seeder. See `card-line-id.ts` for why the two
- * widths differ. The last copy of this regex outside that module lives in
- * `ensure-card-ids.ts`, which still reads the id positionally out of a card-line
- * regex; it goes when that regex does.
+ * widths differ — and note that it is the only module that spells the pattern.
  */
 export { readAnyCardId, readCardId } from './card-line-id'
 

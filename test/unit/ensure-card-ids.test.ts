@@ -173,3 +173,102 @@ describe('flat-list front matter', () => {
     expect(content).toContain('- Mana Crypt &1')
   })
 })
+
+/**
+ * A collection and a wanted list hold one line per physical copy, so a pasted
+ * quantity is *accepted* on read and expanded on the next save. The expansion
+ * allocates from the file's own id pool and never renumbers an id that is
+ * already on a line — a moved `&N` would take custom art and undo history with
+ * it.
+ */
+describe('flat-list quantity expansion', () => {
+  test('a collection line becomes one line per copy, keeping its own id first', () => {
+    const { content, added } = ensureCollectionIdsInContent(
+      '# Binder\n\n- 3 Sol Ring (C21:240) [foil] &4\n',
+    )
+    expect(added).toBe(2)
+    expect(content).toBe(
+      [
+        '# Binder',
+        '',
+        '- Sol Ring (C21:240) [foil] &4',
+        '- Sol Ring (C21:240) [foil] &1',
+        '- Sol Ring (C21:240) [foil] &2',
+        '',
+      ].join('\n'),
+    )
+  })
+
+  test('the expansion writes every token the line carried', () => {
+    const { content } = ensureCollectionIdsInContent(
+      '- 2 Sol Ring (C21:240) [foil] [LP] [ja] [keep] {mine}\n',
+    )
+    expect(content.split('\n').slice(0, 2)).toEqual([
+      '- Sol Ring (C21:240) [foil] [LP] [ja] [keep] {mine} &1',
+      '- Sol Ring (C21:240) [foil] [LP] [ja] [keep] {mine} &2',
+    ])
+  })
+
+  test('extra copies take pool ids without disturbing the ids already in the file', () => {
+    const { content, added } = ensureCollectionIdsInContent(
+      ['- Mox Pearl (LEA:265) &1', '- 2 Sol Ring (C21:240) &3', '- Black Lotus (LEA:232) &4'].join(
+        '\n',
+      ),
+    )
+    expect(added).toBe(1)
+    expect(content.split('\n')).toEqual([
+      '- Mox Pearl (LEA:265) &1',
+      '- Sol Ring (C21:240) &3',
+      // The gap the pool held (&2), not a renumbering of &3 or &4.
+      '- Sol Ring (C21:240) &2',
+      '- Black Lotus (LEA:232) &4',
+    ])
+  })
+
+  test('an expanded line claims its own id before a duplicate is reassigned', () => {
+    // Two rules meeting on one file: the first copy keeps `&1`, so the *later*
+    // line that also says `&1` is the duplicate — dropping the expansion's
+    // claim would leave two lines carrying one id.
+    const { content, added } = ensureCollectionIdsInContent(
+      '- 2 Sol Ring (C21:240) &1\n- Mox Pearl (LEA:265) &1\n',
+    )
+    expect(added).toBe(2)
+    expect(content).toBe(
+      '- Sol Ring (C21:240) &1\n- Sol Ring (C21:240) &2\n- Mox Pearl (LEA:265) &3\n',
+    )
+  })
+
+  test('a second save is a no-op: the ids the first one handed out stay put', () => {
+    const first = ensureWantedIdsInContent('# Wants\n\n- 2 Sol Ring\n- Brainstorm &5\n')
+    expect(first.added).toBe(2)
+    const second = ensureWantedIdsInContent(first.content)
+    expect(second.added).toBe(0)
+    expect(second.content).toBe(first.content)
+    expect(first.content).toContain('- Sol Ring &1\n- Sol Ring &2\n')
+  })
+
+  test('a deck line keeps its quantity — copies live on the line there', () => {
+    const { content, added } = ensureDeckIdsInContent('## Main\n4 Lightning Bolt (LEA:161)\n')
+    expect(added).toBe(1)
+    expect(content).toBe('## Main\n4 Lightning Bolt (LEA:161) &1\n')
+  })
+
+  test('a line whose labels token the grammar refuses is stamped but never expanded', () => {
+    // Rewriting the line would delete the token the user has to see to fix.
+    const { content, added } = ensureCollectionIdsInContent('- 2 Sol Ring (C21:240) [sale,keep]\n')
+    expect(added).toBe(1)
+    expect(content).toBe('- 2 Sol Ring (C21:240) [sale,keep] &1\n')
+  })
+
+  test('a fenced quantity line is prose: neither stamped nor expanded', () => {
+    const input = ['```', '- 2 Sol Ring (C21:240)', '```', '- Mox Pearl (LEA:265)'].join('\n')
+    const { content, added } = ensureCollectionIdsInContent(input)
+    expect(added).toBe(1)
+    expect(content.split('\n')).toEqual([
+      '```',
+      '- 2 Sol Ring (C21:240)',
+      '```',
+      '- Mox Pearl (LEA:265) &1',
+    ])
+  })
+})

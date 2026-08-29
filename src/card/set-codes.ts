@@ -26,10 +26,10 @@ export type SetCodeParseResult = { ok: true; code: string } | { ok: false; error
  * validation for every `--set`-style flag, so all surfaces reject the same
  * malformed input.
  *
- * Underscores are accepted because `DECK_CARD_LINE_RE` accepts them: Scryfall
- * uses them for playtest and art-series sets, so a code this rejected could
- * still be sitting in a list file, leaving those printings unnameable by every
- * `set` filter.
+ * Underscores are accepted because the card-line grammar accepts them (see
+ * `SET_CHARS` in `card-line-grammar.ts`): Scryfall uses them for playtest and
+ * art-series sets, so a code this rejected could still be sitting in a list
+ * file, leaving those printings unnameable by every `set` filter.
  */
 export function parseSetCode(raw: string): SetCodeParseResult {
   const code = raw.trim().toLowerCase()

@@ -49,9 +49,10 @@ export type LoadedCollectionList = {
   /** One message per line the parser skipped — lines a save would delete. */
   warnings: string[]
   /**
-   * Lines that parsed but look wrong — today, a card name that kept a deck's
-   * quantity prefix. Reported, never a reason to hold the list back: the line
-   * survives a save, it just names a card nothing will match.
+   * Lines that parsed with something worth saying about them — copies a save
+   * will write out as their own lines, or a name that still looks like it
+   * holds a printing. Reported, never a reason to hold the list back: nothing
+   * the line said was lost.
    */
   advisories: string[]
 }

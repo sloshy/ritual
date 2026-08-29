@@ -1,20 +1,17 @@
 /**
  * The wanted-list file grammar: parse `- Name (SET:CN) [foil] [ja] {note} &N`
- * lines into entries. Mirrors `collection-file.ts`. The in-memory entry
- * shapes the sites and endpoints trade in live in `wanted-entries.ts`.
+ * lines into entries. Mirrors `collection-file.ts`: one tokenizer reads the card
+ * lines and one flat-list scan (`scanFlatListFile`) reads the document, so this
+ * file states only what a *wanted* entry is — a printing that may be absent, and
+ * neither a condition nor labels. The in-memory entry shapes the sites and
+ * endpoints trade in live in `wanted-entries.ts`.
  */
-import { DEFAULT_SECTION } from './deck'
-import { type Finish, isFinish } from '../card/finish-condition'
-import { matchSectionHeader } from './section-format'
-import { createFenceTracker } from './markdown-fence'
-import { quantityPrefixAdvisory } from '../card/card-line'
-import {
-  isCardLanguage,
-  LANGUAGE_TOKEN_PATTERN,
-  malformedLanguageTokenHint,
-  type CardLanguage,
-} from '../card/card-language'
-import { parseFlatListFrontMatter, type FlatListFrontMatter } from './flat-list-front-matter'
+import type { Finish } from '../card/finish-condition'
+import type { CardLineDiagnostic } from '../card/card-line-grammar'
+import type { ListFileParseOptions } from './line-diagnostics'
+import type { CardLanguage } from '../card/card-language'
+import type { FlatListFrontMatter } from './flat-list-front-matter'
+import { scanFlatListFile } from './flat-list-scan'
 
 export type WantedListEntry = {
   name: string
@@ -51,118 +48,55 @@ export type WantedListParseResult = {
   fencedLines: number
   /**
    * Non-fatal per-line advisories: content the parser *did* read, but about
-   * which the user deserves a word — today, a card name that kept a deck's
-   * quantity prefix ({@link quantityPrefixAdvisory}). Wanted lists hold one
-   * line per copy, exactly like collections, so the same trap applies.
+   * which the user deserves a word — a quantity that will expand into one line
+   * per copy (wanted lists hold one line per copy, exactly like collections),
+   * an export dialect that was rewritten, a name that still looks like it holds
+   * a printing.
    *
    * Deliberately **not** part of `warnings`: nothing was lost and a
-   * re-serialize preserves the line, so these must not trip the
+   * re-serialize preserves the content, so these must not trip the
    * whole-file-rewrite gates ({@link unreadableLines}).
    */
   advisories: string[]
+  /**
+   * Every card-line diagnostic above in structured form — code, offending
+   * token, column. {@link warnings} stays the authoritative rewrite gate: it
+   * also carries the front-matter and prose-line messages this parser raises
+   * about the *file* rather than about one card line, which have no structured
+   * form.
+   */
+  diagnostics: CardLineDiagnostic[]
 }
 
-/**
- * Matches a wanted-list card line: `- Lightning Bolt (LEA:161) [foil] [ja] {note} &12`.
- * Wanted lists do not carry a condition, otherwise mirrors the collection grammar
- * (the optional `&N` id stays the final capture group).
- */
-export const WANTED_CARD_LINE_RE = new RegExp(
-  `^- (.+?)(?:\\s\\(([A-Za-z0-9]+):([^)]+)\\))?(?:\\s\\[(nonfoil|foil|etched)\\])?(?:\\s\\[(${LANGUAGE_TOKEN_PATTERN})\\])?(?:\\s\\{(.*)\\})?(?:\\s&(\\d+))?$`,
-)
-
-/** The {@link WANTED_CARD_LINE_RE} capture group holding the language token body. */
-export const WANTED_LINE_LANGUAGE_GROUP = 5
-
-export function parseWantedListFile(content: string): WantedListParseResult {
-  const entries: WantedListEntry[] = []
-  const sectionOrder: string[] = []
-  const warnings: string[] = []
-  const advisories: string[] = []
-  let currentSection = DEFAULT_SECTION
-  let titleSeen = false
-  // Fenced code blocks are prose: a bullet or `## Heading` inside one is an
-  // example, not list data, and is not an unreadable line either.
-  const fence = createFenceTracker()
-  let fencedLines = 0
-
-  const registerSection = (name: string): void => {
-    if (!sectionOrder.includes(name)) sectionOrder.push(name)
-  }
-
-  const lines = content.split('\n')
-  const front = parseFlatListFrontMatter(lines, { validateLabels: false })
-  advisories.push(...front.advisories)
-
-  for (let lineIndex = front.bodyStart; lineIndex < lines.length; lineIndex++) {
-    const line = lines[lineIndex]!
-    if (fence.feed(line).opaque) {
-      fencedLines++
-      continue
-    }
-    const trimmed = line.trim()
-    if (trimmed === '') continue
-
-    const header = matchSectionHeader(trimmed)
-    if (header) {
-      currentSection = header
-      registerSection(header)
-      continue
-    }
-
-    // The first `# Title` H1 is the list's title; any other non-bullet line is
-    // content a re-serializing save would delete, so it must warn — the
-    // unreadable-lines gates (sync, cleanup, admin saves) all key off these.
-    if (!trimmed.startsWith('- ')) {
-      if (trimmed.startsWith('# ') && !titleSeen) {
-        titleSeen = true
-        continue
-      }
-      warnings.push(`Skipped malformed line: ${trimmed}`)
-      continue
-    }
-
-    const match = trimmed.match(WANTED_CARD_LINE_RE)
-    if (!match) {
-      // A recognizable-but-misspelled language token ([JA], [jp]) names its fix.
-      warnings.push(`Skipped malformed line: ${trimmed}${malformedLanguageTokenHint(trimmed)}`)
-      continue
-    }
-
-    const name = match[1]!
-    const setCode = match[2]
-    const collectorNumber = match[3]
-    const rawFinish = match[4]
-    const finish = rawFinish !== undefined && isFinish(rawFinish) ? rawFinish : undefined
-    const rawLanguage = match[WANTED_LINE_LANGUAGE_GROUP]
-    // Set only when the token is present — a bare line means `en` and stays bare.
-    const language = rawLanguage && isCardLanguage(rawLanguage) ? rawLanguage : undefined
-    const note = match[6]
-
-    const advisory = quantityPrefixAdvisory(name, trimmed)
-    if (advisory) advisories.push(advisory)
-
-    // A card before any explicit header pins the implicit Main section into the order list.
-    registerSection(currentSection)
-    entries.push({
+export function parseWantedListFile(
+  content: string,
+  options: ListFileParseOptions = {},
+): WantedListParseResult {
+  const scan = scanFlatListFile<WantedListEntry>('wanted', content, options, (copy) => {
+    // Named field by field rather than spread: a wanted list carries neither a
+    // condition nor labels (the grammar refuses both), so listing what it does
+    // carry keeps a widened `LineTokens` from quietly landing on an entry.
+    const { name, printing, finish, language, note } = copy.tokens
+    return {
       name,
       quantity: 1,
-      set: setCode?.toLowerCase(),
-      collectorNumber,
+      set: printing?.set,
+      collectorNumber: printing?.collectorNumber,
       finish,
       language,
       note,
-      cardId: match[7] ? Number.parseInt(match[7], 10) : undefined,
-      section: currentSection,
-    })
-  }
+      cardId: copy.cardId,
+      section: copy.section,
+    }
+  })
   return {
-    entries,
-    sectionOrder,
-    frontMatter: front.frontMatter,
-    warnings,
-    fencedLines,
-    advisories,
+    entries: scan.entries,
+    sectionOrder: scan.sectionOrder,
+    frontMatter: scan.front.frontMatter,
+    warnings: scan.report.warnings,
+    fencedLines: scan.fencedLines,
+    advisories: scan.report.advisories,
+    diagnostics: scan.report.diagnostics,
   }
 }
 

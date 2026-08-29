@@ -591,6 +591,21 @@ describe('every error code', () => {
       { token: '[foil]', kind: 'finish', hint: 'move [foil] after the name' },
     ],
     [
+      // The shape that used to blame a *missing* printing on a collection line
+      // that plainly names one, and to pass silently everywhere else.
+      'unseparated-token',
+      'collection',
+      '- Sol Ring (LEA:270)&2',
+      {
+        token: '&2',
+        kind: 'id',
+        column: '- Sol Ring (LEA:270)'.length,
+        message:
+          "&2 runs into the text beside it: a card line's tokens are separated by whitespace.",
+        hint: 'insert a space before &2',
+      },
+    ],
+    [
       'conflicting-labels',
       'collection',
       '- Sol Ring (LEA:1) [keep,sale]',
@@ -676,23 +691,49 @@ describe('a token stranded inside the name is named, never absorbed', () => {
   }
 })
 
-describe('glued tokens are part of the name, never a token', () => {
-  // `isTokenBoundary` is what keeps a card name intact: without a whitespace
-  // boundary a token is just text the user wrote. The failure mode this guards
-  // is the silent one — a card named `Sol Ring(LEA:270)` that misses the cache,
-  // Scryfall, pricing and every sync join.
+describe('a glued token is a missing space, never a silent name', () => {
+  // Whitespace between the name and its tokens is mandatory in the grammar, so
+  // a glued token is not read as one. Absorbing it into the name instead is the
+  // silent failure — a card named `Sol Ring(LEA:270)` that misses the cache,
+  // Scryfall, pricing and every sync join — so the line is refused and the
+  // missing separator is what the refusal names.
   const glued: readonly [ListType, string, string][] = [
-    ['deck', '1 Sol Ring(LEA:270)', 'Sol Ring(LEA:270)'],
-    ['deck', '1 Sol Ring[foil]', 'Sol Ring[foil]'],
-    ['deck', '1 Sol Ring{note}', 'Sol Ring{note}'],
-    ['deck', '1 Sol Ring&5', 'Sol Ring&5'],
+    ['deck', '1 Sol Ring(LEA:270)', '(LEA:270)'],
+    ['deck', '1 Sol Ring[foil]', '[foil]'],
+    ['deck', '1 Sol Ring{note}', '{note}'],
+    ['deck', '1 Sol Ring&5', '&5'],
+    // A token glued to the token before it, rather than to the name.
+    ['collection', '- Sol Ring (LEA:270)[foil]', '(LEA:270)'],
   ]
 
-  for (const [type, line, name] of glued) {
-    test(`${line} is a card named ${name}`, () => {
-      expect(parsed(type, line)).toEqual({ quantity: 1, name })
+  for (const [type, line, token] of glued) {
+    test(`${line} names ${token} as the token that needs a space`, () => {
+      expect(refused(type, line)).toMatchObject({ code: 'unseparated-token', token })
     })
   }
+
+  test('the hint names the side the space belongs on', () => {
+    // `(LEA:270)` has its leading space and lacks its trailing one; `&2` is the
+    // other way round, and telling its author to move an id that is already
+    // last would help nobody.
+    expect(refused('collection', '- Sol Ring (LEA:270)[foil]').hint).toBe(
+      'insert a space after (LEA:270)',
+    )
+    expect(refused('deck', '1 Sol Ring&5').hint).toBe('insert a space before &5')
+  })
+
+  test('text that is not token-shaped stays part of the name', () => {
+    // The rule is about *tokens*, not about parentheses: an unrecognized
+    // bracket and a real card name's parenthesis lose nothing by staying.
+    expect(parsed('deck', '1 Sol Ring[whatever]')).toEqual({
+      quantity: 1,
+      name: 'Sol Ring[whatever]',
+    })
+    expect(parsed('deck', '1 Very Cryptic Command(Untap)')).toEqual({
+      quantity: 1,
+      name: 'Very Cryptic Command(Untap)',
+    })
+  })
 
   test('a token that opens the line is still a token', () => {
     expect(refused('deck', '(LEA:161)').code).toBe('empty-name')
@@ -728,9 +769,9 @@ describe('readAnyCardId is the wider pool seeder', () => {
   // next backfill hands a live id to a second card.
   const glued = '1 Sol Ring&2'
 
-  test('the entry reader skips a glued id, and so does the parser', () => {
+  test('the entry reader skips a glued id, and the parser refuses the line', () => {
     expect(readCardId(glued)).toBeUndefined()
-    expect(parsed('deck', glued)).toEqual({ quantity: 1, name: 'Sol Ring&2' })
+    expect(refused('deck', glued)).toMatchObject({ code: 'unseparated-token', token: '&2' })
   })
 
   test('the pool reader still reserves it', () => {

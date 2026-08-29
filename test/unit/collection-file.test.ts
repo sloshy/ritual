@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { COLLECTION_CARD_LINE_RE, parseCollectionFile } from '../../src/list/collection-file'
-import { CARD_LABELS } from '../../src/card/card-labels'
+import { parseCollectionFile } from '../../src/list/collection-file'
 
 describe('parseCollectionFile', () => {
   test('parses card with set and collector number', () => {
@@ -16,24 +15,29 @@ describe('parseCollectionFile', () => {
     expect(warnings).toHaveLength(0)
   })
 
-  test('warns and skips cards missing set code', () => {
+  test('warns and skips cards that name no printing', () => {
     const content = `- Bitterbloom Bearer\n- Jeska's Will (CLB:799)\n`
-    const { entries, warnings } = parseCollectionFile(content)
+    const { entries, warnings, diagnostics } = parseCollectionFile(content)
     expect(entries).toHaveLength(1)
     expect(entries[0]!.name).toBe("Jeska's Will")
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('Bitterbloom Bearer')
-    expect(warnings[0]).toContain('missing set code')
+    expect(warnings).toEqual([
+      'line 1: A collection line must name a printing, e.g. (LEA:161): - Bitterbloom Bearer',
+    ])
+    expect(diagnostics).toMatchObject([{ code: 'missing-printing', kind: 'printing' }])
   })
 
-  test('a misspelled language token names its fix on the skip warning', () => {
-    // [JA] is swallowed into the name by backtracking, taking the printing
-    // group with it — the skip warning is where such a line lands.
-    const { entries, warnings } = parseCollectionFile('- Shock (M21:159) [JA]\n')
+  test('the file name prefixes every diagnostic when the caller knows it', () => {
+    const { warnings } = parseCollectionFile('# Binder\n\n- Bitterbloom Bearer\n', {
+      file: 'collections/binder.md',
+    })
+    expect(warnings[0]).toStartWith('collections/binder.md:3: ')
+  })
+
+  test('a misspelled language token names the token and its fix', () => {
+    const { entries, warnings, diagnostics } = parseCollectionFile('- Shock (M21:159) [JA]\n')
     expect(entries).toHaveLength(0)
-    expect(warnings).toEqual([
-      "Skipping 'Shock (M21:159) [JA]': missing set code and collector number (did you mean [ja]?)",
-    ])
+    expect(warnings).toEqual(['line 1: Unrecognized token [JA]. (did you mean [ja]?)'])
+    expect(diagnostics).toMatchObject([{ code: 'unknown-token', token: '[JA]' }])
   })
 
   test('parses card with finish and condition', () => {
@@ -77,15 +81,13 @@ describe('parseCollectionFile', () => {
     expect(warnings).toEqual(['Skipped malformed line: Some text'])
   })
 
-  test('warns on prose, comments, and deep headings, but not the title or blanks', () => {
+  test('warns on prose and deep headings, but not the title, comments, or blanks', () => {
     const content = `# Binder\n\n// sort these later\n### deep heading\n## Page 1\n- Opt (XLN:65) &1\n`
     const { entries, warnings, sectionOrder } = parseCollectionFile(content)
     expect(entries).toHaveLength(1)
     expect(sectionOrder).toEqual(['Page 1'])
-    expect(warnings).toEqual([
-      'Skipped malformed line: // sort these later',
-      'Skipped malformed line: ### deep heading',
-    ])
+    // A `//` comment is a recognized line kind — read, then dropped on write.
+    expect(warnings).toEqual(['Skipped malformed line: ### deep heading'])
   })
 
   test('warns on a second H1 — only the first is the title', () => {
@@ -190,29 +192,38 @@ describe('parseCollectionFile — fenced code blocks', () => {
 })
 
 /**
- * Collections and wanted lists hold one line per copy, so a deck-style quantity
- * prefix lands in the card name and quietly names a card nothing will match.
- * It is an *advisory* rather than a warning: the line parsed and a save would
- * re-emit it verbatim, so it must not trip the whole-file-rewrite gates that
- * exist for content a save would delete.
+ * Collections and wanted lists hold one line per copy, so a quantity on a
+ * bullet is *accepted and expanded*: the parse reads that many entries and says
+ * so with an advisory. An advisory rather than a warning because nothing is
+ * lost — the save rewrites the line as N lines (see `ensure-card-ids.ts`) — so
+ * it must not trip the whole-file-rewrite gates.
  */
-describe('parseCollectionFile — deck-style quantity prefixes', () => {
-  test('advises on a leading quantity, without dropping the line', () => {
-    const { entries, warnings, advisories } = parseCollectionFile('- 1 Sol Ring (C21:240)\n')
-    expect(entries).toHaveLength(1)
-    expect(entries[0]!.name).toBe('1 Sol Ring')
+describe('parseCollectionFile — quantity expansion', () => {
+  test('a quantity yields one entry per copy, with an advisory', () => {
+    const { entries, warnings, advisories, diagnostics } = parseCollectionFile(
+      '- 3 Sol Ring (C21:240) [foil] &4\n',
+    )
+    expect(entries).toHaveLength(3)
+    expect(entries.map((e) => e.name)).toEqual(['Sol Ring', 'Sol Ring', 'Sol Ring'])
+    expect(entries.every((e) => e.quantity === 1 && e.finish === 'foil')).toBe(true)
+    // Only the first copy holds the line's id: the others have none until a
+    // save allocates them one, and duplicating it would make two entries claim
+    // the same `&N`.
+    expect(entries.map((e) => e.cardId)).toEqual([4, undefined, undefined])
     expect(warnings).toHaveLength(0)
     expect(advisories).toHaveLength(1)
-    expect(advisories[0]).toContain("named '1 Sol Ring'")
-    expect(advisories[0]).toContain('one line per copy')
+    expect(advisories[0]).toContain('Read 3 copies')
+    expect(diagnostics).toMatchObject([{ severity: 'advisory', kind: 'quantity-expanded' }])
   })
 
-  test('advises on multi-digit quantities too', () => {
-    const { advisories } = parseCollectionFile('- 12 Lightning Bolt (LEA:161) [foil]\n')
-    expect(advisories).toHaveLength(1)
+  test('a quantity of one is silent and yields one entry', () => {
+    const { entries, advisories } = parseCollectionFile('- 1 Sol Ring (C21:240)\n')
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.name).toBe('Sol Ring')
+    expect(advisories).toEqual([])
   })
 
-  test('leaves a card name that legitimately starts with a year alone', () => {
+  test('a card name that legitimately starts with a year is left alone', () => {
     // `1996 World Champion` is a real card: only a 1-3 digit leading integer
     // reads as a quantity, so four digits parse untouched and unremarked.
     const { entries, advisories } = parseCollectionFile('- 1996 World Champion (PCEL:1)\n')
@@ -220,9 +231,12 @@ describe('parseCollectionFile — deck-style quantity prefixes', () => {
     expect(advisories).toEqual([])
   })
 
-  test('a bare number is a name, not a quantity', () => {
-    const { advisories } = parseCollectionFile('- 60 (UNF:1)\n')
-    expect(advisories).toEqual([])
+  test('a line whose whole name was a quantity is refused, never guessed at', () => {
+    // `- 60 (UNF:1)` reads as sixty copies of a card with no name. Nothing here
+    // is silent: the line warns and the gates block until it is fixed.
+    const { entries, warnings } = parseCollectionFile('- 60 (UNF:1)\n')
+    expect(entries).toHaveLength(0)
+    expect(warnings).toEqual(['line 1: No card name: - 60 (UNF:1)'])
   })
 })
 
@@ -252,22 +266,23 @@ describe('parseCollectionFile — labels token', () => {
     expect(entries[0]!.condition).toBeUndefined()
   })
 
-  test('keep-conflict keeps the entry, drops the labels, and warns', () => {
-    const { entries, warnings } = parseCollectionFile('- Sol Ring (C21:263) [sale,keep] &2\n')
-    expect(entries).toHaveLength(1)
-    expect(entries[0]!.labels).toBeUndefined()
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('Conflicting labels [sale,keep]')
-    expect(warnings[0]).toContain('rewrite would drop them')
+  test('keep-conflict refuses the line and names both labels', () => {
+    // A self-conflicting token is a grammar refusal, not a value one: the line
+    // is skipped and warns, so the rewrite gates block until it is fixed.
+    const { entries, warnings, diagnostics } = parseCollectionFile(
+      '- Sol Ring (C21:263) [sale,keep] &2\n',
+    )
+    expect(entries).toHaveLength(0)
+    expect(warnings).toEqual([
+      'line 1: Conflicting labels [sale,keep] — [keep] cannot be combined with any other label.',
+    ])
+    expect(diagnostics).toMatchObject([{ code: 'conflicting-labels', token: '[sale,keep]' }])
   })
 
-  test('an uppercase token is not a labels token — the line warns like any unknown bracket', () => {
-    // The unmatched bracket is absorbed into the lazy name group (exactly as
-    // `[FOIL]` behaves), so the entry fails the printing requirement and warns.
+  test('an uppercase token is not a labels token — the line warns, naming it', () => {
     const { entries, warnings } = parseCollectionFile('- Sol Ring (C21:263) [SALE]\n')
     expect(entries).toHaveLength(0)
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('missing set code')
+    expect(warnings).toEqual(['line 1: Unrecognized token [SALE].'])
   })
 
   test('absent token leaves labels undefined', () => {
@@ -281,16 +296,10 @@ describe('parseCollectionFile — labels token', () => {
     expect(warnings).toHaveLength(0)
   })
 
-  test('proxy-conflict keeps the entry, drops the labels, and warns', () => {
+  test('proxy-conflict refuses the line too', () => {
     const { entries, warnings } = parseCollectionFile('- Sol Ring (C21:263) [keep,proxy] &2\n')
-    expect(entries[0]!.labels).toBeUndefined()
+    expect(entries).toHaveLength(0)
     expect(warnings[0]).toContain('Conflicting labels [keep,proxy]')
-  })
-
-  test('the line regex embeds the CARD_LABELS vocabulary', () => {
-    // The token alternation is built from the vocabulary; this pins the build
-    // so adding a label cannot silently leave the grammar behind.
-    expect(COLLECTION_CARD_LINE_RE.source).toContain(CARD_LABELS.join('|'))
   })
 })
 
@@ -382,21 +391,131 @@ describe('parseCollectionFile — language token', () => {
     expect(entries[0]!.cardId).toBe(3)
   })
 
-  test('an explicit [en] token is read as en', () => {
-    const { entries } = parseCollectionFile(`- Sol Ring (C19:221) [en]\n`)
-    expect(entries[0]!.language).toBe('en')
+  test('an explicit [en] token folds to no language at all', () => {
+    // A bare line means English and the serializers never write `[en]`, so
+    // storing `en` would give one state two spellings.
+    const { entries, warnings } = parseCollectionFile(`- Sol Ring (C19:221) [en]\n`)
+    expect(warnings).toHaveLength(0)
+    expect(entries[0]!.language).toBeUndefined()
   })
 
   test('an unknown bracket token is not a language and fails the line', () => {
-    const { entries, warnings } = parseCollectionFile(`- Sol Ring (C19:221) [jp]\n`)
+    const { entries, warnings, diagnostics } = parseCollectionFile(`- Sol Ring (C19:221) [jp]\n`)
     expect(entries).toHaveLength(0)
-    expect(warnings).toHaveLength(1)
+    expect(warnings).toEqual(['line 1: Unrecognized token [jp]. (did you mean [ja]?)'])
+    expect(diagnostics).toMatchObject([{ code: 'unknown-token', token: '[jp]' }])
   })
 
-  test('the &N id stays the final capture group with a language present', () => {
-    const match = '- Sol Ring (LTC:284) [foil] [LP] [ja] [keep] {x} &12'.match(
-      COLLECTION_CARD_LINE_RE,
-    )!
-    expect(match[match.length - 1]).toBe('12')
+  test('every token of a full line is read, whatever order they arrive in', () => {
+    const { entries, warnings } = parseCollectionFile(
+      '- Sol Ring (LTC:284) [ja] [LP] [keep] [foil] {x} &12\n',
+    )
+    expect(warnings).toHaveLength(0)
+    expect(entries[0]).toMatchObject({
+      name: 'Sol Ring',
+      set: 'ltc',
+      collectorNumber: '284',
+      finish: 'foil',
+      condition: 'LP',
+      language: 'ja',
+      labels: ['keep'],
+      note: 'x',
+      cardId: 12,
+    })
+  })
+})
+
+/**
+ * The four silent-corruption rows of `research/list-format-review-2026-08-28.md`
+ * §2.1 a *collection* line can exhibit, through the file parser rather than the
+ * tokenizer: whitespace runs, underscore set codes, and token order all used to
+ * eat the printing or leave a trailing space in the name. Row 5 (`[LP]` on a
+ * wanted list) is unreachable here — a collection legitimately carries a
+ * condition — and lives in `wanted-file.test.ts`; the deck half of row 4 is in
+ * `importers/text-file.test.ts`.
+ */
+describe('parseCollectionFile — the drift defects from review §2.1', () => {
+  const rows: readonly [string, string, Record<string, unknown>][] = [
+    ['a double space before the printing', '- Sol Ring  (LEA:270)', { set: 'lea' }],
+    [
+      'a double space before a bracket token',
+      '- Sol Ring (LEA:270)  [foil]',
+      { set: 'lea', finish: 'foil' },
+    ],
+    ['an underscore set code', '- Sol Ring (PLST_X:270)', { set: 'plst_x' }],
+    [
+      'a condition written before the finish',
+      '- Sol Ring (LEA:161) [LP] [foil]',
+      { set: 'lea', finish: 'foil', condition: 'LP' },
+    ],
+  ]
+  for (const [title, line, expected] of rows) {
+    test(`${title} keeps the name and the printing`, () => {
+      const { entries, warnings } = parseCollectionFile(`${line}\n`)
+      expect(warnings).toEqual([])
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).toMatchObject({ name: 'Sol Ring', ...expected })
+    })
+  }
+})
+
+/**
+ * The read tolerances are always on, in a workspace file exactly as in a pasted
+ * import: one grammar, lenient in, canonical out.
+ */
+describe('parseCollectionFile — read tolerance', () => {
+  test('an `Nx` quantity, an export printing and a finish marker all read', () => {
+    const { entries, warnings, advisories, diagnostics } = parseCollectionFile(
+      '- 2x Sol Ring (2XM) 129 *F*\n',
+    )
+    expect(warnings).toEqual([])
+    // The quantity expansion is the one advisory: the dialect rewrites
+    // succeeded, so they are structured detail rather than a message — and
+    // "structured" is half the promise, so the structured channel is asserted
+    // too. Without this, dropping those events entirely would pass.
+    expect(advisories).toHaveLength(1)
+    expect(advisories[0]).toContain('Read 2 copies')
+    expect(diagnostics.map((diagnostic) => diagnostic.kind)).toEqual([
+      'quantity-expanded',
+      'dialect-rewritten',
+      'dialect-rewritten',
+    ])
+    expect(entries).toHaveLength(2)
+    expect(entries[0]).toMatchObject({
+      name: 'Sol Ring',
+      set: '2xm',
+      collectorNumber: '129',
+      finish: 'foil',
+    })
+  })
+
+  test('a `//` in a card name is not a comment — double-faced names survive', () => {
+    const { entries, warnings } = parseCollectionFile('- Fire // Ice (APC:128) &1\n')
+    expect(warnings).toEqual([])
+    expect(entries[0]!.name).toBe('Fire // Ice')
+  })
+})
+
+/**
+ * The tokenizer reads a bare name as a name-only card line, so the *file*
+ * parser decides which lines to offer it. On a flat list that is the `- `
+ * bullet, and nothing else — otherwise a binder's prose becomes cards.
+ */
+describe('parseCollectionFile — prose is never a card', () => {
+  test('commentary between cards warns instead of becoming a card', () => {
+    const content = [
+      '# Binder',
+      '',
+      'These are the cards I keep in the trade folder.',
+      '- Sol Ring (C21:263) &1',
+      'Sol Ring is the best card in the format',
+      '',
+    ].join('\n')
+    const { entries, warnings } = parseCollectionFile(content)
+    expect(entries.map((e) => e.name)).toEqual(['Sol Ring'])
+    expect(warnings).toEqual([
+      'Skipped malformed line: These are the cards I keep in the trade folder.',
+      'Skipped malformed line: Sol Ring is the best card in the format',
+    ])
   })
 })

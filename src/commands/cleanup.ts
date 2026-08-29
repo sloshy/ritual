@@ -324,10 +324,11 @@ export async function cleanupList(
   }
 
   // Reported, never blocking: this is the surface that reads every list file,
-  // and so the one place a quantity-prefixed line in a collection or wanted list
-  // reliably gets said out loud. Most of these lines survive the re-emit
-  // verbatim; a deck's empty extras section is the exception the re-emit drops,
-  // which is precisely why cleanup has to name it.
+  // and so the one place a collection or wanted list's advisories — a quantity
+  // the re-emit expands into one line per copy, a name that still looks like it
+  // holds a printing — reliably get said out loud. Most of these lines survive
+  // the re-emit unchanged; a deck's empty extras section is the exception the
+  // re-emit drops, which is precisely why cleanup has to name it.
   result.warnings.push(...document.advisories)
 
   // A file whose parse skipped lines would lose them if re-emitted; leave its

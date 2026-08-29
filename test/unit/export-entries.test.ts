@@ -124,7 +124,7 @@ describe('loadExportEntries', () => {
     )
     expect(entries).toEqual([])
     expect(warnings).toEqual([
-      "Test List: Skipping 'Lightning Bolt': missing set code and collector number",
+      'Test List: line 1: A collection line must name a printing, e.g. (LEA:161): - Lightning Bolt',
     ])
   })
 })

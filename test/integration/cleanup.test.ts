@@ -63,20 +63,23 @@ describe('cleanup (Integration)', () => {
     expect(await Bun.file(hashPath(filePath)).text()).toBe(computeHash(content) + '\n')
   })
 
-  test('reports a quantity-prefixed line without refusing to rewrite the file', async () => {
-    // An advisory, not a warning: the line parses and the canonical re-emit
-    // preserves it, so cleanup names it *and* still rewrites. `cleanup` is the
-    // one command that reads every list file, so it is where a wanted list's
-    // advisory reliably surfaces — nothing else touches wanted lists in bulk.
+  test('reports a quantity-expanded line without refusing to rewrite the file', async () => {
+    // An advisory, not a warning: a flat list holds one line per copy, so the
+    // copies are read and the re-emit writes them out — nothing is lost, and
+    // cleanup names it *and* still rewrites. `cleanup` is the one command that
+    // reads every list file, so it is where a wanted list's advisory reliably
+    // surfaces — nothing else touches wanted lists in bulk.
     const filePath = path.join(dir(), 'wanted', 'Wants.md')
-    await fs.writeFile(filePath, '- 1 Sol Ring (ltc:284) &1\n')
+    await fs.writeFile(filePath, '- 2 Sol Ring (ltc:284) &1\n')
 
     const result = resultFor(await cleanupAllLists(), 'Wants.md')
 
     expect(result.rewriteBlocked).toBeUndefined()
     expect(result.rewritten).toBeTrue()
-    expect(result.warnings.join('\n')).toContain("reads as a card named '1 Sol Ring'")
-    expect(await fs.readFile(filePath, 'utf-8')).toContain('- 1 Sol Ring (LTC:284) &1')
+    expect(result.warnings.join('\n')).toContain('Read 2 copies')
+    const content = await fs.readFile(filePath, 'utf-8')
+    expect(content).toContain('- Sol Ring (LTC:284) &1')
+    expect(content.match(/- Sol Ring \(LTC:284\)/g)).toHaveLength(2)
   })
 
   test("clears a deck's empty extras section and says so", async () => {

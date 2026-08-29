@@ -4,14 +4,8 @@ import { tmpdir } from 'node:os'
 import { unlink, writeFile } from 'node:fs/promises'
 import { serializeCardLine } from '../../../src/list/deck-text'
 import {
-  DECK_CARD_LINE_RE,
-  DECK_LINE_ID_GROUP,
-  DECK_LINE_LABELS_GROUP,
-  DECK_LINE_LANGUAGE_GROUP,
-  DECK_LINE_NOTE_GROUP,
   IMPORT_TEXT_PARSE_OPTIONS,
   importFromTextFile,
-  matchArenaSuffix,
   parseDeckText,
 } from '../../../src/importers/text-file'
 import { unreadableLines } from '../../../src/list/markdown-fence'
@@ -59,12 +53,14 @@ describe('parseDeckText', () => {
     expect(parseDeckText('---\nname: Test\n---\n1 Sol Ring', 'X').deck.format).toBeUndefined()
   })
 
-  test('parses an empty {} note as empty string (does not bleed into name)', () => {
+  test('parses an empty {} note as no note at all (does not bleed into name)', () => {
     // A hand-edited file with `{}` should not corrupt the parsed card name.
+    // The writer drops an empty note, so reading one as `''` would give a
+    // single state two spellings.
     const { deck } = parseDeckText('1 Sol Ring {} &1', 'X')
     const card = deck.sections[0]!.cards[0]!
     expect(card.name).toBe('Sol Ring')
-    expect(card.note).toBe('')
+    expect(card.note).toBeUndefined()
     expect(card.cardId).toBe(1)
   })
 
@@ -275,20 +271,17 @@ describe('parseDeckText — fenced code blocks', () => {
 })
 
 /**
- * The MTG Arena / MTGO export dialect, which only the import surfaces opt into.
- * The cases that matter are: the dialect is read when asked for, Ritual's own
- * canonical grammar is never reinterpreted by it, and an unrecognized dialect
- * produces an advisory instead of a silently corrupted card name.
+ * The MTG Arena / MTGO export dialect, which every surface reads: tolerance is
+ * a property of the one card-line grammar, not a mode a caller opts into. The
+ * cases that matter are: the dialect is read, Ritual's own canonical grammar is
+ * never reinterpreted by it, and an *unrecognized* dialect produces an advisory
+ * instead of a silently corrupted card name.
  */
-describe('parseDeckText — Arena dialect', () => {
-  const arena = { arenaDialect: true }
-
+describe('parseDeckText — Arena / MTGO export dialect', () => {
   test('lifts `N Name (SET) NUM` into the printing', () => {
     const { deck, warnings, advisories } = parseDeckText(
       '4 Lightning Bolt (M10) 146\n2 Shock (M20) 160',
       'Arena',
-      undefined,
-      arena,
     )
     expect(warnings).toEqual([])
     expect(advisories).toEqual([])
@@ -302,7 +295,7 @@ describe('parseDeckText — Arena dialect', () => {
     // Half a printing cannot be written to a card line (`printingSuffix` needs
     // both), so lifting it would delete the token from the file. The user's text
     // survives instead, and the advisory says the line was not understood.
-    const { deck, advisories } = parseDeckText('1 Sol Ring (LTC)', 'Arena', undefined, arena)
+    const { deck, advisories } = parseDeckText('1 Sol Ring (LTC)', 'Arena')
     expect(deck.sections[0]?.cards[0]).toMatchObject({
       quantity: 1,
       name: 'Sol Ring (LTC)',
@@ -310,7 +303,7 @@ describe('parseDeckText — Arena dialect', () => {
       collectorNumber: undefined,
     })
     expect(advisories).toEqual([
-      "Card name still contains a printing token, so the line's format was not recognized: 1 Sol Ring (LTC)",
+      "line 1: Card name still contains a printing token, so the line's format was not recognized: 1 Sol Ring (LTC)",
     ])
   })
 
@@ -321,7 +314,7 @@ describe('parseDeckText — Arena dialect', () => {
   ])('does not rewrite the real card name %p', (cardName) => {
     // The parenthesized-word suffix is part of these names. Requiring a
     // collector number is what keeps the dialect from inventing a printing.
-    const { deck } = parseDeckText(`1 ${cardName}`, 'Arena', undefined, arena)
+    const { deck } = parseDeckText(`1 ${cardName}`, 'Arena')
     expect(deck.sections[0]?.cards[0]).toMatchObject({ name: cardName, set: undefined })
   })
 
@@ -329,12 +322,7 @@ describe('parseDeckText — Arena dialect', () => {
     ['*F*', 'foil'],
     ['*E*', 'etched'],
   ])('reads a trailing %p export finish marker', (marker, finish) => {
-    const { deck, advisories } = parseDeckText(
-      `1 Sol Ring (LTC) 284 ${marker}`,
-      'Arena',
-      undefined,
-      arena,
-    )
+    const { deck, advisories } = parseDeckText(`1 Sol Ring (LTC) 284 ${marker}`, 'Arena')
     expect(advisories).toEqual([])
     expect(deck.sections[0]?.cards[0]).toMatchObject({
       name: 'Sol Ring',
@@ -344,10 +332,14 @@ describe('parseDeckText — Arena dialect', () => {
     })
   })
 
-  test('a finish marker is not read outside the dialect', () => {
-    // Ritual's own files spell a finish `[foil]`; a `*F*` there is name text.
-    const { deck } = parseDeckText('1 Sol Ring *F*', 'fallback')
-    expect(deck.sections[0]?.cards[0]).toMatchObject({ name: 'Sol Ring *F*', finish: undefined })
+  test('a finish marker is read wherever it appears — tolerance is not a mode', () => {
+    // Read tolerance belongs to the one card-line grammar, not to the surface
+    // that called it: a `*F*` means foil in a workspace file too, and the next
+    // save writes it back as the canonical `[foil]`.
+    const { deck, advisories } = parseDeckText('1 Sol Ring *F*', 'fallback')
+    expect(deck.sections[0]?.cards[0]).toMatchObject({ name: 'Sol Ring', finish: 'foil' })
+    // The rewrite succeeded, so it is structured detail rather than an advisory.
+    expect(advisories).toEqual([])
   })
 
   test.each(['Constructor', '__proto__', 'toString'])(
@@ -356,12 +348,7 @@ describe('parseDeckText — Arena dialect', () => {
       // The lookup key is arbitrary file content; an object literal would answer
       // these with something other than `undefined` and start a section named by
       // a function.
-      const { deck, warnings } = parseDeckText(
-        `${line}\n1 Sol Ring (M19) 1\n`,
-        'fallback',
-        undefined,
-        arena,
-      )
+      const { deck, warnings } = parseDeckText(`${line}\n1 Sol Ring (M19) 1\n`, 'fallback')
       expect(warnings).toEqual([`Skipped malformed line: ${line}`])
       expect(deck.sections.map((s) => s.name)).toEqual(['Main'])
     },
@@ -371,8 +358,6 @@ describe('parseDeckText — Arena dialect', () => {
     const { deck, warnings } = parseDeckText(
       'Companion\n1 Lurrus of the Dream-Den (IKO) 226\n\nDeck\n4 Mountain (M20) 274\n',
       'Arena',
-      undefined,
-      arena,
     )
     expect(warnings).toEqual([])
     expect(deck.sections.map((s) => s.name)).toEqual(['Companion', 'Main'])
@@ -383,17 +368,12 @@ describe('parseDeckText — Arena dialect', () => {
     // missing must not be silently dropped by a re-serialize.
     // At level 1 the leading bucket is a document title and is exempt, so this
     // assertion is what pins the marker's `##`-equivalence.
-    const { warnings } = parseDeckText(
-      'Commander\n\nDeck\n4 Mountain (M20) 274\n',
-      'Arena',
-      undefined,
-      arena,
-    )
+    const { warnings } = parseDeckText('Commander\n\nDeck\n4 Mountain (M20) 274\n', 'Arena')
     expect(warnings).toEqual(['Skipped empty section: Commander'])
   })
 
   test('lowercases the set code and keeps a starred collector number', () => {
-    const { deck } = parseDeckText('1 Llanowar Elves (M19) 314★', 'Arena', undefined, arena)
+    const { deck } = parseDeckText('1 Llanowar Elves (M19) 314★', 'Arena')
     expect(deck.sections[0]?.cards[0]).toMatchObject({ set: 'm19', collectorNumber: '314★' })
   })
 
@@ -401,8 +381,6 @@ describe('parseDeckText — Arena dialect', () => {
     const { deck, warnings } = parseDeckText(
       'Commander\n1 Krenko, Mob Boss (M19) 149\n\nDeck\n4 Mountain (M20) 274\n\nSideboard\n2 Pyroblast (ICE) 213\n',
       'Arena',
-      undefined,
-      arena,
     )
     expect(warnings).toEqual([])
     expect(deck.sections.map((s) => s.name)).toEqual(['Commander', 'Main', 'Sideboard'])
@@ -413,8 +391,6 @@ describe('parseDeckText — Arena dialect', () => {
     const { deck, warnings, advisories } = parseDeckText(
       'About\nName Mono-Red Aggro\nSomething Else\n\nDeck\n4 Shock (M20) 160\n',
       'fallback',
-      undefined,
-      arena,
     )
     expect(deck.name).toBe('Mono-Red Aggro')
     expect(warnings).toEqual([])
@@ -425,15 +401,13 @@ describe('parseDeckText — Arena dialect', () => {
     const { deck } = parseDeckText(
       '---\nname: Front Matter Deck\n---\nAbout\nName Arena Name\n\nDeck\n1 Shock (M20) 160\n',
       'fallback',
-      undefined,
-      arena,
     )
     expect(deck.name).toBe('Front Matter Deck')
   })
 
   test('does not reinterpret canonical Ritual card lines', () => {
     const line = '1 Lightning Bolt (LEA:161) [foil] [NM] {trade binder} &12'
-    const { deck, advisories, warnings } = parseDeckText(line, 'Canonical', undefined, arena)
+    const { deck, advisories, warnings } = parseDeckText(line, 'Canonical')
     expect(warnings).toEqual([])
     expect(advisories).toEqual([])
     expect(deck.sections[0]?.cards[0]).toEqual({
@@ -449,12 +423,7 @@ describe('parseDeckText — Arena dialect', () => {
   })
 
   test('a canonical note containing a printing token is left alone', () => {
-    const { deck, advisories } = parseDeckText(
-      '1 Lightning Bolt {was (M10) 146}',
-      'Canonical',
-      undefined,
-      arena,
-    )
+    const { deck, advisories } = parseDeckText('1 Lightning Bolt {was (M10) 146}', 'Canonical')
     expect(advisories).toEqual([])
     expect(deck.sections[0]?.cards[0]).toMatchObject({
       name: 'Lightning Bolt',
@@ -463,32 +432,35 @@ describe('parseDeckText — Arena dialect', () => {
     })
   })
 
-  test('without the dialect a marker line is a skipped line and the printing stays in the name', () => {
+  test('a marker line and an export printing are read wherever they appear', () => {
+    // The dialect stopped being a mode in P2: one grammar, always tolerant, so
+    // a workspace file that picked up Arena shapes reads the same as an import.
     const { deck, warnings, advisories } = parseDeckText(
       'Sideboard\n4 Lightning Bolt (M10) 146',
       'Strict',
     )
-    // Strict loads of workspace files keep the old behavior — nothing is
-    // silently reinterpreted — but the suspicious name is now called out.
-    expect(warnings).toEqual(['Skipped malformed line: Sideboard'])
-    expect(deck.sections[0]?.cards[0]?.name).toBe('Lightning Bolt (M10) 146')
-    expect(advisories).toEqual([
-      "Card name still contains a printing token, so the line's format was not recognized: 4 Lightning Bolt (M10) 146",
-    ])
+    expect(warnings).toEqual([])
+    expect(advisories).toEqual([])
+    expect(deck.sections.map((s) => s.name)).toEqual(['Sideboard'])
+    expect(deck.sections[0]?.cards[0]).toMatchObject({
+      name: 'Lightning Bolt',
+      set: 'm10',
+      collectorNumber: '146',
+    })
   })
 
   test('a printing token the dialect cannot lift still advises', () => {
     // A printing token with no card name in front of it: the Arena grammar
     // cannot lift it (that would leave a nameless card), so the line is imported
     // as-is and the advisory says the format was not understood.
-    const { deck, advisories } = parseDeckText('4 (M10) 146', 'Odd', undefined, arena)
+    const { deck, advisories } = parseDeckText('4 (M10) 146', 'Odd')
     expect(deck.sections[0]?.cards[0]?.name).toBe('(M10) 146')
     expect(advisories).toHaveLength(1)
     expect(advisories[0]).toContain('still contains a printing token')
   })
 
   test('a plain card name never triggers an advisory', () => {
-    const { advisories } = parseDeckText('4 Lightning Bolt\n1 Sol Ring', 'Plain', undefined, arena)
+    const { advisories } = parseDeckText('4 Lightning Bolt\n1 Sol Ring', 'Plain')
     expect(advisories).toEqual([])
   })
 })
@@ -546,31 +518,6 @@ describe('parseDeckText — fenced content on the import path', () => {
   })
 })
 
-describe('matchArenaSuffix', () => {
-  test('a complete printing is liftable', () => {
-    expect(matchArenaSuffix('Lightning Bolt (M10) 146')).toEqual({
-      kind: 'printing',
-      name: 'Lightning Bolt',
-      set: 'm10',
-      collectorNumber: '146',
-    })
-  })
-
-  test.each(['Sol Ring (LTC)', 'Very Cryptic Command (Untap)', '(M10) 146'])(
-    'a set-like token with no complete printing is only suspect: %p',
-    (name) => {
-      expect(matchArenaSuffix(name)).toEqual({ kind: 'suspect' })
-    },
-  )
-
-  test.each(['Lightning Bolt', 'Sol Ring (LEA:1)', 'Fire // Ice'])(
-    'an ordinary name matches nothing: %p',
-    (name) => {
-      expect(matchArenaSuffix(name)).toEqual({ kind: 'none' })
-    },
-  )
-})
-
 describe('parseDeckText — language token', () => {
   test('reads a [ja] token after finish and condition', () => {
     const { deck, warnings } = parseDeckText('## Main\n2 Sol Ring (LTC:284) [foil] [LP] [ja]', 'd')
@@ -598,40 +545,62 @@ describe('parseDeckText — language token', () => {
     expect(card.cardId).toBe(3)
   })
 
-  test('an explicit [en] token is read as en, not folded to undefined', () => {
-    // The serializer never writes [en], but a hand-written token must still
-    // parse: absent-vs-en is a write-side fold, not a read-side one.
+  test('an explicit [en] token folds to no language at all', () => {
+    // A bare line means English and the serializer never writes `[en]`, so
+    // storing `en` would give one state two spellings.
     const { deck, warnings } = parseDeckText('## Main\n1 Sol Ring (LTC:284) [en]', 'd')
     expect(warnings).toHaveLength(0)
-    expect(deck.sections[0]!.cards[0]!.language).toBe('en')
+    expect(deck.sections[0]!.cards[0]!.language).toBeUndefined()
   })
 
-  test('[jp] is not a language: the line fails with the did-you-mean hint', () => {
-    // Mirrors the collection parser's [jp] rejection. Only the quantity-less
-    // form reaches the malformed branch — with a leading quantity the grammar
-    // backtracks the unknown token into the card name instead (pinned below).
+  test('[jp] is not a language: a line with no quantity is prose, and warns as such', () => {
+    // No leading quantity, so it is not a card candidate at all — the file
+    // parser reports it as an unreadable line, hint included.
     const { deck, warnings } = parseDeckText('## Main\nShock (M21:159) [jp]', 'd')
     expect(deck.sections[0]?.cards ?? []).toHaveLength(0)
     expect(warnings).toEqual(['Skipped malformed line: Shock (M21:159) [jp] (did you mean [ja]?)'])
   })
 
-  test('a quantity line swallows an unknown bracket token into the name (no warning)', () => {
-    // Documented limitation: `1 Shock (M21:159) [jp]` matches the name-only
-    // grammar, so the token lands inside the name silently. If this ever warns
-    // instead, that is an improvement — update this pin, not the parser back.
-    const { deck, warnings } = parseDeckText('## Main\n1 Shock (M21:159) [jp]', 'd')
-    expect(warnings).toHaveLength(0)
-    expect(deck.sections[0]!.cards[0]!.name).toBe('Shock (M21:159) [jp]')
-    expect(deck.sections[0]!.cards[0]!.language).toBeUndefined()
+  test('[jp] on a card line is refused by name, never swallowed into the name', () => {
+    // The old grammar backtracked the unknown token into the card name and
+    // said nothing, so the card missed the cache, Scryfall and every sync join.
+    const { deck, warnings, diagnostics } = parseDeckText('## Main\n1 Shock (M21:159) [jp]', 'd')
+    expect(deck.sections[0]?.cards ?? []).toHaveLength(0)
+    expect(warnings).toEqual(['line 2: Unrecognized token [jp]. (did you mean [ja]?)'])
+    expect(diagnostics).toMatchObject([{ code: 'unknown-token', token: '[jp]' }])
   })
 
-  test('the DECK_CARD_LINE_RE keeps &N as the final capture group', () => {
-    const match = '2 Sol Ring (LTC:284) [foil] [LP] [ja] [proxy] {x} &12'.match(DECK_CARD_LINE_RE)!
-    expect(match[match.length - 1]).toBe('12')
-    expect(match[DECK_LINE_LANGUAGE_GROUP]).toBe('ja')
-    expect(match[DECK_LINE_LABELS_GROUP]).toBe('proxy')
-    expect(match[DECK_LINE_NOTE_GROUP]).toBe('x')
-    expect(match[DECK_LINE_ID_GROUP]).toBe('12')
+  test('a diagnostic line number counts the front-matter block', () => {
+    // The deck parser reads the body gray-matter hands back, so every card-line
+    // diagnostic is offset by where the block ends. An off-by-one here points
+    // the user (and an editor squiggle) at the wrong line of their file.
+    const content = '---\nname: D\n---\n\n## Main\n1 Shock (M21:159) [jp]'
+    expect(parseDeckText(content, 'd').warnings).toEqual([
+      'line 6: Unrecognized token [jp]. (did you mean [ja]?)',
+    ])
+    expect(
+      parseDeckText(content, 'd', undefined, { file: 'decks/burn.md' }).warnings[0],
+    ).toStartWith('decks/burn.md:6: ')
+  })
+
+  test('every token of a full line is read, whatever order they arrive in', () => {
+    const { deck, warnings } = parseDeckText(
+      '## Main\n2 Sol Ring [proxy] (LTC:284) [ja] {x} [LP] [foil] &12',
+      'd',
+    )
+    expect(warnings).toHaveLength(0)
+    expect(deck.sections[0]!.cards[0]).toEqual({
+      quantity: 2,
+      name: 'Sol Ring',
+      set: 'ltc',
+      collectorNumber: '284',
+      finish: 'foil',
+      condition: 'LP',
+      language: 'ja',
+      labels: ['proxy'],
+      note: 'x',
+      cardId: 12,
+    })
   })
 
   test("a [proxy] token parses as the line's label override and round-trips", () => {
@@ -673,10 +642,14 @@ describe('parseDeckText — language token', () => {
     expect(warnings).toHaveLength(0)
   })
 
-  test('a conflicting labels token warns and drops the override', () => {
+  test('a conflicting labels token refuses the line and names both labels', () => {
+    // A self-conflicting token is a grammar refusal, not a value one: the line
+    // is skipped and warns, so the rewrite gates block until it is fixed.
     const { deck, warnings } = parseDeckText('## Main\n1 Sol Ring (LTC:284) [sale,proxy] &1', 'd')
-    expect(deck.sections[0]!.cards[0]!.labels).toBeUndefined()
-    expect(warnings[0]).toContain('Conflicting labels [sale,proxy]')
+    expect(deck.sections[0]?.cards ?? []).toHaveLength(0)
+    expect(warnings).toEqual([
+      'line 2: Conflicting labels [sale,proxy] — [proxy] cannot be combined with any other label.',
+    ])
   })
 
   test('a name-only deck line takes a language token', () => {
@@ -685,5 +658,77 @@ describe('parseDeckText — language token', () => {
     expect(card.name).toBe('Sol Ring')
     expect(card.set).toBeUndefined()
     expect(card.language).toBe('ja')
+  })
+})
+
+/**
+ * The read tolerances are always on, in a workspace file exactly as in a pasted
+ * import: one grammar, lenient in, canonical out. A file that picked up an
+ * export's shapes is read, not refused — and the next save writes it back
+ * canonically.
+ */
+describe('parseDeckText — read tolerance in a workspace file', () => {
+  test('an `Nx` quantity, an export printing and a finish marker all read', () => {
+    const { deck, warnings, advisories } = parseDeckText(
+      '## Main\n4x Lightning Bolt (2XM) 129 *F*\n',
+      'Workspace',
+    )
+    expect(warnings).toEqual([])
+    expect(advisories).toEqual([])
+    expect(deck.sections[0]!.cards[0]).toMatchObject({
+      quantity: 4,
+      name: 'Lightning Bolt',
+      set: '2xm',
+      collectorNumber: '129',
+      finish: 'foil',
+    })
+  })
+
+  test('a `//` comment is a recognized line kind, not an unreadable line', () => {
+    const { deck, warnings, advisories } = parseDeckText(
+      '## Main\n// pulled from the primer\n1 Sol Ring (LTC:284) &1\n',
+      'Workspace',
+    )
+    expect(warnings).toEqual([])
+    expect(advisories).toEqual([])
+    expect(deck.sections[0]!.cards.map((c) => c.name)).toEqual(['Sol Ring'])
+  })
+
+  test('a `//` in a card name is not a comment — double-faced names survive', () => {
+    const { deck, warnings } = parseDeckText('## Main\n1 Fire // Ice (APC:128) &1\n', 'Workspace')
+    expect(warnings).toEqual([])
+    expect(deck.sections[0]!.cards[0]!.name).toBe('Fire // Ice')
+  })
+
+  test('a whitespace run between tokens no longer eats the printing', () => {
+    const { deck, warnings } = parseDeckText('## Main\n1  Sol Ring  (LTC:284)   [foil]\n', 'W')
+    expect(warnings).toEqual([])
+    expect(deck.sections[0]!.cards[0]).toMatchObject({
+      name: 'Sol Ring',
+      set: 'ltc',
+      finish: 'foil',
+    })
+  })
+})
+
+/**
+ * The tokenizer reads a bare name as a name-only card line, so the *file*
+ * parser decides which lines to offer it: in a deck that is a leading quantity.
+ * An imported decklist's commentary must stay commentary.
+ */
+describe('parseDeckText — prose is never a card', () => {
+  test('commentary between card lines warns instead of becoming cards', () => {
+    const content = [
+      '## Main',
+      '1 Sol Ring (LTC:284) &1',
+      'Sideboard ideas: maybe a counterspell',
+      'Sol Ring is the best card in the format',
+    ].join('\n')
+    const { deck, warnings } = parseDeckText(content, 'X')
+    expect(deck.sections[0]!.cards.map((c) => c.name)).toEqual(['Sol Ring'])
+    expect(warnings).toEqual([
+      'Skipped malformed line: Sideboard ideas: maybe a counterspell',
+      'Skipped malformed line: Sol Ring is the best card in the format',
+    ])
   })
 })

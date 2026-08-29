@@ -16,6 +16,7 @@
  */
 
 import { isCardLanguage, normalizeLanguageValue, type CardLanguage } from '../card/card-language'
+import { LABEL_TOKEN_PATTERN } from '../card/card-labels'
 
 export type ChangelogAction =
   | 'Added'
@@ -64,7 +65,7 @@ export type ChangelogPage = {
   changes: ChangelogChange[]
 }
 
-// The board alternation must stay in sync with `BOARDS` in `types.ts`. Three
+// The board alternation must stay in sync with `BOARDS` in `../list/deck.ts`. Three
 // optional bracket groups: finish, condition, and language can all be
 // annotated on one line (`(NEO:234) [foil] [LP] [ja]`); each token is
 // classified by value-set membership, not position.
@@ -84,8 +85,9 @@ const CLEARED_NOTE_LINE_REGEX = /^-\s+Cleared\s+note\s+on\s+(.+?)(?:\s+&\d+)?\s*
  * Matches `Set labels on "Card Name" &5 to [sale,trade]`. The bracketed token
  * body is the canonical card-line vocabulary, so the alternation mirrors it.
  */
-const SET_LABELS_LINE_REGEX =
-  /^-\s+Set\s+labels\s+on\s+(.+?)(?:\s+&\d+)?\s+to\s+\[((?:sale|trade|keep|proxy)(?:,(?:sale|trade|keep|proxy))*)\]\s*$/
+const SET_LABELS_LINE_REGEX = new RegExp(
+  `^-\\s+Set\\s+labels\\s+on\\s+(.+?)(?:\\s+&\\d+)?\\s+to\\s+\\[(${LABEL_TOKEN_PATTERN}(?:,${LABEL_TOKEN_PATTERN})*)\\]\\s*$`,
+)
 /** Matches `Cleared labels on "Card Name" &5`. */
 const CLEARED_LABELS_LINE_REGEX = /^-\s+Cleared\s+labels\s+on\s+(.+?)(?:\s+&\d+)?\s*$/
 /**

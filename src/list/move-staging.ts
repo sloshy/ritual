@@ -30,11 +30,11 @@ import {
 import type { Card } from '../card/card'
 import type { DeckData } from './deck'
 import type { ListRef, PrintingTuple } from '../changes/change-event'
-import { displayLanguage, isCardLanguage, type CardLanguage } from '../card/card-language'
+import { displayLanguage, type CardLanguage } from '../card/card-language'
 import { findMatchKey } from '../card/find-search'
 import { t } from '../i18n/t'
-import { COLLECTION_CARD_LINE_RE, COLLECTION_LINE_LANGUAGE_GROUP } from './collection-file'
-import { isCondition, isFinish, type Condition, type Finish } from '../card/finish-condition'
+import { readCardLine } from '../card/card-line-read'
+import type { Condition, Finish } from '../card/finish-condition'
 import {
   normalizedOverride,
   sameCardLabels,
@@ -94,7 +94,14 @@ export type DeckWithFrontMatter = {
 }
 
 type StagedDeckFile = { kind: 'deck'; data: DeckWithFrontMatter }
-type StagedTextFile = { kind: 'text'; content: string }
+/**
+ * A staged flat list. It carries its own `type` because the card-line grammar
+ * differs between the two: a collection line always names a printing and may
+ * carry a condition and labels, a wanted line may do neither. Reading a wanted
+ * file through the collection grammar (as one shared regex used to) refuses
+ * every name-only bullet in it.
+ */
+type StagedTextFile = { kind: 'text'; type: 'collection' | 'wanted'; content: string }
 export type StagedFile = StagedDeckFile | StagedTextFile
 
 /**
@@ -150,7 +157,7 @@ export async function loadStagedFile(
       message: t('cli.move.cannotReadFile', { file: filePath }),
     }
   }
-  return { ok: true, file: { kind: 'text', content } }
+  return { ok: true, file: { kind: 'text', type, content } }
 }
 
 /**
@@ -284,25 +291,25 @@ function removeDeckCopy(
 }
 
 /**
- * What a flat-list bullet says about its card, read through the canonical line
- * grammar (`COLLECTION_CARD_LINE_RE`, of which a wanted line is a subset: no
- * condition). Set code lowercased, as every in-memory representation is.
+ * What a flat-list bullet says about its card, read through the one card-line
+ * grammar for the staged file's own type. Set code lowercased, as every
+ * in-memory representation is.
  */
 type TextLineFields = PrintingTuple & { name: string; cardId?: number }
 
-/** The canonical parse of a flat-list bullet, or `undefined` when the line is not one. */
-function textLineFields(trimmed: string): TextLineFields | undefined {
-  const m = trimmed.match(COLLECTION_CARD_LINE_RE)
-  if (!m) return undefined
-  const language = m[COLLECTION_LINE_LANGUAGE_GROUP]
+/** The parse of a flat-list bullet, or `undefined` when the line is not one. */
+function textLineFields(staged: StagedTextFile, trimmed: string): TextLineFields | undefined {
+  const read = readCardLine(staged.type, trimmed)
+  if (read === undefined) return undefined
+  const { name, printing, finish, condition, language, cardId } = read.tokens
   return {
-    name: m[1]!,
-    set: m[2]?.toLowerCase(),
-    collectorNumber: m[3],
-    finish: isFinish(m[4]) ? m[4] : undefined,
-    condition: isCondition(m[5]) ? m[5] : undefined,
-    language: language !== undefined && isCardLanguage(language) ? language : undefined,
-    cardId: m[9] !== undefined ? Number.parseInt(m[9], 10) : undefined,
+    name,
+    set: printing?.set,
+    collectorNumber: printing?.collectorNumber,
+    finish,
+    condition,
+    language,
+    cardId,
   }
 }
 
@@ -334,7 +341,7 @@ function removeTextLine(
   // remove a line the canonical grammar cannot read; that copy reports its
   // `&N` and an empty name, never the raw line text, so a future caller
   // could not write the bullet itself into a changelog.
-  const removed: RemovedCopy = textLineFields(trimmed) ?? {
+  const removed: RemovedCopy = textLineFields(staged, trimmed) ?? {
     name: '',
     cardId: readCardId(trimmed),
   }
@@ -352,7 +359,7 @@ function applyRemoveFromText(staged: StagedTextFile, card: PhysicalCard): boolea
   }
   // Fallback: match by name, also using set/collectorNumber when available
   const removed = removeTextLine(staged, (trimmed) => {
-    const line = textLineFields(trimmed)
+    const line = textLineFields(staged, trimmed)
     if (line === undefined || line.name !== card.name) return false
     if (card.set !== undefined && card.collectorNumber !== undefined && line.set !== undefined) {
       return (
@@ -491,7 +498,7 @@ export function applyRemoveIncomingFromStaged(
   }
   for (const match of tiers) {
     const removed = removeTextLine(staged, (trimmed) => {
-      const line = textLineFields(trimmed)
+      const line = textLineFields(staged, trimmed)
       return line !== undefined && match(line)
     })
     if (removed !== null) return removed

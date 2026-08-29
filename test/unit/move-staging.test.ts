@@ -29,6 +29,7 @@ describe('applyRemoveFromStaged (text) line matching', () => {
     // the foil copy (&2) must not touch the nonfoil line (&1).
     const staged: StagedFile = {
       kind: 'text',
+      type: 'collection',
       content: '# finishes\n\n## Main\n- Sol Ring (C19:221) &1\n- Sol Ring (C19:221) [foil] &2\n',
     }
     const removed = applyRemoveFromStaged(
@@ -43,6 +44,7 @@ describe('applyRemoveFromStaged (text) line matching', () => {
     expect(removed).toBe(true)
     expect(staged).toEqual({
       kind: 'text',
+      type: 'collection',
       content: '# finishes\n\n## Main\n- Sol Ring (C19:221) &1\n',
     })
   })
@@ -50,6 +52,7 @@ describe('applyRemoveFromStaged (text) line matching', () => {
   test('a card ID present in the source but missing from the file removes nothing', () => {
     const staged: StagedFile = {
       kind: 'text',
+      type: 'collection',
       content: '# binder\n\n## Main\n- Sol Ring (C19:221) &1\n',
     }
     const removed = applyRemoveFromStaged(
@@ -63,6 +66,7 @@ describe('applyRemoveFromStaged (text) line matching', () => {
   test('without an ID, the name match narrows by set and collector number', () => {
     const staged: StagedFile = {
       kind: 'text',
+      type: 'collection',
       content: '# binder\n\n## Main\n- Sol Ring (C19:221)\n- Sol Ring (LEA:270)\n',
     }
     const removed = applyRemoveFromStaged(
@@ -133,7 +137,11 @@ describe('applyAddToStaged label handling', () => {
   })
 
   test('a collection destination keeps the whole override', () => {
-    const staged: StagedFile = { kind: 'text', content: '# Binder\n\n- Mox Pearl (LEA:265) &1\n' }
+    const staged: StagedFile = {
+      kind: 'text',
+      type: 'collection',
+      content: '# Binder\n\n- Mox Pearl (LEA:265) &1\n',
+    }
     applyAddToStaged(
       staged,
       physicalCard('Sol Ring', {
@@ -344,8 +352,11 @@ describe('applyAddToStaged (deck) dropped-note reporting', () => {
 })
 
 describe('applyRemoveIncomingFromStaged line matching', () => {
+  // A wanted list: it is the flat type that holds a printing-less bullet
+  // (`- Brainstorm &1`), which tier 3 of the incoming matcher exists for.
   const text = (): Extract<StagedFile, { kind: 'text' }> => ({
     kind: 'text',
+    type: 'wanted',
     content:
       '# binder\n\n## Main\n- Brainstorm &1\n- Sol Ring (C21:263) &2\n- Sol Ring (C19:221) [foil] &3\n- Sol Ring (C19:221) [foil] &4\n- Bruce Banner (MUL:1) &5\n',
   })
@@ -371,7 +382,11 @@ describe('applyRemoveIncomingFromStaged line matching', () => {
     // line whose token states the finish exactly.
     const bare =
       '# binder\n\n## Main\n- Jeweled Lotus (CMR:725) &1\n- Jeweled Lotus (CMR:725) [foil] &2\n'
-    const hinted: Extract<StagedFile, { kind: 'text' }> = { kind: 'text', content: bare }
+    const hinted: Extract<StagedFile, { kind: 'text' }> = {
+      kind: 'text',
+      type: 'collection',
+      content: bare,
+    }
     expect(
       applyRemoveIncomingFromStaged(hinted, {
         name: 'Jeweled Lotus',
@@ -385,7 +400,11 @@ describe('applyRemoveIncomingFromStaged line matching', () => {
 
     // Unhinted, the `[foil]` line is the exact copy and goes first; the bare
     // line is taken once no tokened line is left.
-    const unhinted: Extract<StagedFile, { kind: 'text' }> = { kind: 'text', content: bare }
+    const unhinted: Extract<StagedFile, { kind: 'text' }> = {
+      kind: 'text',
+      type: 'collection',
+      content: bare,
+    }
     const lotusFoil = {
       name: 'Jeweled Lotus',
       set: 'cmr',
@@ -398,6 +417,7 @@ describe('applyRemoveIncomingFromStaged line matching', () => {
     // A tokened `[foil]` line is never taken for a nonfoil copy.
     const tokened: Extract<StagedFile, { kind: 'text' }> = {
       kind: 'text',
+      type: 'collection',
       content: '# binder\n\n## Main\n- Jeweled Lotus (CMR:725) [foil] &2\n',
     }
     expect(
@@ -413,6 +433,7 @@ describe('applyRemoveIncomingFromStaged line matching', () => {
   test('a tokened line with the exact finish outranks a bare line of the printing, whatever the file order', () => {
     const staged: Extract<StagedFile, { kind: 'text' }> = {
       kind: 'text',
+      type: 'collection',
       content: '# binder\n\n## Main\n- Sol Ring (LEA:1) &3\n- Sol Ring (LEA:1) [foil] &4\n',
     }
     expect(

@@ -1,9 +1,5 @@
 import { describe, test, expect } from 'bun:test'
-import {
-  parseWantedListFile,
-  formatWantedListLine,
-  WANTED_CARD_LINE_RE,
-} from '../../src/list/wanted-file'
+import { parseWantedListFile, formatWantedListLine } from '../../src/list/wanted-file'
 
 describe('parseWantedListFile', () => {
   test('parses a name-only entry (state 1)', () => {
@@ -102,13 +98,13 @@ describe('parseWantedListFile', () => {
     expect(warnings).toEqual(['Skipped malformed line: -'])
   })
 
-  test('warns on prose and other non-bullet lines, but not the title or blanks', () => {
+  test('warns on prose and deep headings, but not the title, comments, or blanks', () => {
     const { entries, warnings } = parseWantedListFile(
       '# Wants\n\n// sort these later\nsome prose\n### deep heading\n- Sol Ring &1\n',
     )
     expect(entries).toHaveLength(1)
+    // A `//` comment is a recognized line kind — read, then dropped on write.
     expect(warnings).toEqual([
-      'Skipped malformed line: // sort these later',
       'Skipped malformed line: some prose',
       'Skipped malformed line: ### deep heading',
     ])
@@ -238,21 +234,69 @@ describe('parseWantedListFile — fenced code blocks', () => {
   })
 })
 
-describe('parseWantedListFile — deck-style quantity prefixes', () => {
-  // Wanted lists hold one line per copy exactly like collections, so the same
-  // trap gets the same advisory (and, like there, never blocks a save).
-  test('advises on a leading quantity, without dropping the line', () => {
-    const { entries, warnings, advisories } = parseWantedListFile('- 2 Sol Ring (C21:240)\n')
-    expect(entries).toHaveLength(1)
-    expect(entries[0]!.name).toBe('2 Sol Ring')
+describe('parseWantedListFile — quantity expansion', () => {
+  // Wanted lists hold one line per copy exactly like collections, so a pasted
+  // quantity is read as that many entries and advised about (never a warning:
+  // nothing is lost, and the save rewrites the line as N lines).
+  test('a quantity yields one entry per copy, with an advisory', () => {
+    const { entries, warnings, advisories, diagnostics } = parseWantedListFile(
+      '- 2 Sol Ring (C21:240) &3\n',
+    )
+    expect(entries).toHaveLength(2)
+    expect(entries.map((e) => e.name)).toEqual(['Sol Ring', 'Sol Ring'])
+    // Only the first copy holds the line's id; the rest get one at save time.
+    expect(entries.map((e) => e.cardId)).toEqual([3, undefined])
     expect(warnings).toHaveLength(0)
     expect(advisories).toHaveLength(1)
-    expect(advisories[0]).toContain('one line per copy')
+    expect(advisories[0]).toContain('Read 2 copies')
+    expect(diagnostics).toMatchObject([{ severity: 'advisory', kind: 'quantity-expanded' }])
   })
 
   test('leaves a card name that legitimately starts with a year alone', () => {
-    const { advisories } = parseWantedListFile('- 1996 World Champion (PCEL:1)\n')
+    const { entries, advisories } = parseWantedListFile('- 1996 World Champion (PCEL:1)\n')
+    expect(entries[0]!.name).toBe('1996 World Champion')
     expect(advisories).toEqual([])
+  })
+})
+
+/**
+ * Owner decision §0(5): a wanted list never carries a condition. The refusal
+ * has to *say* that — the old grammar swallowed the whole line and blamed a
+ * missing set code three tokens away.
+ */
+describe('parseWantedListFile — tokens a wanted list does not carry', () => {
+  test('a condition names the token and the rule', () => {
+    const { entries, warnings, diagnostics } = parseWantedListFile('- Bolt (LEA:161) [LP]\n')
+    expect(entries).toHaveLength(0)
+    expect(warnings).toEqual([
+      'line 1: [LP] is not a wanted list token — wanted lists never carry a condition.',
+    ])
+    expect(diagnostics).toMatchObject([
+      { code: 'token-not-allowed', kind: 'condition', token: '[LP]' },
+    ])
+  })
+
+  test('a labels token names the token and the rule', () => {
+    const { entries, warnings } = parseWantedListFile('- Bolt (LEA:161) [keep]\n')
+    expect(entries).toHaveLength(0)
+    expect(warnings).toEqual([
+      'line 1: [keep] is not a wanted list token — wanted lists never carry labels.',
+    ])
+  })
+})
+
+/**
+ * The tokenizer reads a bare name as a name-only card line — which a wanted
+ * list legitimately holds — so the `- ` bullet is the only thing keeping a
+ * list's prose out of the entries.
+ */
+describe('parseWantedListFile — prose is never a card', () => {
+  test('commentary between entries warns instead of becoming a card', () => {
+    const { entries, warnings } = parseWantedListFile(
+      '# Wants\n\nAsk about these at the next event\n- Sol Ring &1\n',
+    )
+    expect(entries.map((e) => e.name)).toEqual(['Sol Ring'])
+    expect(warnings).toEqual(['Skipped malformed line: Ask about these at the next event'])
   })
 })
 
@@ -298,30 +342,34 @@ describe('parseWantedListFile — language token', () => {
     expect(entries[0]!.cardId).toBe(9)
   })
 
-  test('the &N id stays the final capture group with a language present', () => {
-    const match = '- Sol Ring (LTC:284) [foil] [ja] {x} &12'.match(WANTED_CARD_LINE_RE)!
-    expect(match[match.length - 1]).toBe('12')
+  test('every token of a full line is read, whatever order they arrive in', () => {
+    const { entries, warnings } = parseWantedListFile('- Sol Ring (LTC:284) [ja] {x} [foil] &12\n')
+    expect(warnings).toHaveLength(0)
+    expect(entries[0]).toMatchObject({
+      name: 'Sol Ring',
+      set: 'ltc',
+      collectorNumber: '284',
+      finish: 'foil',
+      language: 'ja',
+      note: 'x',
+      cardId: 12,
+    })
   })
 
-  test('an explicit [en] token is read as en, not folded to undefined', () => {
-    // The serializer never writes [en], but a hand-written token must still
-    // parse: absent-vs-en is a write-side fold, not a read-side one.
+  test('an explicit [en] token folds to no language at all', () => {
+    // A bare line means English and the serializers never write `[en]`, so
+    // storing `en` would give one state two spellings.
     const { entries, warnings } = parseWantedListFile(`- Sol Ring (C19:221) [en]\n`)
     expect(warnings).toHaveLength(0)
-    expect(entries[0]!.language).toBe('en')
+    expect(entries[0]!.language).toBeUndefined()
   })
 
-  test('[jp] is not a language: a bullet line swallows it into the name (no warning)', () => {
-    // Documented limitation, unlike the collection/deck parsers: every field
-    // after the name is optional here, so `- Name … [jp]` always matches with
-    // the unknown token inside the name and never reaches the malformed-line
-    // branch (whose did-you-mean hint is therefore unreachable from a bullet
-    // line). If this ever warns instead, that is an improvement — update this
-    // pin, not the parser back.
+  test('[jp] is not a language: the bullet line is refused, naming the token', () => {
+    // The old wanted grammar swallowed it into the name with no warning at
+    // all; every bracket token is now classified, so a misspelling is named.
     const { entries, warnings } = parseWantedListFile(`- Mana Crypt (2XM:270) [jp]\n`)
-    expect(warnings).toHaveLength(0)
-    expect(entries[0]!.name).toBe('Mana Crypt (2XM:270) [jp]')
-    expect(entries[0]!.language).toBeUndefined()
+    expect(entries).toHaveLength(0)
+    expect(warnings).toEqual(['line 1: Unrecognized token [jp]. (did you mean [ja]?)'])
   })
 
   test('a non-bullet line with a misspelled token is skipped with a warning', () => {

@@ -22,29 +22,18 @@
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import {
-  COLLECTION_CARD_LINE_RE,
-  COLLECTION_LINE_LABELS_GROUP,
-  COLLECTION_LINE_LANGUAGE_GROUP,
-} from './collection-file'
-import {
   checkLabelsForListType,
+  formatCardLabels,
   normalizedOverride,
-  parseCardLabelsToken,
   sameCardLabels,
   supportsAnyLabels,
   unsupportedLabelsFor,
   unsupportedLabelsMessage,
   type CardLabel,
 } from '../card/card-labels'
-import { WANTED_CARD_LINE_RE, WANTED_LINE_LANGUAGE_GROUP } from './wanted-file'
-import {
-  DECK_CARD_LINE_RE,
-  DECK_LINE_ID_GROUP,
-  DECK_LINE_LABELS_GROUP,
-  DECK_LINE_LANGUAGE_GROUP,
-  DECK_LINE_NOTE_GROUP,
-} from '../importers/text-file'
-import { isCardLanguage, storedLanguage, type CardLanguage } from '../card/card-language'
+import { readCardLine, type ReadCardLine } from '../card/card-line-read'
+import type { LineTokens } from '../card/card-line-grammar'
+import { storedLanguage, type CardLanguage } from '../card/card-language'
 import { canonicalCardLine } from './deck-text'
 import { parseHeading } from './section-format'
 import { COMMANDER_SECTION, isCommanderSection, isSideboardSection } from './deck-format'
@@ -61,7 +50,7 @@ import {
   printingOptionsFrom,
   type PrintingTuple,
 } from '../changes/change-event'
-import { applyConditionUpdate, isCondition, isFinish, type Finish } from '../card/finish-condition'
+import { applyConditionUpdate, type Finish } from '../card/finish-condition'
 import { canSetFinish } from '../card/card-printing'
 import { noteOrUndefined } from '../card/note-helpers'
 import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
@@ -345,51 +334,35 @@ function findTargetLineIndex(lines: string[], type: ListType, target: EntryRef):
 }
 
 function isMatchingLine(type: ListType, trimmedLine: string, target: EntryRef): boolean {
-  const m = trimmedLine.match(cardLineRe(type))
-  if (!m) return false
-  // The deck regex leads with the quantity; the flat regexes with the name.
-  // All three end with the `&N` id as the final capture group.
-  const nameIdx = type === 'deck' ? 2 : 1
-  const name = m[nameIdx]
-  const set = m[nameIdx + 1]
-  const collectorNumber = m[nameIdx + 2]
-  const idStr = m[m.length - 1]
-  const lineCardId = idStr ? Number.parseInt(idStr, 10) : undefined
+  const read = readCardLine(type, trimmedLine)
+  if (!read) return false
+  const { name, printing, cardId } = read.tokens
 
-  if (target.cardId !== undefined) return lineCardId === target.cardId
+  if (target.cardId !== undefined) return cardId === target.cardId
 
   // Fall back to structural match. Names must match exactly; set/collectorNumber
   // narrow further when both target and line carry them.
   if (name !== target.name) return false
-  if (target.set !== undefined && set?.toLowerCase() !== target.set.toLowerCase()) return false
-  if (target.collectorNumber !== undefined && collectorNumber !== target.collectorNumber)
+  // Both sides are lowercase already — the grammar normalizes what it reads.
+  if (target.set !== undefined && printing?.set !== target.set.toLowerCase()) return false
+  if (target.collectorNumber !== undefined && printing?.collectorNumber !== target.collectorNumber)
     return false
   return true
 }
 
-function cardLineRe(type: ListType): RegExp {
-  if (type === 'deck') return DECK_CARD_LINE_RE
-  return type === 'collection' ? COLLECTION_CARD_LINE_RE : WANTED_CARD_LINE_RE
+/** The tokens the card line at `idx` carries, or `undefined` for a non-card line. */
+function lineTokensAt(lines: string[], idx: number, type: ListType): LineTokens | undefined {
+  return readCardLine(type, lines[idx]!.trim())?.tokens
 }
 
 /** The `&N` id carried by the card line at `idx`, if any. */
 function lineCardIdAt(lines: string[], idx: number, type: ListType): number | undefined {
-  const m = lines[idx]!.trim().match(cardLineRe(type))
-  const idStr = m?.[m.length - 1]
-  return idStr ? Number.parseInt(idStr, 10) : undefined
-}
-
-/** The grammar's language capture-group index for a list type's card line. */
-function languageGroup(type: ListType): number {
-  if (type === 'deck') return DECK_LINE_LANGUAGE_GROUP
-  return type === 'collection' ? COLLECTION_LINE_LANGUAGE_GROUP : WANTED_LINE_LANGUAGE_GROUP
+  return lineTokensAt(lines, idx, type)?.cardId
 }
 
 /** The `[ja]`-style language token carried by the card line at `idx`, if any. */
 function lineLanguageAt(lines: string[], idx: number, type: ListType): CardLanguage | undefined {
-  const m = lines[idx]!.trim().match(cardLineRe(type))
-  const raw = m?.[languageGroup(type)]
-  return raw && isCardLanguage(raw) ? raw : undefined
+  return lineTokensAt(lines, idx, type)?.language
 }
 
 /**
@@ -400,27 +373,23 @@ function lineLanguageAt(lines: string[], idx: number, type: ListType): CardLangu
  */
 type LineLabels = { labels: CardLabel[] | undefined } | { invalid: string }
 
-/** The grammar's labels capture-group index for a label-carrying list type. */
-function labelsGroup(type: ListType): number {
-  return type === 'deck' ? DECK_LINE_LABELS_GROUP : COLLECTION_LINE_LABELS_GROUP
-}
-
 /**
- * Parse a card line's raw labels token against what `type` carries. A token the
- * parser refuses (`[sale,keep]`) and one the type does not carry (`[keep]` on a
- * deck) are the same answer here: the line must not be rewritten from it.
+ * Weigh a card line's labels against what `type` carries. A token the grammar
+ * refuses (`[sale,keep]`, recovered by {@link readCardLine}) and one the type
+ * does not carry (`[keep]` on a deck) are the same answer here: the line must
+ * not be rewritten from it.
  */
-function tokenLabels(raw: string | undefined, type: ListType): LineLabels {
-  if (raw === undefined) return { labels: undefined }
-  const parsed = parseCardLabelsToken(raw)
-  if (!parsed.ok || unsupportedLabelsFor(type, parsed.labels).length > 0) return { invalid: raw }
-  return { labels: parsed.labels }
+function tokenLabels(read: ReadCardLine | undefined, type: ListType): LineLabels {
+  if (read?.invalidLabels !== undefined) return { invalid: read.invalidLabels }
+  const labels = read?.tokens.labels
+  if (labels === undefined) return { labels: undefined }
+  if (unsupportedLabelsFor(type, labels).length > 0) return { invalid: formatCardLabels(labels) }
+  return { labels: [...labels] }
 }
 
 /** The labels token carried by the card line at `idx`, if any. */
 function lineLabelsAt(lines: string[], idx: number, type: ListType): LineLabels {
-  const m = lines[idx]!.trim().match(cardLineRe(type))
-  return tokenLabels(m?.[labelsGroup(type)], type)
+  return tokenLabels(readCardLine(type, lines[idx]!.trim()), type)
 }
 
 /**
@@ -473,10 +442,7 @@ function removeTargetCopies(
   if (type === 'deck') {
     // The line's own quantity, not the resolved target's — the same
     // stale-target reasoning as the cardId adoption above.
-    const lineQuantity = Number.parseInt(
-      lines[idx]!.trim().match(DECK_CARD_LINE_RE)?.[1] ?? '1',
-      10,
-    )
+    const lineQuantity = lineTokensAt(lines, idx, 'deck')?.quantity ?? 1
     const remaining = lineQuantity - copies
     if (remaining > 0) {
       const lineLabels = lineLabelsAt(lines, idx, type)
@@ -507,6 +473,16 @@ type MoveDestination =
   | { kind: 'out-of-commander' } // unset-commander: moves ONLY a card in a commander section
 
 type HeadingLine = { index: number; level: number; name: string }
+
+/**
+ * Whether a raw file line is a deck card line — the placement scans' question,
+ * which is about where the cards *are*, not what they say. Prose is not a card
+ * line even though the grammar would read a bare name as one, so this goes
+ * through {@link readCardLine}'s candidate rule like every other file scan.
+ */
+function isDeckCardLine(line: string): boolean {
+  return readCardLine('deck', line.trim()) !== undefined
+}
 
 /**
  * The deck's section headings. A leading level-1 heading with no card lines of
@@ -540,7 +516,7 @@ function sectionHasCardLine(
   const end = next ? next.index : lines.length
   const fenced = markFencedLines(lines, frontMatterBodyStart(lines))
   for (let i = heading.index + 1; i < end; i++) {
-    if (!fenced[i] && DECK_CARD_LINE_RE.test(lines[i]!.trim())) return true
+    if (!fenced[i] && isDeckCardLine(lines[i]!)) return true
   }
   return false
 }
@@ -568,7 +544,7 @@ function insertionIndexFor(lines: string[], headings: HeadingLine[], heading: He
   for (let i = heading.index + 1; i < end; i++) {
     // A fenced example line is not the section's last card line: inserting
     // after it would drop the new card inside the code block.
-    if (!fenced[i] && DECK_CARD_LINE_RE.test(lines[i]!.trim())) insertAt = i + 1
+    if (!fenced[i] && isDeckCardLine(lines[i]!)) insertAt = i + 1
   }
   return insertAt
 }
@@ -790,31 +766,29 @@ function findDeckMergeLineIndex(
   for (let i = start; i < lines.length; i++) {
     // Copies never merge onto a fenced example line.
     if (fenced[i]) continue
-    const m = lines[i]!.trim().match(DECK_CARD_LINE_RE)
-    if (!m) continue
-    const rawId = m[DECK_LINE_ID_GROUP]
-    const lineId = rawId ? Number.parseInt(rawId, 10) : undefined
+    const read = readCardLine('deck', lines[i]!.trim())
+    if (read === undefined) continue
+    const tokens = read.tokens
     if (cardId !== undefined) {
-      if (lineId === cardId) return i
+      if (tokens.cardId === cardId) return i
       continue
     }
-    if (m[2]?.trim() !== card.name) continue
+    if (tokens.name !== card.name) continue
     // A token this file cannot re-emit is never a merge target: the rewrite
     // would delete it, and its labels cannot be compared against the incoming
     // card's. The copies get their own line instead.
-    const lineLabels = tokenLabels(m[DECK_LINE_LABELS_GROUP], 'deck')
+    const lineLabels = tokenLabels(read, 'deck')
     if ('invalid' in lineLabels) continue
     if (!sameCardLabels(lineLabels.labels, card.labels)) continue
     // Language distinguishes variants like finish does — `isSamePrinting`
     // folds a missing token to `en` on both sides, so a `[ja]` line never
     // absorbs an English add.
-    const rawLanguage = m[DECK_LINE_LANGUAGE_GROUP]
     const linePrinting: PrintingTuple = {
-      set: m[3]?.toLowerCase(),
-      collectorNumber: m[4],
-      finish: isFinish(m[5]) ? m[5] : undefined,
-      condition: isCondition(m[6]) ? m[6] : undefined,
-      language: rawLanguage && isCardLanguage(rawLanguage) ? rawLanguage : undefined,
+      set: tokens.printing?.set,
+      collectorNumber: tokens.printing?.collectorNumber,
+      finish: tokens.finish,
+      condition: tokens.condition,
+      language: tokens.language,
     }
     if (isSamePrinting(linePrinting, card)) return i
   }
@@ -832,31 +806,31 @@ function findDeckMergeLineIndex(
  * refusal the edit paths make in `rewriteWith`.
  */
 function parseDeckLineEntry(line: string): EntryRef | undefined {
-  const m = line.trim().match(DECK_CARD_LINE_RE)
-  if (!m) return undefined
-  const rawLanguage = m[DECK_LINE_LANGUAGE_GROUP]
-  const rawId = m[DECK_LINE_ID_GROUP]
+  const read = readCardLine('deck', line.trim())
+  if (read === undefined) return undefined
+  const { name, quantity, printing, finish, condition, language, note, cardId } = read.tokens
   return {
-    name: m[2]!.trim(),
-    quantity: Number.parseInt(m[1] ?? '1', 10),
-    set: m[3]?.toLowerCase(),
-    collectorNumber: m[4],
-    finish: isFinish(m[5]) ? m[5] : undefined,
-    condition: isCondition(m[6]) ? m[6] : undefined,
-    language: rawLanguage && isCardLanguage(rawLanguage) ? rawLanguage : undefined,
-    labels: deckLineLabels(m[DECK_LINE_LABELS_GROUP]),
-    note: noteOrUndefined(m[DECK_LINE_NOTE_GROUP]),
-    cardId: rawId ? Number.parseInt(rawId, 10) : undefined,
+    name,
+    quantity,
+    set: printing?.set,
+    collectorNumber: printing?.collectorNumber,
+    finish,
+    condition,
+    language,
+    labels: deckLineLabels(read),
+    note: noteOrUndefined(note),
+    cardId,
   }
 }
 
 /**
- * A deck line's labels token, parsed — `undefined` for a line with no token.
- * A token the deck grammar refuses throws rather than resolving to "no labels":
- * the caller is rewriting this line, and "no labels" would delete the override.
+ * A deck line's labels, narrowed to the deck vocabulary — `undefined` for a
+ * line with no token. A token the deck grammar refuses throws rather than
+ * resolving to "no labels": the caller is rewriting this line, and "no labels"
+ * would delete the override.
  */
-function deckLineLabels(raw: string | undefined): CardLabel[] | undefined {
-  const result = tokenLabels(raw, 'deck')
+function deckLineLabels(read: ReadCardLine): CardLabel[] | undefined {
+  const result = tokenLabels(read, 'deck')
   if ('invalid' in result) throw conflictingLabelsToken(result.invalid)
   return result.labels
 }
@@ -886,7 +860,7 @@ function insertDeckCardLine(lines: string[], cardLine: string, section?: string)
     const start = frontMatterBodyStart(lines)
     const fenced = markFencedLines(lines, start)
     for (let i = start; i < lines.length; i++) {
-      if (!fenced[i] && DECK_CARD_LINE_RE.test(lines[i]!.trim())) lastCard = i
+      if (!fenced[i] && isDeckCardLine(lines[i]!)) lastCard = i
     }
     if (lastCard !== -1) {
       return [...lines.slice(0, lastCard + 1), cardLine, ...lines.slice(lastCard + 1)]
