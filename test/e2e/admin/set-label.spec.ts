@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import type { ScryfallCard } from '../../../src/scryfall/types'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
-import { openListEditor } from '../helpers/editor-nav'
+import { openListEditor, selectList } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
 import { disableSearchDebounce } from '../helpers/search-modal'
@@ -63,11 +63,7 @@ async function openLabelCollection(page: Page): Promise<void> {
 
   await openListEditor(page, 'collection')
 
-  const select = page.locator('select').first()
-  await page.waitForFunction(() => (document.querySelector('select')?.options.length ?? 0) > 1, {
-    timeout: 10_000,
-  })
-  await select.selectOption('label-binder')
+  await selectList(page, 'collection', 'label-binder')
   await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
 }
 
@@ -172,11 +168,7 @@ async function openLabelDeck(page: Page): Promise<void> {
 
   await openListEditor(page, 'deck')
 
-  const select = page.locator('select').first()
-  await page.waitForFunction(() => (document.querySelector('select')?.options.length ?? 0) > 1, {
-    timeout: 10_000,
-  })
-  await select.selectOption('label-deck')
+  await selectList(page, 'deck', 'label-deck')
   await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
 }
 

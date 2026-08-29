@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
-import { openListEditor } from '../helpers/editor-nav'
+import { openListEditor, selectList } from '../helpers/editor-nav'
 
 /** A change bundle as the public site would export it: a set-printing on an existing card plus a new add. */
 const CHANGE_BUNDLE = JSON.stringify({
@@ -56,11 +56,7 @@ test.describe('Import changes (admin)', () => {
   test.beforeEach(async ({ page }) => {
     await gotoAdminDashboard(page)
     await openListEditor(page, 'deck')
-    const select = page.locator('select').first()
-    await page.waitForFunction(() => (document.querySelector('select')?.options.length ?? 0) > 1, {
-      timeout: 10_000,
-    })
-    await select.selectOption('test-unset-commander')
+    await selectList(page, 'deck', 'test-unset-commander')
     await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
   })
 

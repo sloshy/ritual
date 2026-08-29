@@ -1,6 +1,6 @@
 import { test, expect, type Route } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
-import { openListEditor } from '../helpers/editor-nav'
+import { openListEditor, SELECTOR_ID } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
 import { selectCard } from '../helpers/list-ui'
 
@@ -14,10 +14,12 @@ test.describe('Admin list multi-select', () => {
   test.beforeEach(async ({ page }) => {
     await gotoAdminDashboard(page)
     await openListEditor(page, 'deck')
-    const select = page.locator('select').first()
-    await page.waitForFunction(() => (document.querySelector('select')?.options.length ?? 0) > 1, {
-      timeout: 10_000,
-    })
+    const select = page.locator(SELECTOR_ID.deck)
+    await page.waitForFunction(
+      (selector) => (document.querySelector<HTMLSelectElement>(selector)?.options.length ?? 0) > 1,
+      SELECTOR_ID.deck,
+      { timeout: 10_000 },
+    )
     const value = await select.locator('option').nth(1).getAttribute('value')
     await select.selectOption(value)
     await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })

@@ -16,14 +16,7 @@ test.describe('Deck Editor Page', () => {
   test.describe('unset commander', () => {
     test.beforeEach(async ({ page }) => {
       // Load the fake test deck
-      const select = page.locator('select').first()
-      await page.waitForFunction(
-        () => (document.querySelector('select')?.options.length ?? 0) > 1,
-        {
-          timeout: 10_000,
-        },
-      )
-      await select.selectOption('test-unset-commander')
+      await selectList(page, 'deck', 'test-unset-commander')
       // Wait for deck card items to load
       await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
     })
@@ -169,14 +162,7 @@ test.describe('Deck Editor Page', () => {
 
       await openListEditor(page, 'deck')
 
-      const select = page.locator('select').first()
-      await page.waitForFunction(
-        () => (document.querySelector('select')?.options.length ?? 0) > 1,
-        {
-          timeout: 10_000,
-        },
-      )
-      await select.selectOption('test-modal-deck')
+      await selectList(page, 'deck', 'test-modal-deck')
       await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
     })
 

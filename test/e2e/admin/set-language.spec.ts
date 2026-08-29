@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import type { ScryfallCard } from '../../../src/scryfall/types'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
-import { openListEditor } from '../helpers/editor-nav'
+import { openListEditor, selectList } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
 import { mockConfigApi } from '../helpers/mock-admin'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
@@ -90,11 +90,7 @@ async function openLanguageCollection(page: Page): Promise<void> {
 
   await openListEditor(page, 'collection')
 
-  const select = page.locator('select').first()
-  await page.waitForFunction(() => (document.querySelector('select')?.options.length ?? 0) > 1, {
-    timeout: 10_000,
-  })
-  await select.selectOption('lang-binder')
+  await selectList(page, 'collection', 'lang-binder')
   await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
 }
 
