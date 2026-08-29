@@ -470,6 +470,66 @@ export async function mockPublicSiteDeckWithMultipleSections(page: Page): Promis
   await fulfillJson(page, '**/decks/test-multi-section-deck.json', MOCK_MULTI_SECTION_DECK)
 }
 
+// ===== Deck with a sideboard and a maybeboard =====
+
+/**
+ * A deck whose sections span all three kinds a `.txt` download has to decide
+ * about: the main deck, a sideboard (part of the decklist, written under its own
+ * marker) and a maybeboard (deck-building scratch space, left out entirely).
+ * Separate from `MOCK_MULTI_SECTION_DECK` so the card counts every other spec
+ * asserts against that one stay put.
+ */
+const MOCK_SIDEBOARD_DECK = makeDeckDetail({
+  deck: {
+    name: 'Test Sideboard Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 1, name: 'Test Creature', set: 'tst', collectorNumber: '1', cardId: 1 },
+        ],
+      },
+      {
+        name: 'Sideboard',
+        cards: [{ quantity: 2, name: 'Test Instant', set: 'tst', collectorNumber: '2', cardId: 2 }],
+      },
+      {
+        name: 'Maybeboard',
+        cards: [
+          { quantity: 1, name: 'Test Artifact', set: 'tst', collectorNumber: '3', cardId: 3 },
+        ],
+      },
+    ],
+  },
+  cards: {
+    'Test Creature': MOCK_SCRYFALL_CREATURE,
+    'Test Instant': MOCK_SCRYFALL_INSTANT,
+    'Test Artifact': MOCK_SCRYFALL_ARTIFACT,
+  },
+  printings: {
+    'Test Creature': [MOCK_SCRYFALL_CREATURE],
+    'Test Instant': [MOCK_SCRYFALL_INSTANT],
+    'Test Artifact': [MOCK_SCRYFALL_ARTIFACT],
+  },
+})
+
+const MOCK_SITE_INDEX_WITH_SIDEBOARD_DECK = makeSiteIndex({
+  decks: [
+    makeDeckSummary({
+      slug: 'test-sideboard-deck',
+      name: 'Test Sideboard Deck',
+      // Quantity sum (1 + 2 + 1), matching every other fixture in this file.
+      cardCount: 4,
+    }),
+  ],
+})
+
+/** Mock the public site with a deck carrying a sideboard and a maybeboard. */
+export async function mockPublicSiteDeckWithSideboard(page: Page): Promise<void> {
+  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_WITH_SIDEBOARD_DECK)
+  await fulfillJson(page, '**/decks/test-sideboard-deck.json', MOCK_SIDEBOARD_DECK)
+}
+
 // ===== Collection with priced and unpriced cards =====
 
 const MOCK_SITE_INDEX_WITH_COLLECTION = makeSiteIndex({

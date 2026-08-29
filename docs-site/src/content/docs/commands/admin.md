@@ -677,7 +677,7 @@ Import a deck from a supported URL, or from decklist text supplied directly (pas
 
 `warnings` lists any text lines the parser skipped — content that was **not** imported (always empty for URL imports). `advisories` lists content that **was** read but is worth a word — a card name still carrying a printing token, a skipped MTG Arena `About` line, or an empty `## Maybeboard`/`## Tokens` header the write drops. When either array is non-empty, `message` notes the count, so the admin UI's status alert shows it.
 
-Pasted/uploaded text is read with the same dialects as [`ritual import`](/commands/import/#mtg-arena--mtgo-exports): Ritual's own format plus MTG Arena/MTGO exports (`4 Lightning Bolt (M10) 146`, bare `Deck`/`Sideboard` markers).
+Pasted/uploaded text is read with the same dialects as [`ritual import`](/commands/import/#mtg-arena--mtgo-exports): Ritual's own format plus MTG Arena/MTGO/Moxfield exports (`4 Lightning Bolt (M10) 146`, bare `Deck`/`Sideboard` markers, and a `*F*`/`*E*` finish marker either trailing or between the set and the collector number).
 
 A name/ID conflict without `overwrite` and a deck name with no characters usable in a file name are both the client's to fix: they fail with a `400` (the same usage classification the CLI turns into exit code `2`), not a `500`.
 

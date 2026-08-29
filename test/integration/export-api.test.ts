@@ -7,6 +7,7 @@ import {
   bindWorkspace,
   seedCardCache,
   writeCollectionFile,
+  writeDeckFile,
   type BoundWorkspace,
 } from '../helpers/workspace'
 import { callJson } from './helpers/request'
@@ -52,6 +53,38 @@ describe('handleExport', () => {
     expect(status).toBe(200)
     if (!('content' in body)) throw new Error('expected content mode')
     expect(body.content).toContain('lea-161')
+  })
+
+  // The only surface where a text dialect's omitted-extras warning can be
+  // observed by an API client: the route merges `rendered.warnings` into its one
+  // `warnings` array. The line form and the drop rule are pinned in the engine's
+  // unit tests — what this adds is that both halves survive the transport.
+  test('a text dialect reaches the renderer and its omission warning reaches the client', async () => {
+    await writeDeckFile(ws.dir, 'burn', {
+      frontMatter: { name: 'Burn' },
+      sections: [
+        {
+          name: 'Main',
+          cards: [
+            { quantity: 1, name: 'Fireblast', set: 'vis', collectorNumber: '78', finish: 'foil' },
+          ],
+        },
+        {
+          name: 'Maybeboard',
+          cards: [{ quantity: 2, name: 'Price of Progress', set: 'exo', collectorNumber: '96' }],
+        },
+      ],
+    })
+    const { status, body } = await post({
+      lists: [{ type: 'deck', name: 'burn' }],
+      format: 'text',
+      dialect: 'moxfield',
+    })
+    expect(status).toBe(200)
+    if (!('content' in body)) throw new Error('expected content mode')
+    expect(body.content).toBe('Deck\n1 Fireblast (VIS) *F* 78')
+    expect(body.warnings).toHaveLength(1)
+    expect(body.warnings[0]).toContain('Omitted cards a decklist has no board for: Maybeboard (2)')
   })
 
   test('content mode returns the rendered export inline', async () => {

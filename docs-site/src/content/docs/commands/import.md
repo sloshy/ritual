@@ -503,9 +503,12 @@ Sideboard
 
 - `N Name (SET) NUM` card lines become printings — `4 Lightning Bolt (M10:146)` — instead
   of card names containing the printing text.
-- A trailing `*F*` / `*E*` finish marker (Moxfield's, Archidekt's, and MTGO's plain-text
-  exports append one) becomes the card's finish: `1 Sol Ring (LTC) 284 *F*` imports as
-  `1 Sol Ring (LTC:284) [foil]`.
+- A `*F*` / `*E*` finish marker becomes the card's finish, in either of the two positions
+  the export dialects use: trailing, as Archidekt's and MTGO's plain-text exports append it
+  (`1 Sol Ring (LTC) 284 *F*`), or between the set and the collector number, as
+  [Moxfield's bulk-edit grammar](https://moxfield.com/help) spells it
+  (`1 Sol Ring (LTC) *F* 284`). Both import as `1 Sol Ring (LTC:284) [foil]`, so a
+  `ritual export --format text --dialect moxfield` file reads straight back in.
 - Bare `Deck`, `Sideboard`, `Commander`, and `Companion` marker lines start sections
   (`Deck` is `Main`). A marker with no cards under it is a dropped section and warns like
   an empty `##` header would.

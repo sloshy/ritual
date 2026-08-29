@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import {
   mockPublicSiteCollection,
-  mockPublicSiteDeckWithMultipleSections,
+  mockPublicSiteDeckWithSideboard,
   mockPublicSiteWantedList,
 } from '../helpers/mock-public-site'
 
@@ -20,9 +20,11 @@ test.describe('Page-header export menu', () => {
     await expect(page.locator('.selection-menu-panel[role="menu"]')).toBeVisible()
   }
 
-  test('downloads a deck as plain text', async ({ page }) => {
-    await mockPublicSiteDeckWithMultipleSections(page)
-    await page.goto('#/deck/test-multi-section-deck')
+  test('downloads a deck as plain text, sideboard included and maybeboard left out', async ({
+    page,
+  }) => {
+    await mockPublicSiteDeckWithSideboard(page)
+    await page.goto('#/deck/test-sideboard-deck')
     await page.waitForSelector('.card-item')
 
     await openFormat(page, 'Download')
@@ -31,16 +33,15 @@ test.describe('Page-header export menu', () => {
       page.locator('.selection-menu-panel button', { hasText: 'Text (.txt)' }).click(),
     ])
 
-    expect(download.suggestedFilename()).toBe('Test_Multi_Section_Deck.txt')
+    expect(download.suggestedFilename()).toBe('Test_Sideboard_Deck.txt')
     const content = readFileSync(await download.path(), 'utf-8')
-    // An export dialect other sites import, not Ritual's markdown: a bare board
-    // marker instead of a `## Section` header, `(SET) CN` printings, and none of
-    // the bullets or `&N` ids a list file carries.
+    // What only this layer can show: the button hands the renderer the *whole*
+    // deck, so the sideboard reaches the file under its own marker, while the
+    // maybeboard card visible on the page does not. The line and marker forms
+    // themselves are pinned in deck-text.test.ts, not re-asserted here.
+    expect(content).toContain('Sideboard\n2 Test Instant (TST) 2')
     expect(content).toContain('Deck\n1 Test Creature (TST) 1')
-    expect(content).not.toContain('## Main')
-    expect(content).not.toContain('- 1 ')
-    expect(content).not.toContain('(TST:')
-    expect(content).not.toContain('&')
+    expect(content).not.toContain('Test Artifact')
 
     // The feedback tooltip confirms the action without changing the button label.
     await expect(page.locator('.export-feedback')).toHaveText('Downloaded!')

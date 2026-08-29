@@ -94,16 +94,23 @@ In the default `ritual` dialect (and in `archidekt`, which has no plain-text for
 1 Price of Progress
 ```
 
-In the `arena` and `moxfield` dialects: bare board markers over `{quantity} {Name} ({SET}) {Collector Number}` lines — the form those sites import. Sections map to boards (`Commander`, `Companion`, `Sideboard`, everything else `Deck`; a maybeboard or token section has no marker of its own and is written under `Sideboard`), and aggregation is per board. `moxfield` adds Moxfield's trailing `*F*` / `*E*` finish markers.
+In the `arena` and `moxfield` dialects: bare board markers over `{quantity} {Name} ({SET}) {Collector Number}` lines — the form those sites import. Sections map to boards (`Commander`, `Companion`, `Sideboard`, everything else `Deck` — except maybeboard and token sections, which map to no board and are [left out entirely](#maybeboard-and-token-sections)), and aggregation is per board. `moxfield` splices Moxfield's `*F*` / `*E*` finish marker **between the set and the collector number**, which is where [Moxfield's bulk-edit grammar](https://moxfield.com/help) puts it (`{quantity} {Name} ({SET}) *F* {Collector Number}`).
 
 ```text
+Commander
+1 Atraxa, Praetors' Voice (CMR) 523
+
 Deck
 2 Lightning Bolt (LEA) 161
-1 Fireblast (VIS) 78 *F*
+1 Fireblast (VIS) *F* 78
 
 Sideboard
 1 Price of Progress
 ```
+
+<a id="maybeboard-and-token-sections"></a>
+
+**Maybeboard and token sections are not part of a decklist**, and neither Arena nor Moxfield has a board for them, so an `arena` or `moxfield` export leaves those cards out. If your selection reached any, the count and the sections it dropped them from are reported as a warning on stderr — `--quiet` never silences it. The `ritual` and `archidekt` text forms are flat lists rather than decklists, so they carry every selected entry, maybeboard included.
 
 ### `md` — grouped canonical markdown
 
@@ -152,12 +159,12 @@ Notes on values:
 
 A dialect decides how an export is spelled, so it can be fed straight into another tool's importer. Which half of the export it reaches depends on the format: `csv`/`json` take their **values** from it, `text` takes its **line and board form**, and `md` takes nothing (it is Ritual's own markdown, and `--dialect --format md` is a usage error).
 
-| Dialect            | `csv` / `json` values                                                                                                       | `text` lines                                                      |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `ritual` (default) | `finish` as `nonfoil` / `foil` / `etched` (blank when the line marks none); `condition` as `NM`…`DMG` (blank when unmarked) | One flat list of `1 Sol Ring (C21:263)` lines                     |
-| `archidekt`        | `finish` as `Normal` / `Foil` / `Etched` under a **`Variant`** header; `condition` as `NM` / `LP` / `MP` / `HP` / `D`       | Same as `ritual` — Archidekt's lane is the CSV preset             |
-| `arena`            | Same as `ritual`                                                                                                            | Board markers over `1 Sol Ring (C21) 263` lines, no finish marker |
-| `moxfield`         | Same as `ritual`                                                                                                            | The `arena` form plus trailing `*F*` / `*E*` finish markers       |
+| Dialect            | `csv` / `json` values                                                                                                       | `text` lines                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `ritual` (default) | `finish` as `nonfoil` / `foil` / `etched` (blank when the line marks none); `condition` as `NM`…`DMG` (blank when unmarked) | One flat list of `1 Sol Ring (C21:263)` lines                      |
+| `archidekt`        | `finish` as `Normal` / `Foil` / `Etched` under a **`Variant`** header; `condition` as `NM` / `LP` / `MP` / `HP` / `D`       | Same as `ritual` — Archidekt's lane is the CSV preset              |
+| `arena`            | Same as `ritual`                                                                                                            | Board markers over `1 Sol Ring (C21) 263` lines, no finish marker  |
+| `moxfield`         | Same as `ritual`                                                                                                            | The `arena` form with `*F*` / `*E*` between the set and the number |
 
 Column keys, the JSON schema, and every property not named above are identical in every dialect.
 

@@ -1,7 +1,12 @@
 import { csvCell } from '../changes/csv'
 import { aggregateQuantities, printingSuffix, variantKey } from '../card/card-line'
 import { canonicalCardLine } from '../list/deck-text'
-import { aggregateDialectCards, renderDialectText, type SectionedDialectCard } from './dialects'
+import {
+  aggregateDialectCards,
+  isDecklistSection,
+  renderDialectText,
+  type SectionedDialectCard,
+} from './dialects'
 import { storedLanguage } from '../card/card-language'
 import {
   archidektCsvCondition,
@@ -71,7 +76,8 @@ export const EXPORT_PROPERTY_LABELS: Record<ExportProperty, string> = {
  *   `moxfield` publish no column vocabulary, so they render as `ritual` does.
  * - `text` — a dialect chooses the **line and board form** ({@link renderTextExport}).
  *   `arena` and `moxfield` write the bulletless decklist their sites import
- *   (`src/export/dialects.ts`); `ritual` and `archidekt` write Ritual's own
+ *   (`src/export/dialects.ts`), which is a decklist and so carries no
+ *   maybeboard or token cards; `ritual` and `archidekt` write Ritual's own
  *   `(SET:CN)` line, since Archidekt's importer has no plain-text dialect of
  *   its own — its lane is the `archidekt` CSV preset.
  * - `md` — always Ritual's canonical markdown; a dialect would make it a
@@ -262,6 +268,43 @@ export function renderJsonExport(
   return JSON.stringify(records, null, 2)
 }
 
+/** A rendered decklist plus anything the caller should tell the user about it. */
+export type RenderedText = {
+  /** The decklist; no trailing newline (the writer appends one). */
+  content: string
+  /**
+   * Plain-English warnings. English by construction: `src/export/**` is inside
+   * the i18n persistence fence (AGENTS.md, "Localization") and must never
+   * import `src/i18n`.
+   */
+  warnings: string[]
+}
+
+/**
+ * The warning a dialect export raises when the selection reached cards a
+ * decklist has no place for: a maybeboard or a token section. The user asked
+ * for those cards by name, so dropping them silently would be a lie about what
+ * the file contains — but writing them would be a lie about the deck.
+ */
+function omittedExtrasWarning(entries: readonly ExportEntry[]): string[] {
+  const sections = new Map<string, number>()
+  for (const entry of entries) {
+    if (isDecklistSection(entry.section)) continue
+    sections.set(entry.section, (sections.get(entry.section) ?? 0) + entry.quantity)
+  }
+  if (sections.size === 0) return []
+  // Counts are written per section as `Name (n)` rather than as a summed "n
+  // cards from m sections": it says strictly more, and it needs no plural
+  // morphology — which this module could not localize anyway, being inside the
+  // persistence fence.
+  const named = [...sections].map(([section, quantity]) => `${section} (${quantity})`).join(', ')
+  return [
+    `Omitted cards a decklist has no board for: ${named}. ` +
+      'Maybeboard and token sections are deck-building extras rather than part of a decklist, ' +
+      'so neither Arena nor Moxfield writes them.',
+  ]
+}
+
 /**
  * Render entries as a plain-text decklist, in the dialect's line form.
  *
@@ -273,18 +316,23 @@ export function renderJsonExport(
  * `ritual` (and `archidekt`, which publishes no plain-text dialect) writes ONE
  * flat list of `${qty} ${name} (SET:CN)` lines with no headers or sections —
  * Ritual's own printing form, bulletless because this is a decklist for
- * pasting, not a list file. `arena` and `moxfield` write their sites' importable
- * form instead: bare board markers over `${qty} ${name} (SET) CN` lines, plus
- * Moxfield's `*F*` / `*E*` finish markers. The printing is omitted for entries
- * without a pinned one; set codes are uppercased (user-facing output).
+ * pasting, not a list file. It is not a decklist for another site's importer,
+ * so it carries every entry it was given, maybeboard and tokens included.
+ *
+ * `arena` and `moxfield` write their sites' importable form instead: bare board
+ * markers over `${qty} ${name} (SET) CN` lines, `moxfield` splicing its `*F*` /
+ * `*E*` finish marker between the set and the collector number. The printing is
+ * omitted for entries without a pinned one; set codes are uppercased
+ * (user-facing output). Maybeboard and token entries are **not** written — a
+ * decklist has no board for them — and are reported in `warnings` instead.
  */
 export function renderTextExport(
   entries: ExportEntry[],
   dialect: ExportDialect = 'ritual',
-): string {
+): RenderedText {
   const textDialect = dialect === 'arena' || dialect === 'moxfield' ? dialect : undefined
   if (textDialect === undefined) {
-    return aggregateQuantities(
+    const content = aggregateQuantities(
       entries,
       (entry) =>
         variantKey(
@@ -302,6 +350,7 @@ export function renderTextExport(
           `${quantity} ${entry.name}${printingSuffix(entry.set, entry.collectorNumber)}`,
       )
       .join('\n')
+    return { content, warnings: [] }
   }
   // Boards partition the dialect's aggregation (`aggregateDialectCards`): two
   // copies of a card in different boards are two lines, exactly as they are two
@@ -318,7 +367,10 @@ export function renderTextExport(
       language: entry.language,
     }),
   )
-  return renderDialectText(aggregateDialectCards(cards), textDialect)
+  return {
+    content: renderDialectText(aggregateDialectCards(cards), textDialect),
+    warnings: omittedExtrasWarning(entries),
+  }
 }
 
 /** One list's group of entries for the markdown export, in first-seen order. */

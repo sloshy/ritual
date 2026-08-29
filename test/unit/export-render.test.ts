@@ -115,7 +115,7 @@ describe('renderJsonExport', () => {
 
 describe('renderTextExport', () => {
   test('aggregates identical variants across lists and sections, summing quantities in first-seen order', () => {
-    const text = renderTextExport([
+    const { content: text } = renderTextExport([
       entry({ listName: 'Burn', listType: 'deck', section: 'Main', quantity: 2 }),
       entry({ name: 'Fireblast', set: 'vis', collectorNumber: '78', fileOrder: 1 }),
       // Same variant as the first entry, from another list and section.
@@ -125,7 +125,7 @@ describe('renderTextExport', () => {
   })
 
   test('distinct finish/condition variants stay separate lines even though neither prints', () => {
-    const text = renderTextExport([
+    const { content: text } = renderTextExport([
       entry({ finish: 'foil' }),
       entry({ finish: undefined, fileOrder: 1 }),
     ])
@@ -133,7 +133,7 @@ describe('renderTextExport', () => {
   })
 
   test('omits the printing suffix when the set or collector number is missing', () => {
-    const text = renderTextExport([
+    const { content: text } = renderTextExport([
       entry({ name: 'Price of Progress', set: undefined, collectorNumber: undefined }),
       entry({ name: 'Sol Ring', collectorNumber: undefined, fileOrder: 1 }),
     ])
@@ -141,17 +141,22 @@ describe('renderTextExport', () => {
   })
 
   test('uppercases the set code in the printing suffix', () => {
-    expect(renderTextExport([entry({ set: 'lea' })])).toBe('1 Lightning Bolt (LEA:161)')
+    expect(renderTextExport([entry({ set: 'lea' })]).content).toBe('1 Lightning Bolt (LEA:161)')
   })
 
   // Archidekt publishes no plain-text dialect of its own — its lane is the CSV
   // preset — so it renders exactly as `ritual` does.
   test('the archidekt dialect leaves the line form alone', () => {
-    expect(renderTextExport([entry()], 'archidekt')).toBe(renderTextExport([entry()], 'ritual'))
+    // Pinned as a literal, not compared against the `ritual` call: two sides of
+    // one function on one input agree even when both are wrong.
+    expect(renderTextExport([entry()], 'archidekt')).toEqual({
+      content: '1 Lightning Bolt (LEA:161)',
+      warnings: [],
+    })
   })
 
   test('the arena dialect writes bare board markers over `(SET) CN` lines', () => {
-    const text = renderTextExport(
+    const { content: text } = renderTextExport(
       [
         entry({ listType: 'deck', listName: 'Burn', section: 'Main', name: 'Fireblast' }),
         entry({ listType: 'deck', listName: 'Burn', section: 'Commander', fileOrder: 1 }),
@@ -172,47 +177,86 @@ describe('renderTextExport', () => {
     )
   })
 
-  test('arena drops the finish; moxfield marks it with a trailing *F* / *E*', () => {
+  // Moxfield's documented bulk-edit grammar is
+  // `<amount> <name> <set> <is foil> … <collector number>`, so the marker sits
+  // between the set and the number — the form Moxfield's own importer takes.
+  test('arena drops the finish; moxfield splices *F* / *E* between the set and the number', () => {
     const cards = [
       entry({ finish: 'foil' }),
       entry({ name: 'Sol Ring', finish: 'etched', fileOrder: 1 }),
       entry({ name: 'Forest', finish: undefined, fileOrder: 2 }),
     ]
-    expect(renderTextExport(cards, 'arena')).toBe(
+    expect(renderTextExport(cards, 'arena').content).toBe(
       'Deck\n1 Lightning Bolt (LEA) 161\n1 Sol Ring (LEA) 161\n1 Forest (LEA) 161',
     )
-    expect(renderTextExport(cards, 'moxfield')).toBe(
-      'Deck\n1 Lightning Bolt (LEA) 161 *F*\n1 Sol Ring (LEA) 161 *E*\n1 Forest (LEA) 161',
+    expect(renderTextExport(cards, 'moxfield').content).toBe(
+      'Deck\n1 Lightning Bolt (LEA) *F* 161\n1 Sol Ring (LEA) *E* 161\n1 Forest (LEA) 161',
     )
   })
 
   // Two copies in different boards are two lines, exactly as they are two lines
   // in the deck they came from — the board is part of the aggregation key.
-  test('aggregation is per board, and a maybeboard has no marker of its own', () => {
-    const text = renderTextExport(
+  test('aggregation is per board', () => {
+    const { content } = renderTextExport(
       [
         entry({ section: 'Main', quantity: 2 }),
         entry({ section: 'Main', quantity: 1, fileOrder: 1 }),
-        entry({ section: 'Maybeboard', quantity: 1, fileOrder: 2 }),
+        entry({ section: 'Sideboard', quantity: 1, fileOrder: 2 }),
       ],
       'arena',
     )
-    expect(text).toBe('Deck\n3 Lightning Bolt (LEA) 161\n\nSideboard\n1 Lightning Bolt (LEA) 161')
+    expect(content).toBe(
+      'Deck\n3 Lightning Bolt (LEA) 161\n\nSideboard\n1 Lightning Bolt (LEA) 161',
+    )
   })
 
-  test('an entry with no pinned printing writes its name alone', () => {
+  // A maybeboard/token section is deck-building scratch space, not part of a
+  // decklist, and folding it under `Sideboard` would hand the reader a sideboard
+  // they never built. The user selected those cards, so the drop is reported.
+  test('a dialect decklist omits maybeboard and token cards and warns about them', () => {
+    const result = renderTextExport(
+      [
+        entry({ section: 'Main', quantity: 2 }),
+        entry({ section: 'Maybeboard', quantity: 3, fileOrder: 1 }),
+        // A second line in the same section, so the count is a sum rather than
+        // whichever entry happened to be seen last.
+        entry({ section: 'Maybeboard', name: 'Griselbrand', quantity: 2, fileOrder: 2 }),
+        entry({ section: 'Tokens', name: 'Treasure', quantity: 1, fileOrder: 3 }),
+      ],
+      'arena',
+    )
+    expect(result.content).toBe('Deck\n2 Lightning Bolt (LEA) 161')
+    expect(result.warnings).toEqual([
+      'Omitted cards a decklist has no board for: Maybeboard (5), Tokens (1). Maybeboard and ' +
+        'token sections are deck-building extras rather than part of a decklist, so neither ' +
+        'Arena nor Moxfield writes them.',
+    ])
+  })
+
+  // Reachable in practice: `--card` can select a maybeboard card by name and
+  // nothing else, and the writer must not be handed a stray board marker.
+  test('a selection of nothing but extras renders an empty decklist', () => {
+    const result = renderTextExport([entry({ section: 'Maybeboard' })], 'arena')
+    expect(result.content).toBe('')
+    expect(result.warnings).toHaveLength(1)
+  })
+
+  // The flat `ritual` form is not a decklist for anyone's importer, so it has no
+  // board to leave a maybeboard out of — every selected entry is written.
+  test('the ritual dialect keeps maybeboard entries and warns about nothing', () => {
+    const result = renderTextExport([entry({ section: 'Maybeboard' })])
+    expect(result.content).toBe('1 Lightning Bolt (LEA:161)')
+    expect(result.warnings).toEqual([])
+  })
+
+  test('an entry with no pinned printing writes its name alone, marker and all dropped', () => {
+    // No set for a marker to sit inside, and Moxfield's grammar has no slot for
+    // a bare one, so the finish goes unwritten rather than being misplaced.
     expect(
       renderTextExport(
-        [
-          entry({
-            name: 'Sol Ring',
-            set: undefined,
-            collectorNumber: undefined,
-            finish: undefined,
-          }),
-        ],
+        [entry({ name: 'Sol Ring', set: undefined, collectorNumber: undefined, finish: 'foil' })],
         'moxfield',
-      ),
+      ).content,
     ).toBe('Deck\n1 Sol Ring')
   })
 })

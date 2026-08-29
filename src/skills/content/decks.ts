@@ -200,7 +200,8 @@ its own data.
 
 Text imports read Ritual's own format and the MTG Arena/MTGO export dialect —
 \`4 Lightning Bolt (M10) 146\` lines plus bare \`Deck\`/\`Sideboard\`/\`Commander\`/
-\`Companion\`/\`About\` markers, a trailing \`*F*\`/\`*E*\` foil marker, and the
+\`Companion\`/\`About\` markers, a \`*F*\`/\`*E*\` foil marker either trailing or
+between the set and the collector number (Moxfield's form), and the
 inside of a \`\`\` fence (a decklist pasted from Discord or GitHub arrives wrapped
 in one, so on the import path — and only there — the fence is packaging, not
 prose). A \`(SET)\` with no collector number is **not** read as a printing: half a

@@ -140,6 +140,15 @@ export function isSideboardSection(name: string): boolean {
   return name.toLowerCase().includes('sideboard')
 }
 
+/**
+ * The companion slot. Lives here beside its siblings rather than inline in the
+ * one caller that needs it (`dialectBoard` in `src/export/dialects.ts`), so this
+ * module stays the single table that decides what a section *is*.
+ */
+export function isCompanionSection(name: string): boolean {
+  return name.toLowerCase().includes('companion')
+}
+
 /** Find a deck section by exact name, creating and appending an empty one when missing. */
 export function findOrCreateSection(sections: DeckSection[], name: string): DeckSection {
   const existing = sections.find((s) => s.name === name)

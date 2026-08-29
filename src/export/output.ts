@@ -1,6 +1,12 @@
 import type { CardPrintingsLookup } from '../card/card-printing'
 import type { ExportEntry } from './entries'
-import { renderCsvExport, renderJsonExport, renderMarkdownExport, renderTextExport } from './render'
+import {
+  renderCsvExport,
+  renderJsonExport,
+  renderMarkdownExport,
+  renderTextExport,
+  type RenderedText,
+} from './render'
 import { columnsNeedScryfallIds, resolveExportScryfallIds } from './scryfall-id'
 import { exportFormatUsesColumns, type ExportPreset, type ResolvedExportSettings } from './presets'
 import { loadRitualConfig, saveRitualConfig } from '../config/ritual-config'
@@ -11,13 +17,14 @@ import { loadRitualConfig, saveRitualConfig } from '../config/ritual-config'
  * it back).
  */
 
-/** A rendered export plus anything the caller should tell the user about it. */
-export type RenderedExport = {
-  /** The export payload; no renderer emits a trailing newline (the writer appends one). */
-  content: string
-  /** Warnings raised while rendering, e.g. a printing with no cached Scryfall id. */
-  warnings: string[]
-}
+/**
+ * A rendered export plus anything the caller should tell the user about it —
+ * the same shape one renderer returns, since this is that shape at a later
+ * stage (a `text` dialect's omitted-extras notice, plus any warning the
+ * Scryfall-id resolution added). Aliased rather than redeclared so the two
+ * cannot drift into structural twins that only agree by luck.
+ */
+export type RenderedExport = RenderedText
 
 export type RenderExportOptions = {
   /**
@@ -49,23 +56,36 @@ export async function renderExport(
     rendered = resolution.entries
     warnings.push(...resolution.warnings)
   }
-  return { content: renderContent(rendered, settings), warnings }
+  const content = renderContent(rendered, settings)
+  warnings.push(...content.warnings)
+  return { content: content.content, warnings }
 }
 
-function renderContent(entries: ExportEntry[], settings: ResolvedExportSettings): string {
+/**
+ * The payload for one format. Only `text` has anything to warn about — an
+ * `arena`/`moxfield` decklist has no board for maybeboard or token cards, so it
+ * drops them and says so.
+ */
+function renderContent(entries: ExportEntry[], settings: ResolvedExportSettings): RenderedText {
   switch (settings.format) {
     case 'json':
-      return renderJsonExport(entries, settings.columns, settings.dialect)
+      return {
+        content: renderJsonExport(entries, settings.columns, settings.dialect),
+        warnings: [],
+      }
     case 'text':
       return renderTextExport(entries, settings.dialect)
     case 'md':
-      return renderMarkdownExport(entries)
+      return { content: renderMarkdownExport(entries), warnings: [] }
     case 'csv':
-      return renderCsvExport(entries, settings.columns, {
-        header: settings.header,
-        quoteAll: settings.quoteAll,
-        dialect: settings.dialect,
-      })
+      return {
+        content: renderCsvExport(entries, settings.columns, {
+          header: settings.header,
+          quoteAll: settings.quoteAll,
+          dialect: settings.dialect,
+        }),
+        warnings: [],
+      }
   }
 }
 

@@ -27,7 +27,7 @@ describe('deckToExportText', () => {
     )
   })
 
-  it("marks a foil with Moxfield's trailing *F* and an etched printing with *E*", () => {
+  it("splices Moxfield's *F* / *E* between the set and the collector number", () => {
     const text = deckToExportText(
       deck([
         {
@@ -41,20 +41,34 @@ describe('deckToExportText', () => {
       ]),
     )
     expect(text).toBe(
-      'Deck\n1 Mana Crypt (2XM) 1 *F*\n1 Sol Ring (CMM) 410 *E*\n4 Forest (UNF) 243',
+      'Deck\n1 Mana Crypt (2XM) *F* 1\n1 Sol Ring (CMM) *E* 410\n4 Forest (UNF) 243',
     )
   })
 
-  it('includes other sections when there is no explicit Main, excluding extras', () => {
+  // A downloaded deck is the deck: the sideboard is part of the decklist and
+  // gets its own marker, while a maybeboard or token box is deck-building
+  // scratch space no dialect has a board for.
+  it('includes every main-deck section and the sideboard, excluding extras', () => {
     const text = deckToExportText(
       deck([
         { name: 'Creatures', cards: [{ quantity: 4, name: 'Llanowar Elves' }] },
+        { name: 'Lands', cards: [{ quantity: 8, name: 'Forest' }] },
         { name: 'Sideboard', cards: [{ quantity: 2, name: 'Naturalize' }] },
         { name: 'Maybeboard', cards: [{ quantity: 1, name: 'Worldspine Wurm' }] },
         { name: 'Tokens', cards: [{ quantity: 1, name: 'Treasure' }] },
       ]),
     )
-    expect(text).toBe('Deck\n4 Llanowar Elves')
+    expect(text).toBe('Deck\n4 Llanowar Elves\n8 Forest\n\nSideboard\n2 Naturalize')
+  })
+
+  it('no longer lets an explicit Main suppress the sections beside it', () => {
+    const text = deckToExportText(
+      deck([
+        { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] },
+        { name: 'Lands', cards: [{ quantity: 8, name: 'Forest' }] },
+      ]),
+    )
+    expect(text).toBe('Deck\n1 Sol Ring\n8 Forest')
   })
 
   // The site's download and `ritual export --format text --dialect …` share one

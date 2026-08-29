@@ -322,6 +322,38 @@ describe('read tolerance for the export dialects', () => {
     })
   })
 
+  // Moxfield's documented bulk-edit grammar puts the finish marker *between*
+  // the set and the collector number, and that is the form `ritual export
+  // --format text --dialect moxfield` writes — so reading it back here is what
+  // makes a Ritual moxfield export round-trip through `ritual import`.
+  test("reads Moxfield's `(SET) *F* CN` form, lifting both the printing and the finish", () => {
+    const result = parseCardLine('deck', '1 Mana Crypt (2XM) *F* 270')
+    expect(result).toMatchObject({
+      ok: true,
+      tokens: {
+        quantity: 1,
+        name: 'Mana Crypt',
+        finish: 'foil',
+        printing: { set: '2xm', collectorNumber: '270' },
+      },
+    })
+    // One advisory, not two: the marker is part of the printing suffix here
+    // rather than a token of its own.
+    expect(result.ok && result.advisories).toEqual([
+      {
+        severity: 'advisory',
+        kind: 'dialect-rewritten',
+        token: '(2XM) *F* 270',
+        message: 'Read the export printing (2XM) *F* 270 as (2XM:270) [foil].',
+      },
+    ])
+    expect(parsed('deck', '1 Sol Ring (CMM) *e* 410')).toMatchObject({
+      name: 'Sol Ring',
+      finish: 'etched',
+      printing: { set: 'cmm', collectorNumber: '410' },
+    })
+  })
+
   test('a parenthesized card name is never lifted into a printing', () => {
     // The collector number is required precisely so these survive.
     for (const name of [

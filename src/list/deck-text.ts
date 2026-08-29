@@ -1,5 +1,5 @@
 import type { Card } from '../card/card'
-import type { DeckData, DeckSection } from './deck'
+import type { DeckData } from './deck'
 import { formatCollectionLine, formatWantedListLine, resolvePrinting } from '../card/card-line'
 import type { EntryRef } from './entry-ref'
 import type { ListType } from './list-type'
@@ -58,43 +58,33 @@ export function deckToMarkdown(deck: DeckData): string {
  * Ritual's own markdown.
  *
  * The point of this file is that it pastes into another site, so it carries
- * bare `Commander` / `Deck` board markers instead of `## Section` headers,
- * `N Name (SET) CN` lines instead of the canonical bulleted form, and none of
- * the `&N` ids, notes, conditions or labels a Ritual line holds. Moxfield's
- * dialect is used: it is Arena's decklist form plus the trailing `*F*` / `*E*`
- * finish markers, so a foil stays a foil for the importers that model one and
- * is ignored by the ones that don't.
+ * bare `Commander` / `Deck` / `Sideboard` board markers instead of `## Section`
+ * headers, `N Name (SET) CN` lines instead of the canonical bulleted form, and
+ * none of the `&N` ids, notes, conditions or labels a Ritual line holds.
+ * Moxfield's dialect is used: Arena's decklist form with the `*F*` / `*E*`
+ * finish marker spliced between the set and the collector number, so a foil
+ * stays a foil for the importers that model one and is ignored by the ones
+ * that don't.
  *
- * Layout: the Commander section (when present), then the Main/Mainboard
- * section; if there is no explicit Main section, every other section is
- * included except Sideboard, Maybeboard, and Token (which are deck-building
- * extras rather than the list you are handing someone). Sections that share a
- * board are written under one marker, and identical variants within it are
- * summed into a single line — the same `aggregateDialectCards` pass
+ * **What is in it:** the whole decklist — the command zone, every main-deck
+ * section, and the sideboard under its own `Sideboard` marker. A downloaded
+ * deck is the deck.
+ *
+ * **What is not:** maybeboard and token sections. Those are deck-building
+ * scratch space rather than a list you hand someone, and no dialect has a board
+ * for them; `aggregateDialectCards` drops them, the same pass
  * `ritual export --format text --dialect …` makes, so the downloaded file and
- * the CLI's file agree line for line.
+ * the CLI's file agree line for line. Sections that share a board are written
+ * under one marker, and identical variants within it are summed into a single
+ * line.
+ *
+ * Unlike the CLI's `renderTextExport`, this returns the file alone with no
+ * warnings channel: the CLI warns because the user may have *named* a maybeboard
+ * card in a `--card` selection, whereas a deck download is the whole deck by
+ * definition and the page already shows extras behind their own control.
  */
 export function deckToExportText(deck: DeckData): string {
-  const cmdrSection = deck.sections.find((s) => s.name.toLowerCase().includes('commander'))
-  const mainSection = deck.sections.find(
-    (s) => s.name.toLowerCase() === 'main' || s.name.toLowerCase() === 'mainboard',
-  )
-  const exported: DeckSection[] = []
-  if (cmdrSection) exported.push(cmdrSection)
-  if (mainSection) {
-    exported.push(mainSection)
-  } else {
-    for (const s of deck.sections) {
-      const name = s.name.toLowerCase()
-      if (name.includes('commander')) continue // Already handled
-      if (name.includes('maybeboard')) continue
-      if (name.includes('sideboard')) continue
-      if (name.includes('token')) continue
-      exported.push(s)
-    }
-  }
-
-  const cards = exported.flatMap((section) =>
+  const cards = deck.sections.flatMap((section) =>
     section.cards.map(
       (card): SectionedDialectCard => ({
         section: section.name,

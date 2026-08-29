@@ -298,7 +298,8 @@ export function textImportSection(options: TextImportSectionOptions): string {
       `the JSON \`warnings\` array, and exits 1 — the import is still written. ` +
       `Ritual's own format and the MTG Arena/MTGO export dialect ` +
       `(\`4 Lightning Bolt (M10) 146\`, bare \`Deck\`/\`Sideboard\` markers, a ` +
-      `trailing \`*F*\`/\`*E*\` foil marker) are both read, as is the inside of a ` +
+      `\`*F*\`/\`*E*\` foil marker either trailing or between the set and the ` +
+      `collector number, as Moxfield writes it) are both read, as is the inside of a ` +
       `\`\`\` fence — on the import path only, since a pasted decklist usually ` +
       `arrives wrapped in one. A \`(SET)\` with no collector number is left in the ` +
       `card name rather than read as a printing; a line that imports but still ` +

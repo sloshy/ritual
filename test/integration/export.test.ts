@@ -237,14 +237,16 @@ describe('export command (Integration)', () => {
       )
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toBe(
-        'Deck\n2 Lightning Bolt (LEA) 161\n1 Fireblast (VIS) 78\n\n' +
-          'Sideboard\n1 Price of Progress\n',
-      )
+      // The seeded deck's only other section is a Maybeboard, which a decklist
+      // has no board for — so it is dropped, and said so on stderr even though
+      // `--quiet` was given: a silenced confirmation is fine, a silenced loss
+      // of content is not.
+      expect(result.stdout).toBe('Deck\n2 Lightning Bolt (LEA) 161\n1 Fireblast (VIS) 78\n')
+      expect(result.stderr).toContain('Omitted cards a decklist has no board for: Maybeboard (1)')
     })
   }, 60_000)
 
-  test('--format text --dialect moxfield adds the trailing finish marker', async () => {
+  test('--format text --dialect moxfield splices the finish marker into the printing', async () => {
     await withTempDir(async (dir) => {
       await seedWorkspace(dir)
 
@@ -254,10 +256,7 @@ describe('export command (Integration)', () => {
       )
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toBe(
-        'Deck\n2 Lightning Bolt (LEA) 161\n1 Fireblast (VIS) 78 *F*\n\n' +
-          'Sideboard\n1 Price of Progress\n',
-      )
+      expect(result.stdout).toBe('Deck\n2 Lightning Bolt (LEA) 161\n1 Fireblast (VIS) *F* 78\n')
     })
   }, 60_000)
 

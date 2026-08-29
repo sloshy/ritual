@@ -13,12 +13,13 @@
  * ```
  * card-line ::= [ bullet ] [ quantity ] name { WS token } [ WS id ]
  * token     ::= printing | finish | condition | language | labels | note
- * printing  ::= "(" set ":" collector ")" | "(" set ")" WS collector
+ * printing  ::= "(" set ":" collector ")" | "(" set ")" WS [ marker WS ] collector
  * ```
  *
  * **Lenient in, canonical out.** Reading tolerates any token order, any run of
  * whitespace, an optional `- ` bullet, `Nx` quantities, the Arena/MTGO export
- * dialect (`(SET) CN`, `*F*`/`*E*`) and `_` in set codes; writing
+ * dialect (`(SET) CN`, a trailing `*F*`/`*E*`), Moxfield's bulk-edit form
+ * (`(SET) *F* CN`) and `_` in set codes; writing
  * ({@link module:card-line-tail}) always emits the one canonical form, so files
  * converge on the next save.
  *
@@ -360,12 +361,39 @@ const ARENA_CN = '[A-Za-z0-9\\-★†]+'
 const ARENA_PRINTING_RE = new RegExp(`^(.+?)\\s+\\((${SET_CHARS}{2,10})\\)\\s+(${ARENA_CN})$`)
 
 /**
+ * Matches Moxfield's bulk-edit card line, which splices the finish marker
+ * *between* the set and the collector number:
+ * `1 Cardname (SET) *F* 123` → name `Cardname`, set `set`, number `123`, foil.
+ *
+ * Moxfield's documented import grammar is
+ * `<amount> <name> <set> <is foil> <is alter> <collector number> …`
+ * (https://moxfield.com/help), so this is the form Ritual's own
+ * `--dialect moxfield` text export writes (`src/export/dialects.ts`) and the
+ * form a file downloaded from Moxfield arrives in. Reading it here is what
+ * makes that export round-trip back through `ritual import`.
+ *
+ * Same two restrictions as {@link ARENA_PRINTING_RE}: no `:` in the set token,
+ * and the collector number is required.
+ */
+const MOXFIELD_PRINTING_RE = new RegExp(
+  `^(.+?)\\s+\\((${SET_CHARS}{2,10})\\)\\s+\\*([FEfe])\\*\\s+(${ARENA_CN})$`,
+)
+
+/**
  * A parenthesized set-like token left inside a parsed card name — the shape an
  * unrecognized export dialect leaves behind (`Lightning Bolt (M10) 146`). Used
  * for the safety-net advisory, so a dialect nobody taught the parser is never
  * silent corruption.
+ *
+ * Deliberately looser than the two dialect patterns: it tolerates a *run* of
+ * trailing marker-or-number words, so Moxfield's optional columns
+ * (`(SET) *F* *A* 284`, an alter marker Ritual does not model) still raise the
+ * advisory instead of being absorbed into the card name. Matching here costs
+ * only a note; not matching costs a card nobody was told about.
  */
-const SUSPECT_PRINTING_IN_NAME_RE = new RegExp(`\\(${SET_CHARS}{2,10}\\)(?:\\s+${ARENA_CN})?$`)
+const SUSPECT_PRINTING_IN_NAME_RE = new RegExp(
+  `\\(${SET_CHARS}{2,10}\\)(?:\\s+(?:\\*[A-Za-z]\\*|${ARENA_CN}))*$`,
+)
 
 /**
  * The trailing finish marker Moxfield, Archidekt, and MTGO append to a
@@ -375,6 +403,53 @@ const EXPORT_FINISH_MARKER_RE = /\*([FEfe])\*$/
 
 /** What each export finish marker letter means, lowercased. */
 const EXPORT_FINISH_MARKERS: Record<string, Finish> = { f: 'foil', e: 'etched' }
+
+/** An export dialect's printing suffix, lifted off the end of a card name. */
+type ExportPrintingMatch = {
+  /** The card name with the suffix removed. */
+  name: string
+  printing: CardPrinting
+  /** Present only for the Moxfield form, which carries a finish marker. */
+  finish?: Finish
+  /** The suffix verbatim, for the advisory that reports the rewrite. */
+  token: string
+}
+
+/**
+ * Recognize an export dialect's printing suffix at the end of a parsed card
+ * name — Arena's `(SET) CN` or Moxfield's `(SET) *F* CN` — and lift it out.
+ * Returns undefined for a name that ends in neither, which is the common case
+ * (a canonical line's printing was already tokenized off the end).
+ *
+ * Both forms in one place because they differ only by the marker: a caller that
+ * tried them separately would have to decide their precedence, and the two
+ * grammars are disjoint anyway (a marker is present or it is not).
+ */
+function matchExportPrinting(name: string): ExportPrintingMatch | undefined {
+  const [, moxName, moxSet, moxMarker, moxCollector] = MOXFIELD_PRINTING_RE.exec(name) ?? []
+  if (
+    moxName !== undefined &&
+    moxSet !== undefined &&
+    moxMarker !== undefined &&
+    moxCollector !== undefined
+  ) {
+    const printing = resolvePrinting(moxSet, moxCollector)
+    const finish = EXPORT_FINISH_MARKERS[moxMarker.toLowerCase()]
+    // Both are guaranteed by the regex (a non-empty set/collector pair and a
+    // marker letter from `[FEfe]`); refusing the match rather than falling
+    // through keeps a future loosening of the pattern from silently reaching
+    // the Arena branch, which cannot match a `*F*` line anyway.
+    if (printing === undefined || finish === undefined) return undefined
+    return { name: moxName.trim(), printing, finish, token: name.slice(moxName.length).trim() }
+  }
+  const [, arenaName, arenaSet, arenaCollector] = ARENA_PRINTING_RE.exec(name) ?? []
+  if (arenaName === undefined || arenaSet === undefined || arenaCollector === undefined) {
+    return undefined
+  }
+  const printing = resolvePrinting(arenaSet, arenaCollector)
+  if (printing === undefined) return undefined
+  return { name: arenaName.trim(), printing, token: name.slice(arenaName.length).trim() }
+}
 
 /** The canonical `(SET:CN)` printing token body. */
 const PRINTING_BODY_RE = new RegExp(`^(${SET_CHARS}+):([^)\\s]+)$`)
@@ -879,20 +954,24 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
   // printing; anything short of that is an advisory, never a silent rewrite of
   // a card name the user wrote.
   if (tokens.printing === undefined) {
-    const arena = ARENA_PRINTING_RE.exec(name)
-    const printing =
-      arena?.[2] === undefined || arena[3] === undefined
-        ? undefined
-        : resolvePrinting(arena[2], arena[3])
-    if (arena?.[1] !== undefined && printing !== undefined) {
-      const dialect = name.slice(arena[1].length).trim()
-      name = arena[1].trim()
-      tokens.printing = printing
+    const dialect = matchExportPrinting(name)
+    if (dialect) {
+      name = dialect.name
+      tokens.printing = dialect.printing
+      // A trailing `*F*` earlier in the scan already set the finish; the two
+      // marker positions are alternatives, so the one actually written wins and
+      // neither overwrites the other. The advisory then reports the finish that
+      // was *stored*, not the one this match proposed — on a line carrying both
+      // markers those differ, and naming the loser would be a lie about how the
+      // line was read.
+      if (dialect.finish !== undefined) tokens.finish ??= dialect.finish
+      const label = printingLabel(dialect.printing.set, dialect.printing.collectorNumber)
+      const applied = tokens.finish
       advisories.push({
         severity: 'advisory',
         kind: 'dialect-rewritten',
-        token: dialect,
-        message: `Read the export printing ${dialect} as (${printingLabel(printing.set, printing.collectorNumber)}).`,
+        token: dialect.token,
+        message: `Read the export printing ${dialect.token} as (${label})${applied ? ` [${applied}]` : ''}.`,
       })
     } else {
       const suspect = SUSPECT_PRINTING_IN_NAME_RE.exec(name)

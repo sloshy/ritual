@@ -436,9 +436,13 @@ the file's own values, \`archidekt\` writes \`Normal|Foil|Etched\` under a
 (\`Normal\`/\`NM\`) for lines that mark none; \`arena\` and \`moxfield\` say nothing
 here and render as \`ritual\`. For \`--format text\` it picks the decklist form:
 \`arena\` and \`moxfield\` write bare \`Commander\`/\`Deck\`/\`Sideboard\` board markers
-over \`1 Name (SET) CN\` lines (moxfield adding trailing \`*F*\`/\`*E*\` finish
-markers) — the form those sites import — while \`ritual\` and \`archidekt\` write one
-flat \`1 Name (SET:CN)\` list. The built-in
+over \`1 Name (SET) CN\` lines — the form those sites import — with moxfield
+splicing its \`*F*\`/\`*E*\` finish marker between the set and the collector
+number (\`1 Name (SET) *F* CN\`), where Moxfield's bulk-edit grammar puts it.
+Those two are decklists, so maybeboard and token sections are left out and the
+omitted count and sections are warned about on stderr (\`--quiet\` does not
+silence it). \`ritual\` and \`archidekt\` write one flat \`1 Name (SET:CN)\` list
+instead, carrying every selected entry. The built-in
 \`archidekt\` preset is that dialect with columns
 \`Scryfall ID,Quantity,Variant,Condition\` — the CSV archidekt.com/collections/import
 accepts, and what \`ritual collection-sync push\` uploads for large batches.

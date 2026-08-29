@@ -82,8 +82,9 @@ const ARENA_SECTION_MARKERS: ReadonlyMap<string, string> = new Map([
 /**
  * How a text source should be read.
  *
- * There is no dialect switch: the Arena/MTGO export forms — `N Name (SET) NUM`
- * card lines, `*F*`/`*E*` finish markers, bare
+ * There is no dialect switch: the Arena/MTGO/Moxfield export forms —
+ * `N Name (SET) NUM` card lines, `*F*`/`*E*` finish markers (trailing, or
+ * between the set and the collector number as Moxfield writes them), bare
  * `Deck`/`Sideboard`/`Commander`/`Companion` section markers and the `About`
  * block — are **always** recognized, because read tolerance is a property of
  * the one card-line grammar rather than of the surface that called it (see

@@ -913,9 +913,11 @@ export function registerReadTools(server: McpServer): void {
               "archidekt writes Archidekt's finish/condition words (Normal|Foil|Etched, " +
               'NM|LP|MP|HP|D) under a Variant header. For text it picks the decklist form: ' +
               'arena and moxfield write bare Commander/Deck/Sideboard board markers over ' +
-              '"N Name (SET) CN" lines, moxfield adding *F*/*E* finish markers; ritual and ' +
-              'archidekt write one flat list of "N Name (SET:CN)" lines. md is always ' +
-              "Ritual's own markdown and rejects a dialect.",
+              '"N Name (SET) CN" lines, moxfield splicing its *F*/*E* finish marker between ' +
+              'the set and the collector number ("N Name (SET) *F* CN"). Those two are ' +
+              'decklists, so maybeboard and token sections are omitted and reported in ' +
+              'warnings. ritual and archidekt write one flat list of "N Name (SET:CN)" lines ' +
+              "and omit nothing. md is always Ritual's own markdown and rejects a dialect.",
           ),
         preset: z
           .string()
