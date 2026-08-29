@@ -292,12 +292,10 @@ export async function saveDeck(
   // service or the deck's sections) and the same `&N` card ids as a deck saved by
   // any other surface.
   const frontMatter: DeckFrontMatter = {
-    name: deckData.name,
     format: deckData.format,
     sourceId: deckData.sourceId,
     sourceUrl: deckData.sourceUrl,
     description: deckData.description,
-    created: new Date().toISOString(),
     tags: [],
   }
   const fileContent = serializeDeckToMarkdown(deckData, frontMatter)

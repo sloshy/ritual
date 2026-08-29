@@ -99,7 +99,7 @@ beforeEach(async () => {
   dir = await createWorkspace()
   await seedCardCache(dir, SEED_CARDS)
   await writeDeckFile(dir, 'test', {
-    frontMatter: { name: 'Test Deck' },
+    name: 'Test Deck',
     cards: [{ quantity: 1, name: 'Demonic Tutor', cardId: 1 }],
   })
   await writeCollectionFile(dir, 'main', {
@@ -119,7 +119,7 @@ describe('add-card CLI (Integration)', () => {
     // `--no-input` makes the `ask` policy decline the bulk download; the run
     // then fails with the remedy rather than asking again on the way out.
     await withWorkspace(async (emptyDir) => {
-      await writeDeckFile(emptyDir, 'test', { frontMatter: { name: 'Test Deck' }, cards: [] })
+      await writeDeckFile(emptyDir, 'test', { name: 'Test Deck', cards: [] })
       const result = await runCli(
         ['add-card', '--deck', 'test', 'Sol Ring', '--no-input'],
         emptyDir,
@@ -722,7 +722,7 @@ describe('add-card CLI (Integration)', () => {
 
     test("a deck organized as '## Mainboard' gains no second '## Main' section", async () => {
       await writeDeckFile(dir, 'custom', {
-        frontMatter: { name: 'Custom Sections' },
+        name: 'Custom Sections',
         sections: [
           { name: 'Mainboard', cards: [{ quantity: 1, name: 'Demonic Tutor', cardId: 1 }] },
         ],
@@ -803,7 +803,7 @@ describe('add-card CLI (Integration)', () => {
 
     test("a merge keeps the existing line's note", async () => {
       await writeDeckFile(dir, 'noted', {
-        frontMatter: { name: 'Noted Deck' },
+        name: 'Noted Deck',
         cards: [{ quantity: 1, name: 'Sol Ring', note: 'pet card', cardId: 1 }],
       })
       const result = await runCli(['add-card', '--deck', 'noted', 'Sol', 'Ring', '--exact'], dir)

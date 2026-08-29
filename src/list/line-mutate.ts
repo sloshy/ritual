@@ -486,8 +486,10 @@ function isDeckCardLine(line: string): boolean {
 
 /**
  * The deck's section headings. A leading level-1 heading with no card lines of
- * its own is the document title (`# My Deck`), not a section — matching
- * `parseDeckText`, which folds such an H1 into the synthetic Main bucket.
+ * its own is the document title (`# My Deck`), not a section. Note that
+ * `parseDeckText` now treats the first H1 as the title unconditionally, so a
+ * card sitting directly under it is in the synthetic Main bucket there but is
+ * reported under the title's name here; reconciling the two is deferred.
  */
 function deckHeadings(lines: string[]): HeadingLine[] {
   const all: HeadingLine[] = []

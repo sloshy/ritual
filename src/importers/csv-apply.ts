@@ -155,12 +155,7 @@ function buildDeckMarkdown(
     cards,
   }))
   const deck: DeckData = { name, format, sections }
-  return serializeDeckToMarkdown(deck, {
-    name,
-    format,
-    created: new Date().toISOString(),
-    tags: [],
-  })
+  return serializeDeckToMarkdown(deck, { format, tags: [] })
 }
 
 /** The list types that store flat per-copy bullet lines (everything but decks). */

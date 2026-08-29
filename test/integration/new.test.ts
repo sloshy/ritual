@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { parseDeckFrontMatter } from '../../src/list/deck-file'
+import { readDeckName } from '../../src/importers/text-file'
 import { runCli } from './helpers/cli'
 import { withWorkspace } from '../helpers/workspace'
 
@@ -15,9 +16,8 @@ describe('new CLI (Integration)', () => {
       // lowercased or kebab-cased.
       const filePath = path.join(dir, 'decks', 'My Cool Deck.md')
       const frontMatter = await parseDeckFrontMatter(filePath)
-      expect(frontMatter.name).toBe('My Cool Deck')
       expect(frontMatter.format).toBe('commander')
-      expect(await fs.readFile(filePath, 'utf-8')).toContain('## Main')
+      expect(await fs.readFile(filePath, 'utf-8')).toContain('# My Cool Deck\n\n## Main')
     })
   })
 
@@ -41,8 +41,7 @@ describe('new CLI (Integration)', () => {
       // `: ? < >` are illegal on Windows and are dropped; the apostrophe and the
       // spaces survive. The display name keeps every character.
       const filePath = path.join(dir, 'decks', "Atraxa Praetors' Voice Stax.md")
-      const frontMatter = await parseDeckFrontMatter(filePath)
-      expect(frontMatter.name).toBe("Atraxa: Praetors' Voice? <Stax>")
+      expect(await readDeckName(filePath)).toBe("Atraxa: Praetors' Voice? <Stax>")
     })
   })
 

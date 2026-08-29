@@ -244,7 +244,7 @@ test('a deck card save carries the cover the dialog just wrote, and its hash', a
     lowestPriceCardsEur: {},
     lowestPriceCardsTix: {},
     symbolMap: {},
-    frontMatter: { name: 'Cover Deck' },
+    frontMatter: {},
   })
   await fulfillJson(page, '**/api/deck/cover-deck/save', (route) => {
     saved = JSON.parse(route.request().postData() ?? '{}') as DeckSaveBody

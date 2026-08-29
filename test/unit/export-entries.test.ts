@@ -45,9 +45,9 @@ async function withListFile<T>(
 describe('loadExportEntries', () => {
   test('flattens a deck keeping condition, note, and section, dropping card IDs', async () => {
     const content = [
-      '# Main',
+      '## Main',
       '2 Sol Ring (C21:263) [foil] [NM] {trade bait} &3',
-      '# Maybeboard',
+      '## Maybeboard',
       '1 Counterspell &7',
     ].join('\n')
     const { entries, warnings } = await withListFile('deck', content, (location) =>

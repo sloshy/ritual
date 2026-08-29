@@ -787,13 +787,6 @@ export const cliCardsMeta = {
   'cli.listAllCards.writeFailed': { description: 'The manifest file could not be written.' },
 
   // ── metadata ──────────────────────────────────────────────────────────
-  'cli.metadata.rejectedName': {
-    description:
-      'The `name` front-matter key is not settable here. `ritual rename` is a command and never translates.',
-  },
-  'cli.metadata.rejectedCreated': {
-    description: 'The `created` front-matter key is stamped by Ritual and not settable.',
-  },
   'cli.metadata.rejectedLastSynced': {
     description: 'The `lastSynced` front-matter key is stamped by deck sync and not settable.',
   },

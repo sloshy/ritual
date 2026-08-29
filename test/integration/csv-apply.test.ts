@@ -238,7 +238,8 @@ describe('applyCsvImport', () => {
 
   test('append merges deck quantities for identical printings and keeps frontmatter', async () => {
     const filePath = await writeDeckFile(tmpDir, 'Burn', {
-      frontMatter: { name: 'Burn', format: 'modern' },
+      name: 'Burn',
+      frontMatter: { format: 'modern' },
       cards: [{ quantity: 2, name: 'Lightning Bolt', cardId: 1 }],
     })
 

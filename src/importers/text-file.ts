@@ -18,7 +18,7 @@ import { readListImage } from '../list/list-image'
 import { isDroppedEmptySection, parseDeckFormat } from '../list/deck-format'
 import { createFenceTracker, frontMatterBodyStart } from '../list/markdown-fence'
 import { isListMarkdownFile } from '../list/list-file-name'
-import { parseHeading } from '../list/section-format'
+import { parseHeading, parseTitleFromContent } from '../list/section-format'
 import { listTypeLabel, type ListType } from '../list/list-type'
 
 /** A deck directory entry that is a deck's own file. Decks share the one list-file predicate. */
@@ -33,36 +33,13 @@ function getString(value: unknown): string | undefined {
 }
 
 /**
- * Resolve a deck's display name: the `name:` frontmatter field if present,
- * otherwise the supplied fallback (typically a file base name or user-entered name).
- */
-function resolveDeckName(rawName: unknown, fallbackName: string): string {
-  const parsedName = getString(rawName)
-  if (parsedName) {
-    return parsedName.replace(/\n/g, ' ')
-  }
-  return fallbackName
-}
-
-/**
- * Read just a deck file's display name without parsing its full card list.
- * Used to filter discovered decks by the site `includeDecks` selection.
- *
- * Throws whatever `gray-matter` throws for unparseable front matter — callers
- * (see `discoverListSources`) turn that into the reason a list could not be
- * built.
- *
- * The options argument is load-bearing, not decoration: `gray-matter` keeps a
- * module-level cache keyed on file content, and it stores a *partial* entry even
- * for input it threw on, so the second parse of the same broken front matter
- * quietly returns empty data instead of throwing. It only consults that cache
- * when no options are passed, so passing them makes this read report the same
- * answer no matter what parsed the file first.
+ * Read just a deck file's display name without parsing its full card list: the
+ * first `# Title` H1 (fence- and front-matter-aware), falling back to the file's
+ * base name. Used to filter discovered decks by the site `includeDecks` selection.
  */
 export async function readDeckName(filePath: string): Promise<string> {
   const rawText = await Bun.file(filePath).text()
-  const data = matter(rawText, { language: 'yaml' }).data
-  return resolveDeckName(data.name, path.basename(filePath, path.extname(filePath)))
+  return parseTitleFromContent(rawText) ?? path.basename(filePath, path.extname(filePath))
 }
 
 /**
@@ -214,10 +191,11 @@ function deckCard(tokens: LineTokens, line: string, listType: ListType, warnings
 /**
  * Parse a deck's markdown/decklist text into structured {@link DeckData}.
  *
- * The text may carry optional YAML frontmatter (`name`, `description`,
- * `sourceUrl`, `sourceId`, `format`); `fallbackName` is used as the deck name
- * only when no frontmatter `name:` is present (e.g. an uploaded file's base name
- * or a name entered in the admin UI). `primer` is an optional markdown sidecar.
+ * The text may carry optional YAML frontmatter (`description`, `sourceUrl`,
+ * `sourceId`, `format`). The deck's name is its first `# Title` H1 — a title,
+ * never a section; `fallbackName` is used only when there is none (e.g. an
+ * uploaded file's base name or a name entered in the admin UI). `primer` is an
+ * optional markdown sidecar.
  *
  * A non-blank body line that is neither a section header nor a card line is
  * skipped and reported in `warnings` — imports of loose third-party decklists
@@ -233,15 +211,25 @@ export function parseDeckText(
   primer?: string,
   options?: ParseDeckTextOptions,
 ): DeckParseResult {
-  const parsed = matter(rawText)
+  // The options argument is load-bearing, not decoration: `gray-matter` keeps a
+  // module-level cache keyed on file content, and it stores a *partial* entry
+  // even for input it threw on, so a second parse of the same broken front
+  // matter quietly returns empty data instead of throwing. It only consults
+  // that cache when no options are passed, so passing them makes a deck with
+  // unreadable front matter fail here every time — rather than being published
+  // as an empty deck depending on what parsed the file first.
+  const parsed = matter(rawText, { language: 'yaml' })
   const readFencedContent = options?.readFencedContent === true
   const listType: ListType = options?.listType ?? 'deck'
   // `parsed.content` starts at the first body line, so a diagnostic's file line
   // is its index in that content plus however many lines the front matter took.
   const bodyOffset = frontMatterBodyStart(rawText.split(/\r?\n/))
 
-  const frontMatterName = getString(parsed.data.name)
-  let name = resolveDeckName(parsed.data.name, fallbackName)
+  let name = fallbackName
+  /** Whether a `# Title` H1 has named the deck; a later H1 is not a second title. */
+  let titled = false
+  /** Whether a card line has been read; an H1 after the deck body is not a title in any dialect. */
+  let sawCard = false
 
   // Through the shared grammar after the `\n` unescape: a blank or non-text
   // `description:` says nothing on every list type, and one renderer prints all
@@ -257,11 +245,10 @@ export function parseDeckText(
   const sections: DeckSection[] = []
   // The bucket body lines land in before any header is seen. It may legitimately
   // end up empty — every canonically-written Ritual deck opens with a header —
-  // so it is exempt from the dropped-section warning below, as is the `# Title`
-  // H1 that adopts it (a document title is not a section anybody lost).
+  // so it is exempt from the dropped-section warning below.
   const syntheticMain: DeckSection = { name: 'Main', cards: [] }
-  /** Heading level that adopted the synthetic bucket; `null` while unadopted. */
-  let syntheticMainLevel: number | null = null
+  /** Whether a `##`-or-deeper heading adopted the synthetic bucket as a real section. */
+  let syntheticMainAdopted = false
   let currentSection: DeckSection = syntheticMain
   sections.push(currentSection)
 
@@ -292,10 +279,10 @@ export function parseDeckText(
   /** Inside an Arena `About` block, whose lines are deck metadata, not cards. */
   let inAboutBlock = false
 
-  /** Start (or adopt the leading bucket as) a section, as a header or marker would. */
-  const startSection = (sectionName: string, level: number): void => {
+  /** Start (or adopt the leading bucket as) a section, as a `##` header or marker would. */
+  const startSection = (sectionName: string): void => {
     if (currentSection.cards.length === 0 && currentSection.name === 'Main') {
-      if (currentSection === syntheticMain) syntheticMainLevel = level
+      if (currentSection === syntheticMain) syntheticMainAdopted = true
       currentSection.name = sectionName
     } else {
       currentSection = { name: sectionName, cards: [] }
@@ -328,17 +315,34 @@ export function parseDeckText(
     }
 
     const heading = parseHeading(trimmed)
+    if (heading?.level === 1) {
+      inAboutBlock = false
+      // The first `# Title` names the deck and is never a section. A second H1
+      // is neither a title nor a section, so it is reported like any other line
+      // the parser cannot read — a rewrite would drop it. An H1 after the cards
+      // is not a title either: it must not rename a deck already named by an
+      // `About` block or the caller.
+      if (titled) {
+        warnings.push(`Skipped extra title line: ${trimmed}`)
+      } else if (sawCard) {
+        warnings.push(`Skipped malformed line: ${trimmed}`)
+      } else {
+        name = heading.text
+        titled = true
+      }
+      continue
+    }
     if (heading) {
       inAboutBlock = false
-      startSection(heading.text, heading.level)
+      startSection(heading.text)
       continue
     }
 
     const marker = ARENA_SECTION_MARKERS.get(trimmed.toLowerCase())
     if (marker !== undefined) {
       inAboutBlock = false
-      // Level 2: a marker is a `##`-equivalent, so an empty one warns like one.
-      startSection(marker, 2)
+      // A marker is a `##`-equivalent, so an empty one warns like one.
+      startSection(marker)
       continue
     }
     if (trimmed.toLowerCase() === 'about') {
@@ -346,10 +350,10 @@ export function parseDeckText(
       continue
     }
     if (inAboutBlock) {
-      // `Name My Deck` names the deck (frontmatter, when present, still wins);
+      // `Name My Deck` names the deck (a `# Title` H1, when present, still wins);
       // anything else in the block is metadata this parser does not model.
       const aboutName = trimmed.match(/^Name\s+(.+)$/i)?.[1]?.trim()
-      if (aboutName && frontMatterName === undefined) {
+      if (aboutName && !titled) {
         name = aboutName
       } else if (!aboutName) {
         advisories.push(`Skipped About line: ${trimmed}`)
@@ -358,6 +362,7 @@ export function parseDeckText(
     }
 
     if (isCardCandidate('deck', trimmed)) {
+      sawCard = true
       // Always the deck grammar, whatever the cards are bound for: this is the
       // quantity-led decklist form, and `listType` only decides which of the
       // labels it read the destination can keep.
@@ -383,9 +388,7 @@ export function parseDeckText(
   // Three shapes are emptiness rather than loss, and none of them warns:
   //
   // - **The leading bucket**, when nothing adopted it (every canonically-written
-  //   Ritual deck opens with a header) or when an `#` H1 adopted it — `# My Deck`
-  //   above the sections is a document title, which is how imported and
-  //   hand-written decks name themselves. An `##`-or-deeper first heading with no
+  //   Ritual deck opens with a header). An `##`-or-deeper first heading with no
   //   cards under it is a genuine empty section and does warn.
   // - **A deck with no cards at all**, which is exactly what `ritual` writes for a
   //   freshly created list (`## Main` and nothing else). There is no content to
@@ -398,9 +401,7 @@ export function parseDeckText(
   if (validSections.length > 0) {
     for (const section of sections) {
       if (section.cards.length > 0) continue
-      if (section === syntheticMain && (syntheticMainLevel === null || syntheticMainLevel === 1)) {
-        continue
-      }
+      if (section === syntheticMain && !syntheticMainAdopted) continue
       if (isDroppedEmptySection(section)) {
         advisories.push(`Dropped empty section: ${section.name}`)
         continue

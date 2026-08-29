@@ -15,7 +15,7 @@ describe('loadListSnapshot + buildDefaultChangeLines (Integration)', () => {
   test('reconstructs a deck snapshot with sections, commander, note, and quantities', async () => {
     await withWorkspace(async (dir) => {
       const filePath = await writeDeckFile(dir, 'test', {
-        frontMatter: { name: 'Test' },
+        name: 'Test',
         sections: [
           {
             name: 'Commander',
@@ -111,7 +111,7 @@ describe('history --show (Integration)', () => {
 
   async function seedDeck(dir: string, changelog?: string): Promise<void> {
     const filePath = await writeDeckFile(dir, 'test', {
-      frontMatter: { name: 'Test' },
+      name: 'Test',
       cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
     })
     if (changelog !== undefined) await fs.writeFile(changelogSidecarPath(filePath), changelog)
@@ -211,7 +211,7 @@ describe('history CLI error paths (Integration)', () => {
     await withWorkspace(async (dir) => {
       // A real deck so the resolver reports not-found (with the query name) rather than no-lists.
       await writeDeckFile(dir, 'other', {
-        frontMatter: { name: 'Other' },
+        name: 'Other',
         cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
       })
       const result = await runCli(['history', '--deck', 'nonexistent', '--show'], dir)
@@ -223,7 +223,7 @@ describe('history CLI error paths (Integration)', () => {
   test('a resolution failure under --output json uses the structured error envelope', async () => {
     await withWorkspace(async (dir) => {
       await writeDeckFile(dir, 'other', {
-        frontMatter: { name: 'Other' },
+        name: 'Other',
         cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
       })
       const result = await runCli(['history', 'nonexistent', '--show', '--output', 'json'], dir)

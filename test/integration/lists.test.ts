@@ -8,8 +8,8 @@ import {
 } from '../helpers/workspace'
 
 async function seedLists(dir: string): Promise<void> {
-  await writeDeckFile(dir, 'burn', { frontMatter: { name: 'Burn' }, cards: [] })
-  await writeDeckFile(dir, 'stax', { frontMatter: { name: 'Winota Stax' }, cards: [] })
+  await writeDeckFile(dir, 'burn', { name: 'Burn', cards: [] })
+  await writeDeckFile(dir, 'stax', { name: 'Winota Stax', cards: [] })
   await writeCollectionFile(dir, 'main', { title: 'Main Binder', entries: [] })
   await writeWantedFile(dir, 'needs', { title: 'Needs', entries: [] })
 }

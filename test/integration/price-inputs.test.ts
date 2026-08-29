@@ -29,7 +29,8 @@ let collectionFile: string
 beforeEach(async () => {
   ws = await bindWorkspace()
   const deckPath = await writeDeckFile(ws.dir, 'burn', {
-    frontMatter: { name: 'Burn', labels: ['proxy'] },
+    name: 'Burn',
+    frontMatter: { labels: ['proxy'] },
     cards: [
       { quantity: 1, name: 'Sol Ring', cardId: 1 },
       { quantity: 1, name: 'Lightning Bolt', cardId: 2 },

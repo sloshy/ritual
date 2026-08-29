@@ -110,8 +110,8 @@ function stubArchidektPush(pushed: unknown[], ownDeckIds: number[] = [Number(SOU
 
 async function writeDecks(): Promise<void> {
   await writeDeckFile(tmpDir, 'linked', {
+    name: 'Linked Deck',
     frontMatter: {
-      name: 'Linked Deck',
       format: 'commander',
       sourceId: SOURCE_ID,
       sourceUrl: SOURCE_URL,
@@ -121,11 +121,12 @@ async function writeDecks(): Promise<void> {
   })
   // Linked but unsyncable: an Archidekt URL with no id to fetch by.
   await writeDeckFile(tmpDir, 'no-source-id', {
-    frontMatter: { name: 'No Source Id', sourceUrl: SOURCE_URL },
+    name: 'No Source Id',
+    frontMatter: { sourceUrl: SOURCE_URL },
     cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
   })
   await writeDeckFile(tmpDir, 'local-only', {
-    frontMatter: { name: 'Local Only' },
+    name: 'Local Only',
     cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
   })
 }
@@ -405,8 +406,8 @@ describe('deck-sync API', () => {
     // The filter itself is unit-tested; what is pinned here is that the engine
     // actually applies `only` on the pull path.
     await writeDeckFile(tmpDir, 'linked', {
+      name: 'Linked Deck',
       frontMatter: {
-        name: 'Linked Deck',
         format: 'commander',
         sourceId: SOURCE_ID,
         sourceUrl: SOURCE_URL,
@@ -431,8 +432,8 @@ describe('deck-sync API', () => {
 
   test('a push with --only removals sends the removal and not the addition', async () => {
     await writeDeckFile(tmpDir, 'linked', {
+      name: 'Linked Deck',
       frontMatter: {
-        name: 'Linked Deck',
         format: 'commander',
         sourceId: SOURCE_ID,
         sourceUrl: SOURCE_URL,
@@ -535,7 +536,7 @@ describe('deck-sync API', () => {
     const before = await fs.readFile(deckPath, 'utf-8')
     await fs.writeFile(
       deckPath,
-      before.replace('---\n\n##', "sourceUpdatedAt: '2026-06-01T00:00:00.000Z'\n---\n\n##"),
+      before.replace('\n---\n', "\nsourceUpdatedAt: '2026-06-01T00:00:00.000Z'\n---\n"),
     )
 
     const refused = await runReport({ direction: 'push', decks: ['linked'] })

@@ -33,7 +33,7 @@ describe('set-list-image CLI (Integration)', () => {
   /** A deck whose two card lines already carry ids, so a backfill would be a no-op. */
   async function seedDeck(): Promise<string> {
     return writeDeckFile(dir, 'burn', {
-      frontMatter: { name: 'Burn' },
+      name: 'Burn',
       cards: [
         { name: 'Lightning Bolt', quantity: 4, set: 'lea', collectorNumber: '161', cardId: 1 },
         { name: 'Sol Ring', quantity: 1, set: 'c21', collectorNumber: '263', cardId: 2 },

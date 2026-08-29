@@ -27,13 +27,8 @@ describe('parseDeckMetadataBody', () => {
     )
   })
 
-  test('name is refused with a pointer at the rename route, which moves the file too', () => {
-    const message = parseDeckMetadataBody({ name: 'New Name' })
-    expect(message).toContain('POST /api/deck/:slug/rename')
-  })
-
-  test.each(['created', 'lastSynced'])('%s is stamped by Ritual, not editable', (key) => {
-    expect(parseDeckMetadataBody({ [key]: '2026-01-01' })).toContain('cannot be edited')
+  test('lastSynced is stamped by Ritual, not editable', () => {
+    expect(parseDeckMetadataBody({ lastSynced: '2026-01-01' })).toContain('cannot be edited')
   })
 
   test('contentHash is parsed as the concurrency token, not as a metadata field', () => {

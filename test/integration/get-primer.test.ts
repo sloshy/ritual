@@ -13,7 +13,8 @@ describe('get-primer command (Integration)', () => {
   test('prints the primer sidecar and exits 0', async () => {
     await withTempDir(async (dir) => {
       await writeDeckFile(dir, 'burn', {
-        frontMatter: { name: 'Burn', format: 'modern' },
+        name: 'Burn',
+        frontMatter: { format: 'modern' },
         cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }],
       })
       await fs.writeFile(
@@ -31,7 +32,8 @@ describe('get-primer command (Integration)', () => {
   test('a deck with no primer sidecar is not-found, not a runtime error', async () => {
     await withTempDir(async (dir) => {
       await writeDeckFile(dir, 'burn', {
-        frontMatter: { name: 'Burn', format: 'modern' },
+        name: 'Burn',
+        frontMatter: { format: 'modern' },
         cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }],
       })
 

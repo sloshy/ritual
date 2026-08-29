@@ -16,7 +16,7 @@ describe('ritual mcp (stdio)', () => {
     await ensureBinary()
     await withTempDir(async (dir) => {
       await writeDeckFile(dir, 'starter', {
-        frontMatter: { name: 'Starter' },
+        name: 'Starter',
         cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
       })
 
@@ -69,7 +69,7 @@ describe('ritual mcp (stdio)', () => {
     await ensureBinary()
     await withTempDir(async (dir) => {
       await writeDeckFile(dir, 'starter', {
-        frontMatter: { name: 'Starter' },
+        name: 'Starter',
         cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
       })
 

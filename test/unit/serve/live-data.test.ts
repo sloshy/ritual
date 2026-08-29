@@ -98,10 +98,7 @@ describe('createLiveSiteData', () => {
     const deckPath = path.join(ws.dir, 'decks', 'emberwild-aggro.md')
     const content = await fs.readFile(deckPath, 'utf-8')
     await Bun.sleep(5)
-    await fs.writeFile(
-      deckPath,
-      content.replace('name: "Emberwild Aggro"', 'name: "Emberwild Renamed"'),
-    )
+    await fs.writeFile(deckPath, content.replace('# Emberwild Aggro', '# Emberwild Renamed'))
 
     // The renamed deck lives under a new slug; the old one is gone.
     const renamed = await live.getDetail('deck', 'emberwild-renamed')

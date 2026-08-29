@@ -12,7 +12,7 @@ let dir: string
 beforeEach(async () => {
   dir = await createWorkspace()
   await writeDeckFile(dir, 'Staples', {
-    frontMatter: { name: 'Staples' },
+    name: 'Staples',
     cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
   })
   await writeCollectionFile(dir, 'Staples', {

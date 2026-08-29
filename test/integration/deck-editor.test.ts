@@ -47,8 +47,8 @@ describe('deck editor helpers (Integration)', () => {
   test('ensureDeckFile names the file as the deck is named', async () => {
     const filePath = await ensureDeckFile('My Cool Deck', 'commander')
     expect(filePath).toBe(path.join(dir, 'decks', 'My Cool Deck.md'))
-    const { frontMatter } = await loadDeck(filePath)
-    expect(frontMatter.name).toBe('My Cool Deck')
+    const { deck, frontMatter } = await loadDeck(filePath)
+    expect(deck.name).toBe('My Cool Deck')
     expect(frontMatter.format).toBe('commander')
   })
 
@@ -119,15 +119,15 @@ describe('deck editor helpers (Integration)', () => {
     expect(goblins[0]?.cardId).toBe(firstId)
   })
 
-  test('listExistingDecks reports front-matter display names, sorted by name', async () => {
+  test('listExistingDecks reports H1 display names, sorted by name', async () => {
     await ensureDeckFile('Zephyr Tempo', 'commander')
-    // A file whose name differs from its front-matter display name (as any deck
-    // renamed by hand, or created before the naming rule, would be).
+    // A file whose name differs from its H1 display name (as any deck renamed
+    // by hand, or created before the naming rule, would be).
     await fs.writeFile(
       path.join(dir, 'decks', 'atraxa-superfriends.md'),
-      '---\nname: Atraxa Superfriends\n---\n\n## Main\n',
+      '# Atraxa Superfriends\n\n## Main\n',
     )
-    // A deck file with no `name:` front matter falls back to its file base name.
+    // A deck file with no `# Title` H1 falls back to its file base name.
     await fs.writeFile(path.join(dir, 'decks', 'orphan-deck.md'), '## Main\n')
 
     const decks = await listExistingDecks()

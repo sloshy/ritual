@@ -216,7 +216,7 @@ describe('commitAllMoves', () => {
     await fs.writeFile(
       deckList.filePath,
       deckMarkdown({
-        frontMatter: { name: 'Deck' },
+        name: 'Deck',
         cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
       }),
     )
@@ -254,7 +254,7 @@ describe('commitAllMoves', () => {
     await fs.writeFile(
       deckList.filePath,
       deckMarkdown({
-        frontMatter: { name: 'Deck' },
+        name: 'Deck',
         cards: [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '167', cardId: 1 }],
       }),
     )
@@ -281,7 +281,7 @@ describe('commitAllMoves', () => {
     await fs.writeFile(
       deckList.filePath,
       deckMarkdown({
-        frontMatter: { name: 'Deck' },
+        name: 'Deck',
         cards: [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '167', cardId: 1 }],
       }),
     )
@@ -408,7 +408,7 @@ describe('custom art follows a committed move', () => {
     await fs.writeFile(
       srcList.filePath,
       deckMarkdown({
-        frontMatter: { name: 'Source' },
+        name: 'Source',
         sections: [
           {
             name: 'Main',

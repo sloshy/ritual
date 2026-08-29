@@ -74,7 +74,7 @@ describe('warmSiteCache (Integration)', () => {
 
   async function seedLists(): Promise<void> {
     await writeDeckFile(workspace.dir, 'aggro', {
-      frontMatter: { name: 'Aggro' },
+      name: 'Aggro',
       cards: [
         { name: 'Lightning Bolt', quantity: 4 },
         { name: 'Mountain', quantity: 20 },
@@ -110,7 +110,7 @@ describe('warmSiteCache (Integration)', () => {
   test('warms primer references, canonicalized the way the payload builders resolve them', async () => {
     await cardCache.set('Lightning Bolt', [makeScryfallCard({ name: 'Lightning Bolt' })])
     const deckPath = await writeDeckFile(workspace.dir, 'aggro', {
-      frontMatter: { name: 'Aggro' },
+      name: 'Aggro',
       cards: [{ name: 'Lightning Bolt', quantity: 4 }],
     })
     // Lower-cased on purpose: the primer reference must resolve to the cache's

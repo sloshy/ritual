@@ -17,7 +17,7 @@ import {
  */
 
 const DECK: DeckFixture = {
-  frontMatter: { name: 'Goblins' },
+  name: 'Goblins',
   cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
 }
 const COLLECTION: CollectionFixture = {

@@ -150,7 +150,7 @@ describe('history API', () => {
 
   test('creates a changelog for a list that had none', async () => {
     await writeDeckFile(tmpDir, 'mydeck', {
-      frontMatter: { name: 'My Deck' },
+      name: 'My Deck',
       cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
     })
     const sets: ChangeSet[] = [

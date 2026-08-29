@@ -15,6 +15,7 @@
 import { applyDeckMetadata } from '../list/deck-metadata'
 import { matchDeckUrl, resolveImportSourceUrl } from '../importers/url-dispatch'
 import { parseDeckFrontMatter } from '../list/deck-file'
+import { readDeckName } from '../importers/text-file'
 
 /** An Archidekt deck reference, as deck front matter records one. */
 export type ArchidektDeckLink = {
@@ -85,7 +86,7 @@ export type PreviousDeckLink = {
 export type DeckLinkResult = {
   /** File basename without `.md`. */
   slug: string
-  /** The deck's display name, as its front matter records it. */
+  /** The deck's display name, as its `# Title` H1 records it. */
   name: string
   sourceId: string
   sourceUrl: string
@@ -112,7 +113,7 @@ export type LinkDeckOptions = {
 export async function linkDeckToArchidekt(options: LinkDeckOptions): Promise<DeckLinkResult> {
   const { filePath, slug, link, dryRun } = options
   const existing = await parseDeckFrontMatter(filePath)
-  const name = typeof existing.name === 'string' ? existing.name : slug
+  const name = await readDeckName(filePath)
   const previousId = typeof existing.sourceId === 'string' ? existing.sourceId : undefined
   const previousUrl = typeof existing.sourceUrl === 'string' ? existing.sourceUrl : undefined
   const previous: PreviousDeckLink | null =

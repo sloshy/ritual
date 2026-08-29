@@ -74,7 +74,7 @@ beforeEach(async () => {
     ],
   })
   deckPath = await writeDeckFile(ws.dir, 'goblins', {
-    frontMatter: { name: 'Goblins' },
+    name: 'Goblins',
     cards: [{ name: 'Goblin Guide', quantity: 4, cardId: 1 }],
   })
   wantedPath = await writeWantedFile(ws.dir, 'needs', {
@@ -361,7 +361,7 @@ describe('a deck line the save only re-quantified keeps its art', () => {
       new Request('http://localhost/api/deck/goblins/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ changes, deck, frontMatter: { name: 'Goblins' }, contentHash }),
+        body: JSON.stringify({ changes, deck, name: 'Goblins', contentHash }),
       }),
     )
   }
@@ -373,7 +373,7 @@ describe('a deck line the save only re-quantified keeps its art', () => {
     // read the single `remove` as "the line is gone" and delete the art of a
     // line that is still right there.
     await writeDeckFile(ws.dir, 'goblins', {
-      frontMatter: { name: 'Goblins' },
+      name: 'Goblins',
       cards: [{ name: 'Goblin Guide', quantity: 1, cardId: 1 }],
     })
     await put('deck', 'goblins', { cardId: 1, art: { file: IMAGE } })
@@ -389,7 +389,7 @@ describe('a deck line the save only re-quantified keeps its art', () => {
 
   test('taking the last copy of that line out still drops its art', async () => {
     await writeDeckFile(ws.dir, 'goblins', {
-      frontMatter: { name: 'Goblins' },
+      name: 'Goblins',
       cards: [{ name: 'Goblin Guide', quantity: 1, cardId: 1 }],
     })
     await put('deck', 'goblins', { cardId: 1, art: { file: IMAGE } })

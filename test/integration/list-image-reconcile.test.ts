@@ -36,7 +36,8 @@ describe('list cover image reconcile (Integration)', () => {
   /** A deck whose cover points at the `&2` line, plus a line that is not covered. */
   async function seedDeck(image: ListImageRef): Promise<string> {
     return writeDeckFile(dir, 'burn', {
-      frontMatter: { name: 'Burn', image },
+      name: 'Burn',
+      frontMatter: { image },
       cards: [
         { quantity: 2, name: 'Sol Ring', cardId: 1 },
         { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 2 },

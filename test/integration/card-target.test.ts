@@ -19,7 +19,7 @@ let deckPath: string
 beforeEach(async () => {
   dir = await createWorkspace()
   deckPath = await writeDeckFile(dir, 'test', {
-    frontMatter: { name: 'Test Deck' },
+    name: 'Test Deck',
     cards: [
       // 'Bolt' is an exact match for the search 'Bolt' AND a substring of the
       // two Lightning Bolts — the fixture that separates the fuzzy tiers.

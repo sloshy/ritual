@@ -34,7 +34,7 @@ beforeEach(async () => {
   ws = await bindWorkspace({ config: false })
   tmpDir = ws.dir
   await writeDeckFile(tmpDir, 'my-deck', {
-    frontMatter: { name: 'My Deck' },
+    name: 'My Deck',
     cards: [{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
   })
   await writeCollectionFile(tmpDir, 'binder', {
@@ -76,7 +76,7 @@ async function saveDeck(changes: ChangeEvent[], deck: DeckData): Promise<Respons
     new Request('http://localhost/api/deck/my-deck/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ changes, deck, frontMatter: { name: 'My Deck' }, contentHash }),
+      body: JSON.stringify({ changes, deck, name: 'My Deck', contentHash }),
     }),
   )
 }
@@ -319,7 +319,7 @@ describe('incoming moves (move-to saved on the destination)', () => {
 
   test('a collection save decrements a multi-copy deck line, which keeps its id', async () => {
     await writeDeckFile(tmpDir, 'my-deck', {
-      frontMatter: { name: 'My Deck' },
+      name: 'My Deck',
       cards: [{ ...SOL_RING, quantity: 2 }],
     })
     const change = createMoveToChange('Sol Ring', {
@@ -471,7 +471,7 @@ describe('incoming moves (move-to saved on the destination)', () => {
       from: BINDER,
     })
     // Destination: an empty deck, so the new line is &1.
-    await writeDeckFile(tmpDir, 'my-deck', { frontMatter: { name: 'My Deck' }, cards: [] })
+    await writeDeckFile(tmpDir, 'my-deck', { name: 'My Deck', cards: [] })
     const resp = await saveDeck(
       [change],
       deckWith([{ quantity: 1, name: 'Brainstorm', set: 'ice', collectorNumber: '64', cardId: 1 }]),
@@ -869,7 +869,7 @@ describe('GET /api/lists', () => {
 describe('incoming moves pinning a name-only line', () => {
   test('a deck save converts the line in place, takes the copy from the source, and adds the replacement there', async () => {
     await writeDeckFile(tmpDir, 'my-deck', {
-      frontMatter: { name: 'My Deck' },
+      name: 'My Deck',
       cards: [SOL_RING, { quantity: 1, name: 'Lightning Bolt', cardId: 2 }],
     })
     const change = createMoveToChange('Lightning Bolt', {

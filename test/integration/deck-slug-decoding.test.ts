@@ -34,7 +34,8 @@ describe('admin deck API slug decoding', () => {
     tmpDir = ws.dir
     // A deck whose name (and thus slug/filename) contains spaces.
     await writeDeckFile(tmpDir, 'My Test Deck', {
-      frontMatter: { name: 'My Test Deck', format: 'commander' },
+      name: 'My Test Deck',
+      frontMatter: { format: 'commander' },
     })
   })
 

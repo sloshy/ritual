@@ -36,7 +36,7 @@ export function serializeCardLine(card: Card): string {
 }
 
 /**
- * Render a deck to its canonical markdown body: one `## Section` block per
+ * Render a deck to its canonical markdown body: the `# Title` H1, then one `## Section` block per
  * section, each followed by its cards' full bulleted `serializeCardLine` form
  * (printing, finish, condition, note, and `&N` id). This is the "MD" export
  * offered in the page header; it mirrors what a server save writes minus the
@@ -49,7 +49,7 @@ export function deckToMarkdown(deck: DeckData): string {
     const cardLines = section.cards.map(serializeCardLine)
     return [header, ...cardLines].join('\n')
   })
-  return blocks.join('\n\n').replace(/\n*$/, '\n')
+  return [`# ${deck.name}`, ...blocks].join('\n\n').replace(/\n*$/, '\n')
 }
 
 /**

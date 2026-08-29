@@ -36,7 +36,8 @@ let ws: BoundWorkspace
 beforeEach(async () => {
   ws = await bindWorkspace({ config: false, clearCardCache: true })
   await writeDeckFile(ws.dir, 'burn', {
-    frontMatter: { name: 'Burn', format: 'modern', tags: ['aggro'] },
+    name: 'Burn',
+    frontMatter: { format: 'modern', tags: ['aggro'] },
     sections: [
       {
         name: 'Main',
@@ -162,7 +163,7 @@ describe('view=cards', () => {
     expect(body.totalCount).toBe(2)
     // Front matter travels with the cards view: the deck save flow re-sends it,
     // and dropping it here would silently blank the file's YAML.
-    expect(body.frontMatter).toMatchObject({ name: 'Burn', format: 'modern' })
+    expect(body.frontMatter).toMatchObject({ format: 'modern' })
     for (const key of EXPENSIVE_KEYS) expect(Object.keys(body)).not.toContain(key)
   })
 
@@ -179,7 +180,8 @@ describe('view=cards', () => {
 
   test('a deck cards view projects its front-matter labels default and line overrides', async () => {
     await writeDeckFile(ws.dir, 'proxies', {
-      frontMatter: { name: 'Proxies', labels: ['proxy'] },
+      name: 'Proxies',
+      frontMatter: { labels: ['proxy'] },
       cards: [
         { quantity: 1, name: 'Black Lotus', set: 'lea', collectorNumber: '232', cardId: 1 },
         {

@@ -57,7 +57,7 @@ describe('metadata CLI (Integration)', () => {
 
   test('set/get/unset round-trip a deck labels default, card lines untouched', async () => {
     const filePath = await writeDeckFile(dir, 'burn', {
-      frontMatter: { name: 'Burn' },
+      name: 'Burn',
       cards: [
         { quantity: 4, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
       ],
@@ -80,7 +80,7 @@ describe('metadata CLI (Integration)', () => {
   })
 
   test('a label a deck cannot carry is a usage error naming the deck vocabulary', async () => {
-    await writeDeckFile(dir, 'burn', { frontMatter: { name: 'Burn' }, cards: [] })
+    await writeDeckFile(dir, 'burn', { name: 'Burn', cards: [] })
     const result = await runCli(['metadata', 'set', 'burn', 'labels', 'sale'], dir)
     expect(result.exitCode).toBe(2)
     expect(result.stderr).toContain("Invalid label 'sale'")
@@ -116,7 +116,8 @@ describe('metadata CLI (Integration)', () => {
 
   test('deck tags support add/remove merging, and removing the last tag clears the key', async () => {
     await writeDeckFile(dir, 'burn', {
-      frontMatter: { name: 'Burn', format: 'modern', tags: ['aggro'] },
+      name: 'Burn',
+      frontMatter: { format: 'modern', tags: ['aggro'] },
       cards: [
         { quantity: 4, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
       ],
@@ -148,7 +149,8 @@ describe('metadata CLI (Integration)', () => {
 
   test('deck description joins its values and format validates against the vocabulary', async () => {
     await writeDeckFile(dir, 'burn', {
-      frontMatter: { name: 'Burn', format: 'modern' },
+      name: 'Burn',
+      frontMatter: { format: 'modern' },
       cards: [
         { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
       ],
@@ -169,7 +171,8 @@ describe('metadata CLI (Integration)', () => {
 
   test('unset works on the deck branch too, and unknown/rejected properties are usage errors', async () => {
     await writeDeckFile(dir, 'burn', {
-      frontMatter: { name: 'Burn', description: 'temp' },
+      name: 'Burn',
+      frontMatter: { description: 'temp' },
       cards: [],
     })
 
@@ -181,18 +184,20 @@ describe('metadata CLI (Integration)', () => {
     expect(unknown.exitCode).toBe(2)
     expect(unknown.stderr).toContain("Unknown metadata field 'bogus'")
 
-    // The HTTP route's concurrency token is not a CLI property, and the
-    // display name has its own command — both refuse instead of no-op writes.
+    // The HTTP route's concurrency token is not a CLI property, and `name` is
+    // not front matter at all any more (the title is the H1, changed by
+    // `ritual rename`) — both refuse instead of no-op writes.
     const token = await runCli(['metadata', 'set', 'burn', 'contentHash', 'abc'], dir)
     expect(token.exitCode).toBe(2)
     const name = await runCli(['metadata', 'set', 'burn', 'name', 'New Name'], dir)
     expect(name.exitCode).toBe(2)
-    expect(name.stderr).toContain('ritual rename')
+    expect(name.stderr).toContain("Unknown metadata field 'name'")
   })
 
   test('list prints every settable key in text and the full mapping in JSON', async () => {
     const filePath = await writeDeckFile(dir, 'burn', {
-      frontMatter: { name: 'Burn', format: 'modern', tags: ['aggro'] },
+      name: 'Burn',
+      frontMatter: { format: 'modern', tags: ['aggro'] },
       cards: [],
     })
     // A hand-authored unknown key must survive and appear in the JSON payload.

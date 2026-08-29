@@ -13,24 +13,20 @@ import { parseDeckText } from '../../src/importers/text-file'
 describe('validateDeckFrontMatter', () => {
   test('keeps the named string fields when they are strings', () => {
     const parsed = validateDeckFrontMatter({
-      name: 'Burn',
       description: 'Fast red',
       sourceId: '123',
       sourceUrl: 'https://archidekt.com/decks/123',
-      created: '2026-01-01T00:00:00.000Z',
       lastSynced: '2026-02-01T00:00:00.000Z',
     })
-    expect(parsed.name).toBe('Burn')
     expect(parsed.description).toBe('Fast red')
     expect(parsed.sourceId).toBe('123')
     expect(parsed.sourceUrl).toBe('https://archidekt.com/decks/123')
-    expect(parsed.created).toBe('2026-01-01T00:00:00.000Z')
     expect(parsed.lastSynced).toBe('2026-02-01T00:00:00.000Z')
   })
 
   test('drops a non-string description rather than shipping it as one', () => {
-    const parsed = validateDeckFrontMatter({ description: { nested: true }, name: 'Burn' })
-    expect(Object.keys(parsed)).toEqual(['name'])
+    const parsed = validateDeckFrontMatter({ description: { nested: true }, sourceId: '1' })
+    expect(Object.keys(parsed)).toEqual(['sourceId'])
   })
 
   test('drops tags that are not an array of non-empty strings', () => {

@@ -58,7 +58,7 @@ function deckWithLanguage(language?: string): WireDeck {
 beforeEach(async () => {
   ws = await bindWorkspace({ config: false })
   filePath = await writeDeckFile(ws.dir, 'burn', {
-    frontMatter: { name: 'Burn' },
+    name: 'Burn',
     cards: [{ name: 'Lightning Bolt', quantity: 2, set: 'lea', collectorNumber: '161', cardId: 1 }],
   })
   contentHash = computeHash(await fs.readFile(filePath, 'utf-8'))
@@ -72,7 +72,7 @@ function save(changes: ChangeEvent[], deck: WireDeck): Promise<Response> {
   const req = new Request('http://localhost/api/deck/burn/save', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ changes, deck, frontMatter: { name: 'Burn' }, contentHash }),
+    body: JSON.stringify({ changes, deck, name: 'Burn', contentHash }),
   })
   return handleDeckSave(req)
 }

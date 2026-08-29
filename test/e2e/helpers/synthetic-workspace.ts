@@ -392,9 +392,10 @@ function symbolSvg(label: string): string {
 // ===== List markdown (set codes uppercase in rendered markdown) =====
 
 const DECK_TEST_UNSET_COMMANDER = `---
-name: "Test Unset Commander"
 tags: []
 ---
+
+# Test Unset Commander
 
 ## Commander
 - 1 Sol Ring &1
@@ -406,9 +407,10 @@ tags: []
 `
 
 const DECK_EMBERWILD_AGGRO = `---
-name: "Emberwild Aggro"
 tags: []
 ---
+
+# Emberwild Aggro
 
 ## Commander
 - 1 Emberwild Phoenix &1
@@ -420,9 +422,10 @@ tags: []
 `
 
 const DECK_TEST_SWAP = `---
-name: "Test Swap Deck"
 tags: []
 ---
+
+# Test Swap Deck
 
 ## Main
 - 1 Sol Ring (C21:263) &1

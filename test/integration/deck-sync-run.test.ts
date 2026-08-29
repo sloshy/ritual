@@ -153,8 +153,8 @@ async function writeLinkedDeck(
 ): Promise<string> {
   const sectioned = body.length > 0 && 'cards' in body[0]!
   return writeDeckFile(dir, 'winota-stax', {
+    name: 'Winota Stax',
     frontMatter: {
-      name: 'Winota Stax',
       sourceId: DECK_ID,
       sourceUrl: `https://archidekt.com/decks/${DECK_ID}`,
       ...(synced?.lastSynced === undefined ? {} : { lastSynced: synced.lastSynced }),
@@ -192,9 +192,7 @@ describe('deck-sync link (Integration)', () => {
     // matter only, so every one of those bytes must survive.
     const filePath = path.join(dir, 'decks', 'alpha-deck.md')
     const original = [
-      '---',
-      'name: Alpha Deck',
-      '---',
+      '# Alpha Deck',
       '',
       'Some prose about the deck.',
       '',
@@ -227,7 +225,7 @@ describe('deck-sync link (Integration)', () => {
 
   test('a dry run reports the link without writing the file', async () => {
     const filePath = await writeDeckFile(dir, 'alpha-deck', {
-      frontMatter: { name: 'Alpha Deck' },
+      name: 'Alpha Deck',
       cards: [{ quantity: 1, name: 'Sol Ring' }],
     })
     const before = await fs.readFile(filePath, 'utf-8')
@@ -249,7 +247,7 @@ describe('deck-sync link (Integration)', () => {
 
   test('a non-Archidekt URL is a usage error and writes nothing', async () => {
     const filePath = await writeDeckFile(dir, 'alpha-deck', {
-      frontMatter: { name: 'Alpha Deck' },
+      name: 'Alpha Deck',
       cards: [{ quantity: 1, name: 'Sol Ring' }],
     })
     const before = await fs.readFile(filePath, 'utf-8')
@@ -264,11 +262,11 @@ describe('deck-sync link (Integration)', () => {
 
   test('a name two decks answer to is a usage error, not a guess', async () => {
     await writeDeckFile(dir, 'twin-alpha', {
-      frontMatter: { name: 'Twin Alpha' },
+      name: 'Twin Alpha',
       cards: [{ quantity: 1, name: 'Sol Ring' }],
     })
     await writeDeckFile(dir, 'twin-beta', {
-      frontMatter: { name: 'Twin Beta' },
+      name: 'Twin Beta',
       cards: [{ quantity: 1, name: 'Sol Ring' }],
     })
 
@@ -277,8 +275,8 @@ describe('deck-sync link (Integration)', () => {
 
   test('re-linking reports the link it replaced', async () => {
     await writeDeckFile(dir, 'alpha-deck', {
+      name: 'Alpha Deck',
       frontMatter: {
-        name: 'Alpha Deck',
         sourceId: '111',
         sourceUrl: 'https://archidekt.com/decks/111',
       },
@@ -297,7 +295,7 @@ describe('deck-sync link (Integration)', () => {
 
   test('--output json emits the result, and --quiet says nothing', async () => {
     await writeDeckFile(dir, 'alpha-deck', {
-      frontMatter: { name: 'Alpha Deck' },
+      name: 'Alpha Deck',
       cards: [{ quantity: 1, name: 'Sol Ring' }],
     })
 
@@ -347,7 +345,7 @@ describe('deck-sync status (Integration)', () => {
       lastSynced: '2026-08-01T00:00:00.000Z',
     })
     await writeDeckFile(dir, 'local-only', {
-      frontMatter: { name: 'Local Only' },
+      name: 'Local Only',
       cards: [{ quantity: 1, name: 'Sol Ring' }],
     })
 

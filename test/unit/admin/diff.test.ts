@@ -13,9 +13,7 @@ import type { ApiErrorResponse } from '../../../src/api/http'
  */
 
 const BURN_MD = [
-  '---',
-  'name: Burn',
-  '---',
+  '# Burn',
   '',
   '## Main',
   '',

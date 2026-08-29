@@ -56,9 +56,9 @@ describe('list-lifecycle engine', () => {
       expect(result.touchedFiles).toEqual([result.filePath, `${result.filePath}.sha256`])
 
       const frontMatter = await parseDeckFrontMatter(result.filePath)
-      expect(frontMatter.name).toBe('My Deck')
       expect(frontMatter.format).toBe('modern')
-      expect(await fs.readFile(result.filePath, 'utf-8')).toContain('## Main')
+      expect(await listDisplayName('deck', result.filePath)).toBe('My Deck')
+      expect(await fs.readFile(result.filePath, 'utf-8')).toContain('# My Deck\n\n## Main')
       expect(await exists(`${result.filePath}.sha256`)).toBe(true)
     })
 
@@ -121,7 +121,7 @@ describe('list-lifecycle engine', () => {
   describe('renameList', () => {
     test('moves the file with its changelog, primer and art sidecars and drops the old .sha256', async () => {
       const oldPath = path.join(decksDir, 'Old Deck.md')
-      const oldContent = '---\nname: "Old Deck"\nformat: commander\n---\n\n# Old Deck\n\n## Main\n'
+      const oldContent = '---\nformat: commander\n---\n\n# Old Deck\n\n## Main\n'
       await fs.writeFile(oldPath, oldContent)
       // A current sidecar: the file is Ritual-clean, so the rename writes a
       // fresh hash for the new content.
@@ -154,12 +154,9 @@ describe('list-lifecycle engine', () => {
       expect(await exists(path.join(decksDir, 'New Deck.primer.md'))).toBe(true)
       expect(await exists(path.join(decksDir, 'New Deck.art.json'))).toBe(true)
 
-      // Display name rewritten in front matter (canonical gray-matter form,
-      // matching every deck save) and legacy H1.
+      // Display name rewritten in the H1; the front matter is untouched.
       const content = await fs.readFile(newPath, 'utf-8')
-      expect(content).toContain('name: New Deck')
-      expect(content).toContain('# New Deck')
-      expect(content).not.toContain('Old Deck')
+      expect(content).toBe('---\nformat: commander\n---\n\n# New Deck\n\n## Main\n')
     })
 
     test('a hand-edited file (stale sidecar) is renamed without stamping a new .sha256', async () => {
@@ -179,28 +176,27 @@ describe('list-lifecycle engine', () => {
       expect(await exists(`${oldPath}.sha256`)).toBe(false)
     })
 
-    test('a new name containing quotes yields valid YAML front matter', async () => {
+    test('a deck with no H1 gains one after its front matter, and keeps the front matter', async () => {
       const oldPath = path.join(decksDir, 'Plain.md')
-      await fs.writeFile(oldPath, '---\nname: Plain\nformat: commander\n---\n\n## Main\n')
+      await fs.writeFile(oldPath, '---\nformat: commander\n---\n\n## Main\n')
 
       const result = unwrap<RenameListSuccess>(await renameList('deck', oldPath, 'The "Best" Deck'))
 
+      expect(result.oldName).toBe('Plain')
       const content = await fs.readFile(result.newFilePath, 'utf-8')
-      const reparsed = await parseDeckFrontMatter(result.newFilePath)
-      expect(reparsed.name).toBe('The "Best" Deck')
-      expect(content).toContain('format: commander')
+      expect(content).toBe('---\nformat: commander\n---\n\n# The "Best" Deck\n\n## Main\n')
+      expect(await listDisplayName('deck', result.newFilePath)).toBe('The "Best" Deck')
     })
 
     test('a new name containing replacement patterns is written literally', async () => {
       const oldPath = path.join(decksDir, 'Old.md')
-      await fs.writeFile(oldPath, '---\nname: Old\nformat: commander\n---\n\n# Old\n\n## Main\n')
+      await fs.writeFile(oldPath, '---\nformat: commander\n---\n\n# Old\n\n## Main\n')
 
       const result = unwrap<RenameListSuccess>(await renameList('deck', oldPath, 'Cost $& Value'))
 
       const content = await fs.readFile(result.newFilePath, 'utf-8')
       expect(content).toContain('# Cost $& Value')
-      const reparsed = await parseDeckFrontMatter(result.newFilePath)
-      expect(reparsed.name).toBe('Cost $& Value')
+      expect(await listDisplayName('deck', result.newFilePath)).toBe('Cost $& Value')
     })
 
     test('rewrites the first H1 of a flat list and preserves the body', async () => {
@@ -396,9 +392,9 @@ describe('list-lifecycle engine', () => {
   })
 
   describe('listDisplayName', () => {
-    test("reads a deck's front-matter name and a flat list's H1", async () => {
+    test("reads a deck's and a flat list's H1", async () => {
       const deckPath = path.join(decksDir, 'slugged.md')
-      await fs.writeFile(deckPath, '---\nname: "Pretty Deck Name"\n---\n\n## Main\n')
+      await fs.writeFile(deckPath, '---\nformat: modern\n---\n\n# Pretty Deck Name\n\n## Main\n')
       expect(await listDisplayName('deck', deckPath)).toBe('Pretty Deck Name')
 
       const flatPath = path.join(collectionsDir, 'slugged.md')
@@ -407,6 +403,10 @@ describe('list-lifecycle engine', () => {
     })
 
     test('falls back to the file slug when no display name is present', async () => {
+      const deckPath = path.join(decksDir, 'Legacy Deck.md')
+      await fs.writeFile(deckPath, '---\nname: Ignored Legacy Name\n---\n\n## Main\n')
+      expect(await listDisplayName('deck', deckPath)).toBe('Legacy Deck')
+
       const flatPath = path.join(collectionsDir, 'No Title.md')
       await fs.writeFile(flatPath, '- Sol Ring (C19:221) &1\n')
       expect(await listDisplayName('collection', flatPath)).toBe('No Title')

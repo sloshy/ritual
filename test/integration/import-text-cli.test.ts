@@ -171,7 +171,7 @@ describe('import Arena-dialect text file (Integration)', () => {
   test('a name with nothing usable in a file name is a usage error, not a crash', async () => {
     await withWorkspace(async (dir) => {
       const source = path.join(dir, 'decklist.txt')
-      await fs.writeFile(source, '---\nname: "???"\n---\n2 Mountain\n')
+      await fs.writeFile(source, '# ???\n\n2 Mountain\n')
 
       const result = await runCli(['import', source, '--type', 'deck', '--no-input'], dir)
 

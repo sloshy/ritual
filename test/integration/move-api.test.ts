@@ -171,7 +171,7 @@ describe('move API', () => {
       ],
     })
     const deckPath = await writeDeckFile(tmpDir, 'my-deck', {
-      frontMatter: { name: 'My Deck' },
+      name: 'My Deck',
       cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
     })
 
@@ -204,7 +204,7 @@ describe('move API', () => {
       ],
     })
     await writeDeckFile(tmpDir, 'my-deck', {
-      frontMatter: { name: 'My Deck' },
+      name: 'My Deck',
       cards: [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '167', cardId: 1 }],
     })
 

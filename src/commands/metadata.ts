@@ -149,13 +149,11 @@ function acceptedKeys(type: ListType): string {
  * active when this module was first imported.
  */
 const REJECTED_KEY_MESSAGES: Record<string, RejectedKeyMessage> = {
-  name: 'cli.metadata.rejectedName',
-  created: 'cli.metadata.rejectedCreated',
   lastSynced: 'cli.metadata.rejectedLastSynced',
 }
 
 /**
- * The keys naming a non-settable front-matter field. Narrowed to the three
+ * The keys naming a non-settable front-matter field. Narrowed to the
  * params-free messages so the refusal below needs no parameter bag.
  */
 type RejectedKeyMessage = Extract<MessageKey, `cli.metadata.rejected${string}`>

@@ -78,13 +78,13 @@ function repinEveryCard(): ChangeEvent[] {
 }
 
 function saveBody(changes: ChangeEvent[], deck: DeckData): string {
-  return JSON.stringify({ changes, deck, frontMatter: { name: 'Big Deck' }, contentHash })
+  return JSON.stringify({ changes, deck, name: 'Big Deck', contentHash })
 }
 
 beforeEach(async () => {
   ws = await bindWorkspace({ config: false })
   filePath = await writeDeckFile(ws.dir, 'big-deck', {
-    frontMatter: { name: 'Big Deck' },
+    name: 'Big Deck',
     cards: deckCards('lea'),
   })
   contentHash = computeHash(await fs.readFile(filePath, 'utf-8'))
@@ -125,7 +125,8 @@ describe('admin request-body cap', () => {
     const body = JSON.stringify({
       changes: [],
       deck: deckPayload('lea'),
-      frontMatter: { name: 'Big Deck', description: 'x'.repeat(MAX_LIST_BODY_SIZE) },
+      name: 'Big Deck',
+      frontMatter: { description: 'x'.repeat(MAX_LIST_BODY_SIZE) },
       contentHash,
     })
 

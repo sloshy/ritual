@@ -15,7 +15,8 @@ import { runCli, withTempDir } from './helpers/cli'
 // ── Test fixtures ────────────────────────────────────────────────────
 
 const DECK_BEFORE = deckMarkdown({
-  frontMatter: { name: 'Test Deck', format: 'commander' },
+  name: 'Test Deck',
+  frontMatter: { format: 'commander' },
   sections: [
     {
       name: 'Mainboard',
@@ -29,7 +30,8 @@ const DECK_BEFORE = deckMarkdown({
 
 // Lightning Bolt removed.
 const DECK_AFTER = deckMarkdown({
-  frontMatter: { name: 'Test Deck', format: 'commander' },
+  name: 'Test Deck',
+  frontMatter: { format: 'commander' },
   sections: [
     {
       name: 'Mainboard',

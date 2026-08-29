@@ -26,7 +26,8 @@ describe('list-all-cards engine', () => {
 
   test('dedupes cards across decks, collections, and wanted lists', async () => {
     await writeDeckFile(ws.dir, 'sample', {
-      frontMatter: { name: 'Sample Deck', format: 'commander' },
+      name: 'Sample Deck',
+      frontMatter: { format: 'commander' },
       sections: [
         {
           name: 'Commander',
@@ -92,7 +93,7 @@ describe('list-all-cards engine', () => {
 
   test('sorts entries alphabetically by name, then by set, then by collector number', async () => {
     await writeDeckFile(ws.dir, 'sample', {
-      frontMatter: { name: 'S' },
+      name: 'S',
       cards: [
         { quantity: 1, name: 'Sol Ring', set: 'cmr', collectorNumber: '1' },
         { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
@@ -140,7 +141,7 @@ describe('list-all-cards engine', () => {
 
   test('reports an unparseable deck as skipped while keeping the rest of the data', async () => {
     await writeDeckFile(ws.dir, 'good', {
-      frontMatter: { name: 'Good Deck' },
+      name: 'Good Deck',
       cards: [{ quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '161', cardId: 1 }],
     })
     // Broken YAML front matter makes importFromTextFile throw.
@@ -179,7 +180,7 @@ describe('list-all-cards CLI', () => {
   test('prints the text manifest to stdout by default without writing a file', async () => {
     await withWorkspace(async (dir) => {
       await writeDeckFile(dir, 'sample', {
-        frontMatter: { name: 'Sample' },
+        name: 'Sample',
         cards: [{ quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '161', cardId: 1 }],
       })
 
@@ -194,7 +195,7 @@ describe('list-all-cards CLI', () => {
   test('--out - is stdout, byte-identical to the default', async () => {
     await withWorkspace(async (dir) => {
       await writeDeckFile(dir, 'sample', {
-        frontMatter: { name: 'Sample' },
+        name: 'Sample',
         cards: [{ quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '161', cardId: 1 }],
       })
 
@@ -209,7 +210,7 @@ describe('list-all-cards CLI', () => {
   test('--out writes the manifest file and prints a confirmation', async () => {
     await withWorkspace(async (dir) => {
       await writeDeckFile(dir, 'sample', {
-        frontMatter: { name: 'Sample' },
+        name: 'Sample',
         cards: [{ quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '161', cardId: 1 }],
       })
 
@@ -225,7 +226,7 @@ describe('list-all-cards CLI', () => {
   test('--output json emits the entry array on stdout with lowercase sets', async () => {
     await withWorkspace(async (dir) => {
       await writeDeckFile(dir, 'sample', {
-        frontMatter: { name: 'Sample' },
+        name: 'Sample',
         cards: [{ quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '161', cardId: 1 }],
       })
       await writeWantedFile(dir, 'needs', {
@@ -246,7 +247,7 @@ describe('list-all-cards CLI', () => {
   test('--out with --output json writes the JSON payload to the file', async () => {
     await withWorkspace(async (dir) => {
       await writeDeckFile(dir, 'sample', {
-        frontMatter: { name: 'Sample' },
+        name: 'Sample',
         cards: [{ quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '161', cardId: 1 }],
       })
 
@@ -264,7 +265,7 @@ describe('list-all-cards CLI', () => {
   test('an unparseable list file warns on stderr and exits 1 while still emitting data', async () => {
     await withWorkspace(async (dir) => {
       await writeDeckFile(dir, 'good', {
-        frontMatter: { name: 'Good Deck' },
+        name: 'Good Deck',
         cards: [{ quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '161', cardId: 1 }],
       })
       await fs.writeFile(

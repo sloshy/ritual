@@ -61,7 +61,7 @@ describe('handleExport', () => {
   // unit tests — what this adds is that both halves survive the transport.
   test('a text dialect reaches the renderer and its omission warning reaches the client', async () => {
     await writeDeckFile(ws.dir, 'burn', {
-      frontMatter: { name: 'Burn' },
+      name: 'Burn',
       sections: [
         {
           name: 'Main',

@@ -63,9 +63,8 @@ describe('deck-create handler', () => {
     expect(data.slug).toBe('My Test Deck')
 
     const { frontMatter, content } = await readCreatedDeck('My Test Deck')
-    expect(frontMatter.name).toBe('My Test Deck')
     expect(frontMatter.format).toBe('commander')
-    expect(content).toContain('## Main')
+    expect(content).toContain('# My Test Deck\n\n## Main')
   })
 
   test('generates slug from name with special characters', async () => {
@@ -137,7 +136,7 @@ describe('deck-rename handler', () => {
     // Create a test deck
     await Bun.write(
       path.join(decksDir, 'old-deck.md'),
-      `---\nname: "Old Deck"\nformat: "commander"\ncreated: "2024-01-01T00:00:00.000Z"\ntags: []\n---\n\n# Old Deck\n`,
+      `---\nformat: "commander"\ntags: []\n---\n\n# Old Deck\n`,
     )
   })
 
@@ -161,7 +160,8 @@ describe('deck-rename handler', () => {
     expect(oldFileExists).toBe(false)
 
     const content = await fs.readFile(path.join(decksDir, 'New Deck Name.md'), 'utf-8')
-    expect(content).toContain('name: New Deck Name')
+    expect(content).toContain('# New Deck Name')
+    expect(content).not.toContain('name:')
   })
 
   test('also renames changelog when it exists', async () => {
@@ -214,7 +214,7 @@ describe('deck-delete handler', () => {
 
     await Bun.write(
       path.join(decksDir, 'test-deck.md'),
-      `---\nname: "Test Deck"\nformat: "commander"\ncreated: "2024-01-01T00:00:00.000Z"\ntags: []\n---\n\n# Test Deck\n`,
+      `---\nformat: "commander"\ntags: []\n---\n\n# Test Deck\n`,
     )
   })
 

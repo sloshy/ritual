@@ -884,7 +884,7 @@ export async function mockMoveCardsApi(
     lowestPriceCardsEur: {},
     lowestPriceCardsTix: {},
     symbolMap: {},
-    frontMatter: { name: 'Move Deck' },
+    frontMatter: {},
     slug: 'move-deck',
     contentHash: 'move-deck-hash',
     totalCount: 2,

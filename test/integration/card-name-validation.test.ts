@@ -45,7 +45,7 @@ beforeEach(async () => {
   })
   collectionHash = computeHash(await Bun.file(filePath).text())
   deckPath = await writeDeckFile(ws.dir, 'burn', {
-    frontMatter: { name: 'Burn' },
+    name: 'Burn',
     cards: [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 }],
   })
   deckHash = computeHash(await Bun.file(deckPath).text())
@@ -146,7 +146,7 @@ describe('every write route reaches the checker', () => {
       {
         changes: [createAddChange('Sol Rung')],
         deck: { name: 'Burn', sections: [{ name: 'Main', cards: [] }] },
-        frontMatter: { name: 'Burn' },
+        name: 'Burn',
         contentHash: deckHash,
         validateCardNames: true,
       },

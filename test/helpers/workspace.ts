@@ -203,6 +203,8 @@ export function initGitRepo(dir: string): void {
  * list. Card `set` codes must be lowercase (the internal representation).
  */
 export type DeckFixture = {
+  /** The `# Title` heading; `writeDeckFile` defaults it to the file name. */
+  name?: string
   frontMatter?: DeckFrontMatter
   sections?: DeckSection[]
   /** Shorthand for a lone `## Main` section. Ignored when `sections` is given. */
@@ -212,8 +214,10 @@ export type DeckFixture = {
 /** The canonical markdown for a deck fixture, via the real deck serializer. */
 export function deckMarkdown(fixture: DeckFixture): string {
   const sections = fixture.sections ?? [{ name: DEFAULT_SECTION, cards: fixture.cards ?? [] }]
-  const name = typeof fixture.frontMatter?.name === 'string' ? fixture.frontMatter.name : ''
-  return serializeDeckToMarkdown({ name, sections }, fixture.frontMatter ?? {})
+  return serializeDeckToMarkdown(
+    { name: fixture.name ?? 'Deck', sections },
+    fixture.frontMatter ?? {},
+  )
 }
 
 /** Write `<dir>/decks/<fileName>.md` from a deck fixture; returns the file path. */
@@ -222,7 +226,8 @@ export async function writeDeckFile(
   fileName: string,
   fixture: DeckFixture,
 ): Promise<string> {
-  return writeListFile(path.join(dir, 'decks', `${fileName}.md`), deckMarkdown(fixture))
+  const markdown = deckMarkdown({ ...fixture, name: fixture.name ?? fileName })
+  return writeListFile(path.join(dir, 'decks', `${fileName}.md`), markdown)
 }
 
 /** One collection card line; finish defaults to nonfoil and section to Main. */
@@ -356,7 +361,7 @@ export async function seedCardTargetWorkspace(
   options: CardTargetWorkspaceOptions = {},
 ): Promise<void> {
   await writeDeckFile(dir, 'test', {
-    frontMatter: { name: 'Test Deck' },
+    name: 'Test Deck',
     cards: [
       { quantity: 2, name: 'Sol Ring', cardId: 1 },
       {

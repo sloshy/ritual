@@ -468,10 +468,6 @@ export const cliCardsMessages = {
   'cli.listAllCards.writeFailed': 'Failed to write {file}: {reason}',
 
   // ── metadata ──────────────────────────────────────────────────────────
-  'cli.metadata.rejectedName':
-    "name cannot be set here — a list's display name is changed with ritual rename, which also renames the file and its sidecars.",
-  'cli.metadata.rejectedCreated':
-    'created is stamped when the deck is created and cannot be edited.',
   'cli.metadata.rejectedLastSynced': 'lastSynced is stamped by deck sync and cannot be edited.',
   'cli.metadata.unknownField': {
     $select: 'type',

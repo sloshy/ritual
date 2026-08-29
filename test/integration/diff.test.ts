@@ -19,7 +19,7 @@ type DiffJsonBody = {
  */
 async function seedWorkspace(dir: string): Promise<void> {
   await writeDeckFile(dir, 'burn', {
-    frontMatter: { name: 'Burn' },
+    name: 'Burn',
     sections: [
       {
         name: 'Main',

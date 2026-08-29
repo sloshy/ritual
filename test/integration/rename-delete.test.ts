@@ -15,7 +15,8 @@ const exists = (filePath: string): Promise<boolean> => Bun.file(filePath).exists
  */
 async function seedDeckWithSidecars(dir: string): Promise<string> {
   const filePath = await writeDeckFile(dir, 'test', {
-    frontMatter: { name: 'Test Deck', format: 'commander' },
+    name: 'Test Deck',
+    frontMatter: { format: 'commander' },
     cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
   })
   await fs.writeFile(`${filePath}.sha256`, computeHash(await fs.readFile(filePath, 'utf-8')) + '\n')
@@ -58,7 +59,8 @@ describe('rename CLI (Integration)', () => {
       )
 
       const content = await fs.readFile(newPath, 'utf-8')
-      expect(content).toContain('name: Fresh Name')
+      expect(content).toContain('# Fresh Name\n')
+      expect(content).not.toContain('name:')
       expect(content).toContain('1 Sol Ring &1')
     })
   })

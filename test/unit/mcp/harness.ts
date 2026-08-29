@@ -37,7 +37,6 @@ export type RitualTestEnv = {
 }
 
 const TEST_DECK = `---
-name: "Test Deck"
 format: "commander"
 ---
 

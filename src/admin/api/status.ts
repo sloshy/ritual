@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { adminUserExists, isTotpEnabled } from '../auth'
-import { parseDeckFrontMatter } from '../../list/deck-file'
+import { readDeckName } from '../../importers/text-file'
 import { getDecksDir, getSiteSellMode, loadRitualConfig } from '../../config/ritual-config'
 import { isListMarkdownFile } from '../../list/list-file-name'
 
@@ -56,9 +56,7 @@ export async function handleListDecks(): Promise<Response> {
       deckFiles.map(async (f) => {
         const slug = f.replace(/\.md$/, '')
         try {
-          const frontMatter = await parseDeckFrontMatter(path.join(decksDir, f))
-          const name = typeof frontMatter['name'] === 'string' ? frontMatter['name'] : slug
-          return { slug, name }
+          return { slug, name: await readDeckName(path.join(decksDir, f)) }
         } catch {
           return { slug, name: slug }
         }

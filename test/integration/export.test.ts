@@ -16,7 +16,7 @@ import { writeCollectionFile, writeWantedFile } from '../helpers/workspace'
 // deck serializer omits an NM condition), and the condition-filter case below
 // depends on that hand-written token being parsed into the entry.
 const BURN_DECK = `---
-name: "Burn"
+format: modern
 ---
 
 # Burn

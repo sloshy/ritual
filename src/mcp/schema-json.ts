@@ -707,9 +707,7 @@ export const SET_LIST_METADATA_OUTPUT: JsonSchemaType = obj(
       type: 'object',
       description: 'The list’s whole front matter after the write, unknown keys included.',
       properties: {
-        name: str(),
         format: enumOf(DECK_FORMAT_KEYS, 'Canonical deck-format key.'),
-        created: str('ISO-8601 creation date.'),
         tags: arr(str()),
         description: str(),
         sourceId: str('The deck’s id on the source service.'),

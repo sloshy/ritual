@@ -1,5 +1,10 @@
 import { describe, test, expect } from 'bun:test'
-import { serializeDeckToMarkdown } from '../../src/list/deck-file'
+import matter from 'gray-matter'
+import {
+  newDeckFrontMatter,
+  serializeDeckToMarkdown,
+  validateDeckFrontMatter,
+} from '../../src/list/deck-file'
 import { parseDeckText } from '../../src/importers/text-file'
 import type { DeckData } from '../../src/list/deck'
 
@@ -18,12 +23,11 @@ describe('serializeDeckToMarkdown', () => {
         },
       ],
     }
-    const frontMatter = { name: 'Test Deck', description: 'A test' }
+    const frontMatter = { description: 'A test' }
     const result = serializeDeckToMarkdown(deck, frontMatter)
 
     expect(result).toMatch(/^---\n/)
-    expect(result).toMatch(/\n---\n/)
-    expect(result).toContain('name: Test Deck')
+    expect(result).toMatch(/\n---\n\n# Test Deck\n\n## Commander\n/)
     expect(result).toContain('description: A test')
     expect(result).toContain('## Commander')
     expect(result).toContain('1 Kenrith, the Returned King')
@@ -290,5 +294,44 @@ describe('serializeDeckToMarkdown: canonical bullets round-trip', () => {
     expect(serializeDeckToMarkdown(parseDeckText(rewritten, 'Hand Written').deck, {})).toBe(
       rewritten,
     )
+  })
+})
+
+describe('deck title round trip', () => {
+  test('serialize → parse → serialize is idempotent with the H1 title', () => {
+    const deck: DeckData = {
+      name: 'Round Trip',
+      format: 'modern',
+      sections: [
+        { name: 'Main', cards: [{ quantity: 4, name: 'Lightning Bolt', cardId: 1 }] },
+        { name: 'Sideboard', cards: [{ quantity: 2, name: 'Pyroblast', cardId: 2 }] },
+      ],
+    }
+    const first = serializeDeckToMarkdown(deck, { format: 'modern', tags: [] })
+    expect(first).toContain('\n---\n\n# Round Trip\n\n## Main\n')
+
+    const parsed = parseDeckText(first, 'fallback')
+    expect(parsed.warnings).toEqual([])
+    expect(parsed.deck.name).toBe('Round Trip')
+    expect(parsed.deck.sections.map((s) => s.name)).toEqual(['Main', 'Sideboard'])
+
+    const second = serializeDeckToMarkdown(parsed.deck, validateDeckFrontMatter(matter(first).data))
+    expect(second).toBe(first)
+  })
+
+  test('legacy name: and created: keys are stripped on write', () => {
+    const deck: DeckData = { name: 'Fresh', sections: [{ name: 'Main', cards: [] }] }
+    const result = serializeDeckToMarkdown(deck, {
+      name: 'Stale',
+      created: '2024-01-01T00:00:00.000Z',
+      tags: [],
+    })
+    expect(result).not.toContain('name:')
+    expect(result).not.toContain('created:')
+    expect(result).toContain('# Fresh')
+  })
+
+  test('newDeckFrontMatter carries only the format and an empty tag list', () => {
+    expect(newDeckFrontMatter('commander')).toEqual({ format: 'commander', tags: [] })
   })
 })

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { discoverListSources, resolveSelectedBasenames } from '../../src/site-build/list-sources'
 import { defaultSiteSelection } from '../../src/config/list-selection'
@@ -33,10 +33,10 @@ const resolveListSources = (_dir: string, include: string[], exclude: string[]) 
   })
 
 describe('resolveDeckSources', () => {
-  // Deck display name comes from `name:` frontmatter, falling back to file name.
+  // Deck display name comes from the `# Title` H1, falling back to file name.
   beforeEach(async () => {
-    await write('izzet-storm.md', '---\nname: Izzet Storm\n---\n## Main\n4 Lightning Bolt\n')
-    await write('panther.md', '---\nname: Black Panther\n---\n## Main\n1 Sol Ring\n')
+    await write('izzet-storm.md', '# Izzet Storm\n## Main\n4 Lightning Bolt\n')
+    await write('panther.md', '---\nformat: commander\n---\n# Black Panther\n## Main\n1 Sol Ring\n')
     await write('atraxa.md', '## Commander\n1 Atraxa, Praetors Voice\n') // no name → file base name
     await write('izzet-storm.primer.md', '# Primer') // must be ignored
     await write('izzet-storm.changes.md', '# Changes') // must be ignored
@@ -47,12 +47,12 @@ describe('resolveDeckSources', () => {
     expect(sources.sort()).toEqual(['atraxa', 'izzet-storm', 'panther'])
   })
 
-  test('filters by frontmatter display name', async () => {
+  test('filters by H1 display name', async () => {
     const sources = await resolveDeckSources(dir, ['Izzet Storm', 'Black Panther'], [])
     expect(sources.sort()).toEqual(['izzet-storm', 'panther'])
   })
 
-  test('falls back to file base name when no frontmatter name', async () => {
+  test('falls back to file base name when no H1', async () => {
     const sources = await resolveDeckSources(dir, ['atraxa'], [])
     expect(sources).toEqual(['atraxa'])
   })
@@ -105,26 +105,35 @@ describe('discoverListSources', () => {
     },
   )
 
-  test('an unreadable file is kept, named after itself, carrying its reason', async () => {
-    // Dropped instead, it became invisible: nothing downstream could report it,
-    // so a default build published without it and exited 0.
+  test('a file with unreadable front matter is kept, named after itself', async () => {
+    // Discovery reads the `# Title` H1 by line scan and never parses the YAML,
+    // so broken front matter is not this layer's failure: the file is kept,
+    // named after itself, and the loader reports the reason it cannot be built
+    // (see the build-site sources test). Dropping it here made it invisible —
+    // nothing downstream could report it, so a default build published without
+    // it and exited 0.
     await write('broken.md', '---\nname: [broken\n---\n')
-    await write('fine.md', '---\nname: Fine Deck\n---\n## Main\n1 Sol Ring\n')
+    await write('fine.md', '# Fine Deck\n## Main\n1 Sol Ring\n')
 
     const entries = await discoverListSources('deck', dir)
 
     const broken = entries.find((e) => e.basename === 'broken')
     expect(broken?.displayName).toBe('broken')
-    expect(broken?.readError).toContain('flow collection')
-    expect(entries.find((e) => e.basename === 'fine')?.readError).toBeUndefined()
+    // The point of the line scan: broken YAML is not this layer's failure, so
+    // the entry carries no readError and stays servable downstream.
+    expect(broken?.readError).toBeUndefined()
+    expect(await resolveDeckSources(dir, ['*'], [])).toContain('broken')
+    expect(entries.find((e) => e.basename === 'fine')?.displayName).toBe('Fine Deck')
   })
 
-  test('an unreadable list is not offered as a servable source', async () => {
+  test('a file that cannot be read at all carries its reason and is not servable', async () => {
     // `resolveDeckSources` feeds `serve --api`'s live index, which has no
-    // channel to report a reason — so it must not list one it cannot load.
-    await write('broken.md', '---\nname: [broken\n---\n')
-    await write('fine.md', '---\nname: Fine Deck\n---\n## Main\n1 Sol Ring\n')
+    // channel to report a reason — so it must not list one it cannot read.
+    await mkdir(path.join(dir, 'unreadable.md'))
+    await write('fine.md', '# Fine Deck\n## Main\n1 Sol Ring\n')
 
+    const entries = await discoverListSources('deck', dir)
+    expect(entries.find((e) => e.basename === 'unreadable')?.readError).toBeDefined()
     expect(await resolveDeckSources(dir, ['*'], [])).toEqual(['fine'])
   })
 })

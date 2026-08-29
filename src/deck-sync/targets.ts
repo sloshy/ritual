@@ -5,7 +5,12 @@
  */
 
 import path from 'node:path'
-import { listDeckFiles, parseDeckText, type DeckParseResult } from '../importers/text-file'
+import {
+  listDeckFiles,
+  parseDeckText,
+  readDeckName,
+  type DeckParseResult,
+} from '../importers/text-file'
 import { unreadableLines } from '../list/markdown-fence'
 import { getErrorMessage } from '../util/errors'
 import { t } from '../i18n/t'
@@ -58,15 +63,16 @@ async function readDeckLink(decksDir: string, file: string): Promise<DeckLink> {
   const slug = path.basename(file, '.md')
 
   let frontMatter: DeckFrontMatter
+  let name: string
   try {
     frontMatter = await parseDeckFrontMatter(filePath)
+    name = await readDeckName(filePath)
   } catch (error: unknown) {
     return { kind: 'unreadable', name: slug, message: getErrorMessage(error) }
   }
 
   if (!isArchidektDeck(frontMatter)) return { kind: 'not-archidekt' }
 
-  const name = typeof frontMatter.name === 'string' ? frontMatter.name : slug
   const sourceId = extractSourceId(frontMatter)
   if (!sourceId) return { kind: 'missing-source-id', name }
 

@@ -12,10 +12,9 @@
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import matter from 'gray-matter'
 import { artSidecarPath } from './card-art'
 import { hashPath, isRitualClean, writeFileWithHash } from '../changes/content-hash'
-import { newDeckMarkdown, parseDeckFrontMatter } from './deck-file'
+import { newDeckMarkdown } from './deck-file'
 import { invalidDeckFormatMessage, parseDeckFormat } from './deck-format'
 import { sanitizeListFileName, unusableFileNameMessage, listSlug } from './list-file-name'
 import {
@@ -126,14 +125,10 @@ export function requireDeleteConfirmation(
 }
 
 /**
- * The display name of a list file: a deck's front-matter `name`, a flat list's
- * first `# H1`, falling back to the file slug in either case.
+ * The display name of a list file: its first `# H1`, falling back to the file
+ * slug. The same read for all three list types.
  */
-export async function listDisplayName(type: ListType, filePath: string): Promise<string> {
-  if (type === 'deck') {
-    const frontMatter = await parseDeckFrontMatter(filePath)
-    return typeof frontMatter.name === 'string' ? frontMatter.name : listSlug(filePath)
-  }
+export async function listDisplayName(_type: ListType, filePath: string): Promise<string> {
   const content = await fs.readFile(filePath, 'utf-8')
   return parseTitleFromContent(content) ?? listSlug(filePath)
 }
@@ -266,8 +261,7 @@ export async function createList(
 
 /**
  * Rename a list: re-derive the slug from the new display name, rewrite the
- * display name inside the file (front-matter `name` + legacy H1 for decks, the
- * first H1 for flat lists), move the file and its changelog/primer sidecars,
+ * first `# H1` inside the file, move the file and its changelog/primer sidecars,
  * and drop the old `.sha256` (a new one is written only when the old file was
  * Ritual-clean). When the new name sanitizes to the same slug, the file is
  * updated in place.
@@ -315,16 +309,8 @@ export async function renameList(
   }
 
   const existingContent = await fs.readFile(filePath, 'utf-8')
-  let oldName: string
-  let updatedContent: string
-  if (type === 'deck') {
-    const frontMatter = await parseDeckFrontMatter(filePath)
-    oldName = typeof frontMatter.name === 'string' ? frontMatter.name : listSlug(filePath)
-    updatedContent = renameDeckContent(existingContent, oldName, trimmedName)
-  } else {
-    oldName = parseTitleFromContent(existingContent) ?? listSlug(filePath)
-    updatedContent = replaceFirstH1(existingContent, trimmedName)
-  }
+  const oldName = parseTitleFromContent(existingContent) ?? listSlug(filePath)
+  const updatedContent = replaceFirstH1(existingContent, trimmedName)
 
   // A rename rewrites the display name only; card lines pass through untouched.
   // Refresh the .sha256 sidecar only when it matched the file before the rename
@@ -421,47 +407,25 @@ export async function deleteList(type: ListType, filePath: string): Promise<Dele
 }
 
 /**
- * Rewrite a deck's display name: the front-matter `name:` field, plus a legacy
- * `# Old Name` H1 in the body when one matches the old name exactly. The front
- * matter goes through gray-matter (the same serializer every deck save uses) —
- * a hand-rolled regex would corrupt the YAML on names containing quotes.
- */
-function renameDeckContent(content: string, oldName: string, newName: string): string {
-  const parsed = matter(content)
-  // Copy before mutating: gray-matter caches parses by content string, so the
-  // parsed front-matter object is shared between byte-identical files.
-  const frontMatter = { ...parsed.data, name: newName }
-  const updated = matter.stringify(parsed.content, frontMatter)
-  // A `# Old Name` inside a fenced code block is the user's example, not the
-  // deck's legacy H1 — rewriting it would edit their prose. Scanning line by
-  // line also avoids a regex replacement string treating `$&`/`$$` in the new
-  // name as a substitution pattern.
-  const lines = updated.split('\n')
-  const start = frontMatterBodyStart(lines)
-  const fenced = markFencedLines(lines, start)
-  for (let i = start; i < lines.length; i++) {
-    if (!fenced[i] && lines[i] === `# ${oldName}`) {
-      lines[i] = `# ${newName}`
-      return lines.join('\n')
-    }
-  }
-  return updated
-}
-
-/**
  * Replace the first H1 line in content with `# <newTitle>`. If no H1 exists,
- * prepend one. A `# ...` line inside a fenced code block is prose and is left
- * alone, matching {@link parseTitleFromContent}.
+ * insert one at the top of the body — after any YAML front matter, so a deck's
+ * metadata block stays first. A `# ...` line inside a fenced code block is prose
+ * and is left alone, matching {@link parseTitleFromContent}. Scanning line by
+ * line also avoids a regex replacement string treating `$&`/`$$` in the new
+ * name as a substitution pattern.
  */
 function replaceFirstH1(content: string, newTitle: string): string {
   const lines = content.split('\n')
-  const fenced = markFencedLines(lines)
-  for (let i = 0; i < lines.length; i++) {
+  const start = frontMatterBodyStart(lines)
+  const fenced = markFencedLines(lines, start)
+  for (let i = start; i < lines.length; i++) {
     const line = lines[i]
     if (!fenced[i] && line !== undefined && line.startsWith('# ')) {
       lines[i] = `# ${newTitle}`
       return lines.join('\n')
     }
   }
-  return `# ${newTitle}\n\n${content}`
+  if (start === 0) return `# ${newTitle}\n\n${content}`
+  lines.splice(start, 0, '', `# ${newTitle}`)
+  return lines.join('\n')
 }

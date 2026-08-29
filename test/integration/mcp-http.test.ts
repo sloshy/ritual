@@ -40,7 +40,7 @@ async function rpcErrorCode(response: Response): Promise<number | undefined> {
 async function makeWorkspace(): Promise<BoundWorkspace> {
   const ws = await bindWorkspace({ dirs: ['decks'], config: false, init: true })
   await writeDeckFile(ws.dir, 'starter', {
-    frontMatter: { name: 'Starter' },
+    name: 'Starter',
     cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
   })
   return ws

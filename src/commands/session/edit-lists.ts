@@ -292,7 +292,7 @@ function newListStrategy(
       deckFile: ref.file,
       deckName: ref.name,
       initialDeck,
-      frontMatter: newDeckFrontMatter(ref.name, deckFormat),
+      frontMatter: newDeckFrontMatter(deckFormat),
       sessionConfig,
       excludeDigitalOnly,
       initiallyDirty: true,

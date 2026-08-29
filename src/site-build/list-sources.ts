@@ -16,7 +16,7 @@ import { isListMarkdownFile } from '../list/list-file-name'
 export type ListSourceEntry = {
   /** The file name without `.md` — how the loaders address the file. */
   basename: string
-  /** The display name (deck `name:` front matter / `# Title`), falling back to the base name. */
+  /** The display name: the file's first `# Title` H1, falling back to the base name. */
   displayName: string
   /**
    * Why the file could not be read, when it could not. Present means the file
@@ -33,8 +33,8 @@ export type ListSourceEntry = {
 }
 
 /**
- * Which flavour of list file a directory holds. Decks carry their display name
- * in front matter; collections and wanted lists carry it in the `# Title` H1.
+ * Which flavour of list file a directory holds. Every kind reads its display
+ * name from the `# Title` H1; the kind decides how the directory is enumerated.
  */
 export type ListSourceKind = 'deck' | 'flat'
 

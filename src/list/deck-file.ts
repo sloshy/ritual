@@ -63,10 +63,8 @@ export async function resolveDeckFilePath(
  * older version) put in the file, so they round-trip untouched.
  */
 export type DeckFrontMatter = {
-  name?: string
   /** Canonical format key. Normalized on every write by `serializeDeckToMarkdown`. */
   format?: DeckFormatKey
-  created?: string
   tags?: string[]
   /**
    * The deck's default card labels, applied to every line that carries no
@@ -99,7 +97,8 @@ export type DeckFrontMatter = {
 } & Record<string, unknown>
 
 /**
- * Serialize a full deck back to markdown with YAML front matter.
+ * Serialize a full deck back to markdown: YAML front matter, the `# Title` H1
+ * that carries the deck's name, then its `## Section`s.
  *
  * An empty extras section is dropped rather than written as a bare header — see
  * {@link isDroppedEmptySection}, which `parseDeckText` reads from the other side
@@ -118,7 +117,7 @@ export function serializeDeckToMarkdown(deck: DeckData, frontMatter: DeckFrontMa
       return [header, ...cardLines].join('\n')
     })
 
-  const content = '\n' + sectionBlocks.join('\n\n') + '\n'
+  const content = '\n' + [`# ${idedDeck.name}`, ...sectionBlocks].join('\n\n') + '\n'
   return matter.stringify(content, canonicalFrontMatter(deck, frontMatter))
 }
 
@@ -134,11 +133,15 @@ export function serializeDeckToMarkdown(deck: DeckData, frontMatter: DeckFrontMa
  *
  * Keys with an `undefined` value are also dropped — a caller that builds front
  * matter from optional `DeckData` fields would otherwise fail the YAML dump.
+ *
+ * The legacy `name:` and `created:` keys are dropped too: the deck's name lives
+ * in its `# Title` H1 and nothing else, so a client still sending `name:` would
+ * otherwise resurrect a second source of truth.
  */
 function canonicalFrontMatter(deck: DeckData, frontMatter: DeckFrontMatter): DeckFrontMatter {
   const next: DeckFrontMatter = {}
   for (const [key, value] of Object.entries(frontMatter)) {
-    if (value !== undefined) next[key] = value
+    if (value !== undefined && !LEGACY_FRONT_MATTER_KEYS.has(key)) next[key] = value
   }
   const format = resolveDeckFormat(deck, frontMatter.format)
   if (format) next.format = format
@@ -147,17 +150,23 @@ function canonicalFrontMatter(deck: DeckData, frontMatter: DeckFrontMatter): Dec
 }
 
 /**
+ * Front-matter keys Ritual no longer writes or reads. `name:` was replaced by the
+ * `# Title` H1; `created:` was dropped outright. Stripped on every deck save.
+ */
+const LEGACY_FRONT_MATTER_KEYS: ReadonlySet<string> = new Set(['name', 'created'])
+
+/**
  * The front matter a freshly created deck starts with. Shared by every way a deck
  * can be created — `ritual new deck`, the editors, the admin site — so they cannot drift.
  */
-export function newDeckFrontMatter(name: string, format: DeckFormatKey): DeckFrontMatter {
-  return { name, format, created: new Date().toISOString(), tags: [] }
+export function newDeckFrontMatter(format: DeckFormatKey): DeckFrontMatter {
+  return { format, tags: [] }
 }
 
 /** The markdown a freshly created, empty deck file starts with. */
 export function newDeckMarkdown(name: string, format: DeckFormatKey): string {
   const deck: DeckData = { name, format, sections: [{ name: DEFAULT_SECTION, cards: [] }] }
-  return serializeDeckToMarkdown(deck, newDeckFrontMatter(name, format))
+  return serializeDeckToMarkdown(deck, newDeckFrontMatter(format))
 }
 
 /**
@@ -176,7 +185,7 @@ export function validateDeckFrontMatter(raw: Record<string, unknown>): DeckFront
   // the same `data` object back on a repeat parse, so mutating it would leak.
   const frontMatter: DeckFrontMatter = { ...raw }
 
-  for (const key of ['name', 'sourceId', 'sourceUrl', 'created', 'lastSynced', 'sourceUpdatedAt']) {
+  for (const key of ['sourceId', 'sourceUrl', 'lastSynced', 'sourceUpdatedAt']) {
     if (key in frontMatter && typeof frontMatter[key] !== 'string') delete frontMatter[key]
   }
 

@@ -41,7 +41,8 @@ let wantedPath: string
 beforeEach(async () => {
   ws = await bindWorkspace({ config: false, clearCardCache: true })
   deckPath = await writeDeckFile(ws.dir, 'burn', {
-    frontMatter: { name: 'Burn', format: 'modern' },
+    name: 'Burn',
+    frontMatter: { format: 'modern' },
     cards: [
       { quantity: 4, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
       { quantity: 3, name: 'Lava Spike', cardId: 2 },
@@ -94,7 +95,7 @@ describe('writing a cover image', () => {
     ]) {
       const { status, body } = await put('deck/burn', { image })
       expect(status).toBe(200)
-      expect(expectSuccess(body).frontMatter).toMatchObject({ name: 'Burn', image })
+      expect(expectSuccess(body).frontMatter).toMatchObject({ image })
 
       const file = await onDisk(deckPath)
       expect(file.data.image).toEqual(image)
@@ -110,7 +111,7 @@ describe('writing a cover image', () => {
 
     const file = await onDisk(deckPath)
     expect('image' in file.data).toBeFalse()
-    expect(file.data).toMatchObject({ name: 'Burn', format: 'modern' })
+    expect(file.data).toMatchObject({ format: 'modern' })
   })
 
   test('a collection takes labels and an image in one body', async () => {

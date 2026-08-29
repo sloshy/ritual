@@ -50,7 +50,7 @@ beforeEach(async () => {
     entries: [{ name: 'Brainstorm', set: 'ice', collectorNumber: '61', cardId: 1 }],
   })
   await writeDeckFile(tmpDir, 'my-deck', {
-    frontMatter: { name: 'My Deck' },
+    name: 'My Deck',
     cards: [{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
   })
 })

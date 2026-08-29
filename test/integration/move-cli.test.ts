@@ -66,11 +66,11 @@ let dir: string
 beforeEach(async () => {
   dir = await createWorkspace()
   await writeDeckFile(dir, 'source', {
-    frontMatter: { name: 'Source Deck' },
+    name: 'Source Deck',
     cards: [{ quantity: 2, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 }],
   })
   await writeDeckFile(dir, 'target', {
-    frontMatter: { name: 'Target Deck' },
+    name: 'Target Deck',
     cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
   })
   await writeCollectionFile(dir, 'binder', {
@@ -477,7 +477,7 @@ describe('move CLI headless mode (Integration)', () => {
 
   test('a name matching multiple printings is a usage error listing the printings', async () => {
     await writeDeckFile(dir, 'multi', {
-      frontMatter: { name: 'Multi' },
+      name: 'Multi',
       cards: [
         { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
         { quantity: 1, name: 'Lightning Bolt', set: '2xm', collectorNumber: '157', cardId: 2 },
@@ -506,7 +506,7 @@ describe('move CLI headless mode (Integration)', () => {
 
   test('--set narrows an otherwise-ambiguous printing match', async () => {
     await writeDeckFile(dir, 'multi', {
-      frontMatter: { name: 'Multi' },
+      name: 'Multi',
       cards: [
         { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
         { quantity: 1, name: 'Lightning Bolt', set: '2xm', collectorNumber: '157', cardId: 2 },
@@ -629,7 +629,7 @@ describe('move CLI headless mode (Integration)', () => {
       ],
     })
     await writeDeckFile(dir, 'ringdeck', {
-      frontMatter: { name: 'Ring Deck' },
+      name: 'Ring Deck',
       cards: [{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
     })
 
@@ -842,7 +842,7 @@ describe('move CLI interactive-session gating (Integration)', () => {
 describe('deckSectionChoices (Integration)', () => {
   test("lists a deck's sections and names the one an unqualified add lands in", async () => {
     const filePath = await writeDeckFile(dir, 'sections-storm', {
-      frontMatter: { name: 'Storm' },
+      name: 'Storm',
       sections: [
         { name: 'Commander', cards: [{ name: 'Kess, Dissident Mage', quantity: 1 }] },
         { name: 'Main', cards: [{ name: 'Dark Ritual', quantity: 4 }] },
@@ -865,7 +865,7 @@ describe('deckSectionChoices (Integration)', () => {
     // read after it — otherwise the prompt preselects Commander and a plain
     // Return files the card in the command zone.
     const filePath = await writeDeckFile(dir, 'sections-partner', {
-      frontMatter: { name: 'Partner' },
+      name: 'Partner',
       sections: [
         { name: 'Commander', cards: [{ name: 'Thrasios, Triton Hero', quantity: 1 }] },
         { name: 'Sideboard', cards: [{ name: 'Duress', quantity: 1 }] },

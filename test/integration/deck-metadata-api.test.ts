@@ -26,7 +26,8 @@ let deckPath: string
 beforeEach(async () => {
   ws = await bindWorkspace({ config: false })
   deckPath = await writeDeckFile(ws.dir, 'my-deck', {
-    frontMatter: { name: 'My Deck', format: 'commander', created: '2026-01-01T00:00:00.000Z' },
+    name: 'My Deck',
+    frontMatter: { format: 'commander', created: '2026-01-01T00:00:00.000Z' },
     cards: [
       { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 },
       { quantity: 2, name: 'Lightning Bolt', cardId: 2 },
@@ -72,8 +73,6 @@ describe('handleMetadataSave', () => {
 
     expect(status).toBe(200)
     expect(expectSuccess(body).frontMatter).toMatchObject({
-      name: 'My Deck',
-      created: '2026-01-01T00:00:00.000Z',
       description: 'A ramp deck.',
       tags: ['ramp', 'budget'],
       format: 'modern',

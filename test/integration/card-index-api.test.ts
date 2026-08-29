@@ -32,7 +32,7 @@ beforeEach(async () => {
     entries: [{ name: 'Mana Crypt', cardId: 1 }],
   })
   await writeDeckFile(ws.dir, 'my-deck', {
-    frontMatter: { name: 'My Deck' },
+    name: 'My Deck',
     cards: [{ quantity: 2, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 }],
   })
 })

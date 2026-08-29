@@ -37,9 +37,7 @@ describe('import text file into flat lists (Integration)', () => {
     const source = await writeSource(
       'binder.txt',
       [
-        '---',
-        'name: "Trade Binder"',
-        '---',
+        '# Trade Binder',
         '',
         '## Main',
         '2 Sol Ring (c19:221) [foil] [NM] {from trade}',
@@ -136,7 +134,7 @@ describe('import text file into flat lists (Integration)', () => {
     const existingPath = await writeWantedFile(tmpDir, 'Trade Binder', {
       entries: [{ name: 'Mox Ruby', cardId: 1 }],
     })
-    const source = await writeSource('wants.txt', '---\nname: trade binder\n---\n1 Black Lotus\n')
+    const source = await writeSource('wants.txt', '# trade binder\n1 Black Lotus\n')
     const deckData = await importFromTextFile(source)
 
     // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
@@ -167,7 +165,7 @@ describe('import text file into flat lists (Integration)', () => {
     const existingPath = await writeWantedFile(tmpDir, 'Deck Best', {
       entries: [{ name: 'Mox Ruby', cardId: 1 }],
     })
-    const source = await writeSource('best.txt', '---\nname: "Deck: Best"\n---\n1 Black Lotus\n')
+    const source = await writeSource('best.txt', '# Deck: Best\n1 Black Lotus\n')
     const deckData = await importFromTextFile(source)
 
     const outcome = await saveFlatList(deckData, 'wanted', { forceOverwrite: true })
@@ -208,7 +206,7 @@ describe('import text file into flat lists (Integration)', () => {
     // writer refuses. That refusal carries the usage classification (exit 2).
     await fs.mkdir(path.join(tmpDir, 'wanted'), { recursive: true })
     await fs.writeFile(path.join(tmpDir, 'wanted', 'wants.changes.md'), '# log\n')
-    const source = await writeSource('wants.txt', '---\nname: wants.changes\n---\n1 Black Lotus\n')
+    const source = await writeSource('wants.txt', '# wants.changes\n1 Black Lotus\n')
     const deckData = await importFromTextFile(source)
 
     // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.

@@ -1,5 +1,5 @@
 import { describe, expect, test, afterAll } from 'bun:test'
-import { join } from 'node:path'
+import path, { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { unlink, writeFile } from 'node:fs/promises'
 import { serializeCardLine } from '../../../src/list/deck-text'
@@ -7,6 +7,7 @@ import {
   IMPORT_TEXT_PARSE_OPTIONS,
   importFromTextFile,
   parseDeckText,
+  readDeckName,
 } from '../../../src/importers/text-file'
 import { unreadableLines } from '../../../src/list/markdown-fence'
 
@@ -40,13 +41,67 @@ describe('parseDeckText', () => {
     ])
   })
 
-  test('frontmatter name overrides the fallback name', () => {
-    const { deck } = parseDeckText(
-      '---\nname: Frontmatter Deck\nformat: modern\n---\n4 Opt',
-      'Fallback',
-    )
-    expect(deck.name).toBe('Frontmatter Deck')
+  test('the `# Title` H1 names the deck over the fallback name', () => {
+    const { deck } = parseDeckText('---\nformat: modern\n---\n# Titled Deck\n4 Opt', 'Fallback')
+    expect(deck.name).toBe('Titled Deck')
     expect(deck.format).toBe('modern')
+  })
+
+  test('a legacy front-matter `name:` is ignored: the deck falls back to the supplied name', () => {
+    const { deck, warnings } = parseDeckText('---\nname: Legacy\n---\n## Main\n4 Opt', 'Fallback')
+    expect(deck.name).toBe('Fallback')
+    expect(warnings).toEqual([])
+  })
+
+  test('`# My Deck` above cards is the title, not a section', () => {
+    const { deck, warnings } = parseDeckText('# My Deck\n1 Sol Ring\n1 Opt', 'X')
+    expect(warnings).toEqual([])
+    expect(deck.name).toBe('My Deck')
+    expect(deck.sections).toHaveLength(1)
+    expect(deck.sections[0]?.name).toBe('Main')
+    expect(deck.sections[0]?.cards.map((c) => c.name)).toEqual(['Sol Ring', 'Opt'])
+  })
+
+  test('the title H1 is never a section, even when it precedes explicit `##` sections', () => {
+    const { deck, warnings } = parseDeckText('# My Deck\n\n## Commander\n1 Sol Ring', 'X')
+    expect(warnings).toEqual([])
+    expect(deck.name).toBe('My Deck')
+    expect(deck.sections.map((s) => s.name)).toEqual(['Commander'])
+  })
+
+  test('a second H1 is not a title or a section: it is skipped with a warning', () => {
+    const { deck, warnings } = parseDeckText('# First\n## Main\n1 Sol Ring\n# Second\n1 Opt', 'X')
+    expect(deck.name).toBe('First')
+    expect(deck.sections.map((s) => s.name)).toEqual(['Main'])
+    expect(deck.sections[0]?.cards).toHaveLength(2)
+    expect(warnings).toEqual(['Skipped extra title line: # Second'])
+  })
+
+  test('an H1 after the cards is not a title: the deck keeps its earlier name', () => {
+    const { deck, warnings } = parseDeckText(
+      '4 Sol Ring\n\n# Notes\n',
+      'Pasted',
+      undefined,
+      IMPORT_TEXT_PARSE_OPTIONS,
+    )
+    expect(deck.name).toBe('Pasted')
+    expect(deck.sections.map((s) => s.name)).toEqual(['Main'])
+    expect(warnings).toEqual(['Skipped malformed line: # Notes'])
+  })
+
+  test('an Arena About-block name survives a trailing H1', () => {
+    const text = 'About\nName Winota Stax\n\nDeck\n4 Sol Ring\n\n# Notes\n'
+    const { deck } = parseDeckText(text, 'X', undefined, IMPORT_TEXT_PARSE_OPTIONS)
+    expect(deck.name).toBe('Winota Stax')
+  })
+
+  test('broken front matter throws on every parse, not just the first', () => {
+    const broken = '---\nname: [unclosed\n---\n\n## Main\n1 Sol Ring &1\n'
+    expect(() => parseDeckText(broken, 'X')).toThrow()
+    // The regression: gray-matter caches a partial entry for input it threw on,
+    // so a second parse without the `{ language: 'yaml' }` option would return
+    // an empty deck instead of throwing.
+    expect(() => parseDeckText(broken, 'X')).toThrow()
   })
 
   test('format is undefined when not in frontmatter', () => {
@@ -100,7 +155,7 @@ describe('parseDeckText', () => {
   )
 
   test('renames the default Main section when a header precedes any cards', () => {
-    const { deck } = parseDeckText('# Commander\n1 Atraxa, Praetors Voice\n1 Sol Ring', 'X')
+    const { deck } = parseDeckText('## Commander\n1 Atraxa, Praetors Voice\n1 Sol Ring', 'X')
     expect(deck.sections).toHaveLength(1)
     expect(deck.sections[0]?.name).toBe('Commander')
     expect(deck.sections[0]?.cards.map((c) => c.name)).toEqual([
@@ -135,14 +190,15 @@ describe('parseDeckText', () => {
 })
 
 describe('importFromTextFile - frontmatter', () => {
-  test('parses YAML frontmatter with name, description, sourceUrl, sourceId', async () => {
+  test('parses the H1 title and YAML frontmatter description, sourceUrl, sourceId', async () => {
     const filePath = await writeDeck(
       `---
-name: "My Deck"
 description: "Line 1\\nLine 2"
 sourceUrl: "https://example.com/deck/123"
 sourceId: "123"
 ---
+# My Deck
+
 ## Main
 4 Lightning Bolt
 2 Counterspell
@@ -162,7 +218,7 @@ sourceId: "123"
     ])
   })
 
-  test('falls back to filename when no name in frontmatter', async () => {
+  test('falls back to the file base name when the deck has no H1', async () => {
     const filePath = await writeDeck('---\n---\n## Main\n1 Sol Ring\n')
     const deck = await importFromTextFile(filePath)
     expect(deck.name).toBeTruthy()
@@ -397,12 +453,12 @@ describe('parseDeckText — Arena / MTGO export dialect', () => {
     expect(advisories).toEqual(['Skipped About line: Something Else'])
   })
 
-  test('frontmatter name still wins over an About name', () => {
+  test('an H1 title still wins over an About name', () => {
     const { deck } = parseDeckText(
-      '---\nname: Front Matter Deck\n---\nAbout\nName Arena Name\n\nDeck\n1 Shock (M20) 160\n',
+      '# Titled Deck\nAbout\nName Arena Name\n\nDeck\n1 Shock (M20) 160\n',
       'fallback',
     )
-    expect(deck.name).toBe('Front Matter Deck')
+    expect(deck.name).toBe('Titled Deck')
   })
 
   test('does not reinterpret canonical Ritual card lines', () => {
@@ -730,5 +786,17 @@ describe('parseDeckText — prose is never a card', () => {
       'Skipped malformed line: Sideboard ideas: maybe a counterspell',
       'Skipped malformed line: Sol Ring is the best card in the format',
     ])
+  })
+})
+
+describe('readDeckName', () => {
+  test('reads the H1 title, ignoring a legacy front-matter name:', async () => {
+    const filePath = await writeDeck('---\nname: Legacy\n---\n\n# Titled\n\n## Main\n1 Opt &1\n')
+    expect(await readDeckName(filePath)).toBe('Titled')
+  })
+
+  test('falls back to the file base name when there is no H1', async () => {
+    const filePath = await writeDeck('---\nname: Legacy\n---\n\n## Main\n1 Opt &1\n')
+    expect(await readDeckName(filePath)).toBe(path.basename(filePath, '.md'))
   })
 })

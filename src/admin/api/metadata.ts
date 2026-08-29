@@ -106,15 +106,8 @@ export type MetadataResponse = {
   contentHash: string
 }
 
-/** The message for `name`, which must go through the rename route so the file follows. */
-const NAME_REJECTED_MESSAGE =
-  "name cannot be set here — a list's display name is changed with POST /api/deck/:slug/rename, " +
-  'which also renames the file and its sidecars.'
-
 /** Keys that exist in deck front matter but are not user-editable metadata. */
 const REJECTED_KEYS: Record<string, string> = {
-  name: NAME_REJECTED_MESSAGE,
-  created: 'created is stamped when the deck is created and cannot be edited.',
   lastSynced: 'lastSynced is stamped by deck sync and cannot be edited.',
 }
 

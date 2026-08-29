@@ -19,8 +19,8 @@ describe('resolveBuildSources', () => {
       await captureConsole(['log', 'error'], async () => {
         const decks = path.join(root, 'decks')
         await fs.mkdir(decks)
-        await fs.writeFile(path.join(decks, 'burn-a.md'), '---\nname: Burn\n---\n\n## Mainboard\n')
-        await fs.writeFile(path.join(decks, 'burn-b.md'), '---\nname: Burn\n---\n\n## Mainboard\n')
+        await fs.writeFile(path.join(decks, 'burn-a.md'), '# Burn\n\n## Mainboard\n')
+        await fs.writeFile(path.join(decks, 'burn-b.md'), '# Burn\n\n## Mainboard\n')
 
         const sources = await resolveBuildSources({
           named: { deck: ['Burn'], collection: undefined, wanted: undefined },

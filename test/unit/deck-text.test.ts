@@ -3,7 +3,7 @@ import type { Card } from '../../src/card/card'
 import type { DeckData } from '../../src/list/deck'
 import { deckToExportText, deckToMarkdown, serializeCardLine } from '../../src/list/deck-text'
 
-const deck = (sections: DeckData['sections']): DeckData => ({ name: 'Test', sections })
+const deck = (sections: DeckData['sections']): DeckData => ({ name: 'Test Deck', sections })
 
 describe('deckToExportText', () => {
   it('renders the commander board first, then the deck board, with printings', () => {
@@ -135,7 +135,7 @@ describe('deckToMarkdown', () => {
       ]),
     )
     expect(md).toBe(
-      '## Commander\n- 1 Atraxa &1\n\n## Main\n- 1 Sol Ring (C21:263) &2\n- 1 Arcane Signet &3\n',
+      '# Test Deck\n\n## Commander\n- 1 Atraxa &1\n\n## Main\n- 1 Sol Ring (C21:263) &2\n- 1 Arcane Signet &3\n',
     )
   })
 

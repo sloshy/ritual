@@ -8,6 +8,7 @@ import {
 } from '../../src/importers/save-list'
 import { ExitCode } from '../../src/util/errors'
 import { parseDeckFrontMatter } from '../../src/list/deck-file'
+import { readDeckName } from '../../src/importers/text-file'
 import { sanitizeListFileName } from '../../src/list/list-file-name'
 import type { DeckData } from '../../src/list/deck'
 import {
@@ -166,9 +167,8 @@ describe('saveDeck (Integration)', () => {
 
       await saveDeck(sampleDeck, dir, { assumeYes: true })
 
-      const frontMatter = await parseDeckFrontMatter(conflictPath)
-      expect(frontMatter.name).toBe('Integration Deck')
-      expect(frontMatter.sourceId).toBe('source-123')
+      expect(await readDeckName(conflictPath)).toBe('Integration Deck')
+      expect((await parseDeckFrontMatter(conflictPath)).sourceId).toBe('source-123')
       expect(await Bun.file(conflictPath).text()).toContain('1 Sol Ring')
     })
   })

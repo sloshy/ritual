@@ -55,7 +55,8 @@ const BUNDLE = {
  */
 async function seedWorkspace(dir: string): Promise<void> {
   await writeDeckFile(dir, 'test-deck', {
-    frontMatter: { name: 'Test Deck', format: 'commander' },
+    name: 'Test Deck',
+    frontMatter: { format: 'commander' },
     cards: [
       { quantity: 1, name: 'Lightning Bolt', cardId: 1 },
       { quantity: 1, name: 'Sol Ring', cardId: 2 },
@@ -387,7 +388,8 @@ describe('import-changes command (Integration)', () => {
       // all, so a run here should be silent — and stdout must still be nothing
       // but the payload.
       await writeDeckFile(dir, 'test-deck', {
-        frontMatter: { name: 'Test Deck', format: 'commander' },
+        name: 'Test Deck',
+        frontMatter: { format: 'commander' },
         cards: [],
       })
       const bundle = {
@@ -475,7 +477,8 @@ describe('import-changes command (Integration)', () => {
     })
     try {
       await writeDeckFile(ws.dir, 'test-deck', {
-        frontMatter: { name: 'Test Deck', format: 'commander' },
+        name: 'Test Deck',
+        frontMatter: { format: 'commander' },
         cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
       })
       await cardCache.bulkSet({})
@@ -536,7 +539,8 @@ describe('import-changes command (Integration)', () => {
     try {
       const deckRepo = path.join(ws.dir, 'deck-repo')
       await writeDeckFile(deckRepo, 'test-deck', {
-        frontMatter: { name: 'Test Deck', format: 'commander' },
+        name: 'Test Deck',
+        frontMatter: { format: 'commander' },
         cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
       })
       await cardCache.bulkSet({})
@@ -702,7 +706,7 @@ describe('applyChangeBundle with moves', () => {
 
   test('a two-move swap round-trips both files and both changelogs', async () => {
     await writeDeckFile(ws.dir, 'test-deck', {
-      frontMatter: { name: 'Test Deck' },
+      name: 'Test Deck',
       cards: [{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
     })
     await writeCollectionFile(ws.dir, 'binder', {
@@ -741,7 +745,7 @@ describe('applyChangeBundle with moves', () => {
 
   test('a move whose source no longer holds the copy fails its destination’s batch, writing nothing', async () => {
     await writeDeckFile(ws.dir, 'test-deck', {
-      frontMatter: { name: 'Test Deck' },
+      name: 'Test Deck',
       cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }],
     })
     await writeCollectionFile(ws.dir, 'binder', { title: 'Binder', entries: [] })
@@ -763,7 +767,7 @@ describe('applyChangeBundle with moves', () => {
 
   test('an edit in a later batch finds the copy an earlier batch moved in, through the exported destination id', async () => {
     await writeDeckFile(ws.dir, 'test-deck', {
-      frontMatter: { name: 'Test Deck' },
+      name: 'Test Deck',
       cards: [{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
     })
     await writeCollectionFile(ws.dir, 'binder', {
@@ -815,7 +819,7 @@ describe('applyChangeBundle with moves', () => {
 
   test('same-tuple copies moved into a deck share one line, and its id, in the changelog', async () => {
     await writeDeckFile(ws.dir, 'test-deck', {
-      frontMatter: { name: 'Test Deck' },
+      name: 'Test Deck',
       cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }],
     })
     await writeCollectionFile(ws.dir, 'binder', {
@@ -853,7 +857,7 @@ describe('applyChangeBundle with moves', () => {
 
   test('a [proxy] copy added to a deck folds onto the [proxy] line, and the changelog names that line', async () => {
     await writeDeckFile(ws.dir, 'test-deck', {
-      frontMatter: { name: 'Test Deck' },
+      name: 'Test Deck',
       cards: [
         {
           quantity: 1,
@@ -902,7 +906,7 @@ describe('applyChangeBundle with moves', () => {
 
   test('a move applies before a later edit on the copy it brought in, in timestamp order', async () => {
     await writeDeckFile(ws.dir, 'test-deck', {
-      frontMatter: { name: 'Test Deck' },
+      name: 'Test Deck',
       cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }],
     })
     await writeCollectionFile(ws.dir, 'binder', {

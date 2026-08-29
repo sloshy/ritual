@@ -52,7 +52,7 @@ describe('CLI scripting behavior (Integration)', () => {
   test('price with an empty cache reports a structured runtime error', async () => {
     await withTempDir(async (dir) => {
       await writeDeckFile(dir, 'sample', {
-        frontMatter: { name: 'sample' },
+        name: 'sample',
         cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
       })
       const result = await runCli(['price', '--summary', '--output', 'json'], dir)
@@ -101,9 +101,8 @@ describe('CLI scripting behavior (Integration)', () => {
       const sourcePath = path.join(dir, 'source.txt')
       await Bun.write(
         sourcePath,
-        `---
-name: "Conflict Deck"
----
+        `# Conflict Deck
+
 ## Main
 1 Sol Ring
 `,
@@ -507,7 +506,7 @@ name: "Conflict Deck"
   test('an unexpected failure is a runtime_error envelope with no messageKey', async () => {
     await withTempDir(async (dir) => {
       await writeDeckFile(dir, 'sample', {
-        frontMatter: { name: 'sample' },
+        name: 'sample',
         cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
       })
       await fs.mkdir(path.join(dir, 'decks', 'sample.md.sha256'))

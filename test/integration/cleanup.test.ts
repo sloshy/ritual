@@ -89,7 +89,8 @@ describe('cleanup (Integration)', () => {
     // reach the user.
     const filePath = path.join(dir(), 'decks', 'Winota Stax.md')
     await writeDeckFile(dir(), 'Winota Stax', {
-      frontMatter: { name: 'Winota Stax', format: 'commander' },
+      name: 'Winota Stax',
+      frontMatter: { format: 'commander' },
       cards: [{ quantity: 1, name: 'Winota, Joiner of Forces', cardId: 1 }],
     })
     await fs.writeFile(filePath, `${await fs.readFile(filePath, 'utf-8')}\n## Maybeboard\n`)
@@ -102,9 +103,10 @@ describe('cleanup (Integration)', () => {
     expect(await fs.readFile(filePath, 'utf-8')).not.toContain('Maybeboard')
   })
 
-  test('renames a deck file to its front-matter name, moving sidecars', async () => {
+  test('renames a deck file to its `# Title` H1, moving sidecars', async () => {
     const oldPath = await writeDeckFile(dir(), 'winota-stax', {
-      frontMatter: { name: 'Winota Stax', format: 'commander' },
+      name: 'Winota Stax',
+      frontMatter: { format: 'commander' },
       cards: [{ quantity: 1, name: 'Winota, Joiner of Forces', cardId: 1 }],
     })
     const changesPath = oldPath.replace(/\.md$/, '.changes.md')
@@ -211,7 +213,7 @@ describe('cleanup (Integration)', () => {
 
   test('asks for a format when none is declared, and persists the answer', async () => {
     const filePath = path.join(dir(), 'decks', 'Jank.md')
-    await fs.writeFile(filePath, '---\nname: Jank\n---\n\n## Main\n1 Sol Ring &1\n')
+    await fs.writeFile(filePath, '# Jank\n\n## Main\n1 Sol Ring &1\n')
 
     const asked: string[] = []
     const results = await cleanupAllLists({
@@ -245,7 +247,7 @@ describe('cleanup (Integration)', () => {
 
   test('dry-run reports everything but writes nothing', async () => {
     const deckPath = path.join(dir(), 'decks', 'winota-stax.md')
-    const deckContent = '---\nname: Winota Stax\n---\n\n## Main\n1 Sol Ring &1\n'
+    const deckContent = '# Winota Stax\n\n## Main\n1 Sol Ring &1\n'
     await fs.writeFile(deckPath, deckContent)
 
     const results = await cleanupAllLists({ dryRun: true })
@@ -261,11 +263,13 @@ describe('cleanup (Integration)', () => {
 
   test('refuses a rename that would overwrite another list', async () => {
     await writeDeckFile(dir(), 'winota-stax', {
-      frontMatter: { name: 'Winota Stax', format: 'commander' },
+      name: 'Winota Stax',
+      frontMatter: { format: 'commander' },
       cards: [{ quantity: 1, name: 'Winota, Joiner of Forces', cardId: 1 }],
     })
     const occupiedPath = await writeDeckFile(dir(), 'Winota Stax', {
-      frontMatter: { name: 'Winota Stax', format: 'commander' },
+      name: 'Winota Stax',
+      frontMatter: { format: 'commander' },
       cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
     })
     const occupiedContent = await fs.readFile(occupiedPath, 'utf-8')
@@ -289,7 +293,8 @@ describe('cleanup (Integration)', () => {
     // this pins that cleanup takes the two-step path and leaves no temp file,
     // not that the two paths differ here.
     const filePath = await writeDeckFile(dir(), 'winota stax', {
-      frontMatter: { name: 'Winota Stax', format: 'commander' },
+      name: 'Winota Stax',
+      frontMatter: { format: 'commander' },
       cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
     })
     const originalInode = (await fs.stat(filePath)).ino
@@ -312,11 +317,13 @@ describe('cleanup (Integration)', () => {
     // On a case-sensitive file system these are two different files; the rename
     // must be treated as a conflict, not as a case-only rename of the same file.
     const lowerPath = await writeDeckFile(dir(), 'jank', {
-      frontMatter: { name: 'Jank', format: 'modern' },
+      name: 'Jank',
+      frontMatter: { format: 'modern' },
       cards: [{ quantity: 1, name: 'Lightning Bolt', cardId: 1 }],
     })
     const occupiedPath = await writeDeckFile(dir(), 'Jank', {
-      frontMatter: { name: 'Jank', format: 'modern' },
+      name: 'Jank',
+      frontMatter: { format: 'modern' },
       cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
     })
     const occupiedContent = await fs.readFile(occupiedPath, 'utf-8')
@@ -415,12 +422,14 @@ describe('cleanup CLI (Integration)', () => {
       // be read" and exited 1 — blaming a file for the command's own usage
       // error, and hiding the exit code the docs promise.
       await writeBrokenWorkspace(dir)
+      // The deck the prompt is *for*: readable, but declaring no format.
+      await fs.writeFile(path.join(dir, 'decks', 'Jank.md'), '# Jank\n\n## Main\n1 Sol Ring &1\n')
 
       const result = await runCli(['--no-input', 'cleanup'], dir)
 
       expect(result.exitCode).toBe(2)
       const output = `${result.stdout}\n${result.stderr}`
-      expect(output).toContain('Deck format')
+      expect(output).toContain('no format and prompts are unavailable')
       expect(output).not.toContain('could not be read')
     })
   })
