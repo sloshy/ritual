@@ -4,10 +4,10 @@ import { isCommanderSection, isExtraSection, isSideboardSection } from '../list/
 export type SectionedCard = { section: string }
 
 /**
- * A deck's cards split by the section they live in. The four buckets are
- * exhaustive and disjoint: every card lands in exactly one, tested in the order
- * commander → sideboard → extras → mainboard, so a section named for two of them
- * ("Commander Sideboard") resolves the same way everywhere the page reads it.
+ * A deck's cards split by the section they live in. Every name has exactly one
+ * role (`sectionRole`, exact match), so the four buckets are exhaustive and
+ * disjoint by construction and the test order below is arbitrary. A section that
+ * merely *mentions* a board ("Commander Sideboard") is mainboard.
  */
 export type DeckCardPartition<C> = {
   commanderCards: C[]

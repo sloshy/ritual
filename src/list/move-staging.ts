@@ -275,7 +275,9 @@ function removeDeckCopy(
     const c = section.cards[idx]!
     c.quantity -= 1
     if (c.quantity <= 0) section.cards.splice(idx, 1)
-    deck.sections = deck.sections.filter((s) => s.cards.length > 0)
+    // Only the section this removal emptied goes; a header the parser kept
+    // bare (an empty `## Sideboard`) is not this move's to delete.
+    if (section.cards.length === 0) deck.sections = deck.sections.filter((s) => s !== section)
     return {
       name: c.name,
       cardId: c.cardId,

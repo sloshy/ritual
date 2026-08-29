@@ -144,15 +144,50 @@ describe('parseDeckText', () => {
     (extras) => {
       // A leftover extras header holds nothing a re-serialize could destroy, so
       // it must not trip the whole-file save gates — which read `warnings` via
-      // `unreadableLines`. The empty Sideboard in the same parse is the control:
+      // `unreadableLines`. The empty `## Notes` in the same parse is the control:
       // the reclassification must be about extras, not about emptiness.
-      const parsed = parseDeckText(`## Main\n1 Sol Ring &1\n\n## ${extras}\n\n## Sideboard\n`, 'X')
+      const parsed = parseDeckText(`## Main\n1 Sol Ring &1\n\n## ${extras}\n\n## Notes\n`, 'X')
       expect(parsed.deck.sections.map((s) => s.name)).toEqual(['Main'])
       expect(parsed.advisories).toEqual([`Dropped empty section: ${extras}`])
-      expect(parsed.warnings).toEqual(['Skipped empty section: Sideboard'])
-      expect(unreadableLines(parsed)).toEqual(['Skipped empty section: Sideboard'])
+      expect(parsed.warnings).toEqual(['Skipped empty section: Notes'])
+      expect(unreadableLines(parsed)).toEqual(['Skipped empty section: Notes'])
     },
   )
+
+  test.each(['Sideboard', 'Main'])('an empty %s section is kept with no warning', (board) => {
+    // The boards a deck is expected to have survive the parse as bare headers
+    // (the serializer writes them back the same way), so an empty one is
+    // neither a dropped section nor a rewrite-blocking warning.
+    const parsed = parseDeckText(`## Commander\n1 Sol Ring &1\n\n## ${board}\n`, 'X')
+    expect(parsed.deck.sections.map((s) => s.name)).toEqual(['Commander', board])
+    expect(parsed.deck.sections[1]?.cards).toEqual([])
+    expect(parsed.warnings).toEqual([])
+    expect(parsed.advisories).toEqual([])
+  })
+
+  test('an empty leading ## Main is kept when the cards follow under a later board', () => {
+    // Adoption of the leading bucket is one-shot: once `## Main` has claimed it,
+    // `## Sideboard` starts a new section rather than renaming the empty Main.
+    const parsed = parseDeckText('# D\n\n## Main\n\n## Sideboard\n1 Sol Ring &1\n', 'X')
+    expect(parsed.deck.sections.map((s) => [s.name, s.cards.length])).toEqual([
+      ['Main', 0],
+      ['Sideboard', 1],
+    ])
+    expect(parsed.warnings).toEqual([])
+    expect(parsed.advisories).toEqual([])
+  })
+
+  test.each(['Mainboard', 'Deck'])('an empty %s alias is kept like Main', (board) => {
+    const parsed = parseDeckText(`## Ramp\n1 Sol Ring &1\n\n## ${board}\n`, 'X')
+    expect(parsed.deck.sections.map((s) => s.name)).toEqual(['Ramp', board])
+    expect(parsed.warnings).toEqual([])
+  })
+
+  test('a deck of nothing but empty boards still parses to no sections', () => {
+    const { deck, warnings } = parseDeckText('## Main\n\n## Sideboard\n', 'X')
+    expect(deck.sections).toEqual([])
+    expect(warnings).toEqual([])
+  })
 
   test('renames the default Main section when a header precedes any cards', () => {
     const { deck } = parseDeckText('## Commander\n1 Atraxa, Praetors Voice\n1 Sol Ring', 'X')

@@ -35,13 +35,14 @@ describe('resolveDefaultAddSection', () => {
     expect(resolveDefaultAddSection(sections)).toBe(sections[2]!)
   })
 
-  test('skips commander/sideboard sections by lowercase substring match', () => {
-    const sections = [
-      section('THE COMMANDER ZONE'),
-      section('My sideboard picks'),
-      section('Spells'),
-    ]
+  test('skips commander/sideboard sections by exact, case-insensitive match', () => {
+    const sections = [section(' COMMAND ZONE '), section('sideboard'), section('Spells')]
     expect(resolveDefaultAddSection(sections)).toBe(sections[2]!)
+  })
+
+  test('a section that merely mentions commander or sideboard is a main-deck section', () => {
+    const sections = [section('THE COMMANDER ZONE'), section('My sideboard picks')]
+    expect(resolveDefaultAddSection(sections)).toBe(sections[0]!)
   })
 
   test('creates and appends Main when every section is commander or sideboard', () => {

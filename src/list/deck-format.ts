@@ -127,17 +127,69 @@ export function formatHasCommandZone(format: DeckFormatKey): boolean {
  */
 export const COMMANDER_SECTION = 'Commander'
 
+/**
+ * What a deck section *is*, decided by its name. `main` is the catch-all: every
+ * name the table does not list — `Creatures`, `Ramp`, `Token Generators`,
+ * `Commander Damage Notes`, `Sideboard (post-board)` — is a main-deck section.
+ */
+export type SectionRole =
+  | 'commander'
+  | 'companion'
+  | 'oathbreaker'
+  | 'sideboard'
+  | 'maybeboard'
+  | 'tokens'
+  | 'main'
+
+/**
+ * The closed alias set for every non-`main` role, plus the spellings of `main`
+ * itself. Matching is **exact** on the lowercased, trimmed name — never a
+ * substring or a word-boundary test — so a user's own heading can mention
+ * "commander" or "tokens" without being pulled out of the main deck.
+ *
+ * The first alias of each role is its canonical section name, which is what
+ * the Arena-marker importer (`ARENA_SECTION_MARKERS` in
+ * `src/importers/text-file.ts`) reads from this table.
+ */
+export const SECTION_ROLES: Readonly<Record<SectionRole, readonly string[]>> = {
+  commander: ['commander', 'commanders', 'command zone'],
+  companion: ['companion'],
+  oathbreaker: ['oathbreaker', 'signature spell'],
+  sideboard: ['sideboard'],
+  maybeboard: ['maybeboard'],
+  tokens: ['tokens', 'token'],
+  main: ['main', 'mainboard', 'deck'],
+}
+
+const ROLE_BY_ALIAS: ReadonlyMap<string, SectionRole> = new Map(
+  (Object.keys(SECTION_ROLES) as SectionRole[]).flatMap((role) =>
+    SECTION_ROLES[role].map((alias): [string, SectionRole] => [alias, role]),
+  ),
+)
+
+/** The role of a section, by exact (lowercased, trimmed) match against {@link SECTION_ROLES}. */
+export function sectionRole(name: string): SectionRole {
+  return ROLE_BY_ALIAS.get(name.trim().toLowerCase()) ?? 'main'
+}
+
 export function isCommanderSection(name: string): boolean {
-  return name.toLowerCase().includes('commander')
+  return sectionRole(name) === 'commander'
 }
 
 export function isOathbreakerSection(name: string): boolean {
-  const low = name.toLowerCase()
-  return low.includes('oathbreaker') || low.includes('signature spell')
+  return sectionRole(name) === 'oathbreaker'
 }
 
 export function isSideboardSection(name: string): boolean {
-  return name.toLowerCase().includes('sideboard')
+  return sectionRole(name) === 'sideboard'
+}
+
+/**
+ * True only for the privileged main-board spellings (`main`, `mainboard`,
+ * `deck`) — not for every free-text section `sectionRole` folds into `main`.
+ */
+export function isMainBoardSection(name: string): boolean {
+  return SECTION_ROLES.main.includes(name.trim().toLowerCase())
 }
 
 /**
@@ -146,7 +198,7 @@ export function isSideboardSection(name: string): boolean {
  * module stays the single table that decides what a section *is*.
  */
 export function isCompanionSection(name: string): boolean {
-  return name.toLowerCase().includes('companion')
+  return sectionRole(name) === 'companion'
 }
 
 /** Find a deck section by exact name, creating and appending an empty one when missing. */
@@ -170,9 +222,10 @@ export function resolveDefaultAddSection(sections: DeckSection[]): DeckSection {
   return created
 }
 
+/** Extras — exactly the maybeboard and tokens roles. */
 export function isExtraSection(name: string): boolean {
-  const low = name.toLowerCase()
-  return low.includes('maybeboard') || low.includes('token')
+  const role = sectionRole(name)
+  return role === 'maybeboard' || role === 'tokens'
 }
 
 /**

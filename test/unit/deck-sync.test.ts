@@ -45,14 +45,16 @@ describe('normalizeBoard', () => {
     expect(normalizeBoard('Maybeboard')).toBe('Maybeboard')
   })
 
-  test('is case-insensitive and matches substrings', () => {
+  test('is case-insensitive and exact — a name that only mentions a board is Main', () => {
     expect(normalizeBoard('maybeboard')).toBe('Maybeboard')
-    expect(normalizeBoard('Custom Maybeboard Pile')).toBe('Maybeboard')
+    expect(normalizeBoard('Custom Maybeboard Pile')).toBe('Main')
   })
 
   test('folds token/extra sections into Maybeboard', () => {
     // Reuses deck-format's isExtraSection, which groups tokens with the maybeboard.
     expect(normalizeBoard('Tokens')).toBe('Maybeboard')
+    expect(normalizeBoard('Token')).toBe('Maybeboard')
+    expect(normalizeBoard('Token Generators')).toBe('Main')
   })
 
   test('treats unknown / custom headers as the main board', () => {

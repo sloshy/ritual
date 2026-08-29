@@ -206,6 +206,21 @@ describe('applyAddToStaged (deck) ID allocation', () => {
   })
 })
 
+describe('applyRemoveFromStaged (deck) section pruning', () => {
+  test('removing the last card empties only that section; a bare kept header survives', () => {
+    const deck: DeckData = {
+      name: 'Burn',
+      sections: [
+        { name: 'Main', cards: [{ name: 'Sol Ring', quantity: 1, cardId: 1 }] },
+        { name: 'Sideboard', cards: [] },
+      ],
+    }
+    const staged = deckStaged(deck)
+    expect(applyRemoveFromStaged(staged, physicalCard('Sol Ring', { cardId: 1 }))).toBe(true)
+    expect(deck.sections.map((s) => [s.name, s.cards.length])).toEqual([['Sideboard', 0]])
+  })
+})
+
 describe('applyAddToStaged (deck) section targeting', () => {
   function twoSectionDeck(): DeckData {
     return {

@@ -31,6 +31,9 @@ describe('dialectBoard', () => {
     ['Sideboard', 'Sideboard'],
     ['Creatures', 'Deck'],
     ['Main', 'Deck'],
+    // Exact-match roles: a heading that only mentions a board is main deck.
+    ['Token Generators', 'Deck'],
+    ['Sideboard (post-board)', 'Deck'],
   ]
 
   test.each(cases)('maps %p onto the %p board', (section, board) => {

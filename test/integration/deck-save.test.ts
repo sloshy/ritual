@@ -189,15 +189,18 @@ describe('POST /api/deck/:slug/save — empty extras sections', () => {
     expect(await fs.readFile(filePath, 'utf-8')).not.toContain('Maybeboard')
   })
 
-  test('a baseline carrying a bare ## Sideboard is still refused', async () => {
-    // The control: emptiness alone does not make a header droppable, and a
-    // sideboard the user typed ahead of filling it must not vanish on save.
+  test('a baseline carrying a bare ## Sideboard saves, and the write keeps it', async () => {
+    // Emptiness alone does not make a header droppable, but the sideboard is a
+    // board the deck is expected to have: the parser keeps it as an empty
+    // section rather than refusing the save, and a client that carries it
+    // through the round trip gets it written back as a bare header.
     await appendHeader('## Sideboard')
-    const before = await fs.readFile(filePath, 'utf-8')
+    const deck = deckWithLanguage()
+    deck.sections.push({ name: 'Sideboard', cards: [] })
 
-    const resp = await save([], deckWithLanguage())
+    const resp = await save([], deck)
 
-    expect(resp.status).toBe(400)
-    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+    expect(resp.status).toBe(200)
+    expect(await fs.readFile(filePath, 'utf-8')).toContain('\n## Sideboard\n')
   })
 })

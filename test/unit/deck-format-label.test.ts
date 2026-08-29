@@ -132,13 +132,16 @@ describe('isMainDeckSection', () => {
     expect(isMainDeckSection('Oathbreaker')).toBe(true)
     expect(isMainDeckSection('Signature Spell')).toBe(true)
     expect(isMainDeckSection('Creatures')).toBe(true)
+    // Roles are an exact-match alias table: a heading that only mentions a
+    // board word is the user's own main-deck section.
+    expect(isMainDeckSection('tokens & emblems')).toBe(true)
   })
 
   test('excludes Sideboard, Maybeboard, Tokens', () => {
     expect(isMainDeckSection('Sideboard')).toBe(false)
     expect(isMainDeckSection('Maybeboard')).toBe(false)
     expect(isMainDeckSection('Tokens')).toBe(false)
-    expect(isMainDeckSection('tokens & emblems')).toBe(false)
+    expect(isMainDeckSection('  SIDEBOARD ')).toBe(false)
   })
 })
 

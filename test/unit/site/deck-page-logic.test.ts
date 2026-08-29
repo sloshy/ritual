@@ -19,29 +19,31 @@ describe('partitionDeckCards', () => {
     expect(result.mainboardCards.map((c) => c.name)).toEqual(['Sol Ring'])
   })
 
-  test('section matching is substring and case-insensitive', () => {
+  test('section matching is exact on the trimmed, lowercased name', () => {
     const result = partitionDeckCards([
-      card('a', 'my COMMANDER zone'),
-      card('b', 'Extra Sideboard'),
-      card('c', 'TOKEN pile'),
+      card('a', ' COMMAND ZONE '),
+      card('b', 'sideboard'),
+      card('c', 'TOKEN'),
     ])
     expect(result.commanderCards.map((c) => c.name)).toEqual(['a'])
     expect(result.sideboardCards.map((c) => c.name)).toEqual(['b'])
     expect(result.extraCards.map((c) => c.name)).toEqual(['c'])
   })
 
-  test('commander wins over sideboard when a section name matches both', () => {
-    const result = partitionDeckCards([card('a', 'Commander Sideboard')])
-    expect(result.commanderCards.map((c) => c.name)).toEqual(['a'])
+  // A heading that merely *mentions* a board is the user's own main-deck
+  // section — the roles are a closed alias table, never a substring test. The
+  // difference is money: the mainboard counts toward the deck's total.
+  test('a section that only mentions a board name is mainboard', () => {
+    const result = partitionDeckCards([
+      card('a', 'Commander Sideboard'),
+      card('b', 'Sideboard Tokens'),
+      card('c', 'Token Generators'),
+      card('d', 'Commander Damage Notes'),
+      card('e', 'Sideboard (post-board)'),
+    ])
+    expect(result.mainboardCards.map((c) => c.name)).toEqual(['a', 'b', 'c', 'd', 'e'])
+    expect(result.commanderCards).toEqual([])
     expect(result.sideboardCards).toEqual([])
-  })
-
-  // The other half of the precedence chain. A "Sideboard Tokens" pile is
-  // sideboard, and the difference is money: the sideboard counts toward the
-  // deck's total, extras do not.
-  test('sideboard wins over extras when a section name matches both', () => {
-    const result = partitionDeckCards([card('a', 'Sideboard Tokens')])
-    expect(result.sideboardCards.map((c) => c.name)).toEqual(['a'])
     expect(result.extraCards).toEqual([])
   })
 

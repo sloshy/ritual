@@ -15,7 +15,14 @@ import { isCardCandidate } from '../card/card-line-read'
 import { createLineDiagnostics, type ListFileParseOptions } from '../list/line-diagnostics'
 import { listDescriptionOrUndefined } from '../list/list-description'
 import { readListImage } from '../list/list-image'
-import { isDroppedEmptySection, parseDeckFormat } from '../list/deck-format'
+import {
+  isDroppedEmptySection,
+  isMainBoardSection,
+  isSideboardSection,
+  parseDeckFormat,
+  SECTION_ROLES,
+  type SectionRole,
+} from '../list/deck-format'
 import { createFenceTracker, frontMatterBodyStart } from '../list/markdown-fence'
 import { isListMarkdownFile } from '../list/list-file-name'
 import { parseHeading, parseTitleFromContent } from '../list/section-format'
@@ -42,6 +49,13 @@ export async function readDeckName(filePath: string): Promise<string> {
   return parseTitleFromContent(rawText) ?? path.basename(filePath, path.extname(filePath))
 }
 
+/** The roles an Arena export writes bare marker lines for. */
+const ARENA_MARKER_ROLES: readonly SectionRole[] = ['main', 'sideboard', 'commander', 'companion']
+/** A role's canonical section name: its first {@link SECTION_ROLES} alias, capitalized. */
+function canonicalSectionName(role: SectionRole): string {
+  const alias = SECTION_ROLES[role][0]!
+  return alias.charAt(0).toUpperCase() + alias.slice(1)
+}
 /**
  * Bare marker lines an Arena export uses in place of `##` section headers.
  *
@@ -49,12 +63,13 @@ export async function readDeckName(filePath: string): Promise<string> {
  * an object lookup would resolve inherited keys (`constructor`, `__proto__`)
  * to something other than `undefined`.
  */
-const ARENA_SECTION_MARKERS: ReadonlyMap<string, string> = new Map([
-  ['deck', 'Main'],
-  ['sideboard', 'Sideboard'],
-  ['commander', 'Commander'],
-  ['companion', 'Companion'],
-])
+const ARENA_SECTION_MARKERS: ReadonlyMap<string, string> = new Map(
+  ARENA_MARKER_ROLES.map((role): [string, string] => [
+    // Arena writes `Deck`, not `Main`; the other markers are their role names.
+    role === 'main' ? 'deck' : role,
+    canonicalSectionName(role),
+  ]),
+)
 
 /**
  * How a text source should be read.
@@ -281,8 +296,12 @@ export function parseDeckText(
 
   /** Start (or adopt the leading bucket as) a section, as a `##` header or marker would. */
   const startSection = (sectionName: string): void => {
-    if (currentSection.cards.length === 0 && currentSection.name === 'Main') {
-      if (currentSection === syntheticMain) syntheticMainAdopted = true
+    if (
+      currentSection === syntheticMain &&
+      !syntheticMainAdopted &&
+      currentSection.cards.length === 0
+    ) {
+      syntheticMainAdopted = true
       currentSection.name = sectionName
     } else {
       currentSection = { name: sectionName, cards: [] }
@@ -397,10 +416,20 @@ export function parseDeckText(
   //   {@link isDroppedEmptySection}. It is reported as an advisory so the
   //   whole-file gates let the rewrite through and the serializer, which drops
   //   the same sections, can clear the header.
-  const validSections = sections.filter((s) => s.cards.length > 0)
-  if (validSections.length > 0) {
+  //
+  // One more shape is *kept* rather than dropped: an empty `## Sideboard` or
+  // `## Main` in a deck that has cards elsewhere. Those are the boards a deck
+  // is expected to have, so the header survives the parse and the serializer
+  // writes it back bare — nothing is lost, and nothing warns.
+  const hasCards = sections.some((s) => s.cards.length > 0)
+  const isKeptEmpty = (section: DeckSection): boolean =>
+    hasCards &&
+    !(section === syntheticMain && !syntheticMainAdopted) &&
+    (isSideboardSection(section.name) || isMainBoardSection(section.name))
+  const validSections = sections.filter((s) => s.cards.length > 0 || isKeptEmpty(s))
+  if (hasCards) {
     for (const section of sections) {
-      if (section.cards.length > 0) continue
+      if (section.cards.length > 0 || isKeptEmpty(section)) continue
       if (section === syntheticMain && !syntheticMainAdopted) continue
       if (isDroppedEmptySection(section)) {
         advisories.push(`Dropped empty section: ${section.name}`)
