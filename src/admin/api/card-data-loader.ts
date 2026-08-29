@@ -70,7 +70,7 @@ export async function addChangelogCardNames(
   const changelogFile = Bun.file(changelogPath)
   if (await changelogFile.exists()) {
     const changelogContent = await changelogFile.text()
-    const pages = parseChangelog(changelogContent)
+    const { pages } = parseChangelog(changelogContent)
     for (const name of extractChangelogCardNames(pages)) {
       cardNames.add(name)
     }

@@ -160,6 +160,20 @@ describe('changeMessage — parsed changelog lines', () => {
       'Moved Lightning Bolt to section "Foils"',
     )
   })
+
+  test('cross-list moves name the other list', () => {
+    expect(line({ action: 'Moved to list', to: { type: 'deck', name: "Ryan's Burn" } })).toBe(
+      "Moved Lightning Bolt to Deck 'Ryan's Burn'",
+    )
+    expect(
+      line({
+        action: 'Moved from list',
+        from: { type: 'collection', name: 'Binder' },
+        set: 'lea',
+        collectorNumber: '161',
+      }),
+    ).toBe("Moved Lightning Bolt (LEA:161) from Collection 'Binder'")
+  })
 })
 
 describe('changeSegments', () => {

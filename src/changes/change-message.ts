@@ -349,12 +349,15 @@ const ACTION_FROM_CHANGELOG: Record<ChangelogChange['action'], ChangeAction> = {
   'Removed section': 'remove-section',
   'Renamed section': 'rename-section',
   'Moved to section': 'set-section',
+  'Moved to list': 'move-from',
+  'Moved from list': 'move-to',
 }
 
 /**
  * Normalize a change parsed back out of a `.changes.md` file. Always past
  * tense — the file records what happened — and never carries an `&N` suffix:
- * the parser strips the ID, and the UI has no use for an internal line number.
+ * the parser reads the ID into `cardId`, but it is deliberately not rendered,
+ * since the UI has no use for an internal line number.
  */
 export function displayChangeFromLine(change: ChangelogChange): DisplayChange {
   const locale = currentLocale()
@@ -405,6 +408,18 @@ export function displayChangeFromLine(change: ChangelogChange): DisplayChange {
       return { ...base, section: change.section ?? '', newSection: change.newSection ?? '' }
     case 'Moved to section':
       return { ...base, section: change.section ?? '' }
+    case 'Moved to list':
+      return {
+        ...base,
+        annotation: formatPrintingAnnotation(change),
+        list: change.to ? listRefLabel(change.to) : '',
+      }
+    case 'Moved from list':
+      return {
+        ...base,
+        annotation: formatPrintingAnnotation(change),
+        list: change.from ? listRefLabel(change.from) : '',
+      }
     case 'Set as commander':
     case 'Unset as commander':
       return base

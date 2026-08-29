@@ -155,7 +155,7 @@ export async function loadListSidecars(
   let changelog: ChangelogPage[] = []
   try {
     const changelogContent = await fs.readFile(path.join(dir, `${baseName}.changes.md`), 'utf-8')
-    changelog = parseChangelog(changelogContent)
+    changelog = parseChangelog(changelogContent).pages
   } catch {
     // No changelog file, that's fine
   }

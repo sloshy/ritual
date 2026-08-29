@@ -382,7 +382,7 @@ describe('section changelog formatting', () => {
     )
     const page = parseChangelog(
       `# Changelog\n\n## 2026-01-01T00:00:00.000Z\n\n${lines.join('\n')}\n`,
-    )[0]!
+    ).pages[0]!
     expect(page.changes.map((c) => c.action)).toEqual([
       'Added section',
       'Removed section',

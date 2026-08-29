@@ -131,7 +131,7 @@ describe('.changes.md is byte-identical under any UI locale', () => {
       loadDictionary(PSEUDO_LOCALE, pseudoCatalog)
       const pseudo = await writeChangelogUnder(PSEUDO_LOCALE, dir, 'pseudo')
 
-      const pages = parseChangelog(pseudo)
+      const { pages } = parseChangelog(pseudo)
       expect(pages).toHaveLength(1)
       const actions = pages[0]!.changes.map((change) => change.action)
       expect(actions).toEqual([

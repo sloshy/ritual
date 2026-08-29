@@ -14,8 +14,9 @@ describe('isAdditiveAction', () => {
     'Set printing',
     'Set language',
     'Set note',
+    'Moved from list',
   ]
-  const destructive: ChangelogAction[] = ['Removed']
+  const destructive: ChangelogAction[] = ['Removed', 'Moved to list']
 
   for (const action of additive) {
     test(`${action} is additive`, () => {

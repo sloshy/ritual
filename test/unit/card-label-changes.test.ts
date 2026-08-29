@@ -212,6 +212,7 @@ describe('parseChangeLine — label lines', () => {
     expect(parsed).toEqual({
       action: 'Set labels',
       cardName: 'Sol Ring',
+      cardId: 5,
       labels: ['sale', 'trade'],
     })
   })
@@ -234,6 +235,7 @@ describe('parseChangeLine — label lines', () => {
       expect(parseChangeLine(`- ${line}`)).toEqual({
         action: 'Set labels',
         cardName: 'Sol Ring',
+        cardId: 5,
         labels: [label],
       })
     }
@@ -245,13 +247,14 @@ describe('parseChangeLine — label lines', () => {
     expect(parseChangeLine(`- ${line}`)).toEqual({
       action: 'Set labels',
       cardName: 'Sol Ring',
+      cardId: 5,
       labels: ['sale', 'trade'],
     })
   })
 
   test('parses a Cleared labels line', () => {
     const parsed = parseChangeLine('- Cleared labels on "Sol Ring" &5')
-    expect(parsed).toEqual({ action: 'Cleared labels', cardName: 'Sol Ring' })
+    expect(parsed).toEqual({ action: 'Cleared labels', cardName: 'Sol Ring', cardId: 5 })
   })
 
   test('does not swallow note or printing lines', () => {

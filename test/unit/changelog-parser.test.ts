@@ -9,7 +9,7 @@ describe('parseChangelog', () => {
 
 - Removed Misty Rainforest
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages).toHaveLength(1)
     expect(pages[0]!.timestamp).toBe('2026-03-07T22:01:21.452Z')
     expect(pages[0]!.changes).toHaveLength(1)
@@ -26,7 +26,7 @@ describe('parseChangelog', () => {
 
 - Added Demonic Tutor (UMA:93)
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Added',
       cardName: 'Demonic Tutor',
@@ -42,7 +42,7 @@ describe('parseChangelog', () => {
 
 - Added Sol Ring (MH3:301) [foil] [LP]
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Added',
       cardName: 'Sol Ring',
@@ -60,7 +60,7 @@ describe('parseChangelog', () => {
 
 - Set Avacyn, Angel of Hope as commander
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Set as commander',
       cardName: 'Avacyn, Angel of Hope',
@@ -74,7 +74,7 @@ describe('parseChangelog', () => {
 
 - Unset Avacyn, Angel of Hope as commander
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Unset as commander',
       cardName: 'Avacyn, Angel of Hope',
@@ -88,7 +88,7 @@ describe('parseChangelog', () => {
 
 - Set Sol Ring finish to foil
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Set finish',
       cardName: 'Sol Ring',
@@ -103,10 +103,11 @@ describe('parseChangelog', () => {
 
 - Set "Lightning Bolt" printing to M10:146 [foil] &5
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Set printing',
       cardName: 'Lightning Bolt',
+      cardId: 5,
       set: 'm10',
       collectorNumber: '146',
       finish: 'foil',
@@ -121,10 +122,11 @@ describe('parseChangelog', () => {
 
 - Set "Lightning Bolt" printing to M10:146 [foil] [LP] &5
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Set printing',
       cardName: 'Lightning Bolt',
+      cardId: 5,
       set: 'm10',
       collectorNumber: '146',
       finish: 'foil',
@@ -139,10 +141,11 @@ describe('parseChangelog', () => {
 
 - Set "Lightning Bolt" printing to no specific printing &5
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Set printing',
       cardName: 'Lightning Bolt',
+      cardId: 5,
     })
   })
 
@@ -154,10 +157,11 @@ describe('parseChangelog', () => {
 - Set language of "Sol Ring" to Japanese &5
 - Set language of "Sol Ring" to Simplified Chinese
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Set language',
       cardName: 'Sol Ring',
+      cardId: 5,
       language: 'ja',
     })
     // Multi-word display names parse too — the &N-less form as well.
@@ -177,10 +181,11 @@ describe('parseChangelog', () => {
 
 - Set language of "Ashes to Ashes" to Japanese &5
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Set language',
       cardName: 'Ashes to Ashes',
+      cardId: 5,
       language: 'ja',
     })
   })
@@ -192,7 +197,7 @@ describe('parseChangelog', () => {
 
 - Set language of "Sol Ring" to Klingon &5
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages).toHaveLength(0)
   })
 
@@ -204,10 +209,11 @@ describe('parseChangelog', () => {
 - Added "Ambition's Cost" (NEO:234) [foil] [LP] [ja] &7
 - Removed "Sol Ring" [ja]
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Added',
       cardName: "Ambition's Cost",
+      cardId: 7,
       set: 'neo',
       collectorNumber: '234',
       finish: 'foil',
@@ -228,10 +234,11 @@ describe('parseChangelog', () => {
 
 - Set "Lightning Bolt" printing to M10:146 [foil] [ja] &5
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Set printing',
       cardName: 'Lightning Bolt',
+      cardId: 5,
       set: 'm10',
       collectorNumber: '146',
       finish: 'foil',
@@ -248,7 +255,7 @@ describe('parseChangelog', () => {
 - Added Cavern-Hoard Dragon to Maybeboard
 - Removed Lightning Bolt from Sideboard
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Added',
       cardName: 'Cavern-Hoard Dragon',
@@ -268,10 +275,11 @@ describe('parseChangelog', () => {
 
 - Added Sol Ring (MH3:301) [foil] to Sideboard &12
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Added',
       cardName: 'Sol Ring',
+      cardId: 12,
       set: 'mh3',
       collectorNumber: '301',
       finish: 'foil',
@@ -286,7 +294,7 @@ describe('parseChangelog', () => {
 
 - Added Sol Ring to Main
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     // "Main" is the default board and carries no annotation.
     expect(pages[0]!.changes[0]!.cardName).toBe('Sol Ring')
     expect(pages[0]!.changes[0]!.board).toBeUndefined()
@@ -302,7 +310,7 @@ describe('parseChangelog', () => {
 - Set "Avacyn, Angel of Hope" as commander
 - Set "Sol Ring" finish to foil
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Added',
       cardName: 'Demonic Tutor',
@@ -329,7 +337,7 @@ describe('parseChangelog', () => {
 
 - Added "Welcome to Sideboard" to Maybeboard
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     // The closing quote bounds the name, so "to Sideboard" stays part of it and only
     // the trailing "to Maybeboard" is read as the board.
     expect(pages[0]!.changes[0]).toEqual({
@@ -346,8 +354,12 @@ describe('parseChangelog', () => {
 
 - Added "Hazmat Suit (Used)" &5
 `
-    const pages = parseChangelog(content)
-    expect(pages[0]!.changes[0]).toEqual({ action: 'Added', cardName: 'Hazmat Suit (Used)' })
+    const { pages } = parseChangelog(content)
+    expect(pages[0]!.changes[0]).toEqual({
+      action: 'Added',
+      cardName: 'Hazmat Suit (Used)',
+      cardId: 5,
+    })
   })
 
   test('parses quoted "Set note on" and "Cleared note on" lines', () => {
@@ -358,13 +370,18 @@ describe('parseChangelog', () => {
 - Set note on "Sol Ring" &5 to "starts the engine"
 - Cleared note on "Lightning Bolt" &2
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Set note',
       cardName: 'Sol Ring',
+      cardId: 5,
       note: 'starts the engine',
     })
-    expect(pages[0]!.changes[1]).toEqual({ action: 'Cleared note', cardName: 'Lightning Bolt' })
+    expect(pages[0]!.changes[1]).toEqual({
+      action: 'Cleared note',
+      cardName: 'Lightning Bolt',
+      cardId: 2,
+    })
   })
 
   test('returns pages in most-recent-first order', () => {
@@ -382,7 +399,7 @@ describe('parseChangelog', () => {
 
 - Added Forest
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages).toHaveLength(3)
     expect(pages[0]!.timestamp).toBe('2026-03-01T00:00:00Z')
     expect(pages[1]!.timestamp).toBe('2026-02-01T00:00:00Z')
@@ -398,7 +415,7 @@ describe('parseChangelog', () => {
 - Removed Chain Lightning
 - Added Counterspell (MH2:267)
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes).toHaveLength(3)
     expect(pages[0]!.changes[0]!.cardName).toBe('Lightning Bolt')
     expect(pages[0]!.changes[1]!.cardName).toBe('Chain Lightning')
@@ -406,8 +423,8 @@ describe('parseChangelog', () => {
   })
 
   test('returns empty array for empty content', () => {
-    expect(parseChangelog('')).toEqual([])
-    expect(parseChangelog('# Changelog for Nothing')).toEqual([])
+    expect(parseChangelog('').pages).toEqual([])
+    expect(parseChangelog('# Changelog for Nothing').pages).toEqual([])
   })
 
   test('skips entries with no changes', () => {
@@ -419,7 +436,7 @@ describe('parseChangelog', () => {
 
 - Added Sol Ring
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages).toHaveLength(1)
     expect(pages[0]!.timestamp).toBe('2026-02-01T00:00:00Z')
   })
@@ -432,15 +449,17 @@ describe('parseChangelog', () => {
 - Set note on Sol Ring &5 to "starts the engine"
 - Cleared note on Sol Ring &5
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Set note',
       cardName: 'Sol Ring',
+      cardId: 5,
       note: 'starts the engine',
     })
     expect(pages[0]!.changes[1]).toEqual({
       action: 'Cleared note',
       cardName: 'Sol Ring',
+      cardId: 5,
     })
   })
 
@@ -453,16 +472,18 @@ describe('parseChangelog', () => {
 - Added Nissa, Ascended Animist (ONE:454) [foil] &152
 - Added The Earth Crystal (FIN:184) &153
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     expect(pages[0]!.changes[0]).toEqual({
       action: 'Added',
       cardName: 'Elvish Reclaimer',
+      cardId: 151,
       set: 'm20',
       collectorNumber: '169',
     })
     expect(pages[0]!.changes[1]).toEqual({
       action: 'Added',
       cardName: 'Nissa, Ascended Animist',
+      cardId: 152,
       set: 'one',
       collectorNumber: '454',
       finish: 'foil',
@@ -470,6 +491,7 @@ describe('parseChangelog', () => {
     expect(pages[0]!.changes[2]).toEqual({
       action: 'Added',
       cardName: 'The Earth Crystal',
+      cardId: 153,
       set: 'fin',
       collectorNumber: '184',
     })
@@ -490,7 +512,7 @@ describe('extractChangelogCardNames', () => {
 - Added Sol Ring (MH3:301)
 - Added Demonic Tutor
 `
-    const pages = parseChangelog(content)
+    const { pages } = parseChangelog(content)
     const names = extractChangelogCardNames(pages)
     expect(names).toContain('Sol Ring')
     expect(names).toContain('Lightning Bolt')

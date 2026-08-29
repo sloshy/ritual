@@ -25,8 +25,10 @@ export function isAdditiveAction(action: ChangelogAction): boolean {
     case 'Added section':
     case 'Renamed section':
     case 'Moved to section':
+    case 'Moved from list':
       return true
     case 'Removed':
+    case 'Moved to list':
     case 'Unset as commander':
     case 'Cleared note':
     case 'Cleared labels':

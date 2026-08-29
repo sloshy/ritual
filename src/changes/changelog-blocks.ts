@@ -3,8 +3,8 @@
  * command to compact and rewrite change history.
  *
  * Unlike {@link ./changelog-parser}, which decodes each line into structured
- * fields (and discards the `&N` card-ID suffix), this module treats each change
- * line as opaque text. A changelog is a header followed by an ordered list of
+ * fields (the `&N` card-ID suffix included, as `cardId`), this module treats
+ * each change line as opaque text for round-trip fidelity. A changelog is a header followed by an ordered list of
  * change sets, each a timestamp plus its raw `- ` lines (and any hand-written
  * `trailing` text that followed them). Round-tripping through
  * {@link parseChangeSets} and {@link serializeChangeSets} preserves every line
@@ -22,7 +22,6 @@ import type { Board } from '../list/deck'
 import type { Condition, Finish } from '../card/finish-condition'
 import { type ChangeEvent, areOppositeChanges } from './change-event'
 import { parseChangeLine } from './changelog-parser'
-import { readCardId } from '../card/card-line-id'
 
 /** One timestamped block of raw change lines. */
 export type ChangeSet = {
@@ -204,11 +203,7 @@ export function retimeSetAt(sets: ChangeSet[], index: number, timestamp: string)
 function lineToCancelableEvent(line: string): ChangeEvent | null {
   const change = parseChangeLine(line)
   if (!change) return null
-  // The shared entry-level reader: a changelog line's `&N` is written by
-  // `formatChangeCore` with its leading space, so the boundary rule costs
-  // nothing and keeps one spelling of the token in the codebase.
-  const cardId = readCardId(line)
-  const base = { id: '', timestamp: 0, cardName: change.cardName, cardId }
+  const base = { id: '', timestamp: 0, cardName: change.cardName, cardId: change.cardId }
   const printing = {
     set: change.set,
     collectorNumber: change.collectorNumber,
