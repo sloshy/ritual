@@ -3,7 +3,7 @@ import type { Finish } from '../../../card/finish-condition'
 import type { ScryfallCard } from '../../../scryfall/types'
 import type { PriceCurrency } from '../../../pricing/price-currency'
 import type { CardPrintingsLookup } from '../../../card/card-printing'
-import { formatPrintingLabel } from '../../../card/printing-key'
+import { printingLabel } from '../../../card/card-line-tail'
 import { useT } from '../../../ui/i18n'
 import { PrintingFilter } from '../../../ui/PrintingFilter'
 import { candidatePrice, currentPrintingPrice } from '../../swap-printings'
@@ -344,7 +344,7 @@ const PrintinglessRowDetail: Component<PrintinglessRowDetailProps> = (props) => 
         <>
           <span class="swap-wizard-printing">
             {t('ui.swap.pick.chosen', {
-              printing: formatPrintingLabel(chosen().set, chosen().collectorNumber),
+              printing: printingLabel(chosen().set, chosen().collectorNumber),
             })}
           </span>
           <FinishChip finish={chosen().finish} />

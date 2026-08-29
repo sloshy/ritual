@@ -43,6 +43,7 @@ import {
 } from '../card/card-labels'
 import type { ListType } from './list-type'
 import type { ListEntry } from './list-info'
+import { readCardId } from '../card/card-line-grammar'
 
 /**
  * A single movable card. For deck entries with quantity > 1, multiple PhysicalCards
@@ -282,12 +283,6 @@ function removeDeckCopy(
   return null
 }
 
-/** The `&N` a flat-list line ends with, if any. */
-function textLineCardId(trimmed: string): number | undefined {
-  const match = trimmed.match(/&(\d+)\s*$/)
-  return match ? Number(match[1]) : undefined
-}
-
 /**
  * What a flat-list bullet says about its card, read through the canonical line
  * grammar (`COLLECTION_CARD_LINE_RE`, of which a wanted line is a subset: no
@@ -341,7 +336,7 @@ function removeTextLine(
   // could not write the bullet itself into a changelog.
   const removed: RemovedCopy = textLineFields(trimmed) ?? {
     name: '',
-    cardId: textLineCardId(trimmed),
+    cardId: readCardId(trimmed),
   }
   lines.splice(targetIdx, 1)
   staged.content = collapseBlankRuns(lines)
@@ -353,7 +348,7 @@ function applyRemoveFromText(staged: StagedTextFile, card: PhysicalCard): boolea
   // to the name match on an ID miss could remove a sibling line that shares
   // the printing but differs in finish or condition.
   if (card.cardId !== undefined) {
-    return removeTextLine(staged, (trimmed) => textLineCardId(trimmed) === card.cardId) !== null
+    return removeTextLine(staged, (trimmed) => readCardId(trimmed) === card.cardId) !== null
   }
   // Fallback: match by name, also using set/collectorNumber when available
   const removed = removeTextLine(staged, (trimmed) => {

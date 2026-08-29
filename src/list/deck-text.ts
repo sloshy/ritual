@@ -1,15 +1,9 @@
 import type { Card } from '../card/card'
 import type { DeckData } from './deck'
-import {
-  formatCollectionLine,
-  formatWantedListLine,
-  printingSuffix,
-  resolvePrinting,
-} from '../card/card-line'
+import { formatCollectionLine, formatWantedListLine, resolvePrinting } from '../card/card-line'
 import type { EntryRef } from './entry-ref'
 import type { ListType } from './list-type'
-import { formatCardLabels } from '../card/card-labels'
-import { languageToken } from '../card/card-language'
+import { formatCanonicalCardLine } from '../card/card-line-tail'
 
 /**
  * Format a single deck card line in the canonical markdown format, e.g.
@@ -22,24 +16,17 @@ import { languageToken } from '../card/card-language'
  * reuse it without pulling in the node-only `deck-file` helpers.
  */
 export function serializeCardLine(card: Card): string {
-  let line = `${card.quantity} ${card.name}${printingSuffix(card.set, card.collectorNumber)}`
-  if (card.finish && card.finish !== 'nonfoil') {
-    line += ` [${card.finish}]`
-  }
-  if (card.condition && card.condition !== 'NM') {
-    line += ` [${card.condition}]`
-  }
-  line += languageToken(card.language)
-  if (card.labels && card.labels.length > 0) {
-    line += ` [${formatCardLabels(card.labels)}]`
-  }
-  if (card.note) {
-    line += ` {${card.note}}`
-  }
-  if (card.cardId !== undefined) {
-    line += ` &${card.cardId}`
-  }
-  return line
+  return formatCanonicalCardLine('deck', {
+    quantity: card.quantity,
+    name: card.name,
+    printing: resolvePrinting(card.set, card.collectorNumber),
+    finish: card.finish,
+    condition: card.condition,
+    language: card.language,
+    labels: card.labels,
+    note: card.note,
+    cardId: card.cardId,
+  })
 }
 
 /**

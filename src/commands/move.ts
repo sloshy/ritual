@@ -50,6 +50,7 @@ import { printingSuffix } from '../card/card-line'
 import { languageToken, type CardLanguage } from '../card/card-language'
 import type { ListType } from '../list/list-type'
 import { t } from '../i18n/t'
+import { printingLabel } from '../card/card-line-tail'
 
 /**
  * Print the card index's read/parse warnings to stderr.
@@ -711,7 +712,7 @@ async function resolvePrintingForCollection(
     .map((p) =>
       t('cli.move.printingLine', {
         setName: p.set_name,
-        printing: `${p.set.toUpperCase()}:${p.collector_number}`,
+        printing: printingLabel(p.set, p.collector_number),
       }),
     )
     .join('\n')

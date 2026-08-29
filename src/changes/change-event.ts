@@ -4,10 +4,13 @@ import type { ListType } from '../list/list-type'
 import { formatCardLabels, sameCardLabels, type CardLabel } from '../card/card-labels'
 import {
   displayLanguage,
+  isCardLanguage,
   languageDisplayName,
-  languageToken,
   type CardLanguage,
 } from '../card/card-language'
+import { resolvePrinting } from '../card/card-line'
+import { isConditionUpdate, isFinish } from '../card/finish-condition'
+import { formatTokenTail, printingLabel } from '../card/card-line-tail'
 
 /**
  * A condition *update*: a grade to record, or `'NONE'` to clear a recorded
@@ -938,21 +941,26 @@ export type PrintingAnnotationInput = {
 /**
  * Format the ` [finish] [condition] [lang]` suffix shared by printing
  * annotations and the set-printing description. Empty when all three are at
- * their defaults (`nonfoil` / `NM` / `en`) — the same tokens a card line omits.
+ * their defaults — `nonfoil`, `en`, and `NM` *or* the `NONE` that clears a
+ * grade, neither of which a card line writes either, so a changelog line reads
+ * exactly like the line it produced.
+ *
+ * This is the loose boundary: the strings arrive both from typed
+ * {@link ChangeEvent}s and from a `ChangelogChange` parsed back out of
+ * `.changes.md`, so each is narrowed to its vocabulary here rather than trusted
+ * downstream. A value outside the vocabulary is dropped — writing it would put
+ * a token into the file that `parseCardLine` refuses to read back.
  */
 export function formatFinishConditionTail(
   finish?: string,
   condition?: string,
   language?: string,
 ): string {
-  const finishInfo = finish && finish !== 'nonfoil' ? ` [${finish}]` : ''
-  // `NONE` clears the grade and `NM` is the unrecorded default: neither is
-  // annotated, so the changelog line reads exactly like the line it produced.
-  const conditionInfo =
-    condition && condition !== 'NM' && condition !== 'NONE' ? ` [${condition}]` : ''
-  // English is the bare-line default and is never annotated, like the card line.
-  const languageInfo = languageToken(language)
-  return `${finishInfo}${conditionInfo}${languageInfo}`
+  return formatTokenTail({
+    finish: isFinish(finish) ? finish : undefined,
+    condition: isConditionUpdate(condition) ? condition : undefined,
+    language: language !== undefined && isCardLanguage(language) ? language : undefined,
+  })
 }
 
 /**
@@ -960,11 +968,10 @@ export function formatFinishConditionTail(
  * changelog lines and entry descriptions. Empty when none of the fields are set.
  */
 export function formatPrintingAnnotation(change: PrintingAnnotationInput): string {
-  const printingInfo =
-    change.set && change.collectorNumber
-      ? ` (${change.set.toUpperCase()}:${change.collectorNumber})`
-      : ''
-  return `${printingInfo}${formatFinishConditionTail(change.finish, change.condition, change.language)}`
+  return (
+    formatTokenTail({ printing: resolvePrinting(change.set, change.collectorNumber) }) +
+    formatFinishConditionTail(change.finish, change.condition, change.language)
+  )
 }
 
 /**
@@ -1047,7 +1054,7 @@ export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions)
     case 'set-printing': {
       const printingDesc =
         change.set && change.collectorNumber
-          ? `${change.set.toUpperCase()}:${change.collectorNumber}${formatFinishConditionTail(change.finish, change.condition, change.language)}`
+          ? `${printingLabel(change.set, change.collectorNumber)}${formatFinishConditionTail(change.finish, change.condition, change.language)}`
           : 'no specific printing'
       return `Set ${name} printing to ${printingDesc}${idInfo}`
     }

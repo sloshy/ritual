@@ -21,6 +21,7 @@ import { readListImage } from '../list/list-image'
 import { isDroppedEmptySection, parseDeckFormat } from '../list/deck-format'
 import { createFenceTracker } from '../list/markdown-fence'
 import { isListMarkdownFile } from '../list/list-file-name'
+import { parseHeading } from '../list/section-format'
 import { listTypeLabel, type ListType } from '../list/list-type'
 
 /** A deck directory entry that is a deck's own file. Decks share the one list-file predicate. */
@@ -384,10 +385,10 @@ export function parseDeckText(
       continue
     }
 
-    const headerMatch = trimmed.match(/^(#{1,6})\s+(.+)$/)
-    if (headerMatch?.[2]) {
+    const heading = parseHeading(trimmed)
+    if (heading) {
       inAboutBlock = false
-      startSection(headerMatch[2].trim(), headerMatch[1]!.length)
+      startSection(heading.text, heading.level)
       continue
     }
 

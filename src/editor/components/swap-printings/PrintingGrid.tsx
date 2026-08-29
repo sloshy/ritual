@@ -10,7 +10,7 @@ import { dedupePrintingsByKey, type CardPrintingsLookup } from '../../../card/ca
 import { filterPrintingsByQuery } from '../../../card/collector-query'
 import { getCardImageUrl } from '../../../card/card-image'
 import { scryfallCardLanguage, storedLanguage } from '../../../card/card-language'
-import { formatPrintingLabel } from '../../../card/printing-key'
+import { printingLabel } from '../../../card/card-line-tail'
 import { PrintingPrices } from '../../../list-view/PrintingPrices'
 import { usePrintingQuotes } from '../../../list-view/printing-quotes'
 import { finishChipName } from '../../../list-view/printing-display'
@@ -90,7 +90,7 @@ export const PrintingGrid: Component<PrintingGridProps> = (props) => {
                     </Show>
                     <div class="printing-label">
                       <span class="printing-label-set">
-                        {formatPrintingLabel(printing.set, printing.collector_number)}
+                        {printingLabel(printing.set, printing.collector_number)}
                       </span>
                       {' · '}
                       <PrintingPrices

@@ -46,6 +46,7 @@ import type { ScryfallCard } from '../scryfall/types'
 import { ask, promptTextFilter, suggestByTitleTerms } from '../cli/prompts'
 import { dateTimeFormat } from '../i18n/format'
 import { currentLocale } from '../i18n/runtime'
+import { printingLabel } from '../card/card-line-tail'
 
 /**
  * Message keys for the price browser's sort fields — keys rather than rendered
@@ -252,7 +253,7 @@ export function formatEntryChoiceTitle(
   const qty = entry.quantity > 1 ? `${entry.quantity}x ` : ''
   const printing =
     entry.set && entry.collectorNumber
-      ? ` (${entry.set.toUpperCase()}:${entry.collectorNumber})${entry.pinned ? '' : '*'}`
+      ? ` (${printingLabel(entry.set, entry.collectorNumber)})${entry.pinned ? '' : '*'}`
       : ''
   const finish = entry.finish && entry.finish !== 'nonfoil' ? ` [${entry.finish}]` : ''
   const price = formatEntryPrice(entry, entry.price * entry.quantity, currency)
@@ -345,7 +346,7 @@ export function buildCardBrowserChoices(
 export function formatEntryDetailLines(entry: PricedEntry, currency: PriceCurrency): string[] {
   const printing =
     entry.set && entry.collectorNumber
-      ? ` (${entry.set.toUpperCase()}:${entry.collectorNumber})`
+      ? ` (${printingLabel(entry.set, entry.collectorNumber)})`
       : ''
   const finish = entry.finish ? ` [${entry.finish}]` : ''
   const display = LIST_TYPE_DISPLAY[entry.listType]
@@ -375,7 +376,7 @@ export function formatEntryDetailLines(entry: PricedEntry, currency: PriceCurren
   if (entry.lowest > 0 && entry.lowest !== entry.price) {
     const lowestPrinting =
       entry.lowestSet && entry.lowestCollectorNumber
-        ? ` (${entry.lowestSet.toUpperCase()}:${entry.lowestCollectorNumber})${entry.lowestFinish ? ` [${entry.lowestFinish}]` : ''}`
+        ? ` (${printingLabel(entry.lowestSet, entry.lowestCollectorNumber)})${entry.lowestFinish ? ` [${entry.lowestFinish}]` : ''}`
         : ''
     lines.push(
       t('cli.price.detailLowest', {
@@ -409,7 +410,7 @@ export function formatPrintingPriceLines(
           `${formatPriceOrNA(getCardPriceForFinish(printing, finish, currency), currency)} ${finish}`,
       )
       .join(' · ')
-    return `  ${printing.set.toUpperCase()}:${printing.collector_number} (${printing.set_name}) — ${finishes}`
+    return `  ${printingLabel(printing.set, printing.collector_number)} (${printing.set_name}) — ${finishes}`
   })
 }
 

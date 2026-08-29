@@ -1,7 +1,7 @@
 import type { Choice } from 'prompts'
 import { compareData } from '../../i18n/collate'
 import { compareCollectorNumbers, getAllPrintings } from '../../scryfall'
-import { formatPrintingLabel } from '../../card/printing-key'
+import { printingLabel } from '../../card/card-line-tail'
 import {
   matchesCollectorQuery,
   parseCollectorQuery,
@@ -327,7 +327,7 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
 export function buildCollectorChoices(printings: ScryfallCard[]): CollectorChoice[] {
   const collectorChoices: CollectorChoice[] = printings.map((card) => ({
     title: t('cli.session.collectorChoice', {
-      printing: formatPrintingLabel(card.set, card.collector_number),
+      printing: printingLabel(card.set, card.collector_number),
       name: card.name,
     }),
     value: { type: 'card', card },

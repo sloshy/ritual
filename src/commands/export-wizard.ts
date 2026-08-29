@@ -57,6 +57,7 @@ import { LIST_TYPE_DISPLAY } from '../list/list-type'
 import { listLocations, type ListLocation } from '../list/resolve-list'
 import { getExportPresets } from '../config/ritual-config'
 import { ask, promptTextFilter, suggestByTitleTerms } from '../cli/prompts'
+import { printingLabel } from '../card/card-line-tail'
 
 /** Everything the wizard tracks between screens. */
 export type ExportWizardState = {
@@ -112,7 +113,7 @@ export function formatExportEntryChoice(entry: ExportEntry): string {
   const qty = entry.quantity > 1 ? `${entry.quantity}x ` : ''
   const printing =
     entry.set && entry.collectorNumber
-      ? ` (${entry.set.toUpperCase()}:${entry.collectorNumber})`
+      ? ` (${printingLabel(entry.set, entry.collectorNumber)})`
       : ''
   const finish = entry.finish ? ` [${entry.finish}]` : ''
   const condition = entry.condition ? ` [${entry.condition}]` : ''

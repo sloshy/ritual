@@ -1,7 +1,7 @@
 import { createMemo, For, Show, type Accessor, type Component } from 'solid-js'
 import type { PriceCurrency } from '../../../pricing/price-currency'
 import type { ParameterlessKey } from '../../../i18n/t'
-import { formatPrintingLabel } from '../../../card/printing-key'
+import { printingLabel } from '../../../card/card-line-tail'
 import { useT } from '../../../ui/i18n'
 import { allocationPrice, allocationPrinting, currentPrintingPrice } from '../../swap-printings'
 import type { AllocatedPrinting, CardSwapPlan, PriceOf, SwapFlag } from '../../swap-printings'
@@ -51,8 +51,8 @@ export const FlagChips: Component<FlagChipsProps> = (props) => {
 }
 
 /** `SET:CN` of an allocated printing; null while a printingless pick has none chosen. */
-function printingLabel(printing: AllocatedPrinting | null): string | null {
-  return printing ? formatPrintingLabel(printing.set, printing.collectorNumber) : null
+function allocatedPrintingLabel(printing: AllocatedPrinting | null): string | null {
+  return printing ? printingLabel(printing.set, printing.collectorNumber) : null
 }
 
 /** Step 5: what an auto mode chose per card, with a "Change…" into the manual picker. */
@@ -129,7 +129,7 @@ const ReviewRow: Component<ReviewRowProps> = (props) => {
                     <span class="swap-wizard-qty">
                       {t('ui.swap.quantity', { count: allocation.count })}
                     </span>{' '}
-                    <span class="swap-wizard-printing">{printingLabel(printing)}</span>
+                    <span class="swap-wizard-printing">{allocatedPrintingLabel(printing)}</span>
                     <FinishChip finish={printing?.finish} />
                     <LanguageChip language={printing?.language} />{' '}
                     <ListName list={allocation.candidate.source} />

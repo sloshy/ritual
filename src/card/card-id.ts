@@ -9,6 +9,7 @@
 
 import { createFenceTracker, frontMatterBodyStart } from '../list/markdown-fence'
 import type { DeckData } from '../list/deck'
+import { readAnyCardId } from './card-line-id'
 
 export type CardIdPool = {
   /** IDs currently in use */
@@ -181,10 +182,12 @@ export function parseCardIdsFromContent(content: string): number[] {
   for (let i = frontMatterBodyStart(lines); i < lines.length; i++) {
     const line = lines[i]!
     if (fence.feed(line).opaque) continue
-    const idMatch = line.match(/&(\d+)\s*$/)
-    if (idMatch?.[1]) {
-      ids.push(Number.parseInt(idMatch[1], 10))
-    }
+    // `readAnyCardId`, not `readCardId`: the pool must be at least as wide as
+    // the entry parser. A glued `- Sol Ring (LEA:2)&2` is not an id any entry
+    // reports, but 2 is plainly spoken for, and reserving it costs one id while
+    // missing it hands a live id to a second card.
+    const cardId = readAnyCardId(line)
+    if (cardId !== undefined) ids.push(cardId)
   }
   return ids
 }
@@ -207,9 +210,9 @@ export function clonePool(pool: CardIdPool): CardIdPool {
 }
 
 export type EntryWithCardId = { cardId?: number }
-type DeckWithCardIds = {
-  sections: readonly { cards: readonly EntryWithCardId[] }[]
-}
+/** One section's cards, as the id sweeps see them. */
+type SectionWithCardIds = { cards: readonly EntryWithCardId[] }
+type DeckWithCardIds = { sections: readonly SectionWithCardIds[] }
 
 /** Pull `cardId` numbers off a flat list of entries, dropping anything that's missing one. */
 export function collectExistingIds(items: readonly EntryWithCardId[]): number[] {

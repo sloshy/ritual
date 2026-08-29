@@ -319,10 +319,21 @@ export function normalizedOverride(
   return normalizeCardLabels(labels)
 }
 
+/**
+ * The exclusive label that makes a combination illegal, or `undefined` when the
+ * set is legal. The *rule*, with no prose attached: the CLI renders it through
+ * {@link exclusivityError}'s localized message, and the card-line grammar —
+ * which is English by construction and must not render a `t()` string it would
+ * only discard — words its own refusal from the label this returns.
+ */
+export function conflictingExclusiveLabel(labels: readonly string[]): CardLabel | undefined {
+  if (labels.length < 2) return undefined
+  return EXCLUSIVE_CARD_LABELS.find((label) => labels.includes(label))
+}
+
 /** The exclusivity refusal, or `undefined` for a legal combination. */
 function exclusivityError(labels: readonly CardLabel[]): string | undefined {
-  if (labels.length < 2) return undefined
-  const exclusive = EXCLUSIVE_CARD_LABELS.find((label) => labels.includes(label))
+  const exclusive = conflictingExclusiveLabel(labels)
   return exclusive === undefined ? undefined : t('errors.label.exclusive', { label: exclusive })
 }
 

@@ -44,6 +44,7 @@ import {
 } from '../../pricing/price-currency'
 import { getDefaultCurrency, getDefaultLanguage } from '../../config/ritual-config'
 import { requireInteractive, type PromptSubjectKey } from '../../util/no-input'
+import { printingLabel } from '../../card/card-line-tail'
 
 /**
  * The prompts shared by every list type's card-entry session: the edit-mode
@@ -266,7 +267,7 @@ async function promptLanguageFallback(
   const choice = await ask<string>({
     type: 'select',
     message: t('cli.printing.languageUnavailable', {
-      printing: `${printing.set.toUpperCase()}:${printing.collector_number}`,
+      printing: printingLabel(printing.set, printing.collector_number),
       language: languageDisplayName(defaultLanguage),
       available: availableNames,
     }),

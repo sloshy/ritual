@@ -25,12 +25,8 @@ import {
 } from './shared'
 import type { BuylistBakeSource, ListCoverOverrideEntry, LoadedFlatList } from './shared'
 import type { SiteDetailContext, WantedArtifacts } from './types'
-import {
-  cardPrintingKey,
-  formatPrintingLabel,
-  printingKey,
-  printingLanguageKey,
-} from '../card/printing-key'
+import { cardPrintingKey, printingKey, printingLanguageKey } from '../card/printing-key'
+import { printingLabel } from '../card/card-line-tail'
 
 export type LoadedWanted = LoadedFlatList<WantedListEntry>
 
@@ -183,7 +179,7 @@ export async function buildWantedArtifacts(
                 `  ⚠️  ${t('site.detail.noLanguageCard', {
                   language,
                   name: entry.name,
-                  printing: formatPrintingLabel(entry.set, entry.collectorNumber),
+                  printing: printingLabel(entry.set, entry.collectorNumber),
                 })}`,
               )
             }
@@ -222,7 +218,7 @@ export async function buildWantedArtifacts(
         }
       } else {
         ctx.warn?.(
-          `  ⚠️  Could not find printing for '${entry.name}' (${formatPrintingLabel(entry.set, entry.collectorNumber)})`,
+          `  ⚠️  Could not find printing for '${entry.name}' (${printingLabel(entry.set, entry.collectorNumber)})`,
         )
         cardMap[cardKey] = null
         missingUsd++

@@ -7,18 +7,46 @@
  * explicitly on the next save. Decks use the same `## Section` convention via `deck-file.ts`.
  */
 
-/**
- * Matches a `## Section Name` header line. Deliberately requires exactly two `#` followed by
- * whitespace, so the `# Title` H1 is never mistaken for a section header.
- */
 import { createFenceTracker, frontMatterBodyStart } from './markdown-fence'
 
-export const SECTION_HEADER_RE = /^##\s+(.+?)\s*$/
+/** Matches any ATX heading, capturing its `#` run and its text. */
+const HEADING_RE = /^(#{1,6})\s+(.+?)\s*$/
 
-/** Returns the section name if `trimmedLine` is a `## Section` header, otherwise null. */
+/** How many `#` an ATX heading may carry. */
+export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6
+
+/** Every heading level, for narrowing a counted `#` run without an assertion. */
+const HEADING_LEVELS = [1, 2, 3, 4, 5, 6] as const satisfies readonly HeadingLevel[]
+
+/** A markdown heading: how many `#` it carries, and the text after them. */
+export type Heading = { level: HeadingLevel; text: string }
+
+/**
+ * Read a markdown ATX heading, or `null` when the line is not one.
+ *
+ * The single heading parser for list files: the flat-list section reader, the
+ * deck parser, and the line-preserving mutations used to carry three regexes
+ * that disagreed about whether `### Sideboard` was a section. They now share
+ * this one and each decides what a *level* means to it.
+ */
+export function parseHeading(line: string): Heading | null {
+  const match = HEADING_RE.exec(line.trim())
+  if (!match?.[1] || !match[2]) return null
+  // The `#{1,6}` in the pattern is what makes this total; looking the count up
+  // narrows it without an assertion.
+  const level = HEADING_LEVELS.find((candidate) => candidate === match[1]?.length)
+  if (level === undefined) return null
+  return { level, text: match[2].trim() }
+}
+
+/**
+ * Returns the section name if `trimmedLine` is a `## Section` header, otherwise null.
+ * Level two exactly, so the `# Title` H1 is never mistaken for a section header
+ * and a deeper `### Foo` stays prose.
+ */
 export function matchSectionHeader(trimmedLine: string): string | null {
-  const match = trimmedLine.match(SECTION_HEADER_RE)
-  return match ? match[1]!.trim() : null
+  const heading = parseHeading(trimmedLine)
+  return heading?.level === 2 ? heading.text : null
 }
 
 /**
@@ -33,9 +61,12 @@ export function parseTitleFromContent(content: string): string | null {
   for (let i = frontMatterBodyStart(lines); i < lines.length; i++) {
     const line = lines[i]!
     if (fence.feed(line).opaque) continue
-    if (line.startsWith('# ')) {
-      return line.slice(2).trim()
-    }
+    // Column zero only, deliberately and unchanged: an indented `# ...` is a
+    // markdown code block, not this document's title. `parseHeading` trims, so
+    // the raw prefix test stays.
+    if (!line.startsWith('# ')) continue
+    const heading = parseHeading(line)
+    if (heading?.level === 1) return heading.text
   }
   return null
 }

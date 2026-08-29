@@ -46,6 +46,7 @@ import {
 } from '../importers/text-file'
 import { isCardLanguage, storedLanguage, type CardLanguage } from '../card/card-language'
 import { canonicalCardLine } from './deck-text'
+import { parseHeading } from './section-format'
 import { COMMANDER_SECTION, isCommanderSection, isSideboardSection } from './deck-format'
 import { DEFAULT_SECTION } from './deck'
 import { hashPath, writeFileWithHash } from '../changes/content-hash'
@@ -505,9 +506,6 @@ type MoveDestination =
   | { kind: 'commander' } // first commander-named section, created at the front
   | { kind: 'out-of-commander' } // unset-commander: moves ONLY a card in a commander section
 
-/** A `#`–`######` heading line, as the deck parser recognizes sections. */
-const DECK_HEADING_RE = /^(#{1,6})\s+(.+?)\s*$/
-
 type HeadingLine = { index: number; level: number; name: string }
 
 /**
@@ -522,8 +520,8 @@ function deckHeadings(lines: string[]): HeadingLine[] {
   for (let index = start; index < lines.length; index++) {
     // A `## ...` line inside a fenced code block is prose, not a section.
     if (fenced[index]) continue
-    const m = lines[index]!.trim().match(DECK_HEADING_RE)
-    if (m) all.push({ index, level: m[1]!.length, name: m[2]! })
+    const heading = parseHeading(lines[index]!)
+    if (heading) all.push({ index, level: heading.level, name: heading.text })
   }
   const first = all[0]
   if (first !== undefined && first.level === 1 && !sectionHasCardLine(lines, all, first)) {

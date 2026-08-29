@@ -61,6 +61,15 @@ export function isCondition(value: string | undefined): value is Condition {
 }
 
 /**
+ * {@link isCondition}, plus the `NONE` sentinel that clears a grade. The
+ * changelog carries both — a `SetConditionChange` may say "no condition" — so
+ * the surfaces that render a persisted condition string narrow through here.
+ */
+export function isConditionUpdate(value: string | undefined): value is ConditionUpdate {
+  return value === 'NONE' || isCondition(value)
+}
+
+/**
  * Resolve a condition update against an entry's current grade: `undefined`
  * leaves it alone, `'NONE'` clears it, and a grade replaces it. The one place
  * the `'NONE'` sentinel is interpreted, shared by every apply path.

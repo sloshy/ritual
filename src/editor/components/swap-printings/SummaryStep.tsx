@@ -1,7 +1,7 @@
 import { createMemo, For, Show, type Accessor, type Component } from 'solid-js'
 import type { PriceCurrency } from '../../../pricing/price-currency'
 import { formatPrice } from '../../../pricing/price-currency'
-import { formatPrintingLabel } from '../../../card/printing-key'
+import { printingLabel } from '../../../card/card-line-tail'
 import { listRefKey, type ListRefKey, type NamedListRef } from '../../../list-view/combined-list'
 import { useT } from '../../../ui/i18n'
 import type { ChosenPrinting, SwapCardDelta, SwapMove, SwapSummary } from '../../swap-printings'
@@ -147,7 +147,7 @@ const ReplacementLine: Component<ReplacementLineProps> = (props) => {
       {t('ui.swap.summary.replacementLine', {
         count: props.move.count,
         name: props.move.cardName,
-        printing: formatPrintingLabel(props.replacement.set, props.replacement.collectorNumber),
+        printing: printingLabel(props.replacement.set, props.replacement.collectorNumber),
         list: props.move.from.name,
       })}
       <FinishChip finish={props.replacement.finish} />
@@ -168,7 +168,7 @@ const MoveLine: Component<MoveLineProps> = (props) => {
       {t('ui.swap.summary.moveLine', {
         count: props.move.count,
         name: props.move.cardName,
-        printing: formatPrintingLabel(props.move.set, props.move.collectorNumber),
+        printing: printingLabel(props.move.set, props.move.collectorNumber),
       })}
       <FinishChip finish={props.move.finish} />
       <LanguageChip language={props.move.language} />

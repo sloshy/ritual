@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
   cardPrintingKey,
-  formatPrintingLabel,
   lookupExactPrintingCard,
   lookupPrintingCard,
   printingKey,
@@ -149,15 +148,6 @@ describe('printingLanguageKey', () => {
   test('appends @lang to the folded printing key', () => {
     expect(printingLanguageKey('LEA', '161', 'ja')).toBe('lea:161@ja')
     expect(printingLanguageKey('mkm', '507A', 'zhs')).toBe('mkm:507a@zhs')
-  })
-})
-
-describe('formatPrintingLabel', () => {
-  test('uppercases only the set code, keeping the collector number verbatim', () => {
-    // Uppercasing a whole printingKey would also fold the collector number,
-    // rendering `MKM:507A` where every other surface shows `MKM:507a`.
-    expect(formatPrintingLabel('mkm', '507a')).toBe('MKM:507a')
-    expect(formatPrintingLabel('MKM', '507a')).toBe('MKM:507a')
   })
 })
 

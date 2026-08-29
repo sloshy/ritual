@@ -116,6 +116,9 @@ describe('i18n persistence fence', () => {
    */
   test('card-line serializers never import src/i18n', async () => {
     const lineFenced = [
+      'src/card/card-line-grammar.ts',
+      'src/card/card-line-id.ts',
+      'src/card/card-line-tail.ts',
       'src/list/deck-file.ts',
       'src/list/deck-text.ts',
       'src/card/card-line.ts',

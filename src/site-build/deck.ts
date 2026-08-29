@@ -9,7 +9,8 @@ import { isListImageCardRef, type ListImageRef } from '../list/list-image'
 import { extractPrimerCardNames } from '../list/primer-parser'
 import { resolveDeckFormat, getMainDeckSize, isCommanderSection } from '../list/deck-format'
 import { findPrinting, hasSpecificPrinting } from '../card/card-printing'
-import { formatPrintingLabel, printingKey } from '../card/printing-key'
+import { printingKey } from '../card/printing-key'
+import { printingLabel } from '../card/card-line-tail'
 import { getCardPrice } from '../pricing/price-currency'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { getErrorMessage } from '../util/errors'
@@ -187,7 +188,7 @@ export async function buildDeckArtifacts(
       if (!warnedPins.has(pin)) {
         warnedPins.add(pin)
         ctx.warn?.(
-          `  ⚠️  Could not find printing for '${entry.name}' (${formatPrintingLabel(entry.set, entry.collectorNumber)})`,
+          `  ⚠️  Could not find printing for '${entry.name}' (${printingLabel(entry.set, entry.collectorNumber)})`,
         )
       }
     }

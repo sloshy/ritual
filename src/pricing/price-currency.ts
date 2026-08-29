@@ -11,6 +11,7 @@ import { currentLocale } from '../i18n/runtime'
 import { t } from '../i18n/t'
 import { displayWidth, padEndDisplay } from '../i18n/width'
 import { selectCheapestPrintingFinish, type CheapestPrintingResult } from '../card/printing-select'
+import { printingLabel } from '../card/card-line-tail'
 
 // Re-exported from its leaf home so the many callers that reach for it beside
 // `findCheapestPrinting` keep one import.
@@ -405,6 +406,6 @@ export function formatCheapestPrintingDisplay(
   currency: PriceCurrency = DEFAULT_CURRENCY,
 ): string {
   if (!result) return 'Cheapest printing: unavailable'
-  const setNum = `${result.card.set.toUpperCase()}:${result.card.collector_number}`
+  const setNum = printingLabel(result.card.set, result.card.collector_number)
   return `Cheapest printing: ${formatPrice(result.price, currency)} (${setNum}) [${result.finish}]`
 }

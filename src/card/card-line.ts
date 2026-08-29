@@ -1,6 +1,7 @@
 import type { Finish, Condition } from './finish-condition'
-import { formatCardLabels, type CardLabel } from './card-labels'
-import { displayLanguage, languageToken, type CardLanguage } from './card-language'
+import type { CardLabel } from './card-labels'
+import { displayLanguage, type CardLanguage } from './card-language'
+import { formatCanonicalCardLine, printingLabel } from './card-line-tail'
 
 /** A specific printing reference (set code + collector number) for a card line. */
 export type CardPrinting = { set: string; collectorNumber: string }
@@ -15,7 +16,7 @@ export function printingSuffix(
   collectorNumber: string | undefined,
 ): string {
   if (!set || !collectorNumber) return ''
-  return ` (${set.toUpperCase()}:${collectorNumber})`
+  return ` (${printingLabel(set, collectorNumber)})`
 }
 
 /**
@@ -132,16 +133,15 @@ export type CollectionLineFields = {
  * the CLI, the admin save handlers, and the public editor's export.
  */
 export function formatCollectionLine(fields: CollectionLineFields): string {
-  const { cardName, set, collectorNumber, finish, condition, language, labels, note, cardId } =
-    fields
-  let line = `- ${cardName} (${set.toUpperCase()}:${collectorNumber})`
-  if (finish !== 'nonfoil') line += ` [${finish}]`
-  if (condition && condition !== 'NM') line += ` [${condition}]`
-  line += languageToken(language)
-  if (labels && labels.length > 0) line += ` [${formatCardLabels(labels)}]`
-  if (note) line += ` {${note}}`
-  if (cardId !== undefined) line += ` &${cardId}`
-  return line + '\n'
+  const { cardName, set, collectorNumber, ...tail } = fields
+  return (
+    formatCanonicalCardLine('collection', {
+      name: cardName,
+      // Lowercase in memory, uppercased by `printingLabel` on the way out.
+      printing: { set: set.toLowerCase(), collectorNumber },
+      ...tail,
+    }) + '\n'
+  )
 }
 
 /** Named fields for {@link formatWantedListLine}. */
@@ -164,12 +164,5 @@ export type WantedLineFields = {
  * {@link formatCollectionLine}.
  */
 export function formatWantedListLine(fields: WantedLineFields): string {
-  const { name, printing, finish, language, note, cardId } = fields
-  let line = `- ${name}`
-  if (printing) line += ` (${printing.set.toUpperCase()}:${printing.collectorNumber})`
-  if (finish && finish !== 'nonfoil') line += ` [${finish}]`
-  line += languageToken(language)
-  if (note) line += ` {${note}}`
-  if (cardId !== undefined) line += ` &${cardId}`
-  return line + '\n'
+  return formatCanonicalCardLine('wanted', fields) + '\n'
 }

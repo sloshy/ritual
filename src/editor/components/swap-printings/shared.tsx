@@ -12,7 +12,7 @@ import type { CardLanguage } from '../../../card/card-language'
 import type { PriceCurrency } from '../../../pricing/price-currency'
 import { getCardImageUrl } from '../../../card/card-image'
 import { languageBadge } from '../../../card/card-language'
-import { formatPrintingLabel } from '../../../card/printing-key'
+import { printingLabel } from '../../../card/card-line-tail'
 import { LIST_TYPE_DISPLAY } from '../../../list/list-type'
 import { finishChipName } from '../../../list-view/printing-display'
 import { printingPriceText } from '../../../list-view/printing-prices'
@@ -148,7 +148,7 @@ export const TargetPrinting: Component<TargetPrintingProps> = (props) => {
       {(target) => (
         <>
           <span class="swap-wizard-printing">
-            {formatPrintingLabel(target().set, target().collectorNumber)}
+            {printingLabel(target().set, target().collectorNumber)}
           </span>
           <FinishChip finish={displayFinish(target().card, target().finish)} />
           <LanguageChip language={target().language} />
@@ -161,7 +161,7 @@ export const TargetPrinting: Component<TargetPrintingProps> = (props) => {
 /** `SET:CN` for a printing candidate; null for a printingless one. */
 export function candidatePrintingLabel(candidate: SwapCandidate): string | null {
   if (candidate.kind !== 'printing' || !candidate.set || !candidate.collectorNumber) return null
-  return formatPrintingLabel(candidate.set, candidate.collectorNumber)
+  return printingLabel(candidate.set, candidate.collectorNumber)
 }
 
 export type StepIndicatorProps<S extends string> = {

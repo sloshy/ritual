@@ -29,7 +29,7 @@ import type { CardLanguage } from './card-language'
  * Not to be confused with the *quote* key (`src/buylist/types.ts`), which adds a
  * finish and is a wire contract, or the sync key (`collection-sync/diff.ts`),
  * which adds finish and condition. This key is for lookups, never for display:
- * set codes render uppercase (`formatPrintingLabel`).
+ * set codes render uppercase (`printingLabel` in `card-line-tail.ts`).
  */
 export function printingKey(set: string, collectorNumber: string): string {
   return `${set.toLowerCase()}:${collectorNumber.toLowerCase()}`
@@ -49,15 +49,6 @@ export function printingLanguageKey(
   lang: CardLanguage,
 ): string {
   return `${printingKey(set, collectorNumber)}@${lang}`
-}
-
-/**
- * `SET:collectorNumber` as the UI and markdown spell it: set code uppercased,
- * collector number verbatim. The display counterpart of {@link printingKey} —
- * uppercasing a whole key would also fold the collector number's own case.
- */
-export function formatPrintingLabel(set: string, collectorNumber: string): string {
-  return `${set.toUpperCase()}:${collectorNumber}`
 }
 
 /** {@link printingKey} for a resolved printing — the common case at the map's producers. */

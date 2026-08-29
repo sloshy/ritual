@@ -20,7 +20,8 @@ import {
 } from './shared'
 import type { BuylistBakeSource, ListCoverOverrideEntry, LoadedFlatList } from './shared'
 import type { CollectionArtifacts, SiteDetailContext } from './types'
-import { formatPrintingLabel, printingKey, printingLanguageKey } from '../card/printing-key'
+import { printingKey, printingLanguageKey } from '../card/printing-key'
+import { printingLabel } from '../card/card-line-tail'
 
 export type LoadedCollection = LoadedFlatList<CollectionEntry>
 
@@ -82,7 +83,7 @@ export async function buildCollectionArtifacts(
         await ctx.onCardShipped?.(exactPrinting)
       } else {
         ctx.warn?.(
-          `  ⚠️  Could not find printing for '${entry.name}' (${formatPrintingLabel(entry.set, entry.collectorNumber)})`,
+          `  ⚠️  Could not find printing for '${entry.name}' (${printingLabel(entry.set, entry.collectorNumber)})`,
         )
         cardMap[cardKey] = null
       }
@@ -111,7 +112,7 @@ export async function buildCollectionArtifacts(
             `  ⚠️  ${t('site.detail.noLanguageCard', {
               language,
               name: entry.name,
-              printing: formatPrintingLabel(entry.set, entry.collectorNumber),
+              printing: printingLabel(entry.set, entry.collectorNumber),
             })}`,
           )
         }

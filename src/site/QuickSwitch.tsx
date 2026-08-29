@@ -21,7 +21,7 @@ import { listHref } from '../list-view/combined-list'
 import type { MessageKey } from '../i18n/messages/en'
 import { useI18n } from '../ui/i18n'
 import type { TranslateFn } from '../i18n/t'
-import { formatPrintingLabel } from '../card/printing-key'
+import { printingLabel } from '../card/card-line-tail'
 
 type ListKind = 'deck' | 'collection' | 'wanted'
 
@@ -302,10 +302,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
             href: listHref(detail.kind, detail.slug),
             image,
             // Display re-cases only the set half; the folded key is for matching.
-            setCollectorDisplay: formatPrintingLabel(
-              cand.printing.set,
-              cand.printing.collectorNumber,
-            ),
+            setCollectorDisplay: printingLabel(cand.printing.set, cand.printing.collectorNumber),
             cardName: cand.cardName || undefined,
             parentKind: detail.kind,
             parentName: detail.listName,

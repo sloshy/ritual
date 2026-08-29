@@ -1,7 +1,7 @@
 import { batch, createSignal, For, Show, type Accessor, type Component } from 'solid-js'
 import type { PriceCurrency } from '../../../pricing/price-currency'
 import type { CardPrintingsLookup } from '../../../card/card-printing'
-import { formatPrintingLabel } from '../../../card/printing-key'
+import { printingLabel } from '../../../card/card-line-tail'
 import { useT } from '../../../ui/i18n'
 import { replacementKey } from '../../swap-printings'
 import type { ChosenPrinting, PriceOf, SwapMove } from '../../swap-printings'
@@ -80,7 +80,7 @@ export const ReplacementsStep: Component<ReplacementsStepProps> = (props) => {
                             {t('ui.swap.replacements.taken', {
                               count: row.count,
                               name: row.move.cardName,
-                              printing: formatPrintingLabel(row.move.set, row.move.collectorNumber),
+                              printing: printingLabel(row.move.set, row.move.collectorNumber),
                             })}{' '}
                             <ListName list={row.move.from} />
                           </span>
@@ -98,7 +98,7 @@ export const ReplacementsStep: Component<ReplacementsStepProps> = (props) => {
                                   <span class="swap-wizard-printing">
                                     {t('ui.swap.replacements.chosen', {
                                       count: row.count,
-                                      printing: formatPrintingLabel(
+                                      printing: printingLabel(
                                         chosen().set,
                                         chosen().collectorNumber,
                                       ),
