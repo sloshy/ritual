@@ -892,8 +892,9 @@ export function registerReadTools(server: McpServer): void {
           .enum(EXPORT_FORMATS)
           .optional()
           .describe(
-            'Output format (default csv): csv, json, text (one flat plain-text decklist), ' +
-              'or md (canonical list markdown without &N ids).',
+            'Output format (default csv): csv, json, text (a plain-text decklist, whose line ' +
+              'and board form follows the dialect), or md (canonical list markdown without ' +
+              '&N ids).',
           ),
         columns: z
           .array(z.enum(EXPORT_PROPERTIES))
@@ -908,8 +909,13 @@ export function registerReadTools(server: McpServer): void {
           .enum(EXPORT_DIALECTS)
           .optional()
           .describe(
-            "csv/json value spellings (default ritual): archidekt writes Archidekt's " +
-              'finish/condition words (Normal|Foil|Etched, NM|LP|MP|HP|D) under a Variant header.',
+            'Output vocabulary (default ritual). For csv/json it picks value spellings: ' +
+              "archidekt writes Archidekt's finish/condition words (Normal|Foil|Etched, " +
+              'NM|LP|MP|HP|D) under a Variant header. For text it picks the decklist form: ' +
+              'arena and moxfield write bare Commander/Deck/Sideboard board markers over ' +
+              '"N Name (SET) CN" lines, moxfield adding *F*/*E* finish markers; ritual and ' +
+              'archidekt write one flat list of "N Name (SET:CN)" lines. md is always ' +
+              "Ritual's own markdown and rejects a dialect.",
           ),
         preset: z
           .string()

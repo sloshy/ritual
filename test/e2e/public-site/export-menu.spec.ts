@@ -33,9 +33,12 @@ test.describe('Page-header export menu', () => {
 
     expect(download.suggestedFilename()).toBe('Test_Multi_Section_Deck.txt')
     const content = readFileSync(await download.path(), 'utf-8')
-    expect(content).toContain('## Main')
-    expect(content).toContain('1 Test Creature')
-    // Plain-text export, not markdown: no printing suffix or card-id tokens.
+    // An export dialect other sites import, not Ritual's markdown: a bare board
+    // marker instead of a `## Section` header, `(SET) CN` printings, and none of
+    // the bullets or `&N` ids a list file carries.
+    expect(content).toContain('Deck\n1 Test Creature (TST) 1')
+    expect(content).not.toContain('## Main')
+    expect(content).not.toContain('- 1 ')
     expect(content).not.toContain('(TST:')
     expect(content).not.toContain('&')
 

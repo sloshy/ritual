@@ -253,9 +253,9 @@ describe('applyCsvImport', () => {
 
     const content = await fs.readFile(filePath, 'utf-8')
     expect(content).toContain('format: modern')
-    expect(content).toContain('4 Lightning Bolt &1')
-    expect(content).toContain('1 Goblin Guide &2')
-    expect(content).toContain('## Sideboard\n2 Pyroblast &3')
+    expect(content).toContain('- 4 Lightning Bolt &1')
+    expect(content).toContain('- 1 Goblin Guide &2')
+    expect(content).toContain('## Sideboard\n- 2 Pyroblast &3')
 
     const changelog = await fs.readFile(path.join(tmpDir, 'decks', 'Burn.changes.md'), 'utf-8')
     expect(changelog).toContain('Added "Lightning Bolt" &1')

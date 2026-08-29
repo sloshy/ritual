@@ -126,7 +126,7 @@ export const helpSyncMessages = {
   'help.export.columns':
     'Comma-separated columns in output order (csv/json only). Available: {properties}',
   'help.export.dialect':
-    'Value spellings for finish and condition (csv/json only): {dialects} (default: ritual)',
+    'Output vocabulary — finish/condition spellings for csv/json, decklist line form for text (not md): {dialects} (default: ritual)',
   'help.export.noHeader': 'Omit the CSV header row',
   'help.export.quoteAll': 'Quote every CSV cell instead of only cells that need it',
   'help.export.out': 'Write to this file instead of stdout',

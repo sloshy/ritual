@@ -20,6 +20,7 @@ import {
 import {
   EXPORT_FORMATS,
   exportFormatUsesColumns,
+  exportFormatUsesDialect,
   exportPresetNames,
   findExportPreset,
   resolveExportSettings,
@@ -190,15 +191,21 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
 
   const format = options.format
 
-  // The column/CSV-shape flags conflict with an explicit fixed-line format.
+  // An output-shape flag conflicts with a format that does not read it: the
+  // column/CSV flags with either fixed-line format, and `--dialect` with `md`
+  // alone — a text export picks its decklist line form from the dialect.
   // Only explicit flags conflict — a preset whose stored columns accompany a
   // text/md format is fine (the columns are simply unused).
-  if (format !== undefined && !exportFormatUsesColumns(format)) {
+  if (format !== undefined) {
     const conflicting: string[] = []
-    if (options.columns !== undefined) conflicting.push('--columns')
-    if (!options.header) conflicting.push('--no-header')
-    if (options.quoteAll) conflicting.push('--quote-all')
-    if (options.dialect !== undefined) conflicting.push('--dialect')
+    if (!exportFormatUsesColumns(format)) {
+      if (options.columns !== undefined) conflicting.push('--columns')
+      if (!options.header) conflicting.push('--no-header')
+      if (options.quoteAll) conflicting.push('--quote-all')
+    }
+    if (!exportFormatUsesDialect(format) && options.dialect !== undefined) {
+      conflicting.push('--dialect')
+    }
     if (conflicting.length > 0) {
       fail(TEXT_ONLY, 'usage_error', 'cli.export.formatFlagConflict', {
         flags: conflicting.join(' and '),

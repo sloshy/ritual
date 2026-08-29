@@ -29,6 +29,7 @@ import { getCardPrintings } from '../scryfall'
 import {
   EXPORT_FORMAT_EXTENSIONS,
   EXPORT_FORMATS,
+  exportDialectEffect,
   exportFormatUsesColumns,
   exportPresetNames,
   findExportPreset,
@@ -42,6 +43,7 @@ import {
   EXPORT_PROPERTIES,
   EXPORT_PROPERTY_LABELS,
   exportPropertyLabel,
+  type ExportDialect,
   type ExportProperty,
 } from '../export/render'
 import { exportPropertyHint } from '../pricing/export-hints'
@@ -137,6 +139,21 @@ export function formatFiltersSegment(filters: ExportFilters): string {
   return parts.join(' · ')
 }
 
+/**
+ * " · moxfield lines" — the dialect segment of a format summary, empty unless
+ * the dialect actually shapes that format's output. A dialect that changes
+ * nothing for the chosen format (`ritual` anywhere, `archidekt` on `text`,
+ * `arena` on `csv`) is not worth a claim the file would not bear out, and the
+ * wording follows what it changes: csv/json values, or text decklist lines.
+ */
+function dialectSegment(format: ExportFormat, dialect: ExportDialect): string {
+  const effect = exportDialectEffect(format, dialect)
+  if (effect === 'none') return ''
+  const key: MessageKey =
+    effect === 'lines' ? 'cli.exportWizard.dialectLines' : 'cli.exportWizard.dialectValues'
+  return ` · ${t(key, { dialect })}`
+}
+
 /** The main menu's at-a-glance summary of the configured export. */
 export function formatWizardHeaderLines(state: ExportWizardState, entryCount: number): string[] {
   const sources: string[] = []
@@ -156,12 +173,8 @@ export function formatWizardHeaderLines(state: ExportWizardState, entryCount: nu
         .map((column) => exportPropertyLabel(column, state.settings.dialect))
         .join(', '),
     })
-    // Only a non-default dialect is worth a line: `ritual` spellings are what
-    // the list files already say.
-    if (state.settings.dialect !== 'ritual') {
-      formatLine += ` · ${t('cli.exportWizard.dialectValues', { dialect: state.settings.dialect })}`
-    }
   }
+  formatLine += dialectSegment(state.settings.format, state.settings.dialect)
   const lines: string[] = [
     `📤 ${t('cli.exportWizard.sourcesLine', {
       sources: sourceText,
@@ -622,10 +635,7 @@ export function formatPresetSummary(name: string, preset: ExportPreset): string 
   ]
   if (preset.header === false) parts.push(t('cli.exportWizard.presetNoHeader'))
   if (preset.quoteAll) parts.push(t('cli.exportWizard.quoteAll'))
-  if (preset.dialect !== undefined && preset.dialect !== 'ritual') {
-    parts.push(t('cli.exportWizard.dialectValues', { dialect: preset.dialect }))
-  }
-  return `${name} — ${parts.join(' · ')}`
+  return `${name} — ${parts.join(' · ')}${dialectSegment(preset.format, preset.dialect ?? 'ritual')}`
 }
 
 async function promptLoadPreset(state: ExportWizardState): Promise<void> {

@@ -667,7 +667,7 @@ export const cliSyncMeta = {
   // ── `export` (flag mode) ──────────────────────────────────────────────
   'cli.export.formatFlagConflict': {
     description:
-      'Usage error: column and CSV-shape flags were combined with a fixed-line format. {flags} is an "and"-joined list of flag names; {format} is an export format slug.',
+      'Usage error: output-shape flags were combined with a format that does not read them — column/CSV flags with text or md, or --dialect with md. {flags} is an "and"-joined list of flag names; {format} is an export format slug.',
   },
   'cli.export.unknownPreset': {
     description:
@@ -712,7 +712,11 @@ export const cliSyncMeta = {
   },
   'cli.exportWizard.dialectValues': {
     description:
-      'Names the non-default value dialect an export is using — shown in the wizard header and in a preset summary row. {dialect} is a dialect name, English by contract.',
+      'Names the non-default value dialect a csv/json export is using — shown in the wizard header and in a preset summary row. "values" means the spellings written in the cells. {dialect} is a dialect name, English by contract.',
+  },
+  'cli.exportWizard.dialectLines': {
+    description:
+      'The same segment for a plain-text export, where the dialect chooses the decklist line and board form rather than cell values. "lines" means the lines of the decklist. {dialect} is a dialect name, English by contract.',
   },
   'cli.exportWizard.csvLine': {
     description:

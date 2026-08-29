@@ -1,13 +1,19 @@
 import type { Card } from '../card/card'
-import type { DeckData } from './deck'
+import type { DeckData, DeckSection } from './deck'
 import { formatCollectionLine, formatWantedListLine, resolvePrinting } from '../card/card-line'
 import type { EntryRef } from './entry-ref'
 import type { ListType } from './list-type'
 import { formatCanonicalCardLine } from '../card/card-line-tail'
+import {
+  aggregateDialectCards,
+  renderDialectText,
+  type SectionedDialectCard,
+} from '../export/dialects'
 
 /**
  * Format a single deck card line in the canonical markdown format, e.g.
- * `2 Lightning Bolt (2XM:157) [foil] [LP] [ja] [proxy] {note} &5`. The language
+ * `- 2 Lightning Bolt (2XM:157) [foil] [LP] [ja] [proxy] {note} &5` — a markdown
+ * list item, like every other canonical card line. The language
  * token is omitted for English (a bare line means `en`), and a label override is
  * written only when present (an absent override means "inherit the deck's
  * front-matter default"). Pure string formatting
@@ -31,10 +37,11 @@ export function serializeCardLine(card: Card): string {
 
 /**
  * Render a deck to its canonical markdown body: one `## Section` block per
- * section, each followed by its cards' full `serializeCardLine` form (printing,
- * finish, condition, note, and `&N` id). This is the "MD" export offered in the
- * page header; it mirrors what a server save writes minus the YAML front matter,
- * which the client does not carry.
+ * section, each followed by its cards' full bulleted `serializeCardLine` form
+ * (printing, finish, condition, note, and `&N` id). This is the "MD" export
+ * offered in the page header; it mirrors what a server save writes minus the
+ * YAML front matter, which the client does not carry — including the `- `
+ * bullets, so the download and the file on disk are the same format.
  */
 export function deckToMarkdown(deck: DeckData): string {
   const blocks = deck.sections.map((section) => {
@@ -46,31 +53,36 @@ export function deckToMarkdown(deck: DeckData): string {
 }
 
 /**
- * Render a deck to the plain-text decklist format used for the public site's
- * "Download" export (`## Section` headers followed by `{qty} {name}` lines).
- * Shared by `build-site` (baking the static export) and the public editor
- * (exporting an edited copy) so both produce identical files.
+ * Render a deck to the plain-text decklist the public site's "Download" (and
+ * the editor's deck download) hands the reader: an **export dialect**, not
+ * Ritual's own markdown.
  *
- * Layout: the Commander section first (when present), then the Main/Mainboard
- * section; if there is no explicit Main section, every other section is included
- * except Sideboard, Maybeboard, and Token (which are deck-building extras).
+ * The point of this file is that it pastes into another site, so it carries
+ * bare `Commander` / `Deck` board markers instead of `## Section` headers,
+ * `N Name (SET) CN` lines instead of the canonical bulleted form, and none of
+ * the `&N` ids, notes, conditions or labels a Ritual line holds. Moxfield's
+ * dialect is used: it is Arena's decklist form plus the trailing `*F*` / `*E*`
+ * finish markers, so a foil stays a foil for the importers that model one and
+ * is ignored by the ones that don't.
+ *
+ * Layout: the Commander section (when present), then the Main/Mainboard
+ * section; if there is no explicit Main section, every other section is
+ * included except Sideboard, Maybeboard, and Token (which are deck-building
+ * extras rather than the list you are handing someone). Sections that share a
+ * board are written under one marker, and identical variants within it are
+ * summed into a single line — the same `aggregateDialectCards` pass
+ * `ritual export --format text --dialect …` makes, so the downloaded file and
+ * the CLI's file agree line for line.
  */
 export function deckToExportText(deck: DeckData): string {
-  const lines: string[] = []
   const cmdrSection = deck.sections.find((s) => s.name.toLowerCase().includes('commander'))
   const mainSection = deck.sections.find(
     (s) => s.name.toLowerCase() === 'main' || s.name.toLowerCase() === 'mainboard',
   )
-
-  if (cmdrSection) {
-    lines.push(`## ${cmdrSection.name}`)
-    cmdrSection.cards.forEach((c) => lines.push(`${c.quantity} ${c.name}`))
-    lines.push('')
-  }
-
+  const exported: DeckSection[] = []
+  if (cmdrSection) exported.push(cmdrSection)
   if (mainSection) {
-    lines.push(`## ${mainSection.name}`)
-    mainSection.cards.forEach((c) => lines.push(`${c.quantity} ${c.name}`))
+    exported.push(mainSection)
   } else {
     for (const s of deck.sections) {
       const name = s.name.toLowerCase()
@@ -78,13 +90,25 @@ export function deckToExportText(deck: DeckData): string {
       if (name.includes('maybeboard')) continue
       if (name.includes('sideboard')) continue
       if (name.includes('token')) continue
-      lines.push('')
-      lines.push(`## ${s.name}`)
-      s.cards.forEach((c) => lines.push(`${c.quantity} ${c.name}`))
+      exported.push(s)
     }
   }
 
-  return lines.join('\n').trim()
+  const cards = exported.flatMap((section) =>
+    section.cards.map(
+      (card): SectionedDialectCard => ({
+        section: section.name,
+        quantity: card.quantity,
+        name: card.name,
+        set: card.set,
+        collectorNumber: card.collectorNumber,
+        finish: card.finish,
+        condition: card.condition,
+        language: card.language,
+      }),
+    ),
+  )
+  return renderDialectText(aggregateDialectCards(cards), 'moxfield')
 }
 
 /**

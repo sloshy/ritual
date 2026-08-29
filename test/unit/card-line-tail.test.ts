@@ -66,12 +66,12 @@ describe('formatCanonicalCardLine', () => {
     cardId: 4,
   }
 
-  test('a deck line leads with its quantity', () => {
-    expect(formatCanonicalCardLine('deck', fields)).toBe('2 Sol Ring (C21:263) &4')
+  test('a deck line is bulleted and leads with its quantity', () => {
+    expect(formatCanonicalCardLine('deck', fields)).toBe('- 2 Sol Ring (C21:263) &4')
   })
 
   test('a deck line with no quantity means one copy', () => {
-    expect(formatCanonicalCardLine('deck', { name: 'Sol Ring' })).toBe('1 Sol Ring')
+    expect(formatCanonicalCardLine('deck', { name: 'Sol Ring' })).toBe('- 1 Sol Ring')
   })
 
   test('flat lines are one bullet per copy and carry no quantity', () => {

@@ -222,10 +222,73 @@ describe('serializeDeckToMarkdown assigns missing card IDs', () => {
       ],
     }
     const result = serializeDeckToMarkdown(deck, { name: 'Test' })
-    const cardLines = result.split('\n').filter((l) => /^\d+ /.test(l.trim()))
+    const cardLines = result.split('\n').filter((l) => /^- \d+ /.test(l.trim()))
     expect(cardLines.length).toBe(3)
     for (const line of cardLines) {
       expect(line.trim()).toMatch(/ &\d+$/)
     }
+  })
+})
+
+/**
+ * The write form is bulleted (`- 2 Sol Ring (C21:263) &4`) and the read form
+ * tolerates the bullet's absence, so the pair has to be pinned from both ends:
+ * what the serializer writes must parse back to the deck it came from, and
+ * re-serializing that deck must reproduce the same bytes.
+ */
+describe('serializeDeckToMarkdown: canonical bullets round-trip', () => {
+  const deck: DeckData = {
+    name: 'Round Trip',
+    sections: [
+      { name: 'Commander', cards: [{ quantity: 1, name: 'Atraxa', cardId: 1 }] },
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 2 },
+          {
+            quantity: 2,
+            name: 'Lightning Bolt',
+            set: '2xm',
+            collectorNumber: '157',
+            finish: 'foil',
+            condition: 'LP',
+            language: 'ja',
+            note: 'from the cube',
+            cardId: 3,
+          },
+        ],
+      },
+    ],
+  }
+
+  test('every card line is written as a markdown list item', () => {
+    const markdown = serializeDeckToMarkdown(deck, {})
+    expect(markdown).toContain('## Commander\n- 1 Atraxa &1')
+    expect(markdown).toContain('- 1 Sol Ring (C21:263) &2')
+    expect(markdown).toContain('- 2 Lightning Bolt (2XM:157) [foil] [LP] [ja] {from the cube} &3')
+  })
+
+  test('a saved deck parses back to the same sections and cards, with no warnings', () => {
+    const parsed = parseDeckText(serializeDeckToMarkdown(deck, {}), 'Round Trip')
+    expect(parsed.warnings).toEqual([])
+    expect(parsed.deck.sections).toEqual(deck.sections)
+  })
+
+  test('re-serializing a parsed deck is byte-identical', () => {
+    const first = serializeDeckToMarkdown(deck, {})
+    const second = serializeDeckToMarkdown(parseDeckText(first, 'Round Trip').deck, {})
+    expect(second).toBe(first)
+  })
+
+  test('a hand-written bulletless deck is read, then rewritten with bullets', () => {
+    const handWritten = ['## Main', '2 Sol Ring (C21:263) &1', ''].join('\n')
+    const parsed = parseDeckText(handWritten, 'Hand Written')
+    expect(parsed.warnings).toEqual([])
+    const rewritten = serializeDeckToMarkdown(parsed.deck, {})
+    expect(rewritten).toContain('- 2 Sol Ring (C21:263) &1')
+    // And the rewrite is the fixed point: a second pass changes nothing.
+    expect(serializeDeckToMarkdown(parseDeckText(rewritten, 'Hand Written').deck, {})).toBe(
+      rewritten,
+    )
   })
 })

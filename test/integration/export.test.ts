@@ -224,6 +224,43 @@ describe('export command (Integration)', () => {
     })
   }, 60_000)
 
+  // One representative run per new text dialect: the line and board forms are
+  // pinned by the renderTextExport unit tests, so these prove that `--dialect`
+  // is accepted alongside `--format text` and reaches the renderer.
+  test('--format text --dialect arena writes bare board markers and (SET) CN lines', async () => {
+    await withTempDir(async (dir) => {
+      await seedWorkspace(dir)
+
+      const result = await runCli(
+        ['export', 'deck:burn', '--format', 'text', '--dialect', 'arena', '--quiet'],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toBe(
+        'Deck\n2 Lightning Bolt (LEA) 161\n1 Fireblast (VIS) 78\n\n' +
+          'Sideboard\n1 Price of Progress\n',
+      )
+    })
+  }, 60_000)
+
+  test('--format text --dialect moxfield adds the trailing finish marker', async () => {
+    await withTempDir(async (dir) => {
+      await seedWorkspace(dir)
+
+      const result = await runCli(
+        ['export', 'deck:burn', '--format', 'text', '--dialect', 'moxfield', '--quiet'],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toBe(
+        'Deck\n2 Lightning Bolt (LEA) 161\n1 Fireblast (VIS) 78 *F*\n\n' +
+          'Sideboard\n1 Price of Progress\n',
+      )
+    })
+  }, 60_000)
+
   test('--format md writes grouped canonical markdown without &N ids', async () => {
     await withTempDir(async (dir) => {
       await seedWorkspace(dir)
@@ -237,8 +274,8 @@ describe('export command (Integration)', () => {
       const written = await fs.readFile(path.join(dir, 'cards.md'), 'utf-8')
       expect(written).toBe(
         '# burn\n\n' +
-          '## Main\n2 Lightning Bolt (LEA:161)\n1 Fireblast (VIS:78) [foil]\n\n' +
-          '## Maybeboard\n1 Price of Progress\n\n' +
+          '## Main\n- 2 Lightning Bolt (LEA:161)\n- 1 Fireblast (VIS:78) [foil]\n\n' +
+          '## Maybeboard\n- 1 Price of Progress\n\n' +
           '# binder\n\n## Main\n- Sol Ring (C21:263) [foil]\n- Lightning Bolt (LEA:161) [LP]\n',
       )
       expect(written).not.toContain('&')
@@ -413,8 +450,8 @@ describe('export command (Integration)', () => {
     ],
     [
       'invalid dialect',
-      ['export', '--all', '--dialect', 'moxfield'],
-      "Invalid dialect 'moxfield'. Use one of: ritual, archidekt.",
+      ['export', '--all', '--dialect', 'mtggoldfish'],
+      "Invalid dialect 'mtggoldfish'. Use one of: ritual, archidekt, arena, moxfield.",
     ],
     // A per-argument prefix that contradicts the whole-command flag used to win
     // silently, so this reported that no *deck* named 'binder' exists.

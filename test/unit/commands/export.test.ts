@@ -245,4 +245,30 @@ describe('wizard pure builders', () => {
     expect(archidekt).toContain('Format: CSV · Columns: Variant · archidekt values')
     expect(formatWizardHeaderLines(wizardState(), 0).join('\n')).not.toContain('values')
   })
+
+  // A text dialect chooses the decklist's lines rather than any cell's value,
+  // and the header has to say so: nothing else in the wizard reveals that the
+  // file will come out in Moxfield's form.
+  test('the wizard header names a text dialect as a line form', () => {
+    const moxfield = formatWizardHeaderLines(
+      wizardState({ settings: settings({ format: 'text', dialect: 'moxfield' }) }),
+      0,
+    )
+    expect(moxfield).toContain('Format: TEXT · moxfield lines')
+  })
+
+  // Each dialect publishes half the vocabulary: archidekt spells csv/json
+  // values and has no plain-text form, so on a text export it changes nothing
+  // and the summary must not claim otherwise.
+  test('a dialect that shapes nothing for the chosen format is not announced', () => {
+    expect(
+      formatWizardHeaderLines(
+        wizardState({ settings: settings({ format: 'text', dialect: 'archidekt' }) }),
+        0,
+      ).join('\n'),
+    ).not.toContain('archidekt')
+    expect(
+      formatPresetSummary('mox', { format: 'text', columns: [], dialect: 'moxfield' }),
+    ).toContain('moxfield lines')
+  })
 })

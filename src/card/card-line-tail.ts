@@ -117,11 +117,18 @@ export type FlatCardLineFields = CardLineFields & { quantity?: never }
 /**
  * The canonical text of one card line of `type`, with no trailing newline.
  *
- * Deck lines lead with their quantity (`2 Sol Ring (C21:263) &4`); collection
- * and wanted lines are one bullet per copy (`- Sol Ring (LEA:270) &4`). The
- * overloads make that structural: a flat list cannot be handed a `quantity`
- * this function would silently drop — the caller must expand the copies into
- * that many lines instead.
+ * Every list type is written as a markdown list item — the `- ` bullet is
+ * mandatory on write for all three, and optional on read — so a list file
+ * renders as a list wherever markdown is rendered. Deck lines carry their
+ * copies as a quantity (`- 2 Sol Ring (C21:263) &4`); collection and wanted
+ * lines are one bullet per copy (`- Sol Ring (LEA:270) &4`). The overloads make
+ * that structural: a flat list cannot be handed a `quantity` this function
+ * would silently drop — the caller must expand the copies into that many lines
+ * instead.
+ *
+ * This is the **only** writer of a canonical card line. The bulletless
+ * `N Name (SET) CN` forms other sites import are export *dialects*, rendered by
+ * `src/export/dialects.ts`, and are deliberately not this function's business.
  */
 export function formatCanonicalCardLine(type: 'deck', fields: DeckCardLineFields): string
 export function formatCanonicalCardLine(
@@ -129,6 +136,6 @@ export function formatCanonicalCardLine(
   fields: FlatCardLineFields,
 ): string
 export function formatCanonicalCardLine(type: ListType, fields: DeckCardLineFields): string {
-  const head = type === 'deck' ? `${fields.quantity ?? 1} ${fields.name}` : `- ${fields.name}`
+  const head = type === 'deck' ? `- ${fields.quantity ?? 1} ${fields.name}` : `- ${fields.name}`
   return head + formatTokenTail(fields)
 }

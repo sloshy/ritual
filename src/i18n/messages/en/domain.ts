@@ -262,7 +262,7 @@ export const domainMessages = {
   'domain.exportHint.labels': "effective labels — the card's override or its list default",
   'domain.exportFormat.csv': 'CSV',
   'domain.exportFormat.json': 'JSON',
-  'domain.exportFormat.text': 'Plain text (1 Name (SET:CN))',
+  'domain.exportFormat.text': 'Plain text decklist (dialect picks the form)',
   'domain.exportFormat.md': 'Markdown (canonical list markdown, no &N ids)',
 
   // ── Change-bundle import conflicts ────────────────────────────────────

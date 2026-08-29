@@ -153,7 +153,8 @@ export const helpSyncMeta = {
       '`export --columns`. {properties} is a comma-separated list of literal column names.',
   },
   'help.export.dialect': {
-    description: '`export --dialect`. {dialects} and ritual are literal values.',
+    description:
+      '`export --dialect`. {dialects} and ritual are literal values; csv, json, text and md are format slugs.',
   },
   'help.export.noHeader': { description: '`export --no-header`.' },
   'help.export.quoteAll': { description: '`export --quote-all`.' },

@@ -376,7 +376,7 @@ describe('set-card CLI (Integration)', () => {
     )
     expect(result.exitCode).toBe(0)
     const after = await fs.readFile(deckPath, 'utf-8')
-    expect(after).toBe(before.replace('1 Sol Ring &1', '1 Sol Ring [ja] &1'))
+    expect(after).toBe(before.replace('1 Sol Ring &1', '- 1 Sol Ring [ja] &1'))
   })
 
   test('rejects --section on a collection', async () => {

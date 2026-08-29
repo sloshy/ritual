@@ -265,8 +265,8 @@ describe('saveDeck (Integration)', () => {
       await saveDeck(parseArchidektDeckResponse(response, '7031486'), dir)
 
       const content = await readWrittenDeck(dir)
-      expect(content).toContain('## Commander\n1 Krenko, Mob Boss (M19:149) [foil] &1')
-      expect(content).toContain('## Main\n4 Lightning Bolt (M10:146) &2')
+      expect(content).toContain('## Commander\n- 1 Krenko, Mob Boss (M19:149) [foil] &1')
+      expect(content).toContain('## Main\n- 4 Lightning Bolt (M10:146) &2')
       expect(content).toContain('format: commander')
     })
   })

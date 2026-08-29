@@ -397,12 +397,12 @@ tags: []
 ---
 
 ## Commander
-1 Sol Ring &1
+- 1 Sol Ring &1
 
 ## Main
-1 Lightning Bolt &2
-1 Counterspell &3
-1 Dark Ritual &4
+- 1 Lightning Bolt &2
+- 1 Counterspell &3
+- 1 Dark Ritual &4
 `
 
 const DECK_EMBERWILD_AGGRO = `---
@@ -411,12 +411,12 @@ tags: []
 ---
 
 ## Commander
-1 Emberwild Phoenix &1
+- 1 Emberwild Phoenix &1
 
 ## Main
-3 Lightning Bolt &2
-2 Dark Ritual &3
-1 Serra Angel &4
+- 3 Lightning Bolt &2
+- 2 Dark Ritual &3
+- 1 Serra Angel &4
 `
 
 const DECK_TEST_SWAP = `---
@@ -425,8 +425,8 @@ tags: []
 ---
 
 ## Main
-1 Sol Ring (C21:263) &1
-1 Counterspell &2
+- 1 Sol Ring (C21:263) &1
+- 1 Counterspell &2
 `
 
 const COLLECTION_TEST_SWAP_BINDER = `# Test Swap Binder

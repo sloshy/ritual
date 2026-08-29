@@ -60,17 +60,17 @@ Filters apply to the assembled set — list entries and card picks alike.
 
 ### Output
 
-| Option                 | Description                                                                 |
-| ---------------------- | --------------------------------------------------------------------------- |
-| `--format <format>`    | `csv` (default), `json`, `text`, or `md`                                    |
-| `--columns <list>`     | Comma-separated properties in output order (`csv`/`json` only)              |
-| `--dialect <name>`     | Value spellings for finish and condition: `ritual` (default) or `archidekt` |
-| `--no-header`          | Omit the CSV header row                                                     |
-| `--quote-all`          | Quote every CSV cell instead of only cells that need it                     |
-| `--out <file>`         | Write to this file instead of stdout                                        |
-| `--preset <name>`      | Export with a saved or built-in preset (explicit flags override its values) |
-| `--save-preset <name>` | Save the resolved format/columns/CSV options as a named preset              |
-| `--quiet`              | Suppress progress and status messages (never the payload or the warnings)   |
+| Option                 | Description                                                                                                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--format <format>`    | `csv` (default), `json`, `text`, or `md`                                                                                                                     |
+| `--columns <list>`     | Comma-separated properties in output order (`csv`/`json` only)                                                                                               |
+| `--dialect <name>`     | Output vocabulary: `ritual` (default), `archidekt`, `arena`, or `moxfield`. Shapes `csv`/`json` values and the `text` line form; rejected with `--format md` |
+| `--no-header`          | Omit the CSV header row                                                                                                                                      |
+| `--quote-all`          | Quote every CSV cell instead of only cells that need it                                                                                                      |
+| `--out <file>`         | Write to this file instead of stdout                                                                                                                         |
+| `--preset <name>`      | Export with a saved or built-in preset (explicit flags override its values)                                                                                  |
+| `--save-preset <name>` | Save the resolved format/columns/CSV options as a named preset                                                                                               |
+| `--quiet`              | Suppress progress and status messages (never the payload or the warnings)                                                                                    |
 
 The rendered export goes to stdout (or `--out`) raw, with no envelope — `export` has no scripting `--output` flag, because its stdout payload _is_ the export.
 
@@ -82,9 +82,11 @@ The same engine backs the admin API's [`POST /api/export`](/admin/api/#export-ca
 
 Column-shaped output driven by `--columns`, `--no-header`, and `--quote-all` — see [Properties](#properties) below.
 
-### `text` — one flat decklist
+### `text` — a plain-text decklist
 
-Plain-text `{quantity} {Name} ({SET}:{Collector Number})` lines with no headers and no sections. Identical printings (same name, printing, finish, and condition) are **aggregated** with their quantities summed, and a multi-list export **merges into one list** — sections and list boundaries disappear. Lines keep first-seen file order; the printing suffix is omitted for cards without a pinned printing.
+Identical printings (same name, printing, finish, condition, and language) are **aggregated** with their quantities summed, and a multi-list export **merges into one list** — list boundaries disappear. Lines keep first-seen file order; the printing is omitted for cards without a pinned one. The line form follows the [dialect](#dialects).
+
+In the default `ritual` dialect (and in `archidekt`, which has no plain-text form of its own): `{quantity} {Name} ({SET}:{Collector Number})` lines, with no headers and no sections.
 
 ```text
 2 Lightning Bolt (LEA:161)
@@ -92,17 +94,28 @@ Plain-text `{quantity} {Name} ({SET}:{Collector Number})` lines with no headers 
 1 Price of Progress
 ```
 
+In the `arena` and `moxfield` dialects: bare board markers over `{quantity} {Name} ({SET}) {Collector Number}` lines — the form those sites import. Sections map to boards (`Commander`, `Companion`, `Sideboard`, everything else `Deck`; a maybeboard or token section has no marker of its own and is written under `Sideboard`), and aggregation is per board. `moxfield` adds Moxfield's trailing `*F*` / `*E*` finish markers.
+
+```text
+Deck
+2 Lightning Bolt (LEA) 161
+1 Fireblast (VIS) 78 *F*
+
+Sideboard
+1 Price of Progress
+```
+
 ### `md` — grouped canonical markdown
 
-The canonical list markdown, grouped by source: a `# List Name` H1 per list (in first-seen order), `## Section` H2 blocks within it, and each card's canonical line for its list type — deck quantity lines, collection/wanted `- ` bullet lines, with finish/condition/note tokens as stored. Card `&N` IDs are internal and **never included**.
+The canonical list markdown, grouped by source: a `# List Name` H1 per list (in first-seen order), `## Section` H2 blocks within it, and each card's canonical line for its list type — every line a `- ` bullet, deck lines carrying their quantity — with finish/condition/note tokens as stored. Card `&N` IDs are internal and **never included**.
 
 ```markdown
 # burn
 
 ## Main
 
-2 Lightning Bolt (LEA:161)
-1 Fireblast (VIS:78) [foil]
+- 2 Lightning Bolt (LEA:161)
+- 1 Fireblast (VIS:78) [foil]
 
 # binder
 
@@ -113,7 +126,7 @@ The canonical list markdown, grouped by source: a `# List Name` H1 per list (in 
 
 ### Conflicts
 
-`--columns`, `--dialect`, `--no-header`, and `--quote-all` only shape `csv`/`json` output. Giving any of them **explicitly** alongside `--format text` or `--format md` is a usage error (exit `2`). A preset whose stored columns accompany a `text`/`md` format is fine — the columns are simply unused.
+`--columns`, `--no-header`, and `--quote-all` only shape `csv`/`json` output. Giving any of them **explicitly** alongside `--format text` or `--format md` is a usage error (exit `2`). `--dialect` also shapes `text` output, so it conflicts only with `--format md`, which is Ritual's own markdown by definition. A preset whose stored columns accompany a `text`/`md` format is fine — the columns are simply unused.
 
 ## Properties
 
@@ -137,12 +150,16 @@ Notes on values:
 
 ## Dialects
 
-A dialect decides how `csv`/`json` **values** are spelled, so an export can be fed straight into another tool's importer. Column keys, the JSON schema, and every other property are identical in both.
+A dialect decides how an export is spelled, so it can be fed straight into another tool's importer. Which half of the export it reaches depends on the format: `csv`/`json` take their **values** from it, `text` takes its **line and board form**, and `md` takes nothing (it is Ritual's own markdown, and `--dialect --format md` is a usage error).
 
-| Dialect            | `finish`                                                             | `condition`                     |
-| ------------------ | -------------------------------------------------------------------- | ------------------------------- |
-| `ritual` (default) | `nonfoil` / `foil` / `etched`, blank when the line marks none        | `NM`…`DMG`, blank when unmarked |
-| `archidekt`        | `Normal` / `Foil` / `Etched`, under a **`Variant`** CSV header label | `NM` / `LP` / `MP` / `HP` / `D` |
+| Dialect            | `csv` / `json` values                                                                                                       | `text` lines                                                      |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `ritual` (default) | `finish` as `nonfoil` / `foil` / `etched` (blank when the line marks none); `condition` as `NM`…`DMG` (blank when unmarked) | One flat list of `1 Sol Ring (C21:263)` lines                     |
+| `archidekt`        | `finish` as `Normal` / `Foil` / `Etched` under a **`Variant`** header; `condition` as `NM` / `LP` / `MP` / `HP` / `D`       | Same as `ritual` — Archidekt's lane is the CSV preset             |
+| `arena`            | Same as `ritual`                                                                                                            | Board markers over `1 Sol Ring (C21) 263` lines, no finish marker |
+| `moxfield`         | Same as `ritual`                                                                                                            | The `arena` form plus trailing `*F*` / `*E*` finish markers       |
+
+Column keys, the JSON schema, and every property not named above are identical in every dialect.
 
 In the `archidekt` dialect a line that marks no finish or condition is written as its **effective** value (`Normal`, `NM`) — Archidekt's CSV has no "unmarked" spelling, and an empty cell would be a row it has to guess about. That means an etched-only printing without an explicit `[etched]` tag is written as `Normal`; pin the finish on the line if you export such cards by hand. (`ritual collection-sync` resolves finishes against the Scryfall cache before building its own CSV, so its uploads are never affected.)
 
@@ -155,8 +172,8 @@ From the wizard's main menu you can:
 - **Add lists** — an autocomplete over every deck, collection, and wanted list.
 - **Add individual cards** — an autocomplete over every card entry across all your lists; type to search by name, set, or list.
 - **Filters** — the same name/set/finish/condition/labels filters as the flags.
-- **Load preset** — apply a saved or built-in output shape (the built-in `archidekt` preset is always listed). It is offered above the three items it overwrites, so you never set the format and columns by hand only to lose them to a preset. Loading a preset is also the only way to pick a [dialect](#dialects) in the wizard; the header line names it whenever it isn't the default.
-- **Format, Columns, CSV options** — pick `csv`/`json`/`text`/`md`. For `csv`/`json` you then pick columns _in output order_ (each pick appends; `Done` finishes, `Reset to default` restores the standard columns) and toggle the header row and quoting mode; for `text`/`md` the line format is fixed, so the Columns and CSV options menus disappear.
+- **Load preset** — apply a saved or built-in output shape (the built-in `archidekt` preset is always listed). It is offered above the three items it overwrites, so you never set the format and columns by hand only to lose them to a preset. Loading a preset is also the only way to pick a [dialect](#dialects) in the wizard; the header line names it whenever it actually shapes the chosen format's output — `moxfield lines` on a `text` export, `archidekt values` on a `csv` one — and stays silent about a dialect that changes nothing there (`archidekt` on `text`, `arena` on `csv`).
+- **Format, Columns, CSV options** — pick `csv`/`json`/`text`/`md`. For `csv`/`json` you then pick columns _in output order_ (each pick appends; `Done` finishes, `Reset to default` restores the standard columns) and toggle the header row and quoting mode; for `text`/`md` there are no columns to pick, so the Columns and CSV options menus disappear — a `text` export's line form comes from its [dialect](#dialects) instead, and `md` is always Ritual's canonical markdown.
 - **Save current settings as a preset** — store the current output shape under a name.
 - **Review** — print the assembled cards before exporting.
 - **Export** — prompts for the output path (defaults to `export.csv` / `export.json` / `export.txt` / `export.md` to match the format).
@@ -201,9 +218,9 @@ Because the CSV is keyed by Scryfall ID, rows never need name matching — but a
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                                                                                     |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Export written                                                                                                                                                                                                                                              |
-| `1`  | Runtime error (for example, the output file could not be written)                                                                                                                                                                                           |
-| `2`  | Usage error (conflicting type flags, a type prefix contradicting a type flag, unknown column or dialect, invalid filter, column/dialect/CSV flags with `--format text`/`--format md`, ambiguous list name, or a bare `export` where the wizard cannot open) |
-| `3`  | Not found (unknown list or preset)                                                                                                                                                                                                                          |
+| Code | Meaning                                                                                                                                                                                                                                                                             |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Export written                                                                                                                                                                                                                                                                      |
+| `1`  | Runtime error (for example, the output file could not be written)                                                                                                                                                                                                                   |
+| `2`  | Usage error (conflicting type flags, a type prefix contradicting a type flag, unknown column or dialect, invalid filter, column/CSV flags with `--format text`/`--format md`, `--dialect` with `--format md`, ambiguous list name, or a bare `export` where the wizard cannot open) |
+| `3`  | Not found (unknown list or preset)                                                                                                                                                                                                                                                  |

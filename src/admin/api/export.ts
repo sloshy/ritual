@@ -56,7 +56,13 @@ export type ExportRequestBody = {
   columns?: string[]
   header?: boolean
   quoteAll?: boolean
-  /** Value spellings for finish/condition; `ritual` by default. */
+  /**
+   * Output vocabulary: for `csv`/`json` the value spellings of
+   * finish/condition/language (`archidekt`), and for `text` the decklist's line
+   * and board form (`arena`, `moxfield`; `ritual` and `archidekt` both write
+   * Ritual's own flat `(SET:CN)` lines). Ignored — and rejected — for `md`,
+   * which is always Ritual's canonical markdown. `ritual` by default.
+   */
   dialect?: string
   /** A saved or built-in preset name; explicit fields above override its values. */
   preset?: string
@@ -170,8 +176,9 @@ function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | st
  * `POST /api/export` — assemble and render a card export. Mirrors the CLI
  * `export` command's flag mode: selected lists (or every list when none are
  * named and no card picks are given) plus card picks, filtered, rendered to
- * CSV, JSON, plain text, or Markdown (columns, the CSV toggles, and the value
- * dialect only shape csv/json output).
+ * CSV, JSON, plain text, or Markdown (columns and the CSV toggles only shape
+ * csv/json output; the dialect shapes those plus the plain-text decklist's line
+ * and board form).
  *
  * Returns the rendered content inline (`mode: 'content'`) by default. With
  * `write: true` the render is written to a server-named file under the

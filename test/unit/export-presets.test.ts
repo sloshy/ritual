@@ -65,8 +65,8 @@ describe('parseExportPresets', () => {
     ],
     [
       'unknown dialect',
-      { p: { format: 'csv', columns: ['name'], dialect: 'moxfield' } },
-      '.dialect must be one of: ritual, archidekt',
+      { p: { format: 'csv', columns: ['name'], dialect: 'mtggoldfish' } },
+      '.dialect must be one of: ritual, archidekt, arena, moxfield',
     ],
   ])('rejects %s with an error string', (_label, value, expected) => {
     const result = parseExportPresets(value)

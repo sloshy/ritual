@@ -102,10 +102,10 @@ describe('import Arena-dialect text file (Integration)', () => {
       expect(result.exitCode).toBe(0)
       const deck = await fs.readFile(path.join(dir, 'decks', 'Mono-Red Aggro.md'), 'utf-8')
       // Set codes are written uppercase in markdown, lowercase internally.
-      expect(deck).toContain('## Commander\n1 Krenko, Mob Boss (M19:149) &1')
-      expect(deck).toContain('## Main\n4 Lightning Bolt (M10:146) &2')
+      expect(deck).toContain('## Commander\n- 1 Krenko, Mob Boss (M19:149) &1')
+      expect(deck).toContain('## Main\n- 4 Lightning Bolt (M10:146) &2')
       expect(deck).toContain('2 Shock (M20:160) &3')
-      expect(deck).toContain('## Sideboard\n2 Pyroblast (ICE:213) &4')
+      expect(deck).toContain('## Sideboard\n- 2 Pyroblast (ICE:213) &4')
       expect(deck).not.toContain('(M10) 146')
     })
   })

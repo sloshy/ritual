@@ -52,7 +52,7 @@ describe('applyTargetedChangesToContent', () => {
       createSetFinishChange('Lightning Bolt', { finish: 'foil', cardId: 1 }),
     ])
     expect(result).toBe(
-      proseDeck.replace('4 Lightning Bolt (LEA:161) &1', '4 Lightning Bolt (LEA:161) [foil] &1'),
+      proseDeck.replace('4 Lightning Bolt (LEA:161) &1', '- 4 Lightning Bolt (LEA:161) [foil] &1'),
     )
   })
 
@@ -66,9 +66,11 @@ describe('applyTargetedChangesToContent', () => {
       createSetSectionChange('Lightning Bolt', 'Sideboard', 1),
     ])
     const lines = result.split('\n')
-    expect(lines).toContain('4 Lightning Bolt (2XM:117) &1')
+    expect(lines).toContain('- 4 Lightning Bolt (2XM:117) &1')
     // Moved to the end of the Sideboard block, after its existing card.
-    expect(lines.indexOf('4 Lightning Bolt (2XM:117) &1')).toBe(lines.indexOf('2 Pyroblast &3') + 1)
+    expect(lines.indexOf('- 4 Lightning Bolt (2XM:117) &1')).toBe(
+      lines.indexOf('2 Pyroblast &3') + 1,
+    )
     // The prose lines are untouched.
     expect(result).toContain('Some prose the user wrote under the front matter.')
     expect(result).toContain('a note between cards')
@@ -269,7 +271,7 @@ describe('applyTargetedChangesToContent', () => {
     const result = applyTargetedChangesToContent(indented, 'deck', stale, [
       createRemoveChange('Lightning Bolt', { cardId: 1 }),
     ])
-    expect(result).toBe('## Main\n  3 Lightning Bolt (LEA:161) &1\n')
+    expect(result).toBe('## Main\n  - 3 Lightning Bolt (LEA:161) &1\n')
   })
 
   test('an unhandled change kind throws rather than applying partially', () => {
@@ -411,7 +413,7 @@ describe('applyDeckAddToContent', () => {
     expect(content).not.toContain('## Main\n')
     expect(outcome.section).toBe('Mainboard')
     const lines = content.split('\n')
-    expect(lines[lines.indexOf('2 Sol Ring &2') + 1]).toBe('1 Brainstorm &4')
+    expect(lines[lines.indexOf('2 Sol Ring &2') + 1]).toBe('- 1 Brainstorm &4')
   })
 
   test('--section places the card in a named section, created at the end when missing', () => {
@@ -419,7 +421,7 @@ describe('applyDeckAddToContent', () => {
       section: 'Maybeboard',
     })
     expect(outcome.section).toBe('Maybeboard')
-    expect(content.trimEnd().endsWith('## Maybeboard\n1 Brainstorm &4')).toBe(true)
+    expect(content.trimEnd().endsWith('## Maybeboard\n- 1 Brainstorm &4')).toBe(true)
     // Exactly one blank line separates the created section from what precedes it.
     expect(content).toContain('1 Pyroblast &3\n\n## Maybeboard')
   })
@@ -462,7 +464,7 @@ describe('applyDeckAddToContent', () => {
     const headless = ['1 Mana Crypt &1', ''].join('\n')
     const { content } = applyDeckAddToContent(headless, { name: 'Brainstorm' }, 1)
     expect(content).not.toContain('## Main')
-    expect(content).toContain('1 Mana Crypt &1\n1 Brainstorm &2')
+    expect(content).toContain('1 Mana Crypt &1\n- 1 Brainstorm &2')
   })
 
   test('leaves every other byte of the file untouched', () => {
@@ -510,7 +512,7 @@ describe('fenced code blocks are never mutation targets', () => {
     expect(outcome.quantity).toBe(3)
     expect(outcome.section).toBe('Main')
     expect(content).toContain(fencedBlock)
-    expect(content.split('\n')).toContain('3 Sol Ring &1')
+    expect(content.split('\n')).toContain('- 3 Sol Ring &1')
   })
 
   test('an add for a card that only exists inside the fence creates a new line outside it', () => {
@@ -525,7 +527,7 @@ describe('fenced code blocks are never mutation targets', () => {
     const lines = content.split('\n')
     // Appended after Main's last real card line, not after the fenced one.
     // &2 — the fenced example's ids are prose, so only &1 and &3 were in use.
-    expect(lines.indexOf('1 Black Lotus (LEA:232) &2')).toBe(lines.indexOf('1 Sol Ring &1') + 1)
+    expect(lines.indexOf('- 1 Black Lotus (LEA:232) &2')).toBe(lines.indexOf('1 Sol Ring &1') + 1)
   })
 
   test('a set-note targets the real line and leaves the fenced block byte-identical', () => {
@@ -536,7 +538,7 @@ describe('fenced code blocks are never mutation targets', () => {
       [createSetNoteChange('Sol Ring', { note: 'keep', cardId: 1 })],
     )
     expect(result).toContain(fencedBlock)
-    expect(result.split('\n')).toContain('1 Sol Ring {keep} &1')
+    expect(result.split('\n')).toContain('- 1 Sol Ring {keep} &1')
   })
 
   test('a remove for a card that exists only inside the fence has no target', () => {

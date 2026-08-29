@@ -143,6 +143,78 @@ describe('renderTextExport', () => {
   test('uppercases the set code in the printing suffix', () => {
     expect(renderTextExport([entry({ set: 'lea' })])).toBe('1 Lightning Bolt (LEA:161)')
   })
+
+  // Archidekt publishes no plain-text dialect of its own — its lane is the CSV
+  // preset — so it renders exactly as `ritual` does.
+  test('the archidekt dialect leaves the line form alone', () => {
+    expect(renderTextExport([entry()], 'archidekt')).toBe(renderTextExport([entry()], 'ritual'))
+  })
+
+  test('the arena dialect writes bare board markers over `(SET) CN` lines', () => {
+    const text = renderTextExport(
+      [
+        entry({ listType: 'deck', listName: 'Burn', section: 'Main', name: 'Fireblast' }),
+        entry({ listType: 'deck', listName: 'Burn', section: 'Commander', fileOrder: 1 }),
+        entry({
+          listType: 'deck',
+          listName: 'Burn',
+          section: 'Sideboard',
+          name: 'Pyroblast',
+          fileOrder: 2,
+        }),
+      ],
+      'arena',
+    )
+    expect(text).toBe(
+      'Commander\n1 Lightning Bolt (LEA) 161\n\n' +
+        'Deck\n1 Fireblast (LEA) 161\n\n' +
+        'Sideboard\n1 Pyroblast (LEA) 161',
+    )
+  })
+
+  test('arena drops the finish; moxfield marks it with a trailing *F* / *E*', () => {
+    const cards = [
+      entry({ finish: 'foil' }),
+      entry({ name: 'Sol Ring', finish: 'etched', fileOrder: 1 }),
+      entry({ name: 'Forest', finish: undefined, fileOrder: 2 }),
+    ]
+    expect(renderTextExport(cards, 'arena')).toBe(
+      'Deck\n1 Lightning Bolt (LEA) 161\n1 Sol Ring (LEA) 161\n1 Forest (LEA) 161',
+    )
+    expect(renderTextExport(cards, 'moxfield')).toBe(
+      'Deck\n1 Lightning Bolt (LEA) 161 *F*\n1 Sol Ring (LEA) 161 *E*\n1 Forest (LEA) 161',
+    )
+  })
+
+  // Two copies in different boards are two lines, exactly as they are two lines
+  // in the deck they came from — the board is part of the aggregation key.
+  test('aggregation is per board, and a maybeboard has no marker of its own', () => {
+    const text = renderTextExport(
+      [
+        entry({ section: 'Main', quantity: 2 }),
+        entry({ section: 'Main', quantity: 1, fileOrder: 1 }),
+        entry({ section: 'Maybeboard', quantity: 1, fileOrder: 2 }),
+      ],
+      'arena',
+    )
+    expect(text).toBe('Deck\n3 Lightning Bolt (LEA) 161\n\nSideboard\n1 Lightning Bolt (LEA) 161')
+  })
+
+  test('an entry with no pinned printing writes its name alone', () => {
+    expect(
+      renderTextExport(
+        [
+          entry({
+            name: 'Sol Ring',
+            set: undefined,
+            collectorNumber: undefined,
+            finish: undefined,
+          }),
+        ],
+        'moxfield',
+      ),
+    ).toBe('Deck\n1 Sol Ring')
+  })
 })
 
 describe('renderMarkdownExport', () => {
@@ -200,8 +272,8 @@ describe('renderMarkdownExport', () => {
     ])
     expect(md).toBe(
       '# Burn\n\n' +
-        '## Main\n2 Lightning Bolt (LEA:161)\n1 Fireblast (VIS:78) [foil]\n\n' +
-        '## Maybeboard\n1 Price of Progress\n\n' +
+        '## Main\n- 2 Lightning Bolt (LEA:161)\n- 1 Fireblast (VIS:78) [foil]\n\n' +
+        '## Maybeboard\n- 1 Price of Progress\n\n' +
         '# Binder\n\n## Main\n- Sol Ring (C21:263) [foil]\n\n' +
         '# Wishlist\n\n## Main\n- Brainstorm',
     )
@@ -276,8 +348,8 @@ describe('renderMarkdownExport', () => {
     ])
     expect(md).toBe(
       '# Burn\n\n' +
-        '## Main\n1 Lightning Bolt (LEA:161)\n1 Fireblast (VIS:78)\n\n' +
-        '## Sideboard\n1 Pyroblast (ICE:213)',
+        '## Main\n- 1 Lightning Bolt (LEA:161)\n- 1 Fireblast (VIS:78)\n\n' +
+        '## Sideboard\n- 1 Pyroblast (ICE:213)',
     )
   })
 })
@@ -372,6 +444,19 @@ describe('the archidekt dialect', () => {
     expect(exportPropertyLabel('finish', 'archidekt')).toBe('Variant')
     expect(exportPropertyLabel('finish')).toBe('Finish')
     expect(exportPropertyLabel('condition', 'archidekt')).toBe('Condition')
+  })
+
+  // The text dialects publish no column vocabulary, so a csv/json export in one
+  // of them is a Ritual export — same headers, same values.
+  test('a text dialect leaves columns and values as ritual writes them', () => {
+    const columns = ['name', 'finish', 'condition'] as const
+    const options = { header: true, quoteAll: false } as const
+    expect(renderCsvExport([entry()], [...columns], { ...options, dialect: 'moxfield' })).toBe(
+      renderCsvExport([entry()], [...columns], options),
+    )
+    expect(JSON.parse(renderJsonExport([entry()], [...columns], 'arena'))).toEqual(
+      JSON.parse(renderJsonExport([entry()], [...columns])),
+    )
   })
 
   test('reaches JSON values too, without renaming the keys', () => {

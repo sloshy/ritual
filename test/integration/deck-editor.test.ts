@@ -77,7 +77,7 @@ describe('deck editor helpers (Integration)', () => {
     const content = await fs.readFile(filePath, 'utf-8')
     expect(content).toContain('## Burn')
     // Set codes are uppercased on write; the first card in a fresh deck gets ID 1.
-    expect(content).toMatch(/^1 Lightning Bolt \(LEA:161\) &1$/m)
+    expect(content).toMatch(/^- 1 Lightning Bolt \(LEA:161\) &1$/m)
 
     const reloaded = await loadDeck(filePath)
     expect(deckSectionNames(reloaded.deck)).toContain('Burn')

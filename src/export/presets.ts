@@ -42,6 +42,40 @@ export function exportFormatUsesColumns(format: ExportFormat): boolean {
 }
 
 /**
+ * Whether a format's output is shaped by the dialect. Everything except `md`
+ * is: `csv`/`json` spell their values in it and `text` picks its decklist line
+ * and board form from it. Canonical markdown is Ritual's own format by
+ * definition — a dialect there would make it a different file, not a different
+ * spelling — so `--dialect --format md` stays a usage error.
+ */
+export function exportFormatUsesDialect(format: ExportFormat): boolean {
+  return format !== 'md'
+}
+
+/**
+ * What a dialect actually changes about a given format's output: nothing, the
+ * *values* in its cells, or the *lines* of its decklist.
+ *
+ * {@link exportFormatUsesDialect} answers whether a dialect is legal for a
+ * format; this answers whether it does anything, which is what a summary line
+ * needs before it claims one is in effect. A dialect only publishes half of the
+ * vocabulary: `archidekt` spells csv/json values and has no plain-text form,
+ * while `arena`/`moxfield` shape text decklists and publish no columns — so
+ * `--format text --dialect archidekt` and `--format csv --dialect arena` are
+ * both accepted and both render exactly as `ritual` does.
+ */
+export type ExportDialectEffect = 'none' | 'values' | 'lines'
+
+export function exportDialectEffect(
+  format: ExportFormat,
+  dialect: ExportDialect,
+): ExportDialectEffect {
+  if (exportFormatUsesColumns(format)) return dialect === 'archidekt' ? 'values' : 'none'
+  if (format === 'text') return dialect === 'arena' || dialect === 'moxfield' ? 'lines' : 'none'
+  return 'none'
+}
+
+/**
  * A saved export configuration: output shape only (format, columns and their
  * order, CSV toggles) — never sources or filters, which describe a particular
  * export rather than a reusable shape. Stored under `exportPresets` in
@@ -55,7 +89,7 @@ export type ExportPreset = {
   header?: boolean
   /** CSV only; quote every cell. Defaults to false. */
   quoteAll?: boolean
-  /** Value vocabulary for finish/condition. Defaults to `ritual`. */
+  /** Output vocabulary: csv/json value spellings and the text line form. Defaults to `ritual`. */
   dialect?: ExportDialect
 }
 

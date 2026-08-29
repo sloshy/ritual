@@ -109,7 +109,7 @@ describe('fenced code blocks in list files (Integration)', () => {
     // add-card backfills ids, so this run also proves the fenced `1 Mox Pearl`
     // is left without one.
     expect(content).toContain(FENCED_BLOCK)
-    expect(content.split('\n')).toContain('2 Sol Ring &1')
+    expect(content.split('\n')).toContain('- 2 Sol Ring &1')
   })
 
   test('a card that exists only inside the fence is not found', async () => {

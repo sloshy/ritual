@@ -109,8 +109,8 @@ describe('admin import-csv handler (Integration)', () => {
 
     const content = await fs.readFile(path.join(testDir, 'decks', 'Burn.md'), 'utf-8')
     expect(content).toContain('format: modern')
-    expect(content).toContain('## Main\n4 Lightning Bolt &')
-    expect(content).toContain('## Sideboard\n2 Pyroblast &')
+    expect(content).toContain('## Main\n- 4 Lightning Bolt &')
+    expect(content).toContain('## Sideboard\n- 2 Pyroblast &')
   })
 
   test('appends to an existing wanted list and writes a changelog', async () => {

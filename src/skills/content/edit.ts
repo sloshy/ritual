@@ -382,9 +382,10 @@ fails. The same JSON can also be applied in the web admin's **Import Changes** p
 \`ritual export\` renders any grouping of cards in one of four formats, chosen with
 \`--format csv|json|text|md\` (default \`csv\`). There is no scripting \`--output\`
 flag here: the raw payload on stdout *is* the export, unless \`--out <file>\`
-writes it to a file instead. \`text\` merges everything into **one flat decklist** (\`1 Name (SET:CN)\`
-lines, quantities aggregated across lists); \`md\` is canonical list markdown
-grouped by list and section, **without** \`&N\` ids. Bare \`ritual export\` in a
+writes it to a file instead. \`text\` is a plain-text decklist whose line form
+follows \`--dialect\` — by default everything merges into **one flat list**
+(\`1 Name (SET:CN)\` lines, quantities aggregated across lists); \`md\` is canonical
+list markdown grouped by list and section, **without** \`&N\` ids. Bare \`ritual export\` in a
 terminal opens an interactive wizard; agents should always pass flags (any
 source, filter, or output flag runs non-interactively). With no lists and no
 \`--card\` picks, **every list** is exported:
@@ -393,6 +394,7 @@ source, filter, or output flag runs non-interactively). With no lists and no
 ritual export --format json > all-cards.json          # everything, JSON on stdout
 ritual export deck:burn --out burn.csv                # one deck to a CSV file
 ritual export --all --format text                     # one merged decklist on stdout
+ritual export deck:burn --format text --dialect arena # a decklist Arena/Moxfield import
 ritual export --all --format md --out cards.md        # canonical markdown, no &N ids
 ritual export "Main Binder" wishlist --set MKM        # two lists, filtered by set
 ritual export --card "sol ring" --card "mana crypt"   # cherry-pick cards across lists
@@ -421,15 +423,22 @@ warning), \`finish\`, \`isFoil\` (true when foil or etched), \`condition\`,
 \`language\` (Scryfall language code; blank for English), \`labels\`
 (effective labels, comma-joined), \`note\`,
 \`section\`, \`listName\`, \`listType\`. Columns apply to
-csv/json only: giving \`--columns\`, \`--dialect\`, \`--no-header\`, or \`--quote-all\`
+csv/json only: giving \`--columns\`, \`--no-header\`, or \`--quote-all\`
 alongside an explicit \`--format text|md\` is a usage error (a preset's stored
-columns with a text/md format are simply unused). Set codes are lowercase in JSON
-and UPPERCASE in CSV, text, and md output.
+columns with a text/md format are simply unused); \`--dialect\` also shapes
+\`--format text\`, so it conflicts with \`--format md\` alone. Set codes are
+lowercase in JSON and UPPERCASE in CSV, text, and md output.
 
-\`--dialect ritual|archidekt\` (csv/json) chooses how finish and condition are
-spelled: \`ritual\` (default) writes the file's own values, \`archidekt\` writes
-\`Normal|Foil|Etched\` under a \`Variant\` header and \`NM|LP|MP|HP|D\`, filling in
-the effective value (\`Normal\`/\`NM\`) for lines that mark none. The built-in
+\`--dialect ritual|archidekt|arena|moxfield\` chooses the output vocabulary. For
+csv/json it picks how finish and condition are spelled: \`ritual\` (default) writes
+the file's own values, \`archidekt\` writes \`Normal|Foil|Etched\` under a
+\`Variant\` header and \`NM|LP|MP|HP|D\`, filling in the effective value
+(\`Normal\`/\`NM\`) for lines that mark none; \`arena\` and \`moxfield\` say nothing
+here and render as \`ritual\`. For \`--format text\` it picks the decklist form:
+\`arena\` and \`moxfield\` write bare \`Commander\`/\`Deck\`/\`Sideboard\` board markers
+over \`1 Name (SET) CN\` lines (moxfield adding trailing \`*F*\`/\`*E*\` finish
+markers) — the form those sites import — while \`ritual\` and \`archidekt\` write one
+flat \`1 Name (SET:CN)\` list. The built-in
 \`archidekt\` preset is that dialect with columns
 \`Scryfall ID,Quantity,Variant,Condition\` — the CSV archidekt.com/collections/import
 accepts, and what \`ritual collection-sync push\` uploads for large batches.

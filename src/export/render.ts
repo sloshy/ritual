@@ -1,6 +1,7 @@
 import { csvCell } from '../changes/csv'
 import { aggregateQuantities, printingSuffix, variantKey } from '../card/card-line'
 import { canonicalCardLine } from '../list/deck-text'
+import { aggregateDialectCards, renderDialectText, type SectionedDialectCard } from './dialects'
 import { storedLanguage } from '../card/card-language'
 import {
   archidektCsvCondition,
@@ -63,6 +64,19 @@ export const EXPORT_PROPERTY_LABELS: Record<ExportProperty, string> = {
  * writes another tool's spellings for the same properties, so an export can be
  * fed straight into that tool's importer without a translation step.
  *
+ * Which half of the export a dialect reaches depends on the format:
+ *
+ * - `csv` / `json` — a dialect changes **values** (and one header label). Only
+ *   `ritual` and `archidekt` say anything different here; `arena` and
+ *   `moxfield` publish no column vocabulary, so they render as `ritual` does.
+ * - `text` — a dialect chooses the **line and board form** ({@link renderTextExport}).
+ *   `arena` and `moxfield` write the bulletless decklist their sites import
+ *   (`src/export/dialects.ts`); `ritual` and `archidekt` write Ritual's own
+ *   `(SET:CN)` line, since Archidekt's importer has no plain-text dialect of
+ *   its own — its lane is the `archidekt` CSV preset.
+ * - `md` — always Ritual's canonical markdown; a dialect would make it a
+ *   different file format, not a different spelling.
+ *
  * `archidekt` differs from `ritual` in exactly four ways, all in
  * {@link propertyValue} / {@link exportPropertyLabel}:
  *
@@ -76,9 +90,14 @@ export const EXPORT_PROPERTY_LABELS: Record<ExportProperty, string> = {
  *   `NM` / `EN`): Archidekt's CSV has no "unmarked" spelling, so an empty cell
  *   would be a row Archidekt has to guess about.
  */
-export type ExportDialect = 'ritual' | 'archidekt'
+export type ExportDialect = 'ritual' | 'archidekt' | 'arena' | 'moxfield'
 
-export const EXPORT_DIALECTS = ['ritual', 'archidekt'] as const satisfies readonly ExportDialect[]
+export const EXPORT_DIALECTS = [
+  'ritual',
+  'archidekt',
+  'arena',
+  'moxfield',
+] as const satisfies readonly ExportDialect[]
 
 export function isExportDialect(value: string): value is ExportDialect {
   return (EXPORT_DIALECTS as readonly string[]).includes(value)
@@ -88,6 +107,10 @@ export function isExportDialect(value: string): value is ExportDialect {
 const DIALECT_PROPERTY_LABELS: Record<ExportDialect, Partial<Record<ExportProperty, string>>> = {
   ritual: {},
   archidekt: { finish: 'Variant' },
+  // Text dialects: they shape decklist lines, not columns, so a csv/json export
+  // in one of them keeps Ritual's own headers.
+  arena: {},
+  moxfield: {},
 }
 
 /** A property's header/picker label in a dialect. */
@@ -240,32 +263,62 @@ export function renderJsonExport(
 }
 
 /**
- * Render entries as ONE flat plain-text decklist: `${qty} ${name} (SET:CN)`
- * per distinct variant (finish and condition distinguish variants even though
- * the line prints neither), quantities summed across sections and lists (a
- * multi-list export merges into a single list). No headers or sections; lines
- * appear in first-seen entry order. The printing suffix is omitted for entries
- * without a pinned printing; set codes are uppercased (user-facing output).
+ * Render entries as a plain-text decklist, in the dialect's line form.
+ *
+ * Either way, identical variants are aggregated first: one line per distinct
+ * variant (finish, condition and language distinguish variants even where the
+ * line prints none of them), with quantities summed across sections and lists,
+ * in first-seen entry order.
+ *
+ * `ritual` (and `archidekt`, which publishes no plain-text dialect) writes ONE
+ * flat list of `${qty} ${name} (SET:CN)` lines with no headers or sections —
+ * Ritual's own printing form, bulletless because this is a decklist for
+ * pasting, not a list file. `arena` and `moxfield` write their sites' importable
+ * form instead: bare board markers over `${qty} ${name} (SET) CN` lines, plus
+ * Moxfield's `*F*` / `*E*` finish markers. The printing is omitted for entries
+ * without a pinned one; set codes are uppercased (user-facing output).
  */
-export function renderTextExport(entries: ExportEntry[]): string {
-  return aggregateQuantities(
-    entries,
-    (entry) =>
-      variantKey(
-        entry.name,
-        entry.set,
-        entry.collectorNumber,
-        entry.finish,
-        entry.condition,
-        entry.language,
-      ),
-    (entry) => entry.quantity,
-  )
-    .map(
-      ({ entry, quantity }) =>
-        `${quantity} ${entry.name}${printingSuffix(entry.set, entry.collectorNumber)}`,
+export function renderTextExport(
+  entries: ExportEntry[],
+  dialect: ExportDialect = 'ritual',
+): string {
+  const textDialect = dialect === 'arena' || dialect === 'moxfield' ? dialect : undefined
+  if (textDialect === undefined) {
+    return aggregateQuantities(
+      entries,
+      (entry) =>
+        variantKey(
+          entry.name,
+          entry.set,
+          entry.collectorNumber,
+          entry.finish,
+          entry.condition,
+          entry.language,
+        ),
+      (entry) => entry.quantity,
     )
-    .join('\n')
+      .map(
+        ({ entry, quantity }) =>
+          `${quantity} ${entry.name}${printingSuffix(entry.set, entry.collectorNumber)}`,
+      )
+      .join('\n')
+  }
+  // Boards partition the dialect's aggregation (`aggregateDialectCards`): two
+  // copies of a card in different boards are two lines, exactly as they are two
+  // lines in the deck they came from.
+  const cards = entries.map(
+    (entry): SectionedDialectCard => ({
+      section: entry.section,
+      quantity: entry.quantity,
+      name: entry.name,
+      set: entry.set,
+      collectorNumber: entry.collectorNumber,
+      finish: entry.finish,
+      condition: entry.condition,
+      language: entry.language,
+    }),
+  )
+  return renderDialectText(aggregateDialectCards(cards), textDialect)
 }
 
 /** One list's group of entries for the markdown export, in first-seen order. */
@@ -285,8 +338,8 @@ function markdownLine(entry: ExportEntry): string {
 /**
  * Render entries as grouped canonical markdown: one `# ${listName}` H1 per
  * list (in first-seen order), `## ${section}` H2 blocks (first-seen order
- * within the list), and each entry's canonical line for its list type — deck
- * quantity lines, collection/wanted `- ` bullet lines — without `&N` ids.
+ * within the list), and each entry's canonical line for its list type — every
+ * one a `- ` bullet, decks carrying their quantity — without `&N` ids.
  * Returns without a trailing newline (the writer appends exactly one, like
  * every renderer here).
  */

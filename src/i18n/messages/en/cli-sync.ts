@@ -305,7 +305,7 @@ export const cliSyncMessages = {
 
   // ── `export` (flag mode) ──────────────────────────────────────────────
   'cli.export.formatFlagConflict':
-    '{flags} cannot be combined with --format {format}: {format} exports have a fixed line format. Columns, CSV options, and the value dialect apply to csv/json output only.',
+    '{flags} cannot be combined with --format {format}: {format} exports have a fixed line format. Columns and CSV options apply to csv/json output only, and --dialect to csv/json/text.',
   'cli.export.unknownPreset': "No export preset named '{name}'. Available presets: {available}.",
   'cli.export.savedPreset': "Saved export preset '{name}'",
   'cli.export.exportedToFile': 'Exported {cards} to {target}',
@@ -321,6 +321,7 @@ export const cliSyncMessages = {
   'cli.exportWizard.formatLine': 'Format: {format}',
   'cli.exportWizard.columnsSegment': ' · Columns: {columns}',
   'cli.exportWizard.dialectValues': '{dialect} values',
+  'cli.exportWizard.dialectLines': '{dialect} lines',
   'cli.exportWizard.csvLine': 'CSV: header {header} · {quoting}',
   'cli.exportWizard.menuAddLists': 'Add lists ({count} selected)',
   'cli.exportWizard.menuAddCards': 'Add individual cards ({count} picked)',

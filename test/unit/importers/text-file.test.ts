@@ -604,7 +604,7 @@ describe('parseDeckText — language token', () => {
   })
 
   test("a [proxy] token parses as the line's label override and round-trips", () => {
-    const line = '2 Sol Ring (LTC:284) [foil] [ja] [proxy] {mine} &7'
+    const line = '- 2 Sol Ring (LTC:284) [foil] [ja] [proxy] {mine} &7'
     const { deck, warnings } = parseDeckText(`## Main\n${line}`, 'd')
     const card = deck.sections[0]!.cards[0]!
     expect(warnings).toHaveLength(0)

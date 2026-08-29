@@ -734,7 +734,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
   test('export_cards rejects an unknown dialect', async () => {
     const result = await callTool(client, 'export_cards', {
       lists: [{ listType: 'deck', name: 'test-deck' }],
-      dialect: 'moxfield',
+      dialect: 'mtggoldfish',
     })
     expectSchemaRejection(result, /dialect/)
   })

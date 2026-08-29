@@ -57,7 +57,7 @@ function renderContent(entries: ExportEntry[], settings: ResolvedExportSettings)
     case 'json':
       return renderJsonExport(entries, settings.columns, settings.dialect)
     case 'text':
-      return renderTextExport(entries)
+      return renderTextExport(entries, settings.dialect)
     case 'md':
       return renderMarkdownExport(entries)
     case 'csv':

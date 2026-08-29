@@ -382,7 +382,7 @@ export const domainMeta = {
     maxLen: 48,
   },
   'domain.exportFormat.text': {
-    description: `${EXPORT_FORMAT_CONTEXT} Plain text, one card per line. The parenthetical is a literal sample line — keep it as-is.`,
+    description: `${EXPORT_FORMAT_CONTEXT} Plain text, one card per line. The line form depends on the export dialect (Ritual's own "1 Name (SET:CN)", or an Arena/Moxfield decklist), so the row deliberately shows no sample line. "dialect" is the option's name.`,
     maxLen: 48,
   },
   'domain.exportFormat.md': {
