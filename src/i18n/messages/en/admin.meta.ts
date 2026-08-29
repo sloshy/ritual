@@ -607,6 +607,10 @@ export const adminMeta = {
     description:
       'Explains the merge: the chosen set’s lines move into {timestamp} and the chosen set is deleted. {timestamp} appears twice.',
   },
+  'admin.combine.noCandidates': {
+    description:
+      'Empty state of the Combine dialog when no other change set can merge with the chosen one. "ritual-changes" is the literal name of the fenced block in .changes.md files and must not be translated.',
+  },
   'admin.history.discardTitle': {
     description:
       'Title of the confirmation shown when leaving the Change History page with unsaved edits.',

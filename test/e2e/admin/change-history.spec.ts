@@ -2,7 +2,9 @@ import { test, expect } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { mockChangeHistoryApi } from '../helpers/mock-admin'
 
-type SaveBody = { sets: { timestamp: string; lines: string[]; trailing?: string[] }[] }
+type SaveBody = {
+  sets: { timestamp: string; lines: string[]; events: unknown[]; trailing?: string[] }[]
+}
 
 test.describe('Change History page', () => {
   test.beforeEach(async ({ page }) => {
@@ -50,6 +52,8 @@ test.describe('Change History page', () => {
     await expect.poll(() => saved).not.toBeNull()
     expect(saved!.sets).toHaveLength(1)
     expect(saved!.sets[0]!.timestamp).toBe('2026-02-01T00:00:00.000Z')
+    // The set's events are echoed back with it, so the block is rewritten intact.
+    expect(saved!.sets[0]!.events).toHaveLength(1)
   })
 
   test('shows preserved hand-written text under its set and round-trips it on save', async ({
@@ -77,6 +81,22 @@ test.describe('Change History page', () => {
     await expect.poll(() => saved).not.toBeNull()
     expect(saved!.sets).toHaveLength(1)
     expect(saved!.sets[0]!.trailing).toEqual(['NOTE: the FNM tuning session.'])
+  })
+
+  test('combine shows an empty state when the only other set is a legacy one', async ({ page }) => {
+    await mockChangeHistoryApi(page, undefined, { legacyOlderSet: true })
+    await openDeckHistory(page)
+
+    await page
+      .locator('.history-set', { hasText: '2026-02-01' })
+      .locator('button:has-text("Combine")')
+      .click()
+    await expect(page.locator('.history-combine-option')).toHaveCount(0)
+    await expect(page.locator('.history-combine-list')).toContainText(
+      'No other set can be combined',
+    )
+    await page.locator('.modal-panel--prompt button:has-text("Cancel")').click()
+    await expect(page.locator('.history-set')).toHaveCount(2)
   })
 
   test('combines one change set into another', async ({ page }) => {
@@ -122,6 +142,8 @@ test.describe('Change History page', () => {
     await expect.poll(() => saved).not.toBeNull()
     expect(saved!.sets).toHaveLength(1)
     expect(saved!.sets[0]!.lines).toHaveLength(2)
+    // The rewritten set carries the default events beside its rendered lines.
+    expect(saved!.sets[0]!.events).toHaveLength(2)
     // The rewritten set is stamped "now" — a well-formed ISO-8601 timestamp.
     expect(saved!.sets[0]!.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)
   })

@@ -1,13 +1,13 @@
 import fs from 'node:fs/promises'
 import type { ChangeEvent } from './change-event'
-import { formatChangeCore } from './change-event'
-
-/**
- * Format a single change event as a markdown changelog line.
- */
-function formatChangelogLine(change: ChangeEvent): string {
-  return `- ${formatChangeCore(change, { tense: 'past', quoteCardName: true })}`
-}
+import {
+  changeSetFromEvents,
+  isLegacyChangeSet,
+  parseChangeSets,
+  serializeChangeSet,
+  type ChangeSet,
+} from './changelog-blocks'
+import { createFenceTracker } from '../list/markdown-fence'
 
 /** Options controlling how {@link appendChangelog} writes a block. */
 export type AppendChangelogOptions = {
@@ -23,36 +23,47 @@ export type AppendChangelogOptions = {
   continueSession?: boolean
 }
 
-/** The final block's `- ` change lines and its other non-blank (prose) lines. */
-type LastBlockContent = {
-  changeLines: string[]
-  /** Hand-written non-change lines — preserved, re-emitted after the change lines. */
-  proseLines: string[]
+/** The changelog split at its final `## ` header: everything before it, and that entry parsed. */
+type LastEntry = {
+  /** The file content up to (not including) the newline that precedes the final header. */
+  preceding: string
+  /** The final entry, or null when the file has no `## ` header. */
+  set: ChangeSet | null
 }
 
-/** Split the changelog's final block into change lines and preserved prose. */
-function lastBlockContent(content: string): LastBlockContent {
-  const headerIndex = content.lastIndexOf('\n## ')
-  if (headerIndex === -1) return { changeLines: [], proseLines: [] }
-  const changeLines: string[] = []
-  const proseLines: string[] = []
-  // Skip the `## ` header itself (the first line of the slice).
-  for (const line of content.slice(headerIndex).split('\n').slice(1)) {
-    if (line.startsWith('- ')) changeLines.push(line)
-    else if (line.trim() !== '' && !line.trim().startsWith('## ')) proseLines.push(line)
+/**
+ * Split the changelog at its final `## ` header. Fence-aware: a `## ` inside a
+ * fenced block (the events block cannot hold one, but a user's own code block
+ * can) is content, not a header.
+ */
+function lastEntry(content: string): LastEntry {
+  const lines = content.split('\n')
+  const fence = createFenceTracker()
+  let headerIndex = -1
+  for (let i = 0; i < lines.length; i++) {
+    const state = fence.feed(lines[i]!)
+    if (!state.opaque && /^##\s+/.test(lines[i]!.trim())) headerIndex = i
   }
-  return { changeLines, proseLines }
+  if (headerIndex === -1) return { preceding: content, set: null }
+  const preceding = lines.slice(0, headerIndex).join('\n')
+  const set = parseChangeSets(lines.slice(headerIndex).join('\n'), '').sets[0] ?? null
+  return { preceding, set }
 }
 
 /**
  * Append change events to a `.changes.md` changelog file.
  *
  * Derives the changelog path from the entity's main `.md` file path.
- * Creates the changelog file with a header if it doesn't exist yet.
+ * Creates the changelog file with a header if it doesn't exist yet. Each entry
+ * carries its prose `- ` lines followed by the fenced `ritual-changes` block
+ * that persists the typed events (see `changelog-blocks.ts`).
  *
  * With `continueSession`, a follow-up save merges into the most recent block
- * (appending its lines and refreshing the timestamp) so repeated saves in one
- * editing session form a single changelog entry rather than many.
+ * (appending its lines and events in lockstep and refreshing the timestamp) so
+ * repeated saves in one editing session form a single changelog entry rather
+ * than many. A legacy final entry (prose with no events block) is never merged
+ * into — its prose and the new events could not be paired — so the new
+ * changes open a fresh entry beneath it instead.
  *
  * @returns The path to the changelog file (for auto-commit use).
  */
@@ -67,7 +78,7 @@ export async function appendChangelog(
   if (changes.length === 0) return changelogPath
 
   const timestamp = new Date().toISOString()
-  const changeLines = changes.map(formatChangelogLine)
+  const fresh = changeSetFromEvents(timestamp, changes)
 
   let existingContent: string | null
   try {
@@ -77,24 +88,24 @@ export async function appendChangelog(
   }
 
   if (options.continueSession && existingContent) {
-    const headerIndex = existingContent.lastIndexOf('\n## ')
-    if (headerIndex !== -1) {
-      // Rewrite the final block in place: keep its prior lines, append the new
-      // ones, and bump the header timestamp to now. Hand-written prose in the
-      // block survives, re-emitted after the merged change lines (the same
-      // placement the history editor's `trailing` preservation uses).
-      const preceding = existingContent.slice(0, headerIndex)
-      const { changeLines: priorLines, proseLines } = lastBlockContent(existingContent)
-      const mergedLines = [...priorLines, ...changeLines]
-      const proseBlock = proseLines.length > 0 ? `\n${proseLines.join('\n')}\n` : ''
-      const mergedBlock = `\n## ${timestamp}\n\n${mergedLines.join('\n')}\n${proseBlock}`
-      await fs.writeFile(changelogPath, preceding + mergedBlock)
+    const { preceding, set } = lastEntry(existingContent)
+    if (set && !isLegacyChangeSet(set) && set.events.length === set.lines.length) {
+      // Rewrite the final block in place: keep its prior lines and events,
+      // append the new ones, and bump the header timestamp to now. Hand-written
+      // prose in the block survives, re-emitted after the merged events block
+      // (the same placement the history editor's `trailing` preservation uses).
+      const merged: ChangeSet = {
+        timestamp,
+        lines: [...set.lines, ...fresh.lines],
+        events: [...set.events, ...fresh.events],
+        ...(set.trailing !== undefined ? { trailing: set.trailing } : {}),
+      }
+      await fs.writeFile(changelogPath, preceding + serializeChangeSet(merged))
       return changelogPath
     }
   }
 
   const baseContent = existingContent ?? `# Changelog for ${entityName}\n`
-  const changelogEntry = `\n## ${timestamp}\n\n${changeLines.join('\n')}\n`
-  await fs.writeFile(changelogPath, baseContent + changelogEntry)
+  await fs.writeFile(changelogPath, baseContent + serializeChangeSet(fresh))
   return changelogPath
 }

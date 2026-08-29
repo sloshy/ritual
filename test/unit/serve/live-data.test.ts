@@ -115,7 +115,7 @@ describe('createLiveSiteData', () => {
     await Bun.sleep(5)
     fsSync.writeFileSync(
       path.join(ws.dir, 'decks', 'emberwild-aggro.changes.md'),
-      '## 2026-07-24T10:00:00.000Z\n\n- Added Lightning Bolt &99\n',
+      '## 2026-07-24T10:00:00.000Z\n\n- Added "Lightning Bolt" &99\n\n```ritual-changes\n{"action":"add","cardName":"Lightning Bolt","cardId":99}\n```\n',
     )
 
     const after = await live.getDetail('deck', 'emberwild-aggro')

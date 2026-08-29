@@ -166,21 +166,38 @@ const MOCK_DECK_WITH_CHANGELOG = makeDeckDetail({
   changelog: [
     {
       timestamp: '2025-01-15T10:00:00.000Z',
+      // Typed events, as `parseChangelog` bakes them (the envelope is
+      // re-synthesized from the entry header; the values here are arbitrary).
       changes: [
-        { action: 'Added', cardName: 'Test Creature', set: 'tst', collectorNumber: '1' },
-        { action: 'Removed', cardName: 'Old Card' },
-        { action: 'Added', cardName: 'Maybe Card', board: 'Maybeboard' },
-        { action: 'Removed', cardName: 'Side Card', board: 'Sideboard' },
-        { action: 'Set as commander', cardName: 'New Commander' },
-        { action: 'Unset as commander', cardName: 'Old Commander' },
-        { action: 'Set finish', cardName: 'Shiny Card', finish: 'foil' },
-        { action: 'Set note', cardName: 'Noted Card', note: 'great vs aggro' },
-        { action: 'Cleared note', cardName: 'Plain Card' },
+        {
+          id: 'e1',
+          timestamp: 0,
+          action: 'add',
+          cardName: 'Test Creature',
+          cardId: 1,
+          set: 'tst',
+          collectorNumber: '1',
+        },
+        { id: 'e2', timestamp: 0, action: 'remove', cardName: 'Old Card', cardId: 2 },
+        { id: 'e3', timestamp: 0, action: 'add', cardName: 'Maybe Card', board: 'Maybeboard' },
+        { id: 'e4', timestamp: 0, action: 'remove', cardName: 'Side Card', board: 'Sideboard' },
+        { id: 'e5', timestamp: 0, action: 'set-commander', cardName: 'New Commander' },
+        { id: 'e6', timestamp: 0, action: 'unset-commander', cardName: 'Old Commander' },
+        { id: 'e7', timestamp: 0, action: 'set-finish', cardName: 'Shiny Card', finish: 'foil' },
+        {
+          id: 'e8',
+          timestamp: 0,
+          action: 'set-note',
+          cardName: 'Noted Card',
+          note: 'great vs aggro',
+        },
+        { id: 'e9', timestamp: 0, action: 'set-note', cardName: 'Plain Card', note: '' },
+        { id: 'e10', timestamp: 0, action: 'add-section', section: 'Foils' },
       ],
     },
     {
       timestamp: '2025-01-10T08:00:00.000Z',
-      changes: [{ action: 'Added', cardName: 'Old Card' }],
+      changes: [{ id: 'e0', timestamp: 0, action: 'add', cardName: 'Old Card', cardId: 2 }],
     },
   ],
 })

@@ -60,7 +60,13 @@ const changeSetSchema = z.object({
   lines: z
     .array(z.string())
     .min(1)
-    .describe('Change lines, each starting with "- " (e.g. "- Added Sol Ring").'),
+    .describe('Prose change lines, each starting with "- " (e.g. "- Added Sol Ring").'),
+  events: z
+    .array(z.record(z.string(), z.unknown()))
+    .describe(
+      'The set’s typed change events, one per line in the same order — echo them back from ' +
+        'get_history. Empty only for a legacy set that had none.',
+    ),
   trailing: z
     .array(z.string())
     .optional()

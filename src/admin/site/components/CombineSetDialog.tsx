@@ -1,4 +1,4 @@
-import { type Component, For } from 'solid-js'
+import { type Component, For, Show } from 'solid-js'
 import { Modal } from '../../../ui/Modal'
 import { useT } from '../../../ui/i18n'
 
@@ -32,20 +32,25 @@ export const CombineSetDialog: Component<CombineSetDialogProps> = (props) => {
         {t('admin.combine.message', { timestamp: props.targetTimestamp })}
       </p>
       <div class="history-combine-list">
-        <For each={props.candidates}>
-          {(candidate) => (
-            <button
-              type="button"
-              class="history-combine-option"
-              onClick={() => props.onSelect(candidate.index)}
-            >
-              <span class="history-set-time">{candidate.timestamp}</span>
-              <span class="history-set-count">
-                {t('ui.count.changes', { count: candidate.changeCount })}
-              </span>
-            </button>
-          )}
-        </For>
+        <Show
+          when={props.candidates.length > 0}
+          fallback={<p class="dialog-message text-muted">{t('admin.combine.noCandidates')}</p>}
+        >
+          <For each={props.candidates}>
+            {(candidate) => (
+              <button
+                type="button"
+                class="history-combine-option"
+                onClick={() => props.onSelect(candidate.index)}
+              >
+                <span class="history-set-time">{candidate.timestamp}</span>
+                <span class="history-set-count">
+                  {t('ui.count.changes', { count: candidate.changeCount })}
+                </span>
+              </button>
+            )}
+          </For>
+        </Show>
       </div>
       <div class="confirm-dialog-actions">
         <button type="button" class="btn btn-secondary" onClick={props.onCancel}>

@@ -1,5 +1,5 @@
 import { type JSX, Show, For, createSignal, createMemo, onCleanup } from 'solid-js'
-import { isValidIso8601 } from '../../../changes/changelog-blocks'
+import { canCombineSets, isValidIso8601 } from '../../../changes/changelog-blocks'
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
 import { groupListsByType, listInfoId, type ListId } from '../list-grouping'
 import { useHistorySession } from '../hooks/useHistorySession'
@@ -129,10 +129,14 @@ export function History(): JSX.Element {
   const combineCandidates = createMemo<CombineCandidate[]>(() => {
     const target = combineFor()
     if (target === null) return []
+    const targetSet = session.sets()[target]
+    if (!targetSet) return []
+    // Only sets whose prose and events can merge in lockstep are offered.
     return session
       .sets()
-      .map((s, index) => ({ index, timestamp: s.timestamp, changeCount: s.lines.length }))
-      .filter((c) => c.index !== target)
+      .map((s, index) => ({ index, set: s }))
+      .filter(({ index, set }) => index !== target && canCombineSets(targetSet, set))
+      .map(({ index, set }) => ({ index, timestamp: set.timestamp, changeCount: set.lines.length }))
   })
 
   const onCombineSelect = (otherIndex: number) => {

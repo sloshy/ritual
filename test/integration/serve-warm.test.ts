@@ -135,6 +135,10 @@ describe('warmSiteCache (Integration)', () => {
         '',
         '- Removed "Mana Crypt" &2',
         '',
+        '```ritual-changes',
+        '{"action":"remove","cardName":"Mana Crypt","cardId":2}',
+        '```',
+        '',
       ].join('\n'),
     )
 

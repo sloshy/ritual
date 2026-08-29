@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import {
   changeSegments,
   displayChangeFromEvent,
-  displayChangeFromLine,
+  displayHistoryChange,
   formatChange,
   renderChange,
 } from '../../src/changes/change-message'
@@ -27,7 +27,6 @@ import {
   type ChangeEvent,
   type ListRef,
 } from '../../src/changes/change-event'
-import type { ChangelogAction, ChangelogChange } from '../../src/changes/changelog-parser'
 import { loadDictionary, resetI18nRuntime, setLocale } from '../../src/i18n/runtime'
 import { localeTag } from '../../src/i18n/locale-tag'
 
@@ -44,67 +43,70 @@ import { localeTag } from '../../src/i18n/locale-tag'
  *    in `test/integration/changelog-locale.test.ts` non-vacuous.
  */
 
-type ChangeOverrides = Partial<ChangelogChange> & { action: ChangelogAction }
-
-function line(overrides: ChangeOverrides): string {
-  return renderChange(displayChangeFromLine({ cardName: 'Lightning Bolt', ...overrides }))
+/** Render an event the way the history surfaces do: past tense, no `&N`. */
+function line(overrides: Partial<ChangeEvent> & { action: ChangeEvent['action'] }): string {
+  return renderChange(
+    displayHistoryChange({
+      id: 'x',
+      timestamp: 0,
+      cardName: 'Lightning Bolt',
+      ...overrides,
+    } as ChangeEvent),
+  )
 }
 
 afterEach(() => {
   resetI18nRuntime()
 })
 
-describe('changeMessage — parsed changelog lines', () => {
-  test('Added — plain mainboard', () => {
-    expect(line({ action: 'Added' })).toBe('Added Lightning Bolt')
+describe('changeMessage — history (persisted) events', () => {
+  test('add — plain mainboard, with the &N deliberately not rendered', () => {
+    expect(line({ action: 'add', cardId: 5 })).toBe('Added Lightning Bolt')
   })
 
-  test('Added — with printing annotation', () => {
-    expect(line({ action: 'Added', set: 'lea', collectorNumber: '161', finish: 'foil' })).toBe(
+  test('add — with printing annotation', () => {
+    expect(line({ action: 'add', set: 'lea', collectorNumber: '161', finish: 'foil' })).toBe(
       'Added Lightning Bolt (LEA:161) [foil]',
     )
   })
 
-  test('Added — to a non-main board', () => {
-    expect(line({ action: 'Added', board: 'Maybeboard' })).toBe(
-      'Added Lightning Bolt to Maybeboard',
-    )
+  test('add — to a non-main board', () => {
+    expect(line({ action: 'add', board: 'Maybeboard' })).toBe('Added Lightning Bolt to Maybeboard')
   })
 
-  test('Removed — from a non-main board', () => {
-    expect(line({ action: 'Removed', board: 'Sideboard' })).toBe(
+  test('remove — from a non-main board', () => {
+    expect(line({ action: 'remove', board: 'Sideboard' })).toBe(
       'Removed Lightning Bolt from Sideboard',
     )
   })
 
-  test('Set / Unset as commander', () => {
-    expect(line({ action: 'Set as commander' })).toBe('Set Lightning Bolt as commander')
-    expect(line({ action: 'Unset as commander' })).toBe('Unset Lightning Bolt as commander')
+  test('set / unset commander', () => {
+    expect(line({ action: 'set-commander' })).toBe('Set Lightning Bolt as commander')
+    expect(line({ action: 'unset-commander' })).toBe('Unset Lightning Bolt as commander')
   })
 
-  test('Set finish — and its nonfoil default when the line names none', () => {
-    expect(line({ action: 'Set finish', finish: 'etched' })).toBe(
+  test('set-finish', () => {
+    expect(line({ action: 'set-finish', finish: 'etched' })).toBe(
       'Set Lightning Bolt finish to etched',
     )
-    expect(line({ action: 'Set finish' })).toBe('Set Lightning Bolt finish to nonfoil')
   })
 
-  test('Set printing — descriptor, and the no-printing form', () => {
+  test('set-printing — descriptor, and the no-printing form', () => {
     expect(
-      line({ action: 'Set printing', set: 'm10', collectorNumber: '146', finish: 'foil' }),
+      line({ action: 'set-printing', set: 'm10', collectorNumber: '146', finish: 'foil' }),
     ).toBe('Set Lightning Bolt printing to M10:146 [foil]')
-    expect(line({ action: 'Set printing' })).toBe(
+    expect(line({ action: 'set-printing' })).toBe(
       'Set Lightning Bolt printing to no specific printing',
     )
     expect(
-      line({ action: 'Set printing', set: 'm10', collectorNumber: '146', language: 'ja' }),
+      line({ action: 'set-printing', set: 'm10', collectorNumber: '146', language: 'ja' }),
     ).toBe('Set Lightning Bolt printing to M10:146 [ja]')
   })
 
-  test('Added — annotates a non-en language after finish and condition', () => {
+  test('add — annotates a non-en language after finish and condition', () => {
     expect(
       line({
-        action: 'Added',
+        action: 'add',
         set: 'neo',
         collectorNumber: '234',
         finish: 'foil',
@@ -113,61 +115,59 @@ describe('changeMessage — parsed changelog lines', () => {
       }),
     ).toBe('Added Lightning Bolt (NEO:234) [foil] [LP] [ja]')
     // en is the bare default and is never annotated.
-    expect(line({ action: 'Added', language: 'en' })).toBe('Added Lightning Bolt')
+    expect(line({ action: 'add', language: 'en' })).toBe('Added Lightning Bolt')
   })
 
-  test('Set language — resolves the code to its name', () => {
-    expect(line({ action: 'Set language', language: 'ja' })).toBe(
+  test('set-language — resolves the code to its name', () => {
+    expect(line({ action: 'set-language', language: 'ja' })).toBe(
       'Set language of Lightning Bolt to Japanese',
     )
     // zhs is not a BCP-47 tag, so ICU has no name for it and the frozen English
     // table stands in — the case the Intl.DisplayNames fallback exists for.
-    expect(line({ action: 'Set language', language: 'zhs' })).toBe(
+    expect(line({ action: 'set-language', language: 'zhs' })).toBe(
       'Set language of Lightning Bolt to Simplified Chinese',
     )
   })
 
-  test('Set note — text, embedded quotes, and the empty-note clear', () => {
-    expect(line({ action: 'Set note', note: 'great vs aggro' })).toBe(
+  test('set-note — text, embedded quotes, and the empty-note clear', () => {
+    expect(line({ action: 'set-note', note: 'great vs aggro' })).toBe(
       'Set note on Lightning Bolt to "great vs aggro"',
     )
-    expect(line({ action: 'Set note', note: 'a "quoted" note' })).toBe(
+    expect(line({ action: 'set-note', note: 'a "quoted" note' })).toBe(
       'Set note on Lightning Bolt to "a "quoted" note"',
     )
-    expect(line({ action: 'Set note', note: '' })).toBe('Cleared note on Lightning Bolt')
-    expect(line({ action: 'Cleared note' })).toBe('Cleared note on Lightning Bolt')
+    expect(line({ action: 'set-note', note: '' })).toBe('Cleared note on Lightning Bolt')
   })
 
-  test('Set / Cleared labels', () => {
-    expect(line({ action: 'Set labels', labels: ['sale', 'trade'] })).toBe(
+  test('set-label — and the empty clear', () => {
+    expect(line({ action: 'set-label', labels: ['sale', 'trade'] })).toBe(
       'Set labels on Lightning Bolt to [sale,trade]',
     )
-    expect(line({ action: 'Set labels', labels: [] })).toBe('Cleared labels on Lightning Bolt')
-    expect(line({ action: 'Cleared labels' })).toBe('Cleared labels on Lightning Bolt')
+    expect(line({ action: 'set-label', labels: [] })).toBe('Cleared labels on Lightning Bolt')
   })
 
-  test('section-structural lines name no card', () => {
-    expect(line({ action: 'Added section', cardName: '', section: 'Foils' })).toBe(
+  test('section-structural events name no card', () => {
+    expect(renderChange(displayHistoryChange(createAddSectionChange('Foils')))).toBe(
       'Added section "Foils"',
     )
-    expect(line({ action: 'Removed section', cardName: '', section: 'Foils' })).toBe(
+    expect(renderChange(displayHistoryChange(createRemoveSectionChange('Foils')))).toBe(
       'Removed section "Foils"',
     )
-    expect(
-      line({ action: 'Renamed section', cardName: '', section: 'Foils', newSection: 'Shinies' }),
-    ).toBe('Renamed section "Foils" to "Shinies"')
-    expect(line({ action: 'Moved to section', section: 'Foils' })).toBe(
+    expect(renderChange(displayHistoryChange(createRenameSectionChange('Foils', 'Shinies')))).toBe(
+      'Renamed section "Foils" to "Shinies"',
+    )
+    expect(line({ action: 'set-section', section: 'Foils' })).toBe(
       'Moved Lightning Bolt to section "Foils"',
     )
   })
 
   test('cross-list moves name the other list', () => {
-    expect(line({ action: 'Moved to list', to: { type: 'deck', name: "Ryan's Burn" } })).toBe(
+    expect(line({ action: 'move-from', to: { type: 'deck', name: "Ryan's Burn" } })).toBe(
       "Moved Lightning Bolt to Deck 'Ryan's Burn'",
     )
     expect(
       line({
-        action: 'Moved from list',
+        action: 'move-to',
         from: { type: 'collection', name: 'Binder' },
         set: 'lea',
         collectorNumber: '161',
@@ -179,16 +179,14 @@ describe('changeMessage — parsed changelog lines', () => {
 describe('changeSegments', () => {
   test('isolates the card name as its own parameter segment', () => {
     const segments = changeSegments(
-      displayChangeFromLine({ cardName: 'Sol Ring', action: 'Added', board: 'Sideboard' }),
+      displayHistoryChange(createAddChange('Sol Ring', { board: 'Sideboard' })),
     )
     expect(segments.filter((s) => s.kind === 'param' && s.name === 'name')).toHaveLength(1)
     expect(segments.map((s) => s.value).join('')).toBe('Added Sol Ring to Sideboard')
   })
 
   test('a section line has no card-name segment at all', () => {
-    const segments = changeSegments(
-      displayChangeFromLine({ cardName: '', action: 'Added section', section: 'Foils' }),
-    )
+    const segments = changeSegments(displayHistoryChange(createAddSectionChange('Foils')))
     expect(segments.some((s) => s.kind === 'param' && s.name === 'name')).toBe(false)
   })
 })
@@ -283,8 +281,8 @@ describe('changeMessage follows the active locale', () => {
       },
     })
     setLocale(localeTag('xx'))
-    expect(line({ action: 'Added' })).toBe('AJOUTÉ Lightning Bolt')
+    expect(line({ action: 'add' })).toBe('AJOUTÉ Lightning Bolt')
     // A key the dictionary does not carry still renders, in English.
-    expect(line({ action: 'Removed' })).toBe('Removed Lightning Bolt')
+    expect(line({ action: 'remove' })).toBe('Removed Lightning Bolt')
   })
 })

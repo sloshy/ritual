@@ -4,6 +4,7 @@ import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { appendChangelog } from '../../src/changes/changelog-writer'
 import { parseChangelog } from '../../src/changes/changelog-parser'
+import { parseLegacyChangeLines } from '../../src/changes/changelog-legacy-parser'
 import {
   createAddChange,
   createAddSectionChange,
@@ -14,6 +15,7 @@ import {
   createSetNoteChange,
   createSetPrintingChange,
   createSetSectionChange,
+  type ChangeAction,
   type ChangeEvent,
 } from '../../src/changes/change-event'
 import { formatChange } from '../../src/changes/change-message'
@@ -28,17 +30,19 @@ import type { LocaleTag } from '../../src/i18n/types'
 /**
  * **The regression this file exists for would destroy user data silently.**
  *
- * `.changes.md` is a data format, not prose: `changelog-parser.ts` re-reads it
- * with regexes anchored on the English verbs (`Added` / `Removed` / `Set` /
- * `Unset`) and on the English language names. If a localized string ever
- * reached `appendChangelog`, the file would parse to **zero** changes and the
- * UI would show an empty history with no error at all — and `.sha256` sidecars
- * hash the exact bytes, so the corruption would also read as a spurious edit
- * on every machine with a different locale.
+ * `.changes.md` is a data format, not prose. Its prose lines are the
+ * git-diffable human record and the only input of the migration-only
+ * `changelog-legacy-parser.ts`, whose regexes anchor on the English verbs
+ * (`Added` / `Removed` / `Set` / `Unset`) and on the English language names;
+ * its fenced `ritual-changes` block is what `changelog-parser.ts` machine-reads.
+ * If a localized string ever reached `appendChangelog`, the prose would no
+ * longer migrate, and `.sha256` sidecars hash the exact bytes, so the
+ * corruption would also read as a spurious edit on every machine with a
+ * different locale.
  *
  * So: perform the mutations under the generated `en-XA` pseudo-locale and
- * assert the written bytes are identical to the `en` run, and still round-trip
- * through the parser. The pseudo-locale is built in-process from the English
+ * assert the written bytes are identical to the `en` run, and that both the
+ * block and the English-anchored prose still round-trip through their parsers. The pseudo-locale is built in-process from the English
  * catalog (the same function `scripts/generate-locales.ts` uses), so this test
  * needs no build artifact and can never drift from the shipped catalog.
  */
@@ -131,24 +135,28 @@ describe('.changes.md is byte-identical under any UI locale', () => {
       loadDictionary(PSEUDO_LOCALE, pseudoCatalog)
       const pseudo = await writeChangelogUnder(PSEUDO_LOCALE, dir, 'pseudo')
 
-      const { pages } = parseChangelog(pseudo)
+      const { pages, advisories } = parseChangelog(pseudo)
+      expect(advisories).toEqual([])
       expect(pages).toHaveLength(1)
-      const actions = pages[0]!.changes.map((change) => change.action)
-      expect(actions).toEqual([
-        'Added section',
-        'Added',
-        'Removed',
-        'Set as commander',
-        'Set printing',
-        'Set language',
-        'Set note',
-        'Set labels',
-        'Moved to section',
-      ])
-      // The language name is the parser's own vocabulary; a translated one
-      // would come back null and drop the line entirely.
-      const setLanguage = pages[0]!.changes.find((change) => change.action === 'Set language')
-      expect(setLanguage?.language).toBe('zhs')
+      const expectedActions: ChangeAction[] = [
+        'add-section',
+        'add',
+        'remove',
+        'set-commander',
+        'set-printing',
+        'set-language',
+        'set-note',
+        'set-label',
+        'set-section',
+      ]
+      expect(pages[0]!.changes.map((change) => change.action)).toEqual(expectedActions)
+      // The prose under the pseudo-locale is still what the migration parser reads.
+      const legacy = parseLegacyChangeLines(changeLines(pseudo))
+      expect(legacy.unparsedLines).toEqual([])
+      expect(legacy.events.map((change) => change.action)).toEqual(expectedActions)
+      // The block carries the language code itself, never a translated name.
+      const setLanguage = pages[0]!.changes.find((change) => change.action === 'set-language')
+      expect(setLanguage?.action === 'set-language' && setLanguage.language).toBe('zhs')
     })
   })
 

@@ -112,6 +112,7 @@ export type SharedDefName =
   | 'SaveEffectPrinting'
   | 'DroppedNote'
   | 'PhysicalCard'
+  | 'ChangeEvent'
   | 'ChangeSet'
   | 'ImportConflict'
   | 'ListImportResult'
@@ -380,10 +381,25 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
     ['key', 'listType', 'listSlug', 'name'],
   ),
 
+  // The event vocabulary is `ChangeEvent`'s in `src/changes/change-event.ts`
+  // (the same shape import_change_bundle takes); open because the key set is
+  // that discriminated union's, not this schema's.
+  ChangeEvent: openObject(
+    'One typed change event: `action` (add, remove, set-commander, unset-commander, set-finish, ' +
+      'set-printing, set-language, set-note, set-label, move-from, move-to, add-section, ' +
+      'remove-section, rename-section, set-section) plus that action’s fields — cardName, ' +
+      'cardId (&N), set, collectorNumber, finish, condition, language, labels, board, section, ' +
+      'newSection, note, to/from ({type, name}).',
+  ),
   ChangeSet: obj(
     {
       timestamp: str('ISO-8601 timestamp from the change set’s "## " header.'),
-      lines: arr(str(), 'Raw change lines, each including its leading "- ".'),
+      lines: arr(str(), 'Prose change lines, each including its leading "- ".'),
+      events: arr(
+        ref('ChangeEvent'),
+        'The set’s typed events, one per line in the same order (from its ritual-changes block). ' +
+          'Empty for a legacy set that has no block.',
+      ),
       trailing: arr(
         str(),
         'Hand-written non-change lines preserved after this set’s change lines (must not start ' +
@@ -391,7 +407,7 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
           'the text is deleted.',
       ),
     },
-    ['timestamp', 'lines'],
+    ['timestamp', 'lines', 'events'],
   ),
 
   ImportConflict: obj(

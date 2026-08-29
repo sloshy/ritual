@@ -1,10 +1,11 @@
-import type { ChangelogAction } from '../changes/changelog-parser'
+import { isAdditiveChange, type ChangeEvent } from '../changes/change-event'
 
 /**
  * Whether a change renders as additive (green `+`) rather than destructive (red `−`).
- * Mirrors `isAdditiveChange` in `change-event.ts`: `Unset as commander` and
- * `Cleared note` are destructive like `Removed`. Exhaustive so a new `ChangelogAction`
- * fails to compile until it is categorized here.
+ * Derived from `isAdditiveChange` in `change-event.ts`, with the two *cleared*
+ * forms folded in: a `set-note` with an empty note and a `set-label` with no
+ * labels are clears, destructive like `remove`, exactly as `formatChangeCore`
+ * writes them (`Cleared note …`, `Cleared labels …`).
  *
  * This file used to carry a second implementation of the changelog *wording*
  * beside `formatChangeCore`, with an explicit "keep the two in sync" comment.
@@ -13,29 +14,8 @@ import type { ChangelogAction } from '../changes/changelog-parser'
  * name can be a clickable node wherever the translator puts it. Only this
  * colour categorization — which is presentation, not wording — stays here.
  */
-export function isAdditiveAction(action: ChangelogAction): boolean {
-  switch (action) {
-    case 'Added':
-    case 'Set as commander':
-    case 'Set finish':
-    case 'Set printing':
-    case 'Set language':
-    case 'Set note':
-    case 'Set labels':
-    case 'Added section':
-    case 'Renamed section':
-    case 'Moved to section':
-    case 'Moved from list':
-      return true
-    case 'Removed':
-    case 'Moved to list':
-    case 'Unset as commander':
-    case 'Cleared note':
-    case 'Cleared labels':
-    case 'Removed section':
-      return false
-    default:
-      action satisfies never
-      return false
-  }
+export function isAdditiveEvent(change: ChangeEvent): boolean {
+  if (change.action === 'set-note') return change.note !== ''
+  if (change.action === 'set-label') return change.labels.length > 0
+  return isAdditiveChange(change.action)
 }

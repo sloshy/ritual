@@ -1,5 +1,6 @@
 import { type Accessor, batch, createMemo, createSignal, onMount } from 'solid-js'
 import {
+  changeSetFromEvents,
   cloneSets,
   combineSetsInto,
   deleteSetAt,
@@ -10,6 +11,7 @@ import {
   type ChangeSet,
 } from '../../../changes/changelog-blocks'
 import type { ListInfo } from '../../../list/list-info'
+import type { ChangeEvent } from '../../../changes/change-event'
 import type { HistoryLoadResponse, HistorySaveResponse } from '../../api/history'
 import type { ApiErrorResponse } from '../../../api/http'
 import type { ListsResponse } from '../../api/lists'
@@ -34,7 +36,7 @@ export type UseHistorySessionResult = {
   dirty: Accessor<boolean>
   canUndo: Accessor<boolean>
   undoCount: Accessor<number>
-  /** Whether a "rewrite with defaults" would produce any lines. */
+  /** Whether a "rewrite with defaults" would produce any events. */
   canRewrite: Accessor<boolean>
 
   originalSetCount: Accessor<number>
@@ -65,7 +67,7 @@ export function useHistorySession(): UseHistorySessionResult {
   const [detailLoading, setDetailLoading] = createSignal(false)
 
   const [header, setHeader] = createSignal('')
-  const [defaultLines, setDefaultLines] = createSignal<string[]>([])
+  const [defaultEvents, setDefaultEvents] = createSignal<ChangeEvent[]>([])
   const [sets, setSets] = createSignal<ChangeSet[]>([])
   const [originalSerialized, setOriginalSerialized] = createSignal('')
   const [undoStack, setUndoStack] = createSignal<ChangeSet[][]>([])
@@ -95,7 +97,7 @@ export function useHistorySession(): UseHistorySessionResult {
   })
   const undoCount = createMemo(() => undoStack().length)
   const canUndo = createMemo(() => undoCount() > 0)
-  const canRewrite = createMemo(() => defaultLines().length > 0)
+  const canRewrite = createMemo(() => defaultEvents().length > 0)
 
   const reloadLists = async (): Promise<void> => {
     try {
@@ -130,7 +132,7 @@ export function useHistorySession(): UseHistorySessionResult {
       }
       const loadedSets = sortNewestFirst(data.sets)
       setHeader(data.header)
-      setDefaultLines(data.defaultLines)
+      setDefaultEvents(data.defaultEvents)
       setSets(loadedSets)
       setOriginalSerialized(serializeChangeSets({ header: data.header, sets: loadedSets }))
       setUndoStack([])
@@ -176,9 +178,9 @@ export function useHistorySession(): UseHistorySessionResult {
   }
 
   const rewriteWithDefaults = (): void => {
-    const lines = defaultLines()
-    if (lines.length === 0) return
-    applyMutation([{ timestamp: new Date().toISOString(), lines }])
+    const events = defaultEvents()
+    if (events.length === 0) return
+    applyMutation([changeSetFromEvents(new Date().toISOString(), events)])
   }
 
   const undo = (): void => {

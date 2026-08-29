@@ -2,7 +2,14 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { appendChangelog } from '../../src/changes/changelog-writer'
-import type { ChangeEvent } from '../../src/changes/change-event'
+import {
+  createAddChange,
+  createMoveFromChange,
+  createRemoveChange,
+  createSetLabelChange,
+  type ChangeEvent,
+} from '../../src/changes/change-event'
+import { parseChangelog } from '../../src/changes/changelog-parser'
 import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 /** Test helper — builds a ChangeEvent with add-change defaults.
@@ -116,36 +123,125 @@ describe('appendChangelog', () => {
     expect(exists).toBe(false)
   })
 
+  describe('the ritual-changes block', () => {
+    test('writes each entry as its prose lines followed by one JSON line per event', async () => {
+      const changes: ChangeEvent[] = [
+        createAddChange('Sol Ring', {
+          set: 'ltc',
+          collectorNumber: '284',
+          finish: 'foil',
+          cardId: 12,
+          labels: ['proxy'],
+          section: 'Ramp',
+        }),
+        createMoveFromChange('Sol Ring', {
+          set: 'ltc',
+          collectorNumber: '284',
+          cardId: 5,
+          to: { type: 'deck', name: 'Burn' },
+        }),
+      ]
+      await appendChangelog(filePath, 'Test', changes)
+
+      const content = await fs.readFile(changelogPath, 'utf-8')
+      const body = content.replace(/^## .*$/m, '## <ts>')
+      expect(body).toBe(
+        [
+          '# Changelog for Test',
+          '',
+          '## <ts>',
+          '',
+          '- Added "Sol Ring" (LTC:284) [foil] &12',
+          '- Moved "Sol Ring" (LTC:284) &5 to Deck \'Burn\'',
+          '',
+          '```ritual-changes',
+          '{"action":"add","cardName":"Sol Ring","cardId":12,"set":"ltc","collectorNumber":"284","finish":"foil","labels":["proxy"],"section":"Ramp"}',
+          '{"action":"move-from","cardName":"Sol Ring","cardId":5,"set":"ltc","collectorNumber":"284","to":{"type":"deck","name":"Burn"}}',
+          '```',
+          '',
+        ].join('\n'),
+      )
+    })
+
+    test('is deterministic: the same events written twice are byte-identical', async () => {
+      const events: ChangeEvent[] = [
+        createAddChange('Sol Ring', {
+          set: 'ltc',
+          collectorNumber: '284',
+          finish: 'foil',
+          cardId: 12,
+        }),
+        createRemoveChange('Forest', { cardId: 3, labels: ['sale'], board: 'Sideboard' }),
+        createSetLabelChange('Sol Ring', { labels: ['trade', 'sale'], cardId: 12 }),
+      ]
+      // Structurally equal events with a different key order and fresh envelopes.
+      const shuffled: ChangeEvent[] = events.map((e) => {
+        const entries = Object.entries(e).reverse()
+        return Object.fromEntries([...entries, ['id', 'other'], ['timestamp', 1]]) as ChangeEvent
+      })
+
+      const strip = (content: string): string => content.replace(/^## .*$/gm, '## <ts>')
+      await appendChangelog(filePath, 'Test', events)
+      const first = strip(await fs.readFile(changelogPath, 'utf-8'))
+      await fs.rm(changelogPath)
+      await appendChangelog(filePath, 'Test', shuffled)
+      const second = strip(await fs.readFile(changelogPath, 'utf-8'))
+
+      expect(second).toBe(first)
+      expect(first).not.toMatch(/[ \t]+$/m)
+      expect(first).not.toContain('"id"')
+      expect(first).not.toContain('undefined')
+    })
+  })
+
   describe('continueSession', () => {
     /** Count the `## ` blocks (one per changelog entry) in a changelog file. */
     function countBlocks(content: string): number {
       return content.split('\n').filter((line) => line.startsWith('## ')).length
     }
 
-    test('merges into the last block and bumps its timestamp', async () => {
-      await fs.writeFile(
-        changelogPath,
-        '# Changelog for Test\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "Lightning Bolt"\n',
+    /** One entry as the writer lays it out: prose, then its events block. */
+    function entry(timestamp: string, cardName: string, cardId: number): string {
+      return (
+        `\n## ${timestamp}\n\n- Added "${cardName}" &${cardId}\n\n` +
+        '```ritual-changes\n' +
+        `{"action":"add","cardName":"${cardName}","cardId":${cardId}}\n` +
+        '```\n'
       )
+    }
+    const BOLT_ENTRY = `# Changelog for Test\n${entry('2026-01-01T00:00:00.000Z', 'Lightning Bolt', 1)}`
 
-      await appendChangelog(filePath, 'Test', [makeChange({ cardName: 'Counterspell' })], {
-        continueSession: true,
-      })
+    test('merges into the last block and bumps its timestamp, prose and events in lockstep', async () => {
+      await fs.writeFile(changelogPath, BOLT_ENTRY)
+
+      await appendChangelog(
+        filePath,
+        'Test',
+        [makeChange({ cardName: 'Counterspell', cardId: 2 })],
+        {
+          continueSession: true,
+        },
+      )
 
       const content = await fs.readFile(changelogPath, 'utf-8')
       // Both changes live under a single block — no second `## ` header.
       expect(countBlocks(content)).toBe(1)
-      expect(content).toContain('- Added "Lightning Bolt"')
-      expect(content).toContain('- Added "Counterspell"')
+      expect(content).toContain('- Added "Lightning Bolt" &1\n- Added "Counterspell" &2\n')
+      expect(content).toContain(
+        '{"action":"add","cardName":"Lightning Bolt","cardId":1}\n{"action":"add","cardName":"Counterspell","cardId":2}\n',
+      )
       // The original timestamp was replaced with a fresh one.
       expect(content).not.toContain('2026-01-01T00:00:00.000Z')
+      const { pages, advisories } = parseChangelog(content)
+      expect(advisories).toEqual([])
+      expect(pages[0]!.changes.map((c) => ('cardName' in c ? c.cardName : ''))).toEqual([
+        'Lightning Bolt',
+        'Counterspell',
+      ])
     })
 
     test('preserves the order: existing lines first, then new ones', async () => {
-      await fs.writeFile(
-        changelogPath,
-        '# Changelog for Test\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "Lightning Bolt"\n',
-      )
+      await fs.writeFile(changelogPath, BOLT_ENTRY)
 
       await appendChangelog(filePath, 'Test', [makeChange({ cardName: 'Counterspell' })], {
         continueSession: true,
@@ -155,11 +251,38 @@ describe('appendChangelog', () => {
       expect(content.indexOf('Lightning Bolt')).toBeLessThan(content.indexOf('Counterspell'))
     })
 
+    test('keeps hand-written prose after the merged block', async () => {
+      await fs.writeFile(changelogPath, `${BOLT_ENTRY}\nNOTE: the FNM tuning session.\n`)
+
+      await appendChangelog(filePath, 'Test', [makeChange({ cardName: 'Counterspell' })], {
+        continueSession: true,
+      })
+
+      const content = await fs.readFile(changelogPath, 'utf-8')
+      expect(countBlocks(content)).toBe(1)
+      expect(content.endsWith('```\n\nNOTE: the FNM tuning session.\n')).toBe(true)
+    })
+
+    test('starts a new block beneath a legacy (block-less) final entry instead of merging', async () => {
+      // A legacy entry's prose has no events to pair the new ones with, so it
+      // is left exactly as written and the session opens a fresh entry.
+      const legacy =
+        '# Changelog for Test\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "Lightning Bolt"\n'
+      await fs.writeFile(changelogPath, legacy)
+
+      await appendChangelog(filePath, 'Test', [makeChange({ cardName: 'Counterspell' })], {
+        continueSession: true,
+      })
+
+      const content = await fs.readFile(changelogPath, 'utf-8')
+      expect(content.startsWith(legacy)).toBe(true)
+      expect(countBlocks(content)).toBe(2)
+    })
+
     test('only merges into the most recent block, leaving earlier blocks intact', async () => {
       await fs.writeFile(
         changelogPath,
-        '# Changelog for Test\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "Sol Ring"\n' +
-          '\n## 2026-02-02T00:00:00.000Z\n\n- Added "Lightning Bolt"\n',
+        `# Changelog for Test\n${entry('2026-01-01T00:00:00.000Z', 'Sol Ring', 1)}${entry('2026-02-02T00:00:00.000Z', 'Lightning Bolt', 2)}`,
       )
 
       await appendChangelog(filePath, 'Test', [makeChange({ cardName: 'Counterspell' })], {
@@ -177,8 +300,7 @@ describe('appendChangelog', () => {
     })
 
     test('leaves an existing block untouched when changes is empty', async () => {
-      const original =
-        '# Changelog for Test\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "Lightning Bolt"\n'
+      const original = BOLT_ENTRY
       await fs.writeFile(changelogPath, original)
 
       await appendChangelog(filePath, 'Test', [], { continueSession: true })
@@ -198,10 +320,7 @@ describe('appendChangelog', () => {
     })
 
     test('appends a new block when continueSession is false', async () => {
-      await fs.writeFile(
-        changelogPath,
-        '# Changelog for Test\n\n## 2026-01-01T00:00:00.000Z\n\n- Added "Lightning Bolt"\n',
-      )
+      await fs.writeFile(changelogPath, BOLT_ENTRY)
 
       await appendChangelog(filePath, 'Test', [makeChange({ cardName: 'Counterspell' })], {
         continueSession: false,

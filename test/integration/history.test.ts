@@ -143,7 +143,7 @@ describe('history --show (Integration)', () => {
       const payload = JSON.parse(result.stdout) as { header: string; sets: ChangeSet[] }
       expect(payload.header).toBe('# Changelog for test')
       expect(payload.sets).toEqual([
-        { timestamp: NEWER_TS, lines: ['- Removed "Lightning Bolt" (LEA:161) &2'] },
+        { timestamp: NEWER_TS, lines: ['- Removed "Lightning Bolt" (LEA:161) &2'], events: [] },
       ])
     })
   })

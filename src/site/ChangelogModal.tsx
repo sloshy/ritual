@@ -8,9 +8,9 @@ import type { PriceCurrency } from '../pricing/price-currency'
 import { useTooltip } from '../ui/useTooltip'
 import { resolveCardImageSources } from '../card/image-sources'
 import { CardModal } from '../list-view/CardModal'
-import { isAdditiveAction } from './changelog-format'
+import { isAdditiveEvent } from './changelog-format'
 import { useT } from '../ui/i18n'
-import { changeSegments, displayChangeFromLine } from '../changes/change-message'
+import { changeSegments, displayHistoryChange } from '../changes/change-message'
 
 interface ChangelogModalProps {
   open: boolean
@@ -96,8 +96,10 @@ export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
             <div class="changelog-timestamp">{formattedTimestamp()}</div>
             <For each={currentPage()!.changes}>
               {(change) => {
-                const additive = isAdditiveAction(change.action)
-                const card = props.cards[change.cardName] ?? null
+                const additive = isAdditiveEvent(change)
+                // Section-structural events name no card, so there is nothing to link.
+                const cardName = 'cardName' in change ? change.cardName : null
+                const card = cardName !== null ? (props.cards[cardName] ?? null) : null
                 const imageUrl =
                   card && props.useScryfallImgUrls !== undefined
                     ? getCardImageUrl(card, props.useScryfallImgUrls)
@@ -109,9 +111,9 @@ export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
                 // once per item outside any tracking scope, so a rendered-once
                 // value would freeze this list in the boot language while the
                 // modal chrome around it relabeled.
-                const segments = createMemo(() => changeSegments(displayChangeFromLine(change)))
+                const segments = createMemo(() => changeSegments(displayHistoryChange(change)))
                 // Every action is categorized as additive or destructive (see
-                // isAdditiveAction), so there is no neutral middle state.
+                // isAdditiveEvent), so there is no neutral middle state.
                 const colorClass = additive
                   ? 'changelog-change-item--add'
                   : 'changelog-change-item--remove'
@@ -125,7 +127,7 @@ export const ChangelogModal: Component<ChangelogModalProps> = (props) => {
                           segment.kind === 'param' && segment.name === 'name' ? (
                             <span
                               class={card ? 'changelog-card-link' : ''}
-                              onClick={card ? () => setCardModalName(change.cardName) : undefined}
+                              onClick={card ? () => setCardModalName(cardName) : undefined}
                               onMouseEnter={
                                 imageUrl
                                   ? () => setTooltip({ src: imageUrl, sideways: false })

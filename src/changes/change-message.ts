@@ -5,9 +5,8 @@
  * confused:
  *
  * 1. `formatChangeCore` (`src/change-event.ts`) serializes the `.changes.md`
- *    line. It is a data format — re-parsed by `changelog-parser.ts` on English
- *    verbs, hashed by `.sha256` sidecars — so it is frozen English and never
- *    imports `src/i18n`.
+ *    prose line beside the typed event `changelog-blocks.ts` persists. It is a
+ *    data format — frozen English, never imports `src/i18n`.
  * 2. This module renders the same change *for a human to read*, in the active
  *    UI locale, and is the only place that does. The CLI's pending-change
  *    output, the public site's changelog modal, and the admin/public editors
@@ -15,10 +14,10 @@
  *    `src/site/changelog-format.ts` used to carry beside `formatChangeCore`
  *    (the plan's §7.8 and open question #6).
  *
- * Two shapes reach it and both normalize into {@link DisplayChange} first:
- * a live {@link ChangeEvent} (typed, carries `&N` card IDs, described in the
- * present tense because it has not been saved yet) and a `ChangelogChange`
- * parsed back out of a persisted file (loose strings, no IDs, past tense).
+ * One shape reaches it — a typed {@link ChangeEvent} — normalized into
+ * {@link DisplayChange} first: a pending change is described in the present
+ * tense with its `&N` (it has not been saved yet); a change read back out of a
+ * persisted file ({@link displayHistoryChange}) in the past tense without it.
  *
  * Browser-safe: no `node:` imports.
  */
@@ -32,7 +31,6 @@ import {
 } from './change-event'
 import { formatCardLabels } from '../card/card-labels'
 import { languageLabel } from '../card/card-language'
-import type { ChangelogChange } from './changelog-parser'
 import { currentLocale } from '../i18n/runtime'
 import { tSegmentsDynamic, type MessageParams, type MessageRef, type RenderParams } from '../i18n/t'
 import type { MessageKey } from '../i18n/messages/en'
@@ -328,105 +326,13 @@ export function displayChangeFromEvent(
 }
 
 /**
- * The persisted vocabulary a `.changes.md` line parses into, mapped onto the
- * canonical {@link ChangeAction}. `Cleared note` / `Cleared labels` are the
- * cleared *forms* of their setters, which is how `formatChangeCore` writes them
- * too, so both fold back onto one action.
- */
-const ACTION_FROM_CHANGELOG: Record<ChangelogChange['action'], ChangeAction> = {
-  Added: 'add',
-  Removed: 'remove',
-  'Set as commander': 'set-commander',
-  'Unset as commander': 'unset-commander',
-  'Set finish': 'set-finish',
-  'Set printing': 'set-printing',
-  'Set language': 'set-language',
-  'Set note': 'set-note',
-  'Cleared note': 'set-note',
-  'Set labels': 'set-label',
-  'Cleared labels': 'set-label',
-  'Added section': 'add-section',
-  'Removed section': 'remove-section',
-  'Renamed section': 'rename-section',
-  'Moved to section': 'set-section',
-  'Moved to list': 'move-from',
-  'Moved from list': 'move-to',
-}
-
-/**
- * Normalize a change parsed back out of a `.changes.md` file. Always past
+ * Normalize a change read back out of a `.changes.md` file. Always past
  * tense — the file records what happened — and never carries an `&N` suffix:
- * the parser reads the ID into `cardId`, but it is deliberately not rendered,
+ * the block persists the ID into `cardId`, but it is deliberately not rendered,
  * since the UI has no use for an internal line number.
  */
-export function displayChangeFromLine(change: ChangelogChange): DisplayChange {
-  const locale = currentLocale()
-  const action = ACTION_FROM_CHANGELOG[change.action]
-  const base: DisplayChange = {
-    action,
-    tense: 'past',
-    cardName: change.cardName,
-    idSuffix: '',
-    annotation: '',
-  }
-
-  switch (change.action) {
-    case 'Added':
-    case 'Removed':
-      return {
-        ...base,
-        annotation: formatPrintingAnnotation(change),
-        board: boardOf(change.board),
-      }
-    case 'Set finish':
-      return { ...base, finish: change.finish ?? 'nonfoil' }
-    case 'Set printing':
-      return {
-        ...base,
-        printing: printingDescriptor(
-          change.set,
-          change.collectorNumber,
-          change.finish,
-          change.condition,
-          change.language,
-        ),
-      }
-    case 'Set language':
-      return { ...base, language: languageLabel(change.language ?? 'en', locale) }
-    case 'Set note':
-      return { ...base, note: change.note ?? '' }
-    case 'Cleared note':
-      return { ...base, note: '' }
-    case 'Set labels':
-      return { ...base, labels: (change.labels ?? []).join(',') }
-    case 'Cleared labels':
-      return { ...base, labels: '' }
-    case 'Added section':
-    case 'Removed section':
-      return { ...base, section: change.section ?? '' }
-    case 'Renamed section':
-      return { ...base, section: change.section ?? '', newSection: change.newSection ?? '' }
-    case 'Moved to section':
-      return { ...base, section: change.section ?? '' }
-    case 'Moved to list':
-      return {
-        ...base,
-        annotation: formatPrintingAnnotation(change),
-        list: change.to ? listRefLabel(change.to) : '',
-      }
-    case 'Moved from list':
-      return {
-        ...base,
-        annotation: formatPrintingAnnotation(change),
-        list: change.from ? listRefLabel(change.from) : '',
-      }
-    case 'Set as commander':
-    case 'Unset as commander':
-      return base
-    default:
-      change.action satisfies never
-      throw new Error(`Unhandled changelog action (this is a bug)`)
-  }
+export function displayHistoryChange(change: ChangeEvent): DisplayChange {
+  return { ...displayChangeFromEvent(change, 'past'), idSuffix: '' }
 }
 
 /**

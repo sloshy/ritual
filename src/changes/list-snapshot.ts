@@ -13,10 +13,10 @@ import {
   createSetLabelChange,
   createSetNoteChange,
   createSetSectionChange,
-  formatChangeCore,
   printingOptionsFrom,
   type ChangeEvent,
 } from './change-event'
+import { formatChangelogLine } from './changelog-blocks'
 
 /** A single list entry, normalized across decks, collections, and wanted lists. */
 export type SnapshotEntry = ListEntryRef
@@ -28,16 +28,13 @@ export type ListSnapshot = LoadedListEntries
 export { loadListEntries as loadListSnapshot }
 
 /**
- * Build the raw changelog lines for a single "current state" change set. Emits, in
- * order: an add-section line per non-default section, then per entry — one add per
- * copy (matching how the diff logs quantities), a set-commander line for
- * commanders, a set-note line for noted cards, a set-labels line for cards with a
- * label override, and a set-section line for cards outside the default section.
- * Lines are formatted identically to the changelog writer (past tense, quoted
- * card names) so the result is indistinguishable from an organically written
- * change set.
+ * Build the events of a single "current state" change set. Emits, in order: an
+ * add-section per non-default section, then per entry — one add per copy
+ * (matching how the diff logs quantities), a set-commander for commanders, a
+ * set-note for noted cards, a set-label for cards with a label override, and a
+ * set-section for cards outside the default section.
  */
-export function buildDefaultChangeLines(snapshot: ListSnapshot): string[] {
+export function buildDefaultChangeEvents(snapshot: ListSnapshot): ChangeEvent[] {
   const events: ChangeEvent[] = []
 
   for (const section of snapshot.sectionOrder) {
@@ -63,5 +60,14 @@ export function buildDefaultChangeLines(snapshot: ListSnapshot): string[] {
     }
   }
 
-  return events.map((c) => `- ${formatChangeCore(c, { tense: 'past', quoteCardName: true })}`)
+  return events
+}
+
+/**
+ * {@link buildDefaultChangeEvents} rendered as the prose lines the changelog
+ * writer emits (past tense, quoted card names), so the result is
+ * indistinguishable from an organically written change set.
+ */
+export function buildDefaultChangeLines(snapshot: ListSnapshot): string[] {
+  return buildDefaultChangeEvents(snapshot).map(formatChangelogLine)
 }

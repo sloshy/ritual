@@ -15,7 +15,6 @@ import {
 import {
   replaySectionOrder,
   consolidateSetSection,
-  formatChangeCore,
   createSetSectionChange,
   createAddSectionChange,
   type ChangeEvent,
@@ -29,6 +28,7 @@ import {
   ensureWantedIdsInContent,
 } from '../../src/list/ensure-card-ids'
 import { parseChangelog } from '../../src/changes/changelog-parser'
+import { changeSetFromEvents, serializeChangeSets } from '../../src/changes/changelog-blocks'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/list/site-data'
 import { makeCollectionEntry } from '../test-utils'
 import type { DeckData } from '../../src/list/deck'
@@ -370,29 +370,27 @@ describe('section changelog formatting', () => {
     )
   })
 
-  test('past-tense lines round-trip through the changelog parser', () => {
+  test('section events round-trip through the changelog', () => {
     const events: ChangeEvent[] = [
       createAddSectionChange('Foils'),
       { id: '1', timestamp: 0, action: 'remove-section', section: 'Old' },
       { id: '2', timestamp: 0, action: 'rename-section', section: 'A', newSection: 'B' },
       createSetSectionChange('Sol Ring', 'Foils', 5),
     ]
-    const lines = events.map(
-      (e) => `- ${formatChangeCore(e, { tense: 'past', quoteCardName: true })}`,
-    )
-    const page = parseChangelog(
-      `# Changelog\n\n## 2026-01-01T00:00:00.000Z\n\n${lines.join('\n')}\n`,
-    ).pages[0]!
+    const content = serializeChangeSets({
+      header: '# Changelog',
+      sets: [changeSetFromEvents('2026-01-01T00:00:00.000Z', events)],
+    })
+    const page = parseChangelog(content).pages[0]!
     expect(page.changes.map((c) => c.action)).toEqual([
-      'Added section',
-      'Removed section',
-      'Renamed section',
-      'Moved to section',
+      'add-section',
+      'remove-section',
+      'rename-section',
+      'set-section',
     ])
-    expect(page.changes[0]!.section).toBe('Foils')
-    expect(page.changes[2]!.section).toBe('A')
-    expect(page.changes[2]!.newSection).toBe('B')
-    expect(page.changes[3]!.cardName).toBe('Sol Ring')
+    expect(page.changes[0]).toMatchObject({ section: 'Foils' })
+    expect(page.changes[2]).toMatchObject({ section: 'A', newSection: 'B' })
+    expect(page.changes[3]).toMatchObject({ cardName: 'Sol Ring', cardId: 5, section: 'Foils' })
   })
 })
 

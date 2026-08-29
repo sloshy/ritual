@@ -17,6 +17,7 @@ import type { CollectionEntry } from '../../../src/list/collection-file'
 import type { ListImageRef } from '../../../src/list/list-image'
 import { cardPricelessReason } from '../../../src/list-view/priceless'
 import type { ChangelogPage } from '../../../src/changes/changelog-parser'
+import { createRemoveChange } from '../../../src/changes/change-event'
 
 type StubContextOptions = {
   cardData?: Partial<SiteCardData>
@@ -302,7 +303,7 @@ describe('buildDeckArtifacts', () => {
     const changelog: ChangelogPage[] = [
       {
         timestamp: '2026-07-20T00:00:00.000Z',
-        changes: [{ action: 'Removed', cardName: 'dark ritual' }],
+        changes: [createRemoveChange('dark ritual')],
       },
     ]
     const { ctx } = makeContext({
@@ -395,7 +396,7 @@ describe('buildCollectionArtifacts', () => {
     const changelog: ChangelogPage[] = [
       {
         timestamp: '2026-07-21T00:00:00.000Z',
-        changes: [{ action: 'Removed', cardName: 'lightning bolt' }],
+        changes: [createRemoveChange('lightning bolt')],
       },
     ]
     const { ctx } = makeContext({

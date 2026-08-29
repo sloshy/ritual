@@ -925,9 +925,9 @@ export function isAdditiveChange(action: ChangeAction): boolean {
 /**
  * The loosely-typed printing fields the annotation formatters read. Deliberately
  * `string` rather than the `Finish` / `Condition` / `CardLanguage` unions: the
- * same annotation has to be rendered from a {@link ChangeEvent} (typed) and from
- * a `ChangelogChange` parsed back out of `.changes.md` (loose strings). One
- * widened parameter is what lets both go through this single implementation
+ * same annotation is rendered from a {@link ChangeEvent} (typed) and from the
+ * loose descriptor fields the display adapters hand it. One widened parameter
+ * is what lets both go through this single implementation
  * instead of the mirrored copy `src/site/changelog-format.ts` used to carry.
  */
 export type PrintingAnnotationInput = {
@@ -945,10 +945,9 @@ export type PrintingAnnotationInput = {
  * grade, neither of which a card line writes either, so a changelog line reads
  * exactly like the line it produced.
  *
- * This is the loose boundary: the strings arrive both from typed
- * {@link ChangeEvent}s and from a `ChangelogChange` parsed back out of
- * `.changes.md`, so each is narrowed to its vocabulary here rather than trusted
- * downstream. A value outside the vocabulary is dropped — writing it would put
+ * This is the loose boundary: the strings arrive from typed {@link ChangeEvent}s
+ * and from the display adapters' loose descriptor fields, so each is narrowed to
+ * its vocabulary here rather than trusted downstream. A value outside the vocabulary is dropped — writing it would put
  * a token into the file that `parseCardLine` refuses to read back.
  */
 export function formatFinishConditionTail(
@@ -1008,10 +1007,12 @@ type FormatChangeOptions = {
  *
  * The bytes it produces are a data format, not prose:
  *
- * - `changelog-parser.ts` re-reads them with regexes anchored on the English
- *   verbs (`Added` / `Removed` / `Set` / `Unset`) and on the English language
- *   names from `LANGUAGE_PARSE_NAMES`. A translated line parses to *zero*
- *   changes and renders an empty history **with no error** — silent data loss.
+ * - The line sits beside the typed event `changelog-blocks.ts` persists in the
+ *   entry's `ritual-changes` block; the live reader never re-parses the prose,
+ *   but `changelog-legacy-parser.ts` (the migration) still does, on the English
+ *   verbs (`Added` / `Removed` / `Set` / `Unset`) and the English language
+ *   names from `LANGUAGE_PARSE_NAMES`. A translated line would convert to
+ *   *zero* changes **with no error** — silent data loss.
  * - `.sha256` sidecars hash the exact bytes, so a locale-dependent line would
  *   make `detect-changes` report spurious edits on a machine with a different
  *   `LANG`.

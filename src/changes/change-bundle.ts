@@ -1,20 +1,18 @@
-import { type Condition, type Finish, isCondition, isFinish } from '../card/finish-condition'
+import type { Condition, Finish } from '../card/finish-condition'
 import type {
   AddChange,
-  ChangeAction,
   ChangeEvent,
   ListRef,
   MoveFromChange,
   MoveReplacement,
   MoveToChange,
 } from './change-event'
-import { CHANGE_ACTIONS } from './change-event'
+import type { CardLanguage } from '../card/card-language'
 import {
-  checkLabelsForListType,
-  parseCardLabelsValue,
-  unsupportedLabelsMessage,
-} from '../card/card-labels'
-import { isCardLanguage, type CardLanguage } from '../card/card-language'
+  decodeChangeEvent,
+  validatePrintingFields,
+  validateReplacement,
+} from './change-event-decode'
 import { sameListName } from '../list/list-file-name'
 import type { ListType } from '../list/list-type'
 import { LIST_TYPES } from '../list/list-type'
@@ -515,199 +513,24 @@ export function countLabel(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`
 }
 
-/** Which vocabulary relaxations apply when validating printing fields. */
-type PrintingFieldRules = {
-  /** `set-printing` alone accepts the `NONE` condition-clear sentinel. */
-  conditionClearAllowed: boolean
-}
-
-/** The printing-ish fields of a change or move once validated (set and language folded to lowercase). */
-type ValidatedPrintingFields = Pick<
-  ChangeBundleMove,
-  'set' | 'collectorNumber' | 'finish' | 'condition' | 'language'
->
-
-type PrintingFieldsResult =
-  | { ok: true; fields: ValidatedPrintingFields }
-  | { ok: false; error: string }
-
-/**
- * Validate the printing-ish fields shared by changes and moves (`set`,
- * `collectorNumber`, `language`, `finish`, `condition`), normalizing set codes
- * and language codes to lowercase. `where` prefixes every error. This is the
- * parse boundary for externally-authored JSON, so every closed vocabulary is
- * checked here — an invalid value must never reach a serializer.
- *
- * Casing is by contract: `set` and `language` fold (a printing is identified
- * case-insensitively project-wide, and language codes are lowercase tokens),
- * while `finish` and `condition` are matched exactly against their vocabularies
- * (`foil`, `NM`) — the same spelling the card-line grammar writes and reads.
- */
-function validatePrintingFields(
-  obj: Record<string, unknown>,
-  where: string,
-  opts: PrintingFieldRules,
-): PrintingFieldsResult {
-  const fields: ValidatedPrintingFields = {}
-  if (obj.set !== undefined) {
-    if (typeof obj.set !== 'string') return { ok: false, error: `${where}has an invalid "set".` }
-    fields.set = obj.set.toLowerCase()
-  }
-  if (obj.collectorNumber !== undefined) {
-    if (typeof obj.collectorNumber !== 'string') {
-      return { ok: false, error: `${where}has an invalid "collectorNumber".` }
-    }
-    fields.collectorNumber = obj.collectorNumber
-  }
-  // A set code or a collector number alone pins nothing (`hasSpecificPrinting`
-  // needs both), and a line written from half a printing would read as a
-  // name-only line — so the half is refused rather than silently dropped.
-  if ((fields.set !== undefined) !== (fields.collectorNumber !== undefined)) {
-    return {
-      ok: false,
-      error: `${where}names half a printing; "set" and "collectorNumber" must both be present or both absent.`,
-    }
-  }
-  if (obj.language !== undefined) {
-    const language = typeof obj.language === 'string' ? obj.language.toLowerCase() : null
-    if (language === null || !isCardLanguage(language)) {
-      return {
-        ok: false,
-        error: `${where}has an unknown language: ${JSON.stringify(obj.language)}.`,
-      }
-    }
-    fields.language = language
-  }
-  if (obj.finish !== undefined) {
-    if (typeof obj.finish !== 'string' || !isFinish(obj.finish)) {
-      return { ok: false, error: `${where}has an unknown finish: ${JSON.stringify(obj.finish)}.` }
-    }
-    fields.finish = obj.finish
-  }
-  if (obj.condition !== undefined) {
-    if (typeof obj.condition === 'string' && isCondition(obj.condition)) {
-      fields.condition = obj.condition
-    } else if (!(opts.conditionClearAllowed && obj.condition === 'NONE')) {
-      // `set-printing` alone accepts the `NONE` clear sentinel (ConditionUpdate),
-      // which is left on the raw change rather than copied into the tuple.
-      return {
-        ok: false,
-        error: `${where}has an unknown condition: ${JSON.stringify(obj.condition)}.`,
-      }
-    }
-  }
-  return { ok: true, fields }
-}
-
-/**
- * The field each action must carry beyond the shared `id` / `timestamp` /
- * `cardName`. Moves are listed for completeness of the table but are refused
- * before it is consulted (a bundle records them in `moves`). The `satisfies`
- * makes a new {@link ChangeAction} a compile error here until its row exists.
- */
-const REQUIRED_CHANGE_FIELDS = {
-  add: [],
-  remove: [],
-  'set-commander': [],
-  'unset-commander': [],
-  'set-finish': ['finish'],
-  'set-printing': [],
-  'set-language': ['language'],
-  'set-note': ['note'],
-  'set-label': ['labels'],
-  'move-from': ['to'],
-  'move-to': ['from'],
-  'add-section': ['section'],
-  'remove-section': ['section'],
-  'rename-section': ['section', 'newSection'],
-  'set-section': ['section'],
-} as const satisfies Record<ChangeAction, readonly string[]>
-
-/** Required fields that must be strings (the rest are validated by their own parsers). */
-const STRING_CHANGE_FIELDS: ReadonlySet<string> = new Set(['note', 'section', 'newSection'])
-
-/** The actions that target a section rather than a card, so carry no `cardName`. */
-const SECTION_META_ACTIONS: ReadonlySet<ChangeAction> = new Set<ChangeAction>([
-  'add-section',
-  'remove-section',
-  'rename-section',
-])
-
 /**
  * Validate a raw `changes` value as an ordered {@link ChangeEvent} array. Returns
  * the array on success or a human-readable error string prefixed with the list's
  * position (e.g. `List #2: `). Move events are refused here: a bundle records
- * moves once, in its top-level `moves` array.
+ * moves once, in its top-level `moves` array. Each event is judged by the
+ * shared {@link decodeChangeEvent}, with labels checked against the list type.
  */
 function validateChanges(raw: unknown, where: string, kind: ListType): ChangeEvent[] | string {
   if (!Array.isArray(raw)) return `${where}Missing or invalid "changes" array.`
   const changes: ChangeEvent[] = []
   for (const [i, change] of raw.entries()) {
-    if (typeof change !== 'object' || change === null) {
-      return `${where}Change #${i + 1} is not an object.`
-    }
-    const obj = change as Record<string, unknown>
-    if (
-      typeof obj.action !== 'string' ||
-      !(CHANGE_ACTIONS as readonly string[]).includes(obj.action)
-    ) {
-      return `${where}Change #${i + 1} has an unknown action: ${String(obj.action)}.`
-    }
-    const action = obj.action as ChangeAction
     const here = `${where}Change #${i + 1} `
-    if (action === 'move-from' || action === 'move-to') {
-      return `${here}is a ${action}; moves belong in the top-level "moves" array.`
+    const event = decodeChangeEvent(change, here, { listType: kind })
+    if (typeof event === 'string') return event
+    if (event.action === 'move-from' || event.action === 'move-to') {
+      return `${here}is a ${event.action}; moves belong in the top-level "moves" array.`
     }
-    // The envelope every change carries: its id, its time, and — for every
-    // card-bearing action — the card it names.
-    if (typeof obj.id !== 'string') return `${here}is missing its "id".`
-    if (typeof obj.timestamp !== 'number') return `${here}is missing its "timestamp".`
-    if (!SECTION_META_ACTIONS.has(action) && typeof obj.cardName !== 'string') {
-      return `${here}is missing its "cardName".`
-    }
-    if (obj.cardId !== undefined && typeof obj.cardId !== 'number') {
-      return `${here}has an invalid "cardId".`
-    }
-    for (const field of REQUIRED_CHANGE_FIELDS[action]) {
-      if (obj[field] === undefined) return `${here}(${action}) is missing its "${field}".`
-      if (STRING_CHANGE_FIELDS.has(field) && typeof obj[field] !== 'string') {
-        return `${here}has an invalid "${field}".`
-      }
-    }
-    const printing = validatePrintingFields(obj, here, {
-      conditionClearAllowed: action === 'set-printing',
-    })
-    if (!printing.ok) return printing.error
-    // Only the fields present on the input are rewritten (normalized), so an
-    // absent field stays absent rather than becoming an explicit `undefined`.
-    let normalized: Record<string, unknown> = { ...obj }
-    if (printing.fields.set !== undefined) normalized.set = printing.fields.set
-    if (printing.fields.language !== undefined) normalized.language = printing.fields.language
-    // A labels payload is a closed vocabulary with an exclusivity rule —
-    // imported JSON must not smuggle garbage into a serialize. The parsed form
-    // is normalized (deduped, canonical order). On a set-label an empty array
-    // (a clear) is valid; an add (or the record of the line a remove took away)
-    // either carries an override or omits the field.
-    if (
-      obj.action === 'set-label' ||
-      ((obj.action === 'add' || obj.action === 'remove') && obj.labels !== undefined)
-    ) {
-      const labels = parseCardLabelsValue(obj.labels, 'labels')
-      if (!labels.ok) return `${where}Change #${i + 1}: ${labels.message}`
-      // Which labels are legal depends on the list the change lands in: a deck
-      // carries `proxy` alone, a wanted list none at all — and an empty set is
-      // a clear, which still says nothing on a list with no labels. The same
-      // decision the CLI, the save routes, and the MCP schemas make.
-      const check = checkLabelsForListType(kind, labels.labels)
-      if (!check.ok) {
-        return `${where}Change #${i + 1}: ${unsupportedLabelsMessage(kind, check.unsupported)}`
-      }
-      normalized = { ...normalized, labels: labels.labels }
-    }
-    // Every field a variant requires has been checked above (envelope, the
-    // action's own field, the printing tuple, labels); the cast only restates
-    // that for the compiler, since the object was built field by field.
-    changes.push(normalized as unknown as ChangeEvent)
+    changes.push(event)
   }
   return changes
 }
@@ -748,28 +571,6 @@ function validateMoveRef(raw: unknown, where: string): ChangeBundleListRef | str
   return obj.slug === undefined
     ? { kind, name: obj.name }
     : { kind, slug: obj.slug, name: obj.name }
-}
-
-/** Validate a move's optional `replacement`: a full printing (set + collector number, optional finish/language). */
-function validateReplacement(raw: unknown, where: string): MoveReplacement | undefined | string {
-  if (raw === undefined) return undefined
-  if (typeof raw !== 'object' || raw === null) return `${where}has an invalid "replacement".`
-  const here = `${where}"replacement" `
-  if ((raw as Record<string, unknown>).condition !== undefined) {
-    return `${here}must not name a "condition" (a replacement carries no grade).`
-  }
-  const printing = validatePrintingFields(raw as Record<string, unknown>, here, {
-    conditionClearAllowed: false,
-  })
-  if (!printing.ok) return printing.error
-  const { set, collectorNumber, finish, language } = printing.fields
-  if (set === undefined || collectorNumber === undefined) {
-    return `${here}must name a printing ("set" and "collectorNumber").`
-  }
-  const replacement: MoveReplacement = { set, collectorNumber }
-  if (finish !== undefined) replacement.finish = finish
-  if (language !== undefined) replacement.language = language
-  return replacement
 }
 
 /** Validate a raw `moves` value as an ordered {@link ChangeBundleMove} array, or return an error string. */

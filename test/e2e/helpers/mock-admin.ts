@@ -930,14 +930,51 @@ const HISTORY_DETAIL = {
   // Returned newest-first by the real endpoint. The older set carries preserved
   // hand-written prose in `trailing`, so specs can pin its display + round trip.
   sets: [
-    { timestamp: '2026-02-01T00:00:00.000Z', lines: ['- Added "Mana Crypt" &2'] },
+    {
+      timestamp: '2026-02-01T00:00:00.000Z',
+      lines: ['- Added "Mana Crypt" &2'],
+      events: [
+        { id: '2026-02-01#0', timestamp: 0, action: 'add', cardName: 'Mana Crypt', cardId: 2 },
+      ],
+    },
     {
       timestamp: '2026-01-01T00:00:00.000Z',
       lines: ['- Added "Sol Ring" (LEA:1) &1'],
+      events: [
+        {
+          id: '2026-01-01#0',
+          timestamp: 0,
+          action: 'add',
+          cardName: 'Sol Ring',
+          cardId: 1,
+          set: 'lea',
+          collectorNumber: '1',
+        },
+      ],
       trailing: ['NOTE: the FNM tuning session.'],
     },
   ],
-  defaultLines: ['- Added "Sol Ring" (LEA:1) &1', '- Added "Mana Crypt" &2'],
+  defaultEvents: [
+    {
+      id: 'd0',
+      timestamp: 0,
+      action: 'add',
+      cardName: 'Sol Ring',
+      cardId: 1,
+      set: 'lea',
+      collectorNumber: '1',
+    },
+    { id: 'd1', timestamp: 0, action: 'add', cardName: 'Mana Crypt', cardId: 2 },
+  ],
+}
+
+/** Options for {@link mockChangeHistoryApi}. */
+export type MockChangeHistoryOptions = {
+  /**
+   * Make the older set a legacy (block-less) one: prose lines but no events.
+   * It cannot combine with the modern set, so the Combine dialog is empty.
+   */
+  legacyOlderSet?: boolean
 }
 
 /**
@@ -947,10 +984,17 @@ const HISTORY_DETAIL = {
 export async function mockChangeHistoryApi(
   page: Page,
   onSave?: (body: unknown) => void,
+  { legacyOlderSet = false }: MockChangeHistoryOptions = {},
 ): Promise<void> {
   await fulfillJson(page, '**/api/lists', HISTORY_LISTS)
 
-  await fulfillJson(page, '**/api/history/deck/history-deck', HISTORY_DETAIL)
+  const detail = legacyOlderSet
+    ? {
+        ...HISTORY_DETAIL,
+        sets: [HISTORY_DETAIL.sets[0], { ...HISTORY_DETAIL.sets[1], events: [] }],
+      }
+    : HISTORY_DETAIL
+  await fulfillJson(page, '**/api/history/deck/history-deck', detail)
 
   await fulfillJson(page, '**/api/history/deck/history-deck/save', (route: Route) => {
     onSave?.(route.request().postDataJSON())

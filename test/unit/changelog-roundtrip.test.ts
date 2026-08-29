@@ -1,12 +1,21 @@
 /**
- * Round-trip property test for the `.changes.md` prose format.
+ * Round-trip property tests for the `.changes.md` format, over EVERY
+ * {@link ChangeAction} and a case table that stresses every delimiter.
  *
- * For EVERY {@link ChangeAction}, `parseChangeLine(formatChangeCore(e, WRITER))`
- * must be defined and equal `e` modulo the fields the prose shape legitimately
- * drops — {@link PROSE_DROPS} is that list, per action. Every defined field
- * on the event must be either asserted by {@link expectedFromEvent}, listed in
- * PROSE_DROPS, or a documented normalization; an unaccounted field fails the
- * case, so a new event field cannot slip past unclassified.
+ * Two properties, for the two readers:
+ *
+ * 1. **Legacy prose → legacy parser** (the migration's reader):
+ *    `parseLegacyChangeLine(formatChangeCore(e, WRITER))` must be defined and
+ *    equal `e` modulo the fields the prose shape legitimately drops —
+ *    {@link PROSE_DROPS} is that list, per action. Every defined field on the
+ *    event must be either asserted by {@link expectedFromEvent}, listed in
+ *    PROSE_DROPS, or a documented normalization; an unaccounted field fails
+ *    the case, so a new event field cannot slip past unclassified.
+ *
+ * 2. **Event → JSONL block → live parser**: `parseChangelog` must read back
+ *    EXACTLY the event that was written — every field, nothing dropped — which
+ *    is the whole point of the block. Only the session envelope (`id`,
+ *    `timestamp`) is re-synthesized from the entry header.
  *
  * The case table is `satisfies Record<ChangeAction, …>` and is also checked
  * against the runtime `CHANGE_ACTIONS` list, so a new action variant fails
@@ -36,12 +45,10 @@ import {
   type ChangeEvent,
   type ListRef,
 } from '../../src/changes/change-event'
-import {
-  parseChangeLine,
-  parseChangelog,
-  type ChangelogAction,
-  type ChangelogChange,
-} from '../../src/changes/changelog-parser'
+import { parseChangelog } from '../../src/changes/changelog-parser'
+import { parseLegacyChangeLine } from '../../src/changes/changelog-legacy-parser'
+import { changeSetFromEvents, serializeChangeSets } from '../../src/changes/changelog-blocks'
+import { encodeChangeEvent } from '../../src/changes/change-event-decode'
 import { CARD_LABELS } from '../../src/card/card-labels'
 import { CARD_LANGUAGES } from '../../src/card/card-language'
 
@@ -102,7 +109,7 @@ function isEmptyValue(value: unknown): boolean {
 }
 
 /** Every event field that is neither asserted, declared dropped, nor normalized. */
-function unaccountedFields(e: ChangeEvent, expected: ChangelogChange): string[] {
+function unaccountedFields(e: ChangeEvent, expected: Loose): string[] {
   const accounted = new Set<string>([
     ...Object.keys(expected),
     ...PROSE_DROPS[e.action],
@@ -111,25 +118,6 @@ function unaccountedFields(e: ChangeEvent, expected: ChangelogChange): string[] 
   return Object.entries(e)
     .filter(([k, v]) => v !== undefined && !isEmptyValue(v) && !accounted.has(k))
     .map(([k]) => k)
-}
-
-/** How each persisted verb reads back. `set-note`/`set-label` split on emptiness (see {@link expectedFromEvent}). */
-const PARSED_ACTION: Record<ChangeAction, ChangelogAction> = {
-  add: 'Added',
-  remove: 'Removed',
-  'set-commander': 'Set as commander',
-  'unset-commander': 'Unset as commander',
-  'set-finish': 'Set finish',
-  'set-printing': 'Set printing',
-  'set-language': 'Set language',
-  'set-note': 'Set note',
-  'set-label': 'Set labels',
-  'move-from': 'Moved to list',
-  'move-to': 'Moved from list',
-  'add-section': 'Added section',
-  'remove-section': 'Removed section',
-  'rename-section': 'Renamed section',
-  'set-section': 'Moved to section',
 }
 
 // ---------------------------------------------------------------------------
@@ -305,14 +293,21 @@ function normalizedPrinting(e: Loose): Loose {
   }
 }
 
-/** The {@link ChangelogChange} a persisted `e` must read back as. */
-function expectedFromEvent(e: ChangeEvent): ChangelogChange {
+/** The placeholder envelope every legacy-parsed event carries. */
+const LEGACY_ENVELOPE = { id: '', timestamp: 0 } as const
+
+/** The event a persisted legacy line `e` must read back as (a {@link ChangeEvent} shape, loosely typed). */
+function expectedFromEvent(e: ChangeEvent): Loose {
   const drops: readonly string[] = PROSE_DROPS[e.action]
   const kept: Loose = Object.fromEntries(
     Object.entries(e).filter(([k]) => k !== 'id' && k !== 'timestamp' && !drops.includes(k)),
   )
-  const cardName = 'cardName' in e ? e.cardName : ''
-  const base: Loose = { action: PARSED_ACTION[e.action], cardName, cardId: kept.cardId }
+  const base: Loose = {
+    ...LEGACY_ENVELOPE,
+    action: e.action,
+    ...('cardName' in e ? { cardName: e.cardName } : {}),
+    cardId: kept.cardId,
+  }
 
   switch (e.action) {
     case 'add':
@@ -321,7 +316,7 @@ function expectedFromEvent(e: ChangeEvent): ChangelogChange {
         ...base,
         ...normalizedPrinting(kept),
         board: kept.board === 'Main' ? undefined : kept.board,
-      }) as ChangelogChange
+      })
     case 'move-from':
     case 'move-to':
       return compact({
@@ -329,38 +324,31 @@ function expectedFromEvent(e: ChangeEvent): ChangelogChange {
         ...normalizedPrinting(kept),
         to: kept.to,
         from: kept.from,
-      }) as ChangelogChange
+      })
     case 'set-printing':
-      return compact({ ...base, ...normalizedPrinting(kept) }) as ChangelogChange
+      return compact({ ...base, ...normalizedPrinting(kept) })
     case 'set-finish':
       // `Set "X" finish to nonfoil` names the default explicitly — it is the whole point of the line.
-      return compact({ ...base, finish: kept.finish }) as ChangelogChange
+      return compact({ ...base, finish: kept.finish })
     case 'set-language':
       // `Set language of "X" to English` likewise keeps `en`.
-      return compact({ ...base, language: kept.language }) as ChangelogChange
+      return compact({ ...base, language: kept.language })
     case 'set-note':
-      // An empty note is written as the `Cleared note` form, which carries no note field.
-      return e.note === ''
-        ? (compact({ ...base, action: 'Cleared note' }) as ChangelogChange)
-        : (compact({ ...base, note: e.note }) as ChangelogChange)
+      // An empty note is written as the `Cleared note` form, which reads back as the clear.
+      return compact({ ...base, note: e.note })
     case 'set-label':
       // Likewise `Cleared labels`. Non-empty sets read back in canonical vocabulary order.
-      return e.labels.length === 0
-        ? (compact({ ...base, action: 'Cleared labels' }) as ChangelogChange)
-        : (compact({
-            ...base,
-            labels: CARD_LABELS.filter((l) => e.labels.includes(l)),
-          }) as ChangelogChange)
+      return compact({ ...base, labels: CARD_LABELS.filter((l) => e.labels.includes(l)) })
     case 'set-commander':
     case 'unset-commander':
-      return compact(base) as ChangelogChange
+      return compact(base)
     case 'add-section':
     case 'remove-section':
-      return compact({ ...base, section: e.section }) as ChangelogChange
+      return compact({ ...base, section: e.section })
     case 'rename-section':
-      return compact({ ...base, section: e.section, newSection: e.newSection }) as ChangelogChange
+      return compact({ ...base, section: e.section, newSection: e.newSection })
     case 'set-section':
-      return compact({ ...base, section: e.section }) as ChangelogChange
+      return compact({ ...base, section: e.section })
     default:
       e satisfies never
       throw new Error('unreachable')
@@ -375,7 +363,11 @@ function persistedLine(e: ChangeEvent): string {
 // The property
 // ---------------------------------------------------------------------------
 
-describe('changelog prose round trip', () => {
+const ALL_EVENTS: ChangeEvent[] = CHANGE_ACTIONS.flatMap(
+  (action): readonly ChangeEvent[] => CASES[action],
+)
+
+describe('legacy prose round trip (the migration reader)', () => {
   test('every ChangeAction has round-trip cases', () => {
     expect(Object.keys(CASES).sort()).toEqual([...CHANGE_ACTIONS].sort())
     for (const action of CHANGE_ACTIONS) expect(CASES[action].length).toBeGreaterThan(0)
@@ -386,48 +378,80 @@ describe('changelog prose round trip', () => {
       for (const e of CASES[action]) {
         const line = persistedLine(e)
         test(line, () => {
-          const parsed = parseChangeLine(line)
+          const parsed = parseLegacyChangeLine(line)
           expect(parsed).not.toBeNull()
           const expected = expectedFromEvent(e)
-          expect(compact(parsed as Loose)).toEqual(expected as Loose)
+          expect(compact(parsed as unknown as Loose)).toEqual(expected)
           expect(unaccountedFields(e, expected)).toEqual([])
         })
       }
     })
   }
+})
 
-  test('parseChangelog reads every case back with nothing unparsed', () => {
-    const events: ChangeEvent[] = CHANGE_ACTIONS.flatMap(
-      (action): readonly ChangeEvent[] => CASES[action],
-    )
-    const content = `# Changelog for X\n\n## 2026-01-01T00:00:00.000Z\n\n${events
-      .map(persistedLine)
-      .join('\n')}\n`
-    const { pages, unparsedLineCount } = parseChangelog(content)
-    expect(unparsedLineCount).toBe(0)
+// ---------------------------------------------------------------------------
+// The block: exact
+// ---------------------------------------------------------------------------
+
+/** `e` as the block persists it: everything but the session envelope. */
+function withoutEnvelope(e: ChangeEvent): Loose {
+  const { id: _id, timestamp: _timestamp, ...rest } = e
+  return compact(rest)
+}
+
+/**
+ * The single normalization the block applies: half a printing (a `set` with no
+ * `collectorNumber`, or vice versa) pins nothing and is written as no printing —
+ * the same thing the prose line and every apply path make of it.
+ */
+function expectedBlockEvent(e: ChangeEvent): Loose {
+  const fields = withoutEnvelope(e)
+  if ((fields.set === undefined) !== (fields.collectorNumber === undefined)) {
+    delete fields.set
+    delete fields.collectorNumber
+  }
+  return fields
+}
+
+describe('events block round trip (the live reader)', () => {
+  const TIMESTAMP = '2026-01-01T00:00:00.000Z'
+
+  for (const action of CHANGE_ACTIONS) {
+    describe(action, () => {
+      for (const e of CASES[action]) {
+        const jsonl = encodeChangeEvent(e)
+        test(jsonl, () => {
+          const content = serializeChangeSets({
+            header: '# Changelog for X',
+            sets: [changeSetFromEvents(TIMESTAMP, [e])],
+          })
+          const { pages, advisories } = parseChangelog(content)
+          expect(advisories).toEqual([])
+          expect(pages).toHaveLength(1)
+          const [read] = pages[0]!.changes
+          // Exact: every field the event carried is read back, labels and
+          // sections and move bookkeeping included — nothing is dropped.
+          expect(withoutEnvelope(read!)).toEqual(expectedBlockEvent(e))
+          expect(read!.timestamp).toBe(Date.parse(TIMESTAMP))
+        })
+      }
+    })
+  }
+
+  test('parseChangelog reads every case back from one entry, in order, nothing unread', () => {
+    const content = serializeChangeSets({
+      header: '# Changelog for X',
+      sets: [changeSetFromEvents(TIMESTAMP, ALL_EVENTS)],
+    })
+    const { pages, advisories } = parseChangelog(content)
+    expect(advisories).toEqual([])
     expect(pages).toHaveLength(1)
-    expect(pages[0]!.changes.map(compact)).toEqual(events.map((e) => expectedFromEvent(e) as Loose))
+    expect(pages[0]!.changes.map(withoutEnvelope)).toEqual(ALL_EVENTS.map(expectedBlockEvent))
   })
 
-  test('parseChangelog counts the lines no grammar accepts instead of dropping them silently', () => {
-    const content = [
-      '# Changelog for X',
-      '',
-      '- Orphaned before any entry',
-      '',
-      '## 2026-01-01T00:00:00.000Z',
-      '',
-      '- Added "Sol Ring" &1',
-      '- Frobnicated "Sol Ring" &1',
-      '- Set language of "Sol Ring" to Klingon &1',
-      '',
-      '## 2026-01-02T00:00:00.000Z',
-      '',
-      '- Removed "Sol Ring" &1',
-      '',
-    ].join('\n')
-    const { pages, unparsedLineCount } = parseChangelog(content)
-    expect(unparsedLineCount).toBe(3)
-    expect(pages.map((p) => p.changes.length)).toEqual([1, 1])
+  test('the entry’s prose lines and block lines pair up one to one', () => {
+    const set = changeSetFromEvents(TIMESTAMP, ALL_EVENTS)
+    expect(set.lines).toEqual(ALL_EVENTS.map(persistedLine))
+    expect(set.events).toHaveLength(set.lines.length)
   })
 })

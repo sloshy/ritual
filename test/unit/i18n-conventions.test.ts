@@ -14,10 +14,11 @@ import { MESSAGE_NAMESPACES } from '../../src/i18n/messages/en'
  * because each convention below is absolute and prose can be reworded.
  *
  * The persistence fence is the highest-value test here. `.changes.md` is a
- * git-diffable data format whose bytes are hashed by `.sha256` sidecars and
- * re-parsed by `changelog-parser.ts` on English verbs. If a localized string
- * ever reached that writer, the file would parse to zero changes and show an
- * empty history **with no error** — silent data destruction.
+ * git-diffable data format: each entry's `ritual-changes` block is re-read by
+ * `changelog-blocks.ts` on its JSON keys, and the prose beside it is what the
+ * migration (`changelog-legacy-parser.ts`) reads on English verbs. If a
+ * localized string ever reached those writers, the file would parse to zero
+ * changes and show an empty history **with no error** — silent data destruction.
  */
 
 const ROOT = path.resolve(import.meta.dir, '../..')
@@ -95,6 +96,9 @@ describe('i18n persistence fence', () => {
       'src/changes/change-event.ts',
       'src/changes/changelog-writer.ts',
       'src/changes/changelog-parser.ts',
+      'src/changes/changelog-blocks.ts',
+      'src/changes/change-event-decode.ts',
+      'src/changes/changelog-legacy-parser.ts',
       'src/changes/csv.ts',
       'src/changes/change-bundle.ts',
       'src/changes/list-snapshot.ts',
@@ -141,7 +145,7 @@ describe('i18n persistence fence', () => {
    * The persistence writer's *own* module must not reach the display renderer
    * either. `changeMessage` follows the active UI locale; one call to it from
    * `formatChangeCore` would put translated prose into a file that
-   * `changelog-parser.ts` reads back on English verbs.
+   * the migration reads back on English verbs.
    */
   test('the changelog writer never reaches the display renderer', async () => {
     expect(
@@ -150,6 +154,9 @@ describe('i18n persistence fence', () => {
           'src/changes/change-event.ts',
           'src/changes/changelog-writer.ts',
           'src/changes/changelog-parser.ts',
+          'src/changes/changelog-blocks.ts',
+          'src/changes/change-event-decode.ts',
+          'src/changes/changelog-legacy-parser.ts',
         ],
       }),
     ).toEqual([])

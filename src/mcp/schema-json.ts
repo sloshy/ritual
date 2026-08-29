@@ -481,11 +481,15 @@ export const GET_HISTORY_OUTPUT: JsonSchemaType = withDefs(
     {
       header: str('Everything before the first change set.'),
       sets: arr(ref('ChangeSet'), 'Change sets, newest first.'),
-      defaultLines: arr(str(), 'Change lines describing the list’s current state.'),
+      defaultEvents: arr(
+        ref('ChangeEvent'),
+        'Events describing the list’s current state, for a rewrite-with-defaults.',
+      ),
     },
-    ['header', 'sets', 'defaultLines'],
+    ['header', 'sets', 'defaultEvents'],
   ),
   'ChangeSet',
+  'ChangeEvent',
 )
 
 /** The stored configuration, which both config tools report identically. */

@@ -1770,27 +1770,36 @@ describe('Ritual MCP server (in-memory transport)', () => {
   })
 
   test('rewrite_history replaces the change log via listType addressing', async () => {
-    // `trailing` must survive the zod schema — z.object strips unknown keys, so
-    // this round trip is what pins the field's presence in the input schema.
+    // `trailing` and `events` must survive the zod schema — z.object strips
+    // unknown keys, so this round trip is what pins both fields' presence in
+    // the input schema (an event's own keys ride through the open record).
     const rewritten = await callTool(client, 'rewrite_history', {
       listType: 'deck',
       slug: 'test-deck',
       sets: [
         {
           timestamp: '2026-01-01T00:00:00.000Z',
-          lines: ['- Added Sol Ring'],
+          lines: ['- Added "Sol Ring" &1'],
+          events: [{ id: 'x', timestamp: 0, action: 'add', cardName: 'Sol Ring', cardId: 1 }],
           trailing: ['NOTE: preserved prose.'],
         },
       ],
     })
     expect(rewritten.isError).toBeFalsy()
 
-    const data = toolData<{ sets: { lines: string[]; trailing?: string[] }[] }>(
-      await callTool(client, 'get_history', { listType: 'deck', slug: 'test-deck' }),
-    )
+    const data = toolData<{
+      sets: {
+        lines: string[]
+        events: { action: string; cardId?: number }[]
+        trailing?: string[]
+      }[]
+      defaultEvents: { action: string }[]
+    }>(await callTool(client, 'get_history', { listType: 'deck', slug: 'test-deck' }))
     expect(data.sets).toHaveLength(1)
-    expect(data.sets[0]?.lines).toEqual(['- Added Sol Ring'])
+    expect(data.sets[0]?.lines).toEqual(['- Added "Sol Ring" &1'])
+    expect(data.sets[0]?.events).toEqual([expect.objectContaining({ action: 'add', cardId: 1 })])
     expect(data.sets[0]?.trailing).toEqual(['NOTE: preserved prose.'])
+    expect(data.defaultEvents.length).toBeGreaterThan(0)
   })
 
   test('update_config and get_config round-trip through the admin config handler', async () => {

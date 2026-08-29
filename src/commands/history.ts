@@ -17,11 +17,13 @@ import {
   isValidIso8601,
   parseChangeSets,
   retimeSetAt,
+  canCombineSets,
+  changeSetFromEvents,
   serializeChangeSets,
   sortNewestFirst,
   type ChangeSet,
 } from '../changes/changelog-blocks'
-import { buildDefaultChangeLines, loadListSnapshot } from '../changes/list-snapshot'
+import { buildDefaultChangeEvents, loadListSnapshot } from '../changes/list-snapshot'
 import { changelogSidecarPath } from '../list/list-sidecars'
 import { addListTypeFlags, addOutputOption, resolveListTypeFlag } from '../cli/options'
 import {
@@ -179,7 +181,7 @@ export function registerHistoryCommand(program: Command): void {
 /**
  * The `--show` JSON payload. Deliberately the same shape as the admin
  * `GET /api/history/:type/:slug` response (`HistoryLoadResponse` in
- * `src/admin/api/history.ts`) minus its `success` and `defaultLines` fields.
+ * `src/admin/api/history.ts`) minus its `success` and `defaultEvents` fields.
  */
 type HistoryShowResult = {
   /** Everything before the first change set (e.g. `# Changelog for My Deck`). */
@@ -418,7 +420,12 @@ async function handleSet(state: EditorState, index: number): Promise<void> {
 }
 
 async function handleCombine(state: EditorState, targetIndex: number): Promise<void> {
-  const others = state.sets.map((s, i) => ({ s, i })).filter(({ i }) => i !== targetIndex)
+  const target = state.sets[targetIndex]
+  if (!target) return
+  // Only sets whose prose and events can merge in lockstep are offered.
+  const others = state.sets
+    .map((s, i) => ({ s, i }))
+    .filter(({ s, i }) => i !== targetIndex && canCombineSets(target, s))
   if (others.length === 0) {
     console.log(t('cli.history.noOtherSet'))
     return
@@ -474,15 +481,15 @@ async function handleRewrite(state: EditorState, location: ListLocation): Promis
   if (confirm !== 'yes') return
 
   const snapshot = await loadListSnapshot(location.type, location.filePath)
-  const lines = buildDefaultChangeLines(snapshot)
-  if (lines.length === 0) {
+  const events = buildDefaultChangeEvents(snapshot)
+  if (events.length === 0) {
     console.log(t('cli.history.emptyList'))
     return
   }
 
   pushUndo(state)
-  state.sets = [{ timestamp: new Date().toISOString(), lines }]
-  console.log(t('cli.history.rewrote', { count: lines.length }))
+  state.sets = [changeSetFromEvents(new Date().toISOString(), events)]
+  console.log(t('cli.history.rewrote', { count: events.length }))
 }
 
 function handleUndo(state: EditorState): void {

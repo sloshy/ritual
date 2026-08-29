@@ -5,8 +5,8 @@ describe('buildMainChoices', () => {
   const state = (undoDepth: number): EditorState => ({
     header: '# Changes\n',
     sets: [
-      { timestamp: '2026-07-13T10:00:00.000Z', lines: ['- Added Sol Ring &1'] },
-      { timestamp: '2026-07-12T10:00:00.000Z', lines: ['- Added Mox Ruby &2'] },
+      { timestamp: '2026-07-13T10:00:00.000Z', lines: ['- Added Sol Ring &1'], events: [] },
+      { timestamp: '2026-07-12T10:00:00.000Z', lines: ['- Added Mox Ruby &2'], events: [] },
     ],
     originalSerialized: '',
     undoStack: Array.from({ length: undoDepth }, () => []),
