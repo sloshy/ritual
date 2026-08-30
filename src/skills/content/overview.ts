@@ -308,9 +308,8 @@ The three modes fail differently, on purpose:
 \`&N\` IDs and \`.changes.md\` changelog stay correct. Reading files directly for
 inspection is fine. To normalize a whole workspace — canonical formatting (bullets,
 token order, expanded flat-list quantities, \`# Title\` H1 with legacy \`name:\`/\`created:\`
-stripped), file names that match list names, a \`format:\` on every deck, and legacy
-\`.changes.md\` entries converted to the \`ritual-changes\` block (\`changelogRewritten\`
-in its JSON; unconvertible entries left as-is and warned about) — run \`ritual cleanup\`
+stripped), file names that match list names, and a \`format:\` on every deck — run
+\`ritual cleanup\`
 (\`-n\`/\`--dry-run\` to preview; \`--check\` to also exit 1 when any file would
 change, for hooks and CI; \`--skip-formats\` to never prompt for deck formats,
 leaving formatless decks untouched and reported). A file it cannot read or parse

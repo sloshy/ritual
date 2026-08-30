@@ -1009,10 +1009,10 @@ type FormatChangeOptions = {
  *
  * - The line sits beside the typed event `changelog-blocks.ts` persists in the
  *   entry's `ritual-changes` block; the live reader never re-parses the prose,
- *   but `changelog-legacy-parser.ts` (the migration) still does, on the English
- *   verbs (`Added` / `Removed` / `Set` / `Unset`) and the English language
- *   names from `LANGUAGE_PARSE_NAMES`. A translated line would convert to
- *   *zero* changes **with no error** — silent data loss.
+ *   but the prose is still the git-diffable record collaborators read, and its
+ *   English verbs (`Added` / `Removed` / `Set` / `Unset`) and English language
+ *   names from `LANGUAGE_PARSE_NAMES` are what every other copy of the file
+ *   was written with. A translated line would be a spurious diff, not a record.
  * - `.sha256` sidecars hash the exact bytes, so a locale-dependent line would
  *   make `detect-changes` report spurious edits on a machine with a different
  *   `LANG`.

@@ -529,14 +529,6 @@ export const cliCardsMessages = {
   'cli.cleanup.actionFormatSet': 'format set to {format}',
   'cli.cleanup.actionRenamed': "renamed to '{file}'",
   'cli.cleanup.actionRewritten': 'rewritten in canonical form',
-  'cli.cleanup.actionChangelogConverted': 'changelog entries converted to the block format',
-  'cli.cleanup.changelogCouldNotRead': "changelog '{file}' could not be read: {reason}",
-  'cli.cleanup.changelogEntryUnparsed':
-    "changelog '{file}' entry {timestamp} left as-is: could not read line(s) {lines}",
-  'cli.cleanup.changelogEntryDesynced':
-    "changelog '{file}' entry {timestamp} left as-is: its prose lines and its ritual-changes block no longer match line for line",
-  'cli.cleanup.changelogUndecodable':
-    "changelog '{file}' not rewritten: a ritual-changes block holds a line that does not decode; fix it by hand and rerun cleanup",
   'cli.cleanup.actionNeedsFormat': 'needs a format',
   'cli.cleanup.actionFormatSkipped': 'format skipped',
   'cli.cleanup.actionNoFormat': 'left without a format',

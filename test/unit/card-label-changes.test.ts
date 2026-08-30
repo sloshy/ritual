@@ -9,8 +9,6 @@ import {
 import { applyChangeToCollection } from '../../src/changes/collection-changes'
 import { applyChangeToWantedList } from '../../src/changes/wanted-changes'
 import { applyChangeToDeck } from '../../src/changes/deck-changes'
-import { parseLegacyChangeLine } from '../../src/changes/changelog-legacy-parser'
-import { CARD_LABELS } from '../../src/card/card-labels'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/list/site-data'
 import { makeCollectionEntry } from '../test-utils'
 import type { DeckData } from '../../src/list/deck'
@@ -203,86 +201,5 @@ describe('formatChangeCore — set-label wording', () => {
 
   test('set-label is classified additive', () => {
     expect(isAdditiveChange('set-label')).toBe(true)
-  })
-})
-
-describe('legacy parser — label lines', () => {
-  const ENVELOPE = { id: '', timestamp: 0 } as const
-
-  test('parses a Set labels line, quoted and with an id', () => {
-    const parsed = parseLegacyChangeLine('- Set labels on "Sol Ring" &5 to [sale,trade]')
-    expect(parsed).toEqual({
-      ...ENVELOPE,
-      action: 'set-label',
-      cardName: 'Sol Ring',
-      cardId: 5,
-      labels: ['sale', 'trade'],
-    })
-  })
-
-  test('parses a legacy unquoted card name', () => {
-    const parsed = parseLegacyChangeLine('- Set labels on Sol Ring to [keep]')
-    expect(parsed).toEqual({
-      ...ENVELOPE,
-      action: 'set-label',
-      cardName: 'Sol Ring',
-      labels: ['keep'],
-    })
-  })
-
-  test('every label in the vocabulary round-trips through the changelog', () => {
-    // `changelog-legacy-parser` sits behind the persistence fence, so its label
-    // alternation is hand-maintained — it may not import the i18n-bearing
-    // vocabulary module. This test may: it drives the whole of CARD_LABELS
-    // through the writer's own formatter and back, so adding a label without
-    // widening the regex fails here instead of silently parsing that label's
-    // changelog lines as nothing at all.
-    for (const label of CARD_LABELS) {
-      const change = createSetLabelChange('Sol Ring', { labels: [label], cardId: 5 })
-      const line = formatChangeCore(change, { tense: 'past', quoteCardName: true })
-      expect(parseLegacyChangeLine(`- ${line}`)).toEqual({
-        ...ENVELOPE,
-        action: 'set-label',
-        cardName: 'Sol Ring',
-        cardId: 5,
-        labels: [label],
-      })
-    }
-  })
-
-  test('a combined override round-trips too', () => {
-    const change = createSetLabelChange('Sol Ring', { labels: ['trade', 'sale'], cardId: 5 })
-    const line = formatChangeCore(change, { tense: 'past', quoteCardName: true })
-    expect(parseLegacyChangeLine(`- ${line}`)).toEqual({
-      ...ENVELOPE,
-      action: 'set-label',
-      cardName: 'Sol Ring',
-      cardId: 5,
-      labels: ['sale', 'trade'],
-    })
-  })
-
-  test('parses a Cleared labels line', () => {
-    const parsed = parseLegacyChangeLine('- Cleared labels on "Sol Ring" &5')
-    expect(parsed).toEqual({
-      ...ENVELOPE,
-      action: 'set-label',
-      cardName: 'Sol Ring',
-      cardId: 5,
-      labels: [],
-    })
-  })
-
-  test('does not swallow note or printing lines', () => {
-    expect(
-      parseLegacyChangeLine('- Set note on "Sol Ring" &5 to "labels on [sale]"'),
-    ).toMatchObject({
-      action: 'set-note',
-      note: 'labels on [sale]',
-    })
-    expect(parseLegacyChangeLine('- Set "Sol Ring" printing to C21:263 [foil] &5')).toMatchObject({
-      action: 'set-printing',
-      set: 'c21',
-    })
   })
 })

@@ -1,21 +1,11 @@
 /**
- * Round-trip property tests for the `.changes.md` format, over EVERY
+ * Round-trip property test for the `.changes.md` format, over EVERY
  * {@link ChangeAction} and a case table that stresses every delimiter.
  *
- * Two properties, for the two readers:
- *
- * 1. **Legacy prose → legacy parser** (the migration's reader):
- *    `parseLegacyChangeLine(formatChangeCore(e, WRITER))` must be defined and
- *    equal `e` modulo the fields the prose shape legitimately drops —
- *    {@link PROSE_DROPS} is that list, per action. Every defined field on the
- *    event must be either asserted by {@link expectedFromEvent}, listed in
- *    PROSE_DROPS, or a documented normalization; an unaccounted field fails
- *    the case, so a new event field cannot slip past unclassified.
- *
- * 2. **Event → JSONL block → live parser**: `parseChangelog` must read back
- *    EXACTLY the event that was written — every field, nothing dropped — which
- *    is the whole point of the block. Only the session envelope (`id`,
- *    `timestamp`) is re-synthesized from the entry header.
+ * **Event → JSONL block → live parser**: `parseChangelog` must read back
+ * EXACTLY the event that was written — every field, nothing dropped — which is
+ * the whole point of the block. Only the session envelope (`id`, `timestamp`)
+ * is re-synthesized from the entry header.
  *
  * The case table is `satisfies Record<ChangeAction, …>` and is also checked
  * against the runtime `CHANGE_ACTIONS` list, so a new action variant fails
@@ -46,79 +36,17 @@ import {
   type ListRef,
 } from '../../src/changes/change-event'
 import { parseChangelog } from '../../src/changes/changelog-parser'
-import { parseLegacyChangeLine } from '../../src/changes/changelog-legacy-parser'
 import { changeSetFromEvents, serializeChangeSets } from '../../src/changes/changelog-blocks'
 import { encodeChangeEvent } from '../../src/changes/change-event-decode'
 import { CARD_LABELS } from '../../src/card/card-labels'
 import { CARD_LANGUAGES } from '../../src/card/card-language'
 
 // ---------------------------------------------------------------------------
-// The writer's options and the fields prose drops
+// The writer's options
 // ---------------------------------------------------------------------------
 
 /** Exactly what `changelog-writer.ts`'s `formatChangelogLine` passes when persisting. */
 const WRITER_OPTIONS = { tense: 'past', quoteCardName: true } as const
-
-/**
- * The event fields the persisted prose line does NOT carry, per action, beyond
- * `id` and `timestamp` (which no line carries). Everything else must survive.
- *
- * Also documented here, though not "dropped" so much as normalized: the prose
- * writes no token for a default value, so a parsed line reads them as absent —
- * `finish: 'nonfoil'`, `condition: 'NM'` (and the `'NONE'` clear on
- * `set-printing`), `language: 'en'`, `board: 'Main'`, and a `set` with no
- * `collectorNumber` (no printing at all). {@link expectedFromEvent} applies
- * those normalizations; this table lists only the fields with no prose at all.
- */
-const PROSE_DROPS = {
-  add: ['labels', 'section'],
-  remove: ['labels'],
-  'set-commander': [],
-  'unset-commander': [],
-  'set-finish': [],
-  'set-printing': [],
-  'set-language': [],
-  'set-note': [],
-  'set-label': [],
-  'move-from': [],
-  'move-to': ['section', 'sourceCardId', 'replacesCardId', 'replacement'],
-  'add-section': [],
-  'remove-section': [],
-  'rename-section': [],
-  'set-section': [],
-} as const satisfies Record<ChangeAction, readonly string[]>
-
-/** Fields every line carries or that {@link normalizedPrinting} / the board default normalize. */
-const ALWAYS_ACCOUNTED: readonly string[] = [
-  'id',
-  'timestamp',
-  'action',
-  'cardName',
-  'cardId',
-  'set',
-  'collectorNumber',
-  'finish',
-  'condition',
-  'language',
-  'board',
-]
-
-/** A defined-but-empty value the writer renders as a `Cleared …` form with no field. */
-function isEmptyValue(value: unknown): boolean {
-  return value === '' || (Array.isArray(value) && value.length === 0)
-}
-
-/** Every event field that is neither asserted, declared dropped, nor normalized. */
-function unaccountedFields(e: ChangeEvent, expected: Loose): string[] {
-  const accounted = new Set<string>([
-    ...Object.keys(expected),
-    ...PROSE_DROPS[e.action],
-    ...ALWAYS_ACCOUNTED,
-  ])
-  return Object.entries(e)
-    .filter(([k, v]) => v !== undefined && !isEmptyValue(v) && !accounted.has(k))
-    .map(([k]) => k)
-}
 
 // ---------------------------------------------------------------------------
 // Representative events
@@ -281,80 +209,6 @@ function compact(value: Loose): Loose {
   return Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined))
 }
 
-/** The printing fields as prose carries them: defaults become absent, a lone `set` is no printing. */
-function normalizedPrinting(e: Loose): Loose {
-  const hasPrinting = Boolean(e.set) && Boolean(e.collectorNumber)
-  return {
-    set: hasPrinting ? e.set : undefined,
-    collectorNumber: hasPrinting ? e.collectorNumber : undefined,
-    finish: e.finish === 'nonfoil' ? undefined : e.finish,
-    condition: e.condition === 'NM' || e.condition === 'NONE' ? undefined : e.condition,
-    language: e.language === 'en' ? undefined : e.language,
-  }
-}
-
-/** The placeholder envelope every legacy-parsed event carries. */
-const LEGACY_ENVELOPE = { id: '', timestamp: 0 } as const
-
-/** The event a persisted legacy line `e` must read back as (a {@link ChangeEvent} shape, loosely typed). */
-function expectedFromEvent(e: ChangeEvent): Loose {
-  const drops: readonly string[] = PROSE_DROPS[e.action]
-  const kept: Loose = Object.fromEntries(
-    Object.entries(e).filter(([k]) => k !== 'id' && k !== 'timestamp' && !drops.includes(k)),
-  )
-  const base: Loose = {
-    ...LEGACY_ENVELOPE,
-    action: e.action,
-    ...('cardName' in e ? { cardName: e.cardName } : {}),
-    cardId: kept.cardId,
-  }
-
-  switch (e.action) {
-    case 'add':
-    case 'remove':
-      return compact({
-        ...base,
-        ...normalizedPrinting(kept),
-        board: kept.board === 'Main' ? undefined : kept.board,
-      })
-    case 'move-from':
-    case 'move-to':
-      return compact({
-        ...base,
-        ...normalizedPrinting(kept),
-        to: kept.to,
-        from: kept.from,
-      })
-    case 'set-printing':
-      return compact({ ...base, ...normalizedPrinting(kept) })
-    case 'set-finish':
-      // `Set "X" finish to nonfoil` names the default explicitly — it is the whole point of the line.
-      return compact({ ...base, finish: kept.finish })
-    case 'set-language':
-      // `Set language of "X" to English` likewise keeps `en`.
-      return compact({ ...base, language: kept.language })
-    case 'set-note':
-      // An empty note is written as the `Cleared note` form, which reads back as the clear.
-      return compact({ ...base, note: e.note })
-    case 'set-label':
-      // Likewise `Cleared labels`. Non-empty sets read back in canonical vocabulary order.
-      return compact({ ...base, labels: CARD_LABELS.filter((l) => e.labels.includes(l)) })
-    case 'set-commander':
-    case 'unset-commander':
-      return compact(base)
-    case 'add-section':
-    case 'remove-section':
-      return compact({ ...base, section: e.section })
-    case 'rename-section':
-      return compact({ ...base, section: e.section, newSection: e.newSection })
-    case 'set-section':
-      return compact({ ...base, section: e.section })
-    default:
-      e satisfies never
-      throw new Error('unreachable')
-  }
-}
-
 function persistedLine(e: ChangeEvent): string {
   return `- ${formatChangeCore(e, WRITER_OPTIONS)}`
 }
@@ -366,28 +220,6 @@ function persistedLine(e: ChangeEvent): string {
 const ALL_EVENTS: ChangeEvent[] = CHANGE_ACTIONS.flatMap(
   (action): readonly ChangeEvent[] => CASES[action],
 )
-
-describe('legacy prose round trip (the migration reader)', () => {
-  test('every ChangeAction has round-trip cases', () => {
-    expect(Object.keys(CASES).sort()).toEqual([...CHANGE_ACTIONS].sort())
-    for (const action of CHANGE_ACTIONS) expect(CASES[action].length).toBeGreaterThan(0)
-  })
-
-  for (const action of CHANGE_ACTIONS) {
-    describe(action, () => {
-      for (const e of CASES[action]) {
-        const line = persistedLine(e)
-        test(line, () => {
-          const parsed = parseLegacyChangeLine(line)
-          expect(parsed).not.toBeNull()
-          const expected = expectedFromEvent(e)
-          expect(compact(parsed as unknown as Loose)).toEqual(expected)
-          expect(unaccountedFields(e, expected)).toEqual([])
-        })
-      }
-    })
-  }
-})
 
 // ---------------------------------------------------------------------------
 // The block: exact
@@ -415,6 +247,11 @@ function expectedBlockEvent(e: ChangeEvent): Loose {
 
 describe('events block round trip (the live reader)', () => {
   const TIMESTAMP = '2026-01-01T00:00:00.000Z'
+
+  test('every ChangeAction has round-trip cases', () => {
+    expect(Object.keys(CASES).sort()).toEqual([...CHANGE_ACTIONS].sort())
+    for (const action of CHANGE_ACTIONS) expect(CASES[action].length).toBeGreaterThan(0)
+  })
 
   for (const action of CHANGE_ACTIONS) {
     describe(action, () => {

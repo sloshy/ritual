@@ -22,8 +22,7 @@
  *
  * The parser reads **only** the block. An entry without one (a legacy entry,
  * written before the block existed) yields zero events and one advisory —
- * there is no prose fallback; `ritual cleanup` converts such entries through
- * `changelog-legacy-parser.ts`.
+ * there is no prose fallback, and nothing in Ritual converts such entries.
  *
  * **Persistence fence — this module must never import `src/i18n`.**
  */

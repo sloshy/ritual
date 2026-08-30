@@ -3,7 +3,6 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from '../config/base-dir'
 import { isRitualClean, writeFileWithHash } from '../changes/content-hash'
-import { migrateLegacyChangelog, type ChangelogMigration } from '../changes/changelog-migrate'
 import { listFileName, unusableFileNameMessage } from '../list/list-file-name'
 import { listLocations, type ListLocation } from '../list/resolve-list'
 import type { ListType } from '../list/list-type'
@@ -23,14 +22,10 @@ import { unreadableLines } from '../list/markdown-fence'
 import { parseTitleFromContent } from '../list/section-format'
 import { parseDeckText } from '../importers/text-file'
 import { listNameCollision } from '../list/list-lifecycle'
-import {
-  changelogSidecarPath,
-  moveListFileAndSidecars,
-  renameListThroughTemp,
-} from '../list/list-sidecars'
+import { moveListFileAndSidecars, renameListThroughTemp } from '../list/list-sidecars'
 import { isSameFile as statSameFile, type SameFileCheck } from '../util/same-file'
 import { collectionToMarkdown, wantedToMarkdown } from '../list/list-export'
-import { getErrorMessage, hasErrorCode, localizedCommandError, ExitCode } from '../util/errors'
+import { getErrorMessage, localizedCommandError, ExitCode } from '../util/errors'
 import { runCommandAction } from '../cli/action'
 import { promptDeckFormat } from './session/deck-prompts'
 import { readCollectionFile, readWantedFile } from '../list/flat-list-read'
@@ -58,17 +53,12 @@ import { t } from '../i18n/t'
  *    `name:` and `created:` dropped (every other key, `tags:` included, stays);
  * 3. every file is named exactly as its list is named (its `# Title` H1, or for
  *    a deck without one its legacy `name:`), replacing file names left over from
- *    the old lower-kebab-case deck slugs;
- * 4. every `.changes.md` changelog's legacy entries — prose lines with no fenced
- *    `ritual-changes` block — gain the block (see `changelog-migrate.ts`). The
- *    prose is kept byte for byte; an entry the legacy grammar cannot fully read
- *    is left exactly as it was and reported, never dropped. This step is
- *    independent of the list file's rewrite gate: a list left un-rewritten for
- *    parse warnings still has its changelog converted.
+ *    the old lower-kebab-case deck slugs.
  *
- * Cleanup never appends changelog entries — a cleaned-up file has the same cards
- * it had before — and never stamps a `.sha256` sidecar that did not already
- * match the file (see `cleanupList`).
+ * Cleanup never touches a `.changes.md` changelog — a cleaned-up file has the
+ * same cards it had before, and a rename carries the sidecar along unchanged —
+ * and never stamps a `.sha256` sidecar that did not already match the file (see
+ * `cleanupList`).
  */
 
 export type CleanupOptions = {
@@ -114,12 +104,6 @@ export type CleanupResult = {
    * is still cleaned up, which is the whole point of a per-file failure.
    */
   unreadable?: boolean
-  /**
-   * True when the list's `.changes.md` had legacy (block-less) entries that were
-   * converted to carry a `ritual-changes` block. Entries the migration had to
-   * leave alone are named in `warnings`.
-   */
-  changelogRewritten?: boolean
   warnings: string[]
 }
 
@@ -128,7 +112,6 @@ export function hasCleanupActions(result: CleanupResult): boolean {
   return (
     result.unreadable === true ||
     result.rewritten ||
-    result.changelogRewritten === true ||
     result.renamedTo !== undefined ||
     result.formatSet !== undefined ||
     result.missingFormat === true ||
@@ -378,48 +361,6 @@ export async function cleanupList(
     result.rewritten = document.canonical !== document.original
   }
 
-  // The changelog conversion is read here, before the rename, and written after
-  // it. It is independent of the rewrite gate above: a list left un-rewritten
-  // for parse warnings still has legacy history worth converting, and the
-  // sidecar's own content is what decides whether it changes.
-  const changelogBase = path.basename(changelogSidecarPath(location.filePath))
-  let changelog: ChangelogMigration | null = null
-  try {
-    changelog = await readChangelogMigration(
-      changelogSidecarPath(location.filePath),
-      document.displayName,
-    )
-  } catch (error) {
-    // A changelog that exists but cannot be read is this file's problem to
-    // report, not a reason to abandon the pass; the list itself still cleans up.
-    result.warnings.push(
-      t('cli.cleanup.changelogCouldNotRead', {
-        file: changelogBase,
-        reason: getErrorMessage(error),
-      }),
-    )
-  }
-  if (changelog !== null) {
-    if (changelog.converted > 0) result.changelogRewritten = true
-    for (const skip of changelog.skipped) {
-      result.warnings.push(
-        skip.reason === 'unparsed-lines'
-          ? t('cli.cleanup.changelogEntryUnparsed', {
-              file: changelogBase,
-              timestamp: skip.timestamp,
-              lines: skip.lines.join('; '),
-            })
-          : t('cli.cleanup.changelogEntryDesynced', {
-              file: changelogBase,
-              timestamp: skip.timestamp,
-            }),
-      )
-    }
-    if (changelog.undecodable) {
-      result.warnings.push(t('cli.cleanup.changelogUndecodable', { file: changelogBase }))
-    }
-  }
-
   if (options.dryRun) return result
 
   if (targetPath !== location.filePath) {
@@ -443,30 +384,7 @@ export async function cleanupList(
       await fs.writeFile(targetPath, document.canonical)
     }
   }
-  // After the rename: the changelog moved with its list. It has no hash sidecar
-  // of its own, so nothing here bears on the `.sha256` rule above.
-  if (changelog !== null && changelog.converted > 0) {
-    await fs.writeFile(changelogSidecarPath(targetPath), changelog.content)
-  }
   return result
-}
-
-/**
- * Read a list's `.changes.md` and work out its legacy-entry conversion, or null
- * when the list has no changelog. Nothing is written here.
- */
-async function readChangelogMigration(
-  changelogPath: string,
-  listName: string,
-): Promise<ChangelogMigration | null> {
-  let content: string
-  try {
-    content = await fs.readFile(changelogPath, 'utf-8')
-  } catch (error) {
-    if (hasErrorCode(error, 'ENOENT')) return null
-    throw error
-  }
-  return migrateLegacyChangelog(content, listName)
 }
 
 /** Run cleanup across every deck, collection, and wanted list. */
@@ -498,7 +416,6 @@ function describeActions(result: CleanupResult, dryRun: boolean, skipFormats: bo
   }
   if (result.renamedTo) actions.push(t('cli.cleanup.actionRenamed', { file: result.renamedTo }))
   if (result.rewritten) actions.push(t('cli.cleanup.actionRewritten'))
-  if (result.changelogRewritten) actions.push(t('cli.cleanup.actionChangelogConverted'))
   if (result.missingFormat) {
     actions.push(
       dryRun
@@ -527,12 +444,7 @@ function formatSignalNote(deckName: string, signal: DeckFormatSignal): string {
 
 /** Whether a result carries a change a real (or `--check`) run would write. */
 function wouldChangeFile(result: CleanupResult): boolean {
-  return (
-    result.rewritten ||
-    result.changelogRewritten === true ||
-    result.renamedTo !== undefined ||
-    result.formatSet !== undefined
-  )
+  return result.rewritten || result.renamedTo !== undefined || result.formatSet !== undefined
 }
 
 async function runCleanup(

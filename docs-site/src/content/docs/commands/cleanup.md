@@ -15,9 +15,8 @@ One pass over all list files applies four normalizations:
 
 2. **Every file is rewritten in canonical form.** Each list is loaded and re-emitted through the standard serializers, so formatting converges on what a fresh save would write (see [List File Format](/list-format/)): a `- ` bullet on every card line, canonical token order and spacing, uppercase set codes in printings, omitted default finish/condition/language markers, an explicit `## Section` structure, a `# Title` heading on all three types, and `&N` card IDs on every line. A collection or wanted-list line that carries a quantity (`- 4 Lightning Bolt (LEA:161)`) is expanded to one line per copy — the first keeps the line's `&N`, the rest are allocated fresh ids. A deck whose name still lives in legacy `name:` front matter gets it as the `# Title` heading, and `name:` and `created:` are dropped (`tags:` and every other key stay).
 3. **Every file is named after its list.** The file name is derived from the list's actual name — its `# Title` heading, or for a deck that has none yet, its legacy `name:` front matter — keeping capitalization and punctuation and stripping only filename-illegal characters. A file whose name drifted (or that still uses an old kebab-case slug) is renamed, and its `.sha256`, `.changes.md`, `.art.json`, and `.primer.md` sidecars move with it.
-4. **Every legacy changelog entry gets its events block.** A `.changes.md` entry written before the fenced [`ritual-changes` block](/list-format/#the-changesmd-changelog) existed holds only prose lines, which the changelog reader never parses — such an entry shows no history. Cleanup reads each prose line back into the event it rendered and appends the block; the prose is kept byte for byte. An entry the legacy grammar cannot fully read (a line it does not recognize, or a block that would not match its lines) is left exactly as it was and reported by timestamp — never dropped. If a changelog's existing `ritual-changes` block holds a line that does not decode, the whole file is left unconverted and reported (its JSON result carries no `changelogRewritten`): fix that line by hand and rerun. A `.changes.md` that cannot be read at all is reported by name without holding back the list's own cleanup. This step is independent of the list file's rewrite: a list held back for parse warnings still has its changelog converted.
 
-Cleanup never adds changelog entries — a cleaned-up file has the same cards it had before, and converting a legacy entry records what was already there. It refreshes a file's `.sha256` sidecar only when that sidecar already matched the file: a hand-edited list is rewritten but keeps its stale (or absent) sidecar, so [`detect-changes`](/commands/detect-changes/) still records the hand edits rather than having them stamped as recorded. Two cases are reported with a warning instead of fully acted on: a rename whose target name is already taken by another list — either the same file name, or one that merely [folds onto it](/commands/list-resolution/#names-that-would-collide-are-refused-at-creation), which would leave both lists unaddressable — and a file holding content the canonical rewrite cannot reproduce. The second covers two things: lines the parse skipped — refused card lines, but also prose or any other text the list grammar does not model (`//` comment lines are read and dropped, so they never block) — and [fenced code blocks](/commands/edit/#fenced-code-blocks), which parse cleanly as prose but which the canonical serializers do not emit. In either case the file is still renamed if its name drifted, but its content is left alone (rewriting it would silently drop that content; fix, remove, or accept it and rerun).
+Cleanup never touches a `.changes.md` changelog — a cleaned-up file has the same cards it had before, and a rename carries the changelog along unchanged. It refreshes a file's `.sha256` sidecar only when that sidecar already matched the file: a hand-edited list is rewritten but keeps its stale (or absent) sidecar, so [`detect-changes`](/commands/detect-changes/) still records the hand edits rather than having them stamped as recorded. Two cases are reported with a warning instead of fully acted on: a rename whose target name is already taken by another list — either the same file name, or one that merely [folds onto it](/commands/list-resolution/#names-that-would-collide-are-refused-at-creation), which would leave both lists unaddressable — and a file holding content the canonical rewrite cannot reproduce. The second covers two things: lines the parse skipped — refused card lines, but also prose or any other text the list grammar does not model (`//` comment lines are read and dropped, so they never block) — and [fenced code blocks](/commands/edit/#fenced-code-blocks), which parse cleanly as prose but which the canonical serializers do not emit. In either case the file is still renamed if its name drifted, but its content is left alone (rewriting it would silently drop that content; fix, remove, or accept it and rerun).
 
 A file cleanup cannot read at all — broken YAML front matter, bad permissions — is reported by name and **skipped**: nothing about it is rewritten or renamed, every other list is still cleaned up, and the run exits 1. This is the case cleanup exists for (hand-edited workspaces), so one unparseable file can no longer abort the pass:
 
@@ -70,9 +69,9 @@ interactively to answer the prompts.
 ./ritual cleanup --check
 ```
 
-It exits 1 when any file would be rewritten, renamed, or have its changelog
-converted, is blocked from its canonical rewrite by parse warnings or a fenced
-code block, or could not be read at all — and 0 when the workspace is already clean. The messages say which of
+It exits 1 when any file would be rewritten or renamed, is blocked from its
+canonical rewrite by parse warnings or a fenced code block, or could not be read
+at all — and 0 when the workspace is already clean. The messages say which of
 those it was, so "needs cleanup" and "could not be parsed" are distinguishable
 in a hook's output.
 A formatless deck alone does not fail `--check`: a real run would not change it
@@ -92,15 +91,12 @@ report) and every warning, prefixed with its file:
       "filePath": "/path/to/wanted/binder.md",
       "renamedTo": "Binder.md",
       "rewritten": true,
-      "changelogRewritten": true,
       "warnings": []
     }
   ],
   "warnings": []
 }
 ```
-
-`changelogRewritten` is present (and `true`) when the list's `.changes.md` had legacy entries that were converted; an entry left as-is is named in `warnings`.
 
 ## Exit Codes
 
@@ -121,7 +117,7 @@ Preview what a cleanup would do:
 ```text
 [dry-run] decks/winota-stax.md: renamed to 'Winota Stax.md'
 [dry-run] decks/Jank.md: needs a format
-[dry-run] collections/Binder.md: rewritten in canonical form, changelog entries converted to the block format
+[dry-run] collections/Binder.md: rewritten in canonical form
 
 Would clean up 3 of 12 list files.
 ```

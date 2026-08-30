@@ -15,10 +15,10 @@ import { MESSAGE_NAMESPACES } from '../../src/i18n/messages/en'
  *
  * The persistence fence is the highest-value test here. `.changes.md` is a
  * git-diffable data format: each entry's `ritual-changes` block is re-read by
- * `changelog-blocks.ts` on its JSON keys, and the prose beside it is what the
- * migration (`changelog-legacy-parser.ts`) reads on English verbs. If a
- * localized string ever reached those writers, the file would parse to zero
- * changes and show an empty history **with no error** — silent data destruction.
+ * `changelog-blocks.ts` on its JSON keys, and the prose beside it is the
+ * English record every collaborator's copy was written with. If a localized
+ * string ever reached those writers, the file would parse to zero changes and
+ * show an empty history **with no error** — silent data destruction.
  */
 
 const ROOT = path.resolve(import.meta.dir, '../..')
@@ -98,8 +98,6 @@ describe('i18n persistence fence', () => {
       'src/changes/changelog-parser.ts',
       'src/changes/changelog-blocks.ts',
       'src/changes/change-event-decode.ts',
-      'src/changes/changelog-legacy-parser.ts',
-      'src/changes/changelog-migrate.ts',
       'src/changes/csv.ts',
       'src/changes/change-bundle.ts',
       'src/changes/list-snapshot.ts',
@@ -157,7 +155,6 @@ describe('i18n persistence fence', () => {
           'src/changes/changelog-parser.ts',
           'src/changes/changelog-blocks.ts',
           'src/changes/change-event-decode.ts',
-          'src/changes/changelog-legacy-parser.ts',
         ],
       }),
     ).toEqual([])

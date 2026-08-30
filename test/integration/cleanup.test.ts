@@ -7,7 +7,6 @@ import {
   hasCleanupActions,
   type CleanupResult,
 } from '../../src/commands/cleanup'
-import { parseChangelog } from '../../src/changes/changelog-parser'
 import { parseDeckFrontMatter } from '../../src/list/deck-file'
 import type { DeckFormatSignal } from '../../src/list/deck-format'
 import { computeHash, hashPath, writeFileWithHash } from '../../src/changes/content-hash'
@@ -714,12 +713,6 @@ describe('cleanup — list-format migration', () => {
     '# Changelog for Winota Stax\n\n## 2026-03-07T22:01:21.452Z\n\n' +
     '- Added "Lightning Bolt" (LEA:161) &2\n- Removed "Mox Emerald" &9\n'
 
-  const CHANGES_BLOCK =
-    '\n```ritual-changes\n' +
-    '{"action":"add","cardName":"Lightning Bolt","cardId":2,"set":"lea","collectorNumber":"161"}\n' +
-    '{"action":"remove","cardName":"Mox Emerald","cardId":9}\n' +
-    '```\n'
-
   test('a legacy deck is titled from `name:`, bulleted, and stripped of name:/created:', async () => {
     // The old kebab-case slug file name, so the rename axis is exercised too.
     const oldPath = path.join(dir(), 'decks', 'winota-stax.md')
@@ -770,101 +763,31 @@ describe('cleanup — list-format migration', () => {
     )
   })
 
-  test('a legacy changelog entry gains a block; its prose is kept byte for byte', async () => {
+  test('a block-less changelog beside a canonical list is never touched', async () => {
     await fs.writeFile(path.join(dir(), 'decks', 'Winota Stax.md'), CANONICAL_DECK)
     const changesPath = path.join(dir(), 'decks', 'Winota Stax.changes.md')
     await fs.writeFile(changesPath, LEGACY_CHANGELOG)
 
     const result = resultFor(await cleanupAllLists(), 'Winota Stax.md')
 
-    expect(result).toMatchObject({ rewritten: false, changelogRewritten: true, warnings: [] })
-    const content = await fs.readFile(changesPath, 'utf-8')
-    expect(content).toBe(LEGACY_CHANGELOG + CHANGES_BLOCK)
-    expect(parseChangelog(content).pages[0]!.changes).toHaveLength(2)
-    // The changelog never gets a hash sidecar of its own.
-    expect(await Bun.file(hashPath(changesPath)).exists()).toBeFalse()
+    expect(hasCleanupActions(result)).toBeFalse()
+    expect(result.warnings).toEqual([])
+    expect(await fs.readFile(changesPath, 'utf-8')).toBe(LEGACY_CHANGELOG)
   })
 
-  test('a changelog converted alongside a renamed list lands beside the new file name', async () => {
+  test('a block-less changelog travels with a rename verbatim', async () => {
     const oldPath = path.join(dir(), 'decks', 'winota-stax.md')
     await fs.writeFile(oldPath, LEGACY_DECK)
     await fs.writeFile(path.join(dir(), 'decks', 'winota-stax.changes.md'), LEGACY_CHANGELOG)
 
     const result = resultFor(await cleanupAllLists(), 'winota-stax.md')
 
-    expect(result).toMatchObject({ renamedTo: 'Winota Stax.md', changelogRewritten: true })
+    expect(result).toMatchObject({ renamedTo: 'Winota Stax.md', rewritten: true, warnings: [] })
     const newChanges = path.join(dir(), 'decks', 'Winota Stax.changes.md')
-    expect(await fs.readFile(newChanges, 'utf-8')).toBe(LEGACY_CHANGELOG + CHANGES_BLOCK)
+    expect(await fs.readFile(newChanges, 'utf-8')).toBe(LEGACY_CHANGELOG)
     expect(await Bun.file(path.join(dir(), 'decks', 'winota-stax.changes.md')).exists()).toBeFalse()
-  })
-
-  test('an already-converted changelog is left untouched', async () => {
-    await fs.writeFile(path.join(dir(), 'decks', 'Winota Stax.md'), CANONICAL_DECK)
-    const changesPath = path.join(dir(), 'decks', 'Winota Stax.changes.md')
-    await fs.writeFile(changesPath, LEGACY_CHANGELOG + CHANGES_BLOCK)
-
-    const result = resultFor(await cleanupAllLists(), 'Winota Stax.md')
-
-    expect(hasCleanupActions(result)).toBeFalse()
-    expect(await fs.readFile(changesPath, 'utf-8')).toBe(LEGACY_CHANGELOG + CHANGES_BLOCK)
-  })
-
-  test('an entry with an unreadable prose line is left verbatim with a warning naming it', async () => {
-    await fs.writeFile(path.join(dir(), 'decks', 'Winota Stax.md'), CANONICAL_DECK)
-    const changesPath = path.join(dir(), 'decks', 'Winota Stax.changes.md')
-    const original = LEGACY_CHANGELOG + '\n## 2026-03-08T10:00:00.000Z\n\n- Swapped the sleeves\n'
-    await fs.writeFile(changesPath, original)
-
-    const result = resultFor(await cleanupAllLists(), 'Winota Stax.md')
-
-    // The readable entry converted; the other kept its prose and got no block.
-    expect(result.changelogRewritten).toBeTrue()
-    expect(result.warnings).toHaveLength(1)
-    expect(result.warnings[0]).toContain('Winota Stax.changes.md')
-    expect(result.warnings[0]).toContain('2026-03-08T10:00:00.000Z')
-    expect(result.warnings[0]).toContain('- Swapped the sleeves')
-    const content = await fs.readFile(changesPath, 'utf-8')
-    expect(content).toBe(
-      LEGACY_CHANGELOG + CHANGES_BLOCK + '\n## 2026-03-08T10:00:00.000Z\n\n- Swapped the sleeves\n',
-    )
-  })
-
-  test('a hand-desynchronized entry is left verbatim with a warning naming it', async () => {
-    await fs.writeFile(path.join(dir(), 'decks', 'Winota Stax.md'), CANONICAL_DECK)
-    const changesPath = path.join(dir(), 'decks', 'Winota Stax.changes.md')
-    // Two prose lines, one event: a hand edit removed a block line.
-    const desynced =
-      LEGACY_CHANGELOG +
-      '\n```ritual-changes\n{"action":"remove","cardName":"Mox Emerald","cardId":9}\n```\n'
-    await fs.writeFile(changesPath, desynced)
-
-    const result = resultFor(await cleanupAllLists(), 'Winota Stax.md')
-
-    expect(result.changelogRewritten).toBeUndefined()
-    expect(result.warnings).toHaveLength(1)
-    expect(result.warnings[0]).toContain('2026-03-07T22:01:21.452Z')
-    expect(result.warnings[0]).toContain('no longer match')
-    expect(await fs.readFile(changesPath, 'utf-8')).toBe(desynced)
-  })
-
-  test('a rewrite-blocked list still has its changelog converted', async () => {
-    const filePath = path.join(dir(), 'collections', 'Binder.md')
-    // Hand-written prose under the H1 is a parse warning, which blocks the rewrite.
-    const blocked =
-      '# Binder\n\nSome notes about this binder.\n\n## Main\n- Sol Ring (ltc:284) &1\n'
-    await fs.writeFile(filePath, blocked)
-    const changesPath = path.join(dir(), 'collections', 'Binder.changes.md')
-    await fs.writeFile(changesPath, LEGACY_CHANGELOG)
-
-    const result = resultFor(await cleanupAllLists(), 'Binder.md')
-
-    expect(result).toMatchObject({
-      rewriteBlocked: true,
-      rewritten: false,
-      changelogRewritten: true,
-    })
-    expect(await fs.readFile(filePath, 'utf-8')).toBe(blocked)
-    expect(await fs.readFile(changesPath, 'utf-8')).toBe(LEGACY_CHANGELOG + CHANGES_BLOCK)
+    // The changelog never gets a hash sidecar of its own.
+    expect(await Bun.file(hashPath(newChanges)).exists()).toBeFalse()
   })
 
   test('the sidecar of a file holding unrecorded hand edits is left stale, never stamped', async () => {
@@ -894,19 +817,12 @@ describe('cleanup — list-format migration', () => {
     expect(await Bun.file(hashPath(filePath)).text()).toBe(computeHash(CANONICAL_DECK) + '\n')
   })
 
-  test('dry-run reports the changelog conversion without writing it', async () => {
+  test('dry-run reports the list migration without writing it', async () => {
     await fs.writeFile(path.join(dir(), 'decks', 'winota-stax.md'), LEGACY_DECK)
-    const changesPath = path.join(dir(), 'decks', 'winota-stax.changes.md')
-    await fs.writeFile(changesPath, LEGACY_CHANGELOG)
 
     const result = resultFor(await cleanupAllLists({ dryRun: true }), 'winota-stax.md')
 
-    expect(result).toMatchObject({
-      renamedTo: 'Winota Stax.md',
-      rewritten: true,
-      changelogRewritten: true,
-    })
-    expect(await fs.readFile(changesPath, 'utf-8')).toBe(LEGACY_CHANGELOG)
+    expect(result).toMatchObject({ renamedTo: 'Winota Stax.md', rewritten: true })
     expect(await fs.readFile(path.join(dir(), 'decks', 'winota-stax.md'), 'utf-8')).toBe(
       LEGACY_DECK,
     )
@@ -914,19 +830,19 @@ describe('cleanup — list-format migration', () => {
 
   test('one run migrates every legacy shape; a second run writes nothing', async () => {
     await fs.writeFile(path.join(dir(), 'decks', 'winota-stax.md'), LEGACY_DECK)
-    await fs.writeFile(path.join(dir(), 'decks', 'winota-stax.changes.md'), LEGACY_CHANGELOG)
     await fs.writeFile(
       path.join(dir(), 'collections', 'binder.md'),
       '---\nlabels: [sale]\n---\n\n# Binder\n\n- 2 Sol Ring (ltc:284) [foil] &1\n',
     )
-    await fs.writeFile(path.join(dir(), 'collections', 'binder.changes.md'), LEGACY_CHANGELOG)
     await fs.writeFile(path.join(dir(), 'wanted', 'Wants.md'), '- 2 Mox Emerald &1\n- Sol Ring\n')
 
     const first = await cleanupAllLists()
     // The quantity advisories are the only thing said; nothing blocked.
     const said = first.flatMap((result) => result.warnings)
+    expect(said.length).toBeGreaterThan(0)
     expect(said.every((warning) => warning.includes('copies'))).toBeTrue()
-    expect(first.every((result) => result.rewritten || result.changelogRewritten)).toBeTrue()
+    expect(first).toHaveLength(3)
+    expect(first.every((result) => result.rewritten)).toBeTrue()
     const after = await snapshotTree(dir())
 
     const second = await cleanupAllLists()
@@ -943,36 +859,6 @@ describe('cleanup — list-format migration', () => {
 })
 
 describe('cleanup CLI — list-format migration', () => {
-  test('--check reports a pending changelog conversion and exits 1 without writing', async () => {
-    await withWorkspace(async (dir) => {
-      const deckPath = path.join(dir, 'decks', 'Winota Stax.md')
-      await fs.writeFile(
-        deckPath,
-        '---\nformat: commander\n---\n\n# Winota Stax\n\n## Main\n- 1 Plains &1\n',
-      )
-      const changesPath = path.join(dir, 'decks', 'Winota Stax.changes.md')
-      const legacy =
-        '# Changelog for Winota Stax\n\n## 2026-03-07T22:01:21.452Z\n\n- Added "Plains" &1\n'
-      await fs.writeFile(changesPath, legacy)
-
-      const check = await runCli(['cleanup', '--check'], dir)
-
-      expect(check.exitCode).toBe(1)
-      expect(check.stdout).toContain('[check]')
-      expect(check.stdout).toContain('changelog entries converted')
-      expect(await fs.readFile(changesPath, 'utf-8')).toBe(legacy)
-
-      const result = await runCli(['cleanup'], dir)
-      expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain('changelog entries converted')
-      expect(await fs.readFile(changesPath, 'utf-8')).toContain('```ritual-changes')
-
-      const clean = await runCli(['cleanup', '--check'], dir)
-      expect(clean.exitCode).toBe(0)
-      expect(clean.stdout).toContain('already clean')
-    })
-  })
-
   test('detect-changes --verify is clean after cleanup of a Ritual-clean workspace', async () => {
     await withWorkspace(async (dir) => {
       // Every file is Ritual's own last write (hashed), in the legacy shape.

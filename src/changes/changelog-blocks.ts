@@ -27,8 +27,7 @@
  * An entry with no `ritual-changes` block is a **legacy** entry (written
  * before the block existed): its prose is carried verbatim, it yields zero
  * events, and the parse reports one {@link ChangelogAdvisory} for it — never
- * silence. Converting legacy entries is `ritual cleanup`'s job, through
- * `changelog-legacy-parser.ts`; nothing here parses prose.
+ * silence. Nothing here parses prose.
  *
  * **Persistence fence — this module must never import `src/i18n`.**
  */
