@@ -469,27 +469,27 @@ already exist, but nothing local can set them:
 
 ## Deck-Style Quantity Prefixes
 
-Collections hold **one line per copy**, so there is no quantity field on a card line: everything
-between `- ` and the printing is the card name. A deck-style line pasted into a collection —
-`- 1 Sol Ring (C21:240)` — therefore parses as a card _named_ `1 Sol Ring`, which matches nothing in
-the cache, on Scryfall, or on Archidekt.
+Collections hold **one line per copy**, so a canonical collection line carries no quantity. A
+deck-style line pasted into a collection — `- 4 Sol Ring (C21:240)` — is still read: the
+[card-line grammar](/list-format/#read-tolerances) accepts the quantity and reads the line as four
+copies, and the next whole-file save (a pull, an editor save, `cleanup`) expands it to four lines —
+the first keeps the line's `&N`, the rest are allocated fresh ids.
 
-A `collection-sync` run, a `cleanup` run, and the CLI editors each say so, once per offending line:
+A `collection-sync` run, a `cleanup` run, and the CLI editors each say so, once per such line:
 
 ```
-Card name starts with a quantity, so the line reads as a card named '1 Sol Ring': - 1 Sol Ring (C21:240) — collections and wanted lists hold one line per copy; remove the leading quantity.
+collections/Binder.md:12: Read 4 copies: a collection holds one line per copy, so this line becomes 4 lines on the next save.
 ```
 
-This is an **advisory**, not an [unreadable line](#unreadable-lines): the line parses and a save
-re-emits it verbatim, so it never blocks a sync, a save, or `cleanup` (which reports it while still
-rewriting the file in canonical form) — it just tells you the name
-is not the name you meant. Only a 1–3 digit leading integer triggers it, so a card genuinely named
-`1996 World Champion` parses untouched. Wanted lists, which are also one line per copy, behave the
-same way.
+This is an **advisory**, not an [unreadable line](#unreadable-lines): nothing is lost, so it never
+blocks a sync, a save, or `cleanup`. A quantity of `1` says nothing and is not reported. Only a 1–3
+digit leading integer (or any run of digits with an `x`, as in `4x`) is a quantity, so a card
+genuinely named `1996 World Champion` parses untouched. Wanted lists, which are also one line per
+copy, behave the same way.
 
 ## Unreadable Lines
 
-A list file may hold lines the parser cannot read — a stray comment, a malformed card line — or a
+A list file may hold lines the parser cannot read — stray prose, a refused card line — or a
 [fenced code block](/commands/edit/#fenced-code-blocks), which parses cleanly as prose but which the
 canonical serializer cannot re-emit. Both directions refuse to sync such a list without
 confirmation, because both directions would lose that content: a pull rewrites the file (deleting
@@ -500,7 +500,7 @@ Archidekt collection).
 1 collection list contains lines Ritual cannot read.
 A pull rewrites the list file, so these lines would be removed:
   binder.md ("Blue Binder"):
-    Skipped malformed line: // sort these later
+    Skipped malformed line: sort these later
 ? Sync 1 collection list anyway, removing the lines above? › (y/N)
 ```
 

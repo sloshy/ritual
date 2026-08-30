@@ -380,7 +380,7 @@ none.
 Each `include*` list controls which lists in that category are published when you run [`build-site`](/commands/build-site/):
 
 - `["*"]` — the reserved wildcard meaning **publish everything** in that category. This is the default, and applies even when there is no `site` key at all.
-- An explicit list of **display names** (a deck's `name:` frontmatter or a collection/wanted-list `# Title`, each falling back to the file name) — publishes only the matching lists and filters out the rest. Names must match exactly: unlike the `--decks`-style flags, config names are not folded for case, accents, or separators. An entry that matches no list is a warning, not a failure — the build says so and continues:
+- An explicit list of **display names** (the list's `# Title` heading, falling back to the file name) — publishes only the matching lists and filters out the rest. Names must match exactly: unlike the `--decks`-style flags, config names are not folded for case, accents, or separators. An entry that matches no list is a warning, not a failure — the build says so and continues:
 
   ```
   ⚠️  site.includeDecks lists 'Old Name', which matches no deck in /home/you/ritual/decks — it may have been renamed or removed.

@@ -80,7 +80,7 @@ lowercased or hyphenated.
 Only the characters that file systems reject are removed: `/ \ : * ? " < > |`, the null
 byte, and leading, trailing, or repeated dots (which would otherwise hide the file or
 escape the directory). So `Atraxa: Praetors' Voice` is stored as
-`decks/Atraxa Praetors' Voice.md`, while the `name:` front matter keeps the colon. A name
+`decks/Atraxa Praetors' Voice.md`, while the `# Title` heading keeps the colon. A name
 left with nothing usable (`"???"`) is an error, and no file is written.
 
 Because a name is also how you address a list later, `new` refuses a name that would

@@ -385,16 +385,16 @@ Condition (NM, LP, MP, HP, DMG) is optional and defaults to NM.
 Cards can include optional printing metadata:
 
 ```
-1 Sol Ring (2XM:1) [foil] [NM] &1
-1 Lightning Bolt &2
-4 Island &3
+- 1 Sol Ring (2XM:1) [foil] &1
+- 1 Lightning Bolt &2
+- 4 Island &3
 ```
 
-Fields in order:
+Fields in order (see [List File Format](/list-format/) for the full grammar):
 
 - `(SET:CN)` — Set code and collector number
 - `[finish]` — `nonfoil`, `foil`, or `etched`
-- `[condition]` — `NM`, `LP`, `MP`, `HP`, or `DMG`
+- `[condition]` — `NM`, `LP`, `MP`, `HP`, or `DMG` (`NM` is the default and is not written)
 - `[lang]` — a [Scryfall language code](#card-language); omitted for English
 - `[labels]` — the card's [label override](/commands/edit/#card-labels); a deck carries `proxy` only
 - `&N` — Persistent card ID (auto-assigned, used internally for change tracking)

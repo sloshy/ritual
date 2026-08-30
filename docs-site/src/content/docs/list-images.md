@@ -12,8 +12,7 @@ The override is a deck, collection, **or wanted list** setting. For a wanted lis
 
 ```yaml
 ---
-name: 'Winota Stax'
-format: 'commander'
+format: commander
 image:
   card: 12
 ---

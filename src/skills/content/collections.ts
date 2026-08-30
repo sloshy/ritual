@@ -359,14 +359,14 @@ ${wrapProse(
 )}
 
 ${wrapProse(
-  '**Quantity prefixes:** a collection (or wanted) line is one **copy**, so it ' +
-    'carries no quantity — everything between `- ` and the printing is the card ' +
-    'name. A deck-style `- 1 Sol Ring (C21:240)` therefore names a card ' +
-    '`1 Sol Ring`, which matches nothing anywhere. A `collection-sync` run, a ' +
-    '`cleanup` run, and the CLI editors each print an advisory naming the line; ' +
-    'it is advisory only (the line parses and survives a save), ' +
-    'so fix the file rather than expecting a refusal. A name that legitimately ' +
-    'starts with a four-digit year (`1996 World Champion`) is left alone.',
+  '**Quantity prefixes:** a canonical collection (or wanted) line is one **copy** ' +
+    'and carries no quantity, but the grammar reads one: a deck-style ' +
+    '`- 4 Sol Ring (C21:240)` is four copies, and the next whole-file save (a pull, ' +
+    'an editor save, `cleanup`) expands it to four lines — the first keeps the ' +
+    '`&N`, the rest get fresh ids. A `collection-sync` run, a `cleanup` run, and ' +
+    'the CLI editors each print an advisory naming the line (`Read 4 copies: …`); ' +
+    'it is advisory only — nothing is lost and nothing is refused. A name that ' +
+    'starts with a four-digit run (`1996 World Champion`) is a name, not a quantity.',
 )}
 
 ${wrapProse(

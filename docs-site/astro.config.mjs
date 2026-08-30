@@ -33,6 +33,7 @@ export default defineConfig({
       sidebar: [
         { label: 'Getting Started', link: '/' },
         { slug: 'configuration' },
+        { slug: 'list-format' },
         { slug: 'localization' },
         { slug: 'custom-art' },
         { slug: 'list-images' },

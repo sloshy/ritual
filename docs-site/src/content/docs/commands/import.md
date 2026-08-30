@@ -455,7 +455,8 @@ If you need a unique user agent string, contact Moxfield support.
 
 ## Local Text File Format
 
-When importing from a local text file, use the standard decklist format. `## Section`
+When importing from a local text file, use the standard decklist format — quantity-led lines,
+with or without Ritual's `- ` bullet (see [List File Format](/list-format/)). `## Section`
 headers split the cards into sections:
 
 ```
@@ -475,7 +476,8 @@ the same way (wanted lists carry no labels).
 
 When importing into a collection or wanted list, each line expands to one
 bullet line per copy (`4 Lightning Bolt` becomes four `- Lightning Bolt` lines),
-matching how those lists track individual physical cards.
+matching how those lists track individual physical cards. Into a deck, the quantity stays on
+the line and the bullet is added (`- 4 Lightning Bolt`).
 
 Collection imports require a printing (`(SET:123)`) on every line, since
 collection entries always reference a specific physical printing. Wanted list
@@ -510,8 +512,9 @@ Sideboard
   (`1 Sol Ring (LTC) *F* 284`). Both import as `1 Sol Ring (LTC:284) [foil]`, so a
   `ritual export --format text --dialect moxfield` file reads straight back in.
 - Bare `Deck`, `Sideboard`, `Commander`, and `Companion` marker lines start sections
-  (`Deck` is `Main`). A marker with no cards under it is a dropped section and warns like
-  an empty `##` header would.
+  (`Deck` is `Main`). An empty `Commander` or `Companion` marker is a dropped section and
+  warns like an empty `##` header would; an empty `Deck` or `Sideboard` marker in an import
+  that has cards elsewhere is kept as a bare header, like the equivalent `##` heading.
 - An `About` block's `Name ...` line names the deck; the block's other lines are skipped
   with an advisory.
 
@@ -533,9 +536,10 @@ Everywhere else a
 [fenced code block is prose](/commands/edit/#fenced-code-blocks) that the parsers leave
 untouched.
 
-This dialect applies to **imports only**. Loading Ritual's own list files keeps the strict
-format above, so a marker word or a `(SET) NUM` suffix in a list file is never silently
-reinterpreted.
+The bare board markers and the `About` block are **import-only**. The `(SET) NUM` and
+`*F*`/`*E*` printing forms are a [read tolerance](/list-format/#read-tolerances) of the card-line
+grammar itself, so a list file holding them is read the same way — and rewritten to `(SET:CN)`
+and `[foil]` on its next save.
 
 If a card line's format is not recognized at all and the parsed name still contains a
 parenthesized set-like token, the import writes the card but prints an advisory naming the

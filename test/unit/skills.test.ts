@@ -13,6 +13,7 @@ import { classifyInstalledSkill } from '../../src/skills/install'
 import { MCP_TOOL_NAMES, RETIRED_MCP_TOOL_NAMES } from '../../src/mcp/tools/names'
 import type { RitualSkill } from '../../src/skills/types'
 import { version } from '../../src/config/version'
+import { SECTION_ROLES } from '../../src/list/deck-format'
 
 describe('skill catalog invariants', () => {
   test('every skill is structurally valid and renders without throwing', () => {
@@ -41,7 +42,9 @@ describe('skill catalog invariants', () => {
    * Import behavior an agent cannot discover by trial and error: what the text
    * importer silently would or would not read. Each phrase is one behavior the
    * CLI actually has, so a change to the parser that leaves this prose behind
-   * fails here rather than misleading an agent.
+   * fails here rather than misleading an agent. Several skills compose
+   * `shared.ts` fragments, so a pin must name text unique to the module it
+   * is meant to guard.
    */
   test.each([
     ['ritual-decks', 'MTG Arena/MTGO export dialect'],
@@ -49,7 +52,11 @@ describe('skill catalog invariants', () => {
     ['ritual-decks', 'no collector number'],
     ['ritual-decks', 'advisories'],
     ['ritual-decks', '--moxfield-user-agent'],
-    ['ritual-collections', 'advisories'],
+    ['ritual-collections', 'expands it to four lines'],
+    ['ritual-collections', 'Read 4 copies'],
+    ['ritual', 'Every other name is a main-deck section'],
+    ['ritual', 'expanded to four lines on save'],
+    ['ritual', 'planned, not implemented'],
     ['ritual', 'Fenced code blocks are prose'],
     // The UI-locale surface. An agent that cannot tell `uiLocale` from
     // `defaultLanguage` will reach for the expensive one (a non-`en`
@@ -87,6 +94,17 @@ describe('skill catalog invariants', () => {
     const skill = SKILLS.find((s) => s.name === skillName)
     expect(skill).toBeDefined()
     expect(skill!.body).toContain(phrase)
+  })
+
+  // The section-alias table is a closed set the overview reproduces by name,
+  // so an alias added or renamed in `SECTION_ROLES` must reach the skill too.
+  test('the overview skill names every SECTION_ROLES alias', () => {
+    const body = SKILLS.find((s) => s.name === 'ritual')!
+      .body.toLowerCase()
+      .replace(/\s+/g, ' ')
+    const aliases = Object.values(SECTION_ROLES).flat()
+    expect(aliases.length).toBeGreaterThan(0)
+    expect(aliases.filter((alias) => !body.includes(alias))).toEqual([])
   })
 })
 

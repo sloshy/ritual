@@ -226,7 +226,7 @@ const buylistPrintingSchema = z.object({
     .describe('Scryfall id of this exact printing — the primary join key when known.'),
 })
 
-/** `get_history` result: a list's change sets plus the default-rewrite lines. */
+/** `get_history` result: a list's change sets plus the default-rewrite events. */
 export type HistoryResult = OmitSuccess<HistoryLoadResponse>
 
 /** `diff_lists` result: the two sides, the matches, and each side's exclusives. */
@@ -748,7 +748,9 @@ export function registerReadTools(server: McpServer): void {
     'get_history',
     {
       title: 'Get change history',
-      description: 'Load a list’s change history (newest first) plus the default-rewrite lines.',
+      description:
+        'Load a list’s change history (newest first) — each set’s prose lines plus its typed ' +
+        'events — and the defaultEvents a rewrite-with-defaults would write.',
       inputSchema: z.object({ listType: listTypeSchema, slug: slugField }),
       outputSchema: outputSchemaFor<HistoryResult>('get_history'),
       annotations: { readOnlyHint: true },

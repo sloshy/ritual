@@ -48,7 +48,7 @@ None of the subcommands ever prompts once a list name is given, so they are safe
 
 Setting `sourceId` + an `archidekt.com` `sourceUrl` is what makes a deck [sync-linked](/commands/deck-sync/); the two must name the same Archidekt deck, and a write that would leave them disagreeing is refused — the same validation the admin route applies. For the interactive linking flow, prefer `deck-sync link`.
 
-A deck's `name`, `created`, and `lastSynced` front-matter fields are not settable here (a usage error explains each — the display name is changed with [`rename`](/commands/rename/), the other two are stamped automatically), and any other property is refused with the accepted-fields listing.
+A deck's `lastSynced` field is not settable here (a usage error says it is stamped by deck sync), and any other property is refused with the accepted-fields listing. A list's name is not front matter at all — it is the file's `# Title` heading, changed with [`rename`](/commands/rename/).
 
 ## Examples
 
@@ -74,7 +74,7 @@ A deck's `name`, `created`, and `lastSynced` front-matter fields are not settabl
 
 ## Output
 
-`set` reports the property's new stored value (`Set labels = ["sale","trade"] on collection 'trade-binder'`; a value that cleared the key reports `Cleared`). `get` prints the raw value — arrays as JSON — and exits `3` with a `not_found` error when the property is unset. `list` prints every property for the list's type, `(unset)` included — the non-settable `image` among them; with `--output json` the payload is `{ type, list, frontMatter }` where `frontMatter` is the **full** mapping — non-settable keys (`name`, `created`, `lastSynced`) and hand-authored unknown keys included, the same honest shape the admin route returns.
+`set` reports the property's new stored value (`Set labels = ["sale","trade"] on collection 'trade-binder'`; a value that cleared the key reports `Cleared`). `get` prints the raw value — arrays as JSON — and exits `3` with a `not_found` error when the property is unset. `list` prints every property for the list's type, `(unset)` included — the non-settable `image` among them; with `--output json` the payload is `{ type, list, frontMatter }` where `frontMatter` is the **full** mapping — non-settable keys (`lastSynced`, `sourceUpdatedAt`) and hand-authored unknown keys included, the same honest shape the admin route returns.
 
 Under `--output json`/`ndjson`, errors are emitted on stderr as `{ "error": { "code", "message" } }` per the [scripting conventions](/#scripting-conventions).
 

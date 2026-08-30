@@ -222,7 +222,7 @@ The changelogs are still updated (or previewed under `--dry-run`) exactly as in 
       "kind": "parse",
       "file": "decks/New Name.md",
       "revision": "working-tree",
-      "message": "decks/New Name.md: Skipped malformed line: 4 Lightning Bolt ???"
+      "message": "decks/New Name.md: Skipped malformed line: Sideboard plan: bring in Pyroblast"
     }
   ]
 }

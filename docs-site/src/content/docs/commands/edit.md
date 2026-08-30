@@ -72,8 +72,7 @@ see [Exit Codes](#exit-codes).
 
 :::note
 The name is matched against the list's **file name** (without `.md`), like every other command. The
-selection menu, by contrast, shows decks by their **display name** (the `name:` front matter
-field) — so a deck whose title differs from its file name is addressed here by the file name. A
+selection menu, by contrast, shows decks by their **display name** (the `# Title` heading) — so a deck whose title differs from its file name is addressed here by the file name. A
 deck at `decks/old-burn.md` titled `Modern Burn` opens with `./ritual edit old-burn`, not
 `./ritual edit "Modern Burn"`.
 :::
@@ -112,7 +111,7 @@ On startup (and whenever you back out of a list) you pick what to edit next:
 - Every **deck** (`🎴`, by display name), **collection** (`📦`), and **wanted list** (`🎯`) on disk,
   plus any list created this session. Lists with unsaved changes show a `— N unsaved change(s)`
   badge, and a list that does not exist on disk yet is badged `— new`. Decks are listed by their
-  display name (the `name:` front matter field), which is what an older or hand-renamed deck's
+  display name (the `# Title` heading), which is what an older or hand-renamed deck's
   file name may differ from.
 - `➕ New Deck` / `➕ New Collection` / `➕ New Wanted List` — create a list and start editing it (see
   [Creating Lists](#creating-lists)).
@@ -638,7 +637,7 @@ the line — after the finish and condition, before labels and the note:
 
 ```
 - Mana Crypt (2XM:270) [foil] [ja] [sale,trade] &3
-3 Counterspell (LEA:55) [de] &12
+- 3 Counterspell (LEA:55) [de] &12
 - Sol Ring (C21:263) [zhs] &4
 ```
 
@@ -719,36 +718,45 @@ Cards are written to a markdown deck file in the `decks/` directory under their 
 
 ```
 ---
-name: "Winota Stax"
-format: "commander"
+format: commander
 ---
 
+# Winota Stax
+
 ## Commander
-1 Winota, Joiner of Forces (IKO:215) &1
+
+- 1 Winota, Joiner of Forces (IKO:215) &1
 
 ## Main
-1 Sol Ring (LTC:284) &2
-4 Lightning Bolt (LEA:161) &3
+
+- 1 Sol Ring (LTC:284) &2
+- 4 Lightning Bolt (LEA:161) &3
 ```
 
-The leading number is the card quantity. Non-foil finish, `NM` condition, and the English
-language are omitted for brevity (a non-English copy carries a `[ja]`-style token after the
-condition — see [Card Language](#card-language)). The `&N` suffix is a persistent card ID used
-internally for change tracking and is auto-assigned. Decrementing a quantity keeps the ID; only
-removing the whole line releases it.
+The `# Title` heading names the deck, and each card line is a `- ` bullet followed by the card
+quantity. Non-foil finish, `NM` condition, and the English language are omitted for brevity (a
+non-English copy carries a `[ja]`-style token after the condition — see
+[Card Language](#card-language)). The `&N` suffix is a persistent card ID used internally for
+change tracking and is auto-assigned. Decrementing a quantity keeps the ID; only removing the whole
+line releases it.
 
 The full line grammar is:
 
 ```
-<quantity> Card Name (SET:CN) [finish] [condition] [lang] [labels] {note} &N
+- <quantity> Card Name (SET:CN) [finish] [condition] [lang] [labels] {note} &N
 ```
 
 Everything after the quantity and name is optional, and `&N` is always last:
 
 ```
-1 Sol Ring (LTC:284) [proxy] &2
-4 Lightning Bolt (LEA:161) [foil] [LP] [ja] {playtest copies} &3
+- 1 Sol Ring (LTC:284) [proxy] &2
+- 4 Lightning Bolt (LEA:161) [foil] [LP] [ja] {playtest copies} &3
 ```
+
+This is the canonical form every save writes. The reader is more lenient — bracket tokens in any
+order, an optional bullet, `4x` quantities, Arena/Moxfield `(SET) CN` printings — and the next
+save rewrites what it read into the form above. See [List File Format](/list-format/) for the
+full grammar and the per-type token table.
 
 `[labels]` on a deck line is the card's [label override](#card-labels), and the only label a deck
 carries is `proxy`. A hand-written token a deck cannot carry (`[keep]`, `[sale,trade]`) — or an
@@ -761,8 +769,7 @@ the same one-label vocabulary as its lines:
 
 ```markdown
 ---
-name: 'Proxy Testing Deck'
-format: 'commander'
+format: commander
 labels: [proxy]
 ---
 ```

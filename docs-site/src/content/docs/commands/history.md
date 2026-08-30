@@ -53,7 +53,7 @@ Text output starts with a header line — `Change history for Deck 'my-deck' —
 
 `--limit <n>` keeps only the newest `n` sets, applied after the newest-first sort.
 
-With `--output json`, the payload is deliberately the same shape as the admin site's `GET /api/history/:type/:slug` response, minus its `success` and `defaultLines` fields:
+With `--output json`, the payload is deliberately the same shape as the admin site's `GET /api/history/:type/:slug` response, minus its `success` and `defaultEvents` fields:
 
 ```json
 {
@@ -61,14 +61,23 @@ With `--output json`, the payload is deliberately the same shape as the admin si
   "sets": [
     {
       "timestamp": "2026-02-01T10:00:00.000Z",
-      "lines": ["- Removed \"Lightning Bolt\" (LEA:161) &2"]
+      "lines": ["- Removed \"Lightning Bolt\" (LEA:161) &2"],
+      "events": [
+        {
+          "action": "remove",
+          "cardName": "Lightning Bolt",
+          "cardId": 2,
+          "set": "lea",
+          "collectorNumber": "161"
+        }
+      ]
     }
   ]
 }
 ```
 
 - `header` — everything before the first change set in the `.changes.md` file.
-- `sets` — the change sets newest first (truncated to `--limit`), each `{ timestamp, lines }` with the raw `- ` lines verbatim, plus a `trailing` array when hand-written text follows the set's change lines (see [Lossless editing](#lossless-editing)). An empty history emits `"sets": []`.
+- `sets` — the change sets newest first (truncated to `--limit`), each `{ timestamp, lines, events }` with the raw `- ` lines verbatim and `events` the set's typed change events from its [`ritual-changes` block](/list-format/#the-changesmd-changelog) (one per line, in order; empty for a legacy entry that has no block), plus a `trailing` array when hand-written text follows the set's change lines (see [Lossless editing](#lossless-editing)). An empty history emits `"sets": []`.
 
 Because `--show` output is meant for scripts, invoking it without a `[listName]` when [prompts are unavailable](/#when-prompts-are-unavailable) is a usage error (exit `2`) rather than a hang — the interactive list picker only runs on a TTY.
 
@@ -106,11 +115,11 @@ you just did, and the destructive rewrite below the harmless preview rather than
 
 ### Combining sets
 
-When two change sets are combined, their lines are interleaved by age — the older set's entries on top, the newer set's beneath — so newer changes always end up at the bottom, no matter which set you combined into which. The merge then compacts the result the same way the card editor's live change log does: an **add** and a later **remove** of the same card (matching printing, finish, condition, board, and ID) annihilate, as do set/unset-commander and add/remove-section pairs. A combine that cancels everything leaves the set empty, so it is dropped. Lines that survive keep their exact original text, including their `&N` card IDs.
+When two change sets are combined, their lines are interleaved by age — the older set's entries on top, the newer set's beneath — so newer changes always end up at the bottom, no matter which set you combined into which. The merge then compacts the result the same way the card editor's live change log does: an **add** and a later **remove** of the same card (matching printing, finish, condition, board, and ID) annihilate, as do set/unset-commander and add/remove-section pairs — decided on the sets' typed events, never by re-reading the prose. A combine that cancels everything leaves the set empty, so it is dropped. Lines that survive keep their exact original text, including their `&N` card IDs, and their events. Two well-formed sets combine in lockstep (prose line _i_ with event _i_). A legacy set with no events block can only be combined with another legacy set — the two merge as opaque prose, and nothing cancels — and is never offered a set that carries a block; a set whose prose and events are out of step is not offered at all.
 
 ### Lossless editing
 
-Apart from combine's compaction, change lines — including their `&N` card IDs — are moved around verbatim; the editor never re-parses or reformats them. The "rewrite with defaults" action regenerates lines from the current list contents.
+Apart from combine's compaction, change lines — including their `&N` card IDs — are moved around verbatim, each with its typed event; the editor never re-parses or reformats them. The "rewrite with defaults" action regenerates both the lines and the events from the current list contents.
 
 Hand-written text between change sets is preserved too: non-change lines are attached to the set they follow (shown beneath its change lines, and carried in `--show`'s JSON as the set's `trailing` array), travel with that set through timestamp edits and combines, and are re-emitted on save — each line kept as written (indentation included), though blank lines between them are not kept and the block always lands after the set's change lines. Deleting a set deletes its attached text with it, and **Rewrite with defaults** discards every set's attached text along with the sets themselves (the confirmation says how many lines that is); text before the first set belongs to the header and always survives.
 

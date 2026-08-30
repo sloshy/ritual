@@ -1576,7 +1576,7 @@ as interesting. `warnings` carries list parse warnings from either side.
 GET /api/history/:type/:slug
 ```
 
-Returns the parsed change sets of a list's change log (newest first) plus the raw change lines a "rewrite with defaults" would produce. `:type` is `deck`, `collection`, or `wanted`. The list file is read only to derive `defaultLines`; a list with no change log yet returns an empty `sets` array. A set that is followed by hand-written non-change text carries it in a `trailing` array (absent otherwise) — the text is preserved through an edit-and-save round trip (each line kept as written, re-emitted after the set's change lines; blank lines between them are not kept).
+Returns the parsed change sets of a list's change log (newest first) plus the typed change events a "rewrite with defaults" would produce. `:type` is `deck`, `collection`, or `wanted`. Each set carries its prose `lines` and its `events` — the typed events from the entry's [`ritual-changes` block](/list-format/#the-changesmd-changelog), one per line in the same order (empty for a legacy entry that has no block). The list file is read only to derive `defaultEvents`; a list with no change log yet returns an empty `sets` array. A set that is followed by hand-written non-change text carries it in a `trailing` array (absent otherwise) — the text is preserved through an edit-and-save round trip (each line kept as written, re-emitted after the set's change lines; blank lines between them are not kept).
 
 **Response:**
 
@@ -1588,10 +1588,21 @@ Returns the parsed change sets of a list's change log (newest first) plus the ra
     {
       "timestamp": "2026-05-29T12:00:00.000Z",
       "lines": ["- Added \"Sol Ring\" (LEA:1) &1"],
+      "events": [
+        {
+          "action": "add",
+          "cardName": "Sol Ring",
+          "cardId": 1,
+          "set": "lea",
+          "collectorNumber": "1"
+        }
+      ],
       "trailing": ["NOTE TO SELF: the FNM tuning session."]
     }
   ],
-  "defaultLines": ["- Added \"Sol Ring\" (LEA:1) &1"]
+  "defaultEvents": [
+    { "action": "add", "cardName": "Sol Ring", "cardId": 1, "set": "lea", "collectorNumber": "1" }
+  ]
 }
 ```
 
@@ -1601,7 +1612,7 @@ Returns the parsed change sets of a list's change log (newest first) plus the ra
 POST /api/history/:type/:slug/save
 ```
 
-Overwrite the list's change log with the supplied change sets. Each set needs a valid ISO-8601 `timestamp` and a `lines` array of strings, each starting with `- `. A set may also carry a `trailing` array of preserved hand-written lines — these must **not** start with `- ` or `## ` (they would be re-parsed as change lines or set headers on the next load), and are written back verbatim after the set's change lines. Only the `.changes.md` file is written; the list's own `.md` is never touched, and the existing header is preserved. When git auto-commit is enabled, the change log is committed (`Rewrite change history for <slug>`).
+Overwrite the list's change log with the supplied change sets. Each set needs a valid ISO-8601 `timestamp`, a `lines` array of strings, each starting with `- `, and an `events` array of typed change events — one per line, in the same order, echoed back from `GET` (empty only for a legacy set that had none); an event that does not decode is a `400`. A set may also carry a `trailing` array of preserved hand-written lines — these must **not** start with `- ` or `## ` (they would be re-parsed as change lines or set headers on the next load), and are written back verbatim after the set's change lines. Only the `.changes.md` file is written; the list's own `.md` is never touched, and the existing header is preserved. When git auto-commit is enabled, the change log is committed (`Rewrite change history for <slug>`).
 
 **Request Body:**
 
@@ -1610,7 +1621,16 @@ Overwrite the list's change log with the supplied change sets. Each set needs a 
   "sets": [
     {
       "timestamp": "2026-05-29T12:00:00.000Z",
-      "lines": ["- Added \"Sol Ring\" (LEA:1) &1"]
+      "lines": ["- Added \"Sol Ring\" (LEA:1) &1"],
+      "events": [
+        {
+          "action": "add",
+          "cardName": "Sol Ring",
+          "cardId": 1,
+          "set": "lea",
+          "collectorNumber": "1"
+        }
+      ]
     }
   ]
 }

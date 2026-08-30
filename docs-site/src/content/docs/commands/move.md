@@ -133,7 +133,7 @@ Key behaviors:
 - **Name-only wanted entries**: If a card has no set/collector number (i.e., it is a name-only wanted list entry) and the destination requires a printing (e.g., a collection), you will be prompted to resolve a printing before the move is queued. The picker lists each printing's price in your configured `defaultCurrency` — see [Printing and Finish Prices](/commands/edit/#printing-and-finish-prices).
 - **Single destination**: In the single-card flow, if only one valid destination is configured, the destination prompt is skipped and the card is queued immediately. [Batch Mode](#batch-mode) always asks.
 - **Change tracking**: Source files receive a `Moved … to …` changelog entry. Destination files receive a `Moved … from …` changelog entry.
-- **Deck files are rewritten in canonical form**: a move touching a deck re-serializes that deck file, so a move is **refused** when the parser cannot read some of that file (prose, comments, a fenced code block, an empty `## Main`/`## Sideboard` header) — the write would delete it. An empty extras section (`## Maybeboard`, `## Tokens`) is the exception: it holds nothing, so it is dropped rather than refused. Collection and wanted-list files are edited as text and keep such lines.
+- **Deck files are rewritten in canonical form**: a move touching a deck re-serializes that deck file, so a move is **refused** when the parser cannot read some of that file (prose, a fenced code block, an empty section other than `## Main`/`## Sideboard`) — the write would delete it. An empty extras section (`## Maybeboard`, `## Tokens`) is the exception: it holds nothing, so it is dropped rather than refused. Collection and wanted-list files are edited as text and keep such lines.
 
 ### Interactive Flow
 

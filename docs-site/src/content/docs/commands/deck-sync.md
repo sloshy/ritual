@@ -251,7 +251,7 @@ that happen silently, a sync lists every affected deck and the exact lines at st
 1 deck contains lines Ritual cannot read.
 Syncing rewrites the deck file, so these lines would be removed:
   winota-stax.md ("Winota Stax"):
-    Skipped malformed line: // buy this one later
+    Skipped malformed line: buy this one later
 ? Sync 1 deck anyway, removing the lines above? › (y/N)
 ```
 
@@ -387,7 +387,6 @@ After a successful sync, two fields are added or updated in the deck's YAML fron
 
 ```yaml
 ---
-name: 'My Deck'
 format: commander
 sourceId: '12345'
 sourceUrl: 'https://archidekt.com/decks/12345'

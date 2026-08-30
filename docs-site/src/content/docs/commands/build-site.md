@@ -330,8 +330,8 @@ The site was published without them.
 ```
 
 Names given to `--decks`, `--collections` and `--wanted-lists` are matched
-against both the list's **display name** (the deck's `name:` front matter, a
-collection or wanted list's `# Title`) and its **file base name**, ignoring case,
+against both the list's **display name** (its `# Title` heading) and its
+**file base name**, ignoring case,
 accents, and `-`/`_` separators — the same matching every other list-taking
 command uses, so `--decks winota-stax` finds a deck titled `Winota Stax`. A
 trailing `.md` is accepted. A name that two lists answer to is reported rather

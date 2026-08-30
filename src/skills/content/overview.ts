@@ -24,8 +24,10 @@ workspace if it contains \`decks/\`, \`collections/\`, or \`wanted/\` folders, o
 - \`collections/<name>.md\` — collections of owned cards
 - \`wanted/<name>.md\` — cards you want to acquire
 - \`<name>.changes.md\` — append-only changelog next to each list (auto-maintained;
-  its prose is always English whatever the UI locale — it is a data format Ritual
-  parses back, and the sites translate it for display only)
+  each entry is prose \`- \` lines plus a fenced \`ritual-changes\` block of JSON-Lines
+  events — the block is what Ritual reads back, the prose is rendered only and is
+  always English whatever the UI locale; an entry with no block is legacy and shows
+  no events until \`ritual cleanup\` converts it)
 - \`<name>.art.json\` — optional custom-art sidecar next to a list, mapping card
   \`&N\` ids to a replacement image (see **Custom art** below)
 - \`ritual.config.json\` — configuration (optional: reading config never creates
@@ -72,52 +74,84 @@ not \`winota-stax.md\`). Only what file systems reject is cleaned up: the charac
 \`/ \\ : * ? " < > |\` are stripped, runs of dots collapse to a single dot, leading and
 trailing dots are trimmed, and a name with nothing usable left is an error. Older
 lists may still have hyphenated file names; they resolve by name as normal, and their
-display name comes from the deck's \`name:\` front matter (or, for collections and
-wanted lists, the first \`# Title\` heading), falling back to the file name.
+display name comes from the file's first \`# Title\` heading (every list type),
+falling back to the file name.
 \`ritual cleanup\` renames such files to match their list names in one pass.
 
 ## File format
 
-Deck card lines start with a quantity; collection and wanted lines start with \`- \`:
+Full reference: the **List File Format** docs page (\`/list-format/\`). Every list is
+optional YAML front matter, a \`# Title\` H1 (all three types — there is no \`name:\`
+key), then \`## Section\` headings and \`- \` bulleted card lines. The canonical line
+every write emits, in this order, with defaults omitted:
 
 \`\`\`
-## Mainboard
-3 Counterspell (LEA:55) &12
-1 Sol Ring &5
+- [qty] Name (SET:CN) [finish] [cond] [lang] [labels] {note} &N
+\`\`\`
+
+\`\`\`
+---
+format: commander
+---
+
+# Winota Stax
+
+## Commander
+
+- 1 Winota, Joiner of Forces (IKO:216) &1
+
+## Main
+
+- 3 Counterspell (LEA:55) [foil] &12
+- 1 Sol Ring &5
 \`\`\`
 
 \`\`\`
 # My Collection
-- Black Lotus (LEA:232) [foil] [LP] [keep] {first edition} &7
+
+- Black Lotus (LEA:232) [LP] [keep] {first edition} &7
 \`\`\`
 
 \`\`\`
 # Wants
+
 - Counterspell &3
 \`\`\`
 
-- \`(SET:CollectorNumber)\` pins a printing. Set codes are written **UPPERCASE** in files.
-- **Collection lines always carry a printing** — a printing-less collection line is
-  rejected by every write path and skipped (with a warning) on load. Deck and wanted
-  lines may be name-only, as \`1 Sol Ring &5\` and \`- Counterspell &3\` above.
-- **Collection and wanted lines hold one copy each** — there is no quantity on the line, so a
-  deck-style \`- 1 Sol Ring (C21:240)\` parses as a card *named* \`1 Sol Ring\`. \`collection-sync\`,
-  \`cleanup\`, and the CLI editors print an advisory naming such a line (a 1-3 digit leading integer; a real name like \`1996 World Champion\`
-  is left alone). It is advisory only: the line parses and survives every save, so fix the file.
-- \`[foil]\`/\`[etched]\` is the finish, \`[LP]\`/\`[MP]\`/\`[HP]\`/\`[DMG]\` the condition (the default \`NM\` is not written), \`{...}\` a note.
-- \`[ja]\`-style tokens are the card's **language** — a lowercase Scryfall language code
-  (\`en es fr de it pt ja ko ru zhs zht he la grc ar sa ph\`; note \`zhs\`/\`zht\` for Chinese,
-  not ISO codes). The token is **omitted for English**: a bare line always means \`en\`,
-  whatever the configured default, so files stay self-describing. Canonical token order is
-  finish, condition, language, labels, note (\`- Sol Ring (LEA:270) [foil] [LP] [ja] [keep] {trade bait} &7\`;
-  wanted lines skip condition; deck lines carry \`[proxy]\` and no other label).
-- \`[sale]\`/\`[trade]\`/\`[sale,trade]\`/\`[keep]\`/\`[proxy]\` (between condition and note)
-  is a **card label override**: \`sale\` and \`trade\` combine, \`keep\` and \`proxy\` each
-  stand alone (including against each other). Collections take all four, **decks take
-  \`proxy\` only**, and wanted lists carry no labels at all — an unsupported label in a
-  file is a parse warning that keeps the line and drops the token. A card's
+- **Decks** carry the copies as a quantity on the line; **collections and wanted lists
+  hold one line per copy** and write no quantity.
+- \`(SET:CollectorNumber)\` pins a printing; set codes are written **UPPERCASE** in
+  files. **Collection lines always carry a printing** — a printing-less collection line
+  is refused (\`missing-printing\`) and blocks whole-file writes until fixed. Deck and
+  wanted lines may be name-only.
+- \`[foil]\`/\`[etched]\` is the finish (\`nonfoil\` unwritten), \`[LP]\`/\`[MP]\`/\`[HP]\`/\`[DMG]\`
+  the condition (\`NM\` unwritten), \`[ja]\`-style tokens the **language** — a lowercase
+  Scryfall code (\`en es fr de it pt ja ko ru zhs zht he la grc ar sa ph\`; \`zhs\`/\`zht\`
+  for Chinese, not ISO codes), omitted for English so a bare line always means \`en\`.
+  \`{...}\` is a note, greedy to the last \`}\`.
+- \`[sale]\`/\`[trade]\`/\`[sale,trade]\`/\`[keep]\`/\`[proxy]\` is a **card label override**:
+  \`sale\` and \`trade\` combine, \`keep\` and \`proxy\` each stand alone. Collections take
+  all four, **decks take \`proxy\` only** (another label on a deck line is a warning that
+  keeps the card and drops the token), and **wanted lists carry neither labels nor a
+  condition** — such a token on a wanted line is a named refusal of that line. A card's
   *effective* labels are its own token when present, else the list's front-matter
   default — see the **ritual-collections** and **ritual-decks** skills.
+- **Read tolerances** (rewritten to the canonical form on the next save): bracket
+  tokens in any order; any whitespace run; the \`- \` bullet is optional on a deck line
+  (a deck line is recognized by its leading quantity; a flat-list line by its bullet);
+  \`4x\` quantities; a quantity on a collection/wanted line (\`- 4 Sol Ring (C21:240)\`
+  reads as four copies and is **expanded to four lines on save** — an advisory, never a
+  refusal; the first copy keeps the \`&N\`); Arena/MTGO \`Name (SET) CN\` and Moxfield
+  \`Name (SET) *F* CN\` printings; \`//\` comment lines (dropped on write); \`_\` in set
+  codes. A refused line (an unknown or disallowed token, a collection line with no
+  printing) is a warning naming the file, line, and token, and blocks every
+  whole-file write of that file; line-preserving commands leave it alone.
+- **Sections** are matched by exact name (case-insensitive) against a closed table:
+  \`Commander\`/\`Commanders\`/\`Command Zone\`, \`Companion\`, \`Oathbreaker\`/\`Signature
+  Spell\`, \`Sideboard\`, \`Maybeboard\`, \`Tokens\`/\`Token\`, \`Main\`/\`Mainboard\`/\`Deck\`.
+  **Every other name is a main-deck section** — \`## Token Generators\` or
+  \`## Sideboard (post-board)\` is not special. Maybeboard and Tokens count toward no
+  total and are left out of every decklist export.
 - \`&N\` is a **stable internal card ID**. Never hand-author or renumber these — the tools manage them.
   Commands that add or edit card lines (editors, card mutations, imports, syncs \`deck-sync pull\`/\`push\`
   and \`collection-sync\` — not \`deck-sync status\`/\`link\` — \`cleanup\`,
@@ -127,6 +161,8 @@ Deck card lines start with a quantity; collection and wanted lines start with \`
   read an \`&N\` at all. Read-only commands (\`lists\`, \`diff\`, \`price\`, \`sell\`, \`export\`,
   \`list-all-cards\`, \`history --show\`, ...) and the \`new\`/\`rename\`/\`delete\` lifecycle
   never touch card lines, and \`-n\`/\`--dry-run\` writes nothing, including that backfill.
+- A per-card \`#tag\` token is **planned, not implemented** — a \`#word\` on a line today is
+  part of the name. Front-matter \`tags:\` on a deck describes the list, not its cards.
 
 **Fenced code blocks are prose.** Anything inside a \`\`\`\` \`\`\` \`\`\`\`/\`~~~\` fence in a list file is
 ignored by card parsing: a card-looking line there is not a card, a \`## Heading\` there is
@@ -144,10 +180,13 @@ One shape the whole-file paths **do** delete, on purpose and without refusing: a
 empty **extras** section (a \`## Maybeboard\`/\`## Tokens\` header with no cards under it).
 Extras count toward no total, so the header holds nothing to lose — every whole-file write
 clears it, and \`cleanup\` names it (\`Dropped empty section: Maybeboard\`) while still
-rewriting. An empty \`## Main\`/\`## Sideboard\` header is content and still blocks a rewrite.
+rewriting. An empty \`## Main\`/\`## Mainboard\`/\`## Deck\`/\`## Sideboard\` header in a deck
+with cards elsewhere is kept instead: it is written back bare, with no warning. Any
+other empty heading is content a rewrite would lose, so it warns and blocks the write.
 
-A deck's YAML front matter carries its \`format:\` (a fixed set of keys — see the
-**ritual-decks** skill). A deck with no \`format:\` is treated as Commander when it
+A deck's YAML front matter carries its \`format:\` and \`tags:\` (a fixed set of keys — see
+the **ritual-decks** skill; \`name:\`/\`created:\` are legacy keys that \`cleanup\` and every
+deck save strip, the name having moved to the \`# Title\` H1). A deck with no \`format:\` is treated as Commander when it
 has a \`## Commander\` section, and the tools write that down on the next save.
 A **collection's** YAML front matter carries its default card labels
 (\`labels: [sale, trade]\` or \`labels: [keep]\`), and a **deck's** carries
@@ -215,8 +254,7 @@ Every list shows one **cover image** on the published site — the picture on it
 tile on the index page and in Quick Switch. By default that is chosen for
 you: a commander deck shows its commander, every other list its most expensive
 printing. A list overrides it with an \`image:\` key in its front matter, which
-decks, collections and wanted lists all carry (it is the *only* key a wanted list
-carries):
+decks, collections and wanted lists all carry:
 
 \`\`\`yaml
 image:
@@ -268,8 +306,11 @@ The three modes fail differently, on purpose:
 
 **Prefer the CLI (or the web admin / MCP server) over hand-editing files**, so the
 \`&N\` IDs and \`.changes.md\` changelog stay correct. Reading files directly for
-inspection is fine. To normalize a whole workspace — canonical formatting, file
-names that match list names, a \`format:\` on every deck — run \`ritual cleanup\`
+inspection is fine. To normalize a whole workspace — canonical formatting (bullets,
+token order, expanded flat-list quantities, \`# Title\` H1 with legacy \`name:\`/\`created:\`
+stripped), file names that match list names, a \`format:\` on every deck, and legacy
+\`.changes.md\` entries converted to the \`ritual-changes\` block (\`changelogRewritten\`
+in its JSON; unconvertible entries left as-is and warned about) — run \`ritual cleanup\`
 (\`-n\`/\`--dry-run\` to preview; \`--check\` to also exit 1 when any file would
 change, for hooks and CI; \`--skip-formats\` to never prompt for deck formats,
 leaving formatless decks untouched and reported). A file it cannot read or parse

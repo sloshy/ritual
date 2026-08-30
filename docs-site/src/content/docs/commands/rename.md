@@ -48,7 +48,7 @@ paths the text output prints, so a script never has to rebuild them from the slu
 
 ## Behavior
 
-The new file name is derived from the new name by the same sanitization every surface uses (see [List file names](/commands/new/#list-file-names)), and the display name inside the file is rewritten — a deck's front-matter `name:` (plus a legacy `# H1` matching the old name), a flat list's first `# H1`. When the new name sanitizes to the slug the list already has, the file is updated in place.
+The new file name is derived from the new name by the same sanitization every surface uses (see [List file names](/commands/new/#list-file-names)), and the display name inside the file — its first `# Title` heading, on every list type — is rewritten. When the new name sanitizes to the slug the list already has, the file is updated in place.
 
 On a file move, the list's sidecars move with it: the `.changes.md` changelog, the `.art.json` [custom art](/custom-art/) map, and — for decks — the `.primer.md` primer are renamed alongside, and the old `.sha256` content hash is removed. A fresh hash is written only when the old sidecar still matched the file — a hand-edited list is left with no sidecar, so [`detect-changes`](/commands/detect-changes/) still records its edits.
 
