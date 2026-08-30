@@ -206,14 +206,20 @@ function parseOptionalId(digits: string | undefined): number | undefined {
   return digits === undefined ? undefined : Number.parseInt(digits, 10)
 }
 
-/** Split a `SET:CN` group into its lowercased set code and collector number. */
-function parseSetCn(setCn: string | undefined): Pick<LegacyLine, 'set' | 'collectorNumber'> {
+/**
+ * Split a `SET:CN` group into its lowercased set code and collector number, or
+ * null when the captured group is not one. On the unquoted legacy grammars the
+ * `(...)` group is only a printing by convention — `Added Erase (Not the Urza's
+ * Legacy One)` captures half a card name there — so an unreadable group fails
+ * the line rather than silently dropping the text it held.
+ */
+function parseSetCn(setCn: string | undefined): Pick<LegacyLine, 'set' | 'collectorNumber'> | null {
   if (!setCn) return {}
   const parts = setCn.split(':')
   if (parts.length === 2 && parts[0] && parts[1]) {
     return { set: parts[0].toLowerCase(), collectorNumber: parts[1] }
   }
-  return {}
+  return null
 }
 
 /**
@@ -276,11 +282,13 @@ function parseChangeLineBody(line: string): LegacyLine | null {
     const type = typeLabel !== undefined ? LIST_TYPE_BY_LABEL[typeLabel] : undefined
     if (!rawCardName || !type || listName === undefined) return null
     const ref: ListRef = { type, name: listName }
+    const printing = parseSetCn(setCn)
+    if (!printing) return null
     return {
       action: direction === 'to' ? 'Moved to list' : 'Moved from list',
       cardName: stripQuotes(rawCardName),
       cardId: parseOptionalId(rawCardId),
-      ...parseSetCn(setCn),
+      ...printing,
       ...classifyBracketTokens([bracket1, bracket2, bracket3]),
       ...(direction === 'to' ? { to: ref } : { from: ref }),
     }
@@ -396,11 +404,13 @@ function parseChangeLineBody(line: string): LegacyLine | null {
   if (!resolvedAction) return null
 
   const normalizedBoard = board && board.toLowerCase() !== 'main' ? board : undefined
+  const printing = parseSetCn(setCn)
+  if (!printing) return null
 
   return {
     action: resolvedAction,
     cardName,
-    ...parseSetCn(setCn),
+    ...printing,
     ...classifyBracketTokens([bracket1, bracket2, bracket3]),
     board: normalizedBoard,
   }

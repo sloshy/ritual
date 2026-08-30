@@ -867,6 +867,26 @@ export const cliCardsMeta = {
   'cli.cleanup.actionRewritten': {
     description: 'One reported action: the file was re-emitted in canonical form.',
   },
+  'cli.cleanup.actionChangelogConverted': {
+    description:
+      "One reported action: the list's .changes.md had legacy prose-only entries that gained a ritual-changes block.",
+  },
+  'cli.cleanup.changelogCouldNotRead': {
+    description:
+      "Per-file warning: the list's changelog sidecar exists but could not be read. {file} is its file name, {reason} the OS error.",
+  },
+  'cli.cleanup.changelogEntryUnparsed': {
+    description:
+      'Per-file warning: one legacy changelog entry was left unconverted because some of its prose lines were unreadable. {file} is the changelog file name, {timestamp} the entry header, {lines} the offending lines joined by "; ".',
+  },
+  'cli.cleanup.changelogEntryDesynced': {
+    description:
+      'Per-file warning: one changelog entry was left as-is because its prose line count and its events block line count differ (a hand edit). {file} is the changelog file name, {timestamp} the entry header.',
+  },
+  'cli.cleanup.changelogUndecodable': {
+    description:
+      'Per-file warning: the changelog was not rewritten at all because an existing ritual-changes block holds an undecodable line a rewrite would drop. {file} is the changelog file name.',
+  },
   'cli.cleanup.actionNeedsFormat': {
     description: 'One reported action under --dry-run: this deck would be asked for a format.',
   },

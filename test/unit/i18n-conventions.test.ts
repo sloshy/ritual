@@ -99,6 +99,7 @@ describe('i18n persistence fence', () => {
       'src/changes/changelog-blocks.ts',
       'src/changes/change-event-decode.ts',
       'src/changes/changelog-legacy-parser.ts',
+      'src/changes/changelog-migrate.ts',
       'src/changes/csv.ts',
       'src/changes/change-bundle.ts',
       'src/changes/list-snapshot.ts',

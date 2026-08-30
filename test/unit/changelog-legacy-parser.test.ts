@@ -419,6 +419,26 @@ describe('legacy prose parser', () => {
     })
   })
 
+  test('an unquoted name whose parenthetical is not a SET:CN fails the line rather than losing it', () => {
+    // Older unquoted lines bind the `(...)` group as the printing; when it is
+    // not one, the line must land in unparsedLines, never as a truncated event.
+    for (const line of [
+      "- Added Erase (Not the Urza's Legacy One)",
+      '- Removed Everythingamajig (b) &2',
+      "- Moved B.F.M. (Big Furry Monster) &5 to Deck 'Burn'",
+    ]) {
+      expect(parseLegacyChangeLine(line)).toBeNull()
+    }
+    // A trailing real printing still binds as the printing.
+    expect(
+      parseLegacyChangeLine("- Added Erase (Not the Urza's Legacy One) (ULG:16)"),
+    ).toMatchObject({
+      cardName: "Erase (Not the Urza's Legacy One)",
+      set: 'ulg',
+      collectorNumber: '16',
+    })
+  })
+
   test('parses quoted "Set note on" and "Cleared note on" lines', () => {
     const content = `# Changelog
 
