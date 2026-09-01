@@ -19,7 +19,7 @@ export type PrintingFilterProps = {
  * input whose text also builds from printable keys pressed anywhere in the
  * dialog (see {@link useTypeToFilter}), so keyboard users filter by just
  * typing while the box itself stays a tap target for on-screen keyboards.
- * Callers pair it with `filterPrintingsByQuery` from `src/collector-query.ts`
+ * Callers pair it with `filterPrintingsByQuery` from `src/card/collector-query.ts`
  * and an `.empty-state` no-match message keyed `ui.printingFilter.noMatches`.
  */
 export const PrintingFilter: Component<PrintingFilterProps> = (props) => {

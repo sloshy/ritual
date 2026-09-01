@@ -357,21 +357,32 @@ choose first — and `--collector` starts a session there. Rows read `MKM:123 �
 set code and then by collector number.
 
 The search only ever matches the set code and the collector number; **card names are not matched in
-this mode** (`🔤 Switch to Name Mode` is one row away when you want them). Type either half, or both:
+this mode** (`🔤 Switch to Name Mode` is one row away when you want them). Type either half, in
+either order:
 
-| You type  | Matches                                                                      |
-| --------- | ---------------------------------------------------------------------------- |
-| `mkm:123` | set codes containing `mkm`, collector numbers starting with `123`            |
-| `mkm 123` | the same — a space splits the halves just as a colon does                    |
-| `mkm:`    | every printing in a set code containing `mkm`                                |
-| `:123`    | collector number `123` (and `1230`…) in every set                            |
-| `se 456`  | `456`… in **every** set code containing `se` — a half-typed code still works |
-| `123`     | one bare token: set codes containing it, or numbers starting with it         |
+| You type  | Matches                                                                             |
+| --------- | ----------------------------------------------------------------------------------- |
+| `mkm:123` | set codes containing `mkm`, collector numbers starting with `123`                   |
+| `mkm 123` | nearly the same — a space separates the terms, but `123` may still match a set code |
+| `123 mkm` | the same again — terms are searched independently, so order never matters           |
+| `mkm:`    | every printing in a set code containing `mkm`                                       |
+| `:123`    | collector number `123` (and `1230`…) in every set                                   |
+| `se 456`  | `456`… in **every** set code containing `se` — a half-typed code still works        |
+| `123`     | one bare token: set codes containing it, or numbers starting with it                |
+
+Each whitespace-separated term is classified on its own and all of them must match, so a third term
+narrows further rather than being ignored. An **all-letter** term searches set codes only — a
+collector number effectively always carries a digit somewhere. Any other term searches both halves,
+since numeric set codes (`2XM`, `40K`, `10E`) and letter-bearing collector numbers (`123a`,
+`M10-146`) are equally routine. A colon overrides the guess for the
+terms it joins: `:2xm` searches collector numbers and nothing else, `284:` searches set codes only,
+and a term further out keeps its own classification — `123 mkm:12` narrows a `123` already typed.
 
 Set codes match on **substring** (so a half-typed code still finds its sets) and collector numbers on
-**prefix**. A third token is ignored — there is nothing left to match it against. The same query
+**prefix**, or exactly once leading zeros are trimmed from both sides (`012` finds `12`). The same query
 grammar filters the sites' printing pickers: the
-[add-card grid](/admin/editors/#step-2-select-printing) in both editors and the
+[add-card grid](/admin/editors/#step-2-select-printing) in both editors, the
+[Swap Printings wizard](/admin/editors/#swap-printings), and the
 [Trade Planner picker](/commands/build-site/#trade-planner).
 
 - **Narrowing the pool** — The ordinary `⚙️ Configure Session Filters` set filter is what restricts

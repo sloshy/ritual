@@ -284,8 +284,9 @@ collections, and wanted lists: a selection menu covers all lists (plus create-ne
 items). Sessions support name/collector entry modes, per-type edit modes over
 existing entries (with nothing typed the whole list is listed below the menu
 rows, so it can be scrolled as well as searched), and undo. Collector mode is a \`SET:CN\` search over **every
-printing in the local Scryfall cache** (\`mkm:123\`, \`mkm 123\`, or a bare token
-matched against set codes and collector numbers) — nothing is preloaded, and
+printing in the local Scryfall cache** (\`mkm:123\`, \`mkm 123\`, \`123 mkm\`, or a bare token
+matched against set codes and collector numbers — terms are searched independently, an all-letter
+one against set codes and any other against both halves) — nothing is preloaded, and
 \`--sets\` is only an optional filter narrowing that pool. A collector-mode row
 already names one printing, so it skips the printing picker and that picker's
 language-availability check. Every type's edit mode includes a **Change Language**
