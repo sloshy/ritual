@@ -113,6 +113,18 @@ describe('resolveAddedLanguage', () => {
     expect(resolveAddedLanguage('ja')).toBe('ja')
   })
 
+  test('a session default fills in for an unresolved language', () => {
+    expect(resolveAddedLanguage(undefined, 'ja')).toBe('ja')
+    // ...and still collapses to undefined when the session is on English.
+    expect(resolveAddedLanguage(undefined, 'en')).toBeUndefined()
+  })
+
+  test('a resolved language beats the session default', () => {
+    // The picker's availability confirm decided this printing exists only in
+    // English; the session's Japanese default must not overwrite that.
+    expect(resolveAddedLanguage('en', 'ja')).toBeUndefined()
+  })
+
   describe('with a configured non-en defaultLanguage', () => {
     let ws: BoundWorkspace
 
@@ -124,6 +136,12 @@ describe('resolveAddedLanguage', () => {
       ws = await bindWorkspace({ dirs: [], config: { defaultLanguage: 'ja' } })
       await refreshRitualConfig()
       expect(resolveAddedLanguage(undefined)).toBe('ja')
+    })
+
+    test('a session default overrides the configured one', async () => {
+      ws = await bindWorkspace({ dirs: [], config: { defaultLanguage: 'ja' } })
+      await refreshRitualConfig()
+      expect(resolveAddedLanguage(undefined, 'de')).toBe('de')
     })
   })
 })

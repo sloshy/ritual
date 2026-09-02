@@ -15,6 +15,13 @@ import type { CardSessionContext, SessionAddItem, SessionChangeItem } from './st
 export type EditUndoEntry = {
   /** The card id the operation targeted. */
   cardId: number
+  /**
+   * The card the operation targeted, by name. Kept alongside the id because the
+   * id alone is not an identity: a removal releases its `&N` to the pool and a
+   * later add takes it, so "is this row's card still here" has to compare the
+   * name too — see {@link listSessionChangeItems}.
+   */
+  cardName: string
   /** What the operation did — picks the icon in the session-changes list. */
   kind: 'edit' | 'removal' | 'move'
   /** Short description for the Undo Last Edit menu item, e.g. `printing on Sol Ring`. */
@@ -77,6 +84,13 @@ export function targetedUndoBlocker(entries: EditUndoEntry[], index: number): st
 }
 
 /**
+ * Whether `cardId` still names the card called `name` in the live list. An id is
+ * not an identity on its own: removals release their `&N` and later adds take it
+ * back, so every "can this row's card be edited" question compares both.
+ */
+export type SameCardCheck = (cardId: number, name: string) => boolean
+
+/**
  * The unified View Session Changes list: the session's adds (each discardable
  * at any time) followed by its edit-mode operations (each discardable unless a
  * newer operation touches the same card). Indices align with the concatenation
@@ -86,11 +100,13 @@ export function targetedUndoBlocker(entries: EditUndoEntry[], index: number): st
 export function listSessionChangeItems(
   adds: SessionAddItem[],
   editUndo: EditUndoEntry[],
+  isSameCard: SameCardCheck,
 ): SessionChangeItem[] {
   return [
     ...adds.map(
       (add): SessionChangeItem => ({
         label: `➕ ${t('cli.edit.sessionAdd', { label: add.label })}`,
+        editable: add.cardId !== undefined && isSameCard(add.cardId, add.name),
       }),
     ),
     ...editUndo.map((entry, index): SessionChangeItem => {
@@ -98,9 +114,30 @@ export function listSessionChangeItems(
       const icon = entry.kind === 'removal' ? '🗑️' : entry.kind === 'move' ? '📤' : '✏️'
       const label = `${icon}  ${entry.label}`
       const blocked = targetedUndoBlocker(editUndo, index)
-      return blocked === null ? { label } : { label, blocked }
+      // Only a field edit leaves a line behind — a removal or a move took the
+      // card away — and even then the id must still name the same card, since a
+      // removal elsewhere in the session may have handed it to a later add.
+      const item: SessionChangeItem = {
+        label,
+        editable: entry.kind === 'edit' && isSameCard(entry.cardId, entry.cardName),
+      }
+      return blocked === null ? item : { ...item, blocked }
     }),
   ]
+}
+
+/**
+ * The card id the session change at `index` targets, over the same
+ * adds-then-edits concatenation {@link listSessionChangeItems} renders. Only
+ * meaningful for a row that screen marked `editable`: a removal's id may since
+ * have been reissued to a different card, and a discarded add's names nothing.
+ */
+export function sessionChangeCardId(
+  adds: SessionAddItem[],
+  editUndo: EditUndoEntry[],
+  index: number,
+): number | undefined {
+  return index < adds.length ? adds[index]?.cardId : editUndo[index - adds.length]?.cardId
 }
 
 /** {@link foldOutCardChanges}' split of a session changelog. */

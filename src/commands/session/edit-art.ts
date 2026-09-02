@@ -313,6 +313,7 @@ export async function editCardArt(target: CardArtEditTarget): Promise<void> {
   noteArtSet(target.art, target.cardId, edit.ref)
   target.editUndo.push({
     cardId: target.cardId,
+    cardName: target.cardName,
     kind: 'edit',
     label: t('cli.editLabel.art', { name: target.cardName }),
     inverse: [],

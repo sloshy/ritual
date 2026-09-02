@@ -36,13 +36,18 @@ import { ExitCode, CardCommandError, getErrorMessage, localizedCommandError } fr
 /**
  * The language a freshly added entry records: the language the printing
  * resolution decided (the picker's availability confirm, or an explicit
- * `--language` flag folded in by the caller), else the configured
- * `defaultLanguage`. `en` collapses to undefined via {@link storedLanguage} —
- * the serializers omit the token for English, and a bare line always means
- * `en`. Adding never prompts for language.
+ * `--language` flag folded in by the caller), else `sessionDefault` — an
+ * interactive session's own current language, which starts at the configured
+ * `defaultLanguage` and moves with the `🌐 Card Language` menu action — else the
+ * configured `defaultLanguage` itself. `en` collapses to undefined via
+ * {@link storedLanguage} — the serializers omit the token for English, and a
+ * bare line always means `en`. Adding never prompts for language.
  */
-export function resolveAddedLanguage(resolved: CardLanguage | undefined): CardLanguage | undefined {
-  return storedLanguage(resolved ?? getDefaultLanguage())
+export function resolveAddedLanguage(
+  resolved: CardLanguage | undefined,
+  sessionDefault?: CardLanguage,
+): CardLanguage | undefined {
+  return storedLanguage(resolved ?? sessionDefault ?? getDefaultLanguage())
 }
 
 /** An existing list entry, as far as resolving the printing it pins is concerned. */

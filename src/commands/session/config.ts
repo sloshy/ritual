@@ -16,6 +16,7 @@ import {
   VALID_CONDITIONS,
 } from '../../card/finish-condition'
 import { formatSetCodesForDisplay, parseSetCodesInput } from '../../card/set-codes'
+import type { CardLanguage } from '../../card/card-language'
 import { t } from '../../i18n/t'
 import { ExitCode } from '../../util/errors'
 import type { CollectorChoice } from './menu'
@@ -31,11 +32,18 @@ export type EntryMode = 'name' | 'collector'
 /** Session-wide filters and entry-mode state shared by all card-entry commands. */
 export type SessionConfig = {
   sets?: string[]
-  // Deliberately no `language` default alongside `finish`: the configured
-  // `defaultLanguage` already is the session-wide default (adds never prompt
-  // for language), and per-entry deviations go through the printing picker's
-  // availability confirm or the Change Language edit action — a per-session
-  // language filter would just duplicate the config key.
+  /**
+   * The language stamped on cards added from here on. Seeded from the
+   * configured `defaultLanguage` and moved by the `🌐 Card Language` menu
+   * action, never by a prompt on an individual add.
+   *
+   * Kept off the "Configure Session Filters" screen on purpose: it is not a
+   * filter (it narrows nothing) and it comes up far more rarely than the set,
+   * finish and condition defaults that screen exists for — so it gets a menu
+   * row of its own, alongside the `🌐 Change Language` action that retargets
+   * the card just added.
+   */
+  language: CardLanguage
   finish?: Finish
   condition?: Condition | 'NONE'
   entryMode: EntryMode
@@ -155,6 +163,7 @@ export function buildInitialSessionConfig(
   const upperCondition = options.condition?.toUpperCase()
   return {
     sets: parsedSets,
+    language: getDefaultLanguage(),
     finish: isFinish(options.finish) ? options.finish : undefined,
     condition: isCondition(upperCondition) ? upperCondition : undefined,
     entryMode: options.collector ? 'collector' : 'name',

@@ -11,6 +11,7 @@ import {
   createCardSessionContext,
   type CardSessionContext,
   type CardSessionStrategy,
+  type SessionChangeEditAction,
   type SessionChangeItem,
 } from './strategy'
 import { resetCardSessionTracking, saveCardSession } from './loop'
@@ -234,7 +235,18 @@ export function trackListCreation(
           : inbound > 0
             ? t('cli.edit.discardInboundMovesFirst', { type: ref.type, count: inbound })
             : undefined
-      return [{ label: creationLabel, blocked }, ...changes]
+      // The creation is not a card change, so there is nothing on it to edit.
+      return [{ label: creationLabel, blocked, editable: false }, ...changes]
+    },
+    editSessionChange: async (
+      ctx: CardSessionContext,
+      index: number,
+      action: SessionChangeEditAction,
+    ): Promise<void> => {
+      // Index 0 is the creation row while the list is still pending; the card
+      // changes it leads are the inner strategy's, shifted by one.
+      if (!isNew) return inner.editSessionChange(ctx, index, action)
+      if (index > 0) return inner.editSessionChange(ctx, index - 1, action)
     },
     discardSessionChange: async (ctx: CardSessionContext, index: number): Promise<void> => {
       if (!isNew) return inner.discardSessionChange(ctx, index)

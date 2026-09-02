@@ -5,6 +5,8 @@ import { createSetNoteChange } from '../../changes/change-event'
 import { formatSetCodesForDisplay } from '../../card/set-codes'
 import { t } from '../../i18n/t'
 import { ask, promptExitMenu } from '../../cli/prompts'
+import { languageDisplayName } from '../../card/card-language'
+import { promptLanguageChoice } from './prompts'
 import {
   asMenuSentinel,
   ensureCollectorChoices,
@@ -26,6 +28,8 @@ import {
   type CardSessionContext,
   type CardSessionStrategy,
   type LastAdded,
+  type SessionChangeEditAction,
+  type SessionChangeItem,
   type SessionMode,
 } from './strategy'
 
@@ -165,10 +169,77 @@ export function resetCardSessionTracking(
   ctx.lastAddedCount = 0
 }
 
+/** What the per-change action menu resolves to; null/undefined is Back. */
+type ChangeAction = SessionChangeEditAction | 'discard'
+
+/** One row of the per-change action menu; `null` is the Back row. */
+type ChangeActionChoice = { title: string; value: ChangeAction | null }
+
+const CHANGE_ACTIONS = ['details', 'language', 'discard'] as const satisfies readonly ChangeAction[]
+
+/** A loose string: the prompt is untyped, so the value is proven here, never asserted. */
+function isChangeAction(value: unknown): value is ChangeAction {
+  return typeof value === 'string' && CHANGE_ACTIONS.some((action) => action === value)
+}
+
 /**
- * The View Session Changes screen: list every change made this session and
- * offer to discard the selected one. Discarding re-renders the list; Back (or
- * escape) returns to the main prompt.
+ * The per-change action menu: what can be done to the change just picked out of
+ * the session-changes list. A change whose card is still in the list can be
+ * edited as well as taken back — editing the printing options of a card added a
+ * moment ago is far more often what the user wants than discarding and
+ * re-adding it — and the language gets a row of its own here for the same
+ * reason it gets one in the session menu (see `SessionConfig.language`).
+ *
+ * A row for a card that is gone (a removal, a move, a list's creation) offers
+ * only the discard, which is what this screen has always done.
+ */
+export function changeActionChoices(item: SessionChangeItem): ChangeActionChoice[] {
+  const editRows: ChangeActionChoice[] = item.editable
+    ? [
+        { title: `✏️  ${t('cli.session.changeActionDetails')}`, value: 'details' },
+        { title: `🌐 ${t('cli.session.changeActionLanguage')}`, value: 'language' },
+      ]
+    : []
+  return [
+    ...editRows,
+    { title: `🗑️  ${t('cli.session.changeActionDiscard')}`, value: 'discard' },
+    { title: `← ${t('cli.menu.back')}`, value: null },
+  ]
+}
+
+/** One row of the session-changes picker: an index into the change list, or Back. */
+type SessionChangeRow = { title: string; value: number | null }
+
+/**
+ * The session-changes picker rows. Newest first — the change a user wants is
+ * almost always the one they just made — while each row's value stays its index
+ * into the *unreversed* list, which is what every strategy method addresses.
+ */
+export function sessionChangeRows(items: SessionChangeItem[]): SessionChangeRow[] {
+  return [
+    ...items
+      .map((item, index): SessionChangeRow => ({ title: item.label, value: index }))
+      .reverse(),
+    { title: `← ${t('cli.menu.back')}`, value: null },
+  ]
+}
+
+/** Show {@link changeActionChoices} and resolve the chosen action (null is Back/escape). */
+async function promptChangeAction(item: SessionChangeItem): Promise<ChangeAction | null> {
+  const action = await ask<string>({
+    type: 'select',
+    message: t('cli.session.promptChangeAction', { label: item.label }),
+    subjectKey: 'cli.prompt.subject.changeAction',
+    choices: changeActionChoices(item),
+  })
+  return isChangeAction(action) ? action : null
+}
+
+/**
+ * The View Session Changes screen: list every change made this session and act
+ * on the selected one — discard it, or (when its card is still in the list)
+ * edit that card. Every action re-renders the list; Back (or escape) returns to
+ * the main prompt.
  */
 async function viewSessionChanges(
   strategy: CardSessionStrategy,
@@ -180,35 +251,36 @@ async function viewSessionChanges(
       console.log(t('cli.session.noChanges'))
       return
     }
-    // Resolves to an item index, null (Back), or undefined (escaped).
+    // Resolves to an item index, null (Back), or undefined (escaped). The type
+    // argument is an assertion; what makes it safe is the `items[index]` lookup
+    // below, which is checked under `noUncheckedIndexedAccess`.
     const index = await ask<number | null>({
       type: 'select',
-      message: t('cli.session.promptPickChangeToDiscard', { count: items.length }),
-      subjectKey: 'cli.prompt.subject.changeToDiscard',
-      choices: [
-        ...items.map((item, index) => ({ title: item.label, value: index })).reverse(),
-        { title: `← ${t('cli.menu.back')}`, value: null },
-      ],
+      message: t('cli.session.promptPickChange', { count: items.length }),
+      subjectKey: 'cli.prompt.subject.sessionChange',
+      choices: sessionChangeRows(items),
     })
     if (index == null) return
     const item = items[index]
     if (!item) return
+
+    const action = await promptChangeAction(item)
+    if (action === null) continue
+
+    if (action !== 'discard') {
+      await strategy.editSessionChange(ctx, index, action)
+      continue
+    }
+    // The blocker is checked at the discard, not at the pick: a blocked change
+    // can still be edited, only not taken back out of order.
     if (item.blocked) {
       console.log(t('cli.session.discardBlocked', { reason: item.blocked }))
       continue
     }
-    const confirmed = await ask<boolean>({
-      type: 'confirm',
-      message: t('cli.session.promptDiscardChange', { label: item.label }),
-      subjectKey: 'cli.prompt.subject.discardConfirm',
-      initial: false,
-    })
-    if (confirmed) {
-      await strategy.discardSessionChange(ctx, index)
-      // Discarding a list's creation takes the list away with it: there is
-      // nothing left to render, let alone discard.
-      if (strategy.discarded?.()) return
-    }
+    await strategy.discardSessionChange(ctx, index)
+    // Discarding a list's creation takes the list away with it: there is
+    // nothing left to render, let alone discard.
+    if (strategy.discarded?.()) return
   }
 }
 
@@ -255,6 +327,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
     const choices = buildMenuChoices({
       sessionMode,
       mode: sessionConfig.entryMode,
+      language: sessionConfig.language,
       lastAdded: ctx.lastAdded,
       changeCount: ctx.sessionChanges.length,
       extraItems: strategy.extraMenuItems?.() ?? [],
@@ -390,6 +463,26 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
         strategy.noteAdded?.(note)
         console.log(t('cli.session.noteAdded', { name: target.name, note }))
       }
+      continue
+    }
+
+    if (menuAction === '__CARD_LANGUAGE__') {
+      const language = await promptLanguageChoice(sessionConfig.language)
+      if (language !== null) {
+        sessionConfig.language = language
+        console.log(
+          t('cli.session.cardLanguageSet', {
+            language: languageDisplayName(language),
+            code: language,
+          }),
+        )
+      }
+      continue
+    }
+
+    if (menuAction === '__EDIT_LAST_LANGUAGE__') {
+      const cardId = ctx.lastAdded?.cardId
+      if (cardId !== undefined) await strategy.editEntryLanguage(ctx, cardId)
       continue
     }
 

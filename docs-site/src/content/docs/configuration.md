@@ -151,6 +151,8 @@ These are **Scryfall's codes, not ISO codes** — Chinese is `zhs`/`zht` (not `z
 
 On card lines the language is a bracket token (`[ja]`) that is **omitted for English**: a bare line always means `en`, whatever this key says, so list files stay self-describing. The key only controls what gets stamped on _new_ cards — it never reinterprets existing lines.
 
+An [`edit`](/commands/edit/) session seeds its own [session language](/commands/edit/#the-session-language) from this key and can move it from the `🌐 Card Language` menu row without writing the config file, so one session's adds can be Japanese while the key stays `en`. `edit` also warns once on startup when the key is absent, since every card added is then stamped English by default.
+
 ### This is not the interface language
 
 `defaultLanguage` decides which **printing of a card** is recorded. The language

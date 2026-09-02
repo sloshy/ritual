@@ -24,7 +24,11 @@ export function renderDeckCopyRecord(record: DeckCopyRecord): SessionAddItem {
   const printingInfo = record.printing.set
     ? ` (${record.printing.set.toUpperCase()}:${record.printing.collectorNumber})`
     : ''
-  return { label: `${record.name}${printingInfo} → ${record.section}`, name: record.name }
+  return {
+    label: `${record.name}${printingInfo} → ${record.section}`,
+    name: record.name,
+    cardId: record.cardId,
+  }
 }
 
 /** The mutable session state a discard transforms. */

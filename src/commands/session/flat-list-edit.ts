@@ -16,11 +16,11 @@ import type {
   CardSessionContext,
   CardSessionStrategy,
   EditableEntryItem,
+  SessionChangeEditAction,
   SessionChangeItem,
 } from './strategy'
 import {
   foldOutCardChanges,
-  listSessionChangeItems,
   retargetUndoCardId,
   swapUndoChangelog,
   targetedUndoBlocker,
@@ -31,9 +31,12 @@ import {
   discardSessionChangeAt,
   editArt,
   editLanguage,
+  editLanguageById,
   editNote,
   lastEditLabel,
+  editSessionChangeAt,
   listEditableEntries,
+  listSessionChanges,
   logUpdatedLine,
   resetStaleLastAdded,
   type EditModel,
@@ -110,6 +113,7 @@ export function flatListModel<E extends EditableFlatListEntry>(
     markDirty: () => {
       session.dirty = true
     },
+    sessionAdds: () => listFlatListSessionAdds(list),
     entries: () => session.entries,
     cardId: (entry) => entry.cardId,
     find: (cardId) => findFlatListEntry(list, cardId) ?? null,
@@ -172,6 +176,7 @@ export function performFlatListRemoval<E extends EditableFlatListEntry>(
 
   list.editUndo.push({
     cardId,
+    cardName: removed.name,
     kind: 'removal',
     label: t('cli.editLabel.removal', { name: removed.name }),
     inverse: restoreEntryInverse(removed, cardId),
@@ -276,6 +281,7 @@ export function performFlatListMove<E extends EditableFlatListEntry>(
 
   list.editUndo.push({
     cardId,
+    cardName: removed.name,
     kind: 'move',
     label: t('cli.editLabel.moveToList', {
       name: removed.name,
@@ -374,7 +380,7 @@ export function undoFlatListEditAt<E extends EditableFlatListEntry>(
 export function listFlatListSessionChanges<E extends EditableFlatListEntry>(
   list: FlatListStrategyContext<E>,
 ): SessionChangeItem[] {
-  return listSessionChangeItems(listFlatListSessionAdds(list), list.editUndo)
+  return listSessionChanges(flatListModel(list))
 }
 
 /**
@@ -418,6 +424,8 @@ export type FlatListDelegates = Pick<
   | 'discardSessionAdd'
   | 'listSessionChanges'
   | 'discardSessionChange'
+  | 'editSessionChange'
+  | 'editEntryLanguage'
   | 'listEntries'
   | 'lastEditUndoLabel'
   | 'undoLastEdit'
@@ -429,6 +437,7 @@ export type FlatListDelegates = Pick<
  */
 export function flatListDelegates<E extends EditableFlatListEntry>(
   list: FlatListStrategyContext<E>,
+  editEntry: CardSessionStrategy['editEntry'],
 ): FlatListDelegates {
   const { session, state } = list
   return {
@@ -448,6 +457,12 @@ export function flatListDelegates<E extends EditableFlatListEntry>(
     listSessionChanges: () => listFlatListSessionChanges(list),
     discardSessionChange: async (ctx: CardSessionContext, index: number) =>
       discardFlatListSessionChange(list, ctx, index),
+    editSessionChange: (ctx: CardSessionContext, index: number, action: SessionChangeEditAction) =>
+      editSessionChangeAt(flatListModel(list), ctx, index, action, (cardId) =>
+        editEntry(ctx, cardId),
+      ),
+    editEntryLanguage: (ctx: CardSessionContext, cardId: number) =>
+      editLanguageById(flatListModel(list), ctx, cardId),
     listEntries: () => listFlatListEntries(list),
     lastEditUndoLabel: () => lastFlatListEditLabel(list),
     undoLastEdit: async (ctx: CardSessionContext) => undoFlatListEdit(list, ctx),

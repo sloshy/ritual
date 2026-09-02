@@ -5,7 +5,8 @@ import type { cliMessages } from './cli'
 
 /**
  * The interactive card session renders its menu inside a hard row budget
- * (`SESSION_MENU_LIMIT = 18`), so every `cli.menu.*` entry carries a length
+ * (`SESSION_MENU_LIMIT` in `src/commands/session/menu.ts`), so every `cli.menu.*`
+ * entry carries a length
  * budget the catalog validator enforces. A menu row that wraps costs a second
  * terminal line, which pushes Save and Exit — the items at the menu's foot —
  * below the fold. German and Finnish labels run 30–50% longer than English, so
@@ -185,13 +186,13 @@ export const cliMeta = {
     description:
       'Noun phrase naming what a card note prompt wanted, spliced into the --no-input refusal frame.',
   },
-  'cli.prompt.subject.changeToDiscard': {
+  'cli.prompt.subject.sessionChange': {
     description:
       'Noun phrase naming what the View Session Changes picker wanted, spliced into the --no-input refusal frame.',
   },
-  'cli.prompt.subject.discardConfirm': {
+  'cli.prompt.subject.changeAction': {
     description:
-      'Noun phrase naming what the discard-this-change confirmation wanted, spliced into the --no-input refusal frame.',
+      'Noun phrase naming what the per-change action menu wanted, spliced into the --no-input refusal frame.',
   },
   'cli.prompt.subject.sessionCard': {
     description:
@@ -315,6 +316,16 @@ export const cliMeta = {
   'cli.menu.editPrevious': {
     description:
       'Session menu row re-opening the last added card to change its options in place rather than adding a copy. {name} is the card name.',
+    maxLen: MENU_WITH_NAME,
+  },
+  'cli.menu.changeLastLanguage': {
+    description:
+      'Session menu row opening the language picker for the last added card, without re-asking its printing options. {name} is the card name.',
+    maxLen: MENU_WITH_NAME,
+  },
+  'cli.menu.cardLanguage': {
+    description:
+      'Session menu row showing, and changing, the language stamped on cards added from here on. {language} is that language\u2019s English display name (e.g. "Japanese"), already localized by the caller.',
     maxLen: MENU_WITH_NAME,
   },
   'cli.menu.undoLastAdd': {
@@ -526,12 +537,27 @@ export const cliMeta = {
   'cli.session.promptDefaultCondition': {
     description: 'Session-filter prompt for the condition new cards get without being asked.',
   },
-  'cli.session.promptDiscardChange': {
-    description:
-      'Confirmation before taking back one session change. {label} is the rendered change line and is never translated.',
-  },
-  'cli.session.promptPickChangeToDiscard': {
+  'cli.session.promptPickChange': {
     description: 'Heading of the session-changes screen. {count} is how many changes it lists.',
+  },
+  'cli.session.promptChangeAction': {
+    description:
+      'Heading of the action menu for one session change. {label} is the rendered change line and is never translated.',
+  },
+  'cli.session.changeActionDetails': {
+    description:
+      "Session-changes action row opening the list type's own per-entry edit menu for the card this change touched.",
+  },
+  'cli.session.changeActionLanguage': {
+    description:
+      'Session-changes action row opening the language picker for the card this change touched.',
+  },
+  'cli.session.changeActionDiscard': {
+    description: 'Session-changes action row taking the change back out of the session.',
+  },
+  'cli.session.cardLanguageSet': {
+    description:
+      'Confirmation after the Card Language menu action. {language} is the language\u2019s display name and {code} its Scryfall code, which never translates.',
   },
   'cli.session.finishAlwaysPrompt': {
     description:

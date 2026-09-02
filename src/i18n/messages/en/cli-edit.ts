@@ -187,6 +187,8 @@ export const cliEditMessages = {
   'cli.edit.noteSet': 'Note set on {name}.',
   'cli.edit.noteCleared': 'Note cleared on {name}.',
   'cli.edit.noPrintings': 'No printings found.',
+  'cli.edit.noConfiguredLanguage':
+    'No defaultLanguage configured; adding cards as English ({language}). Change it for this session with the 🌐 Card Language menu action, or for good with `ritual config set defaultLanguage <code>`.',
   'cli.edit.noPrintingsNameOnly': 'No printings found. Adding name only.',
   'cli.edit.fileWarning': '{file}: {warning}',
 

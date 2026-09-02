@@ -66,14 +66,42 @@ export function createCardSessionContext(): CardSessionContext {
  * the session-changes list. `label` is the full rendered line shown in the
  * picker; `name` is the bare card name used in the "Undo Last Add" shortcut.
  */
-export type SessionAddItem = { label: string; name: string }
+export type SessionAddItem = {
+  label: string
+  name: string
+  /**
+   * The card id the add produced, when the line it produced is still in the
+   * list. Absent once the line is gone (a later removal), which is what makes a
+   * session-changes row un-editable.
+   */
+  cardId?: number
+}
 
 /**
  * One change made this session, as shown in the View Session Changes picker.
  * `blocked` carries the reason the change cannot be discarded right now (a
  * newer change touches the same card), or is undefined when it can be.
  */
-export type SessionChangeItem = { label: string; blocked?: string }
+export type SessionChangeItem = {
+  label: string
+  blocked?: string
+  /**
+   * The change's card is still in the list under the same name, so the review
+   * screen can offer to edit it instead of only discarding the change. False for
+   * a row whose card is gone (a removal, a completed move, a card whose `&N` was
+   * reissued to a different card) and for a list's creation. Required rather
+   * than optional: a strategy that forgot it would silently lose the whole edit
+   * half of that screen.
+   */
+  editable: boolean
+}
+
+/**
+ * What the View Session Changes screen can do to the card behind a change,
+ * short of discarding it: open the list type's own per-entry action menu, or go
+ * straight to the language picker.
+ */
+export type SessionChangeEditAction = 'details' | 'language'
 
 /**
  * Why the engine is invoking {@link CardSessionStrategy.handleCard}:
@@ -174,6 +202,18 @@ export type CardSessionStrategy = {
   /** Discard the session change at `index` into {@link listSessionChanges}. */
   discardSessionChange: (ctx: CardSessionContext, index: number) => Promise<void>
   /**
+   * Run `action` on the card the session change at `index` targets. Addressed by
+   * change index rather than card id so the id never has to leave the strategy
+   * that owns it — a multi-list scope keys its pickers by synthetic ids, and a
+   * raw card id is only unique within one list. A no-op when the row's card is
+   * gone (`editable` false).
+   */
+  editSessionChange: (
+    ctx: CardSessionContext,
+    index: number,
+    action: SessionChangeEditAction,
+  ) => Promise<void>
+  /**
    * The list itself was discarded (its creation was taken back from the session
    * changes), so there is nothing left to edit. The session loop leaves for the
    * list selection menu when this turns true.
@@ -183,6 +223,13 @@ export type CardSessionStrategy = {
   listEntries: () => EditableEntryItem[]
   /** Run the edit flow (action menu and prompts) for the entry with `cardId`. */
   editEntry: (ctx: CardSessionContext, cardId: number) => Promise<void>
+  /**
+   * Run the language picker for the entry with `cardId`, skipping the action
+   * menu. Drives the `🌐 Change Language` add-mode shortcut, whose `cardId`
+   * comes from {@link CardSessionContext.lastAdded} — a real id in the list the
+   * last card went into, never one of a scope's synthetic picker keys.
+   */
+  editEntryLanguage: (ctx: CardSessionContext, cardId: number) => Promise<void>
   /** Label for the Undo Last Edit menu item, or null when there is no edit to undo. */
   lastEditUndoLabel: () => string | null
   /** Undo the most recent edit-mode operation. */

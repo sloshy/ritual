@@ -180,8 +180,12 @@ export function sessionSemantics(options: SessionSemanticsOptions): string {
     `**Undo within the session:** \`↩️ Undo Last Add\` ${options.undoAddVerb} the ` +
       `most recent card, and \`📋 View Session Changes\` opens a picker over ` +
       `every change made this session — ${options.changeKinds} — where ` +
-      `selecting one offers to discard just that change (${options.discardTarget} ` +
-      `must be discarded newest-first). ${options.discardAddEffect}`,
+      `selecting one opens an action menu: **Edit This Card** (that card's own ` +
+      `edit-mode menu), **Change This Card's Language**, or **Discard This ` +
+      `Change** (${options.discardTarget} must be discarded newest-first; a ` +
+      `blocked change can still be edited). The two edit rows appear only while ` +
+      `the change's card is still in the list, so a removal or a move offers the ` +
+      `discard alone. ${options.discardAddEffect}`,
   )
   return `${saving}\n\n${editMode}\n\n${undo}`
 }

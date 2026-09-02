@@ -6,6 +6,8 @@ import {
   discardDeckSessionAdd,
   discardDeckSessionChange,
   editDeckCard,
+  editDeckCardLanguage,
+  editDeckSessionChange,
   lastDeckEditLabel,
   listDeckEntries,
   listDeckSessionChanges,
@@ -14,6 +16,7 @@ import {
   performDeckLineRemoval,
   renderDeckCardLine,
   undoDeckEdit,
+  type DeckEditDeps,
   type DeckSessionState,
 } from '../../src/commands/session/deck-edit'
 import type { MoveDestination } from '../../src/commands/session/edit-move'
@@ -333,6 +336,38 @@ describe('listDeckSessionChanges', () => {
     expect(ctx.sessionChanges).toMatchObject([{ action: 'add', cardName: 'Brainstorm' }])
   })
 
+  test('marks editable exactly the rows whose deck line is still there', () => {
+    const { state, ctx } = withSessionAdd()
+    printingEdit(state, ctx, 1, LTC)
+    expect(listDeckSessionChanges(state).map((item) => item.editable)).toEqual([true, true])
+
+    // The removal row is never editable — its line is gone, and a deck frees the
+    // `&N` for the next add, so the id alone would name whichever card took it.
+    performDeckLineRemoval(state, ctx, 1)
+    expect(listDeckSessionChanges(state).map((item) => item.editable)).toEqual([true, false, false])
+  })
+
+  test('an edit action reaches the deck line the picked row names', async () => {
+    const { state, ctx } = withSessionAdd()
+    const deps: DeckEditDeps = { sessionConfig: {}, excludeDigitalOnly: true }
+
+    // Row 0 is the Brainstorm add; the language picker must land on &2.
+    prompts.inject(['ja'])
+    await editDeckSessionChange(state, ctx, 0, 'language', deps)
+    expect(findCardById(state.deck, 2)!.card.language).toBe('ja')
+    expect(findCardById(state.deck, 1)!.card.language).toBeUndefined()
+  })
+
+  test('an edit action on a row whose line is gone does nothing', async () => {
+    const { state, ctx } = withSessionAdd()
+    const deps: DeckEditDeps = { sessionConfig: {}, excludeDigitalOnly: true }
+    performDeckLineRemoval(state, ctx, 1)
+
+    // No prompt is injected: the removal row must not open the picker at all.
+    await editDeckSessionChange(state, ctx, 2, 'language', deps)
+    expect(state.editUndo).toHaveLength(1)
+  })
+
   test('discarding an add routes through the session-add machinery and reports it', () => {
     const { state, ctx } = withSessionAdd()
     printingEdit(state, ctx, 1, LTC)
@@ -416,6 +451,32 @@ describe('deck edit-mode — Change Language', () => {
     expect(findCardById(state.deck, 1)!.card.language).toBe('ja')
     expect(ctx.sessionChanges).toHaveLength(0)
     expect(lastDeckEditLabel(state)).toBeNull()
+  })
+})
+
+describe('editDeckCardLanguage', () => {
+  test('opens the language picker for one line, skipping the action menu', async () => {
+    const state = stateOf(
+      deckOf([{ quantity: 2, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }]),
+    )
+    const ctx = contextOf()
+
+    // One answer, not two: the per-entry action menu is bypassed.
+    prompts.inject(['ja'])
+    await editDeckCardLanguage(state, ctx, 1)
+
+    expect(findCardById(state.deck, 1)!.card.language).toBe('ja')
+    expect(ctx.sessionChanges).toMatchObject([
+      { action: 'set-language', language: 'ja', cardId: 1 },
+    ])
+  })
+
+  test('a card id no line carries is a no-op', async () => {
+    const state = stateOf(deckOf([]))
+    const ctx = contextOf()
+    // No prompt is injected: a stale id must not open the picker.
+    await editDeckCardLanguage(state, ctx, 9)
+    expect(ctx.sessionChanges).toEqual([])
   })
 })
 

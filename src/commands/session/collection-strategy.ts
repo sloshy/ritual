@@ -143,8 +143,118 @@ export function createCollectionStrategy(
     )
   }
 
+  /**
+   * The per-entry action menu and the flows behind it. Named rather than
+   * inlined in the strategy literal because the session-changes screen's
+   * "Edit This Card" action runs this same menu, and the delegates need it
+   * before the literal exists.
+   */
+  const editEntry: CardSessionStrategy['editEntry'] = async (ctx, cardId) => {
+    const entry = findFlatListEntry(list, cardId)
+    if (!entry) return
+    const env: FlatListEditEnv = { sessionConfig, excludeDigitalOnly, moveTargets }
+    const action = await promptEditAction(list.renderEntry(entry), [
+      // Always "change", never "set": a collection line cannot exist without a
+      // printing (`CollectionEntry.set`/`collectorNumber` are required, and a
+      // printing-less line is rejected on every write path).
+      { title: `🖼️  ${t('cli.editAction.changePrinting')}`, value: 'printing' },
+      { title: `✨ ${t('cli.editAction.changeFinish')}`, value: 'finish' },
+      { title: `📋 ${t('cli.editAction.changeCondition')}`, value: 'condition' },
+      ...sharedFlatListEditActions(env, [
+        { title: `🏷️  ${t('cli.editAction.changeLabel')}`, value: 'label' },
+      ]),
+    ])
+    if (!action) return
+
+    if (action === 'printing') {
+      const result = await resolveCardPrinting(entry.name, sessionConfig, excludeDigitalOnly)
+      if (result.kind === 'cancelled') return
+      if (result.kind === 'none') {
+        console.error(t('cli.edit.noPrintings'))
+        return
+      }
+      const finishAndCondition = await promptFinishAndCondition(
+        result.printing,
+        sessionConfig,
+        true,
+      )
+      if (!finishAndCondition) return
+      const target: PrintingTuple = {
+        set: result.printing.set.toLowerCase(),
+        collectorNumber: result.printing.collector_number,
+        finish: finishAndCondition.finish,
+        condition: finishAndCondition.condition,
+        // The entry keeps its language across a printing change unless the
+        // picker's availability confirm resolved a different one (resolved
+        // explicitly so the tuple restores/compares the real token).
+        language: result.language ?? displayLanguage(entry.language),
+      }
+      const before = printingTupleOf(entry)
+      applyFlatListFieldEdit(list, ctx, entry, cardId, {
+        label: t('cli.editLabel.printing', { name: entry.name }),
+        change: createSetPrintingChange(entry.name, { ...target, cardId }),
+        inverse: createSetPrintingChange(entry.name, { ...before, cardId }),
+        consolidate: (changes, original) =>
+          consolidateSetPrinting(changes, entry.name, target, printingTupleOf(original), cardId),
+      })
+      logUpdated(cardId, entry.name)
+      return
+    }
+
+    if (action === 'finish') {
+      const finish = await promptFinishChoice(entry.finish, await lookupPinnedPrinting(entry))
+      if (!finish || finish === entry.finish) return
+      applyFlatListFieldEdit(list, ctx, entry, cardId, {
+        label: t('cli.editLabel.finish', { name: entry.name }),
+        change: createSetFinishChange(entry.name, { finish, cardId }),
+        inverse: createSetFinishChange(entry.name, { finish: entry.finish, cardId }),
+        consolidate: (changes, original) =>
+          consolidateSetFinish(changes, entry.name, finish, original.finish ?? 'nonfoil', cardId),
+      })
+      logUpdated(cardId, entry.name)
+      return
+    }
+
+    if (action === 'condition') {
+      const condition = await promptConditionChoice(entry.condition)
+      if (!condition || condition === entry.condition) return
+      // There is no set-condition change; a set-printing carrying the entry's
+      // current printing plus the new condition is the canonical encoding.
+      const target: PrintingTuple = { ...printingTupleOf(entry), condition }
+      applyFlatListFieldEdit(list, ctx, entry, cardId, {
+        label: t('cli.editLabel.condition', { name: entry.name }),
+        change: createSetPrintingChange(entry.name, { ...target, cardId }),
+        inverse: createSetPrintingChange(entry.name, { ...printingTupleOf(entry), cardId }),
+        consolidate: (changes, original) =>
+          consolidateSetPrinting(changes, entry.name, target, printingTupleOf(original), cardId),
+      })
+      logUpdated(cardId, entry.name)
+      return
+    }
+
+    if (action === 'label') {
+      const labels = await promptCardLabelChoice('collection', entry.labels)
+      if (labels === null || sameCardLabels(labels, entry.labels)) {
+        return
+      }
+      applyFlatListFieldEdit(list, ctx, entry, cardId, {
+        label: t('cli.editLabel.labels', { name: entry.name }),
+        change: createSetLabelChange(entry.name, { labels, cardId }),
+        inverse: createSetLabelChange(entry.name, { labels: [...(entry.labels ?? [])], cardId }),
+        consolidate: (changes, original) =>
+          consolidateSetLabel(changes, entry.name, labels, original.labels, cardId),
+      })
+      logUpdated(cardId, entry.name)
+      return
+    }
+
+    await editSharedFlatListAction(action, list, ctx, entry, cardId, env)
+  }
+
   return {
-    ...flatListDelegates(list),
+    // The session-changes screen's "Edit This Card" action opens this very
+    // menu, so the delegates are handed the same function the strategy exposes.
+    ...flatListDelegates(list, editEntry),
     managerLabel: t('cli.manager.collection'),
     saveTarget: { filePath: session.filePath, listName },
     sessionConfig,
@@ -196,113 +306,13 @@ export function createCollectionStrategy(
           collectorNumber: printing.collector_number,
           finish: finishAndCondition.finish,
           condition: finishAndCondition.condition,
-          language: resolveAddedLanguage(pickedLanguage),
+          language: resolveAddedLanguage(pickedLanguage, sessionConfig.language),
         },
         isEditing,
         { kind: 'specific', printing },
       )
     },
 
-    async editEntry(ctx: CardSessionContext, cardId: number): Promise<void> {
-      const entry = findFlatListEntry(list, cardId)
-      if (!entry) return
-      const env: FlatListEditEnv = { sessionConfig, excludeDigitalOnly, moveTargets }
-      const action = await promptEditAction(list.renderEntry(entry), [
-        // Always "change", never "set": a collection line cannot exist without a
-        // printing (`CollectionEntry.set`/`collectorNumber` are required, and a
-        // printing-less line is rejected on every write path).
-        { title: `🖼️  ${t('cli.editAction.changePrinting')}`, value: 'printing' },
-        { title: `✨ ${t('cli.editAction.changeFinish')}`, value: 'finish' },
-        { title: `📋 ${t('cli.editAction.changeCondition')}`, value: 'condition' },
-        ...sharedFlatListEditActions(env, [
-          { title: `🏷️  ${t('cli.editAction.changeLabel')}`, value: 'label' },
-        ]),
-      ])
-      if (!action) return
-
-      if (action === 'printing') {
-        const result = await resolveCardPrinting(entry.name, sessionConfig, excludeDigitalOnly)
-        if (result.kind === 'cancelled') return
-        if (result.kind === 'none') {
-          console.error(t('cli.edit.noPrintings'))
-          return
-        }
-        const finishAndCondition = await promptFinishAndCondition(
-          result.printing,
-          sessionConfig,
-          true,
-        )
-        if (!finishAndCondition) return
-        const target: PrintingTuple = {
-          set: result.printing.set.toLowerCase(),
-          collectorNumber: result.printing.collector_number,
-          finish: finishAndCondition.finish,
-          condition: finishAndCondition.condition,
-          // The entry keeps its language across a printing change unless the
-          // picker's availability confirm resolved a different one (resolved
-          // explicitly so the tuple restores/compares the real token).
-          language: result.language ?? displayLanguage(entry.language),
-        }
-        const before = printingTupleOf(entry)
-        applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: t('cli.editLabel.printing', { name: entry.name }),
-          change: createSetPrintingChange(entry.name, { ...target, cardId }),
-          inverse: createSetPrintingChange(entry.name, { ...before, cardId }),
-          consolidate: (changes, original) =>
-            consolidateSetPrinting(changes, entry.name, target, printingTupleOf(original), cardId),
-        })
-        logUpdated(cardId, entry.name)
-        return
-      }
-
-      if (action === 'finish') {
-        const finish = await promptFinishChoice(entry.finish, await lookupPinnedPrinting(entry))
-        if (!finish || finish === entry.finish) return
-        applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: t('cli.editLabel.finish', { name: entry.name }),
-          change: createSetFinishChange(entry.name, { finish, cardId }),
-          inverse: createSetFinishChange(entry.name, { finish: entry.finish, cardId }),
-          consolidate: (changes, original) =>
-            consolidateSetFinish(changes, entry.name, finish, original.finish ?? 'nonfoil', cardId),
-        })
-        logUpdated(cardId, entry.name)
-        return
-      }
-
-      if (action === 'condition') {
-        const condition = await promptConditionChoice(entry.condition)
-        if (!condition || condition === entry.condition) return
-        // There is no set-condition change; a set-printing carrying the entry's
-        // current printing plus the new condition is the canonical encoding.
-        const target: PrintingTuple = { ...printingTupleOf(entry), condition }
-        applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: t('cli.editLabel.condition', { name: entry.name }),
-          change: createSetPrintingChange(entry.name, { ...target, cardId }),
-          inverse: createSetPrintingChange(entry.name, { ...printingTupleOf(entry), cardId }),
-          consolidate: (changes, original) =>
-            consolidateSetPrinting(changes, entry.name, target, printingTupleOf(original), cardId),
-        })
-        logUpdated(cardId, entry.name)
-        return
-      }
-
-      if (action === 'label') {
-        const labels = await promptCardLabelChoice('collection', entry.labels)
-        if (labels === null || sameCardLabels(labels, entry.labels)) {
-          return
-        }
-        applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: t('cli.editLabel.labels', { name: entry.name }),
-          change: createSetLabelChange(entry.name, { labels, cardId }),
-          inverse: createSetLabelChange(entry.name, { labels: [...(entry.labels ?? [])], cardId }),
-          consolidate: (changes, original) =>
-            consolidateSetLabel(changes, entry.name, labels, original.labels, cardId),
-        })
-        logUpdated(cardId, entry.name)
-        return
-      }
-
-      await editSharedFlatListAction(action, list, ctx, entry, cardId, env)
-    },
+    editEntry,
   }
 }

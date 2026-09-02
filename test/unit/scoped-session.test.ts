@@ -19,6 +19,7 @@ import {
   type CardSessionStrategy,
   type EditableEntryItem,
   type SessionAddItem,
+  type SessionChangeEditAction,
   type SessionChangeItem,
 } from '../../src/commands/session/strategy'
 import { buildInitialSessionConfig, type SessionConfig } from '../../src/commands/session/config'
@@ -44,6 +45,10 @@ type Calls = {
   undone: number
   discardedChanges: number[]
   discardedAdds: number[]
+  /** Session-change edit actions routed here, in order. */
+  editedChanges: { index: number; action: SessionChangeEditAction }[]
+  /** Card ids the Change Language shortcut targeted. */
+  languageEdits: number[]
   applied: ChangeEvent[]
   copies: number
   handled: CardChoiceInput[]
@@ -85,6 +90,8 @@ function fakeList(ref: UnifiedListRef, entries: EditableEntryItem[], changes: st
     undone: 0,
     discardedChanges: [],
     discardedAdds: [],
+    editedChanges: [],
+    languageEdits: [],
     applied: [],
     copies: 0,
     handled: [],
@@ -120,15 +127,24 @@ function fakeList(ref: UnifiedListRef, entries: EditableEntryItem[], changes: st
       assertOwnCtx(given)
       calls.discardedAdds.push(index)
     },
-    listSessionChanges: (): SessionChangeItem[] => changes.map((label) => ({ label })),
+    listSessionChanges: (): SessionChangeItem[] =>
+      changes.map((label) => ({ label, editable: true })),
     discardSessionChange: async (given, index) => {
       assertOwnCtx(given)
       calls.discardedChanges.push(index)
+    },
+    editSessionChange: async (given, index, action) => {
+      assertOwnCtx(given)
+      calls.editedChanges.push({ index, action })
     },
     listEntries: () => entries,
     editEntry: async (given, cardId) => {
       assertOwnCtx(given)
       calls.edited.push(cardId)
+    },
+    editEntryLanguage: async (given, cardId) => {
+      assertOwnCtx(given)
+      calls.languageEdits.push(cardId)
     },
     lastEditUndoLabel: () => (changes.length > 0 ? `undo ${changes[0]}` : null),
     undoLastEdit: async (given) => {
@@ -261,6 +277,47 @@ describe('scoped session changes', () => {
     await session.strategy.discardSessionChange(createCardSessionContext(), 2)
     expect(binder.calls.discardedChanges).toEqual([0])
     expect(deck.calls.discardedChanges).toEqual([])
+  })
+
+  test('an edit routes to the owning list under that list’s own change index', async () => {
+    const deck = fakeList(deckRef, [], ['added Sol Ring', 'removed Mox Ruby'])
+    const binder = fakeList(binderRef, [], ['added Black Lotus'])
+    const session = scoped([deck.open, binder.open])
+    session.strategy.listSessionChanges()
+
+    await session.strategy.editSessionChange(createCardSessionContext(), 2, 'language')
+    expect(binder.calls.editedChanges).toEqual([{ index: 0, action: 'language' }])
+    expect(deck.calls.editedChanges).toEqual([])
+  })
+
+  test('the Change Language shortcut follows the list the last card was added to', async () => {
+    const { session, deck, binder } = fixture()
+    const add = (name: string): Promise<void> =>
+      session.strategy.handleCard(session.ctx(), {
+        cardName: name,
+        preselected: null,
+        forcePrompts: false,
+        intent: 'add',
+      })
+
+    // Nothing added yet: there is no active list, so nothing is edited.
+    await session.strategy.editEntryLanguage(createCardSessionContext(), 4)
+    expect(binder.calls.languageEdits).toEqual([])
+    expect(deck.calls.languageEdits).toEqual([])
+
+    pickList(binder.open)
+    await add('Black Lotus')
+    // A raw card id, not one of the scope's synthetic entry keys.
+    await session.strategy.editEntryLanguage(createCardSessionContext(), 4)
+    expect(binder.calls.languageEdits).toEqual([4])
+    expect(deck.calls.languageEdits).toEqual([])
+
+    // The active list moves with the next add, and so does the shortcut.
+    pickList(deck.open)
+    await add('Sol Ring')
+    await session.strategy.editEntryLanguage(createCardSessionContext(), 7)
+    expect(deck.calls.languageEdits).toEqual([7])
+    expect(binder.calls.languageEdits).toEqual([4])
   })
 
   test('a pending list creation is pooled, and discarding it drops that list', async () => {

@@ -13,6 +13,7 @@ import type { MessageKey } from '../../i18n/messages/en'
 import { DEFAULT_LOCALE } from '../../i18n/runtime'
 import { t, tIn, type TranslateArgs } from '../../i18n/t'
 import { matchesChoiceTerms, type SearchableChoice } from '../../cli/menu-search'
+import { languageDisplayName, type CardLanguage } from '../../card/card-language'
 import type { EntryMode, SessionConfig } from './config'
 import type { LastAdded, SessionAddItem, SessionMode } from './strategy'
 
@@ -33,6 +34,8 @@ const MENU_SENTINEL_VALUES = [
   '__ADD_ANOTHER__',
   '__ADD_SIMILAR__',
   '__ADD_NOTE__',
+  '__EDIT_LAST_LANGUAGE__',
+  '__CARD_LANGUAGE__',
   '__SECTION__',
   '__FORMAT__',
   '__TAGS__',
@@ -163,6 +166,8 @@ export type MultiListMenuInfo = {
 export type MenuBuildInput = {
   sessionMode: SessionMode
   mode: EntryMode
+  /** The session's current card language, shown on (and set from) the Card Language row. */
+  language: CardLanguage
   lastAdded: LastAdded | null
   changeCount: number
   /** Strategy-specific entries inserted after the note shortcut. */
@@ -235,7 +240,7 @@ function buildSaveAndSwitchItems(input: MenuBuildInput): Choice[] {
  * lists every entry under the menu, so this limit less the (short) edit-mode
  * menu is how many card lines are visible before the list scrolls.
  */
-export const SESSION_MENU_LIMIT = 18
+export const SESSION_MENU_LIMIT = 20
 
 /**
  * Build the full autocomplete choice list (menu shortcuts first, then cards).
@@ -263,6 +268,12 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
   // Both modes lead with the session filters: in collector mode the set filter
   // is what narrows the printing pool, so it is the set-code control too.
   const modeItems: Choice[] = [
+    // Its own row rather than a session-filter question: the language is not a
+    // filter, and it is reached far less often than the set/finish/condition
+    // defaults — see `SessionConfig.language`.
+    menuRow('🌐', '__CARD_LANGUAGE__', 'cli.menu.cardLanguage', {
+      language: languageDisplayName(input.language),
+    }),
     menuRow('⚙️ ', '__CONFIG__', 'cli.menu.configureFilters'),
     mode === 'name'
       ? menuRow('🔢', '__COLLECTOR_MODE__', 'cli.menu.collectorMode')
@@ -298,6 +309,16 @@ export function buildMenuChoices(input: MenuBuildInput): Choice[] {
                   ? [menuRow('📝', '__ADD_NOTE__', 'cli.menu.addNote', { name: lastAdded.name })]
                   : []),
                 menuRow('✏️ ', '__EDIT_LAST__', 'cli.menu.editPrevious', { name: lastAdded.name }),
+                // Separate from Edit Previous Card, which re-asks every printing
+                // option: the language is not part of that set of prompts, and
+                // retargeting it must not disturb the printing already chosen.
+                ...(lastAdded.cardId !== undefined
+                  ? [
+                      menuRow('🌐', '__EDIT_LAST_LANGUAGE__', 'cli.menu.changeLastLanguage', {
+                        name: lastAdded.name,
+                      }),
+                    ]
+                  : []),
               ]
             : []),
           ...undoItems,

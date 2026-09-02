@@ -56,11 +56,11 @@ import type {
   CardSessionContext,
   EditableEntryItem,
   SessionAddItem,
+  SessionChangeEditAction,
   SessionChangeItem,
 } from './strategy'
 import {
   foldOutCardChanges,
-  listSessionChangeItems,
   retargetUndoCardId,
   swapUndoChangelog,
   targetedUndoBlocker,
@@ -72,9 +72,12 @@ import {
   discardSessionChangeAt,
   editArt,
   editLanguage,
+  editLanguageById,
   editNote,
   lastEditLabel,
+  editSessionChangeAt,
   listEditableEntries,
+  listSessionChanges,
   logUpdatedLine,
   printingTupleOf,
   resetStaleLastAdded,
@@ -161,6 +164,7 @@ function deckModel(state: DeckSessionState): DeckEditModel {
     markDirty: () => {
       state.dirty = true
     },
+    sessionAdds: () => listDeckSessionAdds(state),
     entries: () =>
       state.deck.sections.flatMap((section) => section.cards.map((card) => ({ section, card }))),
     cardId: ({ card }) => card.cardId,
@@ -509,6 +513,7 @@ export function performDeckLineMove(
 
   state.editUndo.push({
     cardId,
+    cardName: snapshot.name,
     kind: 'move',
     label: t('cli.editLabel.moveToList', {
       name: snapshot.name,
@@ -567,6 +572,7 @@ export function performDeckCopyRemoval(
   if (!survived) noteArtLineRemoved(state.art, cardId)
   state.editUndo.push({
     cardId,
+    cardName: card.name,
     kind: 'removal',
     label: t('cli.editLabel.removeCopy', { name: card.name }),
     inverse: [createAddChange(card.name, deckAddOptions(printing, cardId, sectionName))],
@@ -629,6 +635,7 @@ export function performDeckLineRemoval(
 
   state.editUndo.push({
     cardId,
+    cardName: snapshot.name,
     kind: 'removal',
     label: t('cli.editLabel.removal', { name: snapshot.name }),
     inverse: restoreLineInverse(snapshot, printing, sectionName, cardId, quantity),
@@ -720,7 +727,33 @@ export function listDeckSessionAdds(state: DeckSessionState): SessionAddItem[] {
  * the View Session Changes picker. Indices feed {@link discardDeckSessionChange}.
  */
 export function listDeckSessionChanges(state: DeckSessionState): SessionChangeItem[] {
-  return listSessionChangeItems(listDeckSessionAdds(state), state.editUndo)
+  return listSessionChanges(deckModel(state))
+}
+
+/**
+ * Run an edit action from the View Session Changes screen against the deck line
+ * the change at `index` targets — this deck's own action menu, or the language
+ * picker (see {@link editSessionChangeAt}).
+ */
+export function editDeckSessionChange(
+  state: DeckSessionState,
+  ctx: CardSessionContext,
+  index: number,
+  action: SessionChangeEditAction,
+  deps: DeckEditDeps,
+): Promise<void> {
+  return editSessionChangeAt(deckModel(state), ctx, index, action, (cardId) =>
+    editDeckCard(state, ctx, cardId, deps),
+  )
+}
+
+/** Prompt for and apply a language change on the deck line with `cardId`. */
+export function editDeckCardLanguage(
+  state: DeckSessionState,
+  ctx: CardSessionContext,
+  cardId: number,
+): Promise<void> {
+  return editLanguageById(deckModel(state), ctx, cardId)
 }
 
 /**

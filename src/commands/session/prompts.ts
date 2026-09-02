@@ -104,6 +104,15 @@ export async function promptNoteEdit(currentNote: string | undefined): Promise<N
 /** Minimal config used when filtering card printings by set. */
 export type PrintingFilterConfig = {
   sets?: string[]
+  /**
+   * The language the picker should prefer — a session's own current language,
+   * which starts at the configured `defaultLanguage` and moves with the
+   * `🌐 Card Language` menu action. Absent (a one-shot caller with no session)
+   * falls back to the configured value. It is what the availability check runs
+   * against, so the language an add is *stamped* with is the language the
+   * picker actually verified.
+   */
+  language?: CardLanguage
 }
 
 /** Minimal config used when resolving finish and condition defaults. */
@@ -314,12 +323,14 @@ export async function resolveCardPrinting(
     return { kind: 'none' }
   }
 
-  const defaultLanguage = getDefaultLanguage()
+  // The session's language when it has one, so the badge, the availability
+  // check and the fallback confirm all judge the language that will be stamped.
+  const preferredLanguage = config.language ?? getDefaultLanguage()
 
   while (true) {
     let selectedPrinting = distinct[0]!
     if (distinct.length > 1) {
-      const choices = printingChoices(printings)
+      const choices = printingChoices(printings, getDefaultCurrency(), preferredLanguage)
 
       // The picker resolves to one of {@link printingChoices}' card values.
       const picked = await ask<ScryfallCard>({
@@ -335,15 +346,15 @@ export async function resolveCardPrinting(
       selectedPrinting = picked
     }
 
-    // A printing the cache does not hold in the configured default language
-    // needs an explicit decision: the entry would otherwise claim a language
-    // the printing was never made in. Confirming stamps the entry with the
-    // language that does exist (possibly `en`, i.e. a bare line).
+    // A printing the cache does not hold in the preferred language needs an
+    // explicit decision: the entry would otherwise claim a language the printing
+    // was never made in. Confirming stamps the entry with the language that does
+    // exist (possibly `en`, i.e. a bare line).
     const resolved = resolvePrintingLanguage(
       printings,
       selectedPrinting.set,
       selectedPrinting.collector_number,
-      defaultLanguage,
+      preferredLanguage,
     )
     if (resolved.honoredPreferred) {
       return { kind: 'picked', printing: selectedPrinting }
@@ -357,7 +368,7 @@ export async function resolveCardPrinting(
     const outcome = await promptLanguageFallback(
       selectedPrinting,
       languages,
-      defaultLanguage,
+      preferredLanguage,
       stamp,
     )
     if (outcome === 'confirm') {

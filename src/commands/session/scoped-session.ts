@@ -9,6 +9,7 @@ import {
   type CardSessionStrategy,
   type EditableEntryItem,
   type SessionAddItem,
+  type SessionChangeEditAction,
   type SessionChangeItem,
 } from './strategy'
 import { promptSessionConfigUpdate, type SessionConfig } from './config'
@@ -265,6 +266,26 @@ export function createScopedSession(args: ScopedSessionArgs): ScopedSession {
       const target = changeTargets[index]
       if (!target) return
       await target.open.strategy.discardSessionChange(target.open.ctx, target.index)
+    },
+
+    // Routed by change index, not card id: the owning list resolves the id
+    // itself, so the scope's synthetic entry keys never enter the picture.
+    async editSessionChange(
+      _ctx: CardSessionContext,
+      index: number,
+      action: SessionChangeEditAction,
+    ): Promise<void> {
+      const target = changeTargets[index]
+      if (!target) return
+      state.lastEditFile = target.open.ref.file
+      await target.open.strategy.editSessionChange(target.open.ctx, target.index, action)
+    },
+
+    // The shortcut this serves names the *last added* card, so the id is the
+    // active list's own — the same routing addAnotherCopy uses.
+    async editEntryLanguage(_ctx: CardSessionContext, cardId: number): Promise<void> {
+      const open = activeList()
+      if (open) await open.strategy.editEntryLanguage(open.ctx, cardId)
     },
 
     listEntries: (): EditableEntryItem[] => {

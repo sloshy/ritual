@@ -14,9 +14,20 @@ import {
 import { displayLanguage, type CardLanguage } from '../../card/card-language'
 import type { SessionArtChanges } from './art'
 import { editCardArt } from './edit-art'
-import { changelogDelta, type EditUndoEntry } from './edit-undo'
+import {
+  changelogDelta,
+  listSessionChangeItems,
+  sessionChangeCardId,
+  type EditUndoEntry,
+} from './edit-undo'
 import { promptLanguageChoice, promptNoteEdit } from './prompts'
-import type { CardSessionContext, EditableEntryItem } from './strategy'
+import type {
+  CardSessionContext,
+  EditableEntryItem,
+  SessionAddItem,
+  SessionChangeEditAction,
+  SessionChangeItem,
+} from './strategy'
 
 /**
  * The seam between the edit-mode operations that read the same for every list
@@ -59,6 +70,12 @@ export type EditModel<Located, Snapshot extends EditSnapshot> = {
   apply: (change: ChangeEvent) => void
   /** Mark the session unsaved without a change (an art edit touches only the sidecar). */
   markDirty: () => void
+  /**
+   * The cards added this session, in add order — the rows the session-changes
+   * screen lists ahead of the edit-mode operations. Read live, like
+   * {@link EditModel.editUndo}: a save resets the underlying list.
+   */
+  sessionAdds: () => SessionAddItem[]
   /** Every line of the list, in file order. */
   entries: () => Located[]
   cardId: (located: Located) => number | undefined
@@ -163,6 +180,7 @@ export function applyFieldEdit<L, S extends EditSnapshot>(
   ctx.sessionChanges = result.changes
   model.editUndo().push({
     cardId,
+    cardName: original.name,
     kind: 'edit',
     label: edit.label,
     inverse: [edit.inverse],
@@ -219,6 +237,80 @@ export async function editLanguage<L, S extends EditSnapshot>(
       consolidateSetLanguage(changes, name, language, original.language, cardId),
   })
   logUpdatedLine(model, cardId, name)
+}
+
+/** Run the list type's own per-entry action menu for `cardId` — its rows differ per type. */
+export type SessionChangeEditEntry = (cardId: number) => Promise<void>
+
+/**
+ * Whether `cardId` still names the card called `name`. An id is not an identity
+ * on its own: a removal releases its `&N` and a later add takes it back, so the
+ * session-changes screen compares the name too before offering to edit a row.
+ */
+function sameCardIn<L, S extends EditSnapshot>(
+  model: EditModel<L, S>,
+  cardId: number,
+  name: string,
+): boolean {
+  const located = model.find(cardId)
+  return located !== null && model.snapshot(located).name === name
+}
+
+/**
+ * Every change made this session — adds, field edits, removals and moves — for
+ * the View Session Changes screen. Indices feed {@link discardSessionChangeAt}
+ * and {@link editSessionChangeAt}, which walk the same concatenation.
+ */
+export function listSessionChanges<L, S extends EditSnapshot>(
+  model: EditModel<L, S>,
+): SessionChangeItem[] {
+  return listSessionChangeItems(model.sessionAdds(), model.editUndo(), (cardId, name) =>
+    sameCardIn(model, cardId, name),
+  )
+}
+
+/**
+ * Run one {@link SessionChangeEditAction} against the card the session change at
+ * `index` targets: the language picker directly, or the list type's own
+ * per-entry action menu. The id is re-resolved rather than trusted, so a row
+ * whose line went away between the listing and the choice does nothing.
+ */
+export async function editSessionChangeAt<L, S extends EditSnapshot>(
+  model: EditModel<L, S>,
+  ctx: CardSessionContext,
+  index: number,
+  action: SessionChangeEditAction,
+  editEntry: SessionChangeEditEntry,
+): Promise<void> {
+  const cardId = sessionChangeCardId(model.sessionAdds(), model.editUndo(), index)
+  if (cardId === undefined || model.find(cardId) === null) return
+  switch (action) {
+    case 'details':
+      await editEntry(cardId)
+      return
+    case 'language':
+      await editLanguageById(model, ctx, cardId)
+      return
+    default: {
+      const unhandled: never = action
+      throw new Error(`Unhandled session change action: ${String(unhandled)}`)
+    }
+  }
+}
+
+/**
+ * Prompt for and apply a language change on the line with `cardId`, skipping the
+ * per-entry action menu. Drives the `🌐 Change Language` add-mode shortcut and
+ * the session-changes review screen; a stale id is a no-op.
+ */
+export async function editLanguageById<L, S extends EditSnapshot>(
+  model: EditModel<L, S>,
+  ctx: CardSessionContext,
+  cardId: number,
+): Promise<void> {
+  const located = model.find(cardId)
+  if (!located) return
+  await editLanguage(model, ctx, located, cardId)
 }
 
 /**

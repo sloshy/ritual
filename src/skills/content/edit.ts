@@ -295,9 +295,16 @@ action (Scryfall codes; picking \`en\` removes the line's token) and a
 file, or clear it — scripted equivalent: \`set-card --art\`). An art edit is deferred
 like every other session edit: it is staged, written to the list's \`.art.json\` by the
 save, undone by \`↩️ Undo Last Edit\`, and records no changelog entry. Adding a card never
-prompts for a language — the configured \`defaultLanguage\` is stamped — and under a
+prompts for a language — the session's current language is stamped — and under a
 non-English default the printing picker notes when a printing does not exist in that
-language, falling back to English. Creating a deck prompts for its format, and deck
+language, falling back to English. A session starts on the configured \`defaultLanguage\`
+(warning once on startup when the key is absent) and two add-mode menu rows move it:
+\`🌐 Card Language (English)\` changes what every later add is stamped with (this session
+only — the config file is untouched), and \`🌐 Change Language (<card>)\` re-picks the
+language of the card just added without re-asking its printing options. Selecting a change
+in \`📋 View Session Changes\` opens an action menu — **Edit This Card** (that card's own
+edit-mode menu), **Change This Card's Language**, **Discard This Change** — with the two
+edit rows shown only while the change's card is still in the list. Creating a deck prompts for its format, and deck
 sessions have \`🏷️ Change Format\` and \`🔖 Edit Tags\` menu actions that rewrite the front
 matter on the next save; deck and collection sessions both offer \`🏷️ Edit List Labels\`
 for the default card labels (a deck's choices are \`proxy\` or none — scripted

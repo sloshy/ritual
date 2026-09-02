@@ -24,13 +24,21 @@ import {
   editDeckCard,
   lastDeckEditLabel,
   listDeckEntries,
+  editDeckCardLanguage,
+  editDeckSessionChange,
   listDeckSessionAdds,
   listDeckSessionChanges,
   undoDeckEdit,
+  type DeckEditDeps,
   type DeckSessionState,
 } from './deck-edit'
 import { menuRow, type MenuChoice, type MenuSentinel } from './menu'
-import type { CardSessionContext, CardSessionStrategy, SessionAddItem } from './strategy'
+import type {
+  CardSessionContext,
+  CardSessionStrategy,
+  SessionAddItem,
+  SessionChangeEditAction,
+} from './strategy'
 import { normalizeBoard } from '../../deck-sync/diff'
 import { assignMissingDeckCardIds, collectDeckCardIds } from '../../card/card-id'
 import type { CardArtRef } from '../../list/card-art'
@@ -223,6 +231,15 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     )
   }
 
+  /** The per-card prompt context every edit-mode entry point in this strategy shares. */
+  const editDeps = (): DeckEditDeps => ({
+    sessionConfig,
+    excludeDigitalOnly,
+    move: args.moveTargets
+      ? { targets: args.moveTargets, selfFile: deckFile, sessionConfig, excludeDigitalOnly }
+      : undefined,
+  })
+
   return {
     managerLabel: t('cli.manager.deck'),
     saveTarget: { filePath: deckFile, listName: deckName },
@@ -303,7 +320,12 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
             console.log(t('cli.deck.noSectionSelected'))
             return
           }
-          await addToDeck(ctx, cardName, { language: resolveAddedLanguage(undefined) }, section)
+          await addToDeck(
+            ctx,
+            cardName,
+            { language: resolveAddedLanguage(undefined, sessionConfig.language) },
+            section,
+          )
           return
         }
         printing = result.printing
@@ -322,7 +344,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
         collectorNumber: printing.collector_number,
         finish: finishAndCondition.finish,
         condition: finishAndCondition.condition,
-        language: resolveAddedLanguage(pickedLanguage),
+        language: resolveAddedLanguage(pickedLanguage, sessionConfig.language),
       }
 
       // ── Edit: re-set the printing on the existing card ────────────
@@ -423,21 +445,15 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
       lastPrinting = null
     },
 
+    editSessionChange: (ctx: CardSessionContext, index: number, action: SessionChangeEditAction) =>
+      editDeckSessionChange(state, ctx, index, action, editDeps()),
+
     listEntries: () => listDeckEntries(state),
     lastEditUndoLabel: () => lastDeckEditLabel(state),
     undoLastEdit: async (ctx: CardSessionContext) => undoDeckEdit(state, ctx),
     editEntry: (ctx: CardSessionContext, cardId: number) =>
-      editDeckCard(state, ctx, cardId, {
-        sessionConfig,
-        excludeDigitalOnly,
-        move: args.moveTargets
-          ? {
-              targets: args.moveTargets,
-              selfFile: deckFile,
-              sessionConfig,
-              excludeDigitalOnly,
-            }
-          : undefined,
-      }),
+      editDeckCard(state, ctx, cardId, editDeps()),
+    editEntryLanguage: (ctx: CardSessionContext, cardId: number) =>
+      editDeckCardLanguage(state, ctx, cardId),
   }
 }

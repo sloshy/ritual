@@ -5,7 +5,8 @@ import type { cliEditMessages } from './cli-edit'
 
 /**
  * The interactive session menu renders inside a hard row budget
- * (`SESSION_MENU_LIMIT = 18`), and the per-strategy rows below sit in the same
+ * (`SESSION_MENU_LIMIT` in `src/commands/session/menu.ts`), and the per-strategy
+ * rows below sit in the same
  * list as the shared `cli.menu.*` items — so they carry the same length budget
  * (`MENU_MAX_LEN` in `cli.meta.ts`). A row that wraps costs a second terminal
  * line and pushes Save and Exit below the fold.
@@ -272,6 +273,10 @@ export const cliEditMeta = {
   },
   'cli.edit.noteSet': { description: 'Confirms a note was written onto a card.' },
   'cli.edit.noteCleared': { description: "Confirms a card's note was emptied." },
+  'cli.edit.noConfiguredLanguage': {
+    description:
+      'Startup warning when ritual.config.json declares no defaultLanguage, so new cards are stamped English. {language} is the `en` code; `defaultLanguage`, `ritual config set` and the code itself are literals that never translate.',
+  },
   'cli.edit.noPrintings': {
     description:
       "The card has no printings left after the session's set filters and digital-only exclusion, so there is nothing to pick.",

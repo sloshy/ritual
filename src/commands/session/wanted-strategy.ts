@@ -11,6 +11,7 @@ import { promptSessionConfigUpdate, type SessionConfig } from './config'
 import type { CardSessionContext, CardSessionStrategy } from './strategy'
 import {
   applyFlatListCardEntry,
+  type FlatListPrintingOptions,
   type FlatListStrategyContext,
   type LastAddState,
   type WantedSession,
@@ -80,8 +81,88 @@ export function createWantedStrategy(
   const logUpdated = (cardId: number, fallbackName: string): void =>
     logFlatListUpdated(list, cardId, fallbackName)
 
+  /**
+   * The per-entry action menu and the flows behind it. Named rather than
+   * inlined in the strategy literal because the session-changes screen's
+   * "Edit This Card" action runs this same menu, and the delegates need it
+   * before the literal exists.
+   */
+  const editEntry: CardSessionStrategy['editEntry'] = async (ctx, cardId) => {
+    const entry = findFlatListEntry(list, cardId)
+    if (!entry) return
+    const pinned = hasSpecificPrinting(entry)
+    const env: FlatListEditEnv = { sessionConfig, excludeDigitalOnly, moveTargets }
+    const action = await promptEditAction(list.renderEntry(entry), [
+      {
+        title: `🖼️  ${t(pinned ? 'cli.editAction.changePrinting' : 'cli.editAction.setPrinting')}`,
+        value: 'printing',
+      },
+      // Finish only annotates a specific printing; name-only entries have none to change.
+      ...(pinned ? [{ title: `✨ ${t('cli.editAction.changeFinish')}`, value: 'finish' }] : []),
+      ...sharedFlatListEditActions(env),
+    ])
+    if (!action) return
+
+    if (action === 'printing') {
+      const specificity = await promptSpecificity(entry.name)
+      if (!specificity) return
+
+      let target: PrintingTuple = {}
+      if (specificity === 'specific') {
+        const result = await resolveCardPrinting(entry.name, sessionConfig, excludeDigitalOnly)
+        if (result.kind === 'cancelled') return
+        if (result.kind === 'none') {
+          console.error(t('cli.edit.noPrintings'))
+          return
+        }
+        const finishResult = await promptWantedFinish(result.printing, undefined)
+        if (finishResult === 'cancelled') return
+        target = {
+          set: result.printing.set.toLowerCase(),
+          collectorNumber: result.printing.collector_number,
+          finish: finishResult === 'nopreference' ? undefined : finishResult,
+          // The entry keeps its language across a printing change unless the
+          // picker's availability confirm resolved a different one.
+          language: result.language ?? displayLanguage(entry.language),
+        }
+      }
+
+      const before = printingTupleOf(entry)
+      applyFlatListFieldEdit(list, ctx, entry, cardId, {
+        label: t('cli.editLabel.printing', { name: entry.name }),
+        change: createSetPrintingChange(entry.name, { ...target, cardId }),
+        inverse: createSetPrintingChange(entry.name, { ...before, cardId }),
+        consolidate: (changes, original) =>
+          consolidateSetPrinting(changes, entry.name, target, printingTupleOf(original), cardId),
+      })
+      logUpdated(cardId, entry.name)
+      return
+    }
+
+    if (action === 'finish') {
+      const finish = await promptWantedFinishChoice(entry.finish, await lookupPinnedPrinting(entry))
+      if (finish === null || finish === entry.finish) return
+      // Wanted finishes can be cleared back to "no preference", which set-finish
+      // cannot express, so finish edits ride on a set-printing of the same printing.
+      const target: PrintingTuple = { ...printingTupleOf(entry), finish }
+      applyFlatListFieldEdit(list, ctx, entry, cardId, {
+        label: t('cli.editLabel.finish', { name: entry.name }),
+        change: createSetPrintingChange(entry.name, { ...target, cardId }),
+        inverse: createSetPrintingChange(entry.name, { ...printingTupleOf(entry), cardId }),
+        consolidate: (changes, original) =>
+          consolidateSetPrinting(changes, entry.name, target, printingTupleOf(original), cardId),
+      })
+      logUpdated(cardId, entry.name)
+      return
+    }
+
+    await editSharedFlatListAction(action, list, ctx, entry, cardId, env)
+  }
+
   return {
-    ...flatListDelegates(list),
+    // The session-changes screen's "Edit This Card" action opens this very
+    // menu, so the delegates are handed the same function the strategy exposes.
+    ...flatListDelegates(list, editEntry),
     managerLabel: t('cli.manager.wanted'),
     saveTarget: { filePath: session.filePath, listName },
     // The wanted list has no condition, but the shared engine config carries the
@@ -99,7 +180,9 @@ export function createWantedStrategy(
 
       // A fresh add stamps the configured default language (adding never
       // prompts for language); the picker's availability confirm may override.
-      const nameOnlyOptions = { language: resolveAddedLanguage(undefined) }
+      const nameOnlyOptions: FlatListPrintingOptions = {
+        language: resolveAddedLanguage(undefined, sessionConfig.language),
+      }
       if (specificity === 'name-only') {
         await applyFlatListCardEntry(list, ctx, cardName, nameOnlyOptions, isEditing, {
           kind: 'cheapest',
@@ -145,86 +228,13 @@ export function createWantedStrategy(
           set: printing.set.toLowerCase(),
           collectorNumber: printing.collector_number,
           finish,
-          language: resolveAddedLanguage(pickedLanguage),
+          language: resolveAddedLanguage(pickedLanguage, sessionConfig.language),
         },
         isEditing,
         { kind: 'specific', printing },
       )
     },
 
-    async editEntry(ctx: CardSessionContext, cardId: number): Promise<void> {
-      const entry = findFlatListEntry(list, cardId)
-      if (!entry) return
-      const pinned = hasSpecificPrinting(entry)
-      const env: FlatListEditEnv = { sessionConfig, excludeDigitalOnly, moveTargets }
-      const action = await promptEditAction(list.renderEntry(entry), [
-        {
-          title: `🖼️  ${t(pinned ? 'cli.editAction.changePrinting' : 'cli.editAction.setPrinting')}`,
-          value: 'printing',
-        },
-        // Finish only annotates a specific printing; name-only entries have none to change.
-        ...(pinned ? [{ title: `✨ ${t('cli.editAction.changeFinish')}`, value: 'finish' }] : []),
-        ...sharedFlatListEditActions(env),
-      ])
-      if (!action) return
-
-      if (action === 'printing') {
-        const specificity = await promptSpecificity(entry.name)
-        if (!specificity) return
-
-        let target: PrintingTuple = {}
-        if (specificity === 'specific') {
-          const result = await resolveCardPrinting(entry.name, sessionConfig, excludeDigitalOnly)
-          if (result.kind === 'cancelled') return
-          if (result.kind === 'none') {
-            console.error(t('cli.edit.noPrintings'))
-            return
-          }
-          const finishResult = await promptWantedFinish(result.printing, undefined)
-          if (finishResult === 'cancelled') return
-          target = {
-            set: result.printing.set.toLowerCase(),
-            collectorNumber: result.printing.collector_number,
-            finish: finishResult === 'nopreference' ? undefined : finishResult,
-            // The entry keeps its language across a printing change unless the
-            // picker's availability confirm resolved a different one.
-            language: result.language ?? displayLanguage(entry.language),
-          }
-        }
-
-        const before = printingTupleOf(entry)
-        applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: t('cli.editLabel.printing', { name: entry.name }),
-          change: createSetPrintingChange(entry.name, { ...target, cardId }),
-          inverse: createSetPrintingChange(entry.name, { ...before, cardId }),
-          consolidate: (changes, original) =>
-            consolidateSetPrinting(changes, entry.name, target, printingTupleOf(original), cardId),
-        })
-        logUpdated(cardId, entry.name)
-        return
-      }
-
-      if (action === 'finish') {
-        const finish = await promptWantedFinishChoice(
-          entry.finish,
-          await lookupPinnedPrinting(entry),
-        )
-        if (finish === null || finish === entry.finish) return
-        // Wanted finishes can be cleared back to "no preference", which set-finish
-        // cannot express, so finish edits ride on a set-printing of the same printing.
-        const target: PrintingTuple = { ...printingTupleOf(entry), finish }
-        applyFlatListFieldEdit(list, ctx, entry, cardId, {
-          label: t('cli.editLabel.finish', { name: entry.name }),
-          change: createSetPrintingChange(entry.name, { ...target, cardId }),
-          inverse: createSetPrintingChange(entry.name, { ...printingTupleOf(entry), cardId }),
-          consolidate: (changes, original) =>
-            consolidateSetPrinting(changes, entry.name, target, printingTupleOf(original), cardId),
-        })
-        logUpdated(cardId, entry.name)
-        return
-      }
-
-      await editSharedFlatListAction(action, list, ctx, entry, cardId, env)
-    },
+    editEntry,
   }
 }

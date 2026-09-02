@@ -130,9 +130,10 @@ unsaved: saving writes an empty list file, and discarding leaves nothing behind.
 wanted list), ahead of any card change made to that list:
 
 ```text
-? 2 change(s) this session — select one to discard it:
-❯   🎯 Scratch: Created this wanted list
-    🎯 Scratch: ➕ Added - Black Lotus &1
+? 2 changes this session — select one:
+❯   🎯 Scratch: ➕ Added - Black Lotus &1
+    🎯 Scratch: Created this wanted list
+    ← Back
 ```
 
 Discarding that entry takes the whole list back out of the session — so it is refused while the list
@@ -202,7 +203,8 @@ in `All Decks` could only ever be a deck, so there is nothing to choose:
 ```
 
 The last added card's shortcuts (`➕ Add Exact Copy`, `➕ Add Similar Copy`, `📝 Add Note`, `✏️ Edit Previous Card`,
-`↩️ Undo Last Add`) all act on the list that card went into, so you are never asked twice.
+`🌐 Change Language`, `↩️ Undo Last Add`) all act on the list that card went into, so you are never
+asked twice.
 
 **Edit mode spans every list in scope.** `🛠️ Switch to Edit Mode` autocompletes over the entries of
 those lists at once, each labelled with the list it belongs to, and each entry offers the action menu
@@ -238,17 +240,19 @@ land on it by overshooting.
 | `➕ Add Similar Copy`                    | Add a copy of the last added card, re-prompting its options                                                                          |
 | `📝 Add Note`                            | Attach a note to the last added card                                                                                                 |
 | `✏️ Edit Previous Card`                  | Re-enter the last added card with forced prompts                                                                                     |
+| `🌐 Change Language`                     | Re-pick the last added card's [language](#card-language), leaving its printing alone                                                 |
 | `↩️ Undo Last Add`                       | Take back the most recently added card                                                                                               |
 | `↩️ Undo Last Edit`                      | Revert the most recent [edit-mode](#edit-mode) operation                                                                             |
 | `🗂️ Set Target Section`                  | Pin a deck section, create a new one, or prompt for each card (decks)                                                                |
 | `🏷️ Change Format`                       | Change the deck's [format](#deck-format) (decks)                                                                                     |
 | `🔖 Edit Tags`                           | Edit the deck's front-matter tags, comma-separated; empty clears them (decks)                                                        |
 | `🏷️ Edit List Labels`                    | Change the list's default card labels (decks — `proxy` only — and collections); shows the current default                            |
+| `🌐 Card Language (…)`                   | Change the [language](#card-language) stamped on cards added from here on; shows the current one                                     |
 | `⚙️ Configure Session Filters`           | Adjust default sets, finish, condition, and (decks) target section (both entry modes)                                                |
 | `🔢 Switch to Collector Number Mode`     | Switch to collector number entry mode (name mode)                                                                                    |
 | `🔤 Switch to Name Mode`                 | Switch back to name entry mode (collector mode)                                                                                      |
 | `🛠️ Switch to Edit Mode`                 | Browse and edit the list's existing entries (see [Edit Mode](#edit-mode))                                                            |
-| `📋 View Session Changes (N)`            | Review every change this session and optionally discard individual ones                                                              |
+| `📋 View Session Changes (N)`            | Review every change this session, editing or discarding individual ones                                                              |
 | `💾 Save all changes (N across M lists)` | Write every open list's file and changelog, keep editing                                                                             |
 | `💾 Save current list changes (N)`       | Write the list you are editing (plus any list receiving its pending [moves](#moving-cards-to-another-list)), keep the rest in memory |
 | `🔀 Switch List`                         | Back to the list selection menu, keeping unsaved changes in memory                                                                   |
@@ -256,12 +260,16 @@ land on it by overshooting.
 
 The `↩️ Undo Last Add` option appears only after you have added at least one card this session, and
 `📋 View Session Changes` once the session has any change to show (see
-[Reviewing Session Changes](#reviewing-session-changes)).
+[Reviewing Session Changes](#reviewing-session-changes)). `🌐 Change Language` likewise needs a card
+to have been added — it retargets that one card.
 
 While you are **adding** cards — in either [name](#name-mode-default) or
 [collector number](#collector-number-mode) mode — typing narrows the menu along with the cards, but
 only briefly: once your input passes three characters, or contains a `:`, the menu rows step out of
 the suggestions entirely and leave the list to the card matches.
+
+Neither language row appears in [edit mode](#edit-mode): the session default only governs adds, and
+editing an existing entry's language is one of that entry's own actions there.
 
 [Edit mode](#edit-mode) pares this down: the undo shortcuts lead, followed by `➕ Switch to Add Mode`,
 then the review, save, and exit items. Its menu rows are narrowed by what you type but never step
@@ -394,8 +402,8 @@ grammar filters the sites' printing pickers: the
   filter rebuilds it — a printing that enters the cache mid-session will not appear until then.
 - **Printings** — A collector-number row already identifies one printing, so the add flow skips the
   printing picker entirely. That also skips the picker's language-availability check: under a
-  non-English [`defaultLanguage`](/configuration/#default-language) the entry is stamped with that
-  language whether or not the printing exists in it. Add through [Name Mode](#name-mode-default)
+  non-English [session language](#the-session-language) the entry is stamped with that language
+  whether or not the printing exists in it. Add through [Name Mode](#name-mode-default)
   when you want the fallback-to-English confirmation.
 
 ### Printing and Finish Prices
@@ -656,22 +664,60 @@ The vocabulary is **Scryfall's language codes** (`en es fr de it pt ja ko ru zhs
 sa ph` — not ISO codes: Chinese is `zhs`/`zht`), and the token is **omitted for English**: a bare
 line always means `en`, whatever the configured default, so a list file stays self-describing.
 
-Adding a card **never prompts** for a language — the configured
-[`defaultLanguage`](/configuration/#default-language) is stamped on new cards, and the `🌐 Change
-Language` edit action (or [`set-card --language`](/commands/set-card/)) changes an individual copy
-afterwards. Under a non-English default, the printing picker notes printings that do not exist in
-that language — picking one records it in the language that does exist (English when available),
-rather than writing a language token Scryfall has no card object for. Language availability is
-checked against the card cache (which holds every language's objects when
+Adding a card **never prompts** for a language — the [session's current language](#the-session-language)
+is stamped on new cards, and the `🌐 Change Language` edit action (or
+[`set-card --language`](/commands/set-card/)) changes an individual copy afterwards. Under a
+non-English session language, the printing picker notes printings that do not exist in that
+language — picking one records it in the language that does exist (English when available), rather
+than writing a language token Scryfall has no card object for. Language availability is checked
+against the card cache (which holds every language's objects when
 [`defaultLanguage`](/configuration/#default-language) is non-English), falling back to a direct
 Scryfall lookup when the cache cannot vouch for the printing.
+
+### The Session Language
+
+A session starts on the configured [`defaultLanguage`](/configuration/#default-language) (English
+when the key is absent — which the session says once on startup, since every card you add is about
+to be stamped English). Two menu rows move it, kept apart from the printing options because a
+language is chosen far less often than a set, finish, or condition:
+
+- `🌐 Card Language (English)` sets the language for **every card added from here on**, across every
+  list the session has open. It shows the current language, and changing it applies only to this
+  session — `ritual.config.json` is untouched, so use
+  [`ritual config set defaultLanguage <code>`](/configuration/#default-language) to make it stick.
+- `🌐 Change Language (Sol Ring)` re-picks the language of the card you **just added**, without
+  re-asking for its printing, finish, or condition the way `✏️ Edit Previous Card` does. It appears
+  only once a card has been added this session.
+
+Adding another copy never re-asks either: `➕ Add Similar Copy` uses the current session language,
+and `➕ Add Exact Copy` reproduces the copied card's line exactly — language included — even if the
+session language has moved since. The same language picker is reachable for any card from
+[Edit Mode](#edit-mode) and from [the session-changes screen](#reviewing-session-changes).
+
+Using `🌐 Change Language` counts as editing the last added card, so — like any other edit-mode
+change to it — the last-added shortcuts reset until you add another card. Change it again from
+[Edit Mode](#edit-mode) or the session-changes screen.
 
 ## Reviewing Session Changes
 
 `📋 View Session Changes` opens a picker listing every change made this session — `➕` adds,
 `✏️` field edits, `🗑️` removals, and `📤` [moves](#moving-cards-to-another-list). Selecting an
-entry asks whether to discard that change,
-reverting just it while keeping the rest of the session intact:
+entry opens an action menu for it:
+
+| Action                           | Description                                                                                    |
+| -------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `✏️ Edit This Card`              | Open the card's own [edit-mode action menu](#edit-mode) — printing, finish, note, and the rest |
+| `🌐 Change This Card’s Language` | Go straight to the [language](#card-language) picker for that card                             |
+| `🗑️ Discard This Change`         | Take the change back out of the session                                                        |
+| `← Back`                         | Return to the change list without doing anything                                               |
+
+The two edit rows appear only while the change's card is **still in the list, under the same name** —
+a removal, a completed [move](#moving-cards-to-another-list), a list's own
+[creation](#creating-lists), and a card whose `&N` has since been reissued to a different card all
+leave nothing to edit, so those rows offer the discard alone. A change that cannot be discarded yet
+(see below) can still be edited; only the discard is refused.
+
+Discarding reverts just that change while keeping the rest of the session intact:
 
 - **Discarding an add** removes the card and frees its `&N` id; the remaining cards added this
   session keep dense, in-order ids (each later card slides down one, and the highest id returns to

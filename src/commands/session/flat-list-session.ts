@@ -406,7 +406,7 @@ export function listFlatListSessionAdds<E extends NamedFlatListEntry>(
   return list.sessionAdds.map((cardId) => {
     const entry = list.session.entries.find((e) => e.cardId === cardId)
     return entry
-      ? { label: list.renderEntry(entry), name: entry.name }
+      ? { label: list.renderEntry(entry), name: entry.name, cardId }
       : { label: t('cli.edit.removedPlaceholder', { id: cardId }), name: `&${cardId}` }
   })
 }

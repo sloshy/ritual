@@ -8,7 +8,7 @@ import {
 import { buildInitialSessionConfig, type SessionConfig } from '../../src/commands/session/config'
 import type { CardSessionContext } from '../../src/commands/session/strategy'
 import { currentSessionArt } from '../../src/commands/session/art'
-import { scratchListPath, stubTty } from '../test-utils'
+import { makeScryfallCard, scratchListPath, stubTty } from '../test-utils'
 import type { CardLanguage } from '../../src/card/card-language'
 
 // The Set Custom Art prompts go through `ask`, which refuses to open without a
@@ -125,17 +125,57 @@ describe('collection strategy — Edit List Labels', () => {
   })
 })
 
-describe('collection strategy — Change Language', () => {
-  function makeCtx(): CardSessionContext {
-    return {
-      sessionChanges: [],
-      lastChangeIndex: null,
-      lastAdded: null,
-      lastAddedCount: 0,
-      hasSavedChangelog: false,
-    }
+/** A fresh session context; the strategies mutate it in place. */
+function makeCtx(): CardSessionContext {
+  return {
+    sessionChanges: [],
+    lastChangeIndex: null,
+    lastAdded: null,
+    lastAddedCount: 0,
+    hasSavedChangelog: false,
+  }
+}
+
+describe('collection strategy — the session card language', () => {
+  const printing = makeScryfallCard({ name: 'Sol Ring', set: 'c21', collector_number: '263' })
+
+  /** A session config with the option prompts pinned, so an add asks nothing. */
+  function quietConfig(language: CardLanguage): SessionConfig {
+    const config = buildInitialSessionConfig({ finish: 'nonfoil', condition: 'NM' }, undefined)
+    config.language = language
+    return config
   }
 
+  async function addUnder(language: CardLanguage): Promise<CollectionSession> {
+    const session = makeSession()
+    const strategy = createCollectionStrategy(session, quietConfig(language), 'Binder', true)
+    await strategy.handleCard(makeCtx(), {
+      cardName: 'Sol Ring',
+      preselected: printing,
+      forcePrompts: false,
+      intent: 'add',
+    })
+    return session
+  }
+
+  test('a card added under a non-English session language carries that language', async () => {
+    // The wiring the `🌐 Card Language` menu row exists for: the session value
+    // reaches `resolveAddedLanguage`, not just the configured default.
+    const session = await addUnder('ja')
+    expect(session.entries[0]?.language).toBe('ja')
+  })
+
+  test('an English session language writes a bare line — no token means en', async () => {
+    const session = await addUnder('en')
+    // The in-memory entry keeps the resolved 'en' (see Change Language below);
+    // what matters is that the serialized line carries no token.
+    const written = session.serialize('Binder', session.entries, [], session.frontMatter)
+    expect(written).toContain('- Sol Ring (C21:263) &1')
+    expect(written).not.toContain('[en]')
+  })
+})
+
+describe('collection strategy — Change Language', () => {
   function sessionWithEntry(language?: CardLanguage): CollectionSession {
     const session = makeSession()
     session.entries = [

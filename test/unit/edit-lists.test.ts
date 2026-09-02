@@ -4,7 +4,7 @@ import {
   type TrackedCreation,
   type UnifiedListRef,
 } from '../../src/commands/session/edit-lists'
-import { buildInitialSessionConfig } from '../../src/commands/session/config'
+import { noopCardSessionStrategy } from '../helpers/session-strategy'
 import {
   createCardSessionContext,
   type CardSessionContext,
@@ -20,34 +20,33 @@ import {
 
 const ref: UnifiedListRef = { type: 'wanted', name: 'To Buy', file: '/wanted/to-buy.md' }
 
-type Inner = { strategy: CardSessionStrategy; discarded: number[]; saved: number }
+type Inner = {
+  strategy: CardSessionStrategy
+  discarded: number[]
+  /** Indices the wrapper forwarded to the inner strategy's session-change edits. */
+  edited: number[]
+  saved: number
+}
 
 /** A strategy whose session changes are whatever the test says they are. */
 function innerStrategy(changes: string[]): Inner {
-  const inner: Inner = { strategy: {} as CardSessionStrategy, discarded: [], saved: 0 }
-  inner.strategy = {
+  const inner: Inner = { strategy: {} as CardSessionStrategy, discarded: [], edited: [], saved: 0 }
+  inner.strategy = noopCardSessionStrategy({
     managerLabel: 'wanted list manager',
     saveTarget: { filePath: ref.file, listName: ref.name },
-    receiveMove: () => {},
-    sessionConfig: buildInitialSessionConfig({}, undefined),
-    updateConfig: async () => [],
-    applyChange: () => {},
-    persist: async () => {},
     hasUnsavedChanges: () => true,
     sessionSaved: () => {
       inner.saved++
     },
-    handleCard: async () => {},
-    addAnotherCopy: async () => {},
-    listSessionChanges: (): SessionChangeItem[] => changes.map((label) => ({ label })),
+    listSessionChanges: (): SessionChangeItem[] =>
+      changes.map((label) => ({ label, editable: true })),
     discardSessionChange: async (_ctx: CardSessionContext, index: number) => {
       inner.discarded.push(index)
     },
-    listEntries: () => [],
-    editEntry: async () => {},
-    lastEditUndoLabel: () => null,
-    undoLastEdit: async () => {},
-  }
+    editSessionChange: async (_ctx: CardSessionContext, index: number) => {
+      inner.edited.push(index)
+    },
+  })
   return inner
 }
 
@@ -70,7 +69,7 @@ describe('a pending list creation in the session changes', () => {
     const { strategy, isNew } = tracked()
     expect(isNew()).toBe(true)
     expect(strategy.listSessionChanges()).toEqual([
-      { label: 'Created this wanted list', blocked: undefined },
+      { label: 'Created this wanted list', editable: false },
     ])
   })
 
@@ -123,6 +122,19 @@ describe('a pending list creation in the session changes', () => {
     expect(strategy.discarded?.()).toBe(false)
   })
 
+  test('offsets edit actions by the same row, and swallows the ones aimed at itself', async () => {
+    const { strategy, inner } = tracked(['added Sol Ring', 'added Mox Ruby'])
+    const ctx = createCardSessionContext()
+
+    // Row 0 is the creation, which has no card — the wrapper answers it itself.
+    await strategy.editSessionChange(ctx, 0, 'language')
+    expect(inner.edited).toEqual([])
+
+    await strategy.editSessionChange(ctx, 2, 'language')
+    await strategy.editSessionChange(ctx, 1, 'details')
+    expect(inner.edited).toEqual([1, 0])
+  })
+
   test('discarding it drops the list and empties the session', async () => {
     const { strategy, dropped } = tracked()
     expect(strategy.discarded?.()).toBe(false)
@@ -140,8 +152,10 @@ describe('a pending list creation in the session changes', () => {
     expect(inner.saved).toBe(1)
     expect(isNew()).toBe(false)
     // The list is on disk now, so its changes pass through unshifted.
-    expect(strategy.listSessionChanges()).toEqual([{ label: 'added Sol Ring' }])
+    expect(strategy.listSessionChanges()).toEqual([{ label: 'added Sol Ring', editable: true }])
     await strategy.discardSessionChange(createCardSessionContext(), 0)
     expect(inner.discarded).toEqual([0])
+    await strategy.editSessionChange(createCardSessionContext(), 0, 'language')
+    expect(inner.edited).toEqual([0])
   })
 })

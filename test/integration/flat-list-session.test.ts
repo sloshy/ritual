@@ -15,11 +15,17 @@ import {
   createSetPrintingChange,
 } from '../../src/changes/change-event'
 import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/list/card-art'
-import { createCardSessionContext } from '../../src/commands/session/strategy'
+import prompts from 'prompts'
 import {
+  createCardSessionContext,
+  type CardSessionContext,
+} from '../../src/commands/session/strategy'
+import {
+  flatListDelegates,
   performFlatListMove,
   performFlatListRemoval,
   undoFlatListEdit,
+  type FlatListDelegates,
 } from '../../src/commands/session/flat-list-edit'
 import type {
   CollectionSession,
@@ -27,6 +33,11 @@ import type {
 } from '../../src/commands/session/flat-list-session'
 import type { CollectionCardEntry } from '../../src/list/site-data'
 import { createWorkspace, removeWorkspace } from '../helpers/workspace'
+import { stubTty } from '../test-utils'
+
+// The language picker goes through `ask`, which refuses to prompt without a
+// terminal; the answers come from prompts.inject, so pretend stdin is a TTY.
+stubTty({ stdin: true })
 
 describe('flat-list session models', () => {
   let tmpDir: string
@@ -376,5 +387,110 @@ describe('session custom art', () => {
 
     expect(await fs.readFile(filePath, 'utf-8')).toContain('Mana Crypt (2XM:270) &1')
     expect(await artOnDisk(filePath)).toEqual([[2, { url: 'https://example.test/bolt.png' }]])
+  })
+})
+
+/**
+ * The two ways a card's language is retargeted from *add* mode — the
+ * `🌐 Change Language` shortcut for the card just added, and the same action
+ * reached through the View Session Changes screen — end to end: the change lands
+ * on the in-memory model, is deferred like every other session edit, and writes
+ * a `[ja]` token when the session is saved.
+ */
+describe('session language edits', () => {
+  let tmpDir: string
+
+  beforeEach(async () => {
+    tmpDir = await createWorkspace({ dirs: [], config: false })
+  })
+
+  afterEach(async () => {
+    await removeWorkspace(tmpDir)
+  })
+
+  /** Card ids handed to the strategy's own per-entry action menu. */
+  type Session = {
+    filePath: string
+    list: FlatListStrategyContext<CollectionCardEntry>
+    delegates: FlatListDelegates
+    ctx: CardSessionContext
+    /** Card ids the `details` action routed to the per-entry action menu. */
+    detailsFor: number[]
+  }
+
+  /** A two-card binder whose lines were both "added" this session. */
+  async function sessionWithAdds(): Promise<Session> {
+    const filePath = path.join(tmpDir, 'binder.md')
+    await fs.writeFile(
+      filePath,
+      '# Binder\n\n## Main\n- Sol Ring (C21:263) &1\n- Mox Ruby (LEA:265) &2\n',
+    )
+    const session = await loadCollectionSession(filePath)
+    const list: FlatListStrategyContext<CollectionCardEntry> = {
+      session,
+      state: { snapshot: null },
+      renderLine: () => '',
+      renderEntry: (entry) => entry.name,
+      sessionAdds: [1, 2],
+      editUndo: [],
+      originals: new Map(),
+    }
+    const detailsFor: number[] = []
+    return {
+      filePath,
+      list,
+      delegates: flatListDelegates(list, async (_ctx, cardId) => {
+        detailsFor.push(cardId)
+      }),
+      ctx: createCardSessionContext(),
+      detailsFor,
+    }
+  }
+
+  const readList = (filePath: string): Promise<string> => fs.readFile(filePath, 'utf-8')
+
+  test('the shortcut writes the token on save, and not before', async () => {
+    const { filePath, delegates, ctx } = await sessionWithAdds()
+    prompts.inject(['ja'])
+    await delegates.editEntryLanguage(ctx, 1)
+
+    expect(await readList(filePath)).not.toContain('[ja]')
+    expect(delegates.hasUnsavedChanges()).toBe(true)
+
+    await delegates.persist()
+    expect(await readList(filePath)).toContain('- Sol Ring (C21:263) [ja] &1')
+  })
+
+  test('the session-changes screen retargets the row it was given, not the first', async () => {
+    const { filePath, delegates, ctx } = await sessionWithAdds()
+    prompts.inject(['ja'])
+    // Row 1 is the Mox Ruby add; row 0 is Sol Ring's and must be left alone.
+    await delegates.editSessionChange(ctx, 1, 'language')
+    await delegates.persist()
+
+    const written = await readList(filePath)
+    expect(written).toContain('- Mox Ruby (LEA:265) [ja] &2')
+    expect(written).toContain('- Sol Ring (C21:263) &1')
+  })
+
+  test('the details action opens the list type’s own menu for that row’s card', async () => {
+    const { delegates, ctx, detailsFor } = await sessionWithAdds()
+    await delegates.editSessionChange(ctx, 1, 'details')
+    expect(detailsFor).toEqual([2])
+  })
+
+  test('a row whose card is gone edits nothing, and offers nothing to edit', async () => {
+    const { list, delegates, ctx, detailsFor } = await sessionWithAdds()
+    // Take a *pre-existing* line away: a session add would be discarded (row and
+    // all), whereas this leaves a removal row whose card no longer exists.
+    list.sessionAdds = [1]
+    performFlatListRemoval(list, ctx, list.session.entries[1]!, 2)
+    expect(delegates.listSessionChanges().map((row) => row.editable)).toEqual([true, false])
+
+    // No prompt is injected: neither a stale id nor a dead row may open one.
+    await delegates.editEntryLanguage(ctx, 99)
+    await delegates.editSessionChange(ctx, 1, 'language')
+    await delegates.editSessionChange(ctx, 1, 'details')
+    expect(detailsFor).toEqual([])
   })
 })

@@ -18,6 +18,7 @@ import {
 import { inputRequiredError, promptsUnavailable } from '../util/no-input'
 import { readDeckName } from '../importers/text-file'
 import { emitError, emitResolveListError, TEXT_ONLY } from '../cli/output'
+import { getDefaultLanguage, isDefaultLanguageConfigured } from '../config/ritual-config'
 import { ExitCode } from '../util/errors'
 
 /**
@@ -46,6 +47,18 @@ async function directOpenRef(location: ListLocation): Promise<UnifiedListRef> {
 }
 
 /** The edit command has no --output flag; resolution errors go to stderr as plain text. */
+
+/**
+ * Say once, before the session starts, that no card language was ever chosen —
+ * every card added this session is about to be stamped English. The session's
+ * `🌐 Card Language` menu row shows the value either way; this is the nudge for
+ * the user who does not know the setting exists, and it stays silent for the
+ * one who does (a declared `defaultLanguage`, `en` included).
+ */
+function warnUnconfiguredCardLanguage(): void {
+  if (isDefaultLanguageConfigured()) return
+  console.warn(t('cli.edit.noConfiguredLanguage', { language: getDefaultLanguage() }))
+}
 
 export function registerEditCommand(program: Command): void {
   const editCommand = addListTypeFlags(
@@ -103,6 +116,8 @@ export function registerEditCommand(program: Command): void {
 
     const parsedSets = options.sets ? parseSetCodesInput(options.sets) : undefined
     const excludeDigitalOnly = !options.allowDigitalOnlyCards
+
+    warnUnconfiguredCardLanguage()
 
     const cardNames = await prepareCardSessionCache(
       cliRefreshPolicy(options.refresh),

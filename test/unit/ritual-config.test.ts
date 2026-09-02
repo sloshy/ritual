@@ -14,6 +14,7 @@ import {
   getSiteSelectionConfig,
   refreshRitualConfig,
   isConfigParseError,
+  isDefaultLanguageConfigured,
   loadRitualConfig,
   normalizeBannedPrintings,
   parseAdminConfig,
@@ -214,6 +215,39 @@ describe('ritual config', () => {
       expect(config.defaultLanguage).toBe('en')
     },
   )
+
+  /**
+   * `getDefaultLanguage` cannot tell a declared `en` from a defaulted one — every
+   * consumer wants the effective value — so the `edit` session's startup warning
+   * asks this instead.
+   */
+  describe('isDefaultLanguageConfigured', () => {
+    test('is false with no config file at all', async () => {
+      await refreshRitualConfig()
+      expect(isDefaultLanguageConfigured()).toBe(false)
+    })
+
+    test('is false when the file declares other keys but not this one', async () => {
+      await fs.writeFile(configPath, JSON.stringify({ decksDir: './d' }))
+      await refreshRitualConfig()
+      expect(isDefaultLanguageConfigured()).toBe(false)
+    })
+
+    test.each([['en'], ['ja']])('is true when the file declares %s', async (language) => {
+      await fs.writeFile(configPath, JSON.stringify({ defaultLanguage: language }))
+      await refreshRitualConfig()
+      expect(isDefaultLanguageConfigured()).toBe(true)
+    })
+
+    test('is true even for a value the parser rejects — the choice was made', async () => {
+      // The value falls back to `en` with a warning of its own; what this
+      // answers is whether the user ever set the key, and they did.
+      await fs.writeFile(configPath, JSON.stringify({ defaultLanguage: 'klingon' }))
+      await refreshRitualConfig()
+      expect(getDefaultLanguage()).toBe('en')
+      expect(isDefaultLanguageConfigured()).toBe(true)
+    })
+  })
 
   test('searchDebounceMs loads a valid value, allowing 0', async () => {
     await fs.writeFile(configPath, JSON.stringify({ searchDebounceMs: 0 }))

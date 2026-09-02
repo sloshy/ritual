@@ -255,6 +255,7 @@ describe('buildMenuChoices', () => {
   const base = {
     sessionMode: 'add' as const,
     mode: 'name' as const,
+    language: 'en' as const,
     lastAdded: null,
     changeCount: 0,
     extraItems: [],
@@ -267,6 +268,7 @@ describe('buildMenuChoices', () => {
   test('without a last added card, the copy/note/edit shortcuts are absent', () => {
     const values = buildMenuChoices(base).map((c) => c.value)
     expect(values).toEqual([
+      '__CARD_LANGUAGE__',
       '__CONFIG__',
       '__COLLECTOR_MODE__',
       '__EDIT_MODE__',
@@ -323,10 +325,12 @@ describe('buildMenuChoices', () => {
       '__ADD_SIMILAR__',
       '__ADD_NOTE__',
       '__EDIT_LAST__',
+      '__EDIT_LAST_LANGUAGE__',
       '__UNDO_LAST__',
       '__UNDO_EDIT__',
       // ...then session-wide settings, review, save, and finally Exit.
       '__SECTION__',
+      '__CARD_LANGUAGE__',
       '__CONFIG__',
       '__COLLECTOR_MODE__',
       '__EDIT_MODE__',
@@ -381,7 +385,7 @@ describe('buildMenuChoices', () => {
    *
    * The catalog validator enforces the budgets across the whole catalog; this
    * asserts the two things it cannot see: that every menu key actually declares
-   * one, and that the menu the engine builds is still the same eighteen rows
+   * one, and that the menu the engine builds is still the same number of rows
    * once every label has been swapped.
    */
   describe('under the en-XA pseudo-locale', () => {
@@ -508,6 +512,42 @@ describe('buildMenuChoices', () => {
     expect(values).not.toContain('__ADD_SIMILAR__')
     expect(values).not.toContain('__EDIT_LAST__')
     expect(values).not.toContain('__CONFIG__')
+  })
+
+  test('the card-language row names the session language, not the configured one', () => {
+    const english = buildMenuChoices(base).find((c) => c.value === '__CARD_LANGUAGE__')
+    expect(english?.title).toContain('Card Language (English)')
+    const japanese = buildMenuChoices({ ...base, language: 'ja' }).find(
+      (c) => c.value === '__CARD_LANGUAGE__',
+    )
+    expect(japanese?.title).toContain('Card Language (Japanese)')
+  })
+
+  test('the change-language shortcut needs a last added card with an id', () => {
+    expect(buildMenuChoices(base).map((c) => c.value)).not.toContain('__EDIT_LAST_LANGUAGE__')
+    // A deck line the session added but cannot address by id (no `&N` yet).
+    const idless = buildMenuChoices({ ...base, lastAdded: { name: 'Sol Ring', hasNote: false } })
+    expect(idless.map((c) => c.value)).not.toContain('__EDIT_LAST_LANGUAGE__')
+
+    const withId = buildMenuChoices({
+      ...base,
+      lastAdded: { name: 'Sol Ring', hasNote: false, cardId: 3 },
+    })
+    const row = withId.find((c) => c.value === '__EDIT_LAST_LANGUAGE__')
+    expect(row?.title).toContain('Change Language (Sol Ring)')
+  })
+
+  test('edit mode drops both language rows along with the other add shortcuts', () => {
+    const values = buildMenuChoices({
+      ...base,
+      sessionMode: 'edit',
+      language: 'ja',
+      lastAdded: { name: 'Sol Ring', hasNote: false, cardId: 3 },
+    }).map((c) => c.value)
+    // Edit mode has its own per-entry Change Language action; the session
+    // default only governs adds, which edit mode does not do.
+    expect(values).not.toContain('__CARD_LANGUAGE__')
+    expect(values).not.toContain('__EDIT_LAST_LANGUAGE__')
   })
 
   test('the undo-edit item appears with its label when an edit is undoable', () => {
@@ -755,6 +795,7 @@ describe('buildInitialSessionConfig', () => {
   test('defaults to name mode with no collector pool built', () => {
     expect(buildInitialSessionConfig({}, undefined)).toEqual({
       sets: undefined,
+      language: 'en',
       finish: undefined,
       condition: undefined,
       entryMode: 'name',
