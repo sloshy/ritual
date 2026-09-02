@@ -421,6 +421,18 @@ export const adminMeta = {
   'admin.buildSite.failed': {
     description: 'Error when the build request failed without a message of its own.',
   },
+  'admin.buildSite.step': {
+    description:
+      'Label above the Build Site progress bar naming the current structural step; `step` is one of starting, building, publishing, done.',
+  },
+  'admin.buildSite.output': {
+    description:
+      'Heading of the live log box on the Build Site page showing the build’s own output lines.',
+  },
+  'admin.buildSite.connectionDropped': {
+    description:
+      'Error on the Build Site page when the event stream dropped mid-build. The build keeps running server-side, so the user is told to check back rather than to retry.',
+  },
 
   // ── Refresh Cache ─────────────────────────────────────────────────────
   'admin.cache.desc': { description: 'Lead paragraph of the Refresh Cache page.' },
@@ -1556,6 +1568,10 @@ export const adminMeta = {
   'admin.api.buildSite.built': {
     description: 'Success alert after the public site finishes building and is published.',
   },
+  'admin.api.buildSite.cancelled': {
+    description:
+      'Error body (HTTP 499) when the caller cancelled a site build part way; the published site was left untouched.',
+  },
   'admin.api.cache.refreshed': {
     description: 'Success alert after the local Scryfall card cache is rebuilt from bulk data.',
   },
@@ -1603,6 +1619,10 @@ export const adminMeta = {
     description:
       'Summary clause: decks the run could not sync. Each deck’s own reason is listed separately. **No final punctuation.**',
   },
+  'admin.api.deckSync.cancelled': {
+    description:
+      'Summary clause of a run the caller cancelled part way; {count} is how many decks it never started (they are reported as skipped). **No final punctuation.**',
+  },
   'admin.api.collectionSync.loginRequired': {
     description:
       'Why a collection sync run never started: no usable Archidekt token is stored. Shown in place of a run summary.',
@@ -1642,5 +1662,9 @@ export const adminMeta = {
   'admin.api.collectionSync.errors': {
     description:
       'Summary clause: failures of the run as a whole, as opposed to failures of one list. **No final punctuation.**',
+  },
+  'admin.api.collectionSync.cancelled': {
+    description:
+      'Summary clause of a run the caller cancelled part way; {count} is how many lists it never started (they are reported as skipped). **No final punctuation.**',
   },
 } as const satisfies MetaFor<typeof adminMessages>

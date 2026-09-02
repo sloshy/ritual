@@ -103,7 +103,9 @@ holds them; re-run `preload-all` to clear them out.
 A failed preload exits `1`. The same refresh over HTTP
 ([`POST /api/cache/refresh`](/commands/admin/#post-apicacherefresh), and the MCP
 `refresh_cache` tool that reuses it) likewise **reports the failure** rather than
-answering success unconditionally.
+answering success unconditionally, and honours cancellation from an in-process
+caller (the MCP tool): the download stops, nothing is written, the previous cache
+stands, and the cache lock is released.
 
 #### The buylist rides along under sell mode
 

@@ -50,6 +50,8 @@ import { DIFF_BY_MODES } from '../changes/list-diff'
 import { BUYERS, SELL_MATCH_VIAS } from '../buylist'
 import { SELL_ENTRY_STATUSES, SELL_NO_MATCH_REASONS } from '../pricing/sell-report'
 import { REPORT_PRICE_SOURCES } from '../pricing/price-report'
+import { SYNC_DIRECTIONS } from '../sync/common'
+import { TOOL_ERROR_CODES } from './error-codes'
 import type { SessionOverrides } from '../config/ritual-config'
 import {
   CARD_ART_REF,
@@ -861,7 +863,7 @@ const SYNC_SUMMARY: JsonSchemaType = obj(
   ['clauses'],
 )
 
-const SYNC_DIRECTION = enumOf(['pull', 'push'])
+const SYNC_DIRECTION = enumOf(SYNC_DIRECTIONS)
 
 export const SYNC_DECKS_OUTPUT: JsonSchemaType = obj(
   {
@@ -873,8 +875,11 @@ export const SYNC_DECKS_OUTPUT: JsonSchemaType = obj(
         decks: arr(openObject('One deck’s sync outcome.')),
         failedCount: int('Decks that failed; a run with failures still reports success.'),
         unreadable: arr(openObject('A deck file holding lines the parser cannot read.')),
+        cancelled: bool(
+          'True when the call was cancelled between decks; the decks never started are skipped.',
+        ),
       },
-      ['direction', 'decks', 'failedCount', 'unreadable'],
+      ['direction', 'decks', 'failedCount', 'unreadable', 'cancelled'],
     ),
   },
   ['message', 'summary', 'report'],
@@ -908,6 +913,15 @@ export const SYNC_COLLECTION_OUTPUT: JsonSchemaType = obj(
           },
           ['added', 'removed', 'skipped', 'pending'],
         ),
+        cancelled: bool(
+          'True when the call was cancelled between lists; the lists never started are ' +
+            'skipped and no lastSynced was recorded.',
+        ),
+        unresolvedAmbiguity: bool(
+          'True when a pull stopped on ambiguous removals nobody placed — nothing was ' +
+            'written; rerun with removalPriority or removalAssignments (or answer the ' +
+            'elicitation this tool raises when the client supports it).',
+        ),
       },
       [
         'direction',
@@ -921,6 +935,8 @@ export const SYNC_COLLECTION_OUTPUT: JsonSchemaType = obj(
         'localIncomplete',
         'csv',
         'totals',
+        'cancelled',
+        'unresolvedAmbiguity',
       ],
     ),
   },
@@ -939,7 +955,7 @@ export const SYNC_COLLECTION_OUTPUT: JsonSchemaType = obj(
 export const TOOL_ERROR_OUTPUT: JsonSchemaType = obj(
   {
     error: { type: 'boolean', const: true },
-    code: enumOf(['conflict', 'invalid-request', 'internal']),
+    code: enumOf(TOOL_ERROR_CODES),
     message: str(),
     conflict: {
       type: 'boolean',

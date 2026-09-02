@@ -163,7 +163,9 @@ Not removing 2 × Lightning Bolt (LEA:161): ambiguous — copies live in "Blue B
 Taking _every_ copy is never ambiguous: each list simply loses what it holds, however many lists are
 involved.
 
-An ambiguous removal is settled in one of two ways, and until every one of them is settled **the run
+An ambiguous removal is settled in one of two ways on the CLI (the API and the MCP tool have a
+third — an explicit per-removal decision, `removalAssignments`, which is also what the MCP tool's
+elicitation answers become), and until every one of them is settled **the run
 writes nothing at all** — not even the changes it could have made on its own, and not the account's
 sync timestamp. There is no partial, one-card-at-a-time sync.
 
@@ -206,24 +208,29 @@ first question, or cancelling any prompt part way through, aborts everything: no
 `--yes` does **not** answer these prompts — it covers unreadable lines only.
 
 **Anywhere else** — `--output json`/`ndjson`, a piped stdin, `--no-input`, or any non-CLI surface
-without a removal priority — the run fails and writes nothing:
+without a decision, meaning the admin site or an MCP client that cannot be asked — the run fails and
+writes nothing:
 
 ```
 1 ambiguous removal needs a decision. Pass --removal-priority <list> (repeatable, in priority order) to say which lists may lose copies, or run in a terminal to resolve them one by one. Nothing was written.
 ```
 
 The reason is whichever one applies — no terminal, the offer declined, or a session cancelled part
-way through — and a surface that cannot resolve them at all (the admin site, the MCP tool) instead
+way through — and a surface that cannot resolve them at all (the admin site, or an MCP client that
+cannot be asked) instead
 names the cards: `Could not place 2 × Lightning Bolt (LEA:161): the removals are ambiguous and were
 not resolved. Nothing was written.`
 
-Either way the message lands in the report's `errors` (so `--output json` carries it too), the
-command exits 1 after printing `Not synced: …` rather than `Synced: …`, and the report's `ambiguous`
+Either way the message lands in the report's `errors` with `unresolvedAmbiguity: true` (so
+`--output json` carries it too), the command exits 1 after printing `Not synced: …` rather than `Synced: …`, and the report's `ambiguous`
 array carries every removal with its per-list copy counts.
 
-The other surfaces take the same priority and behave the same way — they simply cannot prompt: the
-admin site's [Sync Collection](/admin/sync-collection/#removals-it-will-not-guess-at) page has an
-ordered **Removal priority** picker, and the MCP `sync_collection` tool a `removalPriority` array.
+The other surfaces take the same priority: the admin site's
+[Sync Collection](/admin/sync-collection/#removals-it-will-not-guess-at) page has an ordered
+**Removal priority** picker and cannot prompt, so it behaves like the non-interactive CLI; the MCP
+[`sync_collection`](/commands/mcp/#destructive) tool takes a `removalPriority` array **or** an
+explicit `removalAssignments` decision, and when its client declares the elicitation capability it
+asks the user directly which lists give copies up.
 
 `--dry-run` never prompts and never fails on an ambiguity itself: it reports each ambiguous removal,
 and with a priority it also reports how that priority would place each one — or that a real run
@@ -553,11 +560,17 @@ stdout:
   ],
   "localIncomplete": false,
   "csv": null,
-  "totals": { "added": 3, "removed": 1, "skipped": 0, "pending": 0 }
+  "totals": { "added": 3, "removed": 1, "skipped": 0, "pending": 0 },
+  "cancelled": false,
+  "unresolvedAmbiguity": false
 }
 ```
 
 - `into` is the list a pull adds to, and `null` on a push.
+- `cancelled` is always `false` on the CLI, which has no way to cancel a run part way; the
+  [admin API](/admin/api/#sync-collection) and the MCP `sync_collection` tool set it when a client
+  cancels the call between lists (the lists never reached are then `skipped`, and no `lastSynced`
+  is recorded).
 - Each list's `status` is `synced`, `failed`, or `skipped`; `added`, `removed`, and `pending` count
   **copies**, not lines, and a printing held in several lists counts for each of them.
 - `errors` holds failures that belong to the run rather than to one list — the collection fetch, or
@@ -567,8 +580,9 @@ stdout:
   [When a list in scope cannot be read](#when-a-list-in-scope-cannot-be-read)).
 - `ambiguous` holds the removals a pull could not place by itself, each with the lists holding
   copies and how many each holds. They are reported whether a
-  [resolution strategy](#ambiguous-removals) placed them or not; when none could, `errors` says so
-  and the run wrote nothing.
+  [resolution strategy](#ambiguous-removals) placed them or not; when none could, `errors` says so,
+  `unresolvedAmbiguity` is `true`, and the run wrote nothing. The flag is what a client that can ask
+  the user (the MCP `sync_collection` tool) branches on rather than parsing `errors`.
 - `totals.skipped` counts the changes `--only` left out; `totals.pending` counts copies written to a
   `--csv-file` rather than pushed (they are deliberately **not** part of `added`).
 - `csv` describes what the [CSV path](#csv-import-for-new-cards) did with a push's additions, and is

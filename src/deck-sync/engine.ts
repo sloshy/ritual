@@ -34,7 +34,7 @@ import {
   type DeckDiff,
   type PrintingMismatch,
 } from './diff'
-import { describeSkippedChanges } from '../sync/common'
+import { describeSkippedChanges, syncCancellationLog, SYNC_CANCELLED_REASON } from '../sync/common'
 import { assignMissingDeckCardIds, collectDeckCardIds } from '../card/card-id'
 import { reconcileListRefs } from '../list/list-refs'
 import { checkDeckDivergence, describeDivergence } from './divergence'
@@ -169,10 +169,11 @@ export async function runDeckSync(options: DeckSyncOptions): Promise<DeckSyncRun
     force: options.force ?? false,
     syncPrintings: options.syncPrintings ?? false,
     emit,
+    signal: options.signal,
   }
   const outcome: SyncOutcome =
     targets.length === 0
-      ? { decks: [], writtenFiles: [] }
+      ? { decks: [], writtenFiles: [], cancelled: false }
       : direction === 'pull'
         ? await downloadChanges(targets, flow)
         : await uploadChanges(targets, flow)
@@ -180,9 +181,32 @@ export async function runDeckSync(options: DeckSyncOptions): Promise<DeckSyncRun
   const decks = [...problems, ...outcome.decks]
   const failedCount = decks.filter((deck) => deck.status === 'failed').length
   return {
-    report: { direction, decks, failedCount, unreadable },
+    report: { direction, decks, failedCount, unreadable, cancelled: outcome.cancelled },
     writtenFiles: outcome.writtenFiles,
   }
+}
+
+/**
+ * End a flow the caller cancelled. Every deck not yet started is reported
+ * skipped — so the report still names each deck the run was asked for — and the
+ * outcome says the run stopped early. Called only between decks: the one in
+ * flight always finishes, so nothing is ever left half-synced.
+ */
+function cancelRemaining(
+  remaining: readonly DeckTarget[],
+  results: DeckSyncDeckResult[],
+  writtenFiles: string[],
+  emit: DeckSyncEventHandler,
+): SyncOutcome {
+  emit(syncCancellationLog('deck', remaining.length))
+  for (const target of remaining) {
+    finish(results, emit, {
+      name: target.deck.name,
+      status: 'skipped',
+      reason: SYNC_CANCELLED_REASON,
+    })
+  }
+  return { decks: results, writtenFiles, cancelled: true }
 }
 
 /** Emit a deck's final result and record it. */
@@ -277,6 +301,8 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
   const writtenFiles: string[] = []
 
   for (const [index, target] of targets.entries()) {
+    if (flow.signal?.aborted)
+      return cancelRemaining(targets.slice(index), results, writtenFiles, emit)
     const name = target.deck.name
     emit({ kind: 'item-start', item: name, index, total: targets.length })
 
@@ -415,7 +441,7 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     finish(results, emit, { name, status: 'synced', ...printingReport })
   }
 
-  return { decks: results, writtenFiles }
+  return { decks: results, writtenFiles, cancelled: false }
 }
 
 // ── Upload flow ───────────────────────────────────────────────────────
@@ -424,6 +450,9 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
   const { client, token, dryRun, only, force, emit } = flow
   const results: DeckSyncDeckResult[] = []
   const writtenFiles: string[] = []
+
+  // A call cancelled before the run got this far skips the ownership fetch too.
+  if (flow.signal?.aborted) return cancelRemaining(targets, results, writtenFiles, emit)
 
   // Fetch owned deck IDs for ownership check
   let ownedDeckIds: Set<string>
@@ -439,10 +468,12 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
     for (const target of targets) {
       finish(results, emit, { name: target.deck.name, status: 'failed', reason })
     }
-    return { decks: results, writtenFiles }
+    return { decks: results, writtenFiles, cancelled: false }
   }
 
   for (const [index, target] of targets.entries()) {
+    if (flow.signal?.aborted)
+      return cancelRemaining(targets.slice(index), results, writtenFiles, emit)
     const name = target.deck.name
     emit({ kind: 'item-start', item: name, index, total: targets.length })
 
@@ -610,5 +641,5 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
     finish(results, emit, { name, status: 'synced', ...printingReport })
   }
 
-  return { decks: results, writtenFiles }
+  return { decks: results, writtenFiles, cancelled: false }
 }

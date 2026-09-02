@@ -100,12 +100,15 @@ report is emitted on stdout:
     { "name": "Gone", "status": "failed", "reason": "Failed to fetch Archidekt deck 999: 404" }
   ],
   "failedCount": 1,
-  "unreadable": []
+  "unreadable": [],
+  "cancelled": false
 }
 ```
 
 `unreadable` lists any deck whose file holds lines the parser could not read, with those lines — see
-[Unreadable Lines](#unreadable-lines).
+[Unreadable Lines](#unreadable-lines). `cancelled` is always `false` on the CLI, which has no way
+to cancel a run part way; it is set by the [admin API](/admin/api/#sync-decks) and the MCP
+`sync_decks` tool when a client cancels the call between decks.
 
 Each deck's `status` is `synced`, `failed`, or `skipped`; `reason` explains
 anything other than a clean sync. Under

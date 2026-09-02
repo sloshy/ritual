@@ -22,6 +22,7 @@ import type {
 } from '../../../src/collection-sync/state'
 import type { CardMutationChange } from '../../../src/list/list-mutate'
 import type { ArchidektCollectionRecord } from '../../../src/importers/archidekt-collection'
+import { SYNC_CANCELLED_REASON } from '../../../src/sync/common'
 import {
   collectionPage,
   entry,
@@ -277,7 +278,12 @@ async function sync(
     lookupPrintings: noPrintings,
     lookupByScryfallId: () => Promise.resolve(new Map()),
     ...options,
-    onEvent: (event) => events.push(event),
+    onEvent: (event) => {
+      events.push(event)
+      // A test that reacts to the run mid-flight (cancelling on an item start,
+      // say) hooks in here; the recording above still sees every event.
+      options.onEvent?.(event)
+    },
   })
   return {
     run,
@@ -285,6 +291,113 @@ async function sync(
     logs: events.flatMap((event) => (event.kind === 'log' ? [event.message] : [])),
   }
 }
+
+// ── Cancellation ──────────────────────────────────────────────────────
+
+describe('runCollectionSync (cancellation)', () => {
+  /** Two binders each holding a copy the remote no longer has: two removals, one per list. */
+  function twoListsWithRemovals(): FakeStore {
+    return fakeStore([
+      { name: 'blue-binder', entries: [entry('Sol Ring', 'ltc', '284', { cardId: 1 })] },
+      { name: 'long-box', entries: [entry('Lightning Bolt', 'lea', '161', { cardId: 1 })] },
+    ])
+  }
+
+  test('a pull cancelled on the first list finishes it, skips the rest, and records no timestamp', async () => {
+    const store = twoListsWithRemovals()
+    const state = fakeState()
+    const { client } = mockArchidekt({ pages: [[]] })
+    const controller = new AbortController()
+
+    const { run, logs } = await sync({
+      direction: 'pull',
+      client,
+      store,
+      state,
+      signal: controller.signal,
+      onEvent: (event) => {
+        if (event.kind === 'item-start') controller.abort()
+      },
+    })
+
+    // The list in flight is written in full; the one after it never starts.
+    expect(store.applied.map((applied) => applied.list)).toEqual(['blue-binder'])
+    expect(run.report.cancelled).toBe(true)
+    expect(run.report.lists.map((list) => [list.name, list.status, list.reason])).toEqual([
+      ['blue-binder', 'synced', undefined],
+      ['long-box', 'skipped', SYNC_CANCELLED_REASON],
+    ])
+    expect(run.report.failedCount).toBe(0)
+    expect(run.report.totals.removed).toBe(1)
+    expect(logs).toContain('Cancelled: 1 collection list not synced.')
+    // The stamp means "the lists and the account agreed", which they do not.
+    expect(state.written).toEqual([])
+  })
+
+  test('a pull cancelled before it starts fetches nothing and skips every list', async () => {
+    const store = twoListsWithRemovals()
+    const state = fakeState()
+    const { client, requests } = mockArchidekt({ pages: [[]] })
+    const controller = new AbortController()
+    controller.abort()
+
+    const { run, logs } = await sync({
+      direction: 'pull',
+      client,
+      store,
+      state,
+      signal: controller.signal,
+    })
+
+    expect(requests).toEqual([])
+    expect(logs).toContain('Cancelled: 2 collection lists not synced.')
+    expect(store.applied).toEqual([])
+    expect(run.report.cancelled).toBe(true)
+    expect(run.report.errors).toEqual([])
+    expect(run.report.lists.map((list) => [list.status, list.reason])).toEqual([
+      ['skipped', SYNC_CANCELLED_REASON],
+      ['skipped', SYNC_CANCELLED_REASON],
+    ])
+    expect(state.written).toEqual([])
+  })
+
+  test('a push cancelled on the first list sends that list’s changes and no more', async () => {
+    const store = fakeStore([
+      { name: 'blue-binder', entries: [entry('Sol Ring', 'ltc', '284', { cardId: 1 })] },
+      { name: 'long-box', entries: [entry('Lightning Bolt', 'lea', '161', { cardId: 1 })] },
+    ])
+    const { client, requests } = mockArchidekt({
+      pages: [[]],
+      printings: { 'ltc:284': 284, 'lea:161': 161 },
+    })
+    const controller = new AbortController()
+
+    const { run } = await sync({
+      direction: 'push',
+      client,
+      store,
+      state: fakeState(),
+      signal: controller.signal,
+      onEvent: (event) => {
+        if (event.kind === 'item-start') controller.abort()
+      },
+    })
+
+    // One create reached Archidekt — the first list's — and the second list's
+    // card was never searched for, let alone created.
+    const creates = requests.filter(
+      (request) => request.method === 'POST' && request.url.endsWith('/api/collection/v2/'),
+    )
+    expect(creates).toHaveLength(1)
+    expect(requests.some((request) => request.url.includes('nameSearch=Lightning'))).toBe(false)
+    expect(run.report.cancelled).toBe(true)
+    expect(run.report.lists.map((list) => [list.name, list.status, list.reason])).toEqual([
+      ['blue-binder', 'synced', undefined],
+      ['long-box', 'skipped', SYNC_CANCELLED_REASON],
+    ])
+    expect(run.report.totals.added).toBe(1)
+  })
+})
 
 // ── Pull ──────────────────────────────────────────────────────────────
 

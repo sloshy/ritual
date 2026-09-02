@@ -17,7 +17,7 @@ import { handleImportDeck } from './api/import-deck'
 import { handleImportCsv } from './api/import-csv'
 import { handleImportChanges } from './api/import-changes'
 import { handleExport } from './api/export'
-import { handleBuildSite } from './api/build-site'
+import { handleBuildSite, handleBuildSiteStream } from './api/build-site'
 import { handleCacheRefresh, handleCacheRefreshStream, handleCacheStatus } from './api/cache'
 import { handleDeckSyncRun, handleDeckSyncStatus, handleDeckSyncStream } from './api/deck-sync'
 import {
@@ -113,10 +113,12 @@ export interface RequestContext {
    */
   onProgress?: RouteProgressSink
   /**
-   * Cancellation for an in-process caller. Only `POST /api/build-site` honours it
-   * today — an aborted sync leaves remote records mutated and an aborted cache
-   * refresh holds a lock, so those keep running to completion. Same tasks-ready
-   * note as {@link RequestContext.onProgress}.
+   * Cancellation for an in-process caller. The four long routes honour it, each
+   * at the point its partial state is recoverable: `POST /api/build-site` kills
+   * the child and leaves `dist/` untouched, the two syncs stop between items
+   * (the item in flight finishes, the rest are reported skipped), and the cache
+   * refresh stops before the cache file is written, releasing the cache lock.
+   * Same tasks-ready note as {@link RequestContext.onProgress}.
    */
   signal?: AbortSignal
 }
@@ -154,7 +156,13 @@ export const routes: Route[] = [
   {
     method: 'POST',
     path: '/api/build-site',
-    handler: (_req, ctx) => handleBuildSite(ctx.onProgress, ctx.signal),
+    handler: (_req, ctx) => handleBuildSite({ onProgress: ctx.onProgress, signal: ctx.signal }),
+    requiresAuth: true,
+  },
+  {
+    method: 'GET',
+    path: '/api/build-site/stream',
+    handler: () => handleBuildSiteStream(),
     requiresAuth: true,
   },
   {
@@ -167,7 +175,7 @@ export const routes: Route[] = [
   {
     method: 'POST',
     path: '/api/cache/refresh',
-    handler: (_req, ctx) => handleCacheRefresh(ctx.onProgress),
+    handler: (_req, ctx) => handleCacheRefresh(ctx.onProgress, ctx.signal),
     requiresAuth: true,
   },
   {
@@ -180,7 +188,7 @@ export const routes: Route[] = [
   {
     method: 'POST',
     path: '/api/deck-sync',
-    handler: (req, ctx) => handleDeckSyncRun(req, ctx.onProgress),
+    handler: (req, ctx) => handleDeckSyncRun(req, ctx.onProgress, ctx.signal),
     requiresAuth: true,
   },
   {
@@ -198,7 +206,7 @@ export const routes: Route[] = [
   {
     method: 'POST',
     path: '/api/collection-sync',
-    handler: (req, ctx) => handleCollectionSyncRun(req, ctx.onProgress),
+    handler: (req, ctx) => handleCollectionSyncRun(req, ctx.onProgress, ctx.signal),
     requiresAuth: true,
   },
   {

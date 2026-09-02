@@ -83,13 +83,19 @@ function cacheRefreshProgress(sink: RouteProgressSink): CacheRefreshProgressHand
  *
  * A failed refresh reaches {@link apiHandler} as an error rather than being
  * swallowed: a client that asked for a refresh has to be able to learn it did
- * not happen.
+ * not happen. `signal` cancels it: the download stops, nothing is written, the
+ * cache lock is released, and the route answers 499 — the previous cache is
+ * still there, untouched.
  */
-export function handleCacheRefresh(onProgress?: RouteProgressSink): Promise<Response> {
+export function handleCacheRefresh(
+  onProgress?: RouteProgressSink,
+  signal?: AbortSignal,
+): Promise<Response> {
   return apiHandler(async () => {
-    await preloadCache(
-      onProgress === undefined ? undefined : { onProgress: cacheRefreshProgress(onProgress) },
-    )
+    await preloadCache({
+      onProgress: onProgress === undefined ? undefined : cacheRefreshProgress(onProgress),
+      signal,
+    })
     const resp: CacheRefreshResponse = { success: true, ...apiMessage('admin.api.cache.refreshed') }
     return Response.json(resp)
   })

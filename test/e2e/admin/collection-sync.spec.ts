@@ -38,6 +38,8 @@ const DONE_REPORT: CollectionSyncReport = {
   failedCount: 0,
   errors: [],
   unreadable: [],
+  cancelled: false,
+  unresolvedAmbiguity: false,
   ambiguous: [],
   localIncomplete: false,
   csv: null,
@@ -406,7 +408,13 @@ test.describe('Sync Collection Page', () => {
     })
     await emitStreamEvent(page, 'done', {
       message: 'Pulled +0 added, -0 removed, 1 ambiguous removal, 1 error.',
-      report: { ...DONE_REPORT, errors: [AMBIGUOUS_ERROR], ambiguous: [AMBIGUOUS_REMOVAL] },
+      // The flag, not the prose, is what the page reads to replay the census.
+      report: {
+        ...DONE_REPORT,
+        errors: [AMBIGUOUS_ERROR],
+        ambiguous: [AMBIGUOUS_REMOVAL],
+        unresolvedAmbiguity: true,
+      },
     })
 
     await expect(page.locator('.sync-run-note[data-level="error"]')).toContainText(

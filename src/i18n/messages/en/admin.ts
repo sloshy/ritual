@@ -141,6 +141,17 @@ export const adminMessages = {
   'admin.buildSite.building': 'Building... (this may take a while)',
   'admin.buildSite.build': 'Build Site',
   'admin.buildSite.failed': 'Failed to build site',
+  'admin.buildSite.step': {
+    $select: 'step',
+    starting: 'Starting the build',
+    building: 'Building the site',
+    publishing: 'Publishing to dist/',
+    done: 'Site published',
+    other: 'Building the site',
+  },
+  'admin.buildSite.output': 'Build output',
+  'admin.buildSite.connectionDropped':
+    'Lost the connection to the build. It is still running on the server; reload the page in a minute to confirm the site was published.',
 
   // ── Refresh Cache ─────────────────────────────────────────────────────
   'admin.cache.desc': 'Download and cache all Scryfall card data. This will take some time.',
@@ -935,6 +946,7 @@ export const adminMessages = {
   'admin.api.art.set': "Set custom art on '{name}'",
   'admin.api.art.cleared': "Cleared custom art on '{name}'",
   'admin.api.buildSite.built': 'Site built successfully',
+  'admin.api.buildSite.cancelled': 'The site build was cancelled.',
   'admin.api.cache.refreshed': 'Cache refreshed successfully',
   'admin.api.history.saved': {
     $plural: 'count',
@@ -976,6 +988,11 @@ export const adminMessages = {
   },
   'admin.api.deckSync.skipped': '{count} skipped',
   'admin.api.deckSync.failed': '{count} failed',
+  'admin.api.deckSync.cancelled': {
+    $plural: 'count',
+    one: 'cancelled with {count} deck not started',
+    other: 'cancelled with {count} decks not started',
+  },
 
   // ── Collection sync run summary ───────────────────────────────────────
   'admin.api.collectionSync.loginRequired':
@@ -1013,5 +1030,10 @@ export const adminMessages = {
     $plural: 'count',
     one: '{count} error',
     other: '{count} errors',
+  },
+  'admin.api.collectionSync.cancelled': {
+    $plural: 'count',
+    one: 'cancelled with {count} list not started',
+    other: 'cancelled with {count} lists not started',
   },
 } as const satisfies MessageCatalogShape

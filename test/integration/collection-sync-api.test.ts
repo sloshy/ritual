@@ -11,7 +11,6 @@ import {
   type CollectionSyncRunResponse,
   type CollectionSyncStatusResponse,
 } from '../../src/admin/api/collection-sync'
-import { dispatchRoute } from '../../src/admin/server'
 import { compareData } from '../../src/i18n/collate'
 import type { RouteProgress, RouteProgressSink } from '../../src/util/progress'
 import type { ArchidektToken } from '../../src/auth/interfaces'
@@ -34,6 +33,7 @@ import {
 } from './helpers/archidekt'
 import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from '../helpers/workspace'
 import { expectMonotonicProgress } from '../test-utils'
+import { readStreamFrames, type SseFrame } from '../helpers/sse'
 
 /**
  * End-to-end coverage for the admin collection-sync endpoints: what the status
@@ -82,30 +82,9 @@ async function postRun(body: unknown, onProgress?: RouteProgressSink): Promise<R
   return { status: resp.status, body: (await resp.json()) as CollectionSyncRunResponse }
 }
 
-type StreamFrame = { event: string; data: Record<string, unknown> }
-
-/**
- * Collect every SSE frame a stream request emits. Dispatched through the admin
- * route table rather than the handler directly, so the route registration
- * (method + path) is covered too.
- */
-async function readStream(query: string): Promise<StreamFrame[]> {
-  const dispatched = await dispatchRoute(
-    new Request(`http://localhost/api/collection-sync/stream?${query}`),
-    { clientIp: 'test', sessionToken: null },
-  )
-  if (!dispatched.matched) throw new Error('No admin route for GET /api/collection-sync/stream')
-  const text = await dispatched.response.text()
-  return text
-    .split('\n\n')
-    .filter((chunk) => chunk.trim().length > 0)
-    .map((chunk) => {
-      const [eventLine = '', dataLine = ''] = chunk.split('\n')
-      return {
-        event: eventLine.replace('event: ', ''),
-        data: JSON.parse(dataLine.replace('data: ', '')) as Record<string, unknown>,
-      }
-    })
+/** Every frame of one collection-sync stream, opened through the route table. */
+function readStream(query: string): Promise<SseFrame[]> {
+  return readStreamFrames(`/api/collection-sync/stream?${query}`)
 }
 
 function listPath(name: string): string {
@@ -260,6 +239,8 @@ describe('collection-sync API', () => {
     expect(body.success && body.report.errors).toEqual([
       'Could not place 1 × Sol Ring (C21:240): the removals are ambiguous and were not resolved. Nothing was written.',
     ])
+    // The flag a client that can ask the user branches on, rather than the prose.
+    expect(body.success && body.report.unresolvedAmbiguity).toBe(true)
     const [ambiguous] = body.success ? body.report.ambiguous : []
     expect(ambiguous).toMatchObject({
       key: 'c21|240|nonfoil|NM|en',
@@ -283,6 +264,64 @@ describe('collection-sync API', () => {
     // Fail-and-write-nothing: both binders still hold their copy.
     expect(await fs.readFile(listPath('binder'), 'utf-8')).toContain('Sol Ring (C21:240)')
     expect(await fs.readFile(listPath('longbox'), 'utf-8')).toContain('Sol Ring (C21:240)')
+  })
+
+  test('explicit removal assignments decide which list loses the copy', async () => {
+    await signIn(ACCOUNT)
+    await writeCollectionFile(dir, 'longbox', {
+      title: 'Long Box',
+      entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 }],
+    })
+    stubCollection(record(SOL_RING))
+
+    const { status, body } = await postRun({
+      direction: 'pull',
+      removalAssignments: [
+        { key: 'c21|240|nonfoil|NM|en', choices: [{ list: 'longbox', copies: 1 }] },
+      ],
+    })
+
+    expect(status).toBe(200)
+    if (!body.success) throw new Error(body.message)
+    expect(body.report.unresolvedAmbiguity).toBe(false)
+    expect(body.report.totals.removed).toBe(1)
+    expect(await fs.readFile(listPath('longbox'), 'utf-8')).not.toContain('Sol Ring')
+    expect(await fs.readFile(listPath('binder'), 'utf-8')).toContain('Sol Ring (C21:240)')
+  })
+
+  test('assignments that do not add up fail the run with the flag set, writing nothing', async () => {
+    await signIn(ACCOUNT)
+    await writeCollectionFile(dir, 'longbox', {
+      title: 'Long Box',
+      entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 }],
+    })
+    stubCollection(record(SOL_RING))
+
+    const { body } = await postRun({
+      direction: 'pull',
+      // Two copies from a list holding one: the engine's verdict, not the parser's.
+      removalAssignments: [
+        { key: 'c21|240|nonfoil|NM|en', choices: [{ list: 'longbox', copies: 2 }] },
+      ],
+    })
+
+    if (!body.success) throw new Error(body.message)
+    expect(body.report.unresolvedAmbiguity).toBe(true)
+    expect(body.report.errors).toHaveLength(1)
+    // Neither the list the bad assignment named nor the one it did not was touched.
+    expect(await fs.readFile(listPath('longbox'), 'utf-8')).toContain('Sol Ring (C21:240)')
+    expect(await fs.readFile(listPath('binder'), 'utf-8')).toContain('Sol Ring (C21:240)')
+  })
+
+  test('refuses a request carrying both a priority and assignments', async () => {
+    await signIn(ACCOUNT)
+    const { status, body } = await postRun({
+      direction: 'pull',
+      removalPriority: ['longbox'],
+      removalAssignments: [{ key: 'k', choices: [{ list: 'longbox', copies: 1 }] }],
+    })
+    expect(status).toBe(400)
+    expect(body.success).toBe(false)
   })
 
   test('a removal priority decides which list loses the copy', async () => {

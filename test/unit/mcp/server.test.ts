@@ -81,6 +81,19 @@ const EXPECTED_TOOLS = [
   'refresh_buylist',
 ]
 
+/** `sync_collection`'s input fields, pinned once for both the catalogue and the live listing. */
+const SYNC_COLLECTION_PROPERTIES = [
+  'csv',
+  'direction',
+  'dryRun',
+  'ignoreUnreadableLines',
+  'into',
+  'lists',
+  'only',
+  'removalAssignments',
+  'removalPriority',
+]
+
 /** Mutation tools whose schemas must never surface the internally-managed content hash. */
 const MUTATION_TOOLS = [
   'add_card',
@@ -221,17 +234,18 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(config.type).toBe('object')
     expect(config.additionalProperties).not.toBe(false)
 
-    expect(Object.keys(schemaOf('sync_collection').properties as object).sort()).toEqual([
-      'csv',
-      'direction',
-      'dryRun',
-      'ignoreUnreadableLines',
-      'into',
-      'lists',
-      'only',
-      'removalPriority',
-    ])
+    expect(Object.keys(schemaOf('sync_collection').properties as object).sort()).toEqual(
+      SYNC_COLLECTION_PROPERTIES,
+    )
     expect(schemaOf('sync_collection').required).toEqual(['direction'])
+    // The nested decision shape is what a client actually has to send.
+    const assignment = (schemaOf('sync_collection').properties as Record<string, JsonSchemaNode>)
+      .removalAssignments?.items
+    expect(Object.keys(assignment?.properties ?? {}).sort()).toEqual(['choices', 'key'])
+    expect(Object.keys(assignment?.properties?.choices?.items?.properties ?? {}).sort()).toEqual([
+      'copies',
+      'list',
+    ])
     expect(Object.keys(schemaOf('sync_decks').properties as object).sort()).toEqual([
       'decks',
       'direction',
@@ -1380,16 +1394,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
 
     const { tools } = await client.listTools()
     const schema = tools.find((tool) => tool.name === 'sync_collection')?.inputSchema
-    expect(Object.keys(schema?.properties ?? {}).sort()).toEqual([
-      'csv',
-      'direction',
-      'dryRun',
-      'ignoreUnreadableLines',
-      'into',
-      'lists',
-      'only',
-      'removalPriority',
-    ])
+    expect(Object.keys(schema?.properties ?? {}).sort()).toEqual(SYNC_COLLECTION_PROPERTIES)
     expect(schema?.required).toEqual(['direction'])
   })
 

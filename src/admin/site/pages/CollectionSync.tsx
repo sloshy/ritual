@@ -339,7 +339,9 @@ export function CollectionSync(): JSX.Element {
       setPhase(failed ? 'error' : 'done')
       if (failed) setRunError(message)
       else setSummary(message)
-      if (failed) setAmbiguous(report.ambiguous)
+      // The engine's own verdict, not a guess from `errors`: the census is
+      // replayed only for the run that actually stopped on it.
+      if (report?.unresolvedAmbiguity) setAmbiguous(report.ambiguous)
       // Whether the new cards were uploaded, previewed, or lost to a failed
       // import is the one thing a push's per-list tallies cannot show.
       setCsvOutcome(report?.csv ?? null)
@@ -417,7 +419,7 @@ export function CollectionSync(): JSX.Element {
         // engine's "Removing … (removal priority)" line has no equivalent here.
         // So they are replayed only for the run that actually stopped on them,
         // which is the same signal the panel below uses.
-        const unplaced = data.report.errors.length > 0 ? data.report.ambiguous : []
+        const unplaced = data.report.unresolvedAmbiguity ? data.report.ambiguous : []
         setRunLog((current) => [
           ...current,
           ...data.report.errors.map((text): SyncRunMessage => ({ level: 'error', text })),

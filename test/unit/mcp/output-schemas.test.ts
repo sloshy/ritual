@@ -510,6 +510,7 @@ describe('MCP output schemas, as authored', () => {
           decks: [{ name: 'Burn', status: 'synced' }],
           failedCount: 0,
           unreadable: [],
+          cancelled: false,
         },
       }
       expect(await validates(SYNC_DECKS_OUTPUT, deckSample)).toBe(true)
@@ -522,6 +523,8 @@ describe('MCP output schemas, as authored', () => {
         failedCount: 0,
         errors: [],
         unreadable: [],
+        cancelled: false,
+        unresolvedAmbiguity: false,
         ambiguous: [],
         localIncomplete: false,
         csv: null,
@@ -584,6 +587,15 @@ describe('MCP output schemas, as authored', () => {
       ])
       expect(clause?.required).toEqual(['message'])
     }
+    // The run-level flags a client branches on are always present, not optional
+    // extras: dropping one from `required` is what would turn a real result into
+    // a runtime schema failure.
+    expect((SYNC_DECKS_OUTPUT as unknown as SchemaNode).properties?.report?.required).toContain(
+      'cancelled',
+    )
+    const collectionReport = (SYNC_COLLECTION_OUTPUT as unknown as SchemaNode).properties?.report
+    expect(collectionReport?.required).toContain('cancelled')
+    expect(collectionReport?.required).toContain('unresolvedAmbiguity')
   })
 
   test('the tool-error payload is formalized, though it is never an outputSchema arm', async () => {

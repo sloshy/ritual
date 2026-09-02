@@ -11,7 +11,7 @@ import {
   type DeckSyncStatus,
   type SyncableDeck,
 } from '../../deck-sync/engine'
-import type { SyncDirection } from '../../sync/common'
+import { countUnstartedItems, type SyncDirection } from '../../sync/common'
 import type { RouteProgressSink } from '../../util/progress'
 import { apiHandler } from '../utils'
 import { apiMessage, type ApiMessage } from '../../api/result'
@@ -188,10 +188,16 @@ export function summarizeRun(report: DeckSyncReport, dryRun: boolean): SyncSumma
       : apiMessage(RUN_VERB_KEYS[report.direction], { count: synced }),
   ]
 
-  const skipped = countStatus(report, 'skipped')
+  // Decks a cancellation never reached are skipped too, but they get their own
+  // clause: "3 skipped" would read as three decks with nothing to do.
+  const unstarted = countUnstartedItems(report.decks)
+  const skipped = countStatus(report, 'skipped') - unstarted
   if (skipped > 0) clauses.push(apiMessage('admin.api.deckSync.skipped', { count: skipped }))
   if (report.failedCount > 0) {
     clauses.push(apiMessage('admin.api.deckSync.failed', { count: report.failedCount }))
+  }
+  if (report.cancelled) {
+    clauses.push(apiMessage('admin.api.deckSync.cancelled', { count: unstarted }))
   }
   return { clauses }
 }
@@ -213,6 +219,7 @@ export function describeRun(report: DeckSyncReport, dryRun: boolean): string {
 async function performSync(
   request: DeckSyncRequest,
   onEvent?: DeckSyncEventHandler,
+  signal?: AbortSignal,
 ): Promise<SyncRunOutcome<DeckSyncReport>> {
   const token = await new ArchidektAuth(new FileTokenStore()).getToken()
   if (!token) {
@@ -228,6 +235,7 @@ async function performSync(
     force: request.force,
     syncPrintings: request.syncPrintings,
     onEvent,
+    signal,
     // Nobody to prompt over HTTP: the request either carries the caller's "yes"
     // up front, or decks with unreadable lines fail and the caller retries.
     confirmUnreadable: request.ignoreUnreadableLines ? () => true : undefined,
@@ -266,8 +274,12 @@ const ROUTE: SyncRouteConfig<DeckSyncRequest, DeckSyncReport, DeckSyncDeckResult
 }
 
 /** `POST /api/deck-sync` — see {@link runSyncRoute}. */
-export function handleDeckSyncRun(req: Request, onProgress?: RouteProgressSink): Promise<Response> {
-  return runSyncRoute(req, onProgress, ROUTE)
+export function handleDeckSyncRun(
+  req: Request,
+  onProgress?: RouteProgressSink,
+  signal?: AbortSignal,
+): Promise<Response> {
+  return runSyncRoute(req, onProgress, ROUTE, signal)
 }
 
 /** `event: done` payload — the same shape the JSON endpoint returns. */

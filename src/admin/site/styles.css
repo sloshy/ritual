@@ -1140,6 +1140,23 @@
   color: var(--warning-text);
 }
 
+/* The Build Site page's live log: a fixed-height, scrolling, monospace box so a
+   multi-thousand-line build never grows the page. */
+.build-log {
+  max-height: 16rem;
+  overflow-y: auto;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* ----- Progress / Cache ----- */
 .progress-section {
   background: var(--bg-panel);

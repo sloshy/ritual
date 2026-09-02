@@ -35,6 +35,23 @@ export const NOT_FOUND_ERROR_CODE = -32_011 satisfies NotProtocolCode<-32_011>
 export const CONFLICT_ERROR_CODE = -32_012 satisfies NotProtocolCode<-32_012>
 
 /**
+ * The caller cancelled the request part way (an admin route answered 499).
+ * Internal only, like {@link CONFLICT_ERROR_CODE}: `runTool` folds it into an
+ * `isError` result whose payload carries `code: "cancelled"`, so an agent can
+ * tell "I stopped this" from "the server broke".
+ */
+export const CANCELLED_ERROR_CODE = -32_013 satisfies NotProtocolCode<-32_013>
+
+/**
+ * The structured `code` a failed tool result carries — the words an agent
+ * branches on, as opposed to the numeric codes above that never reach it. A
+ * tuple in this leaf module so the output schema's enum and the payload type
+ * are both derived from it, and so neither `result.ts` nor `schema-json.ts`
+ * has to import the other to share it.
+ */
+export const TOOL_ERROR_CODES = ['conflict', 'cancelled', 'invalid-request', 'internal'] as const
+
+/**
  * The codes Ritual itself puts in a JSON-RPC error body.
  *
  * Both are raised by the HTTP wrapper *before* the transport is reached, which

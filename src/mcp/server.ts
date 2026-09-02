@@ -25,7 +25,7 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   and report instead.
 - Every tool returns structuredContent against its declared outputSchema; read that, not
   content[0].text. A failure is isError with { error, code, message, conflict?, recovery?,
-  unmatched? } — code is "conflict" | "invalid-request" | "internal".
+  unmatched? } — code is "conflict" | "cancelled" | "invalid-request" | "internal".
 - Language: tool names, descriptions, these instructions, and every result "message" are
   English by contract, whatever UI locale the user configured (that setting moves Ritual's own
   terminal output and its web UIs, never this surface). Results authored by the admin API carry

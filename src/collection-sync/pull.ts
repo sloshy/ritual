@@ -28,6 +28,7 @@ import {
   type SyncFlow,
   type FlowOutcome,
   abortedOutcome,
+  markCancelled,
 } from './types'
 
 // ── Pull (Archidekt → local) ──────────────────────────────────────────
@@ -53,9 +54,9 @@ export async function pullFromArchidekt(
    * list, not the target list a pull creates, not the sync timestamp — which is
    * what `aborted` tells `runCollectionSync`.
    */
-  const abort = (message: string): FlowOutcome => {
+  const abort = (message: string, unresolvedAmbiguity = false): FlowOutcome => {
     emit({ kind: 'log', level: 'error', item: null, message })
-    return abortedOutcome([message], plan.ambiguous)
+    return abortedOutcome([message], plan.ambiguous, unresolvedAmbiguity)
   }
 
   // Ambiguity is settled before anything is written: a run that cannot place
@@ -70,7 +71,9 @@ export async function pullFromArchidekt(
 
   if (plan.ambiguous.length > 0) {
     const placed = await placeAmbiguous(flow, local, plan.ambiguous, priority)
-    if (typeof placed === 'string') return abort(placed)
+    // Every way `placeAmbiguous` refuses is the same thing to a caller: the
+    // ambiguity is still open, and a rerun carrying a decision is the fix.
+    if (typeof placed === 'string') return abort(placed, true)
     if (placed.length > 0) applicable = { ...plan, removals: [...plan.removals, ...placed] }
   }
 
@@ -118,7 +121,13 @@ export async function pullFromArchidekt(
 
   let added = 0
   let removed = 0
+  let cancelled = false
   for (const [index, name] of ordered.entries()) {
+    if (flow.signal?.aborted) {
+      markCancelled(ordered.slice(index), emit, results)
+      cancelled = true
+      break
+    }
     emit({ kind: 'item-start', item: name, index, total: ordered.length })
     const changes = changesByList.get(name)
     if (!changes || changes.changes.length === 0) {
@@ -171,6 +180,8 @@ export async function pullFromArchidekt(
     csv: null,
     totals: { added, removed, skipped: plan.skipped, pending: 0 },
     aborted: false,
+    cancelled,
+    unresolvedAmbiguity: false,
   }
 }
 

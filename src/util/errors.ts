@@ -129,3 +129,21 @@ export function localizedCommandError<K extends MessageKey>(
 export function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError'
 }
+
+/**
+ * Thrown by a long operation that stopped because its caller cancelled it —
+ * the engine's own statement that it went no further, as opposed to a `fetch`
+ * that happened to be aborted underneath it ({@link isAbortError}). The message
+ * says what state the operation left behind.
+ */
+export class CancelledError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'CancelledError'
+  }
+}
+
+/** Whether an error is a cancellation of either kind: ours, or an aborted `fetch`. */
+export function isCancellation(error: unknown): boolean {
+  return error instanceof CancelledError || isAbortError(error)
+}

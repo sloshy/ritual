@@ -30,8 +30,9 @@ import {
   type CollectionSyncListResult,
   type CollectionSyncReport,
 } from '../../collection-sync/engine'
-import type { SyncDirection } from '../../sync/common'
+import { countUnstartedItems, type SyncDirection } from '../../sync/common'
 import { CSV_UPLOAD_THRESHOLD } from '../../collection-sync/csv'
+import type { RemovalAssignment, RemovalChoice } from '../../collection-sync/diff'
 import { readCollectionSyncState } from '../../collection-sync/state'
 import { listDisplayName } from '../../list/list-lifecycle'
 import { listLocations } from '../../list/resolve-list'
@@ -156,6 +157,17 @@ export type CollectionSyncRequest = SyncRequestCore & {
    */
   removalPriority?: string[]
   /**
+   * The other way to settle ambiguous removals: an explicit decision per
+   * removal, naming the lists that lose copies and how many each gives up —
+   * what the CLI's interactive session produces, and what an MCP client answers
+   * an elicitation with. Each `key` is the removal's key as `report.ambiguous`
+   * reports it. Validated by the engine, not trusted: a list holding no copies,
+   * or counts that do not add up to the removal's quantity, fail the run and
+   * write nothing. Mutually exclusive with {@link removalPriority}, which would
+   * otherwise silently win. A push ignores it.
+   */
+  removalAssignments?: RemovalAssignment[]
+  /**
    * Send a push's **additions** to Archidekt as one CSV import rather than
    * resolving and creating them one at a time — the CLI's `--csv`, and the same
    * meaning: however few there are. Absent, a push adds them individually, which
@@ -178,7 +190,57 @@ export const CSV_FILE_UNSUPPORTED_MESSAGE =
 /** `POST /api/collection-sync`: the run's outcome — see {@link SyncRunResponse}. */
 export type CollectionSyncRunResponse = SyncRunResponse<CollectionSyncReport>
 
+/** Why a request carrying both ambiguity strategies is refused. */
+export const REMOVAL_STRATEGY_CONFLICT_MESSAGE =
+  'removalPriority and removalAssignments are two ways to settle the same removals; send one or the other.'
+
 // ── Request parsing ───────────────────────────────────────────────────
+
+/**
+ * Validate one removal assignment's list choice: a non-blank list name and a
+ * positive whole number of copies. Zero would be a list that keeps its copies,
+ * which is spelled by leaving the list out.
+ */
+function parseRemovalChoice(value: unknown, at: string): RemovalChoice | string {
+  if (!isRecord(value)) return `${at} must be an object with list and copies`
+  if (typeof value.list !== 'string' || value.list.trim().length === 0) {
+    return `${at}.list must be a collection list name`
+  }
+  if (typeof value.copies !== 'number' || !Number.isInteger(value.copies) || value.copies < 1) {
+    return `${at}.copies must be a whole number of at least 1`
+  }
+  return { list: value.list.trim(), copies: value.copies }
+}
+
+/**
+ * Validate a request's `removalAssignments`: an array of `{ key, choices }`,
+ * each naming one ambiguous removal and the lists losing its copies. Only the
+ * shape is checked here — whether a key exists, a list holds copies, or the
+ * counts add up is the engine's verdict, reported through the run.
+ */
+export function parseRemovalAssignments(raw: unknown): RemovalAssignment[] | string {
+  if (raw === undefined || raw === null) return []
+  if (!Array.isArray(raw)) return 'removalAssignments must be an array of { key, choices }'
+  const assignments: RemovalAssignment[] = []
+  for (const [index, entry] of raw.entries()) {
+    const at = `removalAssignments[${index}]`
+    if (!isRecord(entry)) return `${at} must be an object with key and choices`
+    if (typeof entry.key !== 'string' || entry.key.length === 0) {
+      return `${at}.key must be the ambiguous removal's key`
+    }
+    if (!Array.isArray(entry.choices) || entry.choices.length === 0) {
+      return `${at}.choices must be a non-empty array of { list, copies }`
+    }
+    const choices: RemovalChoice[] = []
+    for (const [choiceIndex, choice] of entry.choices.entries()) {
+      const parsed = parseRemovalChoice(choice, `${at}.choices[${choiceIndex}]`)
+      if (typeof parsed === 'string') return parsed
+      choices.push(parsed)
+    }
+    assignments.push({ key: entry.key, choices })
+  }
+  return assignments
+}
 
 /**
  * Validate a `POST /api/collection-sync` body. Returns the request or a message
@@ -209,6 +271,15 @@ export function parseCollectionSyncBody(value: unknown): CollectionSyncRequest |
   })
   if (typeof removalPriority === 'string') return removalPriority
 
+  const removalAssignments = parseRemovalAssignments(value.removalAssignments)
+  if (typeof removalAssignments === 'string') return removalAssignments
+  // Refused rather than ranked: the engine consults a priority *instead of* a
+  // resolver, so a request carrying both would have its assignments ignored
+  // without a word.
+  if (removalPriority.length > 0 && removalAssignments.length > 0) {
+    return REMOVAL_STRATEGY_CONFLICT_MESSAGE
+  }
+
   // Validated rather than coerced, like every other flag: it decides whether a
   // large batch of additions reaches Archidekt as one import or not at all.
   if (value.csv !== undefined && typeof value.csv !== 'boolean') return 'csv must be a boolean'
@@ -224,6 +295,7 @@ export function parseCollectionSyncBody(value: unknown): CollectionSyncRequest |
   // Likewise: an empty priority is no priority at all, and the field reads
   // better absent than as `[]` wherever the request is echoed back.
   if (removalPriority.length > 0) request.removalPriority = removalPriority
+  if (removalAssignments.length > 0) request.removalAssignments = removalAssignments
   // And likewise for the flag: `csv: false` and no `csv` at all are the same
   // run, and a query string spells the absent case as `false` — so only the
   // asked-for case is carried.
@@ -265,12 +337,24 @@ const BOOLEAN_FLAGS = {
 export function parseCollectionSyncQuery(params: URLSearchParams): CollectionSyncRequest | string {
   const flags = readBooleanFlags(params, BOOLEAN_FLAGS)
   if (typeof flags === 'string') return flags
+  // A structure a query string cannot spell one param at a time, so it rides as
+  // one JSON-encoded param and is validated by the same body parser.
+  const rawAssignments = params.get('removalAssignments')
+  let removalAssignments: unknown
+  if (rawAssignments !== null && rawAssignments !== '') {
+    try {
+      removalAssignments = JSON.parse(rawAssignments)
+    } catch {
+      return 'removalAssignments must be a JSON-encoded array of { key, choices }'
+    }
+  }
   return parseCollectionSyncBody({
     direction: params.get('direction') ?? undefined,
     lists: params.getAll('list'),
     only: params.get('only') ?? undefined,
     into: params.get('into') ?? undefined,
     removalPriority: params.getAll('removalPriority'),
+    removalAssignments,
     csvFile: params.get('csvFile') ?? undefined,
     ...flags,
   })
@@ -337,6 +421,10 @@ export function summarizeRun(report: CollectionSyncReport): SyncSummary {
   if (report.errors.length > 0) {
     clauses.push(apiMessage('admin.api.collectionSync.errors', { count: report.errors.length }))
   }
+  if (report.cancelled) {
+    const unstarted = countUnstartedItems(report.lists)
+    clauses.push(apiMessage('admin.api.collectionSync.cancelled', { count: unstarted }))
+  }
   return { clauses }
 }
 
@@ -357,6 +445,7 @@ export function describeRun(report: CollectionSyncReport): string {
 async function performSync(
   request: CollectionSyncRequest,
   onEvent?: CollectionSyncEventHandler,
+  signal?: AbortSignal,
 ): Promise<SyncRunOutcome<CollectionSyncReport>> {
   const auth = new ArchidektAuth(new FileTokenStore())
   const token = await auth.getToken()
@@ -378,18 +467,28 @@ async function performSync(
     only: request.only,
     into: request.into ?? getCollectionSyncPullTarget(),
     removalPriority: request.removalPriority,
+    // The caller's decision, made up front: the engine validates it against the
+    // ambiguity it finds and fails the run — writing nothing — if it does not
+    // account for every copy. Absent, `resolveAmbiguous` is absent too, and an
+    // ambiguous removal fails the run the same way (the comment below).
+    resolveAmbiguous:
+      request.removalAssignments === undefined
+        ? undefined
+        : () => ({ ok: true, assignments: request.removalAssignments ?? [] }),
     csv: request.csv,
     dryRun: request.dryRun,
     onEvent,
+    signal,
     // An HTTP caller cannot be prompted about the card cache either, and a CSV
     // upload's rows are only as good as it is — so freshness is treated as
     // `auto`: an empty or day-old cache is refreshed before the upload is built,
     // and the refresh is reported through the run's own progress events.
     ensureCsvCache: ({ log }) =>
       ensureCardCacheForUpload(headlessPolicy('auto'), { log: (m) => log(m) }),
-    // No `resolveAmbiguous`: an HTTP caller cannot be walked through the copies
-    // one at a time, so a removal the priority (if any) cannot place fails the
-    // run — the reason lands in `report.errors`, and nothing is written.
+    // No interactive `resolveAmbiguous`: an HTTP caller cannot be walked
+    // through the copies one at a time, so a removal neither the priority nor
+    // the assignments (if any) place fails the run — the reason lands in
+    // `report.errors` with `unresolvedAmbiguity: true`, and nothing is written.
     // No `decideCsv` either, for the same reason: a push with more additions
     // than the CSV threshold and no `csv: true` fails with the engine's guidance
     // rather than choosing between hundreds of searches and a bulk import on the
@@ -464,8 +563,9 @@ const ROUTE: SyncRouteConfig<
 export function handleCollectionSyncRun(
   req: Request,
   onProgress?: RouteProgressSink,
+  signal?: AbortSignal,
 ): Promise<Response> {
-  return runSyncRoute(req, onProgress, ROUTE)
+  return runSyncRoute(req, onProgress, ROUTE, signal)
 }
 
 /** `event: done` payload — the same shape the JSON endpoint returns. */

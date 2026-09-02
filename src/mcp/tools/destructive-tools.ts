@@ -1,4 +1,4 @@
-import type { McpServer } from '@modelcontextprotocol/server'
+import type { InputRequiredResult, McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import type { BuildSiteResponse } from '../../admin/api/build-site'
 import type { CacheRefreshResponse } from '../../admin/api/cache'
@@ -15,6 +15,11 @@ import { callApi, callApiData } from '../dispatch'
 import { createToolProgressSink } from '../progress'
 import type { ListChangeNotifier } from '../notify'
 import { outputSchemaFor, runTool } from '../result'
+import {
+  clientSupportsElicitation,
+  elicitRemovalAssignments,
+  readRemovalAssignments,
+} from '../removal-elicitation'
 import { listTypeSchema, slugField } from '../schemas'
 import type { OmitSuccess, UpdateConfigResult } from '../types'
 import { CSV_UPLOAD_THRESHOLD } from '../../collection-sync/csv'
@@ -267,7 +272,9 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'since that deck’s recorded lastSynced fails rather than reverting those remote edits ' +
         '— pull first, or pass force: true to overwrite them. Returns a per-deck report; ' +
         'a run with failures still reports success — check report.failedCount. ' +
-        'Emits one progress notification per deck when the call supplies a progressToken.',
+        'Emits one progress notification per deck when the call supplies a progressToken, ' +
+        'and honours cancellation between decks: the deck in flight finishes, the rest are ' +
+        'reported skipped, and report.cancelled is true.',
       inputSchema: z.object({
         direction: z.enum(SYNC_DIRECTIONS).describe(SYNC_DIRECTION_DESCRIPTION),
         decks: z
@@ -330,9 +337,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
           'POST',
           '/api/deck-sync',
           body,
-          {
-            onProgress: createToolProgressSink(ctx),
-          },
+          { onProgress: createToolProgressSink(ctx), signal: ctx.mcpReq.signal },
         )
         return data
       })
@@ -349,15 +354,21 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'remote records to match the local lists. An account has ONE collection while Ritual ' +
         'has many collection lists, so a run compares the union of the lists in scope against ' +
         'the whole remote collection. A pull that must take only SOME of a printing’s copies ' +
-        'when they live in several lists cannot know which list lost the card: without ' +
-        'removalPriority such a run fails and writes nothing at all — not even the account’s ' +
-        'lastSynced. report.ambiguous lists every ambiguity the planner found whether or not a ' +
-        'priority went on to place them, so read report.errors to tell a failed run from a ' +
-        `resolved one. A push adding more than ${CSV_UPLOAD_THRESHOLD} new printings likewise ` +
+        'when they live in several lists cannot know which list lost the card. Without a ' +
+        'decision — removalPriority or removalAssignments — such a run ASKS: when the client ' +
+        'declares the elicitation capability the call returns input_required with one form ' +
+        'per ambiguous removal (how many copies each list gives up), and the answers rerun ' +
+        'the sync with them; a client that cannot be asked gets the report back with ' +
+        'unresolvedAmbiguity: true instead, having written nothing at all — not even the ' +
+        'account’s lastSynced. report.ambiguous lists every ambiguity the planner found ' +
+        'whether or not a strategy went on to place them, so read report.errors to tell a ' +
+        `failed run from a resolved one. A push adding more than ${CSV_UPLOAD_THRESHOLD} new printings likewise ` +
         'fails without pushing anything unless csv: true lets it upload them as one CSV import ' +
         '(report.csv then says what that import did). Returns a per-list report; a run with ' +
         'failures still reports success — check report.failedCount. Emits one progress ' +
-        'notification per list when the call supplies a progressToken.',
+        'notification per list when the call supplies a progressToken, and honours ' +
+        'cancellation between lists (the list in flight finishes, the rest are reported ' +
+        'skipped, report.cancelled is true, and no lastSynced is recorded).',
       inputSchema: z.object({
         direction: z.enum(SYNC_DIRECTIONS).describe(SYNC_DIRECTION_DESCRIPTION),
         lists: z
@@ -399,7 +410,37 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
               'It applies to ambiguous removals only — taking every copy of a printing, or ' +
               'copies held in a single list, never needs it. A priority that cannot cover a ' +
               'removal fails the run and writes nothing, so ask the user which binders may ' +
-              'lose cards rather than guessing. A push ignores it.',
+              'lose cards rather than guessing. Given, the tool never elicits. A push ignores it.',
+          ),
+        removalAssignments: z
+          .array(
+            z.object({
+              key: z.string().min(1).describe('The removal’s key, as report.ambiguous gives it.'),
+              choices: z
+                .array(
+                  z.object({
+                    list: z.string().min(1).describe('A collection list holding copies.'),
+                    copies: z
+                      .number()
+                      .int()
+                      .min(1)
+                      // Bounded like every other count, so the advertised schema
+                      // shows a ceiling an agent can read rather than MAX_SAFE_INTEGER.
+                      .max(10_000)
+                      .describe('Copies that list gives up.'),
+                  }),
+                )
+                .min(1),
+            }),
+          )
+          .optional()
+          .describe(
+            'An explicit decision per ambiguous removal: which lists lose copies and how many ' +
+              'each — what a previous run’s report.ambiguous asked about, or what the user ' +
+              'answered an elicitation with. Validated against the ambiguity the run finds: a ' +
+              'list holding no copies, or counts that do not add up to the removal’s quantity, ' +
+              'fail the run and write nothing. Cannot be combined with removalPriority. A push ' +
+              'ignores it.',
           ),
         csv: z
           .boolean()
@@ -422,9 +463,24 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
       annotations: { destructiveHint: true, openWorldHint: true },
     },
     async (
-      { direction, lists, dryRun, ignoreUnreadableLines, only, into, removalPriority, csv },
+      {
+        direction,
+        lists,
+        dryRun,
+        ignoreUnreadableLines,
+        only,
+        into,
+        removalPriority,
+        removalAssignments,
+        csv,
+      },
       ctx,
     ) => {
+      // A retried call carries the user's answers to the forms the previous
+      // round asked; they become the assignments the route takes. Declined
+      // forms leave the call without a decision, and the run then reports the
+      // ambiguity exactly as it would for a client that could not be asked.
+      const elicited = readRemovalAssignments(ctx.mcpReq.inputResponses)
       // Typed against the endpoint's own contract, so a field renamed on either
       // side is a compile error here rather than an option silently dropped on the
       // way to the handler (which ignores keys it does not know).
@@ -436,15 +492,30 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         only,
         into,
         removalPriority,
+        removalAssignments:
+          elicited.kind === 'assignments' ? elicited.assignments : removalAssignments,
         csv,
       }
-      return runTool(async (): Promise<CollectionSyncResult> => {
+      return runTool(async (): Promise<CollectionSyncResult | InputRequiredResult> => {
         const data = await callApiData<SyncRunSuccess<CollectionSyncRunResponse>>(
           'POST',
           '/api/collection-sync',
           body,
-          { onProgress: createToolProgressSink(ctx) },
+          { onProgress: createToolProgressSink(ctx), signal: ctx.mcpReq.signal },
         )
+        // Ask only on the first round, only when the caller left the decision
+        // open, and only a client that can answer. A second unresolved round
+        // (answers the engine refused) reports rather than asking again, so a
+        // client can never be walked in a circle.
+        const undecided = removalPriority === undefined && removalAssignments === undefined
+        if (
+          data.report.unresolvedAmbiguity &&
+          undecided &&
+          elicited.kind === 'none' &&
+          clientSupportsElicitation(server)
+        ) {
+          return elicitRemovalAssignments(data.report.ambiguous)
+        }
         return data
       })
     },
@@ -458,7 +529,8 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'Refresh the local Scryfall card cache (downloads bulk card data and oracle/art tags; ' +
         'may take a while). Fails with an error when the download or ingest fails — it no longer ' +
         'reports success unconditionally. Emits progress notifications when the call supplies a ' +
-        'progressToken.',
+        'progressToken, and honours cancellation: the download stops, the previous cache is ' +
+        'left untouched, and the call answers with a tool error saying it was cancelled.',
       inputSchema: z.object({}),
       outputSchema: outputSchemaFor<CacheRefreshResult>('refresh_cache'),
       annotations: { destructiveHint: true, openWorldHint: true },
@@ -469,7 +541,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
           'POST',
           '/api/cache/refresh',
           undefined,
-          { onProgress: createToolProgressSink(ctx) },
+          { onProgress: createToolProgressSink(ctx), signal: ctx.mcpReq.signal },
         )
         return data
       }),

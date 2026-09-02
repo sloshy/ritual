@@ -27,4 +27,12 @@ export type CacheRefreshProgressHandler = (event: CacheRefreshEvent) => void
 export interface PreloadCacheOptions {
   /** Called for each step of the refresh. Absent means "report nothing". */
   onProgress?: CacheRefreshProgressHandler
+  /**
+   * Cancel the refresh. Honoured while downloading and ingesting — the bulk
+   * download is aborted and the run throws a `CancelledError` — but never once
+   * the cache file is being written: the cache is replaced atomically, so a
+   * cancelled refresh always leaves the previous cache exactly as it was, and
+   * the cache lock is released on the way out.
+   */
+  signal?: AbortSignal
 }

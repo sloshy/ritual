@@ -206,7 +206,13 @@ describe('parseDeckSyncQuery', () => {
 describe('describeRun', () => {
   function report(decks: DeckSyncReport['decks'], direction: 'pull' | 'push' = 'pull') {
     const failedCount = decks.filter((deck) => deck.status === 'failed').length
-    const value: DeckSyncReport = { direction, decks, failedCount, unreadable: [] }
+    const value: DeckSyncReport = {
+      direction,
+      decks,
+      failedCount,
+      unreadable: [],
+      cancelled: false,
+    }
     return value
   }
 
@@ -233,6 +239,7 @@ describe('describeRun', () => {
       decks: [{ name: 'A', status: 'synced' }],
       failedCount: 2,
       unreadable: [],
+      cancelled: false,
     }
     expect(describeRun(value, false)).toBe('Pulled 1 deck, 2 failed.')
   })

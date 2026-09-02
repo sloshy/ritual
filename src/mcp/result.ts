@@ -2,11 +2,14 @@ import {
   ProtocolError,
   ProtocolErrorCode,
   fromJsonSchema,
+  isInputRequiredResult,
   type CallToolResult,
+  type InputRequiredResult,
   type StandardSchemaWithJSON,
 } from '@modelcontextprotocol/server'
 import { getErrorMessage } from '../util/errors'
-import { isConflictError, mcpErrorDetail } from './errors'
+import { isCancelledError, isConflictError, mcpErrorDetail } from './errors'
+import { TOOL_ERROR_CODES } from './error-codes'
 import { TOOL_OUTPUT_SCHEMAS } from './schema-json'
 import type { McpToolName } from './tools/names'
 
@@ -47,8 +50,8 @@ export function outputSchemaFor<T>(name: McpToolName): StandardSchemaWithJSON<T,
   return fromJsonSchema<T>(TOOL_OUTPUT_SCHEMAS[name])
 }
 
-/** Why a tool call failed, in the three cases an agent responds to differently. */
-export type ToolErrorCode = 'conflict' | 'invalid-request' | 'internal'
+/** Why a tool call failed, in the four cases an agent responds to differently. */
+export type ToolErrorCode = (typeof TOOL_ERROR_CODES)[number]
 
 /** A tool failure, as the structured half of an `isError` result. */
 export interface ToolErrorPayload {
@@ -64,6 +67,13 @@ export interface ToolErrorPayload {
 }
 
 const CONFLICT_RECOVERY = 'Re-read the list with get_list, then re-apply your change.'
+
+/**
+ * What {@link runTool} resolves to for a body returning `T`: the structured
+ * result, plus the `input_required` pass-through only when the body can produce
+ * one — so the many tools that never ask keep a plain `CallToolResult`.
+ */
+export type ToolReturn<T> = CallToolResult | Extract<T, InputRequiredResult>
 
 /** The single success wrapper: structured only, no duplicate text block. */
 export function structuredResult<T extends object>(data: T): CallToolResult {
@@ -94,7 +104,7 @@ export function toToolErrorPayload(error: unknown): ToolErrorPayload {
   const invalid = ProtocolError.isInstance(error) && error.code === ProtocolErrorCode.InvalidParams
   const payload: ToolErrorPayload = {
     error: true,
-    code: invalid ? 'invalid-request' : 'internal',
+    code: isCancelledError(error) ? 'cancelled' : invalid ? 'invalid-request' : 'internal',
     message,
   }
   const detail = mcpErrorDetail(error)
@@ -107,10 +117,19 @@ export function toToolErrorPayload(error: unknown): ToolErrorPayload {
  * structured failure. Every tool callback returns through this — declaring an
  * `outputSchema` while returning a bare result is a *runtime* break with no
  * compile-time signal, so there is exactly one way to return.
+ *
+ * A body may also hand back an `input_required` result (the multi-round-trip
+ * ask a tool makes when it needs the user's decision — see
+ * `removal-elicitation.ts`); that passes through untouched, since it is a
+ * question to the client rather than a result to structure.
  */
-export async function runTool<T extends object>(fn: () => Promise<T>): Promise<CallToolResult> {
+export async function runTool<T extends object>(fn: () => Promise<T>): Promise<ToolReturn<T>> {
   try {
-    return structuredResult(await fn())
+    const result = await fn()
+    // The one assertion: `T & InputRequiredResult` cannot be proven to be
+    // `Extract<T, InputRequiredResult>` for an unresolved `T`.
+    if (isInputRequiredResult(result)) return result as ToolReturn<T>
+    return structuredResult(result)
   } catch (error) {
     // The SDK re-throws this one itself; it is a protocol handshake, not a
     // tool failure, and swallowing it would strand the elicitation.

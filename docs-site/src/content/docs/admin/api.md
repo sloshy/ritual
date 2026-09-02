@@ -36,6 +36,10 @@ Every route refuses a request with the same body, whatever the status:
 `messageKey`/`messageParams` follow [the message triple](#the-message-triple) above — present on a
 keyed refusal, absent on one whose prose has no catalog entry.
 
+`499` is the status any route answers when an **in-process** caller cancels the request part way —
+the MCP tools, on a client's `notifications/cancelled`. HTTP requests are never cancelled this way:
+closing the connection leaves the handler running to completion.
+
 A handful of routes carry extra fields on failure, and only where they are a wire contract rather than duplication: [Card Details](#card-details) adds `card: null`, [Card Search](#card-search) keeps its paging fields and an empty `cards` array, and [Card Autocomplete](#card-autocomplete) and [Card Printings](#card-printings) fold success and failure into one shape. A save that loses an optimistic-concurrency race additionally carries `conflict: true` with its `409`.
 
 ## Create Deck
@@ -1897,7 +1901,8 @@ writes nothing, so those decks are previewed rather than refused.
       }
     ],
     "failedCount": 0,
-    "unreadable": []
+    "unreadable": [],
+    "cancelled": false
   }
 }
 ```
@@ -1916,6 +1921,14 @@ printings the two sides disagree about). `report.unreadable` lists any deck whos
 holds lines the parser could not read (`{ name, file, warnings }`), so a caller that never sees the
 stream can still show what a retry with `ignoreUnreadableLines` would delete. When git auto-commit is
 enabled, deck files written by the run are committed (`Sync decks with Archidekt (<direction>)`).
+
+`report.cancelled` is `true` when an in-process caller cancelled the run — the MCP `sync_decks`
+tool, on a client's `notifications/cancelled`. Cancellation is honoured **between decks only**: the
+deck in flight finishes (a deck is never half-pushed), every deck the run never reached is reported
+`skipped` with the reason `cancelled before it started`, and the summary ends on a
+`cancelled with N decks not started` clause. The response is still `200` with the report, because
+the decks already synced are real. HTTP callers cannot cancel a run: closing the stream leaves it
+running to completion.
 
 ## Deck Sync Stream
 
@@ -2005,16 +2018,17 @@ the fix.
 }
 ```
 
-| Field                   | Description                                                                                                                                                                                                                      | Required |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `direction`             | `pull` (Archidekt → local) or `push` (local → Archidekt). Any other value returns `400`.                                                                                                                                         | Yes      |
-| `lists`                 | Collection list slugs or names, resolved like CLI list arguments. Omitted or empty compares the whole collection; the remote side is always the entire Archidekt collection.                                                     | No       |
-| `into`                  | The list a pull adds new cards to, created if it does not exist. A name **two** lists answer to fails the run before anything is fetched or written. Omitted uses the `collectionSync.pullTarget` config key. A push ignores it. | No       |
-| `only`                  | `additions` or `removals` — apply just one side of the diff, relative to the sync destination. Omitted applies every change; any other value returns `400`.                                                                      | No       |
-| `removalPriority`       | Collection list names **in priority order** — the only lists an ambiguous removal may take copies from (see below). Must be an array of non-blank names or `400`. A push ignores it.                                             | No       |
-| `csv`                   | Upload a push's **new cards** as one CSV import instead of adding them one at a time (see below). Must be a boolean or `400`. A pull ignores it.                                                                                 | No       |
-| `dryRun`                | Report what would sync without writing files or touching Archidekt (default `false`).                                                                                                                                            | No       |
-| `ignoreUnreadableLines` | Sync lists whose files contain lines the parser cannot read, dropping those lines (default `false`).                                                                                                                             | No       |
+| Field                   | Description                                                                                                                                                                                                                                                                                                                                                                                                                                 | Required |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `direction`             | `pull` (Archidekt → local) or `push` (local → Archidekt). Any other value returns `400`.                                                                                                                                                                                                                                                                                                                                                    | Yes      |
+| `lists`                 | Collection list slugs or names, resolved like CLI list arguments. Omitted or empty compares the whole collection; the remote side is always the entire Archidekt collection.                                                                                                                                                                                                                                                                | No       |
+| `into`                  | The list a pull adds new cards to, created if it does not exist. A name **two** lists answer to fails the run before anything is fetched or written. Omitted uses the `collectionSync.pullTarget` config key. A push ignores it.                                                                                                                                                                                                            | No       |
+| `only`                  | `additions` or `removals` — apply just one side of the diff, relative to the sync destination. Omitted applies every change; any other value returns `400`.                                                                                                                                                                                                                                                                                 | No       |
+| `removalPriority`       | Collection list names **in priority order** — the only lists an ambiguous removal may take copies from (see below). Must be an array of non-blank names or `400`. A push ignores it.                                                                                                                                                                                                                                                        | No       |
+| `removalAssignments`    | An explicit decision per ambiguous removal: `[{ key, choices: [{ list, copies }] }]`, where `key` is the removal's key as `report.ambiguous` reports it and each choice names a list losing `copies` (a whole number ≥ 1). Shape-validated here (`400`); whether the lists hold those copies and the counts add up is the engine's verdict, reported through the run. Cannot be combined with `removalPriority` (`400`). A push ignores it. | No       |
+| `csv`                   | Upload a push's **new cards** as one CSV import instead of adding them one at a time (see below). Must be a boolean or `400`. A pull ignores it.                                                                                                                                                                                                                                                                                            | No       |
+| `dryRun`                | Report what would sync without writing files or touching Archidekt (default `false`).                                                                                                                                                                                                                                                                                                                                                       | No       |
+| `ignoreUnreadableLines` | Sync lists whose files contain lines the parser cannot read, dropping those lines (default `false`).                                                                                                                                                                                                                                                                                                                                        | No       |
 
 A `csvFile` field is **rejected** with `400`: writing a CSV to a path the caller names is a CLI
 affordance ([`--csv-file`](/commands/collection-sync/#writing-the-csv-instead-of-pushing---csv-file)),
@@ -2045,13 +2059,14 @@ messages.
 
 A pull removal is **ambiguous** when only _some_ of a printing's copies are going and those copies
 live in several lists — nothing says which list the card physically left. (Taking every copy, or
-copies held in a single list, never is.) There is nobody to prompt over HTTP, so `removalPriority` is
-the caller's decision made up front: copies come only from the lists it names, walking them in the
-order given. Names are matched exactly, never by the substring rule other list lookups use, and an
-unknown name fails the run. Without a priority — or with one that cannot cover a removal — the run
-**fails and writes nothing at all**: the reason lands in `report.errors`, `report.ambiguous` carries
-each removal with its per-list copy counts, no list file is touched, and the account's `lastSynced`
-is left alone. A `dryRun` request never fails on an ambiguity itself; it reports it instead. (An
+copies held in a single list, never is.) There is nobody to prompt over HTTP, so the decision is
+made up front, as either `removalPriority` — copies come only from the lists it names, walking them
+in the order given; names are matched exactly, never by the substring rule other list lookups use,
+and an unknown name fails the run — or `removalAssignments`, an explicit per-removal decision.
+Without either — or with one that does not cover a removal — the run **fails and writes nothing at
+all**: the reason lands in `report.errors`, `report.unresolvedAmbiguity` is `true`,
+`report.ambiguous` carries each removal with its per-list copy counts, no list file is touched, and
+the account's `lastSynced` is left alone. A `dryRun` request never fails on an ambiguity itself; it reports it instead. (An
 unknown `removalPriority` name still fails a `dryRun` request — that is a bad argument rather than
 an unresolved removal.)
 
@@ -2088,7 +2103,9 @@ previewed rather than refused.
     "ambiguous": [],
     "localIncomplete": false,
     "csv": null,
-    "totals": { "added": 1, "removed": 0, "skipped": 0, "pending": 0 }
+    "totals": { "added": 1, "removed": 0, "skipped": 0, "pending": 0 },
+    "cancelled": false,
+    "unresolvedAmbiguity": false
   }
 }
 ```
@@ -2100,8 +2117,13 @@ sentence as `message` split into keyed clauses for a client that renders it in t
 per-list failures still returns `200` with `success: true` and a non-zero `report.failedCount`.
 `report.errors` carries failures that belong to the run rather than to one list (the collection fetch,
 or deleting records for cards no list holds any more), and `report.ambiguous` every removal a pull
-could not place on its own — reported whether a `removalPriority` placed them or the run failed on
-them. Counts are in copies, not lists, since one card can live in several.
+could not place on its own — reported whether a strategy placed them or the run failed on them.
+`report.unresolvedAmbiguity` is `true` when the run stopped _because_ of them: no `removalPriority`
+or `removalAssignments` was given, the priority could not cover a removal, or the assignments did
+not account for every copy. Nothing was written; a rerun carrying a decision is the fix, and this
+flag — rather than the prose in `errors` — is what a client that can ask the user branches on (the
+MCP `sync_collection` tool elicits the decision from a client that supports it). Counts are in
+copies, not lists, since one card can live in several.
 
 `report.localIncomplete` is `true` when a list in scope did not make it into the comparison — an
 unresolvable name, a file that could not be read, or one held back for unreadable lines. The local
@@ -2110,6 +2132,13 @@ would manufacture: a pull adds nothing (those cards would be duplicated into the
 push removes nothing (they would be deleted from Archidekt). Fix or accept the listed lists and run
 again. When git auto-commit is enabled, list files written by the run are
 committed (`Sync collection with Archidekt (<direction>)`).
+
+`report.cancelled` works as it does for [Sync Decks](#sync-decks): an in-process caller (the MCP
+`sync_collection` tool) cancelled the run between lists, or before the remote collection was fetched
+(either direction). The list in flight finishes, the lists never reached are `skipped` with the
+reason `cancelled before it started`, the summary ends on a `cancelled with N lists not started`
+clause, and **no `lastSynced` is recorded**, since the lists and the account did not agree when the
+run stopped. A cancelled push has still sent every change it made before stopping.
 
 `report.csv` describes what the [CSV import](#csv-import-for-new-cards) did with a push's new cards,
 and is `null` on any run that did not take that path (every pull, a push that added nothing new, and
@@ -2142,7 +2171,8 @@ The same sync as `POST /api/collection-sync`, streamed as server-sent events. `E
 issue a bodyless `GET`, so the request arrives as query parameters: `direction` is required, `list`
 repeats once per list (omit entirely to sync the whole collection), `removalPriority` repeats once
 per list **in priority order** (the order of the parameters is the priority; a blank one is
-rejected), `only` and `into` are omitted (or
+rejected), `removalAssignments` — a structure one parameter cannot spell per list — rides as a
+single JSON-encoded parameter validated by the same rules as the body's, `only` and `into` are omitted (or
 empty) to accept their defaults, and `csv` / `dryRun` / `ignoreUnreadableLines` take `true` or
 `false` (any other value is rejected, so a flag that decides whether files are written — or how a
 large batch of cards reaches Archidekt — can never be misread as "no"). A `csvFile` parameter is
@@ -2158,6 +2188,58 @@ Three event types are emitted:
 
 Failures are reported inside the stream rather than as an HTTP status, since `EventSource` exposes no
 response body for a non-2xx open.
+
+## Build Site
+
+```
+POST /api/build-site
+```
+
+Build and publish the public static site — the same build as
+[`ritual build-site`](/commands/build-site/), run as a child process so the server stays responsive,
+and published atomically: the build writes into a scratch directory beside `dist/` and swaps it into
+place only once the child exits cleanly, so `dist/` holds either the previous site or the new one at
+every instant. Exposed as the MCP `build_site` tool.
+
+**Request Body:** None.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Site built successfully",
+  "messageKey": "admin.api.buildSite.built",
+  "outDir": "/home/user/ritual/dist",
+  "durationMs": 42000
+}
+```
+
+One build runs at a time: a second request while one is in flight is refused with `503` (not `409`,
+whose "re-read the list" recovery advice would be wrong here). A failed build answers `500` with the
+tail of the child's stderr in `message`, and `dist/` is left as it was. An in-process caller can
+cancel the build through its request context (the MCP tool does, on a client's
+`notifications/cancelled`): the child is killed, the scratch directory removed, and the response is
+`499` with `dist/` untouched.
+
+## Build Site Stream
+
+```
+GET /api/build-site/stream
+```
+
+The same build as `POST /api/build-site`, streamed as server-sent events — what the admin **Build
+Site** page shows its progress bar and live log from. It takes no parameters.
+
+| Event      | Payload                                                                                                                                                                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `progress` | `{ kind: "step", progress, total, message }` for one of the build's structural steps on a 0–3 scale (starting → building → publishing → done), or `{ kind: "output", line }` for one line of the child's stdout or stderr, forwarded as it is printed. |
+| `done`     | `{ message, messageKey?, messageParams?, outDir, durationMs }` — the same [message triple](#the-message-triple) and publish details the JSON endpoint returns.                                                                                         |
+| `error`    | `{ message, messageKey?, messageParams? }` for a build that was refused (one is already running) or failed; `message` carries the same text the JSON endpoint would.                                                                                   |
+
+Failures ride the stream rather than an HTTP status, since `EventSource` exposes no response body for
+a non-2xx open. Closing the stream does **not** cancel the build: it runs to completion and publishes
+on its own, exactly as a dropped sync stream leaves its run in flight.
 
 ## Import CSV
 

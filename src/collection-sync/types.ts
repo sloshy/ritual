@@ -16,6 +16,7 @@ import type {
   SyncLogLevel,
   UnreadableSource,
 } from '../sync/common'
+import { syncCancellationLog, SYNC_CANCELLED_REASON } from '../sync/common'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardPrintingsLookup } from '../card/card-printing'
 import type { AmbiguousRemoval, CollectionCsvFailure } from './describe'
@@ -183,6 +184,22 @@ export type CollectionSyncReport = {
    */
   csv: CollectionSyncCsv | null
   totals: CollectionSyncTotals
+  /**
+   * True when the caller cancelled the run before every list had started. The
+   * lists it never reached are in {@link lists} as `skipped`; the ones it had
+   * finished are reported exactly as an uncancelled run would report them, and
+   * no sync timestamp was recorded.
+   */
+  cancelled: boolean
+  /**
+   * True when a pull stopped because its {@link ambiguous} removals could not
+   * be placed — no strategy was given, the priority could not cover them, or
+   * the resolver declined. Nothing was written. The fix is a rerun that carries
+   * a decision: `removalPriority`, or explicit per-removal assignments. This is
+   * the flag a client that can ask the user branches on, rather than parsing
+   * {@link errors}.
+   */
+  unresolvedAmbiguity: boolean
 }
 
 /** Resolves Scryfall ids to cached cards; satisfied by the cache's id index. */
@@ -370,6 +387,14 @@ export type CollectionSyncOptions = {
   state?: CollectionSyncStateStore
   /** Injectable for tests; writes {@link csvFile} to disk by default. */
   writeCsv?: CsvFileWriter
+  /**
+   * Cancel the run. Honoured at list boundaries only — and, on a pull, before
+   * the remote collection is fetched: the list in flight finishes, every list
+   * after it is reported `skipped` with `SYNC_CANCELLED_REASON`, and the
+   * report's `cancelled` flag is set. A cancelled run records no sync
+   * timestamp: the lists and the account did not agree when it stopped.
+   */
+  signal?: AbortSignal
 }
 
 export type CollectionSyncRun = {
@@ -406,6 +431,8 @@ export type MutableListResult = {
 export type ListResults = {
   track(name: string): MutableListResult
   fail(name: string, reason: string): void
+  /** Mark a list stepped over — cancelled before it started, say — without failing it. */
+  skip(name: string, reason: string): void
   /** Emit a list's result and return it; later calls return the same result. */
   finish(name: string, reason?: string): CollectionSyncListResult
   /** Every tracked list's result, finishing any the run left open. */
@@ -456,10 +483,33 @@ export function createListResults(emit: CollectionSyncEventHandler): ListResults
       entry.status = 'failed'
       entry.reasons.push(reason)
     },
+    skip(name: string, reason: string): void {
+      const entry = track(name)
+      entry.status = 'skipped'
+      entry.reasons.push(reason)
+    },
     finish,
     all(): CollectionSyncListResult[] {
       return [...tracked.keys()].map((name) => finish(name))
     },
+  }
+}
+
+/**
+ * Report every list in `names` as skipped because the run was cancelled before
+ * that list started — the shared tail of every cancellation point, so a
+ * cancelled run always leaves the same trace: one run-level warning, then one
+ * skipped result per list it never reached.
+ */
+export function markCancelled(
+  names: readonly string[],
+  emit: CollectionSyncEventHandler,
+  results: ListResults,
+): void {
+  emit(syncCancellationLog('collection', names.length))
+  for (const name of names) {
+    results.skip(name, SYNC_CANCELLED_REASON)
+    results.finish(name)
   }
 }
 
@@ -490,6 +540,8 @@ export type SyncFlow = {
   writeCsv: CsvFileWriter
   /** False when some in-scope list is missing from the local index; see the report field. */
   localComplete: boolean
+  /** See {@link CollectionSyncOptions.signal}. */
+  signal: AbortSignal | undefined
 }
 
 /** What one direction's flow produced beyond its per-list results. */
@@ -508,13 +560,22 @@ export type FlowOutcome = {
    * `lastSynced` claims a sync that never happened.
    */
   aborted: boolean
+  /** True when the caller cancelled the flow between lists; see the report field. */
+  cancelled: boolean
+  /** True when the flow stopped on ambiguous removals nobody placed; see the report field. */
+  unresolvedAmbiguity: boolean
 }
 
 /**
  * The outcome of a flow that stopped before applying anything: nothing
  * written, the errors that stopped it, and any ambiguity it had found by then.
+ * `unresolvedAmbiguity` says the ambiguity is *why* it stopped.
  */
-export function abortedOutcome(errors: string[], ambiguous: AmbiguousRemoval[] = []): FlowOutcome {
+export function abortedOutcome(
+  errors: string[],
+  ambiguous: AmbiguousRemoval[] = [],
+  unresolvedAmbiguity = false,
+): FlowOutcome {
   return {
     writtenFiles: [],
     errors,
@@ -522,6 +583,8 @@ export function abortedOutcome(errors: string[], ambiguous: AmbiguousRemoval[] =
     csv: null,
     totals: NO_CHANGES,
     aborted: true,
+    cancelled: false,
+    unresolvedAmbiguity,
   }
 }
 

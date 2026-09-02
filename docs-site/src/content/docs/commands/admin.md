@@ -227,7 +227,7 @@ The cross-list **All Selected** move does not go through the editor's Save butto
 
 ### Build Site
 
-Trigger a full static site build from the browser. This runs the same build as `ritual build-site`, as a background child process — the admin server stays responsive for its duration, and the build publishes atomically. See [`POST /api/build-site`](#post-apibuild-site) for the details.
+Trigger a full static site build from the browser. This runs the same build as `ritual build-site`, as a background child process — the admin server stays responsive for its duration, and the build publishes atomically. The page streams the build as it runs: a progress bar over the build's four structural steps (starting, building, publishing, done) and a live log box showing the build's own output lines, so a multi-minute build never looks stuck. If the event stream cannot be opened the page falls back to the plain request; if it drops mid-build the build keeps running on the server and the page says so rather than starting a second one. See [`POST /api/build-site`](#post-apibuild-site) and [`GET /api/build-site/stream`](#get-apibuild-sitestream) for the details.
 
 ### Refresh Cache
 
@@ -714,11 +714,17 @@ The build runs as a child process and is awaited asynchronously, so it does not 
 }
 ```
 
+### `GET /api/build-site/stream`
+
+**Auth required:** Yes
+
+The same build as `POST /api/build-site`, streamed via Server-Sent Events: one `progress` frame per structural step (`{ kind: "step", progress, total, message }`, on a 0–3 scale) and per line of the child's output (`{ kind: "output", line }`), then a single `done` (`{ message, outDir, durationMs }`) or `error` (`{ message }`). Closing the stream does not cancel the build. See the [admin API reference](/admin/api/#build-site-stream) for the full specification.
+
 ### `POST /api/cache/refresh`
 
 **Auth required:** Yes
 
-Download and cache all Scryfall card data — the Scryfall half of `ritual cache preload-all`, without the [buylist](/commands/sell/) refresh that command also runs under sell mode (that is [`POST /api/sell/refresh`](/admin/api/#sell-refresh)). Returns a JSON response when complete. A refresh that fails answers a non-2xx with the failure's message rather than reporting success.
+Download and cache all Scryfall card data — the Scryfall half of `ritual cache preload-all`, without the [buylist](/commands/sell/) refresh that command also runs under sell mode (that is [`POST /api/sell/refresh`](/admin/api/#sell-refresh)). Returns a JSON response when complete. A refresh that fails answers a non-2xx with the failure's message rather than reporting success. A refresh cancelled by its caller (only an in-process caller such as the MCP `refresh_cache` tool can cancel one) answers `499`: the download stops, nothing is written, the previous cache is left exactly as it was, and the cache lock is released.
 
 **Request body:** None
 

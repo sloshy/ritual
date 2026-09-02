@@ -47,6 +47,31 @@ describe('handleCacheRefresh', () => {
     expect(reports.at(-1)?.progress).toBe(100)
   })
 
+  test('a cancelled refresh writes nothing, answers 499, and releases the cache lock', async () => {
+    stubbed = stubScryfallBulk({ cards: [bulkCard()] })
+    const controller = new AbortController()
+
+    // Cancelled from inside the run, once the download is under way — the
+    // route's scale puts the metadata and tag steps at 1 and 2 and the download
+    // from 3 up (see `cacheRefreshProgress`).
+    const resp = await handleCacheRefresh((report) => {
+      if (report.progress >= 3) controller.abort()
+    }, controller.signal)
+
+    expect(resp.status).toBe(499)
+    expect(((await resp.json()) as { success: boolean; message: string }).message).toContain(
+      'cancelled',
+    )
+    // The previous cache (empty here) is exactly what was there before.
+    expect(await cardCache.get('Sol Ring')).toBeNull()
+
+    // And the lock came off on the way out: the next refresh runs to completion
+    // rather than waiting on a lock a cancelled run forgot to release.
+    const next = await handleCacheRefresh()
+    expect(next.status).toBe(200)
+    expect(await cardCache.get('Sol Ring')).not.toBeNull()
+  })
+
   test('a failed download is reported instead of being swallowed as success', async () => {
     stubbed = stubScryfallBulk({ cardBulk: () => new Response('nope', { status: 500 }) })
 

@@ -238,6 +238,10 @@ export const domainMeta = {
     description:
       'Announces the phase that diffs the downloaded collection against the local lists, after both sides have been read.',
   },
+  'domain.sync.cancelled': {
+    description:
+      'Run-level log line ending a sync the caller cancelled part way. {items} is a pre-rendered count of the decks or collection lists the run never started.',
+  },
   'domain.nav.decks': { description: `${NAV_CONTEXT} The deck index.`, maxLen: 12 },
   'domain.nav.collections': { description: `${NAV_CONTEXT} The collection index.`, maxLen: 12 },
   'domain.nav.wanted': { description: `${NAV_CONTEXT} The wanted-list index.`, maxLen: 12 },

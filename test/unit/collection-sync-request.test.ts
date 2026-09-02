@@ -5,6 +5,7 @@ import {
   parseCollectionSyncBody,
   parseCollectionSyncQuery,
   type CollectionSyncRequest,
+  REMOVAL_STRATEGY_CONFLICT_MESSAGE,
 } from '../../src/admin/api/collection-sync'
 import type { AmbiguousRemoval } from '../../src/collection-sync/describe'
 import type {
@@ -101,6 +102,30 @@ describe('parseCollectionSyncBody', () => {
     }
   })
 
+  test('keeps explicit removal assignments, trimming the list names', () => {
+    expect(
+      parseCollectionSyncBody({
+        direction: 'pull',
+        removalAssignments: [
+          { key: 'c21|240|nonfoil|NM|en', choices: [{ list: ' Long Box ', copies: 1 }] },
+        ],
+      }),
+    ).toEqual({
+      ...defaults(),
+      removalAssignments: [
+        { key: 'c21|240|nonfoil|NM|en', choices: [{ list: 'Long Box', copies: 1 }] },
+      ],
+    } satisfies CollectionSyncRequest)
+  })
+
+  test('treats an absent or empty removal assignment list as "no strategy"', () => {
+    for (const removalAssignments of [undefined, null, []]) {
+      const parsed = parseCollectionSyncBody({ direction: 'pull', removalAssignments })
+      expect(typeof parsed).not.toBe('string')
+      expect((parsed as CollectionSyncRequest).removalAssignments).toBeUndefined()
+    }
+  })
+
   test('keeps a request for the CSV upload path', () => {
     expect(parseCollectionSyncBody({ direction: 'push', csv: true })).toEqual({
       ...defaults('push'),
@@ -169,6 +194,45 @@ describe('parseCollectionSyncBody', () => {
       expected: 'removalPriority must not contain blank names',
     },
     {
+      label: 'removal assignments that are not an array',
+      body: { direction: 'pull', removalAssignments: { key: 'k', choices: [] } },
+      expected: 'removalAssignments must be an array of { key, choices }',
+    },
+    {
+      label: 'a removal assignment without a key',
+      body: {
+        direction: 'pull',
+        removalAssignments: [{ choices: [{ list: 'Binder', copies: 1 }] }],
+      },
+      expected: "removalAssignments[0].key must be the ambiguous removal's key",
+    },
+    {
+      label: 'a removal assignment choosing no list',
+      body: { direction: 'pull', removalAssignments: [{ key: 'k', choices: [] }] },
+      expected: 'removalAssignments[0].choices must be a non-empty array of { list, copies }',
+    },
+    {
+      label: 'a removal assignment giving up zero copies',
+      // Zero is spelled by leaving the list out; refused so a client cannot
+      // send a choice that means nothing and read it as a decision.
+      body: {
+        direction: 'pull',
+        removalAssignments: [{ key: 'k', choices: [{ list: 'Binder', copies: 0 }] }],
+      },
+      expected: 'removalAssignments[0].choices[0].copies must be a whole number of at least 1',
+    },
+    {
+      label: 'both ambiguity strategies at once',
+      // The engine consults a priority instead of a resolver, so the
+      // assignments would be dropped without a word.
+      body: {
+        direction: 'pull',
+        removalPriority: ['Long Box'],
+        removalAssignments: [{ key: 'k', choices: [{ list: 'Binder', copies: 1 }] }],
+      },
+      expected: REMOVAL_STRATEGY_CONFLICT_MESSAGE,
+    },
+    {
       label: 'a csv flag that is not a boolean',
       // Validated like the other flags: it decides whether a large batch of
       // additions is uploaded, so a truthy string must not read as "yes".
@@ -216,6 +280,22 @@ describe('parseCollectionSyncQuery', () => {
       ...defaults(),
       removalPriority: ['long-box', 'binder', 'inbox'],
     } satisfies CollectionSyncRequest)
+  })
+
+  test('reads removalAssignments from one JSON-encoded param', () => {
+    const assignments = [{ key: 'c21|240|nonfoil|NM|en', choices: [{ list: 'binder', copies: 1 }] }]
+    const params = new URLSearchParams({ direction: 'pull' })
+    params.set('removalAssignments', JSON.stringify(assignments))
+    expect(parseCollectionSyncQuery(params)).toEqual({
+      ...defaults(),
+      removalAssignments: assignments,
+    } satisfies CollectionSyncRequest)
+  })
+
+  test('refuses a removalAssignments param that is not JSON', () => {
+    expect(
+      parseCollectionSyncQuery(new URLSearchParams('direction=pull&removalAssignments=binder')),
+    ).toBe('removalAssignments must be a JSON-encoded array of { key, choices }')
   })
 
   test('rejects a blank removalPriority param rather than dropping it', () => {
@@ -314,6 +394,8 @@ describe('describeRun', () => {
       failedCount: lists.filter((list) => list.status === 'failed').length,
       errors: options.errors ?? [],
       unreadable: [],
+      cancelled: false,
+      unresolvedAmbiguity: false,
       ambiguous: options.ambiguous ?? [],
       localIncomplete: false,
       csv: options.csv ?? null,

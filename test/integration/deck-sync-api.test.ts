@@ -8,7 +8,6 @@ import {
   type DeckSyncRunResponse,
   type DeckSyncStatusResponse,
 } from '../../src/admin/api/deck-sync'
-import { dispatchRoute } from '../../src/admin/server'
 import type { DeckSyncEvent, DeckSyncReport } from '../../src/deck-sync/engine'
 import type {
   ArchidektDeckResponse,
@@ -20,6 +19,7 @@ import type { RouteProgress, RouteProgressSink } from '../../src/util/progress'
 import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from '../helpers/workspace'
 import { expectMonotonicProgress } from '../test-utils'
+import { readStreamFrames, type SseFrame } from '../helpers/sse'
 
 /**
  * End-to-end coverage for the admin deck-sync endpoints: which decks they list,
@@ -139,13 +139,14 @@ async function getStatus(): Promise<DeckSyncStatusResponse> {
 async function postRun(
   body: unknown,
   onProgress?: RouteProgressSink,
+  signal?: AbortSignal,
 ): Promise<{ status: number; body: DeckSyncRunResponse }> {
   const req = new Request('http://localhost/api/deck-sync', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  const resp = await handleDeckSyncRun(req, onProgress)
+  const resp = await handleDeckSyncRun(req, onProgress, signal)
   return { status: resp.status, body: (await resp.json()) as DeckSyncRunResponse }
 }
 
@@ -176,30 +177,9 @@ async function runReport(body: unknown): Promise<DeckSyncReport> {
   return response.report
 }
 
-type StreamFrame = { event: string; data: Record<string, unknown> }
-
-/**
- * Collect every SSE frame a stream request emits. Dispatched through the admin
- * route table rather than the handler directly, so the route registration
- * (method + path) is covered too.
- */
-async function readStream(query: string): Promise<StreamFrame[]> {
-  const dispatched = await dispatchRoute(
-    new Request(`http://localhost/api/deck-sync/stream?${query}`),
-    { clientIp: 'test', sessionToken: null },
-  )
-  if (!dispatched.matched) throw new Error('No admin route for GET /api/deck-sync/stream')
-  const text = await dispatched.response.text()
-  return text
-    .split('\n\n')
-    .filter((chunk) => chunk.trim().length > 0)
-    .map((chunk) => {
-      const [eventLine = '', dataLine = ''] = chunk.split('\n')
-      return {
-        event: eventLine.replace('event: ', ''),
-        data: JSON.parse(dataLine.replace('data: ', '')) as Record<string, unknown>,
-      }
-    })
+/** Every frame of one deck-sync stream, opened through the route table. */
+function readStream(query: string): Promise<SseFrame[]> {
+  return readStreamFrames(`/api/deck-sync/stream?${query}`)
 }
 
 beforeEach(async () => {
@@ -400,6 +380,49 @@ describe('deck-sync API', () => {
     expect(reports.map((r) => r.progress)).toEqual([0, 1])
     expect(reports[0]?.message).toBe('Syncing Linked Deck (1/1)')
     expect(reports.at(-1)?.message).toBe('Pulled 1 deck.')
+  })
+
+  test('a cancelled pull finishes the deck in flight, skips the rest, and still reports', async () => {
+    // The MCP adapter's channel again: the signal on `handleDeckSyncRun`, which
+    // is what a client's notifications/cancelled reaches the engine as.
+    await signIn()
+    const secondId = '67890'
+    stubFetch({
+      [`https://archidekt.com/api/decks/${SOURCE_ID}/`]: () => Response.json(REMOTE_DECK),
+      [`https://archidekt.com/api/decks/${secondId}/`]: () => Response.json(REMOTE_DECK),
+    })
+    await writeDeckFile(tmpDir, 'linked-two', {
+      name: 'Second Linked Deck',
+      frontMatter: { format: 'commander', sourceId: secondId, sourceUrl: SOURCE_URL },
+      cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+    })
+    const before = await fs.readFile(path.join(tmpDir, 'decks', 'linked-two.md'), 'utf-8')
+
+    const controller = new AbortController()
+    const { status, body } = await postRun(
+      { direction: 'pull', decks: ['linked', 'linked-two'] },
+      // Cancel once the first deck has started; anything before that would
+      // skip both, and the report below tells the two apart.
+      (report) => {
+        if (report.message?.startsWith('Syncing')) controller.abort()
+      },
+      controller.signal,
+    )
+
+    // Not an error: the first deck really synced, and the caller needs to know.
+    expect(status).toBe(200)
+    if (!body.success) throw new Error(body.message)
+    expect(body.report.cancelled).toBe(true)
+    expect(body.report.failedCount).toBe(0)
+    expect(body.report.decks).toEqual([
+      { name: 'Linked Deck', status: 'synced' },
+      { name: 'Second Linked Deck', status: 'skipped', reason: 'cancelled before it started' },
+    ])
+    expect(await fs.readFile(path.join(tmpDir, 'decks', 'linked.md'), 'utf-8')).toContain(
+      'Lightning Bolt',
+    )
+    // The deck it never reached is byte for byte what it was.
+    expect(await fs.readFile(path.join(tmpDir, 'decks', 'linked-two.md'), 'utf-8')).toBe(before)
   })
 
   test('a pull with --only additions adds the remote card and keeps the local-only one', async () => {

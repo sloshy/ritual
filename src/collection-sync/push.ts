@@ -20,7 +20,13 @@ import {
   type PushOperation,
   type RemoteCollectionIndex,
 } from './diff'
-import { type CollectionSyncCsv, type SyncFlow, type FlowOutcome, abortedOutcome } from './types'
+import {
+  type CollectionSyncCsv,
+  type SyncFlow,
+  type FlowOutcome,
+  abortedOutcome,
+  markCancelled,
+} from './types'
 import { routeAdditions, pushAdditionsAsCsv } from './push-csv'
 
 // ── Push (local → Archidekt) ──────────────────────────────────────────
@@ -107,7 +113,13 @@ export async function pushToArchidekt(
     else byList.set(owner, [operation])
   }
 
+  let cancelled = false
   for (const [index, name] of names.entries()) {
+    if (flow.signal?.aborted) {
+      markCancelled(names.slice(index), emit, results)
+      cancelled = true
+      break
+    }
     emit({ kind: 'item-start', item: name, index, total: names.length })
     const owned = byList.get(name) ?? []
     if (owned.length === 0) {
@@ -152,6 +164,12 @@ export async function pushToArchidekt(
   }
 
   for (const operation of orphaned) {
+    // Orphans belong to no list, so a cancellation here has no row to report
+    // under; the remaining removals are simply not made, and the flag says so.
+    if (cancelled || flow.signal?.aborted) {
+      cancelled = true
+      break
+    }
     // Orphans are removals — a card no list holds any more — so the CSV route
     // never applies to them.
     const applied = await runPushOperation(flow, operation, null, false)
@@ -171,6 +189,9 @@ export async function pushToArchidekt(
     // A push applies its operations one by one: a failed one is a failure of
     // that operation, not of the run, which still reached Archidekt.
     aborted: false,
+    cancelled,
+    // A push never removes locally, so it never meets an ambiguous removal.
+    unresolvedAmbiguity: false,
   }
 }
 

@@ -121,7 +121,9 @@ stdio, over Streamable HTTP, and on either protocol era.
 Every tool declares an `outputSchema` and answers with `structuredContent`. **Read
 `structuredContent`, not `content[0].text`** — a successful result carries an empty `content` array
 on purpose, so the same JSON is never put on the wire twice. Only a failure carries a text block, and
-it holds the `message` below.
+it holds the `message` below. The one other shape a call can answer with is an `input_required`
+result: `sync_collection` returns one instead of a result when it needs an
+[ambiguous-removal decision](#destructive) and the client can be asked.
 
 A tool's `outputSchema`, as returned by `tools/list`, **is the authoritative field-level
 documentation of its response**: every field, its type, whether it is always present, and a
@@ -145,12 +147,12 @@ A failed tool call is **not** a JSON-RPC error. It comes back as a normal result
 }
 ```
 
-| Field       | Meaning                                                                               |
-| ----------- | ------------------------------------------------------------------------------------- |
-| `code`      | `conflict` \| `invalid-request` \| `internal`.                                        |
-| `conflict`  | Present (and `true`) only on `code: "conflict"` — a lost optimistic-concurrency race. |
-| `recovery`  | The next concrete action, when there is one.                                          |
-| `unmatched` | Changes that did not apply, when an all-or-nothing batch was rejected whole.          |
+| Field       | Meaning                                                                                                                      |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `code`      | `conflict` \| `cancelled` \| `invalid-request` \| `internal`. `cancelled` is the caller's own cancellation reaching back up. |
+| `conflict`  | Present (and `true`) only on `code: "conflict"` — a lost optimistic-concurrency race.                                        |
+| `recovery`  | The next concrete action, when there is one.                                                                                 |
+| `unmatched` | Changes that did not apply, when an all-or-nothing batch was rejected whole.                                                 |
 
 Ritual's internal conflict code `-32012` is **never visible to a client**: Ritual itself catches
 every error thrown inside a tool call and converts it into the `isError` result above, so the
@@ -212,12 +214,22 @@ One client-side setting does matter: the SDK's default request timeout is 60 sec
 reset on progress. A client driving a long call should pass `resetTimeoutOnProgress: true` (or a
 larger `timeout`) alongside `onprogress`. Ritual cannot set it — it is a client option.
 
-`build_site` also honours cancellation: aborting the call kills the child build, and because the
-build publishes atomically the live site is left untouched. The cancelled call answers with a tool
-error saying the site build was cancelled; `dist/` still holds the previous site, byte for byte, and
-the next `build_site` is accepted immediately. The syncs and the cache refresh deliberately run to
-completion — an aborted sync would leave remote Archidekt records already mutated, and an aborted
-refresh holds the cache lock.
+All four also honour cancellation (a client's `notifications/cancelled`, which the SDK client sends
+when the `signal` passed to `callTool` aborts), each at the point its partial state is recoverable:
+
+- `build_site` kills the child build; because the build publishes atomically the live site is left
+  untouched. The cancelled call answers with a tool error saying the site build was cancelled;
+  `dist/` still holds the previous site, byte for byte, and the next `build_site` is accepted
+  immediately.
+- `refresh_cache` stops the download and writes nothing: the previous card cache is left exactly as
+  it was, the cache lock is released, and the call answers with a tool error saying the refresh was
+  cancelled.
+- `sync_decks` and `sync_collection` stop **between items**. The deck or list in flight finishes —
+  nothing is ever half-pushed or half-written — and every item the run never reached is reported
+  `skipped` with the reason `cancelled before it started`. The result is the ordinary report with
+  `report.cancelled: true` (and, for the collection, no `lastSynced` recorded), because the items
+  already synced are real; a client that cancels should still read it. Note that a cancelled push
+  has already sent whatever it pushed before stopping.
 
 ## Tools
 
@@ -601,9 +613,9 @@ These are flagged with the MCP `destructiveHint` so clients can gate or confirm 
 | `rewrite_history` | Replace a list's entire change log. Echo back sets you did not author exactly as `get_history` returned them — including each set's `events` array (one typed event per change line, in the same order; empty only for a legacy set that had none) and its `trailing` array of preserved hand-written lines, or that text is deleted. A set with no `events`, or with a count that does not match its `lines`, is refused. Trailing lines must not start with `- ` or `## `.                                                                                                                                             |
 | `update_config`   | Merge a partial configuration. `defaultLanguage` takes canonical Scryfall codes only, and a non-`en` value switches cache downloads to the much larger `all_cards` bulk — see [Default language](/configuration/#default-language). `uiLocale` is the unrelated [interface language](/configuration/#interface-language) (a BCP-47 tag); setting it never changes this surface's own English prose. `priceSources` takes store names (`tcgplayer`, `cardmarket`, `cardkingdom`; `[]` hides all site prices) — enabling `cardkingdom` makes builds and servers download the ~70 MB Card Kingdom feed like sell mode does. |
 | `build_site`      | Rebuild the public static site. Runs asynchronously in a child process and publishes atomically, so an interrupted build never leaves a broken site. Reports progress and honours cancellation. Returns `{ message, outDir, durationMs }` — where it published and how long the build took.                                                                                                                                                                                                                                                                                                                              |
-| `sync_decks`      | [Sync decks](/commands/deck-sync/) with Archidekt in either direction.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `sync_collection` | [Sync collection lists](/commands/collection-sync/) with Archidekt in either direction.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `refresh_cache`   | Refresh the Scryfall card cache (bulk download + oracle/art tags). A failed download or ingest is now reported as a tool error rather than a silent success. Does **not** touch the buylist — that is `refresh_buylist`.                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `sync_decks`      | [Sync decks](/commands/deck-sync/) with Archidekt in either direction. Reports progress and honours cancellation between decks (`report.cancelled`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `sync_collection` | [Sync collection lists](/commands/collection-sync/) with Archidekt in either direction. Reports progress and honours cancellation between lists (`report.cancelled`); asks the client (elicitation) which list loses an ambiguous removal when it can, and takes `removalAssignments` otherwise.                                                                                                                                                                                                                                                                                                                         |
+| `refresh_cache`   | Refresh the Scryfall card cache (bulk download + oracle/art tags). A failed download or ingest is now reported as a tool error rather than a silent success. Reports progress and honours cancellation (nothing is written; the previous cache stands). Does **not** touch the buylist — that is `refresh_buylist`.                                                                                                                                                                                                                                                                                                      |
 | `refresh_buylist` | Download the [Card Kingdom pricelist feed](/commands/sell/) (~70 MB) when the cached copy is stale (older than a day) or missing; `force: true` redownloads regardless. The sell tools read strictly from this cache. A failed download with a stale cache degrades: `refreshed: false` plus the failure in `warnings`. Needs [sell mode](#sell-tools-need-sell-mode).                                                                                                                                                                                                                                                   |
 
 `sync_decks` takes a `direction` (`pull` | `push`), an optional `decks` array (slugs or names; omit
@@ -643,8 +655,8 @@ compare every collection list), the same
 [`only`](/commands/collection-sync/#change-filter) filter, an optional `into`
 (the list a pull adds new cards to, created if missing — defaults to the
 [`collectionSync.pullTarget`](/configuration/#collection-sync) config key), an optional
-`removalPriority` array, an optional `csv` flag, and the same `dryRun` /
-`ignoreUnreadableLines` flags. Naming a subset of lists declares that those lists are what the
+`removalPriority` array or `removalAssignments` array (one or the other — see below), an optional
+`csv` flag, and the same `dryRun` / `ignoreUnreadableLines` flags. Naming a subset of lists declares that those lists are what the
 remote collection mirrors, so cards living only in unnamed lists read as absent — pair a subset run
 with `only: "additions"` when they are not the whole story.
 
@@ -669,18 +681,34 @@ not write files a caller names.
 [`--removal-priority`](/commands/collection-sync/#ambiguous-removals): collection list names **in
 priority order**, the only lists an [ambiguous removal](/commands/collection-sync/#ambiguous-removals)
 may take copies from. A removal is ambiguous when only _some_ of a printing's copies are going and
-they live in several lists — taking every copy, or copies held in a single list, never is. There is
-nobody to prompt over MCP, so a run that meets an ambiguous removal without a priority — or with one
-that cannot cover it — **fails and writes nothing at all**, naming the cards in `report.errors`. Ask
-the user which binders may lose cards rather than guessing at a priority.
+they live in several lists — taking every copy, or copies held in a single list, never is.
+`removalAssignments` is the other way to decide: an explicit
+`[{ key, choices: [{ list, copies }] }]` per ambiguous removal, naming the lists that lose copies
+and how many each gives up (`key` is the removal's key as `report.ambiguous` reports it). The two
+cannot be combined. Either one is validated against the ambiguity the run actually finds — a list
+holding no copies, or counts that do not add up — and a decision that does not cover a removal
+**fails the run and writes nothing at all**, naming the cards in `report.errors` and setting
+`report.unresolvedAmbiguity`.
+
+A run that meets an ambiguous removal with **neither** field set **asks the user** when it can. If
+the client declared the `elicitation` capability, the call returns an `input_required` result
+carrying one form per ambiguous removal — a bounded integer per list holding copies, "how many
+copies should each list give up?" — and the client's answers rerun the sync with them as
+`removalAssignments` (the SDK client fulfils the round trip on its own; a 2025-era client is served
+through the SDK's legacy shim as an `elicitation/create` request). A declined form leaves the
+ambiguity unresolved: the run reports it with `unresolvedAmbiguity: true`, and nothing is written.
+A client that declared no `elicitation` capability is never asked; it gets the same unresolved
+report, and the agent should ask the user which binders may lose cards and rerun with one of the
+two fields rather than guessing.
 
 It needs the same Archidekt login (`get_sync_status`'s `collection.archidekt.loginRequired` reports it;
 a login stored before the account id was recorded must be renewed), and it refuses a
 collection list with unreadable lines for the same reason — a pull rewrites the file, and a push
 treats the file as the truth, so those cards would be deleted from Archidekt. Its report adds
 `ambiguous` (every ambiguous removal, with the lists holding copies and how many each holds —
-reported whether a `removalPriority` placed them or the run failed on them),
-`totals.skipped` (what `only` left out), and `localIncomplete` — true when a list in scope
+reported whether a strategy placed them or the run failed on them), `unresolvedAmbiguity` (true
+when the run stopped on them, having written nothing), `totals.skipped` (what `only` left out), and
+`localIncomplete` — true when a list in scope
 did not make it into the comparison (an unresolvable name, an unreadable file, or one refused for
 unreadable lines). The local side is then short of cards it really holds, so the run withholds the
 changes that shortfall would have manufactured: a pull adds nothing (it would duplicate the missing

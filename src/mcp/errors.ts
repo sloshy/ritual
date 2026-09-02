@@ -1,5 +1,5 @@
 import { ProtocolError, ProtocolErrorCode } from '@modelcontextprotocol/server'
-import { CONFLICT_ERROR_CODE } from './error-codes'
+import { CANCELLED_ERROR_CODE, CONFLICT_ERROR_CODE } from './error-codes'
 
 /**
  * Structured detail Ritual attaches to a thrown `ProtocolError`.
@@ -66,6 +66,8 @@ export function apiErrorToMcp(
   if (body.conflict === true || status === 409) {
     return new ProtocolError(CONFLICT_ERROR_CODE, message, detail)
   }
+  // 499 is the status every admin route answers a cancelled request with.
+  if (status === 499) return new ProtocolError(CANCELLED_ERROR_CODE, message, detail)
   const code =
     status === 400 || status === 404
       ? ProtocolErrorCode.InvalidParams
@@ -76,4 +78,9 @@ export function apiErrorToMcp(
 /** True when the error is a lost optimistic-concurrency race, not a bad request. */
 export function isConflictError(error: unknown): boolean {
   return ProtocolError.isInstance(error) && error.code === CONFLICT_ERROR_CODE
+}
+
+/** True when the error is the caller's own cancellation reaching back up. */
+export function isCancelledError(error: unknown): boolean {
+  return ProtocolError.isInstance(error) && error.code === CANCELLED_ERROR_CODE
 }

@@ -348,11 +348,14 @@ ${wrapProse(
 
 ${wrapProse(
   '**Anywhere else** — `--output json`/`ndjson`, a pipe, `--no-input`, the ' +
-    'admin site, or the MCP tool without `removalPriority` — the run **fails ' +
+    'admin site, or an MCP client that cannot be asked — the run **fails ' +
     'and writes nothing** — not even the account’s `lastSynced` — with the ' +
-    'reason in the report’s `errors`; the report’s `ambiguous` array carries ' +
-    'every ambiguity the planner found, placed or not, so `errors` is what says ' +
-    'the run failed. `--dry-run` never prompts and never fails on an ambiguity ' +
+    'reason in the report’s `errors` and `unresolvedAmbiguity: true`; the ' +
+    'report’s `ambiguous` array carries every ambiguity the planner found, ' +
+    'placed or not, so the flag is what says the run failed on them. (The MCP ' +
+    '`sync_collection` tool asks the user through an elicitation when its client ' +
+    'supports one, and takes an explicit `removalAssignments` decision otherwise.) ' +
+    '`--dry-run` never prompts and never fails on an ambiguity ' +
     'itself (an unknown `--removal-priority` name still fails it): it reports ' +
     'each one, and how a given priority would place it. Other ways out: ' +
     'scope the run to the one list, or `--only additions` to skip removals.',
@@ -401,9 +404,12 @@ ${wrapProse(
   "The same sync runs from the admin site's **Sync Collection** page (see the " +
     '**ritual-site** skill) and from the MCP `sync_collection` tool, whose ' +
     '`direction`, `lists`, `only`, `into`, `removalPriority`, `csv`, `dryRun`, ' +
-    'and `ignoreUnreadableLines` fields are these flags. Neither can prompt, so ' +
-    'both fail an ambiguous removal unless the run carries a removal priority, ' +
-    'and both refuse a large push that was not given `csv: true`.',
+    'and `ignoreUnreadableLines` fields are these flags. The admin page cannot ' +
+    'prompt, so it fails an ambiguous removal unless the run carries a removal ' +
+    'priority; the MCP tool asks the user through an elicitation when its client ' +
+    'declares the capability, and otherwise takes the decision up front as ' +
+    '`removalPriority` or an explicit `removalAssignments` list (one or the ' +
+    'other). Both refuse a large push that was not given `csv: true`.',
 )}
 
 ## Price

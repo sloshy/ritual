@@ -1,13 +1,16 @@
-import { CardCommandError, ExitCode, getErrorMessage } from '../util/errors'
+import { CardCommandError, ExitCode, getErrorMessage, isCancellation } from '../util/errors'
 
 /**
  * HTTP status for an error that reached the top of a handler. A
  * {@link CardCommandError} classifies itself — a client-correctable refusal
  * (e.g. an import conflict that needs `overwrite`) is a 400 or 404, not the 500
  * every unexpected throw gets — so the admin UI and the MCP tools that share
- * these handlers can tell "you asked wrong" from "the server broke".
+ * these handlers can tell "you asked wrong" from "the server broke". A
+ * cancellation is neither: it answers 499 (the client closed the request), the
+ * status the site build already used for the same outcome.
  */
 function statusForError(error: unknown): number {
+  if (isCancellation(error)) return 499
   if (!(error instanceof CardCommandError)) return 500
   if (error.exitCode === ExitCode.NotFound) return 404
   if (error.exitCode === ExitCode.UsageError) return 400

@@ -180,6 +180,7 @@ export const domainMessages = {
   'domain.sync.collectionFetched':
     'Archidekt collection: {records} covering {printings}, fetched in {elapsed}.',
   'domain.sync.comparing': 'Comparing the collection against the local lists...',
+  'domain.sync.cancelled': 'Cancelled: {items} not synced.',
 
   // ── Site navigation ───────────────────────────────────────────────────
   //

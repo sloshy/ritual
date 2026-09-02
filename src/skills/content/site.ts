@@ -460,6 +460,14 @@ would delete them) and shown with a "Sync anyway" confirmation. Same operation a
 \`ritual deck-sync\` (see the **ritual-decks** skill) and the MCP
 \`get_sync_status\` / \`sync_decks\` tools.
 
+The admin's **Build Site** page runs the same build as \`ritual build-site\`, as a
+child process so the server stays responsive, and publishes atomically — a failed
+or interrupted build never replaces the live \`dist/\`. It streams the build as it
+runs: a progress bar over four structural steps (starting, building, publishing,
+done) and a live log of the build's own output, falling back to one plain request
+when the event stream cannot be opened. A second build while one is running is
+refused. The MCP \`build_site\` tool is the same operation.
+
 The admin's **Sync Collection** page is its counterpart for collections, running
 \`ritual collection-sync\`: pick a direction, scope the run to the whole
 collection or to selected lists, narrow it to additions or removals only, and

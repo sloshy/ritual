@@ -109,6 +109,58 @@ export type SyncLogLevel = 'info' | 'warn' | 'error'
 export type SyncItemStatus = 'synced' | 'failed' | 'skipped'
 
 /**
+ * The `reason` a skipped item carries when the run was cancelled before that
+ * item started.
+ *
+ * Both engines honour cancellation at **item boundaries only**: the item in
+ * flight finishes (a deck is never half-pushed, a list never half-written), and
+ * every item after it is reported skipped with this reason rather than left out
+ * of the report. Cancelling is not a failure, so `failedCount` never counts it.
+ */
+export const SYNC_CANCELLED_REASON = 'cancelled before it started'
+
+/** The status-and-reason shape every engine's per-item result shares. */
+export type SyncItemOutcome = { status: SyncItemStatus; reason?: string }
+
+/**
+ * Items a cancellation never reached: skipped, but not "nothing to do" — a
+ * summary counts them apart from ordinary skips.
+ */
+export function countUnstartedItems(items: readonly SyncItemOutcome[]): number {
+  return items.filter((item) => item.status === 'skipped' && item.reason === SYNC_CANCELLED_REASON)
+    .length
+}
+
+/** The run-level log line a cancelled run ends on; assignable to any {@link SyncEvent}. */
+export type SyncCancellationLog = {
+  kind: 'log'
+  level: 'warn'
+  item: null
+  message: string
+}
+
+/** Keys only, resolved at call time — see {@link SKIPPED_MESSAGE}. */
+const UNSTARTED_COUNT = {
+  deck: 'domain.count.decks',
+  collection: 'domain.count.collectionLists',
+} as const satisfies Record<SyncSubjectKind, MessageKey>
+
+/**
+ * The run-level warning a cancelled run ends on, counting what it left
+ * unsynced in the engine's own noun. The plural comes from the catalog.
+ */
+export function syncCancellationLog(kind: SyncSubjectKind, remaining: number): SyncCancellationLog {
+  return {
+    kind: 'log',
+    level: 'warn',
+    item: null,
+    message: t('domain.sync.cancelled', {
+      items: t(UNSTARTED_COUNT[kind], { count: remaining }),
+    }),
+  }
+}
+
+/**
  * A file the parser could not fully read. Syncing re-serializes the file (a
  * pull) or reads it as the truth (a push), so every line listed in `warnings`
  * would be lost either locally or remotely — which is why both engines ask

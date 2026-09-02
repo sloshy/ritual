@@ -55,6 +55,12 @@ export type DeckSyncReport = {
    * the `unreadable-lines` event — can show what accepting would delete.
    */
   unreadable: UnreadableDeck[]
+  /**
+   * True when the caller cancelled the run before every deck had started. The
+   * decks it never reached are in {@link decks} as `skipped`; the ones it had
+   * finished are reported exactly as an uncancelled run would report them.
+   */
+  cancelled: boolean
 }
 
 export type DeckSyncLogLevel = SyncLogLevel
@@ -120,6 +126,13 @@ export type DeckSyncOptions = {
   confirmUnreadable?: ConfirmUnreadable
   /** Injectable for tests; a fresh {@link ArchidektClient} by default. */
   client?: ArchidektClient
+  /**
+   * Cancel the run. Honoured at deck boundaries only: the deck in flight
+   * finishes, every deck after it is reported `skipped` with
+   * `SYNC_CANCELLED_REASON`, and the report's `cancelled` flag is set. Nothing
+   * is ever left half-synced, which is what makes a cancelled run safe to rerun.
+   */
+  signal?: AbortSignal
 }
 
 export type DeckSyncRun = {
@@ -150,8 +163,12 @@ export type DeckTarget = {
   sourceId: string
 }
 
-/** The per-deck half of a run: results plus the files it wrote. */
-export type SyncOutcome = { decks: DeckSyncDeckResult[]; writtenFiles: string[] }
+/** The per-deck half of a run: results plus the files it wrote, and whether it was cut short. */
+export type SyncOutcome = {
+  decks: DeckSyncDeckResult[]
+  writtenFiles: string[]
+  cancelled: boolean
+}
 
 /** Everything a direction's flow needs beyond the decks it was handed. */
 export type SyncFlow = {
@@ -165,4 +182,6 @@ export type SyncFlow = {
   /** Also sync each card's exact printing and finish. */
   syncPrintings: boolean
   emit: DeckSyncEventHandler
+  /** See {@link DeckSyncOptions.signal}. */
+  signal: AbortSignal | undefined
 }

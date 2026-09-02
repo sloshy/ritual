@@ -13,7 +13,7 @@ import { getCardPrice, getPriceField } from '../pricing/price-currency'
 import { getBannedPrintings } from '../config/ritual-config'
 import { displayLanguage, type CardLanguage } from '../card/card-language'
 import { getLogger } from '../util/logger'
-import { getErrorMessage, throwHttpError } from '../util/errors'
+import { CancelledError, getErrorMessage, isAbortError, throwHttpError } from '../util/errors'
 import path from 'node:path'
 import {
   type CardNameFilter,
@@ -935,7 +935,11 @@ export class ScryfallClient implements PricingBackend {
    */
   private async downloadBulkCards(options?: PreloadCacheOptions): Promise<void> {
     const onProgress: CacheRefreshProgressHandler = options?.onProgress ?? ((): void => {})
+    const signal = options?.signal
 
+    // Checked before each network step, and threaded into the bulk download
+    // itself so an abort mid-file stops the transfer rather than draining it.
+    throwIfCancelled(signal)
     const bulkType = configuredCardBulkType()
     getLogger().info('Fetching bulk data metadata from Scryfall...')
     onProgress({ stage: 'metadata', message: 'Fetching bulk data metadata from Scryfall…' })
@@ -947,13 +951,15 @@ export class ScryfallClient implements PricingBackend {
     }
 
     // Download tags up front so they can be baked onto each card as it streams in.
+    throwIfCancelled(signal)
     onProgress({ stage: 'tags', message: 'Downloading oracle/art tags…' })
     const tagIndex = await this.downloadTagIndex()
 
     const bulkUrl = bulkEntry.jsonl_download_uri
     getLogger().info(`Bulk URL: ${bulkUrl}`)
 
-    const response = await this.http.fetch(bulkUrl)
+    throwIfCancelled(signal)
+    const response = await this.http.fetch(bulkUrl, signal ? { signal } : undefined)
     if (!response.ok) throwHttpError(response, 'Failed to fetch bulk data')
     if (!response.body) throw new Error('Bulk data response has no body')
 
@@ -1018,23 +1024,34 @@ export class ScryfallClient implements PricingBackend {
       'art-series': 0,
     }
     let malformedCount = 0
-    for await (const item of readGzipJsonLines(body, onProgress)) {
-      // Guard the minimum shape mapScryfallCard dereferences, so one malformed
-      // line skips that entry instead of aborting the whole multi-GB ingestion.
-      if (!isBulkCardEntry(item)) {
-        malformedCount++
-        continue
-      }
-      const exclusion = classifyExcludedPrinting(item)
-      if (exclusion) {
-        excluded[exclusion]++
-        continue
-      }
+    const signal = options?.signal
+    try {
+      for await (const item of readGzipJsonLines(body, onProgress)) {
+        // Cancellation lands here as well as on the aborted fetch below: a body
+        // that was already buffered keeps yielding after the abort.
+        throwIfCancelled(signal)
+        // Guard the minimum shape mapScryfallCard dereferences, so one malformed
+        // line skips that entry instead of aborting the whole multi-GB ingestion.
+        if (!isBulkCardEntry(item)) {
+          malformedCount++
+          continue
+        }
+        const exclusion = classifyExcludedPrinting(item)
+        if (exclusion) {
+          excluded[exclusion]++
+          continue
+        }
 
-      const card = mapScryfallCard(item)
-      if (tagIndex) attachTags(card, tagIndex)
-      ;(entries[card.name] ??= []).push(card)
-      cardCount++
+        const card = mapScryfallCard(item)
+        if (tagIndex) attachTags(card, tagIndex)
+        ;(entries[card.name] ??= []).push(card)
+        cardCount++
+      }
+    } catch (error: unknown) {
+      // The aborted download surfaces as the stream's own AbortError; report it
+      // as the cancellation it is rather than as a download failure.
+      if (isAbortError(error)) throw cancelledRefresh()
+      throw error
     }
     getLogger().progress('\n')
 
@@ -1049,6 +1066,9 @@ export class ScryfallClient implements PricingBackend {
     }
     getLogger().info(`Processed ${cardCount} cards.`)
 
+    // The last point a cancellation is honoured: the save that follows replaces
+    // the cache atomically, so once it starts the refresh is allowed to finish.
+    throwIfCancelled(signal)
     getLogger().info('Saving to cache...')
     report({ stage: 'save', message: 'Saving to cache…' })
     await this.flushCardEntries(entries)
@@ -1080,6 +1100,18 @@ export class ScryfallClient implements PricingBackend {
       getLogger().info('Done! Card cache populated from downloaded artifacts.')
     })
   }
+}
+
+/** The error a cancelled refresh throws; the message says what was left behind. */
+function cancelledRefresh(): CancelledError {
+  return new CancelledError(
+    'The cache refresh was cancelled; the existing card cache was left as it was.',
+  )
+}
+
+/** Stop a refresh at a safe point when its caller has cancelled it. */
+function throwIfCancelled(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw cancelledRefresh()
 }
 
 /** Local paths of the three bulk artifacts {@link ScryfallClient.preloadCacheFromFiles} ingests. */

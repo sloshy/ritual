@@ -20,6 +20,7 @@ function report(decks: DeckSyncDeckResult[]): DeckSyncReport {
     decks,
     failedCount: decks.filter((deck) => deck.status === 'failed').length,
     unreadable: [],
+    cancelled: false,
   }
 }
 

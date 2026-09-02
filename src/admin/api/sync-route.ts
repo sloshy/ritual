@@ -52,9 +52,15 @@ export type SyncRouteConfig<TRequest, TReport, TResult> = {
   parseBody: (value: unknown) => TRequest | string
   /** Validate the query string an `EventSource` opens the stream with. */
   parseQuery: (params: URLSearchParams) => TRequest | string
+  /**
+   * Run the sync. `signal` is an in-process caller's cancellation (the MCP
+   * adapter's); the engines honour it at item boundaries and report what they
+   * never reached as skipped, so a cancelled run still answers with a report.
+   */
   perform: (
     request: TRequest,
     onEvent?: SyncEventHandler<TResult>,
+    signal?: AbortSignal,
   ) => Promise<SyncRunOutcome<TReport>>
   /** The finished run as keyed clauses; the request carries what the summary needs. */
   summarize: (report: TReport, request: TRequest) => SyncSummary
@@ -99,11 +105,19 @@ function progressMapping<TResult>(sink: RouteProgressSink): SyncProgressMapping<
   }
 }
 
-/** `POST /api/{deck,collection}-sync`: validate the body, run, and report. */
+/**
+ * `POST /api/{deck,collection}-sync`: validate the body, run, and report.
+ *
+ * `signal` cancels the run between items (see {@link SyncRouteConfig.perform});
+ * the response is then the ordinary report with its `cancelled` flag set, not
+ * an error — the items already synced are real and the caller needs to see
+ * them.
+ */
 export function runSyncRoute<TRequest, TReport, TResult>(
   req: Request,
   onProgress: RouteProgressSink | undefined,
   config: SyncRouteConfig<TRequest, TReport, TResult>,
+  signal?: AbortSignal,
 ): Promise<Response> {
   return apiHandler(async () => {
     const parsedBody = await readJsonObjectBody(req)
@@ -115,7 +129,7 @@ export function runSyncRoute<TRequest, TReport, TResult>(
     if (typeof parsed === 'string') return refused<TReport>({ message: parsed }, 400)
 
     const mapping = onProgress === undefined ? undefined : progressMapping<TResult>(onProgress)
-    const outcome = await config.perform(parsed, mapping?.onEvent)
+    const outcome = await config.perform(parsed, mapping?.onEvent, signal)
     if (!outcome.ok) return refused<TReport>(outcome, outcome.status, outcome.loginRequired)
 
     const summary = config.summarize(outcome.report, parsed)

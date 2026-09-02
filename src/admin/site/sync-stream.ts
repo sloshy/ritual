@@ -1,8 +1,9 @@
 /**
- * The server-sent event driver behind the sync pages.
+ * The server-sent event driver behind the long-running pages: the two syncs
+ * and the site build.
  *
- * Both sync endpoints stream a run the same way — `progress` frames, then a
- * single `done` or `error` — and both pages have to cope with the same two
+ * Every such endpoint streams a run the same way — `progress` frames, then a
+ * single `done` or `error` — and every page has to cope with the same two
  * connection failures, which are told apart only by whether a frame has already
  * arrived: a stream that never connected (a proxy that buffers server-sent
  * events) can be retried as a plain request, while one that dropped mid-run has

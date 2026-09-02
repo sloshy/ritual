@@ -160,9 +160,18 @@ export async function mockConfigApi(
 }
 
 /**
- * Mock the build-site API endpoint
+ * Mock the build-site stream, plus the POST fallback endpoint the page retries
+ * over when the stream never connects. Events are driven from the test via
+ * {@link emitStreamEvent}.
  */
-export async function mockBuildSiteApi(page: Page): Promise<void> {
+export type BuildSiteMocks = {
+  /** How many times the plain `POST /api/build-site` fallback was issued. */
+  postedBuilds: () => number
+}
+
+export async function mockBuildSiteApi(page: Page): Promise<BuildSiteMocks> {
+  await installMockEventSource(page)
+  let posted = 0
   // Typed against the real response so a widened body (this one grew `outDir`
   // and `durationMs`) cannot leave the mock behind, telling the UI a shape the
   // server no longer sends.
@@ -175,7 +184,16 @@ export async function mockBuildSiteApi(page: Page): Promise<void> {
     outDir: '/tmp/ritual-e2e/dist',
     durationMs: 1234,
   }
-  await fulfillJson(page, '**/api/build-site', body)
+  await fulfillJson(
+    page,
+    '**/api/build-site',
+    () => {
+      posted++
+      return body
+    },
+    { method: 'POST' },
+  )
+  return { postedBuilds: () => posted }
 }
 
 /**
@@ -523,6 +541,7 @@ export async function mockDeckSyncApi(
           decks: currentDecks.map((deck) => ({ name: deck.name, status: 'synced' })),
           failedCount: 0,
           unreadable: currentUnreadable,
+          cancelled: false,
         },
       }
     },
@@ -665,6 +684,9 @@ export async function mockCollectionSyncApi(
           failedCount: 0,
           errors: currentErrors,
           unreadable: currentUnreadable,
+          cancelled: false,
+          // As the engine reports it: a run that stopped on the ambiguity it found.
+          unresolvedAmbiguity: currentAmbiguous.length > 0 && currentErrors.length > 0,
           ambiguous: currentAmbiguous,
           localIncomplete: false,
           csv: currentCsv,

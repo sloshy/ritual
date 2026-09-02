@@ -52,6 +52,7 @@ import {
   type SyncFlow,
   type FlowOutcome,
   abortedOutcome,
+  markCancelled,
 } from './types'
 import { pullFromArchidekt, validatePullDestinations } from './pull'
 import { pushToArchidekt } from './push'
@@ -127,6 +128,8 @@ export async function runCollectionSync(
         localIncomplete: !loaded.complete,
         csv: outcome.csv,
         totals: outcome.totals,
+        cancelled: outcome.cancelled,
+        unresolvedAmbiguity: outcome.unresolvedAmbiguity,
       },
       writtenFiles: outcome.writtenFiles,
     }
@@ -212,6 +215,19 @@ export async function runCollectionSync(
     }
   }
 
+  // A call cancelled before the run got this far skips the remote fetch — the
+  // longest step of a run — and reports every in-scope list as never started.
+  if (options.signal?.aborted) {
+    return report(
+      cancelledBeforeApplying(
+        loaded.lists.map((list) => list.name),
+        emit,
+        results,
+      ),
+      loaded,
+    )
+  }
+
   progress(t('domain.sync.fetchingCollection'))
   const fetchStartedAt = Date.now()
   const fetched = await fetchCollection(client, userId, token, (fetchedPage) => {
@@ -264,6 +280,7 @@ export async function runCollectionSync(
     lookupByScryfallId,
     writeCsv: options.writeCsv ?? writeCsvFile,
     localComplete: loaded.complete,
+    signal: options.signal,
   }
   const names = loaded.lists.map((list) => list.name)
   const outcome =
@@ -274,8 +291,10 @@ export async function runCollectionSync(
   // 5. Record when the account last synced. A dry run changed nothing, and
   //    neither did a run that aborted before applying anything — stamping the
   //    state file for either would have the status page and
-  //    `get_sync_status` report a sync that wrote nothing at all.
-  if (!dryRun && !outcome.aborted) {
+  //    `get_sync_status` report a sync that wrote nothing at all. A cancelled
+  //    run is not stamped either: the stamp means "the lists and the account
+  //    agreed at this time", which a run cut short cannot claim.
+  if (!dryRun && !outcome.aborted && !outcome.cancelled) {
     try {
       await stateStore.write({
         lastSynced: new Date().toISOString(),
@@ -293,6 +312,19 @@ export async function runCollectionSync(
   }
 
   return report(outcome, loaded)
+}
+
+/**
+ * The outcome of a run cancelled before it applied anything: every list named
+ * is reported skipped, nothing was written, and the flag says why.
+ */
+function cancelledBeforeApplying(
+  names: readonly string[],
+  emit: CollectionSyncEventHandler,
+  results: ListResults,
+): FlowOutcome {
+  markCancelled(names, emit, results)
+  return { ...abortedOutcome([]), aborted: false, cancelled: true }
 }
 
 // ── Scope and loading ─────────────────────────────────────────────────

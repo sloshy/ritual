@@ -12,6 +12,7 @@ import { loadDictionary, resetI18nRuntime } from '../../../src/i18n/runtime'
 import { tDynamic, type TranslateDynamicFn } from '../../../src/i18n/t'
 import type { LocaleCatalog, LocaleTag } from '../../../src/i18n/types'
 import { localeTag } from '../../../src/i18n/locale-tag'
+import { SYNC_CANCELLED_REASON } from '../../../src/sync/common'
 
 /**
  * A sync run's summary has no single catalog key — it is a list of clauses — so
@@ -97,6 +98,7 @@ describe('summarizeRun', () => {
       ],
       failedCount: 1,
       unreadable: [],
+      cancelled: false,
     }
   }
 
@@ -109,12 +111,64 @@ describe('summarizeRun', () => {
       failedCount: 0,
       errors: ['Archidekt returned 500'],
       unreadable: [],
+      cancelled: false,
+      unresolvedAmbiguity: false,
       ambiguous: [],
       localIncomplete: false,
       csv: null,
       totals: { added: 2, removed: 1, skipped: 0, pending: 0 },
     }
   }
+
+  test('a cancelled deck run says how many decks never started, apart from ordinary skips', () => {
+    const report: DeckSyncReport = {
+      ...deckReport(),
+      decks: [
+        { name: 'Burn', status: 'synced' },
+        { name: 'Elves', status: 'skipped', reason: 'you do not own Archidekt deck 1' },
+        { name: 'Storm', status: 'skipped', reason: SYNC_CANCELLED_REASON },
+        { name: 'Tron', status: 'skipped', reason: SYNC_CANCELLED_REASON },
+      ],
+      failedCount: 0,
+      cancelled: true,
+    }
+    const summary = summarizeDeckRun(report, false)
+    expect(summary.clauses.map((clause) => clause.messageKey)).toEqual([
+      'admin.api.deckSync.pulled',
+      'admin.api.deckSync.skipped',
+      'admin.api.deckSync.cancelled',
+    ])
+    expect(renderSyncSummaryEnglish(summary)).toBe(
+      'Pulled 1 deck, 1 skipped, cancelled with 2 decks not started.',
+    )
+  })
+
+  test('a cancelled collection run ends on the lists it never started', () => {
+    const report: CollectionSyncReport = {
+      ...collectionReport(),
+      lists: [
+        { name: 'Binder', status: 'synced', added: 2, removed: 1, pending: 0 },
+        {
+          name: 'Long Box',
+          status: 'skipped',
+          reason: SYNC_CANCELLED_REASON,
+          added: 0,
+          removed: 0,
+          pending: 0,
+        },
+      ],
+      errors: [],
+      cancelled: true,
+    }
+    const summary = summarizeCollectionRun(report)
+    expect(summary.clauses.map((clause) => clause.messageKey)).toEqual([
+      'admin.api.collectionSync.totalsInto',
+      'admin.api.collectionSync.cancelled',
+    ])
+    expect(renderSyncSummaryEnglish(summary)).toBe(
+      'Pulled +2 added, -1 removed into "Inbox", cancelled with 1 list not started.',
+    )
+  })
 
   test('a deck run yields one keyed clause per fact, none terminated', () => {
     const summary = summarizeDeckRun(deckReport(), false)
